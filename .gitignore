@@ -1,0 +1,257 @@
+# ============================================================
+# TypeScript / React / Node.js
+# ============================================================
+
+# Dependencies
+node_modules/
+jspm_packages/
+
+# Package manager caches
+.npm/
+.pnpm-store/
+
+# Yarn
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+.pnp.*
+.yarn-integrity
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# TypeScript
+*.tsbuildinfo
+
+# Test coverage
+coverage/
+.nyc_output/
+*.lcov
+
+# Build output
+dist/
+build/
+out/
+
+# Vite
+.vite/
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+
+# Next.js
+.next/
+
+# Parcel
+.cache/
+.parcel-cache/
+
+# Other generated frontend files
+web_modules/
+
+
+# ============================================================
+# Environment / Secrets
+# ============================================================
+
+.env
+.env.*
+!.env.example
+
+# Local overrides
+*.local
+
+
+# ============================================================
+# C# / .NET
+# ============================================================
+
+# Build results
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+[Aa]rtifacts/
+.artifacts/
+
+# Architecture-specific build output
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+[Aa][Rr][Mm]64[Ee][Cc]/
+[Ww][Ii][Nn]32/
+
+# Visual Studio
+.vs/
+
+# Visual Studio user-specific files
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# MonoDevelop / Xamarin
+*.userprefs
+mono_crash.*
+
+# .NET Core
+project.lock.json
+project.fragment.lock.json
+
+# Build / compiler files
+*.obj
+*.iobj
+*.pdb
+*.ipdb
+*.ilk
+*.pch
+*.pgc
+*.pgd
+*.rsp
+!Directory.Build.rsp
+*.tlog
+*.tmp
+*.tmp_proj
+*_wpftmp.csproj
+
+# Generated files
+Generated Files/
+
+# NuGet
+*.nupkg
+*.snupkg
+
+# NuGet package restore
+packages/
+!packages/build/
+!packages/repositories.config
+
+# Publish output
+publish/
+*.publish.xml
+*.azurePubxml
+*.pubxml
+*.publishproj
+PublishScripts/
+
+# ASP.NET scaffolding
+ScaffoldingReadMe.txt
+
+# BenchmarkDotNet
+BenchmarkDotNet.Artifacts/
+
+
+# ============================================================
+# Tests / Coverage
+# ============================================================
+
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+*.trx
+
+# NUnit
+*.VisualState.xml
+TestResult.xml
+nunit-*.xml
+
+# ApprovalTests
+*.received.*
+
+# .NET coverage
+coverage*.json
+coverage*.xml
+coverage*.info
+*.coverage
+*.coveragexml
+
+# ReSharper / JetBrains test tools
+_ReSharper*/
+*.[Rr]e[Ss]harper
+*.DotSettings.user
+
+# NCrunch
+_NCrunch_*
+.NCrunch_*
+.*crunch*.local.xml
+nCrunchTemp_*
+
+# dotCover
+*.dotCover
+
+
+# ============================================================
+# IDEs / Editors
+# ============================================================
+
+# JetBrains Rider / IntelliJ
+.idea/
+
+# VS Code
+# Keep this commented if your team commits shared VS Code settings.
+# .vscode/
+
+
+# ============================================================
+# Operating System
+# ============================================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+
+
+# ============================================================
+# Miscellaneous
+# ============================================================
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+
+# ESLint / Stylelint
+.eslintcache
+.stylelintcache
+
+# Sass
+.sass-cache/
+
+# Package archives
+*.tgz
+
+# Personal Docs
+docs/personal/
+
+# Instructions for Agentic Coding
+AGENTS.md
+CLAUDE.md
