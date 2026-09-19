@@ -37,8 +37,7 @@ function validateObject(
     return fields;
   }
 
-  // ID spelling and asset lookup come in the next phase
-  // For now each saved text field must actually contain a string
+  // Read the text here; validateProject handles UUIDs and asset references
   const id = readText(raw.id, `${path}.id`, budget);
   if (!id.ok) {
     return id;
@@ -122,7 +121,7 @@ function validateScene(
 }
 
 // Structure check for already-parsed data
-// ID uniqueness and registry references still need checking before accepting a project
+// Use validateProject to include ID and asset-reference checks
 // The future file reader must also limit file bytes before parsing
 export function validateProjectStructure(raw: unknown): ValidationResult<ProjectDocument> {
   if (!isRecord(raw)) {
