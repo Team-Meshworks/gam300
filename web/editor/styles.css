@@ -2,7 +2,7 @@
   font-family: system-ui, sans-serif;
   line-height: 1.5;
   color: #172033;
-  background: #f5f7fa;
+  background: #111827;
   font-synthesis: none;
 }
 
@@ -12,7 +12,32 @@ body {
 }
 
 main {
-  max-width: 64rem;
-  margin-inline: auto;
-  padding: 2rem;
+  position: fixed;
+  top: 1rem;
+  left: 1rem;
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  background: rgba(17, 24, 39, 0.6);
+  color: #f5f7fa;
+  backdrop-filter: blur(4px);
+  z-index: 1;
+}
+
+main h1 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+main p {
+  margin: 0;
+  font-size: 0.75rem;
+  opacity: 0.75;
+}
+
+canvas {
+  position: fixed;
+  inset: 0;
+  display: block;
+  z-index: 0;
 }
