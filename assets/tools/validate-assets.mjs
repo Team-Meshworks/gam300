@@ -2,8 +2,14 @@ import { readFile, realpath } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
 
 const assetsRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+// Resolve the validator from the existing web package
+const requireFromWeb = createRequire(
+  resolve(assetsRoot, "../web/package.json"),
+);
+const { validateBytes } = requireFromWeb("gltf-validator");
 const manifestPath = process.argv[2] ? resolve(process.argv[2]) : resolve(assetsRoot, "manifest.json");
 let errors = 0;
 let warnings = 0;
@@ -34,6 +40,24 @@ try {
       if (!asset.license || typeof asset.license.provenance !== "string" || !asset.license.provenance.trim()) throw new Error("missing provenance");
       if (asset.license.status !== "approved") warn(`${label}: distribution licence not confirmed`);
       const bytes = await assetFile(asset.file);
+      const report = await validateBytes(new Uint8Array(bytes), {
+  uri: asset.file,
+  maxIssues: 100,
+});
+
+for (const issue of report.issues.messages) {
+  const message = `${label}: ${issue.code}: ${issue.message}`;
+
+  if (issue.severity === 0) {
+    error(message);
+  } else if (issue.severity === 1) {
+    warn(message);
+  }
+}
+
+if (report.issues.numErrors > 0) {
+  continue;
+}
       if (!asset.file.endsWith(".glb")) throw new Error("expected a .glb file");
       if (!Number.isSafeInteger(asset.byteSize) || asset.byteSize !== bytes.length) throw new Error("byteSize differs from file");
       const hash = createHash("sha256").update(bytes).digest("hex");
@@ -55,5 +79,7 @@ try {
     } catch (failure) { error(`${label}: ${failure.message}`); }
   }
 } catch (failure) { error(failure.message); }
-console.log(`Baseline validation: ${errors} error(s), ${warnings} warning(s). Not a full glTF or visual validation.`);
+console.log(
+  `Asset validation: ${errors} error(s), ${warnings} warning(s). Browser visual verification is still required.`,
+);
 process.exitCode = errors ? 1 : 0;

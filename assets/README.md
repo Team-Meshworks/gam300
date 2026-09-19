@@ -12,4 +12,10 @@ The validator checks required baseline metadata, unique IDs, file containment/ex
 
 Outstanding: real thumbnails, confirmed distribution rights, complete GLB validation, measured bounds/pivots, environment walkPlaneY/eyeHeight/walk rectangles, browser rendering and agreed size/extension limits. Null thumbnails and pending rights produce warnings. Bounds are descriptive metadata in this draft, not yet automatically validated.  Do not fabricate metadata or silently update hashes when files change: new delivery versions require new asset IDs.
 
+## Manual validation
+
+Both test-room.glb and test-crate.glb passed the Khronos glTF
+Validator
+
 Other GLBs in delivery/ are intentionally not catalogued until provenance and approval are known. Original files are untouched. A .blend1 file is a Blender backup, not a required delivery asset.
+
