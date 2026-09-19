@@ -1,10 +1,9 @@
 import type { CameraPose, QuaternionTuple, Transform, Vector3Tuple } from "./project-types";
 
-// Check ok before reading value
-// Failed checks carry the field path for import feedback later
-export type ValidationResult<T> =
-  | { readonly ok: true; readonly value: T }
-  | { readonly ok: false; readonly error: { readonly path: string; readonly message: string } };
+import { checkFields, invalid, isRecord } from "./validation-helpers";
+import type { ValidationResult } from "./validation-helpers";
+
+export type { ValidationResult } from "./validation-helpers";
 
 const MAX_POSITION_METRES = 10_000;
 const MIN_FOV_DEGREES = 30;
@@ -13,16 +12,6 @@ const MAX_FOV_DEGREES = 90;
 // Allow small rounding drift from rotation calculations
 // Anything further from unit length needs fixing at the source
 const QUATERNION_LENGTH_TOLERANCE = 0.000001;
-
-function invalid(path: string, message: string): ValidationResult<never> {
-  return { ok: false, error: { path, message } };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  // typeof also calls null and arrays objects
-  // Neither can hold a transform or camera record
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 function isFiniteNumber(value: unknown): value is number {
   // Reject numeric strings too; converting them would hide a malformed file
@@ -50,27 +39,6 @@ function isQuaternion(value: unknown): value is QuaternionTuple {
     isFiniteNumber(value[2]) &&
     isFiniteNumber(value[3])
   );
-}
-
-function checkFields(
-  record: Record<string, unknown>,
-  fields: readonly string[],
-  path: string,
-): ValidationResult<true> {
-  for (const field of fields) {
-    // Required values must belong to the record itself
-    // Inherited properties shouldn't fill gaps in imported data
-    if (!Object.hasOwn(record, field)) {
-      return invalid(`${path}.${field}`, "Required field is missing");
-    }
-  }
-  for (const field of Object.keys(record)) {
-    // Catch misspelled or unsupported fields before we discard anything
-    if (!fields.includes(field)) {
-      return invalid(`${path}.${field}`, "Unknown field");
-    }
-  }
-  return { ok: true, value: true };
 }
 
 function validatePosition(raw: unknown, path: string): ValidationResult<Vector3Tuple> {
