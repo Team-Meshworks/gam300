@@ -17,5 +17,13 @@ Outstanding: real thumbnails, confirmed distribution rights, complete GLB valida
 Both test-room.glb and test-crate.glb passed the Khronos glTF
 Validator
 
+## Validation checks performed
+
+- Room and crate pass manifest and Khronos glTF validation.
+- A temporary truncated crate GLB was rejected with
+  GLB_UNEXPECTED_END_OF_CHUNK_DATA.
+- Temporary test files were removed.
+- Licence approval and browser visual verification remain pending.
+
 Other GLBs in delivery/ are intentionally not catalogued until provenance and approval are known. Original files are untouched. A .blend1 file is a Blender backup, not a required delivery asset.
 
