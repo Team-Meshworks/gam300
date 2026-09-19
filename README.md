@@ -1,4 +1,4 @@
-# VThere
+# VThere Spatial Experience Editor
 
 Spatial experience editor.
 
@@ -39,6 +39,41 @@ npm run dev
 
 Vite serves the editor at http://localhost:5173/ with hot reload.
 
+## Current editor behavior
+
+The asset library shows a thumbnail rendered from the existing snow-globe model. Drag it
+onto the scene's ground grid, or click/press Enter to add it at the center. Each placement
+creates one object with a stable ID and one undo step. Select objects through the scene
+or its object list; Undo/Redo preserve identity and ordering. Escape or a drop outside
+the scene cancels placement. Errors offer Retry, and the interface respects reduced motion.
+
+This is an in-memory authoring slice. Changes are not saved; the header reports that and
+leaving the page with placed objects triggers the browser's unsaved-work prompt. The full
+project format, approved asset registry, custom movement and persistence remain unfinished.
+Picking currently uses object bounds; full mesh picking and camera navigation are still
+part of viewport work. Import/export controls will appear when those features work.
+
+Run the small document/creation-history check from `web/`:
+
+```powershell
+node editor/document-store.test.mjs
+```
+
+With the dev server running, use an existing Playwright installation with Chromium:
+
+```powershell
+cd web
+# Omit this variable if Playwright is already resolvable from web/
+$env:PLAYWRIGHT_MODULE = 'C:\path\to\node_modules\playwright\index.mjs'
+node tests/editor-shell.smoke.mjs
+```
+
+The check covers thumbnails, keyboard and drag placement, shared selection, undo/redo,
+cancellation, rejection of unknown drops, layout at 1366, 1024, 760 and 320 CSS pixels,
+reduced motion, one canvas under Strict Mode, failed asset loading/retry and WebGL fallback.
+Pass a different server URL as the first argument. This uses external browser-test tooling;
+Playwright is not a project dependency or a configured CI job yet.
+
 ## Common scripts
 
 All commands run from `web/`.
@@ -58,6 +93,7 @@ All commands run from `web/`.
 ```
 web/
   editor/          Vite root: index.html, main.tsx, App.tsx, styles.css
+  shared/          Plain object types and the existing sample asset descriptor
   vite.config.ts   Rooted at ./editor; builds to ../dist/editor
   tsconfig*.json
   eslint.config.js
