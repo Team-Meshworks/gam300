@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "projectId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+  "title": "Crate layout",
+  "scenes": [
+    {
+      "id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      "name": "Room",
+      "environmentAssetId": "test-room-v1",
+      "startCamera": {
+        "position": [0, 1.6, 5],
+        "rotation": [0, 0, 0, 1],
+        "fovDegrees": 60
+      },
+      "objects": [
+        {
+          "id": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+          "name": "First crate",
+          "assetId": "test-crate-v1",
+          "transform": {
+            "position": [1.123456789012345, 0, -2],
+            "rotation": [0, 0.6, 0, 0.8],
+            "scale": [1, 2.123456789012345, 1]
+          }
+        },
+        {
+          "id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "name": "Second crate",
+          "assetId": "test-crate-v1",
+          "transform": {
+            "position": [-1, 0, 2],
+            "rotation": [0, 0, 0, 1],
+            "scale": [1, 1, 1]
+          }
+        }
+      ]
+    }
+  ]
+}
