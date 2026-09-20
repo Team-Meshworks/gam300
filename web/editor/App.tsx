@@ -1,15 +1,21 @@
-import { useEffect, useState, useSyncExternalStore } from "react";
-import { assetDragType, sampleAsset } from "../shared/assets/sample-asset";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { assets } from "virtual:asset-catalogue";
+import { assetDragType } from "../shared/assets/catalogue";
 import type { Vector3Tuple } from "../shared/project/scene-object";
 import { createDocumentStore } from "./document-store";
 import type { ViewportStatus } from "./graphics/scene";
 import { Viewport } from "./viewport/Viewport";
 
 export function App() {
-  const [store] = useState(createDocumentStore);
+  const [store] = useState(() => createDocumentStore(assets));
   const { objects, canUndo, canRedo } = useSyncExternalStore(store.subscribe, store.getSnapshot);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [thumbnail, setThumbnail] = useState<string>();
+  const [generatedThumbnails, setGeneratedThumbnails] = useState<Record<string, string>>({});
+  const onThumbnail = useCallback((id: string, url: string) => {
+    setGeneratedThumbnails((previous) => ({ ...previous, [id]: url }));
+  }, []);
+  const thumbnailFor = (id: string) =>
+    assets.find((asset) => asset.id === id)?.thumbnail ?? generatedThumbnails[id];
   const [status, setStatus] = useState<ViewportStatus>("loading");
   const [attempt, setAttempt] = useState(0);
   const [dragging, setDragging] = useState(false);
@@ -29,8 +35,8 @@ export function App() {
     return () => removeEventListener("beforeunload", warnBeforeLeaving);
   }, [hasChanges]);
 
-  function place(position: Vector3Tuple) {
-    const result = store.addObject(position);
+  function place(assetId: string, position: Vector3Tuple) {
+    const result = store.addObject(assetId, position);
     if (!result.ok) {
       setError(result.error);
       return;
@@ -75,31 +81,33 @@ export function App() {
           <section aria-labelledby="assets-heading">
             <h2 id="assets-heading">Asset library</h2>
             <ul className="asset-shelf" role="list">
-              <li>
-                <button
-                  className="asset-tile"
-                  type="button"
-                  draggable={status === "ready"}
-                  disabled={status !== "ready"}
-                  aria-label={`Add ${sampleAsset.name}`}
-                  title="Drag into the scene, or click to add"
-                  onClick={() => place([0, 0, 0])}
-                  onDragStart={(event) => {
-                    event.dataTransfer.setData(assetDragType, sampleAsset.id);
-                    event.dataTransfer.effectAllowed = "copy";
-                    setDragging(true);
-                  }}
-                  onDragEnd={() => setDragging(false)}
-                >
-                  <span className="asset-art">
-                    {thumbnail && <img src={thumbnail} alt="" draggable={false} />}
-                    <span className="asset-add" aria-hidden="true">
-                      +
+              {assets.map((asset) => (
+                <li key={asset.id}>
+                  <button
+                    className="asset-tile"
+                    type="button"
+                    draggable={status === "ready"}
+                    disabled={status !== "ready"}
+                    aria-label={`Add ${asset.name}`}
+                    title="Drag into the scene, or click to add"
+                    onClick={() => place(asset.id, [0, 0, 0])}
+                    onDragStart={(event) => {
+                      event.dataTransfer.setData(assetDragType, asset.id);
+                      event.dataTransfer.effectAllowed = "copy";
+                      setDragging(true);
+                    }}
+                    onDragEnd={() => setDragging(false)}
+                  >
+                    <span className="asset-art">
+                      <img src={thumbnailFor(asset.id)} alt="" draggable={false} />
+                      <span className="asset-add" aria-hidden="true">
+                        +
+                      </span>
                     </span>
-                  </span>
-                  <span className="asset-name">{sampleAsset.name}</span>
-                </button>
-              </li>
+                    <span className="asset-name">{asset.name}</span>
+                  </button>
+                </li>
+              ))}
             </ul>
           </section>
 
@@ -118,7 +126,7 @@ export function App() {
                       data-object-id={object.id}
                       onClick={() => setSelectedId(object.id)}
                     >
-                      <img src={thumbnail} alt="" draggable={false} />
+                      <img src={thumbnailFor(object.assetId)} alt="" draggable={false} />
                       <span>{object.name}</span>
                     </button>
                   </li>
@@ -129,13 +137,14 @@ export function App() {
         </aside>
 
         <Viewport
+          assets={assets}
           objects={objects}
           selectedId={selection}
           dragging={dragging}
           status={status}
           attempt={attempt}
           onStatus={setStatus}
-          onThumbnail={setThumbnail}
+          onThumbnail={onThumbnail}
           onSelect={setSelectedId}
           onPlace={place}
           onDragFinish={() => setDragging(false)}

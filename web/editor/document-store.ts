@@ -1,7 +1,7 @@
-import { sampleAsset } from "../shared/assets/sample-asset.ts";
+import type { CatalogueAsset } from "../shared/assets/catalogue.ts";
 import type { SceneObject, Vector3Tuple } from "../shared/project/scene-object.ts";
 
-export function createDocumentStore() {
+export function createDocumentStore(assets: readonly CatalogueAsset[]) {
   let objects: readonly SceneObject[] = Object.freeze([]);
   // ponytail: AddObject history only; introduce command variants with the next edit type
   const undoStack: SceneObject[] = [];
@@ -30,7 +30,11 @@ export function createDocumentStore() {
         listeners.delete(listener);
       };
     },
-    addObject(position: Vector3Tuple) {
+    addObject(assetId: string, position: Vector3Tuple) {
+      const asset = assets.find((entry) => entry.id === assetId);
+      if (asset === undefined) {
+        return { ok: false, error: "Choose an asset from the library." } as const;
+      }
       if (!position.every((value) => Number.isFinite(value) && Math.abs(value) <= 10_000)) {
         return { ok: false, error: "Choose a position inside the scene." } as const;
       }
@@ -39,8 +43,8 @@ export function createDocumentStore() {
       }
       const object: SceneObject = Object.freeze({
         id: crypto.randomUUID(),
-        name: `${sampleAsset.name} ${objects.length + 1}`,
-        assetId: sampleAsset.id,
+        name: `${asset.name} ${objects.length + 1}`,
+        assetId: asset.id,
         transform: Object.freeze({
           position: Object.freeze([...position] as [number, number, number]),
           rotation: Object.freeze([0, 0, 0, 1] as const),

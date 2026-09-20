@@ -68,11 +68,16 @@ if (report.issues.numErrors > 0) {
       const gltf = JSON.parse(bytes.subarray(20, 20 + jsonLength).toString("utf8"));
       if (gltf.asset?.version !== "2.0") throw new Error("expected glTF 2.0");
       if ((gltf.extensionsRequired ?? []).length) throw new Error("required extensions need explicit loader review");
-      if ((gltf.animations ?? []).length || (gltf.skins ?? []).length) throw new Error("baseline supports static assets only");
+      if (asset.animationPolicy !== undefined && asset.animationPolicy !== "static-only") throw new Error("unsupported animation policy");
+      if ((gltf.skins ?? []).length) throw new Error("baseline does not support skinned assets");
+      if ((gltf.animations ?? []).length && asset.animationPolicy !== "static-only") throw new Error("animated assets require explicit static-only policy or loader review");
+      if (asset.placement !== undefined && asset.placement !== "bottom-center") throw new Error("unsupported placement convention");
       for (const resource of [...(gltf.buffers ?? []), ...(gltf.images ?? [])]) {
         if (resource.uri && !resource.uri.startsWith("data:")) throw new Error("external resource found; export a self-contained GLB");
       }
-      if (asset.thumbnail === null) warn(`${label}: thumbnail still needed`);
+      if (asset.thumbnail === null) {
+        if (asset.thumbnailMode !== "generated") warn(`${label}: thumbnail still needed`);
+      }
       else await assetFile(asset.thumbnail);
       await assetFile(asset.sourceFile);
       console.log(`OK: ${label} (${bytes.length} bytes)`);

@@ -1,15 +1,16 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { sampleAsset } from "../../shared/assets/sample-asset";
+import type { CatalogueAsset } from "../../shared/assets/catalogue";
 import type { SceneObject, Vector3Tuple } from "../../shared/project/scene-object";
 
 export type ViewportStatus = "loading" | "ready" | "error" | "unsupported";
 
 export function initScene(
   host: HTMLDivElement,
+  assets: readonly CatalogueAsset[],
   callbacks: {
     onStatus: (status: ViewportStatus) => void;
-    onThumbnail: (url: string) => void;
+    onThumbnail: (id: string, url: string) => void;
     onSelect: (id: string | null) => void;
   },
 ) {
@@ -29,9 +30,9 @@ export function initScene(
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0xe9ece7);
-  scene.fog = new THREE.Fog(0xe9ece7, 18, 42);
+  scene.fog = new THREE.Fog(0xe9ece7, 35, 70);
   const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 100);
-  camera.position.set(6, 7, 10);
+  camera.position.set(12, 16, 18);
   camera.lookAt(0, 0, 0);
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   renderer.domElement.setAttribute("role", "img");
@@ -61,7 +62,8 @@ export function initScene(
 
   const controller = new AbortController();
   let disposed = false;
-  let model: THREE.Group | undefined;
+  const models = new Map<string, THREE.Group>();
+  let ready = false;
   let objects: readonly SceneObject[] = [];
   let selectedId: string | null = null;
   const instances = new Map<string, THREE.Group>();
@@ -99,12 +101,16 @@ export function initScene(
         bounds.delete(id);
       }
     }
-    if (model !== undefined) {
+    if (ready) {
       for (const object of objects) {
+        const model = models.get(object.assetId);
+        if (model === undefined) {
+          continue;
+        }
         let instance = instances.get(object.id);
         if (instance === undefined) {
           instance = new THREE.Group();
-          // Instances share the sample's immutable GPU resources until viewport disposal
+          // Instances share each asset's immutable GPU resources until viewport disposal
           instance.add(model.clone(true));
           instances.set(object.id, instance);
           scene.add(instance);
@@ -134,7 +140,7 @@ export function initScene(
   }
 
   function getDropPosition(clientX: number, clientY: number): Vector3Tuple | undefined {
-    if (model === undefined) {
+    if (!ready) {
       return;
     }
     const point = screenRay(clientX, clientY).intersectPlane(ground, new THREE.Vector3());
@@ -159,11 +165,11 @@ export function initScene(
     const ray = screenRay(event.clientX, event.clientY);
     let nearest = Infinity;
     let id: string | null = null;
-    // ponytail: sample picking uses bounds; refine to mesh triangles with T02-02's agreed picking contract
-    for (const [objectId, box] of bounds) {
-      const hit = ray.intersectBox(box, new THREE.Vector3());
-      if (hit !== null && hit.distanceTo(ray.origin) < nearest) {
-        nearest = hit.distanceTo(ray.origin);
+    const raycaster = new THREE.Raycaster(ray.origin, ray.direction);
+    for (const [objectId, instance] of instances) {
+      const hit = raycaster.intersectObject(instance, true)[0];
+      if (hit !== undefined && hit.distance < nearest) {
+        nearest = hit.distance;
         id = objectId;
       }
     }
@@ -171,49 +177,57 @@ export function initScene(
   }
   renderer.domElement.addEventListener("click", select);
 
-  async function loadSample() {
+  async function loadAssets() {
     try {
-      const response = await fetch(`${import.meta.env.BASE_URL}${sampleAsset.path}`, {
-        signal: controller.signal,
-      });
-      if (!response.ok) {
-        throw new Error(`Sample request failed (${response.status})`);
+      for (const asset of assets) {
+        const response = await fetch(asset.url, { signal: controller.signal });
+        if (!response.ok) {
+          throw new Error(asset.name + " request failed (" + response.status + ")");
+        }
+        const gltf = await new GLTFLoader().parseAsync(await response.arrayBuffer(), "");
+        if (disposed) {
+          disposeModels(gltf.scene);
+          return;
+        }
+        if (asset.placement === "bottom-center") {
+          // Preserve the original snowglobe demo's placement convention only for that sample
+          const box = new THREE.Box3().setFromObject(gltf.scene);
+          const center = box.getCenter(new THREE.Vector3());
+          gltf.scene.position.sub(new THREE.Vector3(center.x, box.min.y, center.z));
+        }
+        if (asset.thumbnail === null) {
+          const box = new THREE.Box3().setFromObject(gltf.scene);
+          const size = box.getSize(new THREE.Vector3());
+          const center = box.getCenter(new THREE.Vector3());
+          const thumbnailScene = new THREE.Scene();
+          thumbnailScene.add(ambient.clone(), sun.clone(), fill.clone(), gltf.scene.clone(true));
+          const thumbnailCamera = new THREE.PerspectiveCamera(35, 1, 0.01, 1000);
+          const distance =
+            (Math.max(size.length(), 0.1) / 2 / Math.sin((35 * Math.PI) / 360)) * 1.05;
+          thumbnailCamera.position.copy(center).add(new THREE.Vector3(0, size.y * 0.1, distance));
+          thumbnailCamera.lookAt(center);
+          renderer.setPixelRatio(1);
+          renderer.setSize(320, 320, false);
+          renderer.setClearColor(0, 0);
+          renderer.render(thumbnailScene, thumbnailCamera);
+          callbacks.onThumbnail(asset.id, renderer.domElement.toDataURL("image/png"));
+          renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+          resize();
+        }
+        // Preserve exported units and pivots for manifest assets
+        models.set(asset.id, gltf.scene);
       }
-      const gltf = await new GLTFLoader().parseAsync(await response.arrayBuffer(), "");
-      if (disposed) {
-        disposeModels(gltf.scene);
-        return;
-      }
-      model = gltf.scene;
-      const box = new THREE.Box3().setFromObject(model);
-      const size = box.getSize(new THREE.Vector3());
-      const center = box.getCenter(new THREE.Vector3());
-      model.position.sub(center).add(new THREE.Vector3(0, size.y / 2, 0));
-
-      // Render the actual asset once for the shelf, reusing this renderer instead of another WebGL context
-      const thumbnailScene = new THREE.Scene();
-      thumbnailScene.add(ambient.clone(), sun.clone(), fill.clone(), model.clone(true));
-      const thumbnailCamera = new THREE.PerspectiveCamera(35, 1, 0.1, 100);
-      const distance = (size.length() / 2 / Math.sin((35 * Math.PI) / 360)) * 1.05;
-      thumbnailCamera.position.set(0, size.y * 0.55, distance);
-      thumbnailCamera.lookAt(0, size.y / 2, 0);
-      renderer.setPixelRatio(1);
-      renderer.setSize(320, 320, false);
-      renderer.setClearColor(0, 0);
-      renderer.render(thumbnailScene, thumbnailCamera);
-      callbacks.onThumbnail(renderer.domElement.toDataURL("image/png"));
-      renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+      ready = true;
       update(objects, selectedId);
-      resize();
       callbacks.onStatus("ready");
     } catch (error) {
       if (!disposed) {
-        console.error("Failed to load the asset", error);
+        console.error("Failed to load the asset library", error);
         callbacks.onStatus("error");
       }
     }
   }
-  void loadSample();
+  void loadAssets();
 
   return {
     update,
@@ -224,7 +238,7 @@ export function initScene(
       controller.abort();
       observer.disconnect();
       renderer.domElement.removeEventListener("click", select);
-      disposeModels(scene, ...(model === undefined ? [] : [model]));
+      disposeModels(scene, ...models.values());
       renderer.dispose();
       renderer.forceContextLoss();
       renderer.domElement.remove();
