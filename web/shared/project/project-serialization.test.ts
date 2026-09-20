@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import fixture from "./fixtures/m1-project.json";
 import { serializeProject } from "./project-serialization";
-import { validateProject } from "./project-validation";
+import { deserializeProject } from "./project-deserialization";
 
 const assets = new Map([
   ["test-room-v1", "environment"],
@@ -14,10 +14,8 @@ describe("project JSON serialization", () => {
     expect(first.ok).toBe(true);
     if (!first.ok) throw new Error(first.error.message);
 
-    // Read the JSON back through the validator to check both sides of the format
-    // The file reader will add checks around parsing in the next phase
-    const decoded: unknown = JSON.parse(first.value);
-    const restored = validateProject(decoded, assets);
+    // Read through the project reader to check both sides of the saved format
+    const restored = deserializeProject(first.value, assets);
     expect(restored).toEqual({ ok: true, value: fixture });
     if (!restored.ok) throw new Error(restored.error.message);
     expect(serializeProject(restored.value, assets)).toEqual(first);

@@ -2,10 +2,10 @@ import type { ProjectDocument, ProjectObject, ProjectScene } from "./project-typ
 import { validateCameraPose, validateTransform } from "./spatial-validation";
 import { checkFields, invalid, isRecord } from "./validation-helpers";
 import type { ValidationResult } from "./validation-helpers";
+import { MAX_PROJECT_BYTES } from "./project-limits";
 
 // Starting limits from the project handoff
 const MAX_OBJECTS_PER_SCENE = 200;
-const MAX_PROJECT_BYTES = 5 * 1024 * 1024;
 
 type TextBudget = { remaining: number };
 
