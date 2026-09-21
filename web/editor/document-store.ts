@@ -1,3 +1,4 @@
+import { createCommandHistory } from "./command-history";
 import type { CatalogueAsset } from "../shared/assets/catalogue.ts";
 import type { SceneObject, Vector3Tuple } from "../shared/project/scene-object.ts";
 import { deserializeProject } from "../shared/project/project-deserialization";
@@ -30,9 +31,8 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
   // Keep that explicit until a complete project is loaded
   let project: ProjectDocument | null = null;
   let projectAssets: ReadonlyMap<string, string> = new Map();
-  // ponytail: AddObject history only; introduce command variants with the next edit type
-  const undoStack: SceneObject[] = [];
-  const redoStack: SceneObject[] = [];
+  // Keep history here so the buttons and future edit controls share one undo order.
+  const history = createCommandHistory<readonly SceneObject[]>();
   const listeners = new Set<() => void>();
   let snapshot: Readonly<{
     objects: readonly SceneObject[];
@@ -58,8 +58,8 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
     snapshot = Object.freeze({
       objects,
       project,
-      canUndo: undoStack.length > 0,
-      canRedo: redoStack.length > 0,
+      canUndo: history.canUndo,
+      canRedo: history.canRedo,
     });
     listeners.forEach((listener) => listener());
   }
@@ -84,8 +84,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       objects = scene.objects;
       projectAssets = loadedAssets;
       // Undo from the previous project must never reintroduce its objects here
-      undoStack.length = 0;
-      redoStack.length = 0;
+      history.clear();
       publish();
       return { ok: true, value: loaded };
     },
@@ -121,31 +120,29 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
           scale: Object.freeze([1, 1, 1] as const),
         }),
       });
-      replaceObjects([...objects, object]);
-      undoStack.push(object);
-      if (undoStack.length > 100) {
-        undoStack.shift();
-      }
-      redoStack.length = 0;
+      // Capture this object once. Redo puts back this exact copy, including its ID.
+      // Validation above finishes before the command can enter history.
+      replaceObjects(
+        history.execute(objects, {
+          label: "Add object",
+          apply: (current) => Object.freeze([...current, object]),
+          revert: (current) => Object.freeze(current.filter((entry) => entry.id !== object.id)),
+        }),
+      );
       publish();
       return { ok: true, object } as const;
     },
     undo() {
-      const object = undoStack.pop();
-      if (object === undefined) {
-        return;
-      }
-      replaceObjects(objects.filter((entry) => entry.id !== object.id));
-      redoStack.push(object);
+      const next = history.undo(objects);
+      // Nothing changed, so there is no new snapshot to send to the UI.
+      if (next === objects) return;
+      replaceObjects(next);
       publish();
     },
     redo() {
-      const object = redoStack.pop();
-      if (object === undefined) {
-        return;
-      }
-      replaceObjects([...objects, object]);
-      undoStack.push(object);
+      const next = history.redo(objects);
+      if (next === objects) return;
+      replaceObjects(next);
       publish();
     },
   };
