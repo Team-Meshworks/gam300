@@ -1,30 +1,32 @@
 import { useEffect, useRef, type DragEvent } from "react";
-import { assetDragType, sampleAsset } from "../../shared/assets/sample-asset";
+import { assetDragType, type CatalogueAsset } from "../../shared/assets/catalogue";
 import type { SceneObject, Vector3Tuple } from "../../shared/project/scene-object";
 import { initScene, type ViewportStatus } from "../graphics/scene";
 
 const statusMessages = {
   loading: "Loading assets…",
   ready: "Scene ready",
-  error: "Couldn't load the snow globe. Check your connection and retry.",
+  error: "Couldn't load the asset library. Check the asset files and retry.",
   unsupported: "The 3D view needs WebGL 2. Check your browser's graphics settings and retry.",
 };
 
 type ViewportProps = {
+  assets: readonly CatalogueAsset[];
   objects: readonly SceneObject[];
   selectedId: string | null;
   dragging: boolean;
   status: ViewportStatus;
   attempt: number;
   onStatus: (status: ViewportStatus) => void;
-  onThumbnail: (url: string) => void;
+  onThumbnail: (id: string, url: string) => void;
   onSelect: (id: string | null) => void;
-  onPlace: (position: Vector3Tuple) => void;
+  onPlace: (assetId: string, position: Vector3Tuple) => void;
   onDragFinish: () => void;
   onRetry: () => void;
 };
 
 export function Viewport({
+  assets,
   objects,
   selectedId,
   dragging,
@@ -45,13 +47,13 @@ export function Viewport({
     if (host === null) {
       return;
     }
-    const scene = initScene(host, { onStatus, onThumbnail, onSelect });
+    const scene = initScene(host, assets, { onStatus, onThumbnail, onSelect });
     sceneRef.current = scene;
     return () => {
       scene?.dispose();
       sceneRef.current = undefined;
     };
-  }, [attempt, onStatus, onThumbnail, onSelect]);
+  }, [assets, attempt, onStatus, onThumbnail, onSelect]);
 
   useEffect(() => {
     sceneRef.current?.update(objects, selectedId);
@@ -92,10 +94,11 @@ export function Viewport({
         }}
         onDrop={(event) => {
           event.preventDefault();
-          if (accepts(event) && event.dataTransfer.getData(assetDragType) === sampleAsset.id) {
+          const assetId = event.dataTransfer.getData(assetDragType);
+          if (accepts(event) && assets.some((asset) => asset.id === assetId)) {
             const position = sceneRef.current?.getDropPosition(event.clientX, event.clientY);
             if (position !== undefined) {
-              onPlace(position);
+              onPlace(assetId, position);
             }
           }
           sceneRef.current?.showDropPosition(undefined);

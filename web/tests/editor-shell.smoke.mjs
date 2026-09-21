@@ -22,7 +22,7 @@ try {
 
   await page.goto(process.argv[2] ?? "http://127.0.0.1:5173/");
   const ready = page.getByRole("status").filter({ hasText: "Scene ready" });
-  const asset = page.getByRole("button", { name: "Add Snow globe", exact: true });
+  const asset = page.getByRole("button", { name: "Add test-crate", exact: true });
   const undo = page.getByRole("button", { name: "Undo", exact: true });
   const redo = page.getByRole("button", { name: "Redo", exact: true });
   const rows = page.locator(".object-row");
@@ -37,7 +37,9 @@ try {
   assert.equal(await rows.count(), 0);
   assert.equal(await undo.isDisabled(), true);
   assert.equal(await redo.isDisabled(), true);
-  assert.equal(await asset.locator("img").evaluate((image) => image.naturalWidth), 320);
+  assert.ok(
+    await asset.locator("img").evaluate((image) => image.complete && image.naturalWidth > 0),
+  );
   assert.equal(await page.getByText("Start with a sample model.", { exact: true }).count(), 0);
 
   await page.keyboard.press("Tab");
@@ -66,7 +68,7 @@ try {
   assert.notEqual(firstId, secondId);
   assert.equal(await rows.nth(1).getAttribute("aria-pressed"), "true");
 
-  await stage.click({ position: { x: stageBox.width / 2, y: stageBox.height / 2 - 40 } });
+  await stage.click({ position: { x: stageBox.width / 2, y: stageBox.height / 2 - 10 } });
   assert.equal(
     await rows.first().getAttribute("aria-pressed"),
     "true",
@@ -139,16 +141,27 @@ try {
   }
   await page.emulateMedia({ reducedMotion: "reduce" });
   assert.equal(
-    await page.locator(".asset-art").evaluate((art) => getComputedStyle(art).transitionDuration),
+    await page
+      .locator(".asset-art")
+      .first()
+      .evaluate((art) => getComputedStyle(art).transitionDuration),
     "0s",
   );
   await page.setViewportSize({ width: 1366, height: 768 });
   assert.deepEqual(consoleErrors, [], "No console errors during normal authoring");
 
-  const samplePath = "**/models/snowglobe.glb";
+  await page.getByRole("button", { name: "Add test-room", exact: true }).click();
+  assert.equal(await rows.count(), 3, "Room and crates coexist");
+  const roomId = await rows.last().getAttribute("data-object-id");
+  await undo.click();
+  assert.equal(await rows.count(), 2);
+  await redo.click();
+  assert.equal(await rows.last().getAttribute("data-object-id"), roomId);
+
+  const samplePath = "**/*test-crate*.glb*";
   await page.route(samplePath, (route) => route.fulfill({ status: 503, body: "Unavailable" }));
   await page.reload();
-  await page.getByRole("status").filter({ hasText: "Couldn't load the snow globe" }).waitFor();
+  await page.getByRole("status").filter({ hasText: "Couldn't load the asset library" }).waitFor();
   assert.equal(await asset.isDisabled(), true);
   await page.unroute(samplePath);
   const retry = page.getByRole("button", { name: "Retry", exact: true });

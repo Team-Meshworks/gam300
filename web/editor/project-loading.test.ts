@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import fixture from "../shared/project/fixtures/m1-project.json";
+import type { CatalogueAsset } from "../shared/assets/catalogue";
 import { sampleAsset } from "../shared/assets/sample-asset";
 import { serializeProject } from "../shared/project/project-serialization";
 import { createDocumentStore } from "./document-store";
@@ -9,13 +10,30 @@ const assets = new Map([
   ["test-crate-v1", "model"],
   [sampleAsset.id, "model"],
 ]);
+const placementAssets: CatalogueAsset[] = [...assets.keys()].map((id) => ({
+  id,
+  name: id,
+  kind: id === "test-room-v1" ? "environment" : "model",
+  url: `${id}.glb`,
+  thumbnail: null,
+}));
 const text = JSON.stringify(fixture);
 
 describe("loading a project into the editor store", () => {
+  it("places catalog models in loaded projects without accepting environments as objects", () => {
+    const store = createDocumentStore(placementAssets);
+    store.loadProject(text, assets);
+    const before = store.getSnapshot();
+    expect(store.addObject("test-room-v1", [0, 0, 0]).ok).toBe(false);
+    expect(store.getSnapshot()).toBe(before);
+    expect(store.addObject("test-crate-v1", [0, 0, 0]).ok).toBe(true);
+    expect(serializeProject(store.getSnapshot().project, assets).ok).toBe(true);
+  });
+
   it("replaces the whole project once and clears the previous placement history", () => {
-    const store = createDocumentStore();
-    store.addObject([0, 0, 0]);
-    store.addObject([1, 0, 0]);
+    const store = createDocumentStore(placementAssets);
+    store.addObject(sampleAsset.id, [0, 0, 0]);
+    store.addObject(sampleAsset.id, [1, 0, 0]);
     store.undo();
     const previous = store.getSnapshot();
     let notifications = 0;
@@ -36,10 +54,10 @@ describe("loading a project into the editor store", () => {
   });
 
   it("keeps the exact snapshot and both history stacks after rejected loads", () => {
-    const store = createDocumentStore();
+    const store = createDocumentStore(placementAssets);
     store.loadProject(text, assets);
-    const first = store.addObject([1, 0, 0]);
-    const second = store.addObject([2, 0, 0]);
+    const first = store.addObject(sampleAsset.id, [1, 0, 0]);
+    const second = store.addObject(sampleAsset.id, [2, 0, 0]);
     if (!first.ok || !second.ok) throw new Error("Placement setup failed");
     store.undo();
     const previous = store.getSnapshot();
@@ -64,7 +82,7 @@ describe("loading a project into the editor store", () => {
   });
 
   it("keeps loaded snapshots immutable and serializes later edits from the same document", () => {
-    const store = createDocumentStore();
+    const store = createDocumentStore(placementAssets);
     const catalog = new Map(assets);
     store.loadProject(text, catalog);
     const loaded = store.getSnapshot();
@@ -76,14 +94,14 @@ describe("loading a project into the editor store", () => {
 
     // Later caller changes to the catalog can't silently change this session
     catalog.clear();
-    expect(store.addObject([3, 0, -1]).ok).toBe(true);
+    expect(store.addObject(sampleAsset.id, [3, 0, -1]).ok).toBe(true);
     const edited = store.getSnapshot();
     expect(edited.objects).toBe(edited.project?.scenes[0]?.objects);
     expect(edited.project?.projectId).toBe(fixture.projectId);
     expect(edited.project?.scenes[0]?.startCamera).toEqual(fixture.scenes[0]?.startCamera);
     const saved = serializeProject(edited.project, assets);
     if (!saved.ok) throw new Error(saved.error.message);
-    const reopened = createDocumentStore();
+    const reopened = createDocumentStore(placementAssets);
     expect(reopened.loadProject(saved.value, assets).ok).toBe(true);
     expect(reopened.getSnapshot().project).toEqual(edited.project);
     expect(loaded.project).toEqual(fixture);
@@ -94,12 +112,12 @@ describe("loading a project into the editor store", () => {
   });
 
   it("rejects placement when the loaded catalog has no sample model", () => {
-    const store = createDocumentStore();
+    const store = createDocumentStore(placementAssets);
     const catalog = new Map(assets);
     catalog.delete(sampleAsset.id);
     store.loadProject(text, catalog);
     const before = store.getSnapshot();
-    expect(store.addObject([0, 0, 0]).ok).toBe(false);
+    expect(store.addObject(sampleAsset.id, [0, 0, 0]).ok).toBe(false);
     expect(store.getSnapshot()).toBe(before);
   });
 });

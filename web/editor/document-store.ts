@@ -1,4 +1,4 @@
-import { sampleAsset } from "../shared/assets/sample-asset.ts";
+import type { CatalogueAsset } from "../shared/assets/catalogue.ts";
 import type { SceneObject, Vector3Tuple } from "../shared/project/scene-object.ts";
 import { deserializeProject } from "../shared/project/project-deserialization";
 import type { ProjectDocument } from "../shared/project/project-types";
@@ -24,7 +24,7 @@ function freezeProject(project: ProjectDocument): ProjectDocument {
   return Object.freeze(project);
 }
 
-export function createDocumentStore() {
+export function createDocumentStore(assets: readonly CatalogueAsset[]) {
   let objects: readonly SceneObject[] = Object.freeze([]);
   // The current grid-only editor has no environment-backed project at startup
   // Keep that explicit until a complete project is loaded
@@ -95,12 +95,15 @@ export function createDocumentStore() {
         listeners.delete(listener);
       };
     },
-    addObject(position: Vector3Tuple) {
-      if (project !== null && projectAssets.get(sampleAsset.id) !== "model") {
-        return {
-          ok: false,
-          error: "The sample asset is unavailable in this project's catalog.",
-        } as const;
+    addObject(assetId: string, position: Vector3Tuple) {
+      const asset = assets.find((entry) => entry.id === assetId);
+      if (asset === undefined) {
+        return { ok: false, error: "Choose an asset from the library." } as const;
+      }
+      // Loaded projects keep environments in their dedicated scene field
+      // Placed objects must remain valid model references when saved again
+      if (project !== null && (asset.kind !== "model" || projectAssets.get(asset.id) !== "model")) {
+        return { ok: false, error: "Choose a model from this project's catalog." } as const;
       }
       if (!position.every((value) => Number.isFinite(value) && Math.abs(value) <= 10_000)) {
         return { ok: false, error: "Choose a position inside the scene." } as const;
@@ -110,8 +113,8 @@ export function createDocumentStore() {
       }
       const object: SceneObject = Object.freeze({
         id: crypto.randomUUID(),
-        name: `${sampleAsset.name} ${objects.length + 1}`,
-        assetId: sampleAsset.id,
+        name: `${asset.name} ${objects.length + 1}`,
+        assetId: asset.id,
         transform: Object.freeze({
           position: Object.freeze([...position] as [number, number, number]),
           rotation: Object.freeze([0, 0, 0, 1] as const),
