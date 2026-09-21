@@ -1,0 +1,32 @@
+import { createDocumentStore } from "./document-store.ts";
+import { assert, it } from "vitest";
+
+it("preserves placement validation, history branching and earlier snapshots", () => {
+  const store = createDocumentStore();
+  let notifications = 0;
+  store.subscribe(() => notifications++);
+  const initial = store.getSnapshot();
+  assert.equal(store.addObject([NaN, 0, 0]).ok, false);
+  assert.equal(store.getSnapshot(), initial);
+  assert.equal(notifications, 0);
+
+  const first = store.addObject([1, 0, -2]);
+  assert.equal(first.ok, true);
+  const placed = store.getSnapshot();
+  assert.equal(placed.objects.length, 1);
+  assert.equal(notifications, 1);
+  store.undo();
+  assert.equal(store.getSnapshot().objects.length, 0);
+  assert.equal(store.getSnapshot().canRedo, true);
+  store.redo();
+  assert.deepEqual(store.getSnapshot().objects, placed.objects);
+  assert.equal(notifications, 3);
+  store.undo();
+  store.addObject([2, 0, 1]);
+  assert.equal(store.getSnapshot().canRedo, false);
+  assert.notEqual(store.getSnapshot().objects[0]?.id, placed.objects[0]?.id);
+  const branched = store.getSnapshot();
+  store.redo();
+  assert.equal(store.getSnapshot(), branched);
+  assert.equal(placed.objects.length, 1, "Old snapshots remain unchanged");
+});

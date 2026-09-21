@@ -8,7 +8,7 @@ The web app lives in `web/`. It is a React 19 + TypeScript single-page app built
 ## Prerequisites
 
 - **Node.js `^24.19.0`** and **npm `^11.17.0`** (pinned in `web/.nvmrc` / `web/package.json`)
-- The Vite stack **will not run on older Node versions** — Node 20.x and below fail with a
+- The Vite stack **will not run on older Node versions** â€” Node 20.x and below fail with a
   `SyntaxError` / missing-native-binding error. Use Node 24.
 
 ### On Windows (nvm-windows)
@@ -20,7 +20,7 @@ node -v   # -> v24.19.0
 ```
 
 `nvm use` updates the `C:\Program Files\nodejs` junction, so it applies to every new terminal.
-Note: some nvm-windows builds print no output at all — if that happens, upgrade nvm (see
+Note: some nvm-windows builds print no output at all â€” if that happens, upgrade nvm (see
 Troubleshooting).
 
 ## Install
@@ -53,11 +53,18 @@ project format, approved asset registry, custom movement and persistence remain 
 Picking currently uses object bounds; full mesh picking and camera navigation are still
 part of viewport work. Import/export controls will appear when those features work.
 
-Run the small document/creation-history check from `web/`:
+Run the project-data and document-store checks from `web/`:
 
 ```powershell
-node editor/document-store.test.mjs
+npm run test:unit
 ```
+
+The document store can load validated JSON through `loadProject(text, assetKinds)`
+where `assetKinds` maps catalog IDs to their asset kinds
+Successful loading replaces the project and clears placement history
+Rejected loading preserves the current snapshot and history
+The snapshot's `project` is null in the initial grid-only editor until a complete
+project is loaded; environment/catalog rendering and file controls still need integration
 
 With the dev server running, use an existing Playwright installation with Chromium:
 
