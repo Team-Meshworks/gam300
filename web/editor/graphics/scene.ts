@@ -1,7 +1,20 @@
 import * as THREE from "three";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 
-export function initScene(): void {
+export interface FpsMeter {
+  tick(now: number): void;
+}
+
+export interface SceneContext {
+  scene: THREE.Scene;
+  camera: THREE.PerspectiveCamera;
+  renderer: THREE.WebGLRenderer;
+  orbit: OrbitControls;
+  fpsMeter: FpsMeter;
+}
+
+export function createScene(): SceneContext {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x111827);
 
@@ -9,10 +22,19 @@ export function initScene(): void {
   camera.position.set(0, 1.5, 3.5);
   camera.lookAt(0, 0.5, 0);
 
-  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  const renderer = new THREE.WebGLRenderer({
+    antialias: true,
+    powerPreference: "high-performance",
+  });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   renderer.setSize(innerWidth, innerHeight);
   document.body.appendChild(renderer.domElement);
+
+  const orbit = new OrbitControls(camera, renderer.domElement);
+  orbit.enableDamping = true;
+  orbit.target.set(0, 0.5, 0);
+
+  const fpsMeter = createFpsMeter();
 
   scene.add(new THREE.AmbientLight(0xffffff, 0.8));
 
@@ -39,7 +61,8 @@ export function initScene(): void {
 
       const fitDistance = size.length() / (2 * Math.tan((camera.fov * Math.PI) / 360));
       camera.position.set(0, size.y * 0.45, fitDistance);
-      camera.lookAt(0, size.y / 2, 0);
+      orbit.target.set(0, size.y / 2, 0);
+      orbit.update();
     },
     undefined,
     (error) => {
@@ -54,9 +77,37 @@ export function initScene(): void {
   };
   addEventListener("resize", onResize);
 
-  const animate = () => {
-    requestAnimationFrame(animate);
-    renderer.render(scene, camera);
+  return { scene, camera, renderer, orbit, fpsMeter };
+}
+
+function createFpsMeter(): FpsMeter {
+  const el = document.createElement("div");
+  Object.assign(el.style, {
+    position: "fixed",
+    top: "0.75rem",
+    right: "0.75rem",
+    padding: "0.25rem 0.5rem",
+    borderRadius: "0.375rem",
+    background: "rgba(17, 24, 39, 0.6)",
+    color: "#f5f7fa",
+    font: "0.75rem/1.4 system-ui, sans-serif",
+    zIndex: "2",
+    opacity: "0.8",
+  } satisfies Partial<CSSStyleDeclaration>);
+  document.body.appendChild(el);
+
+  let frameCount = 0;
+  let lastFpsTime = performance.now();
+
+  return {
+    tick(now: number): void {
+      frameCount += 1;
+      const elapsed = now - lastFpsTime;
+      if (elapsed >= 500) {
+        el.textContent = `${Math.round((frameCount * 1000) / elapsed)} fps`;
+        frameCount = 0;
+        lastFpsTime = now;
+      }
+    },
   };
-  animate();
 }

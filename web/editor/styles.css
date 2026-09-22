@@ -35,6 +35,25 @@ main p {
   opacity: 0.75;
 }
 
+.mode-actions {
+  margin-top: 0.5rem;
+}
+
+.mode-actions button {
+  font: inherit;
+  font-size: 0.75rem;
+  padding: 0.25rem 0.6rem;
+  border-radius: 0.375rem;
+  border: 1px solid rgba(245, 247, 250, 0.25);
+  background: rgba(245, 247, 250, 0.1);
+  color: #f5f7fa;
+  cursor: pointer;
+}
+
+.mode-actions button:hover {
+  background: rgba(245, 247, 250, 0.2);
+}
+
 canvas {
   position: fixed;
   inset: 0;
