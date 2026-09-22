@@ -5,13 +5,15 @@ Spatial experience editor.
 The web app lives in `web/`. It is a React 19 + TypeScript single-page app built with Vite
 (the project uses Vite 8, which swaps Rollup for rolldown internally).
 
-## Prerequisites
+## Project setup
+
+### Prerequisites
 
 - **Node.js `^24.19.0`** and **npm `^11.17.0`** (pinned in `web/.nvmrc` / `web/package.json`)
 - The Vite stack **will not run on older Node versions** — Node 20.x and below fail with a
   `SyntaxError` / missing-native-binding error. Use Node 24.
 
-### On Windows (nvm-windows)
+#### On Windows (nvm-windows)
 
 ```powershell
 nvm install 24.19.0
@@ -23,14 +25,14 @@ node -v   # -> v24.19.0
 Note: some nvm-windows builds print no output at all — if that happens, upgrade nvm (see
 Troubleshooting).
 
-## Install
+### Install
 
 ```powershell
 cd web
 npm install
 ```
 
-## Run the dev server
+### Run the dev server
 
 ```powershell
 cd web
@@ -39,7 +41,7 @@ npm run dev
 
 Vite serves the editor at http://localhost:5173/ with hot reload.
 
-## Common scripts
+### Common scripts
 
 All commands run from `web/`.
 
@@ -52,6 +54,28 @@ All commands run from `web/`.
 | `npm run lint`       | ESLint (zero warnings allowed)                      |
 | `npm run format`     | Prettier write                                      |
 | `npm run format:check` | Prettier check                                   |
+
+## Controls
+
+### Editor mode (orbital camera)
+
+| Input               | Action |
+| ------------------- | ------ |
+| Left-drag           | Rotate |
+| Right-drag          | Pan    |
+| Scroll wheel        | Zoom   |
+
+### Visitor mode (first-person camera)
+
+| Input                       | Action                            |
+| --------------------------- | --------------------------------- |
+| `W` / `A` / `S` / `D`       | Move forward / left / back / right |
+| Mouse drag (left button)    | Look around                       |
+| `Shift`                     | Sprint                            |
+| `Space`                     | Fly up                            |
+| `Ctrl`                      | Fly down                          |
+
+Toggle between modes with the **Enter Visitor** / **Exit Visitor** button.
 
 ## Project layout
 
