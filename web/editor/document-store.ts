@@ -1,3 +1,4 @@
+import { prepareTransformCommand } from "./transform-command";
 import { createCommandHistory } from "./command-history";
 import type { CatalogueAsset } from "../shared/assets/catalogue.ts";
 import type { SceneObject, Vector3Tuple } from "../shared/project/scene-object.ts";
@@ -131,6 +132,16 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       );
       publish();
       return { ok: true, object } as const;
+    },
+    commitTransform(input: unknown): ValidationResult<{ changed: boolean; object: SceneObject }> {
+      const result = prepareTransformCommand(objects, input);
+      if (!result.ok) return result;
+      const { command, object } = result.value;
+      // Rejected and unchanged edits leave redo and subscriber snapshots alone.
+      if (command === null) return { ok: true, value: { changed: false, object } };
+      replaceObjects(history.execute(objects, command));
+      publish();
+      return { ok: true, value: { changed: true, object } };
     },
     undo() {
       const next = history.undo(objects);
