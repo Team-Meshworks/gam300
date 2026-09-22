@@ -1,0 +1,98 @@
+{
+  "assets": [
+    {
+      "assetId": "test-room-v1",
+      "name": "test-room",
+      "kind": "environment",
+      "mediaType": "model/gltf-binary",
+      "file": "delivery/test-room.glb",
+      "sourceFile": "source/test-room.blend",
+      "byteSize": 7864,
+      "sha256": "121c9d86eefb1961a697a390967dfeface3ce1f612334d2fbc447551ddfd88d1",
+      "category": "test-assets",
+      "thumbnail": "delivery/thumbnails/test-room.png",
+      "access": "development-only",
+      "license": {
+        "status": "pending-team-confirmation",
+        "provenance": "Created by the contributor in Blender during the room/crate walkthrough; redistribution terms not yet selected."
+      },
+      "boundsMeters": {
+        "max": [
+          5,
+          3,
+          5
+        ],
+        "min": [
+          -5,
+          -0.2,
+          -5
+        ]
+      },
+      "pivotMeters": [
+        0,
+        0,
+        0
+      ],
+      "reviewNotes": "Bounds rounded from GLB metadata.Floor top corrected to 0m. Browser verification pending."
+    },
+    {
+      "assetId": "test-crate-v1",
+      "name": "test-crate",
+      "kind": "model",
+      "mediaType": "model/gltf-binary",
+      "file": "delivery/test-crate.glb",
+      "sourceFile": "source/test-crate.blend",
+      "byteSize": 1952,
+      "sha256": "b8ecc4ef7611af4c07a0c0b9eafdb39de080a05098e18f064ac7a26ebb04a28a",
+      "category": "test-assets",
+      "thumbnail": "delivery/thumbnails/test-crate.png",
+      "access": "development-only",
+      "license": {
+        "status": "pending-team-confirmation",
+        "provenance": "Created by the contributor in Blender during the room/crate walkthrough; redistribution terms not yet selected."
+      },
+      "boundsMeters": {
+        "max": [
+          0.5,
+          1,
+          0.5
+        ],
+        "min": [
+          -0.5,
+          0,
+          -0.5
+        ]
+      },
+      "pivotMeters": [
+        0,
+        0,
+        0
+      ],
+      "reviewNotes": "Bounds read from GLB metadata. Bottom-centre pivot; browser verification pending."
+    },
+    {
+      "assetId": "sample-snowglobe-v1",
+      "name": "Snow globe",
+      "kind": "model",
+      "mediaType": "model/gltf-binary",
+      "file": "delivery/snowglobe.glb",
+      "sourceFile": "source/snowglobe.glb",
+      "byteSize": 619712,
+      "sha256": "725c40d8821852604a781a8bb3500db884804be6c7ce6594a8244718f48ab4ee",
+      "category": "test-assets",
+      "thumbnail": null,
+      "thumbnailMode": "generated",
+      "placement": "bottom-center",
+      "animationPolicy": "static-only",
+      "access": "development-only",
+      "license": {
+        "status": "pending-team-confirmation",
+        "provenance": "Existing teammate-provided snowglobe GLB, preserved unchanged from web/editor/public/models/snowglobe.glb. Licensing implementation belongs to the VThere team."
+      },
+      "reviewNotes": "Original GLB contains animation; editor does not play animations. Preserve existing bottom-center placement and generated thumbnail. Bounds verification remains pending."
+    }
+  ],
+  "coordinateSystem": "glTF Y-up, metres",
+  "schemaVersion": 1,
+  "status": "draft"
+}
