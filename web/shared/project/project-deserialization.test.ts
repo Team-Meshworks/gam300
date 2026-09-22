@@ -88,7 +88,7 @@ describe("project JSON reader", () => {
       ok: false,
       error: { path: "project.scenes[0].environmentAssetId" },
     });
-    const text = JSON.stringify(fixture).replace('"fovDegrees":60', '"fovDegrees":1e400');
+    const text = JSON.stringify(fixture).replace(/"fovDegrees":\d+/, '"fovDegrees":1e400');
     expect(deserializeProject(text, assets)).toMatchObject({
       ok: false,
       error: { path: "project.scenes[0].startCamera.fovDegrees" },

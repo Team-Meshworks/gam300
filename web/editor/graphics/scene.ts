@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import type { CatalogueAsset } from "../../shared/assets/catalogue";
 import type { SceneObject, Vector3Tuple } from "../../shared/project/scene-object";
+import type { CameraPose, ProjectScene } from "../../shared/project/project-types";
 
 export type ViewportStatus = "loading" | "ready" | "error" | "unsupported";
 
@@ -66,7 +67,12 @@ export function initScene(
   let ready = false;
   let objects: readonly SceneObject[] = [];
   let selectedId: string | null = null;
+  let projectScene: ProjectScene | null = null;
+  let appliedCamera: CameraPose | null = null;
+  let environment: THREE.Group | undefined;
+  let environmentId: string | undefined;
   const instances = new Map<string, THREE.Group>();
+  const instanceAssets = new Map<string, string>();
   const bounds = new Map<string, THREE.Box3>();
   const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 
@@ -91,13 +97,44 @@ export function initScene(
   observer.observe(host);
   resize();
 
-  function update(nextObjects: readonly SceneObject[], nextSelectedId: string | null) {
+  function update(
+    nextObjects: readonly SceneObject[],
+    nextSelectedId: string | null,
+    nextScene: ProjectScene | null = projectScene,
+  ) {
     objects = nextObjects;
     selectedId = nextSelectedId;
+    projectScene = nextScene;
+    // A loaded camera resets the view once
+    // Selection and placement keep the same camera-pose reference
+    if (projectScene !== null && appliedCamera !== projectScene.startCamera) {
+      appliedCamera = projectScene.startCamera;
+      camera.position.fromArray(appliedCamera.position);
+      camera.quaternion.fromArray(appliedCamera.rotation);
+      camera.fov = appliedCamera.fovDegrees;
+      camera.updateProjectionMatrix();
+      camera.updateMatrixWorld(true);
+    }
+
+    if (ready && environmentId !== projectScene?.environmentAssetId) {
+      // Environment stays at its exported origin, outside the placed-object list
+      // Removed instances share resources with models until viewport disposal
+      if (environment !== undefined) scene.remove(environment);
+      environmentId = projectScene?.environmentAssetId;
+      environment =
+        environmentId === undefined ? undefined : models.get(environmentId)?.clone(true);
+      if (environment !== undefined) scene.add(environment);
+    }
+    // Sample room floor sits at zero; lift the grid slightly so it stays readable
+    grid.position.y = projectScene === null ? -0.01 : 0.01;
     for (const [id, instance] of instances) {
-      if (!objects.some((object) => object.id === id)) {
+      if (
+        !objects.some((object) => object.id === id && object.assetId === instanceAssets.get(id))
+      ) {
+        // An imported project can reuse an ID with a different model
         scene.remove(instance);
         instances.delete(id);
+        instanceAssets.delete(id);
         bounds.delete(id);
       }
     }
@@ -113,6 +150,7 @@ export function initScene(
           // Instances share each asset's immutable GPU resources until viewport disposal
           instance.add(model.clone(true));
           instances.set(object.id, instance);
+          instanceAssets.set(object.id, object.assetId);
           scene.add(instance);
         }
         instance.position.fromArray(object.transform.position);

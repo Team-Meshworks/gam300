@@ -1,6 +1,7 @@
 import { useEffect, useRef, type DragEvent } from "react";
 import { assetDragType, type CatalogueAsset } from "../../shared/assets/catalogue";
 import type { SceneObject, Vector3Tuple } from "../../shared/project/scene-object";
+import type { ProjectScene } from "../../shared/project/project-types";
 import { initScene, type ViewportStatus } from "../graphics/scene";
 
 const statusMessages = {
@@ -13,6 +14,7 @@ const statusMessages = {
 type ViewportProps = {
   assets: readonly CatalogueAsset[];
   objects: readonly SceneObject[];
+  projectScene: ProjectScene | null;
   selectedId: string | null;
   dragging: boolean;
   status: ViewportStatus;
@@ -28,6 +30,7 @@ type ViewportProps = {
 export function Viewport({
   assets,
   objects,
+  projectScene,
   selectedId,
   dragging,
   status,
@@ -56,8 +59,8 @@ export function Viewport({
   }, [assets, attempt, onStatus, onThumbnail, onSelect]);
 
   useEffect(() => {
-    sceneRef.current?.update(objects, selectedId);
-  }, [objects, selectedId, attempt]);
+    sceneRef.current?.update(objects, selectedId, projectScene);
+  }, [objects, selectedId, projectScene, assets, attempt]);
 
   useEffect(() => {
     if (!dragging) {
