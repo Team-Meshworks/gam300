@@ -72,6 +72,18 @@ Replacing existing work asks for confirmation and clears the previous placement 
 The room stays outside the object list; the loaded project's asset shelf offers models
 File import/export and local storage controls are still pending
 
+Local draft storage now exposes `saveLocalDraft({ project, expectedStorageRevision,
+localEditSequence }, assetKinds)` in `web/editor/persistence/local-drafts.ts`
+Use revision zero for a new draft and the returned storage revision for its next save
+Successful results confirm transaction completion; conflicts and failed transactions
+preserve the previous record
+The editor does not call this function yet, so placed objects still disappear on reload
+
+With the dev server running and the Playwright settings below, run the isolated
+IndexedDB checks from `web/` with `node tests/local-drafts.smoke.mjs`
+These cover successful writes, rejected data, competing connections, stale edits,
+transaction aborts and unavailable storage
+
 With the dev server running, use an existing Playwright installation with Chromium:
 
 ```powershell
