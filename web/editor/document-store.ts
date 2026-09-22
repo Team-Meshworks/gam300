@@ -1,3 +1,6 @@
+import { validateTransform } from "../shared/project/spatial-validation";
+import { invalid } from "../shared/project/validation-helpers";
+import type { Transform } from "../shared/project/project-types";
 import { prepareTransformCommand } from "./transform-command";
 import { createCommandHistory } from "./command-history";
 import type { CatalogueAsset } from "../shared/assets/catalogue.ts";
@@ -26,6 +29,13 @@ function freezeProject(project: ProjectDocument): ProjectDocument {
   return Object.freeze(project);
 }
 
+export type TransformSession = Readonly<{
+  token: string;
+  objectId: string;
+  before: Transform;
+  after: Transform;
+}>;
+
 export function createDocumentStore(assets: readonly CatalogueAsset[]) {
   let objects: readonly SceneObject[] = Object.freeze([]);
   // The current grid-only editor has no environment-backed project at startup
@@ -35,6 +45,17 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
   // Keep history here so the buttons and future edit controls share one undo order.
   const history = createCommandHistory<readonly SceneObject[]>();
   const listeners = new Set<() => void>();
+  // Preview data stays outside the saved document and undo history.
+  let edit: TransformSession | null = null;
+  const editListeners = new Set<() => void>();
+  function clearEdit() {
+    if (edit === null) return;
+    edit = null;
+    editListeners.forEach((listener) => listener());
+  }
+  function notifyEdit() {
+    editListeners.forEach((listener) => listener());
+  }
   let snapshot: Readonly<{
     objects: readonly SceneObject[];
     project: ProjectDocument | null;
@@ -65,7 +86,72 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
     listeners.forEach((listener) => listener());
   }
 
+  function commitTransform(
+    input: unknown,
+  ): ValidationResult<{ changed: boolean; object: SceneObject }> {
+    const result = prepareTransformCommand(objects, input);
+    if (!result.ok) return result;
+    const { command, object } = result.value;
+    if (command === null) {
+      clearEdit();
+      return { ok: true, value: { changed: false, object } };
+    }
+    replaceObjects(history.execute(objects, command));
+    clearEdit();
+    publish();
+    return { ok: true, value: { changed: true, object } };
+  }
+
   return {
+    getTransformEdit: () => edit,
+    subscribeTransformEdit(listener: () => void) {
+      editListeners.add(listener);
+      return () => {
+        editListeners.delete(listener);
+      };
+    },
+    beginTransform(objectId: string): ValidationResult<TransformSession> {
+      const object = objects.find((item) => item.id === objectId);
+      if (!object) return invalid("objectId", "Choose an object in the scene");
+      // A fresh token prevents late events from an older drag changing this one.
+      edit = Object.freeze({
+        token: crypto.randomUUID(),
+        objectId,
+        before: object.transform,
+        after: object.transform,
+      });
+      notifyEdit();
+      return { ok: true, value: edit };
+    },
+    previewTransform(token: string, input: unknown): ValidationResult<TransformSession> {
+      if (!edit || edit.token !== token) return invalid("session", "This edit session has ended");
+      const result = validateTransform(input, "preview");
+      // Cancel invalid previews rather than accidentally committing the last good position.
+      if (!result.ok) {
+        clearEdit();
+        return result;
+      }
+      const after = result.value;
+      Object.freeze(after.position);
+      Object.freeze(after.rotation);
+      Object.freeze(after.scale);
+      Object.freeze(after);
+      edit = Object.freeze({ ...edit, after });
+      notifyEdit();
+      return { ok: true, value: edit };
+    },
+    commitTransformEdit(
+      token: string,
+    ): ValidationResult<{ changed: boolean; object: SceneObject }> {
+      if (!edit || edit.token !== token) return invalid("session", "This edit session has ended");
+      const { objectId, before, after } = edit;
+      const result = commitTransform({ objectId, before, after });
+      clearEdit();
+      return result;
+    },
+    cancelTransformEdit(token: string) {
+      if (edit?.token === token) clearEdit();
+    },
     getSnapshot: () => snapshot,
     loadProject(
       text: unknown,
@@ -86,6 +172,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       projectAssets = loadedAssets;
       // Undo from the previous project must never reintroduce its objects here
       history.clear();
+      clearEdit();
       publish();
       return { ok: true, value: loaded };
     },
@@ -130,20 +217,30 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
           revert: (current) => Object.freeze(current.filter((entry) => entry.id !== object.id)),
         }),
       );
+      clearEdit();
       publish();
       return { ok: true, object } as const;
     },
-    commitTransform(input: unknown): ValidationResult<{ changed: boolean; object: SceneObject }> {
-      const result = prepareTransformCommand(objects, input);
-      if (!result.ok) return result;
-      const { command, object } = result.value;
-      // Rejected and unchanged edits leave redo and subscriber snapshots alone.
-      if (command === null) return { ok: true, value: { changed: false, object } };
-      replaceObjects(history.execute(objects, command));
+    commitTransform,
+    deleteObject(objectId: string): ValidationResult<SceneObject> {
+      const index = objects.findIndex((object) => object.id === objectId);
+      const object = objects[index];
+      if (!object) return invalid("objectId", "This object is no longer in the scene");
+      // Remember the slot as well as the whole object, so undo restores list order.
+      replaceObjects(
+        history.execute(objects, {
+          label: "Delete object",
+          apply: (current) => Object.freeze(current.filter((entry) => entry.id !== objectId)),
+          revert: (current) =>
+            Object.freeze([...current.slice(0, index), object, ...current.slice(index)]),
+        }),
+      );
+      clearEdit();
       publish();
-      return { ok: true, value: { changed: true, object } };
+      return { ok: true, value: object };
     },
     undo() {
+      clearEdit();
       const next = history.undo(objects);
       // Nothing changed, so there is no new snapshot to send to the UI.
       if (next === objects) return;
@@ -151,6 +248,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       publish();
     },
     redo() {
+      clearEdit();
       const next = history.redo(objects);
       if (next === objects) return;
       replaceObjects(next);

@@ -22,7 +22,8 @@ export function App() {
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const selection = objects.some((object) => object.id === selectedId) ? selectedId : null;
-  const hasChanges = objects.length > 0;
+  const [hasDeleted, setHasDeleted] = useState(false);
+  const hasChanges = objects.length > 0 || hasDeleted;
 
   useEffect(() => {
     if (!hasChanges) {
@@ -46,6 +47,19 @@ export function App() {
     setNotice(`Added ${result.object.name}.`);
   }
 
+  function deleteSelection() {
+    if (selection === null) return;
+    const result = store.deleteObject(selection);
+    if (!result.ok) {
+      setError(result.error.message);
+      return;
+    }
+    setError("");
+    setHasDeleted(true);
+    setSelectedId(null);
+    setNotice(`Deleted ${result.value.name}. Undo restores it.`);
+  }
+
   return (
     <div className="editor-shell">
       <a className="skip-link" href="#viewport">
@@ -56,6 +70,9 @@ export function App() {
           <strong>VThere</strong> Spatial Experience Editor
         </h1>
         <div className="history-controls" role="group" aria-label="History">
+          <button type="button" disabled={selection === null} onClick={deleteSelection}>
+            Delete selected
+          </button>
           <button type="button" disabled={!canUndo} onClick={store.undo}>
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M9 5 4 10l5 5M4 10h10a6 6 0 0 1 0 12" />
