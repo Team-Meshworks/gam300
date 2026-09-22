@@ -1,5 +1,7 @@
 import { serializeProject } from "../../shared/project/project-serialization";
-import { invalid, isRecord } from "../../shared/project/validation-helpers";
+import { deserializeProject } from "../../shared/project/project-deserialization";
+import type { ProjectDocument } from "../../shared/project/project-types";
+import { checkFields, invalid, isRecord } from "../../shared/project/validation-helpers";
 import type { ValidationResult } from "../../shared/project/validation-helpers";
 
 const DATABASE_NAME = "vthere-local-drafts";
@@ -18,6 +20,8 @@ type SaveReceipt = Readonly<{
   localEditSequence: number;
   savedAt: string;
 }>;
+
+type RecoveredDraft = SaveReceipt & Readonly<{ document: ProjectDocument }>;
 
 function isCounter(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
@@ -48,6 +52,105 @@ function openDatabase(): Promise<IDBDatabase> {
       else resolve(database);
     };
   });
+}
+
+function validateStoredDraft(
+  raw: unknown,
+  projectId: string,
+  assetKinds: ReadonlyMap<string, string>,
+): ValidationResult<RecoveredDraft | null> {
+  // A missing draft is a normal first visit
+  // Damaged records return an error and stay available for recovery
+  if (raw === undefined) return { ok: true, value: null };
+  if (!isRecord(raw)) return invalid("storage", "Stored draft must be an object");
+  const fields = checkFields(
+    raw,
+    [
+      "projectId",
+      "principalKey",
+      "document",
+      "localStorageRevision",
+      "localEditSequence",
+      "baseServerRevision",
+      "pendingMutation",
+      "savedAt",
+    ],
+    "storage",
+  );
+  if (!fields.ok) return fields;
+  if (
+    raw.projectId !== projectId ||
+    raw.principalKey !== LOCAL_PRINCIPAL ||
+    raw.baseServerRevision !== null ||
+    raw.pendingMutation !== null ||
+    !isCounter(raw.localStorageRevision) ||
+    raw.localStorageRevision < 1 ||
+    !isCounter(raw.localEditSequence) ||
+    typeof raw.savedAt !== "string" ||
+    raw.savedAt.length > 30 ||
+    !Number.isFinite(Date.parse(raw.savedAt))
+  ) {
+    return invalid("storage", "Stored draft metadata is invalid or unsupported");
+  }
+  // Browser storage can be edited or left behind by another application version
+  // Use the file reader's size, version and reference checks again
+  const document = deserializeProject(raw.document, assetKinds);
+  if (!document.ok) return document;
+  if (document.value.projectId.toLowerCase() !== projectId) {
+    return invalid("storage.projectId", "Stored document belongs to a different project");
+  }
+  return {
+    ok: true,
+    value: {
+      projectId,
+      document: document.value,
+      localStorageRevision: raw.localStorageRevision,
+      localEditSequence: raw.localEditSequence,
+      savedAt: raw.savedAt,
+    },
+  };
+}
+
+// Return a checked draft for the caller to offer to the author
+// Reading never replaces the live project or deletes a rejected record
+export async function loadLocalDraft(
+  projectId: string,
+  assetKinds: ReadonlyMap<string, string>,
+): Promise<ValidationResult<RecoveredDraft | null>> {
+  if (
+    typeof projectId !== "string" ||
+    projectId.length !== 36 ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(projectId)
+  ) {
+    return invalid("storage.projectId", "Expected a project UUID");
+  }
+  let database: IDBDatabase;
+  try {
+    database = await openDatabase();
+  } catch {
+    return invalid("storage", "Local storage could not open; the current project is unchanged");
+  }
+  const stored = await new Promise<ValidationResult<unknown>>((resolve) => {
+    try {
+      const transaction = database.transaction(STORE_NAME, "readonly");
+      const read = transaction
+        .objectStore(STORE_NAME)
+        .get([LOCAL_PRINCIPAL, projectId.toLowerCase()]);
+      transaction.oncomplete = () => {
+        database.close();
+        resolve({ ok: true, value: read.result });
+      };
+      transaction.onabort = () => {
+        database.close();
+        resolve(invalid("storage", "Local draft could not be read; try again"));
+      };
+    } catch {
+      database.close();
+      resolve(invalid("storage", "Local draft could not be read; try again"));
+    }
+  });
+  if (!stored.ok) return stored;
+  return validateStoredDraft(stored.value, projectId.toLowerCase(), assetKinds);
 }
 
 // Save one snapshot; caller keeps the live document and tracks newer edits separately

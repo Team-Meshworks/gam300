@@ -79,10 +79,16 @@ Successful results confirm transaction completion; conflicts and failed transact
 preserve the previous record
 The editor does not call this function yet, so placed objects still disappear on reload
 
+`loadLocalDraft(projectId, assetKinds)` reads a draft through the same project validator
+It returns a checked document with its storage revision and edit sequence, or null when
+no draft exists
+Damaged or unsupported records return an error and remain in storage
+Reading does not replace the open scene; editor recovery controls are still pending
+
 With the dev server running and the Playwright settings below, run the isolated
 IndexedDB checks from `web/` with `node tests/local-drafts.smoke.mjs`
-These cover successful writes, rejected data, competing connections, stale edits,
-transaction aborts and unavailable storage
+These cover save/reload, damaged records, rejected data, competing connections,
+stale edits, transaction aborts and unavailable storage
 
 With the dev server running, use an existing Playwright installation with Chromium:
 
