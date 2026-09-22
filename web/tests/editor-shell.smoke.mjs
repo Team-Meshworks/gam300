@@ -4,7 +4,10 @@ import { pathToFileURL } from "node:url";
 const { chromium } = await import(
   process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : "playwright"
 );
-const browser = await chromium.launch({ args: ["--enable-unsafe-swiftshader"] });
+const browser = await chromium.launch({
+  args: ["--enable-unsafe-swiftshader"],
+  ...(process.env.PLAYWRIGHT_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHANNEL } : {}),
+});
 
 try {
   const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
@@ -158,8 +161,37 @@ try {
   await redo.click();
   assert.equal(await rows.last().getAttribute("data-object-id"), roomId);
 
+  // The saved fixture should replace placement history and show its two authored objects
+  await page.getByRole("button", { name: "Open sample project", exact: true }).click();
+  assert.deepEqual(await rows.allTextContents(), ["First crate", "Second crate"]);
+  assert.deepEqual(await rows.evaluateAll((items) => items.map((item) => item.dataset.objectId)), [
+    "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+    "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  ]);
+  assert.equal(await undo.isDisabled(), true);
+  assert.equal(await redo.isDisabled(), true);
+  assert.equal(await page.getByRole("button", { name: "Add test-room", exact: true }).count(), 0);
+  await asset.click();
+  assert.equal(await rows.count(), 3);
+  await undo.click();
+  assert.equal(await rows.count(), 2);
+  await redo.click();
+  assert.equal(await rows.count(), 3);
+  await page.getByRole("button", { name: "Open sample project", exact: true }).click();
+  assert.equal(await rows.count(), 2);
+  assert.equal(await page.locator("canvas").count(), 1);
+  if (process.env.SCENE_SCREENSHOT) {
+    await page.screenshot({ path: process.env.SCENE_SCREENSHOT });
+  }
+
   const samplePath = "**/*test-crate*.glb*";
-  await page.route(samplePath, (route) => route.fulfill({ status: 503, body: "Unavailable" }));
+  await page.route(samplePath, (route) => {
+    // Vite also serves a JavaScript URL module for each model
+    // Fail the model download after the application itself has loaded
+    return route.request().resourceType() === "fetch"
+      ? route.fulfill({ status: 503, body: "Unavailable" })
+      : route.continue();
+  });
   await page.reload();
   await page.getByRole("status").filter({ hasText: "Couldn't load the asset library" }).waitFor();
   assert.equal(await asset.isDisabled(), true);
@@ -187,7 +219,7 @@ try {
   assert.equal(await asset.isDisabled(), true);
   assert.deepEqual(pageErrors, [], "No uncaught page errors in any flow");
   console.log(
-    "PASS: asset thumbnail, placement, selection, undo/redo, cancellation, keyboard, resizing, retry and WebGL fallback",
+    "PASS: asset placement, sample project loading, undo/redo, selection, keyboard, resizing, retry and WebGL fallback",
   );
 } finally {
   await browser.close();
