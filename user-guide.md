@@ -1,14 +1,14 @@
 ---
-title: Using VThere
+title: Using Spatial Experience Builder
 description: A short walkthrough of the current editor prototype and its limitations.
 published: true
-date: 2026-09-23T14:16:54.377Z
+date: 2026-09-23T15:08:30.971Z
 tags: 
 editor: markdown
 dateCreated: 2026-09-23T14:13:27.498Z
 ---
 
-# Using VThere
+# Using Spatial Experience Builder
 
 This walkthrough describes the current **M1 editor prototype**, inspected on dev e5591d0. It does not describe the complete planned product. The current interface is provisional.
 
