@@ -11,6 +11,7 @@ const browser = await chromium.launch({
 try {
   // Fresh browser context keeps these writes away from the author's saved drafts
   const page = await browser.newPage();
+  page.on("dialog", (dialog) => dialog.accept());
   await page.goto(process.argv[2] ?? "http://127.0.0.1:5173/");
   const fixture = JSON.parse(
     readFileSync(new URL("../shared/project/fixtures/m1-project.json", import.meta.url), "utf8"),
@@ -188,8 +189,105 @@ try {
   assert.deepEqual(results.afterOlderEdit, results.winner);
   assert.equal(results.unavailable.ok, false);
   assert.deepEqual(results.project, fixture);
+  // Exercise the author-facing controls against the draft written above
+  const ready = page.getByRole("status").filter({ hasText: "Scene ready" });
+  const recover = page.getByRole("button", { name: "Recover local draft", exact: true });
+  const save = page.getByRole("button", { name: "Save locally", exact: true });
+  const label = page.locator(".save-state");
+  const rows = page.locator(".object-row");
+  await ready.waitFor();
+  await page.locator(".draft-menu summary").click();
+  await recover.click();
+  await page.getByText("Recovered local draft from this device", { exact: true }).waitFor();
+  assert.equal(await rows.count(), 2);
+  assert.equal(await label.textContent(), "Saved on this device");
+  await page.getByRole("button", { name: "Add test-crate", exact: true }).click();
+  assert.equal(await label.textContent(), "Not saved");
+  const savedIds = await rows.evaluateAll((items) => items.map((item) => item.dataset.objectId));
+  await page.locator(".draft-menu summary").click();
+  await save.click();
+  await page.getByText("Local draft saved on this device", { exact: true }).waitFor();
+  assert.equal(await label.textContent(), "Saved on this device");
+  await page.reload();
+  await ready.waitFor();
+  await page.locator(".draft-menu summary").click();
+  await recover.click();
+  await page.getByText("Recovered local draft from this device", { exact: true }).waitFor();
+  assert.deepEqual(
+    await rows.evaluateAll((items) => items.map((item) => item.dataset.objectId)),
+    savedIds,
+  );
+
+  await page.getByRole("button", { name: "Add test-crate", exact: true }).click();
+  await page.evaluate(() => {
+    IDBObjectStore.prototype.put = () => {
+      throw new DOMException("Test quota failure", "QuotaExceededError");
+    };
+  });
+  await page.locator(".draft-menu summary").click();
+  await save.click();
+  await page.getByText("Local save failed", { exact: true }).waitFor();
+  assert.equal(await rows.count(), 4, "Failed saves keep in-memory edits");
+  await page.locator(".draft-menu summary").click();
+  await recover.click();
+  await page.getByText("Recovered local draft from this device", { exact: true }).waitFor();
+  assert.deepEqual(
+    await rows.evaluateAll((items) => items.map((item) => item.dataset.objectId)),
+    savedIds,
+  );
+
+  // Reopening the sample reuses its project ID even when a browser save already exists
+  await page.reload();
+  await ready.waitFor();
+  await page.getByRole("button", { name: "Open sample project", exact: true }).click();
+  await page.getByRole("button", { name: "Add test-crate", exact: true }).click();
+  assert.ok(!(await page.locator(".draft-feedback").textContent()).endsWith("."));
+  const replacementIds = await rows.evaluateAll((items) =>
+    items.map((item) => item.dataset.objectId),
+  );
+  page.removeAllListeners("dialog");
+  page.once("dialog", (dialog) => dialog.dismiss());
+  await page.locator(".draft-menu summary").click();
+  await save.click();
+  await page.waitForFunction(
+    () => document.querySelector(".save-state")?.textContent === "Not saved",
+  );
+  const retained = await page.evaluate(async (id) => {
+    const { loadLocalDraft } = await import("/persistence/local-drafts.ts");
+    return loadLocalDraft(
+      id,
+      new Map([
+        ["test-room-v1", "environment"],
+        ["test-crate-v1", "model"],
+      ]),
+    );
+  }, fixture.projectId);
+  assert.equal(retained.ok, true);
+  assert.deepEqual(
+    retained.value.document.scenes[0].objects.map((object) => object.id),
+    savedIds,
+  );
+  assert.deepEqual(
+    await rows.evaluateAll((items) => items.map((item) => item.dataset.objectId)),
+    replacementIds,
+  );
+  page.on("dialog", (dialog) => dialog.accept());
+  await page.locator(".draft-menu summary").click();
+  await save.click();
+  await page.getByText("Local draft saved on this device", { exact: true }).waitFor();
+  assert.equal(await label.textContent(), "Saved on this device");
+  await page.reload();
+  await ready.waitFor();
+  await page.locator(".draft-menu summary").click();
+  await recover.click();
+  await page.getByText("Recovered local draft from this device", { exact: true }).waitFor();
+  assert.deepEqual(
+    await rows.evaluateAll((items) => items.map((item) => item.dataset.objectId)),
+    replacementIds,
+  );
+
   console.log(
-    "PASS: IndexedDB save/reload, damaged record preservation, competing writes, abort and unavailable storage",
+    "PASS: local save/recover controls, reload identity, failed-save preservation and IndexedDB failure cases",
   );
 } finally {
   await browser.close();

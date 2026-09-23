@@ -8,7 +8,7 @@ The web app lives in `web/`. It is a React 19 + TypeScript single-page app built
 ## Prerequisites
 
 - **Node.js `^24.19.0`** and **npm `^11.17.0`** (pinned in `web/.nvmrc` / `web/package.json`)
-- The Vite stack **will not run on older Node versions** â€” Node 20.x and below fail with a
+- The Vite stack **will not run on older Node versions** — Node 20.x and below fail with a
   `SyntaxError` / missing-native-binding error. Use Node 24.
 
 ### On Windows (nvm-windows)
@@ -20,7 +20,7 @@ node -v   # -> v24.19.0
 ```
 
 `nvm use` updates the `C:\Program Files\nodejs` junction, so it applies to every new terminal.
-Note: some nvm-windows builds print no output at all â€” if that happens, upgrade nvm (see
+Note: some nvm-windows builds print no output at all — if that happens, upgrade nvm (see
 Troubleshooting).
 
 ## Install
@@ -53,42 +53,11 @@ project format, approved asset registry, custom movement and persistence remain 
 Picking currently uses object bounds; full mesh picking and camera navigation are still
 part of viewport work. Import/export controls will appear when those features work.
 
-Run the project-data and document-store checks from `web/`:
+Run the small document/creation-history check from `web/`:
 
 ```powershell
-npm run test:unit
+node editor/document-store.test.mjs
 ```
-
-The document store can load validated JSON through `loadProject(text, assetKinds)`
-where `assetKinds` maps catalog IDs to their asset kinds
-Successful loading replaces the project and clears placement history
-Rejected loading preserves the current snapshot and history
-The snapshot's `project` is null in the initial grid-only editor until a complete
-project is loaded
-
-During development, **Open sample project** loads the shared M1 fixture through the
-project reader and displays its room, two crates and saved starting camera
-Replacing existing work asks for confirmation and clears the previous placement history
-The room stays outside the object list; the loaded project's asset shelf offers models
-File import/export and local storage controls are still pending
-
-Local draft storage now exposes `saveLocalDraft({ project, expectedStorageRevision,
-localEditSequence }, assetKinds)` in `web/editor/persistence/local-drafts.ts`
-Use revision zero for a new draft and the returned storage revision for its next save
-Successful results confirm transaction completion; conflicts and failed transactions
-preserve the previous record
-The editor does not call this function yet, so placed objects still disappear on reload
-
-`loadLocalDraft(projectId, assetKinds)` reads a draft through the same project validator
-It returns a checked document with its storage revision and edit sequence, or null when
-no draft exists
-Damaged or unsupported records return an error and remain in storage
-Reading does not replace the open scene; editor recovery controls are still pending
-
-With the dev server running and the Playwright settings below, run the isolated
-IndexedDB checks from `web/` with `node tests/local-drafts.smoke.mjs`
-These cover save/reload, damaged records, rejected data, competing connections,
-stale edits, transaction aborts and unavailable storage
 
 With the dev server running, use an existing Playwright installation with Chromium:
 
@@ -96,8 +65,6 @@ With the dev server running, use an existing Playwright installation with Chromi
 cd web
 # Omit this variable if Playwright is already resolvable from web/
 $env:PLAYWRIGHT_MODULE = 'C:\path\to\node_modules\playwright\index.mjs'
-# Optional: use installed Microsoft Edge instead of a downloaded Playwright browser
-$env:PLAYWRIGHT_CHANNEL = 'msedge'
 node tests/editor-shell.smoke.mjs
 ```
 

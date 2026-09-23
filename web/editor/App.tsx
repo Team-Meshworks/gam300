@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { assets } from "virtual:asset-catalogue";
 import { assetDragType } from "../shared/assets/catalogue";
 import type { Vector3Tuple } from "../shared/project/scene-object";
@@ -7,6 +7,10 @@ import type { ViewportStatus } from "./graphics/scene";
 import { Viewport } from "./viewport/Viewport";
 import sampleProject from "../shared/project/fixtures/m1-project.json";
 
+import type { ProjectDocument } from "../shared/project/project-types";
+import { loadLocalDraft, saveLocalDraft } from "./persistence/local-drafts";
+
+// Same catalog used by the viewport; saved references need to resolve here too
 const assetKinds = new Map(assets.map((asset) => [asset.id, asset.kind]));
 
 export function App() {
@@ -27,10 +31,162 @@ export function App() {
   const [dragging, setDragging] = useState(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
+  const [savedProject, setSavedProject] = useState<ProjectDocument | null>(null);
+  const [storageOperation, setStorageOperation] = useState<"save" | "recover" | null>(null);
+  const [saveFailed, setSaveFailed] = useState(false);
+  // revision follows confirmed storage writes; editSequence follows changes in this tab
+  // busy blocks another save or recovery immediately, before React redraws the buttons
+  const local = useRef({
+    revision: 0,
+    editSequence: 0,
+    busy: false,
+    noticeTimer: undefined as ReturnType<typeof setTimeout> | undefined,
+  });
+  const draftMenu = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    // Clicking back into the editor closes the project options
+    function closeOutside(event: PointerEvent) {
+      if (event.target instanceof Node && !draftMenu.current?.contains(event.target)) {
+        draftMenu.current?.removeAttribute("open");
+      }
+    }
+    document.addEventListener("pointerdown", closeOutside);
+    const localState = local.current;
+    return () => {
+      document.removeEventListener("pointerdown", closeOutside);
+      clearTimeout(localState.noticeTimer);
+    };
+  }, []);
+  function closeDraftMenu() {
+    draftMenu.current?.removeAttribute("open");
+    draftMenu.current?.querySelector("summary")?.focus();
+  }
   const selection = objects.some((object) => object.id === selectedId) ? selectedId : null;
   const hasChanges = project !== null || objects.length > 0;
 
+  // Store edits create a new project snapshot
+  // Remembering the saved snapshot lets later edits keep the unsaved label
+  const hasUnsavedChanges = project !== null ? project !== savedProject : objects.length > 0;
+
+  useEffect(
+    () =>
+      store.subscribe(() => {
+        // Count committed store changes, including undo and redo
+        // Selection changes live outside the store and don't create a new edit
+        local.current.editSequence += 1;
+      }),
+    [store],
+  );
+
+  async function saveDraft() {
+    // Read at click time so the save uses the latest committed scene
+    const current = store.getSnapshot().project;
+    if (current === null || local.current.busy) return;
+    local.current.busy = true;
+    setStorageOperation("save");
+    setSaveFailed(false);
+    setError("");
+    const capturedSequence = local.current.editSequence;
+    try {
+      let expectedRevision = local.current.revision;
+      let savedSequence = capturedSequence;
+      // Opening the sample starts fresh in memory, but its earlier save may still exist
+      // Ask before replacing that copy; the write still checks for edits from another tab
+      if (expectedRevision === 0) {
+        const existing = await loadLocalDraft(current.projectId, assetKinds);
+        if (!existing.ok) {
+          setSaveFailed(true);
+          setError(existing.error.message);
+          return;
+        }
+        if (existing.value !== null) {
+          if (!window.confirm("Replace the existing browser save with this project?")) return;
+          expectedRevision = existing.value.localStorageRevision;
+          savedSequence = Math.max(capturedSequence, existing.value.localEditSequence + 1);
+        }
+      }
+      const result = await saveLocalDraft(
+        {
+          project: current,
+          expectedStorageRevision: expectedRevision,
+          localEditSequence: savedSequence,
+        },
+        assetKinds,
+      );
+      if (!result.ok) {
+        // Keep the last confirmed revision so a failed write doesn't advance our counter
+        setSaveFailed(true);
+        setError(result.error.message);
+        return;
+      }
+      local.current.revision = result.value.localStorageRevision;
+      // Carry the new counter baseline forward while retaining edits made during the write
+      local.current.editSequence += savedSequence - capturedSequence;
+      // Only this captured snapshot was saved; later edits still need another write
+      setSavedProject(current);
+      setNotice("Local draft saved on this device");
+    } catch {
+      setSaveFailed(true);
+      setError("Local save failed; your current scene is still open");
+    } finally {
+      // Release the controls after success, rejection or an unexpected storage error
+      local.current.busy = false;
+      setStorageOperation(null);
+    }
+  }
+
+  async function recoverDraft() {
+    if (local.current.busy) return;
+    if (hasUnsavedChanges && !window.confirm("Replace unsaved changes with the local draft?"))
+      return;
+    // Keep the starting snapshot to detect edits made while IndexedDB is reading
+    const before = store.getSnapshot();
+    local.current.busy = true;
+    setStorageOperation("recover");
+    setError("");
+    try {
+      // The sample is the only project-opening route until file import is connected
+      const projectId = before.project?.projectId ?? sampleProject.projectId;
+      const result = await loadLocalDraft(projectId, assetKinds);
+      if (!result.ok) {
+        setError(result.error.message);
+        return;
+      }
+      if (result.value === null) {
+        // First visit or cleared browser storage; leave whatever is open alone
+        setNotice("No local draft found for this project on this device");
+        return;
+      }
+      // A slow read must never replace edits made after recovery started
+      if (store.getSnapshot() !== before) {
+        setError("The scene changed while reading the draft; choose Recover again when ready");
+        return;
+      }
+      // Store replacement clears old undo history and freezes the recovered data
+      const restored = store.loadProject(JSON.stringify(result.value.document), assetKinds);
+      if (!restored.ok) {
+        setError(restored.error.message);
+        return;
+      }
+      // Continue from the recovered counters so the next save targets this exact draft
+      local.current.revision = result.value.localStorageRevision;
+      local.current.editSequence = result.value.localEditSequence;
+      setSavedProject(restored.value);
+      setSaveFailed(false);
+      // Selection and drag feedback belong to the scene that was just replaced
+      setSelectedId(null);
+      setDragging(false);
+      setNotice("Recovered local draft from this device");
+    } catch {
+      setError("Local recovery failed; your current scene is unchanged");
+    } finally {
+      local.current.busy = false;
+      setStorageOperation(null);
+    }
+  }
+
   function openSampleProject() {
+    if (local.current.busy) return;
     if (hasChanges && !window.confirm("Replace the current scene? Unsaved changes will be lost.")) {
       return;
     }
@@ -41,6 +197,12 @@ export function App() {
       setError(`${result.error.path}: ${result.error.message}`);
       return;
     }
+    // Opening the original sample must not silently overwrite a stored draft
+    // Save will check for an earlier copy and ask before replacing it
+    local.current.revision = 0;
+    local.current.editSequence = 0;
+    setSavedProject(null);
+    setSaveFailed(false);
     setSelectedId(null);
     setDragging(false);
     setError("");
@@ -48,15 +210,17 @@ export function App() {
   }
 
   useEffect(() => {
-    if (!hasChanges) {
+    if (!hasUnsavedChanges) {
       return;
     }
     function warnBeforeLeaving(event: BeforeUnloadEvent) {
+      // Browser owns the warning dialog; saving still happens through Save locally
       event.preventDefault();
     }
     addEventListener("beforeunload", warnBeforeLeaving);
+    // Remove the warning when the current snapshot has been saved
     return () => removeEventListener("beforeunload", warnBeforeLeaving);
-  }, [hasChanges]);
+  }, [hasUnsavedChanges]);
 
   function place(assetId: string, position: Vector3Tuple) {
     const result = store.addObject(assetId, position);
@@ -66,7 +230,13 @@ export function App() {
     }
     setError("");
     setSelectedId(result.object.id);
-    setNotice(`Added ${result.object.name}.`);
+    const addedNotice = `Added ${result.object.name}`;
+    setNotice(addedNotice);
+    // Give the latest placement three seconds; keep newer save or recovery feedback
+    clearTimeout(local.current.noticeTimer);
+    local.current.noticeTimer = setTimeout(() => {
+      setNotice((current) => (current === addedNotice ? "" : current));
+    }, 3000);
   }
 
   return (
@@ -75,12 +245,63 @@ export function App() {
         Skip to scene
       </a>
       <header className="app-header">
+        {/* Project actions stay behind this icon so the library has room for assets */}
+        <details
+          className="draft-menu"
+          ref={draftMenu}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              event.preventDefault();
+              closeDraftMenu();
+            }
+          }}
+          onBlur={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget))
+              event.currentTarget.removeAttribute("open");
+          }}
+        >
+          <summary aria-label="Project options" title="Project options">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </summary>
+          <div className="draft-menu-panel">
+            <button
+              type="button"
+              aria-label="Save locally"
+              title="Save a copy in this browser"
+              disabled={project === null || storageOperation !== null}
+              onClick={() => {
+                closeDraftMenu();
+                void saveDraft();
+              }}
+            >
+              Save
+            </button>
+            <button
+              type="button"
+              aria-label="Recover local draft"
+              title="Restore your last local save"
+              disabled={status !== "ready" || storageOperation !== null}
+              onClick={() => {
+                closeDraftMenu();
+                void recoverDraft();
+              }}
+            >
+              Recover
+            </button>
+          </div>
+        </details>
         <h1>
           <strong>VThere</strong> Spatial Experience Editor
         </h1>
         <div className="history-controls" role="group" aria-label="History">
           {import.meta.env.DEV && (
-            <button type="button" disabled={status !== "ready"} onClick={openSampleProject}>
+            <button
+              type="button"
+              disabled={status !== "ready" || storageOperation !== null}
+              onClick={openSampleProject}
+            >
               Open sample project
             </button>
           )}
@@ -98,8 +319,14 @@ export function App() {
           </button>
         </div>
         {hasChanges && (
-          <span className="save-state" title="Changes last until you close or reload this page.">
-            Not saved
+          <span className="save-state" title="Local drafts belong to this browser on this device">
+            {storageOperation === "save"
+              ? "Saving locally…"
+              : saveFailed
+                ? "Local save failed"
+                : hasUnsavedChanges
+                  ? "Not saved"
+                  : "Saved on this device"}
           </span>
         )}
       </header>
@@ -185,8 +412,8 @@ export function App() {
           }}
         />
       </main>
-      <p className="sr-only" role="status">
-        {notice}
+      <p className="draft-feedback" role="status">
+        {storageOperation === "recover" ? "Reading local draft…" : notice}
       </p>
       {error && (
         <p className="action-error" role="alert">

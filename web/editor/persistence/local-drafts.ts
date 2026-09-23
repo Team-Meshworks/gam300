@@ -4,13 +4,16 @@ import type { ProjectDocument } from "../../shared/project/project-types";
 import { checkFields, invalid, isRecord } from "../../shared/project/validation-helpers";
 import type { ValidationResult } from "../../shared/project/validation-helpers";
 
+// Stable storage names so refreshing the page finds the same records
 const DATABASE_NAME = "vthere-local-drafts";
 const STORE_NAME = "drafts";
 const LOCAL_PRINCIPAL = "local";
 
 type SaveRequest = Readonly<{
   project: unknown;
+  // Last storage revision this tab has seen; zero means no existing draft
   expectedStorageRevision: number;
+  // Edit counter captured with the project being saved
   localEditSequence: number;
 }>;
 
@@ -33,6 +36,7 @@ function openDatabase(): Promise<IDBDatabase> {
       reject(new Error("IndexedDB is unavailable"));
       return;
     }
+    // Database version controls the store layout; project schemaVersion lives in the JSON
     const request = indexedDB.open(DATABASE_NAME, 1);
     let blocked = false;
     request.onupgradeneeded = () => {
@@ -46,6 +50,7 @@ function openDatabase(): Promise<IDBDatabase> {
     };
     request.onsuccess = () => {
       const database = request.result;
+      // Let another tab upgrade storage once this connection is finished
       database.onversionchange = () => database.close();
       // A blocked open can still finish after its caller has received an error
       if (blocked) database.close();
@@ -78,6 +83,8 @@ function validateStoredDraft(
     "storage",
   );
   if (!fields.ok) return fields;
+  // Recovery needs usable counters and a timestamp before offering the draft
+  // Server-related fields stay empty for these local M1 records
   if (
     raw.projectId !== projectId ||
     raw.principalKey !== LOCAL_PRINCIPAL ||
@@ -97,6 +104,7 @@ function validateStoredDraft(
   const document = deserializeProject(raw.document, assetKinds);
   if (!document.ok) return document;
   if (document.value.projectId.toLowerCase() !== projectId) {
+    // A valid document under the wrong storage key still belongs to another project
     return invalid("storage.projectId", "Stored document belongs to a different project");
   }
   return {
@@ -132,11 +140,13 @@ export async function loadLocalDraft(
   }
   const stored = await new Promise<ValidationResult<unknown>>((resolve) => {
     try {
+      // Read-only transaction keeps failed recovery from changing the stored copy
       const transaction = database.transaction(STORE_NAME, "readonly");
       const read = transaction
         .objectStore(STORE_NAME)
         .get([LOCAL_PRINCIPAL, projectId.toLowerCase()]);
       transaction.oncomplete = () => {
+        // Release the connection before validating the returned JSON
         database.close();
         resolve({ ok: true, value: read.result });
       };
@@ -171,6 +181,8 @@ export async function saveLocalDraft(
   const serialized = serializeProject(request.project, assetKinds);
   if (!serialized.ok) return serialized;
   const checked: { projectId: string } = JSON.parse(serialized.value);
+  // UUID letter case must resolve to the same draft key
+  // Original spelling stays inside the saved JSON
   const projectId = checked.projectId.toLowerCase();
   const expectedRevision = request.expectedStorageRevision;
   const editSequence = request.localEditSequence;
@@ -220,10 +232,12 @@ export async function saveLocalDraft(
           return;
         }
         if (isRecord(previous) && editSequence < (previous.localEditSequence as number)) {
+          // An older queued snapshot can arrive after a newer edit has already been saved
           failure = "A newer edit is already saved; the existing draft was kept";
           transaction.abort();
           return;
         }
+        // Prepare the receipt now; return it only after the transaction commits
         receipt = {
           projectId,
           localStorageRevision: expectedRevision + 1,

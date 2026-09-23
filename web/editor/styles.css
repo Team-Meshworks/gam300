@@ -371,3 +371,93 @@ ul {
     transform: none;
   }
 }
+
+.draft-menu {
+  /* Offset the icon padding to line up with the asset thumbnails below */
+  margin-left: -0.75rem;
+  margin-right: -1.25rem;
+  position: relative;
+  flex-shrink: 0;
+  font-size: 0.8125rem;
+}
+.draft-menu summary {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2.25rem;
+  border-radius: 50%;
+  cursor: pointer;
+  list-style: none;
+}
+.draft-menu summary::-webkit-details-marker {
+  display: none;
+}
+.draft-menu summary:hover,
+.draft-menu[open] summary {
+  background: #e9e5df;
+}
+.draft-menu summary svg {
+  width: 1.5rem;
+  height: 1.5rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+/* Float the options over the editor so opening them doesn't shift the scene */
+.draft-menu-panel {
+  position: absolute;
+  top: calc(100% + 0.25rem);
+  left: 0;
+  z-index: 10;
+  width: 8.5rem;
+  max-width: calc(100vw - 2rem);
+  padding: 0.25rem;
+  border: 1px solid #ded9d1;
+  border-radius: 0.5rem;
+  background: #f7f5f2;
+  box-shadow: 0 4px 12px #292e2914;
+}
+.draft-menu-panel button {
+  display: block;
+  width: 100%;
+  min-height: 1.75rem;
+  padding: 0.25rem 0.5rem;
+  border: 0;
+  border-radius: 0.25rem;
+  background: transparent;
+  text-align: left;
+}
+.draft-menu-panel button:hover:not(:disabled) {
+  background: #e9e5df;
+}
+.draft-menu-panel button:disabled {
+  color: #898980;
+}
+.draft-feedback {
+  position: fixed;
+  bottom: 1rem;
+  right: 1rem;
+  max-width: calc(100% - 2rem);
+  padding: 0.5rem 0.85rem;
+  border-radius: 0.75rem;
+  background: #f7f5f2;
+  color: var(--muted);
+  box-shadow: 0 2px 12px #292e2914;
+  font-size: 0.75rem;
+  pointer-events: none;
+}
+.draft-feedback:empty {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  .draft-menu {
+    margin-left: -0.5rem;
+    margin-right: -0.5rem;
+  }
+  .draft-menu + h1 {
+    flex-basis: auto;
+    max-width: calc(100% - 2rem);
+  }
+}
