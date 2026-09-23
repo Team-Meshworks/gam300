@@ -3,9 +3,10 @@ import * as THREE from "three";
 const EYE_HEIGHT = 0.9;
 const WALK_SPEED = 5;
 const SPRINT_SPEED = 12;
-const ACCELERATION = 12;
+const ACCELERATION = 60;
 const LOOK_SPEED = 0.002;
 const MAX_PITCH = Math.PI / 2 - 0.01;
+const PHYSICS_DT = 1 / 240;
 
 const HANDLED_KEYS = new Set([
   "KeyW",
@@ -33,6 +34,9 @@ export class FpsControls {
   private dragging = false;
   private engaged = false;
   private readonly _euler = new THREE.Euler(0, 0, 0, "YXZ");
+  private readonly physicsPosition = new THREE.Vector3();
+  private readonly previousPhysics = new THREE.Vector3();
+  private accumulated = 0;
 
   constructor(camera: THREE.Camera, domElement: HTMLElement) {
     this.camera = camera;
@@ -47,6 +51,9 @@ export class FpsControls {
     this.engaged = true;
     this.keys.clear();
     this.velocity.set(0, 0, 0);
+    this.physicsPosition.copy(this.camera.position);
+    this.previousPhysics.copy(this.camera.position);
+    this.accumulated = 0;
     this.yaw = 0;
     this.pitch = 0;
     this.dragging = false;
@@ -86,6 +93,18 @@ export class FpsControls {
 
     this.applyRotation();
 
+    this.accumulated += Math.min(delta, 0.25);
+    while (this.accumulated >= PHYSICS_DT) {
+      this.previousPhysics.copy(this.physicsPosition);
+      this.step(PHYSICS_DT);
+      this.accumulated -= PHYSICS_DT;
+    }
+    this.camera.position
+      .copy(this.previousPhysics)
+      .lerp(this.physicsPosition, this.accumulated / PHYSICS_DT);
+  }
+
+  private step(delta: number): void {
     const sprint = this.keys.has("ShiftLeft") || this.keys.has("ShiftRight");
     const maxSpeed = sprint ? SPRINT_SPEED : WALK_SPEED;
 
@@ -111,9 +130,10 @@ export class FpsControls {
     if (_wish.lengthSq() > 0) _wish.normalize().multiplyScalar(maxSpeed);
 
     const smoothing = 1 - Math.exp(-ACCELERATION * delta);
+    const previous = this.velocity.clone();
     this.velocity.lerp(_wish, smoothing);
-    this.camera.position.addScaledVector(this.velocity, delta);
-    this.camera.position.y = Math.max(this.camera.position.y, EYE_HEIGHT);
+    this.physicsPosition.addScaledVector(previous.lerp(this.velocity, 0.5), delta);
+    this.physicsPosition.y = Math.max(this.physicsPosition.y, EYE_HEIGHT);
   }
 
   private readonly onPointerDown = (event: MouseEvent) => {
