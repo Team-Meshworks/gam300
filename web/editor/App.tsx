@@ -5,6 +5,7 @@ import type { Vector3Tuple } from "../shared/project/scene-object";
 import type { Transform } from "../shared/project/project-types";
 import { createDocumentStore } from "./document-store";
 import type { ViewportStatus } from "./graphics/scene";
+import type { ModeManager, ModeManagerState } from "./graphics/modeManager";
 import { Viewport } from "./viewport/Viewport";
 import sampleProject from "../shared/project/fixtures/m1-project.json";
 
@@ -28,9 +29,19 @@ export function App() {
   const [dragging, setDragging] = useState(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
+  const [manager, setManager] = useState<ModeManager | null>(null);
+  const [modeState, setModeState] = useState<ModeManagerState | null>(null);
   const selection = objects.some((object) => object.id === selectedId) ? selectedId : null;
   const selectedObject = objects.find((object) => object.id === selection);
   const hasChanges = project !== null || objects.length > 0;
+  const visitor = modeState?.mode === "visitor";
+
+  const onManager = useCallback((next: ModeManager) => {
+    setManager(next);
+    setModeState(next.getState());
+  }, []);
+
+  useEffect(() => (manager === null ? undefined : manager.subscribe(setModeState)), [manager]);
 
   const onTransform = useCallback(
     (id: string, transform: Transform) => {
@@ -119,6 +130,19 @@ export function App() {
             Redo
           </button>
         </div>
+        {manager !== null && (
+          <div className="mode-actions" role="group" aria-label="Camera mode">
+            {visitor ? (
+              <button type="button" onClick={() => manager.setMode("editor")}>
+                Exit Visitor
+              </button>
+            ) : (
+              <button type="button" onClick={() => manager.setMode("visitor")}>
+                Enter Visitor
+              </button>
+            )}
+          </div>
+        )}
         {hasChanges && (
           <span className="save-state" title="Changes last until you close or reload this page.">
             Not saved
@@ -235,6 +259,7 @@ export function App() {
             setStatus("loading");
             setAttempt((previous) => previous + 1);
           }}
+          onManager={onManager}
         />
       </main>
       <p className="sr-only" role="status">
