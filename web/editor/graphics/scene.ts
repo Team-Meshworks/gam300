@@ -131,7 +131,7 @@ export function initScene(
         geometry: NonNullable<ReturnType<typeof beginAxisDrag>>;
         position: THREE.Vector3;
       }
-| undefined;
+    | undefined;
   let orbitEnabledBeforeDrag = true;
 
   function render() {
