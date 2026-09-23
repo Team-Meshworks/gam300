@@ -3,6 +3,7 @@ import { assetDragType, type CatalogueAsset } from "../../shared/assets/catalogu
 import type { SceneObject, Vector3Tuple } from "../../shared/project/scene-object";
 import type { ProjectScene } from "../../shared/project/project-types";
 import { initScene, type ViewportStatus } from "../graphics/scene";
+import type { ModeManager } from "../graphics/modeManager";
 
 const statusMessages = {
   loading: "Loading assets…",
@@ -25,6 +26,7 @@ type ViewportProps = {
   onPlace: (assetId: string, position: Vector3Tuple) => void;
   onDragFinish: () => void;
   onRetry: () => void;
+  onManager: (manager: ModeManager) => void;
 };
 
 export function Viewport({
@@ -41,6 +43,7 @@ export function Viewport({
   onPlace,
   onDragFinish,
   onRetry,
+  onManager,
 }: ViewportProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<ReturnType<typeof initScene>>(undefined);
@@ -52,11 +55,14 @@ export function Viewport({
     }
     const scene = initScene(host, assets, { onStatus, onThumbnail, onSelect });
     sceneRef.current = scene;
+    if (scene !== undefined) {
+      onManager(scene.modeManager);
+    }
     return () => {
       scene?.dispose();
       sceneRef.current = undefined;
     };
-  }, [assets, attempt, onStatus, onThumbnail, onSelect]);
+  }, [assets, attempt, onStatus, onThumbnail, onSelect, onManager]);
 
   useEffect(() => {
     sceneRef.current?.update(objects, selectedId, projectScene);
