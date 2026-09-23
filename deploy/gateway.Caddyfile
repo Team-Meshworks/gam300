@@ -1,0 +1,36 @@
+{
+	admin off
+	auto_https disable_redirects
+	default_sni {$SITE_IP}
+}
+
+(site) {
+	tls {
+		issuer acme {
+			dir https://acme-v02.api.letsencrypt.org/directory
+			profile shortlived
+		}
+	}
+	@status path /healthz /version.txt
+	handle @status {
+		reverse_proxy {args[0]}
+	}
+	handle {
+		basic_auth {
+			{$SITE_USER} {$SITE_PASSWORD_HASH}
+		}
+		reverse_proxy {args[0]}
+	}
+}
+
+http://{$SITE_IP} {
+	redir https://{$SITE_IP}{uri} permanent
+}
+
+https://{$SITE_IP}:443 {
+	import site 127.0.0.1:8081
+}
+
+https://{$SITE_IP}:8443 {
+	import site 127.0.0.1:8082
+}

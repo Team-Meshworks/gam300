@@ -1,0 +1,16 @@
+**
+!Dockerfile
+!deploy/
+!deploy/app.Caddyfile
+!web/
+!web/**
+!assets/
+!assets/manifest.json
+!assets/delivery/
+!assets/delivery/**
+**/node_modules
+**/dist
+**/test-results
+**/*.tsbuildinfo
+**/.env
+**/.env.*

@@ -1,0 +1,22 @@
+name: vthere-gateway
+services:
+  gateway:
+    image: caddy:2.11.4-alpine@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      SITE_IP: ${SITE_IP:?Set the public VM IP}
+      SITE_USER: ${SITE_USER:?Set the team login name}
+      SITE_PASSWORD_HASH: ${SITE_PASSWORD_HASH:?Generate a Caddy password hash}
+    volumes:
+      - ./gateway.Caddyfile:/etc/caddy/Caddyfile:ro
+      - certificates:/data
+      - config:/config
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+volumes:
+  certificates:
+  config:
