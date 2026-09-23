@@ -2,7 +2,7 @@
 title: Project Overview and Milestones
 description: Users, product scope, delivery targets and open decisions.
 published: true
-date: 2026-09-23T14:21:49.644Z
+date: 2026-09-23T15:06:13.833Z
 tags: 
 editor: markdown
 dateCreated: 2026-09-23T13:56:20.274Z
@@ -10,9 +10,9 @@ dateCreated: 2026-09-23T13:56:20.274Z
 
 # Project overview
 
-**Product:** VThere Spatial Experience Builder  
+**Product:** Spatial Experience Builder (SEB)  
 **Development team:** Meshworks / Team 32  
-**Commissioning organization:** VThere
+**Client company:** VThere (commissioned Meshworks to develop SEB)
 
 We are building an approachable browser tool for school-age children and teenagers to create spatial exhibitions without programming or learning a professional game editor. Educators support projects, administrators manage access, and visitors explore published experiences.
 
