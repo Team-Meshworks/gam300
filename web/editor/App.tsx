@@ -10,6 +10,7 @@ import sampleProject from "../shared/project/fixtures/m1-project.json";
 
 import type { ProjectDocument } from "../shared/project/project-types";
 import { loadLocalDraft, saveLocalDraft } from "./persistence/local-drafts";
+import { serializeProject } from "../shared/project/project-serialization";
 
 // Same catalog used by the viewport; saved references need to resolve here too
 const assetKinds = new Map(assets.map((asset) => [asset.id, asset.kind]));
@@ -134,6 +135,44 @@ export function App() {
       // Release the controls after success, rejection or an unexpected storage error
       local.current.busy = false;
       setStorageOperation(null);
+    }
+  }
+
+  function exportProject() {
+    const current = store.getSnapshot().project;
+    if (current === null || local.current.busy) return;
+    setError("");
+    // Use the same checked JSON as browser saving so both copies describe the same scene
+    const result = serializeProject(current, assetKinds);
+    if (!result.ok) {
+      setError(result.error.message);
+      return;
+    }
+    let url: string | undefined;
+    const link = document.createElement("a");
+    try {
+      const file = new Blob([result.value], { type: "application/json;charset=utf-8" });
+      url = URL.createObjectURL(file);
+      link.href = url;
+      // Prefix avoids reserved filenames; strip characters that Windows treats as paths
+      const name = current.title
+        .replace(/[^a-zA-Z0-9_-]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 80);
+      link.download = `vthere-${name || "project"}.json`;
+      document.body.append(link);
+      link.click();
+      // Browser owns the download from here; this doesn't confirm a browser-storage save
+      setNotice("Project download started");
+    } catch {
+      setError("Could not export the project; your scene is still open");
+    } finally {
+      link.remove();
+      // Give the browser time to begin reading before releasing the temporary file URL
+      if (url !== undefined) {
+        const downloadUrl = url;
+        setTimeout(() => URL.revokeObjectURL(downloadUrl), 60_000);
+      }
     }
   }
 
@@ -311,6 +350,17 @@ export function App() {
               }}
             >
               Recover
+            </button>
+            <button
+              type="button"
+              title="Download this project as a JSON file"
+              disabled={project === null || storageOperation !== null}
+              onClick={() => {
+                closeDraftMenu();
+                exportProject();
+              }}
+            >
+              Export
             </button>
           </div>
         </details>

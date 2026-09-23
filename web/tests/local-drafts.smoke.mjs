@@ -286,8 +286,68 @@ try {
     replacementIds,
   );
 
+  // Export a moved scene before saving again so the file must contain the live edit
+  const expectedExport = await page.evaluate(async (id) => {
+    const { loadLocalDraft } = await import("/persistence/local-drafts.ts");
+    const result = await loadLocalDraft(
+      id,
+      new Map([
+        ["test-room-v1", "environment"],
+        ["test-crate-v1", "model"],
+      ]),
+    );
+    return result.value.document;
+  }, fixture.projectId);
+  await rows.first().click();
+  await page
+    .getByRole("button", {
+      name: `Move ${expectedExport.scenes[0].objects[0].name} X plus 0.25 metres`,
+      exact: true,
+    })
+    .click();
+  expectedExport.scenes[0].objects[0].transform.position[0] += 0.25;
+  await page.locator(".draft-menu summary").click();
+  const downloading = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export", exact: true }).click();
+  const download = await downloading;
+  assert.equal(download.suggestedFilename(), "vthere-Crate-layout.json");
+  const exportedText = readFileSync(await download.path(), "utf8");
+  assert.deepEqual(JSON.parse(exportedText), expectedExport);
+  assert.equal(
+    await label.textContent(),
+    "Not saved",
+    "Export leaves browser-save status unchanged",
+  );
+  const freshPage = await browser.newPage();
+  await freshPage.goto(process.argv[2] ?? "http://127.0.0.1:5173/");
+  const imported = await freshPage.evaluate(async (text) => {
+    const { createDocumentStore } = await import("/document-store.ts");
+    return createDocumentStore([]).loadProject(
+      text,
+      new Map([
+        ["test-room-v1", "environment"],
+        ["test-crate-v1", "model"],
+      ]),
+    );
+  }, exportedText);
+  assert.equal(imported.ok, true);
+  assert.deepEqual(imported.value, expectedExport);
+  await freshPage.close();
+  await page.evaluate(() => {
+    URL.createObjectURL = () => {
+      throw new Error("Test download failure");
+    };
+  });
+  await page.locator(".draft-menu summary").click();
+  await page.getByRole("button", { name: "Export", exact: true }).click();
+  await page.getByRole("alert").filter({ hasText: "Could not export the project" }).waitFor();
+  assert.deepEqual(
+    await rows.evaluateAll((items) => items.map((item) => item.dataset.objectId)),
+    replacementIds,
+  );
+
   console.log(
-    "PASS: local save/recover controls, reload identity, failed-save preservation and IndexedDB failure cases",
+    "PASS: local save/recover, JSON download and reconstruction, moved transforms and storage/export failure preservation",
   );
 } finally {
   await browser.close();
