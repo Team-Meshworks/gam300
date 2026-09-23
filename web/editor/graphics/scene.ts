@@ -2,9 +2,10 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import type { CatalogueAsset } from "../../shared/assets/catalogue";
 import type { SceneObject, Vector3Tuple } from "../../shared/project/scene-object";
-import type { CameraPose, ProjectScene } from "../../shared/project/project-types";
+import type { CameraPose, ProjectScene, Transform } from "../../shared/project/project-types";
+import { axisDragPosition, beginAxisDrag } from "./translation";
 
-export type ViewportStatus = "loading" | "ready" | "error" | "unsupported";
+export type ViewportStatus = "loading" | "ready" | "error" | "download-error" | "unsupported";
 
 export function initScene(
   host: HTMLDivElement,
@@ -13,6 +14,7 @@ export function initScene(
     onStatus: (status: ViewportStatus) => void;
     onThumbnail: (id: string, url: string) => void;
     onSelect: (id: string | null) => void;
+    onTransform: (id: string, transform: Transform) => void;
   },
 ) {
   let renderer: THREE.WebGLRenderer;
@@ -53,6 +55,25 @@ export function initScene(
   const selection = new THREE.Box3Helper(new THREE.Box3(), 0x187c6b);
   selection.visible = false;
   scene.add(selection);
+  const gizmo = new THREE.Group();
+  gizmo.visible = false;
+  scene.add(gizmo);
+  const handles = [
+    { axis: new THREE.Vector3(1, 0, 0), color: 0xc84637 },
+    { axis: new THREE.Vector3(0, 1, 0), color: 0x187c6b },
+    { axis: new THREE.Vector3(0, 0, 1), color: 0x365fba },
+  ].map(({ axis, color }) => {
+    const material = new THREE.MeshBasicMaterial({ color, depthTest: false, depthWrite: false });
+    const line = new THREE.LineSegments(
+      new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), axis]),
+      new THREE.LineBasicMaterial({ color, depthTest: false, depthWrite: false }),
+    );
+    const tip = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 8), material);
+    line.renderOrder = 1000;
+    tip.renderOrder = 1000;
+    gizmo.add(line, tip);
+    return { axis, line, tip, length: 0, visible: false };
+  });
   const dropMarker = new THREE.Mesh(
     new THREE.RingGeometry(0.55, 0.61, 40),
     new THREE.MeshBasicMaterial({ color: 0xb64b32, side: THREE.DoubleSide }),
@@ -75,6 +96,15 @@ export function initScene(
   const instanceAssets = new Map<string, string>();
   const bounds = new Map<string, THREE.Box3>();
   const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+  let drag:
+    | {
+        id: string;
+        pointerId: number;
+        transform: Transform;
+        geometry: NonNullable<ReturnType<typeof beginAxisDrag>>;
+        position: THREE.Vector3;
+      }
+    | undefined;
 
   function render() {
     if (!disposed) {
@@ -91,17 +121,90 @@ export function initScene(
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
     renderer.setSize(width, height);
+    updateGizmo();
     render();
   }
   const observer = new ResizeObserver(resize);
-  observer.observe(host);
-  resize();
+
+  function projectedPoint(point: THREE.Vector3) {
+    const rect = renderer.domElement.getBoundingClientRect();
+    const projected = point.clone().project(camera);
+    return {
+      x: rect.left + ((projected.x + 1) * rect.width) / 2,
+      y: rect.top + ((1 - projected.y) * rect.height) / 2,
+    };
+  }
+
+  function updateGizmo() {
+    const instance = selectedId === null ? undefined : instances.get(selectedId);
+    gizmo.visible = instance !== undefined;
+    if (instance === undefined) return;
+    gizmo.position.copy(instance.position);
+    camera.updateMatrixWorld(true);
+    const pivot = instance.position;
+    const distance = camera.position.distanceTo(pivot);
+    const forward = camera.getWorldDirection(new THREE.Vector3());
+    if (pivot.clone().sub(camera.position).dot(forward) <= camera.near) {
+      gizmo.visible = false;
+      return;
+    }
+    const pixelScale =
+      (2 * distance * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2))) /
+      Math.max(renderer.domElement.clientHeight, 1);
+    const start = projectedPoint(pivot);
+    for (const handle of handles) {
+      const trial = projectedPoint(pivot.clone().addScaledVector(handle.axis, 80 * pixelScale));
+      const projectedLength = Math.hypot(trial.x - start.x, trial.y - start.y);
+      handle.visible = projectedLength >= 12;
+      handle.line.visible = handle.visible;
+      handle.tip.visible = handle.visible;
+      if (!handle.visible) continue;
+      handle.length = (80 * pixelScale * 80) / projectedLength;
+      handle.line.scale.setScalar(handle.length);
+      handle.tip.position.copy(handle.axis).multiplyScalar(handle.length);
+      handle.tip.scale.setScalar(6 * pixelScale);
+    }
+  }
+
+  function pickHandle(clientX: number, clientY: number) {
+    if (!gizmo.visible) return;
+    const pivot = projectedPoint(gizmo.position);
+    let nearest = 10;
+    let picked: (typeof handles)[number] | undefined;
+    for (const handle of handles) {
+      if (!handle.visible) continue;
+      const end = projectedPoint(
+        gizmo.position.clone().addScaledVector(handle.axis, handle.length),
+      );
+      const dx = end.x - pivot.x;
+      const dy = end.y - pivot.y;
+      const lengthSquared = dx * dx + dy * dy;
+      if (lengthSquared < 20 * 20) continue;
+      const t = Math.max(
+        12 / Math.sqrt(lengthSquared),
+        Math.min(1, ((clientX - pivot.x) * dx + (clientY - pivot.y) * dy) / lengthSquared),
+      );
+      const distance = Math.hypot(clientX - pivot.x - t * dx, clientY - pivot.y - t * dy);
+      if (distance < nearest) {
+        nearest = distance;
+        picked = handle;
+      }
+    }
+    return picked;
+  }
 
   function update(
     nextObjects: readonly SceneObject[],
     nextSelectedId: string | null,
     nextScene: ProjectScene | null = projectScene,
   ) {
+    if (
+      drag !== undefined &&
+      (nextSelectedId !== drag.id ||
+        nextObjects.find((object) => object.id === drag?.id)?.transform !== drag.transform)
+    ) {
+      cancelDrag();
+    }
     objects = nextObjects;
     selectedId = nextSelectedId;
     projectScene = nextScene;
@@ -164,6 +267,7 @@ export function initScene(
     if (selectedBounds !== undefined) {
       selection.box.copy(selectedBounds);
     }
+    updateGizmo();
     render();
   }
 
@@ -199,11 +303,60 @@ export function initScene(
     render();
   }
 
-  function select(event: MouseEvent) {
+  function previewPosition(id: string, position: THREE.Vector3) {
+    const instance = instances.get(id);
+    if (instance === undefined) return;
+    instance.position.copy(position);
+    const box = new THREE.Box3().setFromObject(instance);
+    bounds.set(id, box);
+    selection.box.copy(box);
+    updateGizmo();
+    render();
+  }
+
+  function cancelDrag() {
+    if (drag === undefined) return;
+    const previous = drag;
+    drag = undefined;
+    previewPosition(previous.id, new THREE.Vector3().fromArray(previous.transform.position));
+    if (renderer.domElement.hasPointerCapture(previous.pointerId)) {
+      renderer.domElement.releasePointerCapture(previous.pointerId);
+    }
+  }
+
+  function pointerDown(event: PointerEvent) {
+    if (!ready || event.button !== 0 || !event.isPrimary || drag !== undefined) return;
+    const handle = pickHandle(event.clientX, event.clientY);
+    if (handle !== undefined && selectedId !== null) {
+      const object = objects.find((entry) => entry.id === selectedId);
+      if (object === undefined) return;
+      const geometry = beginAxisDrag(
+        screenRay(event.clientX, event.clientY),
+        camera.position,
+        new THREE.Vector3().fromArray(object.transform.position),
+        handle.axis,
+      );
+      // A view almost parallel to the axis has no stable depth solution.
+      if (geometry === undefined) return;
+      drag = {
+        id: object.id,
+        pointerId: event.pointerId,
+        transform: object.transform,
+        geometry,
+        position: new THREE.Vector3().fromArray(object.transform.position),
+      };
+      renderer.domElement.setPointerCapture(event.pointerId);
+      event.preventDefault();
+      return;
+    }
     const ray = screenRay(event.clientX, event.clientY);
-    let nearest = Infinity;
-    let id: string | null = null;
     const raycaster = new THREE.Raycaster(ray.origin, ray.direction);
+    // The room can block a click even though it isn't a selectable object
+    let nearest =
+      environment === undefined
+        ? Infinity
+        : (raycaster.intersectObject(environment, true)[0]?.distance ?? Infinity);
+    let id: string | null = null;
     for (const [objectId, instance] of instances) {
       const hit = raycaster.intersectObject(instance, true)[0];
       if (hit !== undefined && hit.distance < nearest) {
@@ -213,7 +366,50 @@ export function initScene(
     }
     callbacks.onSelect(id);
   }
-  renderer.domElement.addEventListener("click", select);
+
+  function pointerMove(event: PointerEvent) {
+    if (drag === undefined || event.pointerId !== drag.pointerId) return;
+    const position = axisDragPosition(drag.geometry, screenRay(event.clientX, event.clientY));
+    if (position === undefined) return;
+    drag.position = position;
+    previewPosition(drag.id, position);
+  }
+
+  function pointerUp(event: PointerEvent) {
+    if (drag === undefined || event.pointerId !== drag.pointerId) return;
+    pointerMove(event);
+    const completed = drag;
+    drag = undefined;
+    if (renderer.domElement.hasPointerCapture(event.pointerId)) {
+      renderer.domElement.releasePointerCapture(event.pointerId);
+    }
+    const position = completed.position.toArray() as Vector3Tuple;
+    if (position.some((value, index) => value !== completed.transform.position[index])) {
+      callbacks.onTransform(completed.id, { ...completed.transform, position });
+    } else {
+      previewPosition(completed.id, new THREE.Vector3().fromArray(completed.transform.position));
+    }
+  }
+
+  function keyDown(event: KeyboardEvent) {
+    if (event.key === "Escape" && drag !== undefined) {
+      event.preventDefault();
+      cancelDrag();
+    }
+  }
+
+  function pointerCancel(event: PointerEvent) {
+    if (event.pointerId === drag?.pointerId) cancelDrag();
+  }
+
+  renderer.domElement.addEventListener("pointerdown", pointerDown);
+  renderer.domElement.addEventListener("pointermove", pointerMove);
+  renderer.domElement.addEventListener("pointerup", pointerUp);
+  renderer.domElement.addEventListener("pointercancel", pointerCancel);
+  renderer.domElement.addEventListener("lostpointercapture", pointerCancel);
+  window.addEventListener("keydown", keyDown);
+  observer.observe(host);
+  resize();
 
   async function loadAssets() {
     try {
@@ -272,10 +468,16 @@ export function initScene(
     getDropPosition,
     showDropPosition,
     dispose() {
+      cancelDrag();
       disposed = true;
       controller.abort();
       observer.disconnect();
-      renderer.domElement.removeEventListener("click", select);
+      renderer.domElement.removeEventListener("pointerdown", pointerDown);
+      renderer.domElement.removeEventListener("pointermove", pointerMove);
+      renderer.domElement.removeEventListener("pointerup", pointerUp);
+      renderer.domElement.removeEventListener("pointercancel", pointerCancel);
+      renderer.domElement.removeEventListener("lostpointercapture", pointerCancel);
+      window.removeEventListener("keydown", keyDown);
       disposeModels(scene, ...models.values());
       renderer.dispose();
       renderer.forceContextLoss();

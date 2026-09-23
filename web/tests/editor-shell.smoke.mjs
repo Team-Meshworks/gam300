@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { pathToFileURL } from "node:url";
+import * as THREE from "three";
 
 const { chromium } = await import(
   process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : "playwright"
@@ -10,7 +11,7 @@ const browser = await chromium.launch({
 });
 
 try {
-  const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
+  const page = await browser.newPage({ viewport: { width: 1366, height: 768 }, hasTouch: true });
   const pageErrors = [];
   const consoleErrors = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
@@ -77,6 +78,76 @@ try {
     "true",
     "Viewport and list share selection",
   );
+  const position = page.locator('output[aria-label="Selected position"]');
+  const initialPosition = await position.textContent();
+  await page.getByRole("button", { name: "Move test-crate 1 X plus 0.25 metres" }).focus();
+  await page.keyboard.press("Enter");
+  assert.match(await position.textContent(), /X 0\.25/);
+  await undo.click();
+  assert.equal(await position.textContent(), initialPosition);
+
+  const camera = new THREE.PerspectiveCamera(40, stageBox.width / stageBox.height, 0.1, 100);
+  camera.position.set(12, 16, 18);
+  camera.lookAt(0, 0, 0);
+  camera.updateMatrixWorld(true);
+  const origin = new THREE.Vector3().project(camera);
+  const xAxis = new THREE.Vector3(1, 0, 0).project(camera);
+  const axisDirection = new THREE.Vector2(
+    (xAxis.x - origin.x) * stageBox.width,
+    -(xAxis.y - origin.y) * stageBox.height,
+  ).normalize();
+  const pivot = { x: stageBox.x + stageBox.width / 2, y: stageBox.y + stageBox.height / 2 };
+  const alongAxis = (pixels) => ({
+    x: pivot.x + axisDirection.x * pixels,
+    y: pivot.y + axisDirection.y * pixels,
+  });
+  await page.mouse.move(alongAxis(40).x, alongAxis(40).y);
+  await page.mouse.down();
+  await page.mouse.move(alongAxis(75).x, alongAxis(75).y, { steps: 4 });
+  await page.keyboard.press("Escape");
+  await page.mouse.up();
+  assert.equal(await position.textContent(), initialPosition, "Escape cancels preview movement");
+  await page.mouse.move(alongAxis(40).x, alongAxis(40).y);
+  await page.mouse.down();
+  await page.mouse.move(alongAxis(75).x, alongAxis(75).y, { steps: 4 });
+  await page.locator("canvas").evaluate((canvas) => canvas.releasePointerCapture(1));
+  await page.mouse.up();
+  assert.equal(await position.textContent(), initialPosition, "Lost capture cancels movement");
+  await page.mouse.move(alongAxis(40).x, alongAxis(40).y);
+  await page.mouse.down();
+  await page.mouse.move(alongAxis(75).x, alongAxis(75).y, { steps: 4 });
+  await page.mouse.up();
+  const movedPosition = await position.textContent();
+  assert.notEqual(movedPosition, initialPosition, "Pointer drag commits movement");
+  await undo.click();
+  assert.equal(await position.textContent(), initialPosition, "One Undo reverses the whole drag");
+
+  // A second finger must neither replace nor cancel the first finger's transaction
+  const touchSession = await page.context().newCDPSession(page);
+  const touchPoint = (pixels, id) => ({ ...alongAxis(pixels), id });
+  await touchSession.send("Input.dispatchTouchEvent", {
+    type: "touchStart",
+    touchPoints: [touchPoint(40, 1)],
+  });
+  await touchSession.send("Input.dispatchTouchEvent", {
+    type: "touchMove",
+    touchPoints: [touchPoint(75, 1)],
+  });
+  await touchSession.send("Input.dispatchTouchEvent", {
+    type: "touchStart",
+    touchPoints: [touchPoint(75, 1), touchPoint(100, 2)],
+  });
+  await touchSession.send("Input.dispatchTouchEvent", {
+    type: "touchMove",
+    touchPoints: [touchPoint(75, 1), touchPoint(115, 2)],
+  });
+  await stage.locator("canvas").dispatchEvent("pointercancel", { pointerId: 999 });
+  await stage.locator("canvas").dispatchEvent("lostpointercapture", { pointerId: 999 });
+  await touchSession.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await touchSession.detach();
+  assert.equal(await position.textContent(), movedPosition, "Only the initiating touch moves");
+  await undo.click();
+  assert.equal(await position.textContent(), initialPosition, "Touch drag is one undo step");
   await rows.nth(1).click();
   assert.equal(await rows.nth(1).getAttribute("aria-pressed"), "true");
   if (process.env.SMOKE_SCREENSHOT) {
@@ -184,16 +255,38 @@ try {
     await page.screenshot({ path: process.env.SCENE_SCREENSHOT });
   }
 
+  await rows.nth(1).click();
+  const moveBehindWall = page.getByRole("button", {
+    name: "Move Second crate Z plus 0.25 metres",
+    exact: true,
+  });
+  for (let step = 0; step < 4; step++) await moveBehindWall.click();
+  await rows.first().click();
+  const hiddenCrate = new THREE.Vector3(-1, 0.5, 3).project(camera);
+  await stage.click({
+    position: {
+      x: ((hiddenCrate.x + 1) * stageBox.width) / 2,
+      y: ((1 - hiddenCrate.y) * stageBox.height) / 2,
+    },
+  });
+  assert.equal(
+    await page.locator('.object-row[aria-pressed="true"]').count(),
+    0,
+    "A room wall blocks viewport selection of the crate behind it",
+  );
+  await rows.nth(1).click();
+  assert.equal(await rows.nth(1).getAttribute("aria-pressed"), "true", "List bypasses occlusion");
+
   const samplePath = "**/*test-crate*.glb*";
   await page.route(samplePath, (route) => {
     // Vite also serves a JavaScript URL module for each model
     // Fail the model download after the application itself has loaded
-    return route.request().resourceType() === "fetch"
-      ? route.fulfill({ status: 503, body: "Unavailable" })
-      : route.continue();
+    return route.request().resourceType() === "script"
+      ? route.continue()
+      : route.fulfill({ status: 503, body: "Unavailable" });
   });
   await page.reload();
-  await page.getByRole("status").filter({ hasText: "Couldn't load the asset library" }).waitFor();
+  await page.getByRole("status").filter({ hasText: "Couldn't load the 3D view" }).waitFor();
   assert.equal(await asset.isDisabled(), true);
   await page.unroute(samplePath);
   const retry = page.getByRole("button", { name: "Retry", exact: true });
@@ -219,7 +312,7 @@ try {
   assert.equal(await asset.isDisabled(), true);
   assert.deepEqual(pageErrors, [], "No uncaught page errors in any flow");
   console.log(
-    "PASS: asset placement, sample project loading, undo/redo, selection, keyboard, resizing, retry and WebGL fallback",
+    "PASS: placement, single-pointer movement, cancellation, room occlusion, project loading, undo/redo, keyboard, resizing, retry and WebGL fallback",
   );
 } finally {
   await browser.close();

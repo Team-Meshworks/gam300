@@ -1,17 +1,26 @@
 import type { CatalogueAsset } from "../shared/assets/catalogue.ts";
 import type { SceneObject, Vector3Tuple } from "../shared/project/scene-object.ts";
 import { deserializeProject } from "../shared/project/project-deserialization";
-import type { ProjectDocument } from "../shared/project/project-types";
+import type { ProjectDocument, Transform } from "../shared/project/project-types";
+import { validateTransform } from "../shared/project/spatial-validation";
 import type { ValidationResult } from "../shared/project/validation-helpers";
+
+type Command =
+  | { kind: "add"; object: SceneObject }
+  | { kind: "transform"; id: string; before: Transform; after: Transform };
+
+function freezeTransform(transform: Transform): Transform {
+  Object.freeze(transform.position);
+  Object.freeze(transform.rotation);
+  Object.freeze(transform.scale);
+  return Object.freeze(transform);
+}
 
 function freezeProject(project: ProjectDocument): ProjectDocument {
   // Freeze the reader's separate copy before exposing it to panels or commands
   for (const scene of project.scenes) {
     for (const object of scene.objects) {
-      Object.freeze(object.transform.position);
-      Object.freeze(object.transform.rotation);
-      Object.freeze(object.transform.scale);
-      Object.freeze(object.transform);
+      freezeTransform(object.transform);
       Object.freeze(object);
     }
     Object.freeze(scene.objects);
@@ -30,9 +39,8 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
   // Keep that explicit until a complete project is loaded
   let project: ProjectDocument | null = null;
   let projectAssets: ReadonlyMap<string, string> = new Map();
-  // ponytail: AddObject history only; introduce command variants with the next edit type
-  const undoStack: SceneObject[] = [];
-  const redoStack: SceneObject[] = [];
+  const undoStack: Command[] = [];
+  const redoStack: Command[] = [];
   const listeners = new Set<() => void>();
   let snapshot: Readonly<{
     objects: readonly SceneObject[];
@@ -62,6 +70,33 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       canRedo: redoStack.length > 0,
     });
     listeners.forEach((listener) => listener());
+  }
+
+  function replaceTransform(id: string, transform: Transform) {
+    replaceObjects(
+      objects.map((object) =>
+        object.id === id ? Object.freeze({ ...object, transform }) : object,
+      ),
+    );
+  }
+
+  function apply(command: Command, reverse: boolean) {
+    if (command.kind === "add") {
+      replaceObjects(
+        reverse
+          ? objects.filter((object) => object.id !== command.object.id)
+          : [...objects, command.object],
+      );
+    } else {
+      replaceTransform(command.id, reverse ? command.before : command.after);
+    }
+  }
+
+  function record(command: Command) {
+    undoStack.push(command);
+    if (undoStack.length > 100) undoStack.shift();
+    redoStack.length = 0;
+    publish();
   }
 
   return {
@@ -115,37 +150,55 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
         id: crypto.randomUUID(),
         name: `${asset.name} ${objects.length + 1}`,
         assetId: asset.id,
-        transform: Object.freeze({
+        transform: freezeTransform({
           position: Object.freeze([...position] as [number, number, number]),
           rotation: Object.freeze([0, 0, 0, 1] as const),
           scale: Object.freeze([1, 1, 1] as const),
         }),
       });
       replaceObjects([...objects, object]);
-      undoStack.push(object);
-      if (undoStack.length > 100) {
-        undoStack.shift();
-      }
-      redoStack.length = 0;
-      publish();
+      record({ kind: "add", object });
       return { ok: true, object } as const;
     },
-    undo() {
-      const object = undoStack.pop();
+    setTransform(id: string, raw: unknown) {
+      const object = objects.find((entry) => entry.id === id);
       if (object === undefined) {
+        return { ok: false, error: "Select an object in this scene." } as const;
+      }
+      const result = validateTransform(raw);
+      if (!result.ok) {
+        return { ok: false, error: `${result.error.path}: ${result.error.message}` } as const;
+      }
+      const before = object.transform;
+      const after = result.value;
+      if (
+        before.position.every((value, index) => value === after.position[index]) &&
+        before.rotation.every((value, index) => value === after.rotation[index]) &&
+        before.scale.every((value, index) => value === after.scale[index])
+      ) {
+        return { ok: true, changed: false } as const;
+      }
+      freezeTransform(after);
+      replaceTransform(id, after);
+      record({ kind: "transform", id, before, after });
+      return { ok: true, changed: true } as const;
+    },
+    undo() {
+      const command = undoStack.pop();
+      if (command === undefined) {
         return;
       }
-      replaceObjects(objects.filter((entry) => entry.id !== object.id));
-      redoStack.push(object);
+      apply(command, true);
+      redoStack.push(command);
       publish();
     },
     redo() {
-      const object = redoStack.pop();
-      if (object === undefined) {
+      const command = redoStack.pop();
+      if (command === undefined) {
         return;
       }
-      replaceObjects([...objects, object]);
-      undoStack.push(object);
+      apply(command, false);
+      undoStack.push(command);
       publish();
     },
   };
