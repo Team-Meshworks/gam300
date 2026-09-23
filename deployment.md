@@ -2,7 +2,7 @@
 title: Deployment and VM
 description: Development and production releases, rollback, service inspection and shared-VM boundaries.
 published: true
-date: 2026-09-23T14:08:12.403Z
+date: 2026-09-23T14:25:25.820Z
 tags: 
 editor: markdown
 dateCreated: 2026-09-23T14:08:12.403Z

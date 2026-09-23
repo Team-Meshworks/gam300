@@ -2,7 +2,7 @@
 title: Technical Design
 description: Current architecture, authored data and the planned editor/player/server boundaries.
 published: true
-date: 2026-09-23T13:59:57.495Z
+date: 2026-09-23T14:21:49.644Z
 tags: 
 editor: markdown
 dateCreated: 2026-09-23T13:59:57.495Z

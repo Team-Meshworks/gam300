@@ -2,7 +2,7 @@
 title: Team and Decisions
 description: Working agreements, confirmed decisions, open questions and a meeting-note template.
 published: true
-date: 2026-09-23T14:21:44.459Z
+date: 2026-09-23T14:21:47.901Z
 tags: 
 editor: markdown
 dateCreated: 2026-09-23T14:21:44.459Z

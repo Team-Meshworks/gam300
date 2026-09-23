@@ -2,7 +2,7 @@
 title: Using VThere
 description: A short walkthrough of the current editor prototype and its limitations.
 published: true
-date: 2026-09-23T14:13:27.498Z
+date: 2026-09-23T14:16:54.377Z
 tags: 
 editor: markdown
 dateCreated: 2026-09-23T14:13:27.498Z

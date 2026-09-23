@@ -1,3 +1,13 @@
+---
+title: README
+description: 
+published: true
+date: 2026-09-23T12:57:41.728Z
+tags: 
+editor: markdown
+dateCreated: 2026-09-23T12:57:37.408Z
+---
+
 # VThere Spatial Experience Editor
 
 Spatial experience editor.

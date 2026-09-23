@@ -1,3 +1,13 @@
+---
+title: deployment
+description: 
+published: true
+date: 2026-09-23T13:23:19.712Z
+tags: 
+editor: markdown
+dateCreated: 2026-09-23T12:57:43.349Z
+---
+
 # Development and production
 
 | Branch | GitHub environment | VM URL                     | Private application port |

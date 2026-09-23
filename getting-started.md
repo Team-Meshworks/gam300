@@ -2,7 +2,7 @@
 title: Getting Started
 description: Clone, install, run and check the current VThere development branch.
 published: true
-date: 2026-09-23T13:58:12.443Z
+date: 2026-09-23T14:16:54.377Z
 tags: 
 editor: markdown
 dateCreated: 2026-09-23T13:58:12.443Z

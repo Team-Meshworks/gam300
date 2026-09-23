@@ -2,7 +2,7 @@
 title: VThere Project Handbook
 description: Meshworks team documentation, setup, design and milestone evidence.
 published: true
-date: 2026-09-23T13:54:24.758Z
+date: 2026-09-23T14:25:25.820Z
 tags: 
 editor: markdown
 dateCreated: 2026-09-23T13:54:24.758Z
