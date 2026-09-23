@@ -25,6 +25,7 @@ const _wish = new THREE.Vector3();
 
 export class FpsControls {
   private readonly camera: THREE.Camera;
+  private readonly domElement: HTMLElement;
   private readonly keys = new Set<string>();
   private readonly velocity = new THREE.Vector3();
   private yaw = 0;
@@ -35,6 +36,7 @@ export class FpsControls {
 
   constructor(camera: THREE.Camera, domElement: HTMLElement) {
     this.camera = camera;
+    this.domElement = domElement;
     domElement.addEventListener("mousedown", this.onPointerDown);
     document.addEventListener("mousemove", this.onPointerMove);
     document.addEventListener("mouseup", this.onPointerUp);
@@ -72,6 +74,13 @@ export class FpsControls {
     removeEventListener("keyup", this.onKeyUp);
   }
 
+  dispose(): void {
+    this.disengage();
+    this.domElement.removeEventListener("mousedown", this.onPointerDown);
+    document.removeEventListener("mousemove", this.onPointerMove);
+    document.removeEventListener("mouseup", this.onPointerUp);
+  }
+
   update(delta: number): void {
     if (!this.engaged) return;
 
@@ -80,10 +89,8 @@ export class FpsControls {
     const sprint = this.keys.has("ShiftLeft") || this.keys.has("ShiftRight");
     const maxSpeed = sprint ? SPRINT_SPEED : WALK_SPEED;
 
-    const inputZ =
-      (this.keys.has("KeyW") ? 1 : 0) - (this.keys.has("KeyS") ? 1 : 0);
-    const inputX =
-      (this.keys.has("KeyD") ? 1 : 0) - (this.keys.has("KeyA") ? 1 : 0);
+    const inputZ = (this.keys.has("KeyW") ? 1 : 0) - (this.keys.has("KeyS") ? 1 : 0);
+    const inputX = (this.keys.has("KeyD") ? 1 : 0) - (this.keys.has("KeyA") ? 1 : 0);
     const inputY =
       (this.keys.has("Space") ? 1 : 0) -
       (this.keys.has("ControlLeft") || this.keys.has("ControlRight") ? 1 : 0);
@@ -100,10 +107,7 @@ export class FpsControls {
     _right.y = 0;
     _right.normalize();
 
-    _wish
-      .set(0, inputY, 0)
-      .addScaledVector(_forward, inputZ)
-      .addScaledVector(_right, inputX);
+    _wish.set(0, inputY, 0).addScaledVector(_forward, inputZ).addScaledVector(_right, inputX);
     if (_wish.lengthSq() > 0) _wish.normalize().multiplyScalar(maxSpeed);
 
     const smoothing = 1 - Math.exp(-ACCELERATION * delta);
