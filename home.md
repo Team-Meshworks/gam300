@@ -1,16 +1,16 @@
 ---
-title: VThere Project Handbook
-description: Meshworks team documentation, setup, design and milestone evidence.
+title: Spatial Experience Builder Handbook
+description: Meshworks documentation for Spatial Experience Builder (SEB), commissioned by VThere.
 published: true
-date: 2026-09-23T14:25:25.820Z
+date: 2026-09-23T15:04:57.382Z
 tags: 
 editor: markdown
 dateCreated: 2026-09-23T13:54:24.758Z
 ---
 
-# Welcome to VThere
+# Welcome to Spatial Experience Builder
 
-VThere Spatial Experience Builder is a browser creation tool being developed by **Meshworks (Team 32)** for VThere. It helps school-age children and teenagers build spatial exhibitions from curated assets and understandable WHEN → DO rules, with educator support.
+**Spatial Experience Builder (SEB)** is a browser creation tool commissioned by **VThere**, the client company, and developed by **Meshworks (Team 32)**. It helps school-age children and teenagers build spatial exhibitions from curated assets and understandable WHEN → DO rules, with educator support.
 
 This wiki is the team's shared handbook. Start here to understand the project, run the current prototype and find delivery evidence.
 
@@ -22,7 +22,7 @@ This wiki is the team's shared handbook. Start here to understand the project, r
 | Install and run the project | [Getting started](/en/getting-started) |
 | Understand the software and data boundaries | [Technical design](/en/technical-design) |
 | Deploy, inspect or roll back the application | [Deployment and VM](/en/deployment) |
-| Try the current editor | [Using VThere](/en/user-guide) |
+| Try the current editor | [Using SEB](/en/user-guide) |
 | Find test commands and recorded results | [Testing and milestone evidence](/en/testing) |
 | Record decisions and meeting outcomes | [Team and decisions](/en/team) |
 | Maintain the wiki and recover its content | [Wiki maintenance](/en/wiki-maintenance) |
