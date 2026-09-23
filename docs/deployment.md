@@ -92,6 +92,14 @@ sites initially requires a team login because the current asset catalogue is exp
 development-only and distribution rights remain unconfirmed. Keep this gate until that
 review is resolved. This gate is not the future application account system.
 
+The initial login is stored only on the VM in an owner-readable file. Retrieve it in your
+own SSH terminal; do not paste it into GitHub or chat:
+
+```sh
+ssh team32@51.79.242.181
+cat ~/vthere-access.txt
+```
+
 ## VM setup
 
 The VM uses Ubuntu 24.04 x86-64, Docker Engine and the Compose plugin. Runtime applications
@@ -157,7 +165,29 @@ GHCR packages and CI artifacts containing development assets must retain appropr
 
 ## Verification evidence
 
-Record actual CI run links, deployed commits and remaining limitations here when the setup
-has been exercised. The presence of these files alone is not a successful deployment or
-completion of S34/T13-01. The full save/reload browser loop is added when that feature is
-integrated into these branches.
+Verified on 23 September 2026:
+
+| Environment | Deployed commit                            | Successful CI                                                                    | Successful deployment                                                            |
+| ----------- | ------------------------------------------ | -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Development | `f4ca18e725fdffaa4fa3beb1d78a5bba8026febc` | [35863197853](https://github.com/Team-Meshworks/gam300/actions/runs/35863197853) | [35865493351](https://github.com/Team-Meshworks/gam300/actions/runs/35865493351) |
+| Production  | `4f5fa8c98e2556419d23b38f334b017280429feb` | [35864105358](https://github.com/Team-Meshworks/gam300/actions/runs/35864105358) | [35865630988](https://github.com/Team-Meshworks/gam300/actions/runs/35865630988) |
+
+Both live sites passed the Chromium deployment check over trusted HTTPS with the team
+login: editor loading, server policy, model/textures, placement and undo. Anonymous
+requests to the application require authentication; public health/revision endpoints
+report the expected commits. Wiki.js still responds on port 8080.
+
+The [cross-branch guard check](https://github.com/Team-Meshworks/gam300/actions/runs/35865302138)
+deliberately supplied a development CI run to production. Validation failed and the VM
+deployment job was skipped. An earlier [production CI failure](https://github.com/Team-Meshworks/gam300/actions/runs/35863591012)
+also blocked publishing; fixing its Vite/model request interception produced the successful
+production run above. That CI failure was discovered during setup, not deliberately injected.
+
+The runner service `actions.runner.Team-Meshworks-gam300.vthere-vm-deploy.service` is enabled
+at boot. The application containers and gateway have restart policies; certificate data
+persists in the gateway volume. Host reboot recovery and a real failed-release rollback
+have not been exercised. Rollback logic is covered by the automated deployment script check.
+
+Private-repository branch protection remains unavailable on the current GitHub plan.
+Asset distribution rights and the full save/reload browser loop remain open integration
+work. This evidence does not mark all of S34/T13-01 complete.
