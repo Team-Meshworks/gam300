@@ -1,8 +1,8 @@
 ---
 title: Getting Started
-description: Clone, install, run and check the current VThere development branch.
+description: Clone, install, run and check the current SEB development branch.
 published: true
-date: 2026-09-23T14:16:54.377Z
+date: 2026-09-23T15:07:50.423Z
 tags: 
 editor: markdown
 dateCreated: 2026-09-23T13:58:12.443Z
@@ -48,7 +48,7 @@ npm run dev
 
 Open [http://localhost:5173/](http://localhost:5173/). Leave this terminal running. The **Open sample project** control is development-only and is intentionally absent from production builds.
 
-Follow [Using VThere](/en/user-guide) for a short walkthrough. The current prototype reports unsaved work; do not rely on refreshing or closing the page to preserve edits.
+Follow [Using SEB](/en/user-guide) for a short walkthrough. The current prototype reports unsaved work; do not rely on refreshing or closing the page to preserve edits.
 
 ## Useful commands
 
