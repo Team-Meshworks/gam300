@@ -222,6 +222,15 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       return { ok: true, object } as const;
     },
     commitTransform,
+    // Keep the incoming gizmo API, but route it through the shared command history.
+    setTransform(id: string, after: unknown) {
+      const object = objects.find((entry) => entry.id === id);
+      if (!object) return { ok: false, error: "Select an object in this scene." } as const;
+      const result = commitTransform({ objectId: id, before: object.transform, after });
+      if (!result.ok)
+        return { ok: false, error: `${result.error.path}: ${result.error.message}` } as const;
+      return { ok: true, changed: result.value.changed } as const;
+    },
     deleteObject(objectId: string): ValidationResult<SceneObject> {
       const index = objects.findIndex((object) => object.id === objectId);
       const object = objects[index];

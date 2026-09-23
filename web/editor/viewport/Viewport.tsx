@@ -1,18 +1,22 @@
 import { useEffect, useRef, type DragEvent } from "react";
 import { assetDragType, type CatalogueAsset } from "../../shared/assets/catalogue";
 import type { SceneObject, Vector3Tuple } from "../../shared/project/scene-object";
-import { initScene, type ViewportStatus } from "../graphics/scene";
+import type { ProjectScene, Transform } from "../../shared/project/project-types";
+import type { initScene, ViewportStatus } from "../graphics/scene";
+import type { ModeManager } from "../graphics/modeManager";
 
 const statusMessages = {
   loading: "Loading assets…",
   ready: "Scene ready",
-  error: "Couldn't load the asset library. Check the asset files and retry.",
+  error: "Couldn't load the 3D view. Check your connection and retry.",
+  "download-error": "Couldn't start the 3D view. Reload the editor to try again.",
   unsupported: "The 3D view needs WebGL 2. Check your browser's graphics settings and retry.",
 };
 
 type ViewportProps = {
   assets: readonly CatalogueAsset[];
   objects: readonly SceneObject[];
+  projectScene: ProjectScene | null;
   selectedId: string | null;
   dragging: boolean;
   status: ViewportStatus;
@@ -20,14 +24,17 @@ type ViewportProps = {
   onStatus: (status: ViewportStatus) => void;
   onThumbnail: (id: string, url: string) => void;
   onSelect: (id: string | null) => void;
+  onTransform: (id: string, transform: Transform) => void;
   onPlace: (assetId: string, position: Vector3Tuple) => void;
   onDragFinish: () => void;
   onRetry: () => void;
+  onManager: (manager: ModeManager) => void;
 };
 
 export function Viewport({
   assets,
   objects,
+  projectScene,
   selectedId,
   dragging,
   status,
@@ -35,29 +42,51 @@ export function Viewport({
   onStatus,
   onThumbnail,
   onSelect,
+  onTransform,
   onPlace,
   onDragFinish,
   onRetry,
+  onManager,
 }: ViewportProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<ReturnType<typeof initScene>>(undefined);
+  const snapshotRef = useRef({ objects, selectedId, projectScene });
 
   useEffect(() => {
     const host = hostRef.current;
     if (host === null) {
       return;
     }
-    const scene = initScene(host, assets, { onStatus, onThumbnail, onSelect });
-    sceneRef.current = scene;
+    let disposed = false;
+    // Show the shell before downloading and evaluating the renderer
+    import("../graphics/scene")
+      .then(({ initScene }) => {
+        if (disposed) return;
+        const scene = initScene(host, assets, { onStatus, onThumbnail, onSelect, onTransform });
+        sceneRef.current = scene;
+        const current = snapshotRef.current;
+        scene?.update(current.objects, current.selectedId, current.projectScene);
+        if (scene !== undefined) {
+          onManager(scene.modeManager);
+        }
+      })
+      .catch((error: unknown) => {
+        if (!disposed) {
+          console.error("Failed to load the 3D view", error);
+          onStatus("download-error");
+        }
+      });
     return () => {
-      scene?.dispose();
+      disposed = true;
+      sceneRef.current?.dispose();
       sceneRef.current = undefined;
     };
-  }, [assets, attempt, onStatus, onThumbnail, onSelect]);
+  }, [assets, attempt, onStatus, onThumbnail, onSelect, onTransform, onManager]);
 
   useEffect(() => {
-    sceneRef.current?.update(objects, selectedId);
-  }, [objects, selectedId, attempt]);
+    snapshotRef.current = { objects, selectedId, projectScene };
+    sceneRef.current?.update(objects, selectedId, projectScene);
+  }, [objects, selectedId, projectScene, assets, attempt]);
 
   useEffect(() => {
     if (!dragging) {
@@ -71,6 +100,9 @@ export function Viewport({
 
   return (
     <section className="viewport" id="viewport" tabIndex={-1} aria-label="Scene">
+      {assets.map((asset) => (
+        <link key={asset.id} rel="preload" as="fetch" href={asset.url} crossOrigin="anonymous" />
+      ))}
       <div
         className={`viewport-stage${dragging ? " is-dragging" : ""}`}
         ref={hostRef}
@@ -111,6 +143,11 @@ export function Viewport({
         {(status === "error" || status === "unsupported") && (
           <button className="retry-button" type="button" onClick={onRetry}>
             Retry
+          </button>
+        )}
+        {status === "download-error" && (
+          <button className="retry-button" type="button" onClick={() => window.location.reload()}>
+            Reload editor
           </button>
         )}
       </div>

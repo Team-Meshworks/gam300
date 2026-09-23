@@ -10,5 +10,12 @@ export default defineConfig({
     assetsInlineLimit: 0,
     outDir: "../dist/editor",
     emptyOutDir: true,
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [{ name: "three-core", test: /[\\/]three[\\/]build[\\/]three\.core\.js$/ }],
+        },
+      },
+    },
   },
 });

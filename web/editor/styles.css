@@ -131,6 +131,28 @@ h1 strong {
   background: #b47c2b;
 }
 
+.mode-actions {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.mode-actions button {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2.75rem;
+  padding: 0.4rem 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 0.3rem;
+  background: #f8f7f2;
+  font-size: 0.8125rem;
+}
+
+.mode-actions button:hover:not(:disabled) {
+  background: #e9ece4;
+  border-color: #969e90;
+}
+
 .workspace {
   flex: 1;
   min-height: 0;
@@ -252,6 +274,33 @@ ul {
 .object-row:hover {
   background: #ecede7;
 }
+.move-controls {
+  margin-top: 0.9rem;
+  padding: 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  font-size: 0.75rem;
+}
+.move-controls > div {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.4rem;
+  margin: 0.6rem 0;
+}
+.move-controls button {
+  min-height: 2.75rem;
+  border: 1px solid #aab8aa;
+  border-radius: 0.3rem;
+  background: #fff;
+}
+.move-controls button:hover {
+  background: #e4ede5;
+}
+.move-controls output {
+  display: block;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
 
 .viewport {
   position: relative;
@@ -272,6 +321,7 @@ ul {
   inset: 0;
   width: 100%;
   height: 100%;
+  touch-action: none;
 }
 .viewport-stage.is-dragging {
   outline: 3px solid var(--accent);

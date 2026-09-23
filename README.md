@@ -5,13 +5,15 @@ Spatial experience editor.
 The web app lives in `web/`. It is a React 19 + TypeScript single-page app built with Vite
 (the project uses Vite 8, which swaps Rollup for rolldown internally).
 
-## Prerequisites
+## Project setup
+
+### Prerequisites
 
 - **Node.js `^24.19.0`** and **npm `^11.17.0`** (pinned in `web/.nvmrc` / `web/package.json`)
 - The Vite stack **will not run on older Node versions** â€” Node 20.x and below fail with a
   `SyntaxError` / missing-native-binding error. Use Node 24.
 
-### On Windows (nvm-windows)
+#### On Windows (nvm-windows)
 
 ```powershell
 nvm install 24.19.0
@@ -23,14 +25,14 @@ node -v   # -> v24.19.0
 Note: some nvm-windows builds print no output at all â€” if that happens, upgrade nvm (see
 Troubleshooting).
 
-## Install
+### Install
 
 ```powershell
 cd web
 npm install
 ```
 
-## Run the dev server
+### Run the dev server
 
 ```powershell
 cd web
@@ -64,7 +66,13 @@ where `assetKinds` maps catalog IDs to their asset kinds
 Successful loading replaces the project and clears placement history
 Rejected loading preserves the current snapshot and history
 The snapshot's `project` is null in the initial grid-only editor until a complete
-project is loaded; environment/catalog rendering and file controls still need integration
+project is loaded
+
+During development, **Open sample project** loads the shared M1 fixture through the
+project reader and displays its room, two crates and saved starting camera
+Replacing existing work asks for confirmation and clears the previous placement history
+The room stays outside the object list; the loaded project's asset shelf offers models
+File import/export and local storage controls are still pending
 
 With the dev server running, use an existing Playwright installation with Chromium:
 
@@ -72,6 +80,8 @@ With the dev server running, use an existing Playwright installation with Chromi
 cd web
 # Omit this variable if Playwright is already resolvable from web/
 $env:PLAYWRIGHT_MODULE = 'C:\path\to\node_modules\playwright\index.mjs'
+# Optional: use installed Microsoft Edge instead of a downloaded Playwright browser
+$env:PLAYWRIGHT_CHANNEL = 'msedge'
 node tests/editor-shell.smoke.mjs
 ```
 
@@ -94,6 +104,28 @@ All commands run from `web/`.
 | `npm run lint`       | ESLint (zero warnings allowed)                      |
 | `npm run format`     | Prettier write                                      |
 | `npm run format:check` | Prettier check                                   |
+
+## Controls
+
+### Editor mode (orbital camera)
+
+| Input               | Action |
+| ------------------- | ------ |
+| Left-drag           | Rotate |
+| Right-drag          | Pan    |
+| Scroll wheel        | Zoom   |
+
+### Visitor mode (first-person camera)
+
+| Input                       | Action                            |
+| --------------------------- | --------------------------------- |
+| `W` / `A` / `S` / `D`       | Move forward / left / back / right |
+| Mouse drag (left button)    | Look around                       |
+| `Shift`                     | Sprint                            |
+| `Space`                     | Fly up                            |
+| `Ctrl`                      | Fly down                          |
+
+Toggle between modes with the **Enter Visitor** / **Exit Visitor** button.
 
 ## Project layout
 
