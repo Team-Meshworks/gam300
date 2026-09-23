@@ -120,4 +120,29 @@ describe("loading a project into the editor store", () => {
     expect(store.addObject(sampleAsset.id, [0, 0, 0]).ok).toBe(false);
     expect(store.getSnapshot()).toBe(before);
   });
+
+  it("keeps a moved loaded object in the document, history and exported JSON", () => {
+    const store = createDocumentStore(placementAssets);
+    expect(store.loadProject(text, assets).ok).toBe(true);
+    const before = store.getSnapshot();
+    const object = before.objects[0];
+    if (object === undefined) throw new Error("Fixture needs an object");
+    expect(store.setTransform(object.id, { ...object.transform, position: [4, 2, -1] })).toEqual({
+      ok: true,
+      changed: true,
+    });
+    const moved = store.getSnapshot();
+    expect(moved.project?.scenes[0]?.objects).toBe(moved.objects);
+    expect(moved.objects[0]?.transform.position).toEqual([4, 2, -1]);
+    expect(before.objects[0]?.transform.position).toEqual(object.transform.position);
+    const saved = serializeProject(moved.project, assets);
+    if (!saved.ok) throw new Error(saved.error.message);
+    const reopened = createDocumentStore(placementAssets);
+    expect(reopened.loadProject(saved.value, assets).ok).toBe(true);
+    expect(reopened.getSnapshot().objects[0]?.transform.position).toEqual([4, 2, -1]);
+    store.undo();
+    expect(store.getSnapshot().objects[0]?.transform.position).toEqual(object.transform.position);
+    store.redo();
+    expect(store.getSnapshot().objects[0]?.transform.position).toEqual([4, 2, -1]);
+  });
 });
