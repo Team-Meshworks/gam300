@@ -68,3 +68,48 @@ it("preserves mixed-asset placement, history branching and earlier snapshots", (
   assert.equal(store.getSnapshot().objects.at(-1)?.id, globe.object.id);
   assert.equal(store.getSnapshot().objects.at(-1)?.assetId, "sample-snowglobe-v1");
 });
+
+it("commits one reversible transform and rejects invalid moves without changing history", () => {
+  const store = createDocumentStore([
+    { id: "crate", name: "Crate", kind: "model", url: "crate.glb", thumbnail: null },
+  ]);
+  const placed = store.addObject("crate", [1, 0, 0]);
+  if (!placed.ok) throw new Error(placed.error);
+  const original = store.getSnapshot();
+  let notifications = 0;
+  store.subscribe(() => notifications++);
+  assert.equal(store.setTransform("missing", placed.object.transform).ok, false);
+  assert.equal(
+    store.setTransform(placed.object.id, { ...placed.object.transform, position: [Infinity, 0, 0] })
+      .ok,
+    false,
+  );
+  assert.deepEqual(store.setTransform(placed.object.id, placed.object.transform), {
+    ok: true,
+    changed: false,
+  });
+  assert.equal(store.getSnapshot(), original);
+  assert.equal(notifications, 0);
+
+  const moved = store.setTransform(placed.object.id, {
+    ...placed.object.transform,
+    position: [2, 0, -3],
+  });
+  assert.deepEqual(moved, { ok: true, changed: true });
+  const after = store.getSnapshot();
+  assert.deepEqual(after.objects[0]?.transform.position, [2, 0, -3]);
+  assert.equal(Object.isFrozen(after.objects[0]?.transform.position), true);
+  assert.equal(notifications, 1);
+  store.undo();
+  assert.deepEqual(store.getSnapshot().objects[0]?.transform.position, [1, 0, 0]);
+  store.undo();
+  assert.equal(store.getSnapshot().objects.length, 0);
+  store.redo();
+  store.redo();
+  assert.deepEqual(store.getSnapshot().objects[0]?.transform.position, [2, 0, -3]);
+  assert.equal(store.getSnapshot().objects[0]?.id, placed.object.id);
+  store.undo();
+  store.setTransform(placed.object.id, { ...placed.object.transform, position: [4, 0, 0] });
+  assert.equal(store.getSnapshot().canRedo, false);
+  assert.deepEqual(original.objects[0]?.transform.position, [1, 0, 0]);
+});
