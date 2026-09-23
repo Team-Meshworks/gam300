@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { assets } from "virtual:asset-catalogue";
 import { assetDragType } from "../shared/assets/catalogue";
 import type { Vector3Tuple } from "../shared/project/scene-object";
+import type { Transform } from "../shared/project/project-types";
 import { createDocumentStore } from "./document-store";
 import type { ViewportStatus } from "./graphics/scene";
 import type { ModeManager, ModeManagerState } from "./graphics/modeManager";
@@ -31,6 +32,7 @@ export function App() {
   const [manager, setManager] = useState<ModeManager | null>(null);
   const [modeState, setModeState] = useState<ModeManagerState | null>(null);
   const selection = objects.some((object) => object.id === selectedId) ? selectedId : null;
+  const selectedObject = objects.find((object) => object.id === selection);
   const hasChanges = project !== null || objects.length > 0;
   const visitor = modeState?.mode === "visitor";
 
@@ -40,6 +42,26 @@ export function App() {
   }, []);
 
   useEffect(() => (manager === null ? undefined : manager.subscribe(setModeState)), [manager]);
+
+  const onTransform = useCallback(
+    (id: string, transform: Transform) => {
+      const result = store.setTransform(id, transform);
+      if (!result.ok) {
+        setError(result.error);
+      } else if (result.changed) {
+        setError("");
+        setNotice("Moved object. Undo is available.");
+      }
+    },
+    [store],
+  );
+
+  function moveSelected(axis: 0 | 1 | 2, delta: number) {
+    if (selectedObject === undefined) return;
+    const position = [...selectedObject.transform.position] as [number, number, number];
+    position[axis] += delta;
+    onTransform(selectedObject.id, { ...selectedObject.transform, position });
+  }
 
   function openSampleProject() {
     if (hasChanges && !window.confirm("Replace the current scene? Unsaved changes will be lost.")) {
@@ -186,6 +208,35 @@ export function App() {
                   </li>
                 ))}
               </ul>
+              {selectedObject !== undefined && (
+                <div
+                  className="move-controls"
+                  role="group"
+                  aria-label={`Move ${selectedObject.name}`}
+                >
+                  <p>Move selected · 0.25 m per step</p>
+                  <div>
+                    {([0, 1, 2] as const).map((axis) =>
+                      ([-0.25, 0.25] as const).map((delta) => (
+                        <button
+                          key={`${axis}:${delta}`}
+                          type="button"
+                          aria-label={`Move ${selectedObject.name} ${"XYZ"[axis]} ${delta > 0 ? "plus" : "minus"} 0.25 metres`}
+                          onClick={() => moveSelected(axis, delta)}
+                        >
+                          {"XYZ"[axis]} {delta > 0 ? "+" : "−"}
+                        </button>
+                      )),
+                    )}
+                  </div>
+                  <output aria-label="Selected position">
+                    {selectedObject.transform.position
+                      .map((value, axis) => `${"XYZ"[axis]} ${value.toFixed(2)}`)
+                      .join(" · ")}{" "}
+                    m
+                  </output>
+                </div>
+              )}
             </section>
           )}
         </aside>
@@ -201,6 +252,7 @@ export function App() {
           onStatus={setStatus}
           onThumbnail={onThumbnail}
           onSelect={setSelectedId}
+          onTransform={onTransform}
           onPlace={place}
           onDragFinish={() => setDragging(false)}
           onRetry={() => {
