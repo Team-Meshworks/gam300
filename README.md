@@ -2,6 +2,10 @@
 
 Spatial experience editor.
 
+`dev` is the development integration branch; `main` is production. Both run automated
+checks, and releases deploy manually from their matching branch. See
+[development and deployment](docs/deployment.md) for Docker, CI, VM access and rollback.
+
 The web app lives in `web/`. It is a React 19 + TypeScript single-page app built with Vite
 (the project uses Vite 8, which swaps Rollup for rolldown internally).
 
@@ -27,7 +31,7 @@ Troubleshooting).
 
 ```powershell
 cd web
-npm install
+npm ci
 ```
 
 ## Run the dev server

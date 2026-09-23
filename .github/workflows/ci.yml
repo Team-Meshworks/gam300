@@ -1,0 +1,161 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Build and test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: web
+        shell: bash
+    steps:
+      - name: Require production changes to come through dev
+        if: github.event_name == 'pull_request' && github.base_ref == 'main'
+        working-directory: .
+        env:
+          SOURCE_BRANCH: ${{ github.head_ref }}
+          SOURCE_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+        run: |
+          test "$SOURCE_BRANCH" = dev
+          test "$SOURCE_REPOSITORY" = "$GITHUB_REPOSITORY"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          lfs: true
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: web/.nvmrc
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install locked tooling
+        run: |
+          npm install --global npm@11.17.0
+          npm ci --no-audit --no-fund
+      - name: Check source and assets
+        run: |
+          npm run lint
+          npm run format:check
+          node ../assets/tools/validate-assets.mjs
+          bash ../deploy/deploy.test.sh
+      - name: Run unit tests
+        run: npm run test:unit -- --reporter=default --reporter=junit --outputFile=test-results/unit.xml
+      - name: Install pinned browser
+        run: npx playwright install --with-deps chromium
+      - name: Check authoring and development fixtures
+        env:
+          SMOKE_SCREENSHOT: test-results/editor.png
+        run: |
+          node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 5173 --strictPort > test-results/dev-server.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          curl --fail --silent --show-error --retry 30 --retry-delay 1 --retry-connrefused http://127.0.0.1:5173/ > /dev/null
+          npm run test:browser
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Build the runnable image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          load: true
+          tags: vthere-ci:${{ github.sha }}
+          build-args: REVISION=${{ github.sha }}
+          cache-from: type=gha,scope=editor
+          cache-to: type=gha,mode=max,scope=editor
+      - name: Check the packaged application
+        env:
+          APP_IMAGE: vthere-ci:${{ github.sha }}
+          APP_PORT: "4173"
+          REVISION: ${{ github.sha }}
+          SMOKE_SCREENSHOT: test-results/deployment.png
+        run: |
+          docker compose -f ../compose.yaml -p vthere-ci up -d --no-build --wait --wait-timeout 90
+          test "$(curl --fail --silent http://127.0.0.1:4173/version.txt)" = "$GITHUB_SHA"
+          npm run test:deployment -- http://127.0.0.1:4173/
+          if [[ -f tests/editor-build.smoke.mjs ]]; then
+            node tests/editor-build.smoke.mjs http://127.0.0.1:4173/
+          fi
+          mkdir -p dist/editor
+          docker cp "$(docker compose -f ../compose.yaml -p vthere-ci ps -q web):/srv/." dist/editor/
+      - name: Retain test evidence and runnable web files
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: checks-${{ github.sha }}
+          path: |
+            web/test-results/
+            web/dist/editor/
+          retention-days: 14
+          overwrite: true
+      - name: Save the tested image and its deployment files
+        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev')
+        run: |
+          mkdir -p ../ci-artifacts/release
+          docker save "vthere-ci:$GITHUB_SHA" -o ../ci-artifacts/image.tar
+          cp ../compose.yaml ../deploy/deploy.sh ../ci-artifacts/release/
+      - name: Transfer the tested image to the publishing job
+        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev')
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: image-${{ github.sha }}
+          path: ci-artifacts/
+          retention-days: 2
+          overwrite: true
+      - name: Container diagnostics and cleanup
+        if: always()
+        run: |
+          docker compose -f ../compose.yaml -p vthere-ci logs --tail 50
+          docker compose -f ../compose.yaml -p vthere-ci down
+
+  publish:
+    name: Publish tested image
+    needs: check
+    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: image-${{ github.sha }}
+          path: ci-artifacts
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish the exact image that passed the browser checks
+        shell: bash
+        run: |
+          docker load -i ci-artifacts/image.tar
+          tag="ghcr.io/${GITHUB_REPOSITORY,,}:$GITHUB_REF_NAME-$GITHUB_SHA-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          docker tag "vthere-ci:$GITHUB_SHA" "$tag"
+          docker push "$tag"
+          image=$(docker inspect --format '{{index .RepoDigests 0}}' "$tag")
+          jq -n --arg image "$image" --arg commit "$GITHUB_SHA" --arg branch "$GITHUB_REF_NAME" \
+            --arg run "$GITHUB_RUN_ID" '{image: $image, commit: $commit, branch: $branch, run: $run}' \
+            > ci-artifacts/release/release.json
+          printf 'Image: `%s`\n\nCommit: `%s`\n\nDeploy workflow CI run ID: `%s`\n' \
+            "$image" "$GITHUB_SHA" "$GITHUB_RUN_ID" >> "$GITHUB_STEP_SUMMARY"
+      - name: Retain the release descriptor
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-${{ github.sha }}
+          path: ci-artifacts/release/
+          retention-days: 90
+          overwrite: true
