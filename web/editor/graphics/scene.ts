@@ -131,7 +131,8 @@ export function initScene(
         geometry: NonNullable<ReturnType<typeof beginAxisDrag>>;
         position: THREE.Vector3;
       }
-    | undefined;
+| undefined;
+  let orbitEnabledBeforeDrag = true;
 
   function render() {
     if (!disposed) {
@@ -364,6 +365,7 @@ export function initScene(
     if (drag === undefined) return;
     const previous = drag;
     drag = undefined;
+    orbit.enabled = orbitEnabledBeforeDrag;
     previewPosition(previous.id, new THREE.Vector3().fromArray(previous.transform.position));
     if (renderer.domElement.hasPointerCapture(previous.pointerId)) {
       renderer.domElement.releasePointerCapture(previous.pointerId);
@@ -387,6 +389,8 @@ export function initScene(
       );
       // A view almost parallel to the axis has no stable depth solution.
       if (geometry === undefined) return;
+      orbitEnabledBeforeDrag = orbit.enabled;
+      orbit.enabled = false;
       drag = {
         id: object.id,
         pointerId: event.pointerId,
@@ -429,6 +433,7 @@ export function initScene(
     pointerMove(event);
     const completed = drag;
     drag = undefined;
+    orbit.enabled = orbitEnabledBeforeDrag;
     if (renderer.domElement.hasPointerCapture(event.pointerId)) {
       renderer.domElement.releasePointerCapture(event.pointerId);
     }
