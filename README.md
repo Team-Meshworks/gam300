@@ -2,13 +2,13 @@
 title: README
 description: 
 published: true
-date: 2026-09-23T12:57:41.728Z
+date: 2026-09-23T15:10:19.446Z
 tags: 
 editor: markdown
 dateCreated: 2026-09-23T12:57:37.408Z
 ---
 
-# VThere Spatial Experience Editor
+# Spatial Experience Builder (SEB)
 
 Spatial experience editor.
 
