@@ -16,7 +16,9 @@ GitHub does not prevent direct pushes or require passing checks before a merge. 
 repository private; enable required pull requests and the `Build and test` check when the
 team has access to private-repository branch protection.
 
-The existing Wiki.js deployment uses port 8080 and is independent of these Compose projects.
+Wiki.js is available at https://51.79.242.181:9443 with sign-in required. Its separate
+Compose project binds to `127.0.0.1:8083`; the gateway redirects legacy HTTP port 8080
+to HTTPS. See [wiki operations](wiki.md) for accounts and backups.
 This M1 deployment contains the editor only. PostgreSQL and the application API remain M2
 work; Wiki.js's database is not the application database. Browser storage belongs to each
 origin, so development and production drafts are separate.
@@ -103,9 +105,9 @@ cat ~/vthere-access.txt
 ## VM setup
 
 The VM uses Ubuntu 24.04 x86-64, Docker Engine and the Compose plugin. Runtime applications
-bind only to loopback; a separate `vthere-gateway` Compose project owns HTTP 80, HTTPS 443
-and HTTPS 8443. Preserve the existing SSH and Wiki.js firewall rules when allowing those
-three TCP ports. Do not expose Docker's socket or a database port over the network.
+bind only to loopback; a separate `vthere-gateway` Compose project owns HTTP 80/8080 and
+HTTPS 443/8443/9443. Preserve SSH access when managing these TCP firewall rules.
+Do not expose Docker's socket or a database port over the network.
 
 `deploy/gateway.Caddyfile` requests a Let's Encrypt IP certificate with the `shortlived`
 profile. Caddy renews it automatically; its certificate volume must remain persistent.
@@ -175,7 +177,8 @@ Verified on 23 September 2026:
 Both live sites passed the Chromium deployment check over trusted HTTPS with the team
 login: editor loading, server policy, model/textures, placement and undo. Anonymous
 requests to the application require authentication; public health/revision endpoints
-report the expected commits. Wiki.js still responds on port 8080.
+report the expected commits. The later wiki setup moved Wiki.js to trusted HTTPS on
+9443; HTTP 8080 redirects there. Both application version responses stayed unchanged.
 
 The [cross-branch guard check](https://github.com/Team-Meshworks/gam300/actions/runs/35865302138)
 deliberately supplied a development CI run to production. Validation failed and the VM
