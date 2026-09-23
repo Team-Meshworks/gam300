@@ -44,6 +44,10 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
   let projectAssets: ReadonlyMap<string, string> = new Map();
   // Keep history here so the buttons and future edit controls share one undo order.
   const history = createCommandHistory<readonly SceneObject[]>();
+  // This clipboard belongs to the open editor, not the operating system.
+  // Objects are immutable, so later edits won't change the captured copy.
+  let clipboard: SceneObject | null = null;
+  let pasteCount = 0;
   const listeners = new Set<() => void>();
   // Preview data stays outside the saved document and undo history.
   let edit: TransformSession | null = null;
@@ -102,7 +106,67 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
     return { ok: true, value: { changed: true, object } };
   }
 
+  function insertCopy(source: SceneObject, offset: number): ValidationResult<SceneObject> {
+    const asset = assets.find((entry) => entry.id === source.assetId);
+    if (
+      !asset ||
+      (project !== null && (asset.kind !== "model" || projectAssets.get(asset.id) !== "model"))
+    )
+      return invalid("assetId", "This asset is not available in this project");
+    if (objects.length >= 200)
+      return invalid("objects", "This scene has reached its 200-object limit");
+    const [x, y, z] = source.transform.position;
+    const checked = validateTransform(
+      {
+        ...source.transform,
+        position: [x + offset, y, z + offset],
+      },
+      "transform",
+    );
+    if (!checked.ok) return checked;
+    const transform = checked.value;
+    Object.freeze(transform.position);
+    Object.freeze(transform.rotation);
+    Object.freeze(transform.scale);
+    // Copy only today's object fields; attached content will need its own ID remapping later.
+    const object: SceneObject = Object.freeze({
+      id: crypto.randomUUID(),
+      name: source.name,
+      assetId: source.assetId,
+      transform: Object.freeze(transform),
+    });
+    replaceObjects(
+      history.execute(objects, {
+        label: "Copy object",
+        apply: (current) => Object.freeze([...current, object]),
+        revert: (current) => Object.freeze(current.filter((entry) => entry.id !== object.id)),
+      }),
+    );
+    clearEdit();
+    publish();
+    return { ok: true, value: object };
+  }
+
   return {
+    copyObject(objectId: string): ValidationResult<SceneObject> {
+      const object = objects.find((entry) => entry.id === objectId);
+      if (!object) return invalid("objectId", "Select an object to copy");
+      clipboard = object;
+      pasteCount = 0;
+      return { ok: true, value: object };
+    },
+    pasteObject(): ValidationResult<SceneObject> {
+      if (!clipboard) return invalid("clipboard", "Copy an object first");
+      // Spread repeated pastes out rather than stacking them in the same spot.
+      const result = insertCopy(clipboard, (pasteCount + 1) * 0.5);
+      if (result.ok) pasteCount++;
+      return result;
+    },
+    duplicateObject(objectId: string): ValidationResult<SceneObject> {
+      const object = objects.find((entry) => entry.id === objectId);
+      if (!object) return invalid("objectId", "Select an object to duplicate");
+      return insertCopy(object, 0.5);
+    },
     getTransformEdit: () => edit,
     subscribeTransformEdit(listener: () => void) {
       editListeners.add(listener);
@@ -168,6 +232,8 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       const loadedAssets = new Map(assetKinds);
 
       project = loaded;
+      clipboard = null;
+      pasteCount = 0;
       objects = scene.objects;
       projectAssets = loadedAssets;
       // Undo from the previous project must never reintroduce its objects here
