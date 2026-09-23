@@ -11,6 +11,8 @@ import sampleProject from "../shared/project/fixtures/m1-project.json";
 import type { ProjectDocument } from "../shared/project/project-types";
 import { loadLocalDraft, saveLocalDraft } from "./persistence/local-drafts";
 import { serializeProject } from "../shared/project/project-serialization";
+import { deserializeProject } from "../shared/project/project-deserialization";
+import { MAX_PROJECT_BYTES } from "../shared/project/project-limits";
 
 // Same catalog used by the viewport; saved references need to resolve here too
 const assetKinds = new Map(assets.map((asset) => [asset.id, asset.kind]));
@@ -34,7 +36,9 @@ export function App() {
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [savedProject, setSavedProject] = useState<ProjectDocument | null>(null);
-  const [storageOperation, setStorageOperation] = useState<"save" | "recover" | null>(null);
+  const [storageOperation, setStorageOperation] = useState<"save" | "recover" | "import" | null>(
+    null,
+  );
   const [saveFailed, setSaveFailed] = useState(false);
   // revision follows confirmed storage writes; editSequence follows changes in this tab
   // busy blocks another save or recovery immediately, before React redraws the buttons
@@ -176,6 +180,54 @@ export function App() {
     }
   }
 
+  async function importProject(file: File) {
+    if (local.current.busy) return;
+    setError("");
+    // Check the file size before allocating its text in memory
+    if (file.size > MAX_PROJECT_BYTES) {
+      setError("Project JSON exceeds the 5 MiB file limit");
+      return;
+    }
+    const before = store.getSnapshot();
+    local.current.busy = true;
+    setStorageOperation("import");
+    try {
+      const text = await file.text();
+      const checked = deserializeProject(text, assetKinds);
+      if (!checked.ok) {
+        setError(checked.error.message);
+        return;
+      }
+      // A file read can finish after another edit; leave those newer changes alone
+      if (store.getSnapshot() !== before) {
+        setError("The scene changed while reading the file; import it again when ready");
+        return;
+      }
+      // Ask only after validation so a broken file never prompts us to discard good work
+      if (hasUnsavedChanges && !window.confirm("Replace unsaved changes with this project file?"))
+        return;
+      const loaded = store.loadProject(text, assetKinds);
+      if (!loaded.ok) {
+        setError(loaded.error.message);
+        return;
+      }
+      // Import opens a file copy; any existing browser save needs explicit replacement later
+      local.current.revision = 0;
+      local.current.editSequence = 0;
+      clearTimeout(local.current.noticeTimer);
+      setSavedProject(null);
+      setSaveFailed(false);
+      setSelectedId(null);
+      setDragging(false);
+      setNotice("Project imported");
+    } catch {
+      setError("Could not read the project file; your scene is unchanged");
+    } finally {
+      local.current.busy = false;
+      setStorageOperation(null);
+    }
+  }
+
   async function recoverDraft() {
     if (local.current.busy) return;
     if (hasUnsavedChanges && !window.confirm("Replace unsaved changes with the local draft?"))
@@ -186,7 +238,7 @@ export function App() {
     setStorageOperation("recover");
     setError("");
     try {
-      // The sample is the only project-opening route until file import is connected
+      // Recover the open project's copy; the sample remains the startup default
       const projectId = before.project?.projectId ?? sampleProject.projectId;
       const result = await loadLocalDraft(projectId, assetKinds);
       if (!result.ok) {
@@ -251,7 +303,7 @@ export function App() {
     if (hasChanges && !window.confirm("Replace the current scene? Unsaved changes will be lost.")) {
       return;
     }
-    // Exercise the same reader used by file import later
+    // Exercise the same reader used by file import
     // Failed validation leaves selection and the current scene alone
     const result = store.loadProject(JSON.stringify(sampleProject), assetKinds);
     if (!result.ok) {
@@ -362,6 +414,17 @@ export function App() {
             >
               Export
             </button>
+            <button
+              type="button"
+              title="Open a JSON project file"
+              disabled={status !== "ready" || storageOperation !== null}
+              onClick={() => {
+                closeDraftMenu();
+                document.getElementById("project-import")?.click();
+              }}
+            >
+              Import
+            </button>
           </div>
         </details>
         <h1>
@@ -402,6 +465,18 @@ export function App() {
           </span>
         )}
       </header>
+      {/* Reset the input so choosing the same file again still fires a change */}
+      <input
+        id="project-import"
+        type="file"
+        accept=".json,application/json"
+        hidden
+        onChange={(event) => {
+          const file = event.currentTarget.files?.[0];
+          event.currentTarget.value = "";
+          if (file !== undefined) void importProject(file);
+        }}
+      />
 
       <main className="workspace">
         <aside className="library" aria-label="Assets and scene objects">
@@ -515,7 +590,11 @@ export function App() {
         />
       </main>
       <p className="draft-feedback" role="status">
-        {storageOperation === "recover" ? "Reading local draft…" : notice}
+        {storageOperation === "recover"
+          ? "Reading local draft…"
+          : storageOperation === "import"
+            ? "Reading project file…"
+            : notice}
       </p>
       {error && (
         <p className="action-error" role="alert">

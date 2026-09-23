@@ -320,18 +320,125 @@ try {
   );
   const freshPage = await browser.newPage();
   await freshPage.goto(process.argv[2] ?? "http://127.0.0.1:5173/");
-  const imported = await freshPage.evaluate(async (text) => {
-    const { createDocumentStore } = await import("/document-store.ts");
-    return createDocumentStore([]).loadProject(
-      text,
-      new Map([
-        ["test-room-v1", "environment"],
-        ["test-crate-v1", "model"],
-      ]),
+  await freshPage.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
+  await freshPage.locator(".draft-menu summary").click();
+  const choosing = freshPage.waitForEvent("filechooser");
+  await freshPage.getByRole("button", { name: "Import", exact: true }).click();
+  const chooser = await choosing;
+  const projectFile = {
+    name: "project.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(exportedText),
+  };
+  await chooser.setFiles(projectFile);
+  await freshPage.getByText("Project imported", { exact: true }).waitFor();
+  assert.equal(
+    await freshPage.getByRole("button", { name: "Undo", exact: true }).isDisabled(),
+    true,
+  );
+  await freshPage.locator(".draft-menu summary").click();
+  const roundTripDownload = freshPage.waitForEvent("download");
+  await freshPage.getByRole("button", { name: "Export", exact: true }).click();
+  assert.deepEqual(
+    JSON.parse(readFileSync(await (await roundTripDownload).path(), "utf8")),
+    expectedExport,
+  );
+
+  // Invalid imports keep the current objects, selection and placement history
+  await freshPage.getByRole("button", { name: "Add test-crate", exact: true }).click();
+  const beforeImport = await freshPage
+    .locator(".object-row")
+    .evaluateAll((items) =>
+      items.map((item) => [item.dataset.objectId, item.getAttribute("aria-pressed")]),
     );
-  }, exportedText);
-  assert.equal(imported.ok, true);
-  assert.deepEqual(imported.value, expectedExport);
+  let confirmations = 0;
+  freshPage.on("dialog", (dialog) => {
+    confirmations += 1;
+    return dialog.dismiss();
+  });
+  for (const invalid of [
+    "{",
+    JSON.stringify({ ...expectedExport, schemaVersion: 999 }),
+    exportedText.replace("test-crate-v1", "unknown-asset"),
+    " ".repeat(5 * 1024 * 1024 + 1),
+  ]) {
+    await freshPage
+      .locator("#project-import")
+      .setInputFiles({ ...projectFile, buffer: Buffer.from(invalid) });
+    await freshPage.getByRole("alert").waitFor();
+    assert.deepEqual(
+      await freshPage
+        .locator(".object-row")
+        .evaluateAll((items) =>
+          items.map((item) => [item.dataset.objectId, item.getAttribute("aria-pressed")]),
+        ),
+      beforeImport,
+    );
+    assert.equal(
+      await freshPage.getByRole("button", { name: "Undo", exact: true }).isEnabled(),
+      true,
+    );
+  }
+  assert.equal(confirmations, 0);
+  await freshPage.locator("#project-import").setInputFiles(projectFile);
+  await freshPage.waitForFunction(
+    () => document.querySelector(".draft-feedback").textContent !== "Reading project file…",
+  );
+  assert.equal(confirmations, 1);
+  assert.deepEqual(
+    await freshPage
+      .locator(".object-row")
+      .evaluateAll((items) =>
+        items.map((item) => [item.dataset.objectId, item.getAttribute("aria-pressed")]),
+      ),
+    beforeImport,
+  );
+  freshPage.removeAllListeners("dialog");
+  freshPage.on("dialog", (dialog) => dialog.accept());
+  await freshPage.locator("#project-import").setInputFiles(projectFile);
+  await freshPage.getByText("Project imported", { exact: true }).waitFor();
+  assert.equal(
+    await freshPage.locator(".object-row").count(),
+    expectedExport.scenes[0].objects.length,
+  );
+  assert.equal(
+    await freshPage.getByRole("button", { name: "Undo", exact: true }).isDisabled(),
+    true,
+  );
+  // Failed reads and edits made during a slow read must leave the live scene alone
+  await freshPage.evaluate(() => {
+    const read = File.prototype.text;
+    File.prototype.text = function () {
+      File.prototype.text = read;
+      return Promise.reject(new Error("Test file read failure"));
+    };
+  });
+  await freshPage.locator("#project-import").setInputFiles(projectFile);
+  await freshPage
+    .getByRole("alert")
+    .filter({ hasText: "Could not read the project file" })
+    .waitFor();
+  await freshPage.evaluate(() => {
+    const read = File.prototype.text;
+    File.prototype.text = function () {
+      File.prototype.text = read;
+      return new Promise((resolve) => {
+        window.finishImportRead = resolve;
+      });
+    };
+  });
+  await freshPage.locator("#project-import").setInputFiles(projectFile);
+  await freshPage.getByText("Reading project file…", { exact: true }).waitFor();
+  await freshPage.getByRole("button", { name: "Add test-crate", exact: true }).click();
+  await freshPage.evaluate((text) => window.finishImportRead(text), exportedText);
+  await freshPage
+    .getByRole("alert")
+    .filter({ hasText: "The scene changed while reading the file" })
+    .waitFor();
+  assert.equal(
+    await freshPage.locator(".object-row").count(),
+    expectedExport.scenes[0].objects.length + 1,
+  );
   await freshPage.close();
   await page.evaluate(() => {
     URL.createObjectURL = () => {
@@ -347,7 +454,7 @@ try {
   );
 
   console.log(
-    "PASS: local save/recover, JSON download and reconstruction, moved transforms and storage/export failure preservation",
+    "PASS: save/recover, export/import through file picker, moved transforms, rejected files, cancelled replacement and slow/failed reads",
   );
 } finally {
   await browser.close();
