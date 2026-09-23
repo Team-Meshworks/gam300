@@ -159,7 +159,13 @@ try {
   assert.equal(await rows.last().getAttribute("data-object-id"), roomId);
 
   const samplePath = "**/*test-crate*.glb*";
-  await page.route(samplePath, (route) => route.fulfill({ status: 503, body: "Unavailable" }));
+  await page.route(samplePath, (route) => {
+    // Vite also serves a JavaScript URL module for each model
+    // Fail the model download after the application itself has loaded
+    return route.request().resourceType() === "script"
+      ? route.continue()
+      : route.fulfill({ status: 503, body: "Unavailable" });
+  });
   await page.reload();
   await page.getByRole("status").filter({ hasText: "Couldn't load the asset library" }).waitFor();
   assert.equal(await asset.isDisabled(), true);
