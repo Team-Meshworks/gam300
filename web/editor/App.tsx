@@ -207,6 +207,8 @@ export function App() {
       // Read when the queued save starts; several edits may have landed during the delay
       const current = store.getSnapshot().project;
       if (current === null || local.current.busy || (automatic && local.current.paused)) return;
+      // Capture history in the same turn as the scene, before any storage awaits.
+      const recoveryHistory = store.getRecoveryHistory();
       clearTimeout(local.current.saveTimer);
       local.current.pending = false;
       local.current.busy = true;
@@ -248,6 +250,7 @@ export function App() {
         const result = await saveLocalDraft(
           {
             project: current,
+            history: recoveryHistory,
             expectedStorageRevision: expectedRevision,
             localEditSequence: savedSequence,
           },
@@ -583,7 +586,11 @@ export function App() {
           setNotice("Saved work was kept in this browser; refresh to reopen it");
           return;
         }
-        const restored = store.loadProject(JSON.stringify(result.value.document), assetKinds);
+        const restored = store.loadProject(
+          JSON.stringify(result.value.document),
+          assetKinds,
+          result.value.history,
+        );
         if (!restored.ok) {
           setError(restored.error.message);
           return;
@@ -599,6 +606,7 @@ export function App() {
         setSelectedId(null);
         setDragging(false);
         setNotice("Reopened your last project");
+        if (result.value.historyWarning) setError(result.value.historyWarning);
         try {
           const link = await recallProjectFile(restored.value.projectId);
           if (cancelled) return;

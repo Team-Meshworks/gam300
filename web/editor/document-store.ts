@@ -3,6 +3,7 @@ import { invalid } from "../shared/project/validation-helpers";
 import type { Transform } from "../shared/project/project-types";
 import { prepareTransformCommand } from "./transform-command";
 import { createCommandHistory } from "./command-history";
+import { captureRecoveryHistory, validateRecoveryHistory } from "./persistence/recovery-history";
 import type { CatalogueAsset } from "../shared/assets/catalogue.ts";
 import type { SceneObject, Vector3Tuple } from "../shared/project/scene-object.ts";
 import { deserializeProject } from "../shared/project/project-deserialization";
@@ -217,6 +218,9 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       if (edit?.token === token) clearEdit();
     },
     getSnapshot: () => snapshot,
+    getRecoveryHistory() {
+      return project === null ? undefined : captureRecoveryHistory(project, history.getStates());
+    },
     createProject(environmentAssetId: string): ValidationResult<ProjectDocument> {
       // Room choice supplies the environment required by the saved format
       // Keep any models already placed on the grid and their undo commands
@@ -267,6 +271,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
     loadProject(
       text: unknown,
       assetKinds: ReadonlyMap<string, string>,
+      recoveryHistory?: unknown,
     ): ValidationResult<ProjectDocument> {
       // Finish all checks before touching the open project or its undo history
       const result = deserializeProject(text, assetKinds);
@@ -277,6 +282,11 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
         throw new Error("Validated M1 project needs one scene");
       }
       const loadedAssets = new Map(assetKinds);
+      const recovered =
+        recoveryHistory === undefined
+          ? undefined
+          : validateRecoveryHistory(recoveryHistory, loaded, loadedAssets);
+      if (recovered !== undefined && !recovered.ok) return recovered;
 
       project = loaded;
       clipboard = null;
@@ -285,6 +295,8 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       projectAssets = loadedAssets;
       // Undo from the previous project must never reintroduce its objects here
       history.clear();
+      if (recovered?.ok)
+        history.restoreStates(objects, recovered.value.past, recovered.value.future);
       clearEdit();
       publish();
       return { ok: true, value: loaded };

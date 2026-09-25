@@ -1,4 +1,3 @@
-
 ## Edit sessions (preferred for a drag or a grouped inspector edit)
 
 ```ts
@@ -21,3 +20,15 @@ A new begin replaces the previous session. Tokens reject late pointer events aft
 ## Deletion
 
 Call store.deleteObject(objectId). A success returns the removed object in value; errors have the same path/message shape as transform errors. Undo restores the full object at its original list position, and redo removes it again. The editor's Delete selected button uses this method. This covers the current object schema; future attached content and cross-object rules will require compound deletion.
+
+## Undo after refresh
+
+Browser autosave captures `getSnapshot().project` and `getRecoveryHistory()` together before awaiting storage. IndexedDB writes both in one transaction with the existing revision checks. Recovery passes the checked history as the third argument to `loadProject`; ordinary file imports omit it and start with empty history. Exported JSON still contains only the project.
+
+Recovery version 1 stores immutable object-list states in undo/redo order, preserving IDs, transforms and list positions. It keeps at most 100 edits, with a 20 MiB serialized-history budget that drops the farthest states first. Commands restored from those states use the same command history as new edits. This matches the current single-scene object commands; commands that change scene metadata or future content/rules must extend this format before using it.
+
+Each restored state goes through the project validator. Project/scene IDs and the current object list must match the saved scene. Missing history in older backups is supported. Invalid history is skipped with a warning while the valid scene is recovered. A mismatched scene/history pair is rejected before saving.
+
+Only completed edits are saved. The existing autosave waits two seconds after editing; wait for **Saved in browser** (and no Saving indicator) before refreshing. Refresh cannot recover history from backups created before this feature existed. Browser storage belongs to this browser profile and site origin.
+
+Checks: `npm run test:unit` and `node tests/history-recovery.smoke.mjs <dev-server-url>`. The browser script uses a fresh isolated context and supports the same `PLAYWRIGHT_MODULE` / `PLAYWRIGHT_CHANNEL` overrides as the other smoke tests.
