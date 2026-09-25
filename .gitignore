@@ -42,6 +42,8 @@ pids/
 coverage/
 .nyc_output/
 *.lcov
+test-results/
+ci-artifacts/
 
 # Build output
 dist/

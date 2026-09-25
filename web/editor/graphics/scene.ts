@@ -1,11 +1,30 @@
 import * as THREE from "three";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import type { CatalogueAsset } from "../../shared/assets/catalogue";
 import type { SceneObject, Vector3Tuple } from "../../shared/project/scene-object";
 import type { CameraPose, ProjectScene, Transform } from "../../shared/project/project-types";
+import { FpsControls } from "../controls/fpsControls";
+import { ModeManager } from "./modeManager";
 import { axisDragPosition, beginAxisDrag } from "./translation";
 
 export type ViewportStatus = "loading" | "ready" | "error" | "download-error" | "unsupported";
+
+export interface FpsMeter {
+  tick(now: number): void;
+}
+
+export interface InitSceneHandle {
+  update: (
+    nextObjects: readonly SceneObject[],
+    nextSelectedId: string | null,
+    nextScene?: ProjectScene | null,
+  ) => void;
+  getDropPosition: (clientX: number, clientY: number) => Vector3Tuple | undefined;
+  showDropPosition: (position: Vector3Tuple | undefined) => void;
+  modeManager: ModeManager;
+  dispose: () => void;
+}
 
 export function initScene(
   host: HTMLDivElement,
@@ -16,7 +35,7 @@ export function initScene(
     onSelect: (id: string | null) => void;
     onTransform: (id: string, transform: Transform) => void;
   },
-) {
+): InitSceneHandle | undefined {
   let renderer: THREE.WebGLRenderer;
   try {
     const canvas = document.createElement("canvas");
@@ -41,6 +60,14 @@ export function initScene(
   renderer.domElement.setAttribute("role", "img");
   renderer.domElement.setAttribute("aria-label", "3D scene");
   host.appendChild(renderer.domElement);
+
+  const orbit = new OrbitControls(camera, renderer.domElement);
+  orbit.enableDamping = true;
+  orbit.target.set(0, 0, 0);
+
+  const fpsControls = new FpsControls(camera, renderer.domElement);
+  const modeManager = new ModeManager(camera, orbit, fpsControls);
+  const fpsMeter = createFpsMeter();
 
   const ambient = new THREE.AmbientLight(0xffffff, 1.4);
   const sun = new THREE.DirectionalLight(0xffffff, 2.5);
@@ -105,6 +132,7 @@ export function initScene(
         position: THREE.Vector3;
       }
     | undefined;
+  let orbitEnabledBeforeDrag = true;
 
   function render() {
     if (!disposed) {
@@ -136,6 +164,11 @@ export function initScene(
   }
 
   function updateGizmo() {
+    // The transform gizmo is an editor tool; hide it while exploring as a visitor
+    if (modeManager.getState().mode !== "editor") {
+      gizmo.visible = false;
+      return;
+    }
     const instance = selectedId === null ? undefined : instances.get(selectedId);
     gizmo.visible = instance !== undefined;
     if (instance === undefined) return;
@@ -192,6 +225,20 @@ export function initScene(
     }
     return picked;
   }
+
+  let lastFrameTime = performance.now();
+  const animate = (now: number) => {
+    if (disposed) {
+      return;
+    }
+    requestAnimationFrame(animate);
+    const delta = Math.min((now - lastFrameTime) / 1000, 0.1);
+    lastFrameTime = now;
+    modeManager.update(delta);
+    fpsMeter.tick(now);
+    render();
+  };
+  requestAnimationFrame(animate);
 
   function update(
     nextObjects: readonly SceneObject[],
@@ -318,6 +365,7 @@ export function initScene(
     if (drag === undefined) return;
     const previous = drag;
     drag = undefined;
+    orbit.enabled = orbitEnabledBeforeDrag;
     previewPosition(previous.id, new THREE.Vector3().fromArray(previous.transform.position));
     if (renderer.domElement.hasPointerCapture(previous.pointerId)) {
       renderer.domElement.releasePointerCapture(previous.pointerId);
@@ -326,6 +374,9 @@ export function initScene(
 
   function pointerDown(event: PointerEvent) {
     if (!ready || event.button !== 0 || !event.isPrimary || drag !== undefined) return;
+    // Gizmo dragging and object picking are editor tools; leave the
+    // pointer to the visitor's look-around when walking through the scene
+    if (modeManager.getState().mode !== "editor") return;
     const handle = pickHandle(event.clientX, event.clientY);
     if (handle !== undefined && selectedId !== null) {
       const object = objects.find((entry) => entry.id === selectedId);
@@ -338,6 +389,8 @@ export function initScene(
       );
       // A view almost parallel to the axis has no stable depth solution.
       if (geometry === undefined) return;
+      orbitEnabledBeforeDrag = orbit.enabled;
+      orbit.enabled = false;
       drag = {
         id: object.id,
         pointerId: event.pointerId,
@@ -380,6 +433,7 @@ export function initScene(
     pointerMove(event);
     const completed = drag;
     drag = undefined;
+    orbit.enabled = orbitEnabledBeforeDrag;
     if (renderer.domElement.hasPointerCapture(event.pointerId)) {
       renderer.domElement.releasePointerCapture(event.pointerId);
     }
@@ -467,11 +521,15 @@ export function initScene(
     update,
     getDropPosition,
     showDropPosition,
+    modeManager,
     dispose() {
       cancelDrag();
       disposed = true;
       controller.abort();
       observer.disconnect();
+      fpsMeter.dispose();
+      fpsControls.dispose();
+      orbit.dispose();
       renderer.domElement.removeEventListener("pointerdown", pointerDown);
       renderer.domElement.removeEventListener("pointermove", pointerMove);
       renderer.domElement.removeEventListener("pointerup", pointerUp);
@@ -482,6 +540,42 @@ export function initScene(
       renderer.dispose();
       renderer.forceContextLoss();
       renderer.domElement.remove();
+    },
+  };
+}
+
+function createFpsMeter(): FpsMeter & { dispose(): void } {
+  const el = document.createElement("div");
+  Object.assign(el.style, {
+    position: "fixed",
+    top: "0.75rem",
+    right: "0.75rem",
+    padding: "0.25rem 0.5rem",
+    borderRadius: "0.375rem",
+    background: "rgba(41, 46, 41, 0.6)",
+    color: "#f5f7fa",
+    font: "0.75rem/1.4 system-ui, sans-serif",
+    zIndex: "2",
+    opacity: "0.8",
+    pointerEvents: "none",
+  } satisfies Partial<CSSStyleDeclaration>);
+  document.body.appendChild(el);
+
+  let frameCount = 0;
+  let lastFpsTime = performance.now();
+
+  return {
+    tick(now: number): void {
+      frameCount += 1;
+      const elapsed = now - lastFpsTime;
+      if (elapsed >= 500) {
+        el.textContent = `${Math.round((frameCount * 1000) / elapsed)} fps`;
+        frameCount = 0;
+        lastFpsTime = now;
+      }
+    },
+    dispose(): void {
+      el.remove();
     },
   };
 }
