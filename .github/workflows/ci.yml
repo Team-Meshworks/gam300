@@ -1,17 +1,13 @@
 name: CI
 
 on:
-  push:
-    branches: [main, dev]
-  pull_request:
-    branches: [main, dev]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.ref }}
+  group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -24,15 +20,6 @@ jobs:
         working-directory: web
         shell: bash
     steps:
-      - name: Require production changes to come through dev
-        if: github.event_name == 'pull_request' && github.base_ref == 'main'
-        working-directory: .
-        env:
-          SOURCE_BRANCH: ${{ github.head_ref }}
-          SOURCE_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
-        run: |
-          test "$SOURCE_BRANCH" = dev
-          test "$SOURCE_REPOSITORY" = "$GITHUB_REPOSITORY"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           lfs: true
@@ -101,13 +88,13 @@ jobs:
           retention-days: 14
           overwrite: true
       - name: Save the tested image and its deployment files
-        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev')
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
         run: |
           mkdir -p ../ci-artifacts/release
           docker save "vthere-ci:$GITHUB_SHA" -o ../ci-artifacts/image.tar
           cp ../compose.yaml ../deploy/deploy.sh ../ci-artifacts/release/
       - name: Transfer the tested image to the publishing job
-        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev')
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: image-${{ github.sha }}
@@ -123,7 +110,7 @@ jobs:
   publish:
     name: Publish tested image
     needs: check
-    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev')
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:

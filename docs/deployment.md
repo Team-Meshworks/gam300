@@ -6,17 +6,21 @@
 | `main` | `production`       | https://51.79.242.181      | `127.0.0.1:8081`         |
 
 Integrate feature work into `dev`. Release through a `dev` → `main` pull request;
-CI rejects pull requests into `main` from other branches. Both branches build and test
-automatically. Deployment is a separate manual action and never rebuilds the image.
+maintainers check the source branch during review. CI and deployment run only when
+manually dispatched; pushes and pull requests do not start workflows. Deployment
+is a separate manual action and never rebuilds the image.
 The GitHub environments allow only their matching branches.
 
 GitHub currently rejects branch protection for this private repository with an upgrade
-requirement. The workflow checks and environment branch restrictions are configured, but
+requirement. Manual workflow checks and environment branch restrictions are configured, but
 GitHub does not prevent direct pushes or require passing checks before a merge. Keep the
-repository private; enable required pull requests and the `Build and test` check when the
-team has access to private-repository branch protection.
+repository private. Reviewers must request CI explicitly before merging; the former
+pull-request source-branch guard no longer runs. Revisit required checks alongside
+the manual trigger policy when private-repository branch protection becomes available.
 
-The existing Wiki.js deployment uses port 8080 and is independent of these Compose projects.
+Wiki.js is available at https://51.79.242.181:9443 with sign-in required. Its separate
+Compose project binds to `127.0.0.1:8083`; the gateway redirects legacy HTTP port 8080
+to HTTPS. See [wiki operations](wiki.md) for accounts and backups.
 This M1 deployment contains the editor only. PostgreSQL and the application API remain M2
 work; Wiki.js's database is not the application database. Browser storage belongs to each
 origin, so development and production drafts are separate.
@@ -52,8 +56,8 @@ npm run test:deployment -- http://localhost:8081/
 
 ## What CI does
 
-`.github/workflows/ci.yml` runs on pull requests into `dev`/`main`, pushes to those branches,
-and manual runs. It restores LFS and locked dependencies; checks formatting, lint, asset
+`.github/workflows/ci.yml` runs only through `workflow_dispatch`. It restores LFS and
+locked dependencies; checks formatting, lint, asset
 integrity, deployment isolation/rollback and unit tests; builds the image; and runs the
 full authoring checks against Vite's development server and deployment checks against the
 image, including its real web-server configuration. Development-only sample controls are
@@ -61,19 +65,39 @@ tested in development; the shipped UI and textures are checked in the container.
 The Docker build includes TypeScript checking. Chunk-budget checks also run on branches
 where that existing smoke script is present.
 
-Pull-request checks have no package-write permission. After successful branch checks,
-a separate publishing job pushes the exact tested image to the private GHCR package
+The check job has no package-write permission. After a successful manual run on `dev`
+or `main`, a separate publishing job pushes the exact tested image to the private GHCR package
 `ghcr.io/team-meshworks/gam300`. Each release records its immutable digest, source commit,
 branch and CI run ID. The short-lived image-transfer artifact is retained for two days;
 test/web artifacts for 14 days and the small release bundle for 90 days. Retain registry
 images needed for rollback; deleting their tags can make old releases unavailable.
+Manual runs on other branches run the same checks but skip publishing.
 
 Superseded CI runs are cancelled. Deployments are serialized per environment, and a VM
 file lock also prevents concurrent changes to the same deployment.
 
+### Run CI on demand
+
+Open **Actions → CI → Run workflow**, select the branch, then choose **Run workflow**.
+With an authenticated GitHub CLI, the equivalent is:
+
+```sh
+gh workflow run ci.yml --ref dev
+```
+
+Choose a feature branch to check work before merging, `dev` for a development release,
+or `main` for a production release. Run CI again on the resulting branch commit after
+merging; deployment consumes the selected run's commit, not the latest branch contents.
+
+Manual dispatch requires repository write access, and the workflow must exist on the
+default branch. The manual-only definitions must reach both `dev` and `main` to replace
+their previous automatic triggers. See GitHub's
+[manual workflow guide](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow).
+
 ## Deploy or roll back
 
-1. Open the successful **CI** run for the intended branch. Copy its run ID from the summary
+1. Manually run **CI** for the intended branch and wait for success, or choose an existing
+   successful run for rollback. Copy its run ID from the summary
    or the number at the end of its GitHub URL.
 2. Open **Actions → Deploy → Run workflow**.
 3. Select `dev` for development or `main` for production. Enter the CI run ID.
@@ -92,12 +116,20 @@ sites initially requires a team login because the current asset catalogue is exp
 development-only and distribution rights remain unconfirmed. Keep this gate until that
 review is resolved. This gate is not the future application account system.
 
+The initial login is stored only on the VM in an owner-readable file. Retrieve it in your
+own SSH terminal; do not paste it into GitHub or chat:
+
+```sh
+ssh team32@51.79.242.181
+cat ~/vthere-access.txt
+```
+
 ## VM setup
 
 The VM uses Ubuntu 24.04 x86-64, Docker Engine and the Compose plugin. Runtime applications
-bind only to loopback; a separate `vthere-gateway` Compose project owns HTTP 80, HTTPS 443
-and HTTPS 8443. Preserve the existing SSH and Wiki.js firewall rules when allowing those
-three TCP ports. Do not expose Docker's socket or a database port over the network.
+bind only to loopback; a separate `vthere-gateway` Compose project owns HTTP 80/8080 and
+HTTPS 443/8443/9443. Preserve SSH access when managing these TCP firewall rules.
+Do not expose Docker's socket or a database port over the network.
 
 `deploy/gateway.Caddyfile` requests a Let's Encrypt IP certificate with the `shortlived`
 profile. Caddy renews it automatically; its certificate volume must remain persistent.
@@ -118,8 +150,8 @@ docker compose -f gateway.compose.yaml up -d
 
 Use a dedicated `vthere-runner` account for the self-hosted runner, with Docker access and
 the custom `vthere-deploy` label. Install it as a system service using GitHub's runner setup
-instructions. This runner executes manual deployment jobs only; build and pull-request
-checks run on GitHub-hosted Ubuntu. Docker access grants control over the host: repository
+instructions. This runner executes manual deployment jobs only; CI checks run on
+GitHub-hosted Ubuntu. Docker access grants control over the host: repository
 writers and deployment workflow changes must be trusted. Revisit runner isolation before
 making the repository public or accepting untrusted workflow changes.
 
@@ -157,7 +189,30 @@ GHCR packages and CI artifacts containing development assets must retain appropr
 
 ## Verification evidence
 
-Record actual CI run links, deployed commits and remaining limitations here when the setup
-has been exercised. The presence of these files alone is not a successful deployment or
-completion of S34/T13-01. The full save/reload browser loop is added when that feature is
-integrated into these branches.
+Verified on 23 September 2026:
+
+| Environment | Deployed commit                            | Successful CI                                                                    | Successful deployment                                                            |
+| ----------- | ------------------------------------------ | -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Development | `f4ca18e725fdffaa4fa3beb1d78a5bba8026febc` | [35863197853](https://github.com/Team-Meshworks/gam300/actions/runs/35863197853) | [35865493351](https://github.com/Team-Meshworks/gam300/actions/runs/35865493351) |
+| Production  | `4f5fa8c98e2556419d23b38f334b017280429feb` | [35864105358](https://github.com/Team-Meshworks/gam300/actions/runs/35864105358) | [35865630988](https://github.com/Team-Meshworks/gam300/actions/runs/35865630988) |
+
+Both live sites passed the Chromium deployment check over trusted HTTPS with the team
+login: editor loading, server policy, model/textures, placement and undo. Anonymous
+requests to the application require authentication; public health/revision endpoints
+report the expected commits. The later wiki setup moved Wiki.js to trusted HTTPS on
+9443; HTTP 8080 redirects there. Both application version responses stayed unchanged.
+
+The [cross-branch guard check](https://github.com/Team-Meshworks/gam300/actions/runs/35865302138)
+deliberately supplied a development CI run to production. Validation failed and the VM
+deployment job was skipped. An earlier [production CI failure](https://github.com/Team-Meshworks/gam300/actions/runs/35863591012)
+also blocked publishing; fixing its Vite/model request interception produced the successful
+production run above. That CI failure was discovered during setup, not deliberately injected.
+
+The runner service `actions.runner.Team-Meshworks-gam300.vthere-vm-deploy.service` is enabled
+at boot. The application containers and gateway have restart policies; certificate data
+persists in the gateway volume. Host reboot recovery and a real failed-release rollback
+have not been exercised. Rollback logic is covered by the automated deployment script check.
+
+Private-repository branch protection remains unavailable on the current GitHub plan.
+Asset distribution rights and the full save/reload browser loop remain open integration
+work. This evidence does not mark all of S34/T13-01 complete.
