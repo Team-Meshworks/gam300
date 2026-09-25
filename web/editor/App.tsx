@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { assets } from "virtual:asset-catalogue";
 import { assetDragType } from "../shared/assets/catalogue";
 import type { Vector3Tuple } from "../shared/project/scene-object";
+import { LeftSidebar } from "./left-sidebar/LeftSidebar";
 import type { Transform } from "../shared/project/project-types";
 import { createDocumentStore } from "./document-store";
 import type { ViewportStatus } from "./graphics/scene";
@@ -110,15 +111,15 @@ export function App() {
       >
         Skip to scene
       </a>
-      <header className="flex min-h-16 items-center gap-7 border-b border-line px-6 py-2 max-[760px]:flex-wrap max-[760px]:gap-x-4 max-[760px]:gap-y-1 max-[760px]:px-4 max-[760px]:py-[0.6rem]">
-        <h1 className="max-[760px]:basis-full text-base font-[450] tracking-[-0.02em]">
+      <header className="flex min-h-16 items-center gap-7 border-b border-line px-6 py-2 max-[760px]:flex-wrap max-[760px]:gap-x-4 max-[760px]:gap-y-1 max-[760px]:px-4 max-[760px]:py-[0.6rem] min-[1600px]:min-h-[clamp(2rem,3vw,3.75rem)] min-[1600px]:gap-[clamp(0.875rem,1.375vw,1.75rem)] min-[1600px]:px-[clamp(0.75rem,1.5vw,2.25rem)] min-[1600px]:py-[clamp(0.25rem,0.5vw,0.625rem)]">
+        <h1 className="max-[760px]:basis-full text-base font-[450] tracking-[-0.02em] min-[1600px]:text-[clamp(0.5rem,0.85vw,1.125rem)]">
           <strong className="font-[750]">VThere</strong> Spatial Experience Editor
         </h1>
         <div className="ml-auto flex gap-1 max-[760px]:ml-0" role="group" aria-label="History">
           {import.meta.env.DEV && (
             <button
               type="button"
-              className="flex min-h-[2.75rem] items-center gap-[0.4rem] rounded-[0.3rem] px-[0.7rem] py-[0.4rem] text-[0.8125rem] hover:bg-surface disabled:text-muted-soft"
+              className="flex min-h-[2.75rem] items-center gap-[0.4rem] rounded-[0.3rem] px-[0.7rem] py-[0.4rem] text-[0.8125rem] hover:bg-surface disabled:text-muted-soft min-[1600px]:min-h-[clamp(1.375rem,2.125vw,2.875rem)] min-[1600px]:gap-[0.2rem] min-[1600px]:rounded-[0.15rem] min-[1600px]:px-[clamp(0.35rem,0.6vw,0.8rem)] min-[1600px]:py-[0.2rem] min-[1600px]:text-[clamp(0.40625rem,0.6vw,0.75rem)]"
               disabled={status !== "ready"}
               onClick={openSampleProject}
             >
@@ -127,14 +128,14 @@ export function App() {
           )}
           <button
             type="button"
-            className="flex min-h-[2.75rem] items-center gap-[0.4rem] rounded-[0.3rem] px-[0.7rem] py-[0.4rem] text-[0.8125rem] hover:bg-surface disabled:text-muted-soft"
+            className="flex min-h-[2.75rem] items-center gap-[0.4rem] rounded-[0.3rem] px-[0.7rem] py-[0.4rem] text-[0.8125rem] hover:bg-surface disabled:text-muted-soft min-[1600px]:min-h-[clamp(1.375rem,2.125vw,2.875rem)] min-[1600px]:gap-[0.2rem] min-[1600px]:rounded-[0.15rem] min-[1600px]:px-[clamp(0.35rem,0.6vw,0.8rem)] min-[1600px]:py-[0.2rem] min-[1600px]:text-[clamp(0.40625rem,0.6vw,0.75rem)]"
             disabled={!canUndo}
             onClick={store.undo}
           >
             <svg
               viewBox="0 0 24 24"
               aria-hidden="true"
-              className="size-4 fill-none stroke-current stroke-[1.7] [stroke-linecap:round] [stroke-linejoin:round]"
+              className="size-4 fill-none stroke-current stroke-[1.7] [stroke-linecap:round] [stroke-linejoin:round] min-[1600px]:size-2"
             >
               <path d="M9 5 4 10l5 5M4 10h10a6 6 0 0 1 0 12" />
             </svg>
@@ -142,14 +143,14 @@ export function App() {
           </button>
           <button
             type="button"
-            className="flex min-h-[2.75rem] items-center gap-[0.4rem] rounded-[0.3rem] px-[0.7rem] py-[0.4rem] text-[0.8125rem] hover:bg-surface disabled:text-muted-soft"
+            className="flex min-h-[2.75rem] items-center gap-[0.4rem] rounded-[0.3rem] px-[0.7rem] py-[0.4rem] text-[0.8125rem] hover:bg-surface disabled:text-muted-soft min-[1600px]:min-h-[clamp(1.375rem,2.125vw,2.875rem)] min-[1600px]:gap-[0.2rem] min-[1600px]:rounded-[0.15rem] min-[1600px]:px-[clamp(0.35rem,0.6vw,0.8rem)] min-[1600px]:py-[0.2rem] min-[1600px]:text-[clamp(0.40625rem,0.6vw,0.75rem)]"
             disabled={!canRedo}
             onClick={store.redo}
           >
             <svg
               viewBox="0 0 24 24"
               aria-hidden="true"
-              className="size-4 fill-none stroke-current stroke-[1.7] [stroke-linecap:round] [stroke-linejoin:round]"
+              className="size-4 fill-none stroke-current stroke-[1.7] [stroke-linecap:round] [stroke-linejoin:round] min-[1600px]:size-2"
             >
               <path d="m15 5 5 5-5 5m5-5H10a6 6 0 0 0 0 12" />
             </svg>
@@ -161,7 +162,7 @@ export function App() {
             {visitor ? (
               <button
                 type="button"
-                className="flex min-h-[2.75rem] items-center gap-[0.4rem] rounded-[0.3rem] border border-line bg-paper px-[0.9rem] py-[0.4rem] text-[0.8125rem] enabled:hover:border-line-strong enabled:hover:bg-surface"
+                className="flex min-h-[2.75rem] items-center gap-[0.4rem] rounded-[0.3rem] border border-line bg-paper px-[0.9rem] py-[0.4rem] text-[0.8125rem] enabled:hover:border-line-strong enabled:hover:bg-surface min-[1600px]:min-h-[clamp(1.375rem,2.125vw,2.875rem)] min-[1600px]:gap-[0.2rem] min-[1600px]:rounded-[0.15rem] min-[1600px]:px-[clamp(0.45rem,0.85vw,1.125rem)] min-[1600px]:py-[0.2rem] min-[1600px]:text-[clamp(0.40625rem,0.6vw,0.75rem)]"
                 onClick={() => manager.setMode("editor")}
               >
                 Exit Visitor
@@ -169,7 +170,7 @@ export function App() {
             ) : (
               <button
                 type="button"
-                className="flex min-h-[2.75rem] items-center gap-[0.4rem] rounded-[0.3rem] border border-line bg-paper px-[0.9rem] py-[0.4rem] text-[0.8125rem] enabled:hover:border-line-strong enabled:hover:bg-surface"
+                className="flex min-h-[2.75rem] items-center gap-[0.4rem] rounded-[0.3rem] border border-line bg-paper px-[0.9rem] py-[0.4rem] text-[0.8125rem] enabled:hover:border-line-strong enabled:hover:bg-surface min-[1600px]:min-h-[clamp(1.375rem,2.125vw,2.875rem)] min-[1600px]:gap-[0.2rem] min-[1600px]:rounded-[0.15rem] min-[1600px]:px-[clamp(0.45rem,0.85vw,1.125rem)] min-[1600px]:py-[0.2rem] min-[1600px]:text-[clamp(0.40625rem,0.6vw,0.75rem)]"
                 onClick={() => manager.setMode("visitor")}
               >
                 Enter Visitor
@@ -179,7 +180,7 @@ export function App() {
         )}
         {hasChanges && (
           <span
-            className="max-[760px]:ml-auto whitespace-nowrap text-xs text-muted"
+            className="max-[760px]:ml-auto whitespace-nowrap text-xs text-muted min-[1600px]:text-[clamp(0.375rem,0.5vw,0.625rem)]"
             title="Changes last until you close or reload this page."
           >
             <span className="mr-2 inline-block size-[0.35rem] rounded-full bg-amber" aria-hidden="true" />
@@ -188,130 +189,25 @@ export function App() {
         )}
       </header>
 
-      <main className="grid min-h-0 flex-1 grid-cols-[17rem_minmax(0,1fr)] max-[760px]:grid-cols-[minmax(0,1fr)]">
-        <aside
-          className="border-r border-line px-5 py-[1.6rem] overflow-y-auto max-[760px]:border-r-0 max-[760px]:border-b max-[760px]:border-line max-[760px]:p-4"
-          aria-label="Assets and scene objects"
-        >
-          <section aria-labelledby="assets-heading">
-            <h2 id="assets-heading" className="text-[0.9375rem] font-[650] tracking-[-0.015em]">
-              Asset library
-            </h2>
-            <ul
-              className="mt-[1.2rem] grid grid-cols-[repeat(auto-fill,minmax(9rem,1fr))] gap-4 max-[760px]:grid-cols-[repeat(auto-fill,minmax(8rem,10rem))]"
-              role="list"
-            >
-              {assets
-                .filter((asset) => project === null || asset.kind === "model")
-                .map((asset) => (
-                  <li key={asset.id}>
-                    <button
-                      className="group block w-full cursor-grab p-0 text-left active:cursor-grabbing"
-                      type="button"
-                      draggable={status === "ready"}
-                      disabled={status !== "ready"}
-                      aria-label={`Add ${asset.name}`}
-                      title="Drag into the scene, or click to add"
-                      onClick={() => place(asset.id, [0, 0, 0])}
-                      onDragStart={(event) => {
-                        event.dataTransfer.setData(assetDragType, asset.id);
-                        event.dataTransfer.effectAllowed = "copy";
-                        setDragging(true);
-                      }}
-                      onDragEnd={() => setDragging(false)}
-                    >
-                      <span
-                        className="relative grid aspect-[1.1] place-items-center rounded-2xl border border-transparent bg-art transition-[background,transform] duration-150 group-enabled:hover:-translate-y-[3px] group-enabled:hover:bg-art-hover group-focus-visible:-translate-y-[3px] group-focus-visible:bg-art-hover motion-reduce:transition-none motion-reduce:group-enabled:hover:transform-none motion-reduce:group-focus-visible:transform-none"
-                        data-testid="asset-art"
-                      >
-                        <img
-                          src={thumbnailFor(asset.id)}
-                          alt=""
-                          draggable={false}
-                          className="size-full object-contain pointer-events-none"
-                        />
-                        <span
-                          className="absolute right-[0.65rem] bottom-[0.65rem] grid size-7 place-items-center rounded-[0.35rem] bg-paper text-[1.3rem] leading-none"
-                          aria-hidden="true"
-                        >
-                          +
-                        </span>
-                      </span>
-                      <span className="block px-[0.2rem] pt-[0.65rem] text-sm font-[550]">
-                        {asset.name}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-            </ul>
-          </section>
-
-          {hasChanges && (
-            <section
-              className="mt-8 border-t border-line pt-5 max-[760px]:mt-4"
-              aria-labelledby="objects-heading"
-            >
-              <h2
-                id="objects-heading"
-                className="mb-3 flex justify-between text-[0.9375rem] font-[650] tracking-[-0.015em]"
-              >
-                In this scene <span className="font-normal tabular-nums text-muted">{objects.length}</span>
-              </h2>
-              <ul role="list">
-                {objects.map((object) => (
-                  <li key={object.id}>
-                    <button
-                      className="flex min-h-[2.75rem] w-full items-center gap-2 border-l-2 border-l-transparent bg-transparent px-2 py-[0.3rem] text-left text-[0.8125rem] hover:bg-tint-hover aria-pressed:border-l-sel aria-pressed:bg-tint"
-                      type="button"
-                      data-testid="object-row"
-                      aria-pressed={selection === object.id}
-                      data-object-id={object.id}
-                      onClick={() => setSelectedId(object.id)}
-                    >
-                      <img
-                        src={thumbnailFor(object.assetId)}
-                        alt=""
-                        draggable={false}
-                        className="size-8 object-contain"
-                      />
-                      <span>{object.name}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-              {selectedObject !== undefined && (
-                <div
-                  className="mt-[0.9rem] rounded-lg border border-line p-[0.8rem] text-xs"
-                  role="group"
-                  aria-label={`Move ${selectedObject.name}`}
-                >
-                  <p>Move selected · 0.25 m per step</p>
-                  <div className="my-[0.6rem] grid grid-cols-3 gap-[0.4rem]">
-                    {([0, 1, 2] as const).map((axis) =>
-                      ([-0.25, 0.25] as const).map((delta) => (
-                        <button
-                          key={`${axis}:${delta}`}
-                          type="button"
-                          className="min-h-[2.75rem] rounded-[0.3rem] border border-edge bg-white hover:bg-tint"
-                          aria-label={`Move ${selectedObject.name} ${"XYZ"[axis]} ${delta > 0 ? "plus" : "minus"} 0.25 metres`}
-                          onClick={() => moveSelected(axis, delta)}
-                        >
-                          {"XYZ"[axis]} {delta > 0 ? "+" : "−"}
-                        </button>
-                      )),
-                    )}
-                  </div>
-                  <output aria-label="Selected position" className="block tabular-nums text-muted">
-                    {selectedObject.transform.position
-                      .map((value, axis) => `${"XYZ"[axis]} ${value.toFixed(2)}`)
-                      .join(" · ")}{" "}
-                    m
-                  </output>
-                </div>
-              )}
-            </section>
-          )}
-        </aside>
+      <main className="grid min-h-0 flex-1 bg-view grid-cols-[minmax(400px,16vw)_minmax(0,1fr)] max-[760px]:grid-cols-[minmax(0,1fr)]">
+        <LeftSidebar
+          assets={assets}
+          objects={objects}
+          hasProject={project !== null}
+          selectedId={selection}
+          selectedObject={selectedObject}
+          status={status}
+          thumbnailFor={thumbnailFor}
+          onSelect={(id) => setSelectedId(id)}
+          onPlace={place}
+          onMoveSelected={moveSelected}
+          onDragStart={(assetId, event) => {
+            event.dataTransfer.setData(assetDragType, assetId);
+            event.dataTransfer.effectAllowed = "copy";
+            setDragging(true);
+          }}
+          onDragEnd={() => setDragging(false)}
+        />
 
         <Viewport
           assets={assets}
