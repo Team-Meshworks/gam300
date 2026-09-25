@@ -19,7 +19,11 @@ import {
   type AxisRotation,
   type FreeRotation,
 } from "./rotation";
+import { scaleBy, wheelScaleFactor } from "./scaling";
 import { axisDragPosition, beginAxisDrag } from "./translation";
+
+//because of the mouse drag delay
+const WHEEL_COMMIT_DELAY_MS = 250;
 
 const ROTATION_SNAP = THREE.MathUtils.degToRad(15);
 
@@ -151,6 +155,9 @@ export function initScene(
       ))
     | undefined;
   let orbitEnabledBeforeDrag = true;
+  // Scroll that is shown but not yet saved.
+  let wheelEdit:
+    { id: string; transform: Transform; current: Transform; timer: number } | undefined;
 
   function render() {
     if (!disposed) {
@@ -269,6 +276,13 @@ export function initScene(
         nextObjects.find((object) => object.id === drag?.id)?.transform !== drag.transform)
     ) {
       cancelDrag();
+    }
+    if (
+      wheelEdit !== undefined &&
+      nextObjects.find((object) => object.id === wheelEdit?.id)?.transform !== wheelEdit.transform
+    ) {
+      // Undo or another edit replaced the object mid-scroll; drop the unsaved scale
+      cancelWheelEdit();
     }
     objects = nextObjects;
     selectedId = nextSelectedId;
@@ -390,6 +404,22 @@ export function initScene(
     }
   }
 
+  function cancelWheelEdit() {
+    if (wheelEdit === undefined) return;
+    const previous = wheelEdit;
+    wheelEdit = undefined;
+    clearTimeout(previous.timer);
+    previewTransform(previous.id, previous.transform);
+  }
+
+  function commitWheelEdit() {
+    if (wheelEdit === undefined) return;
+    const completed = wheelEdit;
+    wheelEdit = undefined;
+    clearTimeout(completed.timer);
+    callbacks.onTransform(completed.id, completed.current);
+  }
+
   function beginDrag(event: PointerEvent, next: NonNullable<typeof drag>) {
     //disable to stop camera
     orbitEnabledBeforeDrag = orbit.enabled;
@@ -433,6 +463,11 @@ export function initScene(
     if (!ready || (event.button !== 0 && event.button !== 2)) return;
     if (!event.isPrimary || drag !== undefined) return;
     if (modeManager.getState().mode !== "editor") return;
+    if (wheelEdit !== undefined) {
+      commitWheelEdit();
+      event.preventDefault();
+      return;
+    }
     const handle = pickHandle(event.clientX, event.clientY);
     if (event.button === 2) {
       startRotation(event, handle);
@@ -509,11 +544,37 @@ export function initScene(
     }
   }
 
+  function wheel(event: WheelEvent) {
+    if (!ready || drag !== undefined || selectedId === null || event.deltaY === 0) return;
+    if (modeManager.getState().mode !== "editor") return;
+    const object = objects.find((entry) => entry.id === selectedId);
+    const instance = instances.get(selectedId);
+    if (object === undefined || instance === undefined) return;
+    const ray = screenRay(event.clientX, event.clientY);
+    const raycaster = new THREE.Raycaster(ray.origin, ray.direction);
+    if (raycaster.intersectObject(instance, true).length === 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (wheelEdit !== undefined && wheelEdit.id !== object.id) commitWheelEdit();
+    const edit = wheelEdit ?? {
+      id: object.id,
+      transform: object.transform,
+      current: object.transform,
+      timer: 0,
+    };
+    clearTimeout(edit.timer);
+    const factor = wheelScaleFactor(event.deltaY, event.deltaMode);
+    edit.current = { ...edit.current, scale: scaleBy(edit.current.scale, factor) };
+    edit.timer = window.setTimeout(commitWheelEdit, WHEEL_COMMIT_DELAY_MS);
+    wheelEdit = edit;
+    previewTransform(edit.id, edit.current);
+  }
+
   function keyDown(event: KeyboardEvent) {
-    if (event.key === "Escape" && drag !== undefined) {
-      event.preventDefault();
-      cancelDrag();
-    }
+    if (event.key !== "Escape" || (drag === undefined && wheelEdit === undefined)) return;
+    event.preventDefault();
+    cancelDrag();
+    cancelWheelEdit();
   }
 
   function pointerCancel(event: PointerEvent) {
@@ -530,6 +591,7 @@ export function initScene(
   renderer.domElement.addEventListener("pointercancel", pointerCancel);
   renderer.domElement.addEventListener("lostpointercapture", pointerCancel);
   renderer.domElement.addEventListener("contextmenu", contextMenu);
+  host.addEventListener("wheel", wheel, { capture: true, passive: false });
   window.addEventListener("keydown", keyDown);
   observer.observe(host);
   resize();
@@ -593,6 +655,7 @@ export function initScene(
     modeManager,
     dispose() {
       cancelDrag();
+      cancelWheelEdit();
       disposed = true;
       controller.abort();
       observer.disconnect();
@@ -605,6 +668,7 @@ export function initScene(
       renderer.domElement.removeEventListener("pointercancel", pointerCancel);
       renderer.domElement.removeEventListener("lostpointercapture", pointerCancel);
       renderer.domElement.removeEventListener("contextmenu", contextMenu);
+      host.removeEventListener("wheel", wheel, { capture: true });
       window.removeEventListener("keydown", keyDown);
       disposeModels(scene, ...models.values());
       renderer.dispose();
