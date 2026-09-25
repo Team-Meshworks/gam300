@@ -3,10 +3,25 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import type { CatalogueAsset } from "../../shared/assets/catalogue";
 import type { SceneObject, Vector3Tuple } from "../../shared/project/scene-object";
-import type { CameraPose, ProjectScene, Transform } from "../../shared/project/project-types";
+import type {
+  CameraPose,
+  ProjectScene,
+  QuaternionTuple,
+  Transform,
+} from "../../shared/project/project-types";
 import { FpsControls } from "../controls/fpsControls";
 import { ModeManager } from "./modeManager";
+import {
+  axisRotation,
+  beginAxisRotation,
+  beginFreeRotation,
+  freeRotation,
+  type AxisRotation,
+  type FreeRotation,
+} from "./rotation";
 import { axisDragPosition, beginAxisDrag } from "./translation";
+
+const ROTATION_SNAP = THREE.MathUtils.degToRad(15);
 
 export type ViewportStatus = "loading" | "ready" | "error" | "download-error" | "unsupported";
 
@@ -124,13 +139,16 @@ export function initScene(
   const bounds = new Map<string, THREE.Box3>();
   const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   let drag:
-    | {
+    | ({
         id: string;
         pointerId: number;
         transform: Transform;
-        geometry: NonNullable<ReturnType<typeof beginAxisDrag>>;
-        position: THREE.Vector3;
-      }
+        current: Transform;
+      } & (
+        | { currentMode: "move"; geometry: NonNullable<ReturnType<typeof beginAxisDrag>> }
+        | { currentMode: "rotate"; geometry: AxisRotation }
+        | { currentMode: "freeRotate"; geometry: FreeRotation }
+      ))
     | undefined;
   let orbitEnabledBeforeDrag = true;
 
@@ -350,10 +368,10 @@ export function initScene(
     render();
   }
 
-  function previewPosition(id: string, position: THREE.Vector3) {
+  function previewTransform(id: string, transform: Transform) {
     const instance = instances.get(id);
     if (instance === undefined) return;
-    instance.position.copy(position);
+    applyTransform(instance, transform);
     const box = new THREE.Box3().setFromObject(instance);
     bounds.set(id, box);
     selection.box.copy(box);
@@ -366,18 +384,60 @@ export function initScene(
     const previous = drag;
     drag = undefined;
     orbit.enabled = orbitEnabledBeforeDrag;
-    previewPosition(previous.id, new THREE.Vector3().fromArray(previous.transform.position));
+    previewTransform(previous.id, previous.transform);
     if (renderer.domElement.hasPointerCapture(previous.pointerId)) {
       renderer.domElement.releasePointerCapture(previous.pointerId);
     }
   }
 
+  function beginDrag(event: PointerEvent, next: NonNullable<typeof drag>) {
+    //disable to stop camera
+    orbitEnabledBeforeDrag = orbit.enabled;
+    orbit.enabled = false;
+    drag = next;
+    renderer.domElement.setPointerCapture(event.pointerId);
+    event.preventDefault();
+  }
+
+  function startRotation(event: PointerEvent, handle: (typeof handles)[number] | undefined) {
+    const object = objects.find((entry) => entry.id === selectedId);
+    const instance = selectedId === null ? undefined : instances.get(selectedId);
+    if (object === undefined || instance === undefined) return;
+    const ray = screenRay(event.clientX, event.clientY);
+    const rotation = new THREE.Quaternion().fromArray(object.transform.rotation);
+    const shared = {
+      id: object.id,
+      pointerId: event.pointerId,
+      transform: object.transform,
+      current: object.transform,
+    };
+    if (handle !== undefined) {
+      const geometry = beginAxisRotation(
+        ray,
+        camera.position,
+        new THREE.Vector3().fromArray(object.transform.position),
+        handle.axis,
+        rotation,
+        event.clientX,
+      );
+      beginDrag(event, { ...shared, currentMode: "rotate", geometry });
+      return;
+    }
+    const raycaster = new THREE.Raycaster(ray.origin, ray.direction);
+    if (raycaster.intersectObject(instance, true).length === 0) return;
+    const geometry = beginFreeRotation(rotation, event.clientX, event.clientY);
+    beginDrag(event, { ...shared, currentMode: "freeRotate", geometry });
+  }
+
   function pointerDown(event: PointerEvent) {
-    if (!ready || event.button !== 0 || !event.isPrimary || drag !== undefined) return;
-    // Gizmo dragging and object picking are editor tools; leave the
-    // pointer to the visitor's look-around when walking through the scene
+    if (!ready || (event.button !== 0 && event.button !== 2)) return;
+    if (!event.isPrimary || drag !== undefined) return;
     if (modeManager.getState().mode !== "editor") return;
     const handle = pickHandle(event.clientX, event.clientY);
+    if (event.button === 2) {
+      startRotation(event, handle);
+      return;
+    }
     if (handle !== undefined && selectedId !== null) {
       const object = objects.find((entry) => entry.id === selectedId);
       if (object === undefined) return;
@@ -387,24 +447,19 @@ export function initScene(
         new THREE.Vector3().fromArray(object.transform.position),
         handle.axis,
       );
-      // A view almost parallel to the axis has no stable depth solution.
       if (geometry === undefined) return;
-      orbitEnabledBeforeDrag = orbit.enabled;
-      orbit.enabled = false;
-      drag = {
+      beginDrag(event, {
         id: object.id,
         pointerId: event.pointerId,
         transform: object.transform,
+        current: object.transform,
+        currentMode: "move",
         geometry,
-        position: new THREE.Vector3().fromArray(object.transform.position),
-      };
-      renderer.domElement.setPointerCapture(event.pointerId);
-      event.preventDefault();
+      });
       return;
     }
     const ray = screenRay(event.clientX, event.clientY);
     const raycaster = new THREE.Raycaster(ray.origin, ray.direction);
-    // The room can block a click even though it isn't a selectable object
     let nearest =
       environment === undefined
         ? Infinity
@@ -422,10 +477,20 @@ export function initScene(
 
   function pointerMove(event: PointerEvent) {
     if (drag === undefined || event.pointerId !== drag.pointerId) return;
-    const position = axisDragPosition(drag.geometry, screenRay(event.clientX, event.clientY));
-    if (position === undefined) return;
-    drag.position = position;
-    previewPosition(drag.id, position);
+    const ray = screenRay(event.clientX, event.clientY);
+    if (drag.currentMode === "move") {
+      const position = axisDragPosition(drag.geometry, ray);
+      if (position === undefined) return;
+      drag.current = { ...drag.current, position: position.toArray() as Vector3Tuple };
+    } else {
+      const rotation =
+        drag.currentMode === "rotate"
+          ? axisRotation(drag.geometry, ray, event.clientX, event.shiftKey ? ROTATION_SNAP : 0)
+          : freeRotation(drag.geometry, event.clientX, event.clientY, camera.quaternion);
+      if (rotation === undefined) return;
+      drag.current = { ...drag.current, rotation: rotation.toArray() as QuaternionTuple };
+    }
+    previewTransform(drag.id, drag.current);
   }
 
   function pointerUp(event: PointerEvent) {
@@ -437,11 +502,10 @@ export function initScene(
     if (renderer.domElement.hasPointerCapture(event.pointerId)) {
       renderer.domElement.releasePointerCapture(event.pointerId);
     }
-    const position = completed.position.toArray() as Vector3Tuple;
-    if (position.some((value, index) => value !== completed.transform.position[index])) {
-      callbacks.onTransform(completed.id, { ...completed.transform, position });
+    if (completed.current !== completed.transform) {
+      callbacks.onTransform(completed.id, completed.current);
     } else {
-      previewPosition(completed.id, new THREE.Vector3().fromArray(completed.transform.position));
+      previewTransform(completed.id, completed.transform);
     }
   }
 
@@ -456,11 +520,16 @@ export function initScene(
     if (event.pointerId === drag?.pointerId) cancelDrag();
   }
 
+  function contextMenu(event: MouseEvent) {
+    if (modeManager.getState().mode === "editor") event.preventDefault();
+  }
+
   renderer.domElement.addEventListener("pointerdown", pointerDown);
   renderer.domElement.addEventListener("pointermove", pointerMove);
   renderer.domElement.addEventListener("pointerup", pointerUp);
   renderer.domElement.addEventListener("pointercancel", pointerCancel);
   renderer.domElement.addEventListener("lostpointercapture", pointerCancel);
+  renderer.domElement.addEventListener("contextmenu", contextMenu);
   window.addEventListener("keydown", keyDown);
   observer.observe(host);
   resize();
@@ -535,6 +604,7 @@ export function initScene(
       renderer.domElement.removeEventListener("pointerup", pointerUp);
       renderer.domElement.removeEventListener("pointercancel", pointerCancel);
       renderer.domElement.removeEventListener("lostpointercapture", pointerCancel);
+      renderer.domElement.removeEventListener("contextmenu", contextMenu);
       window.removeEventListener("keydown", keyDown);
       disposeModels(scene, ...models.values());
       renderer.dispose();
@@ -578,6 +648,12 @@ function createFpsMeter(): FpsMeter & { dispose(): void } {
       el.remove();
     },
   };
+}
+
+function applyTransform(instance: THREE.Object3D, transform: Transform) {
+  instance.position.fromArray(transform.position);
+  instance.quaternion.fromArray(transform.rotation);
+  instance.scale.fromArray(transform.scale);
 }
 
 function disposeModels(...roots: THREE.Object3D[]) {
