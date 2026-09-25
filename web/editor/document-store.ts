@@ -36,7 +36,7 @@ function freezeProject(project: ProjectDocument): ProjectDocument {
 export function createDocumentStore(assets: readonly CatalogueAsset[]) {
   let objects: readonly SceneObject[] = Object.freeze([]);
   // The current grid-only editor has no environment-backed project at startup
-  // Keep that explicit until a complete project is loaded
+  // Choosing a room creates the project; imports can supply one directly
   let project: ProjectDocument | null = null;
   let projectAssets: ReadonlyMap<string, string> = new Map();
   const undoStack: Command[] = [];
@@ -101,6 +101,53 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
 
   return {
     getSnapshot: () => snapshot,
+    createProject(environmentAssetId: string): ValidationResult<ProjectDocument> {
+      // Room choice supplies the environment required by the saved format
+      // Keep any models already placed on the grid and their undo commands
+      if (project !== null) {
+        return { ok: false, error: { path: "project", message: "A project is already open" } };
+      }
+      const environment = assets.find((asset) => asset.id === environmentAssetId);
+      if (environment?.kind !== "environment") {
+        return {
+          ok: false,
+          error: { path: "environmentAssetId", message: "Choose a room from the library" },
+        };
+      }
+      const kinds = new Map(assets.map((asset) => [asset.id, asset.kind]));
+      // Fresh IDs keep this scene separate from earlier projects and their browser backups
+      const candidate: ProjectDocument = {
+        schemaVersion: 1,
+        projectId: crypto.randomUUID(),
+        title: "Untitled project",
+        scenes: [
+          {
+            id: crypto.randomUUID(),
+            name: environment.name,
+            environmentAssetId,
+            // Same elevated overview used by the sample project
+            // Environments sit at the origin; the format has no movable room transform
+            startCamera: {
+              position: [12, 16, 18],
+              rotation: [
+                -0.29962059992658957, 0.2752183320355054, 0.09071781822041597, 0.9089844021041025,
+              ],
+              fovDegrees: 40,
+            },
+            objects,
+          },
+        ],
+      };
+      // Run the import checks before replacing anything in memory
+      // A bad asset reference leaves the grid scene and history available
+      const checked = deserializeProject(JSON.stringify(candidate), kinds);
+      if (!checked.ok) return checked;
+      project = freezeProject(checked.value);
+      objects = project.scenes[0]!.objects;
+      projectAssets = kinds;
+      publish();
+      return { ok: true, value: project };
+    },
     loadProject(
       text: unknown,
       assetKinds: ReadonlyMap<string, string>,
