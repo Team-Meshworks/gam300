@@ -1,0 +1,10 @@
+[Unit]
+Description=Back up Wiki.js database and configuration
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/vthere-wiki-backup
+UMask=0077
+TimeoutStartSec=300
