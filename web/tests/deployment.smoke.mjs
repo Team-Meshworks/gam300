@@ -21,12 +21,12 @@ try {
     await asset.locator("img").evaluate((image) => image.complete && image.naturalWidth > 0),
   );
   await asset.click();
-  assert.equal(await page.locator(".object-row").count(), 1);
+  assert.equal(await page.locator('[data-testid="object-row"]').count(), 1);
   if (process.env.SMOKE_SCREENSHOT) {
     await page.screenshot({ path: process.env.SMOKE_SCREENSHOT });
   }
   await page.getByRole("button", { name: "Undo", exact: true }).click();
-  assert.equal(await page.locator(".object-row").count(), 0);
+  assert.equal(await page.locator('[data-testid="object-row"]').count(), 0);
   assert.deepEqual(errors, [], "Models and embedded textures load under the deployed policy");
   console.log("PASS: packaged editor, server policy, assets, placement and undo");
 } finally {

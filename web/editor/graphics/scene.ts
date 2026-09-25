@@ -39,6 +39,7 @@ export function initScene(
   let renderer: THREE.WebGLRenderer;
   try {
     const canvas = document.createElement("canvas");
+    canvas.className = "absolute inset-0 size-full touch-none";
     const context = canvas.getContext("webgl2", { antialias: true, alpha: true });
     if (context === null) {
       callbacks.onStatus("unsupported");

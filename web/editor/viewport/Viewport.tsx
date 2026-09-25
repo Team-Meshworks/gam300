@@ -99,12 +99,18 @@ export function Viewport({
   }
 
   return (
-    <section className="viewport" id="viewport" tabIndex={-1} aria-label="Scene">
+    <section
+      className="relative min-h-0 min-w-0 bg-view focus-visible:outline-offset-[-4px] max-[760px]:min-h-[65dvh]"
+      id="viewport"
+      tabIndex={-1}
+      aria-label="Scene"
+    >
       {assets.map((asset) => (
         <link key={asset.id} rel="preload" as="fetch" href={asset.url} crossOrigin="anonymous" />
       ))}
       <div
-        className={`viewport-stage${dragging ? " is-dragging" : ""}`}
+        className="absolute inset-0"
+        data-testid="viewport-stage"
         ref={hostRef}
         aria-busy={status === "loading"}
         onDragOver={(event) => {
@@ -137,16 +143,40 @@ export function Viewport({
           onDragFinish();
         }}
       />
-      {dragging && <p className="drop-cue">Drop to place</p>}
-      <div className={status === "ready" ? "sr-only" : "viewport-feedback"}>
+      {dragging && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 border-[3px] border-accent"
+        />
+      )}
+      {dragging && (
+        <p className="pointer-events-none absolute bottom-8 left-1/2 -translate-x-1/2 rounded-[0.35rem] bg-danger px-[0.9rem] py-[0.55rem] text-sm text-white">
+          Drop to place
+        </p>
+      )}
+      <div
+        className={
+          status === "ready"
+            ? "sr-only"
+            : "absolute top-6 right-6 left-6 flex flex-wrap items-center gap-3 text-sm"
+        }
+      >
         <p role="status">{statusMessages[status]}</p>
         {(status === "error" || status === "unsupported") && (
-          <button className="retry-button" type="button" onClick={onRetry}>
+          <button
+            className="min-h-[2.75rem] rounded-[0.3rem] border border-line-strong bg-paper px-4 py-2"
+            type="button"
+            onClick={onRetry}
+          >
             Retry
           </button>
         )}
         {status === "download-error" && (
-          <button className="retry-button" type="button" onClick={() => window.location.reload()}>
+          <button
+            className="min-h-[2.75rem] rounded-[0.3rem] border border-line-strong bg-paper px-4 py-2"
+            type="button"
+            onClick={() => window.location.reload()}
+          >
             Reload editor
           </button>
         )}

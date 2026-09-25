@@ -35,9 +35,9 @@ try {
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   assert.equal(await page.locator("canvas").count(), 1);
   await asset.click();
-  assert.equal(await page.locator(".object-row").count(), 1);
+  assert.equal(await page.locator('[data-testid="object-row"]').count(), 1);
   await page.getByRole("button", { name: "Undo", exact: true }).click();
-  assert.equal(await page.locator(".object-row").count(), 0);
+  assert.equal(await page.locator('[data-testid="object-row"]').count(), 0);
 
   const chunks = await page.evaluate(() =>
     performance

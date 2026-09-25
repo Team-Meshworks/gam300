@@ -29,8 +29,8 @@ try {
   const asset = page.getByRole("button", { name: "Add test-crate", exact: true });
   const undo = page.getByRole("button", { name: "Undo", exact: true });
   const redo = page.getByRole("button", { name: "Redo", exact: true });
-  const rows = page.locator(".object-row");
-  const stage = page.locator(".viewport-stage");
+  const rows = page.locator('[data-testid="object-row"]');
+  const stage = page.locator('[data-testid="viewport-stage"]');
   await ready.waitFor();
   assert.equal(await page.title(), "VThere Spatial Experience Editor");
   assert.equal(
@@ -196,7 +196,7 @@ try {
     await page.setViewportSize({ width, height: 768 });
     await page.waitForFunction(() => {
       const canvas = document.querySelector("canvas");
-      const host = document.querySelector(".viewport-stage");
+      const host = document.querySelector('[data-testid="viewport-stage"]');
       return (
         canvas &&
         host &&
@@ -216,7 +216,7 @@ try {
   await page.emulateMedia({ reducedMotion: "reduce" });
   assert.equal(
     await page
-      .locator(".asset-art")
+      .locator('[data-testid="asset-art"]')
       .first()
       .evaluate((art) => getComputedStyle(art).transitionDuration),
     "0s",
@@ -270,7 +270,7 @@ try {
     },
   });
   assert.equal(
-    await page.locator('.object-row[aria-pressed="true"]').count(),
+    await page.locator('[data-testid="object-row"][aria-pressed="true"]').count(),
     0,
     "A room wall blocks viewport selection of the crate behind it",
   );
