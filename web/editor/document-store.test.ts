@@ -141,3 +141,39 @@ it("shares one undo order across incoming gizmo moves, edit sessions and deletio
   store.redo();
   assert.equal(store.getSnapshot().objects.length, 0);
 });
+
+it("creates a saveable room project while preserving model IDs, transforms and history", () => {
+  const assets: CatalogueAsset[] = [
+    { id: "test-room-v1", name: "Room", kind: "environment", url: "room.glb", thumbnail: null },
+    { id: "test-crate-v1", name: "Crate", kind: "model", url: "crate.glb", thumbnail: null },
+  ];
+  const store = createDocumentStore(assets);
+  store.addObject("test-crate-v1", [2, 0, -3]);
+  const before = store.getSnapshot();
+  assert.equal(store.createProject("test-crate-v1").ok, false);
+  assert.equal(store.getSnapshot(), before);
+  const created = store.createProject("test-room-v1");
+  assert.equal(created.ok, true);
+  if (!created.ok) throw new Error(created.error.message);
+  assert.deepEqual(created.value.scenes[0]?.objects, before.objects);
+  assert.equal(created.value.scenes[0]?.environmentAssetId, "test-room-v1");
+  store.undo();
+  assert.equal(store.getSnapshot().project?.scenes[0]?.objects.length, 0);
+  store.redo();
+  assert.deepEqual(store.getSnapshot().objects, before.objects);
+  const reopened = createDocumentStore(assets);
+  assert.equal(
+    reopened.loadProject(
+      JSON.stringify(store.getSnapshot().project),
+      new Map(assets.map((a) => [a.id, a.kind])),
+    ).ok,
+    true,
+  );
+  assert.deepEqual(reopened.getSnapshot().project, store.getSnapshot().project);
+  assert.equal(store.createProject("test-room-v1").ok, false);
+  const empty = createDocumentStore(assets).createProject("test-room-v1");
+  assert.equal(empty.ok, true);
+  if (!empty.ok) throw new Error(empty.error.message);
+  assert.equal(empty.value.scenes[0]?.objects.length, 0);
+  assert.notEqual(empty.value.projectId, created.value.projectId);
+});
