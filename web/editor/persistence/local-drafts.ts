@@ -163,6 +163,69 @@ export async function loadLocalDraft(
   return validateStoredDraft(stored.value, projectId.toLowerCase(), assetKinds);
 }
 
+// On a fresh page there is no project ID yet; offer the most recently saved local project
+export async function loadLatestLocalDraft(
+  assetKinds: ReadonlyMap<string, string>,
+): Promise<ValidationResult<RecoveredDraft | null>> {
+  let database: IDBDatabase;
+  try {
+    database = await openDatabase();
+  } catch {
+    return invalid("storage", "Local storage could not open; the current project is unchanged");
+  }
+  const latest = await new Promise<ValidationResult<unknown>>((resolve) => {
+    try {
+      const transaction = database.transaction(STORE_NAME, "readonly");
+      const read = transaction.objectStore(STORE_NAME).openCursor();
+      let record: unknown;
+      let latestTime = -Infinity;
+      let damaged = false;
+      read.onsuccess = () => {
+        const cursor = read.result;
+        if (cursor === null) return;
+        const key = cursor.primaryKey;
+        if (Array.isArray(key) && key[0] === LOCAL_PRINCIPAL) {
+          const value: unknown = cursor.value;
+          // Don't silently fall back to an older project when the latest record is damaged
+          if (
+            !isRecord(value) ||
+            typeof value.savedAt !== "string" ||
+            !Number.isFinite(Date.parse(value.savedAt)) ||
+            value.projectId !== key[1]
+          ) {
+            damaged = true;
+          } else if (Date.parse(value.savedAt) >= latestTime) {
+            latestTime = Date.parse(value.savedAt);
+            record = value;
+          }
+        }
+        cursor.continue();
+      };
+      transaction.oncomplete = () => {
+        database.close();
+        resolve(
+          damaged
+            ? invalid("storage", "Stored draft metadata is invalid; existing saves were kept")
+            : { ok: true, value: record },
+        );
+      };
+      transaction.onabort = () => {
+        database.close();
+        resolve(invalid("storage", "Local drafts could not be read; try again"));
+      };
+    } catch {
+      database.close();
+      resolve(invalid("storage", "Local drafts could not be read; try again"));
+    }
+  });
+  if (!latest.ok) return latest;
+  if (latest.value === undefined) return { ok: true, value: null };
+  if (!isRecord(latest.value) || typeof latest.value.projectId !== "string") {
+    return invalid("storage", "Stored draft metadata is invalid; existing saves were kept");
+  }
+  return validateStoredDraft(latest.value, latest.value.projectId, assetKinds);
+}
+
 // Save one snapshot; caller keeps the live document and tracks newer edits separately
 // Expected revision zero creates a draft without overwriting an existing record
 export async function saveLocalDraft(
