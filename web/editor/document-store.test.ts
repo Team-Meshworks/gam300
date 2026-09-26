@@ -31,7 +31,7 @@ it("preserves mixed-asset placement, history branching and earlier snapshots", (
   const first = store.addObject("test-crate-v1", [1, 0, -2]);
   assert.equal(first.ok, true);
   const placed = store.getSnapshot();
-  assert.equal(placed.objects.length, 2);
+  assert.equal(placed.objects.length, 1);
   assert.equal(notifications, 1);
   store.undo();
   assert.equal(store.getSnapshot().objects.length, 0);
