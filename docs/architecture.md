@@ -7,23 +7,32 @@ This is the M1 architecture baseline; the second diagram labels later product wo
 ## Implemented editor and data flow
 
 ```mermaid
-flowchart LR
-  Author[Author: browser] -->|click, key, pointer| UI[React editor controls]
-  UI -->|add / transform / undo / redo| Store[Document store and history]
-  Store -->|immutable committed snapshots| UI
-  Store -->|objects, transforms, starting camera| View[Three.js viewport and camera modes]
-  View -->|selection IDs / one transform per completed drag| UI
-  Registry[Asset manifest and delivery GLBs] -->|validated catalogue at Vite build| Catalogue[Asset URLs and metadata]
-  Catalogue -->|GLB fetch / GLTFLoader| View
-  UI -->|open / save / autosave| Persistence[File and recovery coordinator]
-  Store -->|current authored document| Persistence
-  Persistence -->|validate / serialize / deserialize| Format[Shared v1 project format]
-  Format -->|validated replacement| Store
-  Persistence <-->|transaction with expected revision| IDB[(IndexedDB: local drafts)]
-  Persistence <-->|file picker / writable stream| File[Local project JSON]
-  Persistence -->|download fallback| File
-  File -->|file input fallback| Persistence
+block-beta
+  %% Four components per row, separated by spaces for the arrow labels
+  columns 7
+  author["Author"] space ui["React controls"] space store["Project + undo"] space view["Three.js view"]
+  space:7
+  file["Project JSON"] space persistence["Save / open"] space format["Project v1"] space catalogue["Catalogue"]
+  space:7
+  space:2 idb[("IndexedDB")] space:3 registry["GLB manifest"]
+
+  author --> ui
+  ui -- "commands" --> store
+  store -- "snapshots" --> view
+  ui -- "open / save" --> persistence
+  persistence -- "validate" --> format
+  format -- "load" --> store
+  persistence -- "read / write" --> file
+  persistence -- "recovery" --> idb
+  registry -- "build" --> catalogue
+  catalogue -- "load GLB" --> view
 ```
+
+Read the top row left to right. Saving branches down from the controls; asset loading
+runs up the right side. Controls also receive document snapshots and viewport
+selection/drag results. Saving captures the current document; files and IndexedDB
+support both reading and writing. These return paths are omitted from the drawing
+to keep the main connections clear.
 
 The authored document is authoritative. React and Three.js project it; neither is a
 second saved project. The store owns immutable snapshots and reversible commands;
@@ -40,24 +49,39 @@ See [project types](../web/shared/project/project-types.ts) and the
 ## Hosting and planned product boundary
 
 ```mermaid
-flowchart LR
-  Repo[Private GitHub repository] -->|PR / push: locked build and checks| CI[GitHub Actions: Ubuntu]
-  CI -->|tested Docker image and release descriptor| Registry[Private GHCR]
-  Registry -->|manual Deploy: exact image digest| Host[Caddy: dev and production]
-  Host -->|HTTPS with team access gate: app / GLBs| Editor[Current browser editor]
-  Wiki[Separate Wiki.js handbook] -->|wiki branch: content backup| Repo
-  subgraph Planned[Planned M2 / M3 product components]
-    API[ASP.NET Core API and Identity]
-    DB[(PostgreSQL: accounts, projects, publications)]
-    Assets[Protected asset storage]
-    Player[Shared player: preview and separate visitor]
-    API -->|EF Core / Npgsql transactions| DB
-    API -->|authorize asset bytes| Assets
-    Player -->|HTTPS: published snapshot and assets| API
-  end
-  Editor -.->|M2: authenticated HTTPS draft saves| API
-  Editor -.->|M2: isolated preview snapshot| Player
+block-beta
+  %% Four components per row, folding right-to-left after the first row
+  columns 7
+  wiki["Wiki.js"] space repo["Private GitHub"] space ci["GitHub Actions"] space registry["Private GHCR"]
+  space:7
+  api["API + Identity"] space player["Shared player"] space editor["Browser editor"] space host["Caddy hosting"]
+  space:7
+  db[("PostgreSQL")] space assets["Asset storage"] space:4
+
+  wiki -- "backup" --> repo
+  repo -- "PR / push" --> ci
+  ci -- "image" --> registry
+  registry -- "manual deploy" --> host
+  host -- "HTTPS" --> editor
+  editor -- "preview" --> player
+  player -- "HTTPS" --> api
+  api -- "EF Core" --> db
+  api -- "authorize" --> assets
+
+  classDef planned fill:#fff4d6,stroke:#8a6116,color:#35270c,stroke-dasharray:5 4
+  class api,player,db,assets planned
 ```
+
+Read across the top row, down at GHCR, then right to left through the second row.
+The API branches down to the two data stores. **Dashed amber boxes are planned M2/M3
+components.** The editor will also save drafts directly to the API over authenticated
+HTTPS; that direct connection is described here to avoid a line through the player.
+
+CI uses Ubuntu and produces a tested Docker image plus its release descriptor.
+Manual deployment selects the exact image digest for development or production.
+Caddy serves the app and GLBs behind the team access gate. The planned API uses
+ASP.NET Core/Identity and EF Core/Npgsql; the shared player serves both editor preview
+and the separate visitor application.
 
 The current application has no API or application database. Wiki.js and its database
 are documentation infrastructure, separate from SEB projects. M1 IndexedDB/JSON is
