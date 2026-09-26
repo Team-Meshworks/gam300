@@ -6,6 +6,7 @@ const { chromium } = await import(
   process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : "playwright"
 );
 const browser = await chromium.launch({
+  args: ["--enable-unsafe-swiftshader"],
   ...(process.env.PLAYWRIGHT_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHANNEL } : {}),
 });
 try {
@@ -364,7 +365,7 @@ try {
   });
   const pickerCount = await editor.evaluate(() => window.pickerCount);
   await menu("Save");
-  await editor.getByText("Saved new-project.json", { exact: true }).waitFor();
+  // Saving feedback can be replaced by the queued browser backup; check the durable result
   await waitSaved();
   assert.equal(await editor.evaluate(() => window.pickerCount), pickerCount + 1);
   assert.equal(JSON.parse(await fileText("new-project.json")).scenes[0].objects.length, 2);
@@ -405,14 +406,32 @@ try {
   assert.equal(freshDocument.scenes[0].objects.length, 0);
   await fresh.getByRole("button", { name: "Add test-crate", exact: true }).click();
   await fresh.waitForFunction(() => document.querySelector(".save-state")?.textContent === "Saved");
-  const written = await fresh.evaluate(async () =>
-    JSON.parse(
-      await (
-        await (await (await navigator.storage.getDirectory()).getFileHandle("fresh.json")).getFile()
-      ).text(),
-    ),
-  );
+  const readFreshFile = () =>
+    fresh.evaluate(async () =>
+      JSON.parse(
+        await (
+          await (
+            await (await navigator.storage.getDirectory()).getFileHandle("fresh.json")
+          ).getFile()
+        ).text(),
+      ),
+    );
+  const written = await readFreshFile();
   assert.equal(written.scenes[0].objects.length, 1);
+  const placed = written.scenes[0].objects[0];
+  await fresh
+    .getByRole("button", { name: `Move ${placed.name} X plus 0.25 metres`, exact: true })
+    .click();
+  await fresh.waitForFunction(() => document.querySelector(".save-state")?.textContent === "Saved");
+  const moved = structuredClone(written);
+  moved.scenes[0].objects[0].transform.position[0] += 0.25;
+  assert.deepEqual(await readFreshFile(), moved, "Movement reaches the same saved document");
+  await fresh.getByRole("button", { name: "Undo", exact: true }).click();
+  await fresh.waitForFunction(() => document.querySelector(".save-state")?.textContent === "Saved");
+  assert.deepEqual(await readFreshFile(), written, "Undo restores the whole saved transform");
+  await fresh.locator(".draft-menu summary").click();
+  await fresh.getByRole("button", { name: "Save", exact: true }).click();
+  await fresh.waitForFunction(() => document.querySelector(".save-state")?.textContent === "Saved");
   assert.equal(await leavingWouldWarn(), false, "File is up to date");
   await fresh.reload();
   await fresh
@@ -423,6 +442,25 @@ try {
     undefined,
     { timeout: 3000 },
   );
+  assert.equal(await fresh.locator(".object-row").getAttribute("data-object-id"), placed.id);
+  // Read the revalidated recovery copy after JavaScript memory has been discarded
+  const recovered = await fresh.evaluate(async (projectId) => {
+    const { loadLocalDraft } = await import("/persistence/local-drafts.ts");
+    return loadLocalDraft(
+      projectId,
+      new Map([
+        ["test-room-v1", "environment"],
+        ["test-crate-v1", "model"],
+      ]),
+    );
+  }, written.projectId);
+  assert.equal(recovered.ok, true);
+  assert.deepEqual(
+    recovered.value.document,
+    written,
+    "Place–move–undo–save–reload preserves the document",
+  );
+  assert.deepEqual(await readFreshFile(), written, "Reload preserves the portable file too");
   await fresh.close();
 
   // Browsers without file pickers retain JSON opening and download fallback
@@ -441,7 +479,7 @@ try {
   ).setFiles({
     name: "project.json",
     mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify(fixture)),
+    buffer: Buffer.from(JSON.stringify(written)),
   });
   await fallback.getByText("Project opened", { exact: true }).waitFor();
   await fallback.waitForFunction(
@@ -450,11 +488,11 @@ try {
   await fallback.locator(".draft-menu summary").click();
   const downloading = fallback.waitForEvent("download");
   await fallback.getByRole("button", { name: "Save As", exact: true }).click();
-  assert.deepEqual(JSON.parse(readFileSync(await (await downloading).path(), "utf8")), fixture);
+  assert.deepEqual(JSON.parse(readFileSync(await (await downloading).path(), "utf8")), written);
   await fallback.close();
   await editor.close();
   console.log(
-    "PASS: storage guards, file Open/Save/Save As, autosave, file reconnection, cancellation, external conflicts, write failures and download fallback",
+    "PASS: place–move–undo–save–reload, storage guards, file Open/Save/Save As, autosave, file reconnection, cancellation, external conflicts, write failures and download fallback",
   );
 } finally {
   await browser.close();

@@ -6,17 +6,16 @@
 | `main` | `production`       | https://51.79.242.181      | `127.0.0.1:8081`         |
 
 Integrate feature work into `dev`. Release through a `dev` → `main` pull request;
-maintainers check the source branch during review. CI and deployment run only when
-manually dispatched; pushes and pull requests do not start workflows. Deployment
-is a separate manual action and never rebuilds the image.
+CI checks pull requests and pushes to both branches automatically, and rejects a PR
+into `main` unless it comes from this repository's `dev` branch. Manual CI dispatch
+remains available. Deployment is a separate manual action and never rebuilds the image.
 The GitHub environments allow only their matching branches.
 
 GitHub currently rejects branch protection for this private repository with an upgrade
-requirement. Manual workflow checks and environment branch restrictions are configured, but
+requirement. Automatic workflow checks and environment branch restrictions are configured, but
 GitHub does not prevent direct pushes or require passing checks before a merge. Keep the
-repository private. Reviewers must request CI explicitly before merging; the former
-pull-request source-branch guard no longer runs. Revisit required checks alongside
-the manual trigger policy when private-repository branch protection becomes available.
+repository private. Reviewers must verify approval and a passing CI run before merging.
+Revisit enforced required checks when private-repository branch protection becomes available.
 
 Wiki.js is available at https://51.79.242.181:9443 with sign-in required. Its separate
 Compose project binds to `127.0.0.1:8083`; the gateway redirects legacy HTTP port 8080
@@ -56,22 +55,26 @@ npm run test:deployment -- http://localhost:8081/
 
 ## What CI does
 
-`.github/workflows/ci.yml` runs only through `workflow_dispatch`. It restores LFS and
+`.github/workflows/ci.yml` runs on pull requests and pushes to `main`/`dev`, plus
+`workflow_dispatch`. It restores LFS and
 locked dependencies; checks formatting, lint, asset
 integrity, deployment isolation/rollback and unit tests; builds the image; and runs the
-full authoring checks against Vite's development server and deployment checks against the
+authoring and recovery/file checks against Vite's development server and deployment checks against the
 image, including its real web-server configuration. Development-only sample controls are
 tested in development; the shipped UI and textures are checked in the container.
 The Docker build includes TypeScript checking. Chunk-budget checks also run on branches
 where that existing smoke script is present.
 
-The check job has no package-write permission. After a successful manual run on `dev`
-or `main`, a separate publishing job pushes the exact tested image to the private GHCR package
+The recovery check includes place–move–undo–save–reload and JSON transfer into a fresh
+browser context. Its output and the editor check output are retained under `web/test-results/`.
+
+The check job has no package-write permission. After a successful push or manual run on
+`dev` or `main`, a separate publishing job pushes the exact tested image to the private GHCR package
 `ghcr.io/team-meshworks/gam300`. Each release records its immutable digest, source commit,
 branch and CI run ID. The short-lived image-transfer artifact is retained for two days;
 test/web artifacts for 14 days and the small release bundle for 90 days. Retain registry
 images needed for rollback; deleting their tags can make old releases unavailable.
-Manual runs on other branches run the same checks but skip publishing.
+Pull request runs and manual runs on other branches run the same checks but skip publishing.
 
 Superseded CI runs are cancelled. Deployments are serialized per environment, and a VM
 file lock also prevents concurrent changes to the same deployment.
@@ -86,17 +89,17 @@ gh workflow run ci.yml --ref dev
 ```
 
 Choose a feature branch to check work before merging, `dev` for a development release,
-or `main` for a production release. Run CI again on the resulting branch commit after
-merging; deployment consumes the selected run's commit, not the latest branch contents.
+or `main` for a production release. Merging into either branch automatically runs CI
+on the resulting commit; deployment consumes the selected run's commit, not the latest branch contents.
 
 Manual dispatch requires repository write access, and the workflow must exist on the
-default branch. The manual-only definitions must reach both `dev` and `main` to replace
-their previous automatic triggers. See GitHub's
+default branch. Workflow changes follow the same feature → dev → main promotion path.
+See GitHub's
 [manual workflow guide](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow).
 
 ## Deploy or roll back
 
-1. Manually run **CI** for the intended branch and wait for success, or choose an existing
+1. Wait for the intended branch's push CI run, manually run **CI**, or choose an existing
    successful run for rollback. Copy its run ID from the summary
    or the number at the end of its GitHub URL.
 2. Open **Actions → Deploy → Run workflow**.
