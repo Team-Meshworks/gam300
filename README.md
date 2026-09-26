@@ -7,7 +7,7 @@
 
 <p align="center">
   <a href="#project-status"><img src="https://img.shields.io/badge/status-M1_prototype-orange" alt="Status: M1 prototype"></a>
-  <a href="https://github.com/Team-Meshworks/gam300/actions/workflows/ci.yml"><img src="https://github.com/Team-Meshworks/gam300/actions/workflows/ci.yml/badge.svg?branch=dev&amp;event=workflow_dispatch" alt="Latest manual CI run on dev"></a>
+  <a href="https://github.com/Team-Meshworks/gam300/actions/workflows/ci.yml"><img src="https://github.com/Team-Meshworks/gam300/actions/workflows/ci.yml/badge.svg?branch=dev&amp;event=push" alt="Latest push CI run on dev"></a>
   <a href="#quick-start"><img src="https://img.shields.io/badge/Node.js-24-339933?logo=nodedotjs&amp;logoColor=white" alt="Node.js 24"></a>
   <a href="web/package.json"><img src="https://img.shields.io/badge/React-19-149ECA?logo=react&amp;logoColor=white" alt="React 19"></a>
   <a href="web/package.json"><img src="https://img.shields.io/badge/TypeScript-6-3178C6?logo=typescript&amp;logoColor=white" alt="TypeScript 6"></a>
@@ -39,15 +39,22 @@ team; **VThere** is the commissioning company.
 - **Explore your scene** — switch between an orbit camera and a first-person visitor camera.
 - **Load a sample project** — try a room, two crates, and a saved starting camera in development mode.
 - **Recover from loading errors** — retry failed assets, with feedback when WebGL 2 is unavailable.
+- **Save and reopen work** — recover a project from browser storage, or use Open, Save and Save As for project JSON files.
 
 ## Project status
 
 **M1 prototype, under active development.** The interface and sample content are provisional.
-Changes currently live in memory and are lost on reload or close; the editor displays
-**Not saved** and warns before leaving a populated scene.
+Choose a room to create a saveable project. The editor then autosaves to this browser's
+storage and reopens the latest valid draft on reload. **Saved in browser** is local recovery,
+not a server save or a confirmed file write. Loose objects on the initial grid need a room
+before they can be saved as a project.
 
-File import/export, local recovery, the WHEN → DO rule builder, accounts, PostgreSQL saving,
-and publication/sharing are planned. The current visitor camera is part of the editor;
+The project menu provides **Open**, **Save** and **Save As**. Supported browsers can update
+a chosen JSON file; after reload, Save reconnects its permission. Other browsers use file
+upload/download. Cancelled or failed operations preserve the current scene.
+
+The WHEN → DO rule builder, accounts, PostgreSQL saving and publication/sharing are planned.
+The current visitor camera is part of the editor;
 a separate visitor application is still to come. Sample asset distribution rights remain
 under review; see the [asset pipeline notes](assets/README.md).
 
@@ -73,8 +80,9 @@ npm run dev
 ```
 
 Open [localhost:5173](http://localhost:5173). The repository currently requires access to clone.
-In the editor, choose **Open sample project**, select a crate, move it, and try **Undo**.
-The sample-project button is available only in development builds.
+In the editor, add **test-room**, add **test-crate**, move it and try **Undo**.
+Use the project menu's **Save**, then reload to check browser recovery.
+**Open sample project** is an additional shortcut available only in development builds.
 
 For a container build, run `docker compose up --build --wait` from the repository root,
 then open [localhost:8081](http://localhost:8081). See the
@@ -113,25 +121,54 @@ backend. They are not required to run the current editor.
 
 Run these commands from `web/`:
 
-| Command                                             | Purpose                                                        |
-| --------------------------------------------------- | -------------------------------------------------------------- |
-| `npm run dev`                                       | Start the development server with hot reload                   |
-| `npm run build`                                     | Typecheck and build the editor into `web/dist/editor/`         |
-| `npm run preview`                                   | Serve the production build locally                             |
-| `npm run typecheck`                                 | Check TypeScript types                                         |
-| `npm run lint`                                      | Run ESLint with zero warnings allowed                          |
-| `npm run format:check`                              | Check formatting                                               |
-| `npm run format`                                    | Apply formatting                                               |
-| `npm run test:unit`                                 | Run the Vitest suite                                           |
-| `npm run test:browser`                              | Check editor interactions against a running development server |
-| `npm run test:deployment -- http://localhost:8081/` | Check the running container build                              |
+| Command                                             | Purpose                                                               |
+| --------------------------------------------------- | --------------------------------------------------------------------- |
+| `npm run dev`                                       | Start the development server with hot reload                          |
+| `npm run build`                                     | Typecheck and build the editor into `web/dist/editor/`                |
+| `npm run preview`                                   | Serve the production build locally                                    |
+| `npm run typecheck`                                 | Check TypeScript types                                                |
+| `npm run lint`                                      | Run ESLint with zero warnings allowed                                 |
+| `npm run format:check`                              | Check formatting                                                      |
+| `npm run format`                                    | Apply formatting                                                      |
+| `npm run test:unit`                                 | Run the Vitest suite                                                  |
+| `npm run test:browser`                              | Check editor interactions against a running development server        |
+| `npm run test:recovery`                             | Check place–move–undo–save–reload, file transfer and failure recovery |
+| `npm run test:deployment -- http://localhost:8081/` | Check the running container build                                     |
 
 For browser checks, install Chromium once with `npx playwright install chromium`.
-Keep `npm run dev` running in one terminal, then run `npm run test:browser` in another.
+Keep `npm run dev` running in one terminal, then run `npm run test:browser` and
+`npm run test:recovery` in another. Both accept a different server URL, for example
+`npm run test:recovery -- http://127.0.0.1:5186/`.
 Playwright is included in the locked development dependencies.
+
+On Ubuntu, use `npx playwright install --with-deps chromium` to install Chromium's
+system libraries as well. See [Playwright's CI instructions](https://playwright.dev/docs/ci).
 
 Validate asset metadata and GLBs from the repository root with
 `node assets/tools/validate-assets.mjs`.
+
+### Development environments and verification
+
+The npm workflow needs no application database, `.env` file, private local fixture or
+Docker installation. Access to this private repository and its Git LFS objects is required.
+Use the pinned Node/npm versions above; if necessary install the matching npm with
+`npm install --global npm@11.17.0`. On Windows, use `npm.cmd` / `npx.cmd` when PowerShell
+blocks the `.ps1` launchers.
+
+| Environment                 | Setup and current evidence                                                                                                                                                                                                                 |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Windows 11 x64 / PowerShell | Git/Git LFS and pinned Node/npm on PATH. Locked install, build, checks and Chromium browser tests verified locally on Windows build 26200.                                                                                                 |
+| Ubuntu 24.04 x64            | Git/Git LFS and pinned Node/npm on PATH; install browser libraries with `--with-deps`. Clean-runner installation, checks and Docker build verified by [CI for fcf4cb4](https://github.com/Team-Meshworks/gam300/actions/runs/36097060315). |
+| macOS                       | The same terminal/npm workflow and Chromium installation apply, with Git/Git LFS and the pinned Node/npm installed for the machine's architecture. **Not verified on macOS; no macOS compatibility pass is claimed.**                      |
+
+For a clean reproduction, follow Quick start in a new directory, run the checks above,
+build with `npm run build`, then run `npm run preview` and open its printed URL.
+Record the commit, OS, Node/npm/browser versions and actual results when reporting a
+setup problem. Existing CI evidence is tied to its commit; it does not verify later changes.
+
+The [architecture v0.1](docs/architecture.md) documents implemented data flows,
+component owners and the planned server/player boundary. The
+[shared handbook](docs/wiki.md) contains broader project context.
 
 ### Repository layout
 
@@ -145,24 +182,28 @@ assets/
   delivery/          Runtime models and thumbnails
   tools/             Asset validation
 deploy/              Caddy configuration and deployment/rollback scripts
-docs/                Deployment and wiki operations
-.github/workflows/   Manual CI and deployment workflows
+docs/                Architecture, deployment and wiki operations
+.github/workflows/   Automatic CI and manual deployment
 ```
 
 ## CI and deployment
 
-Both workflows use **manual dispatch only**. Pushes and pull requests do not start runs.
+CI runs automatically on pushes to `dev`/`main` and pull requests targeting either branch.
+Pull requests into `main` must come from this repository's `dev` branch.
+Deployment remains a separate manual action.
 
-1. Open **Actions → CI → Run workflow** and select the branch to check.
-2. Wait for lint, formatting, asset validation, unit tests, browser checks, and the container build.
-3. A successful run on `dev` or `main` also publishes the tested image and a release descriptor.
-   Other branches run checks without publishing an image.
+1. Open a pull request into `dev`; its CI checks start automatically. For an extra run,
+   open **Actions → CI → Run workflow** and select the branch.
+2. Wait for lint, formatting, asset validation, unit tests, editor/recovery browser checks,
+   and the container build and checks.
+3. Successful push/manual runs on `dev` or `main` publish the tested image and a release
+   descriptor. Pull request runs and manual runs on feature branches do not publish images.
 4. To deploy, open **Actions → Deploy → Run workflow**, select the same branch, and enter
    the successful CI run ID. Deployment uses that exact tested image.
 
 `dev` deploys to **development**; `main` deploys to **production**. Promote releases through
-a `dev` → `main` pull request, then manually run CI on the resulting `main` commit.
-The CI badge shows the latest manual run on `dev`, which may be older than its latest commit.
+a `dev` → `main` pull request; the resulting push runs CI on the integrated `main` commit.
+The CI badge shows the latest push run on `dev`.
 
 See the [deployment runbook](docs/deployment.md) for environment access, manual-run commands,
 release validation, and rollback. GitHub's [manual workflow guide](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow)
@@ -173,7 +214,8 @@ covers the Actions UI and required repository access.
 1. Branch from `dev` and keep changes focused on one feature or fix.
 2. Run type, lint, and formatting checks, plus the tests relevant to your change.
 3. Open a pull request into `dev` with a summary, verification results, and screenshots for UI changes.
-4. Ask a maintainer to run CI on the branch before merging; checks do not start automatically.
+4. Obtain reviewer approval and wait for passing CI before merging. GitHub branch protection
+   is unavailable on the current private-repository plan, so maintainers enforce this step.
 
 Report bugs through [GitHub Issues](https://github.com/Team-Meshworks/gam300/issues), including
 reproduction steps, expected behavior, and browser/OS details. For asset changes, include
