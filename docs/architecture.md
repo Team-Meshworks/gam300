@@ -65,29 +65,23 @@ local recovery and interchange. M2 adds durable PostgreSQL projects/accounts; M3
 publication uses persisted snapshots and server-enforced access. The separate visitor
 build must exclude authoring code. See [deployment](deployment.md).
 
-## Component responsibility map
+## Interfaces and responsibility
 
-These are the existing accountable M1 Story/Task assignees read from Jira on
-26 September 2026, not new assignments or claims that their full tasks are done.
-The owning issue retains the live responsibility when a name changes.
+| Component                          | Current boundary contract                                                                                                                                   |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Editor controls                    | Read document/selection snapshots and invoke commands; do not maintain a second saved scene.                                                                |
+| Document store and history         | `createProject`, `loadProject`, `addObject`, `setTransform`, Undo/Redo and commit subscriptions.                                                            |
+| Three.js viewport and manipulation | Project document objects into meshes; report stable selection IDs and commit one transform after a completed drag.                                          |
+| Project format                     | Validate raw JSON and asset kinds before reconstruction; serialize stable IDs, ordered objects, transforms and starting camera.                             |
+| Recovery                           | `saveLocalDraft` / `loadLocalDraft` validate records and use expected storage revisions.                                                                    |
+| Project files                      | `writeProjectFile` checks last-known disk text and commits on stream close; JSON upload/download is the fallback.                                           |
+| Asset catalogue                    | `CatalogueAsset` supplies immutable ID, kind, URL, thumbnail and placement metadata from the validated manifest.                                            |
+| Build and hosting                  | CI produces runnable web files and a commit identifier; branch builds also produce an immutable image and release descriptor consumed by manual deployment. |
 
-| Component / contract                                         | Existing owner                   | Jira work                                                    |
-| ------------------------------------------------------------ | -------------------------------- | ------------------------------------------------------------ |
-| Editor controls, selection integration and authoring flow    | Muhammad Nur Fadzly BIN ZULKIFLI | [SCRUM-16](https://meshworkss.atlassian.net/browse/SCRUM-16) |
-| Three.js loading, camera navigation and synchronized picking | zifeng lim                       | [SCRUM-9](https://meshworkss.atlassian.net/browse/SCRUM-9)   |
-| Custom manipulation and committed transforms                 | Ming Jie SHI                     | [SCRUM-14](https://meshworkss.atlassian.net/browse/SCRUM-14) |
-| Reversible commands and history branching                    | dalton koh                       | [SCRUM-15](https://meshworkss.atlassian.net/browse/SCRUM-15) |
-| Project schema, validation and reconstruction                | Foo Rui Qin                      | [SCRUM-5](https://meshworkss.atlassian.net/browse/SCRUM-5)   |
-| IndexedDB recovery and JSON file operations                  | Foo Rui Qin                      | [SCRUM-31](https://meshworkss.atlassian.net/browse/SCRUM-31) |
-| Asset manifest, delivery and GLB validation                  | dalton koh                       | [SCRUM-18](https://meshworkss.atlassian.net/browse/SCRUM-18) |
-| CI, tested artifacts and deployment integration              | Muhammad Nur Fadzly BIN ZULKIFLI | [SCRUM-76](https://meshworkss.atlassian.net/browse/SCRUM-76) |
-
-The future shared player, API/Identity and PostgreSQL/publication owners are still
-unassigned in [SCRUM-64](https://meshworkss.atlassian.net/browse/SCRUM-64),
-[SCRUM-66](https://meshworkss.atlassian.net/browse/SCRUM-66),
-[SCRUM-68](https://meshworkss.atlassian.net/browse/SCRUM-68) and
-[SCRUM-70](https://meshworkss.atlassian.net/browse/SCRUM-70). This baseline does not
-assign them on the team's behalf.
+Named owners and their existing owning Jira issues are maintained in the
+[component responsibility map on SCRUM-113](https://meshworkss.atlassian.net/browse/SCRUM-113).
+That planning record also identifies unassigned future components; assignments and
+completion status remain outside this technical specification.
 
 ## Edit, save and reload trace
 
