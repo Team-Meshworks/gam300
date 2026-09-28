@@ -4,6 +4,7 @@ import type { ProjectDocument } from "../../shared/project/project-types";
 import { checkFields, invalid, isRecord } from "../../shared/project/validation-helpers";
 import type { ValidationResult } from "../../shared/project/validation-helpers";
 import type { ProjectFileHandle } from "./project-files";
+import { validateRecoveryHistory, type RecoveryHistory } from "./recovery-history";
 
 // Stable storage names so refreshing the page finds the same records
 const DATABASE_NAME = "vthere-local-drafts";
@@ -12,6 +13,7 @@ const LOCAL_PRINCIPAL = "local";
 
 type SaveRequest = Readonly<{
   project: unknown;
+  history?: unknown;
   // Last storage revision this tab has seen; zero means no existing draft
   expectedStorageRevision: number;
   // Edit counter captured with the project being saved
@@ -25,7 +27,12 @@ type SaveReceipt = Readonly<{
   savedAt: string;
 }>;
 
-type RecoveredDraft = SaveReceipt & Readonly<{ document: ProjectDocument }>;
+type RecoveredDraft = SaveReceipt &
+  Readonly<{
+    document: ProjectDocument;
+    history?: RecoveryHistory;
+    historyWarning?: string;
+  }>;
 
 function isCounter(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
@@ -84,6 +91,7 @@ function validateStoredDraft(
       "baseServerRevision",
       "pendingMutation",
       "savedAt",
+      ...(Object.hasOwn(raw, "history") ? ["history"] : []),
     ],
     "storage",
   );
@@ -112,11 +120,24 @@ function validateStoredDraft(
     // A valid document under the wrong storage key still belongs to another project
     return invalid("storage.projectId", "Stored document belongs to a different project");
   }
+  // A damaged or outdated history must not prevent recovery of a valid scene.
+  // Older drafts have no history field and still open normally.
+  const history =
+    raw.history === undefined
+      ? undefined
+      : validateRecoveryHistory(raw.history, document.value, assetKinds);
   return {
     ok: true,
     value: {
       projectId,
       document: document.value,
+      ...(history?.ok ? { history: history.value } : {}),
+      ...(history !== undefined && !history.ok
+        ? {
+            historyWarning:
+              "Scene recovered, but its undo history was invalid and could not be restored.",
+          }
+        : {}),
       localStorageRevision: raw.localStorageRevision,
       localEditSequence: raw.localEditSequence,
       savedAt: raw.savedAt,
@@ -248,7 +269,12 @@ export async function saveLocalDraft(
   // Capture JSON before waiting on storage so later edits can't enter this write
   const serialized = serializeProject(request.project, assetKinds);
   if (!serialized.ok) return serialized;
-  const checked: { projectId: string } = JSON.parse(serialized.value);
+  const checked: ProjectDocument = JSON.parse(serialized.value);
+  const history =
+    request.history === undefined
+      ? undefined
+      : validateRecoveryHistory(request.history, checked, assetKinds);
+  if (history !== undefined && !history.ok) return history;
   // UUID letter case must resolve to the same draft key
   // Original spelling stays inside the saved JSON
   const projectId = checked.projectId.toLowerCase();
@@ -317,6 +343,7 @@ export async function saveLocalDraft(
             ...receipt,
             principalKey: LOCAL_PRINCIPAL,
             document: serialized.value,
+            ...(history?.ok ? { history: history.value } : {}),
             baseServerRevision: null,
             pendingMutation: null,
           });
@@ -343,6 +370,8 @@ export type RecoverySession = Readonly<{
   // Older records only have the filename and need one more Open to connect it
   fileHandle?: ProjectFileHandle | null;
   fileText?: string;
+  history?: RecoveryHistory;
+  historyWarning?: string;
 }>;
 
 export async function loadRecoverySession(
@@ -383,12 +412,18 @@ export async function loadRecoverySession(
         "pristine",
         ...(Object.hasOwn(raw, "fileHandle") ? ["fileHandle"] : []),
         ...(Object.hasOwn(raw, "fileText") ? ["fileText"] : []),
+        ...(Object.hasOwn(raw, "history") ? ["history"] : []),
       ],
       "recovery",
     );
     if (!fields.ok) return fields;
     const document = deserializeProject(raw.document, assetKinds);
     if (!document.ok) return document;
+    // Keep the valid scene available even if an older history record cannot be restored
+    const history =
+      raw.history === undefined
+        ? undefined
+        : validateRecoveryHistory(raw.history, document.value, assetKinds);
     let savedJson: string | null = null;
     if (raw.savedJson !== null) {
       const saved = deserializeProject(raw.savedJson, assetKinds);
@@ -427,6 +462,10 @@ export async function loadRecoverySession(
         pristine: raw.pristine && document.value.scenes[0]?.objects.length === 0,
         fileHandle,
         fileText,
+        ...(history?.ok ? { history: history.value } : {}),
+        ...(history && !history.ok
+          ? { historyWarning: "Scene recovered, but its undo history could not be restored" }
+          : {}),
       },
     };
   } catch {
@@ -437,7 +476,7 @@ export async function loadRecoverySession(
 }
 
 export async function saveRecoverySession(
-  session: Omit<RecoverySession, "revision">,
+  session: Omit<RecoverySession, "revision" | "historyWarning">,
   expectedRevision: number,
   assetKinds: ReadonlyMap<string, string>,
   previousProjectId?: string,
@@ -446,6 +485,11 @@ export async function saveRecoverySession(
     return invalid("storage", "Invalid recovery revision");
   const encoded = serializeProject(session.document, assetKinds);
   if (!encoded.ok) return encoded;
+  const history =
+    session.history === undefined
+      ? undefined
+      : validateRecoveryHistory(session.history, session.document, assetKinds);
+  if (history && !history.ok) return history;
   if (session.fileName.length > 255) return invalid("storage", "Project filename is too long");
   if (session.savedJson !== null) {
     const saved = deserializeProject(session.savedJson, assetKinds);

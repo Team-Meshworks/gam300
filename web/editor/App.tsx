@@ -4,6 +4,11 @@ import { assetDragType } from "../shared/assets/catalogue";
 import type { Vector3Tuple } from "../shared/project/scene-object";
 import type { Transform } from "../shared/project/project-types";
 import { createDocumentStore } from "./document-store";
+import {
+  handleHistoryShortcut,
+  handleObjectShortcut,
+  isTextEditingTarget,
+} from "./history-shortcuts";
 import type { ViewportStatus } from "./graphics/scene";
 import type { ModeManager, ModeManagerState } from "./graphics/modeManager";
 import { Viewport } from "./viewport/Viewport";
@@ -64,8 +69,9 @@ export function App() {
   const [manager, setManager] = useState<ModeManager | null>(null);
   const [modeState, setModeState] = useState<ModeManagerState | null>(null);
   const selection = objects.some((object) => object.id === selectedId) ? selectedId : null;
+  const [hasDeleted, setHasDeleted] = useState(false);
   const selectedObject = objects.find((object) => object.id === selection);
-  const hasChanges = project !== null || objects.length > 0;
+  const hasChanges = project !== null || objects.length > 0 || hasDeleted;
   const visitor = modeState?.mode === "visitor";
 
   const onManager = useCallback((next: ModeManager) => {
@@ -79,9 +85,64 @@ export function App() {
     setSelectedId(null);
     setDragging(false);
     setError("");
+    setHasDeleted(false);
   }, []);
   const session = useProjectSession(store, assets, project, objects.length, onReplace, setNotice);
   const storageOperation = session.operation;
+
+  useEffect(() => {
+    function onHistoryKeyDown(event: KeyboardEvent) {
+      // A project confirmation owns the keyboard until the author makes a choice.
+      if (session.busy || visitor) return;
+      const editingText = event.composedPath().some(isTextEditingTarget);
+      handleHistoryShortcut(event, store, editingText);
+      handleObjectShortcut(
+        event,
+        {
+          copy() {
+            if (selection === null) {
+              setError("Select an object to copy.");
+              return;
+            }
+            const result = store.copyObject(selection);
+            if (!result.ok) {
+              setError(result.error.message);
+              return;
+            }
+            setError("");
+            setNotice(`Copied ${result.value.name}. Press Ctrl+V to paste.`);
+          },
+          paste() {
+            const result = store.pasteObject();
+            if (!result.ok) {
+              setError(result.error.message);
+              return;
+            }
+            setSelectedId(result.value.id);
+            setError("");
+            setNotice(`Pasted ${result.value.name}. Undo is available.`);
+          },
+          duplicate() {
+            if (selection === null) {
+              setError("Select an object to duplicate.");
+              return;
+            }
+            const result = store.duplicateObject(selection);
+            if (!result.ok) {
+              setError(result.error.message);
+              return;
+            }
+            setSelectedId(result.value.id);
+            setError("");
+            setNotice(`Duplicated ${result.value.name}. Undo is available.`);
+          },
+        },
+        editingText,
+      );
+    }
+    window.addEventListener("keydown", onHistoryKeyDown);
+    return () => window.removeEventListener("keydown", onHistoryKeyDown);
+  }, [store, selection, session.busy, visitor, setNotice]);
 
   useEffect(() => {
     // Filename identifies the browser tab; save status stays in the editor
@@ -148,6 +209,19 @@ export function App() {
     setError("");
     setSelectedId(result.object.id);
     setNotice(`Added ${result.object.name}`);
+  }
+
+  function deleteSelection() {
+    if (selection === null || visitor) return;
+    const result = store.deleteObject(selection);
+    if (!result.ok) {
+      setError(result.error.message);
+      return;
+    }
+    setError("");
+    setHasDeleted(true);
+    setSelectedId(null);
+    setNotice(`Deleted ${result.value.name}. Undo restores it.`);
   }
 
   return (
@@ -246,6 +320,9 @@ export function App() {
             storageOperation === "import"
           }
         >
+          <button type="button" disabled={selection === null || visitor} onClick={deleteSelection}>
+            Delete selected
+          </button>
           {import.meta.env.DEV && (
             <button
               type="button"
@@ -255,13 +332,25 @@ export function App() {
               Open sample project
             </button>
           )}
-          <button type="button" disabled={!canUndo} onClick={store.undo}>
+          <button
+            type="button"
+            disabled={!canUndo}
+            onClick={store.undo}
+            title="Undo (Ctrl+Z / ⌘Z)"
+            aria-keyshortcuts="Control+z Meta+z"
+          >
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M9 5 4 10l5 5M4 10h10a6 6 0 0 1 0 12" />
             </svg>
             Undo
           </button>
-          <button type="button" disabled={!canRedo} onClick={store.redo}>
+          <button
+            type="button"
+            disabled={!canRedo}
+            onClick={store.redo}
+            title="Redo (Ctrl+Y / Ctrl+Shift+Z / ⌘⇧Z)"
+            aria-keyshortcuts="Control+y Control+Shift+z Meta+Shift+z"
+          >
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="m15 5 5 5-5 5m5-5H10a6 6 0 0 0 0 12" />
             </svg>

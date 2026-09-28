@@ -1,26 +1,23 @@
+import { validateTransform } from "../shared/project/spatial-validation";
+import { invalid } from "../shared/project/validation-helpers";
+import type { Transform } from "../shared/project/project-types";
+import { prepareTransformCommand } from "./transform-command";
+import { createCommandHistory } from "./command-history";
+import { captureRecoveryHistory, validateRecoveryHistory } from "./persistence/recovery-history";
 import type { CatalogueAsset } from "../shared/assets/catalogue.ts";
 import type { SceneObject, Vector3Tuple } from "../shared/project/scene-object.ts";
 import { deserializeProject } from "../shared/project/project-deserialization";
-import type { ProjectDocument, Transform } from "../shared/project/project-types";
-import { validateTransform } from "../shared/project/spatial-validation";
+import type { ProjectDocument } from "../shared/project/project-types";
 import type { ValidationResult } from "../shared/project/validation-helpers";
-
-type Command =
-  | { kind: "add"; object: SceneObject }
-  | { kind: "transform"; id: string; before: Transform; after: Transform };
-
-function freezeTransform(transform: Transform): Transform {
-  Object.freeze(transform.position);
-  Object.freeze(transform.rotation);
-  Object.freeze(transform.scale);
-  return Object.freeze(transform);
-}
 
 function freezeProject(project: ProjectDocument): ProjectDocument {
   // Freeze the reader's separate copy before exposing it to panels or commands
   for (const scene of project.scenes) {
     for (const object of scene.objects) {
-      freezeTransform(object.transform);
+      Object.freeze(object.transform.position);
+      Object.freeze(object.transform.rotation);
+      Object.freeze(object.transform.scale);
+      Object.freeze(object.transform);
       Object.freeze(object);
     }
     Object.freeze(scene.objects);
@@ -33,15 +30,37 @@ function freezeProject(project: ProjectDocument): ProjectDocument {
   return Object.freeze(project);
 }
 
+export type TransformSession = Readonly<{
+  token: string;
+  objectId: string;
+  before: Transform;
+  after: Transform;
+}>;
+
 export function createDocumentStore(assets: readonly CatalogueAsset[]) {
   let objects: readonly SceneObject[] = Object.freeze([]);
   // The current grid-only editor has no environment-backed project at startup
   // Choosing a room creates the project; imports can supply one directly
   let project: ProjectDocument | null = null;
   let projectAssets: ReadonlyMap<string, string> = new Map();
-  const undoStack: Command[] = [];
-  const redoStack: Command[] = [];
+  // Keep history here so the buttons and future edit controls share one undo order.
+  const history = createCommandHistory<readonly SceneObject[]>();
+  // This clipboard belongs to the open editor, not the operating system.
+  // Objects are immutable, so later edits won't change the captured copy.
+  let clipboard: SceneObject | null = null;
+  let pasteCount = 0;
   const listeners = new Set<() => void>();
+  // Preview data stays outside the saved document and undo history.
+  let edit: TransformSession | null = null;
+  const editListeners = new Set<() => void>();
+  function clearEdit() {
+    if (edit === null) return;
+    edit = null;
+    editListeners.forEach((listener) => listener());
+  }
+  function notifyEdit() {
+    editListeners.forEach((listener) => listener());
+  }
   let snapshot: Readonly<{
     objects: readonly SceneObject[];
     project: ProjectDocument | null;
@@ -66,41 +85,142 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
     snapshot = Object.freeze({
       objects,
       project,
-      canUndo: undoStack.length > 0,
-      canRedo: redoStack.length > 0,
+      canUndo: history.canUndo,
+      canRedo: history.canRedo,
     });
     listeners.forEach((listener) => listener());
   }
 
-  function replaceTransform(id: string, transform: Transform) {
-    replaceObjects(
-      objects.map((object) =>
-        object.id === id ? Object.freeze({ ...object, transform }) : object,
-      ),
-    );
-  }
-
-  function apply(command: Command, reverse: boolean) {
-    if (command.kind === "add") {
-      replaceObjects(
-        reverse
-          ? objects.filter((object) => object.id !== command.object.id)
-          : [...objects, command.object],
-      );
-    } else {
-      replaceTransform(command.id, reverse ? command.before : command.after);
+  function commitTransform(
+    input: unknown,
+  ): ValidationResult<{ changed: boolean; object: SceneObject }> {
+    const result = prepareTransformCommand(objects, input);
+    if (!result.ok) return result;
+    const { command, object } = result.value;
+    if (command === null) {
+      clearEdit();
+      return { ok: true, value: { changed: false, object } };
     }
+    replaceObjects(history.execute(objects, command));
+    clearEdit();
+    publish();
+    return { ok: true, value: { changed: true, object } };
   }
 
-  function record(command: Command) {
-    undoStack.push(command);
-    if (undoStack.length > 100) undoStack.shift();
-    redoStack.length = 0;
+  function insertCopy(source: SceneObject, offset: number): ValidationResult<SceneObject> {
+    const asset = assets.find((entry) => entry.id === source.assetId);
+    if (
+      !asset ||
+      (project !== null && (asset.kind !== "model" || projectAssets.get(asset.id) !== "model"))
+    )
+      return invalid("assetId", "This asset is not available in this project");
+    if (objects.length >= 200)
+      return invalid("objects", "This scene has reached its 200-object limit");
+    const [x, y, z] = source.transform.position;
+    const checked = validateTransform(
+      {
+        ...source.transform,
+        position: [x + offset, y, z + offset],
+      },
+      "transform",
+    );
+    if (!checked.ok) return checked;
+    const transform = checked.value;
+    Object.freeze(transform.position);
+    Object.freeze(transform.rotation);
+    Object.freeze(transform.scale);
+    // Copy only today's object fields; attached content will need its own ID remapping later.
+    const object: SceneObject = Object.freeze({
+      id: crypto.randomUUID(),
+      name: source.name,
+      assetId: source.assetId,
+      transform: Object.freeze(transform),
+    });
+    replaceObjects(
+      history.execute(objects, {
+        label: "Copy object",
+        apply: (current) => Object.freeze([...current, object]),
+        revert: (current) => Object.freeze(current.filter((entry) => entry.id !== object.id)),
+      }),
+    );
+    clearEdit();
     publish();
+    return { ok: true, value: object };
   }
 
   return {
+    copyObject(objectId: string): ValidationResult<SceneObject> {
+      const object = objects.find((entry) => entry.id === objectId);
+      if (!object) return invalid("objectId", "Select an object to copy");
+      clipboard = object;
+      pasteCount = 0;
+      return { ok: true, value: object };
+    },
+    pasteObject(): ValidationResult<SceneObject> {
+      if (!clipboard) return invalid("clipboard", "Copy an object first");
+      // Spread repeated pastes out rather than stacking them in the same spot.
+      const result = insertCopy(clipboard, (pasteCount + 1) * 0.5);
+      if (result.ok) pasteCount++;
+      return result;
+    },
+    duplicateObject(objectId: string): ValidationResult<SceneObject> {
+      const object = objects.find((entry) => entry.id === objectId);
+      if (!object) return invalid("objectId", "Select an object to duplicate");
+      return insertCopy(object, 0.5);
+    },
+    getTransformEdit: () => edit,
+    subscribeTransformEdit(listener: () => void) {
+      editListeners.add(listener);
+      return () => {
+        editListeners.delete(listener);
+      };
+    },
+    beginTransform(objectId: string): ValidationResult<TransformSession> {
+      const object = objects.find((item) => item.id === objectId);
+      if (!object) return invalid("objectId", "Choose an object in the scene");
+      // A fresh token prevents late events from an older drag changing this one.
+      edit = Object.freeze({
+        token: crypto.randomUUID(),
+        objectId,
+        before: object.transform,
+        after: object.transform,
+      });
+      notifyEdit();
+      return { ok: true, value: edit };
+    },
+    previewTransform(token: string, input: unknown): ValidationResult<TransformSession> {
+      if (!edit || edit.token !== token) return invalid("session", "This edit session has ended");
+      const result = validateTransform(input, "preview");
+      // Cancel invalid previews rather than accidentally committing the last good position.
+      if (!result.ok) {
+        clearEdit();
+        return result;
+      }
+      const after = result.value;
+      Object.freeze(after.position);
+      Object.freeze(after.rotation);
+      Object.freeze(after.scale);
+      Object.freeze(after);
+      edit = Object.freeze({ ...edit, after });
+      notifyEdit();
+      return { ok: true, value: edit };
+    },
+    commitTransformEdit(
+      token: string,
+    ): ValidationResult<{ changed: boolean; object: SceneObject }> {
+      if (!edit || edit.token !== token) return invalid("session", "This edit session has ended");
+      const { objectId, before, after } = edit;
+      const result = commitTransform({ objectId, before, after });
+      clearEdit();
+      return result;
+    },
+    cancelTransformEdit(token: string) {
+      if (edit?.token === token) clearEdit();
+    },
     getSnapshot: () => snapshot,
+    getRecoveryHistory() {
+      return project === null ? undefined : captureRecoveryHistory(project, history.getStates());
+    },
     createProject(
       environmentAssetId: string,
       options: { startEmpty: boolean } = { startEmpty: false },
@@ -150,8 +270,10 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       projectAssets = kinds;
       // New starts a separate document; Undo must keep the previous project's objects out
       if (options.startEmpty) {
-        undoStack.length = 0;
-        redoStack.length = 0;
+        history.clear();
+        clearEdit();
+        clipboard = null;
+        pasteCount = 0;
       }
       publish();
       return { ok: true, value: project };
@@ -159,6 +281,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
     loadProject(
       text: unknown,
       assetKinds: ReadonlyMap<string, string>,
+      recoveryHistory?: unknown,
     ): ValidationResult<ProjectDocument> {
       // Finish all checks before touching the open project or its undo history
       const result = deserializeProject(text, assetKinds);
@@ -169,13 +292,22 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
         throw new Error("Validated M1 project needs one scene");
       }
       const loadedAssets = new Map(assetKinds);
+      const recovered =
+        recoveryHistory === undefined
+          ? undefined
+          : validateRecoveryHistory(recoveryHistory, loaded, loadedAssets);
+      if (recovered !== undefined && !recovered.ok) return recovered;
 
       project = loaded;
+      clipboard = null;
+      pasteCount = 0;
       objects = scene.objects;
       projectAssets = loadedAssets;
       // Undo from the previous project must never reintroduce its objects here
-      undoStack.length = 0;
-      redoStack.length = 0;
+      history.clear();
+      if (recovered?.ok)
+        history.restoreStates(objects, recovered.value.past, recovered.value.future);
+      clearEdit();
       publish();
       return { ok: true, value: loaded };
     },
@@ -205,55 +337,65 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
         id: crypto.randomUUID(),
         name: `${asset.name} ${objects.length + 1}`,
         assetId: asset.id,
-        transform: freezeTransform({
+        transform: Object.freeze({
           position: Object.freeze([...position] as [number, number, number]),
           rotation: Object.freeze([0, 0, 0, 1] as const),
           scale: Object.freeze([1, 1, 1] as const),
         }),
       });
-      replaceObjects([...objects, object]);
-      record({ kind: "add", object });
+      // Capture this object once. Redo puts back this exact copy, including its ID.
+      // Validation above finishes before the command can enter history.
+      replaceObjects(
+        history.execute(objects, {
+          label: "Add object",
+          apply: (current) => Object.freeze([...current, object]),
+          revert: (current) => Object.freeze(current.filter((entry) => entry.id !== object.id)),
+        }),
+      );
+      clearEdit();
+      publish();
       return { ok: true, object } as const;
     },
-    setTransform(id: string, raw: unknown) {
+    commitTransform,
+    // Keep the incoming gizmo API, but route it through the shared command history.
+    setTransform(id: string, after: unknown) {
       const object = objects.find((entry) => entry.id === id);
-      if (object === undefined) {
-        return { ok: false, error: "Select an object in this scene." } as const;
-      }
-      const result = validateTransform(raw);
-      if (!result.ok) {
+      if (!object) return { ok: false, error: "Select an object in this scene." } as const;
+      const result = commitTransform({ objectId: id, before: object.transform, after });
+      if (!result.ok)
         return { ok: false, error: `${result.error.path}: ${result.error.message}` } as const;
-      }
-      const before = object.transform;
-      const after = result.value;
-      if (
-        before.position.every((value, index) => value === after.position[index]) &&
-        before.rotation.every((value, index) => value === after.rotation[index]) &&
-        before.scale.every((value, index) => value === after.scale[index])
-      ) {
-        return { ok: true, changed: false } as const;
-      }
-      freezeTransform(after);
-      replaceTransform(id, after);
-      record({ kind: "transform", id, before, after });
-      return { ok: true, changed: true } as const;
+      return { ok: true, changed: result.value.changed } as const;
+    },
+    deleteObject(objectId: string): ValidationResult<SceneObject> {
+      const index = objects.findIndex((object) => object.id === objectId);
+      const object = objects[index];
+      if (!object) return invalid("objectId", "This object is no longer in the scene");
+      // Remember the slot as well as the whole object, so undo restores list order.
+      replaceObjects(
+        history.execute(objects, {
+          label: "Delete object",
+          apply: (current) => Object.freeze(current.filter((entry) => entry.id !== objectId)),
+          revert: (current) =>
+            Object.freeze([...current.slice(0, index), object, ...current.slice(index)]),
+        }),
+      );
+      clearEdit();
+      publish();
+      return { ok: true, value: object };
     },
     undo() {
-      const command = undoStack.pop();
-      if (command === undefined) {
-        return;
-      }
-      apply(command, true);
-      redoStack.push(command);
+      clearEdit();
+      const next = history.undo(objects);
+      // Nothing changed, so there is no new snapshot to send to the UI.
+      if (next === objects) return;
+      replaceObjects(next);
       publish();
     },
     redo() {
-      const command = redoStack.pop();
-      if (command === undefined) {
-        return;
-      }
-      apply(command, false);
-      undoStack.push(command);
+      clearEdit();
+      const next = history.redo(objects);
+      if (next === objects) return;
+      replaceObjects(next);
       publish();
     },
   };

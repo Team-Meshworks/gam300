@@ -5,6 +5,7 @@ import { serializeProject } from "../../shared/project/project-serialization";
 import { deserializeProject } from "../../shared/project/project-deserialization";
 import { MAX_PROJECT_BYTES } from "../../shared/project/project-limits";
 import { createDocumentStore } from "../document-store";
+import type { RecoveryHistory } from "./recovery-history";
 import {
   loadLatestLocalDraft,
   loadRecoverySession,
@@ -84,7 +85,11 @@ export function useProjectSession(
   const needsDecision = dirty && (project === null || project !== pristineProject);
 
   const persist = useCallback(
-    async (document: ProjectDocument, metadata?: Candidate) => {
+    async (
+      document: ProjectDocument,
+      metadata?: Candidate,
+      history: RecoveryHistory | undefined = metadata ? undefined : store.getRecoveryHistory(),
+    ) => {
       const local = state.current;
       const result = await saveRecoverySession(
         {
@@ -94,6 +99,8 @@ export function useProjectSession(
           pristine: metadata?.pristine ?? document === local.pristine,
           fileHandle: metadata ? metadata.handle : local.file,
           fileText: metadata ? metadata.fileText : local.fileText,
+          // Capture history with the scene before IndexedDB yields to later edits
+          ...(history ? { history } : {}),
         },
         local.revision,
         kinds,
@@ -112,7 +119,7 @@ export function useProjectSession(
       local.paused = false;
       return true;
     },
-    [kinds],
+    [kinds, store],
   );
 
   const backup = useCallback(
@@ -188,13 +195,21 @@ export function useProjectSession(
               fileName: link?.name ?? "",
               savedJson: baseline,
               pristine: !link && legacy.value.document.scenes[0]?.objects.length === 0,
+              ...(legacy.value.history ? { history: legacy.value.history } : {}),
+              ...(legacy.value.historyWarning
+                ? { historyWarning: legacy.value.historyWarning }
+                : {}),
             };
           }
         }
         // Storage can finish after the student has already started another project
         // Leave that newer scene alone
         if (cancelled || recovered === null || store.getSnapshot() !== before) return;
-        const loaded = store.loadProject(JSON.stringify(recovered.document), kinds);
+        const loaded = store.loadProject(
+          JSON.stringify(recovered.document),
+          kinds,
+          recovered.history,
+        );
         if (!loaded.ok) {
           setError(loaded.error.message);
           return;
@@ -213,6 +228,7 @@ export function useProjectSession(
         setSavedJson(recovered.savedJson);
         setPristineProject(local.pristine);
         setNotice("Reopened your last project");
+        if (recovered.historyWarning) setError(recovered.historyWarning);
         clearTimeout(local.timer);
         local.pending = recovered.revision === 0;
       } catch {
@@ -244,6 +260,8 @@ export function useProjectSession(
       setError(encoded.error.message);
       return false;
     }
+    // A file picker can stay open while edits arrive; keep history tied to this saved snapshot
+    const recoveryHistory = store.getRecoveryHistory();
     local.busy = true;
     clearTimeout(local.timer);
     setOperation("file");
@@ -294,7 +312,7 @@ export function useProjectSession(
       setFileFailed(false);
       setNotice(`Saved ${handle.name}`);
       // Store the manual-save baseline alongside this snapshot for the next visit
-      await persist(current);
+      await persist(current, undefined, recoveryHistory);
       return true;
     } catch (failure) {
       if (!wasPickerCancelled(failure)) {

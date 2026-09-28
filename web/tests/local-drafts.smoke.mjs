@@ -529,7 +529,7 @@ try {
         meter.top >= document.querySelector(".app-header").getBoundingClientRect().bottom,
     };
   });
-  assert.deepEqual(layout.gaps, [24, 24, 24, 24]);
+  assert.deepEqual(layout.gaps, [24, 24, 24, 24, 24]);
   assert.equal(layout.meterBelowHeader, true);
   assert.equal(await editor.locator(".draft-feedback").textContent(), "New project");
   await editor.waitForFunction(() => {
