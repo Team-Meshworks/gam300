@@ -213,6 +213,13 @@ try {
     assert.equal(await page.locator("canvas").count(), 1);
     assert.equal(await rows.count(), 2);
   }
+  await page.evaluate(() => (document.documentElement.style.fontSize = "20px"));
+  assert.equal(
+    await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+    true,
+    "No overflow at 320px with 125% text size",
+  );
+  await page.evaluate(() => document.documentElement.style.removeProperty("font-size"));
   await page.emulateMedia({ reducedMotion: "reduce" });
   assert.equal(
     await page
