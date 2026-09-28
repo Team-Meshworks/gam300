@@ -1,72 +1,42 @@
-<h1 align="center">Spatial Experience Builder</h1>
+# VThere Spatial Experience Editor
 
-<p align="center">
-  <strong>A playful way to build interactive 3D spaces in the browser.</strong><br>
-  Developed by Meshworks (Team 32) for VThere.
-</p>
+Spatial experience editor.
 
-<p align="center">
-  <a href="#project-status"><img src="https://img.shields.io/badge/status-M1_prototype-orange" alt="Status: M1 prototype"></a>
-  <a href="https://github.com/Team-Meshworks/gam300/actions/workflows/ci.yml"><img src="https://github.com/Team-Meshworks/gam300/actions/workflows/ci.yml/badge.svg?branch=dev&amp;event=workflow_dispatch" alt="Latest manual CI run on dev"></a>
-  <a href="#quick-start"><img src="https://img.shields.io/badge/Node.js-24-339933?logo=nodedotjs&amp;logoColor=white" alt="Node.js 24"></a>
-  <a href="web/package.json"><img src="https://img.shields.io/badge/React-19-149ECA?logo=react&amp;logoColor=white" alt="React 19"></a>
-  <a href="web/package.json"><img src="https://img.shields.io/badge/TypeScript-6-3178C6?logo=typescript&amp;logoColor=white" alt="TypeScript 6"></a>
-  <a href="web/package.json"><img src="https://img.shields.io/badge/Vite-8-646CFF?logo=vite&amp;logoColor=white" alt="Vite 8"></a>
-</p>
+`dev` is the development integration branch; `main` is production. Both run automated
+checks, and releases deploy manually from their matching branch. See
+[development and deployment](docs/deployment.md) for Docker, CI, VM access and rollback.
 
-<p align="center">
-  <a href="#features">Features</a> ·
-  <a href="#quick-start">Quick start</a> ·
-  <a href="#development">Development</a> ·
-  <a href="#ci-and-deployment">CI &amp; deployment</a> ·
-  <a href="#contributing">Contributing</a>
-</p>
+The web app lives in `web/`. It is a React 19 + TypeScript single-page app built with Vite
+(the project uses Vite 8, which swaps Rollup for rolldown internally).
 
----
+## Prerequisites
 
-**Spatial Experience Builder (SEB)** is a browser creation tool for children and teenagers,
-with educator support. The goal is to let authors arrange curated assets, add **WHEN → DO**
-interactions without writing code, and share spaces that others can explore.
+- **Node.js `^24.19.0`** and **npm `^11.17.0`** (pinned in `web/.nvmrc` / `web/package.json`)
+- The Vite stack **will not run on older Node versions** â€” Node 20.x and below fail with a
+  `SyntaxError` / missing-native-binding error. Use Node 24.
 
-This repository currently contains the editor prototype. **Meshworks** is the development
-team; **VThere** is the commissioning company.
+### On Windows (nvm-windows)
 
-## Features
+```powershell
+nvm install 24.19.0
+nvm use 24.19.0
+node -v   # -> v24.19.0
+```
 
-- **Build a 3D scene** — drag sample models onto the ground grid, or add them with a click or keyboard.
-- **Select and move objects** — use the scene or object list, custom axis handles, and movement buttons.
-- **Undo and redo** — reverse object placement and movement while preserving object identity.
-- **Explore your scene** — switch between an orbit camera and a first-person visitor camera.
-- **Load a sample project** — try a room, two crates, and a saved starting camera in development mode.
-- **Recover from loading errors** — retry failed assets, with feedback when WebGL 2 is unavailable.
+`nvm use` updates the `C:\Program Files\nodejs` junction, so it applies to every new terminal.
+Note: some nvm-windows builds print no output at all â€” if that happens, upgrade nvm (see
+Troubleshooting).
 
-## Project status
+## Install
 
-**M1 prototype, under active development.** The interface and sample content are provisional.
-Changes currently live in memory and are lost on reload or close; the editor displays
-**Not saved** and warns before leaving a populated scene.
+```powershell
+cd web
+npm ci
+```
 
-File import/export, local recovery, the WHEN → DO rule builder, accounts, PostgreSQL saving,
-and publication/sharing are planned. The current visitor camera is part of the editor;
-a separate visitor application is still to come. Sample asset distribution rights remain
-under review; see the [asset pipeline notes](assets/README.md).
+## Run the dev server
 
-## Quick start
-
-### Requirements
-
-- Git with **Git LFS** for the 3D assets.
-- **Node.js 24.19.0** and **npm 11.17.0** — the pinned toolchain in
-  [`.nvmrc`](web/.nvmrc) and [`package.json`](web/package.json).
-- A browser with **WebGL 2** support.
-
-### Run locally
-
-```sh
-git lfs install
-git clone --branch dev https://github.com/Team-Meshworks/gam300.git
-cd gam300
-git lfs pull
+```powershell
 cd web
 npm ci
 npm run dev

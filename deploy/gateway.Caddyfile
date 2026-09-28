@@ -34,17 +34,3 @@ https://{$SITE_IP}:443 {
 https://{$SITE_IP}:8443 {
 	import site 127.0.0.1:8082
 }
-
-http://{$SITE_IP}:8080 {
-	redir https://{$SITE_IP}:9443{uri} permanent
-}
-
-https://{$SITE_IP}:9443 {
-	tls {
-		issuer acme {
-			dir https://acme-v02.api.letsencrypt.org/directory
-			profile shortlived
-		}
-	}
-	reverse_proxy 127.0.0.1:8083
-}
