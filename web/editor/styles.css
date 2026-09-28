@@ -87,6 +87,7 @@ h1 strong {
 }
 .history-controls {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.25rem;
   margin-left: auto;
 }
