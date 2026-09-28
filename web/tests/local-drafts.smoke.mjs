@@ -328,9 +328,11 @@ try {
     0,
     "Open does not ask to write the chosen file",
   );
+  assert.equal(await editor.title(), "a.json - VThere");
   assert.equal(await editor.locator(".project-file-name").count(), 0);
   await add();
   await status("Not saved");
+  assert.equal(await editor.title(), "a.json - VThere");
   const editedA = (await waitBackup(3)).document;
   assert.deepEqual(
     await readFile("a.json"),
@@ -343,8 +345,10 @@ try {
   await status("Not saved");
   assert.equal(await editor.locator(".object-row").count(), 3);
   assert.deepEqual((await session()).document, editedA);
+  assert.equal(await editor.title(), "a.json - VThere");
   await editor.keyboard.press("Control+s");
   await status("Saved");
+  assert.equal(await editor.title(), "a.json - VThere");
   assert.deepEqual(await readFile("a.json"), editedA);
   assert.equal(
     await editor.evaluate(() => window.pickerCount),
@@ -387,6 +391,7 @@ try {
   await status("Not saved");
   assert.equal((await readFile("a.json")).scenes[0].objects.length, 4, "Save completes before New");
   assert.equal(await editor.locator(".object-row").count(), 0);
+  assert.equal(await editor.title(), "Untitled - VThere");
   await menu("New");
   assert.equal(
     await editor.getByRole("dialog").count(),
@@ -505,10 +510,33 @@ try {
   await status("Saved");
   assert.equal(await editor.evaluate(() => window.pickerCount), pickerCount);
   assert.equal((await readFile("b.json")).scenes[0].objects.length, 4);
+  assert.equal(await editor.title(), "a.json - VThere");
   await add();
   await menu("New");
   await choose("Save");
   assert.equal(await editor.evaluate(() => window.pickerCount), pickerCount);
+  assert.equal(await editor.title(), "Untitled - VThere");
+  const layout = await editor.evaluate(() => {
+    const actions = [
+      ...document.querySelectorAll(".history-controls button"),
+      document.querySelector(".mode-actions button"),
+      document.querySelector(".project-file-status"),
+    ].map((element) => element.getBoundingClientRect());
+    const meter = document.querySelector(".fps-meter").getBoundingClientRect();
+    return {
+      gaps: actions.slice(1).map((rect, index) => rect.left - actions[index].right),
+      meterBelowHeader:
+        meter.top >= document.querySelector(".app-header").getBoundingClientRect().bottom,
+    };
+  });
+  assert.deepEqual(layout.gaps, [24, 24, 24, 24]);
+  assert.equal(layout.meterBelowHeader, true);
+  assert.equal(await editor.locator(".draft-feedback").textContent(), "New project");
+  await editor.waitForFunction(() => {
+    const opacity = Number(getComputedStyle(document.querySelector(".draft-feedback")).opacity);
+    return opacity > 0 && opacity < 1;
+  });
+  await editor.waitForFunction(() => document.querySelector(".draft-feedback").textContent === "");
   await context.close();
 
   // Download fallback never claims the browser confirmed a completed disk save

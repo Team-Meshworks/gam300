@@ -32,7 +32,7 @@ try {
   const rows = page.locator(".object-row");
   const stage = page.locator(".viewport-stage");
   await ready.waitFor();
-  assert.equal(await page.title(), "VThere Spatial Experience Editor");
+  assert.equal(await page.title(), "Untitled - VThere");
   assert.equal(
     await page.getByRole("heading", { name: "VThere Spatial Experience Editor" }).count(),
     1,

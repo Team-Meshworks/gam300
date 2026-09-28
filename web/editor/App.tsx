@@ -83,6 +83,11 @@ export function App() {
   const session = useProjectSession(store, assets, project, objects.length, onReplace, setNotice);
   const storageOperation = session.operation;
 
+  useEffect(() => {
+    // Filename identifies the browser tab; save status stays in the editor
+    document.title = `${session.fileName || "Untitled"} - VThere`;
+  }, [session.fileName]);
+
   // Keep keyboard saving on the same path as the menu and its file picker
   useEffect(() => {
     function saveShortcut(event: KeyboardEvent) {
@@ -459,7 +464,15 @@ export function App() {
         />
       )}
       {(session.error || error) && (
-        <p className="action-error" role="alert">
+        <p
+          key={session.error || error}
+          className="action-error"
+          role="alert"
+          onAnimationEnd={() => {
+            session.clearError();
+            setError("");
+          }}
+        >
           {session.error || error}
         </p>
       )}
