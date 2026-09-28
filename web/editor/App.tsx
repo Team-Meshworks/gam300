@@ -4,6 +4,11 @@ import { assetDragType } from "../shared/assets/catalogue";
 import type { Vector3Tuple } from "../shared/project/scene-object";
 import type { Transform } from "../shared/project/project-types";
 import { createDocumentStore } from "./document-store";
+import {
+  handleHistoryShortcut,
+  handleObjectShortcut,
+  isTextEditingTarget,
+} from "./history-shortcuts";
 import type { ViewportStatus } from "./graphics/scene";
 import type { ModeManager, ModeManagerState } from "./graphics/modeManager";
 import { Viewport } from "./viewport/Viewport";
@@ -124,8 +129,9 @@ export function App() {
   const [manager, setManager] = useState<ModeManager | null>(null);
   const [modeState, setModeState] = useState<ModeManagerState | null>(null);
   const selection = objects.some((object) => object.id === selectedId) ? selectedId : null;
+  const [hasDeleted, setHasDeleted] = useState(false);
   const selectedObject = objects.find((object) => object.id === selection);
-  const hasChanges = project !== null || objects.length > 0;
+  const hasChanges = project !== null || objects.length > 0 || hasDeleted;
   const visitor = modeState?.mode === "visitor";
 
   const onManager = useCallback((next: ModeManager) => {
@@ -135,6 +141,59 @@ export function App() {
 
   useEffect(() => (manager === null ? undefined : manager.subscribe(setModeState)), [manager]);
 
+  useEffect(() => {
+    function onHistoryKeyDown(event: KeyboardEvent) {
+      // A project confirmation owns the keyboard until the author makes a choice.
+      if (confirmation !== null) return;
+      const editingText = event.composedPath().some(isTextEditingTarget);
+      handleHistoryShortcut(event, store, editingText);
+      handleObjectShortcut(
+        event,
+        {
+          copy() {
+            if (selection === null) {
+              setError("Select an object to copy.");
+              return;
+            }
+            const result = store.copyObject(selection);
+            if (!result.ok) {
+              setError(result.error.message);
+              return;
+            }
+            setError("");
+            setNotice(`Copied ${result.value.name}. Press Ctrl+V to paste.`);
+          },
+          paste() {
+            const result = store.pasteObject();
+            if (!result.ok) {
+              setError(result.error.message);
+              return;
+            }
+            setSelectedId(result.value.id);
+            setError("");
+            setNotice(`Pasted ${result.value.name}. Undo is available.`);
+          },
+          duplicate() {
+            if (selection === null) {
+              setError("Select an object to duplicate.");
+              return;
+            }
+            const result = store.duplicateObject(selection);
+            if (!result.ok) {
+              setError(result.error.message);
+              return;
+            }
+            setSelectedId(result.value.id);
+            setError("");
+            setNotice(`Duplicated ${result.value.name}. Undo is available.`);
+          },
+        },
+        editingText,
+      );
+    }
+    window.addEventListener("keydown", onHistoryKeyDown);
+    return () => window.removeEventListener("keydown", onHistoryKeyDown);
+  }, [store, selection, confirmation]);
   // Store edits create a new project snapshot
   // Remembering the saved snapshot lets later edits keep the unsaved label
   const hasUnsavedChanges = project !== null ? project !== fileSavedProject : objects.length > 0;
@@ -148,6 +207,8 @@ export function App() {
       // Read when the queued save starts; several edits may have landed during the delay
       const current = store.getSnapshot().project;
       if (current === null || local.current.busy || (automatic && local.current.paused)) return;
+      // Capture history in the same turn as the scene, before any storage awaits.
+      const recoveryHistory = store.getRecoveryHistory();
       clearTimeout(local.current.saveTimer);
       local.current.pending = false;
       local.current.busy = true;
@@ -189,6 +250,7 @@ export function App() {
         const result = await saveLocalDraft(
           {
             project: current,
+            history: recoveryHistory,
             expectedStorageRevision: expectedRevision,
             localEditSequence: savedSequence,
           },
@@ -524,7 +586,11 @@ export function App() {
           setNotice("Saved work was kept in this browser; refresh to reopen it");
           return;
         }
-        const restored = store.loadProject(JSON.stringify(result.value.document), assetKinds);
+        const restored = store.loadProject(
+          JSON.stringify(result.value.document),
+          assetKinds,
+          result.value.history,
+        );
         if (!restored.ok) {
           setError(restored.error.message);
           return;
@@ -540,6 +606,7 @@ export function App() {
         setSelectedId(null);
         setDragging(false);
         setNotice("Reopened your last project");
+        if (result.value.historyWarning) setError(result.value.historyWarning);
         try {
           const link = await recallProjectFile(restored.value.projectId);
           if (cancelled) return;
@@ -631,6 +698,7 @@ export function App() {
     setSelectedId(null);
     setDragging(false);
     setError("");
+    setHasDeleted(false);
     setNotice("Opened sample project");
   }
 
@@ -683,6 +751,19 @@ export function App() {
     local.current.noticeTimer = setTimeout(() => {
       setNotice((current) => (current === addedNotice ? "" : current));
     }, 3000);
+  }
+
+  function deleteSelection() {
+    if (selection === null || visitor) return;
+    const result = store.deleteObject(selection);
+    if (!result.ok) {
+      setError(result.error.message);
+      return;
+    }
+    setError("");
+    setHasDeleted(true);
+    setSelectedId(null);
+    setNotice(`Deleted ${result.value.name}. Undo restores it.`);
   }
 
   return (
@@ -761,6 +842,9 @@ export function App() {
           <strong>VThere</strong> Spatial Experience Editor
         </h1>
         <div className="history-controls" role="group" aria-label="History">
+          <button type="button" disabled={selection === null || visitor} onClick={deleteSelection}>
+            Delete selected
+          </button>
           {import.meta.env.DEV && (
             <button
               type="button"
@@ -770,13 +854,25 @@ export function App() {
               Open sample project
             </button>
           )}
-          <button type="button" disabled={!canUndo} onClick={store.undo}>
+          <button
+            type="button"
+            disabled={!canUndo}
+            onClick={store.undo}
+            title="Undo (Ctrl+Z / ⌘Z)"
+            aria-keyshortcuts="Control+z Meta+z"
+          >
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M9 5 4 10l5 5M4 10h10a6 6 0 0 1 0 12" />
             </svg>
             Undo
           </button>
-          <button type="button" disabled={!canRedo} onClick={store.redo}>
+          <button
+            type="button"
+            disabled={!canRedo}
+            onClick={store.redo}
+            title="Redo (Ctrl+Y / Ctrl+Shift+Z / ⌘⇧Z)"
+            aria-keyshortcuts="Control+y Control+Shift+z Meta+Shift+z"
+          >
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="m15 5 5 5-5 5m5-5H10a6 6 0 0 0 0 12" />
             </svg>

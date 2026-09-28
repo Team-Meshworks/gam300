@@ -114,6 +114,34 @@ it("commits one reversible transform and rejects invalid moves without changing 
   assert.deepEqual(original.objects[0]?.transform.position, [1, 0, 0]);
 });
 
+it("shares one undo order across incoming gizmo moves, edit sessions and deletion", () => {
+  const store = createDocumentStore([
+    { id: "crate", name: "Crate", kind: "model", url: "crate.glb", thumbnail: null },
+  ]);
+  const added = store.addObject("crate", [0, 0, 0]);
+  if (!added.ok) throw new Error(added.error);
+  const started = store.beginTransform(added.object.id);
+  if (!started.ok) throw new Error(started.error.message);
+  store.previewTransform(started.value.token, { ...added.object.transform, position: [9, 0, 0] });
+  assert.deepEqual(
+    store.setTransform(added.object.id, { ...added.object.transform, position: [3, 0, 0] }),
+    { ok: true, changed: true },
+  );
+  assert.equal(store.getTransformEdit(), null);
+  assert.equal(store.commitTransformEdit(started.value.token).ok, false);
+  store.deleteObject(added.object.id);
+  store.undo();
+  assert.deepEqual(store.getSnapshot().objects[0]?.transform.position, [3, 0, 0]);
+  store.undo();
+  assert.deepEqual(store.getSnapshot().objects[0]?.transform.position, [0, 0, 0]);
+  store.undo();
+  assert.equal(store.getSnapshot().objects.length, 0);
+  store.redo();
+  store.redo();
+  store.redo();
+  assert.equal(store.getSnapshot().objects.length, 0);
+});
+
 it("creates a saveable room project while preserving model IDs, transforms and history", () => {
   const assets: CatalogueAsset[] = [
     { id: "test-room-v1", name: "Room", kind: "environment", url: "room.glb", thumbnail: null },

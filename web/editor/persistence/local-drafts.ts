@@ -3,6 +3,7 @@ import { deserializeProject } from "../../shared/project/project-deserialization
 import type { ProjectDocument } from "../../shared/project/project-types";
 import { checkFields, invalid, isRecord } from "../../shared/project/validation-helpers";
 import type { ValidationResult } from "../../shared/project/validation-helpers";
+import { validateRecoveryHistory, type RecoveryHistory } from "./recovery-history";
 
 // Stable storage names so refreshing the page finds the same records
 const DATABASE_NAME = "vthere-local-drafts";
@@ -11,6 +12,7 @@ const LOCAL_PRINCIPAL = "local";
 
 type SaveRequest = Readonly<{
   project: unknown;
+  history?: unknown;
   // Last storage revision this tab has seen; zero means no existing draft
   expectedStorageRevision: number;
   // Edit counter captured with the project being saved
@@ -24,7 +26,12 @@ type SaveReceipt = Readonly<{
   savedAt: string;
 }>;
 
-type RecoveredDraft = SaveReceipt & Readonly<{ document: ProjectDocument }>;
+type RecoveredDraft = SaveReceipt &
+  Readonly<{
+    document: ProjectDocument;
+    history?: RecoveryHistory;
+    historyWarning?: string;
+  }>;
 
 function isCounter(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
@@ -79,6 +86,7 @@ function validateStoredDraft(
       "baseServerRevision",
       "pendingMutation",
       "savedAt",
+      ...(Object.hasOwn(raw, "history") ? ["history"] : []),
     ],
     "storage",
   );
@@ -107,11 +115,24 @@ function validateStoredDraft(
     // A valid document under the wrong storage key still belongs to another project
     return invalid("storage.projectId", "Stored document belongs to a different project");
   }
+  // A damaged or outdated history must not prevent recovery of a valid scene.
+  // Older drafts have no history field and still open normally.
+  const history =
+    raw.history === undefined
+      ? undefined
+      : validateRecoveryHistory(raw.history, document.value, assetKinds);
   return {
     ok: true,
     value: {
       projectId,
       document: document.value,
+      ...(history?.ok ? { history: history.value } : {}),
+      ...(history !== undefined && !history.ok
+        ? {
+            historyWarning:
+              "Scene recovered, but its undo history was invalid and could not be restored.",
+          }
+        : {}),
       localStorageRevision: raw.localStorageRevision,
       localEditSequence: raw.localEditSequence,
       savedAt: raw.savedAt,
@@ -243,7 +264,12 @@ export async function saveLocalDraft(
   // Capture JSON before waiting on storage so later edits can't enter this write
   const serialized = serializeProject(request.project, assetKinds);
   if (!serialized.ok) return serialized;
-  const checked: { projectId: string } = JSON.parse(serialized.value);
+  const checked: ProjectDocument = JSON.parse(serialized.value);
+  const history =
+    request.history === undefined
+      ? undefined
+      : validateRecoveryHistory(request.history, checked, assetKinds);
+  if (history !== undefined && !history.ok) return history;
   // UUID letter case must resolve to the same draft key
   // Original spelling stays inside the saved JSON
   const projectId = checked.projectId.toLowerCase();
@@ -312,6 +338,7 @@ export async function saveLocalDraft(
             ...receipt,
             principalKey: LOCAL_PRINCIPAL,
             document: serialized.value,
+            ...(history?.ok ? { history: history.value } : {}),
             baseServerRevision: null,
             pendingMutation: null,
           });
