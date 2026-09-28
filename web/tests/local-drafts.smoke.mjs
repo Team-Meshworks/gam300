@@ -9,6 +9,7 @@ const browser = await chromium.launch({
   args: ["--enable-unsafe-swiftshader"],
   ...(process.env.PLAYWRIGHT_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHANNEL } : {}),
 });
+let fileContext;
 try {
   // Fresh browser context keeps these writes away from the author's saved drafts
   const page = await browser.newPage();
@@ -29,7 +30,7 @@ try {
     const request = { project, expectedStorageRevision: 0, localEditSequence: 1 };
     async function readStored() {
       return new Promise((resolve, reject) => {
-        const open = indexedDB.open("vthere-local-drafts", 1);
+        const open = indexedDB.open("vthere-local-drafts", 2);
         open.onerror = () => reject(open.error);
         open.onsuccess = () => {
           const database = open.result;
@@ -93,7 +94,7 @@ try {
     }
     async function replaceStored(record) {
       return new Promise((resolve, reject) => {
-        const open = indexedDB.open("vthere-local-drafts", 1);
+        const open = indexedDB.open("vthere-local-drafts", 2);
         open.onerror = () => reject(open.error);
         open.onsuccess = () => {
           const database = open.result;
@@ -193,30 +194,64 @@ try {
   assert.deepEqual(results.afterOlderEdit, results.winner);
   assert.equal(results.unavailable.ok, false);
   assert.deepEqual(results.project, fixture);
-  // Native writable streams and cloneable handles come from isolated browser storage
-  // Only the OS picker is substituted; no test touches a file in the author's folders
-  const editor = await browser.newPage();
+
+  await page.close();
+  // Real file streams live in an isolated browser folder; only the OS pickers are substituted
+  // A temporary regular profile exercises durable handles across reloads
+  // Chromium's headless incognito profile crashes when cloning OPFS handles into IndexedDB
+  const context = await chromium.launchPersistentContext("", {
+    args: ["--enable-unsafe-swiftshader"],
+    ...(process.env.PLAYWRIGHT_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHANNEL } : {}),
+  });
+  fileContext = context;
+  const editor = await context.newPage();
   editor.on("dialog", (dialog) => dialog.accept());
-  await editor.addInitScript(() => {
-    window.fileChoice = "source.json";
-    window.saveChoice = "copy.json";
-    window.pickerCount = 0;
+  await context.addInitScript(() => {
+    window.fileChoice = "a.json";
+    window.saveChoice = "a.json";
     window.cancelPicker = false;
+    window.denyPermission = false;
+    window.failWrite = false;
+    window.failRecovery = false;
+    window.permissionRequests = 0;
+    window.pickerCount = 0;
+    const queryPermission = FileSystemFileHandle.prototype.queryPermission;
+    FileSystemFileHandle.prototype.queryPermission = function (options) {
+      return window.denyPermission
+        ? Promise.resolve("prompt")
+        : queryPermission.call(this, options);
+    };
+    const permission = FileSystemFileHandle.prototype.requestPermission;
+    FileSystemFileHandle.prototype.requestPermission = function (options) {
+      window.permissionRequests += 1;
+      return window.denyPermission ? Promise.resolve("denied") : permission.call(this, options);
+    };
+    const writable = FileSystemFileHandle.prototype.createWritable;
+    FileSystemFileHandle.prototype.createWritable = function (...args) {
+      if (window.failWrite) throw new DOMException("Write failed", "NotAllowedError");
+      return writable.apply(this, args);
+    };
+    const put = IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put = function (...args) {
+      const result = put.apply(this, args);
+      if (window.failRecovery && this.name === "session") this.transaction.abort();
+      return result;
+    };
     window.showOpenFilePicker = async () => {
       if (window.cancelPicker) throw new DOMException("Cancelled", "AbortError");
-      const directory = await navigator.storage.getDirectory();
-      return [await directory.getFileHandle(window.fileChoice)];
+      return [await (await navigator.storage.getDirectory()).getFileHandle(window.fileChoice)];
     };
     window.showSaveFilePicker = async () => {
       window.pickerCount += 1;
       if (window.cancelPicker) throw new DOMException("Cancelled", "AbortError");
-      const directory = await navigator.storage.getDirectory();
-      return directory.getFileHandle(window.saveChoice, { create: true });
+      return (await navigator.storage.getDirectory()).getFileHandle(window.saveChoice, {
+        create: true,
+      });
     };
   });
-  await editor.goto(process.argv[2] ?? "http://127.0.0.1:5173/");
-  const ready = editor.getByRole("status").filter({ hasText: "Scene ready" });
-  await ready.waitFor();
+  const url = process.argv[2] ?? "http://127.0.0.1:5173/";
+  await editor.goto(url);
+  await editor.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   await editor.waitForFunction(
     () => document.querySelector(".draft-feedback")?.textContent !== "Reopening saved work…",
   );
@@ -224,252 +259,265 @@ try {
     await editor.locator(".draft-menu summary").click();
     await editor.getByRole("button", { name, exact: true }).click();
   };
-  const fileText = (name) =>
-    editor.evaluate(async (fileName) => {
-      const directory = await navigator.storage.getDirectory();
-      return (await (await directory.getFileHandle(fileName)).getFile()).text();
-    }, name);
+  const choose = async (name) => {
+    await editor.getByRole("dialog").getByRole("button", { name, exact: true }).click();
+    await editor.getByRole("dialog").waitFor({ state: "detached" });
+    await editor.waitForFunction(
+      () => !document.querySelector(".draft-menu-panel button").disabled,
+    );
+  };
+  const status = (text) =>
+    editor.waitForFunction(
+      (expected) => document.querySelector(".save-state")?.textContent === expected,
+      text,
+    );
+  const add = () => editor.getByRole("button", { name: "Add test-crate", exact: true }).click();
   const writeFile = (name, text) =>
     editor.evaluate(
       async ({ name, text }) => {
-        const directory = await navigator.storage.getDirectory();
-        const handle = await directory.getFileHandle(name, { create: true });
+        const handle = await (
+          await navigator.storage.getDirectory()
+        ).getFileHandle(name, { create: true });
         const stream = await handle.createWritable();
         await stream.write(text);
         await stream.close();
       },
       { name, text },
     );
-  const waitSaved = () =>
-    editor.waitForFunction(() => document.querySelector(".save-state")?.textContent === "Saved");
-  await writeFile("source.json", JSON.stringify(fixture));
+  const readFile = (name) =>
+    editor.evaluate(
+      async (name) =>
+        JSON.parse(
+          await (
+            await (await (await navigator.storage.getDirectory()).getFileHandle(name)).getFile()
+          ).text(),
+        ),
+      name,
+    );
+  const session = (target = editor) =>
+    target.evaluate(async () => {
+      const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
+      const result = await loadRecoverySession(
+        new Map([
+          ["test-room-v1", "environment"],
+          ["test-crate-v1", "model"],
+          ["sample-snowglobe-v1", "model"],
+        ]),
+      );
+      if (!result.ok) throw new Error(result.error.message);
+      return result.value;
+    });
+  async function waitBackup(count) {
+    const deadline = Date.now() + 10000;
+    while (Date.now() < deadline) {
+      const saved = await session();
+      if (saved?.document.scenes[0].objects.length === count) return saved;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    throw new Error(`Recovery did not reach ${count} objects`);
+  }
+  const other = structuredClone(fixture);
+  other.projectId = "11111111-1111-4111-8111-111111111111";
+  other.title = "Other project";
+  await writeFile("a.json", JSON.stringify(fixture, null, 2));
+  await writeFile("b.json", JSON.stringify(other));
   await menu("Open");
-  await editor.getByText("Project opened", { exact: true }).waitFor();
-  await waitSaved();
-  const rows = editor.locator(".object-row");
-  assert.equal(await rows.count(), 2);
-  assert.equal(await editor.getByRole("button", { name: "Recover", exact: true }).count(), 0);
-  await rows.first().click();
-  await editor
-    .getByRole("button", {
-      name: `Move ${fixture.scenes[0].objects[0].name} X plus 0.25 metres`,
-      exact: true,
-    })
-    .click();
-  const expected = structuredClone(fixture);
-  expected.scenes[0].objects[0].transform.position[0] += 0.25;
-  await waitSaved();
-  assert.deepEqual(
-    JSON.parse(await fileText("source.json")),
-    expected,
-    "Autosave updates the opened file",
-  );
-  await menu("Save As");
-  await editor.getByText("Saved copy.json", { exact: true }).waitFor();
-  await waitSaved();
-  assert.deepEqual(JSON.parse(await fileText("copy.json")), expected);
-  await editor.getByRole("button", { name: "Add test-crate", exact: true }).click();
-  await waitSaved();
-  assert.equal(JSON.parse(await fileText("copy.json")).scenes[0].objects.length, 3);
+  await status("Saved");
   assert.equal(
-    JSON.parse(await fileText("source.json")).scenes[0].objects.length,
-    2,
-    "Save As leaves the old file alone",
+    await editor.evaluate(() => window.permissionRequests),
+    0,
+    "Open does not ask to write the chosen file",
   );
+  assert.equal(await editor.locator(".project-file-name").count(), 0);
+  await add();
+  await status("Not saved");
+  const editedA = (await waitBackup(3)).document;
+  assert.deepEqual(
+    await readFile("a.json"),
+    fixture,
+    "Quiet recovery must not overwrite the JSON file",
+  );
+  assert.equal(await editor.locator(".save-state").textContent(), "Not saved");
+  await editor.reload();
+  await editor.getByText("Reopened your last project", { exact: true }).waitFor();
+  await status("Not saved");
+  assert.equal(await editor.locator(".object-row").count(), 3);
+  assert.deepEqual((await session()).document, editedA);
   await editor.keyboard.press("Control+s");
-  await waitSaved();
+  await status("Saved");
+  assert.deepEqual(await readFile("a.json"), editedA);
   assert.equal(
     await editor.evaluate(() => window.pickerCount),
-    1,
-    "Save reuses the current destination",
+    0,
+    "Save after reload keeps its file",
   );
-  await editor.evaluate(() => {
-    window.cancelPicker = true;
-  });
-  await menu("Save As");
-  await waitSaved();
-  await editor.evaluate(() => {
-    window.cancelPicker = false;
-  });
-  assert.equal(await editor.getByRole("alert").count(), 0, "Cancelling a picker is quiet");
   await editor.reload();
-  await ready.waitFor();
-  await editor
-    .getByText("Project reopened; choose Save to reconnect its file", { exact: true })
-    .waitFor();
-  assert.equal(await editor.locator(".save-state").textContent(), "Saved in browser");
-  await menu("Save");
-  await waitSaved();
-  assert.equal(await rows.count(), 3);
-  await editor.getByRole("button", { name: "Add test-crate", exact: true }).click();
-  await waitSaved();
-  assert.equal(
-    JSON.parse(await fileText("copy.json")).scenes[0].objects.length,
-    4,
-    "Save reconnects the file after automatic recovery",
-  );
+  await editor.getByText("Reopened your last project", { exact: true }).waitFor();
+  await status("Saved");
 
-  // Outside edits must survive a stale automatic write from this editor
-  const external = JSON.parse(await fileText("copy.json"));
-  external.title = "Outside edit";
-  await writeFile("copy.json", JSON.stringify(external));
-  await editor.getByRole("button", { name: "Add test-crate", exact: true }).click();
-  await editor.getByText("Save failed", { exact: true }).waitFor();
-  assert.equal(JSON.parse(await fileText("copy.json")).title, "Outside edit");
-  assert.equal(await rows.count(), 5);
-  await editor.evaluate(() => {
-    window.saveChoice = "rescued.json";
-  });
-  await menu("Save As");
-  await editor.getByText("Saved rescued.json", { exact: true }).waitFor();
-  await waitSaved();
-  assert.equal(JSON.parse(await fileText("rescued.json")).scenes[0].objects.length, 5);
-
-  // A failed file write keeps the scene and background recovery copy available
-  await editor.evaluate(() => {
-    window.realCreateWritable = FileSystemFileHandle.prototype.createWritable;
-    FileSystemFileHandle.prototype.createWritable = async () => {
-      throw new DOMException("Test write failure", "NotAllowedError");
-    };
-  });
-  await editor.getByRole("button", { name: "Add test-crate", exact: true }).click();
-  await editor.getByText("Save failed", { exact: true }).waitFor();
-  assert.equal(await rows.count(), 6);
-  assert.equal(JSON.parse(await fileText("rescued.json")).scenes[0].objects.length, 5);
-  await editor.evaluate(() => {
-    FileSystemFileHandle.prototype.createWritable = window.realCreateWritable;
-  });
-  // The replacement dialog belongs to the editor; Cancel keeps unsaved file changes
+  // Opening a saved scene requires no decision; dirty scenes offer all three choices
+  await editor.evaluate(() => (window.fileChoice = "b.json"));
   await menu("Open");
-  await editor.getByRole("dialog").waitFor();
-  await editor.getByRole("button", { name: "Cancel", exact: true }).click();
-  assert.equal(await rows.count(), 6);
-  await menu("Save");
-  await waitSaved();
-  assert.equal(JSON.parse(await fileText("rescued.json")).scenes[0].objects.length, 6);
-  await writeFile("bad.json", "{broken");
-  await editor.evaluate(() => {
-    window.fileChoice = "bad.json";
-  });
+  await status("Saved");
+  assert.equal(await editor.getByRole("dialog").count(), 0);
+  await add();
+  await waitBackup(3);
+  await editor.evaluate(() => (window.fileChoice = "a.json"));
   await menu("Open");
-  await editor.getByRole("alert").filter({ hasText: "Project JSON is malformed" }).waitFor();
-  assert.equal(await rows.count(), 6);
-
-  // Save on a project with no destination follows the Save As path
-  await editor.getByRole("button", { name: "Open sample project", exact: true }).click();
-  await editor.getByRole("dialog").waitFor();
-  await editor.getByRole("button", { name: "Replace", exact: true }).click();
-  await editor.getByText("Opened sample project", { exact: true }).waitFor();
-  await editor.evaluate(() => {
-    window.saveChoice = "new-project.json";
-  });
-  const pickerCount = await editor.evaluate(() => window.pickerCount);
-  await menu("Save");
-  // Saving feedback can be replaced by the queued browser backup; check the durable result
-  await waitSaved();
-  assert.equal(await editor.evaluate(() => window.pickerCount), pickerCount + 1);
-  assert.equal(JSON.parse(await fileText("new-project.json")).scenes[0].objects.length, 2);
-
-  // Start from the asset library with no sample or imported project
-  const fresh = await browser.newPage();
-  fresh.on("dialog", (dialog) => dialog.accept());
-  const leavingWouldWarn = () =>
-    fresh.evaluate(() => {
-      const event = new Event("beforeunload", { cancelable: true });
-      window.dispatchEvent(event);
-      return event.defaultPrevented;
-    });
-  await fresh.addInitScript(() => {
-    window.showSaveFilePicker = async () =>
-      (await navigator.storage.getDirectory()).getFileHandle("fresh.json", { create: true });
-  });
-  await fresh.goto(process.argv[2] ?? "http://127.0.0.1:5173/");
-  await fresh.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
-  await fresh.waitForFunction(
-    () => document.querySelector(".draft-feedback")?.textContent !== "Reopening saved work…",
-  );
-  await fresh.getByRole("button", { name: "Add test-room", exact: true }).click();
-  await fresh.waitForFunction(
-    () => document.querySelector(".save-state")?.textContent === "Saved in browser",
-  );
-  await fresh.locator(".draft-menu summary").click();
-  await fresh.getByRole("button", { name: "Save", exact: true }).click();
-  await fresh.getByText("Saved fresh.json", { exact: true }).waitFor();
-  const freshDocument = await fresh.evaluate(async () =>
-    JSON.parse(
-      await (
-        await (await (await navigator.storage.getDirectory()).getFileHandle("fresh.json")).getFile()
-      ).text(),
-    ),
-  );
-  assert.equal(freshDocument.scenes[0].environmentAssetId, "test-room-v1");
-  assert.equal(freshDocument.scenes[0].objects.length, 0);
-  await fresh.getByRole("button", { name: "Add test-crate", exact: true }).click();
-  await fresh.waitForFunction(() => document.querySelector(".save-state")?.textContent === "Saved");
-  const readFreshFile = () =>
-    fresh.evaluate(async () =>
-      JSON.parse(
-        await (
-          await (
-            await (await navigator.storage.getDirectory()).getFileHandle("fresh.json")
-          ).getFile()
-        ).text(),
-      ),
-    );
-  const written = await readFreshFile();
-  assert.equal(written.scenes[0].objects.length, 1);
-  const placed = written.scenes[0].objects[0];
-  await fresh
-    .getByRole("button", { name: `Move ${placed.name} X plus 0.25 metres`, exact: true })
-    .click();
-  await fresh.waitForFunction(() => document.querySelector(".save-state")?.textContent === "Saved");
-  const moved = structuredClone(written);
-  moved.scenes[0].objects[0].transform.position[0] += 0.25;
-  assert.deepEqual(await readFreshFile(), moved, "Movement reaches the same saved document");
-  await fresh.getByRole("button", { name: "Undo", exact: true }).click();
-  await fresh.waitForFunction(() => document.querySelector(".save-state")?.textContent === "Saved");
-  assert.deepEqual(await readFreshFile(), written, "Undo restores the whole saved transform");
-  await fresh.locator(".draft-menu summary").click();
-  await fresh.getByRole("button", { name: "Save", exact: true }).click();
-  await fresh.waitForFunction(() => document.querySelector(".save-state")?.textContent === "Saved");
-  assert.equal(await leavingWouldWarn(), false, "File is up to date");
-  await fresh.reload();
-  await fresh
-    .getByText("Project reopened; choose Save to reconnect its file", { exact: true })
-    .waitFor();
-  await fresh.waitForFunction(
-    () => document.querySelectorAll(".object-row").length === 1,
-    undefined,
-    { timeout: 3000 },
-  );
-  assert.equal(await fresh.locator(".object-row").getAttribute("data-object-id"), placed.id);
-  // Read the revalidated recovery copy after JavaScript memory has been discarded
-  const recovered = await fresh.evaluate(async (projectId) => {
-    const { loadLocalDraft } = await import("/persistence/local-drafts.ts");
-    return loadLocalDraft(
-      projectId,
-      new Map([
-        ["test-room-v1", "environment"],
-        ["test-crate-v1", "model"],
-      ]),
-    );
-  }, written.projectId);
-  assert.equal(recovered.ok, true);
+  await choose("Cancel");
+  assert.equal((await session()).document.projectId, other.projectId);
+  assert.equal(await editor.locator(".object-row").count(), 3);
+  await menu("Open");
+  await choose("Don’t Save");
+  await status("Saved");
+  assert.deepEqual((await session()).document, editedA);
   assert.deepEqual(
-    recovered.value.document,
-    written,
-    "Place–move–undo–save–reload preserves the document",
+    await readFile("b.json"),
+    other,
+    "Discard leaves the last manual file untouched",
   );
-  assert.deepEqual(await readFreshFile(), written, "Reload preserves the portable file too");
-  await fresh.close();
+  await editor.reload();
+  await editor.getByText("Reopened your last project", { exact: true }).waitFor();
+  assert.deepEqual((await session()).document, editedA, "Discarded B must not return on reload");
 
-  // Browsers without file pickers retain JSON opening and download fallback
+  await add();
+  await waitBackup(4);
+  await menu("New");
+  await choose("Save");
+  await status("Not saved");
+  assert.equal((await readFile("a.json")).scenes[0].objects.length, 4, "Save completes before New");
+  assert.equal(await editor.locator(".object-row").count(), 0);
+  await menu("New");
+  assert.equal(
+    await editor.getByRole("dialog").count(),
+    0,
+    "Empty untouched scene needs no decision",
+  );
+  await add();
+  const unsaved = await waitBackup(1);
+  await editor.evaluate(() => (window.cancelPicker = true));
+  await menu("New");
+  await choose("Save");
+  assert.equal(
+    (await session()).document.projectId,
+    unsaved.document.projectId,
+    "Cancelled Save keeps the active project",
+  );
+  assert.equal(await editor.locator(".object-row").count(), 1);
+  await editor.evaluate(() => (window.cancelPicker = false));
+  await menu("New");
+  await choose("Don’t Save");
+  const empty = await waitBackup(0);
+  assert.notEqual(empty.document.projectId, unsaved.document.projectId);
+  await editor.reload();
+  await editor.getByText("Reopened your last project", { exact: true }).waitFor();
+  assert.equal(await editor.locator(".object-row").count(), 0);
+
+  await add();
+  const beforeFailure = await waitBackup(1);
+  await editor.evaluate(() => (window.failRecovery = true));
+  await menu("New");
+  await choose("Don’t Save");
+  await editor.getByRole("alert").filter({ hasText: "Recovery backup failed" }).waitFor();
+  assert.deepEqual(
+    await session(),
+    beforeFailure,
+    "Failed switch preserves the previous recovery record",
+  );
+  assert.equal(await editor.locator(".object-row").count(), 1);
+  await editor.evaluate(() => {
+    window.failRecovery = false;
+    window.saveChoice = "saved.json";
+    window.denyPermission = true;
+  });
+  await menu("Save");
+  await status("Save failed");
+  assert.equal(await editor.locator(".object-row").count(), 1);
+  await editor.evaluate(() => {
+    window.denyPermission = false;
+    window.failWrite = true;
+  });
+  await menu("Save");
+  await status("Save failed");
+  assert.equal(await editor.locator(".object-row").count(), 1);
+  await editor.evaluate(() => (window.failWrite = false));
+  await menu("Save");
+  await status("Saved");
+  const saved = await readFile("saved.json");
+  await add();
+  await waitBackup(2);
+  assert.deepEqual(await readFile("saved.json"), saved);
+  const external = { ...saved, title: "Changed elsewhere" };
+  await writeFile("saved.json", JSON.stringify(external));
+  await menu("Save");
+  await status("Save failed");
+  assert.deepEqual(await readFile("saved.json"), external, "Save refuses a stale overwrite");
+  await editor.evaluate(() => (window.saveChoice = "copy.json"));
+  await editor.keyboard.press("Control+Shift+s");
+  await status("Saved");
+  assert.equal((await readFile("copy.json")).scenes[0].objects.length, 2);
+  assert.deepEqual(await readFile("saved.json"), external);
+  await writeFile("bad.json", "{");
+  await editor.evaluate(() => (window.fileChoice = "bad.json"));
+  await menu("Open");
+  await editor.getByRole("alert").waitFor();
+  assert.equal(await editor.locator(".object-row").count(), 2);
+  assert.equal(
+    await editor.getByRole("dialog").count(),
+    0,
+    "Validate before asking to discard work",
+  );
+
+  // Another tab cannot replace the active recovery session from a stale revision
+  const second = await context.newPage();
+  second.on("dialog", (dialog) => dialog.accept());
+  await second.goto(url);
+  await second.getByText("Reopened your last project", { exact: true }).waitFor();
+  await add();
+  await waitBackup(3);
+  await second.getByRole("button", { name: "Add test-crate", exact: true }).click();
+  await second.getByRole("alert").filter({ hasText: "Recovery changed in another tab" }).waitFor();
+  assert.equal(await second.locator(".object-row").count(), 3);
+  await second.close();
+
+  // Opening an existing file keeps its destination through both Save routes
+  // A second picker here would turn an ordinary Save into Save As
+  await editor.evaluate(() => (window.fileChoice = "b.json"));
+  await menu("Open");
+  await choose("Don’t Save");
+  await status("Saved");
+  const pickerCount = await editor.evaluate(() => window.pickerCount);
+  await add();
+  await waitBackup(3);
+  await menu("Save");
+  await status("Saved");
+  assert.equal(await editor.evaluate(() => window.pickerCount), pickerCount);
+  assert.equal((await readFile("b.json")).scenes[0].objects.length, 3);
+  await add();
+  await waitBackup(4);
+  await editor.evaluate(() => (window.fileChoice = "a.json"));
+  await menu("Open");
+  assert.equal(
+    await editor.getByRole("dialog").locator("p").textContent(),
+    "Your changes will be lost if you don’t save",
+  );
+  await choose("Save");
+  await status("Saved");
+  assert.equal(await editor.evaluate(() => window.pickerCount), pickerCount);
+  assert.equal((await readFile("b.json")).scenes[0].objects.length, 4);
+  await add();
+  await menu("New");
+  await choose("Save");
+  assert.equal(await editor.evaluate(() => window.pickerCount), pickerCount);
+  await context.close();
+
+  // Download fallback never claims the browser confirmed a completed disk save
   const fallback = await browser.newPage();
   await fallback.addInitScript(() => {
     window.showOpenFilePicker = undefined;
     window.showSaveFilePicker = undefined;
   });
-  await fallback.goto(process.argv[2] ?? "http://127.0.0.1:5173/");
+  await fallback.goto(url);
   await fallback.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   await fallback.locator(".draft-menu summary").click();
   const choosing = fallback.waitForEvent("filechooser");
@@ -479,21 +527,21 @@ try {
   ).setFiles({
     name: "project.json",
     mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify(written)),
+    buffer: Buffer.from(JSON.stringify(fixture)),
   });
   await fallback.getByText("Project opened", { exact: true }).waitFor();
-  await fallback.waitForFunction(
-    () => document.querySelector(".save-state")?.textContent === "Saved",
-  );
+  await fallback.getByRole("button", { name: "Add test-crate", exact: true }).click();
   await fallback.locator(".draft-menu summary").click();
   const downloading = fallback.waitForEvent("download");
   await fallback.getByRole("button", { name: "Save As", exact: true }).click();
-  assert.deepEqual(JSON.parse(readFileSync(await (await downloading).path(), "utf8")), written);
+  const downloaded = JSON.parse(readFileSync(await (await downloading).path(), "utf8"));
+  assert.equal(downloaded.scenes[0].objects.length, 3);
+  assert.equal(await fallback.locator(".save-state").textContent(), "Not saved");
   await fallback.close();
-  await editor.close();
   console.log(
-    "PASS: place–move–undo–save–reload, storage guards, file Open/Save/Save As, autosave, file reconnection, cancellation, external conflicts, write failures and download fallback",
+    "PASS: manual Save/Save As, quiet recovery, restored dirty state, Save/Don’t Save/Cancel, failed switching, permissions, write conflicts, multi-tab protection and download fallback",
   );
 } finally {
+  await fileContext?.close();
   await browser.close();
 }

@@ -239,7 +239,7 @@ try {
   // The saved fixture should replace placement history and show its two authored objects
   await page.getByRole("button", { name: "Open sample project", exact: true }).click();
   // Project replacement now waits for the editor confirmation
-  await page.getByRole("dialog").getByRole("button", { name: "Replace", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Don’t Save", exact: true }).click();
   assert.deepEqual(await rows.allTextContents(), ["First crate", "Second crate"]);
   assert.deepEqual(await rows.evaluateAll((items) => items.map((item) => item.dataset.objectId)), [
     "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
@@ -256,7 +256,7 @@ try {
   assert.equal(await rows.count(), 3);
   await page.getByRole("button", { name: "Open sample project", exact: true }).click();
   // Project replacement now waits for the editor confirmation
-  await page.getByRole("dialog").getByRole("button", { name: "Replace", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Don’t Save", exact: true }).click();
   assert.equal(await rows.count(), 2);
   assert.equal(await page.locator("canvas").count(), 1);
   if (process.env.SCENE_SCREENSHOT) {
