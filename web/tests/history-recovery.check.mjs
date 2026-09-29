@@ -14,7 +14,7 @@ try {
   page.on("dialog", (dialog) => dialog.accept());
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.goto(process.argv[2] ?? "http://127.0.0.1:5178/");
+  await page.goto(process.argv[2] ?? "http://127.0.0.1:5173/");
   await page.getByRole("button", { name: "Add test-room", exact: true }).click();
   await page.getByRole("button", { name: "Add test-crate", exact: true }).click();
   const rows = page.locator(".object-row");

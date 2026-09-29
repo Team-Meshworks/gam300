@@ -19,6 +19,7 @@ type ViewportProps = {
   projectScene: ProjectScene | null;
   selectedId: string | null;
   dragging: boolean;
+  editingEnabled: boolean;
   status: ViewportStatus;
   attempt: number;
   onStatus: (status: ViewportStatus) => void;
@@ -37,6 +38,7 @@ export function Viewport({
   projectScene,
   selectedId,
   dragging,
+  editingEnabled,
   status,
   attempt,
   onStatus,
@@ -50,7 +52,7 @@ export function Viewport({
 }: ViewportProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<ReturnType<typeof initScene>>(undefined);
-  const snapshotRef = useRef({ objects, selectedId, projectScene });
+  const snapshotRef = useRef({ objects, selectedId, projectScene, editingEnabled });
 
   useEffect(() => {
     const host = hostRef.current;
@@ -66,6 +68,7 @@ export function Viewport({
         sceneRef.current = scene;
         const current = snapshotRef.current;
         scene?.update(current.objects, current.selectedId, current.projectScene);
+        scene?.setEditingEnabled(current.editingEnabled);
         if (scene !== undefined) {
           onManager(scene.modeManager);
         }
@@ -84,9 +87,10 @@ export function Viewport({
   }, [assets, attempt, onStatus, onThumbnail, onSelect, onTransform, onManager]);
 
   useEffect(() => {
-    snapshotRef.current = { objects, selectedId, projectScene };
+    snapshotRef.current = { objects, selectedId, projectScene, editingEnabled };
     sceneRef.current?.update(objects, selectedId, projectScene);
-  }, [objects, selectedId, projectScene, assets, attempt]);
+    sceneRef.current?.setEditingEnabled(editingEnabled);
+  }, [objects, selectedId, projectScene, editingEnabled, assets, attempt]);
 
   useEffect(() => {
     if (!dragging) {
@@ -95,7 +99,13 @@ export function Viewport({
   }, [dragging]);
 
   function accepts(event: DragEvent) {
-    return dragging && status === "ready" && event.dataTransfer.types.includes(assetDragType);
+    return (
+      dragging &&
+      editingEnabled &&
+      status === "ready" &&
+      sceneRef.current?.modeManager.getState().mode === "editor" &&
+      event.dataTransfer.types.includes(assetDragType)
+    );
   }
 
   return (

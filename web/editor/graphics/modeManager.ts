@@ -12,7 +12,7 @@ const EYE_HEIGHT = 0.9;
 
 export class ModeManager {
   private readonly camera: THREE.Camera;
-  private readonly orbit: OrbitControls;
+  private orbit: OrbitControls;
   private readonly fps: FpsControls;
   private readonly listeners = new Set<(state: ModeManagerState) => void>();
   private readonly savedPosition = new THREE.Vector3();
@@ -28,6 +28,10 @@ export class ModeManager {
 
   getState(): ModeManagerState {
     return this.state;
+  }
+
+  setOrbitControls(orbit: OrbitControls): void {
+    this.orbit = orbit;
   }
 
   subscribe(listener: (state: ModeManagerState) => void): () => void {

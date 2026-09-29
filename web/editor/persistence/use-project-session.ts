@@ -182,6 +182,16 @@ export function useProjectSession(
             return;
           }
           if (legacy.value !== null) {
+            if (cancelled) return;
+            if (
+              legacy.value.recoveryWarning &&
+              !window.confirm(
+                `${legacy.value.recoveryWarning}\nOpen the newest readable backup, "${legacy.value.document.title}"?`,
+              )
+            ) {
+              setError(legacy.value.recoveryWarning);
+              return;
+            }
             const link = await recallProjectFile(legacy.value.projectId).catch(() => null);
             let baseline: string | null = null;
             if (link) {
@@ -278,6 +288,9 @@ export function useProjectSession(
         setTimeout(() => URL.revokeObjectURL(url), 60_000);
         // A download has no completion receipt; don't discard work on that assumption
         setNotice("Project download started; verify the downloaded file before discarding changes");
+        // Retry the browser backup independently of writable file support
+        // A conflicting tab still fails the same revision check
+        await persist(current, undefined, recoveryHistory);
         return false;
       }
       const chosen = saveAs || local.file === null;

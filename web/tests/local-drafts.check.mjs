@@ -11,8 +11,10 @@ const browser = await chromium.launch({
 });
 let fileContext;
 try {
+  const errors = [];
   // Fresh browser context keeps these writes away from the author's saved drafts
   const page = await browser.newPage();
+  page.on("pageerror", (error) => errors.push(error.message));
   page.on("dialog", (dialog) => dialog.accept());
   await page.goto(process.argv[2] ?? "http://127.0.0.1:5173/");
   await page.waitForFunction(
@@ -196,6 +198,74 @@ try {
   assert.deepEqual(results.project, fixture);
 
   await page.close();
+  // One corrupt legacy draft must not hide another readable project during migration
+  const legacyPage = await browser.newPage();
+  legacyPage.on("pageerror", (error) => errors.push(error.message));
+  const recoveryQuestions = [];
+  legacyPage.on("dialog", async (dialog) => {
+    recoveryQuestions.push(dialog.message());
+    await dialog.accept();
+  });
+  await legacyPage.goto(process.argv[2] ?? "http://127.0.0.1:5173/");
+  await legacyPage.waitForFunction(() => !document.querySelector(".workspace").inert);
+  const legacyResult = await legacyPage.evaluate(async (fixture) => {
+    const { saveLocalDraft, loadLatestLocalDraft } = await import("/persistence/local-drafts.ts");
+    const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
+    const kinds = new Map(assets.map((asset) => [asset.id, asset.kind]));
+    const older = { ...fixture, projectId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee" };
+    for (const project of [older, fixture]) {
+      const saved = await saveLocalDraft(
+        { project, expectedStorageRevision: 0, localEditSequence: 1 },
+        kinds,
+      );
+      if (!saved.ok) throw new Error(saved.error.message);
+    }
+    await new Promise((resolve, reject) => {
+      const open = indexedDB.open("vthere-local-drafts", 2);
+      open.onsuccess = () => {
+        const database = open.result;
+        const tx = database.transaction("drafts", "readwrite");
+        const drafts = tx.objectStore("drafts");
+        const read = drafts.get(["local", older.projectId]);
+        read.onsuccess = () => drafts.put({ ...read.result, savedAt: "damaged timestamp" });
+        tx.oncomplete = () => {
+          database.close();
+          resolve();
+        };
+        tx.onabort = () => {
+          database.close();
+          reject(tx.error);
+        };
+      };
+    });
+    return loadLatestLocalDraft(kinds);
+  }, fixture);
+  assert.equal(legacyResult.ok, true);
+  assert.equal(legacyResult.value.document.projectId, fixture.projectId);
+  assert.ok(legacyResult.value.recoveryWarning);
+  await legacyPage.reload();
+  await legacyPage.getByText("Reopened your last project", { exact: true }).waitFor();
+  assert.equal(await legacyPage.locator(".object-row").count(), 2);
+  assert.equal(recoveryQuestions.length, 1, "Recovering past a damaged record needs one decision");
+  const damagedKept = await legacyPage.evaluate(
+    () =>
+      new Promise((resolve) => {
+        const open = indexedDB.open("vthere-local-drafts", 2);
+        open.onsuccess = () => {
+          const db = open.result;
+          const tx = db.transaction("drafts", "readonly");
+          const read = tx
+            .objectStore("drafts")
+            .get(["local", "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee"]);
+          tx.oncomplete = () => {
+            db.close();
+            resolve(read.result?.savedAt === "damaged timestamp");
+          };
+        };
+      }),
+  );
+  assert.equal(damagedKept, true);
+  await legacyPage.close();
   // Real file streams live in an isolated browser folder; only the OS pickers are substituted
   // A temporary regular profile exercises durable handles across reloads
   // Chromium's headless incognito profile crashes when cloning OPFS handles into IndexedDB
@@ -205,6 +275,7 @@ try {
   });
   fileContext = context;
   const editor = await context.newPage();
+  editor.on("pageerror", (error) => errors.push(error.message));
   editor.on("dialog", (dialog) => dialog.accept());
   await context.addInitScript(() => {
     window.fileChoice = "a.json";
@@ -307,10 +378,10 @@ try {
       if (!result.ok) throw new Error(result.error.message);
       return result.value;
     });
-  async function waitBackup(count) {
+  async function waitBackup(count, target = editor) {
     const deadline = Date.now() + 10000;
     while (Date.now() < deadline) {
-      const saved = await session();
+      const saved = await session(target);
       if (saved?.document.scenes[0].objects.length === count) return saved;
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
@@ -541,9 +612,18 @@ try {
 
   // Download fallback never claims the browser confirmed a completed disk save
   const fallback = await browser.newPage();
+  fallback.on("pageerror", (error) => errors.push(error.message));
+  fallback.on("dialog", (dialog) => dialog.accept());
   await fallback.addInitScript(() => {
     window.showOpenFilePicker = undefined;
     window.showSaveFilePicker = undefined;
+    window.failRecovery = false;
+    const put = IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put = function (...args) {
+      if (window.failRecovery && this.name === "session")
+        throw new DOMException("Storage full", "QuotaExceededError");
+      return put.apply(this, args);
+    };
   });
   await fallback.goto(url);
   await fallback.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
@@ -558,13 +638,31 @@ try {
     buffer: Buffer.from(JSON.stringify(fixture)),
   });
   await fallback.getByText("Project opened", { exact: true }).waitFor();
+  await fallback.evaluate(() => {
+    window.failRecovery = true;
+  });
   await fallback.getByRole("button", { name: "Add test-crate", exact: true }).click();
+  await fallback.getByRole("alert").filter({ hasText: "Recovery backup failed" }).waitFor();
+  await fallback.evaluate(() => {
+    window.failRecovery = false;
+  });
   await fallback.locator(".draft-menu summary").click();
   const downloading = fallback.waitForEvent("download");
   await fallback.getByRole("button", { name: "Save As", exact: true }).click();
   const downloaded = JSON.parse(readFileSync(await (await downloading).path(), "utf8"));
   assert.equal(downloaded.scenes[0].objects.length, 3);
   assert.equal(await fallback.locator(".save-state").textContent(), "Not saved");
+  await waitBackup(3, fallback);
+  await fallback.getByRole("button", { name: "Add test-crate", exact: true }).click();
+  await waitBackup(4, fallback);
+  await fallback.reload();
+  await fallback.getByText("Reopened your last project", { exact: true }).waitFor();
+  assert.equal(
+    await fallback.locator(".object-row").count(),
+    4,
+    "Save restarts later browser backups",
+  );
+  assert.deepEqual(errors, [], "Storage failures are handled without uncaught errors");
   await fallback.close();
   console.log(
     "PASS: manual Save/Save As, quiet recovery, restored dirty state, Save/Don’t Save/Cancel, failed switching, permissions, write conflicts, multi-tab protection and download fallback",

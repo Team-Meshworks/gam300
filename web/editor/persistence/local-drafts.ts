@@ -32,6 +32,7 @@ type RecoveredDraft = SaveReceipt &
     document: ProjectDocument;
     history?: RecoveryHistory;
     historyWarning?: string;
+    recoveryWarning?: string;
   }>;
 
 function isCounter(value: unknown): value is number {
@@ -199,11 +200,11 @@ export async function loadLatestLocalDraft(
   } catch {
     return invalid("storage", "Local storage could not open; the current project is unchanged");
   }
-  const latest = await new Promise<ValidationResult<unknown>>((resolve) => {
+  return new Promise<ValidationResult<RecoveredDraft | null>>((resolve) => {
     try {
       const transaction = database.transaction(STORE_NAME, "readonly");
       const read = transaction.objectStore(STORE_NAME).openCursor();
-      let record: unknown;
+      let record: RecoveredDraft | null = null;
       let latestTime = -Infinity;
       let damaged = false;
       read.onsuccess = () => {
@@ -211,18 +212,13 @@ export async function loadLatestLocalDraft(
         if (cursor === null) return;
         const key = cursor.primaryKey;
         if (Array.isArray(key) && key[0] === LOCAL_PRINCIPAL) {
-          const value: unknown = cursor.value;
-          // Don't silently fall back to an older project when the latest record is damaged
-          if (
-            !isRecord(value) ||
-            typeof value.savedAt !== "string" ||
-            !Number.isFinite(Date.parse(value.savedAt)) ||
-            value.projectId !== key[1]
-          ) {
+          const checked = validateStoredDraft(cursor.value, String(key[1]), assetKinds);
+          // Retain damaged records and ask before recovering a different readable backup
+          if (!checked.ok || checked.value === null) {
             damaged = true;
-          } else if (Date.parse(value.savedAt) >= latestTime) {
-            latestTime = Date.parse(value.savedAt);
-            record = value;
+          } else if (Date.parse(checked.value.savedAt) >= latestTime) {
+            latestTime = Date.parse(checked.value.savedAt);
+            record = checked.value;
           }
         }
         cursor.continue();
@@ -230,9 +226,19 @@ export async function loadLatestLocalDraft(
       transaction.oncomplete = () => {
         database.close();
         resolve(
-          damaged
+          damaged && record === null
             ? invalid("storage", "Stored draft metadata is invalid; existing saves were kept")
-            : { ok: true, value: record },
+            : {
+                ok: true,
+                value:
+                  record && damaged
+                    ? {
+                        ...record,
+                        recoveryWarning:
+                          "Another browser backup could not be read and has been kept.",
+                      }
+                    : record,
+              },
         );
       };
       transaction.onabort = () => {
@@ -244,12 +250,6 @@ export async function loadLatestLocalDraft(
       resolve(invalid("storage", "Local drafts could not be read; try again"));
     }
   });
-  if (!latest.ok) return latest;
-  if (latest.value === undefined) return { ok: true, value: null };
-  if (!isRecord(latest.value) || typeof latest.value.projectId !== "string") {
-    return invalid("storage", "Stored draft metadata is invalid; existing saves were kept");
-  }
-  return validateStoredDraft(latest.value, latest.value.projectId, assetKinds);
 }
 
 // Save one snapshot; caller keeps the live document and tracks newer edits separately
@@ -535,13 +535,22 @@ export async function saveRecoverySession(
         }
         // Keep the scene and manual-save baseline together in one atomic write
         // Don't Save switches to a new record without leaving the discarded edits behind
-        store.put(
-          { ...session, document: encoded.value, revision: expectedRevision + 1 },
-          "active",
-        );
-        const legacy = tx.objectStore(STORE_NAME);
-        legacy.delete([LOCAL_PRINCIPAL, session.document.projectId.toLowerCase()]);
-        if (previousProjectId) legacy.delete([LOCAL_PRINCIPAL, previousProjectId.toLowerCase()]);
+        try {
+          store.put(
+            { ...session, document: encoded.value, revision: expectedRevision + 1 },
+            "active",
+          );
+          const legacy = tx.objectStore(STORE_NAME);
+          legacy.delete([LOCAL_PRINCIPAL, session.document.projectId.toLowerCase()]);
+          if (previousProjectId) legacy.delete([LOCAL_PRINCIPAL, previousProjectId.toLowerCase()]);
+        } catch {
+          // Cloning a file handle or starting the write can fail before a request exists
+          try {
+            tx.abort();
+          } catch {
+            // An earlier request already aborted it; onabort still reports the failure
+          }
+        }
       };
     } catch {
       database.close();
