@@ -22,8 +22,8 @@ try {
   );
   await asset.click();
   assert.equal(await page.locator(".object-row").count(), 1);
-  if (process.env.SMOKE_SCREENSHOT) {
-    await page.screenshot({ path: process.env.SMOKE_SCREENSHOT });
+  if (process.env.CHECK_SCREENSHOT) {
+    await page.screenshot({ path: process.env.CHECK_SCREENSHOT });
   }
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   assert.equal(await page.locator(".object-row").count(), 0);

@@ -41,6 +41,7 @@ export interface InitSceneHandle {
   ) => void;
   getDropPosition: (clientX: number, clientY: number) => Vector3Tuple | undefined;
   showDropPosition: (position: Vector3Tuple | undefined) => void;
+  setEditingEnabled: (enabled: boolean) => void;
   modeManager: ModeManager;
   dispose: () => void;
 }
@@ -80,7 +81,7 @@ export function initScene(
   renderer.domElement.setAttribute("aria-label", "3D scene");
   host.appendChild(renderer.domElement);
 
-  const orbit = new OrbitControls(camera, renderer.domElement);
+  let orbit = new OrbitControls(camera, renderer.domElement);
   orbit.enableDamping = true;
   orbit.target.set(0, 0, 0);
 
@@ -132,6 +133,7 @@ export function initScene(
   let disposed = false;
   const models = new Map<string, THREE.Group>();
   let ready = false;
+  let editingEnabled = true;
   let objects: readonly SceneObject[] = [];
   let selectedId: string | null = null;
   let projectScene: ProjectScene | null = null;
@@ -290,9 +292,35 @@ export function initScene(
     // A loaded camera resets the view once
     // Selection and placement keep the same camera-pose reference
     if (projectScene !== null && appliedCamera !== projectScene.startCamera) {
+      modeManager.setMode("editor");
       appliedCamera = projectScene.startCamera;
       camera.position.fromArray(appliedCamera.position);
       camera.quaternion.fromArray(appliedCamera.rotation);
+      // Keep upright views orbiting around world Y, while preserving authored roll
+      const authoredUp = new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion);
+      const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion).normalize();
+      camera.up.set(0, 1, 0).projectOnPlane(right).normalize();
+      const alignment = camera.up.dot(authoredUp);
+      if (Math.abs(alignment) < 1e-6) camera.up.copy(authoredUp);
+      else if (alignment < 0) camera.up.negate();
+      // OrbitControls captures its up axis at construction; replace it for rolled or vertical poses
+      // This also drops the old view's pointer state and damping
+      orbit.removeEventListener("change", updateGizmo);
+      orbit.dispose();
+      orbit = new OrbitControls(camera, renderer.domElement);
+      orbit.enableDamping = true;
+      orbit.enabled = editingEnabled;
+      // The constructor looks at its default target, so reinstall the authored pose afterward
+      camera.position.fromArray(appliedCamera.position);
+      camera.quaternion.fromArray(appliedCamera.rotation);
+      orbit.target
+        .copy(camera.position)
+        .addScaledVector(
+          camera.getWorldDirection(new THREE.Vector3()),
+          Math.max(camera.position.length(), 1),
+        );
+      modeManager.setOrbitControls(orbit);
+      orbit.addEventListener("change", updateGizmo);
       camera.fov = appliedCamera.fovDegrees;
       camera.updateProjectionMatrix();
       camera.updateMatrixWorld(true);
@@ -342,7 +370,7 @@ export function initScene(
       }
     }
     const selectedBounds = selectedId === null ? undefined : bounds.get(selectedId);
-    selection.visible = selectedBounds !== undefined;
+    selection.visible = selectedBounds !== undefined && modeManager.getState().mode === "editor";
     if (selectedBounds !== undefined) {
       selection.box.copy(selectedBounds);
     }
@@ -361,7 +389,7 @@ export function initScene(
   }
 
   function getDropPosition(clientX: number, clientY: number): Vector3Tuple | undefined {
-    if (!ready) {
+    if (!ready || !editingEnabled || modeManager.getState().mode !== "editor") {
       return;
     }
     const point = screenRay(clientX, clientY).intersectPlane(ground, new THREE.Vector3());
@@ -460,7 +488,7 @@ export function initScene(
   }
 
   function pointerDown(event: PointerEvent) {
-    if (!ready || (event.button !== 0 && event.button !== 2)) return;
+    if (!ready || !editingEnabled || (event.button !== 0 && event.button !== 2)) return;
     if (!event.isPrimary || drag !== undefined) return;
     if (modeManager.getState().mode !== "editor") return;
     if (wheelEdit !== undefined) {
@@ -545,7 +573,14 @@ export function initScene(
   }
 
   function wheel(event: WheelEvent) {
-    if (!ready || drag !== undefined || selectedId === null || event.deltaY === 0) return;
+    if (
+      !ready ||
+      !editingEnabled ||
+      drag !== undefined ||
+      selectedId === null ||
+      event.deltaY === 0
+    )
+      return;
     if (modeManager.getState().mode !== "editor") return;
     const object = objects.find((entry) => entry.id === selectedId);
     const instance = instances.get(selectedId);
@@ -593,6 +628,15 @@ export function initScene(
   renderer.domElement.addEventListener("contextmenu", contextMenu);
   host.addEventListener("wheel", wheel, { capture: true, passive: false });
   window.addEventListener("keydown", keyDown);
+  orbit.addEventListener("change", updateGizmo);
+  const unsubscribeMode = modeManager.subscribe(({ mode }) => {
+    cancelDrag();
+    cancelWheelEdit();
+    // Cancellation must not re-enable orbit controls while visiting
+    orbit.enabled = mode === "editor" && editingEnabled;
+    selection.visible = mode === "editor" && selectedId !== null && bounds.has(selectedId);
+    updateGizmo();
+  });
   observer.observe(host);
   resize();
 
@@ -652,6 +696,15 @@ export function initScene(
     update,
     getDropPosition,
     showDropPosition,
+    setEditingEnabled(enabled) {
+      editingEnabled = enabled;
+      if (!enabled) {
+        cancelDrag();
+        cancelWheelEdit();
+        showDropPosition(undefined);
+      }
+      orbit.enabled = enabled && modeManager.getState().mode === "editor";
+    },
     modeManager,
     dispose() {
       cancelDrag();
@@ -661,6 +714,8 @@ export function initScene(
       observer.disconnect();
       fpsMeter.dispose();
       fpsControls.dispose();
+      unsubscribeMode();
+      orbit.removeEventListener("change", updateGizmo);
       orbit.dispose();
       renderer.domElement.removeEventListener("pointerdown", pointerDown);
       renderer.domElement.removeEventListener("pointermove", pointerMove);

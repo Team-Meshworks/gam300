@@ -44,14 +44,18 @@ team; **VThere** is the commissioning company.
 ## Project status
 
 **M1 prototype, under active development.** The interface and sample content are provisional.
-Choose a room to create a saveable project. The editor then autosaves to this browser's
-storage and reopens the latest valid draft on reload. **Saved in browser** is local recovery,
-not a server save or a confirmed file write. Loose objects on the initial grid need a room
-before they can be saved as a project.
+Choose a room to create a saveable project. The editor quietly backs up the current session
+in this browser and reopens it on reload, including valid undo history. **Saved** and
+**Not saved** describe the JSON file; browser recovery does not mark that file as saved.
+Loose objects on the initial grid need a room before they can be saved as a project.
 
-The project menu provides **Open**, **Save** and **Save As**. Supported browsers can update
-a chosen JSON file; after reload, Save reconnects its permission. Other browsers use file
-upload/download. Cancelled or failed operations preserve the current scene.
+The project menu provides **New**, **Open**, **Save** and **Save As**. New/Open offers
+**Save**, **Don’t Save** and **Cancel** when there are unsaved edits. Supported browsers
+can update a chosen JSON file; after reload, Save reconnects its permission. Other browsers
+use file upload/download and keep the file status unsaved because downloads have no completion
+receipt. Save also retries a failed browser backup. Cancelled or failed operations preserve
+the current scene. If an older backup is damaged, recovery asks before opening another readable
+backup and keeps the damaged record.
 
 The WHEN → DO rule builder, accounts, PostgreSQL saving and publication/sharing are planned.
 The current visitor camera is part of the editor;
@@ -81,8 +85,11 @@ npm run dev
 
 Open [localhost:5173](http://localhost:5173). The repository currently requires access to clone.
 In the editor, add **test-room**, add **test-crate**, move it and try **Undo**.
-Use the project menu's **Save**, then reload to check browser recovery.
-**Open sample project** is an additional shortcut available only in development builds.
+Use the project menu's **Save** to save a JSON file. After editing, allow two seconds for
+the quiet browser backup before reloading to check recovery.
+**Open sample project** is available in the local development server and the `dev` VM build.
+The `main` production build omits it. See [build modes](docs/deployment.md) to reproduce either
+VM build locally.
 
 For a container build, run `docker compose up --build --wait` from the repository root,
 then open [localhost:8081](http://localhost:8081). See the
@@ -102,7 +109,8 @@ then open [localhost:8081](http://localhost:8081). See the
 | Visitor | Left mouse drag                                   | Look around                        |
 | Visitor | Shift / Space / Ctrl                              | Sprint / fly up / fly down         |
 
-Use **Enter Visitor** and **Exit Visitor** to switch camera modes.
+Use **Enter Visitor** and **Exit Visitor** to switch camera modes. Authoring controls and
+save shortcuts are inactive while visiting; movement stops when the window loses focus.
 
 ## Tech stack
 
@@ -125,19 +133,21 @@ Run these commands from `web/`:
 | --------------------------------------------------- | --------------------------------------------------------------------- |
 | `npm run dev`                                       | Start the development server with hot reload                          |
 | `npm run build`                                     | Typecheck and build the editor into `web/dist/editor/`                |
-| `npm run preview`                                   | Serve the production build locally                                    |
+| `npm run preview`                                   | Serve the latest local build                                          |
 | `npm run typecheck`                                 | Check TypeScript types                                                |
 | `npm run lint`                                      | Run ESLint with zero warnings allowed                                 |
 | `npm run format:check`                              | Check formatting                                                      |
 | `npm run format`                                    | Apply formatting                                                      |
 | `npm run test:unit`                                 | Run the Vitest suite                                                  |
 | `npm run test:browser`                              | Check editor interactions against a running development server        |
+| `npm run test:integration`                          | Check visitor isolation, loaded cameras, gizmos and edit cancellation |
 | `npm run test:recovery`                             | Check place–move–undo–save–reload, file transfer and failure recovery |
+| `npm run test:history`                              | Check recovered undo/redo and damaged-history handling                |
 | `npm run test:deployment -- http://localhost:8081/` | Check the running container build                                     |
 
 For browser checks, install Chromium once with `npx playwright install chromium`.
-Keep `npm run dev` running in one terminal, then run `npm run test:browser` and
-`npm run test:recovery` in another. Both accept a different server URL, for example
+Keep `npm run dev` running in one terminal, then run `test:browser`, `test:integration`,
+`test:recovery` and `test:history` with `npm run` in another. All accept a different server URL, for example
 `npm run test:recovery -- http://127.0.0.1:5186/`.
 Playwright is included in the locked development dependencies.
 
@@ -176,7 +186,7 @@ component owners and the planned server/player boundary. The
 web/
   editor/            React UI, document state, viewport, and camera controls
   shared/            Asset catalogue, project types, validation, and fixtures
-  tests/             Browser and deployment smoke checks
+  tests/             Browser and deployment checks
 assets/
   source/            Original editable assets
   delivery/          Runtime models and thumbnails
@@ -194,7 +204,7 @@ Deployment remains a separate manual action.
 
 1. Open a pull request into `dev`; its CI checks start automatically. For an extra run,
    open **Actions → CI → Run workflow** and select the branch.
-2. Wait for lint, formatting, asset validation, unit tests, editor/recovery browser checks,
+2. Wait for lint, formatting, asset validation, unit tests, editor/integration/recovery/history checks,
    and the container build and checks.
 3. Successful push/manual runs on `dev` or `main` publish the tested image and a release
    descriptor. Pull request runs and manual runs on feature branches do not publish images.

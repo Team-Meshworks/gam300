@@ -150,8 +150,8 @@ try {
   assert.equal(await position.textContent(), initialPosition, "Touch drag is one undo step");
   await rows.nth(1).click();
   assert.equal(await rows.nth(1).getAttribute("aria-pressed"), "true");
-  if (process.env.SMOKE_SCREENSHOT) {
-    await page.screenshot({ path: process.env.SMOKE_SCREENSHOT, fullPage: true });
+  if (process.env.CHECK_SCREENSHOT) {
+    await page.screenshot({ path: process.env.CHECK_SCREENSHOT, fullPage: true });
   }
 
   await asset.dragTo(page.getByRole("heading", { name: "Asset library", exact: true }));

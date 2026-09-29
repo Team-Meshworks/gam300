@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { isTextEditingTarget } from "../history-shortcuts";
 
 const EYE_HEIGHT = 0.9;
 const WALK_SPEED = 5;
@@ -60,6 +61,8 @@ export class FpsControls {
     this.applyRotation();
     addEventListener("keydown", this.onKeyDown);
     addEventListener("keyup", this.onKeyUp);
+    addEventListener("blur", this.clearInput);
+    document.addEventListener("visibilitychange", this.onVisibilityChange);
   }
 
   lookAt(target: THREE.Vector3): void {
@@ -79,6 +82,8 @@ export class FpsControls {
     this.velocity.set(0, 0, 0);
     removeEventListener("keydown", this.onKeyDown);
     removeEventListener("keyup", this.onKeyUp);
+    removeEventListener("blur", this.clearInput);
+    document.removeEventListener("visibilitychange", this.onVisibilityChange);
   }
 
   dispose(): void {
@@ -154,6 +159,13 @@ export class FpsControls {
   };
 
   private readonly onKeyDown = (event: KeyboardEvent) => {
+    if (
+      event.defaultPrevented ||
+      event.isComposing ||
+      event.composedPath().some(isTextEditingTarget) ||
+      (event.target instanceof Element && event.target.closest("button, summary, dialog[open]"))
+    )
+      return;
     if (HANDLED_KEYS.has(event.code)) {
       event.preventDefault();
       this.keys.add(event.code);
@@ -162,6 +174,19 @@ export class FpsControls {
 
   private readonly onKeyUp = (event: KeyboardEvent) => {
     if (HANDLED_KEYS.has(event.code)) this.keys.delete(event.code);
+  };
+
+  private readonly clearInput = () => {
+    this.keys.clear();
+    this.velocity.set(0, 0, 0);
+    this.dragging = false;
+    this.physicsPosition.copy(this.camera.position);
+    this.previousPhysics.copy(this.camera.position);
+    this.accumulated = 0;
+  };
+
+  private readonly onVisibilityChange = () => {
+    if (document.hidden) this.clearInput();
   };
 
   private applyRotation(): void {

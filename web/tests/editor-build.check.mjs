@@ -9,6 +9,7 @@ const browser = await chromium.launch({
   ...(process.env.PLAYWRIGHT_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHANNEL } : {}),
 });
 const url = process.argv[2] ?? "http://127.0.0.1:4173/";
+const isDevelopment = process.env.BUILD_MODE === "development";
 
 try {
   const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
@@ -39,6 +40,18 @@ try {
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   assert.equal(await page.locator(".object-row").count(), 0);
 
+  const sample = page.getByRole("button", { name: "Open sample project", exact: true });
+  assert.equal(
+    await sample.count(),
+    isDevelopment ? 1 : 0,
+    "Sample control matches the build mode",
+  );
+  if (isDevelopment) {
+    await sample.click();
+    await page.locator(".object-row").filter({ hasText: "First crate" }).waitFor();
+    assert.equal(await page.locator(".object-row").count(), 2);
+  }
+
   const chunks = await page.evaluate(() =>
     performance
       .getEntriesByType("resource")
@@ -62,7 +75,9 @@ try {
   assert.equal(await failed.locator("canvas").count(), 1);
   assert.deepEqual(errors, []);
   await failed.close();
-  console.log("PASS: shell before renderer, chunk budget, production placement and chunk recovery");
+  console.log(
+    `PASS: ${isDevelopment ? "development" : "production"} build controls, shell before renderer, chunk budget, placement and chunk recovery`,
+  );
   console.log(JSON.stringify({ chunks }));
 
   if (process.env.MEASURE_LOAD === "1") {

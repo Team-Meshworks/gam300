@@ -89,6 +89,10 @@ export function App() {
   }, []);
   const session = useProjectSession(store, assets, project, objects.length, onReplace, setNotice);
   const storageOperation = session.operation;
+  const switching =
+    storageOperation === "switch" ||
+    storageOperation === "recover" ||
+    storageOperation === "import";
 
   useEffect(() => {
     function onHistoryKeyDown(event: KeyboardEvent) {
@@ -152,6 +156,7 @@ export function App() {
   // Keep keyboard saving on the same path as the menu and its file picker
   useEffect(() => {
     function saveShortcut(event: KeyboardEvent) {
+      if (visitor || event.defaultPrevented || event.isComposing || event.altKey) return;
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
         event.preventDefault();
         document.getElementById(event.shiftKey ? "project-save-as" : "project-save")?.click();
@@ -159,7 +164,7 @@ export function App() {
     }
     addEventListener("keydown", saveShortcut);
     return () => removeEventListener("keydown", saveShortcut);
-  }, []);
+  }, [visitor]);
 
   const onTransform = useCallback(
     (id: string, transform: Transform) => {
@@ -175,13 +180,14 @@ export function App() {
   );
 
   function moveSelected(axis: 0 | 1 | 2, delta: number) {
-    if (selectedObject === undefined) return;
+    if (visitor || selectedObject === undefined) return;
     const position = [...selectedObject.transform.position] as [number, number, number];
     position[axis] += delta;
     onTransform(selectedObject.id, { ...selectedObject.transform, position });
   }
 
   function place(assetId: string, position: Vector3Tuple) {
+    if (visitor) return;
     session.clearError();
     // Choosing the first room turns the grid scene into a saveable project
     // Room placement uses the environment slot so it survives JSON reconstruction
@@ -233,6 +239,7 @@ export function App() {
         {/* Project actions stay behind this icon so the library has room for assets */}
         <details
           className="draft-menu"
+          inert={visitor}
           ref={draftMenu}
           onKeyDown={(event) => {
             if (event.key === "Escape") {
@@ -314,11 +321,7 @@ export function App() {
           className="history-controls"
           role="group"
           aria-label="History"
-          inert={
-            storageOperation === "switch" ||
-            storageOperation === "recover" ||
-            storageOperation === "import"
-          }
+          inert={visitor || switching}
         >
           <button type="button" disabled={selection === null || visitor} onClick={deleteSelection}>
             Delete selected
@@ -364,7 +367,14 @@ export function App() {
                 Exit Visitor
               </button>
             ) : (
-              <button type="button" onClick={() => manager.setMode("visitor")}>
+              <button
+                type="button"
+                disabled={session.busy}
+                onClick={() => {
+                  manager.setMode("visitor");
+                  document.getElementById("viewport")?.focus();
+                }}
+              >
                 Enter Visitor
               </button>
             )}
@@ -415,15 +425,8 @@ export function App() {
         }}
       />
 
-      <main
-        className="workspace"
-        inert={
-          storageOperation === "switch" ||
-          storageOperation === "recover" ||
-          storageOperation === "import"
-        }
-      >
-        <aside className="library" aria-label="Assets and scene objects">
+      <main className="workspace" inert={switching}>
+        <aside className="library" aria-label="Assets and scene objects" inert={visitor}>
           <section aria-labelledby="assets-heading">
             <h2 id="assets-heading">Asset library</h2>
             <ul className="asset-shelf" role="list">
@@ -519,6 +522,7 @@ export function App() {
           projectScene={project?.scenes[0] ?? null}
           selectedId={selection}
           dragging={dragging}
+          editingEnabled={!switching}
           status={status}
           attempt={attempt}
           onStatus={setStatus}

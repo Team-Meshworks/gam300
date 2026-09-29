@@ -5,6 +5,7 @@ services:
       context: .
       args:
         REVISION: ${REVISION:-local}
+        BUILD_MODE: ${BUILD_MODE:-production}
     ports:
       - "127.0.0.1:${APP_PORT:-8081}:8080"
     restart: unless-stopped

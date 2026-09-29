@@ -31,4 +31,4 @@ Each restored state goes through the project validator. Project/scene IDs and th
 
 Only completed edits are saved. The existing autosave waits two seconds after editing; wait for **Saved in browser** (and no Saving indicator) before refreshing. Refresh cannot recover history from backups created before this feature existed. Browser storage belongs to this browser profile and site origin.
 
-Checks: `npm run test:unit` and `node tests/history-recovery.smoke.mjs <dev-server-url>`. The browser script uses a fresh isolated context and supports the same `PLAYWRIGHT_MODULE` / `PLAYWRIGHT_CHANNEL` overrides as the other smoke tests.
+Checks: `npm run test:unit` and `node tests/history-recovery.check.mjs <dev-server-url>`. The browser script uses a fresh isolated context and supports the same `PLAYWRIGHT_MODULE` / `PLAYWRIGHT_CHANNEL` overrides as the other browser checks.
