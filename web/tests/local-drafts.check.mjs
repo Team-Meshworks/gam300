@@ -337,8 +337,8 @@ try {
       () => !document.querySelector(".draft-menu-panel button").disabled,
     );
   };
-  const status = (text) =>
-    editor.waitForFunction(
+  const status = (text, target = editor) =>
+    target.waitForFunction(
       (expected) => document.querySelector(".save-state")?.textContent === expected,
       text,
     );
@@ -651,7 +651,8 @@ try {
   await fallback.getByRole("button", { name: "Save As", exact: true }).click();
   const downloaded = JSON.parse(readFileSync(await (await downloading).path(), "utf8"));
   assert.equal(downloaded.scenes[0].objects.length, 3);
-  assert.equal(await fallback.locator(".save-state").textContent(), "Not saved");
+  // The download can finish before the recovery write and its UI update
+  await status("Not saved", fallback);
   await waitBackup(3, fallback);
   await fallback.getByRole("button", { name: "Add test-crate", exact: true }).click();
   await waitBackup(4, fallback);
