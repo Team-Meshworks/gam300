@@ -6,7 +6,8 @@ RUN npm ci --no-audit --no-fund
 COPY web/ ./
 COPY assets/manifest.json /app/assets/manifest.json
 COPY assets/delivery/ /app/assets/delivery/
-RUN npm run build
+ARG BUILD_MODE=production
+RUN NODE_ENV="$BUILD_MODE" npm run build:editor -- --mode "$BUILD_MODE"
 
 FROM caddy:2.11.4-alpine@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b
 RUN setcap -r /usr/bin/caddy

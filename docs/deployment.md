@@ -11,6 +11,14 @@ into `main` unless it comes from this repository's `dev` branch. Manual CI dispa
 remains available. Deployment is a separate manual action and never rebuilds the image.
 The GitHub environments allow only their matching branches.
 
+CI builds `dev` with `NODE_ENV=development` and Vite's `development` mode, including
+**Open sample project** and framework development diagnostics. `main` uses
+`NODE_ENV=production` and `production` mode. Pull requests use their target branch's
+mode; manual feature-branch builds use development mode. Both images contain built
+static files served by Caddy, with the same health checks, access gate and rollback.
+Existing images keep their original build mode. After these workflow changes reach
+`dev` or `main`, deploy a new successful CI run to apply the branch's build mode.
+
 GitHub currently rejects branch protection for this private repository with an upgrade
 requirement. Automatic workflow checks and environment branch restrictions are configured, but
 GitHub does not prevent direct pushes or require passing checks before a merge. Keep the
@@ -41,6 +49,22 @@ Open http://localhost:8081. Stop this local application with `docker compose dow
 The Dockerfile builds with pinned Node/npm and serves the result through pinned Caddy.
 Only delivery assets enter the build; editable source files and local secrets are excluded.
 
+The local container defaults to production. To match the development VM from PowerShell:
+
+```powershell
+$env:BUILD_MODE = "development"
+docker compose up --build --wait
+```
+
+Set `BUILD_MODE` to `production` to build the production variant. Without Docker, from
+`web/`, use `$env:NODE_ENV = "development"` followed by
+`npm run build:editor -- --mode development` and `npm run preview`. Set `NODE_ENV`
+and `--mode` to `production` for the production variant; changing only Vite's mode
+does not enable development controls.
+
+To check the built controls locally, set `BUILD_MODE` to the matching mode and run
+`node tests/editor-build.check.mjs http://localhost:4173/` from `web/` while preview is running.
+
 Browser checks use the locked Playwright package. From `web/`, run once:
 
 ```sh
@@ -60,10 +84,10 @@ npm run test:deployment -- http://localhost:8081/
 locked dependencies; checks formatting, lint, asset
 integrity, deployment isolation/rollback and unit tests; builds the image; and runs the
 authoring and recovery/file checks against Vite's development server and deployment checks against the
-image, including its real web-server configuration. Development-only sample controls are
-tested in development; the shipped UI and textures are checked in the container.
-The Docker build includes TypeScript checking. Chunk-budget checks also run on branches
-where that existing smoke script is present.
+image, including its real web-server configuration. The packaged-build browser check verifies
+that the sample control loads its project in development and is absent in production.
+The Docker build includes TypeScript checking. Both build modes retain the 500 kB
+JavaScript chunk-budget check.
 
 The recovery check includes place–move–undo–save–reload and JSON transfer into a fresh
 browser context. Its output and the editor check output are retained under `web/test-results/`.

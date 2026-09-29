@@ -19,6 +19,8 @@ jobs:
     name: Build and test
     runs-on: ubuntu-24.04
     timeout-minutes: 25
+    env:
+      BUILD_MODE: ${{ (github.base_ref || github.ref_name) == 'main' && 'production' || 'development' }}
     defaults:
       run:
         working-directory: web
@@ -75,7 +77,9 @@ jobs:
           context: .
           load: true
           tags: vthere-ci:${{ github.sha }}
-          build-args: REVISION=${{ github.sha }}
+          build-args: |
+            REVISION=${{ github.sha }}
+            BUILD_MODE=${{ env.BUILD_MODE }}
           cache-from: type=gha,scope=editor
           cache-to: type=gha,mode=max,scope=editor
       - name: Check the packaged application

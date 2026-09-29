@@ -87,7 +87,9 @@ Open [localhost:5173](http://localhost:5173). The repository currently requires 
 In the editor, add **test-room**, add **test-crate**, move it and try **Undo**.
 Use the project menu's **Save** to save a JSON file. After editing, allow two seconds for
 the quiet browser backup before reloading to check recovery.
-**Open sample project** is an additional shortcut available only in development builds.
+**Open sample project** is available in the local development server and the `dev` VM build.
+The `main` production build omits it. See [build modes](docs/deployment.md) to reproduce either
+VM build locally.
 
 For a container build, run `docker compose up --build --wait` from the repository root,
 then open [localhost:8081](http://localhost:8081). See the
@@ -131,7 +133,7 @@ Run these commands from `web/`:
 | --------------------------------------------------- | --------------------------------------------------------------------- |
 | `npm run dev`                                       | Start the development server with hot reload                          |
 | `npm run build`                                     | Typecheck and build the editor into `web/dist/editor/`                |
-| `npm run preview`                                   | Serve the production build locally                                    |
+| `npm run preview`                                   | Serve the latest local build                                          |
 | `npm run typecheck`                                 | Check TypeScript types                                                |
 | `npm run lint`                                      | Run ESLint with zero warnings allowed                                 |
 | `npm run format:check`                              | Check formatting                                                      |
