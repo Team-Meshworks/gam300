@@ -261,6 +261,9 @@ try {
   await page.getByRole("button", { name: "Open sample project", exact: true }).click();
   // Project replacement now waits for the editor confirmation
   await page.getByRole("dialog").getByRole("button", { name: "Don’t Save", exact: true }).click();
+  // Project switching writes recovery data before replacing the scene
+  // Wait for the dialog to close before reading the new objects
+  await page.getByRole("dialog").waitFor({ state: "hidden" });
   assert.deepEqual(await rows.allTextContents(), ["First crate", "Second crate"]);
   assert.deepEqual(await rows.evaluateAll((items) => items.map((item) => item.dataset.objectId)), [
     "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
@@ -278,6 +281,7 @@ try {
   await page.getByRole("button", { name: "Open sample project", exact: true }).click();
   // Project replacement now waits for the editor confirmation
   await page.getByRole("dialog").getByRole("button", { name: "Don’t Save", exact: true }).click();
+  await page.getByRole("dialog").waitFor({ state: "hidden" });
   assert.equal(await rows.count(), 2);
   assert.equal(await page.locator("canvas").count(), 1);
   if (process.env.SCENE_SCREENSHOT) {
