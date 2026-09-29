@@ -220,6 +220,20 @@ try {
     "No overflow at 320px with 125% text size",
   );
   await page.evaluate(() => document.documentElement.style.removeProperty("font-size"));
+  // A wider fallback font catches columns that only fit on the developer's machine
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = "20px";
+    document.documentElement.style.fontFamily = "Verdana, sans-serif";
+  });
+  assert.equal(
+    await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+    true,
+    "No overflow at 320px with enlarged text and a wider font",
+  );
+  await page.evaluate(() => {
+    document.documentElement.style.removeProperty("font-size");
+    document.documentElement.style.removeProperty("font-family");
+  });
   await page.emulateMedia({ reducedMotion: "reduce" });
   assert.equal(
     await page
