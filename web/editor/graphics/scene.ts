@@ -86,7 +86,7 @@ export function initScene(
 
   const fpsControls = new FpsControls(camera, renderer.domElement);
   const modeManager = new ModeManager(camera, orbit, fpsControls);
-  const fpsMeter = createFpsMeter();
+  const fpsMeter = createFpsMeter(host);
 
   const ambient = new THREE.AmbientLight(0xffffff, 1.4);
   const sun = new THREE.DirectionalLight(0xffffff, 2.5);
@@ -678,10 +678,11 @@ export function initScene(
   };
 }
 
-function createFpsMeter(): FpsMeter & { dispose(): void } {
+function createFpsMeter(host: HTMLDivElement): FpsMeter & { dispose(): void } {
   const el = document.createElement("div");
+  el.className = "fps-meter";
   Object.assign(el.style, {
-    position: "fixed",
+    position: "absolute",
     top: "0.75rem",
     right: "0.75rem",
     padding: "0.25rem 0.5rem",
@@ -693,7 +694,8 @@ function createFpsMeter(): FpsMeter & { dispose(): void } {
     opacity: "0.8",
     pointerEvents: "none",
   } satisfies Partial<CSSStyleDeclaration>);
-  document.body.appendChild(el);
+  // Anchor inside the scene so a taller header still leaves the save status clear
+  host.appendChild(el);
 
   let frameCount = 0;
   let lastFpsTime = performance.now();

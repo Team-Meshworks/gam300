@@ -18,15 +18,37 @@ try {
   await page.getByRole("button", { name: "Add test-room", exact: true }).click();
   await page.getByRole("button", { name: "Add test-crate", exact: true }).click();
   const rows = page.locator(".object-row");
+  async function waitForRecovery(count, futureCount) {
+    const deadline = Date.now() + 10000;
+    while (Date.now() < deadline) {
+      const ready = await page.evaluate(
+        async ({ count, futureCount }) => {
+          const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
+          const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
+          const result = await loadRecoverySession(
+            new Map(assets.map((asset) => [asset.id, asset.kind])),
+          );
+          return (
+            result.ok &&
+            result.value?.document.scenes[0].objects.length === count &&
+            result.value.history?.future.length === futureCount
+          );
+        },
+        { count, futureCount },
+      );
+      if (ready) return;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    throw new Error("Recovery history did not reach the expected edit");
+  }
+
   await page.getByRole("button", { name: /Move .* X plus/ }).click();
   await page.keyboard.press("Control+d");
   assert.equal(await rows.count(), 2);
   const duplicateId = await rows.last().getAttribute("data-object-id");
   await page.keyboard.press("Control+z");
   assert.equal(await rows.count(), 1);
-  await page.waitForFunction(
-    () => document.querySelector(".save-state")?.textContent === "Saved in browser",
-  );
+  await waitForRecovery(1, 1);
   await page.reload();
   await page.getByRole("button", { name: "Redo", exact: true }).waitFor();
   await page.waitForFunction(() => document.querySelectorAll(".object-row").length === 1);
@@ -39,9 +61,7 @@ try {
   assert.match(await page.getByLabel("Selected position").textContent(), /X 0\.00/);
   await page.keyboard.press("Control+z");
   assert.equal(await rows.count(), 0);
-  await page.waitForFunction(
-    () => document.querySelector(".save-state")?.textContent === "Saved in browser",
-  );
+  await waitForRecovery(0, 3);
   await page.reload();
   await page.waitForFunction(
     () => document.querySelector(".draft-feedback")?.textContent !== "Reopening saved work…",
@@ -50,14 +70,36 @@ try {
   assert.equal(await rows.count(), 1);
   await page.getByRole("button", { name: "Add test-crate", exact: true }).click();
   assert.equal(await page.getByRole("button", { name: "Redo", exact: true }).isDisabled(), true);
-  await page.waitForFunction(
-    () => document.querySelector(".save-state")?.textContent === "Saved in browser",
-  );
+  await waitForRecovery(2, 0);
 
   const storageResults = await page.evaluate(async () => {
-    const { loadLatestLocalDraft, saveLocalDraft } = await import("/persistence/local-drafts.ts");
+    const { loadLatestLocalDraft, saveLocalDraft, loadRecoverySession, saveRecoverySession } =
+      await import("/persistence/local-drafts.ts");
     const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
     const kinds = new Map(assets.map((a) => [a.id, a.kind]));
+    // Exercise the active session first, then retain the older draft compatibility checks
+    const active = await loadRecoverySession(kinds);
+    if (!active.ok || !active.value?.history) throw new Error("Missing active history");
+    const { revision, ...session } = active.value;
+    const badSession = await saveRecoverySession(
+      { ...session, history: { ...session.history, current: [] } },
+      revision,
+      kinds,
+    );
+    if (badSession.ok) throw new Error("Mismatched history was accepted");
+    const unchangedSession = await loadRecoverySession(kinds);
+    if (JSON.stringify(unchangedSession) !== JSON.stringify(active))
+      throw new Error("Rejected history changed recovery");
+    const seeded = await saveLocalDraft(
+      {
+        project: session.document,
+        history: session.history,
+        expectedStorageRevision: 0,
+        localEditSequence: 0,
+      },
+      kinds,
+    );
+    if (!seeded.ok) throw new Error(seeded.error.message);
     const recovered = await loadLatestLocalDraft(kinds);
     if (!recovered.ok || !recovered.value?.history) throw new Error("Missing recovered history");
     const draft = recovered.value;
@@ -72,7 +114,7 @@ try {
     );
     async function editStored(change) {
       await new Promise((resolve, reject) => {
-        const open = indexedDB.open("vthere-local-drafts", 1);
+        const open = indexedDB.open("vthere-local-drafts", 2);
         open.onerror = () => reject(open.error);
         open.onsuccess = () => {
           const db = open.result;

@@ -72,7 +72,8 @@ a {
 .app-header {
   display: flex;
   align-items: center;
-  gap: 1.75rem;
+  /* Action gaps are measured between their visible edges */
+  gap: 1.5rem;
   min-height: 4rem;
   padding: 0.5rem 1.5rem;
   border-bottom: 1px solid var(--line);
@@ -87,8 +88,8 @@ h1 strong {
 }
 .history-controls {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem;
+  flex-shrink: 0;
+  gap: 1.5rem;
   margin-left: auto;
 }
 .history-controls button {
@@ -96,11 +97,12 @@ h1 strong {
   align-items: center;
   gap: 0.4rem;
   min-height: 2.75rem;
-  padding: 0.4rem 0.7rem;
+  padding: 0.4rem 0;
   border: 0;
   border-radius: 0.3rem;
   background: transparent;
   font-size: 0.8125rem;
+  white-space: nowrap;
 }
 .history-controls button:disabled {
   color: #949a8f;
@@ -117,35 +119,45 @@ h1 strong {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+.project-file-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-inline: 0;
+  min-width: 0;
+}
 .save-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
   color: var(--muted);
   font-size: 0.75rem;
   white-space: nowrap;
 }
 .save-state::before {
+  /* Whole-pixel dimensions and no flex shrinking keep the status dot round */
   content: "";
-  display: inline-block;
-  width: 0.35rem;
-  height: 0.35rem;
-  margin-right: 0.5rem;
+  flex: 0 0 8px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background: #b47c2b;
 }
 /* The dot describes a completed write; the ring means a write is still in progress */
-.save-state[data-state="saved"]::before,
-.save-state[data-state="backup"]::before {
+.save-state[data-state="saved"]::before {
   background: #187c6b;
 }
 .save-state[data-state="failed"]::before {
   background: #ae452e;
 }
 .save-state[data-state="saving"]::before {
-  width: 0.7rem;
-  height: 0.7rem;
+  flex-basis: 12px;
+  width: 12px;
+  height: 12px;
   background: transparent;
   border: 2px solid #d5cfc7;
   border-top-color: #6c7268;
-  vertical-align: -0.1rem;
   animation: project-save-spin 0.8s linear infinite;
 }
 @keyframes project-save-spin {
@@ -161,6 +173,7 @@ h1 strong {
 
 .mode-actions {
   display: flex;
+  flex-shrink: 0;
   gap: 0.25rem;
 }
 
@@ -174,11 +187,69 @@ h1 strong {
   border-radius: 0.3rem;
   background: #f8f7f2;
   font-size: 0.8125rem;
+  white-space: nowrap;
 }
 
 .mode-actions button:hover:not(:disabled) {
   background: #e9ece4;
   border-color: #969e90;
+}
+
+/* Give the actions a full row before the title and buttons start squeezing each other */
+@media (max-width: 70rem) {
+  .app-header {
+    display: grid;
+    grid-template-columns: 2.25rem minmax(0, max-content) auto minmax(0, 1fr);
+    row-gap: 0.25rem;
+  }
+  .app-header h1 {
+    grid-column: 2 / -1;
+    margin-left: -1.75rem;
+  }
+  .history-controls {
+    grid-column: 1 / 3;
+    margin-left: 0;
+  }
+  .mode-actions {
+    grid-column: 3;
+  }
+  .project-file-status {
+    grid-column: 4;
+  }
+}
+
+@media (max-width: 42rem) {
+  .history-controls {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(4, max-content);
+    row-gap: 0.25rem;
+  }
+  .mode-actions {
+    grid-column: 1 / 3;
+  }
+  .project-file-status {
+    grid-column: 3 / -1;
+    justify-self: end;
+  }
+}
+
+@media (max-width: 30rem) {
+  /* Keep Undo and Redo together on the next row at phone-sized widths */
+  .history-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    min-width: 0;
+  }
+  .history-controls button {
+    /* Enlarged text and wider system fonts need room to wrap inside their column */
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-align: left;
+  }
+  .history-controls svg {
+    flex-shrink: 0;
+  }
 }
 
 .workspace {
@@ -392,21 +463,11 @@ ul {
   border-radius: 0.3rem;
   background: #f8f7f2;
 }
-.action-error {
-  position: fixed;
-  bottom: 1rem;
-  left: 50%;
-  max-width: calc(100% - 2rem);
-  transform: translateX(-50%);
-  padding: 0.75rem 1rem;
-  color: #fff;
-  background: #8e3b29;
-}
 
 @media (max-width: 760px) {
   .app-header {
     flex-wrap: wrap;
-    gap: 0.25rem 1rem;
+    row-gap: 0.25rem;
     padding: 0.6rem 1rem;
   }
   h1 {
@@ -416,7 +477,7 @@ ul {
     margin-left: 0;
   }
   .save-state {
-    margin-left: auto;
+    margin-left: 0;
   }
   .editor-shell {
     min-height: 100dvh;
@@ -453,7 +514,7 @@ ul {
 .draft-menu {
   /* Offset the icon padding to line up with the asset thumbnails below */
   margin-left: -0.75rem;
-  margin-right: -1.25rem;
+  margin-right: -1rem;
   position: relative;
   flex-shrink: 0;
   font-size: 0.8125rem;
@@ -461,7 +522,7 @@ ul {
 .draft-menu summary {
   display: grid;
   place-items: center;
-  width: 2rem;
+  width: 2.25rem;
   height: 2.25rem;
   border-radius: 50%;
   cursor: pointer;
@@ -512,7 +573,8 @@ ul {
 .draft-menu-panel button:disabled {
   color: #898980;
 }
-.draft-feedback {
+.draft-feedback,
+.action-error {
   position: fixed;
   bottom: 1rem;
   right: 1rem;
@@ -524,6 +586,14 @@ ul {
   box-shadow: 0 2px 12px #292e2914;
   font-size: 0.75rem;
   pointer-events: none;
+}
+.action-error {
+  color: #8e3b29;
+  background: #f8ebe7;
+  border: 1px solid #e8c8bf;
+  z-index: 3;
+  /* Leave a little longer to read the problem before clearing the notice */
+  animation: project-notice-fade 0.5s ease 5s forwards;
 }
 .draft-feedback:empty {
   display: none;
@@ -563,11 +633,11 @@ ul {
 .project-confirmation button:hover {
   background: #cec4b7;
 }
-/* Hold placement feedback long enough to read, then fade before its timer clears it */
-.draft-feedback.is-placement {
-  animation: placement-notice-fade 0.5s ease 2.5s forwards;
+/* Save, reopen and placement messages share the same short lifetime */
+.draft-feedback {
+  animation: project-notice-fade 0.5s ease 3s forwards;
 }
-@keyframes placement-notice-fade {
+@keyframes project-notice-fade {
   from {
     opacity: 1;
   }
@@ -576,15 +646,19 @@ ul {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .draft-feedback.is-placement {
+  .draft-feedback {
     animation: none;
+  }
+  .action-error {
+    /* Still dismiss the message when reduced motion skips the visible fade */
+    animation-duration: 0.01ms;
   }
 }
 
 @media (max-width: 760px) {
   .draft-menu {
     margin-left: -0.5rem;
-    margin-right: -0.5rem;
+    margin-right: -1rem;
   }
   .draft-menu + h1 {
     flex-basis: auto;

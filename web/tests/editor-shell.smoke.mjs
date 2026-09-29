@@ -32,7 +32,7 @@ try {
   const rows = page.locator(".object-row");
   const stage = page.locator(".viewport-stage");
   await ready.waitFor();
-  assert.equal(await page.title(), "VThere Spatial Experience Editor");
+  assert.equal(await page.title(), "Untitled - VThere");
   assert.equal(
     await page.getByRole("heading", { name: "VThere Spatial Experience Editor" }).count(),
     1,
@@ -220,6 +220,20 @@ try {
     "No overflow at 320px with 125% text size",
   );
   await page.evaluate(() => document.documentElement.style.removeProperty("font-size"));
+  // A wider fallback font catches columns that only fit on the developer's machine
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = "20px";
+    document.documentElement.style.fontFamily = "Verdana, sans-serif";
+  });
+  assert.equal(
+    await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+    true,
+    "No overflow at 320px with enlarged text and a wider font",
+  );
+  await page.evaluate(() => {
+    document.documentElement.style.removeProperty("font-size");
+    document.documentElement.style.removeProperty("font-family");
+  });
   await page.emulateMedia({ reducedMotion: "reduce" });
   assert.equal(
     await page
@@ -246,7 +260,10 @@ try {
   // The saved fixture should replace placement history and show its two authored objects
   await page.getByRole("button", { name: "Open sample project", exact: true }).click();
   // Project replacement now waits for the editor confirmation
-  await page.getByRole("dialog").getByRole("button", { name: "Replace", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Don’t Save", exact: true }).click();
+  // Project switching writes recovery data before replacing the scene
+  // Wait for the dialog to close before reading the new objects
+  await page.getByRole("dialog").waitFor({ state: "hidden" });
   assert.deepEqual(await rows.allTextContents(), ["First crate", "Second crate"]);
   assert.deepEqual(await rows.evaluateAll((items) => items.map((item) => item.dataset.objectId)), [
     "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
@@ -263,7 +280,8 @@ try {
   assert.equal(await rows.count(), 3);
   await page.getByRole("button", { name: "Open sample project", exact: true }).click();
   // Project replacement now waits for the editor confirmation
-  await page.getByRole("dialog").getByRole("button", { name: "Replace", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Don’t Save", exact: true }).click();
+  await page.getByRole("dialog").waitFor({ state: "hidden" });
   assert.equal(await rows.count(), 2);
   assert.equal(await page.locator("canvas").count(), 1);
   if (process.env.SCENE_SCREENSHOT) {

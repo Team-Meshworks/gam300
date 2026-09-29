@@ -1,18 +1,19 @@
 import { useEffect, useRef } from "react";
+import type { ProjectDecision } from "./persistence/use-project-session";
 
 export function ProjectConfirmation({
-  message,
-  action,
+  fileName,
+  busy,
   onChoice,
 }: {
-  message: string;
-  action: string;
-  onChoice: (accepted: boolean) => void;
+  fileName: string;
+  busy: boolean;
+  onChoice: (choice: ProjectDecision) => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
+    // Keep keyboard and pointer input inside the decision while switching projects
     const element = dialog.current;
-    // Native modal focus containment keeps Tab inside our styled confirmation
     element?.showModal();
     return () => element?.close();
   }, []);
@@ -21,20 +22,22 @@ export function ProjectConfirmation({
       ref={dialog}
       className="project-confirmation"
       aria-labelledby="project-confirmation-title"
-      // Escape follows the Cancel path so the waiting Open action can finish
       onCancel={(event) => {
         event.preventDefault();
-        onChoice(false);
+        if (!busy) onChoice("cancel");
       }}
     >
-      <h2 id="project-confirmation-title">Before you continue</h2>
-      <p>{message}</p>
+      <h2 id="project-confirmation-title">Save changes to {fileName}?</h2>
+      <p>Your changes will be lost if you don’t save</p>
       <div>
-        <button type="button" autoFocus onClick={() => onChoice(false)}>
+        <button type="button" disabled={busy} autoFocus onClick={() => onChoice("cancel")}>
           Cancel
         </button>
-        <button type="button" onClick={() => onChoice(true)}>
-          {action}
+        <button type="button" disabled={busy} onClick={() => onChoice("discard")}>
+          Don’t Save
+        </button>
+        <button type="button" disabled={busy} onClick={() => onChoice("save")}>
+          {busy ? "Please wait…" : "Save"}
         </button>
       </div>
     </dialog>

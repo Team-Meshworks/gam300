@@ -221,10 +221,13 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
     getRecoveryHistory() {
       return project === null ? undefined : captureRecoveryHistory(project, history.getStates());
     },
-    createProject(environmentAssetId: string): ValidationResult<ProjectDocument> {
+    createProject(
+      environmentAssetId: string,
+      options: { startEmpty: boolean } = { startEmpty: false },
+    ): ValidationResult<ProjectDocument> {
       // Room choice supplies the environment required by the saved format
       // Keep any models already placed on the grid and their undo commands
-      if (project !== null) {
+      if (project !== null && !options.startEmpty) {
         return { ok: false, error: { path: "project", message: "A project is already open" } };
       }
       const environment = assets.find((asset) => asset.id === environmentAssetId);
@@ -254,7 +257,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
               ],
               fovDegrees: 40,
             },
-            objects,
+            objects: options.startEmpty ? [] : objects,
           },
         ],
       };
@@ -265,6 +268,13 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       project = freezeProject(checked.value);
       objects = project.scenes[0]!.objects;
       projectAssets = kinds;
+      // New starts a separate document; Undo must keep the previous project's objects out
+      if (options.startEmpty) {
+        history.clear();
+        clearEdit();
+        clipboard = null;
+        pasteCount = 0;
+      }
       publish();
       return { ok: true, value: project };
     },

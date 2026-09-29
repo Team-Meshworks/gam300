@@ -3,6 +3,7 @@ import { deserializeProject } from "../../shared/project/project-deserialization
 import type { ProjectDocument } from "../../shared/project/project-types";
 import { checkFields, invalid, isRecord } from "../../shared/project/validation-helpers";
 import type { ValidationResult } from "../../shared/project/validation-helpers";
+import type { ProjectFileHandle } from "./project-files";
 import { validateRecoveryHistory, type RecoveryHistory } from "./recovery-history";
 
 // Stable storage names so refreshing the page finds the same records
@@ -44,11 +45,15 @@ function openDatabase(): Promise<IDBDatabase> {
       return;
     }
     // Database version controls the store layout; project schemaVersion lives in the JSON
-    const request = indexedDB.open(DATABASE_NAME, 1);
+    const request = indexedDB.open(DATABASE_NAME, 2);
     let blocked = false;
     request.onupgradeneeded = () => {
       // Keep the local namespace separate from future signed-in account records
-      request.result.createObjectStore(STORE_NAME, { keyPath: ["principalKey", "projectId"] });
+      if (!request.result.objectStoreNames.contains(STORE_NAME)) {
+        request.result.createObjectStore(STORE_NAME, { keyPath: ["principalKey", "projectId"] });
+      }
+      if (!request.result.objectStoreNames.contains("session"))
+        request.result.createObjectStore("session");
     };
     request.onerror = () => reject(request.error);
     request.onblocked = () => {
@@ -349,6 +354,198 @@ export async function saveLocalDraft(
     } catch {
       database.close();
       resolve(invalid("storage", failure));
+    }
+  });
+}
+
+// One active editing session, including the last manual save for dirty-state comparison
+// Replacing this record discards the previous session only after the next one commits
+export type RecoverySession = Readonly<{
+  revision: number;
+  document: ProjectDocument;
+  fileName: string;
+  savedJson: string | null;
+  pristine: boolean;
+  // Keep the chosen file with this exact session so a reload can still Save in place
+  // Older records only have the filename and need one more Open to connect it
+  fileHandle?: ProjectFileHandle | null;
+  fileText?: string;
+  history?: RecoveryHistory;
+  historyWarning?: string;
+}>;
+
+export async function loadRecoverySession(
+  assetKinds: ReadonlyMap<string, string>,
+): Promise<ValidationResult<RecoverySession | null>> {
+  let database: IDBDatabase;
+  try {
+    database = await openDatabase();
+  } catch {
+    return invalid("storage", "Recovery storage could not open; your saved data was kept");
+  }
+  try {
+    const raw: unknown = await new Promise((resolve, reject) => {
+      const tx = database.transaction("session", "readonly");
+      const read = tx.objectStore("session").get("active");
+      tx.oncomplete = () => resolve(read.result);
+      tx.onabort = () => reject(tx.error);
+    });
+    if (raw === undefined) return { ok: true, value: null };
+    if (
+      !isRecord(raw) ||
+      !isCounter(raw.revision) ||
+      raw.revision < 1 ||
+      typeof raw.fileName !== "string" ||
+      raw.fileName.length > 255 ||
+      typeof raw.pristine !== "boolean" ||
+      (raw.savedJson !== null && typeof raw.savedJson !== "string")
+    ) {
+      return invalid("storage", "Recovery metadata is invalid; the stored copy was kept");
+    }
+    const fields = checkFields(
+      raw,
+      [
+        "revision",
+        "document",
+        "fileName",
+        "savedJson",
+        "pristine",
+        ...(Object.hasOwn(raw, "fileHandle") ? ["fileHandle"] : []),
+        ...(Object.hasOwn(raw, "fileText") ? ["fileText"] : []),
+        ...(Object.hasOwn(raw, "history") ? ["history"] : []),
+      ],
+      "recovery",
+    );
+    if (!fields.ok) return fields;
+    const document = deserializeProject(raw.document, assetKinds);
+    if (!document.ok) return document;
+    // Keep the valid scene available even if an older history record cannot be restored
+    const history =
+      raw.history === undefined
+        ? undefined
+        : validateRecoveryHistory(raw.history, document.value, assetKinds);
+    let savedJson: string | null = null;
+    if (raw.savedJson !== null) {
+      const saved = deserializeProject(raw.savedJson, assetKinds);
+      if (!saved.ok) return saved;
+      if (saved.value.projectId !== document.value.projectId)
+        return invalid("storage", "Recovery file belongs to a different project");
+      savedJson = JSON.stringify(saved.value);
+    }
+    // File contents can include whitespace; keep the exact text for overwrite checks
+    // A filename by itself never grants access to a file on someone's computer
+    let fileHandle: ProjectFileHandle | null = null;
+    let fileText = "";
+    if (
+      typeof FileSystemFileHandle !== "undefined" &&
+      raw.fileHandle instanceof FileSystemFileHandle &&
+      raw.fileHandle.kind === "file" &&
+      raw.fileHandle.name === raw.fileName &&
+      typeof raw.fileText === "string" &&
+      savedJson !== null
+    ) {
+      // Match the stored connection to the saved version before reusing it
+      // A stale or incomplete connection can be ignored without losing the scene
+      const baseline = deserializeProject(raw.fileText, assetKinds);
+      if (baseline.ok && JSON.stringify(baseline.value) === savedJson) {
+        fileHandle = raw.fileHandle as unknown as ProjectFileHandle;
+        fileText = raw.fileText;
+      }
+    }
+    return {
+      ok: true,
+      value: {
+        revision: raw.revision,
+        document: document.value,
+        fileName: raw.fileName,
+        savedJson,
+        pristine: raw.pristine && document.value.scenes[0]?.objects.length === 0,
+        fileHandle,
+        fileText,
+        ...(history?.ok ? { history: history.value } : {}),
+        ...(history && !history.ok
+          ? { historyWarning: "Scene recovered, but its undo history could not be restored" }
+          : {}),
+      },
+    };
+  } catch {
+    return invalid("storage", "Recovery could not be read; the stored copy was kept");
+  } finally {
+    database.close();
+  }
+}
+
+export async function saveRecoverySession(
+  session: Omit<RecoverySession, "revision" | "historyWarning">,
+  expectedRevision: number,
+  assetKinds: ReadonlyMap<string, string>,
+  previousProjectId?: string,
+): Promise<ValidationResult<number>> {
+  if (!isCounter(expectedRevision) || expectedRevision === Number.MAX_SAFE_INTEGER)
+    return invalid("storage", "Invalid recovery revision");
+  const encoded = serializeProject(session.document, assetKinds);
+  if (!encoded.ok) return encoded;
+  const history =
+    session.history === undefined
+      ? undefined
+      : validateRecoveryHistory(session.history, session.document, assetKinds);
+  if (history && !history.ok) return history;
+  if (session.fileName.length > 255) return invalid("storage", "Project filename is too long");
+  if (session.savedJson !== null) {
+    const saved = deserializeProject(session.savedJson, assetKinds);
+    if (!saved.ok) return saved;
+    if (saved.value.projectId !== session.document.projectId)
+      return invalid("storage", "Recovery file belongs to a different project");
+  }
+  let database: IDBDatabase;
+  try {
+    database = await openDatabase();
+  } catch {
+    return invalid(
+      "storage",
+      "Recovery backup failed; keep this tab open and save your project file",
+    );
+  }
+  return new Promise((resolve) => {
+    let message = "Recovery backup failed; your current project is still open";
+    try {
+      const tx = database.transaction(["session", STORE_NAME], "readwrite");
+      const store = tx.objectStore("session");
+      const read = store.get("active");
+      tx.onabort = () => {
+        database.close();
+        resolve(invalid("storage", message));
+      };
+      tx.oncomplete = () => {
+        database.close();
+        resolve({ ok: true, value: expectedRevision + 1 });
+      };
+      read.onsuccess = () => {
+        const previous: unknown = read.result;
+        if (previous !== undefined && (!isRecord(previous) || !isCounter(previous.revision))) {
+          message = "Recovery metadata is invalid; the stored copy was kept";
+          tx.abort();
+          return;
+        }
+        if ((isRecord(previous) ? previous.revision : 0) !== expectedRevision) {
+          // Both tabs share this record; only the tab with the latest revision can replace it
+          message = "Recovery changed in another tab; save your JSON file before refreshing";
+          tx.abort();
+          return;
+        }
+        // Keep the scene and manual-save baseline together in one atomic write
+        // Don't Save switches to a new record without leaving the discarded edits behind
+        store.put(
+          { ...session, document: encoded.value, revision: expectedRevision + 1 },
+          "active",
+        );
+        const legacy = tx.objectStore(STORE_NAME);
+        legacy.delete([LOCAL_PRINCIPAL, session.document.projectId.toLowerCase()]);
+        if (previousProjectId) legacy.delete([LOCAL_PRINCIPAL, previousProjectId.toLowerCase()]);
+      };
+    } catch {
+      database.close();
+      resolve(invalid("storage", message));
     }
   });
 }
