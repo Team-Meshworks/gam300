@@ -5,6 +5,7 @@ import { checkFields, invalid, isRecord } from "../../shared/project/validation-
 import type { ValidationResult } from "../../shared/project/validation-helpers";
 import type { ProjectFileHandle } from "./project-files";
 import { validateRecoveryHistory, type RecoveryHistory } from "./recovery-history";
+import { IndexedDBDraftDatabase, type IDraftDatabase } from "./draft-db";
 
 // Stable storage names so refreshing the page finds the same records
 const DATABASE_NAME = "vthere-local-drafts";
@@ -152,6 +153,14 @@ export async function loadLocalDraft(
   projectId: string,
   assetKinds: ReadonlyMap<string, string>,
 ): Promise<ValidationResult<RecoveredDraft | null>> {
+  return await getLocalDraft(projectId, assetKinds, new IndexedDBDraftDatabase());
+}
+
+export async function getLocalDraft(
+  projectId: string,
+  assetKinds: ReadonlyMap<string, string>,
+  database: IDraftDatabase,
+): Promise<ValidationResult<RecoveredDraft | null>> {
   if (
     typeof projectId !== "string" ||
     projectId.length !== 36 ||
@@ -159,34 +168,11 @@ export async function loadLocalDraft(
   ) {
     return invalid("storage.projectId", "Expected a project UUID");
   }
-  let database: IDBDatabase;
-  try {
-    database = await openDatabase();
-  } catch {
-    return invalid("storage", "Local storage could not open; the current project is unchanged");
+
+  const stored = await database.getDraft(projectId.toLowerCase());
+  if (!stored.ok) {
+    return stored;
   }
-  const stored = await new Promise<ValidationResult<unknown>>((resolve) => {
-    try {
-      // Read-only transaction keeps failed recovery from changing the stored copy
-      const transaction = database.transaction(STORE_NAME, "readonly");
-      const read = transaction
-        .objectStore(STORE_NAME)
-        .get([LOCAL_PRINCIPAL, projectId.toLowerCase()]);
-      transaction.oncomplete = () => {
-        // Release the connection before validating the returned JSON
-        database.close();
-        resolve({ ok: true, value: read.result });
-      };
-      transaction.onabort = () => {
-        database.close();
-        resolve(invalid("storage", "Local draft could not be read; try again"));
-      };
-    } catch {
-      database.close();
-      resolve(invalid("storage", "Local draft could not be read; try again"));
-    }
-  });
-  if (!stored.ok) return stored;
   return validateStoredDraft(stored.value, projectId.toLowerCase(), assetKinds);
 }
 
