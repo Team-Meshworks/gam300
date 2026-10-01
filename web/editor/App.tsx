@@ -191,9 +191,16 @@ export function App() {
     session.clearError();
     // Choosing the first room turns the grid scene into a saveable project
     // Room placement uses the environment slot so it survives JSON reconstruction
-    if (store.getSnapshot().project === null && assetKinds.get(assetId) === "environment") {
+    if (assetKinds.get(assetId) === "environment") {
       if (session.busy) {
         setNotice("Wait for the project to finish opening, then choose a room");
+        return;
+      }
+      // The library keeps the room available after placement
+      // Dropping the current room again leaves the scene and undo history alone
+      if (store.getSnapshot().project?.scenes[0]?.environmentAssetId === assetId) {
+        setDragging(false);
+        setNotice("This room is already in the scene");
         return;
       }
       const created = store.createProject(assetId);
@@ -430,35 +437,34 @@ export function App() {
           <section aria-labelledby="assets-heading">
             <h2 id="assets-heading">Asset library</h2>
             <ul className="asset-shelf" role="list">
-              {assets
-                .filter((asset) => project === null || asset.kind === "model")
-                .map((asset) => (
-                  <li key={asset.id}>
-                    <button
-                      className="asset-tile"
-                      type="button"
-                      draggable={status === "ready"}
-                      disabled={status !== "ready"}
-                      aria-label={`Add ${asset.name}`}
-                      title="Drag into the scene, or click to add"
-                      onClick={() => place(asset.id, [0, 0, 0])}
-                      onDragStart={(event) => {
-                        event.dataTransfer.setData(assetDragType, asset.id);
-                        event.dataTransfer.effectAllowed = "copy";
-                        setDragging(true);
-                      }}
-                      onDragEnd={() => setDragging(false)}
-                    >
-                      <span className="asset-art">
-                        <img src={thumbnailFor(asset.id)} alt="" draggable={false} />
-                        <span className="asset-add" aria-hidden="true">
-                          +
-                        </span>
+              {/* Keep the full library visible when a project is open */}
+              {assets.map((asset) => (
+                <li key={asset.id}>
+                  <button
+                    className="asset-tile"
+                    type="button"
+                    draggable={status === "ready"}
+                    disabled={status !== "ready"}
+                    aria-label={`Add ${asset.name}`}
+                    title="Drag into the scene, or click to add"
+                    onClick={() => place(asset.id, [0, 0, 0])}
+                    onDragStart={(event) => {
+                      event.dataTransfer.setData(assetDragType, asset.id);
+                      event.dataTransfer.effectAllowed = "copy";
+                      setDragging(true);
+                    }}
+                    onDragEnd={() => setDragging(false)}
+                  >
+                    <span className="asset-art">
+                      <img src={thumbnailFor(asset.id)} alt="" draggable={false} />
+                      <span className="asset-add" aria-hidden="true">
+                        +
                       </span>
-                      <span className="asset-name">{asset.name}</span>
-                    </button>
-                  </li>
-                ))}
+                    </span>
+                    <span className="asset-name">{asset.name}</span>
+                  </button>
+                </li>
+              ))}
             </ul>
           </section>
 

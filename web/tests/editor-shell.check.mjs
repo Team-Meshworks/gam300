@@ -271,7 +271,14 @@ try {
   ]);
   assert.equal(await undo.isDisabled(), true);
   assert.equal(await redo.isDisabled(), true);
-  assert.equal(await page.getByRole("button", { name: "Add test-room", exact: true }).count(), 0);
+  const room = page.getByRole("button", { name: "Add test-room", exact: true });
+  assert.equal(await room.isVisible(), true, "Opening a project keeps the room in the library");
+  // Reusing the current room must leave the loaded exhibits and history intact
+  await room.click();
+  assert.deepEqual(await rows.allTextContents(), ["First crate", "Second crate"]);
+  assert.equal(await undo.isDisabled(), true);
+  assert.equal(await redo.isDisabled(), true);
+  await page.getByText("This room is already in the scene", { exact: true }).waitFor();
   await asset.click();
   assert.equal(await rows.count(), 3);
   await undo.click();
@@ -309,6 +316,19 @@ try {
   );
   await rows.nth(1).click();
   assert.equal(await rows.nth(1).getAttribute("aria-pressed"), "true", "List bypasses occlusion");
+
+  // New projects and recovered sessions should show the same asset choices
+  await page.locator(".draft-menu summary").click();
+  await page.getByRole("button", { name: "New", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Don’t Save", exact: true }).click();
+  await page.getByRole("dialog").waitFor({ state: "hidden" });
+  assert.equal(await room.isVisible(), true);
+  await room.click();
+  assert.equal(await rows.count(), 0);
+  assert.equal(await undo.isDisabled(), true);
+  await page.reload();
+  await ready.waitFor();
+  assert.equal(await room.isVisible(), true, "Recovery keeps the room in the library");
 
   const samplePath = "**/*test-crate*.glb*";
   await page.route(samplePath, (route) => {
