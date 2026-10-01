@@ -69,6 +69,11 @@ export function App() {
   const [manager, setManager] = useState<ModeManager | null>(null);
   const [modeState, setModeState] = useState<ModeManagerState | null>(null);
   const selection = objects.some((object) => object.id === selectedId) ? selectedId : null;
+  const projectScene = project?.scenes[0];
+  const roomAsset = assets.find((asset) => asset.id === projectScene?.environmentAssetId);
+  // Room selection uses the scene ID because its asset lives in the environment field
+  // Object commands still receive only placed-object IDs
+  const roomSelected = projectScene !== undefined && selectedId === projectScene.id;
   const [hasDeleted, setHasDeleted] = useState(false);
   const selectedObject = objects.find((object) => object.id === selection);
   const hasChanges = project !== null || objects.length > 0 || hasDeleted;
@@ -471,9 +476,26 @@ export function App() {
           {hasChanges && (
             <section className="scene-objects" aria-labelledby="objects-heading">
               <h2 id="objects-heading">
-                In this scene <span>{objects.length}</span>
+                In this scene <span>{objects.length + (projectScene === undefined ? 0 : 1)}</span>
               </h2>
               <ul role="list">
+                {projectScene !== undefined && (
+                  <li key={projectScene.id}>
+                    <button
+                      className="environment-row"
+                      type="button"
+                      aria-pressed={roomSelected}
+                      onClick={() => setSelectedId(projectScene.id)}
+                    >
+                      <img
+                        src={thumbnailFor(projectScene.environmentAssetId)}
+                        alt=""
+                        draggable={false}
+                      />
+                      <span>{roomAsset?.name ?? projectScene.name}</span>
+                    </button>
+                  </li>
+                )}
                 {objects.map((object) => (
                   <li key={object.id}>
                     <button
@@ -526,7 +548,7 @@ export function App() {
           assets={assets}
           objects={objects}
           projectScene={project?.scenes[0] ?? null}
-          selectedId={selection}
+          selectedId={roomSelected ? projectScene.id : selection}
           dragging={dragging}
           editingEnabled={!switching}
           status={status}

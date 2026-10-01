@@ -140,6 +140,7 @@ export function initScene(
   let appliedCamera: CameraPose | null = null;
   let environment: THREE.Group | undefined;
   let environmentId: string | undefined;
+  const environmentBounds = new THREE.Box3();
   const instances = new Map<string, THREE.Group>();
   const instanceAssets = new Map<string, string>();
   const bounds = new Map<string, THREE.Box3>();
@@ -333,7 +334,11 @@ export function initScene(
       environmentId = projectScene?.environmentAssetId;
       environment =
         environmentId === undefined ? undefined : models.get(environmentId)?.clone(true);
-      if (environment !== undefined) scene.add(environment);
+      environmentBounds.makeEmpty();
+      if (environment !== undefined) {
+        scene.add(environment);
+        environmentBounds.setFromObject(environment);
+      }
     }
     // Sample room floor sits at zero; lift the grid slightly so it stays readable
     grid.position.y = projectScene === null ? -0.01 : 0.01;
@@ -369,13 +374,22 @@ export function initScene(
         bounds.set(object.id, new THREE.Box3().setFromObject(instance));
       }
     }
-    const selectedBounds = selectedId === null ? undefined : bounds.get(selectedId);
+    const selectedBounds = getSelectionBounds();
     selection.visible = selectedBounds !== undefined && modeManager.getState().mode === "editor";
     if (selectedBounds !== undefined) {
       selection.box.copy(selectedBounds);
     }
     updateGizmo();
     render();
+  }
+
+  function getSelectionBounds() {
+    // Use the same outline for the room and exhibits
+    // Room bounds stay separate from the movable object instances
+    if (selectedId === projectScene?.id && !environmentBounds.isEmpty()) {
+      return environmentBounds;
+    }
+    return selectedId === null ? undefined : bounds.get(selectedId);
   }
 
   function screenRay(clientX: number, clientY: number) {
@@ -527,7 +541,8 @@ export function initScene(
       environment === undefined
         ? Infinity
         : (raycaster.intersectObject(environment, true)[0]?.distance ?? Infinity);
-    let id: string | null = null;
+    // A wall or floor hit selects the room; a closer exhibit can still win the pick
+    let id: string | null = Number.isFinite(nearest) ? (projectScene?.id ?? null) : null;
     for (const [objectId, instance] of instances) {
       const hit = raycaster.intersectObject(instance, true)[0];
       if (hit !== undefined && hit.distance < nearest) {
@@ -634,7 +649,7 @@ export function initScene(
     cancelWheelEdit();
     // Cancellation must not re-enable orbit controls while visiting
     orbit.enabled = mode === "editor" && editingEnabled;
-    selection.visible = mode === "editor" && selectedId !== null && bounds.has(selectedId);
+    selection.visible = mode === "editor" && getSelectionBounds() !== undefined;
     updateGizmo();
   });
   observer.observe(host);

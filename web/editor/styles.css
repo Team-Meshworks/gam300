@@ -348,7 +348,8 @@ ul {
   font-weight: 400;
   font-variant-numeric: tabular-nums;
 }
-.object-row {
+.object-row,
+.environment-row {
   display: flex;
   gap: 0.5rem;
   align-items: center;
@@ -361,16 +362,19 @@ ul {
   background: transparent;
   font-size: 0.8125rem;
 }
-.object-row img {
+.object-row img,
+.environment-row img {
   width: 2rem;
   height: 2rem;
   object-fit: contain;
 }
-.object-row[aria-pressed="true"] {
+.object-row[aria-pressed="true"],
+.environment-row[aria-pressed="true"] {
   background: #e4ede5;
   border-left-color: #187c6b;
 }
-.object-row:hover {
+.object-row:hover,
+.environment-row:hover {
   background: #ecede7;
 }
 .move-controls {
