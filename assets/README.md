@@ -38,6 +38,16 @@ Checks on 20 September 2026: room and crate rendered together in the browser, ma
 
 The existing snowglobe is also selectable alongside the manifest assets. It retains sample-snowglobe-v1 and its public/models/snowglobe.glb file, generates a thumbnail at load time, and preserves the original demo bottom-centre placement convention. It remains a separate legacy development sample; adding it to the UI does not assert asset rights approval or add it to the offline manifest validation.
 
+## Viewport resource caching
+
+The browser catalogue now includes each delivery's verified SHA-256. Parsed models and
+generated thumbnails are reused across viewport recreation with reference-counted leases,
+at most three idle entries and a 30-second expiry. New bytes require a new immutable asset
+ID/hash. Invalidation retires lookups without destroying active borrowers. From `web/`,
+run `npm run test:caching` for resource-lifetime checks or `npm run measure:caching`
+to record comparable baseline/cached timings.
+
 ## Snowglobe manifest migration
+
 
 All three UI samples now resolve through manifest.json and the same GLB validator. The original snowglobe bytes are retained in source/snowglobe.glb and delivery/snowglobe.glb; the existing public demo file is left intact for compatibility. Its stable sample-snowglobe-v1 ID is unchanged. thumbnailMode: generated requests the existing renderer-generated preview; placement: bottom-center retains its prior placement. animationPolicy: static-only explicitly disables playback of the animation stored in the GLB. Other animated assets are still rejected unless explicitly reviewed for this policy; skinned assets remain unsupported. Licensing implementation is owned by the VThere team. This supersedes the earlier separate-legacy-sample description.

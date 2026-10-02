@@ -17,6 +17,8 @@
     "test:unit": "vitest run",
     "test:browser": "node tests/editor-shell.check.mjs",
     "test:integration": "node tests/editor-integration.check.mjs",
+    "test:caching": "node tests/caching.check.mjs",
+    "measure:caching": "node tests/caching.measure.mjs",
     "test:recovery": "node tests/local-drafts.check.mjs",
     "test:history": "node tests/history-recovery.check.mjs",
     "test:deployment": "node tests/deployment.check.mjs",

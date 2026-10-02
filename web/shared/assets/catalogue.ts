@@ -3,6 +3,7 @@ export type CatalogueAsset = Readonly<{
   name: string;
   kind: "environment" | "model";
   url: string;
+  sha256: string;
   thumbnail: string | null;
   placement?: "bottom-center";
 }>;

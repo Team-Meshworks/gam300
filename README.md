@@ -183,6 +183,10 @@ system libraries as well. See [Playwright's CI instructions](https://playwright.
 Validate asset metadata and GLBs from the repository root with
 `node assets/tools/validate-assets.mjs`.
 
+Run `npm run test:caching` in `web/` against the development server to check asset cache
+lifetime and shared resources. `npm run measure:caching` starts its own local server and
+records comparable baseline/cached timings.
+
 ### Development environments and verification
 
 The npm workflow needs no application database, `.env` file, private local fixture or
