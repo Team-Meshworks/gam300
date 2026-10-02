@@ -22,6 +22,20 @@ try {
       window.auditPickers++;
       throw new DOMException("Cancelled", "AbortError");
     };
+    // Hold the first real backup's completion so shortcut coverage cannot miss it.
+    const put = IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put = function (...args) {
+      const request = put.apply(this, args);
+      if (this.name === "session") {
+        IDBObjectStore.prototype.put = put;
+        const transaction = this.transaction;
+        const complete = transaction.oncomplete;
+        transaction.oncomplete = (event) => {
+          window.finishBackup = () => complete.call(transaction, event);
+        };
+      }
+      return request;
+    };
   });
   await page.goto(url);
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
@@ -29,6 +43,7 @@ try {
   await page.getByRole("button", { name: "Add test-crate", exact: true }).click();
   const position = await page.getByLabel("Selected position").textContent();
   await page.getByRole("button", { name: "Enter Visitor", exact: true }).click();
+  await page.waitForFunction(() => typeof window.finishBackup === "function");
   for (const key of ["Control+d", "Control+s", "Control+Shift+s", "Control+z", "Control+v"])
     await page.keyboard.press(key);
   assert.equal(await page.evaluate(() => window.auditPickers), 0, "Navigation cannot open Save");
@@ -46,8 +61,22 @@ try {
   await page.getByRole("button", { name: "Exit Visitor", exact: true }).click();
   await page.keyboard.press("Control+d");
   assert.equal(await page.locator(".object-row").count(), 2, "Authoring resumes on exit");
-  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await page.keyboard.press("Control+z");
   assert.equal(await page.locator(".object-row").count(), 1);
+  await page.keyboard.press("Control+y");
+  assert.equal(await page.locator(".object-row").count(), 2);
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await page.evaluate(() => window.finishBackup());
+  await page.waitForFunction(async () => {
+    const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
+    const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
+    const saved = await loadRecoverySession(new Map(assets.map((asset) => [asset.id, asset.kind])));
+    return (
+      saved.ok &&
+      saved.value?.document.scenes[0].objects.length === 1 &&
+      saved.value.history?.future.length === 1
+    );
+  });
   // A deferred wheel commit must not edit the document behind a project decision
   await page.locator(".object-row").first().click();
   const box = await page.locator("canvas").boundingBox();
