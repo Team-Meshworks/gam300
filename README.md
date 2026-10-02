@@ -280,6 +280,26 @@ provenance and follow the [asset pipeline](assets/README.md).
 | Playwright cannot find Chromium                  | Run `npx playwright install chromium` from `web/`.                                                      |
 | The viewport reports that WebGL 2 is unavailable | Check browser graphics support and hardware acceleration.                                               |
 
+## Performance check (T02)
+
+Tested **2 October 2026** on an **X870 AORUS ELITE WIFI7 desktop** with specs:
+* CPU: Ryzen 7 7800X3D
+* GPU: RTX 5070
+* Memory: 32 GB RAM
+* OS: Windows 11
+* Browser: Edge 154.0.4258.48
+
+Local production build at
+1366 × 768, using the sample room and two crates.
+
+| Measurement                         | Result                                                                       |
+| ----------------------------------- | ---------------------------------------------------------------------------- |
+| Load time, median of five runs      | 185 ms cold; 175 ms cached                                                   |
+| Frame time, measured for 30 seconds | 5.6 ms median (about 180 FPS); 99% within 5.7 ms                             |
+| Resource use                        | 6.4 MB JavaScript memory; 22 geometry resources, 4 textures and 8 draw calls |
+
+Resource counts stayed unchanged through **10 scene replacements**. Missing-asset retry passed.
+
 ## License
 
 No project license is currently included in this repository. Asset provenance and licensing

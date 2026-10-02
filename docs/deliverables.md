@@ -1,20 +1,20 @@
 # M1 deliverables
 
-M1 ends **4 October 2026**. [Jira snapshot](https://meshworkss.atlassian.net/issues/?jql=project%20%3D%20SCRUM%20AND%20sprint%20%3D%20%22Milestone%201%22%20ORDER%20BY%20key%20ASC): **2 October 2026**.
+M1 ends **4 October 2026**.
 
 ## Product and technical work
 
 | Epic                                                           | Deliverable / Jira task                                                                                    | Owner        | Status      |
 | -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ------------ | ----------- |
 | [SCRUM-37](https://meshworkss.atlassian.net/browse/SCRUM-37)   | [SCRUM-5](https://meshworkss.atlassian.net/browse/SCRUM-5) — Project serialization and reconstruction      | Foo Rui Qin  | Done        |
-| [SCRUM-38](https://meshworkss.atlassian.net/browse/SCRUM-38)   | [SCRUM-9](https://meshworkss.atlassian.net/browse/SCRUM-9) — Navigation, selection and camera modes        | Zifeng       | Done        |
-| [SCRUM-39](https://meshworkss.atlassian.net/browse/SCRUM-39)   | [SCRUM-14](https://meshworkss.atlassian.net/browse/SCRUM-14) — Move, rotate, scale and cancel              | Ming Jie SHI | Done        |
-| [SCRUM-40](https://meshworkss.atlassian.net/browse/SCRUM-40)   | [SCRUM-15](https://meshworkss.atlassian.net/browse/SCRUM-15) — Undo/redo, copy/delete and history recovery | Dalton       | Done        |
+| [SCRUM-38](https://meshworkss.atlassian.net/browse/SCRUM-38)   | [SCRUM-9](https://meshworkss.atlassian.net/browse/SCRUM-9) — Navigation, selection and camera modes        | Zifeng Lim   | Done        |
+| [SCRUM-39](https://meshworkss.atlassian.net/browse/SCRUM-39)   | [SCRUM-14](https://meshworkss.atlassian.net/browse/SCRUM-14) — Move, rotate, scale and cancel              | Ming Jie Shi | Done        |
+| [SCRUM-40](https://meshworkss.atlassian.net/browse/SCRUM-40)   | [SCRUM-15](https://meshworkss.atlassian.net/browse/SCRUM-15) — Undo/redo, copy/delete and history recovery | Dalton Koh   | Done        |
 | [SCRUM-41](https://meshworkss.atlassian.net/browse/SCRUM-41)   | [SCRUM-16](https://meshworkss.atlassian.net/browse/SCRUM-16) — Build and reopen an exhibition              | Fadzly       | Done        |
-| [SCRUM-47](https://meshworkss.atlassian.net/browse/SCRUM-47)   | [SCRUM-18](https://meshworkss.atlassian.net/browse/SCRUM-18) — Representative asset pipeline               | Dalton       | Done        |
+| [SCRUM-47](https://meshworkss.atlassian.net/browse/SCRUM-47)   | [SCRUM-18](https://meshworkss.atlassian.net/browse/SCRUM-18) — Representative asset pipeline               | Dalton Koh   | Done        |
 | [SCRUM-44](https://meshworkss.atlassian.net/browse/SCRUM-44)   | [SCRUM-31](https://meshworkss.atlassian.net/browse/SCRUM-31) — Local drafts and project files              | Foo Rui Qin  | Done        |
-| [SCRUM-128](https://meshworkss.atlassian.net/browse/SCRUM-128) | [SCRUM-127](https://meshworkss.atlassian.net/browse/SCRUM-127) — Editor page                               | Zifeng       | In Progress |
-| —                                                              | [SCRUM-134](https://meshworkss.atlassian.net/browse/SCRUM-134) — IndexedDB dependency injection for tests  | JV1709       | Done        |
+| [SCRUM-128](https://meshworkss.atlassian.net/browse/SCRUM-128) | [SCRUM-127](https://meshworkss.atlassian.net/browse/SCRUM-127) — Editor page                               | Zifeng Lim   | In Progress |
+| —                                                              | [SCRUM-134](https://meshworkss.atlassian.net/browse/SCRUM-134) — IndexedDB dependency injection for tests  | Jovin Quah   | Done        |
 
 ## Required engineering work
 
@@ -33,5 +33,3 @@ Engineering Epics remain unassigned. Owners below belong to the Tasks.
 | R09 — [SCRUM-107](https://meshworkss.atlassian.net/browse/SCRUM-107): Product demonstration  | To Do       | [SCRUM-120](https://meshworkss.atlassian.net/browse/SCRUM-120) Rehearsal: Done; [SCRUM-121](https://meshworkss.atlassian.net/browse/SCRUM-121) Video: In Progress                     | Dalton      |
 | R10 — [SCRUM-108](https://meshworkss.atlassian.net/browse/SCRUM-108): Documentation          | To Do       | [SCRUM-122](https://meshworkss.atlassian.net/browse/SCRUM-122) Linked M1 documentation: In Progress                                                                                   | Fadzly      |
 | R11 — [SCRUM-109](https://meshworkss.atlassian.net/browse/SCRUM-109): Contribution evidence  | To Do       | [SCRUM-123](https://meshworkss.atlassian.net/browse/SCRUM-123) Individual evidence: In Progress; [SCRUM-124](https://meshworkss.atlassian.net/browse/SCRUM-124) Walkthroughs: Shelved | Fadzly      |
-
-SCRUM-76 is included through R04; its recorded sprint is outside M1.
