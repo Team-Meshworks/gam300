@@ -1,16 +1,16 @@
 ---
-title: Spatial Experience Builder Handbook
-description: Meshworks documentation for Spatial Experience Builder (SEB), commissioned by VThere.
+title: Spatia Handbook
+description: Meshworks documentation for Spatia, commissioned by VThere.
 published: true
-date: 2026-10-02T15:02:32.946Z
+date: 2026-10-02T15:37:07.225Z
 tags: 
 editor: markdown
 dateCreated: 2026-09-23T13:54:24.758Z
 ---
 
-# Welcome to Spatial Experience Builder
+# Welcome to Spatia
 
-**Spatial Experience Builder (SEB)** is a browser creation tool commissioned by **VThere**, the client company, and developed by **Meshworks (Team 32)**. It helps school-age children and teenagers build spatial exhibitions from curated assets and understandable WHEN → DO rules, with educator support.
+**Spatia** is a browser creation tool commissioned by **VThere**, the client company, and developed by **Meshworks (Team 32)**. It helps school-age children and teenagers build spatial exhibitions from curated assets and understandable WHEN → DO rules, with educator support.
 
 This wiki is the team's shared handbook. Start here to understand the project, run the current prototype and find delivery evidence.
 
@@ -22,7 +22,7 @@ This wiki is the team's shared handbook. Start here to understand the project, r
 | Install, build and run the project | [Getting started](/en/getting-started) |
 | Understand the software and data boundaries | [Technical design](/en/technical-design) |
 | Deploy, inspect or roll back the application | [Deployment and VM](/en/deployment) |
-| Try placement, movement, saving and recovery | [Using SEB](/en/user-guide) |
+| Try placement, movement, saving and recovery | [Using Spatia](/en/user-guide) |
 | Run checks and find M1 requirement, owner and evidence mappings | [Testing and milestone evidence](/en/testing) |
 | Record decisions and meeting outcomes | [Team and decisions](/en/team) |
 | Maintain the wiki and recover its content | [Wiki maintenance](/en/wiki-maintenance) |
