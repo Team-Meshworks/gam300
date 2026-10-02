@@ -2,7 +2,7 @@
 title: Testing and Milestone Evidence
 description: Repeatable checks, recorded deployment results and honest completion evidence.
 published: true
-date: 2026-10-02T14:51:55.067Z
+date: 2026-10-02T15:03:34.325Z
 tags: 
 editor: markdown
 dateCreated: 2026-09-23T14:16:49.367Z
@@ -84,11 +84,11 @@ These are rubric technical IDs, separate from local component references such as
 
 ## M1 foundation mapping: R01–R11
 
-Snapshot from live Jira on **2 October 2026**. The project owner instructed that **SCRUM-99 is complete for this review**. Its live Jira status is still In Review, and SCRUM-111 still In Progress; this wiki update does not change those statuses. Epic owners and child-task owners are kept distinct.
+Snapshot from live Jira on **2 October 2026**. **SCRUM-99 is treated as complete per instruction for this review**. Its live Jira status is still In Review, and SCRUM-111 still In Progress; this wiki update does not change those statuses. Epic owners and child-task owners are kept distinct.
 
 | Requirement | Jira Epic / supporting tasks | Current owner | Recorded state / supporting result |
 | --- | --- | --- | --- |
-| R01 — Repository and workflow | [SCRUM-99](https://meshworkss.atlassian.net/browse/SCRUM-99); [110](https://meshworkss.atlassian.net/browse/SCRUM-110), [111](https://meshworkss.atlassian.net/browse/SCRUM-111) | Fadzly | Complete per owner's instruction; Jira In Review. Approved PR #13, exact-commit CI/deployment and [PR workflow](/en/team) |
+| R01 — Repository and workflow | [SCRUM-99](https://meshworkss.atlassian.net/browse/SCRUM-99); [110](https://meshworkss.atlassian.net/browse/SCRUM-110), [111](https://meshworkss.atlassian.net/browse/SCRUM-111) | Fadzly | Complete per instruction; Jira In Review. Approved PR #13, exact-commit CI/deployment and [PR workflow](/en/team) |
 | R02 — Jira project and backlog | [SCRUM-100](https://meshworkss.atlassian.net/browse/SCRUM-100); [112](https://meshworkss.atlassian.net/browse/SCRUM-112) | Epic unassigned; 112 Fadzly | Done; live Jira and the preserved F/T mappings above |
 | R03 — Architecture v0.1 | [SCRUM-101](https://meshworkss.atlassian.net/browse/SCRUM-101); [113](https://meshworkss.atlassian.net/browse/SCRUM-113) | Fadzly | Done; [published architecture](https://github.com/Team-Meshworks/gam300/blob/dev/docs/architecture.md) and component responsibility record on 113 |
 | R04 — Automated build | [SCRUM-102](https://meshworkss.atlassian.net/browse/SCRUM-102); [76](https://meshworkss.atlassian.net/browse/SCRUM-76) | Fadzly | Done; verified CI image and retained release descriptor |
@@ -137,4 +137,4 @@ Keep failures and follow-up. Screenshots/recordings must identify their build an
 
 [Source deployment runbook](https://github.com/Team-Meshworks/gam300/blob/dev/docs/deployment.md) · [Wiki maintenance](/en/wiki-maintenance) · [Handbook](/en/home)
 
-_Last reviewed: 2 October 2026 against live Jira, published dev 8f05c07, approved PR #13 and its CI/deployment evidence. SCRUM-99 completion is the owner's explicit assumption. Other Jira states were preserved._
+_Last reviewed: 2 October 2026 against live Jira, published dev 8f05c07, approved PR #13 and its CI/deployment evidence. SCRUM-99 completion is the requested assumption. Other Jira states were preserved._
