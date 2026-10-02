@@ -2,7 +2,7 @@
 title: Project Overview and Milestones
 description: Users, product scope, delivery targets and open decisions.
 published: true
-date: 2026-09-23T15:06:13.833Z
+date: 2026-10-02T14:55:36.330Z
 tags: 
 editor: markdown
 dateCreated: 2026-09-23T13:56:20.274Z
@@ -49,16 +49,20 @@ The content target is approximately **2–4 environments, 20–30 assets and one
 
 ## Current implementation boundary
 
-The inspected dev branch contains a React/TypeScript/Vite editor, direct Three.js rendering, asset placement and selection, custom translation, movement buttons, undo/redo and validated v1 project data. It has CI and separate development/production deployments.
+The verified published **dev 8f05c07** contains a React/TypeScript/Vite editor, direct Three.js rendering, room/exhibit placement and selection, custom translation, movement buttons, Undo/Redo and validated v1 project data. It has quiet browser session/history recovery and JSON Open/Save/Save As. The integrated place–move–undo–save–reload flow has passing [CI evidence](/en/testing).
 
-The integrated save/reload loop, content/rule authoring, application accounts, application PostgreSQL integration, independent visitor build and publication flow are not established in this baseline. Wiki.js accounts and its database are separate infrastructure. Prototype assets and UI do not constitute partner design or distribution approval.
+A chosen room creates a saveable project. Browser recovery preserves local work; Saved/Not saved describes the JSON file. Failed imports, writes, cancellation and conflicts preserve the current scene. Follow [Using SEB](/en/user-guide) for the actual workflow.
+
+Content/rule authoring, application accounts, application PostgreSQL integration, an independent visitor build and publication are later work. Wiki.js accounts and its database are separate infrastructure. Prototype assets and UI do not establish partner design or distribution approval.
 
 ## Completion evidence
 
-Use [Testing and milestone evidence](/en/testing) for demonstration steps and recorded results. Keep live task status and owners in [Jira](https://meshworkss.atlassian.net/jira/software/projects/SCRUM/boards/1). Completing one implementation part does not complete its parent task or milestone.
+[Testing and milestone evidence](/en/testing) maps **F01–F07, T01–T06 and R01–R11** to owning Jira work, current owners and concrete results. Live status remains in [Jira](https://meshworkss.atlassian.net/jira/software/projects/SCRUM/boards/1). **SCRUM-99 is treated as complete per instruction for this review**; the evidence page preserves its live Jira status separately.
 
-Open product/design/device decisions belong in [Team and decisions](/en/team). No assessment exemptions, instructor approvals or intended-user study results are assumed.
+The product demonstration tasks are Done in Jira; the accessible recording and its build/device details still need linking into the evidence index. SCRUM-122's second-member core workflow record remains pending. Completing one implementation part does not complete its parent task or the milestone.
 
-[Back to handbook](/en/home)
+Open product/design/device decisions belong in [Team and decisions](/en/team). Assessment approvals and intended-user study results require their own evidence.
 
-_Last reviewed: 23 September 2026. Planning baseline: team project overview and six-milestone roadmap. Code baseline: dev e5591d0._
+[Using SEB](/en/user-guide) · [M1 evidence](/en/testing) · [Handbook](/en/home)
+
+_Last reviewed: 2 October 2026. Planning baseline: the preserved six-milestone roadmap. Published implementation baseline: dev 8f05c07; Jira status snapshot dated 2 October._
