@@ -11,7 +11,12 @@ export class IndexedDBDraftDatabase implements IDraftDatabase {
   readonly LOCAL_PRINCIPAL = "local";
 
   async getDraft(projectId: string): Promise<ValidationResult<unknown>> {
-    const database = await singletonIDBConnection.openDatabase(this.STORE_NAME);
+    let database: IDBDatabase;
+    try {
+      database = await singletonIDBConnection.openDatabase(this.STORE_NAME);
+    } catch {
+      return invalid("storage", "Local draft could not be read; try again");
+    }
     const stored = await new Promise<ValidationResult<unknown>>((resolve) => {
       try {
         // Read-only transaction keeps failed recovery from changing the stored copy
