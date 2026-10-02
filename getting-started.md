@@ -1,8 +1,8 @@
 ---
 title: Getting Started
-description: Clone, install, run and check the current SEB development branch.
+description: Clone, install, run and check the current Spatia development branch.
 published: true
-date: 2026-10-02T14:47:06.594Z
+date: 2026-10-02T15:46:31.402Z
 tags: 
 editor: markdown
 dateCreated: 2026-09-23T13:58:12.443Z
@@ -47,7 +47,7 @@ npm run dev
 
 Open [http://localhost:5173/](http://localhost:5173/) or Vite's printed URL. Leave this terminal running. **Open sample project** is available in the local development server and the hosted dev build; production builds omit it.
 
-Follow [Using SEB](/en/user-guide): add **test-room**, add **test-crate**, move it, Undo/Redo and Save a project JSON file. After editing, allow two seconds for the quiet browser backup, then reload to check recovery. Browser recovery and the JSON file's Saved/Not saved status are separate.
+Follow [Using Spatia](/en/user-guide): add **test-room**, add **test-crate**, move it, Undo/Redo and Save a project JSON file. After editing, allow two seconds for the quiet browser backup, then reload to check recovery. Browser recovery and the JSON file's Saved/Not saved status are separate.
 
 ## Build and check
 
@@ -104,6 +104,6 @@ For a clean reproduction, use a new directory, run the commands above, build, th
 
 [Published dev README](https://github.com/Team-Meshworks/gam300/blob/dev/README.md), [package scripts](https://github.com/Team-Meshworks/gam300/blob/dev/web/package.json), [Node pin](https://github.com/Team-Meshworks/gam300/blob/dev/web/.nvmrc), [architecture v0.1](https://github.com/Team-Meshworks/gam300/blob/dev/docs/architecture.md) and the [tracked deployment runbook](https://github.com/Team-Meshworks/gam300/blob/dev/docs/deployment.md) take precedence over old copied setup notes.
 
-[Using SEB](/en/user-guide) · [Testing and evidence](/en/testing) · [Handbook](/en/home)
+[Using Spatia](/en/user-guide) · [Testing and evidence](/en/testing) · [Handbook](/en/home)
 
 _Last reviewed: 2 October 2026 against published dev 8f05c07. Existing CI results were inspected; no new application-suite run is claimed for this wiki update._
