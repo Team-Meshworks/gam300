@@ -2,7 +2,7 @@
 title: Technical Design
 description: Current architecture, authored data and the planned editor/player/server boundaries.
 published: true
-date: 2026-10-02T14:57:27.236Z
+date: 2026-10-02T15:43:34.757Z
 tags: 
 editor: markdown
 dateCreated: 2026-09-23T13:59:57.495Z
@@ -61,7 +61,7 @@ Rejected loads preserve the document and history. File replacement clears incomp
 4. Reload validates the record and project before replacing the store. IDs, order, transforms, starting camera, valid Undo/Redo and the file dirty state return. Save reconnects permission for a remembered file.
 5. New/Open asks about unsaved edits and commits the replacement backup before switching the visible project. Invalid files, failed writes and conflicts preserve work. Failed backups pause retries until Save; legacy recovery asks before using another readable backup and retains damaged records.
 
-Browser recovery is local to the browser. Saved/Not saved refers to the project JSON file. Neither is server persistence. See [Using SEB](/en/user-guide) and the [recovery/history CI results](/en/testing).
+Browser recovery is local to the browser. Saved/Not saved refers to the project JSON file. Neither is server persistence. See [Using Spatia](/en/user-guide) and the [recovery/history CI results](/en/testing).
 
 ## Planned product boundaries
 
