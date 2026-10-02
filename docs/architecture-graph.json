@@ -212,7 +212,10 @@
     "editor/history-shortcuts.ts": "030a6a4092defe4d0dc9e813bb4354b8efddec056745a2eb18f14224f4e63dd7",
     "editor/main.tsx": "240b88cb33a8ef53b7f8a66df6385b1ada2dcb6b39380f2cfd21e5416fd0346b",
     "editor/object-copy.test.ts": "f11e65d7faa9f6027b11320a21e9e69e85aa873b7d254a8b901dc5ce8c971654",
-    "editor/persistence/local-drafts.ts": "6bbdf5229c7d8401f0fd195584a64c4d7de46b6d24b301a9a07f54c4a9f95ab1",
+    "editor/persistence/draft-db.ts": "9c1aece3becbd9db33c2164533cfc86d9cf7b4bef9306678d9c9aaca9b800c5a",
+    "editor/persistence/idb-database-connection.ts": "d07c765187e280e825a3d73665837a55b12cf203ab93a22c18634849ec6b6347",
+    "editor/persistence/local-drafts.test.ts": "fa77e4b24be4918e0d4ceb73f71871899822268d89d2da880d694f76e7a0f79e",
+    "editor/persistence/local-drafts.ts": "6918ee2d8c14e08962160a70ee007ce8c172e15dd57d4ec00f76e22091c45ccb",
     "editor/persistence/project-files.ts": "20e7466377e31ea388fe527abc4c33e465538b8b06709a5d78c78bc116c6b273",
     "editor/persistence/use-project-session.ts": "662af8b6a36dd5567d70fe3d257692b99af2a55131ddbc3f513bd0c3dc6f80af",
     "editor/project-loading.test.ts": "29c2e63b76195dbd8dd01afe57d5398227b845a974d6798a19e088f3c19457a2",
@@ -1145,6 +1148,88 @@
       "to": "input"
     },
     {
+      "file": "editor/persistence/draft-db.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "../../shared/project/validation-helpers",
+      "target": "shared/project/validation-helpers.ts",
+      "from": "persistence",
+      "to": "project"
+    },
+    {
+      "file": "editor/persistence/draft-db.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "./idb-database-connection",
+      "target": "editor/persistence/idb-database-connection.ts",
+      "from": "persistence",
+      "to": "persistence"
+    },
+    {
+      "file": "editor/persistence/local-drafts.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/persistence/local-drafts.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "../../shared/project/fixtures/m1-project.json",
+      "target": "shared/project/fixtures/m1-project.json",
+      "from": "checks",
+      "to": "project"
+    },
+    {
+      "file": "editor/persistence/local-drafts.test.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "../../shared/project/project-serialization",
+      "target": "shared/project/project-serialization.ts",
+      "from": "checks",
+      "to": "project"
+    },
+    {
+      "file": "editor/persistence/local-drafts.test.ts",
+      "line": 4,
+      "kind": "type",
+      "specifier": "../../shared/project/project-types",
+      "target": "shared/project/project-types.ts",
+      "from": "checks",
+      "to": "project"
+    },
+    {
+      "file": "editor/persistence/local-drafts.test.ts",
+      "line": 5,
+      "kind": "static",
+      "specifier": "./local-drafts",
+      "target": "editor/persistence/local-drafts.ts",
+      "from": "checks",
+      "to": "persistence"
+    },
+    {
+      "file": "editor/persistence/local-drafts.test.ts",
+      "line": 13,
+      "kind": "type",
+      "specifier": "./draft-db",
+      "target": "editor/persistence/draft-db.ts",
+      "from": "checks",
+      "to": "persistence"
+    },
+    {
+      "file": "editor/persistence/local-drafts.test.ts",
+      "line": 14,
+      "kind": "type",
+      "specifier": "../../shared/project/validation-helpers",
+      "target": "shared/project/validation-helpers.ts",
+      "from": "checks",
+      "to": "project"
+    },
+    {
       "file": "editor/persistence/local-drafts.ts",
       "line": 1,
       "kind": "static",
@@ -1206,6 +1291,15 @@
       "target": "editor/recovery-history.ts",
       "from": "persistence",
       "to": "document"
+    },
+    {
+      "file": "editor/persistence/local-drafts.ts",
+      "line": 8,
+      "kind": "static",
+      "specifier": "./draft-db",
+      "target": "editor/persistence/draft-db.ts",
+      "from": "persistence",
+      "to": "persistence"
     },
     {
       "file": "editor/persistence/use-project-session.ts",
