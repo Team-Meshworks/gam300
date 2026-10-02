@@ -2,13 +2,13 @@
 title: README
 description: 
 published: true
-date: 2026-09-23T15:10:19.446Z
+date: 2026-10-02T15:42:51.344Z
 tags: 
 editor: markdown
 dateCreated: 2026-09-23T12:57:37.408Z
 ---
 
-# Spatial Experience Builder (SEB)
+# Spatia
 
 Spatial experience editor.
 
