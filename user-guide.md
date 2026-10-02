@@ -1,14 +1,14 @@
 ---
-title: Using Spatial Experience Builder
+title: Using Spatia
 description: A short walkthrough of the current editor prototype and its limitations.
 published: true
-date: 2026-10-02T14:48:30.642Z
+date: 2026-10-02T15:44:55.687Z
 tags: 
 editor: markdown
 dateCreated: 2026-09-23T14:13:27.498Z
 ---
 
-# Using Spatial Experience Builder
+# Using Spatia
 
 This walkthrough describes the **M1 editor prototype** on published **dev 8f05c07**, reviewed on 2 October 2026. The interface and sample content are provisional.
 
