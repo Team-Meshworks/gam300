@@ -1,11 +1,11 @@
-import type { ProjectDocument, ProjectObject } from "../../shared/project/project-types";
-import { validateProject } from "../../shared/project/project-validation";
+import type { ProjectDocument, ProjectObject } from "../shared/project/project-types";
+import { validateProject } from "../shared/project/project-validation";
 import {
   checkFields,
   invalid,
   isRecord,
   type ValidationResult,
-} from "../../shared/project/validation-helpers";
+} from "../shared/project/validation-helpers";
 
 type Objects = readonly ProjectObject[];
 export type RecoveryHistory = Readonly<{

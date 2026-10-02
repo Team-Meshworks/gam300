@@ -4,7 +4,7 @@ import type { ProjectDocument } from "../../shared/project/project-types";
 import { checkFields, invalid, isRecord } from "../../shared/project/validation-helpers";
 import type { ValidationResult } from "../../shared/project/validation-helpers";
 import type { ProjectFileHandle } from "./project-files";
-import { validateRecoveryHistory, type RecoveryHistory } from "./recovery-history";
+import { validateRecoveryHistory, type RecoveryHistory } from "../recovery-history";
 
 // Stable storage names so refreshing the page finds the same records
 const DATABASE_NAME = "vthere-local-drafts";

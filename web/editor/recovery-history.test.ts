@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { createDocumentStore } from "../document-store";
+import { createDocumentStore } from "./document-store";
 import { validateRecoveryHistory } from "./recovery-history";
-import { serializeProject } from "../../shared/project/project-serialization";
-import type { CatalogueAsset } from "../../shared/assets/catalogue";
+import { serializeProject } from "../shared/project/project-serialization";
+import type { CatalogueAsset } from "../shared/assets/catalogue";
 
 const assets: CatalogueAsset[] = [
   {
