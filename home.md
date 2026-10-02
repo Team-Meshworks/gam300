@@ -2,7 +2,7 @@
 title: Spatial Experience Builder Handbook
 description: Meshworks documentation for Spatial Experience Builder (SEB), commissioned by VThere.
 published: true
-date: 2026-10-02T14:44:25.979Z
+date: 2026-10-02T15:02:32.946Z
 tags: 
 editor: markdown
 dateCreated: 2026-09-23T13:54:24.758Z
@@ -39,7 +39,7 @@ This wiki is the team's shared handbook. Start here to understand the project, r
 
 We are working toward **M1, ending 4 October 2026**. The verified development build has a basic editor, asset placement and selection, custom translation, undo/redo, validated project data, browser recovery and JSON Open/Save/Save As. A room creates a saveable project; browser recovery also restores valid editing history. The interface and sample content remain provisional.
 
-The [M1 evidence page](/en/testing) connects all seven Fxx features, six Txx technical systems and eleven Rxx foundations to Jira work, current owners and supporting results. **SCRUM-99 is treated as complete per the project owner's instruction on 2 October**; the mapping records the live Jira status separately.
+The [M1 evidence page](/en/testing) connects all seven Fxx features, six Txx technical systems and eleven Rxx foundations to Jira work, current owners and supporting results. **SCRUM-99 is treated as complete per instruction on 2 October**; the mapping records the live Jira status separately.
 
 Accounts, PostgreSQL-backed saving, content/rules, a separate shared visitor build and publication/sharing remain later delivery work. Asset distribution approval and final design approval are separate from passing engineering checks. Completing an implementation part does not complete the whole milestone.
 
