@@ -1,4 +1,5 @@
 import { readFileSync, realpathSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { normalizePath, type Plugin } from "vite";
@@ -12,6 +13,7 @@ type Entry = {
   name: string;
   kind: "environment" | "model";
   file: string;
+  sha256: string;
   thumbnail: string | null;
   thumbnailMode?: "generated";
   placement?: "bottom-center";
@@ -50,8 +52,15 @@ export function assetCataloguePlugin(): Plugin {
       throw new Error("Invalid or non-development catalogue entry: " + entry.assetId);
     }
     seen.add(entry.assetId);
+    const model = deliveryPath(entry.file, /\.glb$/i);
+    if (
+      !/^[a-f0-9]{64}$/.test(entry.sha256) ||
+      createHash("sha256").update(readFileSync(model)).digest("hex") !== entry.sha256
+    ) {
+      throw new Error("Catalogue content hash differs: " + entry.assetId);
+    }
     return {
-      model: deliveryPath(entry.file, /\.glb$/i),
+      model,
       thumbnail:
         entry.thumbnail === null ? null : deliveryPath(entry.thumbnail, /\.(png|jpe?g|webp)$/i),
     };
@@ -119,6 +128,8 @@ export function assetCataloguePlugin(): Plugin {
             JSON.stringify(entry.name) +
             ",kind:" +
             JSON.stringify(entry.kind) +
+            ",sha256:" +
+            JSON.stringify(entry.sha256) +
             ",url:model" +
             index +
             ",thumbnail:thumbnail" +

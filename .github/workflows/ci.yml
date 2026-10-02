@@ -15,6 +15,39 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  compatibility:
+    name: Native checks (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2025, macos-26]
+    defaults:
+      run:
+        working-directory: web
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          lfs: true
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: web/.nvmrc
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install, check and build the native toolchain
+        run: |
+          npm install --global npm@11.17.0
+          npm ci --no-audit --no-fund
+          node ../tools/setup.check.mjs
+          npm run check:architecture
+          npm run lint
+          npm run format:check
+          npm run test:unit
+          npm run build
+
   check:
     name: Build and test
     runs-on: ubuntu-24.04
@@ -50,14 +83,18 @@ jobs:
           npm ci --no-audit --no-fund
       - name: Check source and assets
         run: |
+          npm run check:architecture
           npm run lint
           npm run format:check
           node ../assets/tools/validate-assets.mjs
+          node ../tools/setup.check.mjs
           bash ../deploy/deploy.test.sh
       - name: Run unit tests
         run: npm run test:unit -- --reporter=default --reporter=junit --outputFile=test-results/unit.xml
       - name: Install pinned browser
         run: npx playwright install --with-deps chromium
+      - name: Prove architecture enforcement and isolated module removal
+        run: npm run test:architecture
       - name: Check authoring and development fixtures
         env:
           CHECK_SCREENSHOT: test-results/editor.png
@@ -68,6 +105,7 @@ jobs:
           curl --fail --silent --show-error --retry 30 --retry-delay 1 --retry-connrefused http://127.0.0.1:5173/ > /dev/null
           npm run test:browser | tee test-results/editor.log
           npm run test:integration | tee test-results/integration.log
+          npm run test:caching | tee test-results/caching.log
           npm run test:recovery | tee test-results/recovery.log
           npm run test:history | tee test-results/history.log
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
@@ -129,7 +167,7 @@ jobs:
 
   publish:
     name: Publish tested image
-    needs: check
+    needs: [check, compatibility]
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
     runs-on: ubuntu-24.04
     timeout-minutes: 10

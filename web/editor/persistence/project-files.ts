@@ -18,7 +18,7 @@ type FilePickerWindow = Window & {
   showSaveFilePicker?: (options: unknown) => Promise<ProjectFileHandle>;
 };
 
-const types = [{ description: "VThere project", accept: { "application/json": [".json"] } }];
+const types = [{ description: "Spatia project", accept: { "application/json": [".json"] } }];
 
 export function canPickProjectFiles(): boolean {
   const browser = window as FilePickerWindow;
@@ -43,7 +43,7 @@ export function projectFilename(title: string): string {
     .replace(/[^a-zA-Z0-9_-]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 80);
-  return `vthere-${name || "project"}.json`;
+  return `spatia-${name || "project"}.json`;
 }
 
 export function wasPickerCancelled(error: unknown): boolean {

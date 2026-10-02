@@ -4,7 +4,14 @@ import { handleObjectShortcut } from "./history-shortcuts";
 
 function setup() {
   const store = createDocumentStore([
-    { id: "crate", name: "Crate", kind: "model", url: "crate.glb", thumbnail: null },
+    {
+      id: "crate",
+      name: "Crate",
+      kind: "model",
+      url: "crate.glb",
+      sha256: "0".repeat(64),
+      thumbnail: null,
+    },
   ]);
   store.addObject("crate", [1, 2, 3]);
   return store;

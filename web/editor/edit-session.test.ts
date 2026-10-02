@@ -3,7 +3,14 @@ import { createDocumentStore } from "./document-store";
 import fixture from "../shared/project/fixtures/m1-project.json";
 import { serializeProject } from "../shared/project/project-serialization";
 const assets = [
-  { id: "test-crate-v1", name: "Crate", kind: "model" as const, url: "crate.glb", thumbnail: null },
+  {
+    id: "test-crate-v1",
+    name: "Crate",
+    kind: "model" as const,
+    url: "crate.glb",
+    sha256: "0".repeat(64),
+    thumbnail: null,
+  },
 ];
 const kinds = new Map([
   ["test-room-v1", "environment"],

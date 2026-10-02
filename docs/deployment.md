@@ -38,22 +38,35 @@ Install Git LFS and use the Node/npm versions in `web/.nvmrc` and `web/package.j
 After cloning, run `git lfs install` and `git lfs pull`, then use `npm ci` from `web/`.
 The normal `npm run dev` workflow remains available.
 
-For the same container used by deployment, install Docker Desktop with Linux containers
-and the WSL 2 backend on Windows, then run from the repository root:
+For the same container used by deployment, install Docker with Linux containers and
+Compose, then run from the repository root:
 
 ```sh
-docker compose up --build --wait
+bash run.sh
 ```
 
-Open http://localhost:8081. Stop this local application with `docker compose down`.
+On Windows, use `run.bat`. Open http://localhost:8081. Stop this local application with
+`docker compose --project-name spatia-local down`.
 The Dockerfile builds with pinned Node/npm and serves the result through pinned Caddy.
+The launchers restore Git LFS delivery assets and check prerequisites. The container
+build runs lint, formatting, unit tests, TypeScript, all four authoring browser suites
+and the packaged-build browser checks before the web service starts. Host Node/npm
+and Playwright are unnecessary. API/PostgreSQL services remain M2 implementation work.
 Only delivery assets enter the build; editable source files and local secrets are excluded.
+The existing asset validator runs with `--delivery-only` inside the build: it checks
+GLB contents and manifest hashes without needing Blender sources. A remaining LFS
+pointer fails with an instruction to run `git lfs pull`. Licence warnings stay visible.
+The runtime keeps its read-only filesystem and user `1000:1000`; its temporary storage
+mounts belong to that user. Health checks require both `/healthz` and the editor page.
 
-The local container defaults to production. To match the development VM from PowerShell:
+Local Compose and the launchers default to the M1 development build. The Dockerfile's
+default remains production; CI selects the branch's mode explicitly. The launchers
+set `/version.txt` to the checkout commit unless `REVISION` is supplied. For an explicit
+development build from PowerShell:
 
 ```powershell
 $env:BUILD_MODE = "development"
-docker compose up --build --wait
+./run.bat
 ```
 
 Set `BUILD_MODE` to `production` to build the production variant. Without Docker, from
@@ -76,6 +89,24 @@ With the container running:
 ```sh
 npm run test:deployment -- http://localhost:8081/
 ```
+
+For these checks without host Node or Chromium, use the same Dockerfile's `build`
+stage. From the repository root in PowerShell, with the development container running:
+
+```powershell
+docker build --load --target build --build-arg BUILD_MODE=development -t spatia-checks:local .
+$checkContainer = docker compose --project-name spatia-local ps -q web
+docker run --rm --network "container:$checkContainer" spatia-checks:local node tests/deployment.check.mjs http://127.0.0.1:8080/
+docker run --rm --network "container:$checkContainer" -e BUILD_MODE=development spatia-checks:local node tests/editor-build.check.mjs http://127.0.0.1:8080/
+```
+
+In Bash, use `check_container=$(docker compose --project-name spatia-local ps -q web)`
+and `--network "container:$check_container"`. This connects the test browser to Caddy's
+network namespace, keeping the URL on loopback and file/recovery APIs available.
+For production, select `production` in both the build argument and test environment.
+The deployment check exercises place/move/undo, JSON Save/Open, reload and recovered
+undo through the packaged UI. The four source-level authoring suites still run against
+Vite during the Docker build; they import source modules that Caddy must not serve.
 
 ## What CI does
 

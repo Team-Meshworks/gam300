@@ -1,0 +1,2818 @@
+{
+  "modules": {
+    "project": {
+      "paths": [
+        "shared/project/"
+      ],
+      "uses": [],
+      "packages": [],
+      "public": [
+        "shared/project/project-types.ts",
+        "shared/project/scene-object.ts",
+        "shared/project/spatial-validation.ts",
+        "shared/project/project-validation.ts",
+        "shared/project/project-serialization.ts",
+        "shared/project/project-deserialization.ts",
+        "shared/project/project-limits.ts",
+        "shared/project/validation-helpers.ts",
+        "shared/project/fixtures/m1-project.json"
+      ]
+    },
+    "catalogue": {
+      "paths": [
+        "shared/assets/"
+      ],
+      "uses": [],
+      "packages": [],
+      "public": [
+        "shared/assets/catalogue.ts",
+        "shared/assets/sample-asset.ts"
+      ]
+    },
+    "asset-loading": {
+      "paths": [
+        "shared/assets/ModelCache.ts"
+      ],
+      "uses": [
+        "catalogue"
+      ],
+      "packages": [
+        "three"
+      ],
+      "public": [
+        "shared/assets/ModelCache.ts"
+      ]
+    },
+    "input": {
+      "paths": [
+        "editor/history-shortcuts.ts"
+      ],
+      "uses": [],
+      "packages": [],
+      "public": [
+        "editor/history-shortcuts.ts"
+      ]
+    },
+    "document": {
+      "paths": [
+        "editor/document-store.ts",
+        "editor/command-history.ts",
+        "editor/transform-command.ts",
+        "editor/recovery-history.ts"
+      ],
+      "uses": [
+        "project",
+        "catalogue"
+      ],
+      "packages": [],
+      "public": [
+        "editor/document-store.ts",
+        "editor/recovery-history.ts"
+      ]
+    },
+    "rendering": {
+      "paths": [
+        "editor/graphics/",
+        "editor/controls/"
+      ],
+      "uses": [
+        "project",
+        "catalogue",
+        "input",
+        "asset-loading"
+      ],
+      "packages": [
+        "three"
+      ],
+      "public": [
+        "editor/graphics/scene.ts",
+        "editor/graphics/modeManager.ts"
+      ]
+    },
+    "persistence": {
+      "paths": [
+        "editor/persistence/"
+      ],
+      "uses": [
+        "project",
+        "catalogue",
+        "document"
+      ],
+      "packages": [
+        "react"
+      ],
+      "public": [
+        "editor/persistence/use-project-session.ts"
+      ]
+    },
+    "editor": {
+      "paths": [
+        "editor/"
+      ],
+      "uses": [
+        "project",
+        "catalogue",
+        "input",
+        "document",
+        "rendering",
+        "persistence"
+      ],
+      "packages": [
+        "react",
+        "react-dom"
+      ],
+      "public": []
+    },
+    "build": {
+      "paths": [],
+      "uses": [],
+      "public": []
+    },
+    "checks": {
+      "paths": [
+        "tests/"
+      ],
+      "uses": [
+        "project",
+        "catalogue",
+        "input",
+        "document",
+        "asset-loading",
+        "rendering",
+        "persistence",
+        "editor",
+        "build"
+      ],
+      "public": []
+    }
+  },
+  "edges": {
+    "project": [],
+    "catalogue": [],
+    "asset-loading": [
+      "catalogue"
+    ],
+    "input": [],
+    "document": [
+      "catalogue",
+      "project"
+    ],
+    "rendering": [
+      "asset-loading",
+      "catalogue",
+      "input",
+      "project"
+    ],
+    "persistence": [
+      "catalogue",
+      "document",
+      "project"
+    ],
+    "editor": [
+      "catalogue",
+      "document",
+      "input",
+      "persistence",
+      "project",
+      "rendering"
+    ],
+    "build": [],
+    "checks": [
+      "asset-loading",
+      "build",
+      "catalogue",
+      "document",
+      "input",
+      "persistence",
+      "project",
+      "rendering"
+    ]
+  },
+  "files": {
+    "architecture.check.mjs": "c055ded36d6f50c920e8e6857ee7b66112f4d015da19836c8bf5b29f46420150",
+    "architecture.mjs": "e665542b737786928faf8b932ada6715201113891a1b5236ef55c6991c156b95",
+    "asset-catalogue-plugin.ts": "22ae7979d73886953ecf9703ac1d6a41ef464b613eccf6b786f12c5ddc4b0522",
+    "editor/App.tsx": "d159f5581e2db4a01556ca1044db8ddb42dc18082cfe9cc681b863fe8417d38b",
+    "editor/ProjectConfirmation.tsx": "07a0fedf8fbf88865b3b8232c8665c139348fc64ebce478ea01e55eb7fd14eff",
+    "editor/command-history.test.ts": "783c026523513ea5520cde04e61502aba13ca3a612b509a904c2a50e50be2d1f",
+    "editor/command-history.ts": "e243335582ab03da9d131bd80edef7b908e3eb0a751d6ebfa7deb77750fc54ad",
+    "editor/controls/fpsControls.ts": "9cd1c65c92bd832dda2003f6a79e5b5e5b54a49360d47bf4b6841c83ca4693e6",
+    "editor/document-store.test.ts": "c6a47cb2b0cd0a85667f3898485e1575f74fea789c20846c37ef752c13cb7dcc",
+    "editor/document-store.ts": "1cca978df2f6dba49b7746f303cb2091e2560d2ff3feebfca868d2df1361245f",
+    "editor/edit-session.test.ts": "fd971338990e32158eb0355508fb39a7c3284db62421501024da029a82dc784a",
+    "editor/graphics/modeManager.ts": "192911ee28b8329ec2ed0dddb5f8854abf6faf5dfce3165b2694a1bfcf192f24",
+    "editor/graphics/rotation.test.ts": "58844092035329772ba8c941b1b93737d142d7c597f015900041721d0018bb69",
+    "editor/graphics/rotation.ts": "d847162644716d2b36e8b3e4f1ad190360527a46351cb2969d411dbe76ea96d3",
+    "editor/graphics/scaling.test.ts": "346b243798597de2a5b00384904bdf04f9f3826a8753bcde3282e5356b0ceb0a",
+    "editor/graphics/scaling.ts": "0277d21b28d246ddb2f94216fe29afb24ebbc8e257dd3510eca91bb176867da1",
+    "editor/graphics/scene.ts": "337aad1939b7b8fb5842c0ae090c05c45b15bfdb97deaffbd83713eba56a4790",
+    "editor/graphics/translation.test.ts": "b4a888b963437ca3508c04cc3e933ab215d301908384ea9af37ee8aabd6fae2c",
+    "editor/graphics/translation.ts": "a4ea05b137e4dee436848693a57273c54025856bdf943eb1e9413de5509bb2d4",
+    "editor/history-shortcuts.test.ts": "8a2e4bbe34961985ce2c1bdbbd78ec9c105587a8547f9a7c8415e9544808196f",
+    "editor/history-shortcuts.ts": "030a6a4092defe4d0dc9e813bb4354b8efddec056745a2eb18f14224f4e63dd7",
+    "editor/main.tsx": "240b88cb33a8ef53b7f8a66df6385b1ada2dcb6b39380f2cfd21e5416fd0346b",
+    "editor/object-copy.test.ts": "f11e65d7faa9f6027b11320a21e9e69e85aa873b7d254a8b901dc5ce8c971654",
+    "editor/persistence/draft-db.ts": "9c1aece3becbd9db33c2164533cfc86d9cf7b4bef9306678d9c9aaca9b800c5a",
+    "editor/persistence/idb-database-connection.ts": "d07c765187e280e825a3d73665837a55b12cf203ab93a22c18634849ec6b6347",
+    "editor/persistence/local-drafts.test.ts": "fa77e4b24be4918e0d4ceb73f71871899822268d89d2da880d694f76e7a0f79e",
+    "editor/persistence/local-drafts.ts": "6918ee2d8c14e08962160a70ee007ce8c172e15dd57d4ec00f76e22091c45ccb",
+    "editor/persistence/project-files.ts": "20e7466377e31ea388fe527abc4c33e465538b8b06709a5d78c78bc116c6b273",
+    "editor/persistence/use-project-session.ts": "662af8b6a36dd5567d70fe3d257692b99af2a55131ddbc3f513bd0c3dc6f80af",
+    "editor/project-loading.test.ts": "29c2e63b76195dbd8dd01afe57d5398227b845a974d6798a19e088f3c19457a2",
+    "editor/recovery-history.test.ts": "95c497899ffa6c8f8c696c84e8e880f7ea8eb22ef0d95ec04cca57d1ce14f31f",
+    "editor/recovery-history.ts": "eaf1d5cece98daede4e8df9759b1074a3a6e790af624245a38b6be3698dc9756",
+    "editor/transform-command.test.ts": "d2ae97b90329d4baf866a7dbc3521675a7d9c78c5754e3b955e60ed62a232469",
+    "editor/transform-command.ts": "bcd7036db3877f5f24e5984287af8a878b10ec6289a51987e76f62db8f3cb178",
+    "editor/viewport/Viewport.tsx": "8fa4a03ed1818d82ad15181e0af9102487575c72eb27cb9b2f905ee4a7ce175a",
+    "eslint.config.js": "d32bfc31c2e4b881deedcd9090f5eb2ba874728c3dcfe5aa9f89e5e31cecc1f7",
+    "shared/assets/ModelCache.test.ts": "6e5cf28591eb858c981923550fe49fb330535b085db0d99d7ce209736fefc2d3",
+    "shared/assets/ModelCache.ts": "7ba493c76290a999db38013457dea39e5b08492416487338b05e1be6490dde2e",
+    "shared/assets/catalogue.ts": "5be1b1fb1dc335fc7ed3e7204bcba9ff7485deaa12ceb46a945048f5937c7800",
+    "shared/assets/manifest-module.d.ts": "ff7add6e7e483a4cc6a0dd48c9ead7b2f4cd0b0a5ccc7fb06181e1a5d2d1326e",
+    "shared/assets/sample-asset.ts": "2027def54ff2b2da4eb1372d91fb745d94e3a2b7946a845b74381122468ddb92",
+    "shared/project/project-deserialization.test.ts": "255895949af80efd0e2bef758281ffd0de4f73b6dac454a433bca1c0ac2c8662",
+    "shared/project/project-deserialization.ts": "8b963784ad44846ba846eefedba3e552a3102e6182f2b26379e1941524c55e06",
+    "shared/project/project-limits.ts": "6d4db8b98f0a4d9d90b9b7d8935a8d9c2d77037f92654c6aaf0397fc57f387dc",
+    "shared/project/project-serialization.test.ts": "943232b26c3830814b595850eab356e4cb3e941221e30299e17136b7c8fcb96d",
+    "shared/project/project-serialization.ts": "57ecf9585608f2703da3410955f8dc2a9a62f8c494b29b5b310361ebdf8c2f73",
+    "shared/project/project-structure-validation.test.ts": "e9df6060ab739a017972e4d50bc9ea5600924df65563a3ee4e193798f5a0fad8",
+    "shared/project/project-structure-validation.ts": "d949e3c9b79f0a613aa31e1f76ea3d431efce530561a81bda11edcd23636010c",
+    "shared/project/project-types.ts": "8071d650f8b2dbf8b8e27f12444c4cb710d45415e26cac92ac58b43e51004fc5",
+    "shared/project/project-validation.test.ts": "9221fd078f690b50a459f4579dc556e353bf484ba307e6b16272e68e7b03a3b3",
+    "shared/project/project-validation.ts": "ede788278dffd3e6a240aac950746e2c7e7ac2b4f8f8111c8a363deca42b03dc",
+    "shared/project/scene-object.ts": "eb0421d014733ee53241324fbf7f110bf3415cc6c737080a4416eafaac4748d1",
+    "shared/project/spatial-validation.test.ts": "1451aa2673f445e8dbdff9e3628dd474ec1f9aa1238b4867c67913bb682e3c0d",
+    "shared/project/spatial-validation.ts": "fc07ebececfd00d3a8fd3da72bdce5aa7c8f78acc96a4be564081e456d7e8c69",
+    "shared/project/validation-helpers.ts": "f57061b4e9ecbad5cd3fde0f8ce5270868bf5abf5d4d21d9265445448a9c2e7e",
+    "tests/caching.check.mjs": "98c0ef24df281bf361e202633ae12dbefabd1f49df7e8f21bb253ff5848fbf6a",
+    "tests/caching.measure.mjs": "971dc362c9f687560d119832515bb182ba47c13dc1f79fdf2cd7f07b5da3be3e",
+    "tests/deployment.check.mjs": "9b585c0ed3358e30b9d79127a4bd37de2ca0f65c719d509b366498328f001a33",
+    "tests/editor-build.check.mjs": "23c235d69590dc1ceb44208060f32ae35d764b6753a3da2b37d581eaea16d2fe",
+    "tests/editor-integration.check.mjs": "e59f4c65e0f712f1ba186e924278ee6bbf2a9a125646391b2dce6a9833efd8f3",
+    "tests/editor-shell.check.mjs": "06d896642bd0945a60e448021e7c3e67b43975e5256250f3723159b585456177",
+    "tests/history-recovery.check.mjs": "d6d43e4f7ba35b5b17c3eb8806a0e8c8dc9d71814235dc77434c3ec9e6e68a4e",
+    "tests/local-drafts.check.mjs": "c9f8769c27b5e4d9f8e82bb49c130b35a2f3145acf221e9134f47dbeb5373dae",
+    "vite.config.ts": "50329f07010d85bc43b6f9ab2f3ea7b0ca22fa6059f6346d8872bf1b09ac5da6",
+    "vitest.config.ts": "6d56840bcf381e145f69828ff965fe1c8065e1610a38219c19dbb4e9d87d7dbf",
+    "editor/index.html": "f14296264b1f8edda142de2fa8b8c58d1e98e50265637afe5f29924558900279",
+    "shared/project/fixtures/m1-project.json": "3aeeee4397fd9ad18fc06eba32815ef5032ecf8184200aaa38a2076b882a4947",
+    "editor/styles.css": "0b2a07442ad6e4d785216e448d0982caa5e11f637bab99c66462ab3cb89f69e4"
+  },
+  "imports": [
+    {
+      "file": "architecture.check.mjs",
+      "line": 1,
+      "kind": "static",
+      "specifier": "node:assert/strict",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "architecture.check.mjs",
+      "line": 2,
+      "kind": "static",
+      "specifier": "node:child_process",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "architecture.check.mjs",
+      "line": 3,
+      "kind": "static",
+      "specifier": "node:fs",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "architecture.check.mjs",
+      "line": 14,
+      "kind": "static",
+      "specifier": "node:path",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "architecture.check.mjs",
+      "line": 15,
+      "kind": "static",
+      "specifier": "typescript",
+      "target": {
+        "package": "typescript"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "architecture.check.mjs",
+      "line": 16,
+      "kind": "static",
+      "specifier": "vite",
+      "target": {
+        "package": "vite"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "architecture.check.mjs",
+      "line": 17,
+      "kind": "static",
+      "specifier": "playwright",
+      "target": {
+        "package": "playwright"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "architecture.check.mjs",
+      "line": 18,
+      "kind": "static",
+      "specifier": "./architecture.mjs",
+      "target": "architecture.mjs",
+      "from": "checks",
+      "to": "build"
+    },
+    {
+      "file": "architecture.mjs",
+      "line": 1,
+      "kind": "static",
+      "specifier": "node:crypto",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "build"
+    },
+    {
+      "file": "architecture.mjs",
+      "line": 2,
+      "kind": "static",
+      "specifier": "node:fs",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "build"
+    },
+    {
+      "file": "architecture.mjs",
+      "line": 3,
+      "kind": "static",
+      "specifier": "node:path",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "build"
+    },
+    {
+      "file": "architecture.mjs",
+      "line": 4,
+      "kind": "static",
+      "specifier": "node:module",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "build"
+    },
+    {
+      "file": "architecture.mjs",
+      "line": 5,
+      "kind": "static",
+      "specifier": "node:url",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "build"
+    },
+    {
+      "file": "architecture.mjs",
+      "line": 6,
+      "kind": "static",
+      "specifier": "typescript",
+      "target": {
+        "package": "typescript"
+      },
+      "from": "build"
+    },
+    {
+      "file": "asset-catalogue-plugin.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "node:fs",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "build"
+    },
+    {
+      "file": "asset-catalogue-plugin.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "node:crypto",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "build"
+    },
+    {
+      "file": "asset-catalogue-plugin.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "node:path",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "build"
+    },
+    {
+      "file": "asset-catalogue-plugin.ts",
+      "line": 4,
+      "kind": "static",
+      "specifier": "node:url",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "build"
+    },
+    {
+      "file": "asset-catalogue-plugin.ts",
+      "line": 5,
+      "kind": "static",
+      "specifier": "vite",
+      "target": {
+        "package": "vite"
+      },
+      "from": "build"
+    },
+    {
+      "file": "editor/App.tsx",
+      "line": 1,
+      "kind": "static",
+      "specifier": "react",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/App.tsx",
+      "line": 2,
+      "kind": "static",
+      "specifier": "virtual:asset-catalogue",
+      "target": "shared/assets/catalogue.ts",
+      "from": "editor",
+      "to": "catalogue"
+    },
+    {
+      "file": "editor/App.tsx",
+      "line": 3,
+      "kind": "static",
+      "specifier": "../shared/assets/catalogue",
+      "target": "shared/assets/catalogue.ts",
+      "from": "editor",
+      "to": "catalogue"
+    },
+    {
+      "file": "editor/App.tsx",
+      "line": 4,
+      "kind": "type",
+      "specifier": "../shared/project/scene-object",
+      "target": "shared/project/scene-object.ts",
+      "from": "editor",
+      "to": "project"
+    },
+    {
+      "file": "editor/App.tsx",
+      "line": 5,
+      "kind": "type",
+      "specifier": "../shared/project/project-types",
+      "target": "shared/project/project-types.ts",
+      "from": "editor",
+      "to": "project"
+    },
+    {
+      "file": "editor/App.tsx",
+      "line": 6,
+      "kind": "static",
+      "specifier": "./document-store",
+      "target": "editor/document-store.ts",
+      "from": "editor",
+      "to": "document"
+    },
+    {
+      "file": "editor/App.tsx",
+      "line": 7,
+      "kind": "static",
+      "specifier": "./history-shortcuts",
+      "target": "editor/history-shortcuts.ts",
+      "from": "editor",
+      "to": "input"
+    },
+    {
+      "file": "editor/App.tsx",
+      "line": 12,
+      "kind": "type",
+      "specifier": "./graphics/scene",
+      "target": "editor/graphics/scene.ts",
+      "from": "editor",
+      "to": "rendering"
+    },
+    {
+      "file": "editor/App.tsx",
+      "line": 13,
+      "kind": "type",
+      "specifier": "./graphics/modeManager",
+      "target": "editor/graphics/modeManager.ts",
+      "from": "editor",
+      "to": "rendering"
+    },
+    {
+      "file": "editor/App.tsx",
+      "line": 14,
+      "kind": "static",
+      "specifier": "./viewport/Viewport",
+      "target": "editor/viewport/Viewport.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/App.tsx",
+      "line": 15,
+      "kind": "static",
+      "specifier": "../shared/project/fixtures/m1-project.json",
+      "target": "shared/project/fixtures/m1-project.json",
+      "from": "editor",
+      "to": "project"
+    },
+    {
+      "file": "editor/App.tsx",
+      "line": 17,
+      "kind": "static",
+      "specifier": "./ProjectConfirmation",
+      "target": "editor/ProjectConfirmation.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/App.tsx",
+      "line": 18,
+      "kind": "static",
+      "specifier": "./persistence/use-project-session",
+      "target": "editor/persistence/use-project-session.ts",
+      "from": "editor",
+      "to": "persistence"
+    },
+    {
+      "file": "editor/App.tsx",
+      "line": 246,
+      "kind": "implicit-jsx",
+      "specifier": "react/jsx-runtime",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/ProjectConfirmation.tsx",
+      "line": 1,
+      "kind": "static",
+      "specifier": "react",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/ProjectConfirmation.tsx",
+      "line": 2,
+      "kind": "type",
+      "specifier": "./persistence/use-project-session",
+      "target": "editor/persistence/use-project-session.ts",
+      "from": "editor",
+      "to": "persistence"
+    },
+    {
+      "file": "editor/ProjectConfirmation.tsx",
+      "line": 21,
+      "kind": "implicit-jsx",
+      "specifier": "react/jsx-runtime",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/command-history.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/command-history.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "./command-history",
+      "target": "editor/command-history.ts",
+      "from": "checks",
+      "to": "document"
+    },
+    {
+      "file": "editor/controls/fpsControls.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "three",
+      "target": {
+        "package": "three"
+      },
+      "from": "rendering"
+    },
+    {
+      "file": "editor/controls/fpsControls.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "../history-shortcuts",
+      "target": "editor/history-shortcuts.ts",
+      "from": "rendering",
+      "to": "input"
+    },
+    {
+      "file": "editor/document-store.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/document-store.test.ts",
+      "line": 2,
+      "kind": "type",
+      "specifier": "../shared/assets/catalogue",
+      "target": "shared/assets/catalogue.ts",
+      "from": "checks",
+      "to": "catalogue"
+    },
+    {
+      "file": "editor/document-store.test.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./document-store.ts",
+      "target": "editor/document-store.ts",
+      "from": "checks",
+      "to": "document"
+    },
+    {
+      "file": "editor/document-store.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "../shared/project/spatial-validation",
+      "target": "shared/project/spatial-validation.ts",
+      "from": "document",
+      "to": "project"
+    },
+    {
+      "file": "editor/document-store.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "../shared/project/validation-helpers",
+      "target": "shared/project/validation-helpers.ts",
+      "from": "document",
+      "to": "project"
+    },
+    {
+      "file": "editor/document-store.ts",
+      "line": 3,
+      "kind": "type",
+      "specifier": "../shared/project/project-types",
+      "target": "shared/project/project-types.ts",
+      "from": "document",
+      "to": "project"
+    },
+    {
+      "file": "editor/document-store.ts",
+      "line": 4,
+      "kind": "static",
+      "specifier": "./transform-command",
+      "target": "editor/transform-command.ts",
+      "from": "document",
+      "to": "document"
+    },
+    {
+      "file": "editor/document-store.ts",
+      "line": 5,
+      "kind": "static",
+      "specifier": "./command-history",
+      "target": "editor/command-history.ts",
+      "from": "document",
+      "to": "document"
+    },
+    {
+      "file": "editor/document-store.ts",
+      "line": 6,
+      "kind": "static",
+      "specifier": "./recovery-history",
+      "target": "editor/recovery-history.ts",
+      "from": "document",
+      "to": "document"
+    },
+    {
+      "file": "editor/document-store.ts",
+      "line": 7,
+      "kind": "type",
+      "specifier": "../shared/assets/catalogue.ts",
+      "target": "shared/assets/catalogue.ts",
+      "from": "document",
+      "to": "catalogue"
+    },
+    {
+      "file": "editor/document-store.ts",
+      "line": 8,
+      "kind": "type",
+      "specifier": "../shared/project/scene-object.ts",
+      "target": "shared/project/scene-object.ts",
+      "from": "document",
+      "to": "project"
+    },
+    {
+      "file": "editor/document-store.ts",
+      "line": 9,
+      "kind": "static",
+      "specifier": "../shared/project/project-deserialization",
+      "target": "shared/project/project-deserialization.ts",
+      "from": "document",
+      "to": "project"
+    },
+    {
+      "file": "editor/document-store.ts",
+      "line": 10,
+      "kind": "type",
+      "specifier": "../shared/project/project-types",
+      "target": "shared/project/project-types.ts",
+      "from": "document",
+      "to": "project"
+    },
+    {
+      "file": "editor/document-store.ts",
+      "line": 11,
+      "kind": "type",
+      "specifier": "../shared/project/validation-helpers",
+      "target": "shared/project/validation-helpers.ts",
+      "from": "document",
+      "to": "project"
+    },
+    {
+      "file": "editor/edit-session.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/edit-session.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "./document-store",
+      "target": "editor/document-store.ts",
+      "from": "checks",
+      "to": "document"
+    },
+    {
+      "file": "editor/edit-session.test.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "../shared/project/fixtures/m1-project.json",
+      "target": "shared/project/fixtures/m1-project.json",
+      "from": "checks",
+      "to": "project"
+    },
+    {
+      "file": "editor/edit-session.test.ts",
+      "line": 4,
+      "kind": "static",
+      "specifier": "../shared/project/project-serialization",
+      "target": "shared/project/project-serialization.ts",
+      "from": "checks",
+      "to": "project"
+    },
+    {
+      "file": "editor/graphics/modeManager.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "three",
+      "target": {
+        "package": "three"
+      },
+      "from": "rendering"
+    },
+    {
+      "file": "editor/graphics/modeManager.ts",
+      "line": 2,
+      "kind": "type",
+      "specifier": "three/examples/jsm/controls/OrbitControls.js",
+      "target": {
+        "package": "three"
+      },
+      "from": "rendering"
+    },
+    {
+      "file": "editor/graphics/modeManager.ts",
+      "line": 3,
+      "kind": "type",
+      "specifier": "../controls/fpsControls",
+      "target": "editor/controls/fpsControls.ts",
+      "from": "rendering",
+      "to": "rendering"
+    },
+    {
+      "file": "editor/graphics/rotation.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/graphics/rotation.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "three",
+      "target": {
+        "package": "three"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/graphics/rotation.test.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./rotation",
+      "target": "editor/graphics/rotation.ts",
+      "from": "checks",
+      "to": "rendering"
+    },
+    {
+      "file": "editor/graphics/rotation.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "three",
+      "target": {
+        "package": "three"
+      },
+      "from": "rendering"
+    },
+    {
+      "file": "editor/graphics/scaling.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/graphics/scaling.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "./scaling",
+      "target": "editor/graphics/scaling.ts",
+      "from": "checks",
+      "to": "rendering"
+    },
+    {
+      "file": "editor/graphics/scaling.ts",
+      "line": 1,
+      "kind": "type",
+      "specifier": "../../shared/project/project-types",
+      "target": "shared/project/project-types.ts",
+      "from": "rendering",
+      "to": "project"
+    },
+    {
+      "file": "editor/graphics/scene.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "three",
+      "target": {
+        "package": "three"
+      },
+      "from": "rendering"
+    },
+    {
+      "file": "editor/graphics/scene.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "three/examples/jsm/controls/OrbitControls.js",
+      "target": {
+        "package": "three"
+      },
+      "from": "rendering"
+    },
+    {
+      "file": "editor/graphics/scene.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "../../shared/assets/ModelCache",
+      "target": "shared/assets/ModelCache.ts",
+      "from": "rendering",
+      "to": "asset-loading"
+    },
+    {
+      "file": "editor/graphics/scene.ts",
+      "line": 4,
+      "kind": "type",
+      "specifier": "../../shared/assets/catalogue",
+      "target": "shared/assets/catalogue.ts",
+      "from": "rendering",
+      "to": "catalogue"
+    },
+    {
+      "file": "editor/graphics/scene.ts",
+      "line": 5,
+      "kind": "type",
+      "specifier": "../../shared/project/scene-object",
+      "target": "shared/project/scene-object.ts",
+      "from": "rendering",
+      "to": "project"
+    },
+    {
+      "file": "editor/graphics/scene.ts",
+      "line": 6,
+      "kind": "type",
+      "specifier": "../../shared/project/project-types",
+      "target": "shared/project/project-types.ts",
+      "from": "rendering",
+      "to": "project"
+    },
+    {
+      "file": "editor/graphics/scene.ts",
+      "line": 12,
+      "kind": "static",
+      "specifier": "../controls/fpsControls",
+      "target": "editor/controls/fpsControls.ts",
+      "from": "rendering",
+      "to": "rendering"
+    },
+    {
+      "file": "editor/graphics/scene.ts",
+      "line": 13,
+      "kind": "static",
+      "specifier": "./modeManager",
+      "target": "editor/graphics/modeManager.ts",
+      "from": "rendering",
+      "to": "rendering"
+    },
+    {
+      "file": "editor/graphics/scene.ts",
+      "line": 14,
+      "kind": "static",
+      "specifier": "./rotation",
+      "target": "editor/graphics/rotation.ts",
+      "from": "rendering",
+      "to": "rendering"
+    },
+    {
+      "file": "editor/graphics/scene.ts",
+      "line": 22,
+      "kind": "static",
+      "specifier": "./scaling",
+      "target": "editor/graphics/scaling.ts",
+      "from": "rendering",
+      "to": "rendering"
+    },
+    {
+      "file": "editor/graphics/scene.ts",
+      "line": 23,
+      "kind": "static",
+      "specifier": "./translation",
+      "target": "editor/graphics/translation.ts",
+      "from": "rendering",
+      "to": "rendering"
+    },
+    {
+      "file": "editor/graphics/translation.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/graphics/translation.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "three",
+      "target": {
+        "package": "three"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/graphics/translation.test.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./translation",
+      "target": "editor/graphics/translation.ts",
+      "from": "checks",
+      "to": "rendering"
+    },
+    {
+      "file": "editor/graphics/translation.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "three",
+      "target": {
+        "package": "three"
+      },
+      "from": "rendering"
+    },
+    {
+      "file": "editor/history-shortcuts.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/history-shortcuts.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "./command-history",
+      "target": "editor/command-history.ts",
+      "from": "checks",
+      "to": "document"
+    },
+    {
+      "file": "editor/history-shortcuts.test.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./history-shortcuts",
+      "target": "editor/history-shortcuts.ts",
+      "from": "checks",
+      "to": "input"
+    },
+    {
+      "file": "editor/main.tsx",
+      "line": 1,
+      "kind": "static",
+      "specifier": "react",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/main.tsx",
+      "line": 2,
+      "kind": "static",
+      "specifier": "react-dom/client",
+      "target": {
+        "package": "react-dom"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/main.tsx",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./App",
+      "target": "editor/App.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/main.tsx",
+      "line": 4,
+      "kind": "static",
+      "specifier": "./styles.css",
+      "target": "editor/styles.css",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/main.tsx",
+      "line": 13,
+      "kind": "implicit-jsx",
+      "specifier": "react/jsx-runtime",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/object-copy.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/object-copy.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "./document-store",
+      "target": "editor/document-store.ts",
+      "from": "checks",
+      "to": "document"
+    },
+    {
+      "file": "editor/object-copy.test.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./history-shortcuts",
+      "target": "editor/history-shortcuts.ts",
+      "from": "checks",
+      "to": "input"
+    },
+    {
+      "file": "editor/persistence/draft-db.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "../../shared/project/validation-helpers",
+      "target": "shared/project/validation-helpers.ts",
+      "from": "persistence",
+      "to": "project"
+    },
+    {
+      "file": "editor/persistence/draft-db.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "./idb-database-connection",
+      "target": "editor/persistence/idb-database-connection.ts",
+      "from": "persistence",
+      "to": "persistence"
+    },
+    {
+      "file": "editor/persistence/local-drafts.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/persistence/local-drafts.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "../../shared/project/fixtures/m1-project.json",
+      "target": "shared/project/fixtures/m1-project.json",
+      "from": "checks",
+      "to": "project"
+    },
+    {
+      "file": "editor/persistence/local-drafts.test.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "../../shared/project/project-serialization",
+      "target": "shared/project/project-serialization.ts",
+      "from": "checks",
+      "to": "project"
+    },
+    {
+      "file": "editor/persistence/local-drafts.test.ts",
+      "line": 4,
+      "kind": "type",
+      "specifier": "../../shared/project/project-types",
+      "target": "shared/project/project-types.ts",
+      "from": "checks",
+      "to": "project"
+    },
+    {
+      "file": "editor/persistence/local-drafts.test.ts",
+      "line": 5,
+      "kind": "static",
+      "specifier": "./local-drafts",
+      "target": "editor/persistence/local-drafts.ts",
+      "from": "checks",
+      "to": "persistence"
+    },
+    {
+      "file": "editor/persistence/local-drafts.test.ts",
+      "line": 13,
+      "kind": "type",
+      "specifier": "./draft-db",
+      "target": "editor/persistence/draft-db.ts",
+      "from": "checks",
+      "to": "persistence"
+    },
+    {
+      "file": "editor/persistence/local-drafts.test.ts",
+      "line": 14,
+      "kind": "type",
+      "specifier": "../../shared/project/validation-helpers",
+      "target": "shared/project/validation-helpers.ts",
+      "from": "checks",
+      "to": "project"
+    },
+    {
+      "file": "editor/persistence/local-drafts.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "../../shared/project/project-serialization",
+      "target": "shared/project/project-serialization.ts",
+      "from": "persistence",
+      "to": "project"
+    },
+    {
+      "file": "editor/persistence/local-drafts.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "../../shared/project/project-deserialization",
+      "target": "shared/project/project-deserialization.ts",
+      "from": "persistence",
+      "to": "project"
+    },
+    {
+      "file": "editor/persistence/local-drafts.ts",
+      "line": 3,
+      "kind": "type",
+      "specifier": "../../shared/project/project-types",
+      "target": "shared/project/project-types.ts",
+      "from": "persistence",
+      "to": "project"
+    },
+    {
+      "file": "editor/persistence/local-drafts.ts",
+      "line": 4,
+      "kind": "static",
+      "specifier": "../../shared/project/validation-helpers",
+      "target": "shared/project/validation-helpers.ts",
+      "from": "persistence",
+      "to": "project"
+    },
+    {
+      "file": "editor/persistence/local-drafts.ts",
+      "line": 5,
+      "kind": "type",
+      "specifier": "../../shared/project/validation-helpers",
+      "target": "shared/project/validation-helpers.ts",
+      "from": "persistence",
+      "to": "project"
+    },
+    {
+      "file": "editor/persistence/local-drafts.ts",
+      "line": 6,
+      "kind": "type",
+      "specifier": "./project-files",
+      "target": "editor/persistence/project-files.ts",
+      "from": "persistence",
+      "to": "persistence"
+    },
+    {
+      "file": "editor/persistence/local-drafts.ts",
+      "line": 7,
+      "kind": "static",
+      "specifier": "../recovery-history",
+      "target": "editor/recovery-history.ts",
+      "from": "persistence",
+      "to": "document"
+    },
+    {
+      "file": "editor/persistence/local-drafts.ts",
+      "line": 8,
+      "kind": "static",
+      "specifier": "./draft-db",
+      "target": "editor/persistence/draft-db.ts",
+      "from": "persistence",
+      "to": "persistence"
+    },
+    {
+      "file": "editor/persistence/use-project-session.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "react",
+      "target": {
+        "package": "react"
+      },
+      "from": "persistence"
+    },
+    {
+      "file": "editor/persistence/use-project-session.ts",
+      "line": 2,
+      "kind": "type",
+      "specifier": "../../shared/assets/catalogue",
+      "target": "shared/assets/catalogue.ts",
+      "from": "persistence",
+      "to": "catalogue"
+    },
+    {
+      "file": "editor/persistence/use-project-session.ts",
+      "line": 3,
+      "kind": "type",
+      "specifier": "../../shared/project/project-types",
+      "target": "shared/project/project-types.ts",
+      "from": "persistence",
+      "to": "project"
+    },
+    {
+      "file": "editor/persistence/use-project-session.ts",
+      "line": 4,
+      "kind": "static",
+      "specifier": "../../shared/project/project-serialization",
+      "target": "shared/project/project-serialization.ts",
+      "from": "persistence",
+      "to": "project"
+    },
+    {
+      "file": "editor/persistence/use-project-session.ts",
+      "line": 5,
+      "kind": "static",
+      "specifier": "../../shared/project/project-deserialization",
+      "target": "shared/project/project-deserialization.ts",
+      "from": "persistence",
+      "to": "project"
+    },
+    {
+      "file": "editor/persistence/use-project-session.ts",
+      "line": 6,
+      "kind": "static",
+      "specifier": "../../shared/project/project-limits",
+      "target": "shared/project/project-limits.ts",
+      "from": "persistence",
+      "to": "project"
+    },
+    {
+      "file": "editor/persistence/use-project-session.ts",
+      "line": 7,
+      "kind": "static",
+      "specifier": "../document-store",
+      "target": "editor/document-store.ts",
+      "from": "persistence",
+      "to": "document"
+    },
+    {
+      "file": "editor/persistence/use-project-session.ts",
+      "line": 8,
+      "kind": "type",
+      "specifier": "../recovery-history",
+      "target": "editor/recovery-history.ts",
+      "from": "persistence",
+      "to": "document"
+    },
+    {
+      "file": "editor/persistence/use-project-session.ts",
+      "line": 9,
+      "kind": "static",
+      "specifier": "./local-drafts",
+      "target": "editor/persistence/local-drafts.ts",
+      "from": "persistence",
+      "to": "persistence"
+    },
+    {
+      "file": "editor/persistence/use-project-session.ts",
+      "line": 15,
+      "kind": "static",
+      "specifier": "./project-files",
+      "target": "editor/persistence/project-files.ts",
+      "from": "persistence",
+      "to": "persistence"
+    },
+    {
+      "file": "editor/project-loading.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/project-loading.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "../shared/project/fixtures/m1-project.json",
+      "target": "shared/project/fixtures/m1-project.json",
+      "from": "checks",
+      "to": "project"
+    },
+    {
+      "file": "editor/project-loading.test.ts",
+      "line": 3,
+      "kind": "type",
+      "specifier": "../shared/assets/catalogue",
+      "target": "shared/assets/catalogue.ts",
+      "from": "checks",
+      "to": "catalogue"
+    },
+    {
+      "file": "editor/project-loading.test.ts",
+      "line": 4,
+      "kind": "static",
+      "specifier": "../shared/assets/sample-asset",
+      "target": "shared/assets/sample-asset.ts",
+      "from": "checks",
+      "to": "catalogue"
+    },
+    {
+      "file": "editor/project-loading.test.ts",
+      "line": 5,
+      "kind": "static",
+      "specifier": "../shared/project/project-serialization",
+      "target": "shared/project/project-serialization.ts",
+      "from": "checks",
+      "to": "project"
+    },
+    {
+      "file": "editor/project-loading.test.ts",
+      "line": 6,
+      "kind": "static",
+      "specifier": "./document-store",
+      "target": "editor/document-store.ts",
+      "from": "checks",
+      "to": "document"
+    },
+    {
+      "file": "editor/recovery-history.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/recovery-history.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "./document-store",
+      "target": "editor/document-store.ts",
+      "from": "checks",
+      "to": "document"
+    },
+    {
+      "file": "editor/recovery-history.test.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./recovery-history",
+      "target": "editor/recovery-history.ts",
+      "from": "checks",
+      "to": "document"
+    },
+    {
+      "file": "editor/recovery-history.test.ts",
+      "line": 4,
+      "kind": "static",
+      "specifier": "../shared/project/project-serialization",
+      "target": "shared/project/project-serialization.ts",
+      "from": "checks",
+      "to": "project"
+    },
+    {
+      "file": "editor/recovery-history.test.ts",
+      "line": 5,
+      "kind": "type",
+      "specifier": "../shared/assets/catalogue",
+      "target": "shared/assets/catalogue.ts",
+      "from": "checks",
+      "to": "catalogue"
+    },
+    {
+      "file": "editor/recovery-history.ts",
+      "line": 1,
+      "kind": "type",
+      "specifier": "../shared/project/project-types",
+      "target": "shared/project/project-types.ts",
+      "from": "document",
+      "to": "project"
+    },
+    {
+      "file": "editor/recovery-history.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "../shared/project/project-validation",
+      "target": "shared/project/project-validation.ts",
+      "from": "document",
+      "to": "project"
+    },
+    {
+      "file": "editor/recovery-history.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "../shared/project/validation-helpers",
+      "target": "shared/project/validation-helpers.ts",
+      "from": "document",
+      "to": "project"
+    },
+    {
+      "file": "editor/transform-command.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/transform-command.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "./document-store",
+      "target": "editor/document-store.ts",
+      "from": "checks",
+      "to": "document"
+    },
+    {
+      "file": "editor/transform-command.test.ts",
+      "line": 3,
+      "kind": "type",
+      "specifier": "../shared/assets/catalogue",
+      "target": "shared/assets/catalogue.ts",
+      "from": "checks",
+      "to": "catalogue"
+    },
+    {
+      "file": "editor/transform-command.test.ts",
+      "line": 4,
+      "kind": "type",
+      "specifier": "../shared/project/project-types",
+      "target": "shared/project/project-types.ts",
+      "from": "checks",
+      "to": "project"
+    },
+    {
+      "file": "editor/transform-command.test.ts",
+      "line": 5,
+      "kind": "static",
+      "specifier": "../shared/project/fixtures/m1-project.json",
+      "target": "shared/project/fixtures/m1-project.json",
+      "from": "checks",
+      "to": "project"
+    },
+    {
+      "file": "editor/transform-command.test.ts",
+      "line": 6,
+      "kind": "static",
+      "specifier": "../shared/project/project-serialization",
+      "target": "shared/project/project-serialization.ts",
+      "from": "checks",
+      "to": "project"
+    },
+    {
+      "file": "editor/transform-command.ts",
+      "line": 1,
+      "kind": "type",
+      "specifier": "./command-history",
+      "target": "editor/command-history.ts",
+      "from": "document",
+      "to": "document"
+    },
+    {
+      "file": "editor/transform-command.ts",
+      "line": 2,
+      "kind": "type",
+      "specifier": "../shared/project/project-types",
+      "target": "shared/project/project-types.ts",
+      "from": "document",
+      "to": "project"
+    },
+    {
+      "file": "editor/transform-command.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "../shared/project/spatial-validation",
+      "target": "shared/project/spatial-validation.ts",
+      "from": "document",
+      "to": "project"
+    },
+    {
+      "file": "editor/transform-command.ts",
+      "line": 4,
+      "kind": "static",
+      "specifier": "../shared/project/validation-helpers",
+      "target": "shared/project/validation-helpers.ts",
+      "from": "document",
+      "to": "project"
+    },
+    {
+      "file": "editor/viewport/Viewport.tsx",
+      "line": 1,
+      "kind": "static",
+      "specifier": "react",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/viewport/Viewport.tsx",
+      "line": 2,
+      "kind": "static",
+      "specifier": "../../shared/assets/catalogue",
+      "target": "shared/assets/catalogue.ts",
+      "from": "editor",
+      "to": "catalogue"
+    },
+    {
+      "file": "editor/viewport/Viewport.tsx",
+      "line": 3,
+      "kind": "type",
+      "specifier": "../../shared/project/scene-object",
+      "target": "shared/project/scene-object.ts",
+      "from": "editor",
+      "to": "project"
+    },
+    {
+      "file": "editor/viewport/Viewport.tsx",
+      "line": 4,
+      "kind": "type",
+      "specifier": "../../shared/project/project-types",
+      "target": "shared/project/project-types.ts",
+      "from": "editor",
+      "to": "project"
+    },
+    {
+      "file": "editor/viewport/Viewport.tsx",
+      "line": 5,
+      "kind": "type",
+      "specifier": "../graphics/scene",
+      "target": "editor/graphics/scene.ts",
+      "from": "editor",
+      "to": "rendering"
+    },
+    {
+      "file": "editor/viewport/Viewport.tsx",
+      "line": 6,
+      "kind": "type",
+      "specifier": "../graphics/modeManager",
+      "target": "editor/graphics/modeManager.ts",
+      "from": "editor",
+      "to": "rendering"
+    },
+    {
+      "file": "editor/viewport/Viewport.tsx",
+      "line": 64,
+      "kind": "dynamic",
+      "specifier": "../graphics/scene",
+      "target": "editor/graphics/scene.ts",
+      "from": "editor",
+      "to": "rendering"
+    },
+    {
+      "file": "editor/viewport/Viewport.tsx",
+      "line": 112,
+      "kind": "implicit-jsx",
+      "specifier": "react/jsx-runtime",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "eslint.config.js",
+      "line": 1,
+      "kind": "static",
+      "specifier": "@eslint/js",
+      "target": {
+        "package": "@eslint/js"
+      },
+      "from": "build"
+    },
+    {
+      "file": "eslint.config.js",
+      "line": 2,
+      "kind": "static",
+      "specifier": "eslint/config",
+      "target": {
+        "package": "eslint"
+      },
+      "from": "build"
+    },
+    {
+      "file": "eslint.config.js",
+      "line": 3,
+      "kind": "static",
+      "specifier": "eslint-config-prettier/flat",
+      "target": {
+        "package": "eslint-config-prettier"
+      },
+      "from": "build"
+    },
+    {
+      "file": "eslint.config.js",
+      "line": 4,
+      "kind": "static",
+      "specifier": "eslint-plugin-react-hooks",
+      "target": {
+        "package": "eslint-plugin-react-hooks"
+      },
+      "from": "build"
+    },
+    {
+      "file": "eslint.config.js",
+      "line": 5,
+      "kind": "static",
+      "specifier": "eslint-plugin-react-refresh",
+      "target": {
+        "package": "eslint-plugin-react-refresh"
+      },
+      "from": "build"
+    },
+    {
+      "file": "eslint.config.js",
+      "line": 6,
+      "kind": "static",
+      "specifier": "globals",
+      "target": {
+        "package": "globals"
+      },
+      "from": "build"
+    },
+    {
+      "file": "eslint.config.js",
+      "line": 7,
+      "kind": "static",
+      "specifier": "typescript-eslint",
+      "target": {
+        "package": "typescript-eslint"
+      },
+      "from": "build"
+    },
+    {
+      "file": "shared/assets/ModelCache.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "shared/assets/ModelCache.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "three",
+      "target": {
+        "package": "three"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "shared/assets/ModelCache.test.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "three/examples/jsm/loaders/GLTFLoader.js",
+      "target": {
+        "package": "three"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "shared/assets/ModelCache.test.ts",
+      "line": 4,
+      "kind": "static",
+      "specifier": "./ModelCache",
+      "target": "shared/assets/ModelCache.ts",
+      "from": "checks",
+      "to": "asset-loading"
+    },
+    {
+      "file": "shared/assets/ModelCache.test.ts",
+      "line": 5,
+      "kind": "type",
+      "specifier": "./catalogue",
+      "target": "shared/assets/catalogue.ts",
+      "from": "checks",
+      "to": "catalogue"
+    },
+    {
+      "file": "shared/assets/ModelCache.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "three",
+      "target": {
+        "package": "three"
+      },
+      "from": "asset-loading"
+    },
+    {
+      "file": "shared/assets/ModelCache.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "three/examples/jsm/loaders/GLTFLoader.js",
+      "target": {
+        "package": "three"
+      },
+      "from": "asset-loading"
+    },
+    {
+      "file": "shared/assets/ModelCache.ts",
+      "line": 3,
+      "kind": "type",
+      "specifier": "./catalogue",
+      "target": "shared/assets/catalogue.ts",
+      "from": "asset-loading",
+      "to": "catalogue"
+    },
+    {
+      "file": "shared/assets/manifest-module.d.ts",
+      "line": 2,
+      "kind": "type-query",
+      "specifier": "./catalogue",
+      "target": "shared/assets/catalogue.ts",
+      "from": "catalogue",
+      "to": "catalogue"
+    },
+    {
+      "file": "shared/project/project-deserialization.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "shared/project/project-deserialization.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "./fixtures/m1-project.json",
+      "target": "shared/project/fixtures/m1-project.json",
+      "from": "checks",
+      "to": "project"
+    },
+    {
+      "file": "shared/project/project-deserialization.test.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./project-deserialization",
+      "target": "shared/project/project-deserialization.ts",
+      "from": "checks",
+      "to": "project"
+    },
+    {
+      "file": "shared/project/project-deserialization.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "./project-limits",
+      "target": "shared/project/project-limits.ts",
+      "from": "project",
+      "to": "project"
+    },
+    {
+      "file": "shared/project/project-deserialization.ts",
+      "line": 2,
+      "kind": "type",
+      "specifier": "./project-types",
+      "target": "shared/project/project-types.ts",
+      "from": "project",
+      "to": "project"
+    },
+    {
+      "file": "shared/project/project-deserialization.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./project-validation",
+      "target": "shared/project/project-validation.ts",
+      "from": "project",
+      "to": "project"
+    },
+    {
+      "file": "shared/project/project-deserialization.ts",
+      "line": 4,
+      "kind": "static",
+      "specifier": "./validation-helpers",
+      "target": "shared/project/validation-helpers.ts",
+      "from": "project",
+      "to": "project"
+    },
+    {
+      "file": "shared/project/project-deserialization.ts",
+      "line": 5,
+      "kind": "type",
+      "specifier": "./validation-helpers",
+      "target": "shared/project/validation-helpers.ts",
+      "from": "project",
+      "to": "project"
+    },
+    {
+      "file": "shared/project/project-serialization.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "shared/project/project-serialization.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "./fixtures/m1-project.json",
+      "target": "shared/project/fixtures/m1-project.json",
+      "from": "checks",
+      "to": "project"
+    },
+    {
+      "file": "shared/project/project-serialization.test.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./project-serialization",
+      "target": "shared/project/project-serialization.ts",
+      "from": "checks",
+      "to": "project"
+    },
+    {
+      "file": "shared/project/project-serialization.test.ts",
+      "line": 4,
+      "kind": "static",
+      "specifier": "./project-deserialization",
+      "target": "shared/project/project-deserialization.ts",
+      "from": "checks",
+      "to": "project"
+    },
+    {
+      "file": "shared/project/project-serialization.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "./project-validation",
+      "target": "shared/project/project-validation.ts",
+      "from": "project",
+      "to": "project"
+    },
+    {
+      "file": "shared/project/project-serialization.ts",
+      "line": 2,
+      "kind": "type",
+      "specifier": "./validation-helpers",
+      "target": "shared/project/validation-helpers.ts",
+      "from": "project",
+      "to": "project"
+    },
+    {
+      "file": "shared/project/project-structure-validation.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "shared/project/project-structure-validation.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "./project-structure-validation",
+      "target": "shared/project/project-structure-validation.ts",
+      "from": "checks",
+      "to": "project"
+    },
+    {
+      "file": "shared/project/project-structure-validation.ts",
+      "line": 1,
+      "kind": "type",
+      "specifier": "./project-types",
+      "target": "shared/project/project-types.ts",
+      "from": "project",
+      "to": "project"
+    },
+    {
+      "file": "shared/project/project-structure-validation.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "./spatial-validation",
+      "target": "shared/project/spatial-validation.ts",
+      "from": "project",
+      "to": "project"
+    },
+    {
+      "file": "shared/project/project-structure-validation.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./validation-helpers",
+      "target": "shared/project/validation-helpers.ts",
+      "from": "project",
+      "to": "project"
+    },
+    {
+      "file": "shared/project/project-structure-validation.ts",
+      "line": 4,
+      "kind": "type",
+      "specifier": "./validation-helpers",
+      "target": "shared/project/validation-helpers.ts",
+      "from": "project",
+      "to": "project"
+    },
+    {
+      "file": "shared/project/project-structure-validation.ts",
+      "line": 5,
+      "kind": "static",
+      "specifier": "./project-limits",
+      "target": "shared/project/project-limits.ts",
+      "from": "project",
+      "to": "project"
+    },
+    {
+      "file": "shared/project/project-validation.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "shared/project/project-validation.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "./project-validation",
+      "target": "shared/project/project-validation.ts",
+      "from": "checks",
+      "to": "project"
+    },
+    {
+      "file": "shared/project/project-validation.ts",
+      "line": 1,
+      "kind": "type",
+      "specifier": "./project-types",
+      "target": "shared/project/project-types.ts",
+      "from": "project",
+      "to": "project"
+    },
+    {
+      "file": "shared/project/project-validation.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "./project-structure-validation",
+      "target": "shared/project/project-structure-validation.ts",
+      "from": "project",
+      "to": "project"
+    },
+    {
+      "file": "shared/project/project-validation.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./validation-helpers",
+      "target": "shared/project/validation-helpers.ts",
+      "from": "project",
+      "to": "project"
+    },
+    {
+      "file": "shared/project/project-validation.ts",
+      "line": 4,
+      "kind": "type",
+      "specifier": "./validation-helpers",
+      "target": "shared/project/validation-helpers.ts",
+      "from": "project",
+      "to": "project"
+    },
+    {
+      "file": "shared/project/scene-object.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "./project-types",
+      "target": "shared/project/project-types.ts",
+      "from": "project",
+      "to": "project"
+    },
+    {
+      "file": "shared/project/spatial-validation.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "shared/project/spatial-validation.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "./spatial-validation",
+      "target": "shared/project/spatial-validation.ts",
+      "from": "checks",
+      "to": "project"
+    },
+    {
+      "file": "shared/project/spatial-validation.ts",
+      "line": 1,
+      "kind": "type",
+      "specifier": "./project-types",
+      "target": "shared/project/project-types.ts",
+      "from": "project",
+      "to": "project"
+    },
+    {
+      "file": "shared/project/spatial-validation.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./validation-helpers",
+      "target": "shared/project/validation-helpers.ts",
+      "from": "project",
+      "to": "project"
+    },
+    {
+      "file": "shared/project/spatial-validation.ts",
+      "line": 4,
+      "kind": "type",
+      "specifier": "./validation-helpers",
+      "target": "shared/project/validation-helpers.ts",
+      "from": "project",
+      "to": "project"
+    },
+    {
+      "file": "shared/project/spatial-validation.ts",
+      "line": 6,
+      "kind": "static",
+      "specifier": "./validation-helpers",
+      "target": "shared/project/validation-helpers.ts",
+      "from": "project",
+      "to": "project"
+    },
+    {
+      "file": "tests/caching.check.mjs",
+      "line": 1,
+      "kind": "static",
+      "specifier": "node:assert/strict",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/caching.check.mjs",
+      "line": 2,
+      "kind": "static",
+      "specifier": "node:fs",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/caching.check.mjs",
+      "line": 3,
+      "kind": "static",
+      "specifier": "node:url",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/caching.check.mjs",
+      "line": 5,
+      "kind": "test-environment",
+      "specifier": "playwright",
+      "target": {
+        "package": "playwright"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/caching.check.mjs",
+      "line": 29,
+      "kind": "test-transformed-module",
+      "specifier": "three",
+      "target": {
+        "package": "three"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/caching.check.mjs",
+      "line": 31,
+      "kind": "test-transformed-module",
+      "specifier": "../shared/assets/ModelCache.ts",
+      "target": "shared/assets/ModelCache.ts",
+      "from": "checks",
+      "to": "asset-loading"
+    },
+    {
+      "file": "tests/caching.check.mjs",
+      "line": 33,
+      "kind": "test-transformed-module",
+      "specifier": "three",
+      "target": {
+        "package": "three"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/caching.check.mjs",
+      "line": 36,
+      "kind": "dynamic",
+      "specifier": "/graphics/scene.ts",
+      "target": "editor/graphics/scene.ts",
+      "from": "checks",
+      "to": "rendering"
+    },
+    {
+      "file": "tests/caching.check.mjs",
+      "line": 37,
+      "kind": "dynamic",
+      "specifier": "/@id/__x00__virtual:asset-catalogue",
+      "target": "shared/assets/catalogue.ts",
+      "from": "checks",
+      "to": "catalogue"
+    },
+    {
+      "file": "tests/caching.measure.mjs",
+      "line": 1,
+      "kind": "static",
+      "specifier": "node:assert/strict",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/caching.measure.mjs",
+      "line": 2,
+      "kind": "static",
+      "specifier": "node:child_process",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/caching.measure.mjs",
+      "line": 3,
+      "kind": "static",
+      "specifier": "node:crypto",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/caching.measure.mjs",
+      "line": 4,
+      "kind": "static",
+      "specifier": "node:fs/promises",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/caching.measure.mjs",
+      "line": 5,
+      "kind": "static",
+      "specifier": "node:os",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/caching.measure.mjs",
+      "line": 6,
+      "kind": "static",
+      "specifier": "node:url",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/caching.measure.mjs",
+      "line": 7,
+      "kind": "static",
+      "specifier": "vite",
+      "target": {
+        "package": "vite"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/caching.measure.mjs",
+      "line": 48,
+      "kind": "test-environment",
+      "specifier": "playwright",
+      "target": {
+        "package": "playwright"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/caching.measure.mjs",
+      "line": 82,
+      "kind": "test-environment",
+      "specifier": "three",
+      "target": {
+        "package": "three"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/caching.measure.mjs",
+      "line": 83,
+      "kind": "test-environment",
+      "specifier": "three",
+      "target": {
+        "package": "three"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/caching.measure.mjs",
+      "line": 84,
+      "kind": "dynamic",
+      "specifier": "/graphics/ti18-baseline.ts",
+      "target": {
+        "generated": "renderer from pinned Git revision in caching.measure.mjs",
+        "module": "rendering"
+      },
+      "from": "checks",
+      "to": "rendering"
+    },
+    {
+      "file": "tests/caching.measure.mjs",
+      "line": 85,
+      "kind": "dynamic",
+      "specifier": "/graphics/scene.ts",
+      "target": "editor/graphics/scene.ts",
+      "from": "checks",
+      "to": "rendering"
+    },
+    {
+      "file": "tests/caching.measure.mjs",
+      "line": 86,
+      "kind": "dynamic",
+      "specifier": "/@id/__x00__virtual:asset-catalogue",
+      "target": "shared/assets/catalogue.ts",
+      "from": "checks",
+      "to": "catalogue"
+    },
+    {
+      "file": "tests/deployment.check.mjs",
+      "line": 1,
+      "kind": "static",
+      "specifier": "node:assert/strict",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/deployment.check.mjs",
+      "line": 2,
+      "kind": "static",
+      "specifier": "node:fs",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/deployment.check.mjs",
+      "line": 3,
+      "kind": "static",
+      "specifier": "playwright",
+      "target": {
+        "package": "playwright"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/editor-build.check.mjs",
+      "line": 1,
+      "kind": "static",
+      "specifier": "node:assert/strict",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/editor-build.check.mjs",
+      "line": 2,
+      "kind": "static",
+      "specifier": "node:url",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/editor-build.check.mjs",
+      "line": 4,
+      "kind": "test-environment",
+      "specifier": "playwright",
+      "target": {
+        "package": "playwright"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/editor-integration.check.mjs",
+      "line": 1,
+      "kind": "static",
+      "specifier": "node:assert/strict",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/editor-integration.check.mjs",
+      "line": 2,
+      "kind": "static",
+      "specifier": "node:fs",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/editor-integration.check.mjs",
+      "line": 3,
+      "kind": "static",
+      "specifier": "node:url",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/editor-integration.check.mjs",
+      "line": 4,
+      "kind": "static",
+      "specifier": "three",
+      "target": {
+        "package": "three"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/editor-integration.check.mjs",
+      "line": 6,
+      "kind": "test-environment",
+      "specifier": "playwright",
+      "target": {
+        "package": "playwright"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/editor-integration.check.mjs",
+      "line": 103,
+      "kind": "test-environment",
+      "specifier": "three",
+      "target": {
+        "package": "three"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/editor-integration.check.mjs",
+      "line": 104,
+      "kind": "dynamic",
+      "specifier": "/graphics/scene.ts",
+      "target": "editor/graphics/scene.ts",
+      "from": "checks",
+      "to": "rendering"
+    },
+    {
+      "file": "tests/editor-integration.check.mjs",
+      "line": 105,
+      "kind": "dynamic",
+      "specifier": "/@id/__x00__virtual:asset-catalogue",
+      "target": "shared/assets/catalogue.ts",
+      "from": "checks",
+      "to": "catalogue"
+    },
+    {
+      "file": "tests/editor-shell.check.mjs",
+      "line": 1,
+      "kind": "static",
+      "specifier": "node:assert/strict",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/editor-shell.check.mjs",
+      "line": 2,
+      "kind": "static",
+      "specifier": "node:url",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/editor-shell.check.mjs",
+      "line": 3,
+      "kind": "static",
+      "specifier": "three",
+      "target": {
+        "package": "three"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/editor-shell.check.mjs",
+      "line": 5,
+      "kind": "test-environment",
+      "specifier": "playwright",
+      "target": {
+        "package": "playwright"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/history-recovery.check.mjs",
+      "line": 1,
+      "kind": "static",
+      "specifier": "node:assert/strict",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/history-recovery.check.mjs",
+      "line": 2,
+      "kind": "static",
+      "specifier": "node:url",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/history-recovery.check.mjs",
+      "line": 4,
+      "kind": "test-environment",
+      "specifier": "playwright",
+      "target": {
+        "package": "playwright"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/history-recovery.check.mjs",
+      "line": 26,
+      "kind": "dynamic",
+      "specifier": "/persistence/local-drafts.ts",
+      "target": "editor/persistence/local-drafts.ts",
+      "from": "checks",
+      "to": "persistence"
+    },
+    {
+      "file": "tests/history-recovery.check.mjs",
+      "line": 27,
+      "kind": "dynamic",
+      "specifier": "/@id/__x00__virtual:asset-catalogue",
+      "target": "shared/assets/catalogue.ts",
+      "from": "checks",
+      "to": "catalogue"
+    },
+    {
+      "file": "tests/history-recovery.check.mjs",
+      "line": 77,
+      "kind": "dynamic",
+      "specifier": "/persistence/local-drafts.ts",
+      "target": "editor/persistence/local-drafts.ts",
+      "from": "checks",
+      "to": "persistence"
+    },
+    {
+      "file": "tests/history-recovery.check.mjs",
+      "line": 78,
+      "kind": "dynamic",
+      "specifier": "/@id/__x00__virtual:asset-catalogue",
+      "target": "shared/assets/catalogue.ts",
+      "from": "checks",
+      "to": "catalogue"
+    },
+    {
+      "file": "tests/local-drafts.check.mjs",
+      "line": 1,
+      "kind": "static",
+      "specifier": "node:assert/strict",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/local-drafts.check.mjs",
+      "line": 2,
+      "kind": "static",
+      "specifier": "node:fs",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/local-drafts.check.mjs",
+      "line": 3,
+      "kind": "static",
+      "specifier": "node:url",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/local-drafts.check.mjs",
+      "line": 5,
+      "kind": "test-environment",
+      "specifier": "playwright",
+      "target": {
+        "package": "playwright"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/local-drafts.check.mjs",
+      "line": 27,
+      "kind": "dynamic",
+      "specifier": "/persistence/local-drafts.ts",
+      "target": "editor/persistence/local-drafts.ts",
+      "from": "checks",
+      "to": "persistence"
+    },
+    {
+      "file": "tests/local-drafts.check.mjs",
+      "line": 172,
+      "kind": "dynamic",
+      "specifier": "/persistence/local-drafts.ts",
+      "target": "editor/persistence/local-drafts.ts",
+      "from": "checks",
+      "to": "persistence"
+    },
+    {
+      "file": "tests/local-drafts.check.mjs",
+      "line": 212,
+      "kind": "dynamic",
+      "specifier": "/persistence/local-drafts.ts",
+      "target": "editor/persistence/local-drafts.ts",
+      "from": "checks",
+      "to": "persistence"
+    },
+    {
+      "file": "tests/local-drafts.check.mjs",
+      "line": 213,
+      "kind": "dynamic",
+      "specifier": "/@id/__x00__virtual:asset-catalogue",
+      "target": "shared/assets/catalogue.ts",
+      "from": "checks",
+      "to": "catalogue"
+    },
+    {
+      "file": "tests/local-drafts.check.mjs",
+      "line": 370,
+      "kind": "dynamic",
+      "specifier": "/persistence/local-drafts.ts",
+      "target": "editor/persistence/local-drafts.ts",
+      "from": "checks",
+      "to": "persistence"
+    },
+    {
+      "file": "vite.config.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "node:url",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "build"
+    },
+    {
+      "file": "vite.config.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "@vitejs/plugin-react",
+      "target": {
+        "package": "@vitejs/plugin-react"
+      },
+      "from": "build"
+    },
+    {
+      "file": "vite.config.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "vite",
+      "target": {
+        "package": "vite"
+      },
+      "from": "build"
+    },
+    {
+      "file": "vite.config.ts",
+      "line": 4,
+      "kind": "static",
+      "specifier": "./asset-catalogue-plugin.ts",
+      "target": "asset-catalogue-plugin.ts",
+      "from": "build",
+      "to": "build"
+    },
+    {
+      "file": "vitest.config.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest/config",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "build"
+    }
+  ],
+  "computedImports": [
+    {
+      "file": "tests/caching.check.mjs",
+      "line": 5,
+      "expression": "process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : \"playwright\""
+    },
+    {
+      "file": "tests/caching.check.mjs",
+      "line": 29,
+      "expression": "source.match(/import \\* as THREE from \"([^\"]+)\"/)[1]"
+    },
+    {
+      "file": "tests/caching.check.mjs",
+      "line": 31,
+      "expression": "cachePath"
+    },
+    {
+      "file": "tests/caching.check.mjs",
+      "line": 33,
+      "expression": "cacheSource.match(/import \\{ GLTFLoader \\} from \"([^\"]+)\"/)[1]"
+    },
+    {
+      "file": "tests/caching.measure.mjs",
+      "line": 48,
+      "expression": "process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : \"playwright\""
+    },
+    {
+      "file": "tests/caching.measure.mjs",
+      "line": 82,
+      "expression": "threePath"
+    },
+    {
+      "file": "tests/caching.measure.mjs",
+      "line": 83,
+      "expression": "loaderPath"
+    },
+    {
+      "file": "tests/editor-build.check.mjs",
+      "line": 4,
+      "expression": "process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : \"playwright\""
+    },
+    {
+      "file": "tests/editor-integration.check.mjs",
+      "line": 6,
+      "expression": "process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : \"playwright\""
+    },
+    {
+      "file": "tests/editor-integration.check.mjs",
+      "line": 103,
+      "expression": "threePath"
+    },
+    {
+      "file": "tests/editor-shell.check.mjs",
+      "line": 5,
+      "expression": "process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : \"playwright\""
+    },
+    {
+      "file": "tests/history-recovery.check.mjs",
+      "line": 4,
+      "expression": "process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : \"playwright\""
+    },
+    {
+      "file": "tests/local-drafts.check.mjs",
+      "line": 5,
+      "expression": "process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : \"playwright\""
+    }
+  ]
+}

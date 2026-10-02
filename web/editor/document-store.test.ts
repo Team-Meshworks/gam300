@@ -9,15 +9,24 @@ it("preserves mixed-asset placement, history branching and earlier snapshots", (
       name: "Room",
       kind: "environment",
       url: "room.glb",
+      sha256: "0".repeat(64),
       thumbnail: "room.png",
     },
-    { id: "test-crate-v1", name: "Crate", kind: "model", url: "crate.glb", thumbnail: "crate.png" },
+    {
+      id: "test-crate-v1",
+      name: "Crate",
+      kind: "model",
+      url: "crate.glb",
+      sha256: "0".repeat(64),
+      thumbnail: "crate.png",
+    },
   ];
   assets.push({
     id: "sample-snowglobe-v1",
     name: "Snow globe",
     kind: "model",
     url: "snowglobe.glb",
+    sha256: "0".repeat(64),
     thumbnail: null,
   });
   const store = createDocumentStore(assets);
@@ -71,7 +80,14 @@ it("preserves mixed-asset placement, history branching and earlier snapshots", (
 
 it("commits one reversible transform and rejects invalid moves without changing history", () => {
   const store = createDocumentStore([
-    { id: "crate", name: "Crate", kind: "model", url: "crate.glb", thumbnail: null },
+    {
+      id: "crate",
+      name: "Crate",
+      kind: "model",
+      url: "crate.glb",
+      sha256: "0".repeat(64),
+      thumbnail: null,
+    },
   ]);
   const placed = store.addObject("crate", [1, 0, 0]);
   if (!placed.ok) throw new Error(placed.error);
@@ -116,7 +132,14 @@ it("commits one reversible transform and rejects invalid moves without changing 
 
 it("shares one undo order across incoming gizmo moves, edit sessions and deletion", () => {
   const store = createDocumentStore([
-    { id: "crate", name: "Crate", kind: "model", url: "crate.glb", thumbnail: null },
+    {
+      id: "crate",
+      name: "Crate",
+      kind: "model",
+      url: "crate.glb",
+      sha256: "0".repeat(64),
+      thumbnail: null,
+    },
   ]);
   const added = store.addObject("crate", [0, 0, 0]);
   if (!added.ok) throw new Error(added.error);
@@ -144,8 +167,22 @@ it("shares one undo order across incoming gizmo moves, edit sessions and deletio
 
 it("creates a saveable room project while preserving model IDs, transforms and history", () => {
   const assets: CatalogueAsset[] = [
-    { id: "test-room-v1", name: "Room", kind: "environment", url: "room.glb", thumbnail: null },
-    { id: "test-crate-v1", name: "Crate", kind: "model", url: "crate.glb", thumbnail: null },
+    {
+      id: "test-room-v1",
+      name: "Room",
+      kind: "environment",
+      url: "room.glb",
+      sha256: "0".repeat(64),
+      thumbnail: null,
+    },
+    {
+      id: "test-crate-v1",
+      name: "Crate",
+      kind: "model",
+      url: "crate.glb",
+      sha256: "0".repeat(64),
+      thumbnail: null,
+    },
   ];
   const store = createDocumentStore(assets);
   store.addObject("test-crate-v1", [2, 0, -3]);

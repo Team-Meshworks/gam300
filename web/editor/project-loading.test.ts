@@ -15,6 +15,7 @@ const placementAssets: CatalogueAsset[] = [...assets.keys()].map((id) => ({
   name: id,
   kind: id === "test-room-v1" ? "environment" : "model",
   url: `${id}.glb`,
+  sha256: "0".repeat(64),
   thumbnail: null,
 }));
 const text = JSON.stringify(fixture);

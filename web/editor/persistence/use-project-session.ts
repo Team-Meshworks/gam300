@@ -5,7 +5,7 @@ import { serializeProject } from "../../shared/project/project-serialization";
 import { deserializeProject } from "../../shared/project/project-deserialization";
 import { MAX_PROJECT_BYTES } from "../../shared/project/project-limits";
 import { createDocumentStore } from "../document-store";
-import type { RecoveryHistory } from "./recovery-history";
+import type { RecoveryHistory } from "../recovery-history";
 import {
   loadLatestLocalDraft,
   loadRecoverySession,

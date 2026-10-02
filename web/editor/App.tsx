@@ -155,7 +155,7 @@ export function App() {
 
   useEffect(() => {
     // Filename identifies the browser tab; save status stays in the editor
-    document.title = `${session.fileName || "Untitled"} - VThere`;
+    document.title = `${session.fileName || "Untitled"} - Spatia`;
   }, [session.fileName]);
 
   // Keep keyboard saving on the same path as the menu and its file picker
@@ -327,7 +327,7 @@ export function App() {
           </div>
         </details>
         <h1>
-          <strong>VThere</strong> Spatial Experience Editor
+          <strong>Spatia</strong>
         </h1>
         <div
           className="history-controls"

@@ -1,12 +1,26 @@
 import { describe, expect, it } from "vitest";
-import { createDocumentStore } from "../document-store";
+import { createDocumentStore } from "./document-store";
 import { validateRecoveryHistory } from "./recovery-history";
-import { serializeProject } from "../../shared/project/project-serialization";
-import type { CatalogueAsset } from "../../shared/assets/catalogue";
+import { serializeProject } from "../shared/project/project-serialization";
+import type { CatalogueAsset } from "../shared/assets/catalogue";
 
 const assets: CatalogueAsset[] = [
-  { id: "room", kind: "environment", name: "Room", url: "room.glb", thumbnail: null },
-  { id: "crate", kind: "model", name: "Crate", url: "crate.glb", thumbnail: null },
+  {
+    id: "room",
+    kind: "environment",
+    name: "Room",
+    url: "room.glb",
+    sha256: "0".repeat(64),
+    thumbnail: null,
+  },
+  {
+    id: "crate",
+    kind: "model",
+    name: "Crate",
+    url: "crate.glb",
+    sha256: "0".repeat(64),
+    thumbnail: null,
+  },
 ];
 const kinds = new Map(assets.map((asset) => [asset.id, asset.kind]));
 function setup() {

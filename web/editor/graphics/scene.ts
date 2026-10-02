@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { ModelCache, disposeModels, type ModelLease } from "../../shared/assets/ModelCache";
 import type { CatalogueAsset } from "../../shared/assets/catalogue";
 import type { SceneObject, Vector3Tuple } from "../../shared/project/scene-object";
 import type {
@@ -26,6 +26,12 @@ import { axisDragPosition, beginAxisDrag } from "./translation";
 const WHEEL_COMMIT_DELAY_MS = 250;
 
 const ROTATION_SNAP = THREE.MathUtils.degToRad(15);
+
+// One lazy renderer-module owner per editor page, shared across viewport retries/remounts
+export const editorModelCache = new ModelCache();
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => editorModelCache.invalidate());
+}
 
 export type ViewportStatus = "loading" | "ready" | "error" | "download-error" | "unsupported";
 
@@ -55,6 +61,7 @@ export function initScene(
     onSelect: (id: string | null) => void;
     onTransform: (id: string, transform: Transform) => void;
   },
+  modelCache: ModelCache = editorModelCache,
 ): InitSceneHandle | undefined {
   let renderer: THREE.WebGLRenderer;
   try {
@@ -132,6 +139,7 @@ export function initScene(
   const controller = new AbortController();
   let disposed = false;
   const models = new Map<string, THREE.Group>();
+  const leases: ModelLease[] = [];
   let ready = false;
   let editingEnabled = true;
   let objects: readonly SceneObject[] = [];
@@ -329,7 +337,7 @@ export function initScene(
 
     if (ready && environmentId !== projectScene?.environmentAssetId) {
       // Environment stays at its exported origin, outside the placed-object list
-      // Removed instances share resources with models until viewport disposal
+      // Removed instances borrow resources from this viewport's cache leases
       if (environment !== undefined) scene.remove(environment);
       environmentId = projectScene?.environmentAssetId;
       environment =
@@ -362,7 +370,7 @@ export function initScene(
         let instance = instances.get(object.id);
         if (instance === undefined) {
           instance = new THREE.Group();
-          // Instances share each asset's immutable GPU resources until viewport disposal
+          // Clone nodes for independent transforms; cache leases own geometry/materials/textures
           instance.add(model.clone(true));
           instances.set(object.id, instance);
           instanceAssets.set(object.id, object.assetId);
@@ -658,27 +666,19 @@ export function initScene(
   async function loadAssets() {
     try {
       for (const asset of assets) {
-        const response = await fetch(asset.url, { signal: controller.signal });
-        if (!response.ok) {
-          throw new Error(asset.name + " request failed (" + response.status + ")");
-        }
-        const gltf = await new GLTFLoader().parseAsync(await response.arrayBuffer(), "");
+        const lease = await modelCache.acquire(asset, controller.signal);
         if (disposed) {
-          disposeModels(gltf.scene);
+          lease.release();
           return;
         }
-        if (asset.placement === "bottom-center") {
-          // Preserve the original snowglobe demo's placement convention only for that sample
-          const box = new THREE.Box3().setFromObject(gltf.scene);
-          const center = box.getCenter(new THREE.Vector3());
-          gltf.scene.position.sub(new THREE.Vector3(center.x, box.min.y, center.z));
-        }
-        if (asset.thumbnail === null) {
-          const box = new THREE.Box3().setFromObject(gltf.scene);
+        leases.push(lease);
+        const { model } = lease.value;
+        if (asset.thumbnail === null && lease.value.thumbnail === undefined) {
+          const box = new THREE.Box3().setFromObject(model);
           const size = box.getSize(new THREE.Vector3());
           const center = box.getCenter(new THREE.Vector3());
           const thumbnailScene = new THREE.Scene();
-          thumbnailScene.add(ambient.clone(), sun.clone(), fill.clone(), gltf.scene.clone(true));
+          thumbnailScene.add(ambient.clone(), sun.clone(), fill.clone(), model.clone(true));
           const thumbnailCamera = new THREE.PerspectiveCamera(35, 1, 0.01, 1000);
           const distance =
             (Math.max(size.length(), 0.1) / 2 / Math.sin((35 * Math.PI) / 360)) * 1.05;
@@ -688,12 +688,15 @@ export function initScene(
           renderer.setSize(320, 320, false);
           renderer.setClearColor(0, 0);
           renderer.render(thumbnailScene, thumbnailCamera);
-          callbacks.onThumbnail(asset.id, renderer.domElement.toDataURL("image/png"));
+          lease.value.thumbnail = renderer.domElement.toDataURL("image/png");
           renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
           resize();
         }
+        if (asset.thumbnail === null && lease.value.thumbnail !== undefined) {
+          callbacks.onThumbnail(asset.id, lease.value.thumbnail);
+        }
         // Preserve exported units and pivots for manifest assets
-        models.set(asset.id, gltf.scene);
+        models.set(asset.id, model);
       }
       ready = true;
       update(objects, selectedId);
@@ -722,6 +725,9 @@ export function initScene(
     },
     modeManager,
     dispose() {
+      if (disposed) {
+        return;
+      }
       cancelDrag();
       cancelWheelEdit();
       disposed = true;
@@ -740,7 +746,20 @@ export function initScene(
       renderer.domElement.removeEventListener("contextmenu", contextMenu);
       host.removeEventListener("wheel", wheel, { capture: true });
       window.removeEventListener("keydown", keyDown);
-      disposeModels(scene, ...models.values());
+      // Detach borrowed meshes before disposing only the viewport's grid/gizmo resources
+      if (environment !== undefined) {
+        scene.remove(environment);
+      }
+      for (const instance of instances.values()) {
+        scene.remove(instance);
+      }
+      instances.clear();
+      models.clear();
+      disposeModels(scene);
+      for (const lease of leases) {
+        lease.release();
+      }
+      leases.length = 0;
       renderer.dispose();
       renderer.forceContextLoss();
       renderer.domElement.remove();
@@ -790,36 +809,4 @@ function applyTransform(instance: THREE.Object3D, transform: Transform) {
   instance.position.fromArray(transform.position);
   instance.quaternion.fromArray(transform.rotation);
   instance.scale.fromArray(transform.scale);
-}
-
-function disposeModels(...roots: THREE.Object3D[]) {
-  const resources = new Set<THREE.BufferGeometry | THREE.Material | THREE.Texture>();
-  const images = new Set<ImageBitmap>();
-  for (const root of roots) {
-    root.traverse((object) => {
-      if (!(object instanceof THREE.Mesh || object instanceof THREE.LineSegments)) {
-        return;
-      }
-      resources.add(object.geometry);
-      const materials = Array.isArray(object.material) ? object.material : [object.material];
-      for (const material of materials) {
-        resources.add(material);
-        for (const value of Object.values(material)) {
-          if (value instanceof THREE.Texture) {
-            resources.add(value);
-            const image: unknown = value.source.data;
-            if (image instanceof ImageBitmap) {
-              images.add(image);
-            }
-          }
-        }
-      }
-    });
-  }
-  for (const resource of resources) {
-    resource.dispose();
-  }
-  for (const image of images) {
-    image.close();
-  }
 }

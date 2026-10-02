@@ -1,6 +1,6 @@
 # Architecture v0.1
 
-Spatial Experience Builder (SEB), developed by Meshworks for VThere.
+Spatia, developed by Meshworks for VThere.
 Reviewed 26 September 2026 against `dev` at `fcf4cb4` and its current implementation.
 This is the M1 architecture baseline; the second diagram labels later product work.
 Recovery and viewport boundaries below were updated on 29 September against `ada62a1`
@@ -88,7 +88,7 @@ ASP.NET Core/Identity and EF Core/Npgsql; the shared player serves both editor p
 and the separate visitor application.
 
 The current application has no API or application database. Wiki.js and its database
-are documentation infrastructure, separate from SEB projects. M1 IndexedDB/JSON is
+are documentation infrastructure, separate from Spatia projects. M1 IndexedDB/JSON is
 local recovery and interchange. M2 adds durable PostgreSQL projects/accounts; M3
 publication uses persisted snapshots and server-enforced access. The separate visitor
 build must exclude authoring code. See [deployment](deployment.md).
@@ -107,6 +107,7 @@ build must exclude authoring code. See [deployment](deployment.md).
 | Build and hosting                  | CI produces runnable web files and a commit identifier; branch builds also produce an immutable image and release descriptor consumed by manual deployment. |
 
 Named owners and their existing owning Jira issues are maintained in the
+[deliverables and ownership plan](deliverables.md) and the
 [component responsibility map on SCRUM-113](https://meshworkss.atlassian.net/browse/SCRUM-113).
 That planning record also identifies unassigned future components; assignments and
 completion status remain outside this technical specification.
@@ -139,3 +140,84 @@ from `web/` against the development server for persistence and viewport integrat
 checks. CI runs these alongside the editor shell suite. The
 [setup guide](../README.md#development) provides commands and verification limits. Asset
 rights remain pending in the manifest; the diagram does not imply content approval.
+
+## Enforced source modules — TI-01
+
+The current browser modules below are implemented. The server, shared player and
+separate visitor application in the earlier target diagram remain future work.
+`ModeManager`'s visitor camera is still part of the editor renderer. These boundaries
+group existing files by responsibility; they do not introduce packages or empty folders.
+
+| Module | Implemented responsibility and public contract | Permitted module imports |
+| --- | --- | --- |
+| project | `shared/project/`: v1 plain data, validation, JSON reader/writer, spatial validation, limits and the representative JSON fixture. Internal structure validation stays private. | None |
+| catalogue | `shared/assets/` metadata and virtual-module declaration, excluding `ModelCache.ts`. `CatalogueAsset`, drag MIME type and legacy sample descriptor. No asset loading or rendering. | None |
+| asset-loading | `shared/assets/ModelCache.ts`: acquire/release model leases, invalidate cached versions and reclaim owned Three.js resources. | catalogue |
+| input | `editor/history-shortcuts.ts`: keyboard/text-focus guards and callbacks. It owns no document or renderer. | None |
+| document | `document-store.ts`, `command-history.ts`, `transform-command.ts`, `recovery-history.ts`: immutable authored snapshots, reversible commands, transform sessions and validated recovery history. Consumers use the store and recovery-history contracts. | project, catalogue |
+| rendering | `editor/graphics/` and `editor/controls/`: scene projection, picking, navigation, custom gizmos and drag overlays. Public entry points are `scene.ts` and `modeManager.ts`. | project, catalogue, input, asset-loading |
+| persistence | `editor/persistence/`: native project-file access, revisioned IndexedDB recovery and React session coordination. The editor uses `useProjectSession`; storage implementation files are private outside checks. | project, catalogue, document |
+| editor | Remaining `editor/` files: React composition, viewport lifecycle, confirmation controls, HTML and CSS. It invokes document commands and passes renderer callbacks. | project, catalogue, input, document, rendering, persistence |
+| build | Root web configuration, asset-catalogue generation and architecture tooling. | None |
+| checks | All `.test.ts` files, `tests/` browser drivers and `architecture.check.mjs`. These are consumer checks, including tests co-located with production code. | All eight application modules and build |
+
+The exact file definitions, public-file allowlists, package restrictions and permitted
+edges live in [architecture.mjs](../web/architecture.mjs). Same-module imports remain
+local. Production code cannot import checks, another module's private implementation,
+or an undeclared module. `project`, `catalogue`, `input` and `document` cannot import
+external packages. Three.js belongs to rendering and asset-loading; React belongs
+to editor and persistence. Build/checks may use installed tooling and Node built-ins.
+
+Authored state remains owned by the document store. Rendering sends completed edits
+through callbacks; it cannot import the store or commands. A drag commits once, and
+visitor navigation never writes the draft. Recovery-history validation moved from
+persistence into document, removing the document–persistence cycle. Its record shape,
+portable JSON and history behavior are unchanged.
+
+### Import enforcement and reproducible graph
+
+From `web/`:
+
+```sh
+npm run graph:architecture  # regenerate from actual imports and source hashes
+npm run check:architecture  # enforce boundaries/cycles and reject a stale graph
+npm run test:architecture   # disposable violations and per-module removal checks
+```
+
+The [generated graph](architecture-graph.md) and
+[file/line import inventory](architecture-graph.json) include static imports,
+type-only imports, re-exports, import-type queries, literal dynamic imports,
+literal CommonJS imports and automatic JSX runtime imports. TypeScript's installed resolver handles extensionless,
+explicit `.ts`, `.js` substitution, directory indexes and configured aliases.
+Vite query suffixes, editor-root URLs and the generated catalogue contract are
+resolved explicitly. Casing and missing/unassigned source fail the check.
+Computed production imports and import globs fail closed.
+
+The existing browser drivers select Playwright from an environment override and
+load transformed Three.js/cache URLs to instrument the same module instances.
+Those exact test expressions have explicit mappings in the checker and are listed
+as computed imports in the inventory. The caching measurement's pinned Git renderer
+is a generated test module, recorded as such. Other computed test imports fail.
+Generated catalogue imports refer to the metadata contract; GLB/image bytes and
+manifest reads are resources, not additional JavaScript modules. HTTP navigation by
+browser tests is an editor host dependency, separate from the source-import graph.
+
+CI checks the graph on Ubuntu, Windows and macOS. Ubuntu installs the pinned browser,
+then runs the violation/removal proof before the full browser suites. These workflow
+changes do not themselves prove a remote CI run succeeded.
+
+### Isolated removal evidence
+
+[architecture.check.mjs](../web/architecture.check.mjs) copies the current web source
+into disposable directories and removes each module's assigned source/resources
+there. It uses separate TypeScript programs rooted in each surviving module, reports
+every failure and compares them with the permitted reverse dependency closure.
+Checks also exercise their real tooling import and the browser editor entry, covering
+the host dependency that is not a static source import. Unrelated unit tests run with
+their original dependency chains. There are no deletions in the active checkout;
+read-only dependency/asset links are outside the deleted source groups.
+
+The runner writes diagnostics, observed/expected affected modules, unrelated checks
+and source hashes to `web/test-results/architecture-proof.json`, retained with CI test
+artifacts. Re-run the proof when module contracts
+change; a clean drawing alone does not establish this claim.

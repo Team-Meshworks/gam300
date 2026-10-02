@@ -44,6 +44,7 @@ coverage/
 *.lcov
 test-results/
 ci-artifacts/
+outputs/
 
 # Build output
 dist/
