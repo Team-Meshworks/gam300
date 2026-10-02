@@ -39,6 +39,12 @@ export class IndexedDBConnection {
             };
         });
     }
+
+    public closeDatabase(database: IDBDatabase): void {
+        database.close();
+    }
+
+    
 }
 
 export const singletonIDBConnection = new IndexedDBConnection();

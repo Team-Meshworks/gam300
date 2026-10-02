@@ -3,6 +3,7 @@ import { singletonIDBConnection } from "./idb-database-connection";
 
 export interface IDraftDatabase {
     getDraft(projectId: string): Promise<ValidationResult<unknown>>;
+    getIndexedDB(): Promise<IDBDatabase>;
 }
 
 export class IndexedDBDraftDatabase implements IDraftDatabase {
@@ -33,5 +34,9 @@ export class IndexedDBDraftDatabase implements IDraftDatabase {
             }
         });
         return stored;
+    }
+
+    async getIndexedDB(): Promise<IDBDatabase> {
+        return await singletonIDBConnection.openDatabase(this.STORE_NAME);
     }
 }

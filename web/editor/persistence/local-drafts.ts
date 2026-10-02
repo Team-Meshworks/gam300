@@ -7,8 +7,6 @@ import type { ProjectFileHandle } from "./project-files";
 import { validateRecoveryHistory, type RecoveryHistory } from "./recovery-history";
 import { IndexedDBDraftDatabase, type IDraftDatabase } from "./draft-db";
 
-// Stable storage names so refreshing the page finds the same records
-const DATABASE_NAME = "vthere-local-drafts";
 const STORE_NAME = "drafts";
 const LOCAL_PRINCIPAL = "local";
 
@@ -38,39 +36,6 @@ type RecoveredDraft = SaveReceipt &
 
 function isCounter(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
-}
-
-function openDatabase(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    if (globalThis.indexedDB === undefined) {
-      reject(new Error("IndexedDB is unavailable"));
-      return;
-    }
-    // Database version controls the store layout; project schemaVersion lives in the JSON
-    const request = indexedDB.open(DATABASE_NAME, 2);
-    let blocked = false;
-    request.onupgradeneeded = () => {
-      // Keep the local namespace separate from future signed-in account records
-      if (!request.result.objectStoreNames.contains(STORE_NAME)) {
-        request.result.createObjectStore(STORE_NAME, { keyPath: ["principalKey", "projectId"] });
-      }
-      if (!request.result.objectStoreNames.contains("session"))
-        request.result.createObjectStore("session");
-    };
-    request.onerror = () => reject(request.error);
-    request.onblocked = () => {
-      blocked = true;
-      reject(new Error("Another tab is holding the database open"));
-    };
-    request.onsuccess = () => {
-      const database = request.result;
-      // Let another tab upgrade storage once this connection is finished
-      database.onversionchange = () => database.close();
-      // A blocked open can still finish after its caller has received an error
-      if (blocked) database.close();
-      else resolve(database);
-    };
-  });
 }
 
 function validateStoredDraft(
@@ -180,15 +145,22 @@ export async function getLocalDraft(
 export async function loadLatestLocalDraft(
   assetKinds: ReadonlyMap<string, string>,
 ): Promise<ValidationResult<RecoveredDraft | null>> {
-  let database: IDBDatabase;
+  return await getLatestLocalDraft(assetKinds, new IndexedDBDraftDatabase());
+}
+
+export async function getLatestLocalDraft(
+  assetKinds: ReadonlyMap<string, string>,
+  database: IDraftDatabase,
+): Promise<ValidationResult<RecoveredDraft | null>> {
+  let connection: IDBDatabase;
   try {
-    database = await openDatabase();
+    connection = await database.getIndexedDB();
   } catch {
     return invalid("storage", "Local storage could not open; the current project is unchanged");
   }
   return new Promise<ValidationResult<RecoveredDraft | null>>((resolve) => {
     try {
-      const transaction = database.transaction(STORE_NAME, "readonly");
+      const transaction = connection.transaction(STORE_NAME, "readonly");
       const read = transaction.objectStore(STORE_NAME).openCursor();
       let record: RecoveredDraft | null = null;
       let latestTime = -Infinity;
@@ -210,7 +182,7 @@ export async function loadLatestLocalDraft(
         cursor.continue();
       };
       transaction.oncomplete = () => {
-        database.close();
+        connection.close();
         resolve(
           damaged && record === null
             ? invalid("storage", "Stored draft metadata is invalid; existing saves were kept")
@@ -228,11 +200,11 @@ export async function loadLatestLocalDraft(
         );
       };
       transaction.onabort = () => {
-        database.close();
+        connection.close();
         resolve(invalid("storage", "Local drafts could not be read; try again"));
       };
     } catch {
-      database.close();
+      connection.close();
       resolve(invalid("storage", "Local drafts could not be read; try again"));
     }
   });
@@ -243,6 +215,14 @@ export async function loadLatestLocalDraft(
 export async function saveLocalDraft(
   request: SaveRequest,
   assetKinds: ReadonlyMap<string, string>,
+): Promise<ValidationResult<SaveReceipt>> {
+  return await applySaveToLocalDraft(request, assetKinds, new IndexedDBDraftDatabase());
+}
+
+export async function applySaveToLocalDraft(
+  request: SaveRequest,
+  assetKinds: ReadonlyMap<string, string>,
+  database: IDraftDatabase,
 ): Promise<ValidationResult<SaveReceipt>> {
   if (
     !isCounter(request.expectedStorageRevision) ||
@@ -266,9 +246,9 @@ export async function saveLocalDraft(
   const projectId = checked.projectId.toLowerCase();
   const expectedRevision = request.expectedStorageRevision;
   const editSequence = request.localEditSequence;
-  let database: IDBDatabase;
+  let connection: IDBDatabase;
   try {
-    database = await openDatabase();
+    connection = await database.getIndexedDB();
   } catch {
     return invalid("storage", "Local storage could not open; keep this tab open and try again");
   }
@@ -277,14 +257,14 @@ export async function saveLocalDraft(
     let failure = "Local save failed; the current project is still in memory";
     let receipt: SaveReceipt | undefined;
     try {
-      const transaction = database.transaction(STORE_NAME, "readwrite");
+      const transaction = connection.transaction(STORE_NAME, "readwrite");
       const store = transaction.objectStore(STORE_NAME);
       transaction.onabort = () => {
-        database.close();
+        connection.close();
         resolve(invalid("storage", failure));
       };
       transaction.oncomplete = () => {
-        database.close();
+        connection.close();
         // A successful put request can still be followed by a failed transaction
         resolve(receipt === undefined ? invalid("storage", failure) : { ok: true, value: receipt });
       };
@@ -338,7 +318,7 @@ export async function saveLocalDraft(
         }
       };
     } catch {
-      database.close();
+      connection.close();
       resolve(invalid("storage", failure));
     }
   });
@@ -363,15 +343,22 @@ export type RecoverySession = Readonly<{
 export async function loadRecoverySession(
   assetKinds: ReadonlyMap<string, string>,
 ): Promise<ValidationResult<RecoverySession | null>> {
-  let database: IDBDatabase;
+  return await getRecoverySession(assetKinds, new IndexedDBDraftDatabase());
+}
+
+export async function getRecoverySession(
+  assetKinds: ReadonlyMap<string, string>,
+  database: IDraftDatabase,
+): Promise<ValidationResult<RecoverySession | null>> {
+  let connection: IDBDatabase;
   try {
-    database = await openDatabase();
+    connection = await database.getIndexedDB();
   } catch {
     return invalid("storage", "Recovery storage could not open; your saved data was kept");
   }
   try {
     const raw: unknown = await new Promise((resolve, reject) => {
-      const tx = database.transaction("session", "readonly");
+      const tx = connection.transaction("session", "readonly");
       const read = tx.objectStore("session").get("active");
       tx.oncomplete = () => resolve(read.result);
       tx.onabort = () => reject(tx.error);
@@ -457,14 +444,23 @@ export async function loadRecoverySession(
   } catch {
     return invalid("storage", "Recovery could not be read; the stored copy was kept");
   } finally {
-    database.close();
+    connection.close();
   }
 }
-
 export async function saveRecoverySession(
   session: Omit<RecoverySession, "revision" | "historyWarning">,
   expectedRevision: number,
   assetKinds: ReadonlyMap<string, string>,
+  previousProjectId?: string,
+): Promise<ValidationResult<number>> {
+  return await applySaveRecoverySession(session, expectedRevision, assetKinds, new IndexedDBDraftDatabase(), previousProjectId);
+}
+
+export async function applySaveRecoverySession(
+  session: Omit<RecoverySession, "revision" | "historyWarning">,
+  expectedRevision: number,
+  assetKinds: ReadonlyMap<string, string>,
+  database: IDraftDatabase,
   previousProjectId?: string,
 ): Promise<ValidationResult<number>> {
   if (!isCounter(expectedRevision) || expectedRevision === Number.MAX_SAFE_INTEGER)
@@ -483,9 +479,9 @@ export async function saveRecoverySession(
     if (saved.value.projectId !== session.document.projectId)
       return invalid("storage", "Recovery file belongs to a different project");
   }
-  let database: IDBDatabase;
+  let connection: IDBDatabase;
   try {
-    database = await openDatabase();
+    connection = await database.getIndexedDB();
   } catch {
     return invalid(
       "storage",
@@ -495,15 +491,15 @@ export async function saveRecoverySession(
   return new Promise((resolve) => {
     let message = "Recovery backup failed; your current project is still open";
     try {
-      const tx = database.transaction(["session", STORE_NAME], "readwrite");
+      const tx = connection.transaction(["session", STORE_NAME], "readwrite");
       const store = tx.objectStore("session");
       const read = store.get("active");
       tx.onabort = () => {
-        database.close();
+        connection.close();
         resolve(invalid("storage", message));
       };
       tx.oncomplete = () => {
-        database.close();
+        connection.close();
         resolve({ ok: true, value: expectedRevision + 1 });
       };
       read.onsuccess = () => {
@@ -539,7 +535,7 @@ export async function saveRecoverySession(
         }
       };
     } catch {
-      database.close();
+      connection.close();
       resolve(invalid("storage", message));
     }
   });
