@@ -101,8 +101,8 @@ export function App() {
 
   useEffect(() => {
     function onHistoryKeyDown(event: KeyboardEvent) {
-      // A project confirmation owns the keyboard until the author makes a choice.
-      if (session.busy || visitor) return;
+      // Foreground file operations own the keyboard; background backups must not block edits.
+      if (visitor || (storageOperation !== null && storageOperation !== "backup")) return;
       const editingText = event.composedPath().some(isTextEditingTarget);
       handleHistoryShortcut(event, store, editingText);
       handleObjectShortcut(
@@ -151,7 +151,7 @@ export function App() {
     }
     window.addEventListener("keydown", onHistoryKeyDown);
     return () => window.removeEventListener("keydown", onHistoryKeyDown);
-  }, [store, selection, session.busy, visitor, setNotice]);
+  }, [store, selection, storageOperation, visitor, setNotice]);
 
   useEffect(() => {
     // Filename identifies the browser tab; save status stays in the editor
