@@ -66,24 +66,48 @@ under review; see the [asset pipeline notes](assets/README.md).
 
 ### Requirements
 
-- Git with **Git LFS** for the 3D assets.
-- **Node.js 24.19.0** and **npm 11.17.0** — the pinned toolchain in
-  [`.nvmrc`](web/.nvmrc) and [`package.json`](web/package.json).
+- Repository access and Git with **Git LFS** for the 3D assets.
+- Docker with Linux containers and Docker Compose supporting `--wait`.
+  Use [Docker Desktop for Windows 11](https://docs.docker.com/desktop/setup/install/windows-install/)
+  or [macOS Tahoe](https://docs.docker.com/desktop/setup/install/mac-install/), or
+  [Docker Engine on Ubuntu 24.04](https://docs.docker.com/engine/install/ubuntu/).
+  Docker must be running and accessible to your user. Windows requires virtualization
+  and the WSL 2 or Hyper-V backend. School installation restrictions may require an
+  approved alternative machine or VM.
 - A browser with **WebGL 2** support.
 
-### Run locally
+### Fresh clone to running application
+
+After cloning this private repository, run one command from its root:
 
 ```sh
-git lfs install
-git clone --branch dev https://github.com/Team-Meshworks/gam300.git
-cd gam300
-git lfs pull
-cd web
-npm ci
-npm run dev
+bash run.sh
 ```
 
-Open [localhost:5173](http://localhost:5173). The repository currently requires access to clone.
+On Windows, use:
+
+```bat
+run.bat
+```
+
+The launcher checks Git/Git LFS, Docker's Linux engine and Compose, restores delivery
+assets, installs **Node 24.19.0/npm 11.17.0** inside the pinned container, runs `npm ci`,
+lint, formatting, unit tests, TypeScript/build checks,
+all four authoring browser suites and the production/development build browser check.
+Only a successful build and tests start the application. Failures print their stage
+and return a nonzero exit code. Node, npm, Chromium and an application database do not
+need to be installed on the host. The current M1 application requires only the web
+service; the API and PostgreSQL will join this command when implemented in M2.
+
+Open [localhost:8081](http://localhost:8081). Stop with
+`docker compose --project-name seb-local down`. The first run downloads the locked
+toolchain, packages and browser. Later builds reuse Docker's cache. To force fresh
+verification, use `docker compose --project-name seb-local build --no-cache`, then
+run the launcher. `APP_PORT` selects another local port; `COMPOSE_PROJECT_NAME`
+selects an isolated local project. The launchers default to the M1 development build
+with **Open sample project**. Set `BUILD_MODE=production` explicitly for the production
+variant, which omits that control. `/version.txt` reports the checkout commit.
+
 In the editor, add **test-room**, add **test-crate**, move it and try **Undo**.
 Use the project menu's **Save** to save a JSON file. After editing, allow two seconds for
 the quiet browser backup before reloading to check recovery.
@@ -91,8 +115,7 @@ the quiet browser backup before reloading to check recovery.
 The `main` production build omits it. See [build modes](docs/deployment.md) to reproduce either
 VM build locally.
 
-For a container build, run `docker compose up --build --wait` from the repository root,
-then open [localhost:8081](http://localhost:8081). See the
+The same Dockerfile is used by CI and deployment. See the
 [deployment guide](docs/deployment.md#local-development) for prerequisites and details.
 
 ## Controls
@@ -127,7 +150,10 @@ backend. They are not required to run the current editor.
 
 ## Development
 
-Run these commands from `web/`:
+For hot reload, install the pinned Node/npm versions in `web/.nvmrc` and
+`web/package.json`, then run `npm --prefix web ci` and `npm --prefix web run dev`
+from the root. The submission launcher above needs no host Node installation.
+Individual maintenance commands below run from `web/`:
 
 | Command                                             | Purpose                                                               |
 | --------------------------------------------------- | --------------------------------------------------------------------- |
@@ -165,24 +191,26 @@ Use the pinned Node/npm versions above; if necessary install the matching npm wi
 `npm install --global npm@11.17.0`. On Windows, use `npm.cmd` / `npx.cmd` when PowerShell
 blocks the `.ps1` launchers.
 
-| Environment                 | Setup and current evidence                                                                                                                                                                                                                 |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Windows 11 x64 / PowerShell | Git/Git LFS and pinned Node/npm on PATH. Locked install, build, checks and Chromium browser tests verified locally on Windows build 26200.                                                                                                 |
-| Ubuntu 24.04 x64            | Git/Git LFS and pinned Node/npm on PATH; install browser libraries with `--with-deps`. Clean-runner installation, checks and Docker build verified by [CI for fcf4cb4](https://github.com/Team-Meshworks/gam300/actions/runs/36097060315). |
-| macOS                       | The same terminal/npm workflow and Chromium installation apply, with Git/Git LFS and the pinned Node/npm installed for the machine's architecture. **Not verified on macOS; no macOS compatibility pass is claimed.**                      |
+| Environment                | Setup and evidence                                                                                                                                                           |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Windows 11                 | Fresh-clone native build and all browser checks passed on build 26200; launcher failure/startup checks also passed. Host Node was preinstalled for that native test.         |
+| Ubuntu 24.04               | Clean GitHub Actions build/test/container checks; [baseline CI](https://github.com/Team-Meshworks/gam300/actions/runs/36964933555). The current PR must pass its own checks. |
+| macOS Tahoe                | The workflow requires native install/type/build/lint/unit/setup checks on `macos-26`. Refer to the current PR for its actual result; no physical Mac test is claimed.        |
+| Local Ubuntu 26.04 / WSL 2 | Root launcher passed with no native Node/npm, a fresh checkout and an empty isolated Docker build cache. Git LFS was configured in the test directory.                       |
 
-For a clean reproduction, follow Quick start in a new directory, run the checks above,
-build with `npm run build`, then run `npm run preview` and open its printed URL.
+For a clean reproduction, clone into a new directory and run the root launcher.
 Record the commit, OS, Node/npm/browser versions and actual results when reporting a
 setup problem. Existing CI evidence is tied to its commit; it does not verify later changes.
 
-The [architecture v0.1](docs/architecture.md) documents implemented data flows,
-component owners and the planned server/player boundary. The
+The [proposal](docs/proposal.md), [UI/UX exports](docs/design/ui-ux/README.md),
+[architecture v0.1](docs/architecture.md) and [M1 deliverables](docs/deliverables.md)
+connect product scope, component ownership and Jira work. The PDD is pending. The
 [shared handbook](docs/wiki.md) contains broader project context.
 
 ### Repository layout
 
 ```text
+run.bat / run.sh     One-command submission build, tests and startup
 web/
   editor/            React UI, document state, viewport, and camera controls
   shared/            Asset catalogue, project types, validation, and fixtures
@@ -192,7 +220,14 @@ assets/
   delivery/          Runtime models and thumbnails
   tools/             Asset validation
 deploy/              Caddy configuration and deployment/rollback scripts
-docs/                Architecture, deployment and wiki operations
+tools/               Browser-check orchestration
+docs/
+  proposal.md        Product brief and scope
+  design/            UI/UX exports; PDD pending
+  architecture.md    Implemented and planned component boundaries
+  deliverables.md    M1 owners, statuses and Jira mapping
+  planning/          Supplied feature/deliverable planning workbooks
+  deployment.md      Build, hosting and operational evidence
 .github/workflows/   Automatic CI and manual deployment
 ```
 
@@ -205,7 +240,7 @@ Deployment remains a separate manual action.
 1. Open a pull request into `dev`; its CI checks start automatically. For an extra run,
    open **Actions → CI → Run workflow** and select the branch.
 2. Wait for lint, formatting, asset validation, unit tests, editor/integration/recovery/history checks,
-   and the container build and checks.
+   native Windows/macOS checks, and the container build and checks on Ubuntu 24.04.
 3. Successful push/manual runs on `dev` or `main` publish the tested image and a release
    descriptor. Pull request runs and manual runs on feature branches do not publish images.
 4. To deploy, open **Actions → Deploy → Run workflow**, select the same branch, and enter

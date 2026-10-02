@@ -87,7 +87,7 @@ before switching traffic. Do not overwrite the live database as a test.
 but a secure off-host destination for the complete snapshots still needs to be chosen.
 Snapshots contain credentials and private keys; transfer them only to protected storage.
 
-## Verification — 23 September 2026
+## Verification on 23 September 2026
 
 - Trusted HTTPS and HTTP→HTTPS redirect work; both application version responses remained
   unchanged. Caddy configuration validation passed.

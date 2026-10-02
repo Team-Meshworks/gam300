@@ -8,6 +8,10 @@
 !assets/manifest.json
 !assets/delivery/
 !assets/delivery/**
+!assets/tools/
+!assets/tools/validate-assets.mjs
+!tools/
+!tools/check-browser.mjs
 **/node_modules
 **/dist
 **/test-results

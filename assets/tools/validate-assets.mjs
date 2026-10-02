@@ -10,7 +10,9 @@ const requireFromWeb = createRequire(
   resolve(assetsRoot, "../web/package.json"),
 );
 const { validateBytes } = requireFromWeb("gltf-validator");
-const manifestPath = process.argv[2] ? resolve(process.argv[2]) : resolve(assetsRoot, "manifest.json");
+const deliveryOnly = process.argv.includes("--delivery-only");
+const manifestArgument = process.argv.slice(2).find((argument) => argument !== "--delivery-only");
+const manifestPath = manifestArgument ? resolve(manifestArgument) : resolve(assetsRoot, "manifest.json");
 let errors = 0;
 let warnings = 0;
 function error(message) { console.error(`ERROR: ${message}`); errors++; }
@@ -40,6 +42,7 @@ try {
       if (!asset.license || typeof asset.license.provenance !== "string" || !asset.license.provenance.trim()) throw new Error("missing provenance");
       if (asset.license.status !== "approved") warn(`${label}: distribution licence not confirmed`);
       const bytes = await assetFile(asset.file);
+      if (bytes.toString("utf8", 0, 43).startsWith("version https://git-lfs.github.com/spec/v1")) throw new Error("Git LFS pointer found; run git lfs pull before building");
       const report = await validateBytes(new Uint8Array(bytes), {
   uri: asset.file,
   maxIssues: 100,
@@ -79,7 +82,7 @@ if (report.issues.numErrors > 0) {
         if (asset.thumbnailMode !== "generated") warn(`${label}: thumbnail still needed`);
       }
       else await assetFile(asset.thumbnail);
-      await assetFile(asset.sourceFile);
+      if (!deliveryOnly) await assetFile(asset.sourceFile);
       console.log(`OK: ${label} (${bytes.length} bytes)`);
     } catch (failure) { error(`${label}: ${failure.message}`); }
   }
