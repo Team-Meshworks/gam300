@@ -453,7 +453,13 @@ export async function saveRecoverySession(
   assetKinds: ReadonlyMap<string, string>,
   previousProjectId?: string,
 ): Promise<ValidationResult<number>> {
-  return await applySaveRecoverySession(session, expectedRevision, assetKinds, new IndexedDBDraftDatabase(), previousProjectId);
+  return await applySaveRecoverySession(
+    session,
+    expectedRevision,
+    assetKinds,
+    new IndexedDBDraftDatabase(),
+    previousProjectId,
+  );
 }
 
 export async function applySaveRecoverySession(
