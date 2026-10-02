@@ -2,7 +2,7 @@
 title: Testing and Milestone Evidence
 description: Repeatable checks, recorded deployment results and honest completion evidence.
 published: true
-date: 2026-10-02T15:03:34.325Z
+date: 2026-10-02T15:44:45.950Z
 tags: 
 editor: markdown
 dateCreated: 2026-09-23T14:16:49.367Z
@@ -10,7 +10,7 @@ dateCreated: 2026-09-23T14:16:49.367Z
 
 # Testing and milestone evidence
 
-**Reviewed 2 October 2026.** This page links the seven M1 features, six technical systems and eleven foundation requirements to Jira owners and supporting results. Technical instructions are in [Getting started](/en/getting-started), [Using SEB](/en/user-guide) and [Technical design](/en/technical-design); ownership and progress below are a dated planning snapshot.
+**Reviewed 2 October 2026.** This page links the seven M1 features, six technical systems and eleven foundation requirements to Jira owners and supporting results. Technical instructions are in [Getting started](/en/getting-started), [Using Spatia](/en/user-guide) and [Technical design](/en/technical-design); ownership and progress below are a dated planning snapshot.
 
 ## Verified build evidence
 
