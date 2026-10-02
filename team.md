@@ -2,7 +2,7 @@
 title: Team and Decisions
 description: Working agreements, confirmed decisions, open questions and a meeting-note template.
 published: true
-date: 2026-09-23T15:09:04.601Z
+date: 2026-10-02T15:41:24.220Z
 tags: 
 editor: markdown
 dateCreated: 2026-09-23T14:21:44.459Z
@@ -10,7 +10,7 @@ dateCreated: 2026-09-23T14:21:44.459Z
 
 # Team and decisions
 
-**Meshworks / Team 32** develops **Spatial Experience Builder (SEB)** for **VThere**, the client company that commissioned the project. This page records shared working agreements and decisions; live task ownership and progress remain in [Jira](https://meshworkss.atlassian.net/jira/software/projects/SCRUM/boards/1).
+**Meshworks / Team 32** develops **Spatia** for **VThere**, the client company that commissioned the project. This page records shared working agreements and decisions; live task ownership and progress remain in [Jira](https://meshworkss.atlassian.net/jira/software/projects/SCRUM/boards/1).
 
 ## People and access
 
