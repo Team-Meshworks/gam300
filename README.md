@@ -18,6 +18,7 @@
   <a href="#features">Features</a> ·
   <a href="#quick-start">Quick start</a> ·
   <a href="#development">Development</a> ·
+  <a href="#wiki">Wiki</a> ·
   <a href="#ci-and-deployment">CI &amp; deployment</a> ·
   <a href="#contributing">Contributing</a>
 </p>
@@ -61,6 +62,18 @@ The WHEN → DO rule builder, accounts, PostgreSQL saving and publication/sharin
 The current visitor camera is part of the editor;
 a separate visitor application is still to come. Sample asset distribution rights remain
 under review; see the [asset pipeline notes](assets/README.md).
+
+## Wiki
+
+The [Spatial Experience Builder handbook](https://51.79.242.181:9443/en/home) contains
+the team's project overview, setup, technical design, user guide and M1 evidence.
+
+Edit pages directly in Wiki.js using **Edit Page**, then **Save**. Wiki.js automatically
+pushes content every five minutes to this repository's
+[`wiki` branch](https://github.com/Team-Meshworks/gam300/tree/wiki). That branch is a
+content backup: changes made there do not sync back to the live wiki, and it must not
+be merged into the application branches. See [wiki operations](docs/wiki.md) for
+access, backups and recovery.
 
 ## Quick start
 
