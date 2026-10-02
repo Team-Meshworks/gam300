@@ -32,11 +32,8 @@ try {
   const rows = page.locator(".object-row");
   const stage = page.locator(".viewport-stage");
   await ready.waitFor();
-  assert.equal(await page.title(), "Untitled - VThere");
-  assert.equal(
-    await page.getByRole("heading", { name: "VThere Spatial Experience Editor" }).count(),
-    1,
-  );
+  assert.equal(await page.title(), "Untitled - Spatia");
+  assert.equal(await page.getByRole("heading", { name: "Spatia", exact: true }).count(), 1);
   assert.equal(await asset.isEnabled(), true);
   assert.equal(await rows.count(), 0);
   assert.equal(await undo.isDisabled(), true);

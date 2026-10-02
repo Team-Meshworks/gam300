@@ -20,6 +20,6 @@ export REVISION
 printf 'Restoring the locked 3D assets...\n'
 git lfs pull --include='assets/delivery/**,web/editor/public/models/**' --exclude='' || fail 'Git LFS download failed. Check repository access and your network.'
 printf 'Installing locked packages, checking, building and testing (%s, %s)...\n' "$BUILD_MODE" "$REVISION"
-docker compose --project-name "${COMPOSE_PROJECT_NAME:-seb-local}" up --build --wait --wait-timeout 120 || fail 'Build, tests or startup failed. Read the error above.'
-printf 'SEB is ready at http://localhost:%s/\n' "${APP_PORT:-8081}"
-printf 'Stop it with: docker compose --project-name %s down\n' "${COMPOSE_PROJECT_NAME:-seb-local}"
+docker compose --project-name "${COMPOSE_PROJECT_NAME:-spatia-local}" up --build --wait --wait-timeout 120 || fail 'Build, tests or startup failed. Read the error above.'
+printf 'Spatia is ready at http://localhost:%s/\n' "${APP_PORT:-8081}"
+printf 'Stop it with: docker compose --project-name %s down\n' "${COMPOSE_PROJECT_NAME:-spatia-local}"

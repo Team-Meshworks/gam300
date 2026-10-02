@@ -47,6 +47,7 @@ try {
   const downloading = page.waitForEvent("download");
   await page.getByRole("button", { name: "Save", exact: true }).click();
   const download = await downloading;
+  assert.match(download.suggestedFilename(), /^spatia-.*\.json$/);
   const bytes = readFileSync(await download.path());
   if (process.env.CHECK_PROJECT) await download.saveAs(process.env.CHECK_PROJECT);
   const project = JSON.parse(bytes.toString("utf8"));

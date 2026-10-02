@@ -1,13 +1,12 @@
-# Spatial Experience Builder proposal
+# Spatia proposal
 
-Spatial Experience Builder (SEB) is a browser tool that lets school-age children and
+Spatia is a browser tool that lets school-age children and
 teenagers arrange a virtual exhibition, attach information and define interactions
 without writing code. Meshworks (Team 32) develops it for VThere.
 
 ## Source and scope
 
-The supplied source is **VThere x DigiPen — Spatial Experience Builder Detailed
-Student Brief**, provided as `VThere_DigiPen_Spatial_Experience_Builder_Project_5.docx`.
+The supplied source is the **VThere x DigiPen — Detailed Student Brief** for this project.
 This Markdown record summarizes that student brief. It is distinct from VThere's
 commercial MVP brief. Sections 2, 4, 6, 7, 9, 10 and 14 provide the product,
 architecture, acceptance and delivery requirements below.
@@ -21,7 +20,7 @@ The planning workbooks are proposed contracts until their approval is recorded.
 
 A student who knows an exhibition's subject should be able to build a space people
 can explore without learning a game engine. Slides lose spatial context; commissioning
-bespoke software removes creation from the student. SEB provides curated environments,
+bespoke software removes creation from the student. Spatia provides curated environments,
 placeable exhibits and a small interaction vocabulary between those alternatives.
 
 The primary author is a teenager with no experience of 3D software and a limited

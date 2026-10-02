@@ -127,9 +127,7 @@ async function browserEntry(root) {
     const page = await browser.newPage();
     const response = await page.goto(server.resolvedUrls.local[0]);
     if (response.status() !== 200) return `Browser editor entry returned HTTP ${response.status()}`;
-    await page
-      .getByRole("heading", { name: "VThere Spatial Experience Editor" })
-      .waitFor({ timeout: 2000 });
+    await page.getByRole("heading", { name: "Spatia", exact: true }).waitFor({ timeout: 2000 });
     return undefined;
   } catch (error) {
     return `Browser editor entry failed: ${error.message}`;

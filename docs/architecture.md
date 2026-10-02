@@ -1,6 +1,6 @@
 # Architecture v0.1
 
-Spatial Experience Builder (SEB), developed by Meshworks for VThere.
+Spatia, developed by Meshworks for VThere.
 Reviewed 26 September 2026 against `dev` at `fcf4cb4` and its current implementation.
 This is the M1 architecture baseline; the second diagram labels later product work.
 Recovery and viewport boundaries below were updated on 29 September against `ada62a1`
@@ -88,7 +88,7 @@ ASP.NET Core/Identity and EF Core/Npgsql; the shared player serves both editor p
 and the separate visitor application.
 
 The current application has no API or application database. Wiki.js and its database
-are documentation infrastructure, separate from SEB projects. M1 IndexedDB/JSON is
+are documentation infrastructure, separate from Spatia projects. M1 IndexedDB/JSON is
 local recovery and interchange. M2 adds durable PostgreSQL projects/accounts; M3
 publication uses persisted snapshots and server-enforced access. The separate visitor
 build must exclude authoring code. See [deployment](deployment.md).

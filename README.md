@@ -1,4 +1,4 @@
-<h1 align="center">Spatial Experience Builder</h1>
+<h1 align="center">Spatia</h1>
 
 <p align="center">
   <strong>A playful way to build interactive 3D spaces in the browser.</strong><br>
@@ -25,7 +25,7 @@
 
 ---
 
-**Spatial Experience Builder (SEB)** is a browser creation tool for children and teenagers,
+**Spatia** is a browser creation tool for children and teenagers,
 with educator support. The goal is to let authors arrange curated assets, add **WHEN → DO**
 interactions without writing code, and share spaces that others can explore.
 
@@ -65,7 +65,7 @@ under review; see the [asset pipeline notes](assets/README.md).
 
 ## Wiki
 
-The [Spatial Experience Builder handbook](https://51.79.242.181:9443/en/home) contains
+The [Spatia handbook](https://51.79.242.181:9443/en/home) contains
 the team's project overview, setup, technical design, user guide and M1 evidence.
 
 Edit pages directly in Wiki.js using **Edit Page**, then **Save**. Wiki.js automatically
@@ -113,9 +113,9 @@ need to be installed on the host. The current M1 application requires only the w
 service; the API and PostgreSQL will join this command when implemented in M2.
 
 Open [localhost:8081](http://localhost:8081). Stop with
-`docker compose --project-name seb-local down`. The first run downloads the locked
+`docker compose --project-name spatia-local down`. The first run downloads the locked
 toolchain, packages and browser. Later builds reuse Docker's cache. To force fresh
-verification, use `docker compose --project-name seb-local build --no-cache`, then
+verification, use `docker compose --project-name spatia-local build --no-cache`, then
 run the launcher. `APP_PORT` selects another local port; `COMPOSE_PROJECT_NAME`
 selects an isolated local project. The launchers default to the M1 development build
 with **Open sample project**. Set `BUILD_MODE=production` explicitly for the production

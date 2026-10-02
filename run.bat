@@ -13,7 +13,7 @@ docker info --format "{{.OSType}}" 2>nul | findstr /x linux >nul
 if errorlevel 1 (echo Setup failed: Start Docker with Linux containers and allow access. & exit /b 1)
 docker compose up --help | findstr /c:"--wait" >nul
 if errorlevel 1 (echo Setup failed: Update Docker Compose to a version supporting --wait. & exit /b 1)
-if not defined COMPOSE_PROJECT_NAME set "COMPOSE_PROJECT_NAME=seb-local"
+if not defined COMPOSE_PROJECT_NAME set "COMPOSE_PROJECT_NAME=spatia-local"
 if not defined APP_PORT set "APP_PORT=8081"
 if not defined BUILD_MODE set "BUILD_MODE=development"
 if not "%BUILD_MODE%"=="development" if not "%BUILD_MODE%"=="production" (echo Setup failed: BUILD_MODE must be development ^(M1^) or production. & exit /b 1)
@@ -26,5 +26,5 @@ if errorlevel 1 (echo Setup failed: Git LFS download failed. Check repository ac
 echo Installing locked packages, checking, building and testing ^(%BUILD_MODE%, %REVISION%^) ...
 call docker compose --project-name "%COMPOSE_PROJECT_NAME%" up --build --wait --wait-timeout 120
 if errorlevel 1 (echo Setup failed: Build, tests or startup failed. Read the error above. & exit /b 1)
-echo SEB is ready at http://localhost:%APP_PORT%/
+echo Spatia is ready at http://localhost:%APP_PORT%/
 echo Stop it with: docker compose --project-name %COMPOSE_PROJECT_NAME% down

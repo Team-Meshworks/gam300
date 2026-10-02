@@ -1,9 +1,9 @@
 # Wiki operations
 
-The [Spatial Experience Builder Handbook](https://51.79.242.181:9443/en/home) is the team's shared
+The [Spatia Handbook](https://51.79.242.181:9443/en/home) is the team's shared
 documentation. Nine handbook pages cover scope/milestones, setup, design, deployment,
 user guidance, testing, team decisions and wiki maintenance. The two original imported
-pages remain available. **Spatial Experience Builder (SEB)** is the product,
+pages remain available. **Spatia** is the product,
 **Meshworks (Team 32)** is the development team, and **VThere** is the client company
 that commissioned the project. Keep executable configuration in Git and task status in Jira.
 
@@ -97,11 +97,17 @@ Snapshots contain credentials and private keys; transfer them only to protected 
   the sidebar and architecture diagram render correctly.
 - Git sync was verified at `4ed3b9e` on `wiki`, containing all nine new handbook pages;
   `main` remained at `5ba6f8f`.
-- The naming correction was synced at `7cc786e`: SEB is the product, Meshworks the team,
-  and VThere the client. Sign-in with `meshworks_team32@pm.me` and the existing password
+- The product/team/client naming correction was synced at `7cc786e`.
+  Sign-in with `meshworks_team32@pm.me` and the existing password
   succeeded, and a fresh backup completed successfully.
 - Backup shell syntax and systemd units passed validation. Snapshot
   `20260923T143600Z` restored into a separate database with 11 pages, 3 user records,
   4 groups and navigation. Its configuration archive was readable; the service exited 0.
 - A complete host restore, reboot recovery and off-host full-backup recovery have not been
   exercised. This setup does not mark application or milestone requirements complete.
+
+## Product rename on 2 October 2026
+
+The product is now **Spatia**. Page text, titles and descriptions, the site title,
+footer and navigation label use the new name. All 11 published pages render without
+invalid internal links. The `wiki` backup at `f9e9f8a` matches the live page content.

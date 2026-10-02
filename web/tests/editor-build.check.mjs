@@ -26,7 +26,7 @@ try {
     new URL(request.url()).pathname.endsWith(".glb"),
   );
   await page.goto(url);
-  await page.getByRole("heading", { name: "VThere Spatial Experience Editor" }).waitFor();
+  await page.getByRole("heading", { name: "Spatia", exact: true }).waitFor();
   await coreRequest;
   await modelRequest;
   assert.equal(await page.locator("canvas").count(), 0, "Shell renders before Three.js arrives");

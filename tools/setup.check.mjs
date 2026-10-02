@@ -18,7 +18,7 @@ const environment = Object.fromEntries(
 );
 const results = join(root, "test-results");
 mkdirSync(results, { recursive: true });
-const temporary = mkdtempSync(join(results, "seb-setup-check-"));
+const temporary = mkdtempSync(join(results, "spatia-setup-check-"));
 const log = join(temporary, "calls.txt");
 const revision = "0123456789012345678901234567890123456789";
 const git = windows
@@ -59,7 +59,7 @@ try {
           PATH: `${temporary}${delimiter}${process.env.PATH}`,
           SETUP_CASE: testCase,
           SETUP_LOG: log,
-          COMPOSE_PROJECT_NAME: "seb-setup-check",
+          COMPOSE_PROJECT_NAME: "spatia-setup-check",
           APP_PORT: "8091",
           BUILD_MODE:
             testCase === "mode"
@@ -76,7 +76,7 @@ try {
     const calls = readFileSync(log, "utf8");
     if (testCase === "success" || testCase === "production") {
       assert.equal(result.status, 0, output + calls);
-      assert.match(output, /SEB is ready at http:\/\/localhost:8091\//);
+      assert.match(output, /Spatia is ready at http:\/\/localhost:8091\//);
       assert.match(calls, /git lfs pull --include=["']?assets\/delivery\/\*\*/);
       assert.ok(
         calls.includes(
@@ -85,12 +85,12 @@ try {
       );
       assert.match(
         calls,
-        /--project-name ["']?seb-setup-check["']? up --build --wait --wait-timeout 120/,
+        /--project-name ["']?spatia-setup-check["']? up --build --wait --wait-timeout 120/,
       );
     } else {
       assert.notEqual(result.status, 0, output);
       assert.match(output, /Setup failed:/);
-      assert.doesNotMatch(output, /SEB is ready/);
+      assert.doesNotMatch(output, /Spatia is ready/);
       if (testCase !== "build") assert.doesNotMatch(calls, /up --build/);
     }
   }

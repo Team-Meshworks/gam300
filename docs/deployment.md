@@ -46,7 +46,7 @@ bash run.sh
 ```
 
 On Windows, use `run.bat`. Open http://localhost:8081. Stop this local application with
-`docker compose --project-name seb-local down`.
+`docker compose --project-name spatia-local down`.
 The Dockerfile builds with pinned Node/npm and serves the result through pinned Caddy.
 The launchers restore Git LFS delivery assets and check prerequisites. The container
 build runs lint, formatting, unit tests, TypeScript, all four authoring browser suites
@@ -94,13 +94,13 @@ For these checks without host Node or Chromium, use the same Dockerfile's `build
 stage. From the repository root in PowerShell, with the development container running:
 
 ```powershell
-docker build --load --target build --build-arg BUILD_MODE=development -t seb-checks:local .
-$checkContainer = docker compose --project-name seb-local ps -q web
-docker run --rm --network "container:$checkContainer" seb-checks:local node tests/deployment.check.mjs http://127.0.0.1:8080/
-docker run --rm --network "container:$checkContainer" -e BUILD_MODE=development seb-checks:local node tests/editor-build.check.mjs http://127.0.0.1:8080/
+docker build --load --target build --build-arg BUILD_MODE=development -t spatia-checks:local .
+$checkContainer = docker compose --project-name spatia-local ps -q web
+docker run --rm --network "container:$checkContainer" spatia-checks:local node tests/deployment.check.mjs http://127.0.0.1:8080/
+docker run --rm --network "container:$checkContainer" -e BUILD_MODE=development spatia-checks:local node tests/editor-build.check.mjs http://127.0.0.1:8080/
 ```
 
-In Bash, use `check_container=$(docker compose --project-name seb-local ps -q web)`
+In Bash, use `check_container=$(docker compose --project-name spatia-local ps -q web)`
 and `--network "container:$check_container"`. This connects the test browser to Caddy's
 network namespace, keeping the URL on loopback and file/recovery APIs available.
 For production, select `production` in both the build argument and test environment.
