@@ -1,145 +1,320 @@
-# VThere Spatial Experience Editor
+<h1 align="center">Spatia</h1>
 
-Spatial experience editor.
+<p align="center">
+  <strong>A playful way to build interactive 3D spaces in the browser.</strong><br>
+  Developed by Meshworks (Team 32) for VThere.
+</p>
 
-`dev` is the development integration branch; `main` is production. Both run automated
-checks, and releases deploy manually from their matching branch. See
-[development and deployment](docs/deployment.md) for Docker, CI, VM access and rollback.
+<p align="center">
+  <a href="#project-status"><img src="https://img.shields.io/badge/status-M1_prototype-orange" alt="Status: M1 prototype"></a>
+  <a href="https://github.com/Team-Meshworks/gam300/actions/workflows/ci.yml"><img src="https://github.com/Team-Meshworks/gam300/actions/workflows/ci.yml/badge.svg?branch=dev&amp;event=push" alt="Latest push CI run on dev"></a>
+  <a href="#quick-start"><img src="https://img.shields.io/badge/Node.js-24-339933?logo=nodedotjs&amp;logoColor=white" alt="Node.js 24"></a>
+  <a href="web/package.json"><img src="https://img.shields.io/badge/React-19-149ECA?logo=react&amp;logoColor=white" alt="React 19"></a>
+  <a href="web/package.json"><img src="https://img.shields.io/badge/TypeScript-6-3178C6?logo=typescript&amp;logoColor=white" alt="TypeScript 6"></a>
+  <a href="web/package.json"><img src="https://img.shields.io/badge/Vite-8-646CFF?logo=vite&amp;logoColor=white" alt="Vite 8"></a>
+</p>
 
-The web app lives in `web/`. It is a React 19 + TypeScript single-page app built with Vite
-(the project uses Vite 8, which swaps Rollup for rolldown internally).
+<p align="center">
+  <a href="#features">Features</a> ·
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#development">Development</a> ·
+  <a href="#wiki">Wiki</a> ·
+  <a href="#ci-and-deployment">CI &amp; deployment</a> ·
+  <a href="#contributing">Contributing</a>
+</p>
 
-## Prerequisites
+---
 
-- **Node.js `^24.19.0`** and **npm `^11.17.0`** (pinned in `web/.nvmrc` / `web/package.json`)
-- The Vite stack **will not run on older Node versions** â€” Node 20.x and below fail with a
-  `SyntaxError` / missing-native-binding error. Use Node 24.
+**Spatia** is a browser creation tool for children and teenagers,
+with educator support. The goal is to let authors arrange curated assets, add **WHEN → DO**
+interactions without writing code, and share spaces that others can explore.
 
-### On Windows (nvm-windows)
+This repository currently contains the editor prototype. **Meshworks** is the development
+team; **VThere** is the commissioning company.
 
-```powershell
-nvm install 24.19.0
-nvm use 24.19.0
-node -v   # -> v24.19.0
+## Features
+
+- **Build a 3D scene** — drag sample models onto the ground grid, or add them with a click or keyboard.
+- **Select and move objects** — use the scene or object list, custom axis handles, and movement buttons.
+- **Undo and redo** — reverse object placement and movement while preserving object identity.
+- **Explore your scene** — switch between an orbit camera and a first-person visitor camera.
+- **Load a sample project** — try a room, two crates, and a saved starting camera in development mode.
+- **Recover from loading errors** — retry failed assets, with feedback when WebGL 2 is unavailable.
+- **Save and reopen work** — recover a project from browser storage, or use Open, Save and Save As for project JSON files.
+
+## Project status
+
+**M1 prototype, under active development.** The interface and sample content are provisional.
+Choose a room to create a saveable project. The editor quietly backs up the current session
+in this browser and reopens it on reload, including valid undo history. **Saved** and
+**Not saved** describe the JSON file; browser recovery does not mark that file as saved.
+Loose objects on the initial grid need a room before they can be saved as a project.
+
+The project menu provides **New**, **Open**, **Save** and **Save As**. New/Open offers
+**Save**, **Don’t Save** and **Cancel** when there are unsaved edits. Supported browsers
+can update a chosen JSON file; after reload, Save reconnects its permission. Other browsers
+use file upload/download and keep the file status unsaved because downloads have no completion
+receipt. Save also retries a failed browser backup. Cancelled or failed operations preserve
+the current scene. If an older backup is damaged, recovery asks before opening another readable
+backup and keeps the damaged record.
+
+The WHEN → DO rule builder, accounts, PostgreSQL saving and publication/sharing are planned.
+The current visitor camera is part of the editor;
+a separate visitor application is still to come. Sample asset distribution rights remain
+under review; see the [asset pipeline notes](assets/README.md).
+
+## Wiki
+
+The [Spatia handbook](https://51.79.242.181:9443/en/home) contains
+the team's project overview, setup, technical design, user guide and M1 evidence.
+
+Edit pages directly in Wiki.js using **Edit Page**, then **Save**. Wiki.js automatically
+pushes content every five minutes to this repository's
+[`wiki` branch](https://github.com/Team-Meshworks/gam300/tree/wiki). That branch is a
+content backup: changes made there do not sync back to the live wiki, and it must not
+be merged into the application branches. See [wiki operations](docs/wiki.md) for
+access, backups and recovery.
+
+## Quick start
+
+### Requirements
+
+- Repository access and Git with **Git LFS** for the 3D assets.
+- Docker with Linux containers and Docker Compose supporting `--wait`.
+  Use [Docker Desktop for Windows 11](https://docs.docker.com/desktop/setup/install/windows-install/)
+  or [macOS Tahoe](https://docs.docker.com/desktop/setup/install/mac-install/), or
+  [Docker Engine on Ubuntu 24.04](https://docs.docker.com/engine/install/ubuntu/).
+  Docker must be running and accessible to your user. Windows requires virtualization
+  and the WSL 2 or Hyper-V backend. School installation restrictions may require an
+  approved alternative machine or VM.
+- A browser with **WebGL 2** support.
+
+### Fresh clone to running application
+
+After cloning this private repository, run one command from its root:
+
+```sh
+bash run.sh
 ```
 
-`nvm use` updates the `C:\Program Files\nodejs` junction, so it applies to every new terminal.
-Note: some nvm-windows builds print no output at all â€” if that happens, upgrade nvm (see
-Troubleshooting).
+On Windows, use:
 
-## Install
-
-```powershell
-cd web
-npm ci
+```bat
+run.bat
 ```
 
-## Run the dev server
+The launcher checks Git/Git LFS, Docker's Linux engine and Compose, restores delivery
+assets, installs **Node 24.19.0/npm 11.17.0** inside the pinned container, runs `npm ci`,
+lint, formatting, unit tests, TypeScript/build checks,
+all four authoring browser suites and the production/development build browser check.
+Only a successful build and tests start the application. Failures print their stage
+and return a nonzero exit code. Node, npm, Chromium and an application database do not
+need to be installed on the host. The current M1 application requires only the web
+service; the API and PostgreSQL will join this command when implemented in M2.
 
-```powershell
-cd web
-npm run dev
-```
+Open [localhost:8081](http://localhost:8081). Stop with
+`docker compose --project-name spatia-local down`. The first run downloads the locked
+toolchain, packages and browser. Later builds reuse Docker's cache. To force fresh
+verification, use `docker compose --project-name spatia-local build --no-cache`, then
+run the launcher. `APP_PORT` selects another local port; `COMPOSE_PROJECT_NAME`
+selects an isolated local project. The launchers default to the M1 development build
+with **Open sample project**. Set `BUILD_MODE=production` explicitly for the production
+variant, which omits that control. `/version.txt` reports the checkout commit.
 
-Vite serves the editor at http://localhost:5173/ with hot reload.
+In the editor, add **test-room**, add **test-crate**, move it and try **Undo**.
+Use the project menu's **Save** to save a JSON file. After editing, allow two seconds for
+the quiet browser backup before reloading to check recovery.
+**Open sample project** is available in the local development server and the `dev` VM build.
+The `main` production build omits it. See [build modes](docs/deployment.md) to reproduce either
+VM build locally.
 
-## Current editor behavior
+The same Dockerfile is used by CI and deployment. See the
+[deployment guide](docs/deployment.md#local-development) for prerequisites and details.
 
-The asset library shows a thumbnail rendered from the existing snow-globe model. Drag it
-onto the scene's ground grid, or click/press Enter to add it at the center. Each placement
-creates one object with a stable ID and one undo step. Select objects through the scene
-or its object list; Undo/Redo preserve identity and ordering. Escape or a drop outside
-the scene cancels placement. Errors offer Retry, and the interface respects reduced motion.
+## Controls
 
-This is an in-memory authoring slice. Changes are not saved; the header reports that and
-leaving the page with placed objects triggers the browser's unsaved-work prompt. The full
-project format, approved asset registry, custom movement and persistence remain unfinished.
-Picking currently uses object bounds; full mesh picking and camera navigation are still
-part of viewport work. Import/export controls will appear when those features work.
+| Mode    | Input                                             | Action                             |
+| ------- | ------------------------------------------------- | ---------------------------------- |
+| Editor  | Drag an asset / click or press Enter on its tile  | Place an object                    |
+| Editor  | Click an object or its entry in the scene list    | Select an object                   |
+| Editor  | Drag a selected object's axis handle              | Move along that axis               |
+| Editor  | X / Y / Z movement buttons                        | Move in 0.25 m steps               |
+| Editor  | Escape during placement or movement               | Cancel the change                  |
+| Editor  | Left-drag away from handles / right-drag / scroll | Orbit / pan / zoom                 |
+| Visitor | W / A / S / D                                     | Move forward / left / back / right |
+| Visitor | Left mouse drag                                   | Look around                        |
+| Visitor | Shift / Space / Ctrl                              | Sprint / fly up / fly down         |
 
-Run the project-data and document-store checks from `web/`:
+Use **Enter Visitor** and **Exit Visitor** to switch camera modes. Authoring controls and
+save shortcuts are inactive while visiting; movement stops when the window loses focus.
 
-```powershell
-npm run test:unit
-```
+## Tech stack
 
-The document store can load validated JSON through `loadProject(text, assetKinds)`
-where `assetKinds` maps catalog IDs to their asset kinds
-Successful loading replaces the project and clears placement history
-Rejected loading preserves the current snapshot and history
-The snapshot's `project` is null in the initial grid-only editor until a complete
-project is loaded; environment/catalog rendering and file controls still need integration
+| Area                  | Technology                                  |
+| --------------------- | ------------------------------------------- |
+| Interface             | React 19, TypeScript 6, native HTML and CSS |
+| 3D rendering          | Three.js with custom translation controls   |
+| Development and build | Vite 8, Node.js 24, npm                     |
+| Quality checks        | ESLint, Prettier, Vitest, Playwright        |
+| Delivery              | Docker, Caddy, GitHub Actions, Git LFS      |
 
-With the dev server running, use an existing Playwright installation with Chromium:
+ASP.NET Core/Identity and PostgreSQL via EF Core/Npgsql are planned for the application
+backend. They are not required to run the current editor.
 
-```powershell
-cd web
-# Omit this variable if Playwright is already resolvable from web/
-$env:PLAYWRIGHT_MODULE = 'C:\path\to\node_modules\playwright\index.mjs'
-node tests/editor-shell.smoke.mjs
-```
+## Development
 
-The check covers thumbnails, keyboard and drag placement, shared selection, undo/redo,
-cancellation, rejection of unknown drops, layout at 1366, 1024, 760 and 320 CSS pixels,
-reduced motion, one canvas under Strict Mode, failed asset loading/retry and WebGL fallback.
-Pass a different server URL as the first argument. This uses external browser-test tooling;
-Playwright is not a project dependency or a configured CI job yet.
+For hot reload, install the pinned Node/npm versions in `web/.nvmrc` and
+`web/package.json`, then run `npm --prefix web ci` and `npm --prefix web run dev`
+from the root. The submission launcher above needs no host Node installation.
+Individual maintenance commands below run from `web/`:
 
-## Common scripts
+| Command                                             | Purpose                                                               |
+| --------------------------------------------------- | --------------------------------------------------------------------- |
+| `npm run dev`                                       | Start the development server with hot reload                          |
+| `npm run build`                                     | Typecheck and build the editor into `web/dist/editor/`                |
+| `npm run preview`                                   | Serve the latest local build                                          |
+| `npm run typecheck`                                 | Check TypeScript types                                                |
+| `npm run lint`                                      | Run ESLint with zero warnings allowed                                 |
+| `npm run format:check`                              | Check formatting                                                      |
+| `npm run format`                                    | Apply formatting                                                      |
+| `npm run test:unit`                                 | Run the Vitest suite                                                  |
+| `npm run test:browser`                              | Check editor interactions against a running development server        |
+| `npm run test:integration`                          | Check visitor isolation, loaded cameras, gizmos and edit cancellation |
+| `npm run test:recovery`                             | Check place–move–undo–save–reload, file transfer and failure recovery |
+| `npm run test:history`                              | Check recovered undo/redo and damaged-history handling                |
+| `npm run test:deployment -- http://localhost:8081/` | Check the running container build                                     |
 
-All commands run from `web/`.
+For browser checks, install Chromium once with `npx playwright install chromium`.
+Keep `npm run dev` running in one terminal, then run `test:browser`, `test:integration`,
+`test:recovery` and `test:history` with `npm run` in another. All accept a different server URL, for example
+`npm run test:recovery -- http://127.0.0.1:5186/`.
+Playwright is included in the locked development dependencies.
 
-| Command              | What it does                                        |
-| -------------------- | --------------------------------------------------- |
-| `npm run dev`        | Start the dev server (HMR)                          |
-| `npm run build`      | Typecheck then production build                     |
-| `npm run typecheck`  | `tsc -b` typecheck only                             |
-| `npm run preview`    | Serve the production build locally                  |
-| `npm run lint`       | ESLint (zero warnings allowed)                      |
-| `npm run format`     | Prettier write                                      |
-| `npm run format:check` | Prettier check                                   |
+On Ubuntu, use `npx playwright install --with-deps chromium` to install Chromium's
+system libraries as well. See [Playwright's CI instructions](https://playwright.dev/docs/ci).
 
-## Project layout
+Validate asset metadata and GLBs from the repository root with
+`node assets/tools/validate-assets.mjs`.
 
-```
+Run `npm run test:caching` in `web/` against the development server to check asset cache
+lifetime and shared resources. `npm run measure:caching` starts its own local server and
+records comparable baseline/cached timings.
+
+### Development environments and verification
+
+The npm workflow needs no application database, `.env` file, private local fixture or
+Docker installation. Access to this private repository and its Git LFS objects is required.
+Use the pinned Node/npm versions above; if necessary install the matching npm with
+`npm install --global npm@11.17.0`. On Windows, use `npm.cmd` / `npx.cmd` when PowerShell
+blocks the `.ps1` launchers.
+
+| Environment                | Setup and evidence                                                                                                                                                           |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Windows 11                 | Fresh-clone native build and all browser checks passed on build 26200; launcher failure/startup checks also passed. Host Node was preinstalled for that native test.         |
+| Ubuntu 24.04               | Clean GitHub Actions build/test/container checks; [baseline CI](https://github.com/Team-Meshworks/gam300/actions/runs/36964933555). The current PR must pass its own checks. |
+| macOS Tahoe                | The workflow requires native install/type/build/lint/unit/setup checks on `macos-26`. Refer to the current PR for its actual result; no physical Mac test is claimed.        |
+| Local Ubuntu 26.04 / WSL 2 | Root launcher passed with no native Node/npm, a fresh checkout and an empty isolated Docker build cache. Git LFS was configured in the test directory.                       |
+
+For a clean reproduction, clone into a new directory and run the root launcher.
+Record the commit, OS, Node/npm/browser versions and actual results when reporting a
+setup problem. Existing CI evidence is tied to its commit; it does not verify later changes.
+
+The [proposal](docs/proposal.md), [UI/UX exports](docs/design/ui-ux/README.md),
+[architecture v0.1](docs/architecture.md) and [M1 deliverables](docs/deliverables.md)
+connect product scope, component ownership and Jira work. The PDD is pending. The
+[shared handbook](docs/wiki.md) contains broader project context.
+
+### Repository layout
+
+```text
+run.bat / run.sh     One-command submission build, tests and startup
 web/
-  editor/          Vite root: index.html, main.tsx, App.tsx, styles.css
-  shared/          Plain object types and the existing sample asset descriptor
-  vite.config.ts   Rooted at ./editor; builds to ../dist/editor
-  tsconfig*.json
-  eslint.config.js
-  .prettierrc.json
+  editor/            React UI, document state, viewport, and camera controls
+  shared/            Asset catalogue, project types, validation, and fixtures
+  tests/             Browser and deployment checks
+assets/
+  source/            Original editable assets
+  delivery/          Runtime models and thumbnails
+  tools/             Asset validation
+deploy/              Caddy configuration and deployment/rollback scripts
+tools/               Browser-check orchestration
+docs/
+  proposal.md        Product brief and scope
+  design/            UI/UX exports; PDD pending
+  architecture.md    Implemented and planned component boundaries
+  deliverables.md    M1 owners, statuses and Jira mapping
+  planning/          Supplied feature/deliverable planning workbooks
+  deployment.md      Build, hosting and operational evidence
+.github/workflows/   Automatic CI and manual deployment
 ```
+
+## CI and deployment
+
+CI runs automatically on pushes to `dev`/`main` and pull requests targeting either branch.
+Pull requests into `main` must come from this repository's `dev` branch.
+Deployment remains a separate manual action.
+
+1. Open a pull request into `dev`; its CI checks start automatically. For an extra run,
+   open **Actions → CI → Run workflow** and select the branch.
+2. Wait for lint, formatting, asset validation, unit tests, editor/integration/recovery/history checks,
+   native Windows/macOS checks, and the container build and checks on Ubuntu 24.04.
+3. Successful push/manual runs on `dev` or `main` publish the tested image and a release
+   descriptor. Pull request runs and manual runs on feature branches do not publish images.
+4. To deploy, open **Actions → Deploy → Run workflow**, select the same branch, and enter
+   the successful CI run ID. Deployment uses that exact tested image.
+
+`dev` deploys to **development**; `main` deploys to **production**. Promote releases through
+a `dev` → `main` pull request; the resulting push runs CI on the integrated `main` commit.
+The CI badge shows the latest push run on `dev`.
+
+See the [deployment runbook](docs/deployment.md) for environment access, manual-run commands,
+release validation, and rollback. GitHub's [manual workflow guide](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow)
+covers the Actions UI and required repository access.
+
+## Contributing
+
+1. Branch from `dev` and keep changes focused on one feature or fix.
+2. Run type, lint, and formatting checks, plus the tests relevant to your change.
+3. Open a pull request into `dev` with a summary, verification results, and screenshots for UI changes.
+4. Obtain reviewer approval and wait for passing CI before merging. GitHub branch protection
+   is unavailable on the current private-repository plan, so maintainers enforce this step.
+
+Report bugs through [GitHub Issues](https://github.com/Team-Meshworks/gam300/issues), including
+reproduction steps, expected behavior, and browser/OS details. For asset changes, include
+provenance and follow the [asset pipeline](assets/README.md).
 
 ## Troubleshooting
 
-### `SyntaxError: ... does not provide an export named 'styleText'`
+| Problem                                          | What to check                                                                                           |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------- |
+| Missing or unreadable 3D models                  | Run `git lfs pull` from the repository root.                                                            |
+| Node or native-binding errors                    | Check `node --version` and `npm --version` against the pinned toolchain, then rerun `npm ci` in `web/`. |
+| PowerShell blocks `npm.ps1`                      | Use `npm.cmd` instead of `npm`, and `npx.cmd` instead of `npx`.                                         |
+| Playwright cannot find Chromium                  | Run `npx playwright install chromium` from `web/`.                                                      |
+| The viewport reports that WebGL 2 is unavailable | Check browser graphics support and hardware acceleration.                                               |
 
-Your Node is too old. Install and use Node 24 (see Prerequisites). The project's Node 18/20.x
-dependency pins are not compatible with older runtimes.
+## Performance check (T02)
 
-### `Error: Cannot find native binding` (rolldown)
+Tested **2 October 2026** on an **X870 AORUS ELITE WIFI7 desktop** with specs:
+* CPU: Ryzen 7 7800X3D
+* GPU: RTX 5070
+* Memory: 32 GB RAM
+* OS: Windows 11
+* Browser: Edge 154.0.4258.48
 
-`node_modules` was installed with a different Node version, so the platform-specific rolldown
-binding is missing. Reinstall from scratch:
+Local production build at
+1366 × 768, using the sample room and two crates.
 
-```powershell
-cd web
-Remove-Item -Recurse -Force node_modules
-npm install
-```
+| Measurement                         | Result                                                                       |
+| ----------------------------------- | ---------------------------------------------------------------------------- |
+| Load time, median of five runs      | 185 ms cold; 175 ms cached                                                   |
+| Frame time, measured for 30 seconds | 5.6 ms median (about 180 FPS); 99% within 5.7 ms                             |
+| Resource use                        | 6.4 MB JavaScript memory; 22 geometry resources, 4 textures and 8 draw calls |
 
-### `nvm` prints nothing / `nvm: command not found`
+Resource counts stayed unchanged through **10 scene replacements**. Missing-asset retry passed.
 
-The current nvm-windows release re-shipped a broken `nvm.exe`. Reinstall or replace the binary
-at `%APPDATA%\nvm\nvm.exe` from the latest release, then `nvm use 24.19.0` again.
+## License
 
-### `npm.ps1 cannot be loaded because running scripts is disabled`
-
-npm ships a `.ps1` wrapper. If PowerShell blocks it, allow local scripts once:
-
-```powershell
-Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
-```
-
-Then reopen the terminal.
+No project license is currently included in this repository. Asset provenance and licensing
+are tracked separately in [`assets/manifest.json`](assets/manifest.json) and the
+[asset pipeline notes](assets/README.md).

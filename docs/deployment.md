@@ -6,17 +6,28 @@
 | `main` | `production`       | https://51.79.242.181      | `127.0.0.1:8081`         |
 
 Integrate feature work into `dev`. Release through a `dev` → `main` pull request;
-CI rejects pull requests into `main` from other branches. Both branches build and test
-automatically. Deployment is a separate manual action and never rebuilds the image.
+CI checks pull requests and pushes to both branches automatically, and rejects a PR
+into `main` unless it comes from this repository's `dev` branch. Manual CI dispatch
+remains available. Deployment is a separate manual action and never rebuilds the image.
 The GitHub environments allow only their matching branches.
 
-GitHub currently rejects branch protection for this private repository with an upgrade
-requirement. The workflow checks and environment branch restrictions are configured, but
-GitHub does not prevent direct pushes or require passing checks before a merge. Keep the
-repository private; enable required pull requests and the `Build and test` check when the
-team has access to private-repository branch protection.
+CI builds `dev` with `NODE_ENV=development` and Vite's `development` mode, including
+**Open sample project** and framework development diagnostics. `main` uses
+`NODE_ENV=production` and `production` mode. Pull requests use their target branch's
+mode; manual feature-branch builds use development mode. Both images contain built
+static files served by Caddy, with the same health checks, access gate and rollback.
+Existing images keep their original build mode. After these workflow changes reach
+`dev` or `main`, deploy a new successful CI run to apply the branch's build mode.
 
-The existing Wiki.js deployment uses port 8080 and is independent of these Compose projects.
+GitHub currently rejects branch protection for this private repository with an upgrade
+requirement. Automatic workflow checks and environment branch restrictions are configured, but
+GitHub does not prevent direct pushes or require passing checks before a merge. Keep the
+repository private. Reviewers must verify approval and a passing CI run before merging.
+Revisit enforced required checks when private-repository branch protection becomes available.
+
+Wiki.js is available at https://51.79.242.181:9443 with sign-in required. Its separate
+Compose project binds to `127.0.0.1:8083`; the gateway redirects legacy HTTP port 8080
+to HTTPS. See [wiki operations](wiki.md) for accounts and backups.
 This M1 deployment contains the editor only. PostgreSQL and the application API remain M2
 work; Wiki.js's database is not the application database. Browser storage belongs to each
 origin, so development and production drafts are separate.
@@ -27,16 +38,45 @@ Install Git LFS and use the Node/npm versions in `web/.nvmrc` and `web/package.j
 After cloning, run `git lfs install` and `git lfs pull`, then use `npm ci` from `web/`.
 The normal `npm run dev` workflow remains available.
 
-For the same container used by deployment, install Docker Desktop with Linux containers
-and the WSL 2 backend on Windows, then run from the repository root:
+For the same container used by deployment, install Docker with Linux containers and
+Compose, then run from the repository root:
 
 ```sh
-docker compose up --build --wait
+bash run.sh
 ```
 
-Open http://localhost:8081. Stop this local application with `docker compose down`.
+On Windows, use `run.bat`. Open http://localhost:8081. Stop this local application with
+`docker compose --project-name spatia-local down`.
 The Dockerfile builds with pinned Node/npm and serves the result through pinned Caddy.
+The launchers restore Git LFS delivery assets and check prerequisites. The container
+build runs lint, formatting, unit tests, TypeScript, all four authoring browser suites
+and the packaged-build browser checks before the web service starts. Host Node/npm
+and Playwright are unnecessary. API/PostgreSQL services remain M2 implementation work.
 Only delivery assets enter the build; editable source files and local secrets are excluded.
+The existing asset validator runs with `--delivery-only` inside the build: it checks
+GLB contents and manifest hashes without needing Blender sources. A remaining LFS
+pointer fails with an instruction to run `git lfs pull`. Licence warnings stay visible.
+The runtime keeps its read-only filesystem and user `1000:1000`; its temporary storage
+mounts belong to that user. Health checks require both `/healthz` and the editor page.
+
+Local Compose and the launchers default to the M1 development build. The Dockerfile's
+default remains production; CI selects the branch's mode explicitly. The launchers
+set `/version.txt` to the checkout commit unless `REVISION` is supplied. For an explicit
+development build from PowerShell:
+
+```powershell
+$env:BUILD_MODE = "development"
+./run.bat
+```
+
+Set `BUILD_MODE` to `production` to build the production variant. Without Docker, from
+`web/`, use `$env:NODE_ENV = "development"` followed by
+`npm run build:editor -- --mode development` and `npm run preview`. Set `NODE_ENV`
+and `--mode` to `production` for the production variant; changing only Vite's mode
+does not enable development controls.
+
+To check the built controls locally, set `BUILD_MODE` to the matching mode and run
+`node tests/editor-build.check.mjs http://localhost:4173/` from `web/` while preview is running.
 
 Browser checks use the locked Playwright package. From `web/`, run once:
 
@@ -50,30 +90,72 @@ With the container running:
 npm run test:deployment -- http://localhost:8081/
 ```
 
+For these checks without host Node or Chromium, use the same Dockerfile's `build`
+stage. From the repository root in PowerShell, with the development container running:
+
+```powershell
+docker build --load --target build --build-arg BUILD_MODE=development -t spatia-checks:local .
+$checkContainer = docker compose --project-name spatia-local ps -q web
+docker run --rm --network "container:$checkContainer" spatia-checks:local node tests/deployment.check.mjs http://127.0.0.1:8080/
+docker run --rm --network "container:$checkContainer" -e BUILD_MODE=development spatia-checks:local node tests/editor-build.check.mjs http://127.0.0.1:8080/
+```
+
+In Bash, use `check_container=$(docker compose --project-name spatia-local ps -q web)`
+and `--network "container:$check_container"`. This connects the test browser to Caddy's
+network namespace, keeping the URL on loopback and file/recovery APIs available.
+For production, select `production` in both the build argument and test environment.
+The deployment check exercises place/move/undo, JSON Save/Open, reload and recovered
+undo through the packaged UI. The four source-level authoring suites still run against
+Vite during the Docker build; they import source modules that Caddy must not serve.
+
 ## What CI does
 
-`.github/workflows/ci.yml` runs on pull requests into `dev`/`main`, pushes to those branches,
-and manual runs. It restores LFS and locked dependencies; checks formatting, lint, asset
+`.github/workflows/ci.yml` runs on pull requests and pushes to `main`/`dev`, plus
+`workflow_dispatch`. It restores LFS and
+locked dependencies; checks formatting, lint, asset
 integrity, deployment isolation/rollback and unit tests; builds the image; and runs the
-full authoring checks against Vite's development server and deployment checks against the
-image, including its real web-server configuration. Development-only sample controls are
-tested in development; the shipped UI and textures are checked in the container.
-The Docker build includes TypeScript checking. Chunk-budget checks also run on branches
-where that existing smoke script is present.
+authoring and recovery/file checks against Vite's development server and deployment checks against the
+image, including its real web-server configuration. The packaged-build browser check verifies
+that the sample control loads its project in development and is absent in production.
+The Docker build includes TypeScript checking. Both build modes retain the 500 kB
+JavaScript chunk-budget check.
 
-Pull-request checks have no package-write permission. After successful branch checks,
-a separate publishing job pushes the exact tested image to the private GHCR package
+The recovery check includes place–move–undo–save–reload and JSON transfer into a fresh
+browser context. Its output and the editor check output are retained under `web/test-results/`.
+
+The check job has no package-write permission. After a successful push or manual run on
+`dev` or `main`, a separate publishing job pushes the exact tested image to the private GHCR package
 `ghcr.io/team-meshworks/gam300`. Each release records its immutable digest, source commit,
 branch and CI run ID. The short-lived image-transfer artifact is retained for two days;
 test/web artifacts for 14 days and the small release bundle for 90 days. Retain registry
 images needed for rollback; deleting their tags can make old releases unavailable.
+Pull request runs and manual runs on other branches run the same checks but skip publishing.
 
 Superseded CI runs are cancelled. Deployments are serialized per environment, and a VM
 file lock also prevents concurrent changes to the same deployment.
 
+### Run CI on demand
+
+Open **Actions → CI → Run workflow**, select the branch, then choose **Run workflow**.
+With an authenticated GitHub CLI, the equivalent is:
+
+```sh
+gh workflow run ci.yml --ref dev
+```
+
+Choose a feature branch to check work before merging, `dev` for a development release,
+or `main` for a production release. Merging into either branch automatically runs CI
+on the resulting commit; deployment consumes the selected run's commit, not the latest branch contents.
+
+Manual dispatch requires repository write access, and the workflow must exist on the
+default branch. Workflow changes follow the same feature → dev → main promotion path.
+See GitHub's
+[manual workflow guide](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow).
+
 ## Deploy or roll back
 
-1. Open the successful **CI** run for the intended branch. Copy its run ID from the summary
+1. Wait for the intended branch's push CI run, manually run **CI**, or choose an existing
+   successful run for rollback. Copy its run ID from the summary
    or the number at the end of its GitHub URL.
 2. Open **Actions → Deploy → Run workflow**.
 3. Select `dev` for development or `main` for production. Enter the CI run ID.
@@ -103,9 +185,9 @@ cat ~/vthere-access.txt
 ## VM setup
 
 The VM uses Ubuntu 24.04 x86-64, Docker Engine and the Compose plugin. Runtime applications
-bind only to loopback; a separate `vthere-gateway` Compose project owns HTTP 80, HTTPS 443
-and HTTPS 8443. Preserve the existing SSH and Wiki.js firewall rules when allowing those
-three TCP ports. Do not expose Docker's socket or a database port over the network.
+bind only to loopback; a separate `vthere-gateway` Compose project owns HTTP 80/8080 and
+HTTPS 443/8443/9443. Preserve SSH access when managing these TCP firewall rules.
+Do not expose Docker's socket or a database port over the network.
 
 `deploy/gateway.Caddyfile` requests a Let's Encrypt IP certificate with the `shortlived`
 profile. Caddy renews it automatically; its certificate volume must remain persistent.
@@ -126,8 +208,8 @@ docker compose -f gateway.compose.yaml up -d
 
 Use a dedicated `vthere-runner` account for the self-hosted runner, with Docker access and
 the custom `vthere-deploy` label. Install it as a system service using GitHub's runner setup
-instructions. This runner executes manual deployment jobs only; build and pull-request
-checks run on GitHub-hosted Ubuntu. Docker access grants control over the host: repository
+instructions. This runner executes manual deployment jobs only; CI checks run on
+GitHub-hosted Ubuntu. Docker access grants control over the host: repository
 writers and deployment workflow changes must be trusted. Revisit runner isolation before
 making the repository public or accepting untrusted workflow changes.
 
@@ -165,6 +247,23 @@ GHCR packages and CI artifacts containing development assets must retain appropr
 
 ## Verification evidence
 
+### Visitor shortcut regression — 3 October 2026
+
+The [failed dev CI run](https://github.com/Team-Meshworks/gam300/actions/runs/37038095171)
+stopped at `Authoring resumes on exit`. An IndexedDB recovery backup could still be
+pending after leaving Visitor mode, causing the shared keyboard handler to drop
+Duplicate, Copy/Paste and Undo/Redo. Background backups now allow these edits;
+Visitor mode and foreground file operations retain their keyboard guards.
+
+The integration check holds a real backup's completion, verifies Visitor isolation,
+then duplicates and undoes/redoes while the backup is pending. It also verifies that
+edits made during the backup reach the next recovery record with their redo history.
+This reproduced the original assertion before the fix and passed afterward.
+Local lint, formatting, TypeScript, all 189 unit tests, and the integration and
+history-recovery browser checks passed. CI still owns the Docker/Caddy verification.
+
+### Deployed environments — 23 September 2026
+
 Verified on 23 September 2026:
 
 | Environment | Deployed commit                            | Successful CI                                                                    | Successful deployment                                                            |
@@ -175,7 +274,8 @@ Verified on 23 September 2026:
 Both live sites passed the Chromium deployment check over trusted HTTPS with the team
 login: editor loading, server policy, model/textures, placement and undo. Anonymous
 requests to the application require authentication; public health/revision endpoints
-report the expected commits. Wiki.js still responds on port 8080.
+report the expected commits. The later wiki setup moved Wiki.js to trusted HTTPS on
+9443; HTTP 8080 redirects there. Both application version responses stayed unchanged.
 
 The [cross-branch guard check](https://github.com/Team-Meshworks/gam300/actions/runs/35865302138)
 deliberately supplied a development CI run to production. Validation failed and the VM

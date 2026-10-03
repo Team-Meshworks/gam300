@@ -72,7 +72,8 @@ a {
 .app-header {
   display: flex;
   align-items: center;
-  gap: 1.75rem;
+  /* Action gaps are measured between their visible edges */
+  gap: 1.5rem;
   min-height: 4rem;
   padding: 0.5rem 1.5rem;
   border-bottom: 1px solid var(--line);
@@ -87,7 +88,8 @@ h1 strong {
 }
 .history-controls {
   display: flex;
-  gap: 0.25rem;
+  flex-shrink: 0;
+  gap: 1.5rem;
   margin-left: auto;
 }
 .history-controls button {
@@ -95,11 +97,12 @@ h1 strong {
   align-items: center;
   gap: 0.4rem;
   min-height: 2.75rem;
-  padding: 0.4rem 0.7rem;
+  padding: 0.4rem 0;
   border: 0;
   border-radius: 0.3rem;
   background: transparent;
   font-size: 0.8125rem;
+  white-space: nowrap;
 }
 .history-controls button:disabled {
   color: #949a8f;
@@ -116,19 +119,137 @@ h1 strong {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+.project-file-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-inline: 0;
+  min-width: 0;
+}
 .save-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
   color: var(--muted);
   font-size: 0.75rem;
   white-space: nowrap;
 }
 .save-state::before {
+  /* Whole-pixel dimensions and no flex shrinking keep the status dot round */
   content: "";
-  display: inline-block;
-  width: 0.35rem;
-  height: 0.35rem;
-  margin-right: 0.5rem;
+  flex: 0 0 8px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background: #b47c2b;
+}
+/* The dot describes a completed write; the ring means a write is still in progress */
+.save-state[data-state="saved"]::before {
+  background: #187c6b;
+}
+.save-state[data-state="failed"]::before {
+  background: #ae452e;
+}
+.save-state[data-state="saving"]::before {
+  flex-basis: 12px;
+  width: 12px;
+  height: 12px;
+  background: transparent;
+  border: 2px solid #d5cfc7;
+  border-top-color: #6c7268;
+  animation: project-save-spin 0.8s linear infinite;
+}
+@keyframes project-save-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .save-state[data-state="saving"]::before {
+    animation: none;
+  }
+}
+
+.mode-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 0.25rem;
+}
+
+.mode-actions button {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2.75rem;
+  padding: 0.4rem 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 0.3rem;
+  background: #f8f7f2;
+  font-size: 0.8125rem;
+  white-space: nowrap;
+}
+
+.mode-actions button:hover:not(:disabled) {
+  background: #e9ece4;
+  border-color: #969e90;
+}
+
+/* Give the actions a full row before the title and buttons start squeezing each other */
+@media (max-width: 70rem) {
+  .app-header {
+    display: grid;
+    grid-template-columns: 2.25rem minmax(0, max-content) auto minmax(0, 1fr);
+    row-gap: 0.25rem;
+  }
+  .app-header h1 {
+    grid-column: 2 / -1;
+    margin-left: -1.75rem;
+  }
+  .history-controls {
+    grid-column: 1 / 3;
+    margin-left: 0;
+  }
+  .mode-actions {
+    grid-column: 3;
+  }
+  .project-file-status {
+    grid-column: 4;
+  }
+}
+
+@media (max-width: 42rem) {
+  .history-controls {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(4, max-content);
+    row-gap: 0.25rem;
+  }
+  .mode-actions {
+    grid-column: 1 / 3;
+  }
+  .project-file-status {
+    grid-column: 3 / -1;
+    justify-self: end;
+  }
+}
+
+@media (max-width: 30rem) {
+  /* Keep Undo and Redo together on the next row at phone-sized widths */
+  .history-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    min-width: 0;
+  }
+  .history-controls button {
+    /* Enlarged text and wider system fonts need room to wrap inside their column */
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-align: left;
+  }
+  .history-controls svg {
+    flex-shrink: 0;
+  }
 }
 
 .workspace {
@@ -227,7 +348,8 @@ ul {
   font-weight: 400;
   font-variant-numeric: tabular-nums;
 }
-.object-row {
+.object-row,
+.environment-row {
   display: flex;
   gap: 0.5rem;
   align-items: center;
@@ -240,17 +362,47 @@ ul {
   background: transparent;
   font-size: 0.8125rem;
 }
-.object-row img {
+.object-row img,
+.environment-row img {
   width: 2rem;
   height: 2rem;
   object-fit: contain;
 }
-.object-row[aria-pressed="true"] {
+.object-row[aria-pressed="true"],
+.environment-row[aria-pressed="true"] {
   background: #e4ede5;
   border-left-color: #187c6b;
 }
-.object-row:hover {
+.object-row:hover,
+.environment-row:hover {
   background: #ecede7;
+}
+.move-controls {
+  margin-top: 0.9rem;
+  padding: 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  font-size: 0.75rem;
+}
+.move-controls > div {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.4rem;
+  margin: 0.6rem 0;
+}
+.move-controls button {
+  min-height: 2.75rem;
+  border: 1px solid #aab8aa;
+  border-radius: 0.3rem;
+  background: #fff;
+}
+.move-controls button:hover {
+  background: #e4ede5;
+}
+.move-controls output {
+  display: block;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 
 .viewport {
@@ -272,6 +424,7 @@ ul {
   inset: 0;
   width: 100%;
   height: 100%;
+  touch-action: none;
 }
 .viewport-stage.is-dragging {
   outline: 3px solid var(--accent);
@@ -314,21 +467,11 @@ ul {
   border-radius: 0.3rem;
   background: #f8f7f2;
 }
-.action-error {
-  position: fixed;
-  bottom: 1rem;
-  left: 50%;
-  max-width: calc(100% - 2rem);
-  transform: translateX(-50%);
-  padding: 0.75rem 1rem;
-  color: #fff;
-  background: #8e3b29;
-}
 
 @media (max-width: 760px) {
   .app-header {
     flex-wrap: wrap;
-    gap: 0.25rem 1rem;
+    row-gap: 0.25rem;
     padding: 0.6rem 1rem;
   }
   h1 {
@@ -338,7 +481,7 @@ ul {
     margin-left: 0;
   }
   .save-state {
-    margin-left: auto;
+    margin-left: 0;
   }
   .editor-shell {
     min-height: 100dvh;
@@ -369,5 +512,160 @@ ul {
   .asset-tile:hover:not(:disabled) .asset-art,
   .asset-tile:focus-visible .asset-art {
     transform: none;
+  }
+}
+
+.draft-menu {
+  /* Offset the icon padding to line up with the asset thumbnails below */
+  margin-left: -0.75rem;
+  margin-right: -1rem;
+  position: relative;
+  flex-shrink: 0;
+  font-size: 0.8125rem;
+}
+.draft-menu summary {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 50%;
+  cursor: pointer;
+  list-style: none;
+}
+.draft-menu summary::-webkit-details-marker {
+  display: none;
+}
+.draft-menu summary:hover,
+.draft-menu[open] summary {
+  background: #e9e5df;
+}
+.draft-menu summary svg {
+  width: 1.5rem;
+  height: 1.5rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+/* Float the options over the editor so opening them doesn't shift the scene */
+.draft-menu-panel {
+  position: absolute;
+  top: calc(100% + 0.25rem);
+  left: 0;
+  z-index: 10;
+  width: 8.5rem;
+  max-width: calc(100vw - 2rem);
+  padding: 0.25rem;
+  border: 1px solid #ded9d1;
+  border-radius: 0.5rem;
+  background: #f7f5f2;
+  box-shadow: 0 4px 12px #292e2914;
+}
+.draft-menu-panel button {
+  display: block;
+  width: 100%;
+  min-height: 1.75rem;
+  padding: 0.25rem 0.5rem;
+  border: 0;
+  border-radius: 0.25rem;
+  background: transparent;
+  text-align: left;
+}
+.draft-menu-panel button:hover:not(:disabled) {
+  background: #e9e5df;
+}
+.draft-menu-panel button:disabled {
+  color: #898980;
+}
+.draft-feedback,
+.action-error {
+  position: fixed;
+  bottom: 1rem;
+  right: 1rem;
+  max-width: calc(100% - 2rem);
+  padding: 0.5rem 0.85rem;
+  border-radius: 0.75rem;
+  background: #f7f5f2;
+  color: var(--muted);
+  box-shadow: 0 2px 12px #292e2914;
+  font-size: 0.75rem;
+  pointer-events: none;
+}
+.action-error {
+  color: #8e3b29;
+  background: #f8ebe7;
+  border: 1px solid #e8c8bf;
+  z-index: 3;
+  /* Leave a little longer to read the problem before clearing the notice */
+  animation: project-notice-fade 0.5s ease 5s forwards;
+}
+.draft-feedback:empty {
+  display: none;
+}
+.project-confirmation {
+  width: min(24rem, calc(100vw - 2rem));
+  padding: 1.25rem;
+  color: #292e29;
+  background: #f7f5f2;
+  border: 1px solid #ded9d1;
+  border-radius: 1rem;
+  box-shadow: 0 12px 40px #292e2933;
+}
+.project-confirmation::backdrop {
+  background: #292e2955;
+}
+.project-confirmation p {
+  margin: 0.75rem 0 1.25rem;
+  font-size: 0.875rem;
+}
+.project-confirmation > div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+.project-confirmation button {
+  min-height: 2.25rem;
+  padding: 0.35rem 1rem;
+  background: #e9e5df;
+  border: 1px solid #d5cfc7;
+  border-radius: 999px;
+  font-size: 0.8125rem;
+}
+.project-confirmation button:last-child {
+  background: #d7cfc4;
+}
+.project-confirmation button:hover {
+  background: #cec4b7;
+}
+/* Save, reopen and placement messages share the same short lifetime */
+.draft-feedback {
+  animation: project-notice-fade 0.5s ease 3s forwards;
+}
+@keyframes project-notice-fade {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .draft-feedback {
+    animation: none;
+  }
+  .action-error {
+    /* Still dismiss the message when reduced motion skips the visible fade */
+    animation-duration: 0.01ms;
+  }
+}
+
+@media (max-width: 760px) {
+  .draft-menu {
+    margin-left: -0.5rem;
+    margin-right: -1rem;
+  }
+  .draft-menu + h1 {
+    flex-basis: auto;
+    max-width: calc(100% - 2rem);
   }
 }

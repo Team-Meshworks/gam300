@@ -8,9 +8,11 @@
       "name": "Room",
       "environmentAssetId": "test-room-v1",
       "startCamera": {
-        "position": [0, 1.6, 5],
-        "rotation": [0, 0, 0, 1],
-        "fovDegrees": 60
+        "position": [12, 16, 18],
+        "rotation": [
+          -0.29962059992658957, 0.2752183320355054, 0.09071781822041597, 0.9089844021041025
+        ],
+        "fovDegrees": 40
       },
       "objects": [
         {

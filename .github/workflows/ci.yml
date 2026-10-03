@@ -15,10 +15,45 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  compatibility:
+    name: Native checks (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2025, macos-26]
+    defaults:
+      run:
+        working-directory: web
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          lfs: true
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: web/.nvmrc
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install, check and build the native toolchain
+        run: |
+          npm install --global npm@11.17.0
+          npm ci --no-audit --no-fund
+          node ../tools/setup.check.mjs
+          npm run check:architecture
+          npm run lint
+          npm run format:check
+          npm run test:unit
+          npm run build
+
   check:
     name: Build and test
     runs-on: ubuntu-24.04
     timeout-minutes: 25
+    env:
+      BUILD_MODE: ${{ (github.base_ref || github.ref_name) == 'main' && 'production' || 'development' }}
     defaults:
       run:
         working-directory: web
@@ -48,23 +83,31 @@ jobs:
           npm ci --no-audit --no-fund
       - name: Check source and assets
         run: |
+          npm run check:architecture
           npm run lint
           npm run format:check
           node ../assets/tools/validate-assets.mjs
+          node ../tools/setup.check.mjs
           bash ../deploy/deploy.test.sh
       - name: Run unit tests
         run: npm run test:unit -- --reporter=default --reporter=junit --outputFile=test-results/unit.xml
       - name: Install pinned browser
         run: npx playwright install --with-deps chromium
+      - name: Prove architecture enforcement and isolated module removal
+        run: npm run test:architecture
       - name: Check authoring and development fixtures
         env:
-          SMOKE_SCREENSHOT: test-results/editor.png
+          CHECK_SCREENSHOT: test-results/editor.png
         run: |
           node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 5173 --strictPort > test-results/dev-server.log 2>&1 &
           server_pid=$!
           trap 'kill "$server_pid" 2>/dev/null || true' EXIT
           curl --fail --silent --show-error --retry 30 --retry-delay 1 --retry-connrefused http://127.0.0.1:5173/ > /dev/null
-          npm run test:browser
+          npm run test:browser | tee test-results/editor.log
+          npm run test:integration | tee test-results/integration.log
+          npm run test:caching | tee test-results/caching.log
+          npm run test:recovery | tee test-results/recovery.log
+          npm run test:history | tee test-results/history.log
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - name: Build the runnable image
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
@@ -72,7 +115,9 @@ jobs:
           context: .
           load: true
           tags: vthere-ci:${{ github.sha }}
-          build-args: REVISION=${{ github.sha }}
+          build-args: |
+            REVISION=${{ github.sha }}
+            BUILD_MODE=${{ env.BUILD_MODE }}
           cache-from: type=gha,scope=editor
           cache-to: type=gha,mode=max,scope=editor
       - name: Check the packaged application
@@ -80,13 +125,13 @@ jobs:
           APP_IMAGE: vthere-ci:${{ github.sha }}
           APP_PORT: "4173"
           REVISION: ${{ github.sha }}
-          SMOKE_SCREENSHOT: test-results/deployment.png
+          CHECK_SCREENSHOT: test-results/deployment.png
         run: |
           docker compose -f ../compose.yaml -p vthere-ci up -d --no-build --wait --wait-timeout 90
           test "$(curl --fail --silent http://127.0.0.1:4173/version.txt)" = "$GITHUB_SHA"
           npm run test:deployment -- http://127.0.0.1:4173/
-          if [[ -f tests/editor-build.smoke.mjs ]]; then
-            node tests/editor-build.smoke.mjs http://127.0.0.1:4173/
+          if [[ -f tests/editor-build.check.mjs ]]; then
+            node tests/editor-build.check.mjs http://127.0.0.1:4173/
           fi
           mkdir -p dist/editor
           docker cp "$(docker compose -f ../compose.yaml -p vthere-ci ps -q web):/srv/." dist/editor/
@@ -101,13 +146,13 @@ jobs:
           retention-days: 14
           overwrite: true
       - name: Save the tested image and its deployment files
-        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev')
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
         run: |
           mkdir -p ../ci-artifacts/release
           docker save "vthere-ci:$GITHUB_SHA" -o ../ci-artifacts/image.tar
           cp ../compose.yaml ../deploy/deploy.sh ../ci-artifacts/release/
       - name: Transfer the tested image to the publishing job
-        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev')
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: image-${{ github.sha }}
@@ -122,8 +167,8 @@ jobs:
 
   publish:
     name: Publish tested image
-    needs: check
-    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev')
+    needs: [check, compatibility]
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
