@@ -32,7 +32,7 @@ Other GLBs in delivery/ are intentionally not catalogued until provenance and ap
 
 The Vite asset-catalogue plugin reads this manifest and exposes only test-room-v1 and test-crate-v1 as explicitly allowlisted local development samples. The browser receives IDs, names, kinds, asset URLs and thumbnail URLs; it does not receive source paths, licence records or the full offline manifest. Licence approval is still pending; this is not a production publication pipeline. Other delivery files are not automatically added.
 
-Manifest edits restart the dev server, so save/export authored work first once saving is implemented. Builds emit the selected GLBs and thumbnails with hashed URLs; no manual copying into web/editor/public is required. Existing public files from the teammate's demo remain unchanged. The instance group applies placement transforms without recentering or scaling the exported GLB. The room is a placeable environment sample for integration, not yet the full project's dedicated scene-environment field.
+Manifest edits restart the dev server, so save/export authored work first once saving is implemented. Builds emit the selected GLBs and thumbnails with hashed URLs; no manual copying into apps/web/editor/public is required. Existing public files from the teammate's demo remain unchanged. The instance group applies placement transforms without recentering or scaling the exported GLB. The room is a placeable environment sample for integration, not yet the full project's dedicated scene-environment field.
 
 Checks on 20 September 2026: room and crate rendered together in the browser, manifest thumbnails loaded, click placement and crate drag placement worked, and undo/redo restored the crate. Domain tests cover mixed asset IDs and unknown-ID rejection. Project saving, camera controls, transform editing and publication remain outside this change.
 
@@ -43,7 +43,7 @@ The existing snowglobe is also selectable alongside the manifest assets. It reta
 The browser catalogue now includes each delivery's verified SHA-256. Parsed models and
 generated thumbnails are reused across viewport recreation with reference-counted leases,
 at most three idle entries and a 30-second expiry. New bytes require a new immutable asset
-ID/hash. Invalidation retires lookups without destroying active borrowers. From `web/`,
+ID/hash. Invalidation retires lookups without destroying active borrowers. From `apps/web/`,
 run `npm run test:caching` for resource-lifetime checks or `npm run measure:caching`
 to record comparable baseline/cached timings.
 

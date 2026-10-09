@@ -9,9 +9,9 @@
   <a href="#project-status"><img src="https://img.shields.io/badge/status-M1_prototype-orange" alt="Status: M1 prototype"></a>
   <a href="https://github.com/Team-Meshworks/gam300/actions/workflows/ci.yml"><img src="https://github.com/Team-Meshworks/gam300/actions/workflows/ci.yml/badge.svg?branch=dev&amp;event=push" alt="Latest push CI run on dev"></a>
   <a href="#quick-start"><img src="https://img.shields.io/badge/Node.js-24-339933?logo=nodedotjs&amp;logoColor=white" alt="Node.js 24"></a>
-  <a href="web/package.json"><img src="https://img.shields.io/badge/React-19-149ECA?logo=react&amp;logoColor=white" alt="React 19"></a>
-  <a href="web/package.json"><img src="https://img.shields.io/badge/TypeScript-6-3178C6?logo=typescript&amp;logoColor=white" alt="TypeScript 6"></a>
-  <a href="web/package.json"><img src="https://img.shields.io/badge/Vite-8-646CFF?logo=vite&amp;logoColor=white" alt="Vite 8"></a>
+  <a href="apps/web/package.json"><img src="https://img.shields.io/badge/React-19-149ECA?logo=react&amp;logoColor=white" alt="React 19"></a>
+  <a href="apps/web/package.json"><img src="https://img.shields.io/badge/TypeScript-6-3178C6?logo=typescript&amp;logoColor=white" alt="TypeScript 6"></a>
+  <a href="apps/web/package.json"><img src="https://img.shields.io/badge/Vite-8-646CFF?logo=vite&amp;logoColor=white" alt="Vite 8"></a>
 </p>
 
 <p align="center">
@@ -163,15 +163,15 @@ backend. They are not required to run the current editor.
 
 ## Development
 
-For hot reload, install the pinned Node/npm versions in `web/.nvmrc` and
-`web/package.json`, then run `npm --prefix web ci` and `npm --prefix web run dev`
+For hot reload, install the pinned Node/npm versions in `apps/web/.nvmrc` and
+`apps/web/package.json`, then run `npm --prefix apps/web ci` and `npm --prefix apps/web run dev`
 from the root. The submission launcher above needs no host Node installation.
-Individual maintenance commands below run from `web/`:
+Individual maintenance commands below run from `apps/web/`:
 
 | Command                                             | Purpose                                                               |
 | --------------------------------------------------- | --------------------------------------------------------------------- |
 | `npm run dev`                                       | Start the development server with hot reload                          |
-| `npm run build`                                     | Typecheck and build the editor into `web/dist/editor/`                |
+| `npm run build`                                     | Typecheck and build the editor into `apps/web/dist/editor/`                |
 | `npm run preview`                                   | Serve the latest local build                                          |
 | `npm run typecheck`                                 | Check TypeScript types                                                |
 | `npm run lint`                                      | Run ESLint with zero warnings allowed                                 |
@@ -196,7 +196,7 @@ system libraries as well. See [Playwright's CI instructions](https://playwright.
 Validate asset metadata and GLBs from the repository root with
 `node assets/tools/validate-assets.mjs`.
 
-Run `npm run test:caching` in `web/` against the development server to check asset cache
+Run `npm run test:caching` in `apps/web/` against the development server to check asset cache
 lifetime and shared resources. `npm run measure:caching` starts its own local server and
 records comparable baseline/cached timings.
 
@@ -228,10 +228,11 @@ connect product scope, component ownership and Jira work. The PDD is pending. Th
 
 ```text
 run.bat / run.sh     One-command submission build, tests and startup
-web/
-  editor/            React UI, document state, viewport, and camera controls
-  shared/            Asset catalogue, project types, validation, and fixtures
-  tests/             Browser and deployment checks
+apps/
+  web/
+    editor/          React UI, document state, viewport, and camera controls
+    shared/          Asset catalogue, project types, validation, and fixtures
+    tests/           Browser and deployment checks
 assets/
   source/            Original editable assets
   delivery/          Runtime models and thumbnails
@@ -288,9 +289,9 @@ provenance and follow the [asset pipeline](assets/README.md).
 | Problem                                          | What to check                                                                                           |
 | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------- |
 | Missing or unreadable 3D models                  | Run `git lfs pull` from the repository root.                                                            |
-| Node or native-binding errors                    | Check `node --version` and `npm --version` against the pinned toolchain, then rerun `npm ci` in `web/`. |
+| Node or native-binding errors                    | Check `node --version` and `npm --version` against the pinned toolchain, then rerun `npm ci` in `apps/web/`. |
 | PowerShell blocks `npm.ps1`                      | Use `npm.cmd` instead of `npm`, and `npx.cmd` instead of `npx`.                                         |
-| Playwright cannot find Chromium                  | Run `npx playwright install chromium` from `web/`.                                                      |
+| Playwright cannot find Chromium                  | Run `npx playwright install chromium` from `apps/web/`.                                                      |
 | The viewport reports that WebGL 2 is unavailable | Check browser graphics support and hardware acceleration.                                               |
 
 ## Performance check (T02)
