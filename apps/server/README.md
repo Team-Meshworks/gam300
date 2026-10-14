@@ -1,8 +1,9 @@
 # Server persistence foundations
 
-This .NET 10 class library contains a bounded draft-save reader and the Identity/
-PostgreSQL account persistence foundation. It has no running API host, routes,
-session authentication, project validator or project store. A parsed envelope remains
+This .NET 10 ASP.NET Core host contains a bounded draft-save reader, the Identity/
+PostgreSQL account persistence foundation and the request-security boundary. Its sole
+production route is `GET /api/auth/csrf`. Login, logout, password, administration and
+project handlers remain later work. A parsed envelope remains
 untrusted until the shared project validator and current authorization checks accept it.
 
 `SaveEnvelopeReader.ReadAsync(HttpRequest, Guid, CancellationToken)` returns a
@@ -63,8 +64,8 @@ The initial build's added IDE0005 warning override required unrelated XML-docume
 generation; that override was removed while retaining the scoped style rules.
 
 The historical reader run above did not exercise PostgreSQL or Identity. The account
-foundation checks below are a separate slice; sessions/CSRF, complete domain validation,
-hosted limits, API restart and fresh-browser persistence remain integration work.
+foundation and request-boundary checks below are separate slices. Complete domain
+validation, real account workflows and fresh-browser project persistence remain work.
 
 ## Identity and organization persistence foundation
 
@@ -77,12 +78,13 @@ Administrator, Educator and Creator names/UUIDs, seeded through the migration.
 `Persistence.ApplicationDbContext` uses Npgsql and the default Identity v1 schema.
 `AddSpatiaAccounts(IServiceCollection, string)` registers that context and standard
 Identity user/role stores. It returns `IdentityBuilder` for subsequent configuration;
-this slice keeps the framework's manager/password policies and does not create a
-session, provision an account or grant HTTP access.
+this registration keeps framework manager/password defaults. The request-security
+composition below adds its policies. Account provisioning remains later work.
 
 The database permits at most one global role and at most one organization membership
-per user. Later provisioning and principal-validation slices will enforce required
-roles and non-administrator organization memberships.
+per user. Current-principal validation requires one fixed role and the matching active
+organization membership for non-administrators. Later provisioning will establish
+these records atomically.
 `organization_memberships` requires an existing organization and the same user/role
 pair in Identity's assignments, and permits only Educator or Creator membership.
 Referenced organizations and role assignments cannot be deleted while a membership
@@ -94,14 +96,15 @@ Microsoft EF dependencies resolve to **10.0.12** in the lockfiles. The repositor
 `dotnet-ef` manifest pins **10.0.12**. Restore the tool with `dotnet tool restore`.
 `ApplicationDbContextFactory` requires `ConnectionStrings__Spatia`; it fails when the
 variable is absent. Do not put real connection strings in source or command arguments.
-The TUnit executable supplies the design-time startup runtime, avoiding an extra host.
+The documented EF commands use the TUnit executable as their design-time startup.
+The running API host is `Spatia.Server`.
 
 The canonical check block below restores the tool and builds the startup executable
 before running the three migration-tool checks with private configuration still set.
 
 Review generated migrations and SQL before applying them. There is no startup-time
-migration or public-schema database reset. Application configuration must supply an
-explicit database target when a host is added.
+migration or public-schema database reset. Current startup configuration requires an
+explicit database target.
 
 ## Disposable PostgreSQL checks
 
@@ -159,7 +162,11 @@ It restores packages and tooling, builds, then checks migrations and tests befor
 connection environment variables. Preserve or remove only the recorded owned container
 and its new anonymous volume; never clean containers or volumes globally.
 
-For the existing verified SCRUM-45 setup, use this alternative configuration step:
+For the retained SCRUM-45 container, revalidate its recorded identity, labels and owned
+storage before starting it. Its published loopback port is assigned dynamically: read
+the actual port after every restart and update the private connection file and non-
+secret ownership metadata before loading them. The last observed port was 53050 and
+may change. Then use this alternative configuration step:
 
 ```powershell
 $env:SPATIA_TEST_DATABASE_CONNECTION = [System.IO.File]::ReadAllText((Join-Path (Get-Location) '.artifacts/scrum45-postgres-connection.txt'))
@@ -187,11 +194,11 @@ The added tests cover design/DI model agreement, guarded database targets, migra
 and role seeds, standard store resolution, normalized username races, password hashing,
 account flags/stamps/UTC lockout durability, single-role/organization constraints,
 invalid memberships, restricted deletion and transactional rollback without orphan
-users/assignments. These are schema/manager checks, not HTTP authorization acceptance.
-They do not prove first-password restrictions, cookie/CSRF/logout/lockout behavior,
-administrator-only provisioning, account lifecycle or project access rules.
+users/assignments. These Part 2 schema/manager checks did not establish HTTP authorization behavior.
+Part 3 adds the request-boundary checks below. Real login/password/logout workflows,
+administrator provisioning, account lifecycle and project access remain later work.
 
-Verified on 14 October 2026 against this working tree after migration/SQL review:
+Part 2 was verified on 14 October 2026 before the request-boundary additions:
 locked restore, Release build (zero warnings/errors), both format checks, local tool
 restore, no-connect migration listing, pending-model check and idempotent SQL generation
 passed. **91 tests executed and passed, zero skipped**: 74 unchanged reader cases,
@@ -204,4 +211,117 @@ The first new-source build found nullable assertion-return handling in the tests
 the shared test helper now handles it. The first executed suite passed 90/91 cases;
 the restricted-deletion assertion was corrected to PostgreSQL `restrict_violation`
 (`23001`), then the final suite passed. No production behavior was weakened.
-The disposable container remains available for later authorized verification.
+The owned disposable container and configuration are retained for later verification.
+
+## API request-security foundation
+
+`Hosting.SpatiaApplication.Build(WebApplicationBuilder)` composes the real Kestrel
+host. `Program` builds and runs it; no automatic schema migration or account
+provisioning happens at startup. `GET /api/auth/csrf` returns `{requestToken}` and an
+ASP.NET antiforgery cookie. All browser JSON writes require a single `X-CSRF-TOKEN`
+header; bootstrap again after the authenticated principal changes. No login, logout,
+password, administration or project endpoint is shipped by this part.
+
+Startup requires `ConnectionStrings__Spatia`, `DataProtection__KeyDirectory` (an
+absolute existing directory) and explicit non-wildcard `AllowedHosts`. Operators
+must protect the database configuration and Data Protection directory with appropriate
+filesystem/account permissions. This slice does not encrypt persisted key XML at rest;
+operator account/filesystem protection is required. Keys persist with application isolation
+`Spatia:<environment name>`. Provision an HTTPS certificate through standard Kestrel
+configuration or a verified developer certificate. The host rejects HTTP with 400
+rather than redirecting it. A non-secret development invocation, after privately
+setting the database and key directory and configuring HTTPS, is:
+
+```powershell
+$env:AllowedHosts = 'localhost;127.0.0.1'
+$env:ASPNETCORE_URLS = 'https://127.0.0.1:7443'
+dotnet run --project Spatia.Server -c Release --no-build
+```
+
+`TrustedProxies__0`, `TrustedProxies__1`, and so on may identify explicit trusted
+proxy IPs. With no entries, forwarded headers are ignored. With entries, the host
+accepts one forwarded For/Proto hop from a known proxy and ignores Forwarded-Host.
+Automatic forwarded-header configuration is rejected. Wildcard host values,
+including unspecified-address aliases, are rejected at startup. The current host's
+request-body ceiling is **16 KiB**. Kestrel counts HTTP/1 chunk framing within that
+ceiling. This test writer emits one four-hex-digit chunk with no trailers, adding
+13 framing bytes: its tested decoded boundary is 16,371 bytes, versus 16,384 bytes
+with Content-Length. Chunk framing overhead is not universally 13 bytes. The save reader's 5/6 MiB budgets do not
+establish a hosted project-save limit because no project endpoint exists yet.
+
+The Identity application cookie is Secure, HttpOnly, SameSite=Lax and nonpersistent.
+It has no sliding expiration. Its protected absolute cutoff remains eight hours from
+sign-in across framework security-stamp refreshes, and the exact cutoff is expired.
+Every cookie request rechecks the current database user, security stamp, fixed role
+ID/name, membership and active organization. Cookie role/org claims cannot grant
+permissions. `CurrentAccount` is the scoped HTTP feature containing current non-secret
+account metadata. Invalid account state rejects/clears the cookie; database failure
+returns 503 while preserving it. Forced-password state has no ordinary access, and
+`CurrentAccount` policy permits it only on the intended auth path/verb allowlist.
+
+`SecurityPolicies.FullAccount` is the default/fallback policy; `CurrentAccount` and
+`Administrator` are explicit policies for later handlers. `AuthenticationRateLimit`
+is 60 requests/minute per trusted effective IP; `AccountWriteRateLimit` is 20/minute
+per validated current user, with IP fallback. The endpoint concurrency limit after
+authentication is 64, with no queue. It does not bound the current-principal database
+checks that run before authorization. Rate rejections return 429 plus Retry-After. Protected anonymous and
+forbidden requests return 401/403 problem JSON with no sign-in redirects. API failures
+include a fixed code and trace ID; transport/host-filter failures may be fixed empty
+responses. Response logs contain method, route template, status, duration and trace
+ID, with framework diagnostics suppressed even under conflicting category rules.
+Passwords, cookies, tokens, connection strings, bodies and raw exception text are
+excluded. Identity composition configures 12–128-character passwords and five-failure,
+five-minute lockout options; actual login/lockout handlers are later work.
+
+The new tests use built-in Kestrel, a short-lived synthetic test certificate and a certificate-
+pinned HttpClient, real PostgreSQL owned schemas, a controlled clock and owned temporary
+key directories. All sign-in/probe/write routes are appended solely by the test assembly;
+they do not ship in the API. On Windows, the certificate is exported/reloaded in memory
+with default temporary provider key storage for Schannel and disposed with its fixture;
+no PFX file, certificate-store entry or global trust change is created. Test setup failures and cleanup are scoped to the exact
+created schema and key directory. A browser case uses the existing apps/web Playwright
+**1.63.0** package and Chromium to check real same-origin bootstrap, cookie visibility,
+principal refresh and JSON-write rejection/acceptance. Its isolated browser context
+allows the synthetic certificate only for this loopback test flow and blocks other
+origins; it does not install a certificate or change global browser trust.
+
+Run the canonical checks above from `apps/server/`, with the disposable PostgreSQL
+instance running. The browser case also requires the pinned web dependencies and
+Chromium installed. A fresh checkout uses `apps/web/node_modules/playwright/index.mjs`;
+a managed checkout may set `PLAYWRIGHT_MODULE` to that same existing package in its
+primary checkout. `PLAYWRIGHT_BROWSERS_PATH` can select the existing Chromium cache
+when sandbox AppData differs. No additional server test-host/time-provider/browser
+package is required. Database configuration is removed from the Node child's environment.
+
+Part 3 was verified on 14 October 2026 against the working tree based on `3e63b057`
+after source review. Locked restore, Release build (zero warnings/errors), both format
+checks, pinned EF tool restore, no-connect migration listing, pending-model check
+(no model changes) and idempotent SQL generation passed. **163 tests executed and
+passed, zero skipped**, in **24.149 seconds**: the 91 baseline cases plus 13 current-
+principal, 16 cookie/CSRF/password/browser and 43 host-boundary cases. The final TRX
+and HTML use the `test-results/` paths recorded above. The passed browser flow used
+**Node 24.19.0**, **Playwright 1.63.0** and actual **Chromium 153.0.8010.12**;
+non-secret runtime metadata is in `.artifacts/scrum45-browser-version.txt`.
+
+The first formatting checks found final CRLF markers and initializer whitespace in
+new files; scoped nonsemantic formatting fixed them. The first full run executed
+163 cases with 125 passed and 38 failed: the synthetic creation-time certificate was
+not usable by Windows Schannel, and the browser path assumed the wrong MTP working
+directory. In-memory certificate export/reload and resolving the script from the
+test assembly's known project layout fixed the fixture; one focused HTTPS case passed.
+The second full run passed 162/163 in 25.034 seconds. Its remaining assertion treated
+HTTP/1 chunk framing as free space; the pinned Kestrel budget includes it. The corrected
+four declared/chunked boundary cases passed, then the final 163-case suite passed.
+Production behavior was not weakened to satisfy these fixture corrections.
+
+The tests prove current request boundaries, JSON CSRF and retained-key application-
+instance reconstruction. They do not establish real administrator provisioning,
+password login/logout workflows, project access, full frontend usability or database-
+container restart acceptance. Persisted key XML remains unencrypted at rest and the
+64-request concurrency limit begins after authentication; the operator protection and
+preauthorization database-check limitations above remain.
+Final cleanup verification found zero owned PostgreSQL fixture schemas, zero public
+tables and no remaining fixture key directories. Root revalidated and stopped only
+the recorded disposable container; it is exited, with its volume and protected local
+configuration retained. No further application tests were run for documentation-only
+corrections.
