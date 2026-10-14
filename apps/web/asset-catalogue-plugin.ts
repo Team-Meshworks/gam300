@@ -4,7 +4,7 @@ import { dirname, isAbsolute, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { normalizePath, type Plugin } from "vite";
 
-const assetsRoot = fileURLToPath(new URL("../assets", import.meta.url));
+const assetsRoot = fileURLToPath(new URL("../../assets", import.meta.url));
 const manifestPath = resolve(assetsRoot, "manifest.json");
 // Only these local development samples may enter the browser build
 const allowedIds = new Set(["test-room-v1", "test-crate-v1", "sample-snowglobe-v1"]);

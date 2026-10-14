@@ -7,7 +7,7 @@ import { createRequire } from "node:module";
 const assetsRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 // Resolve the validator from the existing web package
 const requireFromWeb = createRequire(
-  resolve(assetsRoot, "../web/package.json"),
+  resolve(assetsRoot, "../apps/web/package.json"),
 );
 const { validateBytes } = requireFromWeb("gltf-validator");
 const deliveryOnly = process.argv.includes("--delivery-only");

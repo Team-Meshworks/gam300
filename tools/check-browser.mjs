@@ -3,7 +3,7 @@ import { once } from "node:events";
 import { setTimeout } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 
-process.chdir(fileURLToPath(new URL("../web", import.meta.url)));
+process.chdir(fileURLToPath(new URL("../apps/web", import.meta.url)));
 
 for (const [mode, port, checks] of [
   [

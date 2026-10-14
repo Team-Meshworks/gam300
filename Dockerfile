@@ -1,11 +1,11 @@
 FROM node:24.19.0-bookworm-slim@sha256:a9f5f7c91a432850b2a8a7797adf5eadb6c733ceed61167806cee7ea7fbc29df AS build
-WORKDIR /app/web
+WORKDIR /app/apps/web
 ARG BUILD_MODE=production
 RUN case "$BUILD_MODE" in development|production) ;; *) echo >&2 "Invalid BUILD_MODE: use development for M1 or production for release builds"; exit 1 ;; esac
 RUN npm install --global npm@11.17.0
-COPY web/package.json web/package-lock.json ./
+COPY apps/web/package.json apps/web/package-lock.json ./
 RUN npm ci --no-audit --no-fund
-COPY web/ ./
+COPY apps/web/ ./
 COPY assets/manifest.json /app/assets/manifest.json
 COPY assets/delivery/ /app/assets/delivery/
 COPY assets/tools/validate-assets.mjs /app/assets/tools/validate-assets.mjs
@@ -23,7 +23,7 @@ ENV APP_REVISION=$REVISION
 LABEL org.opencontainers.image.source="https://github.com/Team-Meshworks/gam300" \
       org.opencontainers.image.revision=$REVISION
 COPY deploy/app.Caddyfile /etc/caddy/Caddyfile
-COPY --from=build /app/web/dist/editor/ /srv/
+COPY --from=build /app/apps/web/dist/editor/ /srv/
 USER 1000:1000
 EXPOSE 8080
 HEALTHCHECK --interval=15s --timeout=3s --start-period=5s --retries=3 \

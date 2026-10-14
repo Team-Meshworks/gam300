@@ -189,9 +189,9 @@
     ]
   },
   "files": {
-    "architecture.check.mjs": "c055ded36d6f50c920e8e6857ee7b66112f4d015da19836c8bf5b29f46420150",
-    "architecture.mjs": "e665542b737786928faf8b932ada6715201113891a1b5236ef55c6991c156b95",
-    "asset-catalogue-plugin.ts": "22ae7979d73886953ecf9703ac1d6a41ef464b613eccf6b786f12c5ddc4b0522",
+    "architecture.check.mjs": "d7d864b0067391a38e88998b288ae5a64c9a819fd74a4930ad036fd4460d8200",
+    "architecture.mjs": "f251edc3dd86bb606f2774dca7710bfa02582362d40b3bd1dedef60b5ef5c972",
+    "asset-catalogue-plugin.ts": "17bec6aa65dd50167fe6c055fb38af453a647f3648a2bf296f9927ed32f7a158",
     "editor/App.tsx": "c0c0469491a7b704f719a52084fe6d2addcc9d471b9092cd4a83e6b2524db667",
     "editor/ProjectConfirmation.tsx": "07a0fedf8fbf88865b3b8232c8665c139348fc64ebce478ea01e55eb7fd14eff",
     "editor/command-history.test.ts": "783c026523513ea5520cde04e61502aba13ca3a612b509a904c2a50e50be2d1f",
@@ -245,7 +245,7 @@
     "shared/project/spatial-validation.ts": "fc07ebececfd00d3a8fd3da72bdce5aa7c8f78acc96a4be564081e456d7e8c69",
     "shared/project/validation-helpers.ts": "f57061b4e9ecbad5cd3fde0f8ce5270868bf5abf5d4d21d9265445448a9c2e7e",
     "tests/caching.check.mjs": "98c0ef24df281bf361e202633ae12dbefabd1f49df7e8f21bb253ff5848fbf6a",
-    "tests/caching.measure.mjs": "971dc362c9f687560d119832515bb182ba47c13dc1f79fdf2cd7f07b5da3be3e",
+    "tests/caching.measure.mjs": "0181addfc3a470bd5504169e3e0a88d3292ecb3e341beded0ca90766e4d40ea7",
     "tests/deployment.check.mjs": "9b585c0ed3358e30b9d79127a4bd37de2ca0f65c719d509b366498328f001a33",
     "tests/editor-build.check.mjs": "23c235d69590dc1ceb44208060f32ae35d764b6753a3da2b37d581eaea16d2fe",
     "tests/editor-integration.check.mjs": "e17c5ab1c76eb3a34cff5f134c70482f1502d667bb2ffd1db0d011d7d6159041",

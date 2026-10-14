@@ -34,8 +34,8 @@ origin, so development and production drafts are separate.
 
 ## Local development
 
-Install Git LFS and use the Node/npm versions in `web/.nvmrc` and `web/package.json`.
-After cloning, run `git lfs install` and `git lfs pull`, then use `npm ci` from `web/`.
+Install Git LFS and use the Node/npm versions in `apps/web/.nvmrc` and `apps/web/package.json`.
+After cloning, run `git lfs install` and `git lfs pull`, then use `npm ci` from `apps/web/`.
 The normal `npm run dev` workflow remains available.
 
 For the same container used by deployment, install Docker with Linux containers and
@@ -70,15 +70,15 @@ $env:BUILD_MODE = "development"
 ```
 
 Set `BUILD_MODE` to `production` to build the production variant. Without Docker, from
-`web/`, use `$env:NODE_ENV = "development"` followed by
+`apps/web/`, use `$env:NODE_ENV = "development"` followed by
 `npm run build:editor -- --mode development` and `npm run preview`. Set `NODE_ENV`
 and `--mode` to `production` for the production variant; changing only Vite's mode
 does not enable development controls.
 
 To check the built controls locally, set `BUILD_MODE` to the matching mode and run
-`node tests/editor-build.check.mjs http://localhost:4173/` from `web/` while preview is running.
+`node tests/editor-build.check.mjs http://localhost:4173/` from `apps/web/` while preview is running.
 
-Browser checks use the locked Playwright package. From `web/`, run once:
+Browser checks use the locked Playwright package. From `apps/web/`, run once:
 
 ```sh
 npx playwright install chromium
@@ -121,7 +121,7 @@ The Docker build includes TypeScript checking. Both build modes retain the 500 k
 JavaScript chunk-budget check.
 
 The recovery check includes place–move–undo–save–reload and JSON transfer into a fresh
-browser context. Its output and the editor check output are retained under `web/test-results/`.
+browser context. Its output and the editor check output are retained under `apps/web/test-results/`.
 
 The check job has no package-write permission. After a successful push or manual run on
 `dev` or `main`, a separate publishing job pushes the exact tested image to the private GHCR package
@@ -246,6 +246,21 @@ Keep `.env` files, keys and registry credentials out of Git. The repository is p
 GHCR packages and CI artifacts containing development assets must retain appropriate access.
 
 ## Verification evidence
+
+### Application folder move — 3 October 2026
+
+The web package now lives in `apps/web/`. CI, Docker, the root launchers, asset loading,
+architecture tooling and setup instructions use that location. All 79 tracked files
+were preserved; application code, dependency manifests and asset bytes are unchanged.
+
+Local Windows checks passed: lint, formatting, TypeScript, 189 unit tests, asset validation,
+the launcher failure/success checks, architecture enforcement and all ten isolated module
+removals, all four authoring browser suites, and development/production builds with their
+build browser checks. Workflow YAML, referenced CI paths and Docker copy sources were also
+checked. Asset validation retains the three existing distribution-licence warnings.
+
+Docker is not installed on this machine, so the container build and packaged Caddy checks
+remain for CI. No remote CI run or deployment was performed for this move.
 
 ### Visitor shortcut regression — 3 October 2026
 

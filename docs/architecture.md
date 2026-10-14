@@ -47,8 +47,8 @@ visitor navigation cannot invoke authoring controls or file saving.
 The v1 document contains stable project/scene/object IDs, one environment-backed
 scene, ordered asset references, transforms and a starting camera. The initial grid
 has no complete project until a room is chosen or a valid file is opened.
-See [project types](../web/shared/project/project-types.ts) and the
-[representative fixture](../web/shared/project/fixtures/m1-project.json).
+See [project types](../apps/web/shared/project/project-types.ts) and the
+[representative fixture](../apps/web/shared/project/fixtures/m1-project.json).
 
 ## Hosting and planned product boundary
 
@@ -136,7 +136,7 @@ completion status remain outside this technical specification.
    project. An invalid file, failed write or conflict preserves work.
 
 Run `npm run test:recovery`, `npm run test:history` and `npm run test:integration`
-from `web/` against the development server for persistence and viewport integration
+from `apps/web/` against the development server for persistence and viewport integration
 checks. CI runs these alongside the editor shell suite. The
 [setup guide](../README.md#development) provides commands and verification limits. Asset
 rights remain pending in the manifest; the diagram does not imply content approval.
@@ -162,7 +162,7 @@ group existing files by responsibility; they do not introduce packages or empty 
 | checks | All `.test.ts` files, `tests/` browser drivers and `architecture.check.mjs`. These are consumer checks, including tests co-located with production code. | All eight application modules and build |
 
 The exact file definitions, public-file allowlists, package restrictions and permitted
-edges live in [architecture.mjs](../web/architecture.mjs). Same-module imports remain
+edges live in [architecture.mjs](../apps/web/architecture.mjs). Same-module imports remain
 local. Production code cannot import checks, another module's private implementation,
 or an undeclared module. `project`, `catalogue`, `input` and `document` cannot import
 external packages. Three.js belongs to rendering and asset-loading; React belongs
@@ -176,7 +176,7 @@ portable JSON and history behavior are unchanged.
 
 ### Import enforcement and reproducible graph
 
-From `web/`:
+From `apps/web/`:
 
 ```sh
 npm run graph:architecture  # regenerate from actual imports and source hashes
@@ -208,7 +208,7 @@ changes do not themselves prove a remote CI run succeeded.
 
 ### Isolated removal evidence
 
-[architecture.check.mjs](../web/architecture.check.mjs) copies the current web source
+[architecture.check.mjs](../apps/web/architecture.check.mjs) copies the current web source
 into disposable directories and removes each module's assigned source/resources
 there. It uses separate TypeScript programs rooted in each surviving module, reports
 every failure and compares them with the permitted reverse dependency closure.
@@ -218,6 +218,6 @@ their original dependency chains. There are no deletions in the active checkout;
 read-only dependency/asset links are outside the deleted source groups.
 
 The runner writes diagnostics, observed/expected affected modules, unrelated checks
-and source hashes to `web/test-results/architecture-proof.json`, retained with CI test
+and source hashes to `apps/web/test-results/architecture-proof.json`, retained with CI test
 artifacts. Re-run the proof when module contracts
 change; a clean drawing alone does not establish this claim.
