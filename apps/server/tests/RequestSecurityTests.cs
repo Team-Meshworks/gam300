@@ -163,10 +163,10 @@ public sealed class RequestSecurityTests
     }
 
     [Test]
-    public async Task Browser_RealCsrfBootstrapRefreshAndJsonWrite_EnforceCookieBoundary()
+    public async Task Browser_RealCsrfAndAdministration_ResetRevokesTargetSession()
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync();
-        var id = await fixture.CreateAccountAsync();
+        var id = await fixture.CreateAccountAsync(ApplicationRoles.Administrator);
         var start = new ProcessStartInfo("node") { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false, CreateNoWindow = true };
         start.Environment.Remove("SPATIA_TEST_DATABASE_CONNECTION");
         start.Environment.Remove("ConnectionStrings__Spatia");
@@ -185,6 +185,7 @@ public sealed class RequestSecurityTests
         catch
         {
             process.Kill(true);
+            await process.WaitForExitAsync();
             throw;
         }
         if (process.ExitCode != 0)
@@ -196,6 +197,13 @@ public sealed class RequestSecurityTests
         await File.WriteAllTextAsync(Path.Combine(serverDirectory, ".artifacts/scrum45-browser-version.txt"), browserOutput);
         await Assert.That(string.IsNullOrWhiteSpace(await error)).IsTrue();
         await Assert.That(fixture.Writes).IsEqualTo(1);
+        await Assert.That(browserOutput.Contains("browser administration boundary passed", StringComparison.Ordinal)).IsTrue();
+        await using var scope = fixture.App.Services.CreateAsyncScope();
+        var manager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var user = await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().Users
+            .SingleAsync(user => user.UserName!.StartsWith("browser-created-"));
+        await Assert.That(await manager.CheckPasswordAsync(user, "Browser replacement password!")).IsTrue();
+        await Assert.That(user.MustChangePassword).IsTrue();
     }
 
     [Test]

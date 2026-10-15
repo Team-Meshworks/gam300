@@ -50,6 +50,47 @@ try {
     assert.equal(cookie.httpOnly, true);
     assert.equal(cookie.sameSite, "Lax");
   }
+  const administration = await page.evaluate(async () => {
+    const token = (await (await fetch("/api/auth/csrf")).json()).requestToken;
+    const post = async (path, body) => fetch(path, { method: "POST", credentials: "same-origin", headers: {
+      "Content-Type": "application/json", "X-CSRF-TOKEN": token,
+    }, body: JSON.stringify(body) });
+    const org = await post("/api/admin/organizations", { name: "Browser organization" });
+    const organization = await org.json();
+    const account = await post("/api/admin/users", { userName: "browser-created-" + crypto.randomUUID(),
+      initialPassword: "Browser initial password!", role: "Creator", orgId: organization.id });
+    const created = await account.json();
+    return { organizationStatus: org.status, accountStatus: account.status, userId: created.userId,
+      metadataIsSafe: created.role === "Creator" && created.mustChangePassword === true
+        && !Object.hasOwn(created, "initialPassword") && !Object.hasOwn(created, "passwordHash") };
+  });
+  assert.equal(administration.organizationStatus, 201);
+  assert.equal(administration.accountStatus, 201);
+  assert.equal(administration.metadataIsSafe, true);
+  const targetContext = await browser.newContext({ ignoreHTTPSErrors: true });
+  await targetContext.route("**/*", async (route) => {
+    if (new URL(route.request().url()).origin !== origin) { await route.abort(); return; }
+    await route.continue();
+  });
+  const targetPage = await targetContext.newPage();
+  await targetPage.goto(origin + "/_test/browser");
+  const initialTarget = await targetPage.evaluate(async (id) => {
+    const token = (await (await fetch("/api/auth/csrf")).json()).requestToken;
+    const signedIn = await fetch("/_test/signin/" + id, { method: "POST", headers: { "X-CSRF-TOKEN": token } });
+    return { signedIn: signedIn.status, session: (await fetch("/api/auth/session")).status };
+  }, administration.userId);
+  assert.equal(initialTarget.signedIn, 204);
+  assert.equal(initialTarget.session, 200);
+  const resetStatus = await page.evaluate(async (id) => {
+    const token = (await (await fetch("/api/auth/csrf")).json()).requestToken;
+    return (await fetch("/api/admin/users/" + id + "/password", { method: "POST", headers: {
+      "Content-Type": "application/json", "X-CSRF-TOKEN": token,
+    }, body: JSON.stringify({ newTemporaryPassword: "Browser replacement password!" }) })).status;
+  }, administration.userId);
+  assert.equal(resetStatus, 204);
+  assert.equal(await targetPage.evaluate(async () => (await fetch("/api/auth/session")).status), 401);
+  await targetContext.close();
+  process.stdout.write("browser administration boundary passed\n");
   await context.close();
   process.stdout.write("browser csrf boundary passed\n");
 } finally {

@@ -13,7 +13,8 @@ public static class RequestSecurityExtensions
 {
     public static IServiceCollection AddSpatiaRequestSecurity(this IServiceCollection services)
     {
-        services.AddIdentityCore<ApplicationUser>().AddSignInManager();
+        services.AddIdentityCore<ApplicationUser>().AddSignInManager()
+            .AddTokenProvider<DataProtectorTokenProvider<ApplicationUser>>(TokenOptions.DefaultProvider);
         services.AddAuthentication(options =>
         {
             options.DefaultAuthenticateScheme = IdentityConstants.ApplicationScheme;

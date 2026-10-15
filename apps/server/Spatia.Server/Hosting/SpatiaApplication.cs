@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Net;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.HostFiltering;
@@ -8,6 +9,7 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.WebUtilities;
 using Npgsql;
+using Spatia.Server.Accounts;
 using Spatia.Server.Persistence;
 using Spatia.Server.Security;
 
@@ -101,7 +103,13 @@ public static class SpatiaApplication
         });
         builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = MaxRequestBodyBytes);
         builder.Services.ConfigureHttpJsonOptions(options =>
-            options.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase);
+        {
+            options.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+            options.SerializerOptions.PropertyNameCaseInsensitive = false;
+            options.SerializerOptions.AllowDuplicateProperties = false;
+            options.SerializerOptions.UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow;
+        });
+        builder.Services.AddScoped<AccountAdministrationService>();
         builder.Services.AddSpatiaAccounts(connectionString);
         builder.Services.AddSpatiaRequestSecurity();
         builder.Services.AddDataProtection()
@@ -174,6 +182,7 @@ public static class SpatiaApplication
             var tokens = antiforgery.GetAndStoreTokens(context);
             return Results.Ok(new { requestToken = tokens.RequestToken });
         }).AllowAnonymous();
+        app.MapAccountAdministration();
         return app;
     }
 

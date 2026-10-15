@@ -1,9 +1,10 @@
-# Server persistence foundations
+# Server reader, accounts and security
 
 This .NET 10 ASP.NET Core host contains a bounded draft-save reader, the Identity/
-PostgreSQL account persistence foundation and the request-security boundary. Its sole
-production route is `GET /api/auth/csrf`. Login, logout, password, administration and
-project handlers remain later work. A parsed envelope remains
+PostgreSQL account persistence foundation, request-security boundary and private
+administrator provisioning/reset operations. Production routes are the CSRF bootstrap
+and three administrator POSTs described below. Login, logout, first-password completion
+and project handlers remain later work. A parsed envelope remains
 untrusted until the shared project validator and current authorization checks accept it.
 
 `SaveEnvelopeReader.ReadAsync(HttpRequest, Guid, CancellationToken)` returns a
@@ -79,11 +80,11 @@ Administrator, Educator and Creator names/UUIDs, seeded through the migration.
 `AddSpatiaAccounts(IServiceCollection, string)` registers that context and standard
 Identity user/role stores. It returns `IdentityBuilder` for subsequent configuration;
 this registration keeps framework manager/password defaults. The request-security
-composition below adds its policies. Account provisioning remains later work.
+composition below adds its policies. The administration service uses the same context and stores.
 
 The database permits at most one global role and at most one organization membership
 per user. Current-principal validation requires one fixed role and the matching active
-organization membership for non-administrators. Later provisioning will establish
+organization membership for non-administrators. Administrator provisioning establishes
 these records atomically.
 `organization_memberships` requires an existing organization and the same user/role
 pair in Identity's assignments, and permits only Educator or Creator membership.
@@ -165,7 +166,7 @@ and its new anonymous volume; never clean containers or volumes globally.
 For the retained SCRUM-45 container, revalidate its recorded identity, labels and owned
 storage before starting it. Its published loopback port is assigned dynamically: read
 the actual port after every restart and update the private connection file and non-
-secret ownership metadata before loading them. The last observed port was 53050 and
+secret ownership metadata before loading them. The last observed port was 58798 and
 may change. Then use this alternative configuration step:
 
 ```powershell
@@ -195,8 +196,8 @@ and role seeds, standard store resolution, normalized username races, password h
 account flags/stamps/UTC lockout durability, single-role/organization constraints,
 invalid memberships, restricted deletion and transactional rollback without orphan
 users/assignments. These Part 2 schema/manager checks did not establish HTTP authorization behavior.
-Part 3 adds the request-boundary checks below. Real login/password/logout workflows,
-administrator provisioning, account lifecycle and project access remain later work.
+Part 3 adds the request-boundary checks below, and Part 4 adds actual administration.
+Real login/password-change/logout workflows, account lifecycle and project access remain later work.
 
 Part 2 was verified on 14 October 2026 before the request-boundary additions:
 locked restore, Release build (zero warnings/errors), both format checks, local tool
@@ -220,7 +221,8 @@ host. `Program` builds and runs it; no automatic schema migration or account
 provisioning happens at startup. `GET /api/auth/csrf` returns `{requestToken}` and an
 ASP.NET antiforgery cookie. All browser JSON writes require a single `X-CSRF-TOKEN`
 header; bootstrap again after the authenticated principal changes. No login, logout,
-password, administration or project endpoint is shipped by this part.
+first-password completion or project endpoint is shipped yet. The three administration
+routes below extend the original Part 3 boundary.
 
 Startup requires `ConnectionStrings__Spatia`, `DataProtection__KeyDirectory` (an
 absolute existing directory) and explicit non-wildcard `AllowedHosts`. Operators
@@ -260,7 +262,7 @@ returns 503 while preserving it. Forced-password state has no ordinary access, a
 `CurrentAccount` policy permits it only on the intended auth path/verb allowlist.
 
 `SecurityPolicies.FullAccount` is the default/fallback policy; `CurrentAccount` and
-`Administrator` are explicit policies for later handlers. `AuthenticationRateLimit`
+`Administrator` are explicit policies; administration uses `Administrator`. `AuthenticationRateLimit`
 is 60 requests/minute per trusted effective IP; `AccountWriteRateLimit` is 20/minute
 per validated current user, with IP fallback. The endpoint concurrency limit after
 authentication is 64, with no queue. It does not bound the current-principal database
@@ -275,7 +277,7 @@ five-minute lockout options; actual login/lockout handlers are later work.
 
 The new tests use built-in Kestrel, a short-lived synthetic test certificate and a certificate-
 pinned HttpClient, real PostgreSQL owned schemas, a controlled clock and owned temporary
-key directories. All sign-in/probe/write routes are appended solely by the test assembly;
+key directories. Synthetic sign-in/probe/write routes are appended solely by the test assembly;
 they do not ship in the API. On Windows, the certificate is exported/reloaded in memory
 with default temporary provider key storage for Schannel and disposed with its fixture;
 no PFX file, certificate-store entry or global trust change is created. Test setup failures and cleanup are scoped to the exact
@@ -314,8 +316,8 @@ HTTP/1 chunk framing as free space; the pinned Kestrel budget includes it. The c
 four declared/chunked boundary cases passed, then the final 163-case suite passed.
 Production behavior was not weakened to satisfy these fixture corrections.
 
-The tests prove current request boundaries, JSON CSRF and retained-key application-
-instance reconstruction. They do not establish real administrator provisioning,
+The historical Part 3 tests prove current request boundaries, JSON CSRF and retained-key application-
+instance reconstruction. That run did not establish real administrator provisioning,
 password login/logout workflows, project access, full frontend usability or database-
 container restart acceptance. Persisted key XML remains unencrypted at rest and the
 64-request concurrency limit begins after authentication; the operator protection and
@@ -325,3 +327,161 @@ tables and no remaining fixture key directories. Root revalidated and stopped on
 the recorded disposable container; it is exited, with its volume and protected local
 configuration retained. No further application tests were run for documentation-only
 corrections.
+
+## Private bootstrap and administrator operations (Part 4)
+
+`dotnet Spatia.Server/bin/Release/net10.0/Spatia.Server.dll bootstrap-admin` is the
+private operator entry point. It builds the actual application services without
+starting a listener. Supply exactly UTF-8 JSON `{userName,initialPassword}` through
+redirected standard input, at most 16,384 bytes. Interactive input, additional command
+arguments, unknown/duplicate/wrong-case JSON fields and incomplete input are rejected.
+Passwords belong neither in arguments nor environment variables nor JSON files.
+The database connection remains private process configuration.
+
+The command takes a PostgreSQL role-assignment table lock and creates a new global
+Administrator plus its standard role in one transaction. Any existing fixed-ID
+administrator assignment causes refusal, including an inactive or forced-change
+administrator. It never promotes, resets or re-enables an existing account. Exit codes
+are **0 created**, **3 existing administrator**, **2 invalid input/username collision**
+and **1 failure/cancellation or uncertain completion**. Output contains fixed messages.
+There is no automatic administrator creation during ordinary startup.
+
+After the canonical build above, configure the intended, reviewed/migrated application
+database and protected key directory privately. Bootstrap does not apply migrations.
+From `apps/server/` in PowerShell 7.4+, use a password prompt and a redirected child
+stream, without saving the credential payload:
+
+```powershell
+$env:ConnectionStrings__Spatia = Read-Host 'Application connection string' -MaskInput
+$env:DataProtection__KeyDirectory = Read-Host 'Existing protected absolute key directory'
+$env:AllowedHosts = 'localhost'
+$bootstrapUserName = Read-Host 'New administrator username'
+$bootstrapSecurePassword = Read-Host 'Temporary password (12-128 unchanged characters)' -AsSecureString
+$bootstrapProcess = $null
+try {
+  $bootstrapPassword = ConvertFrom-SecureString $bootstrapSecurePassword -AsPlainText
+  $bootstrapJson = @{ userName = $bootstrapUserName; initialPassword = $bootstrapPassword } | ConvertTo-Json -Compress
+  $bootstrapStart = [System.Diagnostics.ProcessStartInfo]::new('dotnet')
+  $bootstrapStart.UseShellExecute = $false
+  $bootstrapStart.CreateNoWindow = $true
+  $bootstrapStart.RedirectStandardInput = $true
+  $bootstrapStart.StandardInputEncoding = [System.Text.UTF8Encoding]::new($false, $true)
+  $bootstrapStart.ArgumentList.Add((Join-Path (Get-Location) 'Spatia.Server/bin/Release/net10.0/Spatia.Server.dll'))
+  $bootstrapStart.ArgumentList.Add('bootstrap-admin')
+  $bootstrapProcess = [System.Diagnostics.Process]::Start($bootstrapStart)
+  $bootstrapProcess.StandardInput.Write($bootstrapJson)
+  $bootstrapProcess.StandardInput.Close()
+  if (-not $bootstrapProcess.WaitForExit(30000)) {
+    $bootstrapProcess.Kill($true)
+    $bootstrapProcess.WaitForExit()
+    throw 'Bootstrap outcome is uncertain; inspect private database state before retrying.'
+  }
+  'Bootstrap exit code: ' + $bootstrapProcess.ExitCode
+} finally {
+  $bootstrapPassword = $null
+  $bootstrapJson = $null
+  $bootstrapSecurePassword.Dispose()
+  if ($null -ne $bootstrapProcess) {
+    if (-not $bootstrapProcess.HasExited) {
+      $bootstrapProcess.Kill($true)
+      $bootstrapProcess.WaitForExit()
+    }
+    $bootstrapProcess.Dispose()
+  }
+  Remove-Item Env:/ConnectionStrings__Spatia -ErrorAction SilentlyContinue
+  Remove-Item Env:/DataProtection__KeyDirectory -ErrorAction SilentlyContinue
+  Remove-Item Env:/AllowedHosts -ErrorAction SilentlyContinue
+}
+```
+
+The administrator initially requires a password change. The real sign-in and
+first-password completion routes are a later slice, so this part's tests mint
+sessions only through routes in the test assembly. A normal operator cannot yet
+complete the full browser account lifecycle. Retained Data Protection XML is not
+encrypted at rest: operator account and filesystem protection remain required.
+
+All three writes require the current, active, unforced Administrator, the existing
+CSRF header and the `AccountWrite` rate policy:
+
+| Route | Required JSON | Result |
+| --- | --- | --- |
+| `POST /api/admin/organizations` | `name` | 201 `{id,name,isActive}` |
+| `POST /api/admin/users` | `userName,initialPassword,role,orgId` | 201 `{userId,userName,role,orgId,isActive,mustChangePassword}` |
+| `POST /api/admin/users/{id}/password` | `newTemporaryPassword` | 204 |
+
+Username and organization name are preserved unchanged, 1-256 characters and not
+whitespace-only; username also follows standard Identity allowed-character rules.
+Organization names containing NUL are rejected. Passwords are preserved unchanged,
+12-128 characters, without composition rules. Only exact fixed role names are
+accepted. `orgId` is a required key even when null: Administrators require null;
+Educators/Creators require an active organization. Unknown, duplicate, wrong-case,
+wrong-type and missing JSON properties are rejected. Fixed problems map invalid input
+to 400, normalized username collision/optimistic concurrency to 409, unavailable
+organization to 422 and an authorized missing reset target to 404. Passwords, reset
+tokens, hashes, stamps and raw Identity descriptions are absent from responses/logs.
+
+Provisioning commits account, role and required membership together. Reset generates
+and consumes a standard Data Protection reset token inside the server, setting the
+forced-change flag before the standard manager update, inside one outer transaction.
+It rotates the security stamp and preserves account activation, memberships, role and
+lockout state. It neither retries stale credentials nor automatically unlocks an
+account. Existing target-account cookies, including the administrator's own cookie after self-reset,
+fail the next current-stamp check with 401. The reset handler does not sign in or
+refresh a session; a normal five-minute framework renewal may still emit an old-stamp
+actor cookie with the original absolute cutoff. On self-reset, that renewed cookie
+has the old stamp and fails next time; an administrator resetting another account
+keeps its own actor session usable.
+A lost response can mean an uncertain committed result; inspect state and use an
+explicit administrator reset rather than blindly replaying credential operations.
+
+Part 4 verification uses the same guarded database and HTTPS
+fixtures, real redirected bootstrap processes, deterministic added/modified-user
+save barriers and a test-only transaction-commit failure/cancellation interceptor.
+The browser check now calls the real organization/account/reset routes and verifies
+revocation of the target's old cookie; its sign-in remains a test-only helper.
+The nonredirected-console refusal branch is source-reviewed only in the headless
+harness. No full login/logout/first-password, product UI, project or database restart
+acceptance is claimed. The actual execution evidence follows.
+The initial locked restore and pinned tool restore passed. The first Release build
+found five test-only compile errors: the captured-log API returns a joined string,
+so assertions were corrected to use string containment. Release build then passed
+with zero warnings/errors. Production formatting passed; test formatting initially
+reported initializer whitespace and final line endings. Scoped nonsemantic formatting
+corrected those differences, and test-format verification plus Release rebuild passed.
+The no-connect migration list, pending-model check (no changes) and idempotent SQL
+generation passed. No new packages, schema migration or production behavior change
+was needed for verification.
+
+The first full run executed **251 cases: 250 passed, one failed, zero skipped**, exit
+2, in **93.214 seconds**. Its sole failure was the bootstrap concurrency observer's
+application-name filter: PostgreSQL truncates its 66-byte tag to 63 bytes. A shorter
+61-byte tag retaining the unique schema fixed the observer. Two malformed CLI fixtures
+also received valid baseline usernames so an independent username failure could not
+mask JSON-shape rejection. The corrected concurrency case passed **1/1 in 6.418 seconds**,
+and the strict-JSON cases passed **10/10 in 8.354 seconds** after format/build checks.
+Initial and focused TRX/HTML reports are retained under `test-results/part4-initial/`,
+`test-results/part4-bootstrap-lock/` and `test-results/part4-bootstrap-json/`.
+The final full run passed **251 executed / 251 passed / zero failed / zero skipped**,
+exit **0**, in **77.283 seconds** (module 76.785 seconds). The final TRX confirms
+74 unchanged reader, 11 persistence, 6 model/guard, 43 host, 13 principal, 16 security,
+68 administration endpoint and 20 bootstrap cases. Reports use the canonical
+`test-results/` TRX/HTML paths above. The actual browser run used **Node 24.19.0**,
+**Playwright 1.63.0** and **Chromium 153.0.8010.12**, recording both administration
+and CSRF pass markers in `.artifacts/scrum45-browser-version.txt`. No production
+behavior changed to resolve the observer or malformed-input fixture corrections.
+
+The retained disposable container was identity/label/volume/binding checked before
+restart, with its dynamic loopback port refreshed privately to **58798** for this run.
+The initial PowerShell connection-update guard failed before any private file write;
+using the actual `DbConnectionStringBuilder` setter corrected the dictionary-adapter
+issue. Credentials were not printed. Child processes were awaited/drained, and the
+final local check found **zero fixture key directories**. `git diff --check` passed.
+Root independently confirmed the final TRX counts/browser markers and queried the
+exact owned database: **zero owned fixture schemas and zero public tables**. After
+revalidating container identity, task labels, volume and loopback binding, root stopped
+only that container with a ten-second timeout and confirmed **exited**. The same
+volume and protected private configuration remain retained. Root also confirmed zero
+fixture key directories, a passing final diff check, and the separate primary
+SCRUM-66 checkout unchanged. Reader, schema and package sources were preserved.
+No further application or database checks were run for final documentation-only
+corrections. Retained setup is not a user-facing database-restart acceptance test.

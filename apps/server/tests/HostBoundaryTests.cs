@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.RateLimiting;
+using Spatia.Server.Security;
 using System.Net;
 using System.Net.Http.Json;
 using System.Net.Sockets;
@@ -83,17 +85,27 @@ public sealed class HostBoundaryTests
     }
 
     [Test]
-    public async Task ProductionRouteInventory_ContainsOnlyAnonymousGetCsrf()
+    public async Task ProductionRouteInventory_ContainsOnlyCsrfAndThreeAdministratorWrites()
     {
         await using var app = SpatiaApplication.Build(CreateConfigurationBuilder());
-        var endpoints = ((IEndpointRouteBuilder)app).DataSources.SelectMany(source => source.Endpoints).ToArray();
-        await Assert.That(endpoints.Length).IsEqualTo(1);
-        var endpoint = endpoints.OfType<RouteEndpoint>().Single();
-        await Assert.That(endpoint.RoutePattern.RawText).IsEqualTo("/api/auth/csrf");
-        await Assert.That(endpoint.Metadata.GetMetadata<HttpMethodMetadata>()?.HttpMethods.SequenceEqual(["GET"]) == true).IsTrue();
-        await Assert.That(endpoint.Metadata.GetMetadata<IAllowAnonymous>() is not null).IsTrue();
+        var endpoints = ((IEndpointRouteBuilder)app).DataSources.SelectMany(source => source.Endpoints).OfType<RouteEndpoint>().ToArray();
+        await Assert.That(endpoints.Length).IsEqualTo(4);
+        var expected = new[] { "/api/auth/csrf", "/api/admin/organizations", "/api/admin/users", "/api/admin/users/{id:guid}/password" };
+        await Assert.That(endpoints.Select(endpoint => endpoint.RoutePattern.RawText).Order().SequenceEqual(expected.Order())).IsTrue();
+        foreach (var endpoint in endpoints)
+        {
+            var csrf = endpoint.RoutePattern.RawText == "/api/auth/csrf";
+            await Assert.That(endpoint.Metadata.GetMetadata<HttpMethodMetadata>()?.HttpMethods.SequenceEqual([csrf ? "GET" : "POST"]) == true).IsTrue();
+            await Assert.That(endpoint.Metadata.GetMetadata<IAllowAnonymous>() is not null).IsEqualTo(csrf);
+            if (!csrf)
+            {
+                await Assert.That(endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>()
+                    .Any(data => data.Policy == SecurityPolicies.Administrator)).IsTrue();
+                await Assert.That(endpoint.Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName)
+                    .IsEqualTo(SecurityPolicies.AccountWriteRateLimit);
+            }
+        }
     }
-
     [Test]
     public async Task PublicRegistrationPaths_DoNotRegisterOrRedirect()
     {
