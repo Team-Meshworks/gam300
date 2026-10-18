@@ -163,10 +163,11 @@ public sealed class RequestSecurityTests
     }
 
     [Test]
-    public async Task Browser_RealCsrfAndAdministration_ResetRevokesTargetSession()
+    public async Task Browser_RealLoginPasswordAdministrationAndLogout_EnforceSessionBoundary()
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync();
-        var id = await fixture.CreateAccountAsync(ApplicationRoles.Administrator);
+        var id = await fixture.CreateAccountAsync(ApplicationRoles.Administrator, forced: true);
+        var userName = await AuthTestRequests.UserNameAsync(fixture, id);
         var start = new ProcessStartInfo("node") { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false, CreateNoWindow = true };
         start.Environment.Remove("SPATIA_TEST_DATABASE_CONNECTION");
         start.Environment.Remove("ConnectionStrings__Spatia");
@@ -174,7 +175,7 @@ public sealed class RequestSecurityTests
         start.WorkingDirectory = serverDirectory;
         start.ArgumentList.Add(Path.Combine(serverDirectory, "tests/csrf-browser.check.mjs"));
         start.ArgumentList.Add(fixture.Address.ToString());
-        start.ArgumentList.Add(id.ToString("D"));
+        start.ArgumentList.Add(userName);
         using var process = Process.Start(start) ?? throw new InvalidOperationException("Could not start the existing browser check.");
         var output = process.StandardOutput.ReadToEndAsync();
         var error = process.StandardError.ReadToEndAsync();
@@ -202,8 +203,9 @@ public sealed class RequestSecurityTests
         var manager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
         var user = await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().Users
             .SingleAsync(user => user.UserName!.StartsWith("browser-created-"));
-        await Assert.That(await manager.CheckPasswordAsync(user, "Browser replacement password!")).IsTrue();
-        await Assert.That(user.MustChangePassword).IsTrue();
+        await Assert.That(await manager.CheckPasswordAsync(user, "Browser permanent password 5!")).IsTrue();
+        await Assert.That(user.MustChangePassword).IsFalse();
+        await Assert.That(browserOutput.Contains("browser session lifecycle passed", StringComparison.Ordinal)).IsTrue();
     }
 
     [Test]

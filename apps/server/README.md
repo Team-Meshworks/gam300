@@ -2,9 +2,10 @@
 
 This .NET 10 ASP.NET Core host contains a bounded draft-save reader, the Identity/
 PostgreSQL account persistence foundation, request-security boundary and private
-administrator provisioning/reset operations. Production routes are the CSRF bootstrap
-and three administrator POSTs described below. Login, logout, first-password completion
-and project handlers remain later work. A parsed envelope remains
+administrator provisioning/reset operations. Part 5 adds explicit login, current-session,
+logout and current-password change to the existing CSRF bootstrap and three administrator
+POSTs. The verification evidence is recorded below; project handlers remain later work.
+A parsed envelope remains
 untrusted until the shared project validator and current authorization checks accept it.
 
 `SaveEnvelopeReader.ReadAsync(HttpRequest, Guid, CancellationToken)` returns a
@@ -166,7 +167,7 @@ and its new anonymous volume; never clean containers or volumes globally.
 For the retained SCRUM-45 container, revalidate its recorded identity, labels and owned
 storage before starting it. Its published loopback port is assigned dynamically: read
 the actual port after every restart and update the private connection file and non-
-secret ownership metadata before loading them. The last observed port was 58798 and
+secret ownership metadata before loading them. The last observed port was 54350 and
 may change. Then use this alternative configuration step:
 
 ```powershell
@@ -186,7 +187,7 @@ New-Item -ItemType Directory -Path .artifacts -Force | Out-Null
 dotnet ef migrations list --no-connect --project Spatia.Server --startup-project tests --configuration Release --no-build
 dotnet ef migrations has-pending-model-changes --project Spatia.Server --startup-project tests --configuration Release --no-build
 dotnet ef migrations script --idempotent --project Spatia.Server --startup-project tests --configuration Release --no-build --output .artifacts/identity-migration.sql
-dotnet test --project tests/Spatia.Server.Tests.csproj -c Release --no-build --results-directory test-results -- --report-trx --minimum-expected-tests 1
+dotnet test --project tests/Spatia.Server.Tests.csproj -c Release --no-build --results-directory test-results/part5 -- --report-trx --minimum-expected-tests 1
 Remove-Item Env:/SPATIA_TEST_DATABASE_CONNECTION
 Remove-Item Env:/ConnectionStrings__Spatia
 ```
@@ -197,7 +198,7 @@ account flags/stamps/UTC lockout durability, single-role/organization constraint
 invalid memberships, restricted deletion and transactional rollback without orphan
 users/assignments. These Part 2 schema/manager checks did not establish HTTP authorization behavior.
 Part 3 adds the request-boundary checks below, and Part 4 adds actual administration.
-Real login/password-change/logout workflows, account lifecycle and project access remain later work.
+Part 5 supplies explicit account-session operations; account lifecycle and project access remain later work.
 
 Part 2 was verified on 14 October 2026 before the request-boundary additions:
 locked restore, Release build (zero warnings/errors), both format checks, local tool
@@ -220,9 +221,9 @@ The owned disposable container and configuration are retained for later verifica
 host. `Program` builds and runs it; no automatic schema migration or account
 provisioning happens at startup. `GET /api/auth/csrf` returns `{requestToken}` and an
 ASP.NET antiforgery cookie. All browser JSON writes require a single `X-CSRF-TOKEN`
-header; bootstrap again after the authenticated principal changes. No login, logout,
-first-password completion or project endpoint is shipped yet. The three administration
-routes below extend the original Part 3 boundary.
+header; bootstrap again after the authenticated principal changes. The administration
+and account-session routes below extend the original Part 3 boundary. No project
+endpoint is shipped yet.
 
 Startup requires `ConnectionStrings__Spatia`, `DataProtection__KeyDirectory` (an
 absolute existing directory) and explicit non-wildcard `AllowedHosts`. Operators
@@ -273,7 +274,8 @@ responses. Response logs contain method, route template, status, duration and tr
 ID, with framework diagnostics suppressed even under conflicting category rules.
 Passwords, cookies, tokens, connection strings, bodies and raw exception text are
 excluded. Identity composition configures 12–128-character passwords and five-failure,
-five-minute lockout options; actual login/lockout handlers are later work.
+five-minute lockout options. Part 3 configured those options; Part 5 below supplies
+the real login handler and verifies actual lockout behavior.
 
 The new tests use built-in Kestrel, a short-lived synthetic test certificate and a certificate-
 pinned HttpClient, real PostgreSQL owned schemas, a controlled clock and owned temporary
@@ -394,10 +396,10 @@ try {
 }
 ```
 
-The administrator initially requires a password change. The real sign-in and
-first-password completion routes are a later slice, so this part's tests mint
-sessions only through routes in the test assembly. A normal operator cannot yet
-complete the full browser account lifecycle. Retained Data Protection XML is not
+The administrator initially requires a password change. At the Part 4 verification
+gate, its tests minted sessions through routes in the test assembly. Part 5 below
+adds real sign-in and first-password completion and replaces that browser shortcut.
+Retained Data Protection XML is not
 encrypted at rest: operator account and filesystem protection remain required.
 
 All three writes require the current, active, unforced Administrator, the existing
@@ -485,3 +487,131 @@ fixture key directories, a passing final diff check, and the separate primary
 SCRUM-66 checkout unchanged. Reader, schema and package sources were preserved.
 No further application or database checks were run for final documentation-only
 corrections. Retained setup is not a user-facing database-restart acceptance test.
+
+## Explicit account sessions and password completion (Part 5)
+
+The account host maps exactly eight production routes. The four account-session
+operations share the existing HTTPS, current-database principal, cookie, CSRF,
+logging and body-limit boundaries:
+
+| Route | Required JSON / authority | Success |
+| --- | --- | --- |
+| `POST /api/auth/login` | `userName,password`; anonymous or current full actor; CSRF; `Authentication` rate | 204 and a nonpersistent session cookie |
+| `GET /api/auth/session` | `CurrentAccount`, including forced sessions | 200 `{userId,displayName,role,orgId,mustChangePassword}` |
+| `POST /api/auth/logout` | `CurrentAccount`; CSRF; `AccountWrite` rate | 204 and application-cookie deletion |
+| `POST /api/auth/password` | `currentPassword,newPassword`; `CurrentAccount`; CSRF; `AccountWrite` rate | 204 and refreshed same-account cookie |
+
+Login username is unchanged, 1-256 characters, not whitespace-only and contains no
+NUL. Password inputs are unchanged 12-128 characters; strict JSON rejects extra,
+duplicate, wrong-case, missing or invalid-null properties. Invalid login bounds are
+400 `invalid_login_input`. Shape-valid unknown/wrong credentials, disabled or locked
+accounts, invalid role/org state and unsupported two-factor-enabled accounts share
+401 `login_failed` and the same fixed message. No timing-equality guarantee is made.
+A forced-session actor cannot escape its allowlist by logging into another account;
+that login returns 403. A full actor can switch with its current CSRF token, and a
+failed switch preserves its existing session.
+
+Login explicitly requests standard Identity lockout on password failure: five failed
+attempts cause five minutes of lockout, persisted in PostgreSQL. This protects new
+sign-ins and does not revoke an existing session. Standard Identity lockout time uses
+system UTC; the test cookie clock is not substituted for it. Tests inspect the actual
+five-minute window and move only the isolated account's lockout end into the past
+for deterministic recovery, without sleeps.
+
+The session response is current nonsecret database metadata with `displayName` equal
+to username and nullable organization only for the global Administrator. It uses
+no-store and requires a valid current cookie. Login issues a new eight-hour absolute
+session. Password completion verifies the current claim stamp against the loaded
+account, requires an ordinally different password, and commits standard hash/stamp
+rotation plus `MustChangePassword=false` in one transaction. Failed results/errors or
+uncommitted cancellation roll back. Wrong/invalid/same password returns fixed 400;
+optimistic concurrency returns 409, while a loaded stamp mismatch returns 401.
+An actor already tracked by routine stamp validation can instead lose a late reset
+race with 409. Neither path retries stale credentials.
+
+Only after commit does the password operation refresh the same verified/changed
+entity's session, retaining the original absolute cutoff. Routine five-minute cookie
+renewal and a password refresh near expiry do not start a new eight-hour lifetime.
+Concurrent reset may leave a late issued cookie with an old stamp; it fails the next
+current-database check. No password verification is followed by an unverified reload
+that could authorize the new stamp. A lost response can still mean a committed
+credential change: try the submitted new password before requesting an explicit
+administrator reset for recovery.
+
+Fetch a new `/api/auth/csrf` token in a separate request after login, account switch,
+password completion and logout. Anonymous/principal-change tokens do not interchange.
+A same-user password change does not inherently invalidate an old CSRF token because
+the standard binding uses identity rather than the security stamp. Logout requires a
+current session and clears that browser's application cookie. It does not revoke a
+separately captured cookie; this model has no individual-session revocation store.
+
+Part 5 verification uses real HTTPS/PostgreSQL and only
+standard test-side Identity/EF extension points to pause verified password snapshots,
+old tracked writes and post-commit cookie creation. They check lockout durability,
+rollback/cancellation, stale-stamp conflicts, forced completion and original expiry.
+The browser now uses actual login/password/session/logout plus real administration;
+only its HTML/protected observation probes remain test-only. It does not implement
+the SCRUM-126 product UI. Part 6 restart/end-to-end acceptance and project integration
+remain separate gates. No new dependency, schema or package change is required.
+The locked restore, pinned tool restore and initial Release build passed with zero
+warnings/errors. Production format verification passed; initial test formatting found
+ten initializer whitespace differences in the new test classes. Scoped nonsemantic
+formatting corrected them, then test verification and Release rebuild passed. EF
+no-connect migration listing, pending-model inspection (no changes) and idempotent
+SQL generation passed. The existing reviewed migration/package graph was preserved.
+
+The first full Part 5 run executed **302 cases: 293 passed, nine failed, zero skipped**,
+exit 2, in **124.725 seconds** (module 123.943 seconds). Eight failures came from the
+test assertion helper disposing a cached response stream before a second JSON read;
+parsing the buffered response string with a scoped `JsonDocument` fixed the helper.
+The ninth was a test pause gate never installed: standard Identity
+[`AddRoles`](https://raw.githubusercontent.com/dotnet/aspnetcore/v10.0.12/src/Identity/Extensions.Core/src/IdentityBuilder.cs)
+replaced the earlier test claims factory. The test now uses the deferred
+[`ConfigureContainer`](https://raw.githubusercontent.com/dotnet/aspnetcore/v10.0.12/src/DefaultBuilder/src/ConfigureHostBuilder.cs)
+callback and asserts the wrapper actually resolves. No production behavior changed.
+The corrected generic-login cases passed **8/8 in 8.431 seconds**, and the
+post-commit/pre-refresh race passed **1/1 in 5.398 seconds**, after build/format checks.
+
+The initial Part 5 TRX/HTML and browser metadata are retained in
+`test-results/part5-initial/` and `.artifacts/scrum45-browser-version-part5-initial.txt`.
+Focused reports are in `test-results/part5-login-focused/` and
+`test-results/part5-refresh-focused/`. Part 4's final evidence remains in
+`test-results/part4-final/` and `.artifacts/scrum45-browser-version-part4.txt`.
+The canonical test command now writes Part 5 reports under `test-results/part5/`.
+The final full suite passed **302 executed / 302 passed / zero failed / zero skipped**,
+exit **0**, in **108.397 seconds** (module 107.892 seconds). The TRX confirms the
+251 prior cases plus **44 account-session** and **7 credential-operation** cases.
+The existing host/principal/browser cases now exercise the real route integration;
+the 74 reader tests remain unchanged. Final reports are
+`test-results/part5/Spatia.Server.Tests_net10.0_x64.trx` and
+`test-results/part5/Spatia.Server.Tests-windows-net10.0-report.html`.
+
+The actual final browser used **Node 24.19.0**, **Playwright 1.63.0** and
+**Chromium 153.0.8010.12**, with administration, CSRF and session-lifecycle pass
+markers in `.artifacts/scrum45-browser-version.txt`. This flow uses real login,
+first-password completion, provisioning/reset, logout and account switching; it
+does not substitute a product UI or establish Part 6 database-restart acceptance.
+Release build and test-format verification passed again after the test-only
+corrections. Production formatting and all EF checks had already passed; no later
+model or schema change required repeating those checks.
+No production/test/browser source changed after the final full run began; only
+README evidence was updated. No unchanged passing suite was repeated for prose.
+
+Before execution, the exact retained container ID/name/task labels/owned volume and
+loopback binding were revalidated; only that container was started. Its dynamic port
+was privately refreshed to **54350**, with no credential output. Successful test
+helpers awaited their owned subprocesses and drained in-flight requests. Local final
+checks found **zero fixture key directories** under both known artifact roots, and
+`git diff --check` passed. Root independently parsed the final **302/302** counters
+and all ten test-group counts, read all three final browser markers/versions and
+confirmed the installed Playwright **1.63.0** package. Root confirmed **zero fixture
+key directories** and no production/test/browser source modification after the final
+run. Its guarded exact-container query returned **spatia_scrum45_test, zero owned
+fixture schemas and zero public tables**. After revalidating ID/name/task labels,
+owned volume and loopback binding **54350**, root stopped only that container with
+a ten-second timeout and confirmed **exited**. The same volume and protected private
+configuration remain retained. Root also verified an empty index, the 22 intended
+changed/new server files and the primary SCRUM-66 checkout clean and unchanged.
+Part 5 passed final review; no extra application/database execution followed these
+documentation-only updates. Part 6 restart/end-to-end and product/project integration
+acceptance remain separate work.

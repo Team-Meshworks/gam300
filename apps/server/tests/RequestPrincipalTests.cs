@@ -155,14 +155,14 @@ public sealed class RequestPrincipalTests
         var sessionJson = await session.Content.ReadFromJsonAsync<JsonElement>();
         await Assert.That(sessionJson.GetProperty("mustChangePassword").GetBoolean()).IsTrue();
         var token = await fixture.GetCsrfAsync();
-        using var allowed = new HttpRequestMessage(HttpMethod.Post, "/api/auth/logout");
-        allowed.Headers.Add("X-CSRF-TOKEN", token);
-        using var allowedResponse = await fixture.Client.SendAsync(allowed);
-        await Assert.That(allowedResponse.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
         using var wrongVerb = new HttpRequestMessage(HttpMethod.Put, "/api/auth/logout");
         wrongVerb.Headers.Add("X-CSRF-TOKEN", token);
         using var rejected = await fixture.Client.SendAsync(wrongVerb);
         await Assert.That(rejected.StatusCode).IsEqualTo(HttpStatusCode.Forbidden);
+        using var allowed = new HttpRequestMessage(HttpMethod.Post, "/api/auth/logout");
+        allowed.Headers.Add("X-CSRF-TOKEN", token);
+        using var allowedResponse = await fixture.Client.SendAsync(allowed);
+        await Assert.That(allowedResponse.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
     }
 
     [Test]

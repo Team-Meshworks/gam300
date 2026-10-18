@@ -328,10 +328,8 @@ internal sealed class HttpsApplicationFixture : IAsyncDisposable
         }).AllowAnonymous();
         app.MapGet("/_test/probe", (HttpContext context) => Results.Json(context.Features.Get<CurrentAccount>()));
         app.MapGet("/_test/admin", () => Results.NoContent()).RequireAuthorization(SecurityPolicies.Administrator);
-        app.MapGet("/api/auth/session", (HttpContext context) => Results.Json(context.Features.Get<CurrentAccount>()))
-            .RequireAuthorization(SecurityPolicies.CurrentAccount);
+
         app.MapGet("/_test/current", () => Results.NoContent()).RequireAuthorization(SecurityPolicies.CurrentAccount);
-        app.MapPost("/api/auth/logout", () => Results.NoContent()).RequireAuthorization(SecurityPolicies.CurrentAccount);
         app.MapPut("/api/auth/logout", () => Results.NoContent()).RequireAuthorization(SecurityPolicies.CurrentAccount);
         app.MapPost("/_test/write", async (HttpContext context) =>
         {

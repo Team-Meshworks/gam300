@@ -85,24 +85,33 @@ public sealed class HostBoundaryTests
     }
 
     [Test]
-    public async Task ProductionRouteInventory_ContainsOnlyCsrfAndThreeAdministratorWrites()
+    public async Task ProductionRouteInventory_ContainsOnlyEightReviewedAccountRoutes()
     {
         await using var app = SpatiaApplication.Build(CreateConfigurationBuilder());
         var endpoints = ((IEndpointRouteBuilder)app).DataSources.SelectMany(source => source.Endpoints).OfType<RouteEndpoint>().ToArray();
-        await Assert.That(endpoints.Length).IsEqualTo(4);
-        var expected = new[] { "/api/auth/csrf", "/api/admin/organizations", "/api/admin/users", "/api/admin/users/{id:guid}/password" };
+        await Assert.That(endpoints.Length).IsEqualTo(8);
+        var expected = new[] { "/api/auth/csrf", "/api/auth/login", "/api/auth/session", "/api/auth/logout", "/api/auth/password",
+            "/api/admin/organizations", "/api/admin/users", "/api/admin/users/{id:guid}/password" };
         await Assert.That(endpoints.Select(endpoint => endpoint.RoutePattern.RawText).Order().SequenceEqual(expected.Order())).IsTrue();
         foreach (var endpoint in endpoints)
         {
-            var csrf = endpoint.RoutePattern.RawText == "/api/auth/csrf";
-            await Assert.That(endpoint.Metadata.GetMetadata<HttpMethodMetadata>()?.HttpMethods.SequenceEqual([csrf ? "GET" : "POST"]) == true).IsTrue();
-            await Assert.That(endpoint.Metadata.GetMetadata<IAllowAnonymous>() is not null).IsEqualTo(csrf);
-            if (!csrf)
+            var path = endpoint.RoutePattern.RawText!;
+            var csrf = path == "/api/auth/csrf";
+            var login = path == "/api/auth/login";
+            var session = path == "/api/auth/session";
+            await Assert.That(endpoint.Metadata.GetMetadata<HttpMethodMetadata>()?.HttpMethods
+                .SequenceEqual([csrf || session ? "GET" : "POST"]) == true).IsTrue();
+            await Assert.That(endpoint.Metadata.GetMetadata<IAllowAnonymous>() is not null).IsEqualTo(csrf || login);
+            if (!csrf && !login)
             {
-                await Assert.That(endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>()
-                    .Any(data => data.Policy == SecurityPolicies.Administrator)).IsTrue();
+                await Assert.That(endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>().Any(data =>
+                    data.Policy == (path.StartsWith("/api/admin/", StringComparison.Ordinal)
+                        ? SecurityPolicies.Administrator : SecurityPolicies.CurrentAccount))).IsTrue();
+            }
+            if (!csrf && !session)
+            {
                 await Assert.That(endpoint.Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName)
-                    .IsEqualTo(SecurityPolicies.AccountWriteRateLimit);
+                    .IsEqualTo(login ? SecurityPolicies.AuthenticationRateLimit : SecurityPolicies.AccountWriteRateLimit);
             }
         }
     }

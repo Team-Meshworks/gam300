@@ -21,6 +21,7 @@ public static class RequestSecurityExtensions
             options.DefaultChallengeScheme = IdentityConstants.ApplicationScheme;
             options.DefaultSignInScheme = IdentityConstants.ExternalScheme;
         }).AddIdentityCookies();
+        services.AddScoped<CurrentAccountResolver>();
         services.AddScoped<CurrentAccountCookieEvents>();
         services.ConfigureApplicationCookie(options =>
         {

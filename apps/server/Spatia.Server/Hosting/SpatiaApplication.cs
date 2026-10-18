@@ -110,6 +110,7 @@ public static class SpatiaApplication
             options.SerializerOptions.UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow;
         });
         builder.Services.AddScoped<AccountAdministrationService>();
+        builder.Services.AddScoped<AccountSessionService>();
         builder.Services.AddSpatiaAccounts(connectionString);
         builder.Services.AddSpatiaRequestSecurity();
         builder.Services.AddDataProtection()
@@ -183,6 +184,7 @@ public static class SpatiaApplication
             return Results.Ok(new { requestToken = tokens.RequestToken });
         }).AllowAnonymous();
         app.MapAccountAdministration();
+        app.MapAccountSessions();
         return app;
     }
 

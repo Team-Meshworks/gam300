@@ -3,15 +3,12 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
-using Spatia.Server.Accounts;
 using Spatia.Server.Hosting;
-using Spatia.Server.Persistence;
 
 namespace Spatia.Server.Security;
 
-public sealed class CurrentAccountCookieEvents(ApplicationDbContext database, IOptions<IdentityOptions> identityOptions)
+public sealed class CurrentAccountCookieEvents(CurrentAccountResolver accounts, IOptions<IdentityOptions> identityOptions)
     : CookieAuthenticationEvents
 {
     private const string AbsoluteExpiryKey = "spatia.absoluteExpiresUtc";
@@ -67,56 +64,8 @@ public sealed class CurrentAccountCookieEvents(ApplicationDbContext database, IO
             return;
         }
 
-        var current = await (
-            from user in database.Users.AsNoTracking()
-            where user.Id == userId
-            join assignment in database.UserRoles on user.Id equals assignment.UserId into assignments
-            from assignment in assignments.DefaultIfEmpty()
-            join assignedRole in database.Roles
-                on (assignment == null ? (Guid?)null : assignment.RoleId) equals (Guid?)assignedRole.Id
-                into assignedRoles
-            from assignedRole in assignedRoles.DefaultIfEmpty()
-            join membership in database.OrganizationMemberships on user.Id equals membership.UserId into memberships
-            from membership in memberships.DefaultIfEmpty()
-            join organization in database.Organizations
-                on (membership == null ? (Guid?)null : membership.OrganizationId) equals (Guid?)organization.Id
-                into organizations
-            from organization in organizations.DefaultIfEmpty()
-            select new
-            {
-                user.UserName,
-                user.IsActive,
-                user.MustChangePassword,
-                user.SecurityStamp,
-                RoleId = assignment == null ? (Guid?)null : assignment.RoleId,
-                RoleName = assignedRole == null ? null : assignedRole.Name,
-                MembershipRoleId = membership == null ? (Guid?)null : membership.RoleId,
-                OrganizationId = membership == null ? (Guid?)null : membership.OrganizationId,
-                OrganizationActive = organization != null && organization.IsActive,
-            }).SingleOrDefaultAsync(context.HttpContext.RequestAborted);
-
-        if (current is null || !current.IsActive || string.IsNullOrEmpty(current.UserName)
-            || current.SecurityStamp != stamps[0].Value)
-        {
-            await RejectAsync(context);
-            return;
-        }
-
-        string role;
-        if (current.RoleId == ApplicationRoles.AdministratorId
-            && current.RoleName == ApplicationRoles.Administrator && current.OrganizationId is null)
-        {
-            role = ApplicationRoles.Administrator;
-        }
-        else if (current.OrganizationId is not null && current.OrganizationActive
-            && current.MembershipRoleId == current.RoleId
-            && (current.RoleId == ApplicationRoles.EducatorId || current.RoleId == ApplicationRoles.CreatorId)
-            && current.RoleName == (current.RoleId == ApplicationRoles.EducatorId
-                ? ApplicationRoles.Educator : ApplicationRoles.Creator))
-        {
-            role = current.RoleId == ApplicationRoles.EducatorId ? ApplicationRoles.Educator : ApplicationRoles.Creator;
-        }
-        else
+        var current = await accounts.ResolveAsync(userId, stamps[0].Value, context.HttpContext.RequestAborted);
+        if (current is null)
         {
             await RejectAsync(context);
             return;
@@ -142,9 +91,8 @@ public sealed class CurrentAccountCookieEvents(ApplicationDbContext database, IO
             return;
         }
 
-        applicationIdentity.AddClaim(new Claim(applicationIdentity.RoleClaimType, role));
-        context.HttpContext.Features.Set(new CurrentAccount(
-            userId, current.UserName, role, current.OrganizationId, current.MustChangePassword));
+        applicationIdentity.AddClaim(new Claim(applicationIdentity.RoleClaimType, current.Role));
+        context.HttpContext.Features.Set(current);
     }
 
     public override Task RedirectToLogin(RedirectContext<CookieAuthenticationOptions> context)
