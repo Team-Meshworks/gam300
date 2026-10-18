@@ -13,6 +13,7 @@ public static class SaveEnvelopeReader
     private static readonly UTF8Encoding StrictUtf8 = new(false, true);
 
     /// <summary>Checks bounded request syntax and route identity, without validating project content</summary>
+    /// <remarks>TODO: Integrate SCRUM-50 validation after this bounded reader before enabling production save handlers</remarks>
     public static async Task<SaveEnvelopeReadResult> ReadAsync(
         HttpRequest request,
         Guid routeProjectId,
@@ -176,6 +177,7 @@ public static class SaveEnvelopeReader
             return Failure(422, "project_id_mismatch", "document.projectId", "Document project ID does not match the route");
         }
 
+        // TODO: Apply SCRUM-50 validation to this original JSON, including duplicate/unknown keys and references, before jsonb storage
         return SaveEnvelopeReadResult.Success(new(expectedRevision, clientMutationId, documentJson));
     }
 

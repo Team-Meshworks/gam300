@@ -1,8 +1,8 @@
 # Server reader, accounts and security
 
 This .NET 10 ASP.NET Core host contains a bounded draft-save reader, the Identity/
-PostgreSQL account persistence foundation, request-security boundary and private
-administrator provisioning/reset operations. Part 5 adds explicit login, current-session,
+PostgreSQL account persistence foundation, project draft schema, request-security boundary and private
+administrator provisioning/reset operations. Accounts Part 5 adds explicit login, current-session,
 logout and current-password change to the existing CSRF bootstrap and three administrator
 POSTs. The verification evidence is recorded below; project handlers remain later work.
 A parsed envelope remains
@@ -91,7 +91,8 @@ these records atomically.
 pair in Identity's assignments, and permits only Educator or Creator membership.
 Referenced organizations and role assignments cannot be deleted while a membership
 uses them. Organization IDs are UUIDs and names are required with a 256-character
-limit. No projects or lifecycle endpoints exist yet.
+limit. The project draft schema is described in the SCRUM-66 section below; project
+and lifecycle endpoints remain unimplemented.
 
 Package pins are Identity EF/EF Core Design **10.0.12** and Npgsql EF **10.0.3**;
 Microsoft EF dependencies resolve to **10.0.12** in the lockfiles. The repository-local
@@ -817,3 +818,94 @@ labels and sole owned anonymous volume, stopped only that container with
 This supersedes the earlier running-container gate. Parts 7–8 remain blocked as
 recorded above. No extra application/database execution followed these final prose
 updates.
+
+## SCRUM-66 Part 3 — project draft schema
+
+`Projects.Project` and `Projects.ProjectAssignment` use the existing
+`ApplicationDbContext`, Identity UUID keys and PostgreSQL database. Migration
+`20261018091152_AddProjectDraftStorage` adds only `projects`, `project_assignments`
+and their constraints/indexes; it does not rewrite the initial Identity migration.
+The project record stores organization/archive metadata, the authored JSON in
+`jsonb`, a separate server revision/schema version, a UTC update instant and nullable
+last-mutation actor/ID/digest. Assignments have one project/user pair with explicit
+edit/manage/publish flags.
+
+Database checks enforce revision `0..9007199254740991`, a positive schema version,
+a JSON object whose root ID and schema version match the relational columns, and a
+finite timestamp. The JSON check uses `IS TRUE` so missing or JSON-null metadata
+cannot pass through SQL's NULL check semantics. Last-mutation metadata is either
+entirely absent or complete with a 32-byte digest. Foreign keys use restricted
+deletion and assignments are unique per project/user. Revision is an EF concurrency
+token; callers must still implement the later atomic save and authorization protocol.
+
+These checks are structural safeguards, not a project validator or access policy.
+The test documents are trusted synthetic database fixtures and need not be complete
+authored projects. `jsonb` cannot preserve duplicate JSON keys for later validation;
+the original bounded request must pass SCRUM-50 validation before production writes.
+There are no project ingestion/save/read endpoints, permission checks, project-row
+locks or mutation-reconciliation service in this slice. A stale EF update check
+does not establish the authorized-save concurrency acceptance criteria.
+
+`ProjectPersistenceTests` reuses `PostgresAccountFixture`. Its optional migration
+target is used only to start the upgrade regression at the actual initial Identity
+migration, seed a real account/role/organization/membership, then apply the project
+migration and verify preservation. Other callers still migrate to latest. Fixtures
+create fresh owned schemas inside the guarded disposable database; they do not
+create a new database or migrate public/shared data.
+
+The focused cases cover round-trip storage, actual migration upgrade, relational
+constraints/deletion, revision/document/timestamp/mutation boundaries, transactional
+rollback and stale EF updates with persisted-state verification. The successful
+roundtrip verifies the exact digest bytes `0..31`, JSON array order/values and
+assignment flags after reopening the connection.
+
+After revalidating the owned disposable target and privately configuring both
+`SPATIA_TEST_DATABASE_CONNECTION` and `ConnectionStrings__Spatia`, these commands
+ran from `apps/server/`:
+
+```powershell
+dotnet test --project tests/Spatia.Server.Tests.csproj -c Release --no-build --results-directory test-results/scrum66-part3-focused -- --report-trx --minimum-expected-tests 1 --treenode-filter '/*/*/*/ProjectDatabase_*'
+dotnet test --project tests/Spatia.Server.Tests.csproj -c Release --no-build --results-directory test-results/scrum66-part3 -- --report-trx --minimum-expected-tests 1
+```
+
+Verified on **18 October 2026**: the focused run passed **37 executed / 37 passed /
+zero failed / zero skipped**, exit **0**, in **9.513 seconds** (module 9.047 seconds).
+One complete full suite then passed **329 executed / 329 passed / zero failed /
+zero skipped**, exit **0**, in **100.103 seconds** (module 99.629 seconds): the
+committed 292-case baseline plus 37 project cases. Both TRX counters were independently
+parsed. Each results directory above contains `Spatia.Server.Tests_net10.0_x64.trx`
+and `Spatia.Server.Tests-windows-net10.0-report.html`. The full suite's existing
+browser case retained its administration, CSRF and session pass markers with
+**Node v24.19.0 / Chromium 153.0.8010.12**; no separate browser/restart acceptance
+was run for this schema slice.
+
+The initial test-source build reported ten nullable diagnostics because the pinned
+TUnit exception assertion returns a nullable exception. Handling that return value
+corrected the test source; the final Release build passed with **zero warnings and
+zero errors**, and both project format checks passed. Production behavior and
+existing account/reader tests were unchanged for these corrections.
+
+The first runtime attempt was interrupted after connection-refused failures against
+the retained configuration's stale port. PowerShell adapted an ordinary
+`DbConnectionStringBuilder.ConnectionString` assignment as a dictionary entry, and
+a nonterminating guard error allowed execution to continue. No complete aggregate
+result was captured for that interrupted attempt. The corrected execution preflight
+uses `$ErrorActionPreference = 'Stop'` and direct .NET `set_ConnectionString`,
+`set_Item` and `get_ConnectionString` methods. Both process-memory environment
+targets and actual `current_database()` were verified before retrying the focused
+run. No application or migration source change was required.
+
+The existing accounts-owned container was revalidated by its exact ID/name, official
+image digest, task/disposable labels, sole owned volume and literal-loopback binding.
+Its run port was **127.0.0.1:53094**; that port is historical and must be inspected
+again after a later start. The private connection was read from the retained accounts
+worktree, and its port changed only in process memory. The original private connection
+and metadata files retained their hashes. No credentials were copied into this checkout.
+
+Final guarded catalog inspection returned **spatia_scrum45_test, zero fixture schemas
+and zero public tables**. Both known artifact roots had zero generated HTTPS/restart
+temporary directories. The exact container was revalidated and stopped with
+`--timeout 10`; its **exited** state and retained volume were confirmed. The fresh-schema
+and actual Identity-upgrade evidence above does not establish current-authorized
+project reads, row-lock save protocols, mutation reconciliation or fresh-browser project
+persistence. Those later SCRUM-66 integration gates and SCRUM-50 validation remain.

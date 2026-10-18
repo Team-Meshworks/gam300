@@ -300,6 +300,100 @@ namespace Spatia.Server.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Spatia.Server.Projects.Project", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("DocumentJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("document");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("boolean")
+                        .HasColumnName("archived");
+
+                    b.Property<Guid?>("LastMutationActorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("last_mutation_actor_id");
+
+                    b.Property<byte[]>("LastMutationDigest")
+                        .HasColumnType("bytea")
+                        .HasColumnName("last_mutation_digest");
+
+                    b.Property<Guid?>("LastMutationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("last_mutation_id");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
+                    b.Property<long>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasColumnName("revision");
+
+                    b.Property<int>("SchemaVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("schema_version");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LastMutationActorId");
+
+                    b.HasIndex("OrganizationId", "IsArchived");
+
+                    b.ToTable("projects", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_projects_document", "(\n    jsonb_typeof(document) = 'object'\n    AND jsonb_typeof(document -> 'projectId') = 'string'\n    AND lower(document ->> 'projectId') = id::text\n    AND jsonb_typeof(document -> 'schemaVersion') = 'number'\n    AND document -> 'schemaVersion' = to_jsonb(schema_version)\n) IS TRUE");
+
+                            t.HasCheckConstraint("CK_projects_last_mutation", "(last_mutation_actor_id IS NULL AND last_mutation_id IS NULL AND last_mutation_digest IS NULL)\nOR (last_mutation_actor_id IS NOT NULL AND last_mutation_id IS NOT NULL\n    AND last_mutation_digest IS NOT NULL AND octet_length(last_mutation_digest) = 32)");
+
+                            t.HasCheckConstraint("CK_projects_revision", "revision BETWEEN 0 AND 9007199254740991");
+
+                            t.HasCheckConstraint("CK_projects_schema_version", "schema_version > 0");
+
+                            t.HasCheckConstraint("CK_projects_updated_at", "isfinite(updated_at)");
+                        });
+                });
+
+            modelBuilder.Entity("Spatia.Server.Projects.ProjectAssignment", b =>
+                {
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<bool>("CanEdit")
+                        .HasColumnType("boolean")
+                        .HasColumnName("can_edit");
+
+                    b.Property<bool>("CanManage")
+                        .HasColumnType("boolean")
+                        .HasColumnName("can_manage");
+
+                    b.Property<bool>("CanPublish")
+                        .HasColumnType("boolean")
+                        .HasColumnName("can_publish");
+
+                    b.HasKey("ProjectId", "UserId");
+
+                    b.HasIndex("UserId", "ProjectId");
+
+                    b.ToTable("project_assignments", (string)null);
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<System.Guid>", b =>
                 {
                     b.HasOne("Microsoft.AspNetCore.Identity.IdentityRole<System.Guid>", null)
@@ -362,6 +456,35 @@ namespace Spatia.Server.Persistence.Migrations
                     b.HasOne("Microsoft.AspNetCore.Identity.IdentityUserRole<System.Guid>", null)
                         .WithMany()
                         .HasForeignKey("UserId", "RoleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Spatia.Server.Projects.Project", b =>
+                {
+                    b.HasOne("Spatia.Server.Accounts.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("LastMutationActorId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Spatia.Server.Accounts.Organization", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Spatia.Server.Projects.ProjectAssignment", b =>
+                {
+                    b.HasOne("Spatia.Server.Projects.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Spatia.Server.Accounts.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

@@ -1,5 +1,7 @@
 using Npgsql;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.DependencyInjection;
 using Spatia.Server.Persistence;
 
@@ -49,7 +51,7 @@ internal sealed class PostgresAccountFixture : IAsyncDisposable
         return builder;
     }
 
-    public static async Task<PostgresAccountFixture> CreateAsync()
+    public static async Task<PostgresAccountFixture> CreateAsync(string? targetMigration = null)
     {
         var connectionString = Environment.GetEnvironmentVariable("SPATIA_TEST_DATABASE_CONNECTION");
         if (string.IsNullOrWhiteSpace(connectionString))
@@ -65,7 +67,8 @@ internal sealed class PostgresAccountFixture : IAsyncDisposable
             await createSchema.ExecuteNonQueryAsync();
             fixture._schemaCreated = true;
             await using var scope = fixture.Services.CreateAsyncScope();
-            await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().Database.MigrateAsync();
+            await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>()
+                .GetService<IMigrator>().MigrateAsync(targetMigration);
             return fixture;
         }
         catch

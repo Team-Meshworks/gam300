@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Spatia.Server.Accounts;
+using Spatia.Server.Projects;
 
 namespace Spatia.Server.Persistence;
 
@@ -11,6 +12,10 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<Organization> Organizations => Set<Organization>();
 
     public DbSet<OrganizationMembership> OrganizationMemberships => Set<OrganizationMembership>();
+
+    public DbSet<Project> Projects => Set<Project>();
+
+    public DbSet<ProjectAssignment> ProjectAssignments => Set<ProjectAssignment>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -71,6 +76,67 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                 .OnDelete(DeleteBehavior.Restrict);
             membership.HasOne<IdentityUserRole<Guid>>().WithMany()
                 .HasForeignKey(record => new { record.UserId, record.RoleId })
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<Project>(project =>
+        {
+            project.ToTable("projects", table =>
+            {
+                table.HasCheckConstraint("CK_projects_revision", "revision BETWEEN 0 AND 9007199254740991");
+                table.HasCheckConstraint("CK_projects_schema_version", "schema_version > 0");
+                // TODO: Apply SCRUM-50 supported-version and field/reference validation before writes; this check only binds metadata
+                table.HasCheckConstraint("CK_projects_document", """
+                    (
+                        jsonb_typeof(document) = 'object'
+                        AND jsonb_typeof(document -> 'projectId') = 'string'
+                        AND lower(document ->> 'projectId') = id::text
+                        AND jsonb_typeof(document -> 'schemaVersion') = 'number'
+                        AND document -> 'schemaVersion' = to_jsonb(schema_version)
+                    ) IS TRUE
+                    """);
+                table.HasCheckConstraint("CK_projects_updated_at", "isfinite(updated_at)");
+                table.HasCheckConstraint("CK_projects_last_mutation", """
+                    (last_mutation_actor_id IS NULL AND last_mutation_id IS NULL AND last_mutation_digest IS NULL)
+                    OR (last_mutation_actor_id IS NOT NULL AND last_mutation_id IS NOT NULL
+                        AND last_mutation_digest IS NOT NULL AND octet_length(last_mutation_digest) = 32)
+                    """);
+            });
+            project.HasKey(record => record.Id);
+            project.Property(record => record.Id).HasColumnName("id");
+            project.Property(record => record.OrganizationId).HasColumnName("organization_id");
+            project.Property(record => record.IsArchived).HasColumnName("archived");
+            project.Property(record => record.Revision).HasColumnName("revision").IsConcurrencyToken();
+            project.Property(record => record.SchemaVersion).HasColumnName("schema_version");
+            project.Property(record => record.DocumentJson).HasColumnName("document").HasColumnType("jsonb").IsRequired();
+            project.Property(record => record.UpdatedAt).HasColumnName("updated_at").HasColumnType("timestamp with time zone");
+            project.Property(record => record.LastMutationActorId).HasColumnName("last_mutation_actor_id");
+            project.Property(record => record.LastMutationId).HasColumnName("last_mutation_id");
+            project.Property(record => record.LastMutationDigest).HasColumnName("last_mutation_digest");
+            project.HasIndex(record => new { record.OrganizationId, record.IsArchived });
+            project.HasOne<Organization>().WithMany()
+                .HasForeignKey(record => record.OrganizationId)
+                .OnDelete(DeleteBehavior.Restrict);
+            project.HasOne<ApplicationUser>().WithMany()
+                .HasForeignKey(record => record.LastMutationActorId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<ProjectAssignment>(assignment =>
+        {
+            assignment.ToTable("project_assignments");
+            assignment.HasKey(record => new { record.ProjectId, record.UserId });
+            assignment.Property(record => record.ProjectId).HasColumnName("project_id");
+            assignment.Property(record => record.UserId).HasColumnName("user_id");
+            assignment.Property(record => record.CanEdit).HasColumnName("can_edit");
+            assignment.Property(record => record.CanManage).HasColumnName("can_manage");
+            assignment.Property(record => record.CanPublish).HasColumnName("can_publish");
+            assignment.HasIndex(record => new { record.UserId, record.ProjectId });
+            assignment.HasOne<Project>().WithMany()
+                .HasForeignKey(record => record.ProjectId)
+                .OnDelete(DeleteBehavior.Restrict);
+            assignment.HasOne<ApplicationUser>().WithMany()
+                .HasForeignKey(record => record.UserId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
     }
