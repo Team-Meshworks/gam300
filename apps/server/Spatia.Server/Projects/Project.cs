@@ -2,6 +2,8 @@ namespace Spatia.Server.Projects;
 
 public sealed class Project
 {
+    public const long MaxRevision = 9_007_199_254_740_991;
+
     public Guid Id { get; set; }
 
     public Guid OrganizationId { get; set; }
@@ -17,6 +19,7 @@ public sealed class Project
 
     public DateTimeOffset UpdatedAt { get; set; }
 
+    // TODO: Have SCRUM-69 clear this slot on metadata revisions so retries cannot acknowledge unrelated edits
     public Guid? LastMutationActorId { get; set; }
 
     public Guid? LastMutationId { get; set; }

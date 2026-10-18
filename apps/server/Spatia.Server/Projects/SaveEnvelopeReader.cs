@@ -9,7 +9,6 @@ public static class SaveEnvelopeReader
 {
     private const int MaxRequestBytes = 6 * 1024 * 1024;
     private const int MaxDocumentBytes = 5 * 1024 * 1024;
-    private const long MaxRevision = 9_007_199_254_740_991;
     private static readonly UTF8Encoding StrictUtf8 = new(false, true);
 
     /// <summary>Checks bounded request syntax and route identity, without validating project content</summary>
@@ -128,7 +127,7 @@ public static class SaveEnvelopeReader
         if (revision.ValueKind != JsonValueKind.Number
             || !revision.TryGetInt64(out var expectedRevision)
             || expectedRevision < 0
-            || expectedRevision > MaxRevision)
+            || expectedRevision > Project.MaxRevision)
         {
             return Failure(400, "invalid_expected_revision", "expectedRevision", "Expected a nonnegative safe integer revision");
         }

@@ -1010,3 +1010,54 @@ cookies and PostgreSQL. SCRUM-50 validation, atomic saves/retry reconciliation,
 SCRUM-69 assignment/archive writer integration, product GET/PUT handlers and project
 browser/restart acceptance remain later work. It does not complete SCRUM-66 or its
 parent acceptance criteria.
+
+## SCRUM-66 Part 5a: revision and retry decisions
+
+`ProjectSavePolicy.Decide` implements the document-independent revision and
+latest-mutation rules. It takes an existing `ProjectAccessSnapshot`, expected
+revision, mutation ID and an opaque 32-byte request digest. It returns
+`WriteRequired`, `Replay`, `Conflict` or `RevisionExhausted` without modifying
+state or returning a save acknowledgement. `Project.MaxRevision` shares the
+existing exact-integer limit with the bounded envelope reader.
+
+A latest retry replays only for the same mutation ID, actor, digest and original
+revision (current revision minus one). Changed reuse conflicts. A different
+mutation requires the current revision, even if its content is identical. New
+writes cannot advance past the revision limit; the latest exact retry can still
+replay at that limit. Invalid ranges, digest lengths, incomplete stored mutation
+metadata and noneditable snapshots are rejected as caller errors.
+
+This policy does not establish authorization or content validity. Its future
+caller must use the actual `EditDraft` lock, retain the transaction, validate
+through SCRUM-50 and compute the digest on the server using the agreed document
+representation plus project/actor/original revision. No client digest is trusted.
+SCRUM-50 TODOs mark those integration points. The policy has no production caller
+yet; it enables no save route, database write, validator or digest generator.
+
+Only the latest mutation is remembered. An older retry after a newer revision
+conflicts; arbitrary reuse of historical IDs with a fresh revision cannot be
+detected by this one-slot model. SCRUM-69 assignment/archive writers must clear
+all three last-mutation fields when advancing the common revision so the old save
+cannot be replayed as a metadata edit. Their integration is still outstanding.
+
+Verification from `apps/server/`:
+
+```powershell
+dotnet build tests/Spatia.Server.Tests.csproj -c Release --no-restore
+dotnet format Spatia.Server/Spatia.Server.csproj --verify-no-changes --no-restore
+dotnet format tests/Spatia.Server.Tests.csproj --verify-no-changes --no-restore
+dotnet test --project tests/Spatia.Server.Tests.csproj -c Release --no-build --results-directory test-results/scrum66-part5a-policy -- --report-trx --minimum-expected-tests 1 --treenode-filter '/*/*/*/SavePolicy_*'
+dotnet test --project tests/Spatia.Server.Tests.csproj -c Release --no-build --results-directory test-results/scrum66-part5a-reader -- --report-trx --minimum-expected-tests 1 --treenode-filter '/*/*/SaveEnvelopeReaderTests/*'
+```
+
+The final Release build passed with zero warnings/errors; both formats passed.
+Policy checks passed **28/28** (2.946 seconds), and affected reader checks passed
+**74/74** (2.715 seconds), both exit 0 with zero failed/skipped. The TRX counters
+and all 102 result entries were inspected. The first build found
+five test-only CS1061 errors from awaiting TUnit's synchronous `Assert.Throws`;
+using synchronous tests corrected them. Production logic needed no correction.
+
+These are pure policy/parser checks. PostgreSQL, browser and the unchanged full
+suite were not rerun; no transaction/commit/concurrency guarantee is claimed by
+this slice. Validated atomic saves, digest generation, safe acknowledgements and
+the remaining Part 5 integration still require SCRUM-50 and further database tests.
