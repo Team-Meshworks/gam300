@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.WebUtilities;
 using Npgsql;
 using Spatia.Server.Accounts;
 using Spatia.Server.Persistence;
+using Spatia.Server.Projects;
 using Spatia.Server.Security;
 
 namespace Spatia.Server.Hosting;
@@ -111,6 +112,7 @@ public static class SpatiaApplication
         });
         builder.Services.AddScoped<AccountAdministrationService>();
         builder.Services.AddScoped<AccountSessionService>();
+        builder.Services.AddScoped<ProjectAccessService>();
         builder.Services.AddSpatiaAccounts(connectionString);
         builder.Services.AddSpatiaRequestSecurity();
         builder.Services.AddDataProtection()

@@ -1,7 +1,7 @@
 # Server reader, accounts and security
 
 This .NET 10 ASP.NET Core host contains a bounded draft-save reader, the Identity/
-PostgreSQL account persistence foundation, project draft schema, request-security boundary and private
+PostgreSQL account persistence foundation, project draft schema/access service, request-security boundary and private
 administrator provisioning/reset operations. Accounts Part 5 adds explicit login, current-session,
 logout and current-password change to the existing CSRF bootstrap and three administrator
 POSTs. The verification evidence is recorded below; project handlers remain later work.
@@ -909,3 +909,104 @@ temporary directories. The exact container was revalidated and stopped with
 and actual Identity-upgrade evidence above does not establish current-authorized
 project reads, row-lock save protocols, mutation reconciliation or fresh-browser project
 persistence. Those later SCRUM-66 integration gates and SCRUM-50 validation remain.
+
+## SCRUM-66 Part 4: current-authorized reads and shared row locks
+
+`ProjectAccessService.ReadAsync(HttpContext, Guid, CancellationToken)` owns a
+repeatable-read transaction. It rechecks current database account authority and
+reads the permitted project/assignment projection in that same snapshot. Existing
+caller transactions are rejected. Results contain either a detached immutable
+`Snapshot` with explicitly unvalidated document JSON, or a `Failure` without any
+document, revision or mutation metadata.
+
+The existing cookie validator installs an internal session feature only after
+successful validation. It retains the original protected eight-hour cutoff and
+clock. Both service operations require that feature, an authenticated principal
+with matching unique ID/stamp claims, and fresh database authority. They reject
+forced-password sessions and recheck the original cutoff after awaited work.
+Role and organization claims, imported JSON and returned UI permissions grant no access.
+
+Creators require a same-organization edit assignment; they cannot manage, and
+publishing additionally requires the publish flag. Educators require a
+same-organization manager assignment and then have edit/manage/publish permission.
+Valid global Administrators have those permissions across organizations, including
+inactive target organizations, without needing an assignment. Archived projects
+remain readable, with edit/publish false and management retained.
+
+`LockAsync(HttpContext, Guid, ProjectLockPurpose, CancellationToken)` requires a
+caller-owned read-committed transaction. It acquires the parameterized project-row
+`FOR UPDATE` lock before rechecking current account, assignment and archive state.
+`EditDraft` and `ManageAssignments` require a nonarchived project;
+`ChangeArchiveState` permits an authorized manager to restore an archived project.
+The caller must commit, roll back or dispose its transaction on every outcome,
+including denial and cancellation. The helper never owns that transaction.
+
+Assignment/archive writers must adopt this same lock protocol. Separate account
+and organization changes receive current checks but have no stronger commit-order
+revocation guarantee. A repeatable-read response can represent the complete earlier
+snapshot when revocation commits afterward; a new operation checks again.
+
+`ProjectAccessTests` uses actual protected cookies, current account resolution and
+PostgreSQL through the existing HTTPS/schema fixtures. Its routes are test-only
+operation probes, not product project endpoints. Synthetic project documents test
+relational access and need not be complete authored projects. Bounded gates and
+observed backend lock waits control races. Source review is complete. On 18 October,
+`dotnet build tests/Spatia.Server.Tests.csproj -c Release --no-restore` passed with
+zero warnings/errors, followed by both production/test
+`dotnet format <project> --verify-no-changes --no-restore` checks. The first test
+build found a raw-string fixture syntax error; increasing its interpolation delimiter
+corrected it. Test format verification found nine initializer whitespace issues,
+which were corrected; the subsequent build and format checks passed. No package
+or dependency changed, so restore was not repeated.
+
+After revalidating the retained disposable PostgreSQL target and setting both
+connection environments privately in process memory, these commands ran from
+`apps/server/`:
+
+```powershell
+dotnet test --project tests/Spatia.Server.Tests.csproj -c Release --no-build --results-directory test-results/scrum66-part4-focused -- --report-trx --minimum-expected-tests 1 --treenode-filter '/*/*/*/ProjectAccess_*'
+dotnet test --project tests/Spatia.Server.Tests.csproj -c Release --no-build --results-directory test-results/scrum66-part4-fixture-corrected -- --report-trx --minimum-expected-tests 1 --treenode-filter '/*/*/*/ProjectAccess_IdsImportedHintsAndInsufficientFlags_DoNotGrantAccess*'
+dotnet test --project tests/Spatia.Server.Tests.csproj -c Release --no-build --results-directory test-results/scrum66-part4 -- --report-trx --minimum-expected-tests 1
+```
+
+On **18 October 2026**, the first focused run executed **50 cases: 49 passed,
+one failed, zero skipped**, exit **2**, in **26.750 seconds** (module 25.970).
+The other-student setup directly inserted a synthetic account without the required
+`NormalizedUserName`, causing PostgreSQL `23502` before the operation ran. Adding
+that required fixture field corrected the setup; no production change was needed.
+The subsequent Release build passed with zero warnings/errors and test formatting
+passed. Initial TRX/HTML reports remain in `scrum66-part4-focused` and are also
+preserved in `scrum66-part4-focused-initial`.
+
+Discovery-only attempts to select one parameter row matched zero cases, including
+exit **8** and **1** attempts; they executed no tests and establish no passing
+evidence. The supported method-prefix filter above then ran the affected seven
+cases: **7 executed / 7 passed / zero failed or skipped**, exit **0**, in
+**8.060 seconds** (module 7.539). The other 43 unchanged focused cases were not
+separately repeated.
+
+One full integrated suite then passed **379 executed / 379 passed / zero failed
+or skipped**, exit **0**, in **128.714 seconds** (module 128.200). Its TRX contains
+379 passing result entries: the existing 329-case baseline and all 50 access cases.
+Each results directory contains `Spatia.Server.Tests_net10.0_x64.trx` and
+`Spatia.Server.Tests-windows-net10.0-report.html`. The shared cookie feature and
+HTTPS-fixture changes justify this full regression run. The suite's existing
+browser case retained administrator, CSRF and session markers with **Node v24.19.0 /
+Chromium 153.0.8010.12**. No separate browser or restart acceptance was run.
+
+The exact retained container was revalidated against its name, official PostgreSQL
+18.6 image digest, SCRUM-45/disposable labels, sole owned volume and literal-loopback
+binding before start and stop. Its historical run address was **127.0.0.1:56641**.
+Fail-fast preflight used direct .NET connection-string accessors, verified both
+process-memory environment targets against that current port and checked the actual
+disposable database before execution. The original private configuration remained
+unchanged. Final catalog checks returned **spatia_scrum45_test, zero fixture schemas,
+zero public tables**; both known primary artifact roots contained zero generated
+HTTPS/restart directories. The exact container was stopped with `--timeout 10` and
+confirmed **exited**, retaining its volume and private configuration.
+
+This evidence establishes the bounded read/lock/session protocol with actual
+cookies and PostgreSQL. SCRUM-50 validation, atomic saves/retry reconciliation,
+SCRUM-69 assignment/archive writer integration, product GET/PUT handlers and project
+browser/restart acceptance remain later work. It does not complete SCRUM-66 or its
+parent acceptance criteria.

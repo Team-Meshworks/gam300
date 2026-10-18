@@ -65,7 +65,8 @@ internal sealed class HttpsApplicationFixture : IAsyncDisposable
     public TaskCompletionSource HoldsEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     public TaskCompletionSource ReleaseHolds { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-    public static async Task<HttpsApplicationFixture> CreateAsync(Action<WebApplicationBuilder>? configure = null)
+    public static async Task<HttpsApplicationFixture> CreateAsync(Action<WebApplicationBuilder>? configure = null,
+        Action<WebApplication>? map = null)
     {
         var database = await PostgresAccountFixture.CreateAsync();
         var artifactsRoot = Path.GetFullPath(".artifacts");
@@ -87,7 +88,7 @@ internal sealed class HttpsApplicationFixture : IAsyncDisposable
             // Schannel needs the temporary PFX-backed key rather than the creation-time key
             certificate = X509CertificateLoader.LoadPkcs12(created.Export(X509ContentType.Pkcs12), password: null);
             fixture = new HttpsApplicationFixture(database, certificate, directory, new TestTimeProvider(), true, configure);
-            await fixture.StartAsync();
+            await fixture.StartAsync(map);
             return fixture;
         }
         catch
@@ -246,7 +247,7 @@ internal sealed class HttpsApplicationFixture : IAsyncDisposable
         }
         Directory.Delete(resolvedDirectory, true);
     }
-    private async Task StartAsync()
+    private async Task StartAsync(Action<WebApplication>? map = null)
     {
         await using var databaseScope = Database.Services.CreateAsyncScope();
         var connectionString = databaseScope.ServiceProvider.GetRequiredService<ApplicationDbContext>()
@@ -277,6 +278,7 @@ internal sealed class HttpsApplicationFixture : IAsyncDisposable
         _configure?.Invoke(builder);
         App = SpatiaApplication.Build(builder);
         MapProbes(App);
+        map?.Invoke(App);
         await App.StartAsync();
         var addresses = App.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses;
         Address = new Uri(addresses.Single(address => address.StartsWith("https://", StringComparison.Ordinal)));

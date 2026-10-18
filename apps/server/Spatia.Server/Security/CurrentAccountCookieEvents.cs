@@ -41,6 +41,7 @@ public sealed class CurrentAccountCookieEvents(CurrentAccountResolver accounts, 
 
     public override async Task ValidatePrincipal(CookieValidatePrincipalContext context)
     {
+        context.HttpContext.Features.Set<ValidatedAccountSession>(null);
         var clock = context.Options.TimeProvider ?? TimeProvider.System;
         if (!TryGetAbsoluteExpiry(context.Properties, out var cutoff) || cutoff <= clock.GetUtcNow())
         {
@@ -93,6 +94,7 @@ public sealed class CurrentAccountCookieEvents(CurrentAccountResolver accounts, 
 
         applicationIdentity.AddClaim(new Claim(applicationIdentity.RoleClaimType, current.Role));
         context.HttpContext.Features.Set(current);
+        context.HttpContext.Features.Set(new ValidatedAccountSession(userId, stamps[0].Value, cutoff, clock));
     }
 
     public override Task RedirectToLogin(RedirectContext<CookieAuthenticationOptions> context)
