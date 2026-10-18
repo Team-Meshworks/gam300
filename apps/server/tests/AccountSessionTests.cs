@@ -29,7 +29,8 @@ public sealed class AccountSessionTests
         var cookieHeaders = response.Headers.GetValues("Set-Cookie").ToArray();
         await Assert.That(cookieHeaders.Any(header => header.StartsWith(HttpsApplicationFixture.CookieName + "=", StringComparison.Ordinal)
             && header.Contains("secure", StringComparison.OrdinalIgnoreCase) && header.Contains("httponly", StringComparison.OrdinalIgnoreCase)
-            && header.Contains("samesite=lax", StringComparison.OrdinalIgnoreCase) && !header.Contains("expires=", StringComparison.OrdinalIgnoreCase))).IsTrue();
+            && header.Contains("samesite=lax", StringComparison.OrdinalIgnoreCase) && !header.Contains("expires=", StringComparison.OrdinalIgnoreCase)
+            && !header.Contains("max-age=", StringComparison.OrdinalIgnoreCase))).IsTrue();
         var ticket = fixture.ReadTicket();
         await Assert.That(ticket.Properties.IsPersistent).IsFalse();
         await Assert.That(ticket.Properties.Items[HttpsApplicationFixture.AbsoluteExpiryKey])

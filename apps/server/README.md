@@ -135,6 +135,13 @@ process privately. These PowerShell commands create a unique container with no b
 mount or reused volume; keep its recorded ID for scoped cleanup:
 
 ```powershell
+$taskArtifacts = Join-Path (Get-Location) '.artifacts'
+$taskConnectionPath = Join-Path $taskArtifacts 'scrum45-postgres-connection.txt'
+$taskMetadataPath = Join-Path $taskArtifacts 'scrum45-postgres-container.json'
+if ((Test-Path -LiteralPath $taskConnectionPath) -or (Test-Path -LiteralPath $taskMetadataPath)) {
+  throw 'A retained setup is already recorded; revalidate and reuse it instead.'
+}
+New-Item -ItemType Directory -Path $taskArtifacts -Force | Out-Null
 $taskContainerName = 'spatia-scrum45-postgres-' + [Guid]::NewGuid().ToString('N').Substring(0, 12)
 $env:POSTGRES_PASSWORD = [Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
 try {
@@ -154,6 +161,26 @@ for ($taskAttempt = 0; $taskAttempt -lt 30; $taskAttempt++) {
 }
 if (-not $taskReady) { throw 'Owned disposable PostgreSQL did not become ready.' }
 $env:ConnectionStrings__Spatia = $env:SPATIA_TEST_DATABASE_CONNECTION
+$taskMounts = docker inspect --format '{{json .Mounts}}' $taskContainerId | ConvertFrom-Json
+if ($LASTEXITCODE -ne 0 -or @($taskMounts).Count -ne 1 -or $taskMounts[0].Type -ne 'volume' -or
+    $taskMounts[0].Destination -ne '/var/lib/postgresql' -or $taskMounts[0].Name -notmatch '^[a-f0-9]{64}$') {
+  throw 'Cannot record exactly one new anonymous image-owned volume.'
+}
+$taskImageDigest = 'postgres@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336'
+$taskDigests = docker image inspect postgres:18.6 --format '{{json .RepoDigests}}' | ConvertFrom-Json
+if ($LASTEXITCODE -ne 0 -or $taskImageDigest -notin @($taskDigests)) { throw 'Official image digest mismatch.' }
+New-Item -ItemType File -Path $taskConnectionPath | Out-Null
+$taskIdentity = [Security.Principal.WindowsIdentity]::GetCurrent().User
+$taskAcl = Get-Acl -LiteralPath $taskConnectionPath
+$taskAcl.SetAccessRuleProtection($true, $false)
+$taskAcl.SetOwner($taskIdentity)
+$taskAcl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new($taskIdentity, 'FullControl', 'Allow'))
+Set-Acl -LiteralPath $taskConnectionPath -AclObject $taskAcl
+[IO.File]::WriteAllText($taskConnectionPath, $env:SPATIA_TEST_DATABASE_CONNECTION)
+[ordered]@{ containerId = $taskContainerId.Trim(); containerName = $taskContainerName; host = '127.0.0.1'
+  port = [int]$taskPort.Trim(); database = 'spatia_scrum45_test'; username = 'spatia_test'
+  imageDigest = $taskImageDigest; expectedVolume = $taskMounts[0].Name; connectionPath = $taskConnectionPath
+} | ConvertTo-Json | Set-Content -LiteralPath $taskMetadataPath
 $taskContainerId
 $taskContainerName
 $taskPort
@@ -187,7 +214,7 @@ New-Item -ItemType Directory -Path .artifacts -Force | Out-Null
 dotnet ef migrations list --no-connect --project Spatia.Server --startup-project tests --configuration Release --no-build
 dotnet ef migrations has-pending-model-changes --project Spatia.Server --startup-project tests --configuration Release --no-build
 dotnet ef migrations script --idempotent --project Spatia.Server --startup-project tests --configuration Release --no-build --output .artifacts/identity-migration.sql
-dotnet test --project tests/Spatia.Server.Tests.csproj -c Release --no-build --results-directory test-results/part5 -- --report-trx --minimum-expected-tests 1
+dotnet test --project tests/Spatia.Server.Tests.csproj -c Release --no-build --results-directory test-results/quality-final -- --report-trx --minimum-expected-tests 1
 Remove-Item Env:/SPATIA_TEST_DATABASE_CONNECTION
 Remove-Item Env:/ConnectionStrings__Spatia
 ```
@@ -577,7 +604,7 @@ The initial Part 5 TRX/HTML and browser metadata are retained in
 Focused reports are in `test-results/part5-login-focused/` and
 `test-results/part5-refresh-focused/`. Part 4's final evidence remains in
 `test-results/part4-final/` and `.artifacts/scrum45-browser-version-part4.txt`.
-The canonical test command now writes Part 5 reports under `test-results/part5/`.
+At the Part 5 gate, its test command wrote reports under `test-results/part5/`.
 The final full suite passed **302 executed / 302 passed / zero failed / zero skipped**,
 exit **0**, in **108.397 seconds** (module 107.892 seconds). The TRX confirms the
 251 prior cases plus **44 account-session** and **7 credential-operation** cases.
@@ -615,3 +642,178 @@ changed/new server files and the primary SCRUM-66 checkout clean and unchanged.
 Part 5 passed final review; no extra application/database execution followed these
 documentation-only updates. Part 6 restart/end-to-end and product/project integration
 acceptance remain separate work.
+
+## Isolated API and database restart acceptance (Part 6)
+
+Part 6 adds a separate, explicit acceptance runner; ordinary `dotnet test` does not
+restart Docker or invoke it. It starts the actual Release `Spatia.Server.dll`, uses
+the existing private bootstrap command and eight production routes, and cold-starts
+a different API process after restarting only the retained disposable PostgreSQL
+container. It preserves the same generated schema, Data Protection key ring and
+`Testing` environment across that restart. No production test route, dependency,
+schema change or product frontend is added. This standalone acceptance replaces the
+old in-process API-rebuild test. Run it after Data Protection/key-storage, account
+persistence or relevant host changes; the ordinary TUnit suite no longer establishes
+cold API/database restart behavior.
+
+Run from `apps/server/` in **PowerShell 7.4+ on Windows**, after the canonical locked
+restore/tool restore/Release build and source review. The runner does not restore or
+build implicitly. Docker Desktop must already be running. The existing private
+connection and nonsecret ownership files must identify the exact recorded SCRUM-45
+container selected by that ownership record; the runner refuses mismatched identity, shared
+storage, image or non-loopback mapping. A new checkout must establish and review
+its own disposable setup and save the ownership/private files using the fresh-setup recipe above; no source identity edit is needed. Do not point it at a
+partner, pilot, Wiki.js or shared database.
+
+Use the installed Playwright **1.63.0** module and its existing Chromium cache; no
+browser/package install is performed by this runner. For the managed checkout,
+point `PLAYWRIGHT_MODULE` to the installed module in the separate primary checkout
+if that is where dependencies are available. These paths contain no credentials:
+
+```powershell
+$env:PLAYWRIGHT_MODULE = 'C:/Users/kille/Documents/GitHub/gam300/apps/web/node_modules/playwright/index.mjs'
+$env:PLAYWRIGHT_BROWSERS_PATH = Join-Path $env:LOCALAPPDATA 'ms-playwright'
+pwsh -NoProfile -File tests/restart-acceptance.ps1 `
+  -ExpectedVolume (Get-Content .artifacts/scrum45-postgres-container.json -Raw | ConvertFrom-Json).expectedVolume
+```
+
+The default Docker/.NET executable paths and ignored ownership/private connection
+paths can be supplied through the corresponding script parameters. The expected
+volume is nonsecret ownership evidence, not a database credential. An older retained
+record without `expectedVolume` requires supplying its independently recorded volume
+explicitly; the runner records that field only after verifying the actual mount. The script
+rechecks the exact container ID/name/task/disposable labels, official image digest,
+sole image-owned volume and loopback binding before mutations. TCP readiness uses
+`pg_isready -h 127.0.0.1 -p 5432`; `current_database()` must match the test database, and actual `version()` must identify PostgreSQL 18.6.
+Every restart rereads the automatically assigned host port and updates only the
+protected private connection and nonsecret metadata. It never dumps container
+configuration or emits a connection string.
+
+Each run creates one `spatia_scrum45_<guid>` schema and one ignored
+`.artifacts/restart-<guid>` directory. The existing EF CLI applies the reviewed
+migration only with that schema's private search path. The directory has an explicit
+current-user Windows ACL and contains a short-lived synthetic PFX plus the retained
+key ring; its random PFX password is passed only in child process environment.
+Bootstrap credentials go through redirected stdin. API/EF output is captured and
+checked privately, and credential sentinels cannot enter the fixed result artifact.
+The Node child receives no database or host-secret configuration. TLS checks are
+relaxed only for these loopback synthetic-certificate readiness/browser requests;
+no machine certificate store or trust configuration is changed.
+
+The browser provisions an organization and forced Creator through a real full
+Administrator session. It records exact account/org metadata, retains the admin
+cookie privately, and signals the restart checkpoint. After the old API PID exits,
+the exact PostgreSQL container stops/starts and a different API PID is ready, the
+retained browser must recover the same admin session with byte-identical protected
+cookie. The flow remains below the routine renewal interval, proving the same
+absolute-cutoff ticket decrypted using persisted keys. A separate fresh browser
+context must initially be anonymous, then sign in to the persisted Creator with
+the same IDs/org/forced state, change its initial password, log out and lose access.
+Another fresh context rejects the temporary password and signs in with the
+replacement password. Cookie attributes and empty browser token storage are checked.
+Existing TUnit tests retain the separate lockout/expiry/stamp/CSRF and race coverage;
+this acceptance does not duplicate those cases or claim a product UI.
+
+The runner bounds and drains its child processes, leaves PostgreSQL running for
+independent catalog inspection, and removes only its exact generated schema and
+validated generated directory. If a child cannot stop or cleanup fails, it preserves
+and records the residue rather than deleting resources still in use. Failure
+recovery can start only the same revalidated owned container. The result is a new
+nonsecret `.artifacts/restart-acceptance-<guid>.json` containing fixed stage/failure
+information, API PIDs, actual PostgreSQL version, current port, cleanup flags and browser versions/pass markers. A child that cannot exit retains its owned PID in that evidence.
+It does not print raw child output, credentials, cookies or tokens.
+
+Part 6 passed on **18 October 2026** after independent source review. PowerShell
+parsing (PowerShell **7.6.5**), Node syntax, locked restore, local tool restore,
+Release build (**zero warnings/errors**) and both format checks passed. Docker's
+engine was initially unavailable; the existing Desktop executable was started
+hidden, and engine **29.8.0** became ready within the bounded check. No application
+behavior or source correction was needed during execution.
+
+The wrong-valid-volume negative check exited **1** before mutation. Independent
+checks found the container still exited with unchanged start timestamp, unchanged
+private configuration/metadata and no created schema/directory. Its fixed outcome
+is retained in `.artifacts/restart-acceptance-e1126275ad044dac9bfbca9426f0fdfe.json`.
+The first positive acceptance passed, exit **0**, in **20.556 seconds**. The actual
+API PIDs changed **23804 → 24324** across the owned database restart. All three
+browser markers passed with **Node 24.19.0**, **Playwright 1.63.0** and
+**Chromium 153.0.8010.12**. The queried server was **PostgreSQL 18.6**, Debian
+`18.6-1.pgdg13+2`. Its dynamically assigned loopback port was refreshed to **50391**.
+Full nonsecret evidence is retained in
+`.artifacts/restart-acceptance-6fd435a956194aca8bef37827a33c9ed.json`.
+
+The runner confirmed its schema and temporary directory removed, no cleanup
+failures and no retained child PIDs. Root independently revalidated the exact owned
+container ID/name/task/disposable labels/anonymous volume/loopback binding, then
+queried **spatia_scrum45_test, zero owned fixture schemas and zero public tables**;
+its independent temporary-directory count was also zero. PostgreSQL remained running
+at this Part 6 gate for the subsequent focused test-quality verification; the final
+stop after that verification is recorded below. The previous **302-case Part 5**
+suite was preserved and not repeated
+for the isolated restart change. A later quality-suite result is not implied by this
+acceptance. Parts 7–8 and product/frontend integration remain incomplete.
+
+Parts 7–8 remain blocked on actual project implementations. The 18 October dependency
+inspection found the primary SCRUM-66 checkout still contains only the bounded save
+reader, and no C# production project store on the freshly fetched origin refs.
+Part 7 needs SCRUM-66 schema/storage/current-authorized list/open; Part 8 additionally
+needs the SCRUM-50 server validator for valid create/duplicate writes. These account
+routes and test fixtures do not substitute either dependency.
+
+## Test-quality review and final verification — 18 October 2026
+
+The review removed **ten redundant executed cases** (seven methods and three
+parameter cases), reducing the normal suite from 302 to **292**. The coverage map is:
+
+- Direct duplicate inserts and a hand-built provisioning transaction are covered by
+  actual provisioning endpoint duplicate races, sequential normalized conflicts and
+  rollback checks that also verify final persisted counts.
+- Synthetic cookie/identity-transition assertions are consolidated into real login,
+  session, account-switch and browser flows; the three login roles still verify the
+  bounded nonpersistent cookie, including absence of `Max-Age`.
+- Repeated password-policy/options boundaries are covered by actual credential
+  operations; one manager-level **129-character rejection with no persisted user**
+  remains to detect loss of the composed maximum-length validator.
+- The old in-process key/rebuild case is replaced by the separately executed Part 6
+  **cold API process + PostgreSQL restart** acceptance above. Run that standalone
+  command after key-storage/Data Protection, auth-persistence or relevant host
+  changes; an ordinary TUnit pass does not establish restart behavior.
+
+The **74 reader cases**, real migration/seed/store behavior, schema constraints,
+current-principal/status/stamp checks, exact expiry, lockout, CSRF, safe errors/logging,
+transaction rollback/cancellation and all **seven credential-operation cases** remain.
+Production code, dependencies and migrations were unchanged by the quality review.
+
+Release build passed with **zero warnings/errors** and both format checks passed.
+The four focused methods executed **six cases, all passed**: duplicate race **1/1 in
+5.413s**, real login **3/3 in 5.401s**, manager maximum **1/1 in 4.002s**, and migration
+**1/1 in 3.634s**. Each has TRX/HTML evidence under
+`test-results/quality-focused/{duplicate,login,password,migration}/`. They used
+`--treenode-filter /*/*/*/<method>` with the actual method names in the source.
+
+One final full suite then passed **292 executed / 292 passed / zero failed / zero
+skipped**, exit **0**, in **93.541s** (module **93.059s**). Its groups are **74 reader,
+8 persistence, 6 model, 44 session, 68 administration, 20 bootstrap, 7 credential,
+43 host, 12 principal and 10 security**. Reports are
+`test-results/quality-final/Spatia.Server.Tests_net10.0_x64.trx` and
+`test-results/quality-final/Spatia.Server.Tests-windows-net10.0-report.html`.
+There were no quality-run failures or test fixes. Restore/model/restart checks were
+not repeated for these test-only edits; the accepted isolated Part 6 result remains
+separate. No production/test/browser source changed after the final run started.
+
+The final normal browser passed all three administration/CSRF/session markers with
+**Node 24.19.0** and **Chromium 153.0.8010.12**, using the same installed **Playwright
+1.63.0** module. Its metadata is `.artifacts/scrum45-browser-version.txt`; the accepted
+Part 5 metadata was copied to `.artifacts/scrum45-browser-version-part5-final.txt`
+before the wrapper ran. All prior TRX/HTML and restart outcomes were preserved.
+
+Root independently confirmed the **292/292** counters and all ten group counts,
+read the browser markers/versions, and found **zero `https-<32hex>` or
+`restart-<32hex>` directories** under both server and test-output artifact roots.
+Its guarded final query returned **spatia_scrum45_test, zero owned fixture schemas,
+zero public tables**. Root revalidated the exact container ID/name/task/disposable
+labels and sole owned anonymous volume, stopped only that container with
+`--timeout 10`, and confirmed **exited** with its volume/private configuration retained.
+This supersedes the earlier running-container gate. Parts 7–8 remain blocked as
+recorded above. No extra application/database execution followed these final prose
+updates.

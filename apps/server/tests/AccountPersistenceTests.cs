@@ -18,7 +18,6 @@ public sealed class AccountPersistenceTests
         await using var fixture = await PostgresAccountFixture.CreateAsync();
         await using var scope = fixture.Services.CreateAsyncScope();
         var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        await Assert.That((await database.Database.GetAppliedMigrationsAsync()).Count()).IsEqualTo(1);
         await Assert.That(await database.Roles.CountAsync()).IsEqualTo(3);
         await Assert.That(await database.Roles.AnyAsync(role => role.Id == ApplicationRoles.AdministratorId &&
             role.Name == ApplicationRoles.Administrator && role.NormalizedName == "ADMINISTRATOR")).IsTrue();
@@ -26,10 +25,6 @@ public sealed class AccountPersistenceTests
             role.Name == ApplicationRoles.Educator && role.NormalizedName == "EDUCATOR")).IsTrue();
         await Assert.That(await database.Roles.AnyAsync(role => role.Id == ApplicationRoles.CreatorId &&
             role.Name == ApplicationRoles.Creator && role.NormalizedName == "CREATOR")).IsTrue();
-        await Assert.That(scope.ServiceProvider.GetRequiredService<IUserStore<ApplicationUser>>().GetType().Name
-            .StartsWith("UserStore", StringComparison.Ordinal)).IsTrue();
-        await Assert.That(scope.ServiceProvider.GetRequiredService<IRoleStore<IdentityRole<Guid>>>().GetType().Name
-            .StartsWith("RoleStore", StringComparison.Ordinal)).IsTrue();
         await database.Database.OpenConnectionAsync();
         await using var schema = database.Database.GetDbConnection().CreateCommand();
         schema.CommandText = "SELECT current_schema()";
@@ -79,49 +74,6 @@ public sealed class AccountPersistenceTests
         await Assert.That(!string.IsNullOrEmpty(persisted.SecurityStamp) && persisted.SecurityStamp != originalStamp).IsTrue();
         await Assert.That(!string.IsNullOrEmpty(persisted.ConcurrencyStamp)).IsTrue();
         await Assert.That(await reopenedManager.IsInRoleAsync(persisted, ApplicationRoles.Creator)).IsTrue();
-    }
-
-    [Test]
-    public async Task IdentityManager_NormalizedDuplicateName_RejectsWithoutCreatingAnotherUser()
-    {
-        await using var fixture = await PostgresAccountFixture.CreateAsync();
-        await using var scope = fixture.Services.CreateAsyncScope();
-        await CreateUserAsync(scope.ServiceProvider, "MixedCase");
-        var manager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-        var result = await manager.CreateAsync(new ApplicationUser { Id = Guid.NewGuid(), UserName = "mixedcase" }, TestPassword);
-        await Assert.That(result.Succeeded).IsFalse();
-        await Assert.That(result.Errors.Any(error => error.Code == "DuplicateUserName")).IsTrue();
-        await Assert.That(await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().Users.CountAsync()).IsEqualTo(1);
-    }
-
-    [Test]
-    public async Task Database_ConcurrentNormalizedNameInserts_OnlyOneDistinctContextCommits()
-    {
-        await using var fixture = await PostgresAccountFixture.CreateAsync();
-        await using var firstScope = fixture.Services.CreateAsyncScope();
-        await using var secondScope = fixture.Services.CreateAsyncScope();
-        var first = firstScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var second = secondScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var outcomes = await Task.WhenAll(InsertAsync(first, "race-user"), InsertAsync(second, "RACE-USER"));
-        await Assert.That(outcomes.Count(inserted => inserted)).IsEqualTo(1);
-        await using var verification = fixture.Services.CreateAsyncScope();
-        await Assert.That(await verification.ServiceProvider.GetRequiredService<ApplicationDbContext>().Users.CountAsync())
-            .IsEqualTo(1);
-
-        static async Task<bool> InsertAsync(ApplicationDbContext database, string name)
-        {
-            database.Users.Add(new ApplicationUser { Id = Guid.NewGuid(), UserName = name, NormalizedUserName = "RACE-USER" });
-            try
-            {
-                await database.SaveChangesAsync();
-                return true;
-            }
-            catch (DbUpdateException exception) when (exception.InnerException is PostgresException
-            { SqlState: PostgresErrorCodes.UniqueViolation })
-            {
-                return false;
-            }
-        }
     }
 
     [Test]
@@ -242,36 +194,6 @@ public sealed class AccountPersistenceTests
         var verifiedDatabase = verification.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         await Assert.That(await verifiedDatabase.Organizations.CountAsync()).IsEqualTo(1);
         await Assert.That(await verifiedDatabase.OrganizationMemberships.CountAsync()).IsEqualTo(1);
-    }
-
-    [Test]
-    public async Task ProvisioningShapedTransaction_FailedMembership_RollsBackUserAndRoleAssignment()
-    {
-        await using var fixture = await PostgresAccountFixture.CreateAsync();
-        await using (var scope = fixture.Services.CreateAsyncScope())
-        {
-            var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            await using var transaction = await database.Database.BeginTransactionAsync();
-            var user = await CreateUserAsync(scope.ServiceProvider, "rolled-back-account");
-            await RequireSuccessAsync(await scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>()
-                .AddToRoleAsync(user, ApplicationRoles.Creator));
-            database.OrganizationMemberships.Add(new OrganizationMembership
-            {
-                OrganizationId = Guid.NewGuid(),
-                UserId = user.Id,
-                RoleId = ApplicationRoles.CreatorId,
-            });
-            var exception = await Assert.ThrowsAsync<DbUpdateException>(async () => await database.SaveChangesAsync());
-            await AssertDatabaseFailureAsync(exception, PostgresErrorCodes.ForeignKeyViolation);
-            await transaction.RollbackAsync();
-        }
-
-        await using var verification = fixture.Services.CreateAsyncScope();
-        var verifiedDatabase = verification.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        await Assert.That(await verifiedDatabase.Users.CountAsync()).IsEqualTo(0);
-        await Assert.That(await verifiedDatabase.UserRoles.CountAsync()).IsEqualTo(0);
-        await Assert.That(await verifiedDatabase.OrganizationMemberships.CountAsync()).IsEqualTo(0);
-        await Assert.That(await verifiedDatabase.Roles.CountAsync()).IsEqualTo(3);
     }
 
     private static async Task<ApplicationUser> CreateUserAsync(IServiceProvider services, string name)

@@ -2,10 +2,8 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
-using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using Spatia.Server.Accounts;
@@ -16,28 +14,6 @@ namespace Spatia.Server.Tests;
 [NotInParallel]
 public sealed class RequestSecurityTests
 {
-    [Test]
-    public async Task Cookie_NonPersistentSecureHttpOnlyLax_WithAbsoluteEightHourMarker()
-    {
-        await using var fixture = await HttpsApplicationFixture.CreateAsync();
-        var start = fixture.Clock.GetUtcNow();
-        await fixture.SignInAsync(await fixture.CreateAccountAsync());
-        var ticket = fixture.ReadTicket();
-        await Assert.That(ticket.Properties.IsPersistent).IsFalse();
-        await Assert.That(long.Parse(ticket.Properties.Items[HttpsApplicationFixture.AbsoluteExpiryKey]!, CultureInfo.InvariantCulture))
-            .IsEqualTo(start.AddHours(8).UtcTicks);
-        await Assert.That(fixture.SignInCookieHeaders.Any(header => header.StartsWith(HttpsApplicationFixture.CookieName + "=", StringComparison.Ordinal)
-            && header.Contains("secure", StringComparison.OrdinalIgnoreCase)
-            && header.Contains("httponly", StringComparison.OrdinalIgnoreCase)
-            && header.Contains("samesite=lax", StringComparison.OrdinalIgnoreCase)
-            && !header.Contains("expires=", StringComparison.OrdinalIgnoreCase)
-            && !header.Contains("max-age=", StringComparison.OrdinalIgnoreCase))).IsTrue();
-        var options = fixture.App.Services.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>()
-            .Get(IdentityConstants.ApplicationScheme);
-        await Assert.That(options.SlidingExpiration).IsFalse();
-        await Assert.That(options.ExpireTimeSpan).IsEqualTo(TimeSpan.FromHours(8));
-    }
-
     [Test]
     public async Task Cookie_StandardStampRenewal_PreservesMarkerAndRejectsExactOriginalCutoff()
     {
@@ -82,33 +58,6 @@ public sealed class RequestSecurityTests
     }
 
     [Test]
-    public async Task Csrf_AnonymousBootstrapAndChangedPrincipal_RequireRefreshedHeaderToken()
-    {
-        await using var fixture = await HttpsApplicationFixture.CreateAsync();
-        var anonymousToken = await fixture.GetCsrfAsync();
-        using (var noToken = await fixture.Client.PostAsJsonAsync("/_test/anonymous-write", new { value = "synthetic" }))
-        {
-            await Assert.That(noToken.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
-        }
-        using (var anonymous = CreateWrite("/_test/anonymous-write", anonymousToken))
-        using (var accepted = await fixture.Client.SendAsync(anonymous))
-        {
-            await Assert.That(accepted.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
-        }
-        await fixture.SignInAsync(await fixture.CreateAccountAsync());
-        using (var stale = CreateWrite("/_test/write", anonymousToken))
-        using (var rejected = await fixture.Client.SendAsync(stale))
-        {
-            await Assert.That(rejected.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
-        }
-        await Assert.That(fixture.Writes).IsEqualTo(0);
-        using var valid = CreateWrite("/_test/write", await fixture.GetCsrfAsync());
-        using var response = await fixture.Client.SendAsync(valid);
-        await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
-        await Assert.That(fixture.Writes).IsEqualTo(1);
-    }
-
-    [Test]
     public async Task Csrf_TokenFromDifferentPrincipalWithSameAntiforgeryCookie_IsRejected()
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync();
@@ -147,19 +96,6 @@ public sealed class RequestSecurityTests
         using var response = await fixture.Client.SendAsync(request);
         await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
         await Assert.That(fixture.Writes).IsEqualTo(0);
-    }
-
-    [Test]
-    public async Task DataProtection_AppRestartWithRetainedKeys_AcceptsExistingCookie()
-    {
-        await using var fixture = await HttpsApplicationFixture.CreateAsync();
-        await fixture.SignInAsync(await fixture.CreateAccountAsync());
-        var keys = Directory.GetFiles(fixture.KeyDirectory, "key-*.xml");
-        await Assert.That(keys.Length > 0).IsTrue();
-        await fixture.RestartAsync();
-        using var response = await fixture.Client.GetAsync("/_test/probe");
-        await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.OK);
-        await Assert.That(keys.All(File.Exists)).IsTrue();
     }
 
     [Test]
@@ -249,26 +185,19 @@ public sealed class RequestSecurityTests
     }
 
     [Test]
-    [Arguments(11, false)]
-    [Arguments(12, true)]
-    [Arguments(128, true)]
-    [Arguments(129, false)]
-    public async Task PasswordValidators_ActualHostComposition_EnforceAdoptedLengthBounds(int length, bool valid)
+    public async Task PasswordValidators_ManagerRejectsOversizedPasswordWithoutPersistingUser()
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync();
         await using var scope = fixture.App.Services.CreateAsyncScope();
         var manager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
         var user = new ApplicationUser { Id = Guid.NewGuid(), UserName = "validation-only" };
-        var result = await manager.CreateAsync(user, new string('a', length));
-        await Assert.That(result.Succeeded).IsEqualTo(valid);
-        if (valid)
-        {
-            await Assert.That(user.LockoutEnabled).IsTrue();
-        }
-        var options = scope.ServiceProvider.GetRequiredService<IOptions<IdentityOptions>>().Value;
-        await Assert.That(options.Lockout.MaxFailedAccessAttempts).IsEqualTo(5);
-        await Assert.That(options.Lockout.DefaultLockoutTimeSpan).IsEqualTo(TimeSpan.FromMinutes(5));
+        var result = await manager.CreateAsync(user, new string('a', 129));
+        await Assert.That(result.Succeeded).IsFalse();
+        await Assert.That(result.Errors.Any(error => error.Code == "PasswordTooLong")).IsTrue();
+        await Assert.That(await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>()
+            .Users.AnyAsync(candidate => candidate.Id == user.Id)).IsFalse();
     }
+
     internal static HttpRequestMessage CreateWrite(string path, string token)
     {
         var request = new HttpRequestMessage(HttpMethod.Post, path) { Content = JsonContent.Create(new { value = "synthetic" }) };

@@ -62,7 +62,6 @@ internal sealed class HttpsApplicationFixture : IAsyncDisposable
     public Uri Address { get; private set; } = null!;
     public Uri HttpAddress { get; private set; } = null!;
     public int Writes => Volatile.Read(ref _writes);
-    public IReadOnlyList<string> SignInCookieHeaders { get; private set; } = [];
     public TaskCompletionSource HoldsEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     public TaskCompletionSource ReleaseHolds { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -179,7 +178,6 @@ internal sealed class HttpsApplicationFixture : IAsyncDisposable
             + (forgedRole is null ? "" : "?role=" + Uri.EscapeDataString(forgedRole)));
         request.Headers.Add("X-CSRF-TOKEN", token);
         using var response = await client.SendAsync(request);
-        SignInCookieHeaders = response.Headers.TryGetValues("Set-Cookie", out var headers) ? headers.ToArray() : [];
         if (response.StatusCode != HttpStatusCode.NoContent)
         {
             throw new InvalidOperationException("Test-only cookie minting failed.");
@@ -210,12 +208,6 @@ internal sealed class HttpsApplicationFixture : IAsyncDisposable
         var options = App.Services.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>()
             .Get(IdentityConstants.ApplicationScheme);
         Cookies.Add(Address, new Cookie(CookieName, options.TicketDataFormat.Protect(ticket), "/") { Secure = true });
-    }
-
-    public async Task RestartAsync()
-    {
-        await StopAsync();
-        await StartAsync();
     }
 
     public async ValueTask DisposeAsync()
@@ -337,7 +329,6 @@ internal sealed class HttpsApplicationFixture : IAsyncDisposable
             Interlocked.Increment(ref _writes);
             return Results.NoContent();
         });
-        app.MapPost("/_test/anonymous-write", () => Results.NoContent()).AllowAnonymous();
         app.MapPost("/_test/rate-write", () => Results.NoContent()).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
         app.MapGet("/_test/rate-auth", () => Results.NoContent()).AllowAnonymous()
             .RequireRateLimiting(SecurityPolicies.AuthenticationRateLimit);

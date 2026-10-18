@@ -333,6 +333,15 @@ public sealed class AdministrationEndpointTests
         {
             await Assert.That(responses.Count(response => response.StatusCode == HttpStatusCode.Created)).IsEqualTo(1);
             await Assert.That(responses.Count(response => response.StatusCode == HttpStatusCode.Conflict)).IsEqualTo(1);
+            using var sequential = await SendAsync(fixture, "/api/admin/users", new
+            {
+                userName = "CONCURRENTACCOUNT",
+                initialPassword = InitialPassword,
+                orgId,
+                role = ApplicationRoles.Creator,
+            }, token);
+            await AuthTestRequests.AssertProblemAsync(sequential, HttpStatusCode.Conflict, "username_taken");
+            await AssertSafeAsync(fixture, sequential, InitialPassword);
             await using var scope = fixture.Database.Services.CreateAsyncScope();
             var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             await Assert.That(await database.Users.CountAsync()).IsEqualTo(2);

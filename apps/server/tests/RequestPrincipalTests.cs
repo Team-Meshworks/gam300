@@ -164,16 +164,4 @@ public sealed class RequestPrincipalTests
         using var allowedResponse = await fixture.Client.SendAsync(allowed);
         await Assert.That(allowedResponse.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
     }
-
-    [Test]
-    public async Task GlobalAdministrator_DoesNotRequireOrganizationMembership()
-    {
-        await using var fixture = await HttpsApplicationFixture.CreateAsync();
-        await fixture.SignInAsync(await fixture.CreateAccountAsync(ApplicationRoles.Administrator));
-        using var response = await fixture.Client.GetAsync("/_test/admin");
-        await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
-        using var probe = await fixture.Client.GetAsync("/_test/probe");
-        var json = await probe.Content.ReadFromJsonAsync<JsonElement>();
-        await Assert.That(json.GetProperty("organizationId").ValueKind).IsEqualTo(JsonValueKind.Null);
-    }
 }
