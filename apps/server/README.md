@@ -1031,8 +1031,9 @@ This policy does not establish authorization or content validity. Its future
 caller must use the actual `EditDraft` lock, retain the transaction, validate
 through SCRUM-50 and compute the digest on the server using the agreed document
 representation plus project/actor/original revision. No client digest is trusted.
-SCRUM-50 TODOs mark those integration points. The policy has no production caller
-yet; it enables no save route, database write, validator or digest generator.
+SCRUM-50 TODOs mark those integration points. At the Part 5a checkpoint the policy
+had only test callers; the subsequent Part 5b storage helper below also uses it.
+The policy itself enables no save route, database write, validator or digest generator.
 
 Only the latest mutation is remembered. An older retry after a newer revision
 conflicts; arbitrary reuse of historical IDs with a fresh revision cannot be
@@ -1061,3 +1062,69 @@ These are pure policy/parser checks. PostgreSQL, browser and the unchanged full
 suite were not rerun; no transaction/commit/concurrency guarantee is claimed by
 this slice. Validated atomic saves, digest generation, safe acknowledgements and
 the remaining Part 5 integration still require SCRUM-50 and further database tests.
+
+## SCRUM-66 Part 5b: conditional draft storage
+
+`ProjectSaveWriter.TryStageAsync` stages a conditional update inside the caller's
+ReadCommitted transaction. It reuses the revision/retry policy, then binds the
+document, schema version, revision increment, database UTC timestamp and complete
+mutation slot in one parameterized PostgreSQL update. The predicate requires the
+same project, organization and revision, with the project still nonarchived.
+It never inserts a missing project. See PostgreSQL's [UPDATE row-count
+semantics](https://www.postgresql.org/docs/18/sql-update.html#SQL-UPDATE-OUTPUTS).
+
+`true` means exactly one row was staged; `false` means the policy did not permit a
+new write or no row matched. Neither result acknowledges a saved project. The
+caller owns commit/rollback/disposal on every path, and SQL/cancellation errors
+propagate. The helper does not refresh EF-tracked objects; read the staged
+revision/time without tracking when preparing a future acknowledgement, and send
+that acknowledgement only after a successful commit.
+
+The helper has no DI registration, production caller or HTTP route. Its TODOs
+require the future caller to perform actual SCRUM-50 supported-version/field/
+reference validation, obtain current `EditDraft` authority, and compute the request
+digest on the server using the agreed representation. The SQL metadata checks and
+synthetic test documents do not provide domain validation. HTTP conflict/replay
+responses, lost-acknowledgement reconciliation and SCRUM-69 writer integration
+remain unfinished; Parts 5–7 and parent acceptance are still open.
+
+Verification from `apps/server/`, on **19 October 2026**:
+
+```powershell
+dotnet build tests/Spatia.Server.Tests.csproj -c Release --no-restore
+dotnet format Spatia.Server/Spatia.Server.csproj --verify-no-changes --no-restore
+dotnet format tests/Spatia.Server.Tests.csproj --verify-no-changes --no-restore
+dotnet test --project tests/Spatia.Server.Tests.csproj -c Release --no-build --results-directory test-results/scrum66-part5b-writer -- --report-trx --minimum-expected-tests 1 --treenode-filter '/*/*/*/SaveWriter_*'
+```
+
+The final Release build passed with zero warnings/errors in **6.37 seconds** using
+SDK **10.0.401**. Both format checks passed; their initial sandboxed attempts were
+unable to access the local MSBuild pipe, and passed when that access was allowed.
+No source fix was needed. The focused PostgreSQL run passed **16/16**, zero
+failed/skipped, exit 0, in **7.571 seconds** (module **6.619 seconds**). Its TRX
+counters and all 16 passing result entries were inspected. TRX/HTML reports are
+under `test-results/scrum66-part5b-writer/`.
+
+The checks cover all staged fields and preserved array order, independent-connection
+visibility before/after commit, explicit rollback, an actual deferred-constraint
+commit failure with related writes rolled back, SQL constraint failure, transaction
+ownership/isolation, policy rejection, zero-row predicates without upsert, competing
+same-revision writes after either commit or rollback, and cancellation during an
+observed database lock wait. Bounded `pg_blocking_pids` observations control the
+races. These lower-level checks do not replace current-authorization/validator/API
+integration tests.
+
+Only the retained disposable PostgreSQL **18.6** container was restarted after
+checking its exact identity, image digest, labels, sole owned volume and loopback
+binding. Its run port was **127.0.0.1:49900**; future runs must inspect it again.
+The retained private connection's port was refreshed only in process memory.
+Final guarded inspection returned `spatia_scrum45_test|0|0`: zero fixture schemas
+and zero public tables. Both known artifact roots had zero generated HTTPS/restart
+temporary directories, and the private connection/ownership files kept their
+original hashes. The exact container was stopped and confirmed exited, retaining
+its volume and configuration.
+
+No dependency, schema, shared fixture, authentication or HTTP behavior changed.
+The unchanged full suite, browser and restart acceptance were not repeated for this
+unregistered storage helper. A complete validated, authorized save workflow and
+saved-project browser/restart acceptance remain outstanding.
