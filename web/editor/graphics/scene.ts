@@ -48,6 +48,8 @@ export interface InitSceneHandle {
   getDropPosition: (clientX: number, clientY: number) => Vector3Tuple | undefined;
   showDropPosition: (position: Vector3Tuple | undefined) => void;
   setEditingEnabled: (enabled: boolean) => void;
+  captureCamera: () => CameraPose;
+  showCamera: (pose: CameraPose) => void;
   modeManager: ModeManager;
   dispose: () => void;
 }
@@ -276,6 +278,40 @@ export function initScene(
   };
   requestAnimationFrame(animate);
 
+  function showCamera(pose: import("../../shared/project/project-types").CameraPose) {
+    if (modeManager.getState().mode !== "editor") return;
+    camera.position.fromArray(pose.position);
+    camera.quaternion.fromArray(pose.rotation);
+    // Keep upright views orbiting around world Y, while preserving authored roll
+    const authoredUp = new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion);
+    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion).normalize();
+    camera.up.set(0, 1, 0).projectOnPlane(right).normalize();
+    const alignment = camera.up.dot(authoredUp);
+    if (Math.abs(alignment) < 1e-6) camera.up.copy(authoredUp);
+    else if (alignment < 0) camera.up.negate();
+    // OrbitControls captures its up axis at construction; replace it for rolled or vertical poses
+    // This also drops the old view's pointer state and damping
+    orbit.removeEventListener("change", updateGizmo);
+    orbit.dispose();
+    orbit = new OrbitControls(camera, renderer.domElement);
+    orbit.enableDamping = true;
+    orbit.enabled = editingEnabled;
+    // The constructor looks at its default target, so reinstall the authored pose afterward
+    camera.position.fromArray(pose.position);
+    camera.quaternion.fromArray(pose.rotation);
+    orbit.target
+      .copy(camera.position)
+      .addScaledVector(
+        camera.getWorldDirection(new THREE.Vector3()),
+        Math.max(camera.position.length(), 1),
+      );
+    modeManager.setOrbitControls(orbit);
+    orbit.addEventListener("change", updateGizmo);
+    camera.fov = pose.fovDegrees;
+    camera.updateProjectionMatrix();
+    camera.updateMatrixWorld(true);
+  }
+
   function update(
     nextObjects: readonly SceneObject[],
     nextSelectedId: string | null,
@@ -303,36 +339,7 @@ export function initScene(
     if (projectScene !== null && appliedCamera !== projectScene.startCamera) {
       modeManager.setMode("editor");
       appliedCamera = projectScene.startCamera;
-      camera.position.fromArray(appliedCamera.position);
-      camera.quaternion.fromArray(appliedCamera.rotation);
-      // Keep upright views orbiting around world Y, while preserving authored roll
-      const authoredUp = new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion);
-      const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion).normalize();
-      camera.up.set(0, 1, 0).projectOnPlane(right).normalize();
-      const alignment = camera.up.dot(authoredUp);
-      if (Math.abs(alignment) < 1e-6) camera.up.copy(authoredUp);
-      else if (alignment < 0) camera.up.negate();
-      // OrbitControls captures its up axis at construction; replace it for rolled or vertical poses
-      // This also drops the old view's pointer state and damping
-      orbit.removeEventListener("change", updateGizmo);
-      orbit.dispose();
-      orbit = new OrbitControls(camera, renderer.domElement);
-      orbit.enableDamping = true;
-      orbit.enabled = editingEnabled;
-      // The constructor looks at its default target, so reinstall the authored pose afterward
-      camera.position.fromArray(appliedCamera.position);
-      camera.quaternion.fromArray(appliedCamera.rotation);
-      orbit.target
-        .copy(camera.position)
-        .addScaledVector(
-          camera.getWorldDirection(new THREE.Vector3()),
-          Math.max(camera.position.length(), 1),
-        );
-      modeManager.setOrbitControls(orbit);
-      orbit.addEventListener("change", updateGizmo);
-      camera.fov = appliedCamera.fovDegrees;
-      camera.updateProjectionMatrix();
-      camera.updateMatrixWorld(true);
+      showCamera(appliedCamera);
     }
 
     if (ready && environmentId !== projectScene?.environmentAssetId) {
@@ -723,6 +730,12 @@ export function initScene(
       }
       orbit.enabled = enabled && modeManager.getState().mode === "editor";
     },
+    captureCamera: () => ({
+      position: camera.position.toArray() as [number, number, number],
+      rotation: camera.quaternion.toArray() as [number, number, number, number],
+      fovDegrees: camera.fov,
+    }),
+    showCamera,
     modeManager,
     dispose() {
       if (disposed) {

@@ -70,7 +70,14 @@ function validateScene(
   }
   const fields = checkFields(
     raw,
-    ["id", "name", "environmentAssetId", "startCamera", "objects"],
+    [
+      "id",
+      "name",
+      "environmentAssetId",
+      "startCamera",
+      "objects",
+      ...(Object.hasOwn(raw, "viewpoints") ? ["viewpoints"] : []),
+    ],
     path,
   );
   if (!fields.ok) {
@@ -98,6 +105,26 @@ function validateScene(
     return camera;
   }
 
+  const viewpoints: NonNullable<ProjectScene["viewpoints"]>[number][] = [];
+  if (Object.hasOwn(raw, "viewpoints")) {
+    if (!Array.isArray(raw.viewpoints) || raw.viewpoints.length > 100)
+      return invalid(`${path}.viewpoints`, "Use at most 100 named viewpoints per scene");
+    for (const [i, view] of raw.viewpoints.entries()) {
+      const at = `${path}.viewpoints[${i}]`;
+      if (!isRecord(view)) return invalid(at, "Viewpoint must be an object");
+      const fields = checkFields(view, ["id", "name", "camera"], at);
+      if (!fields.ok) return fields;
+      const id = readText(view.id, `${at}.id`, budget);
+      if (!id.ok) return id;
+      const name = readText(view.name, `${at}.name`, budget);
+      if (!name.ok) return name;
+      if (!name.value.trim() || name.value.length > 120)
+        return invalid(`${at}.name`, "Enter a viewpoint name between 1 and 120 characters");
+      const camera = validateCameraPose(view.camera, `${at}.camera`);
+      if (!camera.ok) return camera;
+      viewpoints.push({ id: id.value, name: name.value, camera: camera.value });
+    }
+  }
   // Build a separate list in the saved order
   // A later failure leaves the caller's scene untouched
   const objects: ProjectObject[] = [];
@@ -115,6 +142,7 @@ function validateScene(
       name: name.value,
       environmentAssetId: environmentAssetId.value,
       startCamera: camera.value,
+      ...(Object.hasOwn(raw, "viewpoints") ? { viewpoints } : {}),
       objects,
     },
   };

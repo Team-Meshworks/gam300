@@ -11,7 +11,8 @@ import {
 } from "./history-shortcuts";
 import type { ViewportStatus } from "./graphics/scene";
 import type { ModeManager, ModeManagerState } from "./graphics/modeManager";
-import { Viewport } from "./viewport/Viewport";
+import { Viewpoints } from "./Viewpoints";
+import { Viewport, type ViewpointCamera } from "./viewport/Viewport";
 import sampleProject from "../shared/project/fixtures/m1-project.json";
 
 import { ProjectConfirmation } from "./ProjectConfirmation";
@@ -66,6 +67,7 @@ export function App() {
     draftMenu.current?.removeAttribute("open");
     draftMenu.current?.querySelector("summary")?.focus();
   }
+  const [viewCamera, setViewCamera] = useState<ViewpointCamera | null>(null);
   const [manager, setManager] = useState<ModeManager | null>(null);
   const [modeState, setModeState] = useState<ModeManagerState | null>(null);
   const selection = objects.some((object) => object.id === selectedId) ? selectedId : null;
@@ -542,9 +544,19 @@ export function App() {
               )}
             </section>
           )}
+          {projectScene && (
+            <Viewpoints
+              key={projectScene.id}
+              views={projectScene.viewpoints ?? []}
+              camera={viewCamera}
+              disabled={visitor || switching || status !== "ready"}
+              store={store}
+            />
+          )}
         </aside>
 
         <Viewport
+          onCamera={setViewCamera}
           assets={assets}
           objects={objects}
           projectScene={project?.scenes[0] ?? null}

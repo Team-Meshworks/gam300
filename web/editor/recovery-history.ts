@@ -1,4 +1,8 @@
-import type { ProjectDocument, ProjectObject } from "../shared/project/project-types";
+import type {
+  ProjectDocument,
+  ProjectObject,
+  NamedViewpoint,
+} from "../shared/project/project-types";
 import { validateProject } from "../shared/project/project-validation";
 import {
   checkFields,
@@ -10,6 +14,11 @@ import {
 type Objects = readonly ProjectObject[];
 export type RecoveryHistory = Readonly<{
   version: 1;
+  views?: {
+    current: readonly NamedViewpoint[];
+    past: readonly (readonly NamedViewpoint[])[];
+    future: readonly (readonly NamedViewpoint[])[];
+  };
   projectId: string;
   sceneId: string;
   current: Objects;
@@ -24,10 +33,20 @@ export const MAX_HISTORY_BYTES = 20 * 1024 * 1024;
 export function captureRecoveryHistory(
   project: ProjectDocument,
   states: { past: Objects[]; future: Objects[] },
+  views?: { past: (readonly NamedViewpoint[])[]; future: (readonly NamedViewpoint[])[] },
 ): RecoveryHistory {
   const scene = project.scenes[0]!;
   const result: RecoveryHistory = {
     version: 1,
+    ...(views
+      ? {
+          views: {
+            current: scene.viewpoints ?? [],
+            past: [...views.past],
+            future: [...views.future],
+          },
+        }
+      : {}),
     projectId: project.projectId,
     sceneId: scene.id,
     current: scene.objects,
@@ -41,8 +60,13 @@ export function captureRecoveryHistory(
     new TextEncoder().encode(JSON.stringify(result)).byteLength > MAX_HISTORY_BYTES &&
     past.length + future.length > 0
   ) {
-    if (past.length >= future.length) past.pop();
-    else future.pop();
+    if (past.length >= future.length) {
+      past.pop();
+      (result.views?.past as unknown[] | undefined)?.pop();
+    } else {
+      future.pop();
+      (result.views?.future as unknown[] | undefined)?.pop();
+    }
   }
   return result;
 }
@@ -55,7 +79,15 @@ export function validateRecoveryHistory(
   if (!isRecord(raw)) return invalid("history", "Recovery history must be an object");
   const fields = checkFields(
     raw,
-    ["version", "projectId", "sceneId", "current", "past", "future"],
+    [
+      "version",
+      "projectId",
+      "sceneId",
+      "current",
+      "past",
+      "future",
+      ...(Object.hasOwn(raw, "views") ? ["views"] : []),
+    ],
     "history",
   );
   if (!fields.ok) return fields;
@@ -74,9 +106,63 @@ export function validateRecoveryHistory(
   } catch {
     return invalid("history", "Recovery history is not serializable");
   }
+  let views: RecoveryHistory["views"];
+  if (Object.hasOwn(raw, "views")) {
+    const data = raw.views;
+    if (
+      !isRecord(data) ||
+      !Array.isArray(data.past) ||
+      !Array.isArray(data.future) ||
+      data.past.length !== raw.past.length ||
+      data.future.length !== raw.future.length
+    )
+      return invalid("history.views", "Viewpoint history does not match the edit history");
+    const fields = checkFields(data, ["current", "past", "future"], "history.views");
+    if (!fields.ok) return fields;
+    const read = (value: unknown, objects: unknown) =>
+      validateProject(
+        { ...project, scenes: [{ ...scene, objects, viewpoints: value }] },
+        assetKinds,
+      );
+    const current = read(data.current, raw.current);
+    if (!current.ok) return current;
+    if (
+      JSON.stringify(current.value.scenes[0]!.viewpoints) !== JSON.stringify(scene.viewpoints ?? [])
+    )
+      return invalid("history.views", "Viewpoints do not match the saved scene");
+    const past: (readonly NamedViewpoint[])[] = [],
+      future: (readonly NamedViewpoint[])[] = [];
+    for (const [input, objects, output] of [
+      [data.past, raw.past, past],
+      [data.future, raw.future, future],
+    ] as const) {
+      for (const [i, value] of input.entries()) {
+        const checked = read(value, objects[i]);
+        if (!checked.ok) return checked;
+        output.push(checked.value.scenes[0]!.viewpoints!);
+      }
+    }
+    function freezeViews(list: readonly NamedViewpoint[]) {
+      for (const view of list) {
+        Object.freeze(view.camera.position);
+        Object.freeze(view.camera.rotation);
+        Object.freeze(view.camera);
+        Object.freeze(view);
+      }
+      return Object.freeze(list);
+    }
+    views = Object.freeze({
+      current: freezeViews(current.value.scenes[0]!.viewpoints!),
+      past: Object.freeze(past.map(freezeViews)),
+      future: Object.freeze(future.map(freezeViews)),
+    });
+  }
   function readObjects(objects: unknown): ValidationResult<Objects> {
     // Reuse project checks for IDs, references, transforms and the object-count limit.
-    const checked = validateProject({ ...project, scenes: [{ ...scene, objects }] }, assetKinds);
+    const checked = validateProject(
+      { ...project, scenes: [{ ...scene, objects, ...(views ? { viewpoints: [] } : {}) }] },
+      assetKinds,
+    );
     if (!checked.ok) return checked;
     const result = checked.value.scenes[0]!.objects;
     for (const object of result) {
@@ -110,6 +196,7 @@ export function validateRecoveryHistory(
     ok: true,
     value: Object.freeze({
       version: 1,
+      ...(views ? { views } : {}),
       projectId: project.projectId,
       sceneId: scene.id,
       current: current.value,

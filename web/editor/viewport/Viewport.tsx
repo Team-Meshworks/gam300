@@ -1,7 +1,7 @@
 import { useEffect, useRef, type DragEvent } from "react";
 import { assetDragType, type CatalogueAsset } from "../../shared/assets/catalogue";
 import type { SceneObject, Vector3Tuple } from "../../shared/project/scene-object";
-import type { ProjectScene, Transform } from "../../shared/project/project-types";
+import type { ProjectScene, Transform, CameraPose } from "../../shared/project/project-types";
 import type { initScene, ViewportStatus } from "../graphics/scene";
 import type { ModeManager } from "../graphics/modeManager";
 
@@ -13,7 +13,10 @@ const statusMessages = {
   unsupported: "The 3D view needs WebGL 2. Check your browser's graphics settings and retry.",
 };
 
+export type ViewpointCamera = { capture: () => CameraPose; show: (pose: CameraPose) => void };
+
 type ViewportProps = {
+  onCamera: (camera: ViewpointCamera | null) => void;
   assets: readonly CatalogueAsset[];
   objects: readonly SceneObject[];
   projectScene: ProjectScene | null;
@@ -33,6 +36,7 @@ type ViewportProps = {
 };
 
 export function Viewport({
+  onCamera,
   assets,
   objects,
   projectScene,
@@ -71,6 +75,7 @@ export function Viewport({
         scene?.setEditingEnabled(current.editingEnabled);
         if (scene !== undefined) {
           onManager(scene.modeManager);
+          onCamera({ capture: scene.captureCamera, show: scene.showCamera });
         }
       })
       .catch((error: unknown) => {
@@ -81,10 +86,11 @@ export function Viewport({
       });
     return () => {
       disposed = true;
+      onCamera(null);
       sceneRef.current?.dispose();
       sceneRef.current = undefined;
     };
-  }, [assets, attempt, onStatus, onThumbnail, onSelect, onTransform, onManager]);
+  }, [assets, attempt, onStatus, onThumbnail, onSelect, onTransform, onManager, onCamera]);
 
   useEffect(() => {
     snapshotRef.current = { objects, selectedId, projectScene, editingEnabled };

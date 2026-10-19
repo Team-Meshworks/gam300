@@ -39,11 +39,19 @@ export type ProjectObject = Readonly<{
   transform: Transform;
 }>;
 
+export type NamedViewpoint = Readonly<{
+  id: EntityId;
+  name: string;
+  camera: CameraPose;
+}>;
+
 export type ProjectScene = Readonly<{
   id: EntityId;
   name: string;
   environmentAssetId: AssetId;
   startCamera: CameraPose;
+  // Optional so existing M1 files still open without rewriting them.
+  viewpoints?: readonly NamedViewpoint[];
   // Keep the scene list order when saving
   objects: readonly ProjectObject[];
 }>;

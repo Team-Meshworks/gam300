@@ -1,8 +1,8 @@
-import { validateTransform } from "../shared/project/spatial-validation";
+import { validateCameraPose, validateTransform } from "../shared/project/spatial-validation";
 import { invalid } from "../shared/project/validation-helpers";
-import type { Transform } from "../shared/project/project-types";
+import type { Transform, NamedViewpoint, CameraPose } from "../shared/project/project-types";
 import { prepareTransformCommand } from "./transform-command";
-import { createCommandHistory } from "./command-history";
+import { createCommandHistory, type EditCommand } from "./command-history";
 import { captureRecoveryHistory, validateRecoveryHistory } from "./recovery-history";
 import type { CatalogueAsset } from "../shared/assets/catalogue.ts";
 import type { SceneObject, Vector3Tuple } from "../shared/project/scene-object.ts";
@@ -20,6 +20,13 @@ function freezeProject(project: ProjectDocument): ProjectDocument {
       Object.freeze(object.transform);
       Object.freeze(object);
     }
+    for (const view of scene.viewpoints ?? []) {
+      Object.freeze(view.camera.position);
+      Object.freeze(view.camera.rotation);
+      Object.freeze(view.camera);
+      Object.freeze(view);
+    }
+    if (scene.viewpoints) Object.freeze(scene.viewpoints);
     Object.freeze(scene.objects);
     Object.freeze(scene.startCamera.position);
     Object.freeze(scene.startCamera.rotation);
@@ -44,7 +51,26 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
   let project: ProjectDocument | null = null;
   let projectAssets: ReadonlyMap<string, string> = new Map();
   // Keep history here so the buttons and future edit controls share one undo order.
-  const history = createCommandHistory<readonly SceneObject[]>();
+  type State = {
+    objects: readonly SceneObject[];
+    viewpoints?: readonly NamedViewpoint[] | undefined;
+  };
+  let state: State = { objects };
+  const history = createCommandHistory<State>();
+  function executeObjects(
+    _objects: readonly SceneObject[],
+    command: EditCommand<readonly SceneObject[]>,
+  ) {
+    state = history.execute(state, {
+      label: command.label,
+      apply: (current) => {
+        const next = command.apply(current.objects);
+        return next === current.objects ? current : { ...current, objects: next };
+      },
+      revert: (current) => ({ ...current, objects: command.revert(current.objects) }),
+    });
+    return state.objects;
+  }
   // This clipboard belongs to the open editor, not the operating system.
   // Objects are immutable, so later edits won't change the captured copy.
   let clipboard: SceneObject | null = null;
@@ -70,14 +96,15 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
 
   function replaceObjects(nextObjects: readonly SceneObject[]) {
     objects = Object.freeze(nextObjects);
+    state = { ...state, objects };
     const scene = project?.scenes[0];
     if (project !== null && scene !== undefined) {
       // Keep the editor's object list and saved document on the same array
       // Earlier snapshots retain their original scene and object order
-      project = Object.freeze({
-        ...project,
-        scenes: Object.freeze([Object.freeze({ ...scene, objects })]),
-      });
+      const nextScene = { ...scene, objects };
+      if (state.viewpoints === undefined) delete nextScene.viewpoints;
+      else nextScene.viewpoints = state.viewpoints;
+      project = Object.freeze({ ...project, scenes: Object.freeze([Object.freeze(nextScene)]) });
     }
   }
 
@@ -101,7 +128,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       clearEdit();
       return { ok: true, value: { changed: false, object } };
     }
-    replaceObjects(history.execute(objects, command));
+    replaceObjects(executeObjects(objects, command));
     clearEdit();
     publish();
     return { ok: true, value: { changed: true, object } };
@@ -137,7 +164,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       transform: Object.freeze(transform),
     });
     replaceObjects(
-      history.execute(objects, {
+      executeObjects(objects, {
         label: "Copy object",
         apply: (current) => Object.freeze([...current, object]),
         revert: (current) => Object.freeze(current.filter((entry) => entry.id !== object.id)),
@@ -148,7 +175,64 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
     return { ok: true, value: object };
   }
 
+  function editViews(next: readonly NamedViewpoint[]): ValidationResult<true> {
+    if (!project) return invalid("project", "Choose a room first");
+    const checked = deserializeProject(
+      JSON.stringify({ ...project, scenes: [{ ...project.scenes[0], viewpoints: next }] }),
+      projectAssets,
+    );
+    if (!checked.ok) return checked;
+    const views = freezeProject(checked.value).scenes[0]!.viewpoints!;
+    if (JSON.stringify(state.viewpoints ?? []) === JSON.stringify(views))
+      return { ok: true, value: true };
+    const before = state;
+    const after = { ...state, viewpoints: views };
+    state = history.execute(state, {
+      label: "Edit viewpoints",
+      apply: () => after,
+      revert: () => before,
+    });
+    // Undoing the first view leaves an empty list, not the last saved view.
+    replaceObjects(state.objects);
+    clearEdit();
+    publish();
+    return { ok: true, value: true };
+  }
+
   return {
+    addViewpoint(name: string, camera: CameraPose): ValidationResult<true> {
+      const checked = validateCameraPose(camera, "camera");
+      if (!checked.ok) return checked;
+      return editViews([
+        ...(state.viewpoints ?? []),
+        { id: crypto.randomUUID(), name: name.trim(), camera: checked.value },
+      ]);
+    },
+    renameViewpoint(id: string, name: string): ValidationResult<true> {
+      if (!state.viewpoints?.some((v) => v.id === id))
+        return invalid("viewpoint", "This viewpoint no longer exists");
+      return editViews(
+        state.viewpoints.map((v) => (v.id === id ? { ...v, name: name.trim() } : v)),
+      );
+    },
+    moveViewpoint(id: string, targetIndex: number): ValidationResult<true> {
+      const current = state.viewpoints ?? [];
+      const from = current.findIndex((v) => v.id === id);
+      if (from < 0) return invalid("viewpoint", "This viewpoint no longer exists");
+      if (!Number.isInteger(targetIndex) || targetIndex < 0 || targetIndex >= current.length)
+        return invalid("viewpoint", "Choose a position within the saved views");
+      if (from === targetIndex) return { ok: true, value: true };
+      const next = [...current];
+      const [view] = next.splice(from, 1);
+      next.splice(targetIndex, 0, view!);
+      // Commit only the final order. Hovering or cancelling a drag never enters history.
+      return editViews(next);
+    },
+    deleteViewpoint(id: string): ValidationResult<true> {
+      if (!state.viewpoints?.some((v) => v.id === id))
+        return invalid("viewpoint", "This viewpoint no longer exists");
+      return editViews(state.viewpoints.filter((v) => v.id !== id));
+    },
     copyObject(objectId: string): ValidationResult<SceneObject> {
       const object = objects.find((entry) => entry.id === objectId);
       if (!object) return invalid("objectId", "Select an object to copy");
@@ -219,7 +303,19 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
     },
     getSnapshot: () => snapshot,
     getRecoveryHistory() {
-      return project === null ? undefined : captureRecoveryHistory(project, history.getStates());
+      if (project === null) return undefined;
+      const states = history.getStates();
+      return captureRecoveryHistory(
+        project,
+        {
+          past: states.past.map((s) => s.objects),
+          future: states.future.map((s) => s.objects),
+        },
+        {
+          past: states.past.map((s) => s.viewpoints ?? []),
+          future: states.future.map((s) => s.viewpoints ?? []),
+        },
+      );
     },
     createProject(
       environmentAssetId: string,
@@ -267,6 +363,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       if (!checked.ok) return checked;
       project = freezeProject(checked.value);
       objects = project.scenes[0]!.objects;
+      state = { objects, viewpoints: project.scenes[0]!.viewpoints };
       projectAssets = kinds;
       // New starts a separate document; Undo must keep the previous project's objects out
       if (options.startEmpty) {
@@ -302,11 +399,22 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       clipboard = null;
       pasteCount = 0;
       objects = scene.objects;
+      state = { objects, viewpoints: scene.viewpoints };
       projectAssets = loadedAssets;
       // Undo from the previous project must never reintroduce its objects here
       history.clear();
       if (recovered?.ok)
-        history.restoreStates(objects, recovered.value.past, recovered.value.future);
+        history.restoreStates(
+          state,
+          recovered.value.past.map((objects, i) => ({
+            objects,
+            viewpoints: recovered.value.views?.past[i] ?? scene.viewpoints,
+          })),
+          recovered.value.future.map((objects, i) => ({
+            objects,
+            viewpoints: recovered.value.views?.future[i] ?? scene.viewpoints,
+          })),
+        );
       clearEdit();
       publish();
       return { ok: true, value: loaded };
@@ -346,7 +454,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       // Capture this object once. Redo puts back this exact copy, including its ID.
       // Validation above finishes before the command can enter history.
       replaceObjects(
-        history.execute(objects, {
+        executeObjects(objects, {
           label: "Add object",
           apply: (current) => Object.freeze([...current, object]),
           revert: (current) => Object.freeze(current.filter((entry) => entry.id !== object.id)),
@@ -372,7 +480,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       if (!object) return invalid("objectId", "This object is no longer in the scene");
       // Remember the slot as well as the whole object, so undo restores list order.
       replaceObjects(
-        history.execute(objects, {
+        executeObjects(objects, {
           label: "Delete object",
           apply: (current) => Object.freeze(current.filter((entry) => entry.id !== objectId)),
           revert: (current) =>
@@ -385,17 +493,19 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
     },
     undo() {
       clearEdit();
-      const next = history.undo(objects);
+      const next = history.undo(state);
       // Nothing changed, so there is no new snapshot to send to the UI.
-      if (next === objects) return;
-      replaceObjects(next);
+      if (next === state) return;
+      state = next;
+      replaceObjects(next.objects);
       publish();
     },
     redo() {
       clearEdit();
-      const next = history.redo(objects);
-      if (next === objects) return;
-      replaceObjects(next);
+      const next = history.redo(state);
+      if (next === state) return;
+      state = next;
+      replaceObjects(next.objects);
       publish();
     },
   };

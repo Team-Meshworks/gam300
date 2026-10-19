@@ -78,6 +78,10 @@ export function validateProject(
     if (!environment.ok) {
       return environment;
     }
+    for (const [i, view] of (scene.viewpoints ?? []).entries()) {
+      const id = checkEntityId(view.id, `${path}.viewpoints[${i}].id`, seen);
+      if (!id.ok) return id;
+    }
     for (const [objectIndex, object] of scene.objects.entries()) {
       const objectPath = `${path}.objects[${objectIndex}]`;
       const objectId = checkEntityId(object.id, `${objectPath}.id`, seen);
