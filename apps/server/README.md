@@ -1280,3 +1280,22 @@ to its initial stopped state.
 No dependency, schema, shared fixture or production route changed. Unchanged
 restore/model/migration checks and separate restart acceptance were not repeated.
 Part 6a is complete; full Part 6 and SCRUM-50 integration remain open.
+
+### Remaining Part 6 work (19 October audit)
+
+Project-specific HTTP result mapping is still unimplemented and can be prepared
+independently of SCRUM-50: map the existing access/save outcomes to safe problems,
+disclose current revisions only on authorized conflicts, and return only committed
+save acknowledgements. Reuse `ApiProblems` and the existing host security/error
+handling; focused response/privacy checks are the next independent slice.
+
+Production GET/PUT still require SCRUM-50's actual C# validator, shared fixtures,
+supported-version handling and agreed request-digest representation. The host has
+separate TODOs for validator/save-service registration, validated GET, validated PUT
+with the shared 6 MiB metadata, and safe 422 validation errors. The internal read
+snapshot also marks its public-envelope boundary: actor/organization/retry metadata
+must not be serialized into the document/revision/time/permissions response.
+
+This audit changes comments and documentation only. Source comparison verifies
+unchanged executable lines; no application, PostgreSQL or browser suite was rerun.
+The prior 454/454 result remains evidence for Part 6a, not completed project APIs.
