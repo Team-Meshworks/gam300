@@ -7,7 +7,7 @@ namespace Spatia.Server.Projects;
 
 public static class SaveEnvelopeReader
 {
-    private const int MaxRequestBytes = 6 * 1024 * 1024;
+    public const int MaxRequestBytes = 6 * 1024 * 1024;
     private const int MaxDocumentBytes = 5 * 1024 * 1024;
     private static readonly UTF8Encoding StrictUtf8 = new(false, true);
 

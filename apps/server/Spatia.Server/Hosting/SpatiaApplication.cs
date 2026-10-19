@@ -5,6 +5,7 @@ using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.HostFiltering;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.WebUtilities;
@@ -167,7 +168,14 @@ public static class SpatiaApplication
                 return;
             }
 
-            if (context.Request.ContentLength > MaxRequestBodyBytes)
+            await next(context);
+        });
+        app.UseRouting();
+        app.Use(async (context, next) =>
+        {
+            // Routing applies endpoint limits to Kestrel before any request body is read
+            var limit = context.Features.Get<IHttpMaxRequestBodySizeFeature>()?.MaxRequestBodySize ?? MaxRequestBodyBytes;
+            if (context.Request.ContentLength > limit)
             {
                 await ApiProblems.Create(context, 413, "request_too_large", "The request is too large").ExecuteAsync(context);
                 return;
@@ -175,7 +183,6 @@ public static class SpatiaApplication
 
             await next(context);
         });
-        app.UseRouting();
         app.UseAuthentication();
         app.UseRateLimiter();
         app.UseAuthorization();
@@ -187,6 +194,7 @@ public static class SpatiaApplication
         }).AllowAnonymous();
         app.MapAccountAdministration();
         app.MapAccountSessions();
+        // TODO: Integrate SCRUM-50 before mapping project GET/PUT; scope PUT with RequestSizeLimitAttribute(SaveEnvelopeReader.MaxRequestBytes)
         return app;
     }
 

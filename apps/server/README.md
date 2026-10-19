@@ -273,12 +273,13 @@ dotnet run --project Spatia.Server -c Release --no-build
 proxy IPs. With no entries, forwarded headers are ignored. With entries, the host
 accepts one forwarded For/Proto hop from a known proxy and ignores Forwarded-Host.
 Automatic forwarded-header configuration is rejected. Wildcard host values,
-including unspecified-address aliases, are rejected at startup. The current host's
+including unspecified-address aliases, are rejected at startup. The host's default
 request-body ceiling is **16 KiB**. Kestrel counts HTTP/1 chunk framing within that
 ceiling. This test writer emits one four-hex-digit chunk with no trailers, adding
 13 framing bytes: its tested decoded boundary is 16,371 bytes, versus 16,384 bytes
-with Content-Length. Chunk framing overhead is not universally 13 bytes. The save reader's 5/6 MiB budgets do not
-establish a hosted project-save limit because no project endpoint exists yet.
+with Content-Length. Chunk framing overhead is not universally 13 bytes. Part 6a
+below lets the declared-length guard follow an endpoint's Kestrel limit after routing.
+Every production account route keeps the default; no project endpoint exists yet.
 
 The Identity application cookie is Secure, HttpOnly, SameSite=Lax and nonpersistent.
 It has no sliding expiration. Its protected absolute cutoff remains eight hours from
@@ -1197,3 +1198,85 @@ was stopped and confirmed exited with its original volume retained.
 The unchanged policy, reader, writer and full suites were not repeated. Browser and
 restart acceptance were not rerun because the coordinator has no product endpoint
 or affected browser flow. This completes only the independent Part 5c slice.
+
+## SCRUM-66 Part 6a: endpoint-specific request limits
+
+The host keeps its 16 KiB Kestrel default and rejects insecure transport before
+routing. Its declared Content-Length guard now runs immediately after routing and
+reads the active `IHttpMaxRequestBodySizeFeature` limit, before authentication,
+rate limiting, authorization and CSRF. This allows a specifically marked endpoint
+to use the larger save budget while existing account routes, wrong methods and
+unmatched routes retain 16 KiB.
+
+ASP.NET Core's [10.0.12 routing implementation](https://github.com/dotnet/aspnetcore/blob/v10.0.12/src/Http/Routing/src/EndpointRoutingMiddleware.cs)
+already applies standard `RequestSizeLimitAttribute` metadata to Kestrel before body
+reads. No custom limit middleware, marker type or path-matching exception is needed.
+The existing `SaveEnvelopeReader.MaxRequestBytes` constant is now public so the
+reader and eventual PUT metadata share the 6 MiB value. The separate document limit
+remains 5 MiB and compressed request bodies remain unsupported.
+
+Only `ProjectRequestBoundaryTests` maps a PUT probe with
+`RequestSizeLimitAttribute(SaveEnvelopeReader.MaxRequestBytes)` and calls the real
+bounded reader. It neither validates authored content nor saves it. Production
+still exposes only the eight account routes. The host TODO requires actual
+SCRUM-50 integration before project GET/PUT registration; reader and save-service
+validation/digest TODOs remain. Safe response mapping, validated reads/writes and
+saved-project browser/restart acceptance still need the remaining Parts 5–7 work.
+
+The focused HTTPS checks cover exact/overflow declared lengths and single-chunk
+transport, the independent document budget, compressed oversized content,
+session/forced-change/CSRF rejection and default limits on account/unmatched/
+wrong-method requests. They verify safe no-store problem responses without leaking
+the submitted marker to responses or logs. For the six-hex-digit test chunk,
+15 framing bytes count toward Kestrel's 6 MiB cap. Framing overhead varies with
+chunk layout; the reader counts decoded body bytes separately.
+
+The declared-length boundary check uses `Expect: 100-continue` so the client can
+receive the early 413 before uploading. Its first attempt without the handshake
+hit an `HttpRequestException` while uploading after the server closed the rejected
+connection. An already-uploading client can therefore observe a transport failure;
+the correction changes test transport only and does not relax or drain past the
+server's body limit. The chunked cases continue to stream their bodies.
+
+Verification from `apps/server/`, on **19 October 2026**:
+
+```powershell
+dotnet build tests/Spatia.Server.Tests.csproj -c Release --no-restore
+dotnet format Spatia.Server/Spatia.Server.csproj --verify-no-changes --no-restore
+dotnet format tests/Spatia.Server.Tests.csproj --verify-no-changes --no-restore
+dotnet test --project tests/Spatia.Server.Tests.csproj -c Release --no-build --results-directory test-results/scrum66-part6a-limits -- --report-trx --minimum-expected-tests 1 --treenode-filter '/*/*/*/RequestLimits_*'
+dotnet test --project tests/Spatia.Server.Tests.csproj -c Release --no-build --results-directory test-results/scrum66-part6a-limits-corrected -- --report-trx --minimum-expected-tests 1 --treenode-filter '/*/*/*/RequestLimits_EndpointMetadataAndReaderShareTheSixMiBBoundary*'
+dotnet test --project tests/Spatia.Server.Tests.csproj -c Release --no-build --results-directory test-results/scrum66-part6a-full -- --report-trx --minimum-expected-tests 1
+```
+
+Release build passed with zero warnings/errors using SDK **10.0.401**; the final
+build after the test-only handshake correction took **2.71 seconds**. Both formats
+passed, including the corrected test file. The initial focused run passed **12/13**,
+one failed/zero skipped, exit 2, in **11.358 seconds** (module **10.329**), with the
+upload error described above. The affected four cases then passed **4/4**, zero
+failed/skipped, exit 0, in **6.601 seconds** (module **5.750**).
+
+One full backend run passed **454/454**, zero failed/skipped, exit 0, in
+**149.978 seconds** (module **149.496**). This was warranted by the shared host
+ordering change; it includes all 13 new boundary cases and the existing real-browser
+account flow. All three TRX reports were inspected, including those 13 results and
+the browser result in the final report. The fresh browser artifact records
+**Node 24.19.0 / Chromium 153.0.8010.12** and passing administration, CSRF and session
+markers; installed **Playwright 1.63.0** was also checked. TRX/HTML files remain in
+the three result directories above; browser evidence is in
+`.artifacts/scrum45-browser-version.txt`.
+
+The first runtime preflight found Docker Desktop stopped and did not touch the
+database. Its installed CLI started the local engine, then the retained disposable
+PostgreSQL **18.6** container was revalidated by exact identity, image digest, labels,
+sole volume and loopback binding before use. The run port was **127.0.0.1:63553**;
+future starts require a fresh port check. Credentials and the updated port remained
+only in process memory. Final guarded inspection returned `spatia_scrum45_test|0|0`,
+with zero matching temporary directories in both artifact roots and unchanged
+private configuration hashes. The exact container was stopped and confirmed exited
+with its volume retained. With no containers running, Docker Desktop was returned
+to its initial stopped state.
+
+No dependency, schema, shared fixture or production route changed. Unchanged
+restore/model/migration checks and separate restart acceptance were not repeated.
+Part 6a is complete; full Part 6 and SCRUM-50 integration remain open.
