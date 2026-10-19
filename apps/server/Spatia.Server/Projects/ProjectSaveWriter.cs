@@ -9,7 +9,7 @@ public sealed class ProjectSaveWriter(ApplicationDbContext database)
 {
     /// <summary>Stages one conditional draft update; true means staged, never committed or acknowledged</summary>
     /// <remarks>The caller must validate input, obtain an EditDraft lock and retain its transaction through commit or rollback</remarks>
-    // TODO: Wire a production caller only after SCRUM-50 validation and server-side digest generation are integrated
+    // TODO: Require SCRUM-50 validation and server-side digest generation in the save service's production entry point
     public async Task<bool> TryStageAsync(ProjectAccessSnapshot project, long expectedRevision,
         Guid clientMutationId, int schemaVersion, string documentJson, byte[] requestDigest,
         CancellationToken cancellationToken = default)

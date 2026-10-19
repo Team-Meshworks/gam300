@@ -1080,8 +1080,9 @@ propagate. The helper does not refresh EF-tracked objects; read the staged
 revision/time without tracking when preparing a future acknowledgement, and send
 that acknowledgement only after a successful commit.
 
-The helper has no DI registration, production caller or HTTP route. Its TODOs
-require the future caller to perform actual SCRUM-50 supported-version/field/
+At the Part 5b checkpoint, the helper had no DI registration, production caller or
+HTTP route. Part 5c below adds an unregistered internal coordinator. The TODOs
+require its future production entry point to perform actual SCRUM-50 supported-version/field/
 reference validation, obtain current `EditDraft` authority, and compute the request
 digest on the server using the agreed representation. The SQL metadata checks and
 synthetic test documents do not provide domain validation. HTTP conflict/replay
@@ -1128,3 +1129,71 @@ No dependency, schema, shared fixture, authentication or HTTP behavior changed.
 The unchanged full suite, browser and restart acceptance were not repeated for this
 unregistered storage helper. A complete validated, authorized save workflow and
 saved-project browser/restart acceptance remain outstanding.
+
+## SCRUM-66 Part 5c: authorized save transaction coordination
+
+`ProjectSaveService.SaveAsync` composes the existing access lock, retry policy and
+conditional writer. It owns a ReadCommitted transaction and rejects a caller-owned
+transaction. Current `EditDraft` authority is checked before a revision or retry
+result is disclosed. New writes read their authoritative revision/time without
+tracking and return `ProjectSaveAcknowledgement` only after commit; matching latest
+retries return the stored acknowledgement without another write. Access denial
+contains neither an acknowledgement nor a current revision.
+
+The original session cutoff is checked after awaited work and commit. Expiry before
+commit rolls back; expiry, cancellation or a failure after a durable commit suppresses
+success but cannot undo that commit. Exceptions propagate without automatic retry.
+Reconciliation must retain the original mutation ID and request: an authorized
+exact retry either applies an uncommitted save or recognizes the latest durable one.
+The existing bounded guarantee for independent account/organization changes still
+applies; SCRUM-69 assignment/archive writers must adopt the shared lock protocol.
+
+This coordinator has no DI registration or production request caller. SCRUM-50
+TODOs remain at the service entry point, document/schema/route acceptance and
+server-derived digest inputs. Tests supply synthetic documents and opaque digests;
+they prove transaction composition, not domain validation or a hosted save API.
+No validator, digest algorithm, endpoint, request limit, schema, dependency or shared
+fixture was added. Protected project GET/PUT, validated saves and saved-project
+browser/restart acceptance remain incomplete.
+
+Verification from `apps/server/`, on **19 October 2026**:
+
+```powershell
+dotnet build tests/Spatia.Server.Tests.csproj -c Release --no-restore
+dotnet format Spatia.Server/Spatia.Server.csproj --verify-no-changes --no-restore
+dotnet format tests/Spatia.Server.Tests.csproj --verify-no-changes --no-restore
+dotnet test --project tests/Spatia.Server.Tests.csproj -c Release --no-build --results-directory test-results/scrum66-part5c-service -- --report-trx --minimum-expected-tests 1 --treenode-filter '/*/*/*/SaveService_*'
+dotnet test --project tests/Spatia.Server.Tests.csproj -c Release --no-build --results-directory test-results/scrum66-part5c-retry-corrected -- --report-trx --minimum-expected-tests 1 --treenode-filter '/*/*/*/SaveService_ChangedLatestMutationIdentityConflictsWithoutAnotherWrite*'
+```
+
+Release build passed with zero warnings/errors using SDK **10.0.401**; the build
+after the fixture correction took **3.53 seconds**. Both format checks passed,
+including the corrected test source. The first focused run passed **17/18**, with
+one failed and zero skipped, exit 2, in **17.657 seconds** (module **16.614**).
+The actor-change fixture tried to change a tracked composite-key property; EF
+rejected that setup before the service call. Replacing that setup with a bound SQL
+membership update required no production fix. Its three retry-identity cases then
+passed **3/3**, zero failed/skipped, exit 0, in **7.419 seconds** (module **6.422**).
+Both TRX reports and individual outcomes were inspected. All 18 distinct cases
+have passing evidence across those runs; no fresh full 18-case pass is claimed.
+The original and corrected TRX/HTML reports remain in the two result directories.
+
+Actual protected Identity cookies, CSRF and PostgreSQL were used through test-only
+operation probes. Cases cover committed save/latest replay/new revision/older retry,
+changed digest/actor/original revision, denied matching retries, assignment revocation
+during an observed lock wait, identical/different concurrent saves, commit failure,
+uncertain post-commit failure/cancellation, session expiry before/after commit,
+zero-row refusal, revision exhaustion and caller-transaction ownership. Bounded
+`pg_blocking_pids` checks and commit/command interceptors control race timing.
+
+The same retained disposable PostgreSQL **18.6** container was revalidated by exact
+identity, image digest, labels, sole volume and loopback binding. This run used
+**127.0.0.1:65120**; future runs must inspect the port again. Credentials and refreshed
+port stayed in process memory. Final catalog inspection returned
+`spatia_scrum45_test|0|0`; both known artifact roots had zero generated HTTPS/restart
+directories, and private configuration hashes were unchanged. The exact container
+was stopped and confirmed exited with its original volume retained.
+
+The unchanged policy, reader, writer and full suites were not repeated. Browser and
+restart acceptance were not rerun because the coordinator has no product endpoint
+or affected browser flow. This completes only the independent Part 5c slice.
