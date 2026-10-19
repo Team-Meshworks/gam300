@@ -32,6 +32,7 @@ it("copies a committed snapshot, preserving rotation and scale, with stable redo
   expect(result.ok).toBe(true);
   if (!result.ok) return;
   expect(result.value.id).not.toBe(id);
+  expect(result.value.id[14]).toBe("4");
   expect(result.value.transform).toEqual({
     position: [1.5, 2, 3.5],
     rotation: [0, 1, 0, 0],
@@ -51,6 +52,7 @@ it("duplicates in one step, preserves its source and branches after undo", () =>
   store.duplicateObject(original.id);
   const duplicate = store.getSnapshot().objects[1]!;
   expect(duplicate.id).not.toBe(original.id);
+  expect(duplicate.id[14]).toBe("4");
   expect(store.getSnapshot().objects[0]).toBe(original);
   for (let i = 0; i < 3; i++) {
     store.undo();
