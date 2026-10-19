@@ -30,6 +30,10 @@ public sealed class ProjectHttpResultsTests
 
         await AssertProblemAsync(response, status, code);
         await AssertFieldsAsync(response.Json, "type", "title", "status", "code", "traceId");
+        if (failure == ProjectAccessFailure.NotFound)
+        {
+            await Assert.That(response.Json.GetProperty("title").GetString()).IsEqualTo("The project was not found.");
+        }
     }
 
     [Test]
@@ -62,19 +66,6 @@ public sealed class ProjectHttpResultsTests
         await Assert.That(response.Json.GetProperty("clientMutationId").GetGuid()).IsEqualTo(acknowledgement.ClientMutationId);
         await Assert.That(response.Json.GetProperty("savedAt").GetDateTimeOffset()).IsEqualTo(acknowledgement.SavedAt);
         await Assert.That(response.Json.GetProperty("savedAt").GetDateTimeOffset().Offset).IsEqualTo(TimeSpan.Zero);
-    }
-
-    [Test]
-    public async Task ProjectHttp_InaccessibleIdsShareTheSamePublicNotFoundResponse()
-    {
-        var first = await ExecuteAsync(context => ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.NotFound));
-        var second = await ExecuteAsync(context => ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.NotFound),
-            Guid.NewGuid());
-
-        await AssertProblemAsync(first, 404, "project_not_found");
-        await Assert.That(second.Status).IsEqualTo(first.Status);
-        await Assert.That(second.Json.GetRawText()).IsEqualTo(first.Json.GetRawText());
-        await AssertFieldsAsync(first.Json, "type", "title", "status", "code", "traceId");
     }
 
     [Test]
@@ -119,7 +110,7 @@ public sealed class ProjectHttpResultsTests
     }
 
     private static async Task<(int Status, string? ContentType, JsonElement Json)> ExecuteAsync(
-        Func<HttpContext, IResult> create, Guid? projectId = null)
+        Func<HttpContext, IResult> create)
     {
         using var logs = new CapturedLogProvider();
         var services = new ServiceCollection();
@@ -127,8 +118,7 @@ public sealed class ProjectHttpResultsTests
         services.AddProblemDetails();
         using var provider = services.BuildServiceProvider();
         var context = new DefaultHttpContext { RequestServices = provider, TraceIdentifier = TraceId };
-        var routeId = projectId ?? PrivateProjectId;
-        context.Request.Path = "/api/projects/" + routeId;
+        context.Request.Path = "/api/projects/" + PrivateProjectId;
         context.Request.QueryString = new QueryString("?private=" + PrivateMarker);
         context.Request.Headers.Cookie = "private=" + PrivateMarker;
         using var requestBody = new MemoryStream(Encoding.UTF8.GetBytes(PrivateMarker));
@@ -143,9 +133,9 @@ public sealed class ProjectHttpResultsTests
         await Assert.That(context.Response.Headers.SetCookie.Count).IsEqualTo(0);
         var body = Encoding.UTF8.GetString(responseBody.ToArray());
         await Assert.That(body.Contains(PrivateMarker, StringComparison.Ordinal)).IsFalse();
-        await Assert.That(body.Contains(routeId.ToString(), StringComparison.Ordinal)).IsFalse();
+        await Assert.That(body.Contains(PrivateProjectId.ToString(), StringComparison.Ordinal)).IsFalse();
         await Assert.That(logs.Messages.Contains(PrivateMarker, StringComparison.Ordinal)).IsFalse();
-        await Assert.That(logs.Messages.Contains(routeId.ToString(), StringComparison.Ordinal)).IsFalse();
+        await Assert.That(logs.Messages.Contains(PrivateProjectId.ToString(), StringComparison.Ordinal)).IsFalse();
         using var json = JsonDocument.Parse(body);
         return (context.Response.StatusCode, context.Response.ContentType, json.RootElement.Clone());
     }

@@ -67,16 +67,6 @@ public sealed class ProjectSavePolicyTests
     }
 
     [Test]
-    public async Task SavePolicy_MetadataRevisionWithClearedMutationSlotInvalidatesOldRetry()
-    {
-        var afterMetadataChange = Snapshot(13);
-
-        var decision = ProjectSavePolicy.Decide(afterMetadataChange, 11, MutationId, Digest.AsSpan());
-
-        await Assert.That(decision).IsEqualTo(ProjectSaveDecision.Conflict);
-    }
-
-    [Test]
     public async Task SavePolicy_ExactLatestRetryAtRevisionLimitStillReplays()
     {
         var decision = ProjectSavePolicy.Decide(SavedSnapshot(RevisionLimit), RevisionLimit - 1,

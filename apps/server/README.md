@@ -1334,7 +1334,7 @@ allowing tests to supply outcomes without fake authentication or a database.
 
 The tests execute actual ASP.NET result/problem serialization into an in-memory HTTP
 response. They check status/content type, exact public fields, no-store, trace
-correlation, acknowledgement values/UTC time, matching inaccessible-ID responses,
+correlation, acknowledgement values/UTC time, the fixed inaccessible-project message,
 and absence of private request markers/route IDs in responses and captured logs.
 They also reject incomplete/unknown outcomes and verify the shared problem factory
 still emits its ordinary response without a revision.
@@ -1365,3 +1365,52 @@ validation, supported versions/references, server-derived digests, the public GE
 envelope, safe 422 errors and actual GET/PUT wiring. PostgreSQL, browser, restart and
 the full suite were not repeated for this mapping; the prior 454/454 result belongs
 to Part 6a. Full Parts 5–7 and parent acceptance remain incomplete.
+
+## Account and project test-quality follow-up — 19 October 2026
+
+The 16 existing credential-rejection cases now verify absence of side effects:
+ten login/password JSON cases and six administrator-reset JSON cases. Before/after
+database reads are untracked and compare password hashes, security/concurrency
+stamps, forced-password state and lockout fields. Nonzero failure counts and expired
+lockout timestamps make accidental resets detectable. Rejected login remains
+anonymous; rejected password changes retain the same cookie and forced session;
+rejected resets leave the target's existing session usable. No cases were added.
+
+Two duplicate project cases were removed with their coverage retained:
+
+| Removed test | Surviving coverage |
+| --- | --- |
+| `SavePolicy_MetadataRevisionWithClearedMutationSlotInvalidatesOldRetry` | `SavePolicy_NewMutationRequiresCurrentRevisionBelowLimit(12, 11, Conflict)` covers the same empty-slot stale revision. Populated-slot older retries and exact retries at the revision ceiling remain separate tests. |
+| `ProjectHttp_InaccessibleIdsShareTheSamePublicNotFoundResponse` | The `NotFound` row of `ProjectHttp_DeniedSaveExposesOnlySafeProblemFields` retains the response/privacy checks and now asserts the fixed public title. `ProjectAccess_IdsImportedHintsAndInsufficientFlags_DoNotGrantAccess` retains missing/unauthorized-record coverage. The unused optional route-ID fixture argument was removed. |
+
+The suite now defines **17 classes, 189 methods and 468 parameter-expanded cases**,
+down from 191 methods/470 cases. The count follows identified overlap; it is not a
+target. Production behavior, migrations, dependencies and shared fixtures are unchanged.
+
+Locked package/tool restores, Release build (zero warnings/errors), both format checks,
+no-connect migration listing, the pending-model check and idempotent SQL generation
+passed. The focused runs passed with zero failures or skips:
+
+| Focus | Passed | Report directory under `test-results/` |
+| --- | ---: | --- |
+| Authentication JSON matrix | 10/10 | `quality-improvements-auth-json` |
+| Administration JSON matrix, including all six reset rows | 18/18 | `quality-improvements-admin-json` |
+| Save policy | 27/27 | `quality-improvements-policy` |
+| HTTP result mapping | 15/15 | `quality-improvements-http` |
+
+One full Release run then passed **468/468**, zero failed/skipped, in **2m 35s**,
+including the actual Chromium account flow (Node 24.19.0, Chromium 153.0.8010.12).
+Both removed cases were absent from discovery; all seven missing/unauthorized
+project-access rows and the named policy/mapper survivors passed. Each focused
+directory retains its TRX and HTML report; the full report is under
+`test-results/quality-improvements-full/`.
+
+```powershell
+dotnet test --project tests/Spatia.Server.Tests.csproj -c Release --no-build --results-directory test-results/quality-improvements-full -- --report-trx --minimum-expected-tests 1
+```
+
+Cleanup confirmed zero `spatia_scrum45_*` schemas, zero public tables and no temporary
+HTTPS key directories. Only the exact retained disposable test container was stopped;
+its volume and previous evidence remain. Docker Desktop was left in its existing state.
+GitHub-hosted CI and a new cold restart were not run. Existing project-route, SCRUM-50
+and saved-project restart/browser acceptance gates remain open.

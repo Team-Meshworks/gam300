@@ -168,6 +168,19 @@ public sealed class AdministrationEndpointTests
     {
         await using var fixture = await AdministratorFixtureAsync();
         var target = await fixture.CreateAccountAsync();
+        await using var scope = fixture.Database.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        ApplicationUser? before = null;
+        HttpClient? targetClient = null;
+        if (operation == "reset")
+        {
+            targetClient = fixture.CreateClient();
+            await fixture.SignInAsync(target, targetClient);
+            await database.Users.Where(user => user.Id == target).ExecuteUpdateAsync(setters => setters
+                .SetProperty(user => user.AccessFailedCount, 2)
+                .SetProperty(user => user.LockoutEnd, DateTimeOffset.UtcNow.AddMinutes(-1)));
+            before = await database.Users.AsNoTracking().SingleAsync(user => user.Id == target);
+        }
         var field = operation == "organization" ? "name" : operation == "user" ? "userName" : "newTemporaryPassword";
         var value = operation == "reset" ? ReplacementPassword : "synthetic";
         var tail = operation == "user" ? ",\"initialPassword\":\"" + InitialPassword
@@ -186,12 +199,24 @@ public sealed class AdministrationEndpointTests
             ? "/api/admin/users" : $"/api/admin/users/{target:D}/password";
         using var response = await SendRawAsync(fixture, path, json);
         await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
-        await using var scope = fixture.Database.Services.CreateAsyncScope();
-        var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         await Assert.That(await database.Users.CountAsync()).IsEqualTo(2);
         await Assert.That(await database.Organizations.CountAsync()).IsEqualTo(1);
-        var user = await database.Users.SingleAsync(user => user.Id == target);
+        var user = await database.Users.AsNoTracking().SingleAsync(user => user.Id == target);
         await Assert.That(user.MustChangePassword).IsFalse();
+        if (operation == "reset")
+        {
+            await Assert.That(user.PasswordHash == before!.PasswordHash && user.SecurityStamp == before.SecurityStamp
+                && user.ConcurrencyStamp == before.ConcurrencyStamp).IsTrue();
+            await Assert.That(user.AccessFailedCount).IsEqualTo(before.AccessFailedCount);
+            await Assert.That(user.LockoutEnd).IsEqualTo(before.LockoutEnd);
+            await Assert.That(user.LockoutEnabled).IsEqualTo(before.LockoutEnabled);
+            await Assert.That(response.Headers.Contains("Set-Cookie")).IsFalse();
+            using var existing = await targetClient!.GetAsync("/api/auth/session");
+            await Assert.That(existing.StatusCode).IsEqualTo(HttpStatusCode.OK);
+            var current = await existing.Content.ReadFromJsonAsync<JsonElement>();
+            await Assert.That(current.GetProperty("userId").GetGuid()).IsEqualTo(target);
+            await Assert.That(current.GetProperty("mustChangePassword").GetBoolean()).IsEqualTo(before.MustChangePassword);
+        }
         await AssertSafeAsync(fixture, response, ReplacementPassword);
     }
 

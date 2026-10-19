@@ -178,13 +178,20 @@ public sealed class AccountSessionTests
     public async Task AuthJson_RejectsAmbiguousOrIncompleteShape(string operation, string scenario)
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync();
-        var id = await fixture.CreateAccountAsync();
+        var id = await fixture.CreateAccountAsync(forced: operation == "password");
         var name = await AuthTestRequests.UserNameAsync(fixture, id);
         if (operation == "password")
         {
             using var login = await LoginAsync(fixture, name);
             await Assert.That(login.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
         }
+        await using var scope = fixture.Database.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await database.Users.Where(user => user.Id == id).ExecuteUpdateAsync(setters => setters
+            .SetProperty(user => user.AccessFailedCount, 2)
+            .SetProperty(user => user.LockoutEnd, DateTimeOffset.UtcNow.AddMinutes(-1)));
+        var before = await database.Users.AsNoTracking().SingleAsync();
+        var cookie = fixture.Cookies.GetCookies(fixture.Address)[HttpsApplicationFixture.CookieName]?.Value;
         var key = operation == "login" ? "userName" : "currentPassword";
         var first = JsonSerializer.Serialize(key) + ":" + JsonSerializer.Serialize(operation == "login" ? name : AuthTestRequests.CurrentPassword);
         var tail = operation == "login" ? ",\"password\":" + JsonSerializer.Serialize(AuthTestRequests.CurrentPassword)
@@ -204,8 +211,23 @@ public sealed class AccountSessionTests
         request.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync());
         using var response = await fixture.Client.SendAsync(request);
         await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
-        await using var scope = fixture.Database.Services.CreateAsyncScope();
-        await Assert.That((await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().Users.SingleAsync()).MustChangePassword).IsFalse();
+        var after = await database.Users.AsNoTracking().SingleAsync();
+        await Assert.That(after.PasswordHash == before.PasswordHash && after.SecurityStamp == before.SecurityStamp
+            && after.ConcurrencyStamp == before.ConcurrencyStamp).IsTrue();
+        await Assert.That(after.MustChangePassword).IsEqualTo(before.MustChangePassword);
+        await Assert.That(after.AccessFailedCount).IsEqualTo(before.AccessFailedCount);
+        await Assert.That(after.LockoutEnd).IsEqualTo(before.LockoutEnd);
+        await Assert.That(after.LockoutEnabled).IsEqualTo(before.LockoutEnabled);
+        await Assert.That(response.Headers.Contains("Set-Cookie")).IsFalse();
+        await Assert.That(fixture.Cookies.GetCookies(fixture.Address)[HttpsApplicationFixture.CookieName]?.Value == cookie).IsTrue();
+        using var session = await fixture.Client.GetAsync("/api/auth/session");
+        await Assert.That(session.StatusCode).IsEqualTo(operation == "login" ? HttpStatusCode.Unauthorized : HttpStatusCode.OK);
+        if (operation == "password")
+        {
+            var current = await session.Content.ReadFromJsonAsync<JsonElement>();
+            await Assert.That(current.GetProperty("userId").GetGuid()).IsEqualTo(id);
+            await Assert.That(current.GetProperty("mustChangePassword").GetBoolean()).IsEqualTo(before.MustChangePassword);
+        }
         await AuthTestRequests.AssertSafeAsync(fixture, response);
     }
 
