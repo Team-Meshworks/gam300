@@ -40,6 +40,13 @@ the lockfiles.
 
 Run the canonical check block below from `apps/server/` so the scoped SDK pin applies.
 
+The repository CI also runs that block on Ubuntu with a disposable PostgreSQL 18.6
+service and the existing Chromium account check. Server failures block image publishing;
+reports are retained as `server-checks-<commit>`. The bootstrap process tests use the
+server assembly referenced by the running test build, including Debug builds. The
+standalone cold-restart acceptance below still targets an explicitly prebuilt Release
+application and is not part of the CI job.
+
 The build checks both projects with nullable analysis, style enforcement and warnings
 as errors. The minimum-test option is passed to the test module after `--`, so skipped
 tests do not satisfy it. The test runner uses local named pipes; Codex's restricted

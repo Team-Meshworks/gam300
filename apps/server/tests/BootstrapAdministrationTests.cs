@@ -228,7 +228,7 @@ public sealed class BootstrapAdministrationTests
             RedirectStandardOutput = true,
             RedirectStandardError = true,
         };
-        start.ArgumentList.Add(Path.Combine(serverDirectory, "Spatia.Server/bin/Release/net10.0/Spatia.Server.dll"));
+        start.ArgumentList.Add(typeof(BootstrapAdministratorCommand).Assembly.Location);
         start.ArgumentList.Add("bootstrap-admin");
         if (extraArgument)
         {
