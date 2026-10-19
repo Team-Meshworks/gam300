@@ -198,7 +198,7 @@ public static class SpatiaApplication
         // TODO: Map GET after SCRUM-50 accepts stored content, using the public document/revision/permission envelope
         // TODO: Map PUT after SCRUM-50 validation; apply RequestSizeLimitAttribute(SaveEnvelopeReader.MaxRequestBytes)
         // TODO: Map SCRUM-50 document/version/reference failures to safe 422 problems without echoing input
-        // TODO: Map access/conflict results without inaccessible revisions; acknowledge only committed saves
+        // TODO: Wire ProjectHttpResults into GET/PUT after SCRUM-50 validation and server digest integration
         return app;
     }
 

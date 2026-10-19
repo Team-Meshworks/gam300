@@ -1220,8 +1220,8 @@ Only `ProjectRequestBoundaryTests` maps a PUT probe with
 bounded reader. It neither validates authored content nor saves it. Production
 still exposes only the eight account routes. The host TODO requires actual
 SCRUM-50 integration before project GET/PUT registration; reader and save-service
-validation/digest TODOs remain. Safe response mapping, validated reads/writes and
-saved-project browser/restart acceptance still need the remaining Parts 5–7 work.
+validation/digest TODOs remain. Part 6b below adds safe response mapping; validated
+reads/writes and saved-project browser/restart acceptance remain Parts 5–7 work.
 
 The focused HTTPS checks cover exact/overflow declared lengths and single-chunk
 transport, the independent document budget, compressed oversized content,
@@ -1283,11 +1283,10 @@ Part 6a is complete; full Part 6 and SCRUM-50 integration remain open.
 
 ### Remaining Part 6 work (19 October audit)
 
-Project-specific HTTP result mapping is still unimplemented and can be prepared
-independently of SCRUM-50: map the existing access/save outcomes to safe problems,
-disclose current revisions only on authorized conflicts, and return only committed
-save acknowledgements. Reuse `ApiProblems` and the existing host security/error
-handling; focused response/privacy checks are the next independent slice.
+At this audit, project-specific HTTP result mapping was the next independent slice:
+map existing access/save outcomes to safe problems, disclose current revisions only
+on authorized conflicts, and return only committed save acknowledgements. The audit
+and TODOs were committed as `8ef276d`; Part 6b below completes that mapping.
 
 Production GET/PUT still require SCRUM-50's actual C# validator, shared fixtures,
 supported-version handling and agreed request-digest representation. The host has
@@ -1299,3 +1298,63 @@ must not be serialized into the document/revision/time/permissions response.
 This audit changes comments and documentation only. Source comparison verifies
 unchanged executable lines; no application, PostgreSQL or browser suite was rerun.
 The prior 454/454 result remains evidence for Part 6a, not completed project APIs.
+
+## SCRUM-66 Part 6b: independent HTTP response mapping
+
+`ProjectHttpResults` maps existing access failures and completed `ProjectSaveResult`
+outcomes without exposing the internal result wrapper or read snapshot. It consumes
+trusted service outcomes; it does not authenticate callers or establish commit proof.
+
+| Outcome | HTTP status / problem code | Public data beyond the standard problem fields |
+| --- | --- | --- |
+| Missing or expired session | 401 / `authentication_required` | None |
+| Password change required | 403 / `password_change_required` | None |
+| Inaccessible project | 404 / `project_not_found` | None |
+| Known forbidden operation | 403 / `access_denied` | None |
+| Read-only project | 403 / `project_read_only` | None |
+| Authorized revision conflict | 409 / `revision_conflict` | `currentRevision` only |
+| Authorized revision exhaustion | 409 / `revision_exhausted` | `currentRevision` only |
+| Committed save or committed retry acknowledgement | 200 / JSON | Exactly `projectId`, `revision`, `clientMutationId`, `savedAt` |
+
+Denials are handled before response data. Unknown/uncommitted outcomes and conflict
+revisions outside the supported range throw before writing a response. Every mapped
+outcome sets `Cache-Control: no-store`; messages are fixed and no document, actor,
+organization or retry digest is serialized. `ApiProblems` now returns the concrete
+standard `ProblemHttpResult` through `TypedResults.Problem`, allowing the one conflict
+extension while preserving its existing response contract. Existing callers compile
+unchanged. Test-assembly visibility keeps the save-result factories internal while
+allowing tests to supply outcomes without fake authentication or a database.
+
+The tests execute actual ASP.NET result/problem serialization into an in-memory HTTP
+response. They check status/content type, exact public fields, no-store, trace
+correlation, acknowledgement values/UTC time, matching inaccessible-ID responses,
+and absence of private request markers/route IDs in responses and captured logs.
+They also reject incomplete/unknown outcomes and verify the shared problem factory
+still emits its ordinary response without a revision.
+
+Verification from `apps/server/`, on **19 October 2026**:
+
+```powershell
+dotnet build tests/Spatia.Server.Tests.csproj -c Release --no-restore
+dotnet format Spatia.Server/Spatia.Server.csproj --verify-no-changes --no-restore
+dotnet format tests/Spatia.Server.Tests.csproj --verify-no-changes --no-restore
+dotnet test --project tests/Spatia.Server.Tests.csproj -c Release --no-build --results-directory test-results/scrum66-part6b-http -- --report-trx --minimum-expected-tests 1 --treenode-filter '/*/*/*/ProjectHttp_*'
+dotnet test --project tests/Spatia.Server.Tests.csproj -c Release --no-build --results-directory test-results/scrum66-part6b-http-corrected -- --report-trx --minimum-expected-tests 1 --treenode-filter '/*/*/*/ProjectHttp_*'
+```
+
+Final Release build passed with zero warnings/errors in **4.04 seconds**; both formats
+passed, including the corrected test file. Restricted-sandbox format/test attempts
+failed on local named-pipe access (zero tests); scoped approved execution succeeded.
+The first executed run passed **7/16**, with nine failures caused by the test expecting
+a fixed trace ID. ASP.NET Core's [10.0.12 problem writer](https://github.com/dotnet/aspnetcore/blob/v10.0.12/src/Http/Http.Extensions/src/DefaultProblemDetailsWriter.cs)
+uses the current activity ID when present. Correcting that test assertion, with no
+production change, produced **16/16 passed**, zero failed/skipped, in **2.916 seconds**
+(module **1.901**). Both TRX/HTML reports remain in the directories above; their
+counters and the 16 named passing results were inspected.
+
+Part 6b is complete as an independent response-mapping slice. No project endpoint or
+save-service registration was added. SCRUM-50 TODOs remain for original-input/domain
+validation, supported versions/references, server-derived digests, the public GET
+envelope, safe 422 errors and actual GET/PUT wiring. PostgreSQL, browser, restart and
+the full suite were not repeated for this mapping; the prior 454/454 result belongs
+to Part 6a. Full Parts 5–7 and parent acceptance remain incomplete.
