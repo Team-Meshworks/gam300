@@ -485,9 +485,12 @@ try {
   await choose("Don’t Save");
   const empty = await waitBackup(0);
   assert.notEqual(empty.document.projectId, unsaved.document.projectId);
+  assert.equal(empty.document.projectId[14], "7", "New projects use UUIDv7");
+  assert.equal(empty.document.scenes[0].id[14], "4", "New scenes keep UUIDv4");
   await editor.reload();
   await editor.getByText("Reopened your last project", { exact: true }).waitFor();
   assert.equal(await editor.locator(".object-row").count(), 0);
+  assert.equal((await session()).document.projectId, empty.document.projectId);
 
   await add();
   const beforeFailure = await waitBackup(1);
