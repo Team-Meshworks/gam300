@@ -221,6 +221,8 @@
     "editor/persistence/server-draft-write.ts": "7b6405fee1cc2bb460ee799fb62e6ac63190b0898b3306bbaa0903e325f3d73d",
     "editor/persistence/server-save-progress.test.ts": "73b8315689d053c1c7484166a70f8b5756e9c1fa4edad86e691d0759103635e4",
     "editor/persistence/server-save-progress.ts": "7f68b2f29f5326d82bdb25b0c95d16c63241e00ccab666e0cda0faa595830ff8",
+    "editor/persistence/server-save-timer.test.ts": "18df63843852b27255844ab646d0212d86b834273b2f2c4bc6c2d793e9db1b5d",
+    "editor/persistence/server-save-timer.ts": "d40f81edb36e1b09305b7d1f2a2e75c1e2b83b392c840fb107399c3b2407c1d0",
     "editor/persistence/use-project-session.ts": "662af8b6a36dd5567d70fe3d257692b99af2a55131ddbc3f513bd0c3dc6f80af",
     "editor/project-loading.test.ts": "bce77e1b55b7c52bf5140be4b357a894cba6bdaa5a851e3693b96106e2e0e63e",
     "editor/recovery-history.test.ts": "95c497899ffa6c8f8c696c84e8e880f7ea8eb22ef0d95ec04cca57d1ce14f31f",
@@ -1349,6 +1351,25 @@
       "kind": "static",
       "specifier": "./server-save-progress",
       "target": "editor/persistence/server-save-progress.ts",
+      "from": "checks",
+      "to": "persistence"
+    },
+    {
+      "file": "editor/persistence/server-save-timer.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/persistence/server-save-timer.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "./server-save-timer",
+      "target": "editor/persistence/server-save-timer.ts",
       "from": "checks",
       "to": "persistence"
     },
