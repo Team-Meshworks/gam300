@@ -21,7 +21,7 @@ if not defined REVISION for /f "delims=" %%i in ('git rev-parse HEAD') do set "R
 if not defined REVISION (echo Setup failed: Run from a Git checkout with a commit. & exit /b 1)
 
 echo Restoring the locked 3D assets...
-call git lfs pull --include="assets/delivery/**,web/editor/public/models/**" --exclude=""
+call git lfs pull --include="assets/delivery/**,apps/web/editor/public/models/**" --exclude=""
 if errorlevel 1 (echo Setup failed: Git LFS download failed. Check repository access and your network. & exit /b 1)
 echo Installing locked packages, checking, building and testing ^(%BUILD_MODE%, %REVISION%^) ...
 call docker compose --project-name "%COMPOSE_PROJECT_NAME%" up --build --wait --wait-timeout 120

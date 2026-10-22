@@ -6,7 +6,7 @@ import os from "node:os";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createServer, normalizePath } from "vite";
 
-// The unmodified renderer is loaded beside the candidate, with the same dependencies
+// The pinned revision predates apps/web; keep its historical Git path
 const baselineRevision = "8f05c0719eb568d9522b2ab55166e4c46619c873";
 const baselineSource = execFileSync(
   "git",
@@ -20,7 +20,7 @@ const fixture = JSON.parse(
   await readFile(new URL("../shared/project/fixtures/m1-project.json", import.meta.url), "utf8"),
 );
 const manifest = JSON.parse(
-  await readFile(new URL("../../assets/manifest.json", import.meta.url), "utf8"),
+  await readFile(new URL("../../../assets/manifest.json", import.meta.url), "utf8"),
 );
 const runs = 16;
 const missRuns = 8;
@@ -291,7 +291,8 @@ try {
       network: "localhost; unthrottled",
       cpuThrottling: 1,
       node: process.version,
-      fixture: "web/shared/project/fixtures/m1-project.json; full 3-asset development catalogue",
+      fixture:
+        "apps/web/shared/project/fixtures/m1-project.json; full 3-asset development catalogue",
       assets: manifest.assets.map(({ assetId, byteSize, sha256 }) => ({
         assetId,
         byteSize,
