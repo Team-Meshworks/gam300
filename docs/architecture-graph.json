@@ -217,6 +217,8 @@
     "editor/persistence/local-drafts.test.ts": "fa77e4b24be4918e0d4ceb73f71871899822268d89d2da880d694f76e7a0f79e",
     "editor/persistence/local-drafts.ts": "6918ee2d8c14e08962160a70ee007ce8c172e15dd57d4ec00f76e22091c45ccb",
     "editor/persistence/project-files.ts": "20e7466377e31ea388fe527abc4c33e465538b8b06709a5d78c78bc116c6b273",
+    "editor/persistence/server-draft-write.test.ts": "551da52f6b4133843ccc3a039fc844deda8bad1260eb739599811c916a6515d4",
+    "editor/persistence/server-draft-write.ts": "7b6405fee1cc2bb460ee799fb62e6ac63190b0898b3306bbaa0903e325f3d73d",
     "editor/persistence/server-save-progress.test.ts": "73b8315689d053c1c7484166a70f8b5756e9c1fa4edad86e691d0759103635e4",
     "editor/persistence/server-save-progress.ts": "7f68b2f29f5326d82bdb25b0c95d16c63241e00ccab666e0cda0faa595830ff8",
     "editor/persistence/use-project-session.ts": "662af8b6a36dd5567d70fe3d257692b99af2a55131ddbc3f513bd0c3dc6f80af",
@@ -1302,6 +1304,34 @@
       "target": "editor/persistence/draft-db.ts",
       "from": "persistence",
       "to": "persistence"
+    },
+    {
+      "file": "editor/persistence/server-draft-write.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/persistence/server-draft-write.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "./server-draft-write",
+      "target": "editor/persistence/server-draft-write.ts",
+      "from": "checks",
+      "to": "persistence"
+    },
+    {
+      "file": "editor/persistence/server-draft-write.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "../../shared/project/validation-helpers",
+      "target": "shared/project/validation-helpers.ts",
+      "from": "persistence",
+      "to": "project"
     },
     {
       "file": "editor/persistence/server-save-progress.test.ts",
