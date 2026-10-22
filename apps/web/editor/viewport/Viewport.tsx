@@ -1,8 +1,8 @@
-import { useEffect, useRef, type DragEvent } from "react";
+import { useEffect, useRef, type DragEvent, type ReactNode } from "react";
 import { assetDragType, type CatalogueAsset } from "../../shared/assets/catalogue";
 import type { SceneObject, Vector3Tuple } from "../../shared/project/scene-object";
 import type { ProjectScene, Transform } from "../../shared/project/project-types";
-import type { initScene, ViewportStatus } from "../graphics/scene";
+import type { initScene, NavigationTool, ViewportStatus } from "../graphics/scene";
 import type { ModeManager } from "../graphics/modeManager";
 
 const statusMessages = {
@@ -20,6 +20,7 @@ type ViewportProps = {
   selectedId: string | null;
   dragging: boolean;
   editingEnabled: boolean;
+  navigationTool: NavigationTool;
   status: ViewportStatus;
   attempt: number;
   onStatus: (status: ViewportStatus) => void;
@@ -30,6 +31,7 @@ type ViewportProps = {
   onDragFinish: () => void;
   onRetry: () => void;
   onManager: (manager: ModeManager) => void;
+  children?: ReactNode;
 };
 
 export function Viewport({
@@ -39,6 +41,7 @@ export function Viewport({
   selectedId,
   dragging,
   editingEnabled,
+  navigationTool,
   status,
   attempt,
   onStatus,
@@ -49,10 +52,11 @@ export function Viewport({
   onDragFinish,
   onRetry,
   onManager,
+  children,
 }: ViewportProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<ReturnType<typeof initScene>>(undefined);
-  const snapshotRef = useRef({ objects, selectedId, projectScene, editingEnabled });
+  const snapshotRef = useRef({ objects, selectedId, projectScene, editingEnabled, navigationTool });
 
   useEffect(() => {
     const host = hostRef.current;
@@ -69,6 +73,7 @@ export function Viewport({
         const current = snapshotRef.current;
         scene?.update(current.objects, current.selectedId, current.projectScene);
         scene?.setEditingEnabled(current.editingEnabled);
+        scene?.setNavigationTool(current.navigationTool);
         if (scene !== undefined) {
           onManager(scene.modeManager);
         }
@@ -87,10 +92,11 @@ export function Viewport({
   }, [assets, attempt, onStatus, onThumbnail, onSelect, onTransform, onManager]);
 
   useEffect(() => {
-    snapshotRef.current = { objects, selectedId, projectScene, editingEnabled };
+    snapshotRef.current = { objects, selectedId, projectScene, editingEnabled, navigationTool };
     sceneRef.current?.update(objects, selectedId, projectScene);
     sceneRef.current?.setEditingEnabled(editingEnabled);
-  }, [objects, selectedId, projectScene, editingEnabled, assets, attempt]);
+    sceneRef.current?.setNavigationTool(navigationTool);
+  }, [objects, selectedId, projectScene, editingEnabled, navigationTool, assets, attempt]);
 
   useEffect(() => {
     if (!dragging) {
@@ -147,6 +153,7 @@ export function Viewport({
           onDragFinish();
         }}
       />
+      {children}
       {dragging && <p className="drop-cue">Drop to place</p>}
       <div className={status === "ready" ? "sr-only" : "viewport-feedback"}>
         <p role="status">{statusMessages[status]}</p>
