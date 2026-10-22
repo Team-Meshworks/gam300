@@ -11,9 +11,17 @@ import {
   type ValidationResult,
 } from "../shared/project/validation-helpers";
 
+export type ProjectHistoryState = { project: ProjectDocument; activeSceneId: string };
+
 type Objects = readonly ProjectObject[];
 export type RecoveryHistory = Readonly<{
   version: 1;
+  documents?: {
+    activeSceneId: string;
+    current: ProjectDocument;
+    past: readonly ProjectHistoryState[];
+    future: readonly ProjectHistoryState[];
+  };
   views?: {
     current: readonly NamedViewpoint[];
     past: readonly (readonly NamedViewpoint[])[];
@@ -87,6 +95,7 @@ export function validateRecoveryHistory(
       "past",
       "future",
       ...(Object.hasOwn(raw, "views") ? ["views"] : []),
+      ...(Object.hasOwn(raw, "documents") ? ["documents"] : []),
     ],
     "history",
   );
@@ -106,6 +115,94 @@ export function validateRecoveryHistory(
   } catch {
     return invalid("history", "Recovery history is not serializable");
   }
+  if (Object.hasOwn(raw, "documents")) {
+    const docs = raw.documents;
+    if (!isRecord(docs)) return invalid("history.documents", "Invalid document history");
+    const fields = checkFields(
+      docs,
+      ["activeSceneId", "current", "past", "future"],
+      "history.documents",
+    );
+    if (!fields.ok) return fields;
+    if (
+      !Array.isArray(docs.past) ||
+      !Array.isArray(docs.future) ||
+      docs.past.length + docs.future.length > 100 ||
+      docs.past.length !== raw.past.length ||
+      docs.future.length !== raw.future.length
+    )
+      return invalid("history.documents", "Document history does not match the edit history");
+    function read(value: unknown): ValidationResult<ProjectHistoryState> {
+      if (!isRecord(value)) return invalid("history.documents", "Invalid saved edit");
+      const fields = checkFields(value, ["project", "activeSceneId"], "history.documents");
+      if (!fields.ok) return fields;
+      const checked = validateProject(value.project, assetKinds);
+      if (!checked.ok) return checked;
+      if (
+        checked.value.projectId !== project.projectId ||
+        typeof value.activeSceneId !== "string" ||
+        !checked.value.scenes.some((s) => s.id === value.activeSceneId)
+      )
+        return invalid(
+          "history.documents",
+          "Saved edit belongs to a different project or missing scene",
+        );
+      return { ok: true, value: { project: checked.value, activeSceneId: value.activeSceneId } };
+    }
+    const current = read({ project: docs.current, activeSceneId: docs.activeSceneId });
+    if (!current.ok) return current;
+    if (JSON.stringify(current.value.project) !== JSON.stringify(project))
+      return invalid("history.documents", "History does not match the saved project");
+    const past: ProjectHistoryState[] = [],
+      future: ProjectHistoryState[] = [];
+    for (const [input, output] of [
+      [docs.past, past],
+      [docs.future, future],
+    ] as const) {
+      for (const item of input) {
+        const checked = read(item);
+        if (!checked.ok) return checked;
+        output.push(checked.value);
+      }
+    }
+    // Validate the compatibility object/view snapshots too, so corruption is never silently ignored.
+    const legacy = { ...raw };
+    delete legacy.documents;
+    const firstScene = { ...project.scenes[0]! };
+    delete firstScene.startViewpointId;
+    const legacyProject = { ...project, scenes: [firstScene] };
+    const compatible = validateRecoveryHistory(legacy, legacyProject, assetKinds);
+    if (!compatible.ok) return compatible;
+    for (const [entries, objects, views] of [
+      [past, compatible.value.past, compatible.value.views?.past],
+      [future, compatible.value.future, compatible.value.views?.future],
+    ] as const) {
+      if (
+        entries.some((entry, index) => {
+          const first = entry.project.scenes[0]!;
+          return (
+            JSON.stringify(first.objects) !== JSON.stringify(objects[index]) ||
+            JSON.stringify(first.viewpoints ?? []) !== JSON.stringify(views?.[index] ?? [])
+          );
+        })
+      )
+        return invalid("history.documents", "Saved history copies do not match");
+    }
+    return {
+      ok: true,
+      value: {
+        ...compatible.value,
+        documents: {
+          activeSceneId: current.value.activeSceneId,
+          current: current.value.project,
+          past,
+          future,
+        },
+      },
+    };
+  }
+  if (project.scenes.length !== 1 || scene.startViewpointId !== undefined)
+    return invalid("history", "Multiple scenes need complete document history");
   let views: RecoveryHistory["views"];
   if (Object.hasOwn(raw, "views")) {
     const data = raw.views;
@@ -204,4 +301,39 @@ export function validateRecoveryHistory(
       future: Object.freeze(future),
     }),
   };
+}
+
+export function captureProjectHistory(
+  project: ProjectDocument,
+  activeSceneId: string,
+  states: { past: ProjectHistoryState[]; future: ProjectHistoryState[] },
+): RecoveryHistory {
+  const past = [...states.past],
+    future = [...states.future];
+  function build(): RecoveryHistory {
+    // The compatibility snapshots describe the first scene at each point in history.
+    const first = (s: ProjectHistoryState) => s.project.scenes[0]!;
+    const legacy = captureRecoveryHistory(
+      project,
+      { past: past.map((s) => first(s).objects), future: future.map((s) => first(s).objects) },
+      {
+        past: past.map((s) => first(s).viewpoints ?? []),
+        future: future.map((s) => first(s).viewpoints ?? []),
+      },
+    );
+    return {
+      ...legacy,
+      documents: { current: project, activeSceneId, past: [...past], future: [...future] },
+    };
+  }
+  let result = build();
+  while (
+    new TextEncoder().encode(JSON.stringify(result)).byteLength > MAX_HISTORY_BYTES &&
+    past.length + future.length > 0
+  ) {
+    if (past.length >= future.length) past.pop();
+    else future.pop();
+    result = build();
+  }
+  return result;
 }

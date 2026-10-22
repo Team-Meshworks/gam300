@@ -1,3 +1,4 @@
+import { getStartingView } from "../shared/project/starting-view";
 import { useState } from "react";
 import type { NamedViewpoint } from "../shared/project/project-types";
 import type { createDocumentStore } from "./document-store";
@@ -5,11 +6,13 @@ import type { ViewpointCamera } from "./viewport/Viewport";
 
 export function Viewpoints({
   views,
+  startViewpointId,
   camera,
   disabled,
   store,
 }: {
   views: readonly NamedViewpoint[];
+  startViewpointId: string | undefined;
   camera: ViewpointCamera | null;
   disabled: boolean;
   store: ReturnType<typeof createDocumentStore>;
@@ -29,6 +32,10 @@ export function Viewpoints({
     report(store.moveViewpoint(id, index), "View order updated. Undo is available.");
   }
   const view = views.find((v) => v.id === selected);
+  const startingView = getStartingView({
+    viewpoints: views,
+    ...(startViewpointId ? { startViewpointId } : {}),
+  });
   function cycleView(direction: -1 | 1) {
     if (disabled || !camera || views.length === 0) return;
     const current = views.findIndex((entry) => entry.id === selected);
@@ -52,6 +59,10 @@ export function Viewpoints({
     <section className="viewpoints" aria-label="Named viewpoints">
       <h2>Saved views</h2>
       <p>Frame the view, give it a name, then capture it.</p>
+      <p>
+        Starting view: {startingView?.name ?? "Saved scene camera"}
+        {startingView && !startViewpointId ? " (first saved view)" : ""}
+      </p>
       <fieldset disabled={disabled || !camera}>
         <label>
           View name
@@ -213,6 +224,19 @@ export function Viewpoints({
             }}
           >
             Go to view
+          </button>
+          <button
+            type="button"
+            disabled={!view || view.id === startViewpointId}
+            onClick={() => {
+              if (view)
+                report(
+                  store.setStartingViewpoint(view.id),
+                  "Starting view saved. Undo is available.",
+                );
+            }}
+          >
+            Set as starting view
           </button>
           <button
             type="button"

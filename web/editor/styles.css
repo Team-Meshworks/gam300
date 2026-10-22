@@ -771,3 +771,87 @@ ul {
 .view-drag-handle:active {
   cursor: grabbing;
 }
+
+.scenes-panel {
+  padding: 16px;
+  border-bottom: 1px solid #ccc;
+}
+.scenes-panel h2 {
+  font-size: 1rem;
+}
+.scenes-panel p {
+  font-size: 0.8rem;
+}
+.scenes-panel fieldset {
+  border: 0;
+  padding: 0;
+  min-width: 0;
+}
+.scenes-panel label {
+  display: grid;
+  gap: 4px;
+  margin: 10px 0;
+}
+.scenes-panel input,
+.scenes-panel select {
+  width: 100%;
+  min-width: 0;
+  padding: 6px;
+  box-sizing: border-box;
+}
+.scenes-panel ol {
+  padding: 0;
+  list-style: none;
+  max-height: 200px;
+  overflow: auto;
+}
+.scenes-panel li {
+  display: flex;
+  align-items: center;
+  border-top: 2px solid transparent;
+  border-bottom: 2px solid transparent;
+}
+.scenes-panel li button {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  overflow-wrap: anywhere;
+  padding: 6px;
+}
+.scenes-panel li button[aria-pressed="true"] {
+  background: #dce8f8;
+  color: #18385c;
+}
+.scenes-panel li.drop-before {
+  border-top-color: #366bc4;
+}
+.scenes-panel li.drop-after {
+  border-bottom-color: #366bc4;
+}
+.scenes-panel button,
+.scenes-panel input,
+.scenes-panel select {
+  border: 1px solid #d2d3cf;
+  border-radius: 5px;
+  background: #fafaf8;
+  color: inherit;
+  padding: 7px 8px;
+  font: inherit;
+  font-size: 0.8rem;
+}
+.scenes-panel button:not(:disabled):hover {
+  background: #eef0eb;
+}
+.scenes-panel button:disabled {
+  opacity: 0.45;
+}
+.scenes-panel .viewpoint-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+.scenes-panel button:focus-visible,
+.scenes-panel input:focus-visible,
+.scenes-panel select:focus-visible {
+  outline: 2px solid #366bc4;
+  outline-offset: 2px;
+}

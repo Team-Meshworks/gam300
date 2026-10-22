@@ -65,7 +65,7 @@ describe("M1 project structure", () => {
     });
   });
 
-  it.each([0, 2])("rejects a scene count of %s", (count) => {
+  it.each([0, 21])("rejects a scene count of %s", (count) => {
     const { project, scene } = sampleProject();
     project.scenes = Array.from({ length: count }, () => scene);
     expect(validateProjectStructure(project)).toMatchObject({

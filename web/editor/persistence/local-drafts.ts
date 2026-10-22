@@ -432,7 +432,11 @@ export async function getRecoverySession(
         document: document.value,
         fileName: raw.fileName,
         savedJson,
-        pristine: raw.pristine && document.value.scenes[0]?.objects.length === 0,
+        pristine:
+          raw.pristine &&
+          document.value.scenes.length === 1 &&
+          document.value.scenes[0]?.objects.length === 0 &&
+          !document.value.scenes[0]?.viewpoints?.length,
         fileHandle,
         fileText,
         ...(history?.ok ? { history: history.value } : {}),
