@@ -1,5 +1,8 @@
 import { isRecord } from "../../shared/project/validation-helpers";
 
+// Time allowed for one network attempt; the edit debounce lives in server-autosave
+const SAVE_REQUEST_TIMEOUT_MS = 15_000;
+
 export type ServerDraftRequest = Readonly<{ projectId: string; body: string }>;
 export type ServerDraftResult =
   | {
@@ -15,6 +18,13 @@ export async function writeServerDraft(
   signal: AbortSignal,
   fetcher: typeof fetch = fetch,
 ): Promise<ServerDraftResult> {
+  if (signal.aborted) return { kind: "failed" };
+  // Bound the whole token/save exchange so a stalled connection releases the save queue
+  // A timeout still leaves the server outcome uncertain; retry the original mutation
+  const timeout = new AbortController();
+  const deadline = setTimeout(() => timeout.abort(), SAVE_REQUEST_TIMEOUT_MS);
+  // Either leaving the account or reaching the deadline cancels both fetches
+  const requestSignal = AbortSignal.any([signal, timeout.signal]);
   try {
     // Cookies stay in the browser; the request token goes in the header required by SCRUM-66
     // Fetch a fresh token so login changes cannot leave an old one cached here
@@ -22,8 +32,9 @@ export async function writeServerDraft(
       credentials: "same-origin",
       cache: "no-store",
       redirect: "error",
-      signal,
+      signal: requestSignal,
     });
+    if ([401, 403].includes(csrf.status)) return { kind: "rejected" };
     if (!csrf.ok) return { kind: "failed" };
     const token: unknown = await csrf.json();
     if (!isRecord(token) || typeof token.requestToken !== "string" || !token.requestToken)
@@ -34,7 +45,7 @@ export async function writeServerDraft(
       credentials: "same-origin",
       cache: "no-store",
       redirect: "error",
-      signal,
+      signal: requestSignal,
       headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": token.requestToken },
       body: request.body,
     });
@@ -69,5 +80,7 @@ export async function writeServerDraft(
     // A dropped response can follow a successful server write
     // Leave reconciliation to the caller; never claim the document was saved here
     return { kind: "failed" };
+  } finally {
+    clearTimeout(deadline);
   }
 }

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { writeServerDraft } from "./server-draft-write";
 
 // Transport receives a body already prepared by autosave
@@ -6,6 +6,8 @@ import { writeServerDraft } from "./server-draft-write";
 const request = { projectId: "project-a", body: '{"captured":"request"}' };
 const signal = new AbortController().signal;
 const receipt = { projectId: "project-a", clientMutationId: "save-a", revision: 1 };
+
+afterEach(() => vi.useRealTimers());
 
 function responses(response: Response) {
   // First fetch gets the CSRF token; second fetch sends the draft
@@ -25,7 +27,7 @@ describe("server draft transport", () => {
       credentials: "same-origin",
       cache: "no-store",
       redirect: "error",
-      signal,
+      signal: expect.any(AbortSignal),
       headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": "csrf-token" },
       body: request.body,
     });
@@ -62,5 +64,56 @@ describe("server draft transport", () => {
     fetcher.mockResolvedValueOnce(Response.json({ requestToken: "csrf-token" }));
     fetcher.mockRejectedValueOnce(new TypeError("Connection lost"));
     expect(await writeServerDraft(request, signal, fetcher)).toEqual({ kind: "failed" });
+  });
+
+  it.each([401, 403])("pauses when CSRF bootstrap rejects the session with %s", async (status) => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status }));
+    expect(await writeServerDraft(request, signal, fetcher)).toEqual({ kind: "rejected" });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it("bounds a stalled request without claiming that the server rolled it back", async () => {
+    vi.useFakeTimers();
+    // Leave the save unresolved until its abort signal fires
+    // Advancing the test clock exercises the deadline without a real fifteen-second wait
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json({ requestToken: "csrf-token" }))
+      .mockImplementationOnce(
+        (_url, init) =>
+          new Promise((_resolve, reject) => {
+            init?.signal?.addEventListener(
+              "abort",
+              () => reject(new DOMException("Aborted", "AbortError")),
+              { once: true },
+            );
+          }),
+      );
+    const saving = writeServerDraft(request, signal, fetcher);
+    await vi.advanceTimersByTimeAsync(15_000);
+    expect(await saving).toEqual({ kind: "failed" });
+    expect(fetcher.mock.calls[1]![1]?.signal?.aborted).toBe(true);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("cancels the request when its owning account session ends", async () => {
+    const account = new AbortController();
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(
+      (_url, init) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener(
+            "abort",
+            () => reject(new DOMException("Aborted", "AbortError")),
+            { once: true },
+          );
+        }),
+    );
+    const saving = writeServerDraft(request, account.signal, fetcher);
+    account.abort();
+    // Retry after logout as well; an ended session must not begin another fetch
+    expect(await saving).toEqual({ kind: "failed" });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(await writeServerDraft(request, account.signal, fetcher)).toEqual({ kind: "failed" });
+    expect(fetcher).toHaveBeenCalledTimes(1);
   });
 });
