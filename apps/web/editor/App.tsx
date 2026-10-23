@@ -1,19 +1,21 @@
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { assets } from "virtual:asset-catalogue";
-import { assetDragType } from "../shared/assets/catalogue";
 import type { Vector3Tuple } from "../shared/project/scene-object";
 import type { Transform } from "../shared/project/project-types";
 import { createDocumentStore } from "./document-store";
 import {
+  handleDeleteShortcut,
   handleHistoryShortcut,
   handleObjectShortcut,
   isTextEditingTarget,
 } from "./history-shortcuts";
-import type { ViewportStatus } from "./graphics/scene";
+import type { NavigationTool, ViewportStatus } from "./graphics/scene";
 import type { ModeManager, ModeManagerState } from "./graphics/modeManager";
+import { BottomBar } from "./ui/BottomBar";
+import { SidePanels } from "./ui/SidePanels";
+import { TopBar } from "./ui/TopBar";
 import { Viewpoints } from "./Viewpoints";
 import { Viewport, type ViewpointCamera } from "./viewport/Viewport";
-import sampleProject from "../shared/project/fixtures/m1-project.json";
 
 import { ProjectConfirmation } from "./ProjectConfirmation";
 import { useProjectSession } from "./persistence/use-project-session";
@@ -50,23 +52,6 @@ export function App() {
     }, 3500);
     return () => clearTimeout(timer);
   }, [feedback.sequence]);
-  const draftMenu = useRef<HTMLDetailsElement>(null);
-  useEffect(() => {
-    // Clicking back into the editor closes the project options
-    function closeOutside(event: PointerEvent) {
-      if (event.target instanceof Node && !draftMenu.current?.contains(event.target)) {
-        draftMenu.current?.removeAttribute("open");
-      }
-    }
-    document.addEventListener("pointerdown", closeOutside);
-    return () => {
-      document.removeEventListener("pointerdown", closeOutside);
-    };
-  }, []);
-  function closeDraftMenu() {
-    draftMenu.current?.removeAttribute("open");
-    draftMenu.current?.querySelector("summary")?.focus();
-  }
   const [viewCamera, setViewCamera] = useState<ViewpointCamera | null>(null);
   const [manager, setManager] = useState<ModeManager | null>(null);
   const [modeState, setModeState] = useState<ModeManagerState | null>(null);
@@ -80,6 +65,7 @@ export function App() {
   const selectedObject = objects.find((object) => object.id === selection);
   const hasChanges = project !== null || objects.length > 0 || hasDeleted;
   const visitor = modeState?.mode === "visitor";
+  const [navigationTool, setNavigationTool] = useState<NavigationTool>("select");
 
   const onManager = useCallback((next: ModeManager) => {
     setManager(next);
@@ -100,6 +86,19 @@ export function App() {
     storageOperation === "switch" ||
     storageOperation === "recover" ||
     storageOperation === "import";
+
+  const deleteSelection = useCallback(() => {
+    if (selection === null || visitor) return;
+    const result = store.deleteObject(selection);
+    if (!result.ok) {
+      setError(result.error.message);
+      return;
+    }
+    setError("");
+    setHasDeleted(true);
+    setSelectedId(null);
+    setNotice(`Deleted ${result.value.name}. Undo restores it.`);
+  }, [store, selection, visitor, setNotice]);
 
   useEffect(() => {
     function onHistoryKeyDown(event: KeyboardEvent) {
@@ -150,10 +149,11 @@ export function App() {
         },
         editingText,
       );
+      handleDeleteShortcut(event, deleteSelection, editingText);
     }
     window.addEventListener("keydown", onHistoryKeyDown);
     return () => window.removeEventListener("keydown", onHistoryKeyDown);
-  }, [store, selection, storageOperation, visitor, setNotice]);
+  }, [store, selection, storageOperation, visitor, setNotice, deleteSelection]);
 
   useEffect(() => {
     // Filename identifies the browser tab; save status stays in the editor
@@ -180,18 +180,11 @@ export function App() {
         setError(result.error);
       } else if (result.changed) {
         setError("");
-        setNotice("Moved object. Undo is available.");
+        setNotice("Updated object. Undo is available.");
       }
     },
     [store, setNotice],
   );
-
-  function moveSelected(axis: 0 | 1 | 2, delta: number) {
-    if (visitor || selectedObject === undefined) return;
-    const position = [...selectedObject.transform.position] as [number, number, number];
-    position[axis] += delta;
-    onTransform(selectedObject.id, { ...selectedObject.transform, position });
-  }
 
   function place(assetId: string, position: Vector3Tuple) {
     if (visitor) return;
@@ -231,201 +224,29 @@ export function App() {
     setNotice(`Added ${result.object.name}`);
   }
 
-  function deleteSelection() {
-    if (selection === null || visitor) return;
-    const result = store.deleteObject(selection);
-    if (!result.ok) {
-      setError(result.error.message);
-      return;
-    }
-    setError("");
-    setHasDeleted(true);
-    setSelectedId(null);
-    setNotice(`Deleted ${result.value.name}. Undo restores it.`);
-  }
-
   return (
-    <div className="editor-shell">
+    <div className={`editor-shell${visitor ? " is-previewing" : ""}`}>
       <a className="skip-link" href="#viewport">
         Skip to scene
       </a>
-      <header className="app-header">
-        {/* Project actions stay behind this icon so the library has room for assets */}
-        <details
-          className="draft-menu"
-          inert={visitor}
-          ref={draftMenu}
-          onKeyDown={(event) => {
-            if (event.key === "Escape") {
-              event.preventDefault();
-              closeDraftMenu();
-            }
-          }}
-          onBlur={(event) => {
-            if (!event.currentTarget.contains(event.relatedTarget))
-              event.currentTarget.removeAttribute("open");
-          }}
-        >
-          <summary aria-label="Project options" title="Project options">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </summary>
-          <div className="draft-menu-panel">
-            <button
-              type="button"
-              title="Start a new project with an empty room"
-              disabled={status !== "ready" || storageOperation !== null}
-              onClick={() => {
-                closeDraftMenu();
-                void session.createNew();
-              }}
-            >
-              New
-            </button>
-            <button
-              type="button"
-              title="Open a JSON project file"
-              disabled={status !== "ready" || storageOperation !== null}
-              onClick={() => {
-                closeDraftMenu();
-                void session.open();
-              }}
-            >
-              Open
-            </button>
-            <button
-              id="project-save"
-              type="button"
-              title={
-                project === null
-                  ? "Choose a room to create your project"
-                  : "Save changes to the current file · Ctrl+S"
-              }
-              disabled={project === null || storageOperation !== null}
-              onClick={() => {
-                closeDraftMenu();
-                void session.save();
-              }}
-            >
-              Save
-            </button>
-            <button
-              id="project-save-as"
-              type="button"
-              title={
-                project === null
-                  ? "Choose a room to create your project"
-                  : "Choose a filename and folder · Ctrl+Shift+S"
-              }
-              disabled={project === null || storageOperation !== null}
-              onClick={() => {
-                closeDraftMenu();
-                void session.save(true);
-              }}
-            >
-              Save As
-            </button>
-          </div>
-        </details>
-        <h1>
-          <strong>Spatia</strong>
-        </h1>
-        <div
-          className="history-controls"
-          role="group"
-          aria-label="History"
-          inert={visitor || switching}
-        >
-          <button type="button" disabled={selection === null || visitor} onClick={deleteSelection}>
-            Delete selected
-          </button>
-          {import.meta.env.DEV && (
-            <button
-              type="button"
-              disabled={status !== "ready" || storageOperation !== null}
-              onClick={() => void session.openSample(sampleProject)}
-            >
-              Open sample project
-            </button>
-          )}
-          <button
-            type="button"
-            disabled={!canUndo}
-            onClick={store.undo}
-            title="Undo (Ctrl+Z / ⌘Z)"
-            aria-keyshortcuts="Control+z Meta+z"
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M9 5 4 10l5 5M4 10h10a6 6 0 0 1 0 12" />
-            </svg>
-            Undo
-          </button>
-          <button
-            type="button"
-            disabled={!canRedo}
-            onClick={store.redo}
-            title="Redo (Ctrl+Y / Ctrl+Shift+Z / ⌘⇧Z)"
-            aria-keyshortcuts="Control+y Control+Shift+z Meta+Shift+z"
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="m15 5 5 5-5 5m5-5H10a6 6 0 0 0 0 12" />
-            </svg>
-            Redo
-          </button>
-        </div>
-        {manager !== null && (
-          <div className="mode-actions" role="group" aria-label="Camera mode">
-            {visitor ? (
-              <button type="button" onClick={() => manager.setMode("editor")}>
-                Exit Visitor
-              </button>
-            ) : (
-              <button
-                type="button"
-                disabled={session.busy}
-                onClick={() => {
-                  manager.setMode("visitor");
-                  document.getElementById("viewport")?.focus();
-                }}
-              >
-                Enter Visitor
-              </button>
-            )}
-          </div>
-        )}
-        {hasChanges && (
-          <div className="project-file-status">
-            {/* Recovery stays quiet; this status only describes the manual JSON save */}
-            <span
-              className="save-state"
-              data-state={
-                storageOperation === "file"
-                  ? "saving"
-                  : session.fileFailed
-                    ? "failed"
-                    : session.dirty
-                      ? "pending"
-                      : "saved"
-              }
-              title={
-                session.dirty
-                  ? "Changes have not been saved to the JSON file"
-                  : "Project matches the last opened or saved JSON file"
-              }
-              role="status"
-            >
-              {storageOperation === "file"
-                ? "Saving…"
-                : session.fileFailed
-                  ? "Save failed"
-                  : session.dirty
-                    ? "Not saved"
-                    : "Saved"}
-            </span>
-          </div>
-        )}
-      </header>
+      <TopBar
+        session={session}
+        hasProject={project !== null}
+        hasChanges={hasChanges}
+        ready={status === "ready"}
+        visitor={visitor}
+        switching={switching}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        onUndo={store.undo}
+        onRedo={store.redo}
+        canPreview={manager !== null && !session.busy}
+        onPreview={() => {
+          manager?.setMode("visitor");
+          document.getElementById("viewport")?.focus();
+        }}
+        onExitPreview={() => manager?.setMode("editor")}
+      />
       {/* Reset the input so choosing the same file again still fires a change */}
       <input
         id="project-import"
@@ -440,120 +261,37 @@ export function App() {
       />
 
       <main className="workspace" inert={switching}>
-        <aside className="library" aria-label="Assets and scene objects" inert={visitor}>
-          <section aria-labelledby="assets-heading">
-            <h2 id="assets-heading">Asset library</h2>
-            <ul className="asset-shelf" role="list">
-              {/* Keep the full library visible when a project is open */}
-              {assets.map((asset) => (
-                <li key={asset.id}>
-                  <button
-                    className="asset-tile"
-                    type="button"
-                    draggable={status === "ready"}
-                    disabled={status !== "ready"}
-                    aria-label={`Add ${asset.name}`}
-                    title="Drag into the scene, or click to add"
-                    onClick={() => place(asset.id, [0, 0, 0])}
-                    onDragStart={(event) => {
-                      event.dataTransfer.setData(assetDragType, asset.id);
-                      event.dataTransfer.effectAllowed = "copy";
-                      setDragging(true);
-                    }}
-                    onDragEnd={() => setDragging(false)}
-                  >
-                    <span className="asset-art">
-                      <img src={thumbnailFor(asset.id)} alt="" draggable={false} />
-                      <span className="asset-add" aria-hidden="true">
-                        +
-                      </span>
-                    </span>
-                    <span className="asset-name">{asset.name}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </section>
-
-          {hasChanges && (
-            <section className="scene-objects" aria-labelledby="objects-heading">
-              <h2 id="objects-heading">
-                In this scene <span>{objects.length + (projectScene === undefined ? 0 : 1)}</span>
-              </h2>
-              <ul role="list">
-                {projectScene !== undefined && (
-                  <li key={projectScene.id}>
-                    <button
-                      className="environment-row"
-                      type="button"
-                      aria-pressed={roomSelected}
-                      onClick={() => setSelectedId(projectScene.id)}
-                    >
-                      <img
-                        src={thumbnailFor(projectScene.environmentAssetId)}
-                        alt=""
-                        draggable={false}
-                      />
-                      <span>{roomAsset?.name ?? projectScene.name}</span>
-                    </button>
-                  </li>
-                )}
-                {objects.map((object) => (
-                  <li key={object.id}>
-                    <button
-                      className="object-row"
-                      type="button"
-                      aria-pressed={selection === object.id}
-                      data-object-id={object.id}
-                      onClick={() => setSelectedId(object.id)}
-                    >
-                      <img src={thumbnailFor(object.assetId)} alt="" draggable={false} />
-                      <span>{object.name}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-              {selectedObject !== undefined && (
-                <div
-                  className="move-controls"
-                  role="group"
-                  aria-label={`Move ${selectedObject.name}`}
-                >
-                  <p>Move selected · 0.25 m per step</p>
-                  <div>
-                    {([0, 1, 2] as const).map((axis) =>
-                      ([-0.25, 0.25] as const).map((delta) => (
-                        <button
-                          key={`${axis}:${delta}`}
-                          type="button"
-                          aria-label={`Move ${selectedObject.name} ${"XYZ"[axis]} ${delta > 0 ? "plus" : "minus"} 0.25 metres`}
-                          onClick={() => moveSelected(axis, delta)}
-                        >
-                          {"XYZ"[axis]} {delta > 0 ? "+" : "−"}
-                        </button>
-                      )),
-                    )}
-                  </div>
-                  <output aria-label="Selected position">
-                    {selectedObject.transform.position
-                      .map((value, axis) => `${"XYZ"[axis]} ${value.toFixed(2)}`)
-                      .join(" · ")}{" "}
-                    m
-                  </output>
-                </div>
-              )}
-            </section>
-          )}
-          {projectScene && (
-            <Viewpoints
-              key={projectScene.id}
-              views={projectScene.viewpoints ?? []}
-              camera={viewCamera}
-              disabled={visitor || switching || status !== "ready"}
-              store={store}
-            />
-          )}
-        </aside>
+        <SidePanels
+          savedViews={
+            projectScene ? (
+              <Viewpoints
+                key={projectScene.id}
+                views={projectScene.viewpoints ?? []}
+                camera={viewCamera}
+                disabled={visitor || switching || status !== "ready"}
+                store={store}
+              />
+            ) : (
+              <p>Choose an environment to start saving views.</p>
+            )
+          }
+          visitor={visitor}
+          room={
+            projectScene === undefined
+              ? undefined
+              : {
+                  id: projectScene.id,
+                  name: roomAsset?.name ?? projectScene.name,
+                  thumbnail: thumbnailFor(projectScene.environmentAssetId),
+                }
+          }
+          objects={objects}
+          selectedId={roomSelected ? projectScene.id : selection}
+          selectedObject={selectedObject}
+          thumbnailFor={thumbnailFor}
+          onSelect={setSelectedId}
+          onTransform={onTransform}
+        />
 
         <Viewport
           onCamera={setViewCamera}
@@ -563,6 +301,7 @@ export function App() {
           selectedId={roomSelected ? projectScene.id : selection}
           dragging={dragging}
           editingEnabled={!switching}
+          navigationTool={navigationTool}
           status={status}
           attempt={attempt}
           onStatus={setStatus}
@@ -576,7 +315,19 @@ export function App() {
             setAttempt((previous) => previous + 1);
           }}
           onManager={onManager}
-        />
+        >
+          {!visitor && (
+            <BottomBar
+              assets={assets}
+              ready={status === "ready"}
+              thumbnailFor={thumbnailFor}
+              onAdd={(assetId) => place(assetId, [0, 0, 0])}
+              onDragChange={setDragging}
+              tool={navigationTool}
+              onToolChange={setNavigationTool}
+            />
+          )}
+        </Viewport>
       </main>
       <p
         key={`${storageOperation === "recover" || storageOperation === "import" ? storageOperation : "notice"}-${feedback.sequence}`}

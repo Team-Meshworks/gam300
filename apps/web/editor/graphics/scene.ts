@@ -39,6 +39,22 @@ export interface FpsMeter {
   tick(now: number): void;
 }
 
+// What left drag does in the editor view
+export type NavigationTool = "select" | "orbit" | "pan" | "zoom";
+
+const leftDrag: Record<NavigationTool, THREE.MOUSE> = {
+  select: THREE.MOUSE.ROTATE,
+  orbit: THREE.MOUSE.ROTATE,
+  pan: THREE.MOUSE.PAN,
+  zoom: THREE.MOUSE.DOLLY,
+};
+const cursors: Record<NavigationTool, string> = {
+  select: "",
+  orbit: "grab",
+  pan: "move",
+  zoom: "zoom-in",
+};
+
 export interface InitSceneHandle {
   update: (
     nextObjects: readonly SceneObject[],
@@ -50,6 +66,7 @@ export interface InitSceneHandle {
   setEditingEnabled: (enabled: boolean) => void;
   captureCamera: () => CameraPose;
   showCamera: (pose: CameraPose) => void;
+  setNavigationTool: (tool: NavigationTool) => void;
   modeManager: ModeManager;
   dispose: () => void;
 }
@@ -93,6 +110,13 @@ export function initScene(
   let orbit = new OrbitControls(camera, renderer.domElement);
   orbit.enableDamping = true;
   orbit.target.set(0, 0, 0);
+  let navigationTool: NavigationTool = "select";
+  // Select still orbit when you drag empty space
+  function applyNavigationTool() {
+    orbit.mouseButtons.LEFT = leftDrag[navigationTool];
+    renderer.domElement.style.cursor =
+      modeManager.getState().mode === "editor" ? cursors[navigationTool] : "";
+  }
 
   const fpsControls = new FpsControls(camera, renderer.domElement);
   const modeManager = new ModeManager(camera, orbit, fpsControls);
@@ -296,6 +320,7 @@ export function initScene(
     orbit = new OrbitControls(camera, renderer.domElement);
     orbit.enableDamping = true;
     orbit.enabled = editingEnabled;
+    applyNavigationTool();
     // The constructor looks at its default target, so reinstall the authored pose afterward
     camera.position.fromArray(pose.position);
     camera.quaternion.fromArray(pose.rotation);
@@ -520,6 +545,8 @@ export function initScene(
     if (!ready || !editingEnabled || (event.button !== 0 && event.button !== 2)) return;
     if (!event.isPrimary || drag !== undefined) return;
     if (modeManager.getState().mode !== "editor") return;
+    // Camera tools never pick or move objects
+    if (navigationTool !== "select") return;
     if (wheelEdit !== undefined) {
       commitWheelEdit();
       event.preventDefault();
@@ -606,6 +633,7 @@ export function initScene(
     if (
       !ready ||
       !editingEnabled ||
+      navigationTool !== "select" ||
       drag !== undefined ||
       selectedId === null ||
       event.deltaY === 0
@@ -664,6 +692,7 @@ export function initScene(
     cancelWheelEdit();
     // Cancellation must not re-enable orbit controls while visiting
     orbit.enabled = mode === "editor" && editingEnabled;
+    applyNavigationTool();
     selection.visible = mode === "editor" && getSelectionBounds() !== undefined;
     updateGizmo();
   });
@@ -736,6 +765,13 @@ export function initScene(
       fovDegrees: camera.fov,
     }),
     showCamera,
+    setNavigationTool(tool) {
+      if (tool === navigationTool) return;
+      navigationTool = tool;
+      cancelDrag();
+      cancelWheelEdit();
+      applyNavigationTool();
+    },
     modeManager,
     dispose() {
       if (disposed) {
@@ -785,8 +821,9 @@ function createFpsMeter(host: HTMLDivElement): FpsMeter & { dispose(): void } {
   el.className = "fps-meter";
   Object.assign(el.style, {
     position: "absolute",
-    top: "0.75rem",
-    right: "0.75rem",
+    // Below the Preview and Publish buttons
+    top: "4.75rem",
+    right: "1.5rem",
     padding: "0.25rem 0.5rem",
     borderRadius: "0.375rem",
     background: "rgba(41, 46, 41, 0.6)",

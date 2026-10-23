@@ -37,6 +37,7 @@ graph TD
   checks --> build
   checks --> catalogue
   checks --> document
+  checks --> editor
   checks --> input
   checks --> persistence
   checks --> project
