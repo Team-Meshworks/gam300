@@ -1,7 +1,7 @@
 import { useState, type FocusEvent, type PointerEvent } from "react";
 import { assetDragType, type CatalogueAsset } from "../../shared/assets/catalogue";
 import type { NavigationTool } from "../graphics/scene";
-import { Icon, type IconName } from "./Icon";
+import { Icon, type IconName } from "./icon";
 
 const cameraTools: { id: NavigationTool; label: string; hint: string; icon: IconName }[] = [
   { id: "select", label: "Select", hint: "Select · click objects to edit them", icon: "select" },
