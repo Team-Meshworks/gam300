@@ -10,6 +10,15 @@ const browser = await chromium.launch({
   ...(process.env.PLAYWRIGHT_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHANNEL } : {}),
 });
 
+// No more move buttons, so nudge through the Position panel then go back to the tree
+async function nudge(page, name, axis, metres) {
+  await page.getByRole("button", { name: "Position", exact: true }).click();
+  const field = page.getByRole("textbox", { name: `${name} transform ${axis} (m)`, exact: true });
+  await field.fill(String(Number(await field.inputValue()) + metres));
+  await field.press("Enter");
+  await page.getByRole("button", { name: "Scene tree", exact: true }).click();
+}
+
 try {
   const page = await browser.newPage({ viewport: { width: 1366, height: 768 }, hasTouch: true });
   const pageErrors = [];
@@ -61,9 +70,11 @@ try {
   const firstId = await rows.first().getAttribute("data-object-id");
   const stageBox = await stage.boundingBox();
   assert.ok(stageBox);
-  await asset.dragTo(stage, {
-    targetPosition: { x: stageBox.width * 0.7, y: stageBox.height * 0.62 },
-  });
+  // Asset panel floats over the bottom of the scene, so drop above it or the panel catch it
+  const dockBox = await page.locator(".bottom-dock").boundingBox();
+  assert.ok(dockBox);
+  const dropPoint = { x: stageBox.width * 0.7, y: (dockBox.y - stageBox.y) * 0.8 };
+  await asset.dragTo(stage, { targetPosition: dropPoint });
   assert.equal(await rows.count(), 2, "One completed drop creates one object");
   const secondId = await rows.nth(1).getAttribute("data-object-id");
   assert.notEqual(firstId, secondId);
@@ -77,8 +88,7 @@ try {
   );
   const position = page.locator('output[aria-label="Selected position"]');
   const initialPosition = await position.textContent();
-  await page.getByRole("button", { name: "Move test-crate 1 X plus 0.25 metres" }).focus();
-  await page.keyboard.press("Enter");
+  await nudge(page, "test-crate 1", "X", 0.25);
   assert.match(await position.textContent(), /X 0\.25/);
   await undo.click();
   assert.equal(await position.textContent(), initialPosition);
@@ -157,9 +167,7 @@ try {
   assert.ok(tileBox);
   await page.mouse.move(tileBox.x + tileBox.width / 2, tileBox.y + tileBox.height / 2);
   await page.mouse.down();
-  await page.mouse.move(stageBox.x + stageBox.width / 2, stageBox.y + stageBox.height / 2, {
-    steps: 8,
-  });
+  await page.mouse.move(stageBox.x + dropPoint.x, stageBox.y + dropPoint.y, { steps: 8 });
   await page.getByText("Drop to place", { exact: true }).waitFor();
   await page.keyboard.press("Escape");
   await page.mouse.up();
@@ -272,10 +280,9 @@ try {
   assert.equal(await room.isVisible(), true, "Opening a project keeps the room in the library");
   const roomRow = page.locator(".environment-row");
   assert.equal(await roomRow.textContent(), "test-room");
-  assert.equal(await page.locator(".scene-objects h2 span").textContent(), "3");
+  assert.equal(await page.locator(".panel-count").textContent(), "3");
   await roomRow.click();
   assert.equal(await roomRow.getAttribute("aria-pressed"), "true");
-  assert.equal(await page.locator(".move-controls").count(), 0);
   // Reusing the current room must leave the loaded exhibits and history intact
   await room.click();
   assert.deepEqual(await rows.allTextContents(), ["First crate", "Second crate"]);
@@ -299,12 +306,11 @@ try {
   }
 
   await rows.nth(1).click();
-  const moveBehindWall = page.getByRole("button", {
-    name: "Move Second crate Z plus 0.25 metres",
-    exact: true,
-  });
-  for (let step = 0; step < 4; step++) await moveBehindWall.click();
+  await nudge(page, "Second crate", "Z", 1);
   await rows.first().click();
+  // Asset panel floats over this part of the scene, close it first so the click reach the wall
+  const library = page.getByRole("button", { name: "Asset library", exact: true });
+  await library.click();
   const hiddenCrate = new THREE.Vector3(-1, 0.5, 3).project(camera);
   await stage.click({
     position: {
@@ -325,6 +331,7 @@ try {
   await rows.nth(1).click();
   assert.equal(await rows.nth(1).getAttribute("aria-pressed"), "true", "List bypasses occlusion");
   assert.equal(await roomRow.getAttribute("aria-pressed"), "false");
+  await library.click();
 
   // New projects and recovered sessions should show the same asset choices
   await page.locator(".draft-menu summary").click();
@@ -339,7 +346,7 @@ try {
   await ready.waitFor();
   assert.equal(await room.isVisible(), true, "Recovery keeps the room in the library");
   await roomRow.waitFor();
-  assert.equal(await page.locator(".scene-objects h2 span").textContent(), "1");
+  assert.equal(await page.locator(".panel-count").textContent(), "1");
 
   const samplePath = "**/*test-crate*.glb*";
   await page.route(samplePath, (route) => {

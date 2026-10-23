@@ -42,23 +42,29 @@ try {
   await page.getByRole("button", { name: "Add test-room", exact: true }).click();
   await page.getByRole("button", { name: "Add test-crate", exact: true }).click();
   const position = await page.getByLabel("Selected position").textContent();
-  await page.getByRole("button", { name: "Enter Visitor", exact: true }).click();
+  await page.getByRole("button", { name: "Preview", exact: true }).click();
   await page.waitForFunction(() => typeof window.finishBackup === "function");
-  for (const key of ["Control+d", "Control+s", "Control+Shift+s", "Control+z", "Control+v"])
+  for (const key of [
+    "Control+d",
+    "Control+s",
+    "Control+Shift+s",
+    "Control+z",
+    "Control+v",
+    "Delete",
+  ])
     await page.keyboard.press(key);
   assert.equal(await page.evaluate(() => window.auditPickers), 0, "Navigation cannot open Save");
   assert.equal(await page.locator(".object-row").count(), 1, "Navigation cannot edit the draft");
-  for (const selector of [".library", ".history-controls", ".draft-menu"])
+  for (const selector of [".library", ".history-controls", ".project-card"])
     assert.equal(await page.locator(selector).evaluate((element) => element.inert), true);
-  // Even a queued library click must be rejected after the mode has changed
-  await page.locator('.asset-tile[aria-label="Add test-crate"]').dispatchEvent("click");
-  await page.locator(".move-controls button").first().dispatchEvent("click");
+  // Preview takes the whole bottom bar away, so got nothing left to click
+  assert.equal(await page.locator(".bottom-dock").count(), 0, "Preview hides the asset library");
   assert.equal(await page.locator(".object-row").count(), 1);
   assert.equal(
     await page.getByLabel("Selected position", { includeHidden: true }).textContent(),
     position,
   );
-  await page.getByRole("button", { name: "Exit Visitor", exact: true }).click();
+  await page.getByRole("button", { name: "Exit preview", exact: true }).click();
   await page.keyboard.press("Control+d");
   assert.equal(await page.locator(".object-row").count(), 2, "Authoring resumes on exit");
   await page.keyboard.press("Control+z");
