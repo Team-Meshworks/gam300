@@ -149,6 +149,13 @@ jobs:
           fi
           mkdir -p dist/editor
           docker cp "$(docker compose -f ../../compose.yaml -p vthere-ci ps -q web):/srv/." dist/editor/
+      - name: Capture container diagnostics
+        if: always()
+        # Collect before uploading so failed deployment checks leave downloadable logs
+        # The stack may not exist if an earlier build step failed
+        run: |
+          mkdir -p test-results
+          docker compose -f ../../compose.yaml -p vthere-ci logs --no-color --tail 100 > test-results/containers.log 2>&1 || true
       - name: Retain test evidence and runnable web files
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -173,10 +180,9 @@ jobs:
           path: ci-artifacts/
           retention-days: 2
           overwrite: true
-      - name: Container diagnostics and cleanup
+      - name: Container cleanup
         if: always()
         run: |
-          docker compose -f ../../compose.yaml -p vthere-ci logs --tail 50
           docker compose -f ../../compose.yaml -p vthere-ci down
 
   publish:
