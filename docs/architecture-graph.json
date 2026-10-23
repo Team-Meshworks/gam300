@@ -224,10 +224,12 @@
     "editor/recovery-history.ts": "eaf1d5cece98daede4e8df9759b1074a3a6e790af624245a38b6be3698dc9756",
     "editor/transform-command.test.ts": "d2ae97b90329d4baf866a7dbc3521675a7d9c78c5754e3b955e60ed62a232469",
     "editor/transform-command.ts": "bcd7036db3877f5f24e5984287af8a878b10ec6289a51987e76f62db8f3cb178",
-    "editor/ui/BottomBar.tsx": "5ae293c2feeea9603dcf558e25be818b599f8b2b2df7ca91c15622f340ee0464",
-    "editor/ui/Icon.tsx": "05c4738e847d45de93486b4a954828fcf0cead9beaf0e243a18e0049de87a2c7",
+    "editor/ui/BottomBar.tsx": "0177614715bb80a4c35b680d9ea7ce820a9e78dcc76ca8caff82b547dead234d",
+    "editor/ui/Icon.tsx": "536064fa8990e7e522f64eba9e25106359c903257d84837b6575ba5c99307e1b",
     "editor/ui/SidePanels.tsx": "31d945caaffab3d3518232ca56e6b858fca18b5e8cff690b942cbbe5e4342d2b",
     "editor/ui/TopBar.tsx": "ffb94cf1637056a51471d5716736f442cc3afc24e080397fcca01b65d457fffe",
+    "editor/ui/dock-edge.test.ts": "5f23848e403e898efc84d2c34ae327b5d5313a066c6391a79cec336e73759ead",
+    "editor/ui/dock-edge.ts": "16fbf3250e0c840d7d6d0add10b5fb4ee008afafcbbebe1b860c15171d7196af",
     "editor/ui/rotation-angles.test.ts": "768d7e7fcfe8d5a5fc0a11f3bc70fa734e5e84ce161fd9aa5b1807b850f4438d",
     "editor/ui/rotation-angles.ts": "16a42a83ee7bb2435c4ee7b640fa6ca3c65a7564fd68981084ce57f5e9687f3b",
     "editor/viewport/Viewport.tsx": "d90e0796f9001e2985ecd90755f80a56cd7d3df574eac07bb0a3a633faff8235",
@@ -256,14 +258,14 @@
     "tests/deployment.check.mjs": "c1728f612846b1d992dd0e1039f129293e10ca7a2729422090031d53355eae61",
     "tests/editor-build.check.mjs": "23c235d69590dc1ceb44208060f32ae35d764b6753a3da2b37d581eaea16d2fe",
     "tests/editor-integration.check.mjs": "4b697ecd860a64826ca0eabda46cb738116009be7bc058b3bd8caa2ac04a8d33",
-    "tests/editor-shell.check.mjs": "b9e69cc27c41290cc06d162026d6015b53e722466592d125bd214aaf0e4c4bb4",
+    "tests/editor-shell.check.mjs": "634b981ee286f1879feb2b82f764896ce9573201867f5f467a6dbdefeff51bbd",
     "tests/history-recovery.check.mjs": "5ca1825415170ca384a3b0ed9e9a9afb2d873a7a6a2e56ced2aedaabb19880a0",
     "tests/local-drafts.check.mjs": "0092cc47ba7c478d8e76848776292fbab80e08f4cd4f4d0d93e024d29d2cc7a8",
     "vite.config.ts": "50329f07010d85bc43b6f9ab2f3ea7b0ca22fa6059f6346d8872bf1b09ac5da6",
     "vitest.config.ts": "6d56840bcf381e145f69828ff965fe1c8065e1610a38219c19dbb4e9d87d7dbf",
     "editor/index.html": "f14296264b1f8edda142de2fa8b8c58d1e98e50265637afe5f29924558900279",
     "shared/project/fixtures/m1-project.json": "3aeeee4397fd9ad18fc06eba32815ef5032ecf8184200aaa38a2076b882a4947",
-    "editor/styles.css": "fc1431d483705b02b388fa23ff27fabfc2e5d817d05bf11540e648c6d737ee14"
+    "editor/styles.css": "c1b1ad140f0bb8f6ddeed5f4049e72bf856978fd0f32f691b96ddc3e433b04d3"
   },
   "imports": [
     {
@@ -1639,7 +1641,7 @@
     },
     {
       "file": "editor/ui/BottomBar.tsx",
-      "line": 9,
+      "line": 10,
       "kind": "static",
       "specifier": "../../shared/assets/catalogue",
       "target": "shared/assets/catalogue.ts",
@@ -1648,7 +1650,7 @@
     },
     {
       "file": "editor/ui/BottomBar.tsx",
-      "line": 10,
+      "line": 11,
       "kind": "type",
       "specifier": "../graphics/scene",
       "target": "editor/graphics/scene.ts",
@@ -1657,7 +1659,16 @@
     },
     {
       "file": "editor/ui/BottomBar.tsx",
-      "line": 11,
+      "line": 12,
+      "kind": "static",
+      "specifier": "./dock-edge",
+      "target": "editor/ui/dock-edge.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/BottomBar.tsx",
+      "line": 13,
       "kind": "static",
       "specifier": "./Icon",
       "target": "editor/ui/Icon.tsx",
@@ -1666,7 +1677,7 @@
     },
     {
       "file": "editor/ui/BottomBar.tsx",
-      "line": 107,
+      "line": 184,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -1796,6 +1807,25 @@
         "package": "react"
       },
       "from": "editor"
+    },
+    {
+      "file": "editor/ui/dock-edge.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/ui/dock-edge.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "./dock-edge",
+      "target": "editor/ui/dock-edge.ts",
+      "from": "checks",
+      "to": "editor"
     },
     {
       "file": "editor/ui/rotation-angles.test.ts",

@@ -248,6 +248,32 @@ try {
     "0s",
   );
   await page.setViewportSize({ width: 1366, height: 768 });
+
+  // Toolbar can dock on any edge and remember it, then go back to the bottom for the rest
+  const grip = page.getByRole("button", { name: "Move toolbar", exact: true });
+  const dock = page.locator(".bottom-dock");
+  const dockMenu = page.getByRole("group", { name: "Dock toolbar" });
+  await grip.click();
+  await dockMenu.getByRole("button", { name: "Right", exact: true }).click();
+  assert.equal(await dock.getAttribute("data-edge"), "right");
+  assert.equal(
+    await page.locator(".scene-toolbar").evaluate((bar) => getComputedStyle(bar).flexDirection),
+    "column",
+    "A side dock turns the toolbar vertical",
+  );
+  assert.equal(await page.evaluate(() => localStorage.getItem("spatia-dock-edge")), "right");
+  const gripBox = await grip.boundingBox();
+  assert.ok(gripBox);
+  await page.mouse.move(gripBox.x + gripBox.width / 2, gripBox.y + gripBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(stageBox.x + 8, stageBox.y + stageBox.height / 2, { steps: 8 });
+  await page.mouse.up();
+  assert.equal(await dock.getAttribute("data-edge"), "left", "Dragging snaps to the nearest edge");
+  assert.equal(await dockMenu.count(), 0, "A drag does not also open the dock menu");
+  await grip.click();
+  await dockMenu.getByRole("button", { name: "Bottom", exact: true }).click();
+  assert.equal(await dock.getAttribute("data-edge"), "bottom");
+
   assert.deepEqual(consoleErrors, [], "No console errors during normal authoring");
 
   await page.getByRole("button", { name: "Add test-room", exact: true }).click();

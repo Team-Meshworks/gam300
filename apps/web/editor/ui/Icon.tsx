@@ -171,6 +171,17 @@ const icons = {
       <path d="m15.5 15.5 5 5M10.5 7.5v6m-3-3h6" />
     </>,
   ),
+  // No Figma one for this, swap it in if they make one
+  grip: {
+    viewBox: "0 0 25 25",
+    body: (
+      <g fill="currentColor">
+        <circle cx="12.5" cy="5.5" r="2.25" />
+        <circle cx="12.5" cy="12.5" r="2.25" />
+        <circle cx="12.5" cy="19.5" r="2.25" />
+      </g>
+    ),
+  },
   library: filled(
     "0 0 25 25",
     "M8.25 0H11V24.75H8.25V0ZM24.3512 23.6912L19.1262 12.485L13.8875 1.265L12.65 1.8425L11.3988 2.43375L16.6238 13.64L21.8625 24.86L23.1 24.2825L24.3512 23.6912ZM4.125 0H6.875V24.75H4.125V0ZM0 0H2.75V24.75H0V0Z",

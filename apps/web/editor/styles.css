@@ -796,6 +796,7 @@ a {
 .tool-popup-anchor {
   position: absolute;
   bottom: calc(100% + 0.5rem);
+  left: var(--popup-x);
   z-index: 4;
 }
 .tool-popup {
@@ -827,6 +828,139 @@ a {
 .tool-popup .icon {
   width: 1.5rem;
   height: 1.5rem;
+}
+
+/* Grip is thinner than the tools, hold it to drag the bar to another edge */
+.scene-toolbar .dock-grip {
+  width: 1.5rem;
+  cursor: grab;
+  touch-action: none;
+}
+.bottom-dock.is-moving {
+  z-index: 6;
+}
+.bottom-dock.is-moving .dock-grip {
+  cursor: grabbing;
+}
+.dock-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.35rem;
+  border-radius: 1rem;
+  background: rgb(255 255 255 / 0.92);
+  box-shadow: var(--shadow);
+  animation: panel-in 140ms ease-out;
+}
+.dock-menu button {
+  min-width: 6.5rem;
+  padding: 0.5rem 0.85rem;
+  border: 0;
+  border-radius: 0.65rem;
+  background: transparent;
+  color: #3d3133;
+  font-weight: 600;
+  text-align: left;
+}
+.dock-menu button:hover,
+.dock-menu button[aria-pressed="true"] {
+  background: #efebe1;
+}
+
+/* Docked on other edges. Phones always keep the bar at the bottom so its not too squeezed */
+@media (width > 30rem) {
+  .bottom-dock[data-edge="top"] {
+    top: 6rem;
+    bottom: auto;
+    flex-direction: column-reverse;
+  }
+  .bottom-dock[data-edge="left"],
+  .bottom-dock[data-edge="right"] {
+    top: 50%;
+    bottom: auto;
+    flex-direction: row;
+    transform: translateY(-50%);
+  }
+  /* Above the side panels so its tooltips and pop ups dont go behind them */
+  .bottom-dock[data-edge="left"] {
+    left: 1.5rem;
+    z-index: 4;
+    flex-direction: row-reverse;
+  }
+  .bottom-dock[data-edge="right"] {
+    right: 1.5rem;
+    left: auto;
+  }
+  /* Side panels shift right so the bar dont cover the rail */
+  .editor-shell:has(.bottom-dock[data-edge="left"]) .library {
+    left: 5.75rem;
+  }
+
+  :is([data-edge="left"], [data-edge="right"]) :is(.scene-toolbar, .mode-bar, .tool-popup) {
+    flex-direction: column;
+  }
+  :is([data-edge="left"], [data-edge="right"]) .scene-toolbar {
+    overflow: hidden auto;
+    padding: 0.75rem 0.35rem;
+  }
+  :is([data-edge="left"], [data-edge="right"]) .tool-popup {
+    max-width: none;
+    max-height: min(20rem, calc(100dvh - 2rem));
+    overflow: hidden auto;
+    padding: 0.75rem 0.35rem;
+  }
+  :is([data-edge="left"], [data-edge="right"]) .toolbar-divider {
+    width: 1.75rem;
+    height: 1.5px;
+    margin: 0.35rem 0;
+  }
+  :is([data-edge="left"], [data-edge="right"]) .scene-toolbar .dock-grip {
+    width: 2.75rem;
+    height: 1.5rem;
+  }
+  :is([data-edge="left"], [data-edge="right"]) .dock-grip .icon {
+    rotate: 90deg;
+  }
+
+  /* Tooltips and pop ups always open towards the middle of the screen */
+  [data-edge="top"] :is(.tool-tip, .tool-popup-anchor) {
+    top: calc(100% + 0.5rem);
+    bottom: auto;
+  }
+  :is([data-edge="left"], [data-edge="right"]) :is(.tool-tip, .tool-popup-anchor) {
+    bottom: auto;
+  }
+  :is([data-edge="left"], [data-edge="right"]) .tool-tip {
+    top: var(--tip-y);
+    translate: 0 -50%;
+  }
+  :is([data-edge="left"], [data-edge="right"]) .tool-popup-anchor {
+    top: var(--popup-y);
+  }
+  [data-edge="left"] :is(.tool-tip, .tool-popup-anchor) {
+    left: calc(100% + 0.5rem);
+  }
+  [data-edge="right"] :is(.tool-tip, .tool-popup-anchor) {
+    right: calc(100% + 0.5rem);
+    left: auto;
+  }
+}
+@media (width > 30rem) and (max-width: 60rem) {
+  /* Header is taller here because it wraps */
+  .bottom-dock[data-edge="top"] {
+    top: 10.5rem;
+  }
+  .bottom-dock[data-edge="left"] {
+    left: 0.75rem;
+  }
+  .editor-shell:has(.bottom-dock[data-edge="left"]) .library {
+    left: 5rem;
+  }
+}
+@media (max-width: 30rem) {
+  .scene-toolbar .dock-grip {
+    display: none;
+  }
 }
 
 /* Shared hover, press and focus for the editor buttons */
@@ -862,6 +996,7 @@ a {
 .tool-tip {
   position: absolute;
   bottom: calc(100% + 0.5rem);
+  left: var(--tip-x);
   z-index: 5;
   padding: 0.25rem 0.6rem;
   border-radius: 0.5rem;
@@ -871,7 +1006,7 @@ a {
   font-weight: 600;
   white-space: nowrap;
   pointer-events: none;
-  transform: translateX(-50%);
+  translate: -50% 0;
   animation: tool-tip-in 100ms ease-out;
 }
 @keyframes tool-tip-in {
@@ -896,6 +1031,7 @@ a {
   }
   .tool-tip,
   .tool-popup,
+  .dock-menu,
   .editor-panel,
   .asset-panel {
     animation: none;
