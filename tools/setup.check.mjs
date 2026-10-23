@@ -77,7 +77,10 @@ try {
     if (testCase === "success" || testCase === "production") {
       assert.equal(result.status, 0, output + calls);
       assert.match(output, /Spatia is ready at http:\/\/localhost:8091\//);
-      assert.match(calls, /git lfs pull --include=["']?assets\/delivery\/\*\*/);
+      assert.match(
+        calls,
+        /git lfs pull --include=["']?assets\/delivery\/\*\*,apps\/web\/editor\/public\/models\/\*\*/,
+      );
       assert.ok(
         calls.includes(
           `BUILD_MODE=${testCase === "production" ? "production" : "development"} REVISION=${revision}`,

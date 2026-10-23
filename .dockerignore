@@ -2,8 +2,9 @@
 !Dockerfile
 !deploy/
 !deploy/app.Caddyfile
-!web/
-!web/**
+!apps/
+!apps/web/
+!apps/web/**
 !assets/
 !assets/manifest.json
 !assets/delivery/

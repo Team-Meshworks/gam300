@@ -27,7 +27,7 @@ const baseline = scan();
 assert.deepEqual(baseline.errors, [], "Start from a valid import graph");
 const results = resolve(webRoot, "test-results");
 mkdirSync(results, { recursive: true });
-const isolatedResults = resolve(webRoot, "../test-results");
+const isolatedResults = resolve(webRoot, "../../test-results");
 mkdirSync(isolatedResults, { recursive: true });
 const temporary = mkdtempSync(resolve(isolatedResults, "ti01-isolated-"));
 const report = { sourceHashes: baseline.graph.files, violations: [], removals: [] };
@@ -36,7 +36,7 @@ const files = Object.keys(baseline.graph.files);
 
 function copy(name) {
   const directory = resolve(temporary, name);
-  const root = resolve(directory, "web");
+  const root = resolve(directory, "apps/web");
   cpSync(webRoot, root, {
     recursive: true,
     filter: (path) =>
@@ -48,13 +48,13 @@ function copy(name) {
     process.platform === "win32" ? "junction" : "dir",
   );
   symlinkSync(
-    resolve(webRoot, "../assets"),
+    resolve(webRoot, "../../assets"),
     resolve(directory, "assets"),
     process.platform === "win32" ? "junction" : "dir",
   );
   mkdirSync(resolve(directory, "docs"));
   for (const file of ["architecture-graph.md", "architecture-graph.json"]) {
-    cpSync(resolve(webRoot, "../docs", file), resolve(directory, "docs", file));
+    cpSync(resolve(webRoot, "../../docs", file), resolve(directory, "docs", file));
   }
   return root;
 }
@@ -108,7 +108,7 @@ function typecheck(root, name, cache) {
         diagnostic.file && diagnostic.start !== undefined
           ? diagnostic.file.getLineAndCharacterOfPosition(diagnostic.start)
           : undefined;
-      return `${diagnostic.file?.fileName.replace(root.replaceAll("\\", "/"), "web") ?? name}${location ? ":" + (location.line + 1) : ""}: TS${diagnostic.code} ${ts.flattenDiagnosticMessageText(diagnostic.messageText, " ")}`;
+      return `${diagnostic.file?.fileName.replace(root.replaceAll("\\", "/"), "apps/web") ?? name}${location ? ":" + (location.line + 1) : ""}: TS${diagnostic.code} ${ts.flattenDiagnosticMessageText(diagnostic.messageText, " ")}`;
     });
 }
 

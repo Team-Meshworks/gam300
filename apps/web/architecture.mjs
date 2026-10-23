@@ -368,8 +368,11 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     process.exitCode = 1;
   } else {
     const outputs = new Map([
-      [resolve(webRoot, "../docs/architecture-graph.json"), JSON.stringify(graph, null, 2) + "\n"],
-      [resolve(webRoot, "../docs/architecture-graph.md"), graphMarkdown(graph)],
+      [
+        resolve(webRoot, "../../docs/architecture-graph.json"),
+        JSON.stringify(graph, null, 2) + "\n",
+      ],
+      [resolve(webRoot, "../../docs/architecture-graph.md"), graphMarkdown(graph)],
     ]);
     for (const [path, content] of outputs) {
       if (process.argv.includes("--write")) writeFileSync(path, content);
