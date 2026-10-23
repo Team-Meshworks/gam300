@@ -1,4 +1,11 @@
-import { useState, type FocusEvent, type PointerEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FocusEvent,
+  type MouseEvent,
+  type PointerEvent,
+} from "react";
 import { assetDragType, type CatalogueAsset } from "../../shared/assets/catalogue";
 import type { NavigationTool } from "../graphics/scene";
 import { Icon, type IconName } from "./Icon";
@@ -12,12 +19,23 @@ const cameraTools: { id: NavigationTool; label: string; hint: string; icon: Icon
 
 type Category = "furniture" | "panels" | "cases" | "audio";
 type SceneTool = "library" | "hotspot" | Category;
+type Item = { label: string; icon: IconName };
 
-const categories: { id: Category; label: string; icon: IconName }[] = [
-  { id: "furniture", label: "Furniture", icon: "chair" },
-  { id: "panels", label: "Display panels", icon: "panelStanding" },
-  { id: "cases", label: "Display cases", icon: "caseClosed" },
-  { id: "audio", label: "Audio", icon: "music" },
+// First item is what the bar show until something else is picked
+const categories: { id: Category; label: string; items: [Item, ...Item[]] }[] = [
+  { id: "furniture", label: "Furniture", items: [{ label: "Chair", icon: "chair" }] },
+  {
+    id: "panels",
+    label: "Display panels",
+    items: [
+      { label: "Panel with stand", icon: "panelStanding" },
+      { label: "Small panel with stand", icon: "panelSmall" },
+      { label: "Vertical panel", icon: "panelPortrait" },
+      { label: "Horizontal panel", icon: "panelLandscape" },
+    ],
+  },
+  { id: "cases", label: "Display cases", items: [{ label: "Display case", icon: "caseClosed" }] },
+  { id: "audio", label: "Audio", items: [{ label: "Background music", icon: "music" }] },
 ];
 
 export function BottomBar({
@@ -40,11 +58,53 @@ export function BottomBar({
   // Only one tool selected at a time, library start open so can add stuff straight away
   const [selected, setSelected] = useState<SceneTool | null>("library");
   const libraryOpen = selected === "library";
+  const [picked, setPicked] = useState<Record<Category, number>>({
+    furniture: 0,
+    panels: 0,
+    cases: 0,
+    audio: 0,
+  });
+  const [popup, setPopup] = useState<{ category: Category; x: number } | null>(null);
+  const dock = useRef<HTMLDivElement>(null);
   const cameraTip = useTooltip();
   const toolTip = useTooltip();
+  const popupTip = useTooltip();
+
+  useEffect(() => {
+    if (popup === null) return;
+    // Click anywhere outside the bar or press Esc to close the pop up
+    function closeOutside(event: globalThis.PointerEvent) {
+      if (event.target instanceof Node && !dock.current?.contains(event.target)) setPopup(null);
+    }
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setPopup(null);
+    }
+    document.addEventListener("pointerdown", closeOutside);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOutside);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [popup]);
+
+  function select(tool: SceneTool | null) {
+    setSelected(tool);
+    setPopup(null);
+  }
+
+  // First click select the category, click it again to open or close its pop up
+  function chooseCategory(event: MouseEvent<HTMLButtonElement>, id: Category) {
+    if (selected !== id) return select(id);
+    if (popup !== null) return setPopup(null);
+    const anchor = event.currentTarget.closest(".tool-tip-anchor")?.getBoundingClientRect();
+    const button = event.currentTarget.getBoundingClientRect();
+    if (anchor !== undefined) setPopup({ category: id, x: button.left - anchor.left });
+  }
+
+  const open = categories.find((category) => category.id === popup?.category);
 
   return (
-    <div className="bottom-dock">
+    <div className="bottom-dock" ref={dock}>
       {libraryOpen && (
         <section className="asset-panel" id="asset-panel" aria-labelledby="assets-heading">
           <h2 id="assets-heading">Asset library</h2>
@@ -100,7 +160,33 @@ export function BottomBar({
       </div>
 
       <div className="tool-tip-anchor">
-        {toolTip.bubble}
+        {popup === null && toolTip.bubble}
+        {open !== undefined && popup !== null && (
+          // Outside the toolbar so its sideways scroll wont cut the pop up off
+          <div className="tool-popup-anchor" style={{ left: popup.x }}>
+            <div className="tool-tip-anchor">
+              {popupTip.bubble}
+              <div className="tool-popup" role="group" aria-label={`${open.label} options`}>
+                {open.items.map((item, index) => (
+                  <button
+                    key={item.label}
+                    className="ui-button"
+                    type="button"
+                    aria-label={item.label}
+                    aria-pressed={picked[open.id] === index}
+                    onClick={() => {
+                      setPicked((previous) => ({ ...previous, [open.id]: index }));
+                      setPopup(null);
+                    }}
+                    {...popupTip.handlers(item.label)}
+                  >
+                    <Icon name={item.icon} />
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
         <div className="scene-toolbar" role="group" aria-label="Add to scene">
           <button
             className="ui-button"
@@ -108,7 +194,7 @@ export function BottomBar({
             aria-label="Asset library"
             aria-pressed={libraryOpen}
             aria-controls="asset-panel"
-            onClick={() => setSelected((tool) => (tool === "library" ? null : "library"))}
+            onClick={() => select(libraryOpen ? null : "library")}
             {...toolTip.handlers(libraryOpen ? "Hide asset library" : "Asset library")}
           >
             <Icon name="library" />
@@ -118,7 +204,7 @@ export function BottomBar({
             type="button"
             aria-label="Hotspot"
             aria-pressed={selected === "hotspot"}
-            onClick={() => setSelected("hotspot")}
+            onClick={() => select("hotspot")}
             {...toolTip.handlers("Hotspot")}
           >
             <Icon name="hotspot" />
@@ -131,10 +217,11 @@ export function BottomBar({
               type="button"
               aria-label={category.label}
               aria-pressed={selected === category.id}
-              onClick={() => setSelected(category.id)}
+              aria-expanded={popup?.category === category.id}
+              onClick={(event) => chooseCategory(event, category.id)}
               {...toolTip.handlers(category.label)}
             >
-              <Icon name={category.icon} />
+              <Icon name={(category.items[picked[category.id]] ?? category.items[0]).icon} />
             </button>
           ))}
         </div>
