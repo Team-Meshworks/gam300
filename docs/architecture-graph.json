@@ -224,10 +224,10 @@
     "editor/recovery-history.ts": "eaf1d5cece98daede4e8df9759b1074a3a6e790af624245a38b6be3698dc9756",
     "editor/transform-command.test.ts": "d2ae97b90329d4baf866a7dbc3521675a7d9c78c5754e3b955e60ed62a232469",
     "editor/transform-command.ts": "bcd7036db3877f5f24e5984287af8a878b10ec6289a51987e76f62db8f3cb178",
-    "editor/ui/BottomBar.tsx": "584482e7e21e29ce3d56cccf3e2ed141238df393782ba9b155f9317cade64650",
-    "editor/ui/SidePanels.tsx": "82c333209af92e3951165bbf454da2142c7c136dc18c97918449482133d7e069",
-    "editor/ui/TopBar.tsx": "7d9f2a15f0f84aff33afa611901dcad80e2d38980603278a5c6096a52b8fc6cd",
-    "editor/ui/icon.tsx": "862d070f8fa757152d5fc3b3effde9bb667782ee2071deced4056de7a09a73ed",
+    "editor/ui/BottomBar.tsx": "ce4b778380dede2082f596c1674c2b1e6a42c03e1fdcb9935b6af22cc2fda2db",
+    "editor/ui/Icon.tsx": "862d070f8fa757152d5fc3b3effde9bb667782ee2071deced4056de7a09a73ed",
+    "editor/ui/SidePanels.tsx": "31d945caaffab3d3518232ca56e6b858fca18b5e8cff690b942cbbe5e4342d2b",
+    "editor/ui/TopBar.tsx": "ffb94cf1637056a51471d5716736f442cc3afc24e080397fcca01b65d457fffe",
     "editor/ui/rotation-angles.test.ts": "768d7e7fcfe8d5a5fc0a11f3bc70fa734e5e84ce161fd9aa5b1807b850f4438d",
     "editor/ui/rotation-angles.ts": "16a42a83ee7bb2435c4ee7b640fa6ca3c65a7564fd68981084ce57f5e9687f3b",
     "editor/viewport/Viewport.tsx": "d90e0796f9001e2985ecd90755f80a56cd7d3df574eac07bb0a3a633faff8235",
@@ -263,7 +263,7 @@
     "vitest.config.ts": "6d56840bcf381e145f69828ff965fe1c8065e1610a38219c19dbb4e9d87d7dbf",
     "editor/index.html": "f14296264b1f8edda142de2fa8b8c58d1e98e50265637afe5f29924558900279",
     "shared/project/fixtures/m1-project.json": "3aeeee4397fd9ad18fc06eba32815ef5032ecf8184200aaa38a2076b882a4947",
-    "editor/styles.css": "2218fd7dddf134d7c0a457296ff3b8d2e2ae447cc77b439e2ca9d43d4b9d6770"
+    "editor/styles.css": "f0ca7ef3d3973c22b37011ec9dcad3e3fa8cc2804223d6789b8f90ab9f27d7ed"
   },
   "imports": [
     {
@@ -1659,14 +1659,34 @@
       "file": "editor/ui/BottomBar.tsx",
       "line": 4,
       "kind": "static",
-      "specifier": "./icon",
-      "target": "editor/ui/icon.tsx",
+      "specifier": "./Icon",
+      "target": "editor/ui/Icon.tsx",
       "from": "editor",
       "to": "editor"
     },
     {
       "file": "editor/ui/BottomBar.tsx",
-      "line": 72,
+      "line": 47,
+      "kind": "implicit-jsx",
+      "specifier": "react/jsx-runtime",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/ui/Icon.tsx",
+      "line": 1,
+      "kind": "type",
+      "specifier": "react",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/ui/Icon.tsx",
+      "line": 10,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -1706,8 +1726,8 @@
       "file": "editor/ui/SidePanels.tsx",
       "line": 4,
       "kind": "static",
-      "specifier": "./icon",
-      "target": "editor/ui/icon.tsx",
+      "specifier": "./Icon",
+      "target": "editor/ui/Icon.tsx",
       "from": "editor",
       "to": "editor"
     },
@@ -1762,34 +1782,14 @@
       "file": "editor/ui/TopBar.tsx",
       "line": 4,
       "kind": "static",
-      "specifier": "./icon",
-      "target": "editor/ui/icon.tsx",
+      "specifier": "./Icon",
+      "target": "editor/ui/Icon.tsx",
       "from": "editor",
       "to": "editor"
     },
     {
       "file": "editor/ui/TopBar.tsx",
       "line": 72,
-      "kind": "implicit-jsx",
-      "specifier": "react/jsx-runtime",
-      "target": {
-        "package": "react"
-      },
-      "from": "editor"
-    },
-    {
-      "file": "editor/ui/icon.tsx",
-      "line": 1,
-      "kind": "type",
-      "specifier": "react",
-      "target": {
-        "package": "react"
-      },
-      "from": "editor"
-    },
-    {
-      "file": "editor/ui/icon.tsx",
-      "line": 10,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {

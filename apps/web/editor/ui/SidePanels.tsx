@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import type { SceneObject } from "../../shared/project/scene-object";
 import type { Transform, Vector3Tuple } from "../../shared/project/project-types";
-import { Icon, type IconName } from "./icon";
+import { Icon, type IconName } from "./Icon";
 import { degreesToQuaternion, quaternionToDegrees } from "./rotation-angles";
 
 type PanelId = "position" | "tree" | "interaction";

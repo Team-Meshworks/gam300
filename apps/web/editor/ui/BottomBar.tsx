@@ -1,7 +1,7 @@
 import { useState, type FocusEvent, type PointerEvent } from "react";
 import { assetDragType, type CatalogueAsset } from "../../shared/assets/catalogue";
 import type { NavigationTool } from "../graphics/scene";
-import { Icon, type IconName } from "./icon";
+import { Icon, type IconName } from "./Icon";
 
 const cameraTools: { id: NavigationTool; label: string; hint: string; icon: IconName }[] = [
   { id: "select", label: "Select", hint: "Select · click objects to edit them", icon: "select" },
@@ -10,41 +10,14 @@ const cameraTools: { id: NavigationTool; label: string; hint: string; icon: Icon
   { id: "zoom", label: "Zoom", hint: "Zoom · drag up or down", icon: "zoom" },
 ];
 
-const toolGroups: { label: string; tools: { label: string; icon: IconName }[] }[] = [
-  { label: "Hotspots", tools: [{ label: "Hotspot", icon: "hotspot" }] },
-  {
-    label: "Furniture",
-    tools: [
-      { label: "Rug", icon: "rug" },
-      { label: "Chair", icon: "chair" },
-    ],
-  },
-  {
-    label: "Display panels",
-    tools: [
-      { label: "Standing panel", icon: "panelStanding" },
-      { label: "Small panel", icon: "panelSmall" },
-      { label: "Portrait panel", icon: "panelPortrait" },
-      { label: "Landscape panel", icon: "panelLandscape" },
-    ],
-  },
-  {
-    label: "Display cases",
-    tools: [
-      { label: "Display case", icon: "case" },
-      { label: "Closed display case", icon: "caseClosed" },
-      { label: "Tall display case", icon: "caseTall" },
-      { label: "Closed tall display case", icon: "caseTallClosed" },
-    ],
-  },
-  {
-    label: "Audio",
-    tools: [
-      { label: "Phone audio", icon: "phone" },
-      { label: "Background music", icon: "music" },
-      { label: "Speaker", icon: "speaker" },
-    ],
-  },
+type Category = "furniture" | "panels" | "cases" | "audio";
+type SceneTool = "library" | "hotspot" | Category;
+
+const categories: { id: Category; label: string; icon: IconName }[] = [
+  { id: "furniture", label: "Furniture", icon: "chair" },
+  { id: "panels", label: "Display panels", icon: "panelStanding" },
+  { id: "cases", label: "Display cases", icon: "caseClosed" },
+  { id: "audio", label: "Audio", icon: "music" },
 ];
 
 export function BottomBar({
@@ -64,7 +37,9 @@ export function BottomBar({
   tool: NavigationTool;
   onToolChange: (tool: NavigationTool) => void;
 }) {
-  const [libraryOpen, setLibraryOpen] = useState(true);
+  // Only one tool selected at a time, library start open so can add stuff straight away
+  const [selected, setSelected] = useState<SceneTool | null>("library");
+  const libraryOpen = selected === "library";
   const cameraTip = useTooltip();
   const toolTip = useTooltip();
 
@@ -127,39 +102,40 @@ export function BottomBar({
       <div className="tool-tip-anchor">
         {toolTip.bubble}
         <div className="scene-toolbar" role="group" aria-label="Add to scene">
-          <div className="scene-toolbar-group" role="group" aria-label="Library">
+          <button
+            className="ui-button"
+            type="button"
+            aria-label="Asset library"
+            aria-pressed={libraryOpen}
+            aria-controls="asset-panel"
+            onClick={() => setSelected((tool) => (tool === "library" ? null : "library"))}
+            {...toolTip.handlers(libraryOpen ? "Hide asset library" : "Asset library")}
+          >
+            <Icon name="library" />
+          </button>
+          <button
+            className="ui-button"
+            type="button"
+            aria-label="Hotspot"
+            aria-pressed={selected === "hotspot"}
+            onClick={() => setSelected("hotspot")}
+            {...toolTip.handlers("Hotspot")}
+          >
+            <Icon name="hotspot" />
+          </button>
+          <span className="toolbar-divider" aria-hidden="true" />
+          {categories.map((category) => (
             <button
+              key={category.id}
               className="ui-button"
               type="button"
-              aria-label="Asset library"
-              aria-pressed={libraryOpen}
-              aria-controls="asset-panel"
-              onClick={() => setLibraryOpen((open) => !open)}
-              {...toolTip.handlers(libraryOpen ? "Hide asset library" : "Asset library")}
+              aria-label={category.label}
+              aria-pressed={selected === category.id}
+              onClick={() => setSelected(category.id)}
+              {...toolTip.handlers(category.label)}
             >
-              <Icon name="library" />
+              <Icon name={category.icon} />
             </button>
-          </div>
-          {toolGroups.map((group) => (
-            <div
-              key={group.label}
-              className="scene-toolbar-group"
-              role="group"
-              aria-label={group.label}
-            >
-              {group.tools.map((item) => (
-                <button
-                  key={item.label}
-                  className="ui-button"
-                  type="button"
-                  aria-label={`${item.label} (coming soon)`}
-                  aria-disabled="true"
-                  {...toolTip.handlers(`${item.label} · coming soon`)}
-                >
-                  <Icon name={item.icon} />
-                </button>
-              ))}
-            </div>
           ))}
         </div>
       </div>

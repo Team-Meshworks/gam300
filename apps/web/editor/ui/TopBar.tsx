@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import sampleProject from "../../shared/project/fixtures/m1-project.json";
 import type { useProjectSession } from "../persistence/use-project-session";
-import { Icon } from "./icon";
+import { Icon } from "./Icon";
 
 type SaveState = "saving" | "failed" | "pending" | "saved";
 

@@ -755,26 +755,24 @@ a {
 }
 
 .scene-toolbar {
-  --icon-fill: #9a9393;
   display: flex;
   align-items: center;
   gap: 0.15rem;
   overflow-x: auto;
   padding: 0.35rem 0.75rem;
+  border: 1px solid rgb(255 255 255 / 0.55);
   border-radius: 1.25rem;
-  background: #fff;
+  background: rgb(78 62 46 / 0.35);
   box-shadow: var(--shadow);
+  backdrop-filter: blur(10px);
 }
-.scene-toolbar-group {
-  display: flex;
+/* Line between hotspot and the categories */
+.toolbar-divider {
   flex-shrink: 0;
-  gap: 0.15rem;
-}
-/* Divider after hotspots like in the design */
-.scene-toolbar-group[aria-label="Hotspots"] {
-  margin-right: 0.35rem;
-  padding-right: 0.5rem;
-  border-right: 1.5px solid #4a4545;
+  width: 1.5px;
+  height: 1.75rem;
+  margin: 0 0.35rem;
+  background: #3d3133;
 }
 .scene-toolbar button {
   display: grid;
@@ -785,14 +783,13 @@ a {
   border: 0;
   border-radius: 0.75rem;
   background: transparent;
-  color: #3d3838;
+  color: #3d3133;
 }
-.scene-toolbar button:hover:not([aria-disabled="true"]),
+.scene-toolbar button:hover:not([aria-pressed="true"]) {
+  background: rgb(255 255 255 / 0.4);
+}
 .scene-toolbar button[aria-pressed="true"] {
-  background: #efebe1;
-}
-.scene-toolbar button[aria-disabled="true"] {
-  color: #6f6969;
+  background: #fff;
 }
 
 /* Shared hover, press and focus for the editor buttons */
@@ -805,9 +802,6 @@ a {
 }
 .ui-button:active:not(:disabled) {
   transform: scale(0.94);
-}
-.scene-toolbar button[aria-disabled="true"]:hover {
-  background: #f5f2ea;
 }
 .mode-bar button:hover:not([aria-pressed="true"]) {
   background: rgb(255 255 255 / 0.4);
