@@ -37,7 +37,12 @@ try {
   await page.getByRole("button", { name: "Add test-room", exact: true }).click();
   await asset.click();
   const originalPosition = await page.getByLabel("Selected position").textContent();
-  await page.getByRole("button", { name: /Move .* X plus/ }).click();
+  // No more move buttons, so nudge through the Position panel then go back to the tree
+  await page.getByRole("button", { name: "Position", exact: true }).click();
+  const field = page.getByRole("textbox", { name: /transform X \(m\)$/ });
+  await field.fill(String(Number(await field.inputValue()) + 0.25));
+  await field.press("Enter");
+  await page.getByRole("button", { name: "Scene tree", exact: true }).click();
   const movedPosition = await page.getByLabel("Selected position").textContent();
   assert.notEqual(movedPosition, originalPosition);
   await page.getByRole("button", { name: "Undo", exact: true }).click();

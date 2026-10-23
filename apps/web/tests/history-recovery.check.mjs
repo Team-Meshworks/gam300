@@ -42,7 +42,12 @@ try {
     throw new Error("Recovery history did not reach the expected edit");
   }
 
-  await page.getByRole("button", { name: /Move .* X plus/ }).click();
+  // No more move buttons, so nudge through the Position panel then go back to the tree
+  await page.getByRole("button", { name: "Position", exact: true }).click();
+  const field = page.getByRole("textbox", { name: "test-crate 1 transform X (m)", exact: true });
+  await field.fill(String(Number(await field.inputValue()) + 0.25));
+  await field.press("Enter");
+  await page.getByRole("button", { name: "Scene tree", exact: true }).click();
   await page.keyboard.press("Control+d");
   assert.equal(await rows.count(), 2);
   const duplicateId = await rows.last().getAttribute("data-object-id");
