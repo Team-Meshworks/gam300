@@ -271,6 +271,21 @@ checked. Asset validation retains the three existing distribution-licence warnin
 Docker is not installed on this machine, so the container build and packaged Caddy checks
 remain for CI. No remote CI run or deployment was performed for this move.
 
+### Visitor shortcut regression — 3 October 2026
+
+The [failed dev CI run](https://github.com/Team-Meshworks/gam300/actions/runs/37038095171)
+stopped at `Authoring resumes on exit`. An IndexedDB recovery backup could still be
+pending after leaving Visitor mode, causing the shared keyboard handler to drop
+Duplicate, Copy/Paste and Undo/Redo. Background backups now allow these edits;
+Visitor mode and foreground file operations retain their keyboard guards.
+
+The integration check holds a real backup's completion, verifies Visitor isolation,
+then duplicates and undoes/redoes while the backup is pending. It also verifies that
+edits made during the backup reach the next recovery record with their redo history.
+This reproduced the original assertion before the fix and passed afterward.
+Local lint, formatting, TypeScript, all 189 unit tests, and the integration and
+history-recovery browser checks passed. CI still owns the Docker/Caddy verification.
+
 ### Deployed environments — 23 September 2026
 
 Verified on 23 September 2026:

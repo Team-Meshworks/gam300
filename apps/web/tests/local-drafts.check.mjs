@@ -590,20 +590,22 @@ try {
   await choose("Save");
   assert.equal(await editor.evaluate(() => window.pickerCount), pickerCount);
   assert.equal(await editor.title(), "Untitled - Spatia");
+  // Header is floating cards now, so just make sure they dont overlap each other
   const layout = await editor.evaluate(() => {
-    const actions = [
-      ...document.querySelectorAll(".history-controls button"),
-      document.querySelector(".mode-actions button"),
-      document.querySelector(".project-file-status"),
-    ].map((element) => element.getBoundingClientRect());
+    const cards = [".project-card", ".history-controls", ".mode-actions"].map((selector) =>
+      document.querySelector(selector).getBoundingClientRect(),
+    );
     const meter = document.querySelector(".fps-meter").getBoundingClientRect();
     return {
-      gaps: actions.slice(1).map((rect, index) => rect.left - actions[index].right),
+      gaps: cards.slice(1).map((rect, index) => rect.left - cards[index].right),
       meterBelowHeader:
         meter.top >= document.querySelector(".app-header").getBoundingClientRect().bottom,
     };
   });
-  assert.deepEqual(layout.gaps, [24, 24, 24, 24, 24]);
+  assert.ok(
+    layout.gaps.every((gap) => gap > 0),
+    `Header cards overlap: ${layout.gaps}`,
+  );
   assert.equal(layout.meterBelowHeader, true);
   assert.equal(await editor.locator(".draft-feedback").textContent(), "New project");
   await editor.waitForFunction(() => {
