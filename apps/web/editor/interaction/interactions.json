@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "sceneId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+  "interactions": [
+    {
+      "when": {
+        "type": "visitor-clicks-object",
+        "targetObjectId": "dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+      },
+      "do": {
+        "type": "play-audio",
+        "targetObjectId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "url": "/audio/ding.wav"
+      }
+    },
+    {
+      "when": {
+        "type": "scene-starts",
+        "targetObjectId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      },
+      "do": {
+        "type": "open-link",
+        "targetObjectId": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+      }
+    },
+    {
+      "when": {
+        "type": "time-elapsed",
+        "targetObjectId": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        "seconds": 2
+      },
+      "do": {
+        "type": "print-hi",
+        "targetObjectId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      }
+    }
+  ]
+}

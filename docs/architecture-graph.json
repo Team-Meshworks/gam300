@@ -182,6 +182,7 @@
       "build",
       "catalogue",
       "document",
+      "editor",
       "input",
       "persistence",
       "project",
@@ -210,6 +211,12 @@
     "editor/graphics/translation.ts": "a4ea05b137e4dee436848693a57273c54025856bdf943eb1e9413de5509bb2d4",
     "editor/history-shortcuts.test.ts": "8a2e4bbe34961985ce2c1bdbbd78ec9c105587a8547f9a7c8415e9544808196f",
     "editor/history-shortcuts.ts": "030a6a4092defe4d0dc9e813bb4354b8efddec056745a2eb18f14224f4e63dd7",
+    "editor/interaction/actionHandler.test.ts": "e566369e9cd2265b11e419a760e1c736a6d46c6d67ab2a3952e3bad30f3fb60d",
+    "editor/interaction/actionHandler.ts": "4bc6e3796022f31f8841c5268264200d4bc4bb89522fc1b9d89c8bc0888c56b7",
+    "editor/interaction/interactionHandler.test.ts": "9f4bd205a0200e607a8f0d489690041283fe6465978edfc3bb0b21f6bd17715f",
+    "editor/interaction/interactionHandler.ts": "3adb6333ff863a23b1af01b7bbe70476b2081ebdaee680dd2b3d142ea64c392d",
+    "editor/interaction/triggerHandler.test.ts": "74c73eefe55c224ac4425e9db1f0e1e93e48547ee2216d73f0f1c8242f82d541",
+    "editor/interaction/triggerHandler.ts": "1b439935181061538122d157d57f5d5135f9c9feb299396975903d7d38064f5d",
     "editor/main.tsx": "240b88cb33a8ef53b7f8a66df6385b1ada2dcb6b39380f2cfd21e5416fd0346b",
     "editor/object-copy.test.ts": "f11e65d7faa9f6027b11320a21e9e69e85aa873b7d254a8b901dc5ce8c971654",
     "editor/persistence/draft-db.ts": "9c1aece3becbd9db33c2164533cfc86d9cf7b4bef9306678d9c9aaca9b800c5a",
@@ -1070,6 +1077,117 @@
       "target": "editor/history-shortcuts.ts",
       "from": "checks",
       "to": "input"
+    },
+    {
+      "file": "editor/interaction/actionHandler.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/interaction/actionHandler.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "./actionHandler",
+      "target": "editor/interaction/actionHandler.ts",
+      "from": "checks",
+      "to": "editor"
+    },
+    {
+      "file": "editor/interaction/actionHandler.ts",
+      "line": 1,
+      "kind": "type",
+      "specifier": "../../shared/project/project-types",
+      "target": "shared/project/project-types.ts",
+      "from": "editor",
+      "to": "project"
+    },
+    {
+      "file": "editor/interaction/interactionHandler.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/interaction/interactionHandler.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "./interactionHandler",
+      "target": "editor/interaction/interactionHandler.ts",
+      "from": "checks",
+      "to": "editor"
+    },
+    {
+      "file": "editor/interaction/interactionHandler.test.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./triggerHandler",
+      "target": "editor/interaction/triggerHandler.ts",
+      "from": "checks",
+      "to": "editor"
+    },
+    {
+      "file": "editor/interaction/interactionHandler.ts",
+      "line": 1,
+      "kind": "type",
+      "specifier": "../../shared/project/project-types",
+      "target": "shared/project/project-types.ts",
+      "from": "editor",
+      "to": "project"
+    },
+    {
+      "file": "editor/interaction/interactionHandler.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "./actionHandler",
+      "target": "editor/interaction/actionHandler.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/interaction/interactionHandler.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./triggerHandler",
+      "target": "editor/interaction/triggerHandler.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/interaction/triggerHandler.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/interaction/triggerHandler.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "./triggerHandler",
+      "target": "editor/interaction/triggerHandler.ts",
+      "from": "checks",
+      "to": "editor"
+    },
+    {
+      "file": "editor/interaction/triggerHandler.ts",
+      "line": 1,
+      "kind": "type",
+      "specifier": "../../shared/project/project-types",
+      "target": "shared/project/project-types.ts",
+      "from": "editor",
+      "to": "project"
     },
     {
       "file": "editor/main.tsx",
