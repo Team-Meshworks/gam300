@@ -48,8 +48,10 @@ export type NamedViewpoint = Readonly<{
 export type ProjectScene = Readonly<{
   id: EntityId;
   name: string;
-  environmentAssetId: AssetId;
+  environmentAssetId: AssetId | null;
   startCamera: CameraPose;
+  // Named starting view; startCamera also keeps a standalone fallback pose.
+  startViewpointId?: EntityId;
   // Optional so existing M1 files still open without rewriting them.
   viewpoints?: readonly NamedViewpoint[];
   // Keep the scene list order when saving
@@ -64,7 +66,6 @@ export type ProjectDocument = Readonly<{
   schemaVersion: 1;
   projectId: EntityId;
   title: string;
-  // One scene for M1
-  // Validator needs to check the array length
+  // Ordered complete scenes, each with its own environment, objects and views
   scenes: readonly ProjectScene[];
 }>;

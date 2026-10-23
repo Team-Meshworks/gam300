@@ -14,6 +14,7 @@ import type { ModeManager, ModeManagerState } from "./graphics/modeManager";
 import { BottomBar } from "./ui/BottomBar";
 import { SidePanels } from "./ui/SidePanels";
 import { TopBar } from "./ui/TopBar";
+import { Scenes } from "./Scenes";
 import { Viewpoints } from "./Viewpoints";
 import { Viewport, type ViewpointCamera } from "./viewport/Viewport";
 
@@ -25,7 +26,7 @@ const assetKinds = new Map(assets.map((asset) => [asset.id, asset.kind]));
 
 export function App() {
   const [store] = useState(() => createDocumentStore(assets));
-  const { objects, project, canUndo, canRedo } = useSyncExternalStore(
+  const { objects, project, activeSceneId, canUndo, canRedo } = useSyncExternalStore(
     store.subscribe,
     store.getSnapshot,
   );
@@ -56,7 +57,7 @@ export function App() {
   const [manager, setManager] = useState<ModeManager | null>(null);
   const [modeState, setModeState] = useState<ModeManagerState | null>(null);
   const selection = objects.some((object) => object.id === selectedId) ? selectedId : null;
-  const projectScene = project?.scenes[0];
+  const projectScene = project?.scenes.find((scene) => scene.id === activeSceneId);
   const roomAsset = assets.find((asset) => asset.id === projectScene?.environmentAssetId);
   // Room selection uses the scene ID because its asset lives in the environment field
   // Object commands still receive only placed-object IDs
@@ -198,9 +199,19 @@ export function App() {
       }
       // The library keeps the room available after placement
       // Dropping the current room again leaves the scene and undo history alone
-      if (store.getSnapshot().project?.scenes[0]?.environmentAssetId === assetId) {
+      if (projectScene?.environmentAssetId === assetId) {
         setDragging(false);
         setNotice("This room is already in the scene");
+        return;
+      }
+      if (project !== null) {
+        const changed = store.setEnvironment(assetId);
+        if (!changed.ok) setError(changed.error.message);
+        else {
+          setError("");
+          setNotice("Scene environment updated. Undo is available.");
+        }
+        setDragging(false);
         return;
       }
       const created = store.createProject(assetId);
@@ -262,22 +273,38 @@ export function App() {
 
       <main className="workspace" inert={switching}>
         <SidePanels
+          scenes={
+            <Scenes
+              key={`${project?.projectId ?? "new"}:${activeSceneId}:${projectScene?.name}`}
+              scenes={project?.scenes ?? []}
+              activeSceneId={activeSceneId}
+              assets={assets}
+              store={store}
+              disabled={visitor || switching || status !== "ready"}
+              onSwitch={() => {
+                setSelectedId(null);
+                setDragging(false);
+                setError("");
+              }}
+            />
+          }
           savedViews={
             projectScene ? (
               <Viewpoints
                 key={projectScene.id}
                 views={projectScene.viewpoints ?? []}
+                startViewpointId={projectScene.startViewpointId}
                 camera={viewCamera}
                 disabled={visitor || switching || status !== "ready"}
                 store={store}
               />
             ) : (
-              <p>Choose an environment to start saving views.</p>
+              <p>Create a scene in the Scenes panel to start saving views.</p>
             )
           }
           visitor={visitor}
           room={
-            projectScene === undefined
+            !projectScene?.environmentAssetId
               ? undefined
               : {
                   id: projectScene.id,
@@ -294,10 +321,11 @@ export function App() {
         />
 
         <Viewport
+          key={activeSceneId ?? "grid"}
           onCamera={setViewCamera}
           assets={assets}
           objects={objects}
-          projectScene={project?.scenes[0] ?? null}
+          projectScene={projectScene ?? null}
           selectedId={roomSelected ? projectScene.id : selection}
           dragging={dragging}
           editingEnabled={!switching}

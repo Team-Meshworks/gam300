@@ -69,12 +69,15 @@ export function validateProject(
     if (!sceneId.ok) {
       return sceneId;
     }
-    const environment = checkAsset(
-      scene.environmentAssetId,
-      "environment",
-      `${path}.environmentAssetId`,
-      assetKinds,
-    );
+    const environment =
+      scene.environmentAssetId === null
+        ? { ok: true as const, value: true }
+        : checkAsset(
+            scene.environmentAssetId,
+            "environment",
+            `${path}.environmentAssetId`,
+            assetKinds,
+          );
     if (!environment.ok) {
       return environment;
     }

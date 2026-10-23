@@ -367,7 +367,31 @@ try {
   assert.equal(await room.isVisible(), true);
   await room.click();
   assert.equal(await rows.count(), 0);
-  assert.equal(await undo.isDisabled(), true);
+  assert.equal(await undo.isEnabled(), true, "Adding an environment to an empty scene is undoable");
+  // Environment edits use the debounced recovery path, so wait for the saved edit.
+  const recoveryDeadline = Date.now() + 10000;
+  let recoveryReady = false;
+  while (Date.now() < recoveryDeadline) {
+    recoveryReady = await page.evaluate(async () => {
+      const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
+      const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
+      const result = await loadRecoverySession(
+        new Map(assets.map((asset) => [asset.id, asset.kind])),
+      );
+      const scene = result.value?.document.scenes[0];
+      return (
+        result.ok &&
+        scene?.environmentAssetId === "test-room-v1" &&
+        scene.objects.length === 0 &&
+        result.value.history?.future.length === 0 &&
+        result.value.history?.past.length === 1 &&
+        result.value.history?.documents?.past[0]?.project.scenes[0]?.environmentAssetId === null
+      );
+    });
+    if (recoveryReady) break;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  assert.equal(recoveryReady, true, "New scene environment has been backed up");
   await page.reload();
   await ready.waitFor();
   assert.equal(await room.isVisible(), true, "Recovery keeps the room in the library");

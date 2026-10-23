@@ -1,3 +1,4 @@
+import { getStartingCamera } from "../../shared/project/starting-view";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { ModelCache, disposeModels, type ModelLease } from "../../shared/assets/ModelCache";
@@ -361,17 +362,22 @@ export function initScene(
     projectScene = nextScene;
     // A loaded camera resets the view once
     // Selection and placement keep the same camera-pose reference
-    if (projectScene !== null && appliedCamera !== projectScene.startCamera) {
+    const startingCamera = projectScene ? getStartingCamera(projectScene) : null;
+    // Renaming a view can produce a fresh object with the same pose. Keep the live camera still.
+    if (
+      startingCamera !== null &&
+      JSON.stringify(appliedCamera) !== JSON.stringify(startingCamera)
+    ) {
       modeManager.setMode("editor");
-      appliedCamera = projectScene.startCamera;
+      appliedCamera = startingCamera;
       showCamera(appliedCamera);
     }
 
-    if (ready && environmentId !== projectScene?.environmentAssetId) {
+    if (ready && environmentId !== (projectScene?.environmentAssetId ?? undefined)) {
       // Environment stays at its exported origin, outside the placed-object list
       // Removed instances borrow resources from this viewport's cache leases
       if (environment !== undefined) scene.remove(environment);
-      environmentId = projectScene?.environmentAssetId;
+      environmentId = projectScene?.environmentAssetId ?? undefined;
       environment =
         environmentId === undefined ? undefined : models.get(environmentId)?.clone(true);
       environmentBounds.makeEmpty();

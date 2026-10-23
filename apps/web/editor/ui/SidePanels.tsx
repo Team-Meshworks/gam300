@@ -4,12 +4,13 @@ import type { Transform, Vector3Tuple } from "../../shared/project/project-types
 import { Icon, type IconName } from "./Icon";
 import { degreesToQuaternion, quaternionToDegrees } from "./rotation-angles";
 
-type PanelId = "position" | "tree" | "interaction" | "views";
+type PanelId = "scenes" | "position" | "tree" | "interaction" | "views";
 type Room = { id: string; name: string; thumbnail: string | undefined };
 
 const railButtons: { id: PanelId; label: string; icon: IconName }[] = [
   { id: "position", label: "Position", icon: "axes" },
   { id: "tree", label: "Scene tree", icon: "tree" },
+  { id: "scenes", label: "Scenes", icon: "library" },
   { id: "views", label: "Saved views", icon: "tree" },
   { id: "interaction", label: "Interaction", icon: "touch" },
 ];
@@ -17,6 +18,7 @@ const railButtons: { id: PanelId; label: string; icon: IconName }[] = [
 export function SidePanels({
   visitor,
   savedViews,
+  scenes,
   room,
   objects,
   selectedId,
@@ -27,6 +29,7 @@ export function SidePanels({
 }: {
   visitor: boolean;
   savedViews: ReactNode;
+  scenes: ReactNode;
   room: Room | undefined;
   objects: readonly SceneObject[];
   selectedId: string | null;
@@ -75,6 +78,7 @@ export function SidePanels({
               thumbnailFor={thumbnailFor}
             />
           )}
+          {panel === "scenes" && <div className="editor-panel">{scenes}</div>}
           {panel === "views" && <div className="editor-panel">{savedViews}</div>}
           {panel === "interaction" && (
             // No hotspots in the project format yet, so nothing selected is one
@@ -260,7 +264,9 @@ function SceneTreePanel({
         Scene Tree <span className="panel-count">{count}</span>
       </PanelHeading>
       {count === 0 ? (
-        <p className="panel-empty">Add a room from the asset library to start.</p>
+        <p className="panel-empty">
+          Add an asset from the library, or use Scenes to create an environment.
+        </p>
       ) : (
         <>
           <ul role="list" className={`scene-tree${expanded ? " is-expanded" : ""}`}>

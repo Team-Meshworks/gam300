@@ -13,6 +13,7 @@ export const modules = {
     packages: [],
     public: [
       "shared/project/project-types.ts",
+      "shared/project/starting-view.ts",
       "shared/project/scene-object.ts",
       "shared/project/spatial-validation.ts",
       "shared/project/project-validation.ts",

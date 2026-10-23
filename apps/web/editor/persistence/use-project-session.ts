@@ -80,7 +80,7 @@ export function useProjectSession(
     return encoded.ok ? encoded.value : null;
   }, [project, kinds]);
   const dirty = project === null ? objectCount > 0 : currentJson !== savedJson;
-  // An untouched room has nothing to lose when starting over
+  // An untouched scene has nothing to lose when starting over
   // The first object edit replaces this snapshot and enables the save question
   const needsDecision = dirty && (project === null || project !== pristineProject);
 
@@ -204,7 +204,11 @@ export function useProjectSession(
               document: legacy.value.document,
               fileName: link?.name ?? "",
               savedJson: baseline,
-              pristine: !link && legacy.value.document.scenes[0]?.objects.length === 0,
+              pristine:
+                !link &&
+                legacy.value.document.scenes.length === 1 &&
+                legacy.value.document.scenes[0]?.objects.length === 0 &&
+                !legacy.value.document.scenes[0]?.viewpoints?.length,
               ...(legacy.value.history ? { history: legacy.value.history } : {}),
               ...(legacy.value.historyWarning
                 ? { historyWarning: legacy.value.historyWarning }
@@ -262,7 +266,7 @@ export function useProjectSession(
     const current = store.getSnapshot().project;
     if (local.busy || (local.switching && !duringSwitch)) return false;
     if (current === null) {
-      setError("Choose a room before saving this project");
+      setError("Create a scene before saving this project");
       return false;
     }
     const encoded = serializeProject(current, kinds);
@@ -467,21 +471,15 @@ export function useProjectSession(
   }
 
   async function createNew() {
-    const environmentId =
-      store.getSnapshot().project?.scenes[0]?.environmentAssetId ??
-      assets.find((asset) => asset.kind === "environment")?.id;
-    if (!environmentId) {
-      setError("No room is available in the asset library");
-      return;
-    }
-    // Build and validate separately so Cancel never changes the live document
-    const result = createDocumentStore(assets).createProject(environmentId);
+    // Prepare a separate document so cancelling leaves the current project alone.
+    const fresh = createDocumentStore(assets);
+    const result = fresh.createScene("Scene 1");
     if (!result.ok) {
       setError(result.error.message);
       return;
     }
     await switchTo({
-      document: result.value,
+      document: fresh.getSnapshot().project!,
       fileName: "",
       savedJson: null,
       fileText: "",

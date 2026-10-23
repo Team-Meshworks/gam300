@@ -75,6 +75,7 @@ function validateScene(
       "name",
       "environmentAssetId",
       "startCamera",
+      ...(Object.hasOwn(raw, "startViewpointId") ? ["startViewpointId"] : []),
       "objects",
       ...(Object.hasOwn(raw, "viewpoints") ? ["viewpoints"] : []),
     ],
@@ -96,7 +97,10 @@ function validateScene(
   if (!name.ok) {
     return name;
   }
-  const environmentAssetId = readText(raw.environmentAssetId, `${path}.environmentAssetId`, budget);
+  const environmentAssetId =
+    raw.environmentAssetId === null
+      ? { ok: true as const, value: null }
+      : readText(raw.environmentAssetId, `${path}.environmentAssetId`, budget);
   if (!environmentAssetId.ok) {
     return environmentAssetId;
   }
@@ -125,6 +129,13 @@ function validateScene(
       viewpoints.push({ id: id.value, name: name.value, camera: camera.value });
     }
   }
+  if (Object.hasOwn(raw, "startViewpointId")) {
+    const chosen = viewpoints.find((v) => v.id === raw.startViewpointId);
+    if (!chosen)
+      return invalid(`${path}.startViewpointId`, "Starting view must belong to this scene");
+    if (JSON.stringify(chosen.camera) !== JSON.stringify(camera.value))
+      return invalid(`${path}.startCamera`, "Starting camera must match the chosen viewpoint");
+  }
   // Build a separate list in the saved order
   // A later failure leaves the caller's scene untouched
   const objects: ProjectObject[] = [];
@@ -142,6 +153,9 @@ function validateScene(
       name: name.value,
       environmentAssetId: environmentAssetId.value,
       startCamera: camera.value,
+      ...(typeof raw.startViewpointId === "string"
+        ? { startViewpointId: raw.startViewpointId }
+        : {}),
       ...(Object.hasOwn(raw, "viewpoints") ? { viewpoints } : {}),
       objects,
     },
@@ -169,8 +183,8 @@ export function validateProjectStructure(raw: unknown): ValidationResult<Project
   if (!fields.ok) {
     return fields;
   }
-  if (!Array.isArray(raw.scenes) || raw.scenes.length !== 1) {
-    return invalid("project.scenes", "M1 projects must contain exactly one scene");
+  if (!Array.isArray(raw.scenes) || raw.scenes.length < 1 || raw.scenes.length > 20) {
+    return invalid("project.scenes", "Projects must contain between 1 and 20 scenes");
   }
 
   // Share the text budget across the whole project
@@ -183,16 +197,18 @@ export function validateProjectStructure(raw: unknown): ValidationResult<Project
   if (!title.ok) {
     return title;
   }
-  const scene = validateScene(raw.scenes[0], "project.scenes[0]", budget);
-  if (!scene.ok) {
-    return scene;
+  const scenes: ProjectScene[] = [];
+  for (const [index, rawScene] of raw.scenes.entries()) {
+    const checked = validateScene(rawScene, `project.scenes[${index}]`, budget);
+    if (!checked.ok) return checked;
+    scenes.push(checked.value);
   }
 
   const document: ProjectDocument = {
     schemaVersion: 1,
     projectId: projectId.value,
     title: title.value,
-    scenes: [scene.value],
+    scenes,
   };
   // Count UTF-8 bytes with JSON punctuation and escaping included
   // Only serialize the checked copy so extra input fields can't enter the output

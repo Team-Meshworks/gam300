@@ -104,7 +104,7 @@ export function TopBar({
           <div className="draft-menu-panel">
             <button
               type="button"
-              title="Start a new project with an empty room"
+              title="Start a new project with an empty scene"
               disabled={!ready || busy}
               onClick={() => {
                 closeMenu();
