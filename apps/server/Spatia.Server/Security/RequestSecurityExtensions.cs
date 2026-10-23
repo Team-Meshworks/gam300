@@ -9,8 +9,16 @@ using Spatia.Server.Hosting;
 
 namespace Spatia.Server.Security;
 
+/// <summary>
+/// Registers and applies the application's cookie, authorization, antiforgery and rate limiting policies
+/// </summary>
 public static class RequestSecurityExtensions
 {
+    /// <summary>
+    /// Configures Identity sessions, current account validation and request security services
+    /// </summary>
+    /// <param name="services">The service collection receiving the security registrations</param>
+    /// <returns>The supplied service collection for additional registrations</returns>
     public static IServiceCollection AddSpatiaRequestSecurity(this IServiceCollection services)
     {
         services.AddIdentityCore<ApplicationUser>().AddSignInManager()
@@ -114,6 +122,11 @@ public static class RequestSecurityExtensions
         return services;
     }
 
+    /// <summary>
+    /// Adds antiforgery validation for unsafe HTTP requests to the application pipeline
+    /// </summary>
+    /// <param name="app">The application pipeline receiving the antiforgery guard</param>
+    /// <returns>The application builder for further middleware registration</returns>
     public static IApplicationBuilder UseSpatiaAntiforgery(this IApplicationBuilder app)
         => app.UseMiddleware<CsrfGuardMiddleware>();
 

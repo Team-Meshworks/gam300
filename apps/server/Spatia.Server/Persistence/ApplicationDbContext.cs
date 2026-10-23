@@ -6,17 +6,37 @@ using Spatia.Server.Projects;
 
 namespace Spatia.Server.Persistence;
 
+/// <summary>
+/// Stores Identity accounts, organization memberships and project drafts with their access assignments
+/// </summary>
+/// <param name="options">The database provider and context configuration</param>
 public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
     : IdentityDbContext<ApplicationUser, IdentityRole<Guid>, Guid>(options)
 {
+    /// <summary>
+    /// Gets the organizations available for account membership
+    /// </summary>
     public DbSet<Organization> Organizations => Set<Organization>();
 
+    /// <summary>
+    /// Gets the organization and role memberships for educators and creators
+    /// </summary>
     public DbSet<OrganizationMembership> OrganizationMemberships => Set<OrganizationMembership>();
 
+    /// <summary>
+    /// Gets the persisted project drafts and their revision metadata
+    /// </summary>
     public DbSet<Project> Projects => Set<Project>();
 
+    /// <summary>
+    /// Gets the account permissions assigned to individual projects
+    /// </summary>
     public DbSet<ProjectAssignment> ProjectAssignments => Set<ProjectAssignment>();
 
+    /// <summary>
+    /// Configures account, organization and project mappings, constraints and fixed role seeds
+    /// </summary>
+    /// <param name="builder">The model builder receiving the database mappings</param>
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);

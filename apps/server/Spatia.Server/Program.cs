@@ -3,8 +3,21 @@ using Spatia.Server.Hosting;
 
 namespace Spatia.Server;
 
+/// <summary>
+/// Provides the server and private administrator bootstrap entry point
+/// </summary>
 public static class Program
 {
+    /// <summary>
+    /// Runs the private bootstrap command when selected, or starts the configured HTTP application
+    /// </summary>
+    /// <param name="args">
+    /// Host arguments, or only <c>bootstrap-admin</c> with credentials redirected through standard input
+    /// </param>
+    /// <returns>
+    /// Exit code 0 on normal shutdown or bootstrap success, 1 on an unconfirmed bootstrap failure,
+    /// 2 on invalid bootstrap invocation or input, or 3 when an administrator already exists
+    /// </returns>
     public static async Task<int> Main(string[] args)
     {
         if (args.FirstOrDefault() == "bootstrap-admin")

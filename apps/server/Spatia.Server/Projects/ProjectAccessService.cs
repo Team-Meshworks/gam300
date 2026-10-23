@@ -11,13 +11,30 @@ using Spatia.Server.Security;
 
 namespace Spatia.Server.Projects;
 
+/// <summary>
+/// Revalidates account authority and project permissions within database snapshot or locking transactions
+/// </summary>
+/// <param name="database">The scoped context used for project reads and locks</param>
+/// <param name="accounts">The account resolver sharing the same database context</param>
+/// <param name="identityOptions">The Identity options defining the claims bound to the validated session</param>
 public sealed class ProjectAccessService(
     ApplicationDbContext database,
     CurrentAccountResolver accounts,
     IOptions<IdentityOptions> identityOptions)
 {
-    /// <summary>Reads current account authority and project data in one repeatable-read snapshot</summary>
-    /// <remarks>TODO: Integrate SCRUM-50 validation and reconstruction before consumers interpret returned project JSON</remarks>
+    /// <summary>
+    /// Reads current account authority and project data in one repeatable-read snapshot
+    /// </summary>
+    /// <param name="context">The authenticated request carrying a validated account session</param>
+    /// <param name="projectId">The project whose current draft and permissions are requested</param>
+    /// <param name="cancellationToken">The token used to cancel database work</param>
+    /// <returns>An authorized snapshot, or a denial that conceals inaccessible projects as not found</returns>
+    /// <remarks>
+    /// TODO: Integrate SCRUM-50 validation and reconstruction before consumers interpret returned project JSON
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="context"/> is null</exception>
+    /// <exception cref="InvalidOperationException">The context already has a transaction</exception>
+    /// <exception cref="OperationCanceledException">The operation is canceled</exception>
     public async Task<ProjectAccessResult> ReadAsync(
         HttpContext context,
         Guid projectId,
@@ -72,8 +89,23 @@ public sealed class ProjectAccessService(
         return ProjectAccessResult.Granted(snapshot);
     }
 
-    /// <summary>Locks and reauthorizes a project within the caller's read-committed transaction</summary>
-    /// <remarks>The caller must retain and dispose its transaction on every result, including denial</remarks>
+    /// <summary>
+    /// Locks and reauthorizes a project within the caller's read-committed transaction
+    /// </summary>
+    /// <param name="context">The authenticated request carrying a validated account session</param>
+    /// <param name="projectId">The project to lock for the requested operation</param>
+    /// <param name="purpose">The operation whose permissions and archive restrictions must be checked</param>
+    /// <param name="cancellationToken">The token used to cancel lock acquisition and database work</param>
+    /// <returns>The authorized locked snapshot, or the reason access to the operation was denied</returns>
+    /// <remarks>
+    /// The caller must retain and dispose its transaction on every result, including denial
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="context"/> is null</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="purpose"/> is not a defined lock purpose
+    /// </exception>
+    /// <exception cref="InvalidOperationException">A caller-owned read-committed transaction is not active</exception>
+    /// <exception cref="OperationCanceledException">The operation is canceled</exception>
     public async Task<ProjectAccessResult> LockAsync(
         HttpContext context,
         Guid projectId,

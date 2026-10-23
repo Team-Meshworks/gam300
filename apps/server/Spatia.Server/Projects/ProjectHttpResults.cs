@@ -2,8 +2,21 @@ using Spatia.Server.Hosting;
 
 namespace Spatia.Server.Projects;
 
+/// <summary>
+/// Converts project access and save outcomes into safe public HTTP responses
+/// </summary>
 public static class ProjectHttpResults
 {
+    /// <summary>
+    /// Maps a project access denial to its public problem status and error code
+    /// </summary>
+    /// <param name="context">The request context supplying response headers and the trace identifier</param>
+    /// <param name="failure">The access denial returned by project authorization</param>
+    /// <returns>A problem result with the corresponding 401, 403 or 404 status</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="context"/> is null</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="failure"/> is not a defined access failure
+    /// </exception>
     public static IResult FromAccessFailure(HttpContext context, ProjectAccessFailure failure)
     {
         ArgumentNullException.ThrowIfNull(context);
@@ -24,7 +37,14 @@ public static class ProjectHttpResults
         return ApiProblems.Create(context, problem.Status, problem.Code, problem.Title);
     }
 
-    /// <summary>Maps a completed service outcome without serializing its internal result wrapper</summary>
+    /// <summary>
+    /// Maps a completed service outcome without serializing its internal result wrapper
+    /// </summary>
+    /// <param name="context">The request context supplying response headers and the trace identifier</param>
+    /// <param name="result">The completed authorized save outcome</param>
+    /// <returns>A success acknowledgement, access problem, or 409 problem carrying the current revision</returns>
+    /// <exception cref="ArgumentNullException">The context or result is null</exception>
+    /// <exception cref="InvalidOperationException">The result does not describe a completed save outcome</exception>
     // TODO: Use ProjectSaveService outcomes from SCRUM-50-validated requests with server-derived digests
     public static IResult FromSave(HttpContext context, ProjectSaveResult result)
     {

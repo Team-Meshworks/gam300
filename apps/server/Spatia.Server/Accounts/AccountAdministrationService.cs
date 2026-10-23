@@ -5,8 +5,24 @@ using Spatia.Server.Persistence;
 
 namespace Spatia.Server.Accounts;
 
+/// <summary>
+/// Creates organizations and accounts and resets credentials in database transactions
+/// </summary>
+/// <param name="database">The scoped database context shared with the Identity stores</param>
+/// <param name="users">The Identity manager used to validate and persist account credentials and roles</param>
+/// <remarks>
+/// Callers must enforce administrator authorization or the private bootstrap command boundary
+/// </remarks>
 public sealed class AccountAdministrationService(ApplicationDbContext database, UserManager<ApplicationUser> users)
 {
+    /// <summary>
+    /// Creates the first administrator and requires a password change on first sign-in
+    /// </summary>
+    /// <param name="request">The initial administrator username and temporary password</param>
+    /// <param name="cancellationToken">The token used to cancel database work</param>
+    /// <returns>The creation result, including refusal when an administrator already exists</returns>
+    /// <exception cref="InvalidOperationException">The fixed account roles are unavailable</exception>
+    /// <exception cref="OperationCanceledException">The operation is canceled</exception>
     public async Task<IdentityResult> BootstrapAdministratorAsync(
         BootstrapAdministratorRequest request,
         CancellationToken cancellationToken = default)
@@ -54,6 +70,13 @@ public sealed class AccountAdministrationService(ApplicationDbContext database, 
         }
     }
 
+    /// <summary>
+    /// Creates an active organization after validating its name
+    /// </summary>
+    /// <param name="request">The requested organization name</param>
+    /// <param name="cancellationToken">The token used to cancel database work</param>
+    /// <returns>The creation result and organization details, or a failure result with no organization</returns>
+    /// <exception cref="OperationCanceledException">The operation is canceled</exception>
     public async Task<(IdentityResult Result, OrganizationResponse? Organization)> CreateOrganizationAsync(
         CreateOrganizationRequest request,
         CancellationToken cancellationToken = default)
@@ -73,6 +96,14 @@ public sealed class AccountAdministrationService(ApplicationDbContext database, 
         return (IdentityResult.Success, new OrganizationResponse(organization.Id, organization.Name, organization.IsActive));
     }
 
+    /// <summary>
+    /// Creates an account with its fixed role and, when required, active organization membership
+    /// </summary>
+    /// <param name="request">The username, temporary password, role and organization assignment</param>
+    /// <param name="cancellationToken">The token used to cancel database work</param>
+    /// <returns>The creation result and account details, or a failure result with no account</returns>
+    /// <exception cref="InvalidOperationException">The fixed account roles are unavailable</exception>
+    /// <exception cref="OperationCanceledException">The operation is canceled</exception>
     public async Task<(IdentityResult Result, ProvisionedAccount? Account)> ProvisionAccountAsync(
         ProvisionAccountRequest request,
         CancellationToken cancellationToken = default)
@@ -101,6 +132,14 @@ public sealed class AccountAdministrationService(ApplicationDbContext database, 
         }
     }
 
+    /// <summary>
+    /// Sets a temporary password, invalidates existing credential stamps and requires a password change
+    /// </summary>
+    /// <param name="userId">The account whose password is being reset</param>
+    /// <param name="request">The replacement temporary password</param>
+    /// <param name="cancellationToken">The token used to cancel database work</param>
+    /// <returns>The reset result, including validation failures or a missing account</returns>
+    /// <exception cref="OperationCanceledException">The operation is canceled</exception>
     public async Task<IdentityResult> ResetPasswordAsync(
         Guid userId,
         ResetAccountPasswordRequest request,

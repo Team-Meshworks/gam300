@@ -4,12 +4,26 @@ using Spatia.Server.Security;
 
 namespace Spatia.Server.Accounts;
 
+/// <summary>
+/// Signs in current accounts and changes passwords using the request's Identity session
+/// </summary>
+/// <param name="users">The Identity manager used to verify and update credentials</param>
+/// <param name="signIn">The sign-in manager bound to the current HTTP request</param>
+/// <param name="database">The scoped database context shared with the Identity stores</param>
+/// <param name="accounts">The resolver that checks current account authority</param>
 public sealed class AccountSessionService(
     UserManager<ApplicationUser> users,
     SignInManager<ApplicationUser> signIn,
     ApplicationDbContext database,
     CurrentAccountResolver accounts)
 {
+    /// <summary>
+    /// Verifies credentials and current account authority before issuing a nonpersistent session cookie
+    /// </summary>
+    /// <param name="request">The username and password to verify</param>
+    /// <param name="cancellationToken">The token used to cancel account lookup and sign-in preparation</param>
+    /// <returns>Success when a cookie is issued, or a generic failure without revealing account state</returns>
+    /// <exception cref="OperationCanceledException">The operation is canceled</exception>
     public async Task<SignInResult> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default)
     {
         if (!IsValidLoginRequest(request)
@@ -44,6 +58,13 @@ public sealed class AccountSessionService(
         return SignInResult.Success;
     }
 
+    /// <summary>
+    /// Changes the current account's password, clears the required-change flag and refreshes its session
+    /// </summary>
+    /// <param name="request">The current password and a different replacement password</param>
+    /// <param name="cancellationToken">The token used to cancel database work</param>
+    /// <returns>The password change result, including validation, authentication or concurrency failures</returns>
+    /// <exception cref="OperationCanceledException">The operation is canceled</exception>
     public async Task<IdentityResult> ChangePasswordAsync(
         ChangePasswordRequest request,
         CancellationToken cancellationToken = default)

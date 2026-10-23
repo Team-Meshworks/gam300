@@ -5,14 +5,31 @@ using Microsoft.Net.Http.Headers;
 
 namespace Spatia.Server.Projects;
 
+/// <summary>
+/// Reads bounded save requests and checks envelope syntax and project identity before domain validation
+/// </summary>
 public static class SaveEnvelopeReader
 {
+    /// <summary>
+    /// The maximum UTF-8 request body size in bytes, including the save envelope
+    /// </summary>
     public const int MaxRequestBytes = 6 * 1024 * 1024;
     private const int MaxDocumentBytes = 5 * 1024 * 1024;
     private static readonly UTF8Encoding StrictUtf8 = new(false, true);
 
-    /// <summary>Checks bounded request syntax and route identity, without validating project content</summary>
-    /// <remarks>TODO: Integrate SCRUM-50 validation after this bounded reader before enabling production save handlers</remarks>
+    /// <summary>
+    /// Checks bounded request syntax and route identity without validating project content
+    /// </summary>
+    /// <param name="request">The UTF-8 JSON request whose body is consumed up to the size limit plus one byte</param>
+    /// <param name="routeProjectId">The route identifier that the document's project identifier must match</param>
+    /// <param name="cancellationToken">The token used to cancel body reading and parsing preparation</param>
+    /// <returns>The parsed envelope with unvalidated document JSON, or a safe request error</returns>
+    /// <remarks>
+    /// TODO: Integrate SCRUM-50 validation after this bounded reader before enabling production save handlers
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="request"/> is null</exception>
+    /// <exception cref="OperationCanceledException">The operation is canceled</exception>
+    /// <exception cref="IOException">The request body cannot be read</exception>
     public static async Task<SaveEnvelopeReadResult> ReadAsync(
         HttpRequest request,
         Guid routeProjectId,

@@ -17,10 +17,22 @@ using Spatia.Server.Security;
 
 namespace Spatia.Server.Hosting;
 
+/// <summary>
+/// Configures the server's persistence, security boundaries, middleware and available API routes
+/// </summary>
 public static class SpatiaApplication
 {
     private const long MaxRequestBodyBytes = 16 * 1024;
 
+    /// <summary>
+    /// Validates required deployment settings and builds the configured application without starting it
+    /// </summary>
+    /// <param name="builder">The application builder containing configuration, services and host settings</param>
+    /// <returns>The configured application, which the caller must run and dispose</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="builder"/> is null</exception>
+    /// <exception cref="InvalidOperationException">
+    /// Required database, key storage, allowed host or proxy settings are missing or invalid
+    /// </exception>
     public static WebApplication Build(WebApplicationBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);

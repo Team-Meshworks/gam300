@@ -5,9 +5,41 @@ using Spatia.Server.Security;
 
 namespace Spatia.Server.Projects;
 
+/// <summary>
+/// Coordinates authorized draft writes and retries, acknowledging only completed transaction commits
+/// </summary>
+/// <param name="database">The scoped database context that owns each save transaction</param>
+/// <param name="access">The project authorization service sharing the same database context</param>
 public sealed class ProjectSaveService(ApplicationDbContext database, ProjectAccessService access)
 {
-    /// <summary>Owns current-authorized save/retry transactions for caller-validated content and a server-derived digest</summary>
+    /// <summary>
+    /// Owns authorized save and retry transactions for caller-validated content and a server-derived digest
+    /// </summary>
+    /// <param name="context">The authenticated request carrying a validated account session</param>
+    /// <param name="projectId">The project identifier already checked against the document</param>
+    /// <param name="envelope">The parsed request whose original document must have passed domain validation</param>
+    /// <param name="schemaVersion">The validated schema version matching the supplied document</param>
+    /// <param name="requestDigest">
+    /// The 32-byte server-derived digest bound to the document, project, actor and revision
+    /// </param>
+    /// <param name="cancellationToken">The token used to cancel database work</param>
+    /// <returns>
+    /// A committed acknowledgement, an access denial, or a revision rejection with the current revision
+    /// </returns>
+    /// <remarks>
+    /// A failed or canceled commit can already be durable; reconcile uncertain outcomes using the same mutation ID
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">The context, envelope or request digest is null</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// The envelope's expected revision is outside the supported range
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    /// The digest is not 32 bytes or the locked snapshot has invalid metadata
+    /// </exception>
+    /// <exception cref="InvalidOperationException">The context already has a transaction</exception>
+    /// <exception cref="OperationCanceledException">
+    /// The operation is canceled, possibly after its commit became durable
+    /// </exception>
     // TODO: Integrate SCRUM-50 validation and digest generation before registering or exposing this service to requests
     public async Task<ProjectSaveResult> SaveAsync(HttpContext context, Guid projectId, ParsedSaveEnvelope envelope,
         int schemaVersion, byte[] requestDigest, CancellationToken cancellationToken = default)

@@ -4,8 +4,22 @@ using Spatia.Server.Persistence;
 
 namespace Spatia.Server.Security;
 
+/// <summary>
+/// Resolves active account authority from current credentials, roles and organization membership
+/// </summary>
+/// <param name="database">The scoped context used to read account and organization state</param>
 public sealed class CurrentAccountResolver(ApplicationDbContext database)
 {
+    /// <summary>
+    /// Accepts an account only when its security stamp, fixed role and required organization membership remain valid
+    /// </summary>
+    /// <param name="userId">The account identifier from the authenticated credentials</param>
+    /// <param name="expectedStamp">The security stamp that must still match the stored account</param>
+    /// <param name="cancellationToken">The token used to cancel the database query</param>
+    /// <returns>
+    /// The current account authority, or null when the account is unavailable or its authority is invalid
+    /// </returns>
+    /// <exception cref="OperationCanceledException">The operation is canceled</exception>
     public async Task<CurrentAccount?> ResolveAsync(
         Guid userId,
         string expectedStamp,

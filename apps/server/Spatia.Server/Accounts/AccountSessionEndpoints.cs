@@ -4,8 +4,16 @@ using Spatia.Server.Security;
 
 namespace Spatia.Server.Accounts;
 
+/// <summary>
+/// Maps sign-in, session inspection, sign-out and password change endpoints
+/// </summary>
 public static class AccountSessionEndpoints
 {
+    /// <summary>
+    /// Adds account session routes with their authorization and rate limiting policies
+    /// </summary>
+    /// <param name="endpoints">The route builder that receives the session endpoints</param>
+    /// <returns>The supplied route builder for further endpoint registration</returns>
     public static IEndpointRouteBuilder MapAccountSessions(this IEndpointRouteBuilder endpoints)
     {
         var group = endpoints.MapGroup("/api/auth");
