@@ -221,6 +221,8 @@
     "editor/persistence/server-draft-write.ts": "3e9bd5d5b2cbfa6af8f2de7fc502c0cc1fe8fc6b5acc3ee12007286d0e62d3bc",
     "editor/persistence/server-save-progress.test.ts": "73b8315689d053c1c7484166a70f8b5756e9c1fa4edad86e691d0759103635e4",
     "editor/persistence/server-save-progress.ts": "7f68b2f29f5326d82bdb25b0c95d16c63241e00ccab666e0cda0faa595830ff8",
+    "editor/persistence/server-save-recovery.test.ts": "4f29c6adc1b909927a70f1281c14012cb0e8791ecd3e78e4e6d166884539cd21",
+    "editor/persistence/server-save-recovery.ts": "2cc0213e7a2a518b91c996549a57b8ba60a5b5914dc104f0baf7c8d96fa6997d",
     "editor/persistence/server-save-timer.test.ts": "18df63843852b27255844ab646d0212d86b834273b2f2c4bc6c2d793e9db1b5d",
     "editor/persistence/server-save-timer.ts": "d40f81edb36e1b09305b7d1f2a2e75c1e2b83b392c840fb107399c3b2407c1d0",
     "editor/persistence/use-project-session.ts": "662af8b6a36dd5567d70fe3d257692b99af2a55131ddbc3f513bd0c3dc6f80af",
@@ -1353,6 +1355,61 @@
       "target": "editor/persistence/server-save-progress.ts",
       "from": "checks",
       "to": "persistence"
+    },
+    {
+      "file": "editor/persistence/server-save-recovery.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/persistence/server-save-recovery.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "../../shared/project/fixtures/m1-project.json",
+      "target": "shared/project/fixtures/m1-project.json",
+      "from": "checks",
+      "to": "project"
+    },
+    {
+      "file": "editor/persistence/server-save-recovery.test.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./server-save-recovery",
+      "target": "editor/persistence/server-save-recovery.ts",
+      "from": "checks",
+      "to": "persistence"
+    },
+    {
+      "file": "editor/persistence/server-save-recovery.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "../../shared/project/project-deserialization",
+      "target": "shared/project/project-deserialization.ts",
+      "from": "persistence",
+      "to": "project"
+    },
+    {
+      "file": "editor/persistence/server-save-recovery.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "../../shared/project/validation-helpers",
+      "target": "shared/project/validation-helpers.ts",
+      "from": "persistence",
+      "to": "project"
+    },
+    {
+      "file": "editor/persistence/server-save-recovery.ts",
+      "line": 3,
+      "kind": "type",
+      "specifier": "../../shared/project/validation-helpers",
+      "target": "shared/project/validation-helpers.ts",
+      "from": "persistence",
+      "to": "project"
     },
     {
       "file": "editor/persistence/server-save-timer.test.ts",
