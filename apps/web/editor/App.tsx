@@ -85,12 +85,6 @@ export function App() {
     storageOperation === "recover" ||
     storageOperation === "import";
 
-  // Unfinished buttons show a notice when click
-  const comingSoon = useCallback(
-    (label: string) => setNotice(`${label} is coming soon`),
-    [setNotice],
-  );
-
   const deleteSelection = useCallback(() => {
     if (selection === null || visitor) return;
     const result = store.deleteObject(selection);
@@ -250,7 +244,6 @@ export function App() {
           document.getElementById("viewport")?.focus();
         }}
         onExitPreview={() => manager?.setMode("editor")}
-        onComingSoon={comingSoon}
       />
       {/* Reset the input so choosing the same file again still fires a change */}
       <input
@@ -283,7 +276,6 @@ export function App() {
           thumbnailFor={thumbnailFor}
           onSelect={setSelectedId}
           onTransform={onTransform}
-          onComingSoon={comingSoon}
         />
 
         <Viewport
@@ -317,7 +309,6 @@ export function App() {
               onDragChange={setDragging}
               tool={navigationTool}
               onToolChange={setNavigationTool}
-              onComingSoon={comingSoon}
             />
           )}
         </Viewport>

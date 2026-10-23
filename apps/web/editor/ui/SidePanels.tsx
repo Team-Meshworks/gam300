@@ -22,7 +22,6 @@ export function SidePanels({
   thumbnailFor,
   onSelect,
   onTransform,
-  onComingSoon,
 }: {
   visitor: boolean;
   room: Room | undefined;
@@ -32,7 +31,6 @@ export function SidePanels({
   thumbnailFor: (assetId: string) => string | undefined;
   onSelect: (id: string) => void;
   onTransform: (id: string, transform: Transform) => void;
-  onComingSoon: (label: string) => void;
 }) {
   // Open the tree first so new project can see whats inside
   const [panel, setPanel] = useState<PanelId | null>("tree");
@@ -86,7 +84,6 @@ export function SidePanels({
         type="button"
         aria-disabled="true"
         title="Filters · coming soon"
-        onClick={() => onComingSoon("Filters")}
       >
         Filters
         <Icon name="caretDown" />

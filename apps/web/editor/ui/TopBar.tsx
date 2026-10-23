@@ -26,7 +26,6 @@ export function TopBar({
   canPreview,
   onPreview,
   onExitPreview,
-  onComingSoon,
 }: {
   session: ReturnType<typeof useProjectSession>;
   hasProject: boolean;
@@ -41,7 +40,6 @@ export function TopBar({
   canPreview: boolean;
   onPreview: () => void;
   onExitPreview: () => void;
-  onComingSoon: (label: string) => void;
 }) {
   const menu = useRef<HTMLDetailsElement>(null);
   useEffect(() => {
@@ -81,7 +79,6 @@ export function TopBar({
           aria-label="Back to projects (coming soon)"
           aria-disabled="true"
           title="Back to projects · coming soon"
-          onClick={() => onComingSoon("Back to projects")}
         >
           <Icon name="back" />
         </button>
@@ -228,7 +225,6 @@ export function TopBar({
             aria-label="Overview (coming soon)"
             aria-disabled="true"
             title="Overview · coming soon"
-            onClick={() => onComingSoon("Overview")}
           >
             <Icon name="overview" />
           </button>
@@ -254,7 +250,6 @@ export function TopBar({
             type="button"
             aria-disabled="true"
             title="Publish · coming soon"
-            onClick={() => onComingSoon("Publishing")}
           >
             Publish
           </button>

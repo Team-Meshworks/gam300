@@ -55,7 +55,6 @@ export function BottomBar({
   onDragChange,
   tool,
   onToolChange,
-  onComingSoon,
 }: {
   assets: readonly CatalogueAsset[];
   ready: boolean;
@@ -64,7 +63,6 @@ export function BottomBar({
   onDragChange: (dragging: boolean) => void;
   tool: NavigationTool;
   onToolChange: (tool: NavigationTool) => void;
-  onComingSoon: (label: string) => void;
 }) {
   const [libraryOpen, setLibraryOpen] = useState(true);
   const cameraTip = useTooltip();
@@ -156,7 +154,6 @@ export function BottomBar({
                   type="button"
                   aria-label={`${item.label} (coming soon)`}
                   aria-disabled="true"
-                  onClick={() => onComingSoon(item.label)}
                   {...toolTip.handlers(`${item.label} · coming soon`)}
                 >
                   <Icon name={item.icon} />
