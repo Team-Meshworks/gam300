@@ -253,7 +253,7 @@
     "shared/project/validation-helpers.ts": "f57061b4e9ecbad5cd3fde0f8ce5270868bf5abf5d4d21d9265445448a9c2e7e",
     "tests/caching.check.mjs": "98c0ef24df281bf361e202633ae12dbefabd1f49df7e8f21bb253ff5848fbf6a",
     "tests/caching.measure.mjs": "0181addfc3a470bd5504169e3e0a88d3292ecb3e341beded0ca90766e4d40ea7",
-    "tests/deployment.check.mjs": "9b585c0ed3358e30b9d79127a4bd37de2ca0f65c719d509b366498328f001a33",
+    "tests/deployment.check.mjs": "c1728f612846b1d992dd0e1039f129293e10ca7a2729422090031d53355eae61",
     "tests/editor-build.check.mjs": "23c235d69590dc1ceb44208060f32ae35d764b6753a3da2b37d581eaea16d2fe",
     "tests/editor-integration.check.mjs": "4b697ecd860a64826ca0eabda46cb738116009be7bc058b3bd8caa2ac04a8d33",
     "tests/editor-shell.check.mjs": "b9e69cc27c41290cc06d162026d6015b53e722466592d125bd214aaf0e4c4bb4",
