@@ -76,13 +76,19 @@ jobs:
           EXPECTED_COMMIT: ${{ needs.release.outputs.commit }}
           CI_RUN_ID: ${{ inputs.ci_run_id }}
           APP_URL: ${{ vars.APP_URL }}
+          DEPLOY_ENVIRONMENT: ${{ needs.release.outputs.environment }}
         shell: bash
         run: |
           jq -e --arg branch "$GITHUB_REF_NAME" --arg commit "$EXPECTED_COMMIT" --arg run "$CI_RUN_ID" \
             '.branch == $branch and .commit == $commit and .run == $run' "$RELEASE_DIR/release.json"
+          if [[ -f "${DEPLOY_ROOT:-$HOME/vthere}/$DEPLOY_ENVIRONMENT/current/compose.server.yaml" ]]; then
+            jq -e '.apiImage and .migrationImage' "$RELEASE_DIR/release.json"
+          fi
           printf '%s' "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
           bash "$RELEASE_DIR/deploy.sh" "$GITHUB_REF_NAME" \
-            "$(jq -er .image "$RELEASE_DIR/release.json")" "$EXPECTED_COMMIT"
+            "$(jq -er .image "$RELEASE_DIR/release.json")" "$EXPECTED_COMMIT" \
+            "$(jq -r '.apiImage // empty' "$RELEASE_DIR/release.json")" \
+            "$(jq -r '.migrationImage // empty' "$RELEASE_DIR/release.json")"
           printf 'Deployed `%s` to %s\n' "$EXPECTED_COMMIT" "$APP_URL" >> "$GITHUB_STEP_SUMMARY"
       - name: Remove temporary registry credentials and release files
         if: always()
