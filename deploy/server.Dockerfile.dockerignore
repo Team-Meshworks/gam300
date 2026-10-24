@@ -1,0 +1,13 @@
+# This build needs only backend sources and locked dependencies
+**
+!apps/
+!apps/server/
+!apps/server/**
+**/bin/
+**/obj/
+**/test-results/
+**/.artifacts/
+**/.env
+**/.env.*
+**/*.pfx
+**/*.pem
