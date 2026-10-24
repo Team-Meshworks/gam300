@@ -185,9 +185,75 @@ jobs:
         run: |
           docker compose -f ../../compose.yaml -p vthere-ci down
 
+  server:
+    name: Server build and tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apps/server
+        shell: bash
+    services:
+      postgres:
+        image: postgres:18.6@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336
+        env:
+          POSTGRES_DB: spatia_scrum45_test
+          POSTGRES_USER: spatia_test
+          POSTGRES_PASSWORD: spatia_ci_only
+        ports:
+          - "127.0.0.1::5432"
+        options: >-
+          --health-cmd "pg_isready -U spatia_test -d spatia_scrum45_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: apps/server/global.json
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: apps/web/.nvmrc
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Install the existing browser test dependencies
+        working-directory: apps/web
+        run: |
+          npm install --global npm@11.17.0
+          npm ci --no-audit --no-fund
+          npx --no-install playwright install --with-deps chromium
+      - name: Build, check and test the server
+        env:
+          SPATIA_TEST_DATABASE_CONNECTION: Host=127.0.0.1;Port=${{ job.services.postgres.ports['5432'] }};Database=spatia_scrum45_test;Username=spatia_test;Password=spatia_ci_only
+          ConnectionStrings__Spatia: Host=127.0.0.1;Port=${{ job.services.postgres.ports['5432'] }};Database=spatia_scrum45_test;Username=spatia_test;Password=spatia_ci_only
+        run: |
+          dotnet restore tests/Spatia.Server.Tests.csproj --locked-mode
+          dotnet tool restore
+          dotnet build tests/Spatia.Server.Tests.csproj -c Release --no-restore
+          dotnet format Spatia.Server/Spatia.Server.csproj --verify-no-changes --no-restore
+          dotnet format tests/Spatia.Server.Tests.csproj --verify-no-changes --no-restore
+          mkdir -p .artifacts
+          dotnet ef migrations list --no-connect --project Spatia.Server --startup-project tests --configuration Release --no-build
+          dotnet ef migrations has-pending-model-changes --project Spatia.Server --startup-project tests --configuration Release --no-build
+          dotnet ef migrations script --idempotent --project Spatia.Server --startup-project tests --configuration Release --no-build --output .artifacts/identity-migration.sql
+          dotnet test --project tests/Spatia.Server.Tests.csproj -c Release --no-build --results-directory test-results/ci -- --report-trx --minimum-expected-tests 1
+      - name: Retain server test evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: server-checks-${{ github.sha }}
+          path: |
+            apps/server/test-results/ci/
+            apps/server/.artifacts/scrum45-browser-version.txt
+          retention-days: 14
+          overwrite: true
+
   publish:
     name: Publish tested image
-    needs: [check, compatibility]
+    needs: [check, compatibility, server]
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
     runs-on: ubuntu-24.04
     timeout-minutes: 10

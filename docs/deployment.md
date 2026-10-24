@@ -123,8 +123,17 @@ JavaScript chunk-budget check.
 The recovery check includes place–move–undo–save–reload and JSON transfer into a fresh
 browser context. Its output and the editor check output are retained under `apps/web/test-results/`.
 
+The server job uses the SDK pinned in `apps/server/global.json`, locked NuGet restore,
+Release build, both C# format checks, migration checks and the complete TUnit suite.
+Its disposable PostgreSQL 18.6 service publishes only to loopback and uses synthetic
+test credentials. The suite applies migrations in isolated schemas and includes the
+existing Chromium account flow. Test reports and browser-version evidence are retained
+for 14 days. The separate account cold-restart acceptance remains a local operator check;
+see the [server setup](../apps/server/README.md).
+
 The check job has no package-write permission. After a successful push or manual run on
-`dev` or `main`, a separate publishing job pushes the exact tested image to the private GHCR package
+`dev` or `main`, and after the web, native compatibility and server jobs pass, a separate
+publishing job pushes the exact tested image to the private GHCR package
 `ghcr.io/team-meshworks/gam300`. Each release records its immutable digest, source commit,
 branch and CI run ID. The short-lived image-transfer artifact is retained for two days;
 test/web artifacts for 14 days and the small release bundle for 90 days. Retain registry

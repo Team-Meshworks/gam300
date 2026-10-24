@@ -82,35 +82,39 @@ describe("loading a project into the editor store", () => {
     expect(store.getSnapshot().objects).toEqual(fixture.scenes[0]?.objects);
   });
 
-  it("keeps loaded snapshots immutable and serializes later edits from the same document", () => {
-    const store = createDocumentStore(placementAssets);
-    const catalog = new Map(assets);
-    store.loadProject(text, catalog);
-    const loaded = store.getSnapshot();
-    const object = loaded.objects[0];
-    expect(Object.isFrozen(loaded.project)).toBe(true);
-    expect(Object.isFrozen(loaded.project?.scenes)).toBe(true);
-    expect(Object.isFrozen(object?.transform.position)).toBe(true);
-    expect(Object.isFrozen(loaded.project?.scenes[0]?.startCamera.rotation)).toBe(true);
+  it.each([fixture.projectId, "017f22e2-79b0-7cc3-98c4-dc0c0c07398f"])(
+    "preserves imported project ID %s through edits, undo and save/reopen",
+    (projectId) => {
+      const input = { ...fixture, projectId };
+      const store = createDocumentStore(placementAssets);
+      const catalog = new Map(assets);
+      store.loadProject(JSON.stringify(input), catalog);
+      const loaded = store.getSnapshot();
+      const object = loaded.objects[0];
+      expect(Object.isFrozen(loaded.project)).toBe(true);
+      expect(Object.isFrozen(loaded.project?.scenes)).toBe(true);
+      expect(Object.isFrozen(object?.transform.position)).toBe(true);
+      expect(Object.isFrozen(loaded.project?.scenes[0]?.startCamera.rotation)).toBe(true);
 
-    // Later caller changes to the catalog can't silently change this session
-    catalog.clear();
-    expect(store.addObject(sampleAsset.id, [3, 0, -1]).ok).toBe(true);
-    const edited = store.getSnapshot();
-    expect(edited.objects).toBe(edited.project?.scenes[0]?.objects);
-    expect(edited.project?.projectId).toBe(fixture.projectId);
-    expect(edited.project?.scenes[0]?.startCamera).toEqual(fixture.scenes[0]?.startCamera);
-    const saved = serializeProject(edited.project, assets);
-    if (!saved.ok) throw new Error(saved.error.message);
-    const reopened = createDocumentStore(placementAssets);
-    expect(reopened.loadProject(saved.value, assets).ok).toBe(true);
-    expect(reopened.getSnapshot().project).toEqual(edited.project);
-    expect(loaded.project).toEqual(fixture);
-    store.undo();
-    expect(store.getSnapshot().project).toEqual(fixture);
-    store.redo();
-    expect(store.getSnapshot().project).toEqual(edited.project);
-  });
+      // Later caller changes to the catalog can't silently change this session
+      catalog.clear();
+      expect(store.addObject(sampleAsset.id, [3, 0, -1]).ok).toBe(true);
+      const edited = store.getSnapshot();
+      expect(edited.objects).toBe(edited.project?.scenes[0]?.objects);
+      expect(edited.project?.projectId).toBe(projectId);
+      expect(edited.project?.scenes[0]?.startCamera).toEqual(fixture.scenes[0]?.startCamera);
+      const saved = serializeProject(edited.project, assets);
+      if (!saved.ok) throw new Error(saved.error.message);
+      const reopened = createDocumentStore(placementAssets);
+      expect(reopened.loadProject(saved.value, assets).ok).toBe(true);
+      expect(reopened.getSnapshot().project).toEqual(edited.project);
+      expect(loaded.project).toEqual(input);
+      store.undo();
+      expect(store.getSnapshot().project).toEqual(input);
+      store.redo();
+      expect(store.getSnapshot().project).toEqual(edited.project);
+    },
+  );
 
   it("rejects placement when the loaded catalog has no sample model", () => {
     const store = createDocumentStore(placementAssets);

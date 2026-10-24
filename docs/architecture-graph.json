@@ -182,6 +182,7 @@
       "build",
       "catalogue",
       "document",
+      "editor",
       "input",
       "persistence",
       "project",
@@ -192,38 +193,46 @@
     "architecture.check.mjs": "d7d864b0067391a38e88998b288ae5a64c9a819fd74a4930ad036fd4460d8200",
     "architecture.mjs": "f251edc3dd86bb606f2774dca7710bfa02582362d40b3bd1dedef60b5ef5c972",
     "asset-catalogue-plugin.ts": "17bec6aa65dd50167fe6c055fb38af453a647f3648a2bf296f9927ed32f7a158",
-    "editor/App.tsx": "c0c0469491a7b704f719a52084fe6d2addcc9d471b9092cd4a83e6b2524db667",
+    "editor/App.tsx": "289d48c987cf703176bc1e3131432f5fc7577d51541a8d9ccbf32e60ffbe8714",
     "editor/ProjectConfirmation.tsx": "07a0fedf8fbf88865b3b8232c8665c139348fc64ebce478ea01e55eb7fd14eff",
     "editor/command-history.test.ts": "783c026523513ea5520cde04e61502aba13ca3a612b509a904c2a50e50be2d1f",
     "editor/command-history.ts": "e243335582ab03da9d131bd80edef7b908e3eb0a751d6ebfa7deb77750fc54ad",
     "editor/controls/fpsControls.ts": "9cd1c65c92bd832dda2003f6a79e5b5e5b54a49360d47bf4b6841c83ca4693e6",
-    "editor/document-store.test.ts": "c6a47cb2b0cd0a85667f3898485e1575f74fea789c20846c37ef752c13cb7dcc",
-    "editor/document-store.ts": "1cca978df2f6dba49b7746f303cb2091e2560d2ff3feebfca868d2df1361245f",
+    "editor/document-store.test.ts": "b74ccaa58dd8a84f84c5aa95994d707861b659cef40cb6b57e4d991149c626d1",
+    "editor/document-store.ts": "5d0a6aa053de65daaa9261efc4c410ca906b814c5bdbc4e619112dfdbecb20ac",
     "editor/edit-session.test.ts": "fd971338990e32158eb0355508fb39a7c3284db62421501024da029a82dc784a",
     "editor/graphics/modeManager.ts": "192911ee28b8329ec2ed0dddb5f8854abf6faf5dfce3165b2694a1bfcf192f24",
     "editor/graphics/rotation.test.ts": "58844092035329772ba8c941b1b93737d142d7c597f015900041721d0018bb69",
     "editor/graphics/rotation.ts": "d847162644716d2b36e8b3e4f1ad190360527a46351cb2969d411dbe76ea96d3",
     "editor/graphics/scaling.test.ts": "346b243798597de2a5b00384904bdf04f9f3826a8753bcde3282e5356b0ceb0a",
     "editor/graphics/scaling.ts": "0277d21b28d246ddb2f94216fe29afb24ebbc8e257dd3510eca91bb176867da1",
-    "editor/graphics/scene.ts": "337aad1939b7b8fb5842c0ae090c05c45b15bfdb97deaffbd83713eba56a4790",
+    "editor/graphics/scene.ts": "f77766ba9fcbe5eda0d5e3fc78478b642bc4bfdade8b63d9fef543727857095f",
     "editor/graphics/translation.test.ts": "b4a888b963437ca3508c04cc3e933ab215d301908384ea9af37ee8aabd6fae2c",
     "editor/graphics/translation.ts": "a4ea05b137e4dee436848693a57273c54025856bdf943eb1e9413de5509bb2d4",
-    "editor/history-shortcuts.test.ts": "8a2e4bbe34961985ce2c1bdbbd78ec9c105587a8547f9a7c8415e9544808196f",
-    "editor/history-shortcuts.ts": "030a6a4092defe4d0dc9e813bb4354b8efddec056745a2eb18f14224f4e63dd7",
+    "editor/history-shortcuts.test.ts": "fc33404f4da0e7c9fd27d2da50d63eb3367c790cda0f985dd98b398b651e3a3b",
+    "editor/history-shortcuts.ts": "e9d147c651ba15b45484207f805fbb648beb13c7393e4538d249c159c4b4e583",
     "editor/main.tsx": "240b88cb33a8ef53b7f8a66df6385b1ada2dcb6b39380f2cfd21e5416fd0346b",
-    "editor/object-copy.test.ts": "f11e65d7faa9f6027b11320a21e9e69e85aa873b7d254a8b901dc5ce8c971654",
+    "editor/object-copy.test.ts": "4266a7ac699c9ad5bec8962b7b1dd52bae9e6874d571235184aa304d0d6c8088",
     "editor/persistence/draft-db.ts": "9c1aece3becbd9db33c2164533cfc86d9cf7b4bef9306678d9c9aaca9b800c5a",
     "editor/persistence/idb-database-connection.ts": "d07c765187e280e825a3d73665837a55b12cf203ab93a22c18634849ec6b6347",
     "editor/persistence/local-drafts.test.ts": "fa77e4b24be4918e0d4ceb73f71871899822268d89d2da880d694f76e7a0f79e",
     "editor/persistence/local-drafts.ts": "6918ee2d8c14e08962160a70ee007ce8c172e15dd57d4ec00f76e22091c45ccb",
     "editor/persistence/project-files.ts": "20e7466377e31ea388fe527abc4c33e465538b8b06709a5d78c78bc116c6b273",
     "editor/persistence/use-project-session.ts": "662af8b6a36dd5567d70fe3d257692b99af2a55131ddbc3f513bd0c3dc6f80af",
-    "editor/project-loading.test.ts": "29c2e63b76195dbd8dd01afe57d5398227b845a974d6798a19e088f3c19457a2",
+    "editor/project-loading.test.ts": "bce77e1b55b7c52bf5140be4b357a894cba6bdaa5a851e3693b96106e2e0e63e",
     "editor/recovery-history.test.ts": "95c497899ffa6c8f8c696c84e8e880f7ea8eb22ef0d95ec04cca57d1ce14f31f",
     "editor/recovery-history.ts": "eaf1d5cece98daede4e8df9759b1074a3a6e790af624245a38b6be3698dc9756",
     "editor/transform-command.test.ts": "d2ae97b90329d4baf866a7dbc3521675a7d9c78c5754e3b955e60ed62a232469",
     "editor/transform-command.ts": "bcd7036db3877f5f24e5984287af8a878b10ec6289a51987e76f62db8f3cb178",
-    "editor/viewport/Viewport.tsx": "8fa4a03ed1818d82ad15181e0af9102487575c72eb27cb9b2f905ee4a7ce175a",
+    "editor/ui/BottomBar.tsx": "0177614715bb80a4c35b680d9ea7ce820a9e78dcc76ca8caff82b547dead234d",
+    "editor/ui/Icon.tsx": "536064fa8990e7e522f64eba9e25106359c903257d84837b6575ba5c99307e1b",
+    "editor/ui/SidePanels.tsx": "31d945caaffab3d3518232ca56e6b858fca18b5e8cff690b942cbbe5e4342d2b",
+    "editor/ui/TopBar.tsx": "ffb94cf1637056a51471d5716736f442cc3afc24e080397fcca01b65d457fffe",
+    "editor/ui/dock-edge.test.ts": "5f23848e403e898efc84d2c34ae327b5d5313a066c6391a79cec336e73759ead",
+    "editor/ui/dock-edge.ts": "16fbf3250e0c840d7d6d0add10b5fb4ee008afafcbbebe1b860c15171d7196af",
+    "editor/ui/rotation-angles.test.ts": "768d7e7fcfe8d5a5fc0a11f3bc70fa734e5e84ce161fd9aa5b1807b850f4438d",
+    "editor/ui/rotation-angles.ts": "16a42a83ee7bb2435c4ee7b640fa6ca3c65a7564fd68981084ce57f5e9687f3b",
+    "editor/viewport/Viewport.tsx": "d90e0796f9001e2985ecd90755f80a56cd7d3df574eac07bb0a3a633faff8235",
     "eslint.config.js": "d32bfc31c2e4b881deedcd9090f5eb2ba874728c3dcfe5aa9f89e5e31cecc1f7",
     "shared/assets/ModelCache.test.ts": "6e5cf28591eb858c981923550fe49fb330535b085db0d99d7ce209736fefc2d3",
     "shared/assets/ModelCache.ts": "7ba493c76290a999db38013457dea39e5b08492416487338b05e1be6490dde2e",
@@ -246,17 +255,17 @@
     "shared/project/validation-helpers.ts": "f57061b4e9ecbad5cd3fde0f8ce5270868bf5abf5d4d21d9265445448a9c2e7e",
     "tests/caching.check.mjs": "98c0ef24df281bf361e202633ae12dbefabd1f49df7e8f21bb253ff5848fbf6a",
     "tests/caching.measure.mjs": "0181addfc3a470bd5504169e3e0a88d3292ecb3e341beded0ca90766e4d40ea7",
-    "tests/deployment.check.mjs": "9b585c0ed3358e30b9d79127a4bd37de2ca0f65c719d509b366498328f001a33",
+    "tests/deployment.check.mjs": "c1728f612846b1d992dd0e1039f129293e10ca7a2729422090031d53355eae61",
     "tests/editor-build.check.mjs": "23c235d69590dc1ceb44208060f32ae35d764b6753a3da2b37d581eaea16d2fe",
-    "tests/editor-integration.check.mjs": "e17c5ab1c76eb3a34cff5f134c70482f1502d667bb2ffd1db0d011d7d6159041",
-    "tests/editor-shell.check.mjs": "06d896642bd0945a60e448021e7c3e67b43975e5256250f3723159b585456177",
-    "tests/history-recovery.check.mjs": "d6d43e4f7ba35b5b17c3eb8806a0e8c8dc9d71814235dc77434c3ec9e6e68a4e",
-    "tests/local-drafts.check.mjs": "c9f8769c27b5e4d9f8e82bb49c130b35a2f3145acf221e9134f47dbeb5373dae",
+    "tests/editor-integration.check.mjs": "4b697ecd860a64826ca0eabda46cb738116009be7bc058b3bd8caa2ac04a8d33",
+    "tests/editor-shell.check.mjs": "634b981ee286f1879feb2b82f764896ce9573201867f5f467a6dbdefeff51bbd",
+    "tests/history-recovery.check.mjs": "5ca1825415170ca384a3b0ed9e9a9afb2d873a7a6a2e56ced2aedaabb19880a0",
+    "tests/local-drafts.check.mjs": "98390300401b7b358bbca7204b13755c9da50d671bdd206a15bd31a6d36890bd",
     "vite.config.ts": "50329f07010d85bc43b6f9ab2f3ea7b0ca22fa6059f6346d8872bf1b09ac5da6",
     "vitest.config.ts": "6d56840bcf381e145f69828ff965fe1c8065e1610a38219c19dbb4e9d87d7dbf",
     "editor/index.html": "f14296264b1f8edda142de2fa8b8c58d1e98e50265637afe5f29924558900279",
     "shared/project/fixtures/m1-project.json": "3aeeee4397fd9ad18fc06eba32815ef5032ecf8184200aaa38a2076b882a4947",
-    "editor/styles.css": "0b2a07442ad6e4d785216e448d0982caa5e11f637bab99c66462ab3cb89f69e4"
+    "editor/styles.css": "c1b1ad140f0bb8f6ddeed5f4049e72bf856978fd0f32f691b96ddc3e433b04d3"
   },
   "imports": [
     {
@@ -470,15 +479,6 @@
     {
       "file": "editor/App.tsx",
       "line": 3,
-      "kind": "static",
-      "specifier": "../shared/assets/catalogue",
-      "target": "shared/assets/catalogue.ts",
-      "from": "editor",
-      "to": "catalogue"
-    },
-    {
-      "file": "editor/App.tsx",
-      "line": 4,
       "kind": "type",
       "specifier": "../shared/project/scene-object",
       "target": "shared/project/scene-object.ts",
@@ -487,7 +487,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 5,
+      "line": 4,
       "kind": "type",
       "specifier": "../shared/project/project-types",
       "target": "shared/project/project-types.ts",
@@ -496,7 +496,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 6,
+      "line": 5,
       "kind": "static",
       "specifier": "./document-store",
       "target": "editor/document-store.ts",
@@ -505,7 +505,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 7,
+      "line": 6,
       "kind": "static",
       "specifier": "./history-shortcuts",
       "target": "editor/history-shortcuts.ts",
@@ -534,8 +534,8 @@
       "file": "editor/App.tsx",
       "line": 14,
       "kind": "static",
-      "specifier": "./viewport/Viewport",
-      "target": "editor/viewport/Viewport.tsx",
+      "specifier": "./ui/BottomBar",
+      "target": "editor/ui/BottomBar.tsx",
       "from": "editor",
       "to": "editor"
     },
@@ -543,14 +543,32 @@
       "file": "editor/App.tsx",
       "line": 15,
       "kind": "static",
-      "specifier": "../shared/project/fixtures/m1-project.json",
-      "target": "shared/project/fixtures/m1-project.json",
+      "specifier": "./ui/SidePanels",
+      "target": "editor/ui/SidePanels.tsx",
       "from": "editor",
-      "to": "project"
+      "to": "editor"
+    },
+    {
+      "file": "editor/App.tsx",
+      "line": 16,
+      "kind": "static",
+      "specifier": "./ui/TopBar",
+      "target": "editor/ui/TopBar.tsx",
+      "from": "editor",
+      "to": "editor"
     },
     {
       "file": "editor/App.tsx",
       "line": 17,
+      "kind": "static",
+      "specifier": "./viewport/Viewport",
+      "target": "editor/viewport/Viewport.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/App.tsx",
+      "line": 19,
       "kind": "static",
       "specifier": "./ProjectConfirmation",
       "target": "editor/ProjectConfirmation.tsx",
@@ -559,7 +577,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 18,
+      "line": 20,
       "kind": "static",
       "specifier": "./persistence/use-project-session",
       "target": "editor/persistence/use-project-session.ts",
@@ -568,7 +586,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 246,
+      "line": 226,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -1612,6 +1630,242 @@
       "to": "project"
     },
     {
+      "file": "editor/ui/BottomBar.tsx",
+      "line": 1,
+      "kind": "static",
+      "specifier": "react",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/ui/BottomBar.tsx",
+      "line": 10,
+      "kind": "static",
+      "specifier": "../../shared/assets/catalogue",
+      "target": "shared/assets/catalogue.ts",
+      "from": "editor",
+      "to": "catalogue"
+    },
+    {
+      "file": "editor/ui/BottomBar.tsx",
+      "line": 11,
+      "kind": "type",
+      "specifier": "../graphics/scene",
+      "target": "editor/graphics/scene.ts",
+      "from": "editor",
+      "to": "rendering"
+    },
+    {
+      "file": "editor/ui/BottomBar.tsx",
+      "line": 12,
+      "kind": "static",
+      "specifier": "./dock-edge",
+      "target": "editor/ui/dock-edge.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/BottomBar.tsx",
+      "line": 13,
+      "kind": "static",
+      "specifier": "./Icon",
+      "target": "editor/ui/Icon.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/BottomBar.tsx",
+      "line": 184,
+      "kind": "implicit-jsx",
+      "specifier": "react/jsx-runtime",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/ui/Icon.tsx",
+      "line": 1,
+      "kind": "type",
+      "specifier": "react",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/ui/Icon.tsx",
+      "line": 10,
+      "kind": "implicit-jsx",
+      "specifier": "react/jsx-runtime",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/ui/SidePanels.tsx",
+      "line": 1,
+      "kind": "static",
+      "specifier": "react",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/ui/SidePanels.tsx",
+      "line": 2,
+      "kind": "type",
+      "specifier": "../../shared/project/scene-object",
+      "target": "shared/project/scene-object.ts",
+      "from": "editor",
+      "to": "project"
+    },
+    {
+      "file": "editor/ui/SidePanels.tsx",
+      "line": 3,
+      "kind": "type",
+      "specifier": "../../shared/project/project-types",
+      "target": "shared/project/project-types.ts",
+      "from": "editor",
+      "to": "project"
+    },
+    {
+      "file": "editor/ui/SidePanels.tsx",
+      "line": 4,
+      "kind": "static",
+      "specifier": "./Icon",
+      "target": "editor/ui/Icon.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/SidePanels.tsx",
+      "line": 5,
+      "kind": "static",
+      "specifier": "./rotation-angles",
+      "target": "editor/ui/rotation-angles.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/SidePanels.tsx",
+      "line": 39,
+      "kind": "implicit-jsx",
+      "specifier": "react/jsx-runtime",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/ui/TopBar.tsx",
+      "line": 1,
+      "kind": "static",
+      "specifier": "react",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/ui/TopBar.tsx",
+      "line": 2,
+      "kind": "static",
+      "specifier": "../../shared/project/fixtures/m1-project.json",
+      "target": "shared/project/fixtures/m1-project.json",
+      "from": "editor",
+      "to": "project"
+    },
+    {
+      "file": "editor/ui/TopBar.tsx",
+      "line": 3,
+      "kind": "type",
+      "specifier": "../persistence/use-project-session",
+      "target": "editor/persistence/use-project-session.ts",
+      "from": "editor",
+      "to": "persistence"
+    },
+    {
+      "file": "editor/ui/TopBar.tsx",
+      "line": 4,
+      "kind": "static",
+      "specifier": "./Icon",
+      "target": "editor/ui/Icon.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/TopBar.tsx",
+      "line": 72,
+      "kind": "implicit-jsx",
+      "specifier": "react/jsx-runtime",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/ui/dock-edge.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/ui/dock-edge.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "./dock-edge",
+      "target": "editor/ui/dock-edge.ts",
+      "from": "checks",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/rotation-angles.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/ui/rotation-angles.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "three",
+      "target": {
+        "package": "three"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/ui/rotation-angles.test.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./rotation-angles",
+      "target": "editor/ui/rotation-angles.ts",
+      "from": "checks",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/rotation-angles.ts",
+      "line": 1,
+      "kind": "type",
+      "specifier": "../../shared/project/project-types",
+      "target": "shared/project/project-types.ts",
+      "from": "editor",
+      "to": "project"
+    },
+    {
       "file": "editor/viewport/Viewport.tsx",
       "line": 1,
       "kind": "static",
@@ -1668,7 +1922,7 @@
     },
     {
       "file": "editor/viewport/Viewport.tsx",
-      "line": 64,
+      "line": 68,
       "kind": "dynamic",
       "specifier": "../graphics/scene",
       "target": "editor/graphics/scene.ts",
@@ -1677,7 +1931,7 @@
     },
     {
       "file": "editor/viewport/Viewport.tsx",
-      "line": 112,
+      "line": 118,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -2481,7 +2735,7 @@
     },
     {
       "file": "tests/editor-integration.check.mjs",
-      "line": 71,
+      "line": 77,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -2490,7 +2744,7 @@
     },
     {
       "file": "tests/editor-integration.check.mjs",
-      "line": 72,
+      "line": 78,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
       "target": "shared/assets/catalogue.ts",
@@ -2499,7 +2753,7 @@
     },
     {
       "file": "tests/editor-integration.check.mjs",
-      "line": 132,
+      "line": 138,
       "kind": "test-environment",
       "specifier": "three",
       "target": {
@@ -2509,7 +2763,7 @@
     },
     {
       "file": "tests/editor-integration.check.mjs",
-      "line": 133,
+      "line": 139,
       "kind": "dynamic",
       "specifier": "/graphics/scene.ts",
       "target": "editor/graphics/scene.ts",
@@ -2518,7 +2772,7 @@
     },
     {
       "file": "tests/editor-integration.check.mjs",
-      "line": 134,
+      "line": 140,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
       "target": "shared/assets/catalogue.ts",
@@ -2615,7 +2869,7 @@
     },
     {
       "file": "tests/history-recovery.check.mjs",
-      "line": 77,
+      "line": 82,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -2624,7 +2878,7 @@
     },
     {
       "file": "tests/history-recovery.check.mjs",
-      "line": 78,
+      "line": 83,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
       "target": "shared/assets/catalogue.ts",
@@ -2814,7 +3068,7 @@
     },
     {
       "file": "tests/editor-integration.check.mjs",
-      "line": 132,
+      "line": 138,
       "expression": "threePath"
     },
     {
