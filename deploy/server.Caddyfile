@@ -1,0 +1,37 @@
+{
+	admin off
+	persist_config off
+	auto_https disable_redirects
+}
+
+(application) {
+	@api path /api /api/*
+	handle @api {
+		# Caddy supplies the HTTPS forwarding header to the explicitly trusted API peer
+		reverse_proxy api:8080 {
+			header_up X-Forwarded-Proto https
+		}
+	}
+	handle {
+		reverse_proxy web:8080
+	}
+}
+
+# Local HTTPS checks use this stack's own CA
+https://localhost:8443 {
+	tls internal
+	import application
+}
+
+# The existing host gateway terminates public TLS and forwards only over loopback
+:8080 {
+	@status path /healthz /version.txt
+	handle @status {
+		reverse_proxy web:8080
+	}
+	@https header X-Forwarded-Proto https
+	handle @https {
+		import application
+	}
+	respond "HTTPS is required" 400
+}
