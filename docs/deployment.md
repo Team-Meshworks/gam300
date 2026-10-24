@@ -28,8 +28,8 @@ Revisit enforced required checks when private-repository branch protection becom
 Wiki.js is available at https://51.79.242.181:9443 with sign-in required. Its separate
 Compose project binds to `127.0.0.1:8083`; the gateway redirects legacy HTTP port 8080
 to HTTPS. See [wiki operations](wiki.md) for accounts and backups.
-This M1 deployment contains the editor only. PostgreSQL and the application API remain M2
-work; Wiki.js's database is not the application database. Browser storage belongs to each
+Earlier M1 releases contain the editor only. Server-inclusive releases add the API and
+PostgreSQL; Wiki.js's database is not the application database. Browser storage belongs to each
 origin, so development and production drafts are separate.
 
 ## Local development
@@ -51,7 +51,8 @@ The Dockerfile builds with pinned Node/npm and serves the result through pinned 
 The launchers restore Git LFS delivery assets and check prerequisites. The container
 build runs lint, formatting, unit tests, TypeScript, all four authoring browser suites
 and the packaged-build browser checks before the web service starts. Host Node/npm
-and Playwright are unnecessary. API/PostgreSQL services remain M2 implementation work.
+and Playwright are unnecessary. This launcher starts the editor only; use the API
+Compose configuration below to include PostgreSQL and the API.
 Only delivery assets enter the build; editable source files and local secrets are excluded.
 The existing asset validator runs with `--delivery-only` inside the build: it checks
 GLB contents and manifest hashes without needing Blender sources. A remaining LFS
@@ -108,6 +109,46 @@ The deployment check exercises place/move/undo, JSON Save/Open, reload and recov
 undo through the packaged UI. The four source-level authoring suites still run against
 Vite during the Docker build; they import source modules that Caddy must not serve.
 
+## Local API and PostgreSQL integration
+
+For optional full-stack testing, `compose.server.yaml` adds the API and PostgreSQL
+to the editor. It requires a running Docker Linux engine. Standard editor development
+uses the setup above; shared environment addresses are listed at the top of this guide.
+
+Set `SPATIA_DATABASE_PASSWORD` and `SPATIA_API_PASSWORD` privately in your environment
+or an ignored root `.env` file. Use different randomly generated hexadecimal passwords
+of at least 32 characters. Keep them stable when restarting an existing database;
+changing `POSTGRES_PASSWORD` does not rotate an already initialised PostgreSQL account.
+Do not print resolved Compose configuration or commit credentials.
+
+`API_IMAGE` and `MIGRATION_IMAGE` select prebuilt API and migration images; local builds
+default to `spatia-api:local` and `spatia-migrations:local`.
+
+From the repository root:
+
+```sh
+docker compose -f compose.yaml -f compose.server.yaml -p spatia-server config --quiet
+docker compose -f compose.yaml -f compose.server.yaml -p spatia-server up -d --build --wait
+```
+
+The editor and API share `https://localhost:8444`; `SERVER_PORT` changes the host port.
+Caddy issues a local certificate. Its CA certificate is stored in the gateway data
+volume at `/data/caddy/pki/authorities/local/root.crt`; use that certificate with your
+test client's CA option without installing it in the operating system trust store.
+Browsers show a certificate warning for this local CA by default.
+Keep TLS verification enabled in integration checks. Check the editor, `/healthz` and
+`/api/auth/session`; an anonymous session request must return 401.
+
+Startup applies migrations before granting the API restricted database access. The
+database has no host port; the running API receives its own password and persists
+cookie-encryption keys separately. Stop the stack while retaining its database and keys:
+
+```sh
+docker compose -f compose.yaml -f compose.server.yaml -p spatia-server down
+```
+
+Do not add `--volumes` when keeping project or account data.
+
 ## What CI does
 
 `.github/workflows/ci.yml` runs on pull requests and pushes to `main`/`dev`, plus
@@ -143,6 +184,13 @@ Pull request runs and manual runs on other branches run the same checks but skip
 Superseded CI runs are cancelled. Deployments are serialized per environment, and a VM
 file lock also prevents concurrent changes to the same deployment.
 
+The web check also starts the editor/API/PostgreSQL stack and verifies HTTPS,
+CSRF bootstrap, anonymous access denial, migrations and the restricted database role.
+Failure logs are retained; disposable CI volumes are removed after the check.
+Releases include the tested editor, API and migration images, both Compose
+configurations and the gateway configuration. `release.json` records the image
+digests as `image`, `apiImage` and `migrationImage`.
+
 ### Run CI on demand
 
 Open **Actions → CI → Run workflow**, select the branch, then choose **Run workflow**.
@@ -173,10 +221,20 @@ See GitHub's
 5. Check the deployment result and open the environment's URL.
 
 Rollback uses the same workflow with an older successful CI run **from the same branch**.
-The deployment script also restores the last working release when container health or
-the external version check fails. A failed pull leaves the old application untouched.
-The first unsuccessful deployment removes only its own newly created Compose project.
-This is a single-container replacement; a brief interruption during releases is expected.
+Failed startup or health checks restore the previous application. A failed image pull
+leaves it running. Server deployments require a release containing all three images.
+Releases may briefly interrupt service.
+
+Development and production use separate databases and credentials. Before updating,
+the deployment backs up the database to `backups/`; a failed backup stops the update.
+Database volumes are preserved after failures.
+
+Application rollback does not undo database migrations. Check schema compatibility
+before deployment; database recovery requires a manual restore during downtime.
+Keep backups outside the VM as well.
+
+The existing HTTPS gateway and team login remain in place. API and database services
+are not exposed directly.
 
 `/healthz` and `/version.txt` expose only liveness and the deployed commit. The rest of both
 sites initially requires a team login because the current asset catalogue is explicitly
@@ -240,6 +298,8 @@ sudo -u vthere-runner docker compose -p vthere-production \
 
 Replace `ps` with `logs --tail 100` or `restart web` as needed; replace `production` with
 `development` for the other environment. A restart uses the currently deployed image.
+For a server-inclusive release, also pass `-f current/compose.server.yaml` using its
+absolute path before the command to include API, database and gateway services.
 Use the deployment workflow to change versions. Do not run global Docker prune or
 volume-removal commands on this VM: Wiki.js and its database share the Docker daemon.
 
