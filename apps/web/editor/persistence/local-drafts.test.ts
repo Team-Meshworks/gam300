@@ -60,7 +60,9 @@ class FakeDraftDatabase implements IDraftDatabase {
             return {
               get: (lookup: IDBValidKey) => {
                 const resultRequest = request(this.records.get(key(lookup)));
-                queueMicrotask(() => transaction.oncomplete?.(new Event("complete")));
+                queueMicrotask(() => {
+                  if (!aborted) transaction.oncomplete?.(new Event("complete"));
+                });
                 return resultRequest;
               },
               put: (value: unknown, lookup?: IDBValidKey) => {
@@ -73,7 +75,9 @@ class FakeDraftDatabase implements IDraftDatabase {
                     : [record.principalKey as string, record.projectId as string]);
                 this.records.set(key(lookupKey), value);
                 const resultRequest = request(undefined);
-                queueMicrotask(() => transaction.oncomplete?.(new Event("complete")));
+                queueMicrotask(() => {
+                  if (!aborted) transaction.oncomplete?.(new Event("complete"));
+                });
                 return resultRequest;
               },
               delete: (lookup: IDBValidKey) => {
@@ -109,7 +113,10 @@ class FakeDraftDatabase implements IDraftDatabase {
                         },
                       }
                     : null;
-                  if (!entry) queueMicrotask(() => transaction.oncomplete?.(new Event("complete")));
+                  if (!entry)
+                    queueMicrotask(() => {
+                      if (!aborted) transaction.oncomplete?.(new Event("complete"));
+                    });
                   cursorRequest.onsuccess?.(new Event("success"));
                 };
                 queueMicrotask(emit);
@@ -289,6 +296,35 @@ describe("getRecoverySession", () => {
 });
 
 describe("applySaveRecoverySession", () => {
+  it("keeps New empty after reload and rejects a stale tab's next write", async () => {
+    const database = new FakeDraftDatabase();
+    await applySaveRecoverySession(recoverySession(), 0, assets, database);
+    const empty = { document: null, fileName: "", savedJson: null, pristine: true };
+    expect(await applySaveRecoverySession(empty, 1, assets, database)).toEqual({
+      ok: true,
+      value: 2,
+    });
+    expect(await getRecoverySession(assets, database)).toMatchObject({
+      ok: true,
+      value: { revision: 2, document: null },
+    });
+    expect(await applySaveRecoverySession(recoverySession(), 1, assets, database)).toMatchObject({
+      ok: false,
+    });
+    expect(await getRecoverySession(assets, database)).toMatchObject({
+      ok: true,
+      value: { revision: 2, document: null },
+    });
+  });
+
+  it("rejects an empty session carrying a previous project's save baseline", async () => {
+    const database = new FakeDraftDatabase();
+    expect(
+      await applySaveRecoverySession({ ...recoverySession(), document: null }, 0, assets, database),
+    ).toMatchObject({ ok: false });
+    expect(database.records.has('session:"active"')).toBe(false);
+  });
+
   it("saves a new recovery session and increments its revision", async () => {
     const database = new FakeDraftDatabase();
 

@@ -215,6 +215,11 @@ export function useProjectSession(
         // Storage can finish after the student has already started another project
         // Leave that newer scene alone
         if (cancelled || recovered === null || store.getSnapshot() !== before) return;
+        // New deliberately leaves no scene; keep its revision without reviving an older draft
+        if (recovered.document === null) {
+          local.revision = recovered.revision;
+          return;
+        }
         const loaded = store.loadProject(
           JSON.stringify(recovered.document),
           kinds,

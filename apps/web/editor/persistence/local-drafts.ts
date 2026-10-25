@@ -328,7 +328,8 @@ export async function applySaveToLocalDraft(
 // Replacing this record discards the previous session only after the next one commits
 export type RecoverySession = Readonly<{
   revision: number;
-  document: ProjectDocument;
+  // Null preserves room selection and keeps discarded work from returning after reload
+  document: ProjectDocument | null;
   fileName: string;
   savedJson: string | null;
   pristine: boolean;
@@ -390,6 +391,27 @@ export async function getRecoverySession(
       "recovery",
     );
     if (!fields.ok) return fields;
+    if (raw.document === null) {
+      // Keep a revision even without a project so an older tab cannot overwrite New
+      if (
+        raw.fileName !== "" ||
+        raw.savedJson !== null ||
+        !raw.pristine ||
+        raw.history !== undefined
+      ) {
+        return invalid("storage", "Empty recovery session contains project metadata");
+      }
+      return {
+        ok: true,
+        value: {
+          revision: raw.revision,
+          document: null,
+          fileName: "",
+          savedJson: null,
+          pristine: true,
+        },
+      };
+    }
     const document = deserializeProject(raw.document, assetKinds);
     if (!document.ok) return document;
     // Keep the valid scene available even if an older history record cannot be restored
@@ -471,10 +493,25 @@ export async function applySaveRecoverySession(
 ): Promise<ValidationResult<number>> {
   if (!isCounter(expectedRevision) || expectedRevision === Number.MAX_SAFE_INTEGER)
     return invalid("storage", "Invalid recovery revision");
-  const encoded = serializeProject(session.document, assetKinds);
-  if (!encoded.ok) return encoded;
+  // Empty sessions use the same atomic write and revision checks as authored projects
+  const encoded =
+    session.document === null
+      ? { ok: true as const, value: null }
+      : serializeProject(session.document, assetKinds);
+  if (!encoded.ok) {
+    return encoded;
+  }
+  if (
+    session.document === null &&
+    (session.fileName !== "" ||
+      session.savedJson !== null ||
+      !session.pristine ||
+      session.history !== undefined)
+  ) {
+    return invalid("storage", "Empty recovery session contains project metadata");
+  }
   const history =
-    session.history === undefined
+    session.history === undefined || session.document === null
       ? undefined
       : validateRecoveryHistory(session.history, session.document, assetKinds);
   if (history && !history.ok) return history;
@@ -482,7 +519,7 @@ export async function applySaveRecoverySession(
   if (session.savedJson !== null) {
     const saved = deserializeProject(session.savedJson, assetKinds);
     if (!saved.ok) return saved;
-    if (saved.value.projectId !== session.document.projectId)
+    if (saved.value.projectId !== session.document?.projectId)
       return invalid("storage", "Recovery file belongs to a different project");
   }
   let connection: IDBDatabase;
@@ -529,7 +566,8 @@ export async function applySaveRecoverySession(
             "active",
           );
           const legacy = tx.objectStore(STORE_NAME);
-          legacy.delete([LOCAL_PRINCIPAL, session.document.projectId.toLowerCase()]);
+          if (session.document)
+            legacy.delete([LOCAL_PRINCIPAL, session.document.projectId.toLowerCase()]);
           if (previousProjectId) legacy.delete([LOCAL_PRINCIPAL, previousProjectId.toLowerCase()]);
         } catch {
           // Cloning a file handle or starting the write can fail before a request exists
