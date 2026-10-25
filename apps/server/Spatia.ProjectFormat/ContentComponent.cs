@@ -7,4 +7,7 @@ namespace Spatia.ProjectFormat;
 [JsonDerivedType(typeof(HotspotComponent), "hotspot")]
 [JsonDerivedType(typeof(TextComponent), "text")]
 [JsonDerivedType(typeof(ImageComponent), "image")]
+[JsonDerivedType(typeof(AudioComponent), "audio")]
+[JsonDerivedType(typeof(VideoComponent), "video")]
+[JsonDerivedType(typeof(NavigationPointComponent), "navigationPoint")]
 public abstract record ContentComponent(string Id);
