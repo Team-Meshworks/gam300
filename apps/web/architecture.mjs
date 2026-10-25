@@ -23,6 +23,7 @@ export const modules = {
       "shared/project/project-limits.ts",
       "shared/project/validation-helpers.ts",
       "shared/project/fixtures/m1-project.json",
+      "shared/project/fixtures/m2-project.json",
     ],
   },
   catalogue: {

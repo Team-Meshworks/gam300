@@ -17,7 +17,8 @@
         "shared/project/project-deserialization.ts",
         "shared/project/project-limits.ts",
         "shared/project/validation-helpers.ts",
-        "shared/project/fixtures/m1-project.json"
+        "shared/project/fixtures/m1-project.json",
+        "shared/project/fixtures/m2-project.json"
       ]
     },
     "catalogue": {
@@ -193,7 +194,7 @@
   },
   "files": {
     "architecture.check.mjs": "d7d864b0067391a38e88998b288ae5a64c9a819fd74a4930ad036fd4460d8200",
-    "architecture.mjs": "e4abe39a0809f28be92f3f2efa18ca80d93d8dbff39c0f7f321be1cd818edc07",
+    "architecture.mjs": "ae829b4531b18fcadb48b49e2f7a9d7381001a4622a7760d06815a529f23b8f4",
     "asset-catalogue-plugin.ts": "17bec6aa65dd50167fe6c055fb38af453a647f3648a2bf296f9927ed32f7a158",
     "editor/App.tsx": "1959ecf211967dd57842a5e47147360cb2a8e15c047302c6b4896edd24eecea7",
     "editor/ProjectConfirmation.tsx": "07a0fedf8fbf88865b3b8232c8665c139348fc64ebce478ea01e55eb7fd14eff",
