@@ -484,56 +484,118 @@ a {
   background: #e2dccb;
 }
 
-.interaction-form {
-  padding: 0.9rem;
-  border-radius: 1rem;
+/* Interactions need more room than the other panels for the two columns */
+.panel-slot.is-interaction {
+  width: min(31rem, calc(100vw - 7rem));
+}
+.interaction-list {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.interaction-card {
+  padding: 0.75rem 1rem 0.9rem;
+  border-radius: 0.9rem;
   background: var(--card-raised);
   box-shadow:
     inset 0 1px 2px rgb(64 52 32 / 0.06),
     0 1px 0 #fff;
 }
-.interaction-step {
-  display: grid;
-  grid-template-columns: 3.5rem minmax(0, 1fr);
-  align-items: center;
-  column-gap: 0.4rem;
-}
-.interaction-arrow {
-  grid-column: 2;
-  display: grid;
-  place-items: center;
-  height: 1.4rem;
-}
-.interaction-arrow .icon {
-  width: 1rem;
-  height: 1rem;
-}
-.interaction-label {
-  font-size: 0.875rem;
-  text-align: center;
-}
-.panel-select {
+.interaction-card-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  min-height: 2rem;
-  padding: 0 0.6rem 0 0.9rem;
+  gap: 0.35rem;
+  margin-bottom: 0.5rem;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+.interaction-card-head > span:first-child {
+  margin-right: auto;
+}
+.interaction-handle,
+.interaction-delete {
+  display: grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  color: #9a9393;
+}
+.interaction-delete {
+  border: 0;
+  border-radius: 0.4rem;
+  background: transparent;
+}
+.interaction-delete:hover {
+  background: var(--pill);
+  color: var(--accent);
+}
+.interaction-handle .icon,
+.interaction-delete .icon {
+  width: 0.85rem;
+  height: 0.85rem;
+}
+.interaction-rule {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem 1rem;
+}
+/* Label on the left, the action and its target pill stacked on the right */
+.interaction-half {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.4rem 0.6rem;
+}
+.interaction-half > .interaction-select {
+  grid-column: 2;
+}
+.interaction-label {
+  grid-row: 1;
+  font-size: 0.875rem;
+  font-weight: 650;
+}
+.interaction-select {
+  position: relative;
+  display: block;
+  min-width: 0;
+}
+.interaction-select select {
+  width: 100%;
+  min-height: 1.75rem;
+  padding: 0 1.6rem 0 0.7rem;
+  overflow: hidden;
   border: 0;
   border-radius: 999px;
-  background: var(--pill);
+  background: #fff;
   box-shadow: 0 1px 2px rgb(64 52 32 / 0.12);
+  color: inherit;
+  font: inherit;
+  font-size: 0.8125rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  appearance: none;
+  cursor: pointer;
+}
+.interaction-select.is-target select {
+  background: #e5d9bb;
+}
+.interaction-select select:disabled {
   color: var(--muted);
-  font-size: 0.875rem;
+  cursor: default;
 }
-.panel-select .icon {
-  width: 1rem;
-  height: 1rem;
+.interaction-select .icon {
+  position: absolute;
+  top: 50%;
+  right: 0.65rem;
+  width: 0.6rem;
+  height: 0.6rem;
+  pointer-events: none;
+  translate: 0 -50%;
 }
-.interaction-form .panel-pill {
-  margin-right: 0;
-}
-.interaction-form + .panel-empty {
-  margin-top: 0.9rem;
+.interaction-add {
+  color: var(--muted);
 }
 
 .filter-button {
@@ -1064,9 +1126,6 @@ a {
   font-size: 0.9375rem;
   font-weight: 650;
 }
-.panel-select.is-fixed {
-  color: inherit;
-}
 
 /* Preview hide the editing controls, they stay inert for the checks */
 .is-previewing .project-card,
@@ -1199,6 +1258,10 @@ a {
   }
   .library {
     top: 13.5rem;
+  }
+  /* Too narrow for When and Do side by side, so Do go under */
+  .interaction-rule {
+    grid-template-columns: minmax(0, 1fr);
   }
   .project-name {
     font-size: 0.9375rem;

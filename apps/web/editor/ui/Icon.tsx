@@ -143,8 +143,25 @@ const icons = {
       <path d="M12 11v5m0-8.5v.5" />
     </>,
   ),
-  chevronRight: drawn(<path d="m10 6 6 6-6 6" />),
-  arrowDown: drawn(<path d="M12 4v15m-4-4 4 4 4-4" />),
+  // No Figma ones for these three yet, swap them in if they make one
+  dragHandle: {
+    viewBox: "0 0 12 18",
+    body: (
+      <g fill="currentColor">
+        {[3, 9, 15].map((y) => (
+          <g key={y}>
+            <circle cx="3" cy={y} r="1.75" />
+            <circle cx="9" cy={y} r="1.75" />
+          </g>
+        ))}
+      </g>
+    ),
+  },
+  trash: filled(
+    "0 0 16 18",
+    "M5 0H11L12 1H16V3H0V1H4L5 0ZM1 5H15L14 16C13.9 17.1 13 18 11.9 18H4.1C3 18 2.1 17.1 2 16L1 5Z",
+  ),
+  caretSolid: filled("0 0 12 8", "M0 0H12L6 8Z"),
   move: drawn(<path d="M12 4v8m0 0-6 4m6-4 6 4" />),
   rotate: drawn(
     <>

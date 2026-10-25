@@ -2,6 +2,8 @@ import { useState, type ReactNode } from "react";
 import type { SceneObject } from "../../shared/project/scene-object";
 import type { Transform, Vector3Tuple } from "../../shared/project/project-types";
 import { Icon, type IconName } from "./Icon";
+import type { InteractionRule } from "./interaction-options";
+import { InteractionPanel } from "./InteractionPanel";
 import { degreesToQuaternion, quaternionToDegrees } from "./rotation-angles";
 
 type PanelId = "position" | "tree" | "interaction";
@@ -34,6 +36,8 @@ export function SidePanels({
 }) {
   // Open the tree first so new project can see whats inside
   const [panel, setPanel] = useState<PanelId | null>("tree");
+  // UI only for now, not saved with the project yet. Kept here so switching panels dont lose them
+  const [interactions, setInteractions] = useState<InteractionRule[]>([]);
 
   return (
     <aside className="library" aria-label="Editor panels" inert={visitor}>
@@ -73,8 +77,11 @@ export function SidePanels({
             />
           )}
           {panel === "interaction" && (
-            // No hotspots in the project format yet, so nothing selected is one
-            <InteractionPanel hotspotName={undefined} />
+            <InteractionPanel
+              interactions={interactions}
+              objects={objects}
+              onChange={setInteractions}
+            />
           )}
         </div>
       )}
@@ -298,64 +305,6 @@ function SceneTreePanel({
               {expanded ? "Show less" : "View all"}
             </button>
           )}
-        </>
-      )}
-    </section>
-  );
-}
-
-const interactionSteps = [
-  { label: "Do", value: "Content type" },
-  { label: "Target", value: "Content" },
-];
-
-function InteractionPanel({ hotspotName }: { hotspotName: string | undefined }) {
-  return (
-    <section className="editor-panel" aria-labelledby="interaction-heading">
-      <PanelHeading id="interaction-heading">Interaction</PanelHeading>
-      {hotspotName === undefined ? (
-        // Only hotspots got interactions, other objects dont show the form
-        <div className="panel-placeholder">
-          <span className="panel-placeholder-icon" aria-hidden="true">
-            <Icon name="touch" />
-          </span>
-          <p>
-            <strong>Select a hotspot first</strong>
-          </p>
-          <p className="panel-empty">
-            Place a hotspot in the scene and select it to choose what happens when visitors interact
-            with it.
-          </p>
-        </div>
-      ) : (
-        <>
-          <div className="interaction-form" role="group" aria-label="New interaction">
-            <div className="interaction-step">
-              <span className="interaction-label">When</span>
-              <span className="panel-select is-fixed">{hotspotName}</span>
-            </div>
-            {interactionSteps.map((step) => (
-              <div key={step.label} className="interaction-step">
-                <span className="interaction-arrow">
-                  <Icon name="arrowDown" />
-                </span>
-                <span className="interaction-label">{step.label}</span>
-                <button
-                  className="ui-button panel-select"
-                  type="button"
-                  aria-label={`${step.label}: ${step.value} (coming soon)`}
-                  aria-disabled="true"
-                >
-                  {step.value}
-                  <Icon name="chevronRight" />
-                </button>
-              </div>
-            ))}
-            <button className="ui-button panel-pill" type="button" aria-disabled="true">
-              Add
-            </button>
-          </div>
-          <p className="panel-empty">Interactions you add will be listed here.</p>
         </>
       )}
     </section>
