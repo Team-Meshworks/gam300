@@ -35,6 +35,8 @@ try {
   releaseCore();
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   assert.equal(await page.locator("canvas").count(), 1);
+  // Packaged builds follow the same room-first authoring flow as the local editor
+  await page.getByRole("button", { name: "Add test-room", exact: true }).click();
   await asset.click();
   assert.equal(await page.locator(".object-row").count(), 1);
   await page.getByRole("button", { name: "Undo", exact: true }).click();
@@ -48,6 +50,9 @@ try {
   );
   if (isDevelopment) {
     await sample.click();
+    // Opening a sample follows the normal save decision for a room-based project
+    await page.getByRole("dialog").getByRole("button", { name: "Don’t Save", exact: true }).click();
+    await page.getByRole("dialog").waitFor({ state: "hidden" });
     await page.locator(".object-row").filter({ hasText: "First crate" }).waitFor();
     assert.equal(await page.locator(".object-row").count(), 2);
   }
