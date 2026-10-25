@@ -223,7 +223,7 @@
     "editor/persistence/use-project-session.ts": "662af8b6a36dd5567d70fe3d257692b99af2a55131ddbc3f513bd0c3dc6f80af",
     "editor/project-loading.test.ts": "29c2e63b76195dbd8dd01afe57d5398227b845a974d6798a19e088f3c19457a2",
     "editor/recovery-history.test.ts": "95c497899ffa6c8f8c696c84e8e880f7ea8eb22ef0d95ec04cca57d1ce14f31f",
-    "editor/recovery-history.ts": "eaf1d5cece98daede4e8df9759b1074a3a6e790af624245a38b6be3698dc9756",
+    "editor/recovery-history.ts": "e14deeddfc9279daae2e83671ef2df12bb72b89fe01c7f6070cc399c138c7608",
     "editor/transform-command.test.ts": "d2ae97b90329d4baf866a7dbc3521675a7d9c78c5754e3b955e60ed62a232469",
     "editor/transform-command.ts": "bcd7036db3877f5f24e5984287af8a878b10ec6289a51987e76f62db8f3cb178",
     "editor/ui/BottomBar.tsx": "0177614715bb80a4c35b680d9ea7ce820a9e78dcc76ca8caff82b547dead234d",
