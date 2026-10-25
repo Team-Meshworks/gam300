@@ -14,6 +14,7 @@ export const modules = {
     public: [
       "shared/project/project-types.ts",
       "shared/project/project-content.ts",
+      "shared/project/project-capabilities.ts",
       "shared/project/scene-object.ts",
       "shared/project/spatial-validation.ts",
       "shared/project/project-validation.ts",

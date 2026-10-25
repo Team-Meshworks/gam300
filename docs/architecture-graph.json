@@ -9,6 +9,7 @@
       "public": [
         "shared/project/project-types.ts",
         "shared/project/project-content.ts",
+        "shared/project/project-capabilities.ts",
         "shared/project/scene-object.ts",
         "shared/project/spatial-validation.ts",
         "shared/project/project-validation.ts",
@@ -192,7 +193,7 @@
   },
   "files": {
     "architecture.check.mjs": "d7d864b0067391a38e88998b288ae5a64c9a819fd74a4930ad036fd4460d8200",
-    "architecture.mjs": "31713b6ec4943541d269705faa8fdae184e9ad3c71403e4bd5c76c5871d58e1c",
+    "architecture.mjs": "e4abe39a0809f28be92f3f2efa18ca80d93d8dbff39c0f7f321be1cd818edc07",
     "asset-catalogue-plugin.ts": "17bec6aa65dd50167fe6c055fb38af453a647f3648a2bf296f9927ed32f7a158",
     "editor/App.tsx": "289d48c987cf703176bc1e3131432f5fc7577d51541a8d9ccbf32e60ffbe8714",
     "editor/ProjectConfirmation.tsx": "07a0fedf8fbf88865b3b8232c8665c139348fc64ebce478ea01e55eb7fd14eff",
@@ -240,6 +241,7 @@
     "shared/assets/catalogue.ts": "5be1b1fb1dc335fc7ed3e7204bcba9ff7485deaa12ceb46a945048f5937c7800",
     "shared/assets/manifest-module.d.ts": "ff7add6e7e483a4cc6a0dd48c9ead7b2f4cd0b0a5ccc7fb06181e1a5d2d1326e",
     "shared/assets/sample-asset.ts": "2027def54ff2b2da4eb1372d91fb745d94e3a2b7946a845b74381122468ddb92",
+    "shared/project/project-capabilities.ts": "2cbb699d8282388ee9d3ded7c42b8d1333461576d60ba9067a230f8928f8f4b0",
     "shared/project/project-content.ts": "eaaa6d461b14bc6a0b103c1754945ddcda3c274231796077e19d2df756baad92",
     "shared/project/project-deserialization.test.ts": "a4159c5ffc88b8d3f22ed9fcca5b7b37cb7a90d1766dc46080264ca3b552ffb1",
     "shared/project/project-deserialization.ts": "e032a9ed7fe6522cdd10510632b7350bdc94fd127cccac4300cbcd60fd58bdcc",
@@ -2096,6 +2098,24 @@
       "target": "shared/assets/catalogue.ts",
       "from": "catalogue",
       "to": "catalogue"
+    },
+    {
+      "file": "shared/project/project-capabilities.ts",
+      "line": 1,
+      "kind": "type",
+      "specifier": "./project-types",
+      "target": "shared/project/project-types.ts",
+      "from": "project",
+      "to": "project"
+    },
+    {
+      "file": "shared/project/project-capabilities.ts",
+      "line": 2,
+      "kind": "type",
+      "specifier": "./project-content",
+      "target": "shared/project/project-content.ts",
+      "from": "project",
+      "to": "project"
     },
     {
       "file": "shared/project/project-content.ts",
