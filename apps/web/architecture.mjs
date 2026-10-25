@@ -24,6 +24,7 @@ export const modules = {
       "shared/project/validation-helpers.ts",
       "shared/project/fixtures/m1-project.json",
       "shared/project/fixtures/m2-project.json",
+      "shared/project/fixtures/project-format-cases.json",
     ],
   },
   catalogue: {

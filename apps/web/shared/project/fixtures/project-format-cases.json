@@ -1,0 +1,1454 @@
+{
+  "assets": {
+    "test-room-v1": "environment",
+    "test-crate-v1": "model",
+    "demo-image-v1": "image",
+    "demo-audio-v1": "audio",
+    "demo-video-v1": "video"
+  },
+  "cases": [
+    {
+      "name": "released M1 example",
+      "base": "m1",
+      "valid": true,
+      "patches": []
+    },
+    {
+      "name": "complete M2 vocabulary",
+      "base": "m2",
+      "valid": true,
+      "patches": []
+    },
+    {
+      "name": "future format",
+      "base": "m2",
+      "valid": false,
+      "path": "project.schemaVersion",
+      "patches": [
+        {
+          "path": ["schemaVersion"],
+          "value": 3,
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "version string",
+      "base": "m2",
+      "valid": false,
+      "path": "project.schemaVersion",
+      "patches": [
+        {
+          "path": ["schemaVersion"],
+          "value": "2",
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "server ownership",
+      "base": "m2",
+      "valid": false,
+      "path": "project.ownerId",
+      "patches": [
+        {
+          "path": ["ownerId"],
+          "value": "00000063-0000-4000-8000-000000000000",
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "server revision",
+      "base": "m2",
+      "valid": false,
+      "path": "project.revision",
+      "patches": [
+        {
+          "path": ["revision"],
+          "value": 20,
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "server permissions",
+      "base": "m2",
+      "valid": false,
+      "path": "project.canPublish",
+      "patches": [
+        {
+          "path": ["canPublish"],
+          "value": true,
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "missing groups",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].groups",
+      "patches": [
+        {
+          "path": ["scenes", 0, "groups"],
+          "value": null,
+          "remove": true
+        }
+      ]
+    },
+    {
+      "name": "no scenes",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes",
+      "patches": [
+        {
+          "path": ["scenes"],
+          "value": [],
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "too many scenes",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes",
+      "patches": [
+        {
+          "path": ["scenes"],
+          "value": {
+            "id": "00000002-0000-4000-8000-000000000000",
+            "name": "Second room",
+            "environmentAssetId": "test-room-v1",
+            "startCamera": {
+              "position": [0, 1.6, 5],
+              "rotation": [0, 0, 0, 1],
+              "fovDegrees": 60
+            },
+            "objects": [
+              {
+                "id": "00000003-0000-4000-8000-000000000000",
+                "name": "Second-scene crate",
+                "assetId": "test-crate-v1",
+                "transform": {
+                  "position": [0, 0, 0],
+                  "rotation": [0, 0, 0, 1],
+                  "scale": [1, 1, 1]
+                },
+                "parentId": null,
+                "visible": true,
+                "components": []
+              }
+            ],
+            "groups": [],
+            "zones": [],
+            "viewpoints": [
+              {
+                "id": "00000015-0000-4000-8000-000000000000",
+                "name": "Second entrance",
+                "camera": {
+                  "position": [0, 1.6, 5],
+                  "rotation": [0, 0, 0, 1],
+                  "fovDegrees": 60
+                }
+              }
+            ],
+            "rules": [
+              {
+                "id": "000001f4-0000-4000-8000-000000000000",
+                "enabled": true,
+                "trigger": {
+                  "type": "sceneStart"
+                },
+                "actions": [
+                  {
+                    "type": "navigateScene",
+                    "sceneId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+                    "viewpointId": "00000014-0000-4000-8000-000000000000"
+                  }
+                ]
+              }
+            ]
+          },
+          "remove": false,
+          "repeat": 17
+        }
+      ]
+    },
+    {
+      "name": "too many objects",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].objects",
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects"],
+          "value": {
+            "id": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+            "name": "First crate",
+            "assetId": "test-crate-v1",
+            "transform": {
+              "position": [1.123456789012345, 0, -2],
+              "rotation": [0, 0.6, 0, 0.8],
+              "scale": [1, 2.123456789012345, 1]
+            },
+            "parentId": "0000000a-0000-4000-8000-000000000000",
+            "visible": true,
+            "components": [
+              {
+                "id": "00000064-0000-4000-8000-000000000000",
+                "type": "hotspot",
+                "label": "Learn more"
+              },
+              {
+                "id": "00000065-0000-4000-8000-000000000000",
+                "type": "text",
+                "text": "An exhibit with \"quotes\", Unicode 展览 and a line\nbreak",
+                "caption": "Exhibit information"
+              },
+              {
+                "id": "00000066-0000-4000-8000-000000000000",
+                "type": "image",
+                "assetId": "demo-image-v1",
+                "caption": "Front view",
+                "alt": "Synthetic exhibit image"
+              },
+              {
+                "id": "00000067-0000-4000-8000-000000000000",
+                "type": "audio",
+                "assetId": "demo-audio-v1",
+                "caption": "Narration",
+                "loop": false,
+                "volume": 0.75
+              },
+              {
+                "id": "00000068-0000-4000-8000-000000000000",
+                "type": "video",
+                "assetId": "demo-video-v1",
+                "caption": "Exhibit demonstration",
+                "loop": false,
+                "volume": 1
+              },
+              {
+                "id": "00000069-0000-4000-8000-000000000000",
+                "type": "navigationPoint",
+                "label": "Next room",
+                "sceneId": "00000002-0000-4000-8000-000000000000",
+                "viewpointId": "00000015-0000-4000-8000-000000000000"
+              }
+            ]
+          },
+          "remove": false,
+          "repeat": 201
+        }
+      ]
+    },
+    {
+      "name": "too many components",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].objects[0].components",
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "components"],
+          "value": {
+            "id": "00000064-0000-4000-8000-000000000000",
+            "type": "hotspot",
+            "label": "Learn more"
+          },
+          "remove": false,
+          "repeat": 17
+        }
+      ]
+    },
+    {
+      "name": "too many rules",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].rules",
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules"],
+          "value": {
+            "id": "00000190-0000-4000-8000-000000000000",
+            "enabled": true,
+            "trigger": {
+              "type": "click",
+              "targetId": "00000064-0000-4000-8000-000000000000"
+            },
+            "actions": [
+              {
+                "type": "showPanel",
+                "panelId": "00000065-0000-4000-8000-000000000000"
+              },
+              {
+                "type": "showPanel",
+                "panelId": "00000066-0000-4000-8000-000000000000"
+              },
+              {
+                "type": "playMedia",
+                "mediaId": "00000068-0000-4000-8000-000000000000"
+              }
+            ]
+          },
+          "remove": false,
+          "repeat": 257
+        }
+      ]
+    },
+    {
+      "name": "too many actions",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].rules[0].actions",
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 0, "actions"],
+          "value": {
+            "type": "showPanel",
+            "panelId": "00000065-0000-4000-8000-000000000000"
+          },
+          "remove": false,
+          "repeat": 17
+        }
+      ]
+    },
+    {
+      "name": "empty actions",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].rules[0].actions",
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 0, "actions"],
+          "value": [],
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "oversized caption",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].objects[0].components[1].caption",
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "components", 1, "caption"],
+          "value": "x",
+          "remove": false,
+          "repeat": 4097
+        }
+      ]
+    },
+    {
+      "name": "unsupported component",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].objects[0].components[0].type",
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "components", 0, "type"],
+          "value": "html",
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "component extra parameter",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].objects[0].components[0].script",
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "components", 0, "script"],
+          "value": "alert(1)",
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "component missing parameter",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].objects[0].components[0].label",
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "components", 0, "label"],
+          "value": null,
+          "remove": true
+        }
+      ]
+    },
+    {
+      "name": "unsupported trigger",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].rules[0].trigger.type",
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 0, "trigger", "type"],
+          "value": "hover",
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "unsupported action",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].rules[0].actions[0].type",
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 0, "actions", 0, "type"],
+          "value": "runScript",
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "extra action parameter",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].rules[0].actions[0].force",
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 0, "actions", 0, "force"],
+          "value": true,
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "wrong boolean",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].rules[0].enabled",
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 0, "enabled"],
+          "value": "true",
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "audio volume high",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].objects[0].components[3].volume",
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "components", 3, "volume"],
+          "value": 1.1,
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "audio volume low",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].objects[0].components[3].volume",
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "components", 3, "volume"],
+          "value": -0.1,
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "elapsed out of range",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].rules[3].trigger.seconds",
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 3, "trigger", "seconds"],
+          "value": 86401,
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "gaze too short",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].rules[4].trigger.seconds",
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 4, "trigger", "seconds"],
+          "value": 0,
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "camera duration high",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].rules[2].actions[0].durationSeconds",
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 2, "actions", 0, "durationSeconds"],
+          "value": 61,
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "zero scale",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].objects[0].transform.scale[1]",
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "transform", "scale"],
+          "value": [1, 0, 1],
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "excessive scale",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].objects[0].transform.scale[0]",
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "transform", "scale"],
+          "value": [10001, 1, 1],
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "invalid quaternion",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].objects[0].transform.rotation",
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "transform", "rotation"],
+          "value": [0, 0, 0, 0],
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "out of bounds position",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].objects[0].transform.position[0]",
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "transform", "position"],
+          "value": [10001, 0, 0],
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "bad ID",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].objects[0].components[0].id",
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "components", 0, "id"],
+          "value": "not-an-id",
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "ID newline",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].objects[0].components[0].id",
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "components", 0, "id"],
+          "value": "00000064-0000-4000-8000-000000000000\n",
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "duplicate ID across kinds",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].groups[0].id",
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "components", 0, "id"],
+          "value": "0000000a-0000-4000-8000-000000000000",
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "duplicate ID across scenes",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[1].objects[0].id",
+      "patches": [
+        {
+          "path": ["scenes", 1, "objects", 0, "id"],
+          "value": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "wrong model asset",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].objects[0].assetId",
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "assetId"],
+          "value": "test-room-v1",
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "wrong media asset",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].objects[0].components[3].assetId",
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "components", 3, "assetId"],
+          "value": "demo-image-v1",
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "missing asset",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].objects[0].components[2].assetId",
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "components", 2, "assetId"],
+          "value": "missing-image",
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "missing parent",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].objects[0].parentId",
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "parentId"],
+          "value": "000003e7-0000-4000-8000-000000000000",
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "cross-scene parent",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].objects[0].parentId",
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "parentId"],
+          "value": "00000003-0000-4000-8000-000000000000",
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "self-parent",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].objects[0].parentId",
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "parentId"],
+          "value": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "hierarchy cycle",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].objects[0].parentId",
+      "patches": [
+        {
+          "path": ["scenes", 0, "groups", 0, "parentId"],
+          "value": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "missing trigger target",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].rules[0].trigger.targetId",
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 0, "trigger", "targetId"],
+          "value": "000003e7-0000-4000-8000-000000000000",
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "cross-scene trigger target",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].rules[0].trigger.targetId",
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 0, "trigger", "targetId"],
+          "value": "00000003-0000-4000-8000-000000000000",
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "wrong trigger target kind",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].rules[0].trigger.targetId",
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 0, "trigger", "targetId"],
+          "value": "0000001e-0000-4000-8000-000000000000",
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "wrong panel kind",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].rules[0].actions[0].panelId",
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 0, "actions", 0, "panelId"],
+          "value": "00000067-0000-4000-8000-000000000000",
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "wrong media kind",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].rules[1].actions[0].mediaId",
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 1, "actions", 0, "mediaId"],
+          "value": "00000065-0000-4000-8000-000000000000",
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "wrong viewpoint scene",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].rules[4].actions[0].viewpointId",
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 4, "actions", 0, "viewpointId"],
+          "value": "00000014-0000-4000-8000-000000000000",
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "missing destination",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].rules[4].actions[0].sceneId",
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 4, "actions", 0, "sceneId"],
+          "value": "000003e7-0000-4000-8000-000000000000",
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "cross-scene move camera",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].rules[2].actions[0].viewpointId",
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 2, "actions", 0, "viewpointId"],
+          "value": "00000015-0000-4000-8000-000000000000",
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "navigation component wrong destination",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].objects[0].components[5].viewpointId",
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "components", 5, "viewpointId"],
+          "value": "00000014-0000-4000-8000-000000000000",
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "unsafe link javascript:alert(1)",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].rules[5].actions[0].url",
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 5, "actions", 0, "url"],
+          "value": "javascript:alert(1)",
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "unsafe link http://example.com",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].rules[5].actions[0].url",
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 5, "actions", 0, "url"],
+          "value": "http://example.com",
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "unsafe link https://user:password@example.com",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].rules[5].actions[0].url",
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 5, "actions", 0, "url"],
+          "value": "https://user:password@example.com",
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "unsafe link https://example.com\\private",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].rules[5].actions[0].url",
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 5, "actions", 0, "url"],
+          "value": "https://example.com\\private",
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "unsafe link  https://example.com",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].rules[5].actions[0].url",
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 5, "actions", 0, "url"],
+          "value": " https://example.com",
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "known disabled rule retained",
+      "base": "m2",
+      "valid": true,
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 0, "enabled"],
+          "value": false
+        }
+      ]
+    },
+    {
+      "name": "UUID references ignore case",
+      "base": "m2",
+      "valid": true,
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 3, "actions", 0, "objectId"],
+          "value": "AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA"
+        }
+      ]
+    },
+    {
+      "name": "bounded parameter endpoints",
+      "base": "m2",
+      "valid": true,
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "components", 3, "volume"],
+          "value": 0
+        },
+        {
+          "path": ["scenes", 0, "rules", 3, "trigger", "seconds"],
+          "value": 86400
+        },
+        {
+          "path": ["scenes", 0, "rules", 4, "trigger", "seconds"],
+          "value": 0.1
+        },
+        {
+          "path": ["scenes", 0, "rules", 2, "actions", 0, "durationSeconds"],
+          "value": 60
+        },
+        {
+          "path": ["scenes", 0, "objects", 0, "transform", "scale"],
+          "value": [10000, 1, 5e-324]
+        }
+      ]
+    },
+    {
+      "name": "prototype-looking variant",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].rules[0].trigger.type",
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 0, "trigger", "type"],
+          "value": "__proto__"
+        }
+      ]
+    },
+    {
+      "name": "plain text retains markup characters",
+      "base": "m2",
+      "valid": true,
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "components", 1, "runs"],
+          "value": [
+            {
+              "text": "<script>synthetic text only</script> & emoji 🏺",
+              "marks": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "invalid link https:///example.com",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].rules[5].actions[0].url",
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 5, "actions", 0, "url"],
+          "value": "https:///example.com"
+        }
+      ]
+    },
+    {
+      "name": "invalid link https://example.com:65536",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].rules[5].actions[0].url",
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 5, "actions", 0, "url"],
+          "value": "https://example.com:65536"
+        }
+      ]
+    },
+    {
+      "name": "invalid link https://",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].rules[5].actions[0].url",
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 5, "actions", 0, "url"],
+          "value": "https://"
+        }
+      ]
+    },
+    {
+      "name": "valid link https://example.com:65535/",
+      "base": "m2",
+      "valid": true,
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 5, "actions", 0, "url"],
+          "value": "https://example.com:65535/"
+        }
+      ]
+    },
+    {
+      "name": "valid link https://[::1]/",
+      "base": "m2",
+      "valid": true,
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 5, "actions", 0, "url"],
+          "value": "https://[::1]/"
+        }
+      ]
+    },
+    {
+      "name": "valid link https://example.com/%ZZ",
+      "base": "m2",
+      "valid": true,
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 5, "actions", 0, "url"],
+          "value": "https://example.com/%ZZ"
+        }
+      ]
+    },
+    {
+      "name": "valid link https://例子.测试/?q=🏺",
+      "base": "m2",
+      "valid": true,
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 5, "actions", 0, "url"],
+          "value": "https://例子.测试/?q=🏺"
+        }
+      ]
+    },
+    {
+      "name": "valid link https://example.com/#section",
+      "base": "m2",
+      "valid": true,
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 5, "actions", 0, "url"],
+          "value": "https://example.com/#section"
+        }
+      ]
+    },
+    {
+      "name": "global audio mode",
+      "base": "m2",
+      "valid": true,
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "components", 3, "mode"],
+          "value": "global",
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "unsupported audio mode",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].objects[0].components[3].mode",
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "components", 3, "mode"],
+          "value": "ambient",
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "missing audio mode",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].objects[0].components[3].mode",
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "components", 3, "mode"],
+          "value": null,
+          "remove": true
+        }
+      ]
+    },
+    {
+      "name": "unsupported formatting",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].objects[0].components[1].runs[0].marks[0]",
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "components", 1, "runs", 0, "marks"],
+          "value": ["script"],
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "duplicate formatting mark",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].objects[0].components[1].runs[0].marks",
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "components", 1, "runs", 0, "marks"],
+          "value": ["bold", "bold"],
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "authored HTML field",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].objects[0].components[1].html",
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "components", 1, "html"],
+          "value": "<b>no</b>",
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "format style field",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].objects[0].components[1].runs[0].style",
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "components", 1, "runs", 0, "style"],
+          "value": "background:url(javascript:alert(1))",
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "total formatted text budget",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].objects[0].components[1].runs",
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "components", 1, "runs", 0, "text"],
+          "value": "x",
+          "repeat": 32769
+        },
+        {
+          "path": ["scenes", 0, "objects", 0, "components", 1, "runs", 1, "text"],
+          "value": "x",
+          "repeat": 32768
+        }
+      ]
+    },
+    {
+      "name": "empty text being authored",
+      "base": "m2",
+      "valid": true,
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "components", 1, "runs"],
+          "value": [],
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "M1 retains released title limit",
+      "base": "m1",
+      "valid": true,
+      "patches": [
+        {
+          "path": ["title"],
+          "value": "x",
+          "remove": false,
+          "repeat": 1000
+        }
+      ]
+    },
+    {
+      "name": "M1 retains positive scale range",
+      "base": "m1",
+      "valid": true,
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "transform", "scale"],
+          "value": [100000000000000000000, 1e-7, 5e-324],
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "M1 normalizes supported quaternion drift",
+      "base": "m1",
+      "valid": true,
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "transform", "rotation"],
+          "value": [0, 0, 0, 1.0000009],
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "M1 rejects zero scenes",
+      "base": "m1",
+      "valid": false,
+      "path": "project.scenes",
+      "patches": [
+        {
+          "path": ["scenes"],
+          "value": [],
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "M1 rejects second scene",
+      "base": "m1",
+      "valid": false,
+      "path": "project.scenes",
+      "patches": [
+        {
+          "path": ["scenes"],
+          "value": {
+            "id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+            "name": "Room",
+            "environmentAssetId": "test-room-v1",
+            "startCamera": {
+              "position": [12, 16, 18],
+              "rotation": [
+                -0.29962059992658957, 0.2752183320355054, 0.09071781822041597, 0.9089844021041025
+              ],
+              "fovDegrees": 40
+            },
+            "objects": [
+              {
+                "id": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+                "name": "First crate",
+                "assetId": "test-crate-v1",
+                "transform": {
+                  "position": [1.123456789012345, 0, -2],
+                  "rotation": [0, 0.6, 0, 0.8],
+                  "scale": [1, 2.123456789012345, 1]
+                }
+              },
+              {
+                "id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+                "name": "Second crate",
+                "assetId": "test-crate-v1",
+                "transform": {
+                  "position": [-1, 0, 2],
+                  "rotation": [0, 0, 0, 1],
+                  "scale": [1, 1, 1]
+                }
+              }
+            ]
+          },
+          "remove": false,
+          "repeat": 2
+        }
+      ]
+    },
+    {
+      "name": "M1 rejects content fields without a new version",
+      "base": "m1",
+      "valid": false,
+      "path": "project.scenes[0].objects[0].parentId",
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "parentId"],
+          "value": null,
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "M1 rejects unknown ownership",
+      "base": "m1",
+      "valid": false,
+      "path": "project.ownerId",
+      "patches": [
+        {
+          "path": ["ownerId"],
+          "value": "synthetic-account",
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "M1 rejects wrong environment",
+      "base": "m1",
+      "valid": false,
+      "path": "project.scenes[0].environmentAssetId",
+      "patches": [
+        {
+          "path": ["scenes", 0, "environmentAssetId"],
+          "value": "test-crate-v1",
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "M1 rejects wrong model",
+      "base": "m1",
+      "valid": false,
+      "path": "project.scenes[0].objects[0].assetId",
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "assetId"],
+          "value": "test-room-v1",
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "M1 rejects malformed ID",
+      "base": "m1",
+      "valid": false,
+      "path": "project.scenes[0].objects[0].id",
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "id"],
+          "value": "bad-id",
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "M1 rejects duplicate object ID",
+      "base": "m1",
+      "valid": false,
+      "path": "project.scenes[0].objects[1].id",
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 1, "id"],
+          "value": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "M1 rejects numeric text",
+      "base": "m1",
+      "valid": false,
+      "path": "project.scenes[0].objects[0].transform.position",
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "transform", "position"],
+          "value": ["1", 0, 0],
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "M1 rejects negative scale",
+      "base": "m1",
+      "valid": false,
+      "path": "project.scenes[0].objects[0].transform.scale[1]",
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "transform", "scale"],
+          "value": [1, -1, 1],
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "M1 rejects invalid FOV",
+      "base": "m1",
+      "valid": false,
+      "path": "project.scenes[0].startCamera.fovDegrees",
+      "patches": [
+        {
+          "path": ["scenes", 0, "startCamera", "fovDegrees"],
+          "value": 29,
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "asset IDs remain case-sensitive",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].objects[0].assetId",
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "assetId"],
+          "value": "TEST-CRATE-V1"
+        }
+      ]
+    }
+  ],
+  "rawCases": [
+    {
+      "name": "numeric version spelling",
+      "json": "{\"schemaVersion\":2.0,\"projectId\":\"cccccccc-cccc-4ccc-8ccc-cccccccccccc\",\"title\":\"Two-scene content example\",\"scenes\":[{\"id\":\"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb\",\"name\":\"Room\",\"environmentAssetId\":\"test-room-v1\",\"startCamera\":{\"position\":[12,16,18],\"rotation\":[-0.29962059992658957,0.2752183320355054,0.09071781822041597,0.9089844021041025],\"fovDegrees\":40},\"objects\":[{\"id\":\"dddddddd-dddd-4ddd-8ddd-dddddddddddd\",\"name\":\"First crate\",\"assetId\":\"test-crate-v1\",\"transform\":{\"position\":[1.123456789012345,0,-2],\"rotation\":[0,0.6,0,0.8],\"scale\":[1,2.123456789012345,1]},\"parentId\":\"0000000a-0000-4000-8000-000000000000\",\"visible\":true,\"components\":[{\"id\":\"00000064-0000-4000-8000-000000000000\",\"type\":\"hotspot\",\"label\":\"Learn more\"},{\"id\":\"00000065-0000-4000-8000-000000000000\",\"type\":\"text\",\"caption\":\"Exhibit information\",\"runs\":[{\"text\":\"An exhibit with \\\"quotes\\\", Unicode 展览 and a line\\nbreak\",\"marks\":[\"bold\"]},{\"text\":\" More information\",\"marks\":[\"italic\",\"underline\"]}]},{\"id\":\"00000066-0000-4000-8000-000000000000\",\"type\":\"image\",\"assetId\":\"demo-image-v1\",\"caption\":\"Front view\",\"alt\":\"Synthetic exhibit image\"},{\"id\":\"00000067-0000-4000-8000-000000000000\",\"type\":\"audio\",\"assetId\":\"demo-audio-v1\",\"caption\":\"Narration\",\"loop\":false,\"volume\":0.75,\"mode\":\"spatial\"},{\"id\":\"00000068-0000-4000-8000-000000000000\",\"type\":\"video\",\"assetId\":\"demo-video-v1\",\"caption\":\"Exhibit demonstration\",\"loop\":false,\"volume\":1},{\"id\":\"00000069-0000-4000-8000-000000000000\",\"type\":\"navigationPoint\",\"label\":\"Next room\",\"sceneId\":\"00000002-0000-4000-8000-000000000000\",\"viewpointId\":\"00000015-0000-4000-8000-000000000000\"}]},{\"id\":\"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\",\"name\":\"Second crate\",\"assetId\":\"test-crate-v1\",\"transform\":{\"position\":[-1,0,2],\"rotation\":[0,0,0,1],\"scale\":[1,1,1]},\"parentId\":\"dddddddd-dddd-4ddd-8ddd-dddddddddddd\",\"visible\":true,\"components\":[]}],\"groups\":[{\"id\":\"0000000a-0000-4000-8000-000000000000\",\"name\":\"Exhibit A\",\"parentId\":null}],\"zones\":[{\"id\":\"0000001e-0000-4000-8000-000000000000\",\"name\":\"Entry zone\",\"transform\":{\"position\":[0,0,0],\"rotation\":[0,0,0,1],\"scale\":[1,1,1]}}],\"viewpoints\":[{\"id\":\"00000014-0000-4000-8000-000000000000\",\"name\":\"Entrance\",\"camera\":{\"position\":[0,1.6,5],\"rotation\":[0,0,0,1],\"fovDegrees\":60}}],\"rules\":[{\"id\":\"00000190-0000-4000-8000-000000000000\",\"enabled\":true,\"trigger\":{\"type\":\"click\",\"targetId\":\"00000064-0000-4000-8000-000000000000\"},\"actions\":[{\"type\":\"showPanel\",\"panelId\":\"00000065-0000-4000-8000-000000000000\"},{\"type\":\"showPanel\",\"panelId\":\"00000066-0000-4000-8000-000000000000\"},{\"type\":\"playMedia\",\"mediaId\":\"00000068-0000-4000-8000-000000000000\"}]},{\"id\":\"00000191-0000-4000-8000-000000000000\",\"enabled\":true,\"trigger\":{\"type\":\"zoneEnter\",\"zoneId\":\"0000001e-0000-4000-8000-000000000000\"},\"actions\":[{\"type\":\"playMedia\",\"mediaId\":\"00000067-0000-4000-8000-000000000000\"}]},{\"id\":\"00000192-0000-4000-8000-000000000000\",\"enabled\":true,\"trigger\":{\"type\":\"sceneStart\"},\"actions\":[{\"type\":\"moveCamera\",\"viewpointId\":\"00000014-0000-4000-8000-000000000000\",\"durationSeconds\":1.5}]},{\"id\":\"00000193-0000-4000-8000-000000000000\",\"enabled\":true,\"trigger\":{\"type\":\"elapsed\",\"seconds\":5},\"actions\":[{\"type\":\"setVisible\",\"objectId\":\"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\",\"visible\":false}]},{\"id\":\"00000194-0000-4000-8000-000000000000\",\"enabled\":true,\"trigger\":{\"type\":\"gaze\",\"targetId\":\"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\",\"seconds\":2},\"actions\":[{\"type\":\"navigateScene\",\"sceneId\":\"00000002-0000-4000-8000-000000000000\",\"viewpointId\":\"00000015-0000-4000-8000-000000000000\"}]},{\"id\":\"00000195-0000-4000-8000-000000000000\",\"enabled\":true,\"trigger\":{\"type\":\"panelClose\",\"panelId\":\"00000065-0000-4000-8000-000000000000\"},\"actions\":[{\"type\":\"openLink\",\"url\":\"https://example.com/exhibits?item=1#details\"}]}]},{\"id\":\"00000002-0000-4000-8000-000000000000\",\"name\":\"Second room\",\"environmentAssetId\":\"test-room-v1\",\"startCamera\":{\"position\":[0,1.6,5],\"rotation\":[0,0,0,1],\"fovDegrees\":60},\"objects\":[{\"id\":\"00000003-0000-4000-8000-000000000000\",\"name\":\"Second-scene crate\",\"assetId\":\"test-crate-v1\",\"transform\":{\"position\":[0,0,0],\"rotation\":[0,0,0,1],\"scale\":[1,1,1]},\"parentId\":null,\"visible\":true,\"components\":[]}],\"groups\":[],\"zones\":[],\"viewpoints\":[{\"id\":\"00000015-0000-4000-8000-000000000000\",\"name\":\"Second entrance\",\"camera\":{\"position\":[0,1.6,5],\"rotation\":[0,0,0,1],\"fovDegrees\":60}}],\"rules\":[{\"id\":\"000001f4-0000-4000-8000-000000000000\",\"enabled\":true,\"trigger\":{\"type\":\"sceneStart\"},\"actions\":[{\"type\":\"navigateScene\",\"sceneId\":\"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb\",\"viewpointId\":\"00000014-0000-4000-8000-000000000000\"}]}]}]}",
+      "valid": true
+    },
+    {
+      "name": "root duplicate",
+      "json": "{\"schemaVersion\":1,\"schemaVersion\":1,\"projectId\":\"cccccccc-cccc-4ccc-8ccc-cccccccccccc\",\"title\":\"Crate layout\",\"scenes\":[{\"id\":\"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb\",\"name\":\"Room\",\"environmentAssetId\":\"test-room-v1\",\"startCamera\":{\"position\":[12,16,18],\"rotation\":[-0.29962059992658957,0.2752183320355054,0.09071781822041597,0.9089844021041025],\"fovDegrees\":40},\"objects\":[{\"id\":\"dddddddd-dddd-4ddd-8ddd-dddddddddddd\",\"name\":\"First crate\",\"assetId\":\"test-crate-v1\",\"transform\":{\"position\":[1.123456789012345,0,-2],\"rotation\":[0,0.6,0,0.8],\"scale\":[1,2.123456789012345,1]}},{\"id\":\"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\",\"name\":\"Second crate\",\"assetId\":\"test-crate-v1\",\"transform\":{\"position\":[-1,0,2],\"rotation\":[0,0,0,1],\"scale\":[1,1,1]}}]}]}",
+      "valid": false,
+      "path": "project"
+    },
+    {
+      "name": "escaped duplicate",
+      "json": "{\"schema\\u0056ersion\":1,\"schemaVersion\":1,\"projectId\":\"cccccccc-cccc-4ccc-8ccc-cccccccccccc\",\"title\":\"Crate layout\",\"scenes\":[{\"id\":\"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb\",\"name\":\"Room\",\"environmentAssetId\":\"test-room-v1\",\"startCamera\":{\"position\":[12,16,18],\"rotation\":[-0.29962059992658957,0.2752183320355054,0.09071781822041597,0.9089844021041025],\"fovDegrees\":40},\"objects\":[{\"id\":\"dddddddd-dddd-4ddd-8ddd-dddddddddddd\",\"name\":\"First crate\",\"assetId\":\"test-crate-v1\",\"transform\":{\"position\":[1.123456789012345,0,-2],\"rotation\":[0,0.6,0,0.8],\"scale\":[1,2.123456789012345,1]}},{\"id\":\"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\",\"name\":\"Second crate\",\"assetId\":\"test-crate-v1\",\"transform\":{\"position\":[-1,0,2],\"rotation\":[0,0,0,1],\"scale\":[1,1,1]}}]}]}",
+      "valid": false,
+      "path": "project"
+    },
+    {
+      "name": "nested duplicate",
+      "json": "{\"schemaVersion\":1,\"projectId\":\"cccccccc-cccc-4ccc-8ccc-cccccccccccc\",\"title\":\"Crate layout\",\"scenes\":[{\"id\":\"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb\",\"name\":\"Room\",\"name\":\"Other\",\"environmentAssetId\":\"test-room-v1\",\"startCamera\":{\"position\":[12,16,18],\"rotation\":[-0.29962059992658957,0.2752183320355054,0.09071781822041597,0.9089844021041025],\"fovDegrees\":40},\"objects\":[{\"id\":\"dddddddd-dddd-4ddd-8ddd-dddddddddddd\",\"name\":\"First crate\",\"assetId\":\"test-crate-v1\",\"transform\":{\"position\":[1.123456789012345,0,-2],\"rotation\":[0,0.6,0,0.8],\"scale\":[1,2.123456789012345,1]}},{\"id\":\"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\",\"name\":\"Second crate\",\"assetId\":\"test-crate-v1\",\"transform\":{\"position\":[-1,0,2],\"rotation\":[0,0,0,1],\"scale\":[1,1,1]}}]}]}",
+      "valid": false,
+      "path": "project"
+    },
+    {
+      "name": "lone high surrogate",
+      "json": "{\"schemaVersion\":1,\"projectId\":\"cccccccc-cccc-4ccc-8ccc-cccccccccccc\",\"title\":\"bad\\ud800\",\"scenes\":[{\"id\":\"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb\",\"name\":\"Room\",\"environmentAssetId\":\"test-room-v1\",\"startCamera\":{\"position\":[12,16,18],\"rotation\":[-0.29962059992658957,0.2752183320355054,0.09071781822041597,0.9089844021041025],\"fovDegrees\":40},\"objects\":[{\"id\":\"dddddddd-dddd-4ddd-8ddd-dddddddddddd\",\"name\":\"First crate\",\"assetId\":\"test-crate-v1\",\"transform\":{\"position\":[1.123456789012345,0,-2],\"rotation\":[0,0.6,0,0.8],\"scale\":[1,2.123456789012345,1]}},{\"id\":\"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\",\"name\":\"Second crate\",\"assetId\":\"test-crate-v1\",\"transform\":{\"position\":[-1,0,2],\"rotation\":[0,0,0,1],\"scale\":[1,1,1]}}]}]}",
+      "valid": false,
+      "path": "project"
+    },
+    {
+      "name": "lone low surrogate",
+      "json": "{\"schemaVersion\":1,\"projectId\":\"cccccccc-cccc-4ccc-8ccc-cccccccccccc\",\"title\":\"bad\\udfff\",\"scenes\":[{\"id\":\"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb\",\"name\":\"Room\",\"environmentAssetId\":\"test-room-v1\",\"startCamera\":{\"position\":[12,16,18],\"rotation\":[-0.29962059992658957,0.2752183320355054,0.09071781822041597,0.9089844021041025],\"fovDegrees\":40},\"objects\":[{\"id\":\"dddddddd-dddd-4ddd-8ddd-dddddddddddd\",\"name\":\"First crate\",\"assetId\":\"test-crate-v1\",\"transform\":{\"position\":[1.123456789012345,0,-2],\"rotation\":[0,0.6,0,0.8],\"scale\":[1,2.123456789012345,1]}},{\"id\":\"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\",\"name\":\"Second crate\",\"assetId\":\"test-crate-v1\",\"transform\":{\"position\":[-1,0,2],\"rotation\":[0,0,0,1],\"scale\":[1,1,1]}}]}]}",
+      "valid": false,
+      "path": "project"
+    },
+    {
+      "name": "malformed JSON",
+      "json": "{\"schemaVersion\":",
+      "valid": false,
+      "path": "project"
+    },
+    {
+      "name": "null document",
+      "json": "null",
+      "valid": false,
+      "path": "project"
+    },
+    {
+      "name": "array document",
+      "json": "[]",
+      "valid": false,
+      "path": "project"
+    },
+    {
+      "name": "nonfinite parsed number",
+      "json": "{\"schemaVersion\":1,\"projectId\":\"cccccccc-cccc-4ccc-8ccc-cccccccccccc\",\"title\":\"Crate layout\",\"scenes\":[{\"id\":\"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb\",\"name\":\"Room\",\"environmentAssetId\":\"test-room-v1\",\"startCamera\":{\"position\":[12,16,18],\"rotation\":[-0.29962059992658957,0.2752183320355054,0.09071781822041597,0.9089844021041025],\"fovDegrees\":40},\"objects\":[{\"id\":\"dddddddd-dddd-4ddd-8ddd-dddddddddddd\",\"name\":\"First crate\",\"assetId\":\"test-crate-v1\",\"transform\":{\"position\":[1e400,0,-2],\"rotation\":[0,0.6,0,0.8],\"scale\":[1,2.123456789012345,1]}},{\"id\":\"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\",\"name\":\"Second crate\",\"assetId\":\"test-crate-v1\",\"transform\":{\"position\":[-1,0,2],\"rotation\":[0,0,0,1],\"scale\":[1,1,1]}}]}]}",
+      "valid": false,
+      "path": "project.scenes[0].objects[0].transform.position"
+    }
+  ]
+}

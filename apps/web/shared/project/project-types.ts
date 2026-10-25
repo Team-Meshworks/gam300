@@ -1,5 +1,6 @@
 // Plain project data for JSON saving
 // Validate imports before using them as a ProjectDocument
+import type { ContentProject } from "./project-content";
 
 // Project, scene and object IDs use UUID strings
 // Reuse these IDs when saving or undoing an edit
@@ -68,4 +69,5 @@ export type LegacyProjectDocument = Readonly<{
   scenes: readonly ProjectScene[];
 }>;
 
-export type ProjectDocument = LegacyProjectDocument;
+// Keep each version intact so readers and edits must narrow before accessing version-specific data
+export type ProjectDocument = LegacyProjectDocument | ContentProject;

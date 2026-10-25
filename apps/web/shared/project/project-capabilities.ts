@@ -1,11 +1,10 @@
-import type { LegacyProjectDocument } from "./project-types";
-import type { ContentProject } from "./project-content";
+import type { ProjectDocument } from "./project-types";
 
 export type CapabilityIssue = Readonly<{ path: string; capability: string }>;
 
 // Validate and retain known content separately from a player's ability to execute it
 export function missingProjectCapabilities(
-  project: LegacyProjectDocument | ContentProject,
+  project: ProjectDocument,
   supported: ReadonlySet<string>,
 ): CapabilityIssue[] {
   // The released v1 format uses baseline model viewing and needs no extra player features

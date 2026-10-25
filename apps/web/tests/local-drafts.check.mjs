@@ -23,6 +23,106 @@ try {
   const fixture = JSON.parse(
     readFileSync(new URL("../shared/project/fixtures/m1-project.json", import.meta.url), "utf8"),
   );
+  const contentFixture = JSON.parse(
+    readFileSync(new URL("../shared/project/fixtures/m2-project.json", import.meta.url), "utf8"),
+  );
+  const contentCases = JSON.parse(
+    readFileSync(
+      new URL("../shared/project/fixtures/project-format-cases.json", import.meta.url),
+      "utf8",
+    ),
+  );
+  // Isolate authored-content recovery from the legacy and file-permission cases below
+  const formatContext = await browser.newContext();
+  try {
+    const formatPage = await formatContext.newPage();
+    formatPage.on("pageerror", (error) => errors.push(error.message));
+    await formatPage.goto(urlForChecks());
+    await formatPage.waitForFunction(
+      () => document.querySelector(".draft-feedback")?.textContent !== "Reopening saved work…",
+    );
+    const preserved = await formatPage.evaluate(
+      async ({ project, registry }) => {
+        const { createDocumentStore } = await import("/document-store.ts");
+        const { saveRecoverySession, loadRecoverySession } =
+          await import("/persistence/local-drafts.ts");
+        const kinds = new Map(Object.entries(registry));
+        const store = createDocumentStore([]);
+        const loaded = store.loadProject(JSON.stringify(project), kinds);
+        if (!loaded.ok) throw new Error(loaded.error.message);
+        const original = store.getSnapshot().project;
+        const object = store.getSnapshot().objects[0];
+        const moved = store.setTransform(object.id, { ...object.transform, position: [2, 1, -3] });
+        if (!moved.ok) throw new Error(moved.error);
+        const edited = store.getSnapshot().project;
+        const encoded = JSON.stringify(edited);
+        const saved = await saveRecoverySession(
+          {
+            document: edited,
+            fileName: "content.json",
+            savedJson: null,
+            pristine: false,
+            history: store.getRecoveryHistory(),
+          },
+          0,
+          kinds,
+        );
+        if (!saved.ok) throw new Error(saved.error.message);
+        const recovered = await loadRecoverySession(kinds);
+        if (!recovered.ok || !recovered.value)
+          throw new Error("Rich recovery session was not restored");
+        // Rebuild the store from IndexedDB rather than retaining the original in-memory history
+        const reopened = createDocumentStore([]);
+        const restored = reopened.loadProject(
+          JSON.stringify(recovered.value.document),
+          kinds,
+          recovered.value.history,
+        );
+        if (!restored.ok) throw new Error(restored.error.message);
+        const same = JSON.stringify(reopened.getSnapshot().project) === encoded;
+        reopened.undo();
+        const undone = JSON.stringify(reopened.getSnapshot().project) === JSON.stringify(original);
+        reopened.redo();
+        return {
+          same,
+          undone,
+          redone: JSON.stringify(reopened.getSnapshot().project) === JSON.stringify(edited),
+          scenes: recovered.value.document.scenes.length,
+        };
+      },
+      { project: contentFixture, registry: contentCases.assets },
+    );
+    assert.deepEqual(preserved, { same: true, undone: true, redone: true, scenes: 2 });
+  } finally {
+    await formatContext.close();
+  }
+  // Remove media dependencies so this check isolates the unsupported multi-scene preview boundary
+  const previewContext = await browser.newContext();
+  try {
+    const previewPage = await previewContext.newPage();
+    previewPage.on("pageerror", (error) => errors.push(error.message));
+    await previewPage.goto(urlForChecks());
+    await previewPage.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
+    const modelOnly = structuredClone(contentFixture);
+    for (const scene of modelOnly.scenes) {
+      scene.rules = [];
+      for (const object of scene.objects) object.components = [];
+    }
+    await previewPage.locator("#project-import").setInputFiles({
+      name: "two-scene.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify(modelOnly)),
+    });
+    await previewPage.locator(".object-row").filter({ hasText: "First crate" }).waitFor();
+    await previewPage.getByRole("button", { name: "Preview", exact: true }).click();
+    await previewPage
+      .getByRole("status")
+      .filter({ hasText: "This preview does not support all the scenes and interactions" })
+      .waitFor();
+    assert.equal(await previewPage.locator(".editor-shell.is-previewing").count(), 0);
+  } finally {
+    await previewContext.close();
+  }
   const results = await page.evaluate(async (project) => {
     const { saveLocalDraft, loadLocalDraft } = await import("/persistence/local-drafts.ts");
     const assets = new Map([
@@ -684,9 +784,13 @@ try {
   assert.deepEqual(errors, [], "Storage failures are handled without uncaught errors");
   await fallback.close();
   console.log(
-    "PASS: manual Save/Save As, quiet recovery, restored dirty state, Save/Don’t Save/Cancel, failed switching, permissions, write conflicts, multi-tab protection and download fallback",
+    "PASS: richer document recovery and preview gating, manual Save/Save As, quiet recovery, restored dirty state, Save/Don’t Save/Cancel, failed switching, permissions, write conflicts, multi-tab protection and download fallback",
   );
 } finally {
   await fileContext?.close();
   await browser.close();
+}
+
+function urlForChecks() {
+  return process.argv[2] ?? "http://127.0.0.1:5173/";
 }

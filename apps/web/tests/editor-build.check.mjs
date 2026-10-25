@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { pathToFileURL } from "node:url";
+import { readFileSync } from "node:fs";
 
 const { chromium } = await import(
   process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : "playwright"
@@ -50,7 +51,7 @@ try {
   );
   if (isDevelopment) {
     await sample.click();
-    // Opening a sample follows the normal save decision for a room-based project
+    // Opening a sample uses the same save decision as replacing any room-based project
     await page.getByRole("dialog").getByRole("button", { name: "Don’t Save", exact: true }).click();
     await page.getByRole("dialog").waitFor({ state: "hidden" });
     await page.locator(".object-row").filter({ hasText: "First crate" }).waitFor();
@@ -66,6 +67,33 @@ try {
   assert.ok(chunks.length >= 3, "Renderer and core stay separate from the shell");
   assert.ok(chunks.every((chunk) => chunk.bytes > 0 && chunk.bytes < 500_000));
   await page.close();
+
+  // Packaged builds must reject incomplete multi-scene playback while keeping the imported editor open
+  const contentPage = await browser.newPage();
+  contentPage.on("pageerror", (error) => errors.push(error.message));
+  await contentPage.goto(url);
+  await contentPage.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
+  const content = JSON.parse(
+    readFileSync(new URL("../shared/project/fixtures/m2-project.json", import.meta.url), "utf8"),
+  );
+  // Strip media references so this fixture needs only the model assets shipped with the build
+  for (const scene of content.scenes) {
+    scene.rules = [];
+    for (const object of scene.objects) object.components = [];
+  }
+  await contentPage.locator("#project-import").setInputFiles({
+    name: "two-scene.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(content)),
+  });
+  await contentPage.locator(".object-row").filter({ hasText: "First crate" }).waitFor();
+  await contentPage.getByRole("button", { name: "Preview", exact: true }).click();
+  await contentPage
+    .getByRole("status")
+    .filter({ hasText: "This preview does not support all the scenes and interactions" })
+    .waitFor();
+  assert.equal(await contentPage.locator(".editor-shell.is-previewing").count(), 0);
+  await contentPage.close();
 
   // Use a fresh document so an already-evaluated module cannot hide a failed download
   const failed = await browser.newPage();
