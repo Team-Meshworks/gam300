@@ -1,5 +1,5 @@
 import { validateTransform } from "../shared/project/spatial-validation";
-import { invalid } from "../shared/project/validation-helpers";
+import { freezeValidatedData, invalid } from "../shared/project/validation-helpers";
 import type { Transform } from "../shared/project/project-types";
 import { prepareTransformCommand } from "./transform-command";
 import { createCommandHistory } from "./command-history";
@@ -12,22 +12,7 @@ import type { ValidationResult } from "../shared/project/validation-helpers";
 
 function freezeProject(project: ProjectDocument): ProjectDocument {
   // Freeze the reader's separate copy before exposing it to panels or commands
-  for (const scene of project.scenes) {
-    for (const object of scene.objects) {
-      Object.freeze(object.transform.position);
-      Object.freeze(object.transform.rotation);
-      Object.freeze(object.transform.scale);
-      Object.freeze(object.transform);
-      Object.freeze(object);
-    }
-    Object.freeze(scene.objects);
-    Object.freeze(scene.startCamera.position);
-    Object.freeze(scene.startCamera.rotation);
-    Object.freeze(scene.startCamera);
-    Object.freeze(scene);
-  }
-  Object.freeze(project.scenes);
-  return Object.freeze(project);
+  return freezeValidatedData(project);
 }
 
 export type TransformSession = Readonly<{
