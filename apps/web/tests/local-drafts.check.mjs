@@ -342,7 +342,16 @@ try {
       (expected) => document.querySelector(".save-state")?.textContent === expected,
       text,
     );
-  const add = () => editor.getByRole("button", { name: "Add test-crate", exact: true }).click();
+  const add = async () => {
+    // New now follows first visit; choose the environment before adding the next test object
+    if (
+      await editor
+        .getByText("Add a room from the asset library to start.", { exact: true })
+        .isVisible()
+    )
+      await editor.getByRole("button", { name: "Add test-room", exact: true }).click();
+    await editor.getByRole("button", { name: "Add test-crate", exact: true }).click();
+  };
   const writeFile = (name, text) =>
     editor.evaluate(
       async ({ name, text }) => {
@@ -382,7 +391,12 @@ try {
     const deadline = Date.now() + 10000;
     while (Date.now() < deadline) {
       const saved = await session(target);
-      if (saved?.document.scenes[0].objects.length === count) return saved;
+      if (
+        count === null
+          ? saved?.document === null
+          : saved?.document?.scenes[0].objects.length === count
+      )
+        return saved;
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
     throw new Error(`Recovery did not reach ${count} objects`);
@@ -459,7 +473,9 @@ try {
   await waitBackup(4);
   await menu("New");
   await choose("Save");
-  await status("Not saved");
+  await waitBackup(null);
+  await editor.getByText("Add a room from the asset library to start.", { exact: true }).waitFor();
+  assert.equal(await editor.locator("#project-save").isDisabled(), true);
   assert.equal((await readFile("a.json")).scenes[0].objects.length, 4, "Save completes before New");
   assert.equal(await editor.locator(".object-row").count(), 0);
   assert.equal(await editor.title(), "Untitled - Spatia");
@@ -483,10 +499,10 @@ try {
   await editor.evaluate(() => (window.cancelPicker = false));
   await menu("New");
   await choose("Don’t Save");
-  const empty = await waitBackup(0);
-  assert.notEqual(empty.document.projectId, unsaved.document.projectId);
+  const empty = await waitBackup(null);
+  assert.equal(empty.document, null);
   await editor.reload();
-  await editor.getByText("Reopened your last project", { exact: true }).waitFor();
+  await editor.getByText("Add a room from the asset library to start.", { exact: true }).waitFor();
   assert.equal(await editor.locator(".object-row").count(), 0);
 
   await add();

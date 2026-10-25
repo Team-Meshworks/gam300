@@ -26,7 +26,7 @@ import {
 export type ProjectDecision = "save" | "discard" | "cancel";
 type Operation = "recover" | "import" | "file" | "switch" | "backup" | null;
 type Candidate = {
-  document: ProjectDocument;
+  document: ProjectDocument | null;
   fileName: string;
   savedJson: string | null;
   fileText: string;
@@ -86,7 +86,7 @@ export function useProjectSession(
 
   const persist = useCallback(
     async (
-      document: ProjectDocument,
+      document: ProjectDocument | null,
       metadata?: Candidate,
       history: RecoveryHistory | undefined = metadata ? undefined : store.getRecoveryHistory(),
     ) => {
@@ -114,7 +114,7 @@ export function useProjectSession(
         return false;
       }
       local.revision = result.value;
-      local.previousProjectId = document.projectId;
+      local.previousProjectId = document?.projectId;
       local.recovered = document;
       local.paused = false;
       return true;
@@ -383,10 +383,17 @@ export function useProjectSession(
       // Commit the next recovery record before replacing the visible scene
       // A storage failure must leave the current project available to save
       if (!(await persist(candidate.document, candidate))) return;
-      const loaded = store.loadProject(JSON.stringify(candidate.document), kinds);
+      // A blank candidate returns to room selection without creating an authored scene
+      const loaded =
+        candidate.document === null
+          ? { ok: true as const, value: null }
+          : store.loadProject(JSON.stringify(candidate.document), kinds);
       if (!loaded.ok) {
         setError(loaded.error.message);
         return;
+      }
+      if (loaded.value === null) {
+        store.resetProject();
       }
       local.file = candidate.handle;
       local.fileText = candidate.fileText;
@@ -472,21 +479,9 @@ export function useProjectSession(
   }
 
   async function createNew() {
-    const environmentId =
-      store.getSnapshot().project?.scenes[0]?.environmentAssetId ??
-      assets.find((asset) => asset.kind === "environment")?.id;
-    if (!environmentId) {
-      setError("No room is available in the asset library");
-      return;
-    }
-    // Build and validate separately so Cancel never changes the live document
-    const result = createDocumentStore(assets).createProject(environmentId);
-    if (!result.ok) {
-      setError(result.error.message);
-      return;
-    }
+    // Reuse Open's save decision and durable switch before returning to room selection
     await switchTo({
-      document: result.value,
+      document: null,
       fileName: "",
       savedJson: null,
       fileText: "",

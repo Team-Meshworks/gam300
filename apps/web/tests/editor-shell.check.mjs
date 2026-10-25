@@ -383,10 +383,31 @@ try {
   await page.getByRole("button", { name: "New", exact: true }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Don’t Save", exact: true }).click();
   await page.getByRole("dialog").waitFor({ state: "hidden" });
+  await page.getByText("Add a room from the asset library to start.", { exact: true }).waitFor();
   assert.equal(await room.isVisible(), true);
   await room.click();
+  await roomRow.waitFor();
   assert.equal(await rows.count(), 0);
   assert.equal(await undo.isDisabled(), true);
+  // Choosing a room follows the blank New record; wait for its backup before reloading
+  let roomBackedUp = false;
+  const backupDeadline = Date.now() + 10000;
+  while (Date.now() < backupDeadline) {
+    roomBackedUp = await page.evaluate(async () => {
+      const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
+      const result = await loadRecoverySession(
+        new Map([
+          ["test-room-v1", "environment"],
+          ["test-crate-v1", "model"],
+          ["sample-snowglobe-v1", "model"],
+        ]),
+      );
+      return result.ok && result.value?.document?.scenes[0]?.objects.length === 0;
+    });
+    if (roomBackedUp) break;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  assert.equal(roomBackedUp, true, "The selected room is backed up before refresh");
   await page.reload();
   await ready.waitFor();
   assert.equal(await room.isVisible(), true, "Recovery keeps the room in the library");
