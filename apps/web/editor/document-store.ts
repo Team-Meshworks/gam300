@@ -203,6 +203,17 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       if (edit?.token === token) clearEdit();
     },
     getSnapshot: () => snapshot,
+    resetProject() {
+      // Return to the first-visit screen after the session has safely persisted New
+      project = null;
+      objects = Object.freeze([]);
+      projectAssets = new Map();
+      history.clear();
+      clearEdit();
+      clipboard = null;
+      pasteCount = 0;
+      publish();
+    },
     getRecoveryHistory() {
       return project === null ? undefined : captureRecoveryHistory(project, history.getStates());
     },
