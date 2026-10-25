@@ -23,7 +23,7 @@ try {
   const page = await browser.newPage({ viewport: { width: 1366, height: 768 }, hasTouch: true });
   const pageErrors = [];
   const consoleErrors = [];
-  page.on("pageerror", (error) => pageErrors.push(error.message));
+  page.on("pageerror", (error) => pageErrors.push(error.stack ?? error.message));
   page.on("console", (message) => {
     if (message.type() === "error") {
       consoleErrors.push(message.text());
@@ -66,6 +66,24 @@ try {
   );
   await asset.focus();
   await page.keyboard.press("Enter");
+  await page.getByRole("alert").filter({ hasText: "Choose a room first" }).waitFor();
+  assert.equal(await rows.count(), 0, "A crate cannot start a project without an environment");
+  assert.equal(await undo.isDisabled(), true);
+
+  // A viewport drop follows the same room-first rule as the asset's Add button
+  await asset.dragTo(stage, { targetPosition: { x: 500, y: 200 } });
+  assert.equal(await rows.count(), 0, "Dropping a crate before choosing a room changes nothing");
+  assert.equal(await undo.isDisabled(), true);
+  await page.getByText("Add a room from the asset library to start.", { exact: true }).waitFor();
+
+  await page.getByRole("button", { name: "Add test-room", exact: true }).click();
+  await ready.waitFor();
+  assert.equal(
+    await page.getByRole("alert").count(),
+    0,
+    "Choosing a room clears the placement error",
+  );
+  await asset.click();
   assert.equal(await rows.count(), 1);
   const firstId = await rows.first().getAttribute("data-object-id");
   const stageBox = await stage.boundingBox();
@@ -148,7 +166,8 @@ try {
     type: "touchMove",
     touchPoints: [touchPoint(75, 1), touchPoint(115, 2)],
   });
-  await stage.locator("canvas").dispatchEvent("pointercancel", { pointerId: 999 });
+  // Check foreign capture loss without inventing a cancellation for a nonexistent browser pointer
+  // CDP owns the real touch sequence and its final cancellation/release events
   await stage.locator("canvas").dispatchEvent("lostpointercapture", { pointerId: 999 });
   await touchSession.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
   await touchSession.detach();

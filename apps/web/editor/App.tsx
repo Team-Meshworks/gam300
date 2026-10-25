@@ -212,6 +212,13 @@ export function App() {
       setNotice("Project created; choose Save to name its file");
       return;
     }
+    // Clicks and drops share this path; room selection starts the project before furnishing it
+    if (store.getSnapshot().project === null) {
+      setDragging(false);
+      setError("Choose a room first");
+      return;
+    }
+
     const result = store.addObject(assetId, position);
     if (!result.ok) {
       setError(result.error);
