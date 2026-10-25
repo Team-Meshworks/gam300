@@ -195,7 +195,7 @@
     "architecture.check.mjs": "d7d864b0067391a38e88998b288ae5a64c9a819fd74a4930ad036fd4460d8200",
     "architecture.mjs": "e4abe39a0809f28be92f3f2efa18ca80d93d8dbff39c0f7f321be1cd818edc07",
     "asset-catalogue-plugin.ts": "17bec6aa65dd50167fe6c055fb38af453a647f3648a2bf296f9927ed32f7a158",
-    "editor/App.tsx": "e5d1a4bbbbdae69087d3a7e8a9e0734d52caea21ea21ca844f7123e7d7d008f5",
+    "editor/App.tsx": "1959ecf211967dd57842a5e47147360cb2a8e15c047302c6b4896edd24eecea7",
     "editor/ProjectConfirmation.tsx": "07a0fedf8fbf88865b3b8232c8665c139348fc64ebce478ea01e55eb7fd14eff",
     "editor/command-history.test.ts": "783c026523513ea5520cde04e61502aba13ca3a612b509a904c2a50e50be2d1f",
     "editor/command-history.ts": "e243335582ab03da9d131bd80edef7b908e3eb0a751d6ebfa7deb77750fc54ad",
@@ -502,6 +502,15 @@
       "file": "editor/App.tsx",
       "line": 5,
       "kind": "static",
+      "specifier": "../shared/project/project-capabilities",
+      "target": "shared/project/project-capabilities.ts",
+      "from": "editor",
+      "to": "project"
+    },
+    {
+      "file": "editor/App.tsx",
+      "line": 6,
+      "kind": "static",
       "specifier": "./document-store",
       "target": "editor/document-store.ts",
       "from": "editor",
@@ -509,7 +518,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 6,
+      "line": 7,
       "kind": "static",
       "specifier": "./history-shortcuts",
       "target": "editor/history-shortcuts.ts",
@@ -518,7 +527,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 12,
+      "line": 13,
       "kind": "type",
       "specifier": "./graphics/scene",
       "target": "editor/graphics/scene.ts",
@@ -527,7 +536,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 13,
+      "line": 14,
       "kind": "type",
       "specifier": "./graphics/modeManager",
       "target": "editor/graphics/modeManager.ts",
@@ -536,7 +545,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 14,
+      "line": 15,
       "kind": "static",
       "specifier": "./ui/BottomBar",
       "target": "editor/ui/BottomBar.tsx",
@@ -545,7 +554,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 15,
+      "line": 16,
       "kind": "static",
       "specifier": "./ui/SidePanels",
       "target": "editor/ui/SidePanels.tsx",
@@ -554,7 +563,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 16,
+      "line": 17,
       "kind": "static",
       "specifier": "./ui/TopBar",
       "target": "editor/ui/TopBar.tsx",
@@ -563,7 +572,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 17,
+      "line": 18,
       "kind": "static",
       "specifier": "./viewport/Viewport",
       "target": "editor/viewport/Viewport.tsx",
@@ -572,7 +581,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 19,
+      "line": 20,
       "kind": "static",
       "specifier": "./ProjectConfirmation",
       "target": "editor/ProjectConfirmation.tsx",
@@ -581,7 +590,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 20,
+      "line": 21,
       "kind": "static",
       "specifier": "./persistence/use-project-session",
       "target": "editor/persistence/use-project-session.ts",
@@ -590,7 +599,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 233,
+      "line": 247,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
