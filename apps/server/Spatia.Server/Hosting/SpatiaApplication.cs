@@ -208,9 +208,9 @@ public static class SpatiaApplication
         }).AllowAnonymous();
         app.MapAccountAdministration();
         app.MapAccountSessions();
-        // TODO: Map GET using ProjectDocumentService.ReadStored and the public document/revision/permission envelope
+        app.MapProjectReads();
         // TODO: Map PUT to ProjectSaveService with RequestSizeLimitAttribute(SaveEnvelopeReader.MaxRequestBytes)
-        // TODO: Wire ProjectHttpResults into GET/PUT with the existing authorization and request-security policies
+        // TODO: Wire ProjectHttpResults into PUT with the existing authorization and request-security policies
         return app;
     }
 

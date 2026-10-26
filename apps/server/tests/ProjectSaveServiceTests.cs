@@ -37,7 +37,7 @@ public sealed class ProjectSaveServiceTests
             password = AuthTestRequests.CurrentPassword,
         });
         await Assert.That(login.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
-        var request = CreateRequest(seeded.ProjectId) with { DocumentJson = Document(seeded.ProjectId, BodyMarker, version) };
+        var request = CreateRequest(seeded.ProjectId) with { DocumentJson = ProjectTestDocuments.Create(seeded.ProjectId, BodyMarker, version) };
         var first = await SaveAsync(fixture, seeded.ProjectId, request);
         var acknowledgement = await AssertCommittedAsync(first, seeded.ProjectId, request.ClientMutationId, 1);
         var stored = await ReadAsync(fixture, seeded.ProjectId);
@@ -94,7 +94,7 @@ public sealed class ProjectSaveServiceTests
         }
         request = change switch
         {
-            "content" => request with { DocumentJson = Document(seeded.ProjectId, "Changed") },
+            "content" => request with { DocumentJson = ProjectTestDocuments.Create(seeded.ProjectId, "Changed") },
             "whitespace" => request with { DocumentJson = "{ " + request.DocumentJson[1..] },
             "number-spelling" => request with { DocumentJson = request.DocumentJson.Replace("\"schemaVersion\":1", "\"schemaVersion\":1.0", StringComparison.Ordinal) },
             "original-revision" => request with { ExpectedRevision = 1 },
@@ -425,11 +425,11 @@ public sealed class ProjectSaveServiceTests
             "unknown-field" => "{\"" + BodyMarker + "\":true," + original.DocumentJson[1..],
             "duplicate-field" => original.DocumentJson.Replace("\"name\":", "\"name\":\"discarded\",\"name\":", StringComparison.Ordinal),
             "future-version" => original.DocumentJson.Replace("\"schemaVersion\":1", "\"schemaVersion\":3", StringComparison.Ordinal),
-            "invalid-reference" => Document(seeded.ProjectId, BodyMarker, 2).Replace("00000015-0000-4000-8000-000000000000", "ffffffff-ffff-4fff-8fff-ffffffffffff", StringComparison.Ordinal)
+            "invalid-reference" => ProjectTestDocuments.Create(seeded.ProjectId, BodyMarker, 2).Replace("00000015-0000-4000-8000-000000000000", "ffffffff-ffff-4fff-8fff-ffffffffffff", StringComparison.Ordinal)
                 .Replace("\"viewpointId\":\"ffffffff-ffff-4fff-8fff-ffffffffffff\"", "\"viewpointId\":\"eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee\"", StringComparison.Ordinal),
             "unavailable-asset" => original.DocumentJson.Replace("test-crate-v1", "demo-image-v1", StringComparison.Ordinal),
-            "route-mismatch" => Document(Guid.NewGuid(), BodyMarker),
-            "nul" => Document(seeded.ProjectId, "before\0after"),
+            "route-mismatch" => ProjectTestDocuments.Create(Guid.NewGuid(), BodyMarker),
+            "nul" => ProjectTestDocuments.Create(seeded.ProjectId, "before\0after"),
             "original-size" => original.DocumentJson.PadRight(Format.MaxProjectBytes + 1),
             "normalized-size" => ExpandedDocument(seeded.ProjectId, Format.MaxProjectBytes - 8),
             _ => throw new ArgumentOutOfRangeException(nameof(change)),
@@ -457,7 +457,7 @@ public sealed class ProjectSaveServiceTests
         var seeded = await SeedAsync(fixture);
         await fixture.SignInAsync(seeded.ActorId);
         var documents = fixture.App.Services.GetRequiredService<ProjectDocumentService>();
-        var node = JsonNode.Parse(Document(seeded.ProjectId, ""))!;
+        var node = JsonNode.Parse(ProjectTestDocuments.Create(seeded.ProjectId, ""))!;
         node["scenes"]![0]!["objects"]![0]!["transform"]!["scale"] = new JsonArray(double.MaxValue, double.Epsilon, 1);
         var baseline = documents.Serialize(documents.Read(seeded.ProjectId, node.ToJsonString()).Value!).Value!;
         node["title"] = new string('x', Format.MaxProjectBytes - Encoding.UTF8.GetByteCount(baseline) - 16);
@@ -480,7 +480,7 @@ public sealed class ProjectSaveServiceTests
 
     private static string ExpandedDocument(Guid id, int bytes)
     {
-        var node = JsonNode.Parse(Document(id, ""))!;
+        var node = JsonNode.Parse(ProjectTestDocuments.Create(id, ""))!;
         node["scenes"]![0]!["objects"]![0]!["transform"]!["scale"] = new JsonArray(1e20, 1e20, 1e20);
         // Exponents fit the upload budget but the browser-compatible decimal representation exceeds it
         var raw = node.ToJsonString().Replace("1E+20", "1e20", StringComparison.Ordinal);
@@ -523,44 +523,7 @@ public sealed class ProjectSaveServiceTests
     }
 
     private static ProbeRequest CreateRequest(Guid id) =>
-        new(0, Guid.NewGuid(), Document(id, BodyMarker));
-
-    private static string Document(Guid id, string title, int version = 1)
-    {
-        var document = JsonNode.Parse(File.ReadAllText(System.IO.Path.Combine(AppContext.BaseDirectory, "fixtures", $"m{version}-project.json")))!;
-        document["projectId"] = id.ToString("D").ToUpperInvariant();
-        document["title"] = title;
-        if (version == 2)
-        {
-            // Fixture-only media is not in the real catalogue; retain every other supported field and rule
-            foreach (var scene in document["scenes"]!.AsArray())
-            {
-                foreach (var item in scene!["objects"]!.AsArray())
-                {
-                    var components = item!["components"]!.AsArray();
-                    foreach (var component in components.Where(value => value!["type"]!.GetValue<string>() is "image" or "audio" or "video").ToArray())
-                    {
-                        components.Remove(component);
-                    }
-                }
-                var rules = scene["rules"]!.AsArray();
-                foreach (var rule in rules.ToArray())
-                {
-                    var actions = rule!["actions"]!.AsArray();
-                    foreach (var action in actions.Where(value => value!["type"]!.GetValue<string>() == "playMedia"
-                        || value["panelId"]?.GetValue<string>() == "00000066-0000-4000-8000-000000000000").ToArray())
-                    {
-                        actions.Remove(action);
-                    }
-                    if (actions.Count == 0)
-                    {
-                        rules.Remove(rule);
-                    }
-                }
-            }
-        }
-        return document.ToJsonString();
-    }
+        new(0, Guid.NewGuid(), ProjectTestDocuments.Create(id, BodyMarker));
 
     private static string Path(Guid id) => "/_test/project-save/" + id.ToString("D");
 
@@ -575,7 +538,7 @@ public sealed class ProjectSaveServiceTests
             Id = id,
             OrganizationId = (await database.Organizations.SingleAsync()).Id,
             SchemaVersion = 1,
-            DocumentJson = Document(id, "Original"),
+            DocumentJson = ProjectTestDocuments.Create(id, "Original"),
             UpdatedAt = DateTimeOffset.UnixEpoch,
         });
         database.ProjectAssignments.Add(new ProjectAssignment { ProjectId = id, UserId = actorId, CanEdit = true });

@@ -4,11 +4,12 @@ This .NET 10 ASP.NET Core host contains a bounded draft-save reader, the Identit
 PostgreSQL account persistence foundation, project draft schema/access service, request-security boundary and private
 administrator provisioning/reset operations. Accounts Part 5 adds explicit login, current-session,
 logout and current-password change to the existing CSRF bootstrap and three administrator
-POSTs. The verification evidence is recorded below; project handlers remain later work.
+POSTs. [Accounts Part 7](#scrum-45-part-7-authorized-project-list-and-open) adds protected
+project list/open routes; write and lifecycle routes remain later work.
 A parsed envelope remains untrusted until `ProjectSaveService` accepts it through
 the shared project validator, the packaged catalogue and current authorization.
 The [Part 5d boundary](#scrum-66-part-5d-validated-document-and-storage-boundary)
-is registered in the application; production project GET/PUT routes remain later work.
+is registered in the application and used by the read routes; production PUT remains later work.
 
 `SaveEnvelopeReader.ReadAsync(HttpRequest, Guid, CancellationToken)` returns a
 `SaveEnvelopeReadResult`. It contains either `Envelope` (a `ParsedSaveEnvelope`) or
@@ -43,7 +44,7 @@ the lockfiles.
 Run the canonical check block below from `apps/server/` so the scoped SDK pin applies.
 
 The repository CI also runs that block on Ubuntu with a disposable PostgreSQL 18.6
-service and the existing Chromium account check. Server failures block image publishing;
+service and the Chromium account and project-read checks. Server failures block image publishing;
 reports are retained as `server-checks-<commit>`. The bootstrap process tests use the
 server assembly referenced by the running test build, including Debug builds. The
 standalone cold-restart acceptance below still targets an explicitly prebuilt Release
@@ -1491,3 +1492,94 @@ Asset validation reported zero errors and the three existing licence-approval wa
 PostgreSQL checks used only the retained loopback disposable 18.6 container and owned
 schemas. No public project API, saved-project cold restart, hosted CI or deployment was
 claimed by this part; those acceptance gates remain separate.
+
+## SCRUM-45 Part 7: authorized project list and open
+
+The production host now maps `GET /api/projects` and `GET /api/projects/{id}` under
+the existing `FullAccount` policy. Both recheck current Identity, organization and
+project assignment authority through `ProjectAccessService`. They use the Part 5d
+document boundary, with no schema, dependency or asset-approval change.
+
+List accepts only these query fields, each at most once:
+
+| Field | Contract |
+| --- | --- |
+| `limit` | Decimal integer 1–20; default 10. |
+| `cursor` | A 36-character UUID in D form; the next page starts strictly after this ID in ascending UUID order. |
+| `archived` | Exact `true` or `false`; default false. |
+
+Unknown/duplicate query fields and invalid values return fixed
+`400 invalid_project_query` feedback without echoing input. The cursor is a position,
+not authority or a retained snapshot across requests. Each request takes a new
+repeatable-read snapshot of current account authority, filtered IDs, assignments,
+permissions and stored content. It reads at most `limit + 1` IDs and at most `limit`
+documents. A revoked assignment disappears from the next request; a read already
+using an earlier snapshot may complete coherently. Original session expiry still
+prevents success after a paused read resumes.
+
+The response is `{items,nextCursor}`. Each item contains exactly
+`{projectId,title,revision,updatedAt,archived,permissions}`; a final page has a null
+cursor. Titles come from validated stored documents, since the schema has no separate
+title column. Legacy titles over 256 UTF-16 units are shortened with an ellipsis
+without splitting a surrogate pair. The full document title remains intact.
+This bounded implementation validates up to 20 full documents per page; it does not
+establish large-catalogue performance or add a denormalized title column.
+
+Open returns exactly `{projectId,revision,updatedAt,document,permissions}`. `document`
+is the complete shared serializer output, including all supported v1/v2 scene and
+rule content. Its UUID casing remains authored data. Both routes expose only computed
+`{canEdit,canManage,canPublish}` flags, never the internal actor, organization,
+assignment or latest-mutation fields. Archived projects retain permitted read/manage
+access and have edit/publish false. UI permission flags do not grant server authority.
+
+Missing and inaccessible projects both return `404 project_not_found`. Authorized
+corrupt or unavailable stored content returns fixed `503 project_unavailable`; list
+returns no partial page. Authorization/filtering happens before content validation.
+Every success/problem is `no-store`, and no private body or malformed query value is
+logged. The existing FullAccount policy returns `403 access_denied` for a forced-password
+session; an authority change detected inside the access transaction uses the existing
+`password_change_required` mapping. Development sample assets remain restricted to
+Development; Production has no approved catalogue entries for those samples.
+
+The new HTTPS/PostgreSQL tests exercise the production routes with two students in
+one organization, foreign assignments, forged role claims, management/archive policy,
+strict bounded pagination, complete v1/v2 responses, corrupt/unavailable content,
+safe denials and controlled revocation/expiry races. The existing v1/v2 fixture helper
+is shared with save tests without changing their scenario coverage. A separate
+Chromium check performs real login, list/open, account switching, logout and a fresh
+authenticated browser-context reopen. It uses a test page to call the production API;
+it is not project-home UI or server-restart acceptance.
+
+Verification on **26 October 2026**: Release build passed with zero warnings/errors;
+both formatting checks passed. Focused checks passed **16/16** read-route cases,
+**1/1** Chromium project flow, **50/50** existing access/locking cases and **1/1**
+production route/policy inventory. One full backend run passed **501/501**, zero
+failed/skipped, in **2m 53s**, including all 31 save-service regressions and both
+Chromium flows. Browser output records **Node 24.19.0 / Chromium 153.0.8010.12**.
+
+```powershell
+dotnet test --project tests/Spatia.Server.Tests.csproj -c Release --no-build --results-directory test-results/scrum45-part7-full -- --report-trx --minimum-expected-tests 1
+```
+
+TRX/HTML reports are retained in `test-results/scrum45-part7-full`, with copied
+`project-browser-version.txt` and `account-browser-version.txt`. Focused reports are
+in `scrum45-part7-reads-corrected`, `scrum45-part7-browser-corrected`,
+`scrum45-part7-access` and `scrum45-part7-routes-corrected` under `test-results/`.
+Initial failures remain in the corresponding directories without `-corrected`:
+two malformed test rows were rejected by PostgreSQL before reaching the endpoint;
+one forced-session expectation used the wrong existing policy code; the browser
+expected normalized UUID casing; and the route inventory omitted the framework's
+stored trailing slash. Corrected fixtures/assertions passed without weakening policy.
+The sandbox formatter could not connect to MSBuild's named pipe; scoped normal-shell
+formatting succeeded. Restore/EF checks and web/shared-format checks already passed
+for Part 5d in this session and were not repeated for unchanged dependencies/models/web code.
+
+Final cleanup found zero owned test schemas, zero public tables and no temporary
+HTTPS key directories. The exact disposable test container was restored to its
+original stopped state with its volume retained; Docker Desktop remained running
+as found. Earlier account/restart evidence is preserved. Hosted CI and a new cold
+restart were not run for this slice.
+
+PUT, create/duplicate, assignment/archive writers, protected asset delivery and the
+SCRUM-126 project-home UI remain separate work. Full SCRUM-45/69 and SCRUM-66 acceptance
+also requires server-save/recovery integration and saved-project restart evidence.

@@ -23,7 +23,6 @@ namespace Spatia.Server.Projects;
 /// This server-side snapshot includes mutation metadata that must be excluded from public project responses
 /// </remarks>
 // Reconstruct UnvalidatedDocumentJson through ProjectDocumentService before consuming authored content
-// TODO: Build the public GET envelope without actor IDs or mutation digests
 public sealed record ProjectAccessSnapshot(
     Guid ActorId,
     Guid ProjectId,
