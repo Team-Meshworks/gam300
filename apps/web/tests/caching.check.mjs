@@ -59,7 +59,12 @@ try {
       counts.generatedThumbnails++;
       return originalImage.apply(this, args);
     };
-    function start(cache, library = assets) {
+    // Keep the load-count fixture fixed when the production catalogue gains more assets
+    const fixtureIds = new Set(["test-room-v1", "test-crate-v1", "sample-snowglobe-v1"]);
+    const libraryFixture = assets.filter((asset) => fixtureIds.has(asset.id));
+    check(libraryFixture.length === fixtureIds.size, "Caching fixture assets are missing");
+
+    function start(cache, library = libraryFixture) {
       const host = document.createElement("div");
       host.style.cssText = "width:800px;height:600px;position:relative";
       document.querySelector("main").append(host);
