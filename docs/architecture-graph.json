@@ -196,8 +196,8 @@
     ]
   },
   "files": {
-    "architecture.check.mjs": "d7d864b0067391a38e88998b288ae5a64c9a819fd74a4930ad036fd4460d8200",
-    "architecture.mjs": "35aa24cbddc74b06a810d4f4200100fde53b15ad951b9b35ddcf31801792b8d1",
+    "architecture.check.mjs": "712edf41ac0ee3637c1c83e413c68db7dfdb2b5158ea5b8c0762bc84f37ec6f4",
+    "architecture.mjs": "d9c833a2bc8a2fb2f4a62ed44cb0411194c00dcfd2f365501307cfdb4db256e7",
     "asset-catalogue-plugin.ts": "17bec6aa65dd50167fe6c055fb38af453a647f3648a2bf296f9927ed32f7a158",
     "editor/App.tsx": "1959ecf211967dd57842a5e47147360cb2a8e15c047302c6b4896edd24eecea7",
     "editor/ProjectConfirmation.tsx": "07a0fedf8fbf88865b3b8232c8665c139348fc64ebce478ea01e55eb7fd14eff",

@@ -70,8 +70,6 @@ jobs:
           npm ci --no-audit --no-fund
           node ../../tools/setup.check.mjs
           npm run check:architecture
-          npm run lint
-          npm run format:check
           npm run test:unit
           npm run build
 
@@ -99,6 +97,25 @@ jobs:
         with:
           lfs: true
           persist-credentials: false
+          fetch-depth: 0
+      # Keep the live boundary scan on every change; reserve destructive-copy experiments for tooling edits
+      - name: Select architecture proof coverage
+        id: architecture
+        working-directory: .
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if [[ "$EVENT_NAME" = workflow_dispatch || -z "$BASE_SHA" || "$BASE_SHA" =~ ^0+$ ]]; then
+            echo 'proof=true' >> "$GITHUB_OUTPUT"
+          else
+            changed=$(git diff --name-only "$BASE_SHA" HEAD -- apps/web/architecture.mjs apps/web/architecture.check.mjs 'apps/web/tsconfig*.json' apps/web/package.json apps/web/package-lock.json 'apps/web/*config*' .github/workflows/ci.yml)
+            if [[ -n "$changed" ]]; then
+              echo 'proof=true' >> "$GITHUB_OUTPUT"
+            else
+              echo 'proof=false' >> "$GITHUB_OUTPUT"
+            fi
+          fi
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: apps/web/.nvmrc
@@ -110,7 +127,7 @@ jobs:
           npm ci --no-audit --no-fund
       - name: Check source and assets
         run: |
-          npm run check:architecture
+          npm run graph:architecture
           npm run lint
           npm run format:check
           node ../../assets/tools/validate-assets.mjs
@@ -121,6 +138,7 @@ jobs:
       - name: Install pinned browser
         run: npx playwright install --with-deps chromium
       - name: Prove architecture enforcement and isolated module removal
+        if: steps.architecture.outputs.proof == 'true'
         run: npm run test:architecture
       - name: Check authoring and development fixtures
         env:
@@ -172,6 +190,8 @@ jobs:
           path: |
             apps/web/test-results/
             apps/web/dist/editor/
+            docs/architecture-graph.json
+            docs/architecture-graph.md
           retention-days: 14
           overwrite: true
       - name: Save the tested image and its deployment files

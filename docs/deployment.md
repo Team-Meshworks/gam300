@@ -122,6 +122,13 @@ that the sample control loads its project in development and is absent in produc
 The Docker build includes TypeScript checking. Both build modes retain the 500 kB
 JavaScript chunk-budget check.
 
+Lint and formatting run once on Linux. Native Windows and macOS jobs retain setup,
+dependency-boundary, unit and build checks. Module-removal experiments run when
+architecture tooling, package manifests, compiler/build configuration or CI changes,
+and on manual runs. Every run still checks live imports for forbidden dependencies
+and cycles. CI generates the detailed architecture graph as a test artifact; comment
+and line-number changes do not require regenerating a tracked graph to pass.
+
 The recovery check includes place–move–undo–save–reload and JSON transfer into a fresh
 browser context. Its output and the editor check output are retained under `apps/web/test-results/`.
 
