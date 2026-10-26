@@ -5,11 +5,12 @@ PostgreSQL account persistence foundation, project draft schema/access service, 
 administrator provisioning/reset operations. Accounts Part 5 adds explicit login, current-session,
 logout and current-password change to the existing CSRF bootstrap and three administrator
 POSTs. [Accounts Part 7](#scrum-45-part-7-authorized-project-list-and-open) adds protected
-project list/open routes; write and lifecycle routes remain later work.
+project list/open routes. The [backend follow-on](#scrum-6645-protected-save-and-project-lifecycle)
+adds PUT, create/duplicate, assignment and archive/reopen, for fifteen production routes.
 A parsed envelope remains untrusted until `ProjectSaveService` accepts it through
 the shared project validator, the packaged catalogue and current authorization.
 The [Part 5d boundary](#scrum-66-part-5d-validated-document-and-storage-boundary)
-is registered in the application and used by the read routes; production PUT remains later work.
+is registered in the application and used by the read, save and creation routes.
 
 `SaveEnvelopeReader.ReadAsync(HttpRequest, Guid, CancellationToken)` returns a
 `SaveEnvelopeReadResult`. It contains either `Envelope` (a `ParsedSaveEnvelope`) or
@@ -26,8 +27,8 @@ UTF-8 charset and absent or identity content encoding. The reader rejects a UTF-
 It reads at most 6 MiB plus one overflow-detection byte, independently of declared
 Content-Length, and accepts a document of at most 5 MiB in its original UTF-8 JSON
 representation. Internal whitespace counts. Document nesting depth is at most 32,
-with an additional level for the envelope. These are reader limits; a future API
-must also configure and verify its actual HTTP host/proxy limits.
+with an additional level for the envelope. Production PUT applies the matching
+Kestrel limit; deployment must also preserve this contract at its reverse proxy.
 
 Expected failures return fixed status/code/path/message data without authored
 content. Cancellation and stream I/O failures propagate, and the reader leaves the
@@ -76,8 +77,8 @@ The initial build's added IDE0005 warning override required unrelated XML-docume
 generation; that override was removed while retaining the scoped style rules.
 
 The historical reader run above did not exercise PostgreSQL or Identity. The account
-foundation and request-boundary checks below are separate slices. Complete domain
-validation, real account workflows and fresh-browser project persistence remain work.
+foundation and request-boundary checks below are separate historical slices. Later
+sections record domain validation, account workflows and fresh-browser project persistence.
 
 ## Identity and organization persistence foundation
 
@@ -101,8 +102,7 @@ these records atomically.
 pair in Identity's assignments, and permits only Educator or Creator membership.
 Referenced organizations and role assignments cannot be deleted while a membership
 uses them. Organization IDs are UUIDs and names are required with a 256-character
-limit. The project draft schema is described in the SCRUM-66 section below; project
-and lifecycle endpoints remain unimplemented.
+limit. The project draft schema and current project endpoints are described below.
 
 Package pins are Identity EF/EF Core Design **10.0.12** and Npgsql EF **10.0.3**;
 Microsoft EF dependencies resolve to **10.0.12** in the lockfiles. The repository-local
@@ -659,10 +659,11 @@ acceptance remain separate work.
 
 Part 6 adds a separate, explicit acceptance runner; ordinary `dotnet test` does not
 restart Docker or invoke it. It starts the actual Release `Spatia.Server.dll`, uses
-the existing private bootstrap command and eight production routes, and cold-starts
+the existing private bootstrap command and production account/project routes, and cold-starts
 a different API process after restarting only the retained disposable PostgreSQL
 container. It preserves the same generated schema, Data Protection key ring and
-`Testing` environment across that restart. No production test route, dependency,
+`Development` environment across that restart, admitting only the packaged development
+sample assets. No production test route, dependency,
 schema change or product frontend is added. This standalone acceptance replaces the
 old in-process API-rebuild test. Run it after Data Protection/key-storage, account
 persistence or relevant host changes; the ordinary TUnit suite no longer establishes
@@ -707,22 +708,26 @@ migration only with that schema's private search path. The directory has an expl
 current-user Windows ACL and contains a short-lived synthetic PFX plus the retained
 key ring; its random PFX password is passed only in child process environment.
 Bootstrap credentials go through redirected stdin. API/EF output is captured and
-checked privately, and credential sentinels cannot enter the fixed result artifact.
+checked privately, and credential/project-body sentinels cannot enter the fixed result artifact.
 The Node child receives no database or host-secret configuration. TLS checks are
 relaxed only for these loopback synthetic-certificate readiness/browser requests;
 no machine certificate store or trust configuration is changed.
 
 The browser provisions an organization and forced Creator through a real full
 Administrator session. It records exact account/org metadata, retains the admin
-cookie privately, and signals the restart checkpoint. After the old API PID exits,
+cookie privately, creates and assigns a project, and saves an edited fixture through
+the public PUT before signaling the restart checkpoint. After the old API PID exits,
 the exact PostgreSQL container stops/starts and a different API PID is ready, the
 retained browser must recover the same admin session with byte-identical protected
 cookie. The flow remains below the routine renewal interval, proving the same
-absolute-cutoff ticket decrypted using persisted keys. A separate fresh browser
+absolute-cutoff ticket decrypted using persisted keys. The exact saved request must
+replay with its original acknowledgement and revision. A separate fresh browser
 context must initially be anonymous, then sign in to the persisted Creator with
-the same IDs/org/forced state, change its initial password, log out and lose access.
+the same IDs/org/forced state, change its initial password, list and reopen the complete
+saved project at the acknowledged revision/time, then log out and lose access.
 Another fresh context rejects the temporary password and signs in with the
-replacement password. Cookie attributes and empty browser token storage are checked.
+replacement password. Cookie attributes, empty local/session storage, no IndexedDB
+databases and no Cache Storage entries are checked.
 Existing TUnit tests retain the separate lockout/expiry/stamp/CSRF and race coverage;
 this acceptance does not duplicate those cases or claim a product UI.
 
@@ -1580,6 +1585,115 @@ original stopped state with its volume retained; Docker Desktop remained running
 as found. Earlier account/restart evidence is preserved. Hosted CI and a new cold
 restart were not run for this slice.
 
-PUT, create/duplicate, assignment/archive writers, protected asset delivery and the
-SCRUM-126 project-home UI remain separate work. Full SCRUM-45/69 and SCRUM-66 acceptance
-also requires server-save/recovery integration and saved-project restart evidence.
+At the Part 7 checkpoint, PUT, lifecycle writers and saved-project restart evidence
+were still outstanding; the following section records their backend implementation.
+Protected asset delivery and the SCRUM-126/SCRUM-67 frontend work remain separate.
+
+## SCRUM-66/45: protected save and project lifecycle
+
+The production PUT now connects `SaveEnvelopeReader`, `ProjectSaveService` and
+`ProjectHttpResults` under FullAccount, CSRF and the 6 MiB request limit. It returns
+only committed save acknowledgements. Existing transport/security tests now exercise
+that actual route and inspect persisted revisions, replacing the parsing-only probe.
+The global concurrency limit applies; the 20/minute account-write limit is reserved
+for account and lifecycle operations so it does not throttle one-second autosave.
+
+Four lifecycle routes share FullAccount, CSRF and AccountWrite protection:
+
+| Route | Request and result |
+| --- | --- |
+| `POST /api/projects` | Required bounded `title`, exactly one of `environmentAssetId` or complete `document`, and optional `orgId`; returns 201 metadata. |
+| `POST /api/projects/{id}/duplicate` | Required integer `expectedRevision` and bounded `title`; returns 201 independent-copy metadata. |
+| `PATCH /api/projects/{id}/assignments` | Required integer `expectedRevision`, `managedByUserIds`, `assignedCreatorIds`, `canPublishUserIds`; replaces the complete assignment set and returns 200 metadata. |
+| `PATCH /api/projects/{id}/archive` | Required integer `expectedRevision` and boolean `archived`; true archives, false reopens; returns 200 metadata. |
+
+Metadata is exactly `{projectId,revision,updatedAt,archived}`. Titles are raw,
+non-whitespace, 1–256 UTF-16 units without NUL. Native required JSON binding rejects
+missing, duplicate, unknown and wrongly typed fields; integer revisions are strict
+JSON numbers in the existing safe range. All responses are no-store. Creation shares
+the 6 MiB transport cap and validates original/normalized imported documents against
+the 5 MiB budget; the other lifecycle routes retain 16 KiB. Validation errors expose
+fixed messages, never authored text or account details. Wrapped PostgreSQL insert
+failures now use the existing safe `503 storage_unavailable` mapping.
+
+Create derives organization from current membership; a supplied different organization
+is forbidden. Global Administrators explicitly select an active organization. A blank
+project uses an approved environment asset and the editor's v1 room/camera structure;
+imports preserve supported v1/v2 content. Imported authority is rejected. Server-owned
+project IDs, revision 0 and initial assignments commit together. A Creator gets edit
+only; an Educator gets edit/manage/publish; a global Administrator needs no assignment.
+
+Duplicate locks and reauthorizes an editable, nonarchived source at the requested
+revision. It validates stored content, replaces only the top-level project ID/title,
+preserves internal IDs/references and independently serializes the new draft in the
+source organization. Initial authority is derived anew; source assignments, publishing
+grants and retry history are not copied. The source is unchanged, including its revision.
+
+Assignment/archive writers use the same row lock as PUT and duplication. Assignment
+arrays contain at most 100 distinct nonempty UUIDs each: active same-org Educators are
+managers, active same-org Creators are editors, and publishers are a subset of those
+Creators. A newly provisioned user may be assigned before changing the temporary
+password. Full replacement may remove the caller's management assignment. Invalid
+accounts produce fixed `422 invalid_project_assignments`; foreign/inaccessible project
+IDs remain indistinguishable from missing ones.
+
+Each successful metadata request advances the common revision/time and clears all
+three remembered-save fields, even when the requested archive state is unchanged.
+Stale requests return an authorized 409, and maximum revisions reject metadata changes.
+The source at maximum revision can still be duplicated into a new revision-0 project.
+Archived projects retain permitted reads/management, but saves, duplication, assignment
+changes and publishing permission are blocked. Reopen derives permissions from current
+assignments. Metadata operations never replace or erase the document.
+
+Creation/duplication have no idempotency key; an uncertain response requires inspecting
+the project list before making another copy. Metadata uncertainty requires reopening
+before selecting a new revision. PUT retains its exact-latest retry protocol. Every
+operation checks the original session cutoff before and after commit; a failure after
+commit can be durable without an acknowledgement.
+
+Publication storage/delivery is not implemented in this slice. Its defined policy is
+to deny archived-project publication/asset retrieval without erasing snapshots. Reopen
+removes only that restriction and does not undo independent revocation/audience policy.
+The future publication consumer must check the existing archive flag. This is a policy
+handoff, not evidence of publication integration.
+
+Focused verification on **26 October 2026** passed **8/8** PUT route cases, **13/13**
+production transport/security cases, **21/21** lifecycle cases and the **15-route**
+policy inventory. Lifecycle coverage includes v1/v2 import/copy integrity, real admin
+provisioning/reassignment and student isolation, malformed/oversized inputs, archive
+and exhausted revisions, rollback and expiry, and four controlled PostgreSQL lock
+races between saves and assignment/archive operations in both commit orders.
+
+The extended standalone restart acceptance passed in **19.727s**. The real Release
+API changed PID **56716 → 49540** across the exact disposable PostgreSQL 18.6 restart,
+preserving the schema, volume and key ring. All five browser markers passed: retained
+session, committed-save retry, fresh-browser project reopen, account lifecycle and
+replacement-password durability. It used Development catalogue policy, Node 24.19.0,
+Playwright 1.63.0 and Chromium 153.0.8010.12. The fresh authorized context had no local
+or session data, IndexedDB databases or Cache Storage entries. Its complete document,
+revision, saved timestamp and computed permissions matched the committed API result.
+
+Nonsecret restart evidence is `.artifacts/restart-acceptance-71093b57911948098622939d915d08b3.json`.
+It records removed temporary keys/schema, no retained child processes and no cleanup
+failures. Focused TRX/HTML directories under `test-results/` are `scrum66-put-corrected`,
+`scrum66-put-limits`, `scrum45-lifecycle-corrected` and `scrum45-lifecycle-routes`.
+Initial lifecycle reports preserve the oversized-upload client-reset fixture failure
+and a CSRF error-code expectation mismatch; corrected runs passed without relaxing
+server limits or authorization.
+
+The final full backend regression passed **530/530**, zero failed/skipped, in
+**3m 16.617s**. Independent TRX inspection confirmed all new route/lifecycle cases,
+31 save-service cases, 50 access/locking cases and both existing Chromium flows.
+Final Release build had zero warnings/errors; both formatting verifications and
+`git diff --check` passed. Full TRX/HTML and the two browser-version outputs are in
+`test-results/scrum66-45-backend-full/`. Unchanged dependencies, model and web/shared
+code retain the earlier same-session checks; those passing checks were not repeated.
+
+Final independent cleanup found `spatia_scrum45_test|0|0` (zero owned fixture schemas
+and zero public tables), with no HTTPS/restart temporary directories. The exact owned
+container was returned to its original stopped state, retaining its original volume;
+Docker Desktop stayed as found. The earlier 439-file evidence archive remained intact.
+
+SCRUM-126 project-home UI, SCRUM-67 autosave/recovery integration, publication/asset
+delivery, hosted CI and deployment remain separate. Production still has no approved
+asset catalogue. These backend checks do not complete parent Story/Epic acceptance.

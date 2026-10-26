@@ -209,8 +209,8 @@ public static class SpatiaApplication
         app.MapAccountAdministration();
         app.MapAccountSessions();
         app.MapProjectReads();
-        // TODO: Map PUT to ProjectSaveService with RequestSizeLimitAttribute(SaveEnvelopeReader.MaxRequestBytes)
-        // TODO: Wire ProjectHttpResults into PUT with the existing authorization and request-security policies
+        app.MapProjectSaves();
+        app.MapProjectLifecycle();
         return app;
     }
 

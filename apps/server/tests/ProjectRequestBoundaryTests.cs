@@ -2,10 +2,9 @@ using System.IO.Compression;
 using System.Net;
 using System.Text;
 using System.Text.Json;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
-using Spatia.Server.Hosting;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Spatia.Server.Persistence;
 using Spatia.Server.Projects;
 
 namespace Spatia.Server.Tests;
@@ -15,23 +14,21 @@ public sealed class ProjectRequestBoundaryTests
 {
     private const string ProjectId = "11111111-1111-4111-8111-111111111111";
     private const string BodyMarker = "private-envelope-body-not-for-logs";
-    private const string ProbePath = "/_test/project-envelope/" + ProjectId;
+    private const string SavePath = "/api/projects/" + ProjectId;
     private const int RequestLimit = 6 * 1024 * 1024;
     private const int DocumentLimit = 5 * 1024 * 1024;
-    private static readonly string Document = $$"""{"projectId":"{{ProjectId}}","title":"{{BodyMarker}}"}""";
+    private static readonly string Document = ProjectTestDocuments.Create(Guid.Parse(ProjectId), BodyMarker);
 
     // Kestrel counts the single six-digit chunk's 15 framing bytes against its transport limit
     [Test]
-    [Arguments(RequestLimit, false, HttpStatusCode.NoContent)]
-    [Arguments(RequestLimit - 15, true, HttpStatusCode.NoContent)]
+    [Arguments(RequestLimit, false, HttpStatusCode.OK)]
+    [Arguments(RequestLimit - 15, true, HttpStatusCode.OK)]
     [Arguments(RequestLimit + 1, false, HttpStatusCode.RequestEntityTooLarge)]
     [Arguments(RequestLimit - 14, true, HttpStatusCode.RequestEntityTooLarge)]
     public async Task RequestLimits_EndpointMetadataAndReaderShareTheSixMiBBoundary(
         int bytes, bool chunked, HttpStatusCode status)
     {
-        var calls = 0;
-        await using var fixture = await CreateFixtureAsync(() => calls++);
-        await fixture.SignInAsync(await fixture.CreateAccountAsync());
+        await using var fixture = await CreateFixtureAsync();
         using var request = CreateRequest(Encoding.UTF8.GetBytes(Envelope(Document).PadRight(bytes)),
             await fixture.GetCsrfAsync(), chunked);
         // Receive a declared-length rejection before starting an upload the server will close
@@ -41,17 +38,15 @@ public sealed class ProjectRequestBoundaryTests
 
         await AssertResponseAsync(fixture, response, status,
             status == HttpStatusCode.RequestEntityTooLarge ? "request_too_large" : null);
-        await Assert.That(calls).IsEqualTo(bytes > RequestLimit ? 0 : 1);
+        await AssertStoredRevisionAsync(fixture, status == HttpStatusCode.OK ? 1 : 0);
     }
 
     [Test]
-    [Arguments(0, HttpStatusCode.NoContent)]
+    [Arguments(0, HttpStatusCode.OK)]
     [Arguments(1, HttpStatusCode.RequestEntityTooLarge)]
     public async Task RequestLimits_DocumentBudgetRemainsFiveMiBInsideTheLargerEnvelope(int overflow, HttpStatusCode status)
     {
-        var calls = 0;
-        await using var fixture = await CreateFixtureAsync(() => calls++);
-        await fixture.SignInAsync(await fixture.CreateAccountAsync());
+        await using var fixture = await CreateFixtureAsync();
         var document = Document.Insert(1, new string(' ', DocumentLimit + overflow - Document.Length));
         using var request = CreateRequest(Encoding.UTF8.GetBytes(Envelope(document)), await fixture.GetCsrfAsync());
 
@@ -59,15 +54,13 @@ public sealed class ProjectRequestBoundaryTests
 
         await AssertResponseAsync(fixture, response, status,
             status == HttpStatusCode.RequestEntityTooLarge ? "document_too_large" : null);
-        await Assert.That(calls).IsEqualTo(1);
+        await AssertStoredRevisionAsync(fixture, status == HttpStatusCode.OK ? 1 : 0);
     }
 
     [Test]
     public async Task RequestLimits_CompressedOversizedInputIsRejectedWithoutDecompression()
     {
-        var calls = 0;
-        await using var fixture = await CreateFixtureAsync(() => calls++);
-        await fixture.SignInAsync(await fixture.CreateAccountAsync());
+        await using var fixture = await CreateFixtureAsync();
         using var compressed = new MemoryStream();
         using (var gzip = new GZipStream(compressed, CompressionLevel.Fastest, leaveOpen: true))
         {
@@ -80,7 +73,7 @@ public sealed class ProjectRequestBoundaryTests
         using var response = await fixture.Client.SendAsync(request);
 
         await AssertResponseAsync(fixture, response, HttpStatusCode.UnsupportedMediaType, "unsupported_content_encoding");
-        await Assert.That(calls).IsEqualTo(1);
+        await AssertStoredRevisionAsync(fixture, 0);
     }
 
     [Test]
@@ -90,30 +83,23 @@ public sealed class ProjectRequestBoundaryTests
     public async Task RequestLimits_LargerEndpointBudgetDoesNotBypassSessionOrCsrf(
         string scenario, HttpStatusCode status, string code)
     {
-        var calls = 0;
-        await using var fixture = await CreateFixtureAsync(() => calls++);
-        if (scenario != "anonymous")
-        {
-            await fixture.SignInAsync(await fixture.CreateAccountAsync(forced: scenario == "forced"));
-        }
+        await using var fixture = await CreateFixtureAsync(scenario);
         using var request = CreateRequest(Encoding.UTF8.GetBytes(Envelope(Document).PadRight(32 * 1024)),
             scenario == "csrf" ? null : await fixture.GetCsrfAsync());
 
         using var response = await fixture.Client.SendAsync(request);
 
         await AssertResponseAsync(fixture, response, status, code);
-        await Assert.That(calls).IsEqualTo(0);
+        await AssertStoredRevisionAsync(fixture, 0);
     }
 
     [Test]
     [Arguments("POST", "/api/auth/login")]
-    [Arguments("POST", ProbePath)]
-    [Arguments("PUT", "/api/projects/" + ProjectId)]
-    public async Task RequestLimits_AccountWrongMethodAndUnmappedProjectKeepTheSixteenKiBDefault(string method, string path)
+    [Arguments("POST", SavePath)]
+    [Arguments("PUT", "/api/projects/not-a-project-id")]
+    public async Task RequestLimits_AccountWrongMethodAndUnmappedPathKeepTheSixteenKiBDefault(string method, string path)
     {
-        var calls = 0;
-        await using var fixture = await CreateFixtureAsync(() => calls++);
-        await fixture.SignInAsync(await fixture.CreateAccountAsync());
+        await using var fixture = await CreateFixtureAsync();
         using var request = CreateRequest(Encoding.UTF8.GetBytes(Envelope(Document).PadRight(16 * 1024 + 1)),
             await fixture.GetCsrfAsync());
         request.Method = new HttpMethod(method);
@@ -122,27 +108,56 @@ public sealed class ProjectRequestBoundaryTests
         using var response = await fixture.Client.SendAsync(request);
 
         await AssertResponseAsync(fixture, response, HttpStatusCode.RequestEntityTooLarge, "request_too_large");
-        await Assert.That(calls).IsEqualTo(0);
+        await AssertStoredRevisionAsync(fixture, 0);
     }
 
-    private static Task<HttpsApplicationFixture> CreateFixtureAsync(Action entered) =>
-        HttpsApplicationFixture.CreateAsync(map: app =>
-            app.MapPut("/_test/project-envelope/{id:guid}", async (HttpContext context, Guid id) =>
+    private static async Task<HttpsApplicationFixture> CreateFixtureAsync(string scenario = "full")
+    {
+        var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
+        try
+        {
+            var actor = await fixture.CreateAccountAsync(forced: scenario == "forced");
+            await using var scope = fixture.Database.Services.CreateAsyncScope();
+            var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var id = Guid.Parse(ProjectId);
+            database.Projects.Add(new Project
             {
-                entered();
-                // This probe parses the envelope only; SCRUM-50 acceptance and saving remain unwired
-                var result = await SaveEnvelopeReader.ReadAsync(context.Request, id, context.RequestAborted);
-                return result.Error is { } error
-                    ? ApiProblems.Create(context, error.StatusCode, error.Code, error.Message)
-                    : Results.NoContent();
-            }).WithMetadata(new RequestSizeLimitAttribute(SaveEnvelopeReader.MaxRequestBytes)));
+                Id = id,
+                OrganizationId = await database.Organizations.Select(row => row.Id).SingleAsync(),
+                SchemaVersion = 1,
+                DocumentJson = Document,
+                UpdatedAt = DateTimeOffset.UnixEpoch,
+            });
+            database.ProjectAssignments.Add(new ProjectAssignment { ProjectId = id, UserId = actor, CanEdit = true });
+            await database.SaveChangesAsync();
+            if (scenario != "anonymous")
+            {
+                await fixture.SignInAsync(actor);
+            }
+            return fixture;
+        }
+        catch
+        {
+            await fixture.DisposeAsync();
+            throw;
+        }
+    }
+
+    private static async Task AssertStoredRevisionAsync(HttpsApplicationFixture fixture, long expected)
+    {
+        await using var scope = fixture.Database.Services.CreateAsyncScope();
+        var project = await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().Projects.SingleAsync();
+        await Assert.That(project.Revision).IsEqualTo(expected);
+        using var stored = JsonDocument.Parse(project.DocumentJson);
+        await Assert.That(stored.RootElement.GetProperty("title").GetString()).IsEqualTo(BodyMarker);
+    }
 
     private static string Envelope(string document) =>
         $$"""{"expectedRevision":0,"clientMutationId":"44444444-4444-4444-8444-444444444444","document":{{document}}}""";
 
     private static HttpRequestMessage CreateRequest(byte[] body, string? token, bool chunked = false)
     {
-        var request = new HttpRequestMessage(HttpMethod.Put, ProbePath)
+        var request = new HttpRequestMessage(HttpMethod.Put, SavePath)
         {
             Version = HttpVersion.Version11,
             VersionPolicy = HttpVersionPolicy.RequestVersionExact,

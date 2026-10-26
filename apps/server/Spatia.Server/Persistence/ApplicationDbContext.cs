@@ -105,7 +105,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             {
                 table.HasCheckConstraint("CK_projects_revision", "revision BETWEEN 0 AND 9007199254740991");
                 table.HasCheckConstraint("CK_projects_schema_version", "schema_version > 0");
-                // TODO: Apply SCRUM-50 supported-version and field/reference validation before writes; this check only binds metadata
+                // The document boundary validates content before writes; this constraint also binds its stored metadata
                 table.HasCheckConstraint("CK_projects_document", """
                     (
                         jsonb_typeof(document) = 'object'

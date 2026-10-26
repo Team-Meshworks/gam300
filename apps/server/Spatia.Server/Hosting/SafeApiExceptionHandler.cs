@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.EntityFrameworkCore;
 using Npgsql;
 
 namespace Spatia.Server.Hosting;
@@ -24,6 +25,7 @@ public sealed class SafeApiExceptionHandler(ILogger<SafeApiExceptionHandler> log
         (int Status, string Code, string Title) failure = exception switch
         {
             NpgsqlException or TimeoutException
+                or DbUpdateException { InnerException: NpgsqlException or TimeoutException }
                 or InvalidOperationException { InnerException: NpgsqlException or TimeoutException }
                 => (503, "storage_unavailable", "Storage is unavailable"),
             BadHttpRequestException { StatusCode: 413 } => (413, "request_too_large", "The request is too large"),

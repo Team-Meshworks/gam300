@@ -240,6 +240,14 @@ public sealed class ProjectAccessService(
         return ProjectAccessResult.Granted(snapshot);
     }
 
+    internal async Task<CurrentAccount?> ResolveCurrentAccountAsync(HttpContext context, CancellationToken cancellationToken)
+    {
+        var session = GetSession(context);
+        if (session is null) { return null; }
+        var account = await accounts.ResolveAsync(session.UserId, session.SecurityStamp, cancellationToken);
+        return HasExpired(session) ? null : account;
+    }
+
     private ValidatedAccountSession? GetSession(HttpContext context)
     {
         var session = context.Features.Get<ValidatedAccountSession>();

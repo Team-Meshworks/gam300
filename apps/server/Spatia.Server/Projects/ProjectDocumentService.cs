@@ -55,7 +55,12 @@ public sealed class ProjectDocumentService
     /// <summary>
     /// Checks original upload bytes, complete content, asset references and route identity
     /// </summary>
-    public FormatResult<IAuthoredProject> Read(Guid projectId, string json) => Bind(projectId, Format.Deserialize(json, _assets));
+    public FormatResult<IAuthoredProject> Read(Guid projectId, string json) => Bind(projectId, Read(json));
+
+    /// <summary>
+    /// Validates an imported document before creation assigns a new server-owned project identifier
+    /// </summary>
+    public FormatResult<IAuthoredProject> Read(string json) => Format.Deserialize(json, _assets);
 
     /// <summary>
     /// Reconstructs stored jsonb without treating PostgreSQL's whitespace and numeric expansion as upload bytes

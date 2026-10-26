@@ -48,7 +48,6 @@ public sealed class Project
     /// <summary>
     /// Gets or sets the actor associated with the latest remembered mutation, or null when absent
     /// </summary>
-    // TODO: Have SCRUM-69 clear this slot on metadata revisions so retries cannot acknowledge unrelated edits
     public Guid? LastMutationActorId { get; set; }
 
     /// <summary>
