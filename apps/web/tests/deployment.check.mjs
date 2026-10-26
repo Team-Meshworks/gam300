@@ -27,6 +27,11 @@ try {
   assert.ok(
     await asset.locator("img").evaluate((image) => image.complete && image.naturalWidth > 0),
   );
+  // Fresh projects require an environment before model placement can change the document
+  await asset.click();
+  assert.equal(await page.locator(".object-row").count(), 0);
+  await page.getByRole("alert").filter({ hasText: "Choose a room first" }).waitFor();
+  await page.getByRole("button", { name: "Add test-room", exact: true }).click();
   await asset.click();
   assert.equal(await page.locator(".object-row").count(), 1);
   if (process.env.CHECK_SCREENSHOT) {
@@ -34,13 +39,23 @@ try {
   }
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   assert.equal(await page.locator(".object-row").count(), 0);
-  await page.getByRole("button", { name: "Add test-room", exact: true }).click();
   await asset.click();
   const originalPosition = await page.getByLabel("Selected position").textContent();
   // No more move buttons, so nudge through the Position panel then go back to the tree
   await page.getByRole("button", { name: "Position", exact: true }).click();
   const field = page.getByRole("textbox", { name: /transform X \(m\)$/ });
-  await field.fill(String(Number(await field.inputValue()) + 0.25));
+  // Compare saved movement with the actual starting pose, independent of placement defaults
+  const expectedPosition = await Promise.all(
+    ["X", "Y", "Z"].map(async (axis) =>
+      Number(
+        await page
+          .getByRole("textbox", { name: new RegExp(`transform ${axis} \\(m\\)$`) })
+          .inputValue(),
+      ),
+    ),
+  );
+  expectedPosition[0] += 0.25;
+  await field.fill(String(expectedPosition[0]));
   await field.press("Enter");
   await page.getByRole("button", { name: "Scene tree", exact: true }).click();
   const movedPosition = await page.getByLabel("Selected position").textContent();
@@ -58,7 +73,7 @@ try {
   const project = JSON.parse(bytes.toString("utf8"));
   assert.equal(project.scenes[0].environmentAssetId, "test-room-v1");
   assert.equal(project.scenes[0].objects.length, 1);
-  assert.deepEqual(project.scenes[0].objects[0].transform.position, [0.25, 0, 0]);
+  assert.deepEqual(project.scenes[0].objects[0].transform.position, expectedPosition);
   // Save finishes its recovery write before restoring the file-status label
   await page.getByText("Not saved", { exact: true }).waitFor();
   await page.reload();

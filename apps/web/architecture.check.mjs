@@ -152,6 +152,15 @@ try {
   const root = copy("violations");
   const projectFile = "shared/project/project-types.ts";
   const original = readFileSync(resolve(root, projectFile), "utf8");
+  // A harmless comment changes source hashes without changing any dependency boundary
+  writeFileSync(
+    resolve(root, projectFile),
+    original + "\n// Comment-only architecture regression\n",
+  );
+  const commentOnly = command(root, ["architecture.mjs"]);
+  assert.equal(commentOnly.status, 0, commentOnly.output);
+  writeFileSync(resolve(root, projectFile), original);
+
   const configPath = resolve(root, "tsconfig.app.json");
   const config = readFileSync(configPath, "utf8");
   const cases = [
