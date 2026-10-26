@@ -1,5 +1,11 @@
 import { validateCameraPose, validateTransform } from "../shared/project/spatial-validation";
-import { invalid } from "../shared/project/validation-helpers";
+import { freezeValidatedData, invalid } from "../shared/project/validation-helpers";
+import { validateProject } from "../shared/project/project-validation";
+import type {
+  ContentObject,
+  ContentProject,
+  ContentScene,
+} from "../shared/project/project-content";
 import type { Transform, NamedViewpoint, CameraPose } from "../shared/project/project-types";
 import { prepareTransformCommand } from "./transform-command";
 import { createCommandHistory, type EditCommand } from "./command-history";
@@ -10,31 +16,30 @@ import { deserializeProject } from "../shared/project/project-deserialization";
 import type { ProjectDocument, ProjectScene } from "../shared/project/project-types";
 import type { ValidationResult } from "../shared/project/validation-helpers";
 
+function toContentProject(project: ProjectDocument): ContentProject {
+  if (project.schemaVersion === 2) return project;
+  return {
+    ...project,
+    schemaVersion: 2,
+    scenes: project.scenes.map((scene) => ({
+      ...scene,
+      groups: [],
+      zones: [],
+      viewpoints: [],
+      rules: [],
+      objects: scene.objects.map((object) => ({
+        ...object,
+        parentId: null,
+        visible: true,
+        components: [],
+      })),
+    })),
+  };
+}
+
 function freezeProject(project: ProjectDocument): ProjectDocument {
   // Freeze the reader's separate copy before exposing it to panels or commands
-  for (const scene of project.scenes) {
-    for (const object of scene.objects) {
-      Object.freeze(object.transform.position);
-      Object.freeze(object.transform.rotation);
-      Object.freeze(object.transform.scale);
-      Object.freeze(object.transform);
-      Object.freeze(object);
-    }
-    for (const view of scene.viewpoints ?? []) {
-      Object.freeze(view.camera.position);
-      Object.freeze(view.camera.rotation);
-      Object.freeze(view.camera);
-      Object.freeze(view);
-    }
-    if (scene.viewpoints) Object.freeze(scene.viewpoints);
-    Object.freeze(scene.objects);
-    Object.freeze(scene.startCamera.position);
-    Object.freeze(scene.startCamera.rotation);
-    Object.freeze(scene.startCamera);
-    Object.freeze(scene);
-  }
-  Object.freeze(project.scenes);
-  return Object.freeze(project);
+  return freezeValidatedData(project);
 }
 
 export type TransformSession = Readonly<{
@@ -46,10 +51,12 @@ export type TransformSession = Readonly<{
 
 export function createDocumentStore(assets: readonly CatalogueAsset[]) {
   let objects: readonly SceneObject[] = Object.freeze([]);
+
   // The current grid-only editor has no environment-backed project at startup
   // Choosing a room creates the project; imports can supply one directly
   let project: ProjectDocument | null = null;
   let projectAssets: ReadonlyMap<string, string> = new Map();
+
   // Keep history here so the buttons and future edit controls share one undo order.
   type State = {
     project: ProjectDocument | null;
@@ -76,7 +83,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
         current.project.scenes.map((s) => (s.id === scene.id ? Object.freeze(scene) : s)),
       ),
     });
-    return fromProject(document, scene.id);
+    return fromProject(document as ProjectDocument, scene.id);
   }
   function withObjects(current: State, next: readonly SceneObject[]): State {
     const scene = current.project?.scenes.find((s) => s.id === current.activeSceneId);
@@ -101,11 +108,14 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
   let clipboard: SceneObject | null = null;
   let pasteCount = 0;
   const listeners = new Set<() => void>();
+
   // Preview data stays outside the saved document and undo history.
   let edit: TransformSession | null = null;
   const editListeners = new Set<() => void>();
   function clearEdit() {
-    if (edit === null) return;
+    if (edit === null) {
+      return;
+    }
     edit = null;
     editListeners.forEach((listener) => listener());
   }
@@ -125,6 +135,24 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
     project = state.project;
   }
 
+  function checkContentObjects(next: readonly SceneObject[]): ValidationResult<true> {
+    // Validate the proposed document before a command changes either objects or undo history
+    if (project?.schemaVersion !== 2) {
+      return { ok: true, value: true };
+    }
+    // Recheck the whole project because a local object edit can affect parents and rule targets
+    const checked = validateProject(
+      {
+        ...project,
+        scenes: project.scenes.map((s) =>
+          s.id === state.activeSceneId ? { ...s, objects: next } : s,
+        ),
+      },
+      projectAssets,
+    );
+    return checked.ok ? { ok: true, value: true } : checked;
+  }
+
   function publish() {
     snapshot = Object.freeze({
       objects,
@@ -140,11 +168,18 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
     input: unknown,
   ): ValidationResult<{ changed: boolean; object: SceneObject }> {
     const result = prepareTransformCommand(objects, input);
-    if (!result.ok) return result;
+    if (!result.ok) {
+      return result;
+    }
     const { command, object } = result.value;
     if (command === null) {
       clearEdit();
       return { ok: true, value: { changed: false, object } };
+    }
+    // Try the proposed result before executing the command so rejection leaves Undo untouched
+    const checked = checkContentObjects(command.apply(objects));
+    if (!checked.ok) {
+      return checked;
     }
     replaceObjects(executeObjects(objects, command));
     clearEdit();
@@ -153,14 +188,21 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
   }
 
   function insertCopy(source: SceneObject, offset: number): ValidationResult<SceneObject> {
+    // Attached components need their own stable ID and reference remapping
+    if (project?.schemaVersion === 2 && (source as ContentObject).components?.length) {
+      return invalid("objectId", "This object's attached content cannot be copied safely");
+    }
     const asset = assets.find((entry) => entry.id === source.assetId);
     if (
       !asset ||
       (project !== null && (asset.kind !== "model" || projectAssets.get(asset.id) !== "model"))
-    )
+    ) {
       return invalid("assetId", "This asset is not available in this project");
-    if (objects.length >= 200)
+    }
+    if (objects.length >= 200) {
       return invalid("objects", "This scene has reached its 200-object limit");
+    }
+    // Validate the offset before allocating a new identity or changing the history cursor
     const [x, y, z] = source.transform.position;
     const checked = validateTransform(
       {
@@ -169,18 +211,34 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       },
       "transform",
     );
-    if (!checked.ok) return checked;
+    if (!checked.ok) {
+      return checked;
+    }
     const transform = checked.value;
     Object.freeze(transform.position);
     Object.freeze(transform.rotation);
     Object.freeze(transform.scale);
-    // Copy only today's object fields; attached content will need its own ID remapping later.
+
+    // Content-free copies retain their authored visibility and parent membership
     const object: SceneObject = Object.freeze({
+      ...source,
       id: crypto.randomUUID(),
       name: source.name,
       assetId: source.assetId,
       transform: Object.freeze(transform),
+      ...(project?.schemaVersion === 2
+        ? {
+            parentId: (source as ContentObject).parentId ?? null,
+            visible: (source as ContentObject).visible ?? true,
+            components: Object.freeze([]),
+          }
+        : {}),
     });
+    // Confirm the copied parent and all remaining references still form a valid document
+    const validCopy = checkContentObjects([...objects, object]);
+    if (!validCopy.ok) {
+      return validCopy;
+    }
     replaceObjects(
       executeObjects(objects, {
         label: "Copy object",
@@ -196,22 +254,20 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
   function editViews(next: readonly NamedViewpoint[]): ValidationResult<true> {
     if (!project) return invalid("project", "Create a scene first");
     const scene = project.scenes.find((s) => s.id === state.activeSceneId)!;
-    // Deleting the starting view keeps its pose, but removes the dangling reference.
-    const updated = { ...scene, viewpoints: next };
-    if (updated.startViewpointId && !next.some((v) => v.id === updated.startViewpointId))
-      delete updated.startViewpointId;
+    if (next.some((v) => !v.name.trim() || v.name.length > 120))
+      return invalid("name", "Enter a viewpoint name between 1 and 120 characters");
+    const content = toContentProject(project);
+    const updated = { ...content.scenes.find((s) => s.id === scene.id)!, viewpoints: next };
+    // The first capture supplies an initial camera; later ordering never changes it.
+    if (!scene.viewpoints?.length && next.length) updated.startCamera = next[0]!.camera;
     return commitProject(
-      { ...project, scenes: project.scenes.map((s) => (s.id === scene.id ? updated : s)) },
+      { ...content, scenes: content.scenes.map((s) => (s.id === scene.id ? updated : s)) },
       scene.id,
       "Edit viewpoints",
     );
   }
 
-  function commitProject(
-    next: ProjectDocument,
-    active: string,
-    label: string,
-  ): ValidationResult<true> {
+  function commitProject(next: unknown, active: string, label: string): ValidationResult<true> {
     const checked = deserializeProject(JSON.stringify(next), projectAssets);
     if (!checked.ok) return checked;
     if (JSON.stringify(project) === JSON.stringify(checked.value)) return { ok: true, value: true };
@@ -234,7 +290,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
         }),
       ),
     });
-    executeState(fromProject(shared, active), label);
+    executeState(fromProject(shared as ProjectDocument, active), label);
     replaceObjects(state.objects);
     clearEdit();
     publish();
@@ -242,13 +298,19 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
   }
 
   return {
-    createScene(name: string): ValidationResult<true> {
+    createScene(
+      name: string,
+      environmentAssetId = project?.scenes.find((s) => s.id === state.activeSceneId)
+        ?.environmentAssetId ??
+        assets.find((a) => a.kind === "environment")?.id ??
+        "",
+    ): ValidationResult<true> {
       if (!name.trim() || name.trim().length > 120)
         return invalid("name", "Enter a scene name between 1 and 120 characters");
-      const scene: ProjectScene = {
+      const scene: ContentScene = {
         id: crypto.randomUUID(),
         name: name.trim(),
-        environmentAssetId: null,
+        environmentAssetId,
         startCamera: {
           position: [12, 16, 18],
           rotation: [
@@ -256,13 +318,17 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
           ],
           fovDegrees: 40,
         },
-        objects: project ? [] : objects,
+        objects: [],
+        groups: [],
+        zones: [],
+        viewpoints: [],
+        rules: [],
       };
-      projectAssets = new Map(assets.map((a) => [a.id, a.kind]));
+      if (!project) projectAssets = new Map(assets.map((a) => [a.id, a.kind]));
       if (!project) {
         // The first scene starts a document; there must always be at least one scene.
         const document: ProjectDocument = {
-          schemaVersion: 1,
+          schemaVersion: 2,
           projectId: crypto.randomUUID(),
           title: "Untitled project",
           scenes: [scene],
@@ -274,7 +340,10 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
         state = fromProject(project, scene.id);
         const upgrade = (entry: State) =>
           fromProject(
-            freezeProject({ ...project!, scenes: [{ ...scene, objects: entry.objects }] }),
+            freezeProject({
+              ...toContentProject(project!),
+              scenes: [{ ...scene, objects: entry.objects as readonly ContentObject[] }],
+            }),
             scene.id,
           );
         history.restoreStates(state, previous.past.map(upgrade), previous.future.map(upgrade));
@@ -284,7 +353,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
         return { ok: true, value: true };
       }
       return commitProject(
-        { ...project, scenes: [...project.scenes, scene] },
+        { ...toContentProject(project), scenes: [...toContentProject(project).scenes, scene] },
         scene.id,
         "Create scene",
       );
@@ -298,7 +367,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
         {
           ...project,
           scenes: project.scenes.map((s) =>
-            s.id === scene.id ? { ...s, startViewpointId: view.id, startCamera: view.camera } : s,
+            s.id === scene.id ? { ...s, startCamera: view.camera } : s,
           ),
         },
         scene.id,
@@ -400,21 +469,30 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
     },
     copyObject(objectId: string): ValidationResult<SceneObject> {
       const object = objects.find((entry) => entry.id === objectId);
-      if (!object) return invalid("objectId", "Select an object to copy");
+      if (!object) {
+        return invalid("objectId", "Select an object to copy");
+      }
       clipboard = object;
       pasteCount = 0;
       return { ok: true, value: object };
     },
     pasteObject(): ValidationResult<SceneObject> {
-      if (!clipboard) return invalid("clipboard", "Copy an object first");
+      if (!clipboard) {
+        return invalid("clipboard", "Copy an object first");
+      }
+
       // Spread repeated pastes out rather than stacking them in the same spot.
       const result = insertCopy(clipboard, (pasteCount + 1) * 0.5);
-      if (result.ok) pasteCount++;
+      if (result.ok) {
+        pasteCount++;
+      }
       return result;
     },
     duplicateObject(objectId: string): ValidationResult<SceneObject> {
       const object = objects.find((entry) => entry.id === objectId);
-      if (!object) return invalid("objectId", "Select an object to duplicate");
+      if (!object) {
+        return invalid("objectId", "Select an object to duplicate");
+      }
       return insertCopy(object, 0.5);
     },
     getTransformEdit: () => edit,
@@ -426,7 +504,10 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
     },
     beginTransform(objectId: string): ValidationResult<TransformSession> {
       const object = objects.find((item) => item.id === objectId);
-      if (!object) return invalid("objectId", "Choose an object in the scene");
+      if (!object) {
+        return invalid("objectId", "Choose an object in the scene");
+      }
+
       // A fresh token prevents late events from an older drag changing this one.
       edit = Object.freeze({
         token: crypto.randomUUID(),
@@ -438,8 +519,11 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       return { ok: true, value: edit };
     },
     previewTransform(token: string, input: unknown): ValidationResult<TransformSession> {
-      if (!edit || edit.token !== token) return invalid("session", "This edit session has ended");
+      if (!edit || edit.token !== token) {
+        return invalid("session", "This edit session has ended");
+      }
       const result = validateTransform(input, "preview");
+
       // Cancel invalid previews rather than accidentally committing the last good position.
       if (!result.ok) {
         clearEdit();
@@ -457,16 +541,32 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
     commitTransformEdit(
       token: string,
     ): ValidationResult<{ changed: boolean; object: SceneObject }> {
-      if (!edit || edit.token !== token) return invalid("session", "This edit session has ended");
+      if (!edit || edit.token !== token) {
+        return invalid("session", "This edit session has ended");
+      }
       const { objectId, before, after } = edit;
       const result = commitTransform({ objectId, before, after });
       clearEdit();
       return result;
     },
     cancelTransformEdit(token: string) {
-      if (edit?.token === token) clearEdit();
+      if (edit?.token === token) {
+        clearEdit();
+      }
     },
     getSnapshot: () => snapshot,
+    resetProject() {
+      // Return to the first-visit screen after the session has safely persisted New
+      project = null;
+      objects = Object.freeze([]);
+      state = { project: null, activeSceneId: null, objects };
+      projectAssets = new Map();
+      history.clear();
+      clearEdit();
+      clipboard = null;
+      pasteCount = 0;
+      publish();
+    },
     getRecoveryHistory() {
       if (project === null) return undefined;
       const states = history.getStates();
@@ -478,7 +578,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
               project: {
                 ...project!,
                 scenes: [{ ...project!.scenes[0]!, objects: entry.objects }],
-              },
+              } as ProjectDocument,
               activeSceneId: project!.scenes[0]!.id,
             };
       return captureProjectHistory(project, state.activeSceneId!, {
@@ -503,6 +603,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
         };
       }
       const kinds = new Map(assets.map((asset) => [asset.id, asset.kind]));
+
       // Fresh IDs keep this scene separate from earlier projects and their browser backups
       const candidate: ProjectDocument = {
         schemaVersion: 1,
@@ -513,6 +614,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
             id: crypto.randomUUID(),
             name: environment.name,
             environmentAssetId,
+
             // Same elevated overview used by the sample project
             // Environments sit at the origin; the format has no movable room transform
             startCamera: {
@@ -526,10 +628,13 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
           },
         ],
       };
+
       // Run the import checks before replacing anything in memory
       // A bad asset reference leaves the grid scene and history available
       const checked = deserializeProject(JSON.stringify(candidate), kinds);
-      if (!checked.ok) return checked;
+      if (!checked.ok) {
+        return checked;
+      }
       project = freezeProject(checked.value);
       objects = project.scenes[0]!.objects;
       state = fromProject(project, project.scenes[0]!.id);
@@ -541,7 +646,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
             freezeProject({
               ...project!,
               scenes: [{ ...project!.scenes[0]!, objects: entry.objects }],
-            }),
+            } as ProjectDocument),
             project!.scenes[0]!.id,
           );
         history.restoreStates(state, old.past.map(upgrade), old.future.map(upgrade));
@@ -563,7 +668,9 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
     ): ValidationResult<ProjectDocument> {
       // Finish all checks before touching the open project or its undo history
       const result = deserializeProject(text, assetKinds);
-      if (!result.ok) return result;
+      if (!result.ok) {
+        return result;
+      }
       const loaded = freezeProject(result.value);
       const scene = loaded.scenes[0];
       if (scene === undefined) {
@@ -574,8 +681,11 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
         recoveryHistory === undefined
           ? undefined
           : validateRecoveryHistory(recoveryHistory, loaded, loadedAssets);
-      if (recovered !== undefined && !recovered.ok) return recovered;
+      if (recovered !== undefined && !recovered.ok) {
+        return recovered;
+      }
 
+      // Publish only after both the document and optional recovery history have passed
       project = loaded;
       clipboard = null;
       pasteCount = 0;
@@ -586,6 +696,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       );
       objects = state.objects;
       projectAssets = loadedAssets;
+
       // Undo from the previous project must never reintroduce its objects here
       history.clear();
       if (recovered?.ok) {
@@ -602,7 +713,13 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
             views: readonly NamedViewpoint[] | undefined,
           ) => {
             const updated = { ...scene, objects, ...(views ? { viewpoints: views } : {}) };
-            return fromProject(freezeProject({ ...loaded, scenes: [updated] }), scene.id);
+            return fromProject(
+              freezeProject({
+                ...loaded,
+                scenes: [updated, ...loaded.scenes.slice(1)],
+              } as ProjectDocument),
+              scene.id,
+            );
           };
           history.restoreStates(
             state,
@@ -630,6 +747,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       if (asset === undefined) {
         return { ok: false, error: "Choose an asset from the library." } as const;
       }
+
       // Loaded projects keep environments in their dedicated scene field
       // Placed objects must remain valid model references when saved again
       if (project !== null && (asset.kind !== "model" || projectAssets.get(asset.id) !== "model")) {
@@ -650,7 +768,16 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
           rotation: Object.freeze([0, 0, 0, 1] as const),
           scale: Object.freeze([1, 1, 1] as const),
         }),
+        ...(project?.schemaVersion === 2
+          ? { parentId: null, visible: true, components: Object.freeze([]) }
+          : {}),
       });
+      // V2 defaults belong to the authored object so saving and undo retain the same shape
+      const validPlacement = checkContentObjects([...objects, object]);
+      if (!validPlacement.ok) {
+        return { ok: false, error: validPlacement.error.message } as const;
+      }
+
       // Capture this object once. Redo puts back this exact copy, including its ID.
       // Validation above finishes before the command can enter history.
       replaceObjects(
@@ -665,19 +792,32 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       return { ok: true, object } as const;
     },
     commitTransform,
+
     // Keep the incoming gizmo API, but route it through the shared command history.
     setTransform(id: string, after: unknown) {
       const object = objects.find((entry) => entry.id === id);
-      if (!object) return { ok: false, error: "Select an object in this scene." } as const;
+      if (!object) {
+        return { ok: false, error: "Select an object in this scene." } as const;
+      }
       const result = commitTransform({ objectId: id, before: object.transform, after });
-      if (!result.ok)
+      if (!result.ok) {
         return { ok: false, error: `${result.error.path}: ${result.error.message}` } as const;
+      }
       return { ok: true, changed: result.value.changed } as const;
     },
     deleteObject(objectId: string): ValidationResult<SceneObject> {
       const index = objects.findIndex((object) => object.id === objectId);
       const object = objects[index];
-      if (!object) return invalid("objectId", "This object is no longer in the scene");
+      if (!object) {
+        return invalid("objectId", "This object is no longer in the scene");
+      }
+
+      // Reject dangling content, hierarchy and navigation references before touching history
+      const validDeletion = checkContentObjects(objects.filter((entry) => entry.id !== objectId));
+      if (!validDeletion.ok) {
+        return validDeletion;
+      }
+
       // Remember the slot as well as the whole object, so undo restores list order.
       replaceObjects(
         executeObjects(objects, {

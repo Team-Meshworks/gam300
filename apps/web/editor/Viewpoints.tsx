@@ -6,13 +6,13 @@ import type { ViewpointCamera } from "./viewport/Viewport";
 
 export function Viewpoints({
   views,
-  startViewpointId,
+  startCamera,
   camera,
   disabled,
   store,
 }: {
   views: readonly NamedViewpoint[];
-  startViewpointId: string | undefined;
+  startCamera: import("../shared/project/project-types").CameraPose;
   camera: ViewpointCamera | null;
   disabled: boolean;
   store: ReturnType<typeof createDocumentStore>;
@@ -34,7 +34,7 @@ export function Viewpoints({
   const view = views.find((v) => v.id === selected);
   const startingView = getStartingView({
     viewpoints: views,
-    ...(startViewpointId ? { startViewpointId } : {}),
+    startCamera,
   });
   function cycleView(direction: -1 | 1) {
     if (disabled || !camera || views.length === 0) return;
@@ -59,10 +59,7 @@ export function Viewpoints({
     <section className="viewpoints" aria-label="Named viewpoints">
       <h2>Saved views</h2>
       <p>Frame the view, give it a name, then capture it.</p>
-      <p>
-        Starting view: {startingView?.name ?? "Saved scene camera"}
-        {startingView && !startViewpointId ? " (first saved view)" : ""}
-      </p>
+      <p>Starting view: {startingView?.name ?? "Saved scene camera"}</p>
       <fieldset disabled={disabled || !camera}>
         <label>
           View name
@@ -227,7 +224,7 @@ export function Viewpoints({
           </button>
           <button
             type="button"
-            disabled={!view || view.id === startViewpointId}
+            disabled={!view || view.id === startingView?.id}
             onClick={() => {
               if (view)
                 report(

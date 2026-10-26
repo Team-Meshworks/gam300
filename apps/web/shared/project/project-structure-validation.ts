@@ -3,6 +3,7 @@ import { validateCameraPose, validateTransform } from "./spatial-validation";
 import { checkFields, invalid, isRecord } from "./validation-helpers";
 import type { ValidationResult } from "./validation-helpers";
 import { MAX_PROJECT_BYTES } from "./project-limits";
+import { validateContentStructure } from "./project-content-validation";
 
 // Starting limits from the project handoff
 const MAX_OBJECTS_PER_SCENE = 200;
@@ -13,6 +14,9 @@ function readText(raw: unknown, path: string, budget: TextBudget): ValidationRes
   if (typeof raw !== "string") {
     return invalid(path, "Expected a string");
   }
+  if (/[\ud800-\udfff]/u.test(raw)) {
+    return invalid(path, "Text contains invalid Unicode");
+  }
 
   // Catch oversized text before copying the whole document
   // UTF-8 JSON takes at least as many bytes as these string lengths
@@ -20,6 +24,7 @@ function readText(raw: unknown, path: string, budget: TextBudget): ValidationRes
   if (budget.remaining < 0) {
     return invalid(path, "Project exceeds the 5 MiB document limit");
   }
+
   // Preserve names exactly as authored, including spacing
   return { ok: true, value: raw };
 }
@@ -70,20 +75,13 @@ function validateScene(
   }
   const fields = checkFields(
     raw,
-    [
-      "id",
-      "name",
-      "environmentAssetId",
-      "startCamera",
-      ...(Object.hasOwn(raw, "startViewpointId") ? ["startViewpointId"] : []),
-      "objects",
-      ...(Object.hasOwn(raw, "viewpoints") ? ["viewpoints"] : []),
-    ],
+    ["id", "name", "environmentAssetId", "startCamera", "objects"],
     path,
   );
   if (!fields.ok) {
     return fields;
   }
+
   // Check the count before walking the object list
   // An empty room is valid while the author is getting started
   if (!Array.isArray(raw.objects) || raw.objects.length > MAX_OBJECTS_PER_SCENE) {
@@ -97,10 +95,7 @@ function validateScene(
   if (!name.ok) {
     return name;
   }
-  const environmentAssetId =
-    raw.environmentAssetId === null
-      ? { ok: true as const, value: null }
-      : readText(raw.environmentAssetId, `${path}.environmentAssetId`, budget);
+  const environmentAssetId = readText(raw.environmentAssetId, `${path}.environmentAssetId`, budget);
   if (!environmentAssetId.ok) {
     return environmentAssetId;
   }
@@ -109,33 +104,6 @@ function validateScene(
     return camera;
   }
 
-  const viewpoints: NonNullable<ProjectScene["viewpoints"]>[number][] = [];
-  if (Object.hasOwn(raw, "viewpoints")) {
-    if (!Array.isArray(raw.viewpoints) || raw.viewpoints.length > 100)
-      return invalid(`${path}.viewpoints`, "Use at most 100 named viewpoints per scene");
-    for (const [i, view] of raw.viewpoints.entries()) {
-      const at = `${path}.viewpoints[${i}]`;
-      if (!isRecord(view)) return invalid(at, "Viewpoint must be an object");
-      const fields = checkFields(view, ["id", "name", "camera"], at);
-      if (!fields.ok) return fields;
-      const id = readText(view.id, `${at}.id`, budget);
-      if (!id.ok) return id;
-      const name = readText(view.name, `${at}.name`, budget);
-      if (!name.ok) return name;
-      if (!name.value.trim() || name.value.length > 120)
-        return invalid(`${at}.name`, "Enter a viewpoint name between 1 and 120 characters");
-      const camera = validateCameraPose(view.camera, `${at}.camera`);
-      if (!camera.ok) return camera;
-      viewpoints.push({ id: id.value, name: name.value, camera: camera.value });
-    }
-  }
-  if (Object.hasOwn(raw, "startViewpointId")) {
-    const chosen = viewpoints.find((v) => v.id === raw.startViewpointId);
-    if (!chosen)
-      return invalid(`${path}.startViewpointId`, "Starting view must belong to this scene");
-    if (JSON.stringify(chosen.camera) !== JSON.stringify(camera.value))
-      return invalid(`${path}.startCamera`, "Starting camera must match the chosen viewpoint");
-  }
   // Build a separate list in the saved order
   // A later failure leaves the caller's scene untouched
   const objects: ProjectObject[] = [];
@@ -153,10 +121,6 @@ function validateScene(
       name: name.value,
       environmentAssetId: environmentAssetId.value,
       startCamera: camera.value,
-      ...(typeof raw.startViewpointId === "string"
-        ? { startViewpointId: raw.startViewpointId }
-        : {}),
-      ...(Object.hasOwn(raw, "viewpoints") ? { viewpoints } : {}),
       objects,
     },
   };
@@ -169,9 +133,14 @@ export function validateProjectStructure(raw: unknown): ValidationResult<Project
   if (!isRecord(raw)) {
     return invalid("project", "Project must be an object");
   }
+
   // Read the version before interpreting fields from a different format
   if (!Object.hasOwn(raw, "schemaVersion")) {
     return invalid("project.schemaVersion", "Required field is missing");
+  }
+  // Dispatch v2 before the legacy exact-field checks so each released shape keeps its own rules
+  if (raw.schemaVersion === 2) {
+    return validateContentStructure(raw);
   }
   if (raw.schemaVersion !== 1) {
     return invalid(
@@ -183,8 +152,8 @@ export function validateProjectStructure(raw: unknown): ValidationResult<Project
   if (!fields.ok) {
     return fields;
   }
-  if (!Array.isArray(raw.scenes) || raw.scenes.length < 1 || raw.scenes.length > 20) {
-    return invalid("project.scenes", "Projects must contain between 1 and 20 scenes");
+  if (!Array.isArray(raw.scenes) || raw.scenes.length !== 1) {
+    return invalid("project.scenes", "M1 projects must contain exactly one scene");
   }
 
   // Share the text budget across the whole project
@@ -197,19 +166,18 @@ export function validateProjectStructure(raw: unknown): ValidationResult<Project
   if (!title.ok) {
     return title;
   }
-  const scenes: ProjectScene[] = [];
-  for (const [index, rawScene] of raw.scenes.entries()) {
-    const checked = validateScene(rawScene, `project.scenes[${index}]`, budget);
-    if (!checked.ok) return checked;
-    scenes.push(checked.value);
+  const scene = validateScene(raw.scenes[0], "project.scenes[0]", budget);
+  if (!scene.ok) {
+    return scene;
   }
 
   const document: ProjectDocument = {
     schemaVersion: 1,
     projectId: projectId.value,
     title: title.value,
-    scenes,
+    scenes: [scene.value],
   };
+
   // Count UTF-8 bytes with JSON punctuation and escaping included
   // Only serialize the checked copy so extra input fields can't enter the output
   if (new TextEncoder().encode(JSON.stringify(document)).byteLength > MAX_PROJECT_BYTES) {

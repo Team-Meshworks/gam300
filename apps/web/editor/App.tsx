@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { assets } from "virtual:asset-catalogue";
 import type { Vector3Tuple } from "../shared/project/scene-object";
 import type { Transform } from "../shared/project/project-types";
+import { missingProjectCapabilities } from "../shared/project/project-capabilities";
 import { createDocumentStore } from "./document-store";
 import {
   handleDeleteShortcut,
@@ -14,6 +15,7 @@ import type { ModeManager, ModeManagerState } from "./graphics/modeManager";
 import { BottomBar } from "./ui/BottomBar";
 import { SidePanels } from "./ui/SidePanels";
 import { TopBar } from "./ui/TopBar";
+import { OlderSceneImport } from "./OlderSceneImport";
 import { Scenes } from "./Scenes";
 import { Viewpoints } from "./Viewpoints";
 import { Viewport, type ViewpointCamera } from "./viewport/Viewport";
@@ -59,6 +61,7 @@ export function App() {
   const selection = objects.some((object) => object.id === selectedId) ? selectedId : null;
   const projectScene = project?.scenes.find((scene) => scene.id === activeSceneId);
   const roomAsset = assets.find((asset) => asset.id === projectScene?.environmentAssetId);
+
   // Room selection uses the scene ID because its asset lives in the environment field
   // Object commands still receive only placed-object IDs
   const roomSelected = projectScene !== undefined && selectedId === projectScene.id;
@@ -89,7 +92,9 @@ export function App() {
     storageOperation === "import";
 
   const deleteSelection = useCallback(() => {
-    if (selection === null || visitor) return;
+    if (selection === null || visitor) {
+      return;
+    }
     const result = store.deleteObject(selection);
     if (!result.ok) {
       setError(result.error.message);
@@ -104,7 +109,9 @@ export function App() {
   useEffect(() => {
     function onHistoryKeyDown(event: KeyboardEvent) {
       // Foreground file operations own the keyboard; background backups must not block edits.
-      if (visitor || (storageOperation !== null && storageOperation !== "backup")) return;
+      if (visitor || (storageOperation !== null && storageOperation !== "backup")) {
+        return;
+      }
       const editingText = event.composedPath().some(isTextEditingTarget);
       handleHistoryShortcut(event, store, editingText);
       handleObjectShortcut(
@@ -164,7 +171,9 @@ export function App() {
   // Keep keyboard saving on the same path as the menu and its file picker
   useEffect(() => {
     function saveShortcut(event: KeyboardEvent) {
-      if (visitor || event.defaultPrevented || event.isComposing || event.altKey) return;
+      if (visitor || event.defaultPrevented || event.isComposing || event.altKey) {
+        return;
+      }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
         event.preventDefault();
         document.getElementById(event.shiftKey ? "project-save-as" : "project-save")?.click();
@@ -188,8 +197,11 @@ export function App() {
   );
 
   function place(assetId: string, position: Vector3Tuple) {
-    if (visitor) return;
+    if (visitor) {
+      return;
+    }
     session.clearError();
+
     // Choosing the first room turns the grid scene into a saveable project
     // Room placement uses the environment slot so it survives JSON reconstruction
     if (assetKinds.get(assetId) === "environment") {
@@ -197,6 +209,7 @@ export function App() {
         setNotice("Wait for the project to finish opening, then choose a room");
         return;
       }
+
       // The library keeps the room available after placement
       // Dropping the current room again leaves the scene and undo history alone
       if (projectScene?.environmentAssetId === assetId) {
@@ -221,10 +234,19 @@ export function App() {
       }
       setError("");
       setDragging(false);
-      if (created.value.scenes[0]?.objects.length === 0) session.markPristine(created.value);
+      if (created.value.scenes[0]?.objects.length === 0) {
+        session.markPristine(created.value);
+      }
       setNotice("Project created; choose Save to name its file");
       return;
     }
+    // Clicks and drops share this path; room selection starts the project before furnishing it
+    if (store.getSnapshot().project === null) {
+      setDragging(false);
+      setError("Choose a room first");
+      return;
+    }
+
     const result = store.addObject(assetId, position);
     if (!result.ok) {
       setError(result.error);
@@ -253,6 +275,15 @@ export function App() {
         onRedo={store.redo}
         canPreview={manager !== null && !session.busy}
         onPreview={() => {
+          const current = store.getSnapshot().project;
+          const unavailable =
+            current === null ? [] : missingProjectCapabilities(current, new Set());
+          if (unavailable.length > 0) {
+            setNotice(
+              "This preview does not support all the scenes and interactions in this project",
+            );
+            return;
+          }
           manager?.setMode("visitor");
           document.getElementById("viewport")?.focus();
         }}
@@ -267,10 +298,18 @@ export function App() {
         onChange={(event) => {
           const file = event.currentTarget.files?.[0];
           event.currentTarget.value = "";
-          if (file !== undefined) void session.importFile(file);
+          if (file !== undefined) {
+            void session.importFile(file);
+          }
         }}
       />
 
+      <OlderSceneImport
+        olderSceneFile={session.olderSceneFile}
+        assets={assets}
+        onImport={session.importConvertedFile}
+        onError={setError}
+      />
       <main className="workspace" inert={switching}>
         <SidePanels
           scenes={
@@ -293,7 +332,7 @@ export function App() {
               <Viewpoints
                 key={projectScene.id}
                 views={projectScene.viewpoints ?? []}
-                startViewpointId={projectScene.startViewpointId}
+                startCamera={projectScene.startCamera}
                 camera={viewCamera}
                 disabled={visitor || switching || status !== "ready"}
                 store={store}

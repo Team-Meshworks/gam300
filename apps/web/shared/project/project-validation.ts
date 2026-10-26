@@ -2,6 +2,7 @@ import type { ProjectDocument } from "./project-types";
 import { validateProjectStructure } from "./project-structure-validation";
 import { invalid } from "./validation-helpers";
 import type { ValidationResult } from "./validation-helpers";
+import { validateContentReferences } from "./project-content-validation";
 
 // UUID text form with all five groups present
 // Uppercase letters are allowed in saved IDs too
@@ -55,6 +56,10 @@ export function validateProject(
   if (!result.ok) {
     return result;
   }
+  // Reference checks consume the rebuilt version-specific document after structure validation succeeds
+  if (result.value.schemaVersion === 2) {
+    return validateContentReferences(result.value, assetKinds);
+  }
 
   // One ID pool across the project, scenes and placed objects
   // Sharing an asset is fine; each placed copy needs its own entity ID
@@ -69,21 +74,14 @@ export function validateProject(
     if (!sceneId.ok) {
       return sceneId;
     }
-    const environment =
-      scene.environmentAssetId === null
-        ? { ok: true as const, value: true }
-        : checkAsset(
-            scene.environmentAssetId,
-            "environment",
-            `${path}.environmentAssetId`,
-            assetKinds,
-          );
+    const environment = checkAsset(
+      scene.environmentAssetId,
+      "environment",
+      `${path}.environmentAssetId`,
+      assetKinds,
+    );
     if (!environment.ok) {
       return environment;
-    }
-    for (const [i, view] of (scene.viewpoints ?? []).entries()) {
-      const id = checkEntityId(view.id, `${path}.viewpoints[${i}].id`, seen);
-      if (!id.ok) return id;
     }
     for (const [objectIndex, object] of scene.objects.entries()) {
       const objectPath = `${path}.objects[${objectIndex}]`;

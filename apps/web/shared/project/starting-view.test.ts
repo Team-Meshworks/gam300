@@ -15,22 +15,19 @@ const second = {
 const scene: ProjectScene = {
   id: "scene",
   name: "World",
-  environmentAssetId: null,
+  environmentAssetId: "room",
   objects: [],
   startCamera: camera,
   viewpoints: [first, second],
 };
-it("uses the first saved view by default and follows reordered views", () => {
-  assert.equal(getStartingView(scene), first);
-  assert.equal(getStartingCamera(scene), first.camera);
-  assert.equal(getStartingCamera({ ...scene, viewpoints: [second, first] }), second.camera);
+it("uses the authored starting camera independently of viewpoint order", () => {
+  assert.equal(getStartingView(scene), undefined);
+  assert.equal(getStartingCamera(scene), camera);
+  assert.equal(getStartingCamera({ ...scene, viewpoints: [second, first] }), camera);
 });
-it("an explicit starting view takes priority over list order", () => {
-  assert.equal(getStartingCamera({ ...scene, startViewpointId: second.id }), second.camera);
-  assert.equal(
-    getStartingCamera({ ...scene, startViewpointId: first.id, viewpoints: [second, first] }),
-    first.camera,
-  );
+it("identifies a saved view with the same pose without adding a wire-format field", () => {
+  assert.equal(getStartingView({ ...scene, startCamera: second.camera }), second);
+  assert.equal(getStartingCamera({ ...scene, startCamera: second.camera }), second.camera);
 });
 it("uses the saved camera when there are no viewpoints", () => {
   assert.equal(getStartingCamera({ ...scene, viewpoints: [] }), camera);

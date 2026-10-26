@@ -1,3 +1,4 @@
+import { readOlderSceneFile } from "../../shared/project/legacy-scene-import";
 import { serializeProject } from "../../shared/project/project-serialization";
 import { deserializeProject } from "../../shared/project/project-deserialization";
 import type { ProjectDocument } from "../../shared/project/project-types";
@@ -13,8 +14,10 @@ const LOCAL_PRINCIPAL = "local";
 type SaveRequest = Readonly<{
   project: unknown;
   history?: unknown;
+
   // Last storage revision this tab has seen; zero means no existing draft
   expectedStorageRevision: number;
+
   // Edit counter captured with the project being saved
   localEditSequence: number;
 }>;
@@ -45,8 +48,12 @@ function validateStoredDraft(
 ): ValidationResult<RecoveredDraft | null> {
   // A missing draft is a normal first visit
   // Damaged records return an error and stay available for recovery
-  if (raw === undefined) return { ok: true, value: null };
-  if (!isRecord(raw)) return invalid("storage", "Stored draft must be an object");
+  if (raw === undefined) {
+    return { ok: true, value: null };
+  }
+  if (!isRecord(raw)) {
+    return invalid("storage", "Stored draft must be an object");
+  }
   const fields = checkFields(
     raw,
     [
@@ -62,7 +69,10 @@ function validateStoredDraft(
     ],
     "storage",
   );
-  if (!fields.ok) return fields;
+  if (!fields.ok) {
+    return fields;
+  }
+
   // Recovery needs usable counters and a timestamp before offering the draft
   // Server-related fields stay empty for these local M1 records
   if (
@@ -79,14 +89,18 @@ function validateStoredDraft(
   ) {
     return invalid("storage", "Stored draft metadata is invalid or unsupported");
   }
+
   // Browser storage can be edited or left behind by another application version
   // Use the file reader's size, version and reference checks again
   const document = deserializeProject(raw.document, assetKinds);
-  if (!document.ok) return document;
+  if (!document.ok) {
+    return document;
+  }
   if (document.value.projectId.toLowerCase() !== projectId) {
     // A valid document under the wrong storage key still belongs to another project
     return invalid("storage.projectId", "Stored document belongs to a different project");
   }
+
   // A damaged or outdated history must not prevent recovery of a valid scene.
   // Older drafts have no history field and still open normally.
   const history =
@@ -167,10 +181,13 @@ export async function getLatestLocalDraft(
       let damaged = false;
       read.onsuccess = () => {
         const cursor = read.result;
-        if (cursor === null) return;
+        if (cursor === null) {
+          return;
+        }
         const key = cursor.primaryKey;
         if (Array.isArray(key) && key[0] === LOCAL_PRINCIPAL) {
           const checked = validateStoredDraft(cursor.value, String(key[1]), assetKinds);
+
           // Retain damaged records and ask before recovering a different readable backup
           if (!checked.ok || checked.value === null) {
             damaged = true;
@@ -234,13 +251,18 @@ export async function applySaveToLocalDraft(
 
   // Capture JSON before waiting on storage so later edits can't enter this write
   const serialized = serializeProject(request.project, assetKinds);
-  if (!serialized.ok) return serialized;
+  if (!serialized.ok) {
+    return serialized;
+  }
   const checked: ProjectDocument = JSON.parse(serialized.value);
   const history =
     request.history === undefined
       ? undefined
       : validateRecoveryHistory(request.history, checked, assetKinds);
-  if (history !== undefined && !history.ok) return history;
+  if (history !== undefined && !history.ok) {
+    return history;
+  }
+
   // UUID letter case must resolve to the same draft key
   // Original spelling stays inside the saved JSON
   const projectId = checked.projectId.toLowerCase();
@@ -265,6 +287,7 @@ export async function applySaveToLocalDraft(
       };
       transaction.oncomplete = () => {
         connection.close();
+
         // A successful put request can still be followed by a failed transaction
         resolve(receipt === undefined ? invalid("storage", failure) : { ok: true, value: receipt });
       };
@@ -297,6 +320,7 @@ export async function applySaveToLocalDraft(
           transaction.abort();
           return;
         }
+
         // Prepare the receipt now; return it only after the transaction commits
         receipt = {
           projectId,
@@ -328,16 +352,20 @@ export async function applySaveToLocalDraft(
 // Replacing this record discards the previous session only after the next one commits
 export type RecoverySession = Readonly<{
   revision: number;
-  document: ProjectDocument;
+
+  // Null records the room-selection screen so discarded work stays discarded after reload
+  document: ProjectDocument | null;
   fileName: string;
   savedJson: string | null;
   pristine: boolean;
+
   // Keep the chosen file with this exact session so a reload can still Save in place
   // Older records only have the filename and need one more Open to connect it
   fileHandle?: ProjectFileHandle | null;
   fileText?: string;
   history?: RecoveryHistory;
   historyWarning?: string;
+  olderSceneFile?: { text: string; name: string };
 }>;
 
 export async function loadRecoverySession(
@@ -363,7 +391,9 @@ export async function getRecoverySession(
       tx.oncomplete = () => resolve(read.result);
       tx.onabort = () => reject(tx.error);
     });
-    if (raw === undefined) return { ok: true, value: null };
+    if (raw === undefined) {
+      return { ok: true, value: null };
+    }
     if (
       !isRecord(raw) ||
       !isCounter(raw.revision) ||
@@ -375,6 +405,7 @@ export async function getRecoverySession(
     ) {
       return invalid("storage", "Recovery metadata is invalid; the stored copy was kept");
     }
+    // Check the session envelope before interpreting its optional file and history metadata
     const fields = checkFields(
       raw,
       [
@@ -389,22 +420,70 @@ export async function getRecoverySession(
       ],
       "recovery",
     );
-    if (!fields.ok) return fields;
+    if (!fields.ok) {
+      return fields;
+    }
+    if (raw.document === null) {
+      // Keep a revision even without a project so an older tab cannot overwrite New
+      if (
+        raw.fileName !== "" ||
+        raw.savedJson !== null ||
+        !raw.pristine ||
+        raw.history !== undefined
+      ) {
+        return invalid("storage", "Empty recovery session contains project metadata");
+      }
+      return {
+        ok: true,
+        value: {
+          revision: raw.revision,
+          document: null,
+          fileName: "",
+          savedJson: null,
+          pristine: true,
+        },
+      };
+    }
     const document = deserializeProject(raw.document, assetKinds);
-    if (!document.ok) return document;
+    if (!document.ok) {
+      const older =
+        typeof raw.document === "string" ? readOlderSceneFile(raw.document, assetKinds) : null;
+      if (!older?.ok) return document;
+      // Offer conversion explicitly. Nothing is rewritten during recovery.
+      return {
+        ok: true,
+        value: {
+          revision: raw.revision,
+          document: null,
+          fileName: "",
+          savedJson: null,
+          pristine: true,
+          olderSceneFile: {
+            text: raw.document as string,
+            name: raw.fileName || "older-scene.json",
+          },
+        },
+      };
+    }
+
     // Keep the valid scene available even if an older history record cannot be restored
     const history =
       raw.history === undefined
         ? undefined
         : validateRecoveryHistory(raw.history, document.value, assetKinds);
+    // Restore the manual-save baseline separately from newer edits in the recovery document
     let savedJson: string | null = null;
     if (raw.savedJson !== null) {
       const saved = deserializeProject(raw.savedJson, assetKinds);
-      if (!saved.ok) return saved;
-      if (saved.value.projectId !== document.value.projectId)
+      if (!saved.ok) {
+        return saved;
+      }
+      if (saved.value.projectId !== document.value.projectId) {
         return invalid("storage", "Recovery file belongs to a different project");
+      }
       savedJson = JSON.stringify(saved.value);
     }
+
     // File contents can include whitespace; keep the exact text for overwrite checks
     // A filename by itself never grants access to a file on someone's computer
     let fileHandle: ProjectFileHandle | null = null;
@@ -434,6 +513,7 @@ export async function getRecoverySession(
         savedJson,
         pristine:
           raw.pristine &&
+          document.value.schemaVersion === 1 &&
           document.value.scenes.length === 1 &&
           document.value.scenes[0]?.objects.length === 0 &&
           !document.value.scenes[0]?.viewpoints?.length,
@@ -452,7 +532,7 @@ export async function getRecoverySession(
   }
 }
 export async function saveRecoverySession(
-  session: Omit<RecoverySession, "revision" | "historyWarning">,
+  session: Omit<RecoverySession, "revision" | "historyWarning" | "olderSceneFile">,
   expectedRevision: number,
   assetKinds: ReadonlyMap<string, string>,
   previousProjectId?: string,
@@ -467,27 +547,52 @@ export async function saveRecoverySession(
 }
 
 export async function applySaveRecoverySession(
-  session: Omit<RecoverySession, "revision" | "historyWarning">,
+  session: Omit<RecoverySession, "revision" | "historyWarning" | "olderSceneFile">,
   expectedRevision: number,
   assetKinds: ReadonlyMap<string, string>,
   database: IDraftDatabase,
   previousProjectId?: string,
 ): Promise<ValidationResult<number>> {
-  if (!isCounter(expectedRevision) || expectedRevision === Number.MAX_SAFE_INTEGER)
+  if (!isCounter(expectedRevision) || expectedRevision === Number.MAX_SAFE_INTEGER) {
     return invalid("storage", "Invalid recovery revision");
-  const encoded = serializeProject(session.document, assetKinds);
-  if (!encoded.ok) return encoded;
+  }
+
+  // Empty sessions use the same atomic write and revision checks as authored projects
+  const encoded =
+    session.document === null
+      ? { ok: true as const, value: null }
+      : serializeProject(session.document, assetKinds);
+  if (!encoded.ok) {
+    return encoded;
+  }
+  if (
+    session.document === null &&
+    (session.fileName !== "" ||
+      session.savedJson !== null ||
+      !session.pristine ||
+      session.history !== undefined)
+  ) {
+    return invalid("storage", "Empty recovery session contains project metadata");
+  }
   const history =
-    session.history === undefined
+    session.history === undefined || session.document === null
       ? undefined
       : validateRecoveryHistory(session.history, session.document, assetKinds);
-  if (history && !history.ok) return history;
-  if (session.fileName.length > 255) return invalid("storage", "Project filename is too long");
+  if (history && !history.ok) {
+    return history;
+  }
+  if (session.fileName.length > 255) {
+    return invalid("storage", "Project filename is too long");
+  }
+  // A baseline must be valid and belong to this project before it can influence dirty status
   if (session.savedJson !== null) {
     const saved = deserializeProject(session.savedJson, assetKinds);
-    if (!saved.ok) return saved;
-    if (saved.value.projectId !== session.document.projectId)
+    if (!saved.ok) {
+      return saved;
+    }
+    if (saved.value.projectId !== session.document?.projectId) {
       return invalid("storage", "Recovery file belongs to a different project");
+    }
   }
   let connection: IDBDatabase;
   try {
@@ -501,6 +606,7 @@ export async function applySaveRecoverySession(
   return new Promise((resolve) => {
     let message = "Recovery backup failed; your current project is still open";
     try {
+      // Update active recovery and retire legacy backups atomically so reload cannot revive discarded work
       const tx = connection.transaction(["session", STORE_NAME], "readwrite");
       const store = tx.objectStore("session");
       const read = store.get("active");
@@ -525,16 +631,31 @@ export async function applySaveRecoverySession(
           tx.abort();
           return;
         }
+
         // Keep the scene and manual-save baseline together in one atomic write
         // Don't Save switches to a new record without leaving the discarded edits behind
         try {
+          // Keep the original older-format backup, including its old history, before replacement.
+          // The revision check above prevents archiving or overwriting another tab's newer work.
+          if (
+            isRecord(previous) &&
+            typeof previous.document === "string" &&
+            !deserializeProject(previous.document, assetKinds).ok &&
+            readOlderSceneFile(previous.document, assetKinds).ok
+          ) {
+            store.put(previous, `older-scene-backup:${expectedRevision}`);
+          }
           store.put(
             { ...session, document: encoded.value, revision: expectedRevision + 1 },
             "active",
           );
           const legacy = tx.objectStore(STORE_NAME);
-          legacy.delete([LOCAL_PRINCIPAL, session.document.projectId.toLowerCase()]);
-          if (previousProjectId) legacy.delete([LOCAL_PRINCIPAL, previousProjectId.toLowerCase()]);
+          if (session.document) {
+            legacy.delete([LOCAL_PRINCIPAL, session.document.projectId.toLowerCase()]);
+          }
+          if (previousProjectId) {
+            legacy.delete([LOCAL_PRINCIPAL, previousProjectId.toLowerCase()]);
+          }
         } catch {
           // Cloning a file handle or starting the write can fail before a request exists
           try {

@@ -1,7 +1,16 @@
+import { getStartingView } from "../shared/project/starting-view";
 import { assert, it } from "vitest";
 import { createDocumentStore } from "./document-store";
 import type { CatalogueAsset } from "../shared/assets/catalogue";
 const assets: CatalogueAsset[] = [
+  {
+    id: "room",
+    name: "Room",
+    kind: "environment",
+    url: "room.glb",
+    sha256: "0".repeat(64),
+    thumbnail: null,
+  },
   {
     id: "crate",
     name: "Crate",
@@ -20,7 +29,7 @@ function setup() {
 it("keeps whole scenes separate and switches without an undo step", () => {
   const s = setup(),
     a = s.getSnapshot().activeSceneId!;
-  assert.isNull(s.getSnapshot().project!.scenes[0]!.environmentAssetId);
+  assert.equal(s.getSnapshot().project!.scenes[0]!.environmentAssetId, "room");
   s.addObject("crate", [1, 2, 3]);
   s.addViewpoint("Entrance", s.getSnapshot().project!.scenes[0]!.startCamera);
   const original = s.getSnapshot().project!.scenes[0]!;
@@ -105,7 +114,7 @@ it("rejects invalid scene edits and cancels previews when switching", () => {
   assert.isFalse(s.moveScene(a, 9).ok);
   assert.isFalse(s.setEnvironment("crate").ok);
   assert.equal(s.getSnapshot(), before);
-  for (let i = 2; i < 20; i++) assert.isTrue(s.createScene(`World ${i}`).ok);
+  for (let i = 2; i < 16; i++) assert.isTrue(s.createScene(`World ${i}`).ok);
   const full = s.getSnapshot();
   assert.isFalse(s.createScene("Overflow").ok);
   assert.equal(s.getSnapshot(), full);
@@ -132,14 +141,15 @@ it("persists a chosen starting viewpoint and undoes it through shared history", 
   const s = setup();
   const scene = s.getSnapshot().project!.scenes[0]!;
   const camera = { ...scene.startCamera, position: [3, 4, 5] as const };
+  s.addViewpoint("Original", scene.startCamera);
   s.addViewpoint("Arrival", camera);
-  const id = s.getSnapshot().project!.scenes[0]!.viewpoints![0]!.id;
+  const id = s.getSnapshot().project!.scenes[0]!.viewpoints![1]!.id;
   assert.isTrue(s.setStartingViewpoint(id).ok);
   assert.deepEqual(s.getSnapshot().project!.scenes[0]!.startCamera, camera);
   s.undo();
-  assert.isUndefined(s.getSnapshot().project!.scenes[0]!.startViewpointId);
+  assert.notEqual(getStartingView(s.getSnapshot().project!.scenes[0]!)?.id, id);
   s.redo();
-  assert.equal(s.getSnapshot().project!.scenes[0]!.startViewpointId, id);
+  assert.equal(getStartingView(s.getSnapshot().project!.scenes[0]!)?.id, id);
   const recovered = createDocumentStore(assets);
   assert.isTrue(
     recovered.loadProject(
@@ -149,16 +159,16 @@ it("persists a chosen starting viewpoint and undoes it through shared history", 
     ).ok,
   );
   recovered.undo();
-  assert.isUndefined(recovered.getSnapshot().project!.scenes[0]!.startViewpointId);
+  assert.notEqual(getStartingView(recovered.getSnapshot().project!.scenes[0]!)?.id, id);
   recovered.redo();
-  assert.equal(recovered.getSnapshot().project!.scenes[0]!.startViewpointId, id);
+  assert.equal(getStartingView(recovered.getSnapshot().project!.scenes[0]!)?.id, id);
   s.renameViewpoint(id, "Entrance");
-  assert.equal(s.getSnapshot().project!.scenes[0]!.startViewpointId, id);
+  assert.equal(getStartingView(s.getSnapshot().project!.scenes[0]!)?.id, id);
   s.deleteViewpoint(id);
-  assert.isUndefined(s.getSnapshot().project!.scenes[0]!.startViewpointId);
+  assert.notEqual(getStartingView(s.getSnapshot().project!.scenes[0]!)?.id, id);
   assert.deepEqual(s.getSnapshot().project!.scenes[0]!.startCamera, camera);
   s.undo();
-  assert.equal(s.getSnapshot().project!.scenes[0]!.startViewpointId, id);
+  assert.equal(getStartingView(s.getSnapshot().project!.scenes[0]!)?.id, id);
 });
 it("deletes an entire scene atomically and restores its contents and order after recovery", () => {
   const s = setup(),

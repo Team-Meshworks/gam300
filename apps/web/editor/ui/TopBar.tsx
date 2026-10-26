@@ -93,8 +93,9 @@ export function TopBar({
             }
           }}
           onBlur={(event) => {
-            if (!event.currentTarget.contains(event.relatedTarget))
+            if (!event.currentTarget.contains(event.relatedTarget)) {
               event.currentTarget.removeAttribute("open");
+            }
           }}
         >
           <summary aria-label="Project options" title="Project options">
@@ -104,7 +105,7 @@ export function TopBar({
           <div className="draft-menu-panel">
             <button
               type="button"
-              title="Start a new project with an empty scene"
+              title="Start a new project and choose a room"
               disabled={!ready || busy}
               onClick={() => {
                 closeMenu();
@@ -124,6 +125,28 @@ export function TopBar({
             >
               Open
             </button>
+            <button
+              type="button"
+              disabled={!ready || busy}
+              onClick={() => {
+                closeMenu();
+                document.getElementById("older-scene-import")?.click();
+              }}
+            >
+              Import older scene file
+            </button>
+            {session.olderSceneFile && (
+              <button
+                type="button"
+                disabled={!ready || busy}
+                onClick={() => {
+                  closeMenu();
+                  document.getElementById("older-recovery-import")?.click();
+                }}
+              >
+                Import older browser backup
+              </button>
+            )}
             {/* Ctrl+S clicks these two by id, so dont change the ids */}
             <button
               id="project-save"

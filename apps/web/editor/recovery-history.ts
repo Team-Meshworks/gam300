@@ -6,6 +6,7 @@ import type {
 import { validateProject } from "../shared/project/project-validation";
 import {
   checkFields,
+  freezeValidatedData,
   invalid,
   isRecord,
   type ValidationResult,
@@ -36,8 +37,8 @@ export type RecoveryHistory = Readonly<{
 
 export const MAX_HISTORY_BYTES = 20 * 1024 * 1024;
 
-// Whole object-list snapshots also cover deletion, ordering and copies without serializing closures.
-// This is local recovery data only; it never enters the portable project format.
+// Whole object-list snapshots cover deletion, ordering and copies without serializing closures
+// This is local recovery data only; it never enters the portable project format
 export function captureRecoveryHistory(
   project: ProjectDocument,
   states: { past: Objects[]; future: Objects[] },
@@ -61,7 +62,8 @@ export function captureRecoveryHistory(
     past: [...states.past],
     future: [...states.future],
   };
-  // Keep the closest edits when a large project exceeds the recovery budget.
+
+  // Keep the closest edits when a large project exceeds the recovery budget
   const past = result.past as Objects[];
   const future = result.future as Objects[];
   while (
@@ -84,7 +86,10 @@ export function validateRecoveryHistory(
   project: ProjectDocument,
   assetKinds: ReadonlyMap<string, string>,
 ): ValidationResult<RecoveryHistory> {
-  if (!isRecord(raw)) return invalid("history", "Recovery history must be an object");
+  // Check ownership and bounds before rebuilding any snapshots from browser storage
+  if (!isRecord(raw)) {
+    return invalid("history", "Recovery history must be an object");
+  }
   const fields = checkFields(
     raw,
     [
@@ -99,19 +104,24 @@ export function validateRecoveryHistory(
     ],
     "history",
   );
-  if (!fields.ok) return fields;
+  if (!fields.ok) {
+    return fields;
+  }
   const scene = project.scenes[0]!;
-  if (raw.version !== 1 || raw.projectId !== project.projectId || raw.sceneId !== scene.id)
+  if (raw.version !== 1 || raw.projectId !== project.projectId || raw.sceneId !== scene.id) {
     return invalid("history", "Recovery history belongs to a different project or version");
+  }
   if (
     !Array.isArray(raw.past) ||
     !Array.isArray(raw.future) ||
     raw.past.length + raw.future.length > 100
-  )
+  ) {
     return invalid("history", "Recovery history exceeds the 100-edit limit");
+  }
   try {
-    if (new TextEncoder().encode(JSON.stringify(raw)).byteLength > MAX_HISTORY_BYTES)
+    if (new TextEncoder().encode(JSON.stringify(raw)).byteLength > MAX_HISTORY_BYTES) {
       return invalid("history", "Recovery history exceeds its size limit");
+    }
   } catch {
     return invalid("history", "Recovery history is not serializable");
   }
@@ -165,44 +175,63 @@ export function validateRecoveryHistory(
         output.push(checked.value);
       }
     }
-    // Validate the compatibility object/view snapshots too, so corruption is never silently ignored.
-    const legacy = { ...raw };
-    delete legacy.documents;
-    const firstScene = { ...project.scenes[0]! };
-    delete firstScene.startViewpointId;
-    const legacyProject = { ...project, scenes: [firstScene] };
-    const compatible = validateRecoveryHistory(legacy, legacyProject, assetKinds);
-    if (!compatible.ok) return compatible;
-    for (const [entries, objects, views] of [
-      [past, compatible.value.past, compatible.value.views?.past],
-      [future, compatible.value.future, compatible.value.views?.future],
+    // Full documents carry references across scenes. Check compatibility copies against
+    // those validated documents instead of stripping scenes and breaking their links.
+    const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+    if (!same(raw.current, project.scenes[0]!.objects))
+      return invalid("history", "Recovery history does not match the saved scene");
+    const viewCopies = raw.views;
+    if (
+      viewCopies !== undefined &&
+      (!isRecord(viewCopies) ||
+        !Array.isArray(viewCopies.past) ||
+        !Array.isArray(viewCopies.future) ||
+        viewCopies.past.length !== past.length ||
+        viewCopies.future.length !== future.length ||
+        !same(viewCopies.current, project.scenes[0]!.viewpoints ?? []))
+    )
+      return invalid("history.views", "Viewpoint history does not match the saved scene");
+    if (isRecord(viewCopies)) {
+      const fields = checkFields(viewCopies, ["current", "past", "future"], "history.views");
+      if (!fields.ok) return fields;
+    }
+    for (const [entries, copies, views] of [
+      [past, raw.past, isRecord(viewCopies) ? viewCopies.past : undefined],
+      [future, raw.future, isRecord(viewCopies) ? viewCopies.future : undefined],
     ] as const) {
       if (
-        entries.some((entry, index) => {
-          const first = entry.project.scenes[0]!;
-          return (
-            JSON.stringify(first.objects) !== JSON.stringify(objects[index]) ||
-            JSON.stringify(first.viewpoints ?? []) !== JSON.stringify(views?.[index] ?? [])
-          );
-        })
+        entries.some(
+          (entry, i) =>
+            !same(entry.project.scenes[0]!.objects, copies[i]) ||
+            (Array.isArray(views) && !same(entry.project.scenes[0]!.viewpoints ?? [], views[i])),
+        )
       )
         return invalid("history.documents", "Saved history copies do not match");
     }
     return {
       ok: true,
-      value: {
-        ...compatible.value,
+      value: freezeValidatedData({
+        version: 1,
+        projectId: project.projectId,
+        sceneId: scene.id,
+        current: project.scenes[0]!.objects,
+        past: past.map((s) => s.project.scenes[0]!.objects),
+        future: future.map((s) => s.project.scenes[0]!.objects),
+        ...(viewCopies ? { views: viewCopies as RecoveryHistory["views"] } : {}),
         documents: {
-          activeSceneId: current.value.activeSceneId,
           current: current.value.project,
+          activeSceneId: current.value.activeSceneId,
           past,
           future,
         },
-      },
+      } as RecoveryHistory),
     };
   }
-  if (project.scenes.length !== 1 || scene.startViewpointId !== undefined)
-    return invalid("history", "Multiple scenes need complete document history");
+  if (raw.views !== undefined && project.scenes.length > 1)
+    return invalid("history", "Scene-authoring history requires full document snapshots");
+  if (raw.views !== undefined && project.schemaVersion === 1)
+    return invalid("history.views", "Older scene history needs compatibility import");
+
   let views: RecoveryHistory["views"];
   if (Object.hasOwn(raw, "views")) {
     const data = raw.views;
@@ -257,26 +286,35 @@ export function validateRecoveryHistory(
   function readObjects(objects: unknown): ValidationResult<Objects> {
     // Reuse project checks for IDs, references, transforms and the object-count limit.
     const checked = validateProject(
-      { ...project, scenes: [{ ...scene, objects, ...(views ? { viewpoints: [] } : {}) }] },
+      {
+        ...project,
+        scenes: [
+          { ...scene, objects, ...(views ? { viewpoints: [] } : {}) },
+          ...project.scenes.slice(1),
+        ],
+      },
       assetKinds,
     );
     if (!checked.ok) return checked;
     const result = checked.value.scenes[0]!.objects;
-    for (const object of result) {
-      Object.freeze(object.transform.position);
-      Object.freeze(object.transform.rotation);
-      Object.freeze(object.transform.scale);
-      Object.freeze(object.transform);
-      Object.freeze(object);
-    }
-    return { ok: true, value: Object.freeze(result) };
+    return { ok: true, value: freezeValidatedData(result) };
   }
+
+  // The history's current snapshot must describe the same normalized data as the saved scene
+  // Reject mismatches before restoring either stack so undo cannot introduce unrelated state
   const current = readObjects(raw.current);
   const expected = readObjects(scene.objects);
-  if (!current.ok) return current;
-  if (!expected.ok) return expected;
-  if (JSON.stringify(current.value) !== JSON.stringify(expected.value))
+  if (!current.ok) {
+    return current;
+  }
+  if (!expected.ok) {
+    return expected;
+  }
+  if (JSON.stringify(current.value) !== JSON.stringify(expected.value)) {
     return invalid("history", "Recovery history does not match the saved scene");
+  }
+
+  // Rebuild both stacks in saved order and reject the whole history if any entry is invalid
   const past: Objects[] = [];
   const future: Objects[] = [];
   for (const [input, output] of [
@@ -285,10 +323,13 @@ export function validateRecoveryHistory(
   ] as const) {
     for (const state of input) {
       const checked = readObjects(state);
-      if (!checked.ok) return checked;
+      if (!checked.ok) {
+        return checked;
+      }
       output.push(checked.value);
     }
   }
+  // Publish only the fully checked immutable history; the caller still decides whether to install it
   return {
     ok: true,
     value: Object.freeze({
@@ -316,10 +357,12 @@ export function captureProjectHistory(
     const legacy = captureRecoveryHistory(
       project,
       { past: past.map((s) => first(s).objects), future: future.map((s) => first(s).objects) },
-      {
-        past: past.map((s) => first(s).viewpoints ?? []),
-        future: future.map((s) => first(s).viewpoints ?? []),
-      },
+      project.schemaVersion === 2
+        ? {
+            past: past.map((s) => first(s).viewpoints ?? []),
+            future: future.map((s) => first(s).viewpoints ?? []),
+          }
+        : undefined,
     );
     return {
       ...legacy,

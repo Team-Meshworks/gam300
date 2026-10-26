@@ -1,11 +1,9 @@
 import type { ProjectScene } from "./project-types";
-
-export function getStartingView(scene: Pick<ProjectScene, "viewpoints" | "startViewpointId">) {
-  return (
-    scene.viewpoints?.find((view) => view.id === scene.startViewpointId) ?? scene.viewpoints?.[0]
+export function getStartingView(scene: Pick<ProjectScene, "viewpoints" | "startCamera">) {
+  return scene.viewpoints?.find(
+    (view) => JSON.stringify(view.camera) === JSON.stringify(scene.startCamera),
   );
 }
-
 export function getStartingCamera(scene: ProjectScene) {
-  return getStartingView(scene)?.camera ?? scene.startCamera;
+  return scene.startCamera;
 }

@@ -19,6 +19,9 @@ export function Scenes({
   onSwitch: () => void;
 }) {
   const [name, setName] = useState(scenes.find((s) => s.id === activeSceneId)?.name ?? "");
+  const [newEnvironment, setNewEnvironment] = useState(
+    scenes.find((s) => s.id === activeSceneId)?.environmentAssetId ?? "",
+  );
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [message, setMessage] = useState("");
   const [dragged, setDragged] = useState<string | null>(null);
@@ -107,12 +110,25 @@ export function Scenes({
           Scene name
           <input value={name} maxLength={120} onChange={(e) => setName(e.target.value)} />
         </label>
+        <label>
+          New scene environment
+          <select value={newEnvironment} onChange={(e) => setNewEnvironment(e.target.value)}>
+            <option value="">Choose an environment</option>
+            {assets
+              .filter((a) => a.kind === "environment")
+              .map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                </option>
+              ))}
+          </select>
+        </label>
         <div className="viewpoint-actions">
           <button
             type="button"
-            disabled={!name.trim() || scenes.length >= 20}
+            disabled={!name.trim() || !newEnvironment || scenes.length >= 16}
             onClick={() => {
-              const result = store.createScene(name);
+              const result = store.createScene(name, newEnvironment);
               if (result.ok) onSwitch();
               report(result, `Created ${name.trim()}.`);
             }}
@@ -186,12 +202,11 @@ export function Scenes({
               value={active.environmentAssetId ?? ""}
               onChange={(e) => {
                 report(
-                  store.setEnvironment(e.target.value || null),
+                  store.setEnvironment(e.target.value),
                   "Environment updated. Undo is available.",
                 );
               }}
             >
-              <option value="">None (empty scene)</option>
               {assets
                 .filter((a) => a.kind === "environment")
                 .map((a) => (

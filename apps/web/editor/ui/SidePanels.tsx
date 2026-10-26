@@ -264,9 +264,7 @@ function SceneTreePanel({
         Scene Tree <span className="panel-count">{count}</span>
       </PanelHeading>
       {count === 0 ? (
-        <p className="panel-empty">
-          Add an asset from the library, or use Scenes to create an environment.
-        </p>
+        <p className="panel-empty">Add a room from the asset library to start.</p>
       ) : (
         <>
           <ul role="list" className={`scene-tree${expanded ? " is-expanded" : ""}`}>

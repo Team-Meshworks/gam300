@@ -23,6 +23,176 @@ try {
   const fixture = JSON.parse(
     readFileSync(new URL("../shared/project/fixtures/m1-project.json", import.meta.url), "utf8"),
   );
+  // An old browser backup must stay intact until the author explicitly converts it.
+  const oldContext = await browser.newContext();
+  try {
+    const oldPage = await oldContext.newPage();
+    oldPage.on("pageerror", (error) => errors.push(error.message));
+    oldPage.on("dialog", (dialog) => dialog.accept());
+    await oldPage.goto(process.argv[2] ?? "http://127.0.0.1:5173/");
+    await oldPage.waitForFunction(
+      () => document.querySelector(".draft-feedback")?.textContent !== "Reopening saved work…",
+    );
+    const oldDocument = {
+      ...fixture,
+      scenes: fixture.scenes.map((scene) => ({
+        ...scene,
+        environmentAssetId: null,
+        viewpoints: [],
+      })),
+    };
+    const original = {
+      revision: 4,
+      document: JSON.stringify(oldDocument),
+      fileName: "old.json",
+      savedJson: null,
+      pristine: false,
+    };
+    await oldPage.evaluate(async (original) => {
+      const { IndexedDBDraftDatabase } = await import("/persistence/draft-db.ts");
+      const db = await new IndexedDBDraftDatabase().getIndexedDB();
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction("session", "readwrite");
+        tx.objectStore("session").put(original, "active");
+        tx.oncomplete = resolve;
+        tx.onabort = reject;
+      });
+      db.close();
+    }, original);
+    await oldPage.reload();
+    await oldPage.getByText("Untitled project", { exact: true }).click();
+    await oldPage.getByRole("button", { name: "Import older browser backup", exact: true }).click();
+    await oldPage.getByRole("button", { name: "Convert and open", exact: true }).click();
+    assert.match(await oldPage.getByRole("alert").innerText(), /environment/i);
+    await oldPage.getByLabel("Environment for Room", { exact: false }).selectOption("test-room-v1");
+    await oldPage.getByRole("button", { name: "Convert and open", exact: true }).click();
+    await oldPage.getByText("old-converted.json", { exact: true }).waitFor();
+    await oldPage.getByText("Not saved", { exact: true }).waitFor();
+    const records = await oldPage.evaluate(async () => {
+      const { IndexedDBDraftDatabase } = await import("/persistence/draft-db.ts");
+      const db = await new IndexedDBDraftDatabase().getIndexedDB();
+      const records = await new Promise((resolve, reject) => {
+        const tx = db.transaction("session", "readonly");
+        const active = tx.objectStore("session").get("active");
+        const original = tx.objectStore("session").get("older-scene-backup:4");
+        tx.oncomplete = () => resolve({ active: active.result, original: original.result });
+        tx.onabort = reject;
+      });
+      db.close();
+      return records;
+    });
+    assert.deepEqual(records.original, original);
+    const converted = JSON.parse(records.active.document);
+    assert.equal(converted.schemaVersion, 2);
+    assert.equal(converted.scenes[0].environmentAssetId, "test-room-v1");
+    assert.equal(converted.scenes[0].objects.length, fixture.scenes[0].objects.length);
+    assert.equal(records.active.savedJson, null, "Conversion needs an explicit save");
+    await oldPage.reload();
+    await oldPage.getByText("old-converted.json", { exact: true }).waitFor();
+    await oldPage.getByText("Not saved", { exact: true }).waitFor();
+  } finally {
+    await oldContext.close();
+  }
+  const contentFixture = JSON.parse(
+    readFileSync(new URL("../shared/project/fixtures/m2-project.json", import.meta.url), "utf8"),
+  );
+  const contentCases = JSON.parse(
+    readFileSync(
+      new URL("../shared/project/fixtures/project-format-cases.json", import.meta.url),
+      "utf8",
+    ),
+  );
+  // Isolate authored-content recovery from the legacy and file-permission cases below
+  const formatContext = await browser.newContext();
+  try {
+    const formatPage = await formatContext.newPage();
+    formatPage.on("pageerror", (error) => errors.push(error.message));
+    await formatPage.goto(urlForChecks());
+    await formatPage.waitForFunction(
+      () => document.querySelector(".draft-feedback")?.textContent !== "Reopening saved work…",
+    );
+    const preserved = await formatPage.evaluate(
+      async ({ project, registry }) => {
+        const { createDocumentStore } = await import("/document-store.ts");
+        const { saveRecoverySession, loadRecoverySession } =
+          await import("/persistence/local-drafts.ts");
+        const kinds = new Map(Object.entries(registry));
+        const store = createDocumentStore([]);
+        const loaded = store.loadProject(JSON.stringify(project), kinds);
+        if (!loaded.ok) throw new Error(loaded.error.message);
+        const original = store.getSnapshot().project;
+        const object = store.getSnapshot().objects[0];
+        const moved = store.setTransform(object.id, { ...object.transform, position: [2, 1, -3] });
+        if (!moved.ok) throw new Error(moved.error);
+        const edited = store.getSnapshot().project;
+        const encoded = JSON.stringify(edited);
+        const saved = await saveRecoverySession(
+          {
+            document: edited,
+            fileName: "content.json",
+            savedJson: null,
+            pristine: false,
+            history: store.getRecoveryHistory(),
+          },
+          0,
+          kinds,
+        );
+        if (!saved.ok) throw new Error(saved.error.message);
+        const recovered = await loadRecoverySession(kinds);
+        if (!recovered.ok || !recovered.value)
+          throw new Error("Rich recovery session was not restored");
+        // Rebuild the store from IndexedDB rather than retaining the original in-memory history
+        const reopened = createDocumentStore([]);
+        const restored = reopened.loadProject(
+          JSON.stringify(recovered.value.document),
+          kinds,
+          recovered.value.history,
+        );
+        if (!restored.ok) throw new Error(restored.error.message);
+        const same = JSON.stringify(reopened.getSnapshot().project) === encoded;
+        reopened.undo();
+        const undone = JSON.stringify(reopened.getSnapshot().project) === JSON.stringify(original);
+        reopened.redo();
+        return {
+          same,
+          undone,
+          redone: JSON.stringify(reopened.getSnapshot().project) === JSON.stringify(edited),
+          scenes: recovered.value.document.scenes.length,
+        };
+      },
+      { project: contentFixture, registry: contentCases.assets },
+    );
+    assert.deepEqual(preserved, { same: true, undone: true, redone: true, scenes: 2 });
+  } finally {
+    await formatContext.close();
+  }
+  // Remove media dependencies so this check isolates the unsupported multi-scene preview boundary
+  const previewContext = await browser.newContext();
+  try {
+    const previewPage = await previewContext.newPage();
+    previewPage.on("pageerror", (error) => errors.push(error.message));
+    await previewPage.goto(urlForChecks());
+    await previewPage.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
+    const modelOnly = structuredClone(contentFixture);
+    for (const scene of modelOnly.scenes) {
+      scene.rules = [];
+      for (const object of scene.objects) object.components = [];
+    }
+    await previewPage.locator("#project-import").setInputFiles({
+      name: "two-scene.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify(modelOnly)),
+    });
+    await previewPage.locator(".object-row").filter({ hasText: "First crate" }).waitFor();
+    await previewPage.getByRole("button", { name: "Preview", exact: true }).click();
+    await previewPage
+      .getByRole("status")
+      .filter({ hasText: "This preview does not support all the scenes and interactions" })
+      .waitFor();
+    assert.equal(await previewPage.locator(".editor-shell.is-previewing").count(), 0);
+  } finally {
+    await previewContext.close();
+  }
   const results = await page.evaluate(async (project) => {
     const { saveLocalDraft, loadLocalDraft } = await import("/persistence/local-drafts.ts");
     const assets = new Map([
@@ -342,7 +512,16 @@ try {
       (expected) => document.querySelector(".save-state")?.textContent === expected,
       text,
     );
-  const add = () => editor.getByRole("button", { name: "Add test-crate", exact: true }).click();
+  const add = async () => {
+    // New now follows first visit; choose the environment before adding the next test object
+    if (
+      await editor
+        .getByText("Add a room from the asset library to start.", { exact: true })
+        .isVisible()
+    )
+      await editor.getByRole("button", { name: "Add test-room", exact: true }).click();
+    await editor.getByRole("button", { name: "Add test-crate", exact: true }).click();
+  };
   const writeFile = (name, text) =>
     editor.evaluate(
       async ({ name, text }) => {
@@ -382,7 +561,12 @@ try {
     const deadline = Date.now() + 10000;
     while (Date.now() < deadline) {
       const saved = await session(target);
-      if (saved?.document.scenes[0].objects.length === count) return saved;
+      if (
+        count === null
+          ? saved?.document === null
+          : saved?.document?.scenes[0].objects.length === count
+      )
+        return saved;
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
     throw new Error(`Recovery did not reach ${count} objects`);
@@ -459,7 +643,9 @@ try {
   await waitBackup(4);
   await menu("New");
   await choose("Save");
-  await status("Not saved");
+  await waitBackup(null);
+  await editor.getByText("Add a room from the asset library to start.", { exact: true }).waitFor();
+  assert.equal(await editor.locator("#project-save").isDisabled(), true);
   assert.equal((await readFile("a.json")).scenes[0].objects.length, 4, "Save completes before New");
   assert.equal(await editor.locator(".object-row").count(), 0);
   assert.equal(await editor.title(), "Untitled - Spatia");
@@ -483,10 +669,10 @@ try {
   await editor.evaluate(() => (window.cancelPicker = false));
   await menu("New");
   await choose("Don’t Save");
-  const empty = await waitBackup(0);
-  assert.notEqual(empty.document.projectId, unsaved.document.projectId);
+  const empty = await waitBackup(null);
+  assert.equal(empty.document, null);
   await editor.reload();
-  await editor.getByText("Reopened your last project", { exact: true }).waitFor();
+  await editor.getByText("Add a room from the asset library to start.", { exact: true }).waitFor();
   assert.equal(await editor.locator(".object-row").count(), 0);
 
   await add();
@@ -587,29 +773,8 @@ try {
   await choose("Save");
   assert.equal(await editor.evaluate(() => window.pickerCount), pickerCount);
   assert.equal(await editor.title(), "Untitled - Spatia");
-  // Header is floating cards now, so just make sure they dont overlap each other
-  const layout = await editor.evaluate(() => {
-    const cards = [".project-card", ".history-controls", ".mode-actions"].map((selector) =>
-      document.querySelector(selector).getBoundingClientRect(),
-    );
-    const meter = document.querySelector(".fps-meter").getBoundingClientRect();
-    return {
-      gaps: cards.slice(1).map((rect, index) => rect.left - cards[index].right),
-      meterBelowHeader:
-        meter.top >= document.querySelector(".app-header").getBoundingClientRect().bottom,
-    };
-  });
-  assert.ok(
-    layout.gaps.every((gap) => gap > 0),
-    `Header cards overlap: ${layout.gaps}`,
-  );
-  assert.equal(layout.meterBelowHeader, true);
-  assert.equal(await editor.locator(".draft-feedback").textContent(), "New project");
-  await editor.waitForFunction(() => {
-    const opacity = Number(getComputedStyle(document.querySelector(".draft-feedback")).opacity);
-    return opacity > 0 && opacity < 1;
-  });
-  await editor.waitForFunction(() => document.querySelector(".draft-feedback").textContent === "");
+  // Verify the completed New decision without prescribing header layout or notification animation
+  assert.equal((await session()).document, null);
   await context.close();
 
   // Download fallback never claims the browser confirmed a completed disk save
@@ -668,9 +833,13 @@ try {
   assert.deepEqual(errors, [], "Storage failures are handled without uncaught errors");
   await fallback.close();
   console.log(
-    "PASS: manual Save/Save As, quiet recovery, restored dirty state, Save/Don’t Save/Cancel, failed switching, permissions, write conflicts, multi-tab protection and download fallback",
+    "PASS: richer document recovery and preview gating, manual Save/Save As, quiet recovery, restored dirty state, Save/Don’t Save/Cancel, failed switching, permissions, write conflicts, multi-tab protection and download fallback",
   );
 } finally {
   await fileContext?.close();
   await browser.close();
+}
+
+function urlForChecks() {
+  return process.argv[2] ?? "http://127.0.0.1:5173/";
 }

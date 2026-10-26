@@ -1,5 +1,6 @@
 // Plain project data for JSON saving
 // Validate imports before using them as a ProjectDocument
+import type { ContentProject } from "./project-content";
 
 // Project, scene and object IDs use UUID strings
 // Reuse these IDs when saving or undoing an edit
@@ -19,6 +20,7 @@ export type QuaternionTuple = readonly [x: number, y: number, z: number, w: numb
 export type Transform = Readonly<{
   position: Vector3Tuple;
   rotation: QuaternionTuple;
+
   // Positive scale on each local axis
   // No mirroring or shear
   scale: Vector3Tuple;
@@ -26,8 +28,10 @@ export type Transform = Readonly<{
 
 export type CameraPose = Readonly<{
   position: Vector3Tuple;
+
   // Camera looks along its local negative Z axis
   rotation: QuaternionTuple;
+
   // Vertical field of view in degrees
   fovDegrees: number;
 }>;
@@ -39,33 +43,36 @@ export type ProjectObject = Readonly<{
   transform: Transform;
 }>;
 
-export type NamedViewpoint = Readonly<{
-  id: EntityId;
-  name: string;
-  camera: CameraPose;
-}>;
+export type NamedViewpoint = Readonly<{ id: EntityId; name: string; camera: CameraPose }>;
 
 export type ProjectScene = Readonly<{
   id: EntityId;
   name: string;
-  environmentAssetId: AssetId | null;
+
+  // One environment can model several connected rooms for uninterrupted walking
+  // TODO: multiple environment assets per scene if necessary
+  environmentAssetId: AssetId;
   startCamera: CameraPose;
-  // Named starting view; startCamera also keeps a standalone fallback pose.
-  startViewpointId?: EntityId;
-  // Optional so existing M1 files still open without rewriting them.
+
+  // V2 scenes carry viewpoints; the v1 validator still rejects this field.
   viewpoints?: readonly NamedViewpoint[];
+
   // Keep the scene list order when saving
   objects: readonly ProjectObject[];
 }>;
 
 // Readonly is a compile-time check
 // Route edits through the document store
-export type ProjectDocument = Readonly<{
+export type LegacyProjectDocument = Readonly<{
   // Saved format version
   // Keep edit counters and server revisions outside this document
   schemaVersion: 1;
   projectId: EntityId;
   title: string;
-  // Ordered complete scenes, each with its own environment, objects and views
+
+  // Array order is the authored scene order; version 1 contains exactly one scene
   scenes: readonly ProjectScene[];
 }>;
+
+// Keep each version intact so readers and edits must narrow before accessing version-specific data
+export type ProjectDocument = LegacyProjectDocument | ContentProject;

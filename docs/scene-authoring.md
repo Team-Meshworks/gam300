@@ -1,41 +1,39 @@
 # Scene authoring
 
-A scene is a complete environment containing its objects, optional environment model, starting camera and named viewpoints. A room model is one possible asset within that environment; it does not define what a scene is.
+A scene is a complete environment containing its objects, environment model, starting camera and named viewpoints. A room model is an asset used by a scene, not the definition of a scene.
 
 ## Using the editor
 
-Use the Scenes button on the left editor rail. Scene tree lists objects in the active scene; Saved views manages that scene’s camera views. Enter a name and choose Add scene to create a separate empty scene. Click a scene to edit it. Rename the selected scene with the name field. Drag the handles to reorder scenes, or use Move scene up/down. Environment is optional; None removes only that environment model and keeps placed objects and views.
+Use Scenes on the left rail. Scene tree lists objects in the active scene; Saved views manages its cameras. Choose an environment and a name to add a scene. Rename, reorder or delete scenes through this panel. Every scene requires an environment asset in the shared server format.
 
-New creates a separate project with one empty scene. The existing save/discard/cancel confirmation still applies. A project supports 1–20 scenes, each with up to 200 objects and 100 saved views, within the existing 5 MiB project limit.
+New returns to room selection after the existing save/discard/cancel decision. Adding a second scene or editing viewpoints upgrades a version-1 project to version 2. Version 2 supports 1–16 scenes and up to 64 viewpoints per scene, within the 5 MiB file limit. The strict version-1 reader remains unchanged.
 
 ## History and files
 
-Scene creation, renaming, ordering and environment changes use the same undo history as objects and viewpoints. Switching scenes is navigation and creates no undo entry. Undo/redo selects the scene recorded for that edit. Switching cancels an unfinished transform preview.
+Scene creation, rename, reorder, environment changes and viewpoints share object undo history. Switching scenes creates no history entry and cancels an unfinished transform preview. Undo/redo selects the scene recorded for that edit. Complete document snapshots preserve other scenes, groups, components, media and rules.
 
-JSON Save/Open includes all scenes in order and their objects, environment and viewpoints. Opening a JSON file starts on the first scene with fresh history. Browser recovery also preserves the active scene and the shared undo/redo history, within the existing 100-edit/20 MiB limits. New multi-scene history stores complete document snapshots; old single-scene recovery data is still readable. Invalid recovery history is rejected without replacing a valid scene document.
-
-The schema still uses version 1, extended to allow multiple scenes and a null environmentAssetId. Existing single-scene files remain readable. Coordinate this extension with the serialization owner before merging: older validators may reject new files.
-
-## Manual check
-
-1. Create World A, place a crate and capture a named viewpoint.
-2. Create World B: its object list and views start empty. Add a snow globe.
-3. Switch back to A: the crate and viewpoint are still there.
-4. Undo: B becomes active and its snow globe is removed. Redo restores it.
-5. Rename/reorder scenes; undo and redo each action.
-6. Wait for the browser backup, refresh, and repeat Undo/Redo.
-7. Save and reopen the JSON: both scenes and their contents return in saved order.
+Save/Open includes all scenes. Opening a file starts with fresh history. Browser recovery preserves the active scene and history within the 100-edit/20 MiB limits. Invalid history is rejected without throwing away a valid current document. New persists the empty room-selection state so discarded projects do not return after reload.
 
 ## Starting views
 
-Select a saved view, then choose Set as starting view. The panel shows the chosen name. Entering the scene uses its position, rotation and field of view. This choice is saved and undoable. Renaming or reordering the view keeps the choice. Deleting the chosen viewpoint uses the first remaining saved view. If no views remain, its last camera pose is the fallback; Undo restores the named reference too.
+The saved startCamera is authoritative. Capturing the first viewpoint sets this camera; Set as starting view copies the chosen viewpoint's pose into it. Reordering or deleting viewpoints does not change that pose. The panel identifies a named starting view when its camera matches. These changes are undoable. There is no startViewpointId in the server format.
 
-The optional startViewpointId must reference a viewpoint in that same scene, with a matching startCamera. When no starting view is explicitly chosen, the first saved viewpoint is used. Reordering changes that default. Scenes with no saved viewpoints use startCamera. Full document recovery snapshots preserve changes to this choice.
+## Older scene files
 
-## Deleting scenes
+Use File → Import older scene file for the earlier extended version-1 format. This is a separate compatibility reader, not a relaxed server validator. The conversion preserves IDs, scene/view order, objects and the effective starting camera. It supplies the version-2 object fields and empty groups, zones and rules. Scenes without an environment require an explicit choice. Over-limit or invalid files are rejected without trimming data. Save the conversion as a new file; the original stays unchanged. Old undo history is not converted.
 
-Delete scene shows the scene name and object/view counts before confirmation. Cancel leaves it untouched. Confirmation removes the complete scene in one shared undo step. If it was active, the editor selects the next scene, or the previous one when deleting the last in order. The final remaining scene cannot be deleted. Undo restores the exact IDs, order, objects, viewpoints, environment and starting camera; Redo removes it again. Recovery preserves this history.
+A recognized older browser session offers Import older browser backup. Reading it does not rewrite it. Before the active session is replaced, its entire original recovery record is retained under an older-scene-backup revision key in the same IndexedDB transaction. Concurrent-tab revision checks still apply.
 
-Navigation links do not exist in the current project schema. Removing/restoring incoming navigation references remains an integration task when that schema is introduced; this implementation does not invent or silently discard unsupported link data.
+## Deleting scenes and viewpoints
 
-Manual checks: choose a starting view, switch away and back, then save/reopen. Delete a populated scene, confirm, Undo and Redo. Cancel a deletion and verify that the last scene cannot be deleted.
+Scene deletion requires confirmation, keeps at least one scene and removes the complete scene in one undo step. Undo restores its IDs, content, ordering and starting camera. If a rule references the scene or viewpoint, deletion is rejected rather than silently breaking the rule. Compound removal/restoration of dependent rules is a separate future task.
+
+## Manual check
+
+1. Add an environment, a crate and a named view in World A.
+2. Add World B with an environment and a snowglobe; switch between both scenes.
+3. Undo and redo edits; verify the other scene's content stays intact.
+4. Rename and reorder scenes and views. Choose a starting view; reorder again and verify the starting camera stays unchanged.
+5. Refresh after browser backup and check undo/redo. Save and reopen; check both scenes and starting cameras.
+6. Import an older scene file, choose any missing environments and save the conversion separately.
+7. Cancel scene deletion, then confirm it and test undo/redo. A referenced destination must reject deletion.
