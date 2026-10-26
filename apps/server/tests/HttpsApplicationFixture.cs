@@ -80,9 +80,9 @@ internal sealed class HttpsApplicationFixture : IAsyncDisposable
         {
             directory = Path.Combine(artifactsRoot, "https-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(directory);
-            using var rsa = RSA.Create(2048);
-            var request = new CertificateRequest("CN=Spatia synthetic HTTPS test", rsa, HashAlgorithmName.SHA256,
-                RSASignaturePadding.Pkcs1);
+            // Keep a fresh key per fixture without repeated RSA key-generation cost
+            using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+            var request = new CertificateRequest("CN=Spatia synthetic HTTPS test", key, HashAlgorithmName.SHA256);
             var names = new SubjectAlternativeNameBuilder();
             names.AddIpAddress(IPAddress.Loopback);
             names.AddDnsName("localhost");
