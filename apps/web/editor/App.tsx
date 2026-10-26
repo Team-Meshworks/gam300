@@ -22,6 +22,7 @@ import { useProjectSession } from "./persistence/use-project-session";
 
 // Same catalog used by the viewport; saved references need to resolve here too
 const assetKinds = new Map(assets.map((asset) => [asset.id, asset.kind]));
+const EMPTY_INTERACTIONS: readonly Interaction[] = Object.freeze([]);
 
 export function App() {
   const [store] = useState(() => createDocumentStore(assets));
@@ -65,7 +66,7 @@ export function App() {
   const hasChanges = project !== null || objects.length > 0 || hasDeleted;
   const visitor = modeState?.mode === "visitor";
   const [navigationTool, setNavigationTool] = useState<NavigationTool>("select");
-  const [interactions, setInteractions] = useState<Interaction[]>([]);
+  const interactions = projectScene?.interactions ?? EMPTY_INTERACTIONS;
 
   const interactionHandler = useMemo(() => createInteractionHandler(interactions), [interactions]);
   const interactionHandlerRef = useRef(interactionHandler);
@@ -82,6 +83,13 @@ export function App() {
   const onSceneUpdate = useCallback((deltaSeconds: number) => {
     interactionHandlerRef.current.update(deltaSeconds);
   }, []);
+  const onInteractionsChange = useCallback(
+    (next: Interaction[]) => {
+      const result = store.setInteractions(next);
+      if (!result.ok) setNotice(result.error.message);
+    },
+    [store, setNotice],
+  );
 
   const onManager = useCallback((next: ModeManager) => {
     setManager(next);
@@ -295,7 +303,7 @@ export function App() {
           thumbnailFor={thumbnailFor}
           onSelect={setSelectedId}
           onTransform={onTransform}
-          onInteractionsChange={setInteractions}
+          onInteractionsChange={onInteractionsChange}
         />
 
         <Viewport

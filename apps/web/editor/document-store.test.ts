@@ -165,6 +165,56 @@ it("shares one undo order across incoming gizmo moves, edit sessions and deletio
   assert.equal(store.getSnapshot().objects.length, 0);
 });
 
+it("stores interactions in the project and reloads them with the scene", () => {
+  const assets: CatalogueAsset[] = [
+    {
+      id: "test-room-v1",
+      name: "Room",
+      kind: "environment",
+      url: "room.glb",
+      sha256: "0".repeat(64),
+      thumbnail: null,
+    },
+    {
+      id: "test-crate-v1",
+      name: "Crate",
+      kind: "model",
+      url: "crate.glb",
+      sha256: "0".repeat(64),
+      thumbnail: null,
+    },
+  ];
+  const store = createDocumentStore(assets);
+  assert.equal(store.setInteractions([]).ok, false);
+  const placed = store.addObject("test-crate-v1", [1, 0, 0]);
+  if (!placed.ok) throw new Error(placed.error);
+  assert.equal(store.createProject("test-room-v1").ok, true);
+
+  const interactions = [
+    { when: { type: "scene-starts" as const }, do: { type: "print-hi" as const } },
+    {
+      when: { type: "visitor-clicks-object" as const, targetObjectId: placed.object.id },
+      do: { type: "open-link" as const, url: "https://example.com" },
+    },
+  ];
+  const saved = store.setInteractions(interactions);
+  assert.equal(saved.ok, true);
+  const scene = store.getSnapshot().project?.scenes[0];
+  assert.deepEqual(scene?.interactions, interactions);
+  assert.equal(Object.isFrozen(scene?.interactions), true);
+  assert.equal(Object.isFrozen(scene?.interactions[0]), true);
+  assert.equal(Object.isFrozen(scene?.interactions[0]?.when), true);
+
+  const reopened = createDocumentStore(assets);
+  const loaded = reopened.loadProject(
+    JSON.stringify(store.getSnapshot().project),
+    new Map(assets.map((asset) => [asset.id, asset.kind])),
+  );
+  assert.equal(loaded.ok, true);
+  assert.deepEqual(reopened.getSnapshot().objects, store.getSnapshot().objects);
+  assert.deepEqual(reopened.getSnapshot().project?.scenes[0]?.interactions, interactions);
+});
+
 it("creates a saveable room project while preserving model IDs, transforms and history", () => {
   const assets: CatalogueAsset[] = [
     {

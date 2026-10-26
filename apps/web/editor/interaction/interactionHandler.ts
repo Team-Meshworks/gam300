@@ -1,11 +1,8 @@
-import type { EntityId } from "../../shared/project/project-types";
+import type { EntityId, Interaction } from "../../shared/project/project-types";
 import { runAction as runBrowserAction, type Action } from "./actionHandler";
-import { triggerMatches, triggerSeconds, type Trigger, type TriggerEvent } from "./triggerHandler";
+import { triggerMatches, triggerSeconds, type TriggerEvent } from "./triggerHandler";
 
-export type Interaction = Readonly<{
-  when: Trigger;
-  do: Action;
-}>;
+export type { Interaction } from "../../shared/project/project-types";
 
 export type SceneInteractions = Readonly<{
   schemaVersion: 1;

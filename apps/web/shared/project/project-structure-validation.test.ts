@@ -15,6 +15,7 @@ function sampleProject() {
     environmentAssetId: "room-v1",
     startCamera: { position: [0, 1.6, 5], rotation: [0, 0, 0, 1], fovDegrees: 60 },
     objects: [object],
+    interactions: [] as { when: unknown; do: unknown }[],
   };
   const project = {
     schemaVersion: 1,
@@ -87,6 +88,70 @@ describe("M1 project structure", () => {
     expect(validateProjectStructure(project)).toMatchObject({
       ok: false,
       error: { path: "project.scenes[0].objects" },
+    });
+  });
+
+  it("accepts legacy scenes without interactions and validates saved rules", () => {
+    const { project, scene, object } = sampleProject();
+    const legacyScene = structuredClone(scene) as Record<string, unknown>;
+    delete legacyScene.interactions;
+    expect(validateProjectStructure({ ...project, scenes: [legacyScene] })).toEqual({
+      ok: true,
+      value: { ...project, scenes: [{ ...legacyScene, interactions: [] }] },
+    });
+
+    scene.interactions = [
+      { when: { type: "scene-starts" }, do: { type: "print-hi" } },
+      {
+        when: { type: "visitor-clicks-object", targetObjectId: object.id },
+        do: { type: "open-link", url: "https://example.com" },
+      },
+      {
+        when: { type: "time-elapsed", seconds: 5 },
+        do: { type: "play-audio", url: "/audio/ding.wav" },
+      },
+    ];
+    expect(validateProjectStructure(project)).toEqual({ ok: true, value: project });
+  });
+
+  it("rejects malformed interactions with their full paths", () => {
+    const { project, scene } = sampleProject();
+    scene.interactions = [{ when: { type: "unknown" }, do: { type: "print-hi" } }];
+    expect(validateProjectStructure(project)).toMatchObject({
+      ok: false,
+      error: { path: "project.scenes[0].interactions[0].when.type" },
+    });
+
+    scene.interactions = [{ when: { type: "time-elapsed", seconds: 0 }, do: { type: "print-hi" } }];
+    expect(validateProjectStructure(project)).toMatchObject({
+      ok: false,
+      error: { path: "project.scenes[0].interactions[0].when.seconds" },
+    });
+
+    scene.interactions = [{ when: { type: "scene-starts" }, do: { type: "open-link", url: 42 } }];
+    expect(validateProjectStructure(project)).toMatchObject({
+      ok: false,
+      error: { path: "project.scenes[0].interactions[0].do.url" },
+    });
+
+    scene.interactions = [
+      { when: { type: "scene-starts" }, do: { type: "print-hi" }, extra: 1 },
+    ] as unknown as { when: unknown; do: unknown }[];
+    expect(validateProjectStructure(project)).toMatchObject({
+      ok: false,
+      error: { path: "project.scenes[0].interactions[0].extra" },
+    });
+  });
+
+  it("rejects more than 200 interactions", () => {
+    const { project, scene } = sampleProject();
+    scene.interactions = Array.from({ length: 201 }, () => ({
+      when: { type: "scene-starts" },
+      do: { type: "print-hi" },
+    }));
+    expect(validateProjectStructure(project)).toMatchObject({
+      ok: false,
+      error: { path: "project.scenes[0].interactions" },
     });
   });
 

@@ -1,3 +1,5 @@
+import type { InteractionAction } from "../../shared/project/project-types";
+
 export const ACTIONS = Object.freeze([
   { type: "open-link", label: "Open a link" },
   { type: "play-audio", label: "Play this audio" },
@@ -7,10 +9,7 @@ export const ACTIONS = Object.freeze([
 export type ActionType = (typeof ACTIONS)[number]["type"];
 export type ActionDefinition = (typeof ACTIONS)[number];
 
-export type Action =
-  | Readonly<{ type: "open-link"; url?: string }>
-  | Readonly<{ type: "play-audio"; url?: string }>
-  | Readonly<{ type: "print-hi" }>;
+export type Action = InteractionAction;
 
 let activeAudio: HTMLAudioElement | undefined;
 

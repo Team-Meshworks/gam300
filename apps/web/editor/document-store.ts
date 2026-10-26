@@ -7,8 +7,19 @@ import { captureRecoveryHistory, validateRecoveryHistory } from "./recovery-hist
 import type { CatalogueAsset } from "../shared/assets/catalogue.ts";
 import type { SceneObject, Vector3Tuple } from "../shared/project/scene-object.ts";
 import { deserializeProject } from "../shared/project/project-deserialization";
-import type { ProjectDocument } from "../shared/project/project-types";
+import type { Interaction, ProjectDocument } from "../shared/project/project-types";
 import type { ValidationResult } from "../shared/project/validation-helpers";
+
+function freezeInteractions(interactions: readonly Interaction[]): readonly Interaction[] {
+  return Object.freeze(
+    interactions.map((interaction) =>
+      Object.freeze({
+        when: Object.freeze({ ...interaction.when }),
+        do: Object.freeze({ ...interaction.do }),
+      }),
+    ),
+  );
+}
 
 function freezeProject(project: ProjectDocument): ProjectDocument {
   // Freeze the reader's separate copy before exposing it to panels or commands
@@ -24,6 +35,12 @@ function freezeProject(project: ProjectDocument): ProjectDocument {
     Object.freeze(scene.startCamera.position);
     Object.freeze(scene.startCamera.rotation);
     Object.freeze(scene.startCamera);
+    for (const interaction of scene.interactions) {
+      Object.freeze(interaction.when);
+      Object.freeze(interaction.do);
+      Object.freeze(interaction);
+    }
+    Object.freeze(scene.interactions);
     Object.freeze(scene);
   }
   Object.freeze(project.scenes);
@@ -258,6 +275,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
               fovDegrees: 40,
             },
             objects: options.startEmpty ? [] : objects,
+            interactions: [],
           },
         ],
       };
@@ -365,6 +383,19 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       if (!result.ok)
         return { ok: false, error: `${result.error.path}: ${result.error.message}` } as const;
       return { ok: true, changed: result.value.changed } as const;
+    },
+    setInteractions(nextInteractions: readonly Interaction[]) {
+      const scene = project?.scenes[0];
+      if (project === null || scene === undefined) {
+        return invalid("project", "Place an object or open a project before adding interactions");
+      }
+      const interactions = freezeInteractions(nextInteractions);
+      project = Object.freeze({
+        ...project,
+        scenes: Object.freeze([Object.freeze({ ...scene, interactions })]),
+      });
+      publish();
+      return { ok: true, value: interactions } as const;
     },
     deleteObject(objectId: string): ValidationResult<SceneObject> {
       const index = objects.findIndex((object) => object.id === objectId);

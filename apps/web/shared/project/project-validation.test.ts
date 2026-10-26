@@ -14,6 +14,7 @@ function sampleProject() {
     environmentAssetId: "test-room-v1",
     startCamera: { position: [0, 1.6, 5], rotation: [0, 0, 0, 1], fovDegrees: 60 },
     objects: [object],
+    interactions: [],
   };
   const project = {
     schemaVersion: 1,

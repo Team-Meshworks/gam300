@@ -39,6 +39,21 @@ export type ProjectObject = Readonly<{
   transform: Transform;
 }>;
 
+export type InteractionTrigger =
+  | Readonly<{ type: "visitor-clicks-object"; targetObjectId: EntityId }>
+  | Readonly<{ type: "scene-starts" }>
+  | Readonly<{ type: "time-elapsed"; seconds?: number }>;
+
+export type InteractionAction =
+  | Readonly<{ type: "open-link"; url?: string }>
+  | Readonly<{ type: "play-audio"; url?: string }>
+  | Readonly<{ type: "print-hi" }>;
+
+export type Interaction = Readonly<{
+  when: InteractionTrigger;
+  do: InteractionAction;
+}>;
+
 export type ProjectScene = Readonly<{
   id: EntityId;
   name: string;
@@ -46,6 +61,8 @@ export type ProjectScene = Readonly<{
   startCamera: CameraPose;
   // Keep the scene list order when saving
   objects: readonly ProjectObject[];
+  // Authored WHEN -> DO rules run in preview
+  interactions: readonly Interaction[];
 }>;
 
 // Readonly is a compile-time check

@@ -21,6 +21,46 @@ describe("project JSON serialization", () => {
     expect(serializeProject(restored.value, assets)).toEqual(first);
   });
 
+  it("preserves ordered interactions through save and reload", () => {
+    const scene = structuredClone(fixture.scenes[0]);
+    const input = {
+      ...fixture,
+      scenes: [
+        {
+          ...scene,
+          interactions: [
+            { when: { type: "scene-starts" }, do: { type: "print-hi" } },
+            {
+              when: {
+                type: "visitor-clicks-object",
+                targetObjectId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+              },
+              do: { type: "open-link", url: "https://example.com" },
+            },
+            {
+              when: { type: "time-elapsed", seconds: 5 },
+              do: { type: "play-audio", url: "/audio/ding.wav" },
+            },
+          ],
+        },
+      ],
+    };
+    const saved = serializeProject(input, assets);
+    expect(saved.ok).toBe(true);
+    if (!saved.ok) throw new Error(saved.error.message);
+    expect(JSON.parse(saved.value)).toEqual(input);
+    expect(deserializeProject(saved.value, assets)).toEqual({ ok: true, value: input });
+  });
+
+  it("adds an empty interaction list when an older file has none", () => {
+    const scene = structuredClone(fixture.scenes[0]) as Record<string, unknown>;
+    delete scene.interactions;
+    const saved = serializeProject({ ...fixture, scenes: [scene] }, assets);
+    expect(saved.ok).toBe(true);
+    if (!saved.ok) throw new Error(saved.error.message);
+    expect(JSON.parse(saved.value).scenes[0].interactions).toEqual([]);
+  });
+
   it("preserves names with quotes, line breaks and Unicode text", () => {
     const input = { ...fixture, title: '展览 "Crates"\nRoom \\ A' };
     const result = serializeProject(input, assets);

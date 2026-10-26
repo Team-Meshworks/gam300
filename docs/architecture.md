@@ -45,7 +45,8 @@ visitor mode or a project-switching decision cancels pending transform previews;
 visitor navigation cannot invoke authoring controls or file saving.
 
 The v1 document contains stable project/scene/object IDs, one environment-backed
-scene, ordered asset references, transforms and a starting camera. The initial grid
+scene, ordered asset references, transforms, a starting camera and ordered WHEN→DO
+interaction rules. The initial grid
 has no complete project until a room is chosen or a valid file is opened.
 See [project types](../apps/web/shared/project/project-types.ts) and the
 [representative fixture](../apps/web/shared/project/fixtures/m1-project.json).

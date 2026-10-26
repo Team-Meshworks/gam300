@@ -1,4 +1,4 @@
-import type { ProjectDocument, ProjectObject, ProjectScene } from "./project-types";
+import type { Interaction, ProjectDocument, ProjectObject, ProjectScene } from "./project-types";
 import { validateCameraPose, validateTransform } from "./spatial-validation";
 import { checkFields, invalid, isRecord } from "./validation-helpers";
 import type { ValidationResult } from "./validation-helpers";
@@ -6,6 +6,8 @@ import { MAX_PROJECT_BYTES } from "./project-limits";
 
 // Starting limits from the project handoff
 const MAX_OBJECTS_PER_SCENE = 200;
+const MAX_INTERACTIONS_PER_SCENE = 200;
+const MAX_ELAPSED_SECONDS = 86_400;
 
 type TextBudget = { remaining: number };
 
@@ -60,6 +62,106 @@ function validateObject(
   };
 }
 
+function validateTrigger(
+  raw: unknown,
+  path: string,
+  budget: TextBudget,
+): ValidationResult<Interaction["when"]> {
+  if (!isRecord(raw)) {
+    return invalid(path, "Trigger must be an object");
+  }
+  if (!Object.hasOwn(raw, "type")) {
+    return invalid(`${path}.type`, "Required field is missing");
+  }
+  switch (raw.type) {
+    case "visitor-clicks-object": {
+      const fields = checkFields(raw, ["type", "targetObjectId"], path);
+      if (!fields.ok) return fields;
+      const target = readText(raw.targetObjectId, `${path}.targetObjectId`, budget);
+      if (!target.ok) return target;
+      return {
+        ok: true,
+        value: { type: "visitor-clicks-object", targetObjectId: target.value },
+      };
+    }
+    case "scene-starts": {
+      const fields = checkFields(raw, ["type"], path);
+      if (!fields.ok) return fields;
+      return { ok: true, value: { type: "scene-starts" } };
+    }
+    case "time-elapsed": {
+      const fields = checkFields(raw, ["type", "seconds"], path);
+      if (!fields.ok) return fields;
+      if (
+        typeof raw.seconds !== "number" ||
+        !Number.isFinite(raw.seconds) ||
+        raw.seconds <= 0 ||
+        raw.seconds > MAX_ELAPSED_SECONDS
+      ) {
+        return invalid(`${path}.seconds`, "Expected a positive number of seconds");
+      }
+      return { ok: true, value: { type: "time-elapsed", seconds: raw.seconds } };
+    }
+    default:
+      return invalid(`${path}.type`, "Unsupported trigger type");
+  }
+}
+
+function validateAction(
+  raw: unknown,
+  path: string,
+  budget: TextBudget,
+): ValidationResult<Interaction["do"]> {
+  if (!isRecord(raw)) {
+    return invalid(path, "Action must be an object");
+  }
+  if (!Object.hasOwn(raw, "type")) {
+    return invalid(`${path}.type`, "Required field is missing");
+  }
+  switch (raw.type) {
+    case "open-link": {
+      const fields = checkFields(raw, ["type", "url"], path);
+      if (!fields.ok) return fields;
+      const url = readText(raw.url, `${path}.url`, budget);
+      if (!url.ok) return url;
+      return { ok: true, value: { type: "open-link", url: url.value } };
+    }
+    case "play-audio": {
+      const fields = checkFields(raw, ["type", "url"], path);
+      if (!fields.ok) return fields;
+      const url = readText(raw.url, `${path}.url`, budget);
+      if (!url.ok) return url;
+      return { ok: true, value: { type: "play-audio", url: url.value } };
+    }
+    case "print-hi": {
+      const fields = checkFields(raw, ["type"], path);
+      if (!fields.ok) return fields;
+      return { ok: true, value: { type: "print-hi" } };
+    }
+    default:
+      return invalid(`${path}.type`, "Unsupported action type");
+  }
+}
+
+function validateInteraction(
+  raw: unknown,
+  path: string,
+  budget: TextBudget,
+): ValidationResult<Interaction> {
+  if (!isRecord(raw)) {
+    return invalid(path, "Interaction must be an object");
+  }
+  const fields = checkFields(raw, ["when", "do"], path);
+  if (!fields.ok) {
+    return fields;
+  }
+  const when = validateTrigger(raw.when, `${path}.when`, budget);
+  if (!when.ok) return when;
+  const action = validateAction(raw.do, `${path}.do`, budget);
+  if (!action.ok) return action;
+  return { ok: true, value: { when: when.value, do: action.value } };
+}
+
 function validateScene(
   raw: unknown,
   path: string,
@@ -72,6 +174,7 @@ function validateScene(
     raw,
     ["id", "name", "environmentAssetId", "startCamera", "objects"],
     path,
+    ["interactions"],
   );
   if (!fields.ok) {
     return fields;
@@ -108,6 +211,24 @@ function validateScene(
     }
     objects.push(object.value);
   }
+
+  // Older project files have no interactions and start with an empty list
+  const interactions: Interaction[] = [];
+  if (raw.interactions !== undefined) {
+    if (!Array.isArray(raw.interactions) || raw.interactions.length > MAX_INTERACTIONS_PER_SCENE) {
+      return invalid(
+        `${path}.interactions`,
+        "Interactions must be an array with at most 200 entries",
+      );
+    }
+    for (const [index, entry] of raw.interactions.entries()) {
+      const interaction = validateInteraction(entry, `${path}.interactions[${index}]`, budget);
+      if (!interaction.ok) {
+        return interaction;
+      }
+      interactions.push(interaction.value);
+    }
+  }
   return {
     ok: true,
     value: {
@@ -116,6 +237,7 @@ function validateScene(
       environmentAssetId: environmentAssetId.value,
       startCamera: camera.value,
       objects,
+      interactions,
     },
   };
 }

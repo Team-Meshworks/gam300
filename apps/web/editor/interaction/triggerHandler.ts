@@ -1,4 +1,4 @@
-import type { EntityId } from "../../shared/project/project-types";
+import type { EntityId, InteractionTrigger } from "../../shared/project/project-types";
 
 export const DEFAULT_ELAPSED_SECONDS = 2;
 
@@ -11,10 +11,7 @@ export const TRIGGERS = Object.freeze([
 export type TriggerType = (typeof TRIGGERS)[number]["type"];
 export type TriggerDefinition = (typeof TRIGGERS)[number];
 
-export type Trigger =
-  | Readonly<{ type: "visitor-clicks-object"; targetObjectId: EntityId }>
-  | Readonly<{ type: "scene-starts" }>
-  | Readonly<{ type: "time-elapsed"; seconds?: number }>;
+export type Trigger = InteractionTrigger;
 
 export type TriggerEvent =
   | Readonly<{ type: "visitor-clicks-object"; objectId: EntityId }>
