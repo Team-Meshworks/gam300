@@ -44,7 +44,18 @@ try {
   // No more move buttons, so nudge through the Position panel then go back to the tree
   await page.getByRole("button", { name: "Position", exact: true }).click();
   const field = page.getByRole("textbox", { name: /transform X \(m\)$/ });
-  await field.fill(String(Number(await field.inputValue()) + 0.25));
+  // Compare saved movement with the actual starting pose, independent of placement defaults
+  const expectedPosition = await Promise.all(
+    ["X", "Y", "Z"].map(async (axis) =>
+      Number(
+        await page
+          .getByRole("textbox", { name: new RegExp(`transform ${axis} \\(m\\)$`) })
+          .inputValue(),
+      ),
+    ),
+  );
+  expectedPosition[0] += 0.25;
+  await field.fill(String(expectedPosition[0]));
   await field.press("Enter");
   await page.getByRole("button", { name: "Scene tree", exact: true }).click();
   const movedPosition = await page.getByLabel("Selected position").textContent();
@@ -62,7 +73,7 @@ try {
   const project = JSON.parse(bytes.toString("utf8"));
   assert.equal(project.scenes[0].environmentAssetId, "test-room-v1");
   assert.equal(project.scenes[0].objects.length, 1);
-  assert.deepEqual(project.scenes[0].objects[0].transform.position, [0.25, 0, 0]);
+  assert.deepEqual(project.scenes[0].objects[0].transform.position, expectedPosition);
   // Save finishes its recovery write before restoring the file-status label
   await page.getByText("Not saved", { exact: true }).waitFor();
   await page.reload();

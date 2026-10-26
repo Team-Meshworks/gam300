@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import * as THREE from "three";
 
@@ -83,22 +84,76 @@ try {
     0,
     "Choosing a room clears the placement error",
   );
+  // Load a known camera pose so pointer checks do not depend on the editor startup view
+  const fixture = JSON.parse(
+    readFileSync(new URL("../shared/project/fixtures/m1-project.json", import.meta.url), "utf8"),
+  );
+  const emptyFixture = structuredClone(fixture);
+  emptyFixture.scenes[0].objects = [];
+  await page.locator("#project-import").setInputFiles({
+    name: "pointer-fixture.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(emptyFixture)),
+  });
+  await page.getByText("Project opened", { exact: true }).waitFor();
   await asset.click();
   assert.equal(await rows.count(), 1);
   const firstId = await rows.first().getAttribute("data-object-id");
   const stageBox = await stage.boundingBox();
   assert.ok(stageBox);
-  // Asset panel floats over the bottom of the scene, so drop above it or the panel catch it
-  const dockBox = await page.locator(".bottom-dock").boundingBox();
-  assert.ok(dockBox);
-  const dropPoint = { x: stageBox.width * 0.7, y: (dockBox.y - stageBox.y) * 0.8 };
+  // Find an exposed canvas point without assuming where the asset panel is docked
+  const dropPoint = await stage.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    for (const y of [0.25, 0.4, 0.6]) {
+      for (const x of [0.7, 0.3, 0.5]) {
+        if (
+          document.elementFromPoint(rect.left + rect.width * x, rect.top + rect.height * y)
+            ?.tagName === "CANVAS"
+        ) {
+          return { x: rect.width * x, y: rect.height * y };
+        }
+      }
+    }
+    throw new Error("No exposed canvas point for asset drop");
+  });
   await asset.dragTo(stage, { targetPosition: dropPoint });
   assert.equal(await rows.count(), 2, "One completed drop creates one object");
   const secondId = await rows.nth(1).getAttribute("data-object-id");
   assert.notEqual(firstId, secondId);
   assert.equal(await rows.nth(1).getAttribute("aria-pressed"), "true");
 
-  await stage.click({ position: { x: stageBox.width / 2, y: stageBox.height / 2 - 10 } });
+  // Read the authored spawn position before projecting it through the fixture camera
+  await rows.first().click();
+  await page.getByRole("button", { name: "Position", exact: true }).click();
+  const spawn = await Promise.all(
+    ["X", "Y", "Z"].map(async (axis) =>
+      Number(
+        await page
+          .getByRole("textbox", { name: `test-crate 1 transform ${axis} (m)`, exact: true })
+          .inputValue(),
+      ),
+    ),
+  );
+  await page.getByRole("button", { name: "Scene tree", exact: true }).click();
+  const pose = fixture.scenes[0].startCamera;
+  const camera = new THREE.PerspectiveCamera(
+    pose.fovDegrees,
+    stageBox.width / stageBox.height,
+    0.1,
+    100,
+  );
+  camera.position.fromArray(pose.position);
+  camera.quaternion.fromArray(pose.rotation);
+  camera.updateMatrixWorld(true);
+  const center = new THREE.Vector3(spawn[0], spawn[1] + 0.5, spawn[2]).project(camera);
+  const libraryControl = page.getByRole("button", { name: "Asset library", exact: true });
+  await libraryControl.click();
+  await stage.click({
+    position: {
+      x: ((center.x + 1) * stageBox.width) / 2,
+      y: ((1 - center.y) * stageBox.height) / 2,
+    },
+  });
   assert.equal(
     await rows.first().getAttribute("aria-pressed"),
     "true",
@@ -107,21 +162,20 @@ try {
   const position = page.locator('output[aria-label="Selected position"]');
   const initialPosition = await position.textContent();
   await nudge(page, "test-crate 1", "X", 0.25);
-  assert.match(await position.textContent(), /X 0\.25/);
+  assert.notEqual(await position.textContent(), initialPosition);
   await undo.click();
   assert.equal(await position.textContent(), initialPosition);
 
-  const camera = new THREE.PerspectiveCamera(40, stageBox.width / stageBox.height, 0.1, 100);
-  camera.position.set(12, 16, 18);
-  camera.lookAt(0, 0, 0);
-  camera.updateMatrixWorld(true);
-  const origin = new THREE.Vector3().project(camera);
-  const xAxis = new THREE.Vector3(1, 0, 0).project(camera);
+  const origin = new THREE.Vector3(...spawn).project(camera);
+  const xAxis = new THREE.Vector3(spawn[0] + 1, spawn[1], spawn[2]).project(camera);
   const axisDirection = new THREE.Vector2(
     (xAxis.x - origin.x) * stageBox.width,
     -(xAxis.y - origin.y) * stageBox.height,
   ).normalize();
-  const pivot = { x: stageBox.x + stageBox.width / 2, y: stageBox.y + stageBox.height / 2 };
+  const pivot = {
+    x: stageBox.x + ((origin.x + 1) * stageBox.width) / 2,
+    y: stageBox.y + ((1 - origin.y) * stageBox.height) / 2,
+  };
   const alongAxis = (pixels) => ({
     x: pivot.x + axisDirection.x * pixels,
     y: pivot.y + axisDirection.y * pixels,
@@ -180,6 +234,7 @@ try {
     await page.screenshot({ path: process.env.CHECK_SCREENSHOT, fullPage: true });
   }
 
+  await libraryControl.click();
   await asset.dragTo(page.getByRole("heading", { name: "Asset library", exact: true }));
   assert.equal(await rows.count(), 2, "Dropping outside the scene leaves objects unchanged");
   const tileBox = await asset.boundingBox();

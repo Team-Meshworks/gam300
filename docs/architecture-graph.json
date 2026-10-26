@@ -266,11 +266,11 @@
     "shared/project/validation-helpers.ts": "655a118952cf702e91ac211e18f48478541fe95f4ceeee3806e314badbfb60fe",
     "tests/caching.check.mjs": "98c0ef24df281bf361e202633ae12dbefabd1f49df7e8f21bb253ff5848fbf6a",
     "tests/caching.measure.mjs": "0181addfc3a470bd5504169e3e0a88d3292ecb3e341beded0ca90766e4d40ea7",
-    "tests/deployment.check.mjs": "0577b23f6c0b386ac64b22c6fd9185106511857fb3d5220d7e6c2765d7786b7d",
+    "tests/deployment.check.mjs": "c4cedc5151c1b043b6eee66ae1dcf144c97cc2645d8f1956f99f70942c07ab9e",
     "tests/editor-build.check.mjs": "ddad12cec87babbd5365e3d4cd4ec25187d8e1a5485d04bf2dcce3b3e273606a",
-    "tests/editor-integration.check.mjs": "4b697ecd860a64826ca0eabda46cb738116009be7bc058b3bd8caa2ac04a8d33",
-    "tests/editor-shell.check.mjs": "633dcb9d14bf0ac678dc0691527fd81aa6a6b283bc9403d0357dabd301b28a86",
-    "tests/history-recovery.check.mjs": "5ca1825415170ca384a3b0ed9e9a9afb2d873a7a6a2e56ced2aedaabb19880a0",
+    "tests/editor-integration.check.mjs": "01ae358ec88769454cac1e0fb162c9ce7fe4c2096cafad431aaa8a00620d761d",
+    "tests/editor-shell.check.mjs": "fc7bd01b919c2a03bbd001001ba24f5a052e43bdf15fd96c67f720680e30d414",
+    "tests/history-recovery.check.mjs": "3d9ceb4d7017d144eb320135dae052cbcfdf3f849d6757a825f3e2764c4e32e7",
     "tests/local-drafts.check.mjs": "9846908a9b505cfe3a61f6f385369da31750a331a13dde26e9b2999bc8e3d352",
     "tests/project-format-cross.check.mjs": "0d382287fd435f4f03647d8141f7d854ab7a6ec6906a07886e65a4352b0917e9",
     "vite.config.ts": "50329f07010d85bc43b6f9ab2f3ea7b0ca22fa6059f6346d8872bf1b09ac5da6",
@@ -3050,7 +3050,25 @@
     },
     {
       "file": "tests/editor-integration.check.mjs",
-      "line": 138,
+      "line": 91,
+      "kind": "dynamic",
+      "specifier": "/persistence/local-drafts.ts",
+      "target": "editor/persistence/local-drafts.ts",
+      "from": "checks",
+      "to": "persistence"
+    },
+    {
+      "file": "tests/editor-integration.check.mjs",
+      "line": 92,
+      "kind": "dynamic",
+      "specifier": "/@id/__x00__virtual:asset-catalogue",
+      "target": "shared/assets/catalogue.ts",
+      "from": "checks",
+      "to": "catalogue"
+    },
+    {
+      "file": "tests/editor-integration.check.mjs",
+      "line": 156,
       "kind": "test-environment",
       "specifier": "three",
       "target": {
@@ -3060,7 +3078,7 @@
     },
     {
       "file": "tests/editor-integration.check.mjs",
-      "line": 139,
+      "line": 157,
       "kind": "dynamic",
       "specifier": "/graphics/scene.ts",
       "target": "editor/graphics/scene.ts",
@@ -3069,7 +3087,7 @@
     },
     {
       "file": "tests/editor-integration.check.mjs",
-      "line": 140,
+      "line": 158,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
       "target": "shared/assets/catalogue.ts",
@@ -3090,7 +3108,7 @@
       "file": "tests/editor-shell.check.mjs",
       "line": 2,
       "kind": "static",
-      "specifier": "node:url",
+      "specifier": "node:fs",
       "target": {
         "package": "node:*"
       },
@@ -3100,6 +3118,16 @@
       "file": "tests/editor-shell.check.mjs",
       "line": 3,
       "kind": "static",
+      "specifier": "node:url",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/editor-shell.check.mjs",
+      "line": 4,
+      "kind": "static",
       "specifier": "three",
       "target": {
         "package": "three"
@@ -3108,7 +3136,7 @@
     },
     {
       "file": "tests/editor-shell.check.mjs",
-      "line": 5,
+      "line": 6,
       "kind": "test-environment",
       "specifier": "playwright",
       "target": {
@@ -3118,7 +3146,7 @@
     },
     {
       "file": "tests/editor-shell.check.mjs",
-      "line": 397,
+      "line": 452,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -3175,7 +3203,7 @@
     },
     {
       "file": "tests/history-recovery.check.mjs",
-      "line": 82,
+      "line": 85,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -3184,7 +3212,7 @@
     },
     {
       "file": "tests/history-recovery.check.mjs",
-      "line": 83,
+      "line": 86,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
       "target": "shared/assets/catalogue.ts",
@@ -3442,12 +3470,12 @@
     },
     {
       "file": "tests/editor-integration.check.mjs",
-      "line": 138,
+      "line": 156,
       "expression": "threePath"
     },
     {
       "file": "tests/editor-shell.check.mjs",
-      "line": 5,
+      "line": 6,
       "expression": "process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : \"playwright\""
     },
     {
