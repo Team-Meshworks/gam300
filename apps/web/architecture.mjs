@@ -10,7 +10,7 @@ export const modules = {
   project: {
     paths: ["shared/project/"],
     uses: [],
-    packages: [],
+    packages: ["punycode"],
     public: [
       "shared/project/project-types.ts",
       "shared/project/project-content.ts",

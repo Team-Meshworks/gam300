@@ -1519,15 +1519,16 @@
       ]
     },
     {
-      "name": "valid portable DNS label https://xn--a/",
+      "name": "invalid IDNA label https://xn--a/",
       "base": "m2",
-      "valid": true,
+      "valid": false,
       "patches": [
         {
           "path": ["scenes", 0, "rules", 5, "actions", 0, "url"],
           "value": "https://xn--a/"
         }
-      ]
+      ],
+      "path": "project.scenes[0].rules[5].actions[0].url"
     },
     {
       "name": "invalid portable URL https://%31.2.3.999/",
@@ -1643,6 +1644,52 @@
         {
           "path": ["scenes", 0, "rules", 5, "actions", 0, "url"],
           "value": "https://[::ffff:192.0.2.1]:443/"
+        }
+      ]
+    },
+    {
+      "name": "invalid IDNA label https://xn--z/",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].rules[5].actions[0].url",
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 5, "actions", 0, "url"],
+          "value": "https://xn--z/"
+        }
+      ]
+    },
+    {
+      "name": "valid IDNA label https://xn--bcher-kva.de/",
+      "base": "m2",
+      "valid": true,
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 5, "actions", 0, "url"],
+          "value": "https://xn--bcher-kva.de/"
+        }
+      ]
+    },
+    {
+      "name": "invalid embedded IPv4 https://[::ffff:192.0.2.01]/",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].rules[5].actions[0].url",
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 5, "actions", 0, "url"],
+          "value": "https://[::ffff:192.0.2.01]/"
+        }
+      ]
+    },
+    {
+      "name": "valid embedded IPv4 https://[::ffff:192.0.2.1]/",
+      "base": "m2",
+      "valid": true,
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 5, "actions", 0, "url"],
+          "value": "https://[::ffff:192.0.2.1]/"
         }
       ]
     }

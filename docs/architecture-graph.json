@@ -5,7 +5,9 @@
         "shared/project/"
       ],
       "uses": [],
-      "packages": [],
+      "packages": [
+        "punycode"
+      ],
       "public": [
         "shared/project/project-types.ts",
         "shared/project/project-content.ts",
@@ -195,7 +197,7 @@
   },
   "files": {
     "architecture.check.mjs": "d7d864b0067391a38e88998b288ae5a64c9a819fd74a4930ad036fd4460d8200",
-    "architecture.mjs": "f5681dec06e3556fe73bcf64a614985dffe02a671b57301739fd9b45cfefe60e",
+    "architecture.mjs": "35aa24cbddc74b06a810d4f4200100fde53b15ad951b9b35ddcf31801792b8d1",
     "asset-catalogue-plugin.ts": "17bec6aa65dd50167fe6c055fb38af453a647f3648a2bf296f9927ed32f7a158",
     "editor/App.tsx": "1959ecf211967dd57842a5e47147360cb2a8e15c047302c6b4896edd24eecea7",
     "editor/ProjectConfirmation.tsx": "07a0fedf8fbf88865b3b8232c8665c139348fc64ebce478ea01e55eb7fd14eff",
@@ -245,7 +247,7 @@
     "shared/assets/manifest-module.d.ts": "ff7add6e7e483a4cc6a0dd48c9ead7b2f4cd0b0a5ccc7fb06181e1a5d2d1326e",
     "shared/assets/sample-asset.ts": "2027def54ff2b2da4eb1372d91fb745d94e3a2b7946a845b74381122468ddb92",
     "shared/project/project-capabilities.ts": "b3e43a4a88bebd86fd0a35ccf6260d32fec6045ffb9fc40da80c783e3e65abf3",
-    "shared/project/project-content-validation.ts": "f80ef3b09daf8bf29d41bab1c99678e88923d6c8b7db21e7b74a870ceaec5cc8",
+    "shared/project/project-content-validation.ts": "5c681ecf390b5490d847fe030e0dbba8fe2c219929ac64e2b53e334b28e40f4a",
     "shared/project/project-content.test.ts": "348f9d8fd26a3273e1e4bc701565345607c6eba773ceef342702b08a004a9bc0",
     "shared/project/project-content.ts": "eaaa6d461b14bc6a0b103c1754945ddcda3c274231796077e19d2df756baad92",
     "shared/project/project-deserialization.test.ts": "a4159c5ffc88b8d3f22ed9fcca5b7b37cb7a90d1766dc46080264ca3b552ffb1",
@@ -277,7 +279,7 @@
     "shared/project/fixtures/m1-project.json": "3aeeee4397fd9ad18fc06eba32815ef5032ecf8184200aaa38a2076b882a4947",
     "editor/styles.css": "c1b1ad140f0bb8f6ddeed5f4049e72bf856978fd0f32f691b96ddc3e433b04d3",
     "shared/project/fixtures/m2-project.json": "ccafa7cfce33d73c5ffc77672ebe30101a059d30d1c9a9855c0f3e65c1b9fe78",
-    "shared/project/fixtures/project-format-cases.json": "d871e9b9f5690a464b47b2679328d6032abcf45b58f1d7a9592d0a587bc45c5c"
+    "shared/project/fixtures/project-format-cases.json": "c8e38b2bee10cb9979ef61635580015edec86c65b65906e096a508b8aa8a9b46"
   },
   "imports": [
     {
@@ -2228,6 +2230,16 @@
     {
       "file": "shared/project/project-content-validation.ts",
       "line": 1,
+      "kind": "static",
+      "specifier": "punycode/",
+      "target": {
+        "package": "punycode"
+      },
+      "from": "project"
+    },
+    {
+      "file": "shared/project/project-content-validation.ts",
+      "line": 2,
       "kind": "type",
       "specifier": "./project-content",
       "target": "shared/project/project-content.ts",
@@ -2236,7 +2248,7 @@
     },
     {
       "file": "shared/project/project-content-validation.ts",
-      "line": 8,
+      "line": 9,
       "kind": "static",
       "specifier": "./project-limits",
       "target": "shared/project/project-limits.ts",
@@ -2245,7 +2257,7 @@
     },
     {
       "file": "shared/project/project-content-validation.ts",
-      "line": 9,
+      "line": 10,
       "kind": "static",
       "specifier": "./spatial-validation",
       "target": "shared/project/spatial-validation.ts",
@@ -2254,7 +2266,7 @@
     },
     {
       "file": "shared/project/project-content-validation.ts",
-      "line": 10,
+      "line": 11,
       "kind": "static",
       "specifier": "./validation-helpers",
       "target": "shared/project/validation-helpers.ts",

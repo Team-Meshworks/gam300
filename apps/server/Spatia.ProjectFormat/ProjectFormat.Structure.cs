@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
@@ -336,6 +337,16 @@ public static partial class ProjectFormat
         // Bracketed IPv6 has no DNS labels or legacy IPv4 spelling to check below
         if (ipv6)
         {
+            // IPv4-mapped IPv6 still requires canonical decimal octets in browser URLs
+            // Inspect the authored suffix before Uri normalizes leading-zero spellings
+            if (host.Contains('.'))
+            {
+                var octets = host[(host.LastIndexOf(':') + 1)..^1].Split('.');
+                if (octets.Length != 4 || !octets.All(octet => Regex.IsMatch(octet, @"^(?:0|[1-9][0-9]{0,2})$") && int.Parse(octet) <= 255))
+                {
+                    return false;
+                }
+            }
             return parsed.HostNameType == UriHostNameType.IPv6;
         }
 
@@ -343,6 +354,12 @@ public static partial class ProjectFormat
         {
             // Both readers bound DNS labels after IDN conversion; preserve Unicode and escaped spelling
             var domain = parsed.IdnHost.EndsWith('.') ? parsed.IdnHost[..^1] : parsed.IdnHost;
+
+            // Uri accepts ASCII xn-- labels without verifying their encoded Unicode characters
+            // Decode through IDNA validation before DNS checks so fake labels such as xn--a are rejected
+            // Keep the authored URL untouched; this conversion is only an acceptance check
+            _ = new IdnMapping().GetUnicode(domain);
+
             if (domain.Length > 253 || domain.Split('.').Any(label => !Regex.IsMatch(label, @"^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$")))
             {
                 return false;

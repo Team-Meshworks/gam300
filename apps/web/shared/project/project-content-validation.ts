@@ -1,3 +1,4 @@
+import punycode from "punycode/";
 import type {
   ContentComponent,
   ContentProject,
@@ -273,9 +274,16 @@ function action(raw: unknown, path: string): ProjectAction {
           const ipv6 = host.startsWith("[");
           const domain = parsed.hostname.replace(/\.$/, "");
 
+          // Some URL runtimes accept fake xn-- labels without checking the encoded characters
+          // Decode and parse the Unicode host too, matching the server IDNA check before acceptance
+          // Require the same canonical host so decoded delimiters cannot change the authority
+          const validIdn =
+            ipv6 || new URL(`https://${punycode.toUnicode(domain)}`).hostname === domain;
+
           // Reject raw cleanup characters before accepting the parsed host
           // IPv6 bypasses DNS label checks while decoded DNS hosts must also exclude escaped delimiters
           valid =
+            validIdn &&
             !Array.from(url).some(
               (character) =>
                 character.charCodeAt(0) <= 32 ||
