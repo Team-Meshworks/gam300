@@ -433,6 +433,24 @@ try {
   assert.equal(await roomRow.getAttribute("aria-pressed"), "false");
   await library.click();
 
+  // Finish the nudge's automatic backup before opening the project menu
+  // Backup temporarily disables New; its timer must not interrupt the pointer click
+  // Check the persisted edit rather than sleeping for an assumed storage duration
+  await page.waitForFunction(async (expectedZ) => {
+    const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
+    const result = await loadRecoverySession(
+      new Map([
+        ["test-room-v1", "environment"],
+        ["test-crate-v1", "model"],
+        ["sample-snowglobe-v1", "model"],
+      ]),
+    );
+    return (
+      result.ok &&
+      result.value?.document?.scenes[0]?.objects[1]?.transform.position[2] === expectedZ
+    );
+  }, fixture.scenes[0].objects[1].transform.position[2] + 1);
+
   // New projects and recovered sessions should show the same asset choices
   await page.locator(".draft-menu summary").click();
   await page.getByRole("button", { name: "New", exact: true }).click();
