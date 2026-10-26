@@ -604,9 +604,16 @@ try {
   await editor.reload();
   await editor.getByText("Add a room from the asset library to start.", { exact: true }).waitFor();
   assert.equal(await editor.locator(".object-row").count(), 0);
+  assert.equal((await session()).document, null);
 
   await add();
   const beforeFailure = await waitBackup(1);
+  assert.notEqual(beforeFailure.document.projectId, unsaved.document.projectId);
+  assert.equal(beforeFailure.document.projectId[14], "7", "New projects use UUIDv7");
+  assert.equal(beforeFailure.document.scenes[0].id[14], "4", "New scenes keep UUIDv4");
+  await editor.reload();
+  await editor.getByText("Reopened your last project", { exact: true }).waitFor();
+  assert.equal((await session()).document.projectId, beforeFailure.document.projectId);
   await editor.evaluate(() => (window.failRecovery = true));
   await menu("New");
   await choose("Don’t Save");

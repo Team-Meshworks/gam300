@@ -44,6 +44,10 @@ function text(raw: unknown, path: string, limit = 256): string {
   if (typeof raw !== "string" || raw.length > limit) {
     fail(path, `Expected text with at most ${limit} characters`);
   }
+  // Keep file and server storage acceptance identical
+  if (raw.includes("\u0000")) {
+    fail(path, "Text contains an unsupported NUL character");
+  }
   if (/[\ud800-\udfff]/u.test(raw)) {
     fail(path, "Text contains invalid Unicode");
   }

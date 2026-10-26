@@ -50,6 +50,16 @@ has no complete project until a room is chosen or a valid file is opened.
 See [project types](../apps/web/shared/project/project-types.ts) and the
 [representative fixture](../apps/web/shared/project/fixtures/m1-project.json).
 
+New project IDs use UUIDv7 because they become PostgreSQL keys, where the timestamp
+prefix improves index locality. Scene and object IDs remain UUIDv4 from the browser's
+`crypto.randomUUID()`; they are references inside the JSON document, without separate
+database key indexes. The project generator uses the RFC 9562 millisecond prefix and
+retains the native UUID's variant and 74 random suffix bits, without a new dependency.
+Both versions remain valid on import. Opening, saving, recovery and undo preserve
+existing IDs; this generation policy requires no schema version bump or ID migration.
+UUID timestamps are not authoritative save or edit ordering; revisions and authored
+array order remain separate.
+
 ## Hosting and planned product boundary
 
 ```mermaid

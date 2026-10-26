@@ -1,6 +1,31 @@
-import { assert, it } from "vitest";
+import { afterEach, assert, it, vi } from "vitest";
 import type { CatalogueAsset } from "../shared/assets/catalogue";
 import { createDocumentStore } from "./document-store.ts";
+
+afterEach(() => vi.restoreAllMocks());
+
+it.each([
+  [0, "00000000-0000-7cc3-98c4-dc0c0c07398f"],
+  // RFC 9562 Appendix A.6 test vector
+  [1645557742000, "017f22e2-79b0-7cc3-98c4-dc0c0c07398f"],
+  [0xffffffffffff, "ffffffff-ffff-7cc3-98c4-dc0c0c07398f"],
+])("creates a UUIDv7 project ID at %i milliseconds", (timestamp, expected) => {
+  vi.spyOn(Date, "now").mockReturnValue(timestamp);
+  vi.spyOn(crypto, "randomUUID").mockReturnValueOnce("aaaaaaaa-bbbb-4cc3-98c4-dc0c0c07398f");
+  const store = createDocumentStore([
+    {
+      id: "room",
+      name: "Room",
+      kind: "environment",
+      url: "room.glb",
+      sha256: "0".repeat(64),
+      thumbnail: null,
+    },
+  ]);
+  const created = store.createProject("room");
+  if (!created.ok) throw new Error(created.error.message);
+  assert.equal(created.value.projectId, expected);
+});
 
 it("preserves mixed-asset placement, history branching and earlier snapshots", () => {
   const assets: CatalogueAsset[] = [
@@ -166,6 +191,7 @@ it("shares one undo order across incoming gizmo moves, edit sessions and deletio
 });
 
 it("creates a saveable room project while preserving model IDs, transforms and history", () => {
+  vi.spyOn(Date, "now").mockReturnValue(1645557742000);
   const assets: CatalogueAsset[] = [
     {
       id: "test-room-v1",
@@ -192,6 +218,12 @@ it("creates a saveable room project while preserving model IDs, transforms and h
   const created = store.createProject("test-room-v1");
   assert.equal(created.ok, true);
   if (!created.ok) throw new Error(created.error.message);
+  assert.match(
+    created.value.projectId,
+    /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+  );
+  assert.equal(created.value.scenes[0]?.id[14], "4");
+  assert.equal(created.value.scenes[0]?.objects[0]?.id[14], "4");
   assert.deepEqual(created.value.scenes[0]?.objects, before.objects);
   assert.equal(created.value.scenes[0]?.environmentAssetId, "test-room-v1");
   store.undo();
