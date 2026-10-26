@@ -26,7 +26,6 @@ describe("action handler", () => {
 
     runAction({
       type: "open-link",
-      targetObjectId: "crate",
       url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
     });
 
@@ -40,7 +39,7 @@ describe("action handler", () => {
   it("plays audio from the action URL", () => {
     vi.stubGlobal("Audio", FakeAudio);
 
-    runAction({ type: "play-audio", targetObjectId: "crate", url: "/audio/ding.wav" });
+    runAction({ type: "play-audio", url: "/audio/ding.wav" });
 
     expect(FakeAudio.latest?.src).toBe("/audio/ding.wav");
     expect(FakeAudio.latest?.play).toHaveBeenCalledOnce();
@@ -49,19 +48,20 @@ describe("action handler", () => {
   it("stops the previous audio before playing another", () => {
     vi.stubGlobal("Audio", FakeAudio);
 
-    runAction({ type: "play-audio", targetObjectId: "crate", url: "/audio/ding.wav" });
+    runAction({ type: "play-audio", url: "/audio/ding.wav" });
     const first = FakeAudio.latest;
-    runAction({ type: "play-audio", targetObjectId: "crate", url: "/audio/ding.wav" });
+    runAction({ type: "play-audio", url: "/audio/ding.wav" });
 
     expect(first?.pause).toHaveBeenCalledOnce();
   });
 
-  it("prints hi", () => {
-    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+  it("shows a hi alert", () => {
+    const alert = vi.fn();
+    vi.stubGlobal("window", { alert });
 
-    runAction({ type: "print-hi", targetObjectId: "crate" });
+    runAction({ type: "print-hi" });
 
-    expect(log).toHaveBeenCalledExactlyOnceWith("hi");
+    expect(alert).toHaveBeenCalledExactlyOnceWith("hi");
   });
 
   it("does nothing when a URL is missing", () => {
@@ -69,8 +69,8 @@ describe("action handler", () => {
     vi.stubGlobal("window", { open });
     vi.stubGlobal("Audio", FakeAudio);
 
-    runAction({ type: "open-link", targetObjectId: "crate" });
-    runAction({ type: "play-audio", targetObjectId: "crate" });
+    runAction({ type: "open-link" });
+    runAction({ type: "play-audio" });
 
     expect(open).not.toHaveBeenCalled();
     expect(FakeAudio.latest).toBeUndefined();

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { assets } from "virtual:asset-catalogue";
 import type { Vector3Tuple } from "../shared/project/scene-object";
 import type { Transform } from "../shared/project/project-types";
@@ -11,6 +11,7 @@ import {
 } from "./history-shortcuts";
 import type { NavigationTool, ViewportStatus } from "./graphics/scene";
 import type { ModeManager, ModeManagerState } from "./graphics/modeManager";
+import { createInteractionHandler, type Interaction } from "./interaction/interactionHandler";
 import { BottomBar } from "./ui/BottomBar";
 import { SidePanels } from "./ui/SidePanels";
 import { TopBar } from "./ui/TopBar";
@@ -64,6 +65,23 @@ export function App() {
   const hasChanges = project !== null || objects.length > 0 || hasDeleted;
   const visitor = modeState?.mode === "visitor";
   const [navigationTool, setNavigationTool] = useState<NavigationTool>("select");
+  const [interactions, setInteractions] = useState<Interaction[]>([]);
+
+  const interactionHandler = useMemo(() => createInteractionHandler(interactions), [interactions]);
+  const interactionHandlerRef = useRef(interactionHandler);
+  useEffect(() => {
+    interactionHandlerRef.current = interactionHandler;
+  }, [interactionHandler]);
+  useEffect(() => {
+    if (visitor) interactionHandler.sceneStarted();
+    else interactionHandler.reset();
+  }, [visitor, interactionHandler]);
+  const onObjectClick = useCallback((id: string) => {
+    interactionHandlerRef.current.objectClicked(id);
+  }, []);
+  const onSceneUpdate = useCallback((deltaSeconds: number) => {
+    interactionHandlerRef.current.update(deltaSeconds);
+  }, []);
 
   const onManager = useCallback((next: ModeManager) => {
     setManager(next);
@@ -273,9 +291,11 @@ export function App() {
           objects={objects}
           selectedId={roomSelected ? projectScene.id : selection}
           selectedObject={selectedObject}
+          interactions={interactions}
           thumbnailFor={thumbnailFor}
           onSelect={setSelectedId}
           onTransform={onTransform}
+          onInteractionsChange={setInteractions}
         />
 
         <Viewport
@@ -292,6 +312,8 @@ export function App() {
           onThumbnail={onThumbnail}
           onSelect={setSelectedId}
           onTransform={onTransform}
+          onObjectClick={onObjectClick}
+          onSceneUpdate={onSceneUpdate}
           onPlace={place}
           onDragFinish={() => setDragging(false)}
           onRetry={() => {

@@ -9,30 +9,25 @@
       },
       "do": {
         "type": "play-audio",
-        "targetObjectId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
         "url": "/audio/ding.wav"
       }
     },
     {
       "when": {
-        "type": "scene-starts",
-        "targetObjectId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+        "type": "scene-starts"
       },
       "do": {
         "type": "open-link",
-        "targetObjectId": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
         "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
       }
     },
     {
       "when": {
         "type": "time-elapsed",
-        "targetObjectId": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
         "seconds": 2
       },
       "do": {
-        "type": "print-hi",
-        "targetObjectId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+        "type": "print-hi"
       }
     }
   ]

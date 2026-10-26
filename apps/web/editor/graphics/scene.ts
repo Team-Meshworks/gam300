@@ -27,6 +27,9 @@ const WHEEL_COMMIT_DELAY_MS = 250;
 
 const ROTATION_SNAP = THREE.MathUtils.degToRad(15);
 
+// Pointer travel under this many pixels still counts as a click while visiting
+const VISITOR_CLICK_TOLERANCE = 6;
+
 // One lazy renderer-module owner per editor page, shared across viewport retries/remounts
 export const editorModelCache = new ModelCache();
 if (import.meta.hot) {
@@ -77,6 +80,8 @@ export function initScene(
     onThumbnail: (id: string, url: string) => void;
     onSelect: (id: string | null) => void;
     onTransform: (id: string, transform: Transform) => void;
+    onObjectClick: (id: string) => void;
+    onUpdate: (deltaSeconds: number) => void;
   },
   modelCache: ModelCache = editorModelCache,
 ): InitSceneHandle | undefined {
@@ -193,6 +198,7 @@ export function initScene(
   // Scroll that is shown but not yet saved.
   let wheelEdit:
     { id: string; transform: Transform; current: Transform; timer: number } | undefined;
+  let visitorClick: { pointerId: number; x: number; y: number } | undefined;
 
   function render() {
     if (!disposed) {
@@ -295,6 +301,7 @@ export function initScene(
     const delta = Math.min((now - lastFrameTime) / 1000, 0.1);
     lastFrameTime = now;
     modeManager.update(delta);
+    if (modeManager.getState().mode === "visitor") callbacks.onUpdate(delta);
     fpsMeter.tick(now);
     render();
   };
@@ -534,10 +541,36 @@ export function initScene(
     beginDrag(event, { ...shared, currentMode: "freeRotate", geometry });
   }
 
+  function pick(clientX: number, clientY: number) {
+    const ray = screenRay(clientX, clientY);
+    const raycaster = new THREE.Raycaster(ray.origin, ray.direction);
+    let nearest =
+      environment === undefined
+        ? Infinity
+        : (raycaster.intersectObject(environment, true)[0]?.distance ?? Infinity);
+    // A wall or floor hit selects the room; a closer exhibit can still win the pick
+    let id: string | null = Number.isFinite(nearest) ? (projectScene?.id ?? null) : null;
+    for (const [objectId, instance] of instances) {
+      const hit = raycaster.intersectObject(instance, true)[0];
+      if (hit !== undefined && hit.distance < nearest) {
+        nearest = hit.distance;
+        id = objectId;
+      }
+    }
+    return id;
+  }
+
   function pointerDown(event: PointerEvent) {
-    if (!ready || !editingEnabled || (event.button !== 0 && event.button !== 2)) return;
-    if (!event.isPrimary || drag !== undefined) return;
-    if (modeManager.getState().mode !== "editor") return;
+    if (!ready || !event.isPrimary) return;
+    if (modeManager.getState().mode === "visitor") {
+      visitorClick =
+        event.button === 0
+          ? { pointerId: event.pointerId, x: event.clientX, y: event.clientY }
+          : undefined;
+      return;
+    }
+    if (!editingEnabled || (event.button !== 0 && event.button !== 2)) return;
+    if (drag !== undefined) return;
     // Camera tools never pick or move objects
     if (navigationTool !== "select") return;
     if (wheelEdit !== undefined) {
@@ -570,22 +603,7 @@ export function initScene(
       });
       return;
     }
-    const ray = screenRay(event.clientX, event.clientY);
-    const raycaster = new THREE.Raycaster(ray.origin, ray.direction);
-    let nearest =
-      environment === undefined
-        ? Infinity
-        : (raycaster.intersectObject(environment, true)[0]?.distance ?? Infinity);
-    // A wall or floor hit selects the room; a closer exhibit can still win the pick
-    let id: string | null = Number.isFinite(nearest) ? (projectScene?.id ?? null) : null;
-    for (const [objectId, instance] of instances) {
-      const hit = raycaster.intersectObject(instance, true)[0];
-      if (hit !== undefined && hit.distance < nearest) {
-        nearest = hit.distance;
-        id = objectId;
-      }
-    }
-    callbacks.onSelect(id);
+    callbacks.onSelect(pick(event.clientX, event.clientY));
   }
 
   function pointerMove(event: PointerEvent) {
@@ -607,6 +625,19 @@ export function initScene(
   }
 
   function pointerUp(event: PointerEvent) {
+    if (modeManager.getState().mode === "visitor") {
+      const click = visitorClick;
+      visitorClick = undefined;
+      if (
+        click !== undefined &&
+        click.pointerId === event.pointerId &&
+        Math.hypot(event.clientX - click.x, event.clientY - click.y) <= VISITOR_CLICK_TOLERANCE
+      ) {
+        const id = pick(event.clientX, event.clientY);
+        if (id !== null) callbacks.onObjectClick(id);
+      }
+      return;
+    }
     if (drag === undefined || event.pointerId !== drag.pointerId) return;
     pointerMove(event);
     const completed = drag;
@@ -664,6 +695,7 @@ export function initScene(
   }
 
   function pointerCancel(event: PointerEvent) {
+    if (event.pointerId === visitorClick?.pointerId) visitorClick = undefined;
     if (event.pointerId === drag?.pointerId) cancelDrag();
   }
 
@@ -681,6 +713,7 @@ export function initScene(
   window.addEventListener("keydown", keyDown);
   orbit.addEventListener("change", updateGizmo);
   const unsubscribeMode = modeManager.subscribe(({ mode }) => {
+    visitorClick = undefined;
     cancelDrag();
     cancelWheelEdit();
     // Cancellation must not re-enable orbit controls while visiting

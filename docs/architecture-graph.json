@@ -193,7 +193,7 @@
     "architecture.check.mjs": "d7d864b0067391a38e88998b288ae5a64c9a819fd74a4930ad036fd4460d8200",
     "architecture.mjs": "f251edc3dd86bb606f2774dca7710bfa02582362d40b3bd1dedef60b5ef5c972",
     "asset-catalogue-plugin.ts": "17bec6aa65dd50167fe6c055fb38af453a647f3648a2bf296f9927ed32f7a158",
-    "editor/App.tsx": "289d48c987cf703176bc1e3131432f5fc7577d51541a8d9ccbf32e60ffbe8714",
+    "editor/App.tsx": "f1ce4722fff9a7d50603961db7887fa7ab203d32d2207a2d6e5588950ebeb9e5",
     "editor/ProjectConfirmation.tsx": "07a0fedf8fbf88865b3b8232c8665c139348fc64ebce478ea01e55eb7fd14eff",
     "editor/command-history.test.ts": "783c026523513ea5520cde04e61502aba13ca3a612b509a904c2a50e50be2d1f",
     "editor/command-history.ts": "e243335582ab03da9d131bd80edef7b908e3eb0a751d6ebfa7deb77750fc54ad",
@@ -206,17 +206,18 @@
     "editor/graphics/rotation.ts": "d847162644716d2b36e8b3e4f1ad190360527a46351cb2969d411dbe76ea96d3",
     "editor/graphics/scaling.test.ts": "346b243798597de2a5b00384904bdf04f9f3826a8753bcde3282e5356b0ceb0a",
     "editor/graphics/scaling.ts": "0277d21b28d246ddb2f94216fe29afb24ebbc8e257dd3510eca91bb176867da1",
-    "editor/graphics/scene.ts": "f77766ba9fcbe5eda0d5e3fc78478b642bc4bfdade8b63d9fef543727857095f",
+    "editor/graphics/scene.ts": "a0b797baf5e993b8fd675651846c53a1d9ced8eb82e37a944244bd4a2c4a7459",
     "editor/graphics/translation.test.ts": "b4a888b963437ca3508c04cc3e933ab215d301908384ea9af37ee8aabd6fae2c",
     "editor/graphics/translation.ts": "a4ea05b137e4dee436848693a57273c54025856bdf943eb1e9413de5509bb2d4",
     "editor/history-shortcuts.test.ts": "fc33404f4da0e7c9fd27d2da50d63eb3367c790cda0f985dd98b398b651e3a3b",
     "editor/history-shortcuts.ts": "e9d147c651ba15b45484207f805fbb648beb13c7393e4538d249c159c4b4e583",
-    "editor/interaction/actionHandler.test.ts": "e566369e9cd2265b11e419a760e1c736a6d46c6d67ab2a3952e3bad30f3fb60d",
-    "editor/interaction/actionHandler.ts": "4bc6e3796022f31f8841c5268264200d4bc4bb89522fc1b9d89c8bc0888c56b7",
-    "editor/interaction/interactionHandler.test.ts": "9f4bd205a0200e607a8f0d489690041283fe6465978edfc3bb0b21f6bd17715f",
+    "editor/interaction/actionHandler.test.ts": "deeb02f5a6a661b14f6d470ee70dee650a013a5dea740ca5f7c1902a02889b9c",
+    "editor/interaction/actionHandler.ts": "1cf2d9d82e5cb21450fd72a3499d090ee17b0c846d56aaaf80bd376ed2d38293",
+    "editor/interaction/audio.ts": "6700985d7e44bcd8d2ee89b1a2b590cef3fbc480a96760e40da5e9c947582a32",
+    "editor/interaction/interactionHandler.test.ts": "0a64d8717d7262f0157bd9aa9bfa42c9b6221c516f5670614c81b5e5eae7c3fd",
     "editor/interaction/interactionHandler.ts": "3adb6333ff863a23b1af01b7bbe70476b2081ebdaee680dd2b3d142ea64c392d",
-    "editor/interaction/triggerHandler.test.ts": "74c73eefe55c224ac4425e9db1f0e1e93e48547ee2216d73f0f1c8242f82d541",
-    "editor/interaction/triggerHandler.ts": "1b439935181061538122d157d57f5d5135f9c9feb299396975903d7d38064f5d",
+    "editor/interaction/triggerHandler.test.ts": "18757bf6fef9ba741d2f3c09ec909fd25853c784f2dad9fc08e2eff2c486d56a",
+    "editor/interaction/triggerHandler.ts": "06589c381e745dbee3bf3a5b6fda29691b793084e4e4b2a4e50b1f98d5538862",
     "editor/main.tsx": "240b88cb33a8ef53b7f8a66df6385b1ada2dcb6b39380f2cfd21e5416fd0346b",
     "editor/object-copy.test.ts": "f11e65d7faa9f6027b11320a21e9e69e85aa873b7d254a8b901dc5ce8c971654",
     "editor/persistence/draft-db.ts": "9c1aece3becbd9db33c2164533cfc86d9cf7b4bef9306678d9c9aaca9b800c5a",
@@ -232,16 +233,14 @@
     "editor/transform-command.ts": "bcd7036db3877f5f24e5984287af8a878b10ec6289a51987e76f62db8f3cb178",
     "editor/ui/BottomBar.tsx": "0177614715bb80a4c35b680d9ea7ce820a9e78dcc76ca8caff82b547dead234d",
     "editor/ui/Icon.tsx": "1ac5c4aa30bd057855cb64bdc442c1725b4134ec6c7562ec5bcc3337dfddb71b",
-    "editor/ui/InteractionPanel.tsx": "7c7d774056cb311c964518b4f5e2daa2a3f979e7e5b6bf86119f57cf6ed2a5b7",
-    "editor/ui/SidePanels.tsx": "2af164f21f17c3b57b8af6960c99d263b43356bdbbd0ce0d052f8cc395794503",
+    "editor/ui/InteractionPanel.tsx": "fc5161b169a48869dbe3e18c81d8747d3f7da678d6fe969ee881701830633c66",
+    "editor/ui/SidePanels.tsx": "a9f6924d43b21231221aa38700bbf47a0bb04184a99a951f8956487e39d81fbe",
     "editor/ui/TopBar.tsx": "ffb94cf1637056a51471d5716736f442cc3afc24e080397fcca01b65d457fffe",
     "editor/ui/dock-edge.test.ts": "5f23848e403e898efc84d2c34ae327b5d5313a066c6391a79cec336e73759ead",
     "editor/ui/dock-edge.ts": "16fbf3250e0c840d7d6d0add10b5fb4ee008afafcbbebe1b860c15171d7196af",
-    "editor/ui/interaction-options.test.ts": "428c25f07c2436eb9f0ca43480ee2f1cd0358afc89a44e9c76bccad22e7b36df",
-    "editor/ui/interaction-options.ts": "8f87e5757f9b9116a46d5ff8550374c4d1cb332ae083b9f63bcb594eae9817d8",
     "editor/ui/rotation-angles.test.ts": "768d7e7fcfe8d5a5fc0a11f3bc70fa734e5e84ce161fd9aa5b1807b850f4438d",
     "editor/ui/rotation-angles.ts": "16a42a83ee7bb2435c4ee7b640fa6ca3c65a7564fd68981084ce57f5e9687f3b",
-    "editor/viewport/Viewport.tsx": "d90e0796f9001e2985ecd90755f80a56cd7d3df574eac07bb0a3a633faff8235",
+    "editor/viewport/Viewport.tsx": "38899cd5e6e6d5f78fe70668b0cf9a4045986c5ba1afae04286be968ad14c886",
     "eslint.config.js": "d32bfc31c2e4b881deedcd9090f5eb2ba874728c3dcfe5aa9f89e5e31cecc1f7",
     "shared/assets/ModelCache.test.ts": "6e5cf28591eb858c981923550fe49fb330535b085db0d99d7ce209736fefc2d3",
     "shared/assets/ModelCache.ts": "7ba493c76290a999db38013457dea39e5b08492416487338b05e1be6490dde2e",
@@ -274,7 +273,7 @@
     "vitest.config.ts": "6d56840bcf381e145f69828ff965fe1c8065e1610a38219c19dbb4e9d87d7dbf",
     "editor/index.html": "f14296264b1f8edda142de2fa8b8c58d1e98e50265637afe5f29924558900279",
     "shared/project/fixtures/m1-project.json": "3aeeee4397fd9ad18fc06eba32815ef5032ecf8184200aaa38a2076b882a4947",
-    "editor/styles.css": "fdf71756c7e5c2d67b3bd12e0a34221f44707ee5ba413230944471dd247625d8"
+    "editor/styles.css": "8db04f3fd172f75c0c964e7552ebc87c5930ca3ff70cb32ee80bb0a6215184cc"
   },
   "imports": [
     {
@@ -543,6 +542,15 @@
       "file": "editor/App.tsx",
       "line": 14,
       "kind": "static",
+      "specifier": "./interaction/interactionHandler",
+      "target": "editor/interaction/interactionHandler.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/App.tsx",
+      "line": 15,
+      "kind": "static",
       "specifier": "./ui/BottomBar",
       "target": "editor/ui/BottomBar.tsx",
       "from": "editor",
@@ -550,7 +558,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 15,
+      "line": 16,
       "kind": "static",
       "specifier": "./ui/SidePanels",
       "target": "editor/ui/SidePanels.tsx",
@@ -559,7 +567,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 16,
+      "line": 17,
       "kind": "static",
       "specifier": "./ui/TopBar",
       "target": "editor/ui/TopBar.tsx",
@@ -568,7 +576,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 17,
+      "line": 18,
       "kind": "static",
       "specifier": "./viewport/Viewport",
       "target": "editor/viewport/Viewport.tsx",
@@ -577,7 +585,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 19,
+      "line": 20,
       "kind": "static",
       "specifier": "./ProjectConfirmation",
       "target": "editor/ProjectConfirmation.tsx",
@@ -586,7 +594,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 20,
+      "line": 21,
       "kind": "static",
       "specifier": "./persistence/use-project-session",
       "target": "editor/persistence/use-project-session.ts",
@@ -595,7 +603,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 226,
+      "line": 244,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -1116,15 +1124,6 @@
       "target": "editor/interaction/actionHandler.ts",
       "from": "checks",
       "to": "editor"
-    },
-    {
-      "file": "editor/interaction/actionHandler.ts",
-      "line": 1,
-      "kind": "type",
-      "specifier": "../../shared/project/project-types",
-      "target": "shared/project/project-types.ts",
-      "from": "editor",
-      "to": "project"
     },
     {
       "file": "editor/interaction/interactionHandler.test.ts",
@@ -1838,8 +1837,8 @@
       "file": "editor/ui/InteractionPanel.tsx",
       "line": 2,
       "kind": "static",
-      "specifier": "./Icon",
-      "target": "editor/ui/Icon.tsx",
+      "specifier": "../interaction/actionHandler",
+      "target": "editor/interaction/actionHandler.ts",
       "from": "editor",
       "to": "editor"
     },
@@ -1847,14 +1846,41 @@
       "file": "editor/ui/InteractionPanel.tsx",
       "line": 3,
       "kind": "static",
-      "specifier": "./interaction-options",
-      "target": "editor/ui/interaction-options.ts",
+      "specifier": "../interaction/audio",
+      "target": "editor/interaction/audio.ts",
       "from": "editor",
       "to": "editor"
     },
     {
       "file": "editor/ui/InteractionPanel.tsx",
-      "line": 35,
+      "line": 4,
+      "kind": "type",
+      "specifier": "../interaction/interactionHandler",
+      "target": "editor/interaction/interactionHandler.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/InteractionPanel.tsx",
+      "line": 5,
+      "kind": "static",
+      "specifier": "../interaction/triggerHandler",
+      "target": "editor/interaction/triggerHandler.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/InteractionPanel.tsx",
+      "line": 6,
+      "kind": "static",
+      "specifier": "./Icon",
+      "target": "editor/ui/Icon.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/InteractionPanel.tsx",
+      "line": 114,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -1903,8 +1929,8 @@
       "file": "editor/ui/SidePanels.tsx",
       "line": 5,
       "kind": "type",
-      "specifier": "./interaction-options",
-      "target": "editor/ui/interaction-options.ts",
+      "specifier": "../interaction/interactionHandler",
+      "target": "editor/interaction/interactionHandler.ts",
       "from": "editor",
       "to": "editor"
     },
@@ -1928,7 +1954,7 @@
     },
     {
       "file": "editor/ui/SidePanels.tsx",
-      "line": 43,
+      "line": 45,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -2001,34 +2027,6 @@
       "target": "editor/ui/dock-edge.ts",
       "from": "checks",
       "to": "editor"
-    },
-    {
-      "file": "editor/ui/interaction-options.test.ts",
-      "line": 1,
-      "kind": "static",
-      "specifier": "vitest",
-      "target": {
-        "package": "vitest"
-      },
-      "from": "checks"
-    },
-    {
-      "file": "editor/ui/interaction-options.test.ts",
-      "line": 2,
-      "kind": "static",
-      "specifier": "./interaction-options",
-      "target": "editor/ui/interaction-options.ts",
-      "from": "checks",
-      "to": "editor"
-    },
-    {
-      "file": "editor/ui/interaction-options.ts",
-      "line": 1,
-      "kind": "type",
-      "specifier": "../../shared/project/scene-object",
-      "target": "shared/project/scene-object.ts",
-      "from": "editor",
-      "to": "project"
     },
     {
       "file": "editor/ui/rotation-angles.test.ts",
@@ -2125,7 +2123,7 @@
     },
     {
       "file": "editor/viewport/Viewport.tsx",
-      "line": 68,
+      "line": 72,
       "kind": "dynamic",
       "specifier": "../graphics/scene",
       "target": "editor/graphics/scene.ts",
@@ -2134,7 +2132,7 @@
     },
     {
       "file": "editor/viewport/Viewport.tsx",
-      "line": 118,
+      "line": 139,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {

@@ -4,17 +4,17 @@ import { DEFAULT_ELAPSED_SECONDS } from "./triggerHandler";
 
 const clickInteraction: Interaction = {
   when: { type: "visitor-clicks-object", targetObjectId: "crate" },
-  do: { type: "print-hi", targetObjectId: "panel" },
+  do: { type: "print-hi" },
 };
 
 const sceneStartInteraction: Interaction = {
-  when: { type: "scene-starts", targetObjectId: "crate" },
-  do: { type: "print-hi", targetObjectId: "viewpoint" },
+  when: { type: "scene-starts" },
+  do: { type: "print-hi" },
 };
 
 const elapsedInteraction: Interaction = {
-  when: { type: "time-elapsed", targetObjectId: "crate" },
-  do: { type: "print-hi", targetObjectId: "crate" },
+  when: { type: "time-elapsed" },
+  do: { type: "print-hi" },
 };
 
 describe("interaction handler", () => {
@@ -55,8 +55,8 @@ describe("interaction handler", () => {
   it("honours a custom elapsed time and resets", () => {
     const runAction = vi.fn();
     const interaction: Interaction = {
-      when: { type: "time-elapsed", targetObjectId: "crate", seconds: 5 },
-      do: { type: "open-link", targetObjectId: "crate", url: "https://example.com" },
+      when: { type: "time-elapsed", seconds: 5 },
+      do: { type: "open-link", url: "https://example.com" },
     };
     const handler = createInteractionHandler([interaction], runAction);
 

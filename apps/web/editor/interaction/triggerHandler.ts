@@ -11,11 +11,10 @@ export const TRIGGERS = Object.freeze([
 export type TriggerType = (typeof TRIGGERS)[number]["type"];
 export type TriggerDefinition = (typeof TRIGGERS)[number];
 
-export type Trigger = Readonly<{
-  type: TriggerType;
-  targetObjectId: EntityId;
-  seconds?: number;
-}>;
+export type Trigger =
+  | Readonly<{ type: "visitor-clicks-object"; targetObjectId: EntityId }>
+  | Readonly<{ type: "scene-starts" }>
+  | Readonly<{ type: "time-elapsed"; seconds?: number }>;
 
 export type TriggerEvent =
   | Readonly<{ type: "visitor-clicks-object"; objectId: EntityId }>

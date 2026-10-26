@@ -14,19 +14,13 @@ describe("trigger handler", () => {
   });
 
   it("matches scene starts and elapsed time events", () => {
-    expect(
-      triggerMatches({ type: "scene-starts", targetObjectId: "crate" }, { type: "scene-starts" }),
-    ).toBe(true);
-    expect(
-      triggerMatches({ type: "time-elapsed", targetObjectId: "crate" }, { type: "time-elapsed" }),
-    ).toBe(true);
+    expect(triggerMatches({ type: "scene-starts" }, { type: "scene-starts" })).toBe(true);
+    expect(triggerMatches({ type: "time-elapsed" }, { type: "time-elapsed" })).toBe(true);
   });
 
   it("uses two seconds for elapsed triggers unless a time is set", () => {
-    expect(triggerSeconds({ type: "time-elapsed", targetObjectId: "crate" })).toBe(
-      DEFAULT_ELAPSED_SECONDS,
-    );
-    expect(triggerSeconds({ type: "time-elapsed", targetObjectId: "crate", seconds: 5 })).toBe(5);
-    expect(triggerSeconds({ type: "scene-starts", targetObjectId: "crate" })).toBe(0);
+    expect(triggerSeconds({ type: "time-elapsed" })).toBe(DEFAULT_ELAPSED_SECONDS);
+    expect(triggerSeconds({ type: "time-elapsed", seconds: 5 })).toBe(5);
+    expect(triggerSeconds({ type: "scene-starts" })).toBe(0);
   });
 });

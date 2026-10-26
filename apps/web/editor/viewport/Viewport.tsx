@@ -27,6 +27,8 @@ type ViewportProps = {
   onThumbnail: (id: string, url: string) => void;
   onSelect: (id: string | null) => void;
   onTransform: (id: string, transform: Transform) => void;
+  onObjectClick: (id: string) => void;
+  onSceneUpdate: (deltaSeconds: number) => void;
   onPlace: (assetId: string, position: Vector3Tuple) => void;
   onDragFinish: () => void;
   onRetry: () => void;
@@ -48,6 +50,8 @@ export function Viewport({
   onThumbnail,
   onSelect,
   onTransform,
+  onObjectClick,
+  onSceneUpdate,
   onPlace,
   onDragFinish,
   onRetry,
@@ -68,7 +72,14 @@ export function Viewport({
     import("../graphics/scene")
       .then(({ initScene }) => {
         if (disposed) return;
-        const scene = initScene(host, assets, { onStatus, onThumbnail, onSelect, onTransform });
+        const scene = initScene(host, assets, {
+          onStatus,
+          onThumbnail,
+          onSelect,
+          onTransform,
+          onObjectClick,
+          onUpdate: onSceneUpdate,
+        });
         sceneRef.current = scene;
         const current = snapshotRef.current;
         scene?.update(current.objects, current.selectedId, current.projectScene);
@@ -89,7 +100,17 @@ export function Viewport({
       sceneRef.current?.dispose();
       sceneRef.current = undefined;
     };
-  }, [assets, attempt, onStatus, onThumbnail, onSelect, onTransform, onManager]);
+  }, [
+    assets,
+    attempt,
+    onStatus,
+    onThumbnail,
+    onSelect,
+    onTransform,
+    onObjectClick,
+    onSceneUpdate,
+    onManager,
+  ]);
 
   useEffect(() => {
     snapshotRef.current = { objects, selectedId, projectScene, editingEnabled, navigationTool };

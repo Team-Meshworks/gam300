@@ -1,19 +1,16 @@
-import type { EntityId } from "../../shared/project/project-types";
-
 export const ACTIONS = Object.freeze([
   { type: "open-link", label: "Open a link" },
   { type: "play-audio", label: "Play this audio" },
-  { type: "print-hi", label: "Print hi" },
+  { type: "print-hi", label: "Show an alert" },
 ] as const);
 
 export type ActionType = (typeof ACTIONS)[number]["type"];
 export type ActionDefinition = (typeof ACTIONS)[number];
 
-export type Action = Readonly<{
-  type: ActionType;
-  targetObjectId: EntityId;
-  url?: string;
-}>;
+export type Action =
+  | Readonly<{ type: "open-link"; url?: string }>
+  | Readonly<{ type: "play-audio"; url?: string }>
+  | Readonly<{ type: "print-hi" }>;
 
 let activeAudio: HTMLAudioElement | undefined;
 
@@ -26,7 +23,7 @@ export function runAction(action: Action): void {
       if (action.url !== undefined) playAudio(action.url);
       return;
     case "print-hi":
-      console.log("hi");
+      window.alert("hi");
       return;
   }
 }

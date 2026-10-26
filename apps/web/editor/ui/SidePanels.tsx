@@ -2,7 +2,7 @@ import { useState, type ReactNode } from "react";
 import type { SceneObject } from "../../shared/project/scene-object";
 import type { Transform, Vector3Tuple } from "../../shared/project/project-types";
 import { Icon, type IconName } from "./Icon";
-import type { InteractionRule } from "./interaction-options";
+import type { Interaction } from "../interaction/interactionHandler";
 import { InteractionPanel } from "./InteractionPanel";
 import { degreesToQuaternion, quaternionToDegrees } from "./rotation-angles";
 
@@ -21,23 +21,25 @@ export function SidePanels({
   objects,
   selectedId,
   selectedObject,
+  interactions,
   thumbnailFor,
   onSelect,
   onTransform,
+  onInteractionsChange,
 }: {
   visitor: boolean;
   room: Room | undefined;
   objects: readonly SceneObject[];
   selectedId: string | null;
   selectedObject: SceneObject | undefined;
+  interactions: readonly Interaction[];
   thumbnailFor: (assetId: string) => string | undefined;
   onSelect: (id: string) => void;
   onTransform: (id: string, transform: Transform) => void;
+  onInteractionsChange: (next: Interaction[]) => void;
 }) {
   // Open the tree first so new project can see whats inside
   const [panel, setPanel] = useState<PanelId | null>("tree");
-  // UI only for now, not saved with the project yet. Kept here so switching panels dont lose them
-  const [interactions, setInteractions] = useState<InteractionRule[]>([]);
 
   return (
     <aside className="library" aria-label="Editor panels" inert={visitor}>
@@ -79,8 +81,9 @@ export function SidePanels({
           {panel === "interaction" && (
             <InteractionPanel
               interactions={interactions}
+              room={room}
               objects={objects}
-              onChange={setInteractions}
+              onChange={onInteractionsChange}
             />
           )}
         </div>
