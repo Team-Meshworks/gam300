@@ -27,6 +27,11 @@ try {
   assert.ok(
     await asset.locator("img").evaluate((image) => image.complete && image.naturalWidth > 0),
   );
+  // Fresh projects require an environment before model placement can change the document
+  await asset.click();
+  assert.equal(await page.locator(".object-row").count(), 0);
+  await page.getByRole("alert").filter({ hasText: "Choose a room first" }).waitFor();
+  await page.getByRole("button", { name: "Add test-room", exact: true }).click();
   await asset.click();
   assert.equal(await page.locator(".object-row").count(), 1);
   if (process.env.CHECK_SCREENSHOT) {
@@ -34,7 +39,6 @@ try {
   }
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   assert.equal(await page.locator(".object-row").count(), 0);
-  await page.getByRole("button", { name: "Add test-room", exact: true }).click();
   await asset.click();
   const originalPosition = await page.getByLabel("Selected position").textContent();
   // No more move buttons, so nudge through the Position panel then go back to the tree

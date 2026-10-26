@@ -50,7 +50,9 @@ On Windows, use `run.bat`. Open http://localhost:8081. Stop this local applicati
 The Dockerfile builds with pinned Node/npm and serves the result through pinned Caddy.
 The launchers restore Git LFS delivery assets and check prerequisites. The container
 build runs lint, formatting, unit tests, TypeScript, all four authoring browser suites
-and the packaged-build browser checks before the web service starts. Host Node/npm
+and the packaged-build browser checks before the web service starts. CI sets
+`RUN_BUILD_CHECKS=false` after its source checks pass, then tests the final Caddy image;
+standalone builds retain all checks by default. Host Node/npm
 and Playwright are unnecessary. API/PostgreSQL services remain M2 implementation work.
 Only delivery assets enter the build; editable source files and local secrets are excluded.
 The existing asset validator runs with `--delivery-only` inside the build: it checks
