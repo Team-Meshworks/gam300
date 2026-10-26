@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace Spatia.ProjectFormat;
 
@@ -287,11 +288,9 @@ public static partial class ProjectFormat
             }
             else if (field == "url")
             {
-                // Reject credentials and spellings browsers would clean up before opening a link
-                // Preserve the authored URL rather than rewriting it through the URI parser
+                // Validate the shared portable authority rules without rewriting the authored URL
                 var url = Text(parameter, fieldPath, 2048);
-                if (!url.StartsWith("https://", StringComparison.Ordinal) || url.Any(character => character <= 32 || character == 127 || character == '\\')
-                    || !Uri.TryCreate(url, UriKind.Absolute, out var parsed) || string.IsNullOrEmpty(parsed.Host) || !string.IsNullOrEmpty(parsed.UserInfo))
+                if (!HttpsLink(url))
                 {
                     Fail(fieldPath, "Expected an absolute HTTPS URL without credentials");
                 }
@@ -300,6 +299,75 @@ public static partial class ProjectFormat
             {
                 Text(parameter, fieldPath);
             }
+        }
+    }
+
+    private static bool HttpsLink(string url)
+    {
+        // Match the browser's raw authority boundary before native parsers can repair or reinterpret it
+        if (url.Any(character => character <= 32 || character == 127 || character == '\\'))
+        {
+            return false;
+        }
+
+        // Require an explicit HTTPS host and optional port without credentials or parser-added slashes
+        var authority = Regex.Match(url, @"^https://(\[[0-9a-fA-F:.]+\]|[^:/?#@]+)(?::([0-9]{1,5}))?(?=[/?#]|$)");
+        if (!authority.Success)
+        {
+            return false;
+        }
+
+        // Decode host escapes only for validation; escaped delimiters must never become URL structure
+        var host = Uri.UnescapeDataString(authority.Groups[1].Value);
+        var ipv6 = host.StartsWith('[');
+        if (!ipv6 && host.Any(character => character <= 32 || "%/\\?#@[]:<>^|".Contains(character) || character == 127))
+        {
+            return false;
+        }
+
+        // Native parsing checks address syntax and port range using the decoded host only
+        // Keep the original path, query and fragment intact while validating this temporary candidate
+        var candidate = "https://" + host + (authority.Groups[2].Success ? ":" + authority.Groups[2].Value : "") + url[authority.Length..];
+        if (!Uri.TryCreate(candidate, UriKind.Absolute, out var parsed) || string.IsNullOrEmpty(parsed.Host) || !string.IsNullOrEmpty(parsed.UserInfo))
+        {
+            return false;
+        }
+
+        // Bracketed IPv6 has no DNS labels or legacy IPv4 spelling to check below
+        if (ipv6)
+        {
+            return parsed.HostNameType == UriHostNameType.IPv6;
+        }
+
+        try
+        {
+            // Both readers bound DNS labels after IDN conversion; preserve Unicode and escaped spelling
+            var domain = parsed.IdnHost.EndsWith('.') ? parsed.IdnHost[..^1] : parsed.IdnHost;
+            if (domain.Length > 253 || domain.Split('.').Any(label => !Regex.IsMatch(label, @"^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$")))
+            {
+                return false;
+            }
+
+            // Numeric suffixes are IPv4 candidates in browsers, never fallback DNS names
+            // Require canonical dotted decimal in both readers instead of legacy octal or short forms
+            const string numericSuffix = @"(?:^|\.)(?:[0-9]+|0[xX][0-9a-fA-F]*)\.?$";
+            if (Regex.IsMatch(host, numericSuffix) || Regex.IsMatch(domain, numericSuffix))
+            {
+                // Check authored octets because native parsers can normalize short and octal addresses
+                var address = host.EndsWith('.') ? host[..^1] : host;
+                var parts = address.Split('.');
+                return parts.Length == 4 && parts.All(part => Regex.IsMatch(part, @"^(?:0|[1-9][0-9]{0,2})$") && int.Parse(part) <= 255);
+            }
+            return true;
+        }
+        catch (ArgumentException)
+        {
+            // Invalid IDN labels receive the same URL-field feedback as every other rejected host
+            return false;
+        }
+        catch (UriFormatException)
+        {
+            return false;
         }
     }
 

@@ -1388,6 +1388,263 @@
           "value": "TEST-CRATE-V1"
         }
       ]
+    },
+    {
+      "name": "invalid browser-compatible host https://1.2.3.999/",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].rules[5].actions[0].url",
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 5, "actions", 0, "url"],
+          "value": "https://1.2.3.999/"
+        }
+      ]
+    },
+    {
+      "name": "invalid browser-compatible host https://09/",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].rules[5].actions[0].url",
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 5, "actions", 0, "url"],
+          "value": "https://09/"
+        }
+      ]
+    },
+    {
+      "name": "invalid browser-compatible host https://example.123/",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].rules[5].actions[0].url",
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 5, "actions", 0, "url"],
+          "value": "https://example.123/"
+        }
+      ]
+    },
+    {
+      "name": "valid browser-compatible host https://%65xample.com/",
+      "base": "m2",
+      "valid": true,
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 5, "actions", 0, "url"],
+          "value": "https://%65xample.com/"
+        }
+      ]
+    },
+    {
+      "name": "valid portable URL https://127.0.0.1/",
+      "base": "m2",
+      "valid": true,
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 5, "actions", 0, "url"],
+          "value": "https://127.0.0.1/"
+        }
+      ]
+    },
+    {
+      "name": "valid portable URL https://255.255.255.255./",
+      "base": "m2",
+      "valid": true,
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 5, "actions", 0, "url"],
+          "value": "https://255.255.255.255./"
+        }
+      ]
+    },
+    {
+      "name": "invalid portable URL https://127.1/",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].rules[5].actions[0].url",
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 5, "actions", 0, "url"],
+          "value": "https://127.1/"
+        }
+      ]
+    },
+    {
+      "name": "invalid portable URL https://0177.0.0.1/",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].rules[5].actions[0].url",
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 5, "actions", 0, "url"],
+          "value": "https://0177.0.0.1/"
+        }
+      ]
+    },
+    {
+      "name": "invalid portable URL https://0xffffffff/",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].rules[5].actions[0].url",
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 5, "actions", 0, "url"],
+          "value": "https://0xffffffff/"
+        }
+      ]
+    },
+    {
+      "name": "invalid portable URL https://example.0x/",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].rules[5].actions[0].url",
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 5, "actions", 0, "url"],
+          "value": "https://example.0x/"
+        }
+      ]
+    },
+    {
+      "name": "invalid portable URL https://example..com/",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].rules[5].actions[0].url",
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 5, "actions", 0, "url"],
+          "value": "https://example..com/"
+        }
+      ]
+    },
+    {
+      "name": "valid portable DNS label https://xn--a/",
+      "base": "m2",
+      "valid": true,
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 5, "actions", 0, "url"],
+          "value": "https://xn--a/"
+        }
+      ]
+    },
+    {
+      "name": "invalid portable URL https://%31.2.3.999/",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].rules[5].actions[0].url",
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 5, "actions", 0, "url"],
+          "value": "https://%31.2.3.999/"
+        }
+      ]
+    },
+    {
+      "name": "valid portable URL https://%E4%BE%8B%E5%AD%90.%E6%B5%8B%E8%AF%95/",
+      "base": "m2",
+      "valid": true,
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 5, "actions", 0, "url"],
+          "value": "https://%E4%BE%8B%E5%AD%90.%E6%B5%8B%E8%AF%95/"
+        }
+      ]
+    },
+    {
+      "name": "invalid portable URL https://%2fexample.com/",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].rules[5].actions[0].url",
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 5, "actions", 0, "url"],
+          "value": "https://%2fexample.com/"
+        }
+      ]
+    },
+    {
+      "name": "invalid portable URL https://%FF.com/",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].rules[5].actions[0].url",
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 5, "actions", 0, "url"],
+          "value": "https://%FF.com/"
+        }
+      ]
+    },
+    {
+      "name": "invalid portable URL https://example.com:000443/",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].rules[5].actions[0].url",
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 5, "actions", 0, "url"],
+          "value": "https://example.com:000443/"
+        }
+      ]
+    },
+    {
+      "name": "invalid portable URL https://example.com:/",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].rules[5].actions[0].url",
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 5, "actions", 0, "url"],
+          "value": "https://example.com:/"
+        }
+      ]
+    },
+    {
+      "name": "invalid portable URL https://１２７.１/",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].rules[5].actions[0].url",
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 5, "actions", 0, "url"],
+          "value": "https://１２７.１/"
+        }
+      ]
+    },
+    {
+      "name": "valid portable URL https://example.com./",
+      "base": "m2",
+      "valid": true,
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 5, "actions", 0, "url"],
+          "value": "https://example.com./"
+        }
+      ]
+    },
+    {
+      "name": "invalid portable URL https://foo_bar/",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].rules[5].actions[0].url",
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 5, "actions", 0, "url"],
+          "value": "https://foo_bar/"
+        }
+      ]
+    },
+    {
+      "name": "valid portable URL https://[::ffff:192.0.2.1]:443/",
+      "base": "m2",
+      "valid": true,
+      "patches": [
+        {
+          "path": ["scenes", 0, "rules", 5, "actions", 0, "url"],
+          "value": "https://[::ffff:192.0.2.1]:443/"
+        }
+      ]
     }
   ],
   "rawCases": [

@@ -70,6 +70,15 @@ A rule has a stable `id`, an `enabled` flag, one `trigger` and an ordered, nonem
 | `navigateScene` | `sceneId`, `viewpointId` belonging to that scene |
 | `openLink`      | `url`: absolute HTTPS URL without credentials    |
 
+`openLink` keeps the authored URL unchanged. Both readers accept bounded DNS/IDN
+labels (including percent-encoded UTF-8 hosts), canonical four-part decimal IPv4
+and bracketed IPv6, with an optional 1 to 5 digit port from 0 to 65535. DNS labels use
+letters, digits and internal hyphens after IDN conversion; one trailing dot is
+allowed. Empty labels, credentials, control characters, backslashes and legacy
+short/octal/hexadecimal IPv4 spellings are rejected. Numeric final labels must form
+a valid IPv4 address rather than falling back to DNS. These rules also apply when
+checking a saved file from the other runtime.
+
 Trigger and action targets stay in their owning scene except explicit navigation.
 Navigation points use the same destination checks. Disabled rules still require valid
 fields and references. Unknown variants and extra parameters are rejected

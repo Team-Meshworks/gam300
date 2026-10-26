@@ -245,7 +245,7 @@
     "shared/assets/manifest-module.d.ts": "ff7add6e7e483a4cc6a0dd48c9ead7b2f4cd0b0a5ccc7fb06181e1a5d2d1326e",
     "shared/assets/sample-asset.ts": "2027def54ff2b2da4eb1372d91fb745d94e3a2b7946a845b74381122468ddb92",
     "shared/project/project-capabilities.ts": "b3e43a4a88bebd86fd0a35ccf6260d32fec6045ffb9fc40da80c783e3e65abf3",
-    "shared/project/project-content-validation.ts": "cf1f4724098576ed4aced8a2533b9d3b82d9cd709db4b49024b4580c99262993",
+    "shared/project/project-content-validation.ts": "f80ef3b09daf8bf29d41bab1c99678e88923d6c8b7db21e7b74a870ceaec5cc8",
     "shared/project/project-content.test.ts": "348f9d8fd26a3273e1e4bc701565345607c6eba773ceef342702b08a004a9bc0",
     "shared/project/project-content.ts": "eaaa6d461b14bc6a0b103c1754945ddcda3c274231796077e19d2df756baad92",
     "shared/project/project-deserialization.test.ts": "a4159c5ffc88b8d3f22ed9fcca5b7b37cb7a90d1766dc46080264ca3b552ffb1",
@@ -276,7 +276,7 @@
     "shared/project/fixtures/m1-project.json": "3aeeee4397fd9ad18fc06eba32815ef5032ecf8184200aaa38a2076b882a4947",
     "editor/styles.css": "c1b1ad140f0bb8f6ddeed5f4049e72bf856978fd0f32f691b96ddc3e433b04d3",
     "shared/project/fixtures/m2-project.json": "ccafa7cfce33d73c5ffc77672ebe30101a059d30d1c9a9855c0f3e65c1b9fe78",
-    "shared/project/fixtures/project-format-cases.json": "f82850cca0c5ffda478b8b738b60818d3f7902004b39c6469a605cc28ae55ebb"
+    "shared/project/fixtures/project-format-cases.json": "d871e9b9f5690a464b47b2679328d6032abcf45b58f1d7a9592d0a587bc45c5c"
   },
   "imports": [
     {
