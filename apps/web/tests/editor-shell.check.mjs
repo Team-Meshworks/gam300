@@ -374,6 +374,33 @@ try {
   await roomRow.waitFor();
   assert.equal(await page.locator(".panel-count").textContent(), "1");
 
+  const hotspot = page.getByRole("button", { name: "Add Hotspot", exact: true });
+  assert.equal(await hotspot.isEnabled(), true);
+  await hotspot.click();
+  assert.equal(await rows.count(), 1, "The hotspot button creates a hotspot");
+  assert.match(await rows.first().textContent(), /Hotspot/);
+  await undo.click();
+  assert.equal(await rows.count(), 0);
+  const hotspotStage = await stage.boundingBox();
+  const hotspotDock = await page.locator(".bottom-dock").boundingBox();
+  assert.ok(hotspotStage);
+  assert.ok(hotspotDock);
+  await hotspot.dragTo(stage, {
+    targetPosition: {
+      x: hotspotStage.width * 0.65,
+      y: (hotspotDock.y - hotspotStage.y) * 0.7,
+    },
+  });
+  assert.equal(await rows.count(), 1, "Hotspots use the same drag and drop path as models");
+  assert.match(await rows.first().textContent(), /Hotspot/);
+  assert.doesNotMatch(
+    await page.getByLabel("Selected position").textContent(),
+    /X 0\.00 · Y 0\.00 · Z 0\.00 m/,
+    "Dropped hotspots snap to the ground plane",
+  );
+  await undo.click();
+  assert.equal(await rows.count(), 0);
+
   const samplePath = "**/*test-crate*.glb*";
   await page.route(samplePath, (route) => {
     // Vite also serves a JavaScript URL module for each model
@@ -409,7 +436,7 @@ try {
   assert.equal(await asset.isDisabled(), true);
   assert.deepEqual(pageErrors, [], "No uncaught page errors in any flow");
   console.log(
-    "PASS: placement, single-pointer movement, cancellation, room occlusion, project loading, undo/redo, keyboard, resizing, retry and WebGL fallback",
+    "PASS: placement, hotspot, single-pointer movement, cancellation, room occlusion, project loading, undo/redo, keyboard, resizing, retry and WebGL fallback",
   );
 } finally {
   await browser.close();

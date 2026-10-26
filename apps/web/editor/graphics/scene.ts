@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { ModelCache, disposeModels, type ModelLease } from "../../shared/assets/ModelCache";
 import type { CatalogueAsset } from "../../shared/assets/catalogue";
+import { HOTSPOT_ASSET_ID } from "../../shared/assets/hotspot";
 import type { SceneObject, Vector3Tuple } from "../../shared/project/scene-object";
 import type {
   CameraPose,
@@ -29,6 +30,8 @@ const ROTATION_SNAP = THREE.MathUtils.degToRad(15);
 
 // Pointer travel under this many pixels still counts as a click while visiting
 const VISITOR_CLICK_TOLERANCE = 6;
+
+const HOTSPOT_SIZE = 0.6;
 
 // One lazy renderer-module owner per editor page, shared across viewport retries/remounts
 export const editorModelCache = new ModelCache();
@@ -169,6 +172,7 @@ export function initScene(
   let disposed = false;
   const models = new Map<string, THREE.Group>();
   const leases: ModelLease[] = [];
+  const hotspotMaterials = new Set<THREE.SpriteMaterial>();
   let ready = false;
   let editingEnabled = true;
   let objects: readonly SceneObject[] = [];
@@ -536,6 +540,7 @@ export function initScene(
       return;
     }
     const raycaster = new THREE.Raycaster(ray.origin, ray.direction);
+    raycaster.camera = camera;
     if (raycaster.intersectObject(instance, true).length === 0) return;
     const geometry = beginFreeRotation(rotation, event.clientX, event.clientY);
     beginDrag(event, { ...shared, currentMode: "freeRotate", geometry });
@@ -544,6 +549,7 @@ export function initScene(
   function pick(clientX: number, clientY: number) {
     const ray = screenRay(clientX, clientY);
     const raycaster = new THREE.Raycaster(ray.origin, ray.direction);
+    raycaster.camera = camera;
     let nearest =
       environment === undefined
         ? Infinity
@@ -669,6 +675,7 @@ export function initScene(
     if (object === undefined || instance === undefined) return;
     const ray = screenRay(event.clientX, event.clientY);
     const raycaster = new THREE.Raycaster(ray.origin, ray.direction);
+    raycaster.camera = camera;
     if (raycaster.intersectObject(instance, true).length === 0) return;
     event.preventDefault();
     event.stopPropagation();
@@ -728,6 +735,27 @@ export function initScene(
   async function loadAssets() {
     try {
       for (const asset of assets) {
+        if (asset.id === HOTSPOT_ASSET_ID) {
+          const texture = await new THREE.TextureLoader().loadAsync(asset.url);
+          if (disposed || controller.signal.aborted) {
+            texture.dispose();
+            return;
+          }
+          texture.colorSpace = THREE.SRGBColorSpace;
+          const material = new THREE.SpriteMaterial({
+            map: texture,
+            transparent: true,
+            depthWrite: false,
+          });
+          hotspotMaterials.add(material);
+          const sprite = new THREE.Sprite(material);
+          sprite.scale.setScalar(HOTSPOT_SIZE);
+          sprite.position.y = HOTSPOT_SIZE / 2;
+          const model = new THREE.Group();
+          model.add(sprite);
+          models.set(asset.id, model);
+          continue;
+        }
         const lease = await modelCache.acquire(asset, controller.signal);
         if (disposed) {
           lease.release();
@@ -825,6 +853,11 @@ export function initScene(
       instances.clear();
       models.clear();
       disposeModels(scene);
+      for (const material of hotspotMaterials) {
+        material.map?.dispose();
+        material.dispose();
+      }
+      hotspotMaterials.clear();
       for (const lease of leases) {
         lease.release();
       }

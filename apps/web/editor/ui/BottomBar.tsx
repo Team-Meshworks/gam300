@@ -20,7 +20,7 @@ const cameraTools: { id: NavigationTool; label: string; hint: string; icon: Icon
 ];
 
 type Category = "furniture" | "panels" | "cases" | "audio";
-type SceneTool = "library" | "hotspot" | Category;
+type SceneTool = "library" | Category;
 type Item = { label: string; icon: IconName };
 type PopupId = Category | "dock";
 
@@ -55,6 +55,7 @@ const categories: { id: Category; label: string; items: [Item, ...Item[]] }[] = 
 
 export function BottomBar({
   assets,
+  hotspot,
   ready,
   thumbnailFor,
   onAdd,
@@ -63,6 +64,7 @@ export function BottomBar({
   onToolChange,
 }: {
   assets: readonly CatalogueAsset[];
+  hotspot: CatalogueAsset;
   ready: boolean;
   thumbnailFor: (assetId: string) => string | undefined;
   onAdd: (assetId: string) => void;
@@ -314,10 +316,18 @@ export function BottomBar({
           <button
             className="ui-button"
             type="button"
-            aria-label="Hotspot"
-            aria-pressed={selected === "hotspot"}
-            onClick={() => select("hotspot")}
-            {...toolTip.handlers("Hotspot")}
+            draggable={ready}
+            disabled={!ready}
+            aria-label={`Add ${hotspot.name}`}
+            title="Drag into the scene, or click to add"
+            onClick={() => onAdd(hotspot.id)}
+            onDragStart={(event) => {
+              event.dataTransfer.setData(assetDragType, hotspot.id);
+              event.dataTransfer.effectAllowed = "copy";
+              onDragChange(true);
+            }}
+            onDragEnd={() => onDragChange(false)}
+            {...toolTip.handlers(hotspot.name)}
           >
             <Icon name="hotspot" />
           </button>

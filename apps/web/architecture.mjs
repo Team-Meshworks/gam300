@@ -27,7 +27,11 @@ export const modules = {
     paths: ["shared/assets/"],
     uses: [],
     packages: [],
-    public: ["shared/assets/catalogue.ts", "shared/assets/sample-asset.ts"],
+    public: [
+      "shared/assets/catalogue.ts",
+      "shared/assets/sample-asset.ts",
+      "shared/assets/hotspot.ts",
+    ],
   },
   "asset-loading": {
     paths: ["shared/assets/ModelCache.ts"],

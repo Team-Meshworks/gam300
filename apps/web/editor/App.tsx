@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { assets } from "virtual:asset-catalogue";
+import { HOTSPOT_ASSET } from "../shared/assets/hotspot";
 import type { Vector3Tuple } from "../shared/project/scene-object";
 import type { Transform } from "../shared/project/project-types";
 import { createDocumentStore } from "./document-store";
@@ -21,11 +22,12 @@ import { ProjectConfirmation } from "./ProjectConfirmation";
 import { useProjectSession } from "./persistence/use-project-session";
 
 // Same catalog used by the viewport; saved references need to resolve here too
-const assetKinds = new Map(assets.map((asset) => [asset.id, asset.kind]));
+const editorAssets = [...assets, HOTSPOT_ASSET];
+const assetKinds = new Map(editorAssets.map((asset) => [asset.id, asset.kind]));
 const EMPTY_INTERACTIONS: readonly Interaction[] = Object.freeze([]);
 
 export function App() {
-  const [store] = useState(() => createDocumentStore(assets));
+  const [store] = useState(() => createDocumentStore(editorAssets));
   const { objects, project, canUndo, canRedo } = useSyncExternalStore(
     store.subscribe,
     store.getSnapshot,
@@ -36,7 +38,7 @@ export function App() {
     setGeneratedThumbnails((previous) => ({ ...previous, [id]: url }));
   }, []);
   const thumbnailFor = (id: string) =>
-    assets.find((asset) => asset.id === id)?.thumbnail ?? generatedThumbnails[id];
+    editorAssets.find((asset) => asset.id === id)?.thumbnail ?? generatedThumbnails[id];
   const [status, setStatus] = useState<ViewportStatus>("loading");
   const [attempt, setAttempt] = useState(0);
   const [dragging, setDragging] = useState(false);
@@ -57,7 +59,7 @@ export function App() {
   const [modeState, setModeState] = useState<ModeManagerState | null>(null);
   const selection = objects.some((object) => object.id === selectedId) ? selectedId : null;
   const projectScene = project?.scenes[0];
-  const roomAsset = assets.find((asset) => asset.id === projectScene?.environmentAssetId);
+  const roomAsset = editorAssets.find((asset) => asset.id === projectScene?.environmentAssetId);
   // Room selection uses the scene ID because its asset lives in the environment field
   // Object commands still receive only placed-object IDs
   const roomSelected = projectScene !== undefined && selectedId === projectScene.id;
@@ -104,7 +106,14 @@ export function App() {
     setError("");
     setHasDeleted(false);
   }, []);
-  const session = useProjectSession(store, assets, project, objects.length, onReplace, setNotice);
+  const session = useProjectSession(
+    store,
+    editorAssets,
+    project,
+    objects.length,
+    onReplace,
+    setNotice,
+  );
   const storageOperation = session.operation;
   const switching =
     storageOperation === "switch" ||
@@ -307,7 +316,7 @@ export function App() {
         />
 
         <Viewport
-          assets={assets}
+          assets={editorAssets}
           objects={objects}
           projectScene={project?.scenes[0] ?? null}
           selectedId={roomSelected ? projectScene.id : selection}
@@ -333,6 +342,7 @@ export function App() {
           {!visitor && (
             <BottomBar
               assets={assets}
+              hotspot={HOTSPOT_ASSET}
               ready={status === "ready"}
               thumbnailFor={thumbnailFor}
               onAdd={(assetId) => place(assetId, [0, 0, 0])}
