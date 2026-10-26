@@ -27,10 +27,11 @@ try {
     "/shared/project/project-serialization.ts",
   );
 
-  // Exercise released examples and every URL case from the same corpus used by both unit runners
+  // Exercise released examples, storage text and every URL case from the shared corpus
   const cases = manifest.cases.filter(
     (test) =>
       test.patches.length === 0 ||
+      test.name.startsWith("storage NUL") ||
       (test.patches.length === 1 && test.patches[0].path.at(-1) === "url"),
   );
 

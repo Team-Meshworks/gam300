@@ -174,7 +174,6 @@ public sealed class ProjectAccessService(
             return ProjectAccessResult.Denied(ProjectAccessFailure.OperationForbidden);
         }
 
-        // TODO: Require SCRUM-50-accepted document input when Part 5 consumes an EditDraft lock for content writes
         return ProjectAccessResult.Granted(snapshot);
     }
 
@@ -226,7 +225,7 @@ public sealed class ProjectAccessService(
         }
 
         var project = row.Project;
-        // TODO: Keep this JSON unvalidated until SCRUM-50 validates and reconstructs its supported authored content
+        // Access snapshots retain private raw storage; consumers reconstruct content through ProjectDocumentService
         return new ProjectAccessSnapshot(
             account.UserId, project.Id, project.OrganizationId, project.IsArchived, project.Revision,
             project.SchemaVersion, project.DocumentJson, project.UpdatedAt, project.LastMutationActorId,

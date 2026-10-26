@@ -47,9 +47,31 @@ public static partial class ProjectFormat
 
         try
         {
-            // Parse once, then reject duplicate names before property lookup can hide an earlier value
             using var parsed = JsonDocument.Parse(text, new JsonDocumentOptions { MaxDepth = MaxJsonDepth });
-            var root = parsed.RootElement;
+            return Validate(parsed.RootElement, assets);
+        }
+        catch (JsonException)
+        {
+            return Rejected<IAuthoredProject>("project", "Project JSON is malformed or exceeds the nesting limit");
+        }
+        catch (ArgumentException)
+        {
+            return Rejected<IAuthoredProject>("project", "Project JSON contains invalid text");
+        }
+    }
+
+    /// <summary>
+    /// Reconstructs parsed data with the same content and serialized-byte limits as imports
+    /// </summary>
+    /// <remarks>
+    /// Uploads must use Deserialize to bound original bytes before parsing
+    /// Stored jsonb can expand numbers and whitespace without changing the authored document
+    /// </remarks>
+    public static FormatResult<IAuthoredProject> Validate(JsonElement root, IReadOnlyDictionary<string, string> assets)
+    {
+        try
+        {
+            // Reject duplicate names before property lookup can hide an earlier value
             try { DuplicateFields(root); }
             catch (InvalidOperationException) { Fail("project", "Project JSON contains invalid Unicode"); }
             if (root.ValueKind != JsonValueKind.Object)

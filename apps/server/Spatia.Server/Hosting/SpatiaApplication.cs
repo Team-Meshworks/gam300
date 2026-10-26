@@ -126,7 +126,8 @@ public static class SpatiaApplication
         builder.Services.AddScoped<AccountAdministrationService>();
         builder.Services.AddScoped<AccountSessionService>();
         builder.Services.AddScoped<ProjectAccessService>();
-        // TODO: Register ProjectSaveService after SCRUM-50 validation and server-derived request digests are wired
+        builder.Services.AddSingleton<ProjectDocumentService>();
+        builder.Services.AddScoped<ProjectSaveService>();
         builder.Services.AddSpatiaAccounts(connectionString);
         builder.Services.AddSpatiaRequestSecurity();
         builder.Services.AddDataProtection()
@@ -207,10 +208,9 @@ public static class SpatiaApplication
         }).AllowAnonymous();
         app.MapAccountAdministration();
         app.MapAccountSessions();
-        // TODO: Map GET after SCRUM-50 accepts stored content, using the public document/revision/permission envelope
-        // TODO: Map PUT after SCRUM-50 validation; apply RequestSizeLimitAttribute(SaveEnvelopeReader.MaxRequestBytes)
-        // TODO: Map SCRUM-50 document/version/reference failures to safe 422 problems without echoing input
-        // TODO: Wire ProjectHttpResults into GET/PUT after SCRUM-50 validation and server digest integration
+        // TODO: Map GET using ProjectDocumentService.ReadStored and the public document/revision/permission envelope
+        // TODO: Map PUT to ProjectSaveService with RequestSizeLimitAttribute(SaveEnvelopeReader.MaxRequestBytes)
+        // TODO: Wire ProjectHttpResults into GET/PUT with the existing authorization and request-security policies
         return app;
     }
 

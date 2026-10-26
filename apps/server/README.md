@@ -1,12 +1,14 @@
-# Server reader, accounts and security
+# Server persistence, accounts and security
 
 This .NET 10 ASP.NET Core host contains a bounded draft-save reader, the Identity/
 PostgreSQL account persistence foundation, project draft schema/access service, request-security boundary and private
 administrator provisioning/reset operations. Accounts Part 5 adds explicit login, current-session,
 logout and current-password change to the existing CSRF bootstrap and three administrator
 POSTs. The verification evidence is recorded below; project handlers remain later work.
-A parsed envelope remains
-untrusted until the shared project validator and current authorization checks accept it.
+A parsed envelope remains untrusted until `ProjectSaveService` accepts it through
+the shared project validator, the packaged catalogue and current authorization.
+The [Part 5d boundary](#scrum-66-part-5d-validated-document-and-storage-boundary)
+is registered in the application; production project GET/PUT routes remain later work.
 
 `SaveEnvelopeReader.ReadAsync(HttpRequest, Guid, CancellationToken)` returns a
 `SaveEnvelopeReadResult`. It contains either `Envelope` (a `ParsedSaveEnvelope`) or
@@ -1156,13 +1158,11 @@ exact retry either applies an uncommitted save or recognizes the latest durable 
 The existing bounded guarantee for independent account/organization changes still
 applies; SCRUM-69 assignment/archive writers must adopt the shared lock protocol.
 
-This coordinator has no DI registration or production request caller. SCRUM-50
-TODOs remain at the service entry point, document/schema/route acceptance and
-server-derived digest inputs. Tests supply synthetic documents and opaque digests;
-they prove transaction composition, not domain validation or a hosted save API.
-No validator, digest algorithm, endpoint, request limit, schema, dependency or shared
-fixture was added. Protected project GET/PUT, validated saves and saved-project
-browser/restart acceptance remain incomplete.
+At the 19 October Part 5c checkpoint, this coordinator had no DI registration or
+production request caller. Tests supplied synthetic documents and opaque digests;
+they proved transaction composition, not domain validation or a hosted save API.
+Part 5d below replaces those inputs with real validation and server-derived digests.
+Protected project GET/PUT and saved-project browser/restart acceptance remain separate.
 
 Verification from `apps/server/`, on **19 October 2026**:
 
@@ -1412,5 +1412,82 @@ dotnet test --project tests/Spatia.Server.Tests.csproj -c Release --no-build --r
 Cleanup confirmed zero `spatia_scrum45_*` schemas, zero public tables and no temporary
 HTTPS key directories. Only the exact retained disposable test container was stopped;
 its volume and previous evidence remain. Docker Desktop was left in its existing state.
-GitHub-hosted CI and a new cold restart were not run. Existing project-route, SCRUM-50
-and saved-project restart/browser acceptance gates remain open.
+GitHub-hosted CI and a new cold restart were not run at that checkpoint. Project-route,
+shared-format integration and saved-project restart/browser acceptance were still open.
+
+## SCRUM-66 Part 5d: validated document and storage boundary
+
+`ProjectSaveService.SaveAsync(context, projectId, envelope, cancellationToken)` now
+owns validation and digest creation. It accepts no caller-supplied schema version or
+digest. After obtaining the existing `EditDraft` lock and current account authority,
+it validates the original document with `Spatia.ProjectFormat`, checks route identity,
+serializes the accepted model, and uses the existing conditional write/commit/retry
+protocol. A rejected document changes neither the draft nor the latest mutation slot.
+Both the service and `ProjectDocumentService` are registered in the production host;
+this part adds no public project route or database migration.
+
+The server embeds the repository's `assets/manifest.json`. Development accepts only
+the same three `development-only` sample IDs and kinds as the editor catalogue.
+Other environments have no approved asset entries and reject sample-backed documents.
+Fixture-only image/audio/video IDs never enter this catalogue. This is an explicit
+development integration, not asset rights approval or protected asset delivery.
+
+Both browser and C# validators reject NUL in authored strings in v1 and v2 because
+PostgreSQL `jsonb` cannot represent it. Literal backslash-u0000 text and other valid
+escaped text remain intact; no characters are silently removed. Existing IDs, array
+order, full supported content and known rules remain authored data. Missing player
+capabilities do not turn valid content into invalid storage.
+
+Retry identity is SHA-256 over this exact UTF-8 sequence, with LF separators:
+
+```text
+spatia-save-v1\n
+<route project UUID in lowercase D form>\n
+<currently authorized actor UUID in lowercase D form>\n
+<original expected revision in invariant decimal>\n
+<original document JSON, with no additional terminator>
+```
+
+The first four lines above describe their trailing LF; there are no blank lines or
+extra characters between fields. UUID fields are fixed width and the original
+document is the final field. The mutation ID is checked separately in the retry slot.
+Whitespace, object-key order, escapes and numeric spelling in the original document
+are significant. Clients must retain the exact pending JSON and mutation ID across
+uncertain writes; recreating an equivalent JSON string is not an exact retry.
+
+Storage uses the shared serializer's normalized representation and validated schema
+version, separately from retry identity. `ReadStored` parses PostgreSQL output and
+reconstructs it through the same structure/reference/asset checks, verifies relational
+project/schema identity and enforces the 5 MiB serialized authored limit. It does not
+mistake PostgreSQL's added whitespace or expanded numeric exponents for uploaded bytes.
+Upload reading still enforces 5 MiB original document and 6 MiB request budgets.
+
+`ProjectHttpResults` maps document rejection to fixed `422 invalid_document` feedback,
+with no raw validator path, input excerpt, revision or retry metadata. Unknown property
+names can appear in library feedback and must never be serialized directly to clients.
+
+The existing transaction tests now use valid v1/v2 fixtures and the registered
+catalogue. Added checks cover exact digest framing, changed-content/whitespace/number
+retries, invalid-input preservation, environment policy, stored metadata and a near-limit
+real PostgreSQL round trip whose `jsonb` text exceeds 5 MiB.
+
+Verification on **26 October 2026**: locked restore, Release build (zero warnings/errors),
+both format checks and all three EF inspections passed; no pending model change or new
+migration. The focused save suite passed **31/31**, catalogue/reconstruction **2/2**, and
+the full backend suite **484/484**, zero failed/skipped, in **2m 49s**, including Chromium
+account acceptance. Reports are retained under `test-results/scrum66-part5d-save-corrected`,
+`scrum66-part5d-documents` and `scrum66-part5d-full`.
+
+The initial focused save run (retained in `scrum66-part5d-save`) had 30 failures because
+the test host changed only its web environment, leaving the DI host environment as
+Testing; its fail-closed catalogue therefore rejected every sample document. The fixture
+now selects its environment at host creation, including sibling hosts. The corrected
+31-case run and full suite passed without weakening the catalogue policy.
+
+Shared checks passed **133** C# corpus cases and **44** real cross-runtime exchanges;
+all **347** web tests, TypeScript, ESLint, Prettier and the editor build passed. A sandbox
+Vitest attempt could not read its temporary module cache; its normal-shell rerun passed.
+Asset validation reported zero errors and the three existing licence-approval warnings.
+PostgreSQL checks used only the retained loopback disposable 18.6 container and owned
+schemas. No public project API, saved-project cold restart, hosted CI or deployment was
+claimed by this part; those acceptance gates remain separate.

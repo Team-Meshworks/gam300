@@ -45,7 +45,6 @@ public static class ProjectHttpResults
     /// <returns>A success acknowledgement, access problem, or 409 problem carrying the current revision</returns>
     /// <exception cref="ArgumentNullException">The context or result is null</exception>
     /// <exception cref="InvalidOperationException">The result does not describe a completed save outcome</exception>
-    // TODO: Use ProjectSaveService outcomes from SCRUM-50-validated requests with server-derived digests
     public static IResult FromSave(HttpContext context, ProjectSaveResult result)
     {
         ArgumentNullException.ThrowIfNull(context);
@@ -53,6 +52,11 @@ public static class ProjectHttpResults
         if (result.AccessFailure is { } failure)
         {
             return FromAccessFailure(context, failure);
+        }
+        if (result.InvalidDocument)
+        {
+            // Library paths can contain user-supplied property names; public feedback must not echo them
+            return ApiProblems.Create(context, 422, "invalid_document", "The project document is invalid or uses unavailable assets.");
         }
         if (result.Acknowledgement is { } acknowledgement)
         {

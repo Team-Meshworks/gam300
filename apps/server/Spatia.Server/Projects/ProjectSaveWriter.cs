@@ -32,7 +32,6 @@ public sealed class ProjectSaveWriter(ApplicationDbContext database)
     /// <exception cref="ArgumentException">The digest or editable snapshot metadata is invalid</exception>
     /// <exception cref="InvalidOperationException">A caller-owned read-committed transaction is not active</exception>
     /// <exception cref="OperationCanceledException">The operation is canceled</exception>
-    // TODO: Require SCRUM-50 validation and server-side digest generation in the save service's production entry point
     public async Task<bool> TryStageAsync(ProjectAccessSnapshot project, long expectedRevision,
         Guid clientMutationId, int schemaVersion, string documentJson, byte[] requestDigest,
         CancellationToken cancellationToken = default)
@@ -52,8 +51,6 @@ public sealed class ProjectSaveWriter(ApplicationDbContext database)
             return false;
         }
 
-        // TODO: Supply document/schema accepted by SCRUM-50; relational checks cannot validate authored content
-        // TODO: Supply a server digest of the agreed SCRUM-50 representation and original project/actor/revision
         var affected = await database.Database.ExecuteSqlInterpolatedAsync($"""
             UPDATE projects
             SET document = CAST({documentJson} AS jsonb),
