@@ -26,13 +26,72 @@ function exceedsNestingLimit(text: string): boolean {
       inString = true;
     } else if (character === "{" || character === "[") {
       depth += 1;
-      if (depth > MAX_JSON_DEPTH) return true;
+      if (depth > MAX_JSON_DEPTH) {
+        return true;
+      }
     } else if (character === "}" || character === "]") {
       depth -= 1;
+
       // An extra closing bracket already makes the JSON invalid
       // Leave syntax errors to JSON.parse
-      if (depth < 0) return false;
+      if (depth < 0) {
+        return false;
+      }
     }
+  }
+  return false;
+}
+
+function hasDuplicateFields(text: string): boolean {
+  const stack: ({ keys: Set<string>; expectingKey: boolean } | null)[] = [];
+
+  // Run after JSON.parse so string syntax and delimiters are already checked
+  for (let index = 0; index < text.length; index++) {
+    const character = text[index];
+    if (character === '"') {
+      const start = index++;
+      while (index < text.length) {
+        if (text[index] === "\\") {
+          index += 2;
+        } else if (text[index] === '"') {
+          break;
+        } else {
+          index++;
+        }
+      }
+      const object = stack.at(-1);
+      if (object?.expectingKey) {
+        const key = JSON.parse(text.slice(start, index + 1)) as string;
+        if (object.keys.has(key)) {
+          return true;
+        }
+        object.keys.add(key);
+        object.expectingKey = false;
+      }
+    } else if (character === "{") {
+      stack.push({ keys: new Set(), expectingKey: true });
+    } else if (character === "[") {
+      stack.push(null);
+    } else if (character === "}" || character === "]") {
+      stack.pop();
+    } else if (character === ",") {
+      const object = stack.at(-1);
+      if (object) {
+        object.expectingKey = true;
+      }
+    }
+  }
+  return false;
+}
+
+function hasInvalidUnicode(value: unknown): boolean {
+  if (typeof value === "string") {
+    return /[\ud800-\udfff]/u.test(value);
+  }
+  if (value !== null && typeof value === "object") {
+    return Object.entries(value).some(
+      ([key, child]) => /[\ud800-\udfff]/u.test(key) || hasInvalidUnicode(child),
+    );
   }
   return false;
 }
@@ -69,6 +128,13 @@ export function deserializeProject(
       return invalid("project", "Project JSON is malformed");
     }
     throw error;
+  }
+
+  if (hasInvalidUnicode(raw)) {
+    return invalid("project", "Project JSON contains invalid Unicode");
+  }
+  if (hasDuplicateFields(text)) {
+    return invalid("project", "Project JSON contains duplicate fields");
   }
 
   // Version, IDs and asset references go through the same checks as saving

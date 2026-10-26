@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import fixture from "../../shared/project/fixtures/m1-project.json";
+import contentFixture from "../../shared/project/fixtures/m2-project.json";
+import contentCases from "../../shared/project/fixtures/project-format-cases.json";
 import { serializeProject } from "../../shared/project/project-serialization";
 import type { ProjectDocument } from "../../shared/project/project-types";
 import {
@@ -42,12 +44,16 @@ class FakeDraftDatabase implements IDraftDatabase {
           oncomplete: null as ((event: Event) => void) | null,
           error: null as DOMException | null,
           abort: () => {
-            if (aborted) return;
+            if (aborted) {
+              return;
+            }
             aborted = true;
             queueMicrotask(() => transaction.onabort?.(new Event("abort")));
           },
           objectStore: (name: string) => {
-            if (!names.includes(name)) throw new Error(`Store ${name} was not requested`);
+            if (!names.includes(name)) {
+              throw new Error(`Store ${name} was not requested`);
+            }
             const key = (value: IDBValidKey) => `${name}:${JSON.stringify(value)}`;
             const request = (result: unknown) => {
               const resultRequest = {
@@ -60,11 +66,19 @@ class FakeDraftDatabase implements IDraftDatabase {
             return {
               get: (lookup: IDBValidKey) => {
                 const resultRequest = request(this.records.get(key(lookup)));
-                queueMicrotask(() => transaction.oncomplete?.(new Event("complete")));
+
+                // Aborted writes cannot also report a successful transaction completion
+                queueMicrotask(() => {
+                  if (!aborted) {
+                    transaction.oncomplete?.(new Event("complete"));
+                  }
+                });
                 return resultRequest;
               },
               put: (value: unknown, lookup?: IDBValidKey) => {
-                if (mode !== "readwrite") throw new Error("Read-only transaction");
+                if (mode !== "readwrite") {
+                  throw new Error("Read-only transaction");
+                }
                 const record = value as Record<string, unknown>;
                 const lookupKey: IDBValidKey =
                   lookup ??
@@ -73,11 +87,17 @@ class FakeDraftDatabase implements IDraftDatabase {
                     : [record.principalKey as string, record.projectId as string]);
                 this.records.set(key(lookupKey), value);
                 const resultRequest = request(undefined);
-                queueMicrotask(() => transaction.oncomplete?.(new Event("complete")));
+                queueMicrotask(() => {
+                  if (!aborted) {
+                    transaction.oncomplete?.(new Event("complete"));
+                  }
+                });
                 return resultRequest;
               },
               delete: (lookup: IDBValidKey) => {
-                if (mode !== "readwrite") throw new Error("Read-only transaction");
+                if (mode !== "readwrite") {
+                  throw new Error("Read-only transaction");
+                }
                 this.records.delete(key(lookup));
                 return request(undefined);
               },
@@ -109,7 +129,13 @@ class FakeDraftDatabase implements IDraftDatabase {
                         },
                       }
                     : null;
-                  if (!entry) queueMicrotask(() => transaction.oncomplete?.(new Event("complete")));
+                  if (!entry) {
+                    queueMicrotask(() => {
+                      if (!aborted) {
+                        transaction.oncomplete?.(new Event("complete"));
+                      }
+                    });
+                  }
                   cursorRequest.onsuccess?.(new Event("success"));
                 };
                 queueMicrotask(emit);
@@ -148,7 +174,9 @@ function storedDraft(document: string) {
 function serializedFixture(project = fixture) {
   const serialized = serializeProject(project, assets);
   expect(serialized.ok).toBe(true);
-  if (!serialized.ok) throw new Error("Fixture should serialize");
+  if (!serialized.ok) {
+    throw new Error("Fixture should serialize");
+  }
   return serialized.value;
 }
 
@@ -271,6 +299,28 @@ describe("applySaveToLocalDraft", () => {
 });
 
 describe("getRecoverySession", () => {
+  it("preserves a richer document as authored work even when its first scene is empty", async () => {
+    const database = new FakeDraftDatabase();
+    const document = structuredClone(contentFixture);
+    // Leave the second scene intact so an empty first scene cannot be mistaken for a disposable new room
+    document.scenes[0]!.objects = [];
+    document.scenes[0]!.rules = [];
+    document.scenes[0]!.groups = [];
+    const kinds = new Map(Object.entries(contentCases.assets));
+    database.records.set('session:"active"', {
+      ...recoverySession(),
+      revision: 1,
+      document: JSON.stringify(document),
+      savedJson: null,
+      pristine: true,
+    });
+    const result = await getRecoverySession(kinds, database);
+    expect(result).toMatchObject({ ok: true, value: { pristine: false } });
+    if (!result.ok) {
+      throw new Error(result.error.message);
+    }
+    expect(result.value?.document?.scenes).toHaveLength(2);
+  });
   it("reads and validates the active recovery session", async () => {
     const database = new FakeDraftDatabase();
     database.records.set('session:"active"', {
@@ -289,6 +339,35 @@ describe("getRecoverySession", () => {
 });
 
 describe("applySaveRecoverySession", () => {
+  it("keeps New empty after reload and rejects a stale tab's next write", async () => {
+    const database = new FakeDraftDatabase();
+    await applySaveRecoverySession(recoverySession(), 0, assets, database);
+    const empty = { document: null, fileName: "", savedJson: null, pristine: true };
+    expect(await applySaveRecoverySession(empty, 1, assets, database)).toEqual({
+      ok: true,
+      value: 2,
+    });
+    expect(await getRecoverySession(assets, database)).toMatchObject({
+      ok: true,
+      value: { revision: 2, document: null },
+    });
+    expect(await applySaveRecoverySession(recoverySession(), 1, assets, database)).toMatchObject({
+      ok: false,
+    });
+    expect(await getRecoverySession(assets, database)).toMatchObject({
+      ok: true,
+      value: { revision: 2, document: null },
+    });
+  });
+
+  it("rejects an empty session carrying a previous project's save baseline", async () => {
+    const database = new FakeDraftDatabase();
+    expect(
+      await applySaveRecoverySession({ ...recoverySession(), document: null }, 0, assets, database),
+    ).toMatchObject({ ok: false });
+    expect(database.records.has('session:"active"')).toBe(false);
+  });
+
   it("saves a new recovery session and increments its revision", async () => {
     const database = new FakeDraftDatabase();
 

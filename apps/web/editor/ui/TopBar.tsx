@@ -93,8 +93,9 @@ export function TopBar({
             }
           }}
           onBlur={(event) => {
-            if (!event.currentTarget.contains(event.relatedTarget))
+            if (!event.currentTarget.contains(event.relatedTarget)) {
               event.currentTarget.removeAttribute("open");
+            }
           }}
         >
           <summary aria-label="Project options" title="Project options">
@@ -104,7 +105,7 @@ export function TopBar({
           <div className="draft-menu-panel">
             <button
               type="button"
-              title="Start a new project with an empty room"
+              title="Start a new project and choose a room"
               disabled={!ready || busy}
               onClick={() => {
                 closeMenu();
