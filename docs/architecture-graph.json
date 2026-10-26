@@ -270,6 +270,7 @@
     "tests/editor-shell.check.mjs": "633dcb9d14bf0ac678dc0691527fd81aa6a6b283bc9403d0357dabd301b28a86",
     "tests/history-recovery.check.mjs": "5ca1825415170ca384a3b0ed9e9a9afb2d873a7a6a2e56ced2aedaabb19880a0",
     "tests/local-drafts.check.mjs": "9846908a9b505cfe3a61f6f385369da31750a331a13dde26e9b2999bc8e3d352",
+    "tests/project-format-cross.check.mjs": "0d382287fd435f4f03647d8141f7d854ab7a6ec6906a07886e65a4352b0917e9",
     "vite.config.ts": "50329f07010d85bc43b6f9ab2f3ea7b0ca22fa6059f6346d8872bf1b09ac5da6",
     "vitest.config.ts": "6d56840bcf381e145f69828ff965fe1c8065e1610a38219c19dbb4e9d87d7dbf",
     "editor/index.html": "f14296264b1f8edda142de2fa8b8c58d1e98e50265637afe5f29924558900279",
@@ -3280,6 +3281,56 @@
       "target": "editor/persistence/local-drafts.ts",
       "from": "checks",
       "to": "persistence"
+    },
+    {
+      "file": "tests/project-format-cross.check.mjs",
+      "line": 1,
+      "kind": "static",
+      "specifier": "node:assert/strict",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/project-format-cross.check.mjs",
+      "line": 2,
+      "kind": "static",
+      "specifier": "node:child_process",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/project-format-cross.check.mjs",
+      "line": 3,
+      "kind": "static",
+      "specifier": "node:fs",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/project-format-cross.check.mjs",
+      "line": 4,
+      "kind": "static",
+      "specifier": "node:url",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/project-format-cross.check.mjs",
+      "line": 5,
+      "kind": "static",
+      "specifier": "vite",
+      "target": {
+        "package": "vite"
+      },
+      "from": "checks"
     },
     {
       "file": "vite.config.ts",

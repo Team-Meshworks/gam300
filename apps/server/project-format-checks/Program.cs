@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Spatia.ProjectFormat;
@@ -10,6 +11,30 @@ var assets = manifest["assets"]!.AsObject().ToDictionary(
     pair => pair.Key,
     pair => pair.Value!.GetValue<string>(),
     StringComparer.Ordinal);
+
+// The cross-runtime runner sends actual writer output through stdin and receives checked JSON
+// Keep this mode separate from fixture assertions so neither reader can silently skip the peer's bytes
+if (args is ["--exchange"])
+{
+    // Pipes must use UTF-8 on Windows too, preserving Unicode rather than the console's legacy code page
+    Console.InputEncoding = Encoding.UTF8;
+    Console.OutputEncoding = new UTF8Encoding(false);
+
+    // Preserve request order so the caller can pair each result with its original or serialized input
+    var inputs = JsonSerializer.Deserialize<string[]>(Console.In.ReadToEnd())!;
+    var outputs = inputs.Select(input =>
+    {
+        // Only accepted documents reach the writer; rejection retains its original field path
+        var read = Format.Deserialize(input, assets);
+        var saved = read.Ok ? Format.Serialize(read.Value, assets) : new FormatResult<string>(null, read.Error);
+        return new { ok = saved.Ok, json = saved.Value, path = saved.Error?.Path };
+    });
+
+    // Emit one response array and stop before the human-readable fixture summary reaches stdout
+    Console.WriteLine(JsonSerializer.Serialize(outputs));
+    return;
+}
+
 var originals = new Dictionary<string, JsonNode>
 {
     ["m1"] = JsonNode.Parse(File.ReadAllText(Path.Combine(fixtures, "m1-project.json")))!,

@@ -27,8 +27,20 @@ jobs:
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: 10.0.401
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: apps/web/.nvmrc
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Install locked browser-reader tooling
+        working-directory: apps/web
+        run: |
+          npm install --global npm@11.17.0
+          npm ci --no-audit --no-fund
       - name: Validate the shared fixtures and server round trips
         run: dotnet run --project apps/server/project-format-checks/Spatia.ProjectFormat.Checks.csproj -c Release
+      - name: Reopen each writer's output in the other runtime
+        run: node apps/web/tests/project-format-cross.check.mjs
 
   compatibility:
     name: Native checks (${{ matrix.os }})
