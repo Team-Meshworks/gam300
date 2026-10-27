@@ -6,7 +6,7 @@ import type { Transform } from "../shared/project/project-types";
 import { prepareTransformCommand } from "./transform-command";
 import { createCommandHistory } from "./command-history";
 import { captureRecoveryHistory, validateRecoveryHistory } from "./recovery-history";
-import type { CatalogueAsset } from "../shared/assets/catalogue.ts";
+import type { CatalogueAsset } from "../shared/asset-runtime/catalogue.ts";
 import type { SceneObject, Vector3Tuple } from "../shared/project/scene-object.ts";
 import { deserializeProject } from "../shared/project/project-deserialization";
 import type { ProjectDocument } from "../shared/project/project-types";
