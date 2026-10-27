@@ -191,33 +191,36 @@ export function BottomBar({
         <section className="asset-panel" id="asset-panel" aria-labelledby="assets-heading">
           <h2 id="assets-heading">Asset library</h2>
           <ul className="asset-shelf" role="list">
-            {assets.map((asset) => (
-              <li key={asset.id}>
-                <button
-                  className="asset-tile"
-                  type="button"
-                  draggable={ready}
-                  disabled={!ready}
-                  aria-label={`Add ${asset.name}`}
-                  title="Drag into the scene, or click to add"
-                  onClick={() => onAdd(asset.id)}
-                  onDragStart={(event) => {
-                    event.dataTransfer.setData(assetDragType, asset.id);
-                    event.dataTransfer.effectAllowed = "copy";
-                    onDragChange(true);
-                  }}
-                  onDragEnd={() => onDragChange(false)}
-                >
-                  <span className="asset-art">
-                    <img src={thumbnailFor(asset.id)} alt="" draggable={false} />
-                    <span className="asset-add" aria-hidden="true">
-                      +
+            {/* The room tile chooses environment or model placement; hide its internal duplicate */}
+            {assets
+              .filter((asset) => asset.id !== "test-room-module-v1")
+              .map((asset) => (
+                <li key={asset.id}>
+                  <button
+                    className="asset-tile"
+                    type="button"
+                    draggable={ready}
+                    disabled={!ready}
+                    aria-label={`Add ${asset.name}`}
+                    title="Drag into the scene, or click to add"
+                    onClick={() => onAdd(asset.id)}
+                    onDragStart={(event) => {
+                      event.dataTransfer.setData(assetDragType, asset.id);
+                      event.dataTransfer.effectAllowed = "copy";
+                      onDragChange(true);
+                    }}
+                    onDragEnd={() => onDragChange(false)}
+                  >
+                    <span className="asset-art">
+                      <img src={thumbnailFor(asset.id)} alt="" draggable={false} />
+                      <span className="asset-add" aria-hidden="true">
+                        +
+                      </span>
                     </span>
-                  </span>
-                  <span className="asset-name">{asset.name}</span>
-                </button>
-              </li>
-            ))}
+                    <span className="asset-name">{asset.name}</span>
+                  </button>
+                </li>
+              ))}
           </ul>
         </section>
       )}

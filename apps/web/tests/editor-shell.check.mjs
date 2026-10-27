@@ -353,12 +353,12 @@ try {
   await page.getByRole("button", { name: "Add test-room", exact: true }).click();
   assert.equal(
     await rows.count(),
-    2,
-    "Room becomes the environment; existing crates stay in the project",
+    3,
+    "Another room is placed without replacing the existing crates",
   );
   const crateId = await rows.last().getAttribute("data-object-id");
   await undo.click();
-  assert.equal(await rows.count(), 1);
+  assert.equal(await rows.count(), 2);
   await redo.click();
   assert.equal(await rows.last().getAttribute("data-object-id"), crateId);
 
@@ -383,12 +383,13 @@ try {
   assert.equal(await page.locator(".panel-count").textContent(), "3");
   await roomRow.click();
   assert.equal(await roomRow.getAttribute("aria-pressed"), "true");
-  // Reusing the current room must leave the loaded exhibits and history intact
+  // Reuse the same room tile and undo only its newly placed instance
   await room.click();
+  assert.equal(await rows.count(), 3);
+  await undo.click();
   assert.deepEqual(await rows.allTextContents(), ["First crate", "Second crate"]);
   assert.equal(await undo.isDisabled(), true);
-  assert.equal(await redo.isDisabled(), true);
-  await page.getByText("This room is already in the scene", { exact: true }).waitFor();
+  assert.equal(await redo.isDisabled(), false);
   await asset.click();
   assert.equal(await rows.count(), 3);
   await undo.click();

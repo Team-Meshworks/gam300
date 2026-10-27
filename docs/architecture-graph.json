@@ -198,8 +198,8 @@
   "files": {
     "architecture.check.mjs": "712edf41ac0ee3637c1c83e413c68db7dfdb2b5158ea5b8c0762bc84f37ec6f4",
     "architecture.mjs": "d9c833a2bc8a2fb2f4a62ed44cb0411194c00dcfd2f365501307cfdb4db256e7",
-    "asset-catalogue-plugin.ts": "17bec6aa65dd50167fe6c055fb38af453a647f3648a2bf296f9927ed32f7a158",
-    "editor/App.tsx": "1959ecf211967dd57842a5e47147360cb2a8e15c047302c6b4896edd24eecea7",
+    "asset-catalogue-plugin.ts": "580b26c28695231be194830f1d638c9a07ea317c68f68d2149680d4951efff26",
+    "editor/App.tsx": "94177bcb3e68a16dc219c6921e136107ae0a954469842a249556e3d4cc0b5526",
     "editor/ProjectConfirmation.tsx": "07a0fedf8fbf88865b3b8232c8665c139348fc64ebce478ea01e55eb7fd14eff",
     "editor/command-history.test.ts": "783c026523513ea5520cde04e61502aba13ca3a612b509a904c2a50e50be2d1f",
     "editor/command-history.ts": "e243335582ab03da9d131bd80edef7b908e3eb0a751d6ebfa7deb77750fc54ad",
@@ -231,7 +231,7 @@
     "editor/recovery-history.ts": "e14deeddfc9279daae2e83671ef2df12bb72b89fe01c7f6070cc399c138c7608",
     "editor/transform-command.test.ts": "d2ae97b90329d4baf866a7dbc3521675a7d9c78c5754e3b955e60ed62a232469",
     "editor/transform-command.ts": "bcd7036db3877f5f24e5984287af8a878b10ec6289a51987e76f62db8f3cb178",
-    "editor/ui/BottomBar.tsx": "0177614715bb80a4c35b680d9ea7ce820a9e78dcc76ca8caff82b547dead234d",
+    "editor/ui/BottomBar.tsx": "a5a52f3200e6f12f9a1173c7859da124eabf4cd6fd0c6e1ec1d25b3df1afb69a",
     "editor/ui/Icon.tsx": "536064fa8990e7e522f64eba9e25106359c903257d84837b6575ba5c99307e1b",
     "editor/ui/SidePanels.tsx": "31d945caaffab3d3518232ca56e6b858fca18b5e8cff690b942cbbe5e4342d2b",
     "editor/ui/TopBar.tsx": "f7122b3c7bd93b7257bbb74392b996acbf3397650fecea4e69bd3d6c2c0fef21",
@@ -270,7 +270,7 @@
     "tests/deployment.check.mjs": "c4cedc5151c1b043b6eee66ae1dcf144c97cc2645d8f1956f99f70942c07ab9e",
     "tests/editor-build.check.mjs": "ddad12cec87babbd5365e3d4cd4ec25187d8e1a5485d04bf2dcce3b3e273606a",
     "tests/editor-integration.check.mjs": "01ae358ec88769454cac1e0fb162c9ce7fe4c2096cafad431aaa8a00620d761d",
-    "tests/editor-shell.check.mjs": "355bab066d87ba3152152d11f4fc62c75a8150c9761be3170df01a06382fa8f9",
+    "tests/editor-shell.check.mjs": "ab5591f8ead475249272908cbb051185ccbe44d0bd0e0b563465b8e83dc013b0",
     "tests/history-recovery.check.mjs": "3d9ceb4d7017d144eb320135dae052cbcfdf3f849d6757a825f3e2764c4e32e7",
     "tests/local-drafts.check.mjs": "a52e4b31be4c7a0f701a7bd2f9cd38a0d2fa97fdaea621f2144bc71baee87c6c",
     "tests/project-format-cross.check.mjs": "0d382287fd435f4f03647d8141f7d854ab7a6ec6906a07886e65a4352b0917e9",
@@ -610,7 +610,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 247,
+      "line": 253,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -3175,7 +3175,7 @@
     },
     {
       "file": "tests/editor-shell.check.mjs",
-      "line": 440,
+      "line": 441,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -3184,7 +3184,7 @@
     },
     {
       "file": "tests/editor-shell.check.mjs",
-      "line": 470,
+      "line": 471,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",

@@ -206,11 +206,17 @@ export function App() {
         return;
       }
 
-      // The library keeps the room available after placement
-      // Dropping the current room again leaves the scene and undo history alone
+      // The same room tile creates the environment first and independent room instances afterward
+      // Keep the model reference used by saved room instances behind this one catalogue choice
       if (store.getSnapshot().project?.scenes[0]?.environmentAssetId === assetId) {
+        const added = store.addObject("test-room-module-v1", position);
+        if (added.ok) {
+          setSelectedId(added.object.id);
+          setNotice(`Added ${added.object.name}`);
+        } else {
+          setError(added.error);
+        }
         setDragging(false);
-        setNotice("This room is already in the scene");
         return;
       }
       const created = store.createProject(assetId);
