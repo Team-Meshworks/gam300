@@ -113,7 +113,9 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
   function commitTransform(
     input: unknown,
   ): ValidationResult<{ changed: boolean; object: SceneObject }> {
-    const result = prepareTransformCommand(objects, input);
+    // Include folders when tracing attachments so nested descendants move in the same undo step
+    const groups = project?.schemaVersion === 2 ? project.scenes[0]!.groups : [];
+    const result = prepareTransformCommand(objects, input, groups);
     if (!result.ok) {
       return result;
     }

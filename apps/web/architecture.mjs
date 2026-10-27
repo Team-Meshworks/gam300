@@ -13,6 +13,7 @@ export const modules = {
     packages: ["punycode"],
     public: [
       "shared/project/project-types.ts",
+      "shared/project/attached-transforms.ts",
       "shared/project/project-content.ts",
       "shared/project/project-capabilities.ts",
       "shared/project/scene-object.ts",

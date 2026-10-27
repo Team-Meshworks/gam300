@@ -1,3 +1,4 @@
+import { prepareTransformCommand } from "./transform-command";
 import { describe, expect, it } from "vitest";
 import { createDocumentStore } from "./document-store";
 import type { CatalogueAsset } from "../shared/assets/catalogue";
@@ -156,4 +157,41 @@ describe("transform commands", () => {
     expect(store.getSnapshot().canUndo).toBe(false);
     expect(store.getSnapshot().canRedo).toBe(false);
   });
+});
+
+// Use an imported hierarchy shape so attachment checks do not depend on unfinished tree controls
+it("moves nested attachments atomically and rejects distortion without changing history", () => {
+  const { object } = setup();
+  const root = { ...object, parentId: null };
+  const child = {
+    ...object,
+    id: "child",
+    parentId: "folder",
+    transform: { ...object.transform, position: [2, 0, 0] as const },
+  };
+  const objects = [root, child];
+  const groups = [{ id: "folder", name: "Exhibit", parentId: root.id }];
+  const after: Transform = { position: [3, 0, 0], rotation: [0, 0, 0, 1], scale: [2, 2, 2] };
+
+  // A folder between parent and child must not break the world-space attachment chain
+  const result = prepareTransformCommand(
+    objects,
+    { objectId: root.id, before: root.transform, after },
+    groups,
+  );
+  if (!result.ok || !result.value.command) throw new Error("Expected attachment command");
+  const moved = result.value.command.apply(objects);
+  expect(moved[1]!.transform.position).toEqual([7, 0, 0]);
+  expect(moved[1]!.transform.scale).toEqual([2, 2, 2]);
+  expect(result.value.command.revert(moved)).toBe(objects);
+  expect(child.transform.position).toEqual([2, 0, 0]);
+
+  // Reject the entire candidate when unequal scaling would shear an attached model
+  expect(
+    prepareTransformCommand(
+      objects,
+      { objectId: root.id, before: root.transform, after: { ...after, scale: [2, 3, 2] } },
+      groups,
+    ).ok,
+  ).toBe(false);
 });
