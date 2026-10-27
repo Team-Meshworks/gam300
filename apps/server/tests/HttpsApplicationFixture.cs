@@ -71,7 +71,7 @@ internal sealed class HttpsApplicationFixture : IAsyncDisposable
     public static async Task<HttpsApplicationFixture> CreateAsync(Action<WebApplicationBuilder>? configure = null,
         Action<WebApplication>? map = null, string environmentName = "Testing")
     {
-        var database = await PostgresAccountFixture.CreateAsync();
+        var database = await PostgresAccountFixture.CreateForApplicationAsync();
         var artifactsRoot = Path.GetFullPath(".artifacts");
         string? directory = null;
         X509Certificate2? certificate = null;

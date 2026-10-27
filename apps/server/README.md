@@ -130,6 +130,15 @@ schema it created. It never uses `EnsureCreated`, resets `public`, or clears oth
 data. Test connections disable pooling so reopened-scope durability uses new
 connections. Duplicate-insert races use separate contexts.
 
+HTTPS application fixtures apply freshly generated production migration SQL as one
+batch to each new schema, avoiding repeated migration-history probes and locking.
+Direct database tests retain the EF migrator for upgrade and reapplication coverage.
+`PostgresAccountFixtureTests` compares both schema catalogs, seeds and history, then
+checks independent same-ID records and cleanup. Independent fixtures share the
+disposable test database but use separate schemas, application hosts and schema-scoped
+connections. If migrations gain EF seeding delegates,
+revisit this setup path: generated SQL does not execute those delegates.
+
 Use a dedicated disposable PostgreSQL instance. The local SCRUM-45 setup uses the
 official **postgres:18.6** image, a unique container with `spatia.task=SCRUM-45` and
 `spatia.disposable=true` labels, an automatically assigned port bound only to
