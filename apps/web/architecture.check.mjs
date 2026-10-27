@@ -96,7 +96,7 @@ function typecheck(root, name, cache) {
     .map((file) => resolve(root, file));
   // The catalogue's Vite module is an ambient contract, not a directly imported .d.ts
   if (["editor", "checks"].includes(name)) {
-    const declaration = resolve(root, "shared/assets/manifest-module.d.ts");
+    const declaration = resolve(root, "shared/asset-runtime/manifest-module.d.ts");
     if (existsSync(declaration)) roots.push(declaration);
   }
   const program = ts.createProgram(roots, settings, host);

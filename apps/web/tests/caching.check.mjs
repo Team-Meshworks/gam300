@@ -28,6 +28,10 @@ try {
     const source = await (await fetch("/graphics/scene.ts")).text();
     const THREE = await import(source.match(/import \* as THREE from "([^"]+)"/)[1]);
     const cachePath = source.match(/from "([^"]*ModelCache[^\"]*)"/)[1];
+    check(
+      cachePath.includes("/shared/asset-runtime/"),
+      "The renderer must load the shared asset-runtime module",
+    );
     const { ModelCache } = await import(cachePath);
     const cacheSource = await (await fetch(cachePath)).text();
     const { GLTFLoader } = await import(

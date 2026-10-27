@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 import fixture from "../shared/project/fixtures/m1-project.json";
-import type { CatalogueAsset } from "../shared/assets/catalogue";
-import { sampleAsset } from "../shared/assets/sample-asset";
+import type { CatalogueAsset } from "../shared/asset-runtime/catalogue";
 import { serializeProject } from "../shared/project/project-serialization";
 import { createDocumentStore } from "./document-store";
 
+const sampleAssetId = "sample-snowglobe-v1";
 const assets = new Map([
   ["test-room-v1", "environment"],
   ["test-crate-v1", "model"],
-  [sampleAsset.id, "model"],
+  [sampleAssetId, "model"],
 ]);
 const placementAssets: CatalogueAsset[] = [...assets.keys()].map((id) => ({
   id,
@@ -33,8 +33,8 @@ describe("loading a project into the editor store", () => {
 
   it("replaces the whole project once and clears the previous placement history", () => {
     const store = createDocumentStore(placementAssets);
-    store.addObject(sampleAsset.id, [0, 0, 0]);
-    store.addObject(sampleAsset.id, [1, 0, 0]);
+    store.addObject(sampleAssetId, [0, 0, 0]);
+    store.addObject(sampleAssetId, [1, 0, 0]);
     store.undo();
     const previous = store.getSnapshot();
     let notifications = 0;
@@ -57,8 +57,8 @@ describe("loading a project into the editor store", () => {
   it("keeps the exact snapshot and both history stacks after rejected loads", () => {
     const store = createDocumentStore(placementAssets);
     store.loadProject(text, assets);
-    const first = store.addObject(sampleAsset.id, [1, 0, 0]);
-    const second = store.addObject(sampleAsset.id, [2, 0, 0]);
+    const first = store.addObject(sampleAssetId, [1, 0, 0]);
+    const second = store.addObject(sampleAssetId, [2, 0, 0]);
     if (!first.ok || !second.ok) throw new Error("Placement setup failed");
     store.undo();
     const previous = store.getSnapshot();
@@ -98,7 +98,7 @@ describe("loading a project into the editor store", () => {
 
       // Later caller changes to the catalog can't silently change this session
       catalog.clear();
-      expect(store.addObject(sampleAsset.id, [3, 0, -1]).ok).toBe(true);
+      expect(store.addObject(sampleAssetId, [3, 0, -1]).ok).toBe(true);
       const edited = store.getSnapshot();
       expect(edited.objects).toBe(edited.project?.scenes[0]?.objects);
       expect(edited.project?.projectId).toBe(projectId);
@@ -119,10 +119,10 @@ describe("loading a project into the editor store", () => {
   it("rejects placement when the loaded catalog has no sample model", () => {
     const store = createDocumentStore(placementAssets);
     const catalog = new Map(assets);
-    catalog.delete(sampleAsset.id);
+    catalog.delete(sampleAssetId);
     store.loadProject(text, catalog);
     const before = store.getSnapshot();
-    expect(store.addObject(sampleAsset.id, [0, 0, 0]).ok).toBe(false);
+    expect(store.addObject(sampleAssetId, [0, 0, 0]).ok).toBe(false);
     expect(store.getSnapshot()).toBe(before);
   });
 

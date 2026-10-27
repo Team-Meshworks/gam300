@@ -26,18 +26,17 @@
     },
     "catalogue": {
       "paths": [
-        "shared/assets/"
+        "shared/asset-runtime/"
       ],
       "uses": [],
       "packages": [],
       "public": [
-        "shared/assets/catalogue.ts",
-        "shared/assets/sample-asset.ts"
+        "shared/asset-runtime/catalogue.ts"
       ]
     },
     "asset-loading": {
       "paths": [
-        "shared/assets/ModelCache.ts"
+        "shared/asset-runtime/ModelCache.ts"
       ],
       "uses": [
         "catalogue"
@@ -46,7 +45,7 @@
         "three"
       ],
       "public": [
-        "shared/assets/ModelCache.ts"
+        "shared/asset-runtime/ModelCache.ts"
       ]
     },
     "input": {
@@ -196,23 +195,23 @@
     ]
   },
   "files": {
-    "architecture.check.mjs": "712edf41ac0ee3637c1c83e413c68db7dfdb2b5158ea5b8c0762bc84f37ec6f4",
-    "architecture.mjs": "d9c833a2bc8a2fb2f4a62ed44cb0411194c00dcfd2f365501307cfdb4db256e7",
+    "architecture.check.mjs": "ed2d036e255cf85a5c589e639d60ad270a89cd49b8a363a5af4ff0afd3b8eb5a",
+    "architecture.mjs": "d7cc3e90fb9cbcb5e94b855ca2020be47e8eb1ac07ed240f61a5aa7d8c80c816",
     "asset-catalogue-plugin.ts": "17bec6aa65dd50167fe6c055fb38af453a647f3648a2bf296f9927ed32f7a158",
     "editor/App.tsx": "1959ecf211967dd57842a5e47147360cb2a8e15c047302c6b4896edd24eecea7",
     "editor/ProjectConfirmation.tsx": "07a0fedf8fbf88865b3b8232c8665c139348fc64ebce478ea01e55eb7fd14eff",
     "editor/command-history.test.ts": "783c026523513ea5520cde04e61502aba13ca3a612b509a904c2a50e50be2d1f",
     "editor/command-history.ts": "e243335582ab03da9d131bd80edef7b908e3eb0a751d6ebfa7deb77750fc54ad",
     "editor/controls/fpsControls.ts": "9cd1c65c92bd832dda2003f6a79e5b5e5b54a49360d47bf4b6841c83ca4693e6",
-    "editor/document-store.test.ts": "b74ccaa58dd8a84f84c5aa95994d707861b659cef40cb6b57e4d991149c626d1",
-    "editor/document-store.ts": "f91d3397cf82626ca0453a3810c49225bf98ef5fe5cb0cf5d6ba376b4f3ee19a",
+    "editor/document-store.test.ts": "7fe71d072132e8410e7b9976fc4973d011f5ce762f940b5d53cfecbeb6f91410",
+    "editor/document-store.ts": "55fce92600b1303eb083fefbfeceb151cf0a39451505485d6ba81436c7bfa48c",
     "editor/edit-session.test.ts": "fd971338990e32158eb0355508fb39a7c3284db62421501024da029a82dc784a",
     "editor/graphics/modeManager.ts": "192911ee28b8329ec2ed0dddb5f8854abf6faf5dfce3165b2694a1bfcf192f24",
     "editor/graphics/rotation.test.ts": "58844092035329772ba8c941b1b93737d142d7c597f015900041721d0018bb69",
     "editor/graphics/rotation.ts": "d847162644716d2b36e8b3e4f1ad190360527a46351cb2969d411dbe76ea96d3",
     "editor/graphics/scaling.test.ts": "346b243798597de2a5b00384904bdf04f9f3826a8753bcde3282e5356b0ceb0a",
     "editor/graphics/scaling.ts": "0277d21b28d246ddb2f94216fe29afb24ebbc8e257dd3510eca91bb176867da1",
-    "editor/graphics/scene.ts": "f77766ba9fcbe5eda0d5e3fc78478b642bc4bfdade8b63d9fef543727857095f",
+    "editor/graphics/scene.ts": "8759d5ba576bedfeae895cfe6a6f18a271c1e762910e19cd76e4cf0ee5238fed",
     "editor/graphics/translation.test.ts": "b4a888b963437ca3508c04cc3e933ab215d301908384ea9af37ee8aabd6fae2c",
     "editor/graphics/translation.ts": "a4ea05b137e4dee436848693a57273c54025856bdf943eb1e9413de5509bb2d4",
     "editor/history-shortcuts.test.ts": "fc33404f4da0e7c9fd27d2da50d63eb3367c790cda0f985dd98b398b651e3a3b",
@@ -224,14 +223,14 @@
     "editor/persistence/local-drafts.test.ts": "5064ce46c556d4ca64f43c2644150a1163f21d0813bbc055a290358b2777ed57",
     "editor/persistence/local-drafts.ts": "13b378cfd72a0729f48f8a3056c80701b0607afd2d285ef503ecd2bf1a60d9be",
     "editor/persistence/project-files.ts": "20e7466377e31ea388fe527abc4c33e465538b8b06709a5d78c78bc116c6b273",
-    "editor/persistence/use-project-session.ts": "a2df1f83cc66b590fd6ca4ce041a270be8a74afe3fc9b486294936c26a183496",
-    "editor/project-content.test.ts": "e3cafd516a0809834eba6aa6de6d7de3897d7d9876b30c93abda2d2057e34fe9",
-    "editor/project-loading.test.ts": "bce77e1b55b7c52bf5140be4b357a894cba6bdaa5a851e3693b96106e2e0e63e",
-    "editor/recovery-history.test.ts": "95c497899ffa6c8f8c696c84e8e880f7ea8eb22ef0d95ec04cca57d1ce14f31f",
+    "editor/persistence/use-project-session.ts": "e5ee65e861252ad5669bf79e9fd9425503a392e5d8867f1ada3879320787a20a",
+    "editor/project-content.test.ts": "2ed8c8afdb008de2de014da71492a20356dde3c0df7087db228c30935dc43a01",
+    "editor/project-loading.test.ts": "40d88719fa4b282094d1636259ebc8ff448b540904ab92ac6d3648e3afe6aa35",
+    "editor/recovery-history.test.ts": "2548daa2d3962c31128bdc08b0819eff197633292147b0af0a27a24f510eabce",
     "editor/recovery-history.ts": "e14deeddfc9279daae2e83671ef2df12bb72b89fe01c7f6070cc399c138c7608",
-    "editor/transform-command.test.ts": "d2ae97b90329d4baf866a7dbc3521675a7d9c78c5754e3b955e60ed62a232469",
+    "editor/transform-command.test.ts": "ddf486effa25dda032e79d4c8e10abfa72b3c21e9856fe9c9fea55a1a9d80bb4",
     "editor/transform-command.ts": "bcd7036db3877f5f24e5984287af8a878b10ec6289a51987e76f62db8f3cb178",
-    "editor/ui/BottomBar.tsx": "0177614715bb80a4c35b680d9ea7ce820a9e78dcc76ca8caff82b547dead234d",
+    "editor/ui/BottomBar.tsx": "e202b16873fa5cd0cc23aa56eeb9050866b1a16f2195df1ca6d3dd9b63a079ee",
     "editor/ui/Icon.tsx": "536064fa8990e7e522f64eba9e25106359c903257d84837b6575ba5c99307e1b",
     "editor/ui/SidePanels.tsx": "31d945caaffab3d3518232ca56e6b858fca18b5e8cff690b942cbbe5e4342d2b",
     "editor/ui/TopBar.tsx": "f7122b3c7bd93b7257bbb74392b996acbf3397650fecea4e69bd3d6c2c0fef21",
@@ -239,15 +238,14 @@
     "editor/ui/dock-edge.ts": "16fbf3250e0c840d7d6d0add10b5fb4ee008afafcbbebe1b860c15171d7196af",
     "editor/ui/rotation-angles.test.ts": "768d7e7fcfe8d5a5fc0a11f3bc70fa734e5e84ce161fd9aa5b1807b850f4438d",
     "editor/ui/rotation-angles.ts": "16a42a83ee7bb2435c4ee7b640fa6ca3c65a7564fd68981084ce57f5e9687f3b",
-    "editor/viewport/Viewport.tsx": "d90e0796f9001e2985ecd90755f80a56cd7d3df574eac07bb0a3a633faff8235",
+    "editor/viewport/Viewport.tsx": "6bc5d6706e76f100e545c499afa511d9bb5129c5bfa3fb9f53c4df8ac962e946",
     "eslint.config.js": "d32bfc31c2e4b881deedcd9090f5eb2ba874728c3dcfe5aa9f89e5e31cecc1f7",
-    "shared/assets/ModelCache.test.ts": "6e5cf28591eb858c981923550fe49fb330535b085db0d99d7ce209736fefc2d3",
-    "shared/assets/ModelCache.ts": "7ba493c76290a999db38013457dea39e5b08492416487338b05e1be6490dde2e",
-    "shared/assets/catalogue.ts": "5be1b1fb1dc335fc7ed3e7204bcba9ff7485deaa12ceb46a945048f5937c7800",
-    "shared/assets/manifest-module.d.ts": "ff7add6e7e483a4cc6a0dd48c9ead7b2f4cd0b0a5ccc7fb06181e1a5d2d1326e",
-    "shared/assets/sample-asset.ts": "2027def54ff2b2da4eb1372d91fb745d94e3a2b7946a845b74381122468ddb92",
+    "shared/asset-runtime/ModelCache.test.ts": "6e5cf28591eb858c981923550fe49fb330535b085db0d99d7ce209736fefc2d3",
+    "shared/asset-runtime/ModelCache.ts": "7ba493c76290a999db38013457dea39e5b08492416487338b05e1be6490dde2e",
+    "shared/asset-runtime/catalogue.ts": "5be1b1fb1dc335fc7ed3e7204bcba9ff7485deaa12ceb46a945048f5937c7800",
+    "shared/asset-runtime/manifest-module.d.ts": "ff7add6e7e483a4cc6a0dd48c9ead7b2f4cd0b0a5ccc7fb06181e1a5d2d1326e",
     "shared/project/project-capabilities.ts": "b3e43a4a88bebd86fd0a35ccf6260d32fec6045ffb9fc40da80c783e3e65abf3",
-    "shared/project/project-content-validation.ts": "5c681ecf390b5490d847fe030e0dbba8fe2c219929ac64e2b53e334b28e40f4a",
+    "shared/project/project-content-validation.ts": "938c1cf58caff2d300b9e95234b06c04ad3892881172d5aa3fd0531688743d99",
     "shared/project/project-content.test.ts": "348f9d8fd26a3273e1e4bc701565345607c6eba773ceef342702b08a004a9bc0",
     "shared/project/project-content.ts": "eaaa6d461b14bc6a0b103c1754945ddcda3c274231796077e19d2df756baad92",
     "shared/project/project-deserialization.test.ts": "a4159c5ffc88b8d3f22ed9fcca5b7b37cb7a90d1766dc46080264ca3b552ffb1",
@@ -256,7 +254,7 @@
     "shared/project/project-serialization.test.ts": "943232b26c3830814b595850eab356e4cb3e941221e30299e17136b7c8fcb96d",
     "shared/project/project-serialization.ts": "57ecf9585608f2703da3410955f8dc2a9a62f8c494b29b5b310361ebdf8c2f73",
     "shared/project/project-structure-validation.test.ts": "17433f798aa5e4ecae9732f9845eb8020687c66f22affb47c91acec18a475adc",
-    "shared/project/project-structure-validation.ts": "8deb995cb417018d6e6eca4de89a95b2eb79ad87ee16e00327c2a5bd3d2cf1c6",
+    "shared/project/project-structure-validation.ts": "b2ae53e54a81ff5a9299b6ce5da435b1440202ba005efb224837bd3f9f30d892",
     "shared/project/project-types.ts": "179e7570e289e9905543bef7ee9617c66a0419cce9b19df24b93b0f53827b708",
     "shared/project/project-validation.test.ts": "9221fd078f690b50a459f4579dc556e353bf484ba307e6b16272e68e7b03a3b3",
     "shared/project/project-validation.ts": "f88a750884b31852e59638abdeff50b3c05082dc5b1480ce3115a8cf76903976",
@@ -264,22 +262,22 @@
     "shared/project/spatial-validation.test.ts": "1451aa2673f445e8dbdff9e3628dd474ec1f9aa1238b4867c67913bb682e3c0d",
     "shared/project/spatial-validation.ts": "fc07ebececfd00d3a8fd3da72bdce5aa7c8f78acc96a4be564081e456d7e8c69",
     "shared/project/validation-helpers.ts": "655a118952cf702e91ac211e18f48478541fe95f4ceeee3806e314badbfb60fe",
-    "tests/caching.check.mjs": "c839974ba242e72e822d6aff941db64d3bc6ac35bb9770b89c44598109502a6f",
-    "tests/caching.measure.mjs": "0181addfc3a470bd5504169e3e0a88d3292ecb3e341beded0ca90766e4d40ea7",
+    "tests/caching.check.mjs": "3ff36ae487a43e4585556b9482e25008526b6282f448572c956b27f1e2f17aac",
+    "tests/caching.measure.mjs": "aadf27638c20f8a79d5fe302ec7a3f0ad9bab52661bc5be39df65fb89b53e727",
     "tests/deployment.check.mjs": "c4cedc5151c1b043b6eee66ae1dcf144c97cc2645d8f1956f99f70942c07ab9e",
-    "tests/editor-build.check.mjs": "ddad12cec87babbd5365e3d4cd4ec25187d8e1a5485d04bf2dcce3b3e273606a",
+    "tests/editor-build.check.mjs": "12fc7e8497303a0eb0127a7c1b12355baa3b921f1eb5753baaf31f00dadea96f",
     "tests/editor-integration.check.mjs": "01ae358ec88769454cac1e0fb162c9ce7fe4c2096cafad431aaa8a00620d761d",
     "tests/editor-shell.check.mjs": "355bab066d87ba3152152d11f4fc62c75a8150c9761be3170df01a06382fa8f9",
     "tests/history-recovery.check.mjs": "3d9ceb4d7017d144eb320135dae052cbcfdf3f849d6757a825f3e2764c4e32e7",
     "tests/local-drafts.check.mjs": "543d1651cb8ee470f40059b41ed9b68c39b80d41fbbc24425171e6d683f5637d",
-    "tests/project-format-cross.check.mjs": "0d382287fd435f4f03647d8141f7d854ab7a6ec6906a07886e65a4352b0917e9",
+    "tests/project-format-cross.check.mjs": "8b3fb6b1ec19c993746cd8ae5ce12c2f4b9d26f3643b320349c62b18d7386a95",
     "vite.config.ts": "50329f07010d85bc43b6f9ab2f3ea7b0ca22fa6059f6346d8872bf1b09ac5da6",
     "vitest.config.ts": "6d56840bcf381e145f69828ff965fe1c8065e1610a38219c19dbb4e9d87d7dbf",
     "editor/index.html": "f14296264b1f8edda142de2fa8b8c58d1e98e50265637afe5f29924558900279",
     "shared/project/fixtures/m1-project.json": "3aeeee4397fd9ad18fc06eba32815ef5032ecf8184200aaa38a2076b882a4947",
     "editor/styles.css": "c1b1ad140f0bb8f6ddeed5f4049e72bf856978fd0f32f691b96ddc3e433b04d3",
     "shared/project/fixtures/m2-project.json": "ccafa7cfce33d73c5ffc77672ebe30101a059d30d1c9a9855c0f3e65c1b9fe78",
-    "shared/project/fixtures/project-format-cases.json": "c8e38b2bee10cb9979ef61635580015edec86c65b65906e096a508b8aa8a9b46"
+    "shared/project/fixtures/project-format-cases.json": "58ee71c8634afd15d715ee53712b3f92cb7f3735326ba9c349973bbbe4792a2b"
   },
   "imports": [
     {
@@ -486,7 +484,7 @@
       "line": 2,
       "kind": "static",
       "specifier": "virtual:asset-catalogue",
-      "target": "shared/assets/catalogue.ts",
+      "target": "shared/asset-runtime/catalogue.ts",
       "from": "editor",
       "to": "catalogue"
     },
@@ -698,8 +696,8 @@
       "file": "editor/document-store.test.ts",
       "line": 2,
       "kind": "type",
-      "specifier": "../shared/assets/catalogue",
-      "target": "shared/assets/catalogue.ts",
+      "specifier": "../shared/asset-runtime/catalogue",
+      "target": "shared/asset-runtime/catalogue.ts",
       "from": "checks",
       "to": "catalogue"
     },
@@ -788,8 +786,8 @@
       "file": "editor/document-store.ts",
       "line": 9,
       "kind": "type",
-      "specifier": "../shared/assets/catalogue.ts",
-      "target": "shared/assets/catalogue.ts",
+      "specifier": "../shared/asset-runtime/catalogue.ts",
+      "target": "shared/asset-runtime/catalogue.ts",
       "from": "document",
       "to": "catalogue"
     },
@@ -986,8 +984,8 @@
       "file": "editor/graphics/scene.ts",
       "line": 3,
       "kind": "static",
-      "specifier": "../../shared/assets/ModelCache",
-      "target": "shared/assets/ModelCache.ts",
+      "specifier": "../../shared/asset-runtime/ModelCache",
+      "target": "shared/asset-runtime/ModelCache.ts",
       "from": "rendering",
       "to": "asset-loading"
     },
@@ -995,8 +993,8 @@
       "file": "editor/graphics/scene.ts",
       "line": 4,
       "kind": "type",
-      "specifier": "../../shared/assets/catalogue",
-      "target": "shared/assets/catalogue.ts",
+      "specifier": "../../shared/asset-runtime/catalogue",
+      "target": "shared/asset-runtime/catalogue.ts",
       "from": "rendering",
       "to": "catalogue"
     },
@@ -1392,8 +1390,8 @@
       "file": "editor/persistence/use-project-session.ts",
       "line": 2,
       "kind": "type",
-      "specifier": "../../shared/assets/catalogue",
-      "target": "shared/assets/catalogue.ts",
+      "specifier": "../../shared/asset-runtime/catalogue",
+      "target": "shared/asset-runtime/catalogue.ts",
       "from": "persistence",
       "to": "catalogue"
     },
@@ -1510,8 +1508,8 @@
       "file": "editor/project-content.test.ts",
       "line": 5,
       "kind": "type",
-      "specifier": "../shared/assets/catalogue",
-      "target": "shared/assets/catalogue.ts",
+      "specifier": "../shared/asset-runtime/catalogue",
+      "target": "shared/asset-runtime/catalogue.ts",
       "from": "checks",
       "to": "catalogue"
     },
@@ -1556,23 +1554,14 @@
       "file": "editor/project-loading.test.ts",
       "line": 3,
       "kind": "type",
-      "specifier": "../shared/assets/catalogue",
-      "target": "shared/assets/catalogue.ts",
+      "specifier": "../shared/asset-runtime/catalogue",
+      "target": "shared/asset-runtime/catalogue.ts",
       "from": "checks",
       "to": "catalogue"
     },
     {
       "file": "editor/project-loading.test.ts",
       "line": 4,
-      "kind": "static",
-      "specifier": "../shared/assets/sample-asset",
-      "target": "shared/assets/sample-asset.ts",
-      "from": "checks",
-      "to": "catalogue"
-    },
-    {
-      "file": "editor/project-loading.test.ts",
-      "line": 5,
       "kind": "static",
       "specifier": "../shared/project/project-serialization",
       "target": "shared/project/project-serialization.ts",
@@ -1581,7 +1570,7 @@
     },
     {
       "file": "editor/project-loading.test.ts",
-      "line": 6,
+      "line": 5,
       "kind": "static",
       "specifier": "./document-store",
       "target": "editor/document-store.ts",
@@ -1629,8 +1618,8 @@
       "file": "editor/recovery-history.test.ts",
       "line": 5,
       "kind": "type",
-      "specifier": "../shared/assets/catalogue",
-      "target": "shared/assets/catalogue.ts",
+      "specifier": "../shared/asset-runtime/catalogue",
+      "target": "shared/asset-runtime/catalogue.ts",
       "from": "checks",
       "to": "catalogue"
     },
@@ -1684,8 +1673,8 @@
       "file": "editor/transform-command.test.ts",
       "line": 3,
       "kind": "type",
-      "specifier": "../shared/assets/catalogue",
-      "target": "shared/assets/catalogue.ts",
+      "specifier": "../shared/asset-runtime/catalogue",
+      "target": "shared/asset-runtime/catalogue.ts",
       "from": "checks",
       "to": "catalogue"
     },
@@ -1766,8 +1755,8 @@
       "file": "editor/ui/BottomBar.tsx",
       "line": 10,
       "kind": "static",
-      "specifier": "../../shared/assets/catalogue",
-      "target": "shared/assets/catalogue.ts",
+      "specifier": "../../shared/asset-runtime/catalogue",
+      "target": "shared/asset-runtime/catalogue.ts",
       "from": "editor",
       "to": "catalogue"
     },
@@ -2002,8 +1991,8 @@
       "file": "editor/viewport/Viewport.tsx",
       "line": 2,
       "kind": "static",
-      "specifier": "../../shared/assets/catalogue",
-      "target": "shared/assets/catalogue.ts",
+      "specifier": "../../shared/asset-runtime/catalogue",
+      "target": "shared/asset-runtime/catalogue.ts",
       "from": "editor",
       "to": "catalogue"
     },
@@ -2133,7 +2122,7 @@
       "from": "build"
     },
     {
-      "file": "shared/assets/ModelCache.test.ts",
+      "file": "shared/asset-runtime/ModelCache.test.ts",
       "line": 1,
       "kind": "static",
       "specifier": "vitest",
@@ -2143,7 +2132,7 @@
       "from": "checks"
     },
     {
-      "file": "shared/assets/ModelCache.test.ts",
+      "file": "shared/asset-runtime/ModelCache.test.ts",
       "line": 2,
       "kind": "static",
       "specifier": "three",
@@ -2153,7 +2142,7 @@
       "from": "checks"
     },
     {
-      "file": "shared/assets/ModelCache.test.ts",
+      "file": "shared/asset-runtime/ModelCache.test.ts",
       "line": 3,
       "kind": "static",
       "specifier": "three/examples/jsm/loaders/GLTFLoader.js",
@@ -2163,25 +2152,25 @@
       "from": "checks"
     },
     {
-      "file": "shared/assets/ModelCache.test.ts",
+      "file": "shared/asset-runtime/ModelCache.test.ts",
       "line": 4,
       "kind": "static",
       "specifier": "./ModelCache",
-      "target": "shared/assets/ModelCache.ts",
+      "target": "shared/asset-runtime/ModelCache.ts",
       "from": "checks",
       "to": "asset-loading"
     },
     {
-      "file": "shared/assets/ModelCache.test.ts",
+      "file": "shared/asset-runtime/ModelCache.test.ts",
       "line": 5,
       "kind": "type",
       "specifier": "./catalogue",
-      "target": "shared/assets/catalogue.ts",
+      "target": "shared/asset-runtime/catalogue.ts",
       "from": "checks",
       "to": "catalogue"
     },
     {
-      "file": "shared/assets/ModelCache.ts",
+      "file": "shared/asset-runtime/ModelCache.ts",
       "line": 1,
       "kind": "static",
       "specifier": "three",
@@ -2191,7 +2180,7 @@
       "from": "asset-loading"
     },
     {
-      "file": "shared/assets/ModelCache.ts",
+      "file": "shared/asset-runtime/ModelCache.ts",
       "line": 2,
       "kind": "static",
       "specifier": "three/examples/jsm/loaders/GLTFLoader.js",
@@ -2201,20 +2190,20 @@
       "from": "asset-loading"
     },
     {
-      "file": "shared/assets/ModelCache.ts",
+      "file": "shared/asset-runtime/ModelCache.ts",
       "line": 3,
       "kind": "type",
       "specifier": "./catalogue",
-      "target": "shared/assets/catalogue.ts",
+      "target": "shared/asset-runtime/catalogue.ts",
       "from": "asset-loading",
       "to": "catalogue"
     },
     {
-      "file": "shared/assets/manifest-module.d.ts",
+      "file": "shared/asset-runtime/manifest-module.d.ts",
       "line": 2,
       "kind": "type-query",
       "specifier": "./catalogue",
-      "target": "shared/assets/catalogue.ts",
+      "target": "shared/asset-runtime/catalogue.ts",
       "from": "catalogue",
       "to": "catalogue"
     },
@@ -2745,16 +2734,16 @@
     },
     {
       "file": "tests/caching.check.mjs",
-      "line": 31,
+      "line": 35,
       "kind": "test-transformed-module",
-      "specifier": "../shared/assets/ModelCache.ts",
-      "target": "shared/assets/ModelCache.ts",
+      "specifier": "../shared/asset-runtime/ModelCache.ts",
+      "target": "shared/asset-runtime/ModelCache.ts",
       "from": "checks",
       "to": "asset-loading"
     },
     {
       "file": "tests/caching.check.mjs",
-      "line": 33,
+      "line": 37,
       "kind": "test-transformed-module",
       "specifier": "three",
       "target": {
@@ -2764,7 +2753,7 @@
     },
     {
       "file": "tests/caching.check.mjs",
-      "line": 36,
+      "line": 40,
       "kind": "dynamic",
       "specifier": "/graphics/scene.ts",
       "target": "editor/graphics/scene.ts",
@@ -2773,10 +2762,10 @@
     },
     {
       "file": "tests/caching.check.mjs",
-      "line": 37,
+      "line": 41,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
-      "target": "shared/assets/catalogue.ts",
+      "target": "shared/asset-runtime/catalogue.ts",
       "from": "checks",
       "to": "catalogue"
     },
@@ -2906,7 +2895,7 @@
       "line": 86,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
-      "target": "shared/assets/catalogue.ts",
+      "target": "shared/asset-runtime/catalogue.ts",
       "from": "checks",
       "to": "catalogue"
     },
@@ -3044,7 +3033,7 @@
       "line": 78,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
-      "target": "shared/assets/catalogue.ts",
+      "target": "shared/asset-runtime/catalogue.ts",
       "from": "checks",
       "to": "catalogue"
     },
@@ -3062,7 +3051,7 @@
       "line": 92,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
-      "target": "shared/assets/catalogue.ts",
+      "target": "shared/asset-runtime/catalogue.ts",
       "from": "checks",
       "to": "catalogue"
     },
@@ -3090,7 +3079,7 @@
       "line": 158,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
-      "target": "shared/assets/catalogue.ts",
+      "target": "shared/asset-runtime/catalogue.ts",
       "from": "checks",
       "to": "catalogue"
     },
@@ -3206,7 +3195,7 @@
       "line": 27,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
-      "target": "shared/assets/catalogue.ts",
+      "target": "shared/asset-runtime/catalogue.ts",
       "from": "checks",
       "to": "catalogue"
     },
@@ -3224,7 +3213,7 @@
       "line": 86,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
-      "target": "shared/assets/catalogue.ts",
+      "target": "shared/asset-runtime/catalogue.ts",
       "from": "checks",
       "to": "catalogue"
     },
@@ -3318,7 +3307,7 @@
       "line": 313,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
-      "target": "shared/assets/catalogue.ts",
+      "target": "shared/asset-runtime/catalogue.ts",
       "from": "checks",
       "to": "catalogue"
     },
@@ -3444,12 +3433,12 @@
     },
     {
       "file": "tests/caching.check.mjs",
-      "line": 31,
+      "line": 35,
       "expression": "cachePath"
     },
     {
       "file": "tests/caching.check.mjs",
-      "line": 33,
+      "line": 37,
       "expression": "cacheSource.match(/import \\{ GLTFLoader \\} from \"([^\"]+)\"/)[1]"
     },
     {

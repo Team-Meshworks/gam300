@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { CatalogueAsset } from "../../shared/assets/catalogue";
+import type { CatalogueAsset } from "../../shared/asset-runtime/catalogue";
 import type { ProjectDocument } from "../../shared/project/project-types";
 import { serializeProject } from "../../shared/project/project-serialization";
 import { deserializeProject } from "../../shared/project/project-deserialization";

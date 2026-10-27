@@ -277,7 +277,7 @@ try {
       .update(await readFile(new URL("../editor/graphics/scene.ts", import.meta.url)))
       .digest("hex"),
     cacheSourceSha256: createHash("sha256")
-      .update(await readFile(new URL("../shared/assets/ModelCache.ts", import.meta.url)))
+      .update(await readFile(new URL("../shared/asset-runtime/ModelCache.ts", import.meta.url)))
       .digest("hex"),
     conditions: {
       os: `${os.platform()} ${os.release()} ${os.arch()}`,

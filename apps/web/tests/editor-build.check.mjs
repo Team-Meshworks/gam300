@@ -13,6 +13,14 @@ const url = process.argv[2] ?? "http://127.0.0.1:4173/";
 const isDevelopment = process.env.BUILD_MODE === "development";
 
 try {
+  const legacyModel = await fetch(new URL("models/snowglobe.glb", url));
+  assert.notEqual(
+    Buffer.from(await legacyModel.arrayBuffer())
+      .subarray(0, 4)
+      .toString("utf8"),
+    "glTF",
+    "The build must not ship a duplicate public model alongside the catalogue asset",
+  );
   const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
@@ -26,6 +34,9 @@ try {
   const modelRequest = page.waitForRequest((request) =>
     new URL(request.url()).pathname.endsWith(".glb"),
   );
+  const snowglobeResponse = page.waitForResponse((response) =>
+    /\/assets\/snowglobe-[^/]+\.glb$/.test(new URL(response.url()).pathname),
+  );
   await page.goto(url);
   await page.getByRole("heading", { name: "Spatia", exact: true }).waitFor();
   await coreRequest;
@@ -35,10 +46,15 @@ try {
   assert.equal(await asset.isDisabled(), true);
   releaseCore();
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
+  assert.ok((await snowglobeResponse).ok(), "The manifest snowglobe still loads");
   assert.equal(await page.locator("canvas").count(), 1);
   // Packaged builds follow the same room-first authoring flow as the local editor
   await page.getByRole("button", { name: "Add test-room", exact: true }).click();
   await asset.click();
+  assert.equal(await page.locator(".object-row").count(), 1);
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  assert.equal(await page.locator(".object-row").count(), 0);
+  await page.getByRole("button", { name: "Add Snow globe", exact: true }).click();
   assert.equal(await page.locator(".object-row").count(), 1);
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   assert.equal(await page.locator(".object-row").count(), 0);
