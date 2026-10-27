@@ -9,3 +9,10 @@ export type CatalogueAsset = Readonly<{
 }>;
 
 export const assetDragType = "application/x-vthere-asset";
+
+// Keep the catalogue order and asset IDs used by placement
+// Match literal text so search never evaluates user-supplied patterns
+export function searchAssets(assets: readonly CatalogueAsset[], query: string) {
+  const name = query.trim().toLowerCase();
+  return assets.filter((asset) => asset.name.toLowerCase().includes(name));
+}

@@ -243,7 +243,8 @@
     "eslint.config.js": "d32bfc31c2e4b881deedcd9090f5eb2ba874728c3dcfe5aa9f89e5e31cecc1f7",
     "shared/assets/ModelCache.test.ts": "6e5cf28591eb858c981923550fe49fb330535b085db0d99d7ce209736fefc2d3",
     "shared/assets/ModelCache.ts": "7ba493c76290a999db38013457dea39e5b08492416487338b05e1be6490dde2e",
-    "shared/assets/catalogue.ts": "5be1b1fb1dc335fc7ed3e7204bcba9ff7485deaa12ceb46a945048f5937c7800",
+    "shared/assets/catalogue.test.ts": "93f76097551fcf8adaa581777554edfa38c4defb12d9711c3f2c7f3332a77fac",
+    "shared/assets/catalogue.ts": "b75e3fcac8c0036234203e4b5402599e205f92de4871fe8d09da6f0a0e32eb36",
     "shared/assets/manifest-module.d.ts": "ff7add6e7e483a4cc6a0dd48c9ead7b2f4cd0b0a5ccc7fb06181e1a5d2d1326e",
     "shared/assets/sample-asset.ts": "2027def54ff2b2da4eb1372d91fb745d94e3a2b7946a845b74381122468ddb92",
     "shared/project/project-capabilities.ts": "b3e43a4a88bebd86fd0a35ccf6260d32fec6045ffb9fc40da80c783e3e65abf3",
@@ -269,7 +270,7 @@
     "tests/deployment.check.mjs": "c4cedc5151c1b043b6eee66ae1dcf144c97cc2645d8f1956f99f70942c07ab9e",
     "tests/editor-build.check.mjs": "ddad12cec87babbd5365e3d4cd4ec25187d8e1a5485d04bf2dcce3b3e273606a",
     "tests/editor-integration.check.mjs": "01ae358ec88769454cac1e0fb162c9ce7fe4c2096cafad431aaa8a00620d761d",
-    "tests/editor-shell.check.mjs": "fc7bd01b919c2a03bbd001001ba24f5a052e43bdf15fd96c67f720680e30d414",
+    "tests/editor-shell.check.mjs": "355bab066d87ba3152152d11f4fc62c75a8150c9761be3170df01a06382fa8f9",
     "tests/history-recovery.check.mjs": "3d9ceb4d7017d144eb320135dae052cbcfdf3f849d6757a825f3e2764c4e32e7",
     "tests/local-drafts.check.mjs": "a52e4b31be4c7a0f701a7bd2f9cd38a0d2fa97fdaea621f2144bc71baee87c6c",
     "tests/project-format-cross.check.mjs": "0d382287fd435f4f03647d8141f7d854ab7a6ec6906a07886e65a4352b0917e9",
@@ -2210,6 +2211,34 @@
       "to": "catalogue"
     },
     {
+      "file": "shared/assets/catalogue.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "shared/assets/catalogue.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "./catalogue",
+      "target": "shared/assets/catalogue.ts",
+      "from": "checks",
+      "to": "catalogue"
+    },
+    {
+      "file": "shared/assets/catalogue.test.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "../../editor/document-store",
+      "target": "editor/document-store.ts",
+      "from": "checks",
+      "to": "document"
+    },
+    {
       "file": "shared/assets/manifest-module.d.ts",
       "line": 2,
       "kind": "type-query",
@@ -3146,7 +3175,16 @@
     },
     {
       "file": "tests/editor-shell.check.mjs",
-      "line": 452,
+      "line": 440,
+      "kind": "dynamic",
+      "specifier": "/persistence/local-drafts.ts",
+      "target": "editor/persistence/local-drafts.ts",
+      "from": "checks",
+      "to": "persistence"
+    },
+    {
+      "file": "tests/editor-shell.check.mjs",
+      "line": 470,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
