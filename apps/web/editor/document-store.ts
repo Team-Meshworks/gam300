@@ -37,6 +37,13 @@ function toContentProject(project: ProjectDocument): ContentProject {
   };
 }
 
+function createProjectId(): string {
+  const timestamp = Date.now().toString(16).padStart(12, "0");
+  const random = crypto.randomUUID();
+  // RFC 9562 v7 keeps the native UUID's variant and 74 random suffix bits
+  return `${timestamp.slice(0, 8)}-${timestamp.slice(8)}-7${random.slice(15)}`;
+}
+
 function freezeProject(project: ProjectDocument): ProjectDocument {
   // Freeze the reader's separate copy before exposing it to panels or commands
   return freezeValidatedData(project);
@@ -329,7 +336,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
         // The first scene starts a document; there must always be at least one scene.
         const document: ProjectDocument = {
           schemaVersion: 2,
-          projectId: crypto.randomUUID(),
+          projectId: createProjectId(),
           title: "Untitled project",
           scenes: [scene],
         };
@@ -607,7 +614,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       // Fresh IDs keep this scene separate from earlier projects and their browser backups
       const candidate: ProjectDocument = {
         schemaVersion: 1,
-        projectId: crypto.randomUUID(),
+        projectId: createProjectId(),
         title: "Untitled project",
         scenes: [
           {

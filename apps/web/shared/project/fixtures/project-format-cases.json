@@ -8,6 +8,34 @@
   },
   "cases": [
     {
+      "name": "storage NUL in released title",
+      "base": "m1",
+      "valid": false,
+      "path": "project.title",
+      "patches": [{ "path": ["title"], "value": "before\u0000after", "remove": false }]
+    },
+    {
+      "name": "storage NUL in content caption",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].objects[0].components[1].caption",
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "components", 1, "caption"],
+          "value": "before\u0000after",
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "storage NUL escape text is literal",
+      "base": "m1",
+      "valid": true,
+      "patches": [
+        { "path": ["title"], "value": "literal \\u0000 and controls\n\t\b\f\r", "remove": false }
+      ]
+    },
+    {
       "name": "released M1 example",
       "base": "m1",
       "valid": true,

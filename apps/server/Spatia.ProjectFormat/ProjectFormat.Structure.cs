@@ -42,6 +42,11 @@ public static partial class ProjectFormat
         }
 
         var text = value.GetString()!;
+        // PostgreSQL jsonb cannot store NUL; reject it without altering authored text
+        if (text.Contains('\0'))
+        {
+            Fail(path, "Text contains an unsupported NUL character");
+        }
         if (text.Length > limit)
         {
             Fail(path, $"Text exceeds {limit} characters");

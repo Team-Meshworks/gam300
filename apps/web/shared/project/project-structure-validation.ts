@@ -14,6 +14,10 @@ function readText(raw: unknown, path: string, budget: TextBudget): ValidationRes
   if (typeof raw !== "string") {
     return invalid(path, "Expected a string");
   }
+  // PostgreSQL jsonb cannot store NUL; reject it without altering authored text
+  if (raw.includes("\u0000")) {
+    return invalid(path, "Text contains an unsupported NUL character");
+  }
   if (/[\ud800-\udfff]/u.test(raw)) {
     return invalid(path, "Text contains invalid Unicode");
   }
