@@ -6,17 +6,37 @@ using Spatia.Server.Projects;
 
 namespace Spatia.Server.Persistence;
 
+/// <summary>
+/// Stores Identity accounts, organization memberships and project drafts with their access assignments
+/// </summary>
+/// <param name="options">The database provider and context configuration</param>
 public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
     : IdentityDbContext<ApplicationUser, IdentityRole<Guid>, Guid>(options)
 {
+    /// <summary>
+    /// Gets the organizations available for account membership
+    /// </summary>
     public DbSet<Organization> Organizations => Set<Organization>();
 
+    /// <summary>
+    /// Gets the organization and role memberships for educators and creators
+    /// </summary>
     public DbSet<OrganizationMembership> OrganizationMemberships => Set<OrganizationMembership>();
 
+    /// <summary>
+    /// Gets the persisted project drafts and their revision metadata
+    /// </summary>
     public DbSet<Project> Projects => Set<Project>();
 
+    /// <summary>
+    /// Gets the account permissions assigned to individual projects
+    /// </summary>
     public DbSet<ProjectAssignment> ProjectAssignments => Set<ProjectAssignment>();
 
+    /// <summary>
+    /// Configures account, organization and project mappings, constraints and fixed role seeds
+    /// </summary>
+    /// <param name="builder">The model builder receiving the database mappings</param>
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -85,7 +105,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             {
                 table.HasCheckConstraint("CK_projects_revision", "revision BETWEEN 0 AND 9007199254740991");
                 table.HasCheckConstraint("CK_projects_schema_version", "schema_version > 0");
-                // TODO: Apply SCRUM-50 supported-version and field/reference validation before writes; this check only binds metadata
+                // The document boundary validates content before writes; this constraint also binds its stored metadata
                 table.HasCheckConstraint("CK_projects_document", """
                     (
                         jsonb_typeof(document) = 'object'

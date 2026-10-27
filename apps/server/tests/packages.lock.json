@@ -481,11 +481,15 @@
           "TUnit.Core": "1.68.17"
         }
       },
+      "spatia.projectformat": {
+        "type": "Project"
+      },
       "spatia.server": {
         "type": "Project",
         "dependencies": {
           "Microsoft.AspNetCore.Identity.EntityFrameworkCore": "[10.0.12, )",
-          "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )"
+          "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )",
+          "Spatia.ProjectFormat": "[1.0.0, )"
         }
       }
     }

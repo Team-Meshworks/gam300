@@ -3,8 +3,18 @@ using Spatia.Server.Hosting;
 
 namespace Spatia.Server.Security;
 
+/// <summary>
+/// Requires valid antiforgery tokens on requests other than GET, HEAD and OPTIONS
+/// </summary>
+/// <param name="next">The next middleware delegate to invoke after successful validation</param>
 public sealed class CsrfGuardMiddleware(RequestDelegate next)
 {
+    /// <summary>
+    /// Validates unsafe requests and returns a safe 400 problem when their antiforgery token is missing or invalid
+    /// </summary>
+    /// <param name="context">The HTTP request being checked</param>
+    /// <param name="antiforgery">The service that validates the request token and matching cookie</param>
+    /// <returns>A task completing after rejection or execution of the next middleware</returns>
     public async Task InvokeAsync(HttpContext context, IAntiforgery antiforgery)
     {
         if (HttpMethods.IsGet(context.Request.Method)

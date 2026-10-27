@@ -1,5 +1,5 @@
 import { afterEach, assert, it, vi } from "vitest";
-import type { CatalogueAsset } from "../shared/assets/catalogue";
+import type { CatalogueAsset } from "../shared/asset-runtime/catalogue";
 import { createDocumentStore } from "./document-store.ts";
 
 afterEach(() => vi.restoreAllMocks());

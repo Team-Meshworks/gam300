@@ -31,6 +31,20 @@ export function handleObjectShortcut(
   else actions.duplicate();
 }
 
+export function handleDeleteShortcut(
+  event: ShortcutEvent,
+  deleteSelection: () => void,
+  editingText: boolean,
+) {
+  // Backspace inside a text box should delete text, not the object
+  if (editingText || event.defaultPrevented || event.isComposing) return;
+  if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
+  if (event.key !== "Delete" && event.key !== "Backspace") return;
+  event.preventDefault();
+  if (event.repeat) return;
+  deleteSelection();
+}
+
 export function handleHistoryShortcut(
   event: ShortcutEvent,
   history: HistoryActions,

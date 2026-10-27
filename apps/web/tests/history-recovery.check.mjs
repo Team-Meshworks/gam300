@@ -42,7 +42,15 @@ try {
     throw new Error("Recovery history did not reach the expected edit");
   }
 
-  await page.getByRole("button", { name: /Move .* X plus/ }).click();
+  // Capture the starting state so Undo is checked independently of the default spawn position
+  const originalPosition = await page.getByLabel("Selected position").textContent();
+
+  // No more move buttons, so nudge through the Position panel then go back to the tree
+  await page.getByRole("button", { name: "Position", exact: true }).click();
+  const field = page.getByRole("textbox", { name: "test-crate 1 transform X (m)", exact: true });
+  await field.fill(String(Number(await field.inputValue()) + 0.25));
+  await field.press("Enter");
+  await page.getByRole("button", { name: "Scene tree", exact: true }).click();
   await page.keyboard.press("Control+d");
   assert.equal(await rows.count(), 2);
   const duplicateId = await rows.last().getAttribute("data-object-id");
@@ -58,7 +66,7 @@ try {
   assert.equal(await rows.last().getAttribute("data-object-id"), duplicateId);
   await page.keyboard.press("Control+z");
   await page.keyboard.press("Control+z");
-  assert.match(await page.getByLabel("Selected position").textContent(), /X 0\.00/);
+  assert.equal(await page.getByLabel("Selected position").textContent(), originalPosition);
   await page.keyboard.press("Control+z");
   assert.equal(await rows.count(), 0);
   await waitForRecovery(0, 3);

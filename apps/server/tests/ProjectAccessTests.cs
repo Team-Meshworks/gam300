@@ -242,7 +242,9 @@ public sealed class ProjectAccessTests
             await using (var transaction = await database.Database.BeginTransactionAsync())
             {
                 await Assert.ThrowsAsync<InvalidOperationException>(() => access.ReadAsync(context, id));
+                await Assert.ThrowsAsync<InvalidOperationException>(() => access.ListAsync(context, null, 10, false));
             }
+            await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => access.ListAsync(context, null, 0, false));
             var stale = await database.Projects.SingleAsync();
             stale.DocumentJson = Document(id, "uncommitted tracked value");
             stale.Revision = 123;

@@ -6,8 +6,22 @@ using HttpJsonOptions = Microsoft.AspNetCore.Http.Json.JsonOptions;
 
 namespace Spatia.Server.Accounts;
 
+/// <summary>
+/// Creates the first administrator from private JSON input without starting the HTTP server
+/// </summary>
 public static class BootstrapAdministratorCommand
 {
+    /// <summary>
+    /// Reads bounded UTF-8 credentials, attempts administrator creation and writes a credential-free status
+    /// </summary>
+    /// <param name="builder">The application builder containing the required server configuration</param>
+    /// <param name="input">The private JSON input stream, which remains open</param>
+    /// <param name="output">The status writer, which remains open</param>
+    /// <param name="cancellationToken">The token used to cancel input reading and database work</param>
+    /// <returns>
+    /// Exit code 0 on success, 1 on cancellation or an unconfirmed failure, 2 on invalid input or rejected
+    /// account creation, or 3 when an administrator already exists
+    /// </returns>
     public static async Task<int> RunAsync(
         WebApplicationBuilder builder,
         Stream input,

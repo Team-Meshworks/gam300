@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createCommandHistory } from "./command-history";
-import { handleHistoryShortcut } from "./history-shortcuts";
+import { handleDeleteShortcut, handleHistoryShortcut } from "./history-shortcuts";
 
 function keyEvent(overrides = {}) {
   return {
@@ -80,5 +80,22 @@ describe("history shortcuts", () => {
     expect(event.preventDefault).toHaveBeenCalledOnce();
     expect(actions.undo).not.toHaveBeenCalled();
     expect(actions.redo).not.toHaveBeenCalled();
+  });
+});
+
+describe("delete shortcut", () => {
+  it("deletes with Delete or Backspace", () => {
+    const remove = vi.fn();
+    handleDeleteShortcut(keyEvent({ key: "Delete", ctrlKey: false }), remove, false);
+    handleDeleteShortcut(keyEvent({ key: "Backspace", ctrlKey: false }), remove, false);
+    expect(remove).toHaveBeenCalledTimes(2);
+  });
+
+  it("leaves typing, modified keys and held keys alone", () => {
+    const remove = vi.fn();
+    handleDeleteShortcut(keyEvent({ key: "Backspace", ctrlKey: false }), remove, true);
+    handleDeleteShortcut(keyEvent({ key: "Delete" }), remove, false);
+    handleDeleteShortcut(keyEvent({ key: "Delete", ctrlKey: false, repeat: true }), remove, false);
+    expect(remove).not.toHaveBeenCalled();
   });
 });

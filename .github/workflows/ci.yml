@@ -15,6 +15,33 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Exercise the C# reader against the same contract cases used by the browser suite
+  project-format:
+    name: Shared project-format checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.401
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: apps/web/.nvmrc
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Install locked browser-reader tooling
+        working-directory: apps/web
+        run: |
+          npm install --global npm@11.17.0
+          npm ci --no-audit --no-fund
+      - name: Validate the shared fixtures and server round trips
+        run: dotnet run --project apps/server/project-format-checks/Spatia.ProjectFormat.Checks.csproj -c Release
+      - name: Reopen each writer's output in the other runtime
+        run: node apps/web/tests/project-format-cross.check.mjs
+
   compatibility:
     name: Native checks (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -43,8 +70,6 @@ jobs:
           npm ci --no-audit --no-fund
           node ../../tools/setup.check.mjs
           npm run check:architecture
-          npm run lint
-          npm run format:check
           npm run test:unit
           npm run build
 
@@ -72,6 +97,25 @@ jobs:
         with:
           lfs: true
           persist-credentials: false
+          fetch-depth: 0
+      # Keep the live boundary scan on every change; reserve destructive-copy experiments for tooling edits
+      - name: Select architecture proof coverage
+        id: architecture
+        working-directory: .
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if [[ "$EVENT_NAME" = workflow_dispatch || -z "$BASE_SHA" || "$BASE_SHA" =~ ^0+$ ]]; then
+            echo 'proof=true' >> "$GITHUB_OUTPUT"
+          else
+            changed=$(git diff --name-only "$BASE_SHA" HEAD -- apps/web/architecture.mjs apps/web/architecture.check.mjs 'apps/web/tsconfig*.json' apps/web/package.json apps/web/package-lock.json 'apps/web/*config*' .github/workflows/ci.yml)
+            if [[ -n "$changed" ]]; then
+              echo 'proof=true' >> "$GITHUB_OUTPUT"
+            else
+              echo 'proof=false' >> "$GITHUB_OUTPUT"
+            fi
+          fi
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: apps/web/.nvmrc
@@ -83,10 +127,10 @@ jobs:
           npm ci --no-audit --no-fund
       - name: Check source and assets
         run: |
-          npm run check:architecture
+          npm run graph:architecture
           npm run lint
           npm run format:check
-          node ../../assets/tools/validate-assets.mjs
+          node ../../tools/validate-assets.check.mjs
           node ../../tools/setup.check.mjs
           bash ../../deploy/deploy.test.sh
       - name: Run unit tests
@@ -94,6 +138,7 @@ jobs:
       - name: Install pinned browser
         run: npx playwright install --with-deps chromium
       - name: Prove architecture enforcement and isolated module removal
+        if: steps.architecture.outputs.proof == 'true'
         run: npm run test:architecture
       - name: Check authoring and development fixtures
         env:
@@ -109,6 +154,7 @@ jobs:
           npm run test:recovery | tee test-results/recovery.log
           npm run test:history | tee test-results/history.log
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      # Source checks have passed above; keep the final Caddy-image browser checks below
       - name: Build the runnable image
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
@@ -118,6 +164,7 @@ jobs:
           build-args: |
             REVISION=${{ github.sha }}
             BUILD_MODE=${{ env.BUILD_MODE }}
+            RUN_BUILD_CHECKS=false
           cache-from: type=gha,scope=editor
           cache-to: type=gha,mode=max,scope=editor
       - name: Check the packaged application
@@ -143,6 +190,8 @@ jobs:
           path: |
             apps/web/test-results/
             apps/web/dist/editor/
+            docs/architecture-graph.json
+            docs/architecture-graph.md
           retention-days: 14
           overwrite: true
       - name: Save the tested image and its deployment files
@@ -168,7 +217,8 @@ jobs:
   server:
     name: Server build and tests
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    # Leave room for slow package mirrors before the full PostgreSQL/browser suite.
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: apps/server
@@ -204,7 +254,8 @@ jobs:
         run: |
           npm install --global npm@11.17.0
           npm ci --no-audit --no-fund
-          npx --no-install playwright install --with-deps chromium
+          # Server browser checks use chromium.launch() with the default headless shell.
+          npx --no-install playwright install --with-deps --only-shell chromium
       - name: Build, check and test the server
         env:
           SPATIA_TEST_DATABASE_CONNECTION: Host=127.0.0.1;Port=${{ job.services.postgres.ports['5432'] }};Database=spatia_scrum45_test;Username=spatia_test;Password=spatia_ci_only
@@ -233,7 +284,7 @@ jobs:
 
   publish:
     name: Publish tested image
-    needs: [check, compatibility, server]
+    needs: [check, compatibility, server, project-format]
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
     runs-on: ubuntu-24.04
     timeout-minutes: 10

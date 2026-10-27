@@ -2,6 +2,7 @@ using Npgsql;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Spatia.Server.Persistence;
 
@@ -51,7 +52,13 @@ internal sealed class PostgresAccountFixture : IAsyncDisposable
         return builder;
     }
 
-    public static async Task<PostgresAccountFixture> CreateAsync(string? targetMigration = null)
+    public static Task<PostgresAccountFixture> CreateAsync(string? targetMigration = null) =>
+        CreateAsync(targetMigration, useMigrationScript: false);
+
+    public static Task<PostgresAccountFixture> CreateForApplicationAsync() =>
+        CreateAsync(targetMigration: null, useMigrationScript: true);
+
+    private static async Task<PostgresAccountFixture> CreateAsync(string? targetMigration, bool useMigrationScript)
     {
         var connectionString = Environment.GetEnvironmentVariable("SPATIA_TEST_DATABASE_CONNECTION");
         if (string.IsNullOrWhiteSpace(connectionString))
@@ -67,14 +74,43 @@ internal sealed class PostgresAccountFixture : IAsyncDisposable
             await createSchema.ExecuteNonQueryAsync();
             fixture._schemaCreated = true;
             await using var scope = fixture.Services.CreateAsyncScope();
-            await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>()
-                .GetService<IMigrator>().MigrateAsync(targetMigration);
+            var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var migrator = database.GetService<IMigrator>();
+            if (useMigrationScript)
+            {
+                // Apply the real migrations in one batch to this fresh, exclusively owned schema
+                // Migration tests retain MigrateAsync for upgrade, history and locking behavior
+                await ExecuteMigrationScriptAsync(database, migrator.GenerateScript());
+            }
+            else
+            {
+                await migrator.MigrateAsync(targetMigration);
+            }
             return fixture;
         }
         catch
         {
             await fixture.DisposeAsync();
             throw;
+        }
+    }
+
+    public static async Task ExecuteMigrationScriptAsync(ApplicationDbContext database, string script,
+        CancellationToken cancellationToken = default)
+    {
+        await database.Database.OpenConnectionAsync(cancellationToken);
+        try
+        {
+            await using var command = database.Database.GetDbConnection().CreateCommand();
+            // Migration SQL owns its transaction statements and may contain literal JSON braces
+            command.CommandText = script;
+            command.CommandTimeout = database.Database.GetCommandTimeout() ?? command.CommandTimeout;
+            command.Transaction = database.Database.CurrentTransaction?.GetDbTransaction();
+            await command.ExecuteNonQueryAsync(cancellationToken);
+        }
+        finally
+        {
+            await database.Database.CloseConnectionAsync();
         }
     }
 

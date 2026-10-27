@@ -194,7 +194,7 @@ On Ubuntu, use `npx playwright install --with-deps chromium` to install Chromium
 system libraries as well. See [Playwright's CI instructions](https://playwright.dev/docs/ci).
 
 Validate asset metadata and GLBs from the repository root with
-`node assets/tools/validate-assets.mjs`.
+`node tools/validate-assets.mjs`.
 
 Run `npm run test:caching` in `apps/web/` against the development server to check asset cache
 lifetime and shared resources. `npm run measure:caching` starts its own local server and
@@ -231,23 +231,48 @@ run.bat / run.sh     One-command submission build, tests and startup
 apps/
   web/
     editor/          React UI, document state, viewport, and camera controls
-    shared/          Asset catalogue, project types, validation, and fixtures
+    shared/
+      asset-runtime/ Asset catalogue contracts and model cache (TypeScript)
+      project/       Project types, validation, and shared JSON fixtures
     tests/           Browser and deployment checks
+  server/
+    Spatia.Server/   ASP.NET Core accounts, project API, and persistence
+    Spatia.ProjectFormat/  C# project format and validation
+    tests/           TUnit API/database integration tests
+    project-format-checks/  Standalone cross-runtime format checks
 assets/
   source/            Original editable assets
   delivery/          Runtime models and thumbnails
-  tools/             Asset validation
 deploy/              Caddy configuration and deployment/rollback scripts
-tools/               Browser-check orchestration
+tools/               Setup checks, offline asset validation and browser-check orchestration
 docs/
   proposal.md        Product brief and scope
   design/            UI/UX exports; PDD pending
   architecture.md    Implemented and planned component boundaries
   deliverables.md    M1 owners, statuses and Jira mapping
-  planning/          Supplied feature/deliverable planning workbooks
   deployment.md      Build, hosting and operational evidence
 .github/workflows/   Automatic CI and manual deployment
 ```
+
+Keep source with its owning application or feature; web unit tests live beside the
+modules they exercise. The web and server `tests/` folders run different toolchains.
+The standalone server format checker and API tests both read the fixtures in
+`apps/web/shared/project/fixtures/`. See the [server setup](apps/server/README.md)
+for its separate SDK, database and test prerequisites.
+
+Root `assets/` contains the binary pipeline; `apps/web/shared/asset-runtime/` contains its
+browser code. `source/` preserves originals and `delivery/` holds the manifest's runtime
+files, even when an original and its delivery currently have identical bytes. Vite
+loads catalogue assets from `assets/delivery/` and emits hashed URLs; do not copy them
+into an editor public directory. Saved projects keep stable asset IDs.
+
+`node_modules/`, `bin/`, `obj/`, `apps/web/dist/`, `test-results/`, `ci-artifacts/`,
+`outputs/` and `.artifacts/` are ignored local dependencies, build output or check
+evidence. Repeated output-folder names belong to their invoking tools; they are not
+additional source trees. Root `test-results/` holds repository checks and disposable
+architecture copies; application check reports stay under that application's
+`test-results/`. Preserve retained evidence when cleaning local output. Local handoff
+material under `docs/personal/` is also ignored and is separate from shared docs.
 
 ## CI and deployment
 

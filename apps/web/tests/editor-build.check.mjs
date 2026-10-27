@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { pathToFileURL } from "node:url";
+import { readFileSync } from "node:fs";
 
 const { chromium } = await import(
   process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : "playwright"
@@ -12,6 +13,14 @@ const url = process.argv[2] ?? "http://127.0.0.1:4173/";
 const isDevelopment = process.env.BUILD_MODE === "development";
 
 try {
+  const legacyModel = await fetch(new URL("models/snowglobe.glb", url));
+  assert.notEqual(
+    Buffer.from(await legacyModel.arrayBuffer())
+      .subarray(0, 4)
+      .toString("utf8"),
+    "glTF",
+    "The build must not ship a duplicate public model alongside the catalogue asset",
+  );
   const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
@@ -25,6 +34,9 @@ try {
   const modelRequest = page.waitForRequest((request) =>
     new URL(request.url()).pathname.endsWith(".glb"),
   );
+  const snowglobeResponse = page.waitForResponse((response) =>
+    /\/assets\/snowglobe-[^/]+\.glb$/.test(new URL(response.url()).pathname),
+  );
   await page.goto(url);
   await page.getByRole("heading", { name: "Spatia", exact: true }).waitFor();
   await coreRequest;
@@ -34,8 +46,15 @@ try {
   assert.equal(await asset.isDisabled(), true);
   releaseCore();
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
+  assert.ok((await snowglobeResponse).ok(), "The manifest snowglobe still loads");
   assert.equal(await page.locator("canvas").count(), 1);
+  // Packaged builds follow the same room-first authoring flow as the local editor
+  await page.getByRole("button", { name: "Add test-room", exact: true }).click();
   await asset.click();
+  assert.equal(await page.locator(".object-row").count(), 1);
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  assert.equal(await page.locator(".object-row").count(), 0);
+  await page.getByRole("button", { name: "Add Snow globe", exact: true }).click();
   assert.equal(await page.locator(".object-row").count(), 1);
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   assert.equal(await page.locator(".object-row").count(), 0);
@@ -48,6 +67,9 @@ try {
   );
   if (isDevelopment) {
     await sample.click();
+    // Opening a sample uses the same save decision as replacing any room-based project
+    await page.getByRole("dialog").getByRole("button", { name: "Don’t Save", exact: true }).click();
+    await page.getByRole("dialog").waitFor({ state: "hidden" });
     await page.locator(".object-row").filter({ hasText: "First crate" }).waitFor();
     assert.equal(await page.locator(".object-row").count(), 2);
   }
@@ -61,6 +83,33 @@ try {
   assert.ok(chunks.length >= 3, "Renderer and core stay separate from the shell");
   assert.ok(chunks.every((chunk) => chunk.bytes > 0 && chunk.bytes < 500_000));
   await page.close();
+
+  // Packaged builds must reject incomplete multi-scene playback while keeping the imported editor open
+  const contentPage = await browser.newPage();
+  contentPage.on("pageerror", (error) => errors.push(error.message));
+  await contentPage.goto(url);
+  await contentPage.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
+  const content = JSON.parse(
+    readFileSync(new URL("../shared/project/fixtures/m2-project.json", import.meta.url), "utf8"),
+  );
+  // Strip media references so this fixture needs only the model assets shipped with the build
+  for (const scene of content.scenes) {
+    scene.rules = [];
+    for (const object of scene.objects) object.components = [];
+  }
+  await contentPage.locator("#project-import").setInputFiles({
+    name: "two-scene.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(content)),
+  });
+  await contentPage.locator(".object-row").filter({ hasText: "First crate" }).waitFor();
+  await contentPage.getByRole("button", { name: "Preview", exact: true }).click();
+  await contentPage
+    .getByRole("status")
+    .filter({ hasText: "This preview does not support all the scenes and interactions" })
+    .waitFor();
+  assert.equal(await contentPage.locator(".editor-shell.is-previewing").count(), 0);
+  await contentPage.close();
 
   // Use a fresh document so an already-evaluated module cannot hide a failed download
   const failed = await browser.newPage();

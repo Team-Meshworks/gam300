@@ -42,23 +42,29 @@ try {
   await page.getByRole("button", { name: "Add test-room", exact: true }).click();
   await page.getByRole("button", { name: "Add test-crate", exact: true }).click();
   const position = await page.getByLabel("Selected position").textContent();
-  await page.getByRole("button", { name: "Enter Visitor", exact: true }).click();
+  await page.getByRole("button", { name: "Preview", exact: true }).click();
   await page.waitForFunction(() => typeof window.finishBackup === "function");
-  for (const key of ["Control+d", "Control+s", "Control+Shift+s", "Control+z", "Control+v"])
+  for (const key of [
+    "Control+d",
+    "Control+s",
+    "Control+Shift+s",
+    "Control+z",
+    "Control+v",
+    "Delete",
+  ])
     await page.keyboard.press(key);
   assert.equal(await page.evaluate(() => window.auditPickers), 0, "Navigation cannot open Save");
   assert.equal(await page.locator(".object-row").count(), 1, "Navigation cannot edit the draft");
-  for (const selector of [".library", ".history-controls", ".draft-menu"])
+  for (const selector of [".library", ".history-controls", ".project-card"])
     assert.equal(await page.locator(selector).evaluate((element) => element.inert), true);
-  // Even a queued library click must be rejected after the mode has changed
-  await page.locator('.asset-tile[aria-label="Add test-crate"]').dispatchEvent("click");
-  await page.locator(".move-controls button").first().dispatchEvent("click");
+  // Preview takes the whole bottom bar away, so got nothing left to click
+  assert.equal(await page.locator(".bottom-dock").count(), 0, "Preview hides the asset library");
   assert.equal(await page.locator(".object-row").count(), 1);
   assert.equal(
     await page.getByLabel("Selected position", { includeHidden: true }).textContent(),
     position,
   );
-  await page.getByRole("button", { name: "Exit Visitor", exact: true }).click();
+  await page.getByRole("button", { name: "Exit preview", exact: true }).click();
   await page.keyboard.press("Control+d");
   assert.equal(await page.locator(".object-row").count(), 2, "Authoring resumes on exit");
   await page.keyboard.press("Control+z");
@@ -80,11 +86,29 @@ try {
   // A deferred wheel commit must not edit the document behind a project decision
   await page.locator(".object-row").first().click();
   const box = await page.locator("canvas").boundingBox();
-  const camera = new THREE.PerspectiveCamera(40, box.width / box.height, 0.1, 100);
-  camera.position.set(12, 16, 18);
-  camera.lookAt(0, 0, 0);
+  // Use the completed backup's camera and object pose instead of editor startup constants
+  const scene = await page.evaluate(async () => {
+    const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
+    const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
+    const result = await loadRecoverySession(
+      new Map(assets.map((asset) => [asset.id, asset.kind])),
+    );
+    if (!result.ok || !result.value?.document)
+      throw new Error("Missing backed-up interaction fixture");
+    return result.value.document.scenes[0];
+  });
+  const camera = new THREE.PerspectiveCamera(
+    scene.startCamera.fovDegrees,
+    box.width / box.height,
+    0.1,
+    100,
+  );
+  camera.position.fromArray(scene.startCamera.position);
+  camera.quaternion.fromArray(scene.startCamera.rotation);
   camera.updateMatrixWorld(true);
-  const point = new THREE.Vector3(0, 0.5, 0).project(camera);
+  const point = new THREE.Vector3(...scene.objects[0].transform.position)
+    .add(new THREE.Vector3(0, 0.5, 0))
+    .project(camera);
   await page.evaluate(
     ({ x, y }) => {
       document.querySelector("canvas").dispatchEvent(

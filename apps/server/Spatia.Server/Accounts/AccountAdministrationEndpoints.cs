@@ -4,8 +4,16 @@ using Spatia.Server.Security;
 
 namespace Spatia.Server.Accounts;
 
+/// <summary>
+/// Maps account and organization administration endpoints
+/// </summary>
 public static class AccountAdministrationEndpoints
 {
+    /// <summary>
+    /// Adds organization creation, account provisioning and password reset routes with administrator authorization
+    /// </summary>
+    /// <param name="endpoints">The route builder that receives the administration endpoints</param>
+    /// <returns>The supplied route builder for further endpoint registration</returns>
     public static IEndpointRouteBuilder MapAccountAdministration(this IEndpointRouteBuilder endpoints)
     {
         var group = endpoints.MapGroup("/api/admin")

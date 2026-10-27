@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { createInterface } from "node:readline";
 import { pathToFileURL } from "node:url";
@@ -46,16 +47,16 @@ const get = (page, path) => page.evaluate(async (path) => {
     noStore: response.headers.get("Cache-Control")?.includes("no-store") === true };
 }, path);
 
-const post = (page, path, body) => page.evaluate(async ({ path, body }) => {
+const write = (page, path, body, method = "POST") => page.evaluate(async ({ path, body, method }) => {
   const bootstrap = await fetch("/api/auth/csrf", { cache: "no-store" });
   if (bootstrap.status !== 200) { throw new Error("CSRF bootstrap failed"); }
   const { requestToken } = await bootstrap.json();
-  const response = await fetch(path, { method: "POST", credentials: "same-origin", headers: {
+  const response = await fetch(path, { method, credentials: "same-origin", headers: {
     "Content-Type": "application/json", "X-CSRF-TOKEN": requestToken,
   }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
   return { status: response.status, body: response.status === 204 ? null : await response.json(),
     noStore: response.headers.get("Cache-Control")?.includes("no-store") === true };
-}, { path, body });
+}, { path, body, method });
 
 const session = async (page, expected) => {
   const response = await get(page, "/api/auth/session");
@@ -65,8 +66,9 @@ const session = async (page, expected) => {
 };
 
 const storageIsEmpty = async (page) => {
-  assert.equal(await page.evaluate(() =>
-    document.cookie === "" && localStorage.length === 0 && sessionStorage.length === 0), true);
+  assert.equal(await page.evaluate(async () =>
+    document.cookie === "" && localStorage.length === 0 && sessionStorage.length === 0
+      && (await indexedDB.databases()).length === 0 && (await caches.keys()).length === 0), true);
 };
 
 const checkCookies = async (context) => {
@@ -112,28 +114,28 @@ try {
   stage = "initial administrator login";
   const administrator = await freshPage();
   assert.equal((await get(administrator.page, "/api/auth/session")).status, 401);
-  assert.equal((await post(administrator.page, "/api/auth/login",
+  assert.equal((await write(administrator.page, "/api/auth/login",
     { userName: administratorName, password: administratorTemporary })).status, 204);
   const firstSession = await get(administrator.page, "/api/auth/session");
   assert.equal(firstSession.status, 200);
   const administratorSession = { userId: firstSession.body.userId, displayName: administratorName,
     role: "Administrator", orgId: null, mustChangePassword: true };
   await session(administrator.page, administratorSession);
-  assert.equal((await post(administrator.page, "/api/auth/password",
+  assert.equal((await write(administrator.page, "/api/auth/password",
     { currentPassword: administratorTemporary, newPassword: administratorPermanent })).status, 204);
   administratorSession.mustChangePassword = false;
   await session(administrator.page, administratorSession);
 
   stage = "persisted organization and creator provisioning";
   const organizationName = "Restart organization " + randomUUID();
-  const organization = await post(administrator.page, "/api/admin/organizations", { name: organizationName });
+  const organization = await write(administrator.page, "/api/admin/organizations", { name: organizationName });
   assert.equal(organization.status, 201);
   assert.equal(organization.noStore, true);
   assert.equal(typeof organization.body.id, "string");
   assert.equal(organization.body.name, organizationName);
   assert.equal(organization.body.isActive, true);
   const creatorName = "restart-creator-" + randomUUID();
-  const created = await post(administrator.page, "/api/admin/users", {
+  const created = await write(administrator.page, "/api/admin/users", {
     userName: creatorName, initialPassword: creatorTemporary, role: "Creator", orgId: organization.body.id,
   });
   assert.equal(created.status, 201);
@@ -143,6 +145,32 @@ try {
     role: "Creator", orgId: organization.body.id, isActive: true, mustChangePassword: true });
   const creatorSession = { userId: created.body.userId, displayName: creatorName,
     role: "Creator", orgId: organization.body.id, mustChangePassword: true };
+
+  stage = "project creation assignment and committed save";
+  const project = await write(administrator.page, "/api/projects", {
+    title: "Restart project", environmentAssetId: "test-room-v1", orgId: organization.body.id,
+  });
+  assert.equal(project.status, 201);
+  assert.equal(project.noStore, true);
+  assert.equal(project.body.revision, 0);
+  const projectPath = "/api/projects/" + project.body.projectId;
+  const assigned = await write(administrator.page, projectPath + "/assignments", {
+    expectedRevision: 0, managedByUserIds: [], assignedCreatorIds: [created.body.userId], canPublishUserIds: [],
+  }, "PATCH");
+  assert.equal(assigned.status, 200);
+  assert.equal(assigned.body.revision, 1);
+  const document = JSON.parse(await readFile(new URL("../../web/shared/project/fixtures/m1-project.json", import.meta.url), "utf8"));
+  document.projectId = project.body.projectId;
+  document.title = "private-restart-project-body-not-for-logs";
+  document.scenes[0].objects[0].transform.position = [5.125, 0, -3];
+  const envelope = { expectedRevision: 1, clientMutationId: randomUUID(), document };
+  const saved = await write(administrator.page, projectPath, envelope, "PUT");
+  assert.equal(saved.status, 200);
+  assert.equal(saved.noStore, true);
+  assert.equal(saved.body.revision, 2);
+  assert.equal(saved.body.projectId, project.body.projectId);
+  assert.equal(saved.body.clientMutationId, envelope.clientMutationId);
+  assert.deepEqual((await get(administrator.page, projectPath)).body.document, document);
   await session(administrator.page, administratorSession);
   await checkCookies(administrator.context);
   await storageIsEmpty(administrator.page);
@@ -167,20 +195,42 @@ try {
   await storageIsEmpty(administrator.page);
   process.stdout.write("restart retained session passed\n");
 
+  stage = "saved project exact retry after restart";
+  const replay = await write(administrator.page, projectPath, envelope, "PUT");
+  assert.equal(replay.status, 200);
+  assert.equal(replay.noStore, true);
+  assert.deepEqual(replay.body, saved.body);
+  process.stdout.write("restart committed save retry passed\n");
+
   stage = "fresh creator password lifecycle";
   const creator = await freshPage();
   assert.equal((await get(creator.page, "/api/auth/session")).status, 401);
   assert.equal((await creator.context.cookies()).some((cookie) => cookie.name === applicationCookie), false);
-  assert.equal((await post(creator.page, "/api/auth/login",
+  assert.equal((await write(creator.page, "/api/auth/login",
     { userName: creatorName, password: creatorTemporary })).status, 204);
   await session(creator.page, creatorSession);
-  assert.equal((await post(creator.page, "/api/auth/password",
+  assert.equal((await get(creator.page, projectPath)).status, 403);
+  assert.equal((await write(creator.page, "/api/auth/password",
     { currentPassword: creatorTemporary, newPassword: creatorPermanent })).status, 204);
   creatorSession.mustChangePassword = false;
   await session(creator.page, creatorSession);
   await checkCookies(creator.context);
   await storageIsEmpty(creator.page);
-  assert.equal((await post(creator.page, "/api/auth/logout")).status, 204);
+  stage = "fresh authorized browser reopens the durable project";
+  const list = await get(creator.page, "/api/projects");
+  assert.equal(list.status, 200);
+  assert.equal(list.noStore, true);
+  assert.equal(list.body.items.length, 1);
+  assert.equal(list.body.items[0].projectId, project.body.projectId);
+  assert.equal(list.body.items[0].revision, 2);
+  const opened = await get(creator.page, projectPath);
+  assert.equal(opened.status, 200);
+  assert.equal(opened.noStore, true);
+  assert.deepEqual(opened.body, { projectId: project.body.projectId, revision: 2,
+    updatedAt: saved.body.savedAt, document, permissions: { canEdit: true, canManage: false, canPublish: false } });
+  await storageIsEmpty(creator.page);
+  process.stdout.write("restart fresh browser project reopen passed\n");
+  assert.equal((await write(creator.page, "/api/auth/logout")).status, 204);
   assert.equal((await get(creator.page, "/api/auth/session")).status, 401);
   assert.equal((await creator.context.cookies()).some((cookie) => cookie.name === applicationCookie), false);
   await storageIsEmpty(creator.page);
@@ -191,15 +241,15 @@ try {
   stage = "replacement password durability";
   const returning = await freshPage();
   assert.equal((await get(returning.page, "/api/auth/session")).status, 401);
-  const previousPassword = await post(returning.page, "/api/auth/login",
+  const previousPassword = await write(returning.page, "/api/auth/login",
     { userName: creatorName, password: creatorTemporary });
   assert.equal(previousPassword.status, 401);
   assert.equal(previousPassword.body.code, "login_failed");
-  assert.equal((await post(returning.page, "/api/auth/login",
+  assert.equal((await write(returning.page, "/api/auth/login",
     { userName: creatorName, password: creatorPermanent })).status, 204);
   await session(returning.page, creatorSession);
   await storageIsEmpty(returning.page);
-  assert.equal((await post(returning.page, "/api/auth/logout")).status, 204);
+  assert.equal((await write(returning.page, "/api/auth/logout")).status, 204);
   assert.equal((await get(returning.page, "/api/auth/session")).status, 401);
   process.stdout.write("restart password durability passed\n");
 } catch {

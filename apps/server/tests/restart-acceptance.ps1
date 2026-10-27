@@ -57,7 +57,7 @@ $allChildrenConfirmedStopped = $true
 $startedAt = [DateTimeOffset]::UtcNow
 $secrets = @([string]$baseConnection['Password'], 'Synthetic restart administrator password 1!',
     'Synthetic restart administrator password 2!', 'Synthetic restart creator password 3!',
-    'Synthetic restart creator password 4!')
+    'Synthetic restart creator password 4!', 'private-restart-project-body-not-for-logs')
 
 function Start-OwnedChild([string] $Executable, [string[]] $Arguments, [hashtable] $Configuration = @{}, [switch] $ReadLines) {
     $start = [Diagnostics.ProcessStartInfo]::new($Executable)
@@ -186,7 +186,7 @@ function Read-BrowserLine($Browser, [int] $Seconds) {
     $line = $Browser.Pending.GetAwaiter().GetResult()
     $Browser.Pending = $null
     if ($null -eq $line) { throw 'Browser exited before its expected checkpoint.' }
-    if ($line -ne 'restart-ready' -and $line -notin @('restart retained session passed', 'restart fresh browser lifecycle passed', 'restart password durability passed') -and
+    if ($line -ne 'restart-ready' -and $line -notin @('restart retained session passed', 'restart committed save retry passed', 'restart fresh browser project reopen passed', 'restart fresh browser lifecycle passed', 'restart password durability passed') -and
         $line -notmatch '^node v[0-9.]+; playwright [0-9.]+; chromium [0-9.]+$') { throw 'Browser emitted unexpected output.' }
     $browserLines.Add($line)
     return $line
@@ -269,8 +269,8 @@ try {
         'ConnectionStrings__Spatia' = $scopedConnection.get_ConnectionString()
         'DataProtection__KeyDirectory' = $keyDirectory
         'AllowedHosts' = '127.0.0.1'
-        'ASPNETCORE_ENVIRONMENT' = 'Testing'
-        'DOTNET_ENVIRONMENT' = 'Testing'
+        'ASPNETCORE_ENVIRONMENT' = 'Development'
+        'DOTNET_ENVIRONMENT' = 'Development'
         'Kestrel__Certificates__Default__Path' = $certificatePath
         'Kestrel__Certificates__Default__Password' = $certificatePassword
     }
@@ -312,7 +312,7 @@ try {
     $stage = 'post-restart browser acceptance'
     $browser.Process.StandardInput.WriteLine((@{ origin = $second.Origin } | ConvertTo-Json -Compress))
     $browser.Process.StandardInput.Close()
-    foreach ($expected in @('restart retained session passed', 'restart fresh browser lifecycle passed', 'restart password durability passed')) {
+    foreach ($expected in @('restart retained session passed', 'restart committed save retry passed', 'restart fresh browser project reopen passed', 'restart fresh browser lifecycle passed', 'restart password durability passed')) {
         if ((Read-BrowserLine $browser 60) -ne $expected) { throw 'An expected restart acceptance marker was absent.' }
     }
     if (-not $browser.Process.WaitForExit(10000) -or $browser.Process.ExitCode -ne 0) { throw 'Browser acceptance did not exit successfully.' }

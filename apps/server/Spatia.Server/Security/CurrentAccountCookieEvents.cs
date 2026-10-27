@@ -8,11 +8,22 @@ using Spatia.Server.Hosting;
 
 namespace Spatia.Server.Security;
 
+/// <summary>
+/// Enforces absolute session expiry, refreshes current account authority and returns API authentication failures
+/// </summary>
+/// <param name="accounts">The resolver for current account state and credential stamps</param>
+/// <param name="identityOptions">The Identity options defining user identifier and security stamp claim types</param>
 public sealed class CurrentAccountCookieEvents(CurrentAccountResolver accounts, IOptions<IdentityOptions> identityOptions)
     : CookieAuthenticationEvents
 {
     private const string AbsoluteExpiryKey = "spatia.absoluteExpiresUtc";
 
+    /// <summary>
+    /// Issues a nonpersistent cookie with an eight-hour cutoff while preserving any earlier absolute expiry
+    /// </summary>
+    /// <param name="context">The sign-in event containing the ticket properties and cookie options</param>
+    /// <returns>A completed task after the cookie and ticket expiry settings are updated</returns>
+    /// <exception cref="InvalidOperationException">An existing absolute expiry value is invalid</exception>
     public override Task SigningIn(CookieSigningInContext context)
     {
         var now = (context.Options.TimeProvider ?? TimeProvider.System).GetUtcNow();
@@ -39,6 +50,12 @@ public sealed class CurrentAccountCookieEvents(CurrentAccountResolver accounts, 
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    /// Rejects expired or revoked sessions and replaces role claims with currently authorized account state
+    /// </summary>
+    /// <param name="context">The cookie validation event and request receiving the validated account features</param>
+    /// <returns>A task completing after validation or session rejection</returns>
+    /// <exception cref="OperationCanceledException">The request is canceled during account lookup</exception>
     public override async Task ValidatePrincipal(CookieValidatePrincipalContext context)
     {
         context.HttpContext.Features.Set<ValidatedAccountSession>(null);
@@ -97,10 +114,20 @@ public sealed class CurrentAccountCookieEvents(CurrentAccountResolver accounts, 
         context.HttpContext.Features.Set(new ValidatedAccountSession(userId, stamps[0].Value, cutoff, clock));
     }
 
+    /// <summary>
+    /// Writes a 401 authentication problem in place of a login redirect
+    /// </summary>
+    /// <param name="context">The cookie challenge event and HTTP response to complete</param>
+    /// <returns>A task completing after the problem response is written</returns>
     public override Task RedirectToLogin(RedirectContext<CookieAuthenticationOptions> context)
         => ApiProblems.Create(context.HttpContext, 401, "authentication_required", "A valid session is required.")
             .ExecuteAsync(context.HttpContext);
 
+    /// <summary>
+    /// Writes a 403 access problem in place of an access-denied redirect
+    /// </summary>
+    /// <param name="context">The cookie forbid event and HTTP response to complete</param>
+    /// <returns>A task completing after the problem response is written</returns>
     public override Task RedirectToAccessDenied(RedirectContext<CookieAuthenticationOptions> context)
         => ApiProblems.Create(context.HttpContext, 403, "access_denied", "This operation is not permitted.")
             .ExecuteAsync(context.HttpContext);
