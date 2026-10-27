@@ -13,7 +13,12 @@ export default defineConfig({
     rolldownOptions: {
       output: {
         codeSplitting: {
-          groups: [{ name: "three-core", test: /[\\/]three[\\/]build[\\/]three\.core\.js$/ }],
+          groups: [
+            { name: "three-core", test: /[\\/]three[\\/]build[\\/]three\.core\.js$/ },
+            // Keep React's development diagnostics out of the growing authoring-code chunk
+            // Both builds retain the existing per-chunk limit without disabling framework checks
+            { name: "react", test: /[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/ },
+          ],
         },
       },
     },
