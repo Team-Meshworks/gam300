@@ -217,7 +217,8 @@ jobs:
   server:
     name: Server build and tests
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    # Leave room for slow package mirrors before the full PostgreSQL/browser suite.
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: apps/server
@@ -253,7 +254,8 @@ jobs:
         run: |
           npm install --global npm@11.17.0
           npm ci --no-audit --no-fund
-          npx --no-install playwright install --with-deps chromium
+          # Server browser checks use chromium.launch() with the default headless shell.
+          npx --no-install playwright install --with-deps --only-shell chromium
       - name: Build, check and test the server
         env:
           SPATIA_TEST_DATABASE_CONNECTION: Host=127.0.0.1;Port=${{ job.services.postgres.ports['5432'] }};Database=spatia_scrum45_test;Username=spatia_test;Password=spatia_ci_only
