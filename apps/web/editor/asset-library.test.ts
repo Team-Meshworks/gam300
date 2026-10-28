@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { createAssetLibrary } from "./asset-library";
 import { createDocumentStore } from "./document-store";
 import type { CatalogueAsset } from "../shared/assets/catalogue";
 const assets: CatalogueAsset[] = [
@@ -22,11 +23,62 @@ const assets: CatalogueAsset[] = [
 function setup() {
   const store = createDocumentStore(assets);
   store.createProject("room");
-  return { store };
+  return { store, library: createAssetLibrary(assets, store) };
 }
 // Exercise storage directly so picker state cannot hide a failed or partial placement
 // Each case checks that replacement and removal keep IDs and undo history intact
-describe("display-case store commands", () => {
+describe("asset library and display-case commands", () => {
+  it("searches approved models, closes on choice and places through the existing undo command", () => {
+    const { store, library } = setup();
+    const before = store.getSnapshot();
+    library.open();
+    library.search(" BLUE ");
+    expect(library.getSnapshot().results.map((asset) => asset.id)).toEqual(["vase"]);
+    expect(library.choose("vase").ok).toBe(true);
+    expect(library.getSnapshot().mode).toBe("placing");
+    expect(store.getSnapshot()).toBe(before);
+    expect(library.place([2, 0, 3]).ok).toBe(true);
+    const object = store.getSnapshot().objects[0]!;
+    expect(object.transform.position).toEqual([2, 0, 3]);
+    expect(library.getSnapshot().mode).toBe("closed");
+    store.undo();
+    expect(store.getSnapshot().objects).toHaveLength(0);
+    store.redo();
+    expect(store.getSnapshot().objects[0]!.id).toBe(object.id);
+    expect(library.place([1, 0, 1]).ok).toBe(false);
+  });
+  it("rejects unknown, environment and hidden results without changing the document", () => {
+    const { store, library } = setup();
+    const before = store.getSnapshot();
+    library.open();
+    expect(library.choose("missing").ok).toBe(false);
+    expect(library.choose("room").ok).toBe(false);
+    library.search("nothing");
+    expect(library.choose("vase").ok).toBe(false);
+    expect(store.getSnapshot()).toBe(before);
+  });
+  it("cancels without history and keeps invalid placement retryable", () => {
+    const { store, library } = setup();
+    const before = store.getSnapshot();
+    library.open();
+    library.choose("vase");
+    expect(library.place([NaN, 0, 0]).ok).toBe(false);
+    expect(library.place([10001, 0, 0]).ok).toBe(false);
+    expect(library.getSnapshot().mode).toBe("placing");
+    library.cancel();
+    expect(store.getSnapshot()).toBe(before);
+  });
+  it("discards a stale pick after project replacement", () => {
+    const { store, library } = setup();
+    library.open();
+    library.choose("vase");
+    store.resetProject();
+    store.createProject("room");
+    expect(library.place([0, 0, 0]).ok).toBe(false);
+    expect(store.getSnapshot().objects).toHaveLength(0);
+    expect(library.getSnapshot().mode).toBe("closed");
+  });
+
   it("rotates and uniformly resizes nested attachments and rejects distortion without changing history", () => {
     const { store } = setup();
     const root = store.addObject("vase", [0, 0, 0]);

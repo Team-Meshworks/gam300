@@ -202,7 +202,8 @@
     "asset-catalogue-plugin.ts": "580b26c28695231be194830f1d638c9a07ea317c68f68d2149680d4951efff26",
     "editor/App.tsx": "94177bcb3e68a16dc219c6921e136107ae0a954469842a249556e3d4cc0b5526",
     "editor/ProjectConfirmation.tsx": "07a0fedf8fbf88865b3b8232c8665c139348fc64ebce478ea01e55eb7fd14eff",
-    "editor/asset-library.test.ts": "c9d104159b33741adcd6feb483f71ae9835b5e38b4ec5521431540152da2b58e",
+    "editor/asset-library.test.ts": "ca6723929e195b73c980f0f854054a63b0c520e52c02af5c34b183eef5c19957",
+    "editor/asset-library.ts": "756bbd60eb2aba765bef53d05febb20198a0287c1500b092eae1926fe52e7003",
     "editor/command-history.test.ts": "783c026523513ea5520cde04e61502aba13ca3a612b509a904c2a50e50be2d1f",
     "editor/command-history.ts": "e243335582ab03da9d131bd80edef7b908e3eb0a751d6ebfa7deb77750fc54ad",
     "editor/controls/fpsControls.ts": "9cd1c65c92bd832dda2003f6a79e5b5e5b54a49360d47bf4b6841c83ca4693e6",
@@ -665,6 +666,15 @@
       "file": "editor/asset-library.test.ts",
       "line": 2,
       "kind": "static",
+      "specifier": "./asset-library",
+      "target": "editor/asset-library.ts",
+      "from": "checks",
+      "to": "editor"
+    },
+    {
+      "file": "editor/asset-library.test.ts",
+      "line": 3,
+      "kind": "static",
       "specifier": "./document-store",
       "target": "editor/document-store.ts",
       "from": "checks",
@@ -672,12 +682,48 @@
     },
     {
       "file": "editor/asset-library.test.ts",
-      "line": 3,
+      "line": 4,
       "kind": "type",
       "specifier": "../shared/assets/catalogue",
       "target": "shared/assets/catalogue.ts",
       "from": "checks",
       "to": "catalogue"
+    },
+    {
+      "file": "editor/asset-library.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "../shared/assets/catalogue",
+      "target": "shared/assets/catalogue.ts",
+      "from": "editor",
+      "to": "catalogue"
+    },
+    {
+      "file": "editor/asset-library.ts",
+      "line": 2,
+      "kind": "type",
+      "specifier": "../shared/project/scene-object",
+      "target": "shared/project/scene-object.ts",
+      "from": "editor",
+      "to": "project"
+    },
+    {
+      "file": "editor/asset-library.ts",
+      "line": 3,
+      "kind": "type",
+      "specifier": "../shared/project/project-types",
+      "target": "shared/project/project-types.ts",
+      "from": "editor",
+      "to": "project"
+    },
+    {
+      "file": "editor/asset-library.ts",
+      "line": 4,
+      "kind": "type",
+      "specifier": "./document-store",
+      "target": "editor/document-store.ts",
+      "from": "editor",
+      "to": "document"
     },
     {
       "file": "editor/command-history.test.ts",
