@@ -418,7 +418,10 @@ public static partial class ProjectFormat
             var maxText = content ? 256 : int.MaxValue;
             Text(Get(scene, "id"), $"{path}.id", maxText);
             Text(Get(scene, "name"), $"{path}.name", maxText);
-            Text(Get(scene, "environmentAssetId"), $"{path}.environmentAssetId", maxText);
+            if (!content || Get(scene, "environmentAssetId").ValueKind != JsonValueKind.Null)
+            {
+                Text(Get(scene, "environmentAssetId"), $"{path}.environmentAssetId", maxText);
+            }
             Pose(Get(scene, "startCamera"), $"{path}.startCamera", true, content);
 
             // Check the shared spatial fields before reading v2 hierarchy and attached content

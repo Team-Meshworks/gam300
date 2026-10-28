@@ -197,6 +197,7 @@ try {
     const { saveLocalDraft, loadLocalDraft } = await import("/persistence/local-drafts.ts");
     const assets = new Map([
       ["test-room-v1", "environment"],
+      ["test-room-module-v1", "model"],
       ["test-crate-v1", "model"],
     ]);
     const request = { project, expectedStorageRevision: 0, localEditSequence: 1 };
@@ -344,6 +345,7 @@ try {
       id,
       new Map([
         ["test-room-v1", "environment"],
+        ["test-room-module-v1", "model"],
         ["test-crate-v1", "model"],
       ]),
     );
@@ -513,7 +515,7 @@ try {
       text,
     );
   const add = async () => {
-    // New now follows first visit; choose the environment before adding the next test object
+    // New now follows first visit; add a room before adding the next test object
     if (
       await editor
         .getByText("Add a room from the asset library to start.", { exact: true })
@@ -550,6 +552,7 @@ try {
       const result = await loadRecoverySession(
         new Map([
           ["test-room-v1", "environment"],
+          ["test-room-module-v1", "model"],
           ["test-crate-v1", "model"],
           ["sample-snowglobe-v1", "model"],
         ]),
@@ -656,7 +659,7 @@ try {
     "Empty untouched scene needs no decision",
   );
   await add();
-  const unsaved = await waitBackup(1);
+  const unsaved = await waitBackup(2);
   await editor.evaluate(() => (window.cancelPicker = true));
   await menu("New");
   await choose("Save");
@@ -665,7 +668,7 @@ try {
     unsaved.document.projectId,
     "Cancelled Save keeps the active project",
   );
-  assert.equal(await editor.locator(".object-row").count(), 1);
+  assert.equal(await editor.locator(".object-row").count(), 2);
   await editor.evaluate(() => (window.cancelPicker = false));
   await menu("New");
   await choose("Don’t Save");
@@ -677,7 +680,7 @@ try {
   assert.equal((await session()).document, null);
 
   await add();
-  const beforeFailure = await waitBackup(1);
+  const beforeFailure = await waitBackup(2);
   assert.notEqual(beforeFailure.document.projectId, unsaved.document.projectId);
   assert.equal(beforeFailure.document.projectId[14], "7", "New projects use UUIDv7");
   assert.equal(beforeFailure.document.scenes[0].id[14], "4", "New scenes keep UUIDv4");
@@ -693,7 +696,7 @@ try {
     beforeFailure,
     "Failed switch preserves the previous recovery record",
   );
-  assert.equal(await editor.locator(".object-row").count(), 1);
+  assert.equal(await editor.locator(".object-row").count(), 2);
   await editor.evaluate(() => {
     window.failRecovery = false;
     window.saveChoice = "saved.json";
@@ -701,20 +704,20 @@ try {
   });
   await menu("Save");
   await status("Save failed");
-  assert.equal(await editor.locator(".object-row").count(), 1);
+  assert.equal(await editor.locator(".object-row").count(), 2);
   await editor.evaluate(() => {
     window.denyPermission = false;
     window.failWrite = true;
   });
   await menu("Save");
   await status("Save failed");
-  assert.equal(await editor.locator(".object-row").count(), 1);
+  assert.equal(await editor.locator(".object-row").count(), 2);
   await editor.evaluate(() => (window.failWrite = false));
   await menu("Save");
   await status("Saved");
   const saved = await readFile("saved.json");
   await add();
-  await waitBackup(2);
+  await waitBackup(3);
   assert.deepEqual(await readFile("saved.json"), saved);
   const external = { ...saved, title: "Changed elsewhere" };
   await writeFile("saved.json", JSON.stringify(external));
@@ -724,13 +727,13 @@ try {
   await editor.evaluate(() => (window.saveChoice = "copy.json"));
   await editor.keyboard.press("Control+Shift+s");
   await status("Saved");
-  assert.equal((await readFile("copy.json")).scenes[0].objects.length, 2);
+  assert.equal((await readFile("copy.json")).scenes[0].objects.length, 3);
   assert.deepEqual(await readFile("saved.json"), external);
   await writeFile("bad.json", "{");
   await editor.evaluate(() => (window.fileChoice = "bad.json"));
   await menu("Open");
   await editor.getByRole("alert").waitFor();
-  assert.equal(await editor.locator(".object-row").count(), 2);
+  assert.equal(await editor.locator(".object-row").count(), 3);
   assert.equal(
     await editor.getByRole("dialog").count(),
     0,
@@ -743,10 +746,10 @@ try {
   await second.goto(url);
   await second.getByText("Reopened your last project", { exact: true }).waitFor();
   await add();
-  await waitBackup(3);
+  await waitBackup(4);
   await second.getByRole("button", { name: "Add test-crate", exact: true }).click();
   await second.getByRole("alert").filter({ hasText: "Recovery changed in another tab" }).waitFor();
-  assert.equal(await second.locator(".object-row").count(), 3);
+  assert.equal(await second.locator(".object-row").count(), 4);
   await second.close();
 
   // Opening an existing file keeps its destination through both Save routes

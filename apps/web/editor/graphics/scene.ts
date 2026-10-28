@@ -1,4 +1,5 @@
 import { getStartingCamera } from "../../shared/project/starting-view";
+import { placeRoom } from "../../shared/project/room-placement";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { ModelCache, disposeModels, type ModelLease } from "../../shared/asset-runtime/ModelCache";
@@ -63,7 +64,10 @@ export interface InitSceneHandle {
     nextScene?: ProjectScene | null,
   ) => void;
   getDropPosition: (clientX: number, clientY: number) => Vector3Tuple | undefined;
-  showDropPosition: (position: Vector3Tuple | undefined) => void;
+  showDropPosition: (
+    position: Vector3Tuple | undefined,
+    room?: { width: number; depth: number; valid: boolean; snapped: "room" | "grid" },
+  ) => void;
   setEditingEnabled: (enabled: boolean) => void;
   captureCamera: () => CameraPose;
   showCamera: (pose: CameraPose) => void;
@@ -162,6 +166,33 @@ export function initScene(
   dropMarker.rotation.x = -Math.PI / 2;
   dropMarker.visible = false;
   scene.add(dropMarker);
+  const roomMarker = new THREE.Mesh(
+    new THREE.PlaneGeometry(1, 1),
+    new THREE.MeshBasicMaterial({
+      color: 0x187c6b,
+      transparent: true,
+      opacity: 0.3,
+      side: THREE.DoubleSide,
+      depthTest: false,
+      depthWrite: false,
+    }),
+  );
+  roomMarker.rotation.x = -Math.PI / 2;
+  roomMarker.renderOrder = 1001;
+  roomMarker.visible = false;
+  scene.add(roomMarker);
+  const roomOutline = new THREE.LineLoop(
+    new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(-0.5, 0, -0.5),
+      new THREE.Vector3(0.5, 0, -0.5),
+      new THREE.Vector3(0.5, 0, 0.5),
+      new THREE.Vector3(-0.5, 0, 0.5),
+    ]),
+    new THREE.LineBasicMaterial({ color: 0x187c6b, depthTest: false, depthWrite: false }),
+  );
+  roomOutline.renderOrder = 1002;
+  roomOutline.visible = false;
+  scene.add(roomOutline);
 
   const controller = new AbortController();
   let disposed = false;
@@ -251,7 +282,10 @@ export function initScene(
     for (const handle of handles) {
       const trial = projectedPoint(pivot.clone().addScaledVector(handle.axis, 80 * pixelScale));
       const projectedLength = Math.hypot(trial.x - start.x, trial.y - start.y);
-      handle.visible = projectedLength >= 12;
+      const selectedRoom = assets.find(
+        (a) => a.id === objects.find((o) => o.id === selectedId)?.assetId,
+      )?.room;
+      handle.visible = projectedLength >= 12 && !(selectedRoom && handle.axis.y !== 0);
       handle.line.visible = handle.visible;
       handle.tip.visible = handle.visible;
       if (!handle.visible) continue;
@@ -455,15 +489,28 @@ export function initScene(
     const point = screenRay(clientX, clientY).intersectPlane(ground, new THREE.Vector3());
     if (
       point === null ||
-      !point.toArray().every((value) => Number.isFinite(value) && Math.abs(value) <= 20)
+      !point.toArray().every((value) => Number.isFinite(value) && Math.abs(value) <= 10_000)
     ) {
       return;
     }
     return [point.x, 0, point.z];
   }
 
-  function showDropPosition(position: Vector3Tuple | undefined) {
-    dropMarker.visible = position !== undefined;
+  function showDropPosition(
+    position: Vector3Tuple | undefined,
+    room?: { width: number; depth: number; valid: boolean; snapped: "room" | "grid" },
+  ) {
+    dropMarker.visible = position !== undefined && room === undefined;
+    roomMarker.visible = roomOutline.visible = position !== undefined && room !== undefined;
+    if (position && room) {
+      const color = !room.valid ? 0xc84637 : room.snapped === "room" ? 0x187c6b : 0x365fba;
+      roomMarker.material.color.setHex(color);
+      roomOutline.material.color.setHex(color);
+      roomMarker.position.set(position[0], 0.03, position[2]);
+      roomMarker.scale.set(room.width, room.depth, 1);
+      roomOutline.position.copy(roomMarker.position);
+      roomOutline.scale.set(room.width, 1, room.depth);
+    }
     if (position !== undefined) {
       dropMarker.position.set(position[0], 0.02, position[2]);
     }
@@ -487,6 +534,7 @@ export function initScene(
     drag = undefined;
     orbit.enabled = orbitEnabledBeforeDrag;
     previewTransform(previous.id, previous.transform);
+    showDropPosition(undefined);
     if (renderer.domElement.hasPointerCapture(previous.pointerId)) {
       renderer.domElement.releasePointerCapture(previous.pointerId);
     }
@@ -521,6 +569,7 @@ export function initScene(
     const object = objects.find((entry) => entry.id === selectedId);
     const instance = selectedId === null ? undefined : instances.get(selectedId);
     if (object === undefined || instance === undefined) return;
+    if (assets.find((a) => a.id === object.assetId)?.room) return;
     const ray = screenRay(event.clientX, event.clientY);
     const rotation = new THREE.Quaternion().fromArray(object.transform.rotation);
     const shared = {
@@ -607,7 +656,25 @@ export function initScene(
     if (drag.currentMode === "move") {
       const position = axisDragPosition(drag.geometry, ray);
       if (position === undefined) return;
-      drag.current = { ...drag.current, position: position.toArray() as Vector3Tuple };
+      const object = objects.find((o) => o.id === drag!.id)!;
+      const room = assets.find((a) => a.id === object.assetId)?.room;
+      if (room) {
+        const placement = placeRoom(
+          object.assetId,
+          position.toArray() as Vector3Tuple,
+          assets,
+          objects,
+          projectScene,
+          object.id,
+        );
+        showDropPosition(placement.position, {
+          ...room,
+          valid: placement.valid,
+          snapped: placement.snapped,
+        });
+        if (!placement.valid) return;
+        drag.current = { ...drag.current, position: placement.position };
+      } else drag.current = { ...drag.current, position: position.toArray() as Vector3Tuple };
     } else {
       const rotation =
         drag.currentMode === "rotate"
@@ -624,6 +691,7 @@ export function initScene(
     pointerMove(event);
     const completed = drag;
     drag = undefined;
+    showDropPosition(undefined);
     orbit.enabled = orbitEnabledBeforeDrag;
     if (renderer.domElement.hasPointerCapture(event.pointerId)) {
       renderer.domElement.releasePointerCapture(event.pointerId);
@@ -649,6 +717,7 @@ export function initScene(
     const object = objects.find((entry) => entry.id === selectedId);
     const instance = instances.get(selectedId);
     if (object === undefined || instance === undefined) return;
+    if (assets.find((a) => a.id === object.assetId)?.room) return;
     const ray = screenRay(event.clientX, event.clientY);
     const raycaster = new THREE.Raycaster(ray.origin, ray.direction);
     if (raycaster.intersectObject(instance, true).length === 0) return;

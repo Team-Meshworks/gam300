@@ -4,6 +4,7 @@
       "assetId": "test-room-v1",
       "name": "test-room",
       "kind": "environment",
+      "room": { "width": 10, "depth": 10 },
       "mediaType": "model/gltf-binary",
       "file": "delivery/test-room.glb",
       "sourceFile": "source/test-room.blend",
@@ -34,6 +35,26 @@
         0
       ],
       "reviewNotes": "Bounds rounded from GLB metadata.Floor top corrected to 0m. Browser verification pending."
+    },
+    {
+      "assetId": "test-room-module-v1",
+      "name": "Room",
+      "kind": "model",
+      "room": { "width": 10, "depth": 10, "environmentAssetId": "test-room-v1" },
+      "mediaType": "model/gltf-binary",
+      "file": "delivery/test-room.glb",
+      "sourceFile": "source/test-room.blend",
+      "byteSize": 7864,
+      "sha256": "121c9d86eefb1961a697a390967dfeface3ce1f612334d2fbc447551ddfd88d1",
+      "category": "test-assets",
+      "thumbnail": "delivery/thumbnails/test-room.png",
+      "access": "development-only",
+      "license": {
+        "status": "pending-team-confirmation",
+        "provenance": "Same contributor-created room geometry as test-room-v1, instanced as a movable room module. Redistribution terms not yet selected."
+      },
+      "boundsMeters": { "min": [-5, -0.2, -5], "max": [5, 3, 5] },
+      "pivotMeters": [0, 0, 0]
     },
     {
       "assetId": "test-crate-v1",

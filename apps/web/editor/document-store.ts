@@ -8,6 +8,7 @@ import type {
 } from "../shared/project/project-content";
 import type { Transform, NamedViewpoint, CameraPose } from "../shared/project/project-types";
 import { prepareTransformCommand } from "./transform-command";
+import { placeRoom } from "../shared/project/room-placement";
 import { createCommandHistory, type EditCommand } from "./command-history";
 import { captureProjectHistory, validateRecoveryHistory } from "./recovery-history";
 import type { CatalogueAsset } from "../shared/asset-runtime/catalogue.ts";
@@ -102,6 +103,18 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
     const before = state;
     state = history.execute(state, { label, apply: () => next, revert: () => before });
   }
+
+  function roomObject(asset: CatalogueAsset, position: Vector3Tuple): ContentObject {
+    return {
+      id: crypto.randomUUID(),
+      name: `${asset.name} 1`,
+      assetId: asset.id,
+      transform: { position, rotation: [0, 0, 0, 1], scale: [1, 1, 1] },
+      parentId: null,
+      visible: true,
+      components: [],
+    };
+  }
   function executeObjects(
     _objects: readonly SceneObject[],
     command: EditCommand<readonly SceneObject[]>,
@@ -174,9 +187,31 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
   function commitTransform(
     input: unknown,
   ): ValidationResult<{ changed: boolean; object: SceneObject }> {
-    const result = prepareTransformCommand(objects, input);
+    let result = prepareTransformCommand(objects, input);
     if (!result.ok) {
       return result;
+    }
+    const candidate = result.value.object;
+    if (assets.find((a) => a.id === candidate.assetId)?.room) {
+      const { rotation, scale, position } = candidate.transform;
+      if (rotation.slice(0, 3).some((v) => Math.abs(v) > 1e-6) || scale.some((v) => v !== 1))
+        return invalid("transform", "Rooms stay upright and at their original size");
+      const placement = placeRoom(
+        candidate.assetId,
+        position,
+        assets,
+        objects,
+        project?.scenes.find((s) => s.id === state.activeSceneId),
+        candidate.id,
+      );
+      if (!placement.valid)
+        return invalid("position", "Rooms cannot overlap. Choose a free floor space");
+      result = prepareTransformCommand(objects, {
+        objectId: candidate.id,
+        before: objects.find((o) => o.id === candidate.id)!.transform,
+        after: { ...candidate.transform, position: placement.position },
+      });
+      if (!result.ok) return result;
     }
     const { command, object } = result.value;
     if (command === null) {
@@ -221,7 +256,18 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
     if (!checked.ok) {
       return checked;
     }
-    const transform = checked.value;
+    let transform = checked.value;
+    if (asset.room) {
+      const placement = placeRoom(
+        asset.id,
+        undefined,
+        assets,
+        objects,
+        project?.scenes.find((s) => s.id === state.activeSceneId),
+      );
+      if (!placement.valid) return invalid("position", "No free floor space for another room");
+      transform = { ...transform, position: placement.position };
+    }
     Object.freeze(transform.position);
     Object.freeze(transform.rotation);
     Object.freeze(transform.scale);
@@ -314,7 +360,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
     ): ValidationResult<true> {
       if (!name.trim() || name.trim().length > 120)
         return invalid("name", "Enter a scene name between 1 and 120 characters");
-      const scene: ContentScene = {
+      let scene: ContentScene = {
         id: crypto.randomUUID(),
         name: name.trim(),
         environmentAssetId,
@@ -331,6 +377,16 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
         viewpoints: [],
         rules: [],
       };
+      const roomModule = assets.find(
+        (a) => a.kind === "model" && a.room?.environmentAssetId === environmentAssetId,
+      );
+      if (roomModule) {
+        scene = {
+          ...scene,
+          environmentAssetId: null,
+          objects: [roomObject(roomModule, [0, 0, 0])],
+        };
+      }
       if (!project) projectAssets = new Map(assets.map((a) => [a.id, a.kind]));
       if (!project) {
         // The first scene starts a document; there must always be at least one scene.
@@ -595,7 +651,9 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
     },
     createProject(
       environmentAssetId: string,
-      options: { startEmpty: boolean } = { startEmpty: false },
+      options: { startEmpty: boolean; movableRoom?: boolean; position?: Vector3Tuple } = {
+        startEmpty: false,
+      },
     ): ValidationResult<ProjectDocument> {
       // Room choice supplies the environment required by the saved format
       // Keep any models already placed on the grid and their undo commands
@@ -612,7 +670,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       const kinds = new Map(assets.map((asset) => [asset.id, asset.kind]));
 
       // Fresh IDs keep this scene separate from earlier projects and their browser backups
-      const candidate: ProjectDocument = {
+      let candidate: ProjectDocument = {
         schemaVersion: 1,
         projectId: createProjectId(),
         title: "Untitled project",
@@ -636,6 +694,27 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
         ],
       };
 
+      let firstRoom: ContentObject | undefined;
+      if (options.movableRoom) {
+        const module = assets.find(
+          (a) => a.kind === "model" && a.room?.environmentAssetId === environmentAssetId,
+        );
+        if (!module)
+          return invalid("environmentAssetId", "This environment does not support movable rooms");
+        const placement = placeRoom(module.id, options.position, assets, [], null);
+        if (!placement.valid) return invalid("position", "Choose a position inside the scene");
+        firstRoom = roomObject(module, placement.position);
+        const content = toContentProject(candidate);
+        candidate = {
+          ...content,
+          scenes: content.scenes.map((s) => ({
+            ...s,
+            environmentAssetId: null,
+            objects: [firstRoom!, ...s.objects],
+          })),
+        };
+      }
+
       // Run the import checks before replacing anything in memory
       // A bad asset reference leaves the grid scene and history available
       const checked = deserializeProject(JSON.stringify(candidate), kinds);
@@ -652,7 +731,22 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
           fromProject(
             freezeProject({
               ...project!,
-              scenes: [{ ...project!.scenes[0]!, objects: entry.objects }],
+              scenes: [
+                {
+                  ...project!.scenes[0]!,
+                  objects: firstRoom
+                    ? [
+                        firstRoom,
+                        ...entry.objects.map((o) => ({
+                          ...o,
+                          parentId: null,
+                          visible: true,
+                          components: [],
+                        })),
+                      ]
+                    : entry.objects,
+                },
+              ],
             } as ProjectDocument),
             project!.scenes[0]!.id,
           );
@@ -749,6 +843,48 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
         listeners.delete(listener);
       };
     },
+    makeRoomMovable(): ValidationResult<SceneObject> {
+      const active = project?.scenes.find((s) => s.id === state.activeSceneId);
+      const module = assets.find(
+        (a) => a.kind === "model" && a.room?.environmentAssetId === active?.environmentAssetId,
+      );
+      if (!project || !active?.environmentAssetId || !module)
+        return invalid("environmentAssetId", "This scene has no fixed room to convert");
+      const object = {
+        ...roomObject(module, [0, 0, 0]),
+        name: `${module.name} ${objects.length + 1}`,
+      };
+      const content = toContentProject(project);
+      const result = commitProject(
+        {
+          ...content,
+          scenes: content.scenes.map((s) =>
+            s.id === active.id
+              ? { ...s, environmentAssetId: null, objects: [object, ...s.objects] }
+              : s,
+          ),
+        },
+        active.id,
+        "Make room movable",
+      );
+      return result.ok ? { ok: true, value: object } : result;
+    },
+    addRoom(environmentAssetId: string, position?: Vector3Tuple) {
+      const asset = assets.find(
+        (a) => a.kind === "model" && a.room?.environmentAssetId === environmentAssetId,
+      );
+      if (!asset || !project) return { ok: false, error: "Choose a room first." } as const;
+      const placement = placeRoom(
+        asset.id,
+        position,
+        assets,
+        objects,
+        project.scenes.find((s) => s.id === state.activeSceneId),
+      );
+      if (!placement.valid)
+        return { ok: false, error: "Rooms cannot overlap. Choose a free floor space." } as const;
+      return this.addObject(asset.id, placement.position);
+    },
     addObject(assetId: string, position: Vector3Tuple) {
       const asset = assets.find((entry) => entry.id === assetId);
       if (asset === undefined) {
@@ -765,6 +901,18 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       }
       if (objects.length >= 200) {
         return { ok: false, error: "This scene has reached its 200-object limit." } as const;
+      }
+      if (asset.room) {
+        const placement = placeRoom(
+          asset.id,
+          position,
+          assets,
+          objects,
+          project?.scenes.find((s) => s.id === state.activeSceneId),
+        );
+        if (!placement.valid)
+          return { ok: false, error: "Rooms cannot overlap. Choose a free floor space." } as const;
+        position = placement.position;
       }
       const object: SceneObject = Object.freeze({
         id: crypto.randomUUID(),

@@ -32,7 +32,8 @@ try {
     (test) =>
       test.patches.length === 0 ||
       test.name.startsWith("storage NUL") ||
-      (test.patches.length === 1 && test.patches[0].path.at(-1) === "url"),
+      (test.patches.length === 1 &&
+        ["url", "environmentAssetId"].includes(test.patches[0].path.at(-1))),
   );
 
   // Start each patch from fresh JSON so one malformed host cannot contaminate another case

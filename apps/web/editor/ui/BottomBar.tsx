@@ -66,7 +66,7 @@ export function BottomBar({
   ready: boolean;
   thumbnailFor: (assetId: string) => string | undefined;
   onAdd: (assetId: string) => void;
-  onDragChange: (dragging: boolean) => void;
+  onDragChange: (dragging: boolean, assetId?: string) => void;
   tool: NavigationTool;
   onToolChange: (tool: NavigationTool) => void;
 }) {
@@ -204,7 +204,7 @@ export function BottomBar({
                   onDragStart={(event) => {
                     event.dataTransfer.setData(assetDragType, asset.id);
                     event.dataTransfer.effectAllowed = "copy";
-                    onDragChange(true);
+                    onDragChange(true, asset.id);
                   }}
                   onDragEnd={() => onDragChange(false)}
                 >

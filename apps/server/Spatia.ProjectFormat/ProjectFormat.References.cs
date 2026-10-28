@@ -79,7 +79,10 @@ public static partial class ProjectFormat
         Array(Get(root, "scenes"), "project.scenes", 16, (scene, path) =>
         {
             var sceneId = String(scene, "id");
-            Asset(String(scene, "environmentAssetId"), "environment", $"{path}.environmentAssetId");
+            if (!content || Get(scene, "environmentAssetId").ValueKind != JsonValueKind.Null)
+            {
+                Asset(String(scene, "environmentAssetId"), "environment", $"{path}.environmentAssetId");
+            }
             if (content)
             {
                 // Validate parent ownership before following chains; only objects and groups can parent

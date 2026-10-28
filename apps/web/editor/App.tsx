@@ -42,6 +42,7 @@ export function App() {
   const [status, setStatus] = useState<ViewportStatus>("loading");
   const [attempt, setAttempt] = useState(0);
   const [dragging, setDragging] = useState(false);
+  const [draggedAssetId, setDraggedAssetId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState({ text: "", sequence: 0 });
   const notice = feedback.text;
   const [error, setError] = useState("");
@@ -196,44 +197,43 @@ export function App() {
     [store, setNotice],
   );
 
-  function place(assetId: string, position: Vector3Tuple) {
+  function place(assetId: string, position?: Vector3Tuple) {
     if (visitor) {
       return;
     }
     session.clearError();
 
     // Choosing the first room turns the grid scene into a saveable project
-    // Room placement uses the environment slot so it survives JSON reconstruction
+    // Store the first room as an ordinary object so it can move like later rooms
     if (assetKinds.get(assetId) === "environment") {
-      if (session.busy) {
+      if (session.busy && storageOperation !== "backup") {
         setNotice("Wait for the project to finish opening, then choose a room");
         return;
       }
 
-      // The library keeps the room available after placement
-      // Dropping the current room again leaves the scene and undo history alone
-      if (projectScene?.environmentAssetId === assetId) {
-        setDragging(false);
-        setNotice("This room is already in the scene");
-        return;
-      }
       if (project !== null) {
-        const changed = store.setEnvironment(assetId);
-        if (!changed.ok) setError(changed.error.message);
+        const changed = store.addRoom(assetId, position);
+        if (!changed.ok) setError(changed.error);
         else {
           setError("");
-          setNotice("Scene environment updated. Undo is available.");
+          setSelectedId(changed.object.id);
+          setNotice("Room added on the floor. Undo is available.");
         }
         setDragging(false);
         return;
       }
-      const created = store.createProject(assetId);
+      const created = store.createProject(assetId, {
+        startEmpty: false,
+        movableRoom: true,
+        ...(position ? { position } : {}),
+      });
       if (!created.ok) {
         setError(created.error.message);
         return;
       }
       setError("");
       setDragging(false);
+      setSelectedId(created.value.scenes[0]?.objects[0]?.id ?? null);
       if (created.value.scenes[0]?.objects.length === 0) {
         session.markPristine(created.value);
       }
@@ -247,7 +247,7 @@ export function App() {
       return;
     }
 
-    const result = store.addObject(assetId, position);
+    const result = store.addObject(assetId, position ?? [0, 0, 0]);
     if (!result.ok) {
       setError(result.error);
       return;
@@ -354,6 +354,16 @@ export function App() {
           objects={objects}
           selectedId={roomSelected ? projectScene.id : selection}
           selectedObject={selectedObject}
+          selectedRoom={Boolean(assets.find((a) => a.id === selectedObject?.assetId)?.room)}
+          onMakeRoomMovable={() => {
+            const result = store.makeRoomMovable();
+            if (!result.ok) setError(result.error.message);
+            else {
+              setSelectedId(result.value.id);
+              setError("");
+              setNotice("Room is movable. Use the X and Z handles; its floor stays at Y = 0.");
+            }
+          }}
           thumbnailFor={thumbnailFor}
           onSelect={setSelectedId}
           onTransform={onTransform}
@@ -367,6 +377,7 @@ export function App() {
           projectScene={projectScene ?? null}
           selectedId={roomSelected ? projectScene.id : selection}
           dragging={dragging}
+          draggedAssetId={draggedAssetId}
           editingEnabled={!switching}
           navigationTool={navigationTool}
           status={status}
@@ -385,11 +396,14 @@ export function App() {
         >
           {!visitor && (
             <BottomBar
-              assets={assets}
+              assets={assets.filter((a) => !a.room?.environmentAssetId)}
               ready={status === "ready"}
               thumbnailFor={thumbnailFor}
-              onAdd={(assetId) => place(assetId, [0, 0, 0])}
-              onDragChange={setDragging}
+              onAdd={(assetId) => place(assetId)}
+              onDragChange={(value, assetId) => {
+                setDragging(value);
+                setDraggedAssetId(assetId ?? null);
+              }}
               tool={navigationTool}
               onToolChange={setNavigationTool}
             />

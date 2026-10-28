@@ -29,13 +29,13 @@ function checkEntityId(
 }
 
 function checkAsset(
-  id: string,
+  id: string | null,
   expectedKind: "environment" | "model",
   path: string,
   assetKinds: ReadonlyMap<string, string>,
 ): ValidationResult<true> {
   // Asset IDs match the registry exactly, including letter case
-  const kind = assetKinds.get(id);
+  const kind = id === null ? undefined : assetKinds.get(id);
   if (kind === undefined) {
     return invalid(path, "Asset ID is missing from the supplied registry");
   }

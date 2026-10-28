@@ -588,7 +588,8 @@ a {
   touch-action: none;
 }
 .viewport-stage.is-dragging {
-  outline: 3px solid var(--accent);
+  --drop-color: #365fba;
+  outline: 3px solid var(--drop-color);
   outline-offset: -3px;
 }
 .viewport-stage.is-dragging::after {
@@ -596,7 +597,13 @@ a {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  border: 3px solid var(--accent);
+  border: 3px solid var(--drop-color);
+}
+.viewport-stage.is-snapped {
+  --drop-color: #187c6b;
+}
+.viewport-stage.is-invalid {
+  --drop-color: #b52f25;
 }
 .drop-cue {
   position: absolute;
@@ -605,10 +612,16 @@ a {
   transform: translateX(-50%);
   padding: 0.55rem 0.9rem;
   color: #fff;
-  background: #8e3b29;
+  background: #365fba;
   border-radius: 0.35rem;
   font-size: 0.875rem;
   pointer-events: none;
+}
+.drop-cue.is-snapped {
+  background: #187c6b;
+}
+.drop-cue.is-invalid {
+  background: #b52f25;
 }
 .viewport-feedback {
   position: absolute;

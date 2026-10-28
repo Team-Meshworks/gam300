@@ -27,18 +27,18 @@ try {
   assert.ok(
     await asset.locator("img").evaluate((image) => image.complete && image.naturalWidth > 0),
   );
-  // Fresh projects require an environment before model placement can change the document
+  // Fresh projects require a room before model placement can change the document
   await asset.click();
   assert.equal(await page.locator(".object-row").count(), 0);
   await page.getByRole("alert").filter({ hasText: "Choose a room first" }).waitFor();
   await page.getByRole("button", { name: "Add test-room", exact: true }).click();
   await asset.click();
-  assert.equal(await page.locator(".object-row").count(), 1);
+  assert.equal(await page.locator(".object-row").count(), 2);
   if (process.env.CHECK_SCREENSHOT) {
     await page.screenshot({ path: process.env.CHECK_SCREENSHOT });
   }
   await page.getByRole("button", { name: "Undo", exact: true }).click();
-  assert.equal(await page.locator(".object-row").count(), 0);
+  assert.equal(await page.locator(".object-row").count(), 1);
   await asset.click();
   const originalPosition = await page.getByLabel("Selected position").textContent();
   // No more move buttons, so nudge through the Position panel then go back to the tree
@@ -71,16 +71,17 @@ try {
   const bytes = readFileSync(await download.path());
   if (process.env.CHECK_PROJECT) await download.saveAs(process.env.CHECK_PROJECT);
   const project = JSON.parse(bytes.toString("utf8"));
-  assert.equal(project.scenes[0].environmentAssetId, "test-room-v1");
-  assert.equal(project.scenes[0].objects.length, 1);
-  assert.deepEqual(project.scenes[0].objects[0].transform.position, expectedPosition);
+  assert.equal(project.scenes[0].environmentAssetId, null);
+  assert.equal(project.scenes[0].objects.length, 2);
+  assert.equal(project.scenes[0].objects[0].assetId, "test-room-module-v1");
+  assert.deepEqual(project.scenes[0].objects[1].transform.position, expectedPosition);
   // Save finishes its recovery write before restoring the file-status label
   await page.getByText("Not saved", { exact: true }).waitFor();
   await page.reload();
   await page.getByText("Reopened your last project", { exact: true }).waitFor();
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
-  assert.equal(await page.locator(".object-row").count(), 1);
-  await page.locator(".object-row").first().click();
+  assert.equal(await page.locator(".object-row").count(), 2);
+  await page.locator(".object-row").last().click();
   assert.equal(await page.getByLabel("Selected position").textContent(), movedPosition);
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   assert.equal(await page.getByLabel("Selected position").textContent(), originalPosition);
@@ -96,12 +97,12 @@ try {
     await choosing
   ).setFiles({ name: "project.json", mimeType: "application/json", buffer: bytes });
   await fresh.getByText("Project opened", { exact: true }).waitFor();
-  assert.equal(await fresh.locator(".object-row").count(), 1);
+  assert.equal(await fresh.locator(".object-row").count(), 2);
   assert.equal(
-    await fresh.locator(".object-row").first().getAttribute("data-object-id"),
-    project.scenes[0].objects[0].id,
+    await fresh.locator(".object-row").last().getAttribute("data-object-id"),
+    project.scenes[0].objects[1].id,
   );
-  await fresh.locator(".object-row").first().click();
+  await fresh.locator(".object-row").last().click();
   assert.equal(await fresh.getByLabel("Selected position").textContent(), movedPosition);
   assert.deepEqual(errors, [], "Models and embedded textures load under the deployed policy");
   console.log(

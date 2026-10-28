@@ -95,6 +95,7 @@ try {
     mimeType: "application/json",
     buffer: Buffer.from(JSON.stringify(emptyFixture)),
   });
+  await page.getByRole("dialog").getByRole("button", { name: "Don’t Save", exact: true }).click();
   await page.getByText("Project opened", { exact: true }).waitFor();
   await asset.click();
   assert.equal(await rows.count(), 1);
@@ -353,14 +354,14 @@ try {
   await page.getByRole("button", { name: "Add test-room", exact: true }).click();
   assert.equal(
     await rows.count(),
-    2,
-    "Room becomes the environment; existing crates stay in the project",
+    3,
+    "Another room is added beside the environment; existing crates stay in the project",
   );
-  const crateId = await rows.last().getAttribute("data-object-id");
+  const roomId = await rows.last().getAttribute("data-object-id");
   await undo.click();
-  assert.equal(await rows.count(), 1);
+  assert.equal(await rows.count(), 2);
   await redo.click();
-  assert.equal(await rows.last().getAttribute("data-object-id"), crateId);
+  assert.equal(await rows.last().getAttribute("data-object-id"), roomId);
 
   // The saved fixture should replace placement history and show its two authored objects
   await page.getByRole("button", { name: "Open sample project", exact: true }).click();
@@ -383,12 +384,13 @@ try {
   assert.equal(await page.locator(".panel-count").textContent(), "3");
   await roomRow.click();
   assert.equal(await roomRow.getAttribute("aria-pressed"), "true");
-  // Reusing the current room must leave the loaded exhibits and history intact
+  // Another room preserves loaded exhibits and has its own undo step
   await room.click();
-  assert.deepEqual(await rows.allTextContents(), ["First crate", "Second crate"]);
-  assert.equal(await undo.isDisabled(), true);
+  assert.deepEqual(await rows.allTextContents(), ["First crate", "Second crate", "Room 3"]);
+  assert.equal(await undo.isDisabled(), false);
   assert.equal(await redo.isDisabled(), true);
-  await page.getByText("This room is already in the scene", { exact: true }).waitFor();
+  await undo.click();
+  assert.deepEqual(await rows.allTextContents(), ["First crate", "Second crate"]);
   await asset.click();
   assert.equal(await rows.count(), 3);
   await undo.click();
@@ -441,6 +443,7 @@ try {
     const result = await loadRecoverySession(
       new Map([
         ["test-room-v1", "environment"],
+        ["test-room-module-v1", "model"],
         ["test-crate-v1", "model"],
         ["sample-snowglobe-v1", "model"],
       ]),
@@ -459,8 +462,8 @@ try {
   await page.getByText("Add a room from the asset library to start.", { exact: true }).waitFor();
   assert.equal(await room.isVisible(), true);
   await room.click();
-  await roomRow.waitFor();
-  assert.equal(await rows.count(), 0);
+  await rows.first().waitFor();
+  assert.equal(await rows.count(), 1);
   assert.equal(await undo.isDisabled(), true);
   // Choosing a room follows the blank New record; wait for its backup before reloading
   let roomBackedUp = false;
@@ -471,11 +474,12 @@ try {
       const result = await loadRecoverySession(
         new Map([
           ["test-room-v1", "environment"],
+          ["test-room-module-v1", "model"],
           ["test-crate-v1", "model"],
           ["sample-snowglobe-v1", "model"],
         ]),
       );
-      return result.ok && result.value?.document?.scenes[0]?.objects.length === 0;
+      return result.ok && result.value?.document?.scenes[0]?.objects.length === 1;
     });
     if (roomBackedUp) break;
     await new Promise((resolve) => setTimeout(resolve, 50));
@@ -484,7 +488,7 @@ try {
   await page.reload();
   await ready.waitFor();
   assert.equal(await room.isVisible(), true, "Recovery keeps the room in the library");
-  await roomRow.waitFor();
+  await rows.first().waitFor();
   assert.equal(await page.locator(".panel-count").textContent(), "1");
 
   const samplePath = "**/*test-crate*.glb*";

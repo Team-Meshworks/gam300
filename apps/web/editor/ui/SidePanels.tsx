@@ -23,6 +23,8 @@ export function SidePanels({
   objects,
   selectedId,
   selectedObject,
+  selectedRoom,
+  onMakeRoomMovable,
   thumbnailFor,
   onSelect,
   onTransform,
@@ -34,6 +36,8 @@ export function SidePanels({
   objects: readonly SceneObject[];
   selectedId: string | null;
   selectedObject: SceneObject | undefined;
+  selectedRoom: boolean;
+  onMakeRoomMovable: () => void;
   thumbnailFor: (assetId: string) => string | undefined;
   onSelect: (id: string) => void;
   onTransform: (id: string, transform: Transform) => void;
@@ -64,6 +68,7 @@ export function SidePanels({
           {panel === "position" && (
             <PositionPanel
               object={selectedObject}
+              room={selectedRoom}
               onChange={(transform) => {
                 if (selectedObject !== undefined) onTransform(selectedObject.id, transform);
               }}
@@ -72,6 +77,7 @@ export function SidePanels({
           {panel === "tree" && (
             <SceneTreePanel
               room={room}
+              onMakeRoomMovable={onMakeRoomMovable}
               objects={objects}
               selectedId={selectedId}
               onSelect={onSelect}
@@ -121,9 +127,11 @@ function PanelHeading({ id, children }: { id: string; children: ReactNode }) {
 
 function PositionPanel({
   object,
+  room,
   onChange,
 }: {
   object: SceneObject | undefined;
+  room: boolean;
   onChange: (transform: Transform) => void;
 }) {
   return (
@@ -132,7 +140,14 @@ function PositionPanel({
       {object === undefined ? (
         <p className="panel-empty">Select an object to edit its position, rotation and scale.</p>
       ) : (
-        <TransformFields object={object} onChange={onChange} />
+        <>
+          {room && (
+            <p className="panel-empty">
+              Rooms stay upright and on the floor. Move them along X and Z. Room size is fixed.
+            </p>
+          )}
+          <TransformFields object={object} room={room} onChange={onChange} />
+        </>
       )}
     </section>
   );
@@ -140,9 +155,11 @@ function PositionPanel({
 
 function TransformFields({
   object,
+  room,
   onChange,
 }: {
   object: SceneObject;
+  room: boolean;
   onChange: (transform: Transform) => void;
 }) {
   const { transform } = object;
@@ -189,6 +206,7 @@ function TransformFields({
               <label key={axisName}>
                 <span>{axisName}</span>
                 <NumberField
+                  disabled={room && (row.label !== "Transform" || axisName === "Y")}
                   label={`${object.name} ${row.label.toLowerCase()} ${axisName} (${row.unit})`}
                   value={row.values[axis] ?? 0}
                   onCommit={(value) => {
@@ -208,10 +226,12 @@ function TransformFields({
 
 function NumberField({
   label,
+  disabled,
   value,
   onCommit,
 }: {
   label: string;
+  disabled: boolean;
   value: number;
   onCommit: (value: number) => void;
 }) {
@@ -221,6 +241,7 @@ function NumberField({
     <input
       key={shown}
       type="text"
+      disabled={disabled}
       inputMode="decimal"
       aria-label={label}
       defaultValue={shown}
@@ -230,6 +251,8 @@ function NumberField({
           event.currentTarget.value = shown;
         } else if (next !== Number(shown)) {
           onCommit(next);
+          // A rejected or unchanged snapped edit must show the committed value
+          event.currentTarget.value = shown;
         }
       }}
       onKeyDown={(event) => {
@@ -245,12 +268,14 @@ function NumberField({
 
 function SceneTreePanel({
   room,
+  onMakeRoomMovable,
   objects,
   selectedId,
   onSelect,
   thumbnailFor,
 }: {
   room: Room | undefined;
+  onMakeRoomMovable: () => void;
   objects: readonly SceneObject[];
   selectedId: string | null;
   onSelect: (id: string) => void;
@@ -278,6 +303,9 @@ function SceneTreePanel({
                 >
                   <img src={room.thumbnail} alt="" draggable={false} />
                   <span>{room.name}</span>
+                </button>
+                <button type="button" className="ui-button panel-pill" onClick={onMakeRoomMovable}>
+                  Make room movable
                 </button>
               </li>
             )}

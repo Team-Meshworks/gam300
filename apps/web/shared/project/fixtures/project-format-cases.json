@@ -8,6 +8,19 @@
   },
   "cases": [
     {
+      "name": "content scene can use placed rooms without a fixed environment",
+      "base": "m2",
+      "valid": true,
+      "patches": [{ "path": ["scenes", 0, "environmentAssetId"], "value": null }]
+    },
+    {
+      "name": "released scene still requires its environment",
+      "base": "m1",
+      "valid": false,
+      "path": "project.scenes[0].environmentAssetId",
+      "patches": [{ "path": ["scenes", 0, "environmentAssetId"], "value": null }]
+    },
+    {
       "name": "storage NUL in released title",
       "base": "m1",
       "valid": false,

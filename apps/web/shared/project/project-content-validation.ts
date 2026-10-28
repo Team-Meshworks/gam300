@@ -365,7 +365,10 @@ export function validateContentStructure(raw: unknown): ValidationResult<Content
       return {
         id: text(scene.id, `${path}.id`),
         name: text(scene.name, `${path}.name`),
-        environmentAssetId: text(scene.environmentAssetId, `${path}.environmentAssetId`),
+        environmentAssetId:
+          scene.environmentAssetId === null
+            ? null
+            : text(scene.environmentAssetId, `${path}.environmentAssetId`),
         startCamera: checked(validateCameraPose(scene.startCamera, `${path}.startCamera`)),
         objects: list(scene.objects, `${path}.objects`, 200, (input, path) => {
           const object = record(
@@ -516,7 +519,8 @@ export function validateContentReferences(
     // With the full index available, resolve each scene's hierarchy, assets and rule targets
     project.scenes.forEach((scene, index) => {
       const path = `project.scenes[${index}]`;
-      asset(scene.environmentAssetId, "environment", `${path}.environmentAssetId`);
+      if (scene.environmentAssetId !== null)
+        asset(scene.environmentAssetId, "environment", `${path}.environmentAssetId`);
 
       // Check parent targets and build the ancestor map before checking components and rules
       const parents = new Map<string, string | null>();

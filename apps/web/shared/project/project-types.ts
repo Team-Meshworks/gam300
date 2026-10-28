@@ -49,9 +49,8 @@ export type ProjectScene = Readonly<{
   id: EntityId;
   name: string;
 
-  // One environment can model several connected rooms for uninterrupted walking
-  // TODO: multiple environment assets per scene if necessary
-  environmentAssetId: AssetId;
+  // V2 may use placed room objects instead; the v1 reader still requires an environment
+  environmentAssetId: AssetId | null;
   startCamera: CameraPose;
 
   // V2 scenes carry viewpoints; the v1 validator still rejects this field.

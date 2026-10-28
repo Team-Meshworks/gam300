@@ -47,38 +47,38 @@ try {
 
   // No more move buttons, so nudge through the Position panel then go back to the tree
   await page.getByRole("button", { name: "Position", exact: true }).click();
-  const field = page.getByRole("textbox", { name: "test-crate 1 transform X (m)", exact: true });
+  const field = page.getByRole("textbox", { name: "test-crate 2 transform X (m)", exact: true });
   await field.fill(String(Number(await field.inputValue()) + 0.25));
   await field.press("Enter");
   await page.getByRole("button", { name: "Scene tree", exact: true }).click();
   await page.keyboard.press("Control+d");
-  assert.equal(await rows.count(), 2);
+  assert.equal(await rows.count(), 3);
   const duplicateId = await rows.last().getAttribute("data-object-id");
   await page.keyboard.press("Control+z");
-  assert.equal(await rows.count(), 1);
-  await waitForRecovery(1, 1);
+  assert.equal(await rows.count(), 2);
+  await waitForRecovery(2, 1);
   await page.reload();
   await page.getByRole("button", { name: "Redo", exact: true }).waitFor();
-  await page.waitForFunction(() => document.querySelectorAll(".object-row").length === 1);
-  await rows.first().click();
+  await page.waitForFunction(() => document.querySelectorAll(".object-row").length === 2);
+  await rows.last().click();
   await page.keyboard.press("Control+y");
-  assert.equal(await rows.count(), 2);
+  assert.equal(await rows.count(), 3);
   assert.equal(await rows.last().getAttribute("data-object-id"), duplicateId);
   await page.keyboard.press("Control+z");
   await page.keyboard.press("Control+z");
   assert.equal(await page.getByLabel("Selected position").textContent(), originalPosition);
   await page.keyboard.press("Control+z");
-  assert.equal(await rows.count(), 0);
-  await waitForRecovery(0, 3);
+  assert.equal(await rows.count(), 1);
+  await waitForRecovery(1, 3);
   await page.reload();
   await page.waitForFunction(
     () => document.querySelector(".draft-feedback")?.textContent !== "Reopening saved work…",
   );
   await page.getByRole("button", { name: "Redo", exact: true }).click();
-  assert.equal(await rows.count(), 1);
+  assert.equal(await rows.count(), 2);
   await page.getByRole("button", { name: "Add test-crate", exact: true }).click();
   assert.equal(await page.getByRole("button", { name: "Redo", exact: true }).isDisabled(), true);
-  await waitForRecovery(2, 0);
+  await waitForRecovery(3, 0);
 
   const storageResults = await page.evaluate(async () => {
     const { loadLatestLocalDraft, saveLocalDraft, loadRecoverySession, saveRecoverySession } =
@@ -169,7 +169,7 @@ try {
   });
   assert.deepEqual(errors, []);
   console.log(
-    "PASS: persisted Undo/Redo shortcuts, stable IDs, empty-scene redo, branching, atomic rejection, damaged-history fallback and legacy drafts",
+    "PASS: persisted Undo/Redo shortcuts, stable IDs, room-only redo, branching, atomic rejection, damaged-history fallback and legacy drafts",
   );
 } finally {
   await browser.close();

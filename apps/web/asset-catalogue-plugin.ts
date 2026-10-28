@@ -7,7 +7,12 @@ import { normalizePath, type Plugin } from "vite";
 const assetsRoot = fileURLToPath(new URL("../../assets", import.meta.url));
 const manifestPath = resolve(assetsRoot, "manifest.json");
 // Only these local development samples may enter the browser build
-const allowedIds = new Set(["test-room-v1", "test-crate-v1", "sample-snowglobe-v1"]);
+const allowedIds = new Set([
+  "test-room-v1",
+  "test-room-module-v1",
+  "test-crate-v1",
+  "sample-snowglobe-v1",
+]);
 type Entry = {
   assetId: string;
   name: string;
@@ -17,6 +22,7 @@ type Entry = {
   thumbnail: string | null;
   thumbnailMode?: "generated";
   placement?: "bottom-center";
+  room?: { width: number; depth: number; environmentAssetId?: string };
   access: string;
 };
 
@@ -47,6 +53,11 @@ export function assetCataloguePlugin(): Plugin {
       !["environment", "model"].includes(entry.kind) ||
       entry.access !== "development-only" ||
       (entry.placement !== undefined && entry.placement !== "bottom-center") ||
+      (entry.room !== undefined &&
+        (!Number.isFinite(entry.room.width) ||
+          entry.room.width <= 0 ||
+          !Number.isFinite(entry.room.depth) ||
+          entry.room.depth <= 0)) ||
       (entry.thumbnail === null && entry.thumbnailMode !== "generated")
     ) {
       throw new Error("Invalid or non-development catalogue entry: " + entry.assetId);
@@ -66,7 +77,7 @@ export function assetCataloguePlugin(): Plugin {
     };
   });
   if (seen.size !== allowedIds.size) {
-    throw new Error("All three sample assets must exist in the manifest");
+    throw new Error("All sample assets must exist in the manifest");
   }
   return {
     name: "local-asset-catalogue",
@@ -136,6 +147,8 @@ export function assetCataloguePlugin(): Plugin {
             index +
             ",placement:" +
             JSON.stringify(entry.placement ?? null) +
+            ",room:" +
+            JSON.stringify(entry.room ?? null) +
             "}",
         )
         .join(",");

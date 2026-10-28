@@ -54,23 +54,23 @@ try {
   ])
     await page.keyboard.press(key);
   assert.equal(await page.evaluate(() => window.auditPickers), 0, "Navigation cannot open Save");
-  assert.equal(await page.locator(".object-row").count(), 1, "Navigation cannot edit the draft");
+  assert.equal(await page.locator(".object-row").count(), 2, "Navigation cannot edit the draft");
   for (const selector of [".library", ".history-controls", ".project-card"])
     assert.equal(await page.locator(selector).evaluate((element) => element.inert), true);
   // Preview takes the whole bottom bar away, so got nothing left to click
   assert.equal(await page.locator(".bottom-dock").count(), 0, "Preview hides the asset library");
-  assert.equal(await page.locator(".object-row").count(), 1);
+  assert.equal(await page.locator(".object-row").count(), 2);
   assert.equal(
     await page.getByLabel("Selected position", { includeHidden: true }).textContent(),
     position,
   );
   await page.getByRole("button", { name: "Exit preview", exact: true }).click();
   await page.keyboard.press("Control+d");
-  assert.equal(await page.locator(".object-row").count(), 2, "Authoring resumes on exit");
+  assert.equal(await page.locator(".object-row").count(), 3, "Authoring resumes on exit");
   await page.keyboard.press("Control+z");
-  assert.equal(await page.locator(".object-row").count(), 1);
-  await page.keyboard.press("Control+y");
   assert.equal(await page.locator(".object-row").count(), 2);
+  await page.keyboard.press("Control+y");
+  assert.equal(await page.locator(".object-row").count(), 3);
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   await page.evaluate(() => window.finishBackup());
   await page.waitForFunction(async () => {
@@ -79,12 +79,12 @@ try {
     const saved = await loadRecoverySession(new Map(assets.map((asset) => [asset.id, asset.kind])));
     return (
       saved.ok &&
-      saved.value?.document.scenes[0].objects.length === 1 &&
+      saved.value?.document.scenes[0].objects.length === 2 &&
       saved.value.history?.future.length === 1
     );
   });
   // A deferred wheel commit must not edit the document behind a project decision
-  await page.locator(".object-row").first().click();
+  await page.locator(".object-row").last().click();
   const box = await page.locator("canvas").boundingBox();
   // Use the completed backup's camera and object pose instead of editor startup constants
   const scene = await page.evaluate(async () => {
@@ -106,7 +106,7 @@ try {
   camera.position.fromArray(scene.startCamera.position);
   camera.quaternion.fromArray(scene.startCamera.rotation);
   camera.updateMatrixWorld(true);
-  const point = new THREE.Vector3(...scene.objects[0].transform.position)
+  const point = new THREE.Vector3(...scene.objects[1].transform.position)
     .add(new THREE.Vector3(0, 0.5, 0))
     .project(camera);
   await page.evaluate(

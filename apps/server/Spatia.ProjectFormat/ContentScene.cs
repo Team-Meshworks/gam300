@@ -4,7 +4,7 @@ namespace Spatia.ProjectFormat;
 public sealed record ContentScene(
     string Id,
     string Name,
-    string EnvironmentAssetId,
+    string? EnvironmentAssetId,
     CameraPose StartCamera,
     ContentObject[] Objects,
     ProjectGroup[] Groups,

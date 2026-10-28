@@ -51,13 +51,13 @@ try {
   // Packaged builds follow the same room-first authoring flow as the local editor
   await page.getByRole("button", { name: "Add test-room", exact: true }).click();
   await asset.click();
-  assert.equal(await page.locator(".object-row").count(), 1);
+  assert.equal(await page.locator(".object-row").count(), 2);
   await page.getByRole("button", { name: "Undo", exact: true }).click();
-  assert.equal(await page.locator(".object-row").count(), 0);
+  assert.equal(await page.locator(".object-row").count(), 1);
   await page.getByRole("button", { name: "Add Snow globe", exact: true }).click();
-  assert.equal(await page.locator(".object-row").count(), 1);
+  assert.equal(await page.locator(".object-row").count(), 2);
   await page.getByRole("button", { name: "Undo", exact: true }).click();
-  assert.equal(await page.locator(".object-row").count(), 0);
+  assert.equal(await page.locator(".object-row").count(), 1);
 
   const sample = page.getByRole("button", { name: "Open sample project", exact: true });
   assert.equal(
