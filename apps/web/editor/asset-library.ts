@@ -8,9 +8,10 @@ type LibrarySnapshot = Readonly<{
   query: string;
   results: readonly CatalogueAsset[];
   assetId: string | null;
+  canRemove: boolean;
 }>;
 
-// UI-independent search and placement through the existing document commands
+// UI-independent behavior for ordinary placement and placement on an existing case
 // The popup renders this state and the viewport supplies the final scene position
 export function createAssetLibrary(
   assets: readonly CatalogueAsset[],
@@ -24,8 +25,10 @@ export function createAssetLibrary(
     query: "",
     results: models,
     assetId: null,
+    canRemove: false,
   });
   let document: ProjectDocument | null = null;
+  let target: { id: string; position: Vector3Tuple } | null = null;
   let parentId: string | null = null;
   const listeners = new Set<() => void>();
 
@@ -36,7 +39,8 @@ export function createAssetLibrary(
   function cancel() {
     // Closing or cancelling never creates a placement command or changes project history
     document = null;
-    publish({ ...snapshot, mode: "closed", assetId: null });
+    target = null;
+    publish({ ...snapshot, mode: "closed", assetId: null, canRemove: false });
   }
 
   return {
@@ -50,8 +54,40 @@ export function createAssetLibrary(
     open(selectedId: string | null = null) {
       // Reopening replaces any pending pick while retaining the user's search text
       document = null;
+      target = null;
       parentId = selectedId;
-      publish({ ...snapshot, mode: "browsing", assetId: null });
+      publish({ ...snapshot, mode: "browsing", assetId: null, canRemove: false });
+    },
+    openOnCase(id: string, position: Vector3Tuple) {
+      // Capture the exact document and surface so edits while browsing cannot target a stale case
+      const current = store.getSnapshot();
+      if (!current.project || !current.objects.some((object) => object.id === id)) {
+        return { ok: false, error: "Choose a placed display case" } as const;
+      }
+      document = current.project;
+      target = { id, position: [...position] };
+      const displayed =
+        current.project.schemaVersion === 2
+          ? current.project.scenes[0]!.objects.filter(
+              (object) => object.parentId?.toLowerCase() === id.toLowerCase(),
+            )
+          : [];
+      publish({ ...snapshot, mode: "browsing", assetId: null, canRemove: displayed.length === 1 });
+      return { ok: true } as const;
+    },
+    remove() {
+      // A stale picker must never remove content from a newer document or another case
+      if (snapshot.mode !== "browsing" || target === null || !snapshot.canRemove) {
+        return { ok: false, error: "Choose an occupied display case" } as const;
+      }
+      if (document !== store.getSnapshot().project) {
+        cancel();
+        return { ok: false, error: "The scene changed; choose the display case again" } as const;
+      }
+      const result = store.removeDisplayedAsset(target.id);
+      if (!result.ok) return { ok: false, error: result.error.message } as const;
+      cancel();
+      return { ok: true } as const;
     },
     search(query: string) {
       // Search is literal, case-insensitive name matching with catalogue order preserved
@@ -65,6 +101,17 @@ export function createAssetLibrary(
       const project = store.getSnapshot().project;
       if (project === null) {
         return { ok: false, error: "Choose a room first" };
+      }
+
+      if (target !== null) {
+        // Choosing for a case places immediately and closes only after the atomic command succeeds
+        if (project !== document) {
+          cancel();
+          return { ok: false, error: "The scene changed; choose the display case again" };
+        }
+        const placed = store.addAttachedObject(assetId, target.id, target.position);
+        if (placed.ok) cancel();
+        return placed;
       }
 
       // Choosing closes the picker but does not place an object at an arbitrary origin
