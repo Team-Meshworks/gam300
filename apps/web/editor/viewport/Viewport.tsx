@@ -19,6 +19,7 @@ type ViewportProps = {
   projectScene: ProjectScene | null;
   selectedId: string | null;
   dragging: boolean;
+  placingAssetId?: string | null;
   editingEnabled: boolean;
   navigationTool: NavigationTool;
   status: ViewportStatus;
@@ -40,6 +41,7 @@ export function Viewport({
   projectScene,
   selectedId,
   dragging,
+  placingAssetId,
   editingEnabled,
   navigationTool,
   status,
@@ -123,6 +125,20 @@ export function Viewport({
         className={`viewport-stage${dragging ? " is-dragging" : ""}`}
         ref={hostRef}
         aria-busy={status === "loading"}
+        onPointerDownCapture={(event) => {
+          // A library pick owns the next scene click; cancel remains with the caller
+          if (
+            !placingAssetId ||
+            !editingEnabled ||
+            status !== "ready" ||
+            sceneRef.current?.modeManager.getState().mode !== "editor"
+          )
+            return;
+          event.preventDefault();
+          event.stopPropagation();
+          const position = sceneRef.current.getDropPosition(event.clientX, event.clientY);
+          if (position) onPlace(placingAssetId, position);
+        }}
         onDragOver={(event) => {
           if (!accepts(event)) {
             return;

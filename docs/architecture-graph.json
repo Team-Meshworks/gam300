@@ -243,7 +243,7 @@
     "editor/ui/dock-edge.ts": "16fbf3250e0c840d7d6d0add10b5fb4ee008afafcbbebe1b860c15171d7196af",
     "editor/ui/rotation-angles.test.ts": "768d7e7fcfe8d5a5fc0a11f3bc70fa734e5e84ce161fd9aa5b1807b850f4438d",
     "editor/ui/rotation-angles.ts": "16a42a83ee7bb2435c4ee7b640fa6ca3c65a7564fd68981084ce57f5e9687f3b",
-    "editor/viewport/Viewport.tsx": "d90e0796f9001e2985ecd90755f80a56cd7d3df574eac07bb0a3a633faff8235",
+    "editor/viewport/Viewport.tsx": "cc3e8063d2d2d2d5c874db2b9279061ac70cd6453c1bfee4b222977066784787",
     "eslint.config.js": "cbab291dfcf10a7c58563e96b2c29cc213c402ebaf35f89789663d96bdb12135",
     "shared/assets/ModelCache.test.ts": "6e5cf28591eb858c981923550fe49fb330535b085db0d99d7ce209736fefc2d3",
     "shared/assets/ModelCache.ts": "7ba493c76290a999db38013457dea39e5b08492416487338b05e1be6490dde2e",
@@ -2278,7 +2278,7 @@
     },
     {
       "file": "editor/viewport/Viewport.tsx",
-      "line": 68,
+      "line": 70,
       "kind": "dynamic",
       "specifier": "../graphics/scene",
       "target": "editor/graphics/scene.ts",
@@ -2287,7 +2287,7 @@
     },
     {
       "file": "editor/viewport/Viewport.tsx",
-      "line": 118,
+      "line": 120,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
