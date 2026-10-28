@@ -112,6 +112,29 @@
         "editor/persistence/use-project-session.ts"
       ]
     },
+    "ui-foundation": {
+      "paths": [
+        "shared/ui/"
+      ],
+      "uses": [],
+      "packages": [
+        "react",
+        "@fortawesome/react-fontawesome",
+        "@fortawesome/free-solid-svg-icons"
+      ],
+      "public": [
+        "shared/ui/Button.tsx",
+        "shared/ui/Field.tsx",
+        "shared/ui/Avatar.tsx",
+        "shared/ui/Tabs.tsx",
+        "shared/ui/Dialog.tsx",
+        "shared/ui/PageState.tsx",
+        "shared/ui/SearchField.tsx",
+        "shared/ui/Table.tsx",
+        "shared/ui/WorkspaceShell.tsx",
+        "shared/ui/foundation.css"
+      ]
+    },
     "editor": {
       "paths": [
         "editor/"
@@ -122,11 +145,16 @@
         "input",
         "document",
         "rendering",
-        "persistence"
+        "persistence",
+        "ui-foundation"
       ],
       "packages": [
         "react",
-        "react-dom"
+        "react-dom",
+        "@fortawesome/react-fontawesome",
+        "@fortawesome/fontawesome-svg-core",
+        "@fortawesome/free-solid-svg-icons",
+        "@fontsource/inter"
       ],
       "public": []
     },
@@ -148,6 +176,7 @@
         "rendering",
         "persistence",
         "editor",
+        "ui-foundation",
         "build"
       ],
       "public": []
@@ -175,13 +204,15 @@
       "document",
       "project"
     ],
+    "ui-foundation": [],
     "editor": [
       "catalogue",
       "document",
       "input",
       "persistence",
       "project",
-      "rendering"
+      "rendering",
+      "ui-foundation"
     ],
     "build": [],
     "checks": [
@@ -198,7 +229,7 @@
   },
   "files": {
     "architecture.check.mjs": "ed2d036e255cf85a5c589e639d60ad270a89cd49b8a363a5af4ff0afd3b8eb5a",
-    "architecture.mjs": "7f903a101b65b53cadb04f0d4a2eefad7accdb44fc988b6a620f66b9a95ad5f0",
+    "architecture.mjs": "50b2a7d757653bf10cc9d71efc9e895f6d73edfbd58c7c5938aa043b2fde742e",
     "asset-catalogue-plugin.ts": "17bec6aa65dd50167fe6c055fb38af453a647f3648a2bf296f9927ed32f7a158",
     "editor/App.tsx": "d481aa6c3b1412a6799e90b7c263fd85929f38dc52953c8975602b5ac8927a32",
     "editor/OlderSceneImport.tsx": "ca662d4e18f710e39b8207e2f39657051ab1d01a9dc95a5c6967de9318e9a884",
@@ -231,11 +262,26 @@
     "editor/persistence/use-project-session.ts": "49abc8d274396e7587ffced47b60e6b5050760a00b30ff951d79374aaf3c2617",
     "editor/project-content.test.ts": "94754b0a6ddfa4d5f93e5a056a45126162c16343ce1ee62d7de81a5a13d47958",
     "editor/project-loading.test.ts": "40d88719fa4b282094d1636259ebc8ff448b540904ab92ac6d3648e3afe6aa35",
+    "editor/projects/ClassAssignmentForm.tsx": "c03bf52713c0c5411a8a3713846ec5067de20a2871488fe211400048b8596547",
+    "editor/projects/ClassSelect.tsx": "d348bc5b38ff8678f60e605f6139931e3310c4bafd04763f8d63f8d615c16c5b",
+    "editor/projects/NewProjectForm.tsx": "1224fdf906b68d3f9807a2baf443d113ec8e6dadf340cd36d4d85e769c05e713",
+    "editor/projects/StudentSelector.tsx": "945b037788bbba831bc471a334efb519aab3cc93410c0413c665abeba0abb0bd",
+    "editor/projects/class-assignment.test.ts": "7fb01d571eced65f5757a21a085f7b4583d251a9b2ae7f49c6854babb4de7616",
+    "editor/projects/class-assignment.ts": "2ca5b6a83ff7f6740d143dee6a7074ef1c3814b3ec4c0f839848ec102c5a3848",
+    "editor/projects/new-project-form.test.ts": "b075e9d6e7e115e61f17e8743e4ac116621bdcb00b04252ccbb90f8a27459339",
+    "editor/projects/new-project-form.ts": "92270dd7b7dc6eb7633bfeb8ad23a79e460261f2cf29c7b48e64f73a728a0d59",
     "editor/recovery-history.test.ts": "2548daa2d3962c31128bdc08b0819eff197633292147b0af0a27a24f510eabce",
     "editor/recovery-history.ts": "80840e26ed1bbb40521d27378b807e9a24e518c822a17346b4a7ab59d181a1f4",
     "editor/scenes.test.ts": "1573aea3ecded5f7b7d19879cb4224b5e4c5979e27d424568293a50ebf9f9431",
     "editor/transform-command.test.ts": "ddf486effa25dda032e79d4c8e10abfa72b3c21e9856fe9c9fea55a1a9d80bb4",
     "editor/transform-command.ts": "bcd7036db3877f5f24e5984287af8a878b10ec6289a51987e76f62db8f3cb178",
+    "editor/ui-preview/AccountsExample.tsx": "7fb67c2cbdebf3cb0768273267c657614ff0ce3c1aeafd93e74252d7b87ede91",
+    "editor/ui-preview/ClassAssignmentExample.tsx": "37ec043caaeddbafab2fe300ae7435b33fe6e7ea1c80e9f36c3e99a3b0078f67",
+    "editor/ui-preview/FoundationPreview.tsx": "55a0c81e9b1810873effcb47c1bc56d42f6f59e65ad276c5ef01c8b5d7a70f51",
+    "editor/ui-preview/NewProjectExample.tsx": "247d277763f1979f7c50cc748f5f52d3d971b7baeed3153413329218e2ea368f",
+    "editor/ui-preview/ReviewExample.tsx": "ec5a0f9b1f831c627c28c24afa36a2f90f6e3ab6cfcd934a5f0bbb9e16b3fb80",
+    "editor/ui-preview/fixtures.ts": "7bff292876860adb3e059fdaae85a77acafc74586fadb832043a51275d49e04a",
+    "editor/ui-preview/main.tsx": "0d4fc7be1c877e6c8db00131e9bf3f76c96e1a1818b5607716a2b847d86d389f",
     "editor/ui/BottomBar.tsx": "e202b16873fa5cd0cc23aa56eeb9050866b1a16f2195df1ca6d3dd9b63a079ee",
     "editor/ui/Icon.tsx": "536064fa8990e7e522f64eba9e25106359c903257d84837b6575ba5c99307e1b",
     "editor/ui/SidePanels.tsx": "5747780b00d017ec49c689f48533649019a729ccb104a7fc44dc72626ee7f706",
@@ -276,22 +322,41 @@
     "shared/project/starting-view.test.ts": "92140d67b5656aaecca60eefb69132c7e016b8dddedd18fd5ce534c741f9016a",
     "shared/project/starting-view.ts": "5d9b2c4e753b3d0054f95cbc23b63618ab9b1b0563c3238daab6f93e88e6d950",
     "shared/project/validation-helpers.ts": "655a118952cf702e91ac211e18f48478541fe95f4ceeee3806e314badbfb60fe",
+    "shared/ui/Avatar.tsx": "b364b06a7c331bb296e5be8b93a81887711247276d324a410b7eb7c6c3fde657",
+    "shared/ui/Button.tsx": "5ad5e3309a44a98e39ae34b6b01e0ca070ef8340b693df480a2eed2f5eb309d0",
+    "shared/ui/Dialog.tsx": "1dc6c2f1400ab6630a9c7316fb89cf63a9b5c72ad2f2194685439c0930020426",
+    "shared/ui/Field.tsx": "628deb0e8876db3d26d7f2b2a73a22f3b1bece53eb257e882af0627d3c833735",
+    "shared/ui/PageState.tsx": "9ea607855ed8fd9780833c7cd84a545a43b834e6e2f24c910860e39f40d406ee",
+    "shared/ui/SearchField.tsx": "4617dee24d90759e24c27cc6946f5c04b0f94262c6a14bba387f91b60aca0a53",
+    "shared/ui/Table.tsx": "48522c390df914acde6cf35e14ebfb82158bf613ea6004925b344cb34b5abf26",
+    "shared/ui/Tabs.tsx": "aedf8b2e76163368b062ac30387b67b9922a5e27b51c54adcf89d2603cfac281",
+    "shared/ui/WorkspaceShell.tsx": "565645128fe07a011e2ba413970edea21539a5d38d1d6513872b277a9502ec44",
     "tests/caching.check.mjs": "3ff36ae487a43e4585556b9482e25008526b6282f448572c956b27f1e2f17aac",
     "tests/caching.measure.mjs": "aadf27638c20f8a79d5fe302ec7a3f0ad9bab52661bc5be39df65fb89b53e727",
+    "tests/class-assignment.check.mjs": "232d5231b7304b2297ef4e19fff8c7c721b5b67afe6d3e55cb46fa3e7a893bcf",
     "tests/deployment.check.mjs": "c4cedc5151c1b043b6eee66ae1dcf144c97cc2645d8f1956f99f70942c07ab9e",
     "tests/editor-build.check.mjs": "12fc7e8497303a0eb0127a7c1b12355baa3b921f1eb5753baaf31f00dadea96f",
     "tests/editor-integration.check.mjs": "01ae358ec88769454cac1e0fb162c9ce7fe4c2096cafad431aaa8a00620d761d",
     "tests/editor-shell.check.mjs": "355bab066d87ba3152152d11f4fc62c75a8150c9761be3170df01a06382fa8f9",
     "tests/history-recovery.check.mjs": "3d9ceb4d7017d144eb320135dae052cbcfdf3f849d6757a825f3e2764c4e32e7",
     "tests/local-drafts.check.mjs": "45ed0e6019b0e620e626662cf052bff73d5dc789ec71a343d81207dc25336d6e",
+    "tests/new-project.check.mjs": "2229bd609cba884d6d48c6dd9511e1f6690f28da7abc73f95de32bffa570fdfa",
     "tests/project-format-cross.check.mjs": "8b3fb6b1ec19c993746cd8ae5ce12c2f4b9d26f3643b320349c62b18d7386a95",
+    "tests/ui-foundation.check.mjs": "2b884a595537f25f67b748bb265234e805833886470e9d198ffb4251da607387",
     "vite.config.ts": "50329f07010d85bc43b6f9ab2f3ea7b0ca22fa6059f6346d8872bf1b09ac5da6",
     "vitest.config.ts": "6d56840bcf381e145f69828ff965fe1c8065e1610a38219c19dbb4e9d87d7dbf",
     "editor/index.html": "f14296264b1f8edda142de2fa8b8c58d1e98e50265637afe5f29924558900279",
     "shared/project/fixtures/m1-project.json": "3aeeee4397fd9ad18fc06eba32815ef5032ecf8184200aaa38a2076b882a4947",
     "editor/styles.css": "425c1ce6c8c5f09ae421404a982eb332b1757d17e3067d14331830609721be00",
     "shared/project/fixtures/m2-project.json": "ccafa7cfce33d73c5ffc77672ebe30101a059d30d1c9a9855c0f3e65c1b9fe78",
-    "shared/project/fixtures/project-format-cases.json": "58ee71c8634afd15d715ee53712b3f92cb7f3735326ba9c349973bbbe4792a2b"
+    "shared/project/fixtures/project-format-cases.json": "58ee71c8634afd15d715ee53712b3f92cb7f3735326ba9c349973bbbe4792a2b",
+    "editor/projects/class-assignment.css": "fb9bdc1b367853c792e1ba88513872fd0d410cef67e5c144ad0ccce8c0194c64",
+    "editor/projects/new-project.css": "48a77e9b54a5826a8af1d4d1a8392ba14ceab67839e37f4b819d728eee75a95a",
+    "shared/ui/foundation.css": "98a051c00415cfb9bc98f9e921d3f66685766a10a837d5737c76ba4f7bc54ffc",
+    "editor/ui-preview/preview.css": "1fbb1d2b0011d717260e4e7cd54b6fc780d25e79436ccab494b1b8ed1c781dea",
+    "shared/ui/assets/landmark.svg": "955e9305808f5a6ec562703feca8b81963f6ca198f9913aa8557cd2c0687b864",
+    "shared/ui/assets/ambient-left.svg": "51054c252a837e4480db62f01f80d6cdd3c1ab8dd93910c57afc8540424cbe31",
+    "shared/ui/assets/ambient-right.svg": "9e66fd1c1125fde8095c820aecfddca78d45ba051c984b64a57c028733d38767"
   },
   "imports": [
     {
@@ -1805,6 +1870,372 @@
       "to": "document"
     },
     {
+      "file": "editor/projects/ClassAssignmentForm.tsx",
+      "line": 1,
+      "kind": "static",
+      "specifier": "react",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/projects/ClassAssignmentForm.tsx",
+      "line": 2,
+      "kind": "static",
+      "specifier": "@fortawesome/react-fontawesome",
+      "target": {
+        "package": "@fortawesome/react-fontawesome"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/projects/ClassAssignmentForm.tsx",
+      "line": 3,
+      "kind": "static",
+      "specifier": "@fortawesome/free-solid-svg-icons",
+      "target": {
+        "package": "@fortawesome/free-solid-svg-icons"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/projects/ClassAssignmentForm.tsx",
+      "line": 4,
+      "kind": "static",
+      "specifier": "../../shared/ui/Button",
+      "target": "shared/ui/Button.tsx",
+      "from": "editor",
+      "to": "ui-foundation"
+    },
+    {
+      "file": "editor/projects/ClassAssignmentForm.tsx",
+      "line": 5,
+      "kind": "static",
+      "specifier": "../../shared/ui/Field",
+      "target": "shared/ui/Field.tsx",
+      "from": "editor",
+      "to": "ui-foundation"
+    },
+    {
+      "file": "editor/projects/ClassAssignmentForm.tsx",
+      "line": 6,
+      "kind": "static",
+      "specifier": "./ClassSelect",
+      "target": "editor/projects/ClassSelect.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/projects/ClassAssignmentForm.tsx",
+      "line": 7,
+      "kind": "static",
+      "specifier": "./StudentSelector",
+      "target": "editor/projects/StudentSelector.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/projects/ClassAssignmentForm.tsx",
+      "line": 8,
+      "kind": "type",
+      "specifier": "./new-project-form",
+      "target": "editor/projects/new-project-form.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/projects/ClassAssignmentForm.tsx",
+      "line": 9,
+      "kind": "static",
+      "specifier": "./class-assignment",
+      "target": "editor/projects/class-assignment.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/projects/ClassAssignmentForm.tsx",
+      "line": 15,
+      "kind": "static",
+      "specifier": "./class-assignment.css",
+      "target": "editor/projects/class-assignment.css",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/projects/ClassAssignmentForm.tsx",
+      "line": 99,
+      "kind": "implicit-jsx",
+      "specifier": "react/jsx-runtime",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/projects/ClassSelect.tsx",
+      "line": 1,
+      "kind": "static",
+      "specifier": "../../shared/ui/Field",
+      "target": "shared/ui/Field.tsx",
+      "from": "editor",
+      "to": "ui-foundation"
+    },
+    {
+      "file": "editor/projects/ClassSelect.tsx",
+      "line": 2,
+      "kind": "type",
+      "specifier": "./new-project-form",
+      "target": "editor/projects/new-project-form.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/projects/ClassSelect.tsx",
+      "line": 16,
+      "kind": "implicit-jsx",
+      "specifier": "react/jsx-runtime",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/projects/NewProjectForm.tsx",
+      "line": 1,
+      "kind": "static",
+      "specifier": "react",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/projects/NewProjectForm.tsx",
+      "line": 2,
+      "kind": "static",
+      "specifier": "@fortawesome/react-fontawesome",
+      "target": {
+        "package": "@fortawesome/react-fontawesome"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/projects/NewProjectForm.tsx",
+      "line": 3,
+      "kind": "static",
+      "specifier": "@fortawesome/free-solid-svg-icons",
+      "target": {
+        "package": "@fortawesome/free-solid-svg-icons"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/projects/NewProjectForm.tsx",
+      "line": 4,
+      "kind": "static",
+      "specifier": "../../shared/ui/Button",
+      "target": "shared/ui/Button.tsx",
+      "from": "editor",
+      "to": "ui-foundation"
+    },
+    {
+      "file": "editor/projects/NewProjectForm.tsx",
+      "line": 5,
+      "kind": "static",
+      "specifier": "../../shared/ui/Field",
+      "target": "shared/ui/Field.tsx",
+      "from": "editor",
+      "to": "ui-foundation"
+    },
+    {
+      "file": "editor/projects/NewProjectForm.tsx",
+      "line": 6,
+      "kind": "static",
+      "specifier": "./StudentSelector",
+      "target": "editor/projects/StudentSelector.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/projects/NewProjectForm.tsx",
+      "line": 7,
+      "kind": "static",
+      "specifier": "./ClassSelect",
+      "target": "editor/projects/ClassSelect.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/projects/NewProjectForm.tsx",
+      "line": 8,
+      "kind": "static",
+      "specifier": "./new-project-form",
+      "target": "editor/projects/new-project-form.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/projects/NewProjectForm.tsx",
+      "line": 15,
+      "kind": "static",
+      "specifier": "./new-project.css",
+      "target": "editor/projects/new-project.css",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/projects/NewProjectForm.tsx",
+      "line": 119,
+      "kind": "implicit-jsx",
+      "specifier": "react/jsx-runtime",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/projects/StudentSelector.tsx",
+      "line": 1,
+      "kind": "static",
+      "specifier": "react",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/projects/StudentSelector.tsx",
+      "line": 2,
+      "kind": "static",
+      "specifier": "@fortawesome/react-fontawesome",
+      "target": {
+        "package": "@fortawesome/react-fontawesome"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/projects/StudentSelector.tsx",
+      "line": 3,
+      "kind": "static",
+      "specifier": "@fortawesome/free-solid-svg-icons",
+      "target": {
+        "package": "@fortawesome/free-solid-svg-icons"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/projects/StudentSelector.tsx",
+      "line": 4,
+      "kind": "static",
+      "specifier": "../../shared/ui/Avatar",
+      "target": "shared/ui/Avatar.tsx",
+      "from": "editor",
+      "to": "ui-foundation"
+    },
+    {
+      "file": "editor/projects/StudentSelector.tsx",
+      "line": 5,
+      "kind": "static",
+      "specifier": "../../shared/ui/SearchField",
+      "target": "shared/ui/SearchField.tsx",
+      "from": "editor",
+      "to": "ui-foundation"
+    },
+    {
+      "file": "editor/projects/StudentSelector.tsx",
+      "line": 6,
+      "kind": "static",
+      "specifier": "../../shared/ui/Tabs",
+      "target": "shared/ui/Tabs.tsx",
+      "from": "editor",
+      "to": "ui-foundation"
+    },
+    {
+      "file": "editor/projects/StudentSelector.tsx",
+      "line": 7,
+      "kind": "static",
+      "specifier": "../../shared/ui/Button",
+      "target": "shared/ui/Button.tsx",
+      "from": "editor",
+      "to": "ui-foundation"
+    },
+    {
+      "file": "editor/projects/StudentSelector.tsx",
+      "line": 8,
+      "kind": "type",
+      "specifier": "./new-project-form",
+      "target": "editor/projects/new-project-form.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/projects/StudentSelector.tsx",
+      "line": 9,
+      "kind": "static",
+      "specifier": "./new-project.css",
+      "target": "editor/projects/new-project.css",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/projects/StudentSelector.tsx",
+      "line": 29,
+      "kind": "implicit-jsx",
+      "specifier": "react/jsx-runtime",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/projects/class-assignment.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/projects/class-assignment.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "./class-assignment",
+      "target": "editor/projects/class-assignment.ts",
+      "from": "checks",
+      "to": "editor"
+    },
+    {
+      "file": "editor/projects/class-assignment.ts",
+      "line": 1,
+      "kind": "type",
+      "specifier": "./new-project-form",
+      "target": "editor/projects/new-project-form.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/projects/new-project-form.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/projects/new-project-form.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "./new-project-form",
+      "target": "editor/projects/new-project-form.ts",
+      "from": "checks",
+      "to": "editor"
+    },
+    {
       "file": "editor/recovery-history.test.ts",
       "line": 1,
       "kind": "static",
@@ -2004,6 +2435,400 @@
       "target": "shared/project/validation-helpers.ts",
       "from": "document",
       "to": "project"
+    },
+    {
+      "file": "editor/ui-preview/AccountsExample.tsx",
+      "line": 1,
+      "kind": "static",
+      "specifier": "react",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/ui-preview/AccountsExample.tsx",
+      "line": 2,
+      "kind": "static",
+      "specifier": "../../shared/ui/Avatar",
+      "target": "shared/ui/Avatar.tsx",
+      "from": "editor",
+      "to": "ui-foundation"
+    },
+    {
+      "file": "editor/ui-preview/AccountsExample.tsx",
+      "line": 3,
+      "kind": "static",
+      "specifier": "../../shared/ui/Button",
+      "target": "shared/ui/Button.tsx",
+      "from": "editor",
+      "to": "ui-foundation"
+    },
+    {
+      "file": "editor/ui-preview/AccountsExample.tsx",
+      "line": 4,
+      "kind": "static",
+      "specifier": "../../shared/ui/SearchField",
+      "target": "shared/ui/SearchField.tsx",
+      "from": "editor",
+      "to": "ui-foundation"
+    },
+    {
+      "file": "editor/ui-preview/AccountsExample.tsx",
+      "line": 5,
+      "kind": "static",
+      "specifier": "../../shared/ui/Table",
+      "target": "shared/ui/Table.tsx",
+      "from": "editor",
+      "to": "ui-foundation"
+    },
+    {
+      "file": "editor/ui-preview/AccountsExample.tsx",
+      "line": 6,
+      "kind": "static",
+      "specifier": "../../shared/ui/Tabs",
+      "target": "shared/ui/Tabs.tsx",
+      "from": "editor",
+      "to": "ui-foundation"
+    },
+    {
+      "file": "editor/ui-preview/AccountsExample.tsx",
+      "line": 7,
+      "kind": "static",
+      "specifier": "./fixtures",
+      "target": "editor/ui-preview/fixtures.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui-preview/AccountsExample.tsx",
+      "line": 22,
+      "kind": "implicit-jsx",
+      "specifier": "react/jsx-runtime",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/ui-preview/ClassAssignmentExample.tsx",
+      "line": 1,
+      "kind": "static",
+      "specifier": "react",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/ui-preview/ClassAssignmentExample.tsx",
+      "line": 2,
+      "kind": "static",
+      "specifier": "../projects/ClassAssignmentForm",
+      "target": "editor/projects/ClassAssignmentForm.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui-preview/ClassAssignmentExample.tsx",
+      "line": 3,
+      "kind": "type",
+      "specifier": "../projects/class-assignment",
+      "target": "editor/projects/class-assignment.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui-preview/ClassAssignmentExample.tsx",
+      "line": 4,
+      "kind": "static",
+      "specifier": "../../shared/ui/Button",
+      "target": "shared/ui/Button.tsx",
+      "from": "editor",
+      "to": "ui-foundation"
+    },
+    {
+      "file": "editor/ui-preview/ClassAssignmentExample.tsx",
+      "line": 5,
+      "kind": "static",
+      "specifier": "./fixtures",
+      "target": "editor/ui-preview/fixtures.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui-preview/ClassAssignmentExample.tsx",
+      "line": 35,
+      "kind": "implicit-jsx",
+      "specifier": "react/jsx-runtime",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/ui-preview/FoundationPreview.tsx",
+      "line": 1,
+      "kind": "static",
+      "specifier": "react",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/ui-preview/FoundationPreview.tsx",
+      "line": 2,
+      "kind": "static",
+      "specifier": "../../shared/ui/WorkspaceShell",
+      "target": "shared/ui/WorkspaceShell.tsx",
+      "from": "editor",
+      "to": "ui-foundation"
+    },
+    {
+      "file": "editor/ui-preview/FoundationPreview.tsx",
+      "line": 3,
+      "kind": "static",
+      "specifier": "../../shared/ui/Dialog",
+      "target": "shared/ui/Dialog.tsx",
+      "from": "editor",
+      "to": "ui-foundation"
+    },
+    {
+      "file": "editor/ui-preview/FoundationPreview.tsx",
+      "line": 4,
+      "kind": "static",
+      "specifier": "../../shared/ui/PageState",
+      "target": "shared/ui/PageState.tsx",
+      "from": "editor",
+      "to": "ui-foundation"
+    },
+    {
+      "file": "editor/ui-preview/FoundationPreview.tsx",
+      "line": 5,
+      "kind": "static",
+      "specifier": "./NewProjectExample",
+      "target": "editor/ui-preview/NewProjectExample.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui-preview/FoundationPreview.tsx",
+      "line": 6,
+      "kind": "static",
+      "specifier": "./ReviewExample",
+      "target": "editor/ui-preview/ReviewExample.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui-preview/FoundationPreview.tsx",
+      "line": 7,
+      "kind": "static",
+      "specifier": "./AccountsExample",
+      "target": "editor/ui-preview/AccountsExample.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui-preview/FoundationPreview.tsx",
+      "line": 8,
+      "kind": "static",
+      "specifier": "./ClassAssignmentExample",
+      "target": "editor/ui-preview/ClassAssignmentExample.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui-preview/FoundationPreview.tsx",
+      "line": 58,
+      "kind": "implicit-jsx",
+      "specifier": "react/jsx-runtime",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/ui-preview/NewProjectExample.tsx",
+      "line": 1,
+      "kind": "static",
+      "specifier": "react",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/ui-preview/NewProjectExample.tsx",
+      "line": 2,
+      "kind": "static",
+      "specifier": "../projects/NewProjectForm",
+      "target": "editor/projects/NewProjectForm.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui-preview/NewProjectExample.tsx",
+      "line": 3,
+      "kind": "type",
+      "specifier": "../projects/new-project-form",
+      "target": "editor/projects/new-project-form.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui-preview/NewProjectExample.tsx",
+      "line": 4,
+      "kind": "static",
+      "specifier": "../../shared/ui/Button",
+      "target": "shared/ui/Button.tsx",
+      "from": "editor",
+      "to": "ui-foundation"
+    },
+    {
+      "file": "editor/ui-preview/NewProjectExample.tsx",
+      "line": 5,
+      "kind": "static",
+      "specifier": "./fixtures",
+      "target": "editor/ui-preview/fixtures.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui-preview/NewProjectExample.tsx",
+      "line": 38,
+      "kind": "implicit-jsx",
+      "specifier": "react/jsx-runtime",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/ui-preview/ReviewExample.tsx",
+      "line": 1,
+      "kind": "static",
+      "specifier": "react",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/ui-preview/ReviewExample.tsx",
+      "line": 2,
+      "kind": "static",
+      "specifier": "@fortawesome/react-fontawesome",
+      "target": {
+        "package": "@fortawesome/react-fontawesome"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/ui-preview/ReviewExample.tsx",
+      "line": 3,
+      "kind": "static",
+      "specifier": "@fortawesome/free-solid-svg-icons",
+      "target": {
+        "package": "@fortawesome/free-solid-svg-icons"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/ui-preview/ReviewExample.tsx",
+      "line": 4,
+      "kind": "static",
+      "specifier": "../../shared/ui/Button",
+      "target": "shared/ui/Button.tsx",
+      "from": "editor",
+      "to": "ui-foundation"
+    },
+    {
+      "file": "editor/ui-preview/ReviewExample.tsx",
+      "line": 5,
+      "kind": "static",
+      "specifier": "../../shared/ui/Field",
+      "target": "shared/ui/Field.tsx",
+      "from": "editor",
+      "to": "ui-foundation"
+    },
+    {
+      "file": "editor/ui-preview/ReviewExample.tsx",
+      "line": 14,
+      "kind": "implicit-jsx",
+      "specifier": "react/jsx-runtime",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/ui-preview/main.tsx",
+      "line": 1,
+      "kind": "static",
+      "specifier": "react",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/ui-preview/main.tsx",
+      "line": 2,
+      "kind": "static",
+      "specifier": "react-dom/client",
+      "target": {
+        "package": "react-dom"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/ui-preview/main.tsx",
+      "line": 3,
+      "kind": "static",
+      "specifier": "@fortawesome/fontawesome-svg-core",
+      "target": {
+        "package": "@fortawesome/fontawesome-svg-core"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/ui-preview/main.tsx",
+      "line": 4,
+      "kind": "static",
+      "specifier": "../../shared/ui/foundation.css",
+      "target": "shared/ui/foundation.css",
+      "from": "editor",
+      "to": "ui-foundation"
+    },
+    {
+      "file": "editor/ui-preview/main.tsx",
+      "line": 5,
+      "kind": "static",
+      "specifier": "./preview.css",
+      "target": "editor/ui-preview/preview.css",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui-preview/main.tsx",
+      "line": 6,
+      "kind": "static",
+      "specifier": "./FoundationPreview",
+      "target": "editor/ui-preview/FoundationPreview.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui-preview/main.tsx",
+      "line": 14,
+      "kind": "implicit-jsx",
+      "specifier": "react/jsx-runtime",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
     },
     {
       "file": "editor/ui/BottomBar.tsx",
@@ -3229,6 +4054,229 @@
       "to": "project"
     },
     {
+      "file": "shared/ui/Avatar.tsx",
+      "line": 3,
+      "kind": "implicit-jsx",
+      "specifier": "react/jsx-runtime",
+      "target": {
+        "package": "react"
+      },
+      "from": "ui-foundation"
+    },
+    {
+      "file": "shared/ui/Button.tsx",
+      "line": 1,
+      "kind": "type",
+      "specifier": "react",
+      "target": {
+        "package": "react"
+      },
+      "from": "ui-foundation"
+    },
+    {
+      "file": "shared/ui/Button.tsx",
+      "line": 10,
+      "kind": "implicit-jsx",
+      "specifier": "react/jsx-runtime",
+      "target": {
+        "package": "react"
+      },
+      "from": "ui-foundation"
+    },
+    {
+      "file": "shared/ui/Dialog.tsx",
+      "line": 1,
+      "kind": "static",
+      "specifier": "react",
+      "target": {
+        "package": "react"
+      },
+      "from": "ui-foundation"
+    },
+    {
+      "file": "shared/ui/Dialog.tsx",
+      "line": 2,
+      "kind": "static",
+      "specifier": "./Button",
+      "target": "shared/ui/Button.tsx",
+      "from": "ui-foundation",
+      "to": "ui-foundation"
+    },
+    {
+      "file": "shared/ui/Dialog.tsx",
+      "line": 26,
+      "kind": "implicit-jsx",
+      "specifier": "react/jsx-runtime",
+      "target": {
+        "package": "react"
+      },
+      "from": "ui-foundation"
+    },
+    {
+      "file": "shared/ui/Field.tsx",
+      "line": 1,
+      "kind": "type",
+      "specifier": "react",
+      "target": {
+        "package": "react"
+      },
+      "from": "ui-foundation"
+    },
+    {
+      "file": "shared/ui/Field.tsx",
+      "line": 17,
+      "kind": "implicit-jsx",
+      "specifier": "react/jsx-runtime",
+      "target": {
+        "package": "react"
+      },
+      "from": "ui-foundation"
+    },
+    {
+      "file": "shared/ui/PageState.tsx",
+      "line": 1,
+      "kind": "static",
+      "specifier": "./Button",
+      "target": "shared/ui/Button.tsx",
+      "from": "ui-foundation",
+      "to": "ui-foundation"
+    },
+    {
+      "file": "shared/ui/PageState.tsx",
+      "line": 11,
+      "kind": "implicit-jsx",
+      "specifier": "react/jsx-runtime",
+      "target": {
+        "package": "react"
+      },
+      "from": "ui-foundation"
+    },
+    {
+      "file": "shared/ui/SearchField.tsx",
+      "line": 1,
+      "kind": "static",
+      "specifier": "@fortawesome/react-fontawesome",
+      "target": {
+        "package": "@fortawesome/react-fontawesome"
+      },
+      "from": "ui-foundation"
+    },
+    {
+      "file": "shared/ui/SearchField.tsx",
+      "line": 2,
+      "kind": "static",
+      "specifier": "@fortawesome/free-solid-svg-icons",
+      "target": {
+        "package": "@fortawesome/free-solid-svg-icons"
+      },
+      "from": "ui-foundation"
+    },
+    {
+      "file": "shared/ui/SearchField.tsx",
+      "line": 18,
+      "kind": "implicit-jsx",
+      "specifier": "react/jsx-runtime",
+      "target": {
+        "package": "react"
+      },
+      "from": "ui-foundation"
+    },
+    {
+      "file": "shared/ui/Table.tsx",
+      "line": 1,
+      "kind": "type",
+      "specifier": "react",
+      "target": {
+        "package": "react"
+      },
+      "from": "ui-foundation"
+    },
+    {
+      "file": "shared/ui/Table.tsx",
+      "line": 13,
+      "kind": "implicit-jsx",
+      "specifier": "react/jsx-runtime",
+      "target": {
+        "package": "react"
+      },
+      "from": "ui-foundation"
+    },
+    {
+      "file": "shared/ui/Tabs.tsx",
+      "line": 15,
+      "kind": "implicit-jsx",
+      "specifier": "react/jsx-runtime",
+      "target": {
+        "package": "react"
+      },
+      "from": "ui-foundation"
+    },
+    {
+      "file": "shared/ui/WorkspaceShell.tsx",
+      "line": 1,
+      "kind": "type",
+      "specifier": "react",
+      "target": {
+        "package": "react"
+      },
+      "from": "ui-foundation"
+    },
+    {
+      "file": "shared/ui/WorkspaceShell.tsx",
+      "line": 2,
+      "kind": "static",
+      "specifier": "./Avatar",
+      "target": "shared/ui/Avatar.tsx",
+      "from": "ui-foundation",
+      "to": "ui-foundation"
+    },
+    {
+      "file": "shared/ui/WorkspaceShell.tsx",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./Button",
+      "target": "shared/ui/Button.tsx",
+      "from": "ui-foundation",
+      "to": "ui-foundation"
+    },
+    {
+      "file": "shared/ui/WorkspaceShell.tsx",
+      "line": 4,
+      "kind": "static",
+      "specifier": "./assets/landmark.svg",
+      "target": "shared/ui/assets/landmark.svg",
+      "from": "ui-foundation",
+      "to": "ui-foundation"
+    },
+    {
+      "file": "shared/ui/WorkspaceShell.tsx",
+      "line": 5,
+      "kind": "static",
+      "specifier": "./assets/ambient-left.svg",
+      "target": "shared/ui/assets/ambient-left.svg",
+      "from": "ui-foundation",
+      "to": "ui-foundation"
+    },
+    {
+      "file": "shared/ui/WorkspaceShell.tsx",
+      "line": 6,
+      "kind": "static",
+      "specifier": "./assets/ambient-right.svg",
+      "target": "shared/ui/assets/ambient-right.svg",
+      "from": "ui-foundation",
+      "to": "ui-foundation"
+    },
+    {
+      "file": "shared/ui/WorkspaceShell.tsx",
+      "line": 20,
+      "kind": "implicit-jsx",
+      "specifier": "react/jsx-runtime",
+      "target": {
+        "package": "react"
+      },
+      "from": "ui-foundation"
+    },
+    {
       "file": "tests/caching.check.mjs",
       "line": 1,
       "kind": "static",
@@ -3444,6 +4492,36 @@
       "target": "shared/asset-runtime/catalogue.ts",
       "from": "checks",
       "to": "catalogue"
+    },
+    {
+      "file": "tests/class-assignment.check.mjs",
+      "line": 1,
+      "kind": "static",
+      "specifier": "node:assert/strict",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/class-assignment.check.mjs",
+      "line": 2,
+      "kind": "static",
+      "specifier": "node:fs/promises",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/class-assignment.check.mjs",
+      "line": 3,
+      "kind": "static",
+      "specifier": "playwright",
+      "target": {
+        "package": "playwright"
+      },
+      "from": "checks"
     },
     {
       "file": "tests/deployment.check.mjs",
@@ -3885,6 +4963,26 @@
       "to": "persistence"
     },
     {
+      "file": "tests/new-project.check.mjs",
+      "line": 1,
+      "kind": "static",
+      "specifier": "node:assert/strict",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/new-project.check.mjs",
+      "line": 2,
+      "kind": "static",
+      "specifier": "playwright",
+      "target": {
+        "package": "playwright"
+      },
+      "from": "checks"
+    },
+    {
       "file": "tests/project-format-cross.check.mjs",
       "line": 1,
       "kind": "static",
@@ -3931,6 +5029,46 @@
       "specifier": "vite",
       "target": {
         "package": "vite"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/ui-foundation.check.mjs",
+      "line": 1,
+      "kind": "static",
+      "specifier": "node:assert/strict",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/ui-foundation.check.mjs",
+      "line": 2,
+      "kind": "static",
+      "specifier": "node:fs/promises",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/ui-foundation.check.mjs",
+      "line": 3,
+      "kind": "static",
+      "specifier": "node:url",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/ui-foundation.check.mjs",
+      "line": 4,
+      "kind": "static",
+      "specifier": "playwright",
+      "target": {
+        "package": "playwright"
       },
       "from": "checks"
     },

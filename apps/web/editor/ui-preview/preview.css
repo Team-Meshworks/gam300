@@ -1,0 +1,162 @@
+.sp-preview-tools {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 14px 32px;
+  border-bottom: 1px solid var(--sp-border);
+  background: white;
+}
+.sp-preview-tools h1 {
+  font-size: 14px;
+}
+.sp-preview-tools p {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--sp-muted);
+}
+.sp-preview-tools nav {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.sp-preview-tools nav a {
+  color: var(--sp-muted);
+  padding: 9px 12px;
+  font-size: 13px;
+  text-decoration: none;
+  border-radius: 8px;
+}
+.sp-preview-tools nav a[aria-current] {
+  background: var(--sp-soft);
+  color: var(--sp-ink);
+  font-weight: 600;
+}
+.sp-preview-tools > label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.sp-preview-tools select {
+  padding: 8px 12px;
+  border: 1px solid var(--sp-border);
+  border-radius: 8px;
+  background: white;
+}
+.sp-example-content {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.sp-example-note {
+  background: var(--sp-soft);
+  padding: 12px;
+  border-radius: 8px;
+  color: var(--sp-muted);
+  font-size: 12px;
+}
+.sp-review-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 32px;
+  align-items: start;
+}
+.sp-review-card,
+.sp-assignment-card {
+  display: grid;
+  gap: 16px;
+}
+.sp-review-card h2 {
+  font-size: 16px;
+  font-weight: 600;
+}
+.sp-review-card .sp-field label {
+  font-size: 12px;
+}
+.sp-review-card textarea {
+  background: var(--sp-soft);
+  border-radius: 8px;
+  padding: 12px;
+  min-height: 78px;
+  font-size: 12px;
+}
+.sp-review-card .sp-button,
+.sp-assignment-card .sp-button {
+  border-radius: 8px;
+  min-height: 40px;
+  padding: 8px 20px;
+}
+.sp-assignment-card h2 {
+  font-size: 18px;
+  font-weight: 600;
+}
+.sp-assignment-card h2 svg {
+  margin-right: 10px;
+}
+.sp-directory {
+  display: grid;
+  gap: 24px;
+}
+.sp-directory-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.sp-directory-heading .sp-search {
+  flex: 1;
+  max-width: 400px;
+  min-width: 220px;
+}
+@media (max-width: 1100px) {
+  .sp-tabs {
+    gap: 14px;
+  }
+}
+@media (max-width: 900px) {
+  .sp-review-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 600px) {
+  .sp-preview-tools {
+    padding: 14px 20px;
+  }
+  .sp-table th,
+  .sp-table td {
+    padding: 14px 8px;
+  }
+}
+
+.sp-simulation-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  margin-bottom: 24px;
+  border: 1px dashed var(--sp-border);
+  border-radius: 12px;
+  font-size: 12px;
+}
+.sp-simulation-controls label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sp-simulation-controls select {
+  padding: 8px;
+  border: 1px solid var(--sp-border);
+  border-radius: 8px;
+  background: white;
+}
+.sp-simulation-controls p {
+  flex-basis: 100%;
+  color: var(--sp-muted);
+}
