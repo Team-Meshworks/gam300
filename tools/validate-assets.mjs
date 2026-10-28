@@ -4,7 +4,7 @@ import { dirname, isAbsolute, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 
-const assetsRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const assetsRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../assets");
 // Resolve the validator from the existing web package
 const requireFromWeb = createRequire(
   resolve(assetsRoot, "../apps/web/package.json"),

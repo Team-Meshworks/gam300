@@ -130,7 +130,7 @@ jobs:
           npm run graph:architecture
           npm run lint
           npm run format:check
-          node ../../assets/tools/validate-assets.mjs
+          node ../../tools/validate-assets.check.mjs
           node ../../tools/setup.check.mjs
           bash ../../deploy/deploy.test.sh
       - name: Run unit tests

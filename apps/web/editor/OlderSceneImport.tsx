@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { CatalogueAsset } from "../shared/assets/catalogue";
+import type { CatalogueAsset } from "../shared/asset-runtime/catalogue";
 import { importOlderSceneFile, readOlderSceneFile } from "../shared/project/legacy-scene-import";
 import { MAX_PROJECT_BYTES } from "../shared/project/project-limits";
 

@@ -1,8 +1,8 @@
 import { getStartingCamera } from "../../shared/project/starting-view";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { ModelCache, disposeModels, type ModelLease } from "../../shared/assets/ModelCache";
-import type { CatalogueAsset } from "../../shared/assets/catalogue";
+import { ModelCache, disposeModels, type ModelLease } from "../../shared/asset-runtime/ModelCache";
+import type { CatalogueAsset } from "../../shared/asset-runtime/catalogue";
 import type { SceneObject, Vector3Tuple } from "../../shared/project/scene-object";
 import type {
   CameraPose,

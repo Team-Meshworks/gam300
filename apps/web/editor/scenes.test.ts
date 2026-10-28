@@ -1,7 +1,7 @@
 import { getStartingView } from "../shared/project/starting-view";
 import { assert, it } from "vitest";
 import { createDocumentStore } from "./document-store";
-import type { CatalogueAsset } from "../shared/assets/catalogue";
+import type { CatalogueAsset } from "../shared/asset-runtime/catalogue";
 const assets: CatalogueAsset[] = [
   {
     id: "room",

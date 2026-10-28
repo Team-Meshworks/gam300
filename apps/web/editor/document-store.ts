@@ -10,7 +10,7 @@ import type { Transform, NamedViewpoint, CameraPose } from "../shared/project/pr
 import { prepareTransformCommand } from "./transform-command";
 import { createCommandHistory, type EditCommand } from "./command-history";
 import { captureProjectHistory, validateRecoveryHistory } from "./recovery-history";
-import type { CatalogueAsset } from "../shared/assets/catalogue.ts";
+import type { CatalogueAsset } from "../shared/asset-runtime/catalogue.ts";
 import type { SceneObject, Vector3Tuple } from "../shared/project/scene-object.ts";
 import { deserializeProject } from "../shared/project/project-deserialization";
 import type { ProjectDocument, ProjectScene } from "../shared/project/project-types";

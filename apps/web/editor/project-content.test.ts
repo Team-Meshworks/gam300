@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createDocumentStore } from "./document-store";
 import m2 from "../shared/project/fixtures/m2-project.json";
 import manifest from "../shared/project/fixtures/project-format-cases.json";
-import type { CatalogueAsset } from "../shared/assets/catalogue";
+import type { CatalogueAsset } from "../shared/asset-runtime/catalogue";
 import type { ContentProject } from "../shared/project/project-content";
 import { serializeProject } from "../shared/project/project-serialization";
 
