@@ -66,6 +66,10 @@ public static partial class ProjectFormat
                     Array(Get(item, "components"), $"{path}.components", 16, (component, path) => Entity(String(component, "id"), String(component, "type"), sceneId, $"{path}.id"));
                 }
             });
+            if (scene.TryGetProperty("hotspots", out var hotspots))
+            {
+                Array(hotspots, $"{path}.hotspots", 200, (item, path) => Entity(String(item, "id"), "hotspot", sceneId, $"{path}.id"));
+            }
             if (content)
             {
                 foreach (var collection in new[] { "groups", "zones", "viewpoints", "rules" })
@@ -137,6 +141,24 @@ public static partial class ProjectFormat
                 });
                 }
             });
+
+            // Scene hotspots must attach to an object in the same scene; click rules must target one
+            if (scene.TryGetProperty("hotspots", out var hotspots))
+            {
+                Array(hotspots, $"{path}.hotspots", 200, (item, path) =>
+                    Ref(String(item, "objectId"), ["object"], sceneId, $"{path}.objectId"));
+            }
+            if (scene.TryGetProperty("interactions", out var interactions))
+            {
+                Array(interactions, $"{path}.interactions", 200, (item, path) =>
+                {
+                    var trigger = Get(item, "when");
+                    if (String(trigger, "type") == "visitor-clicks-hotspot")
+                    {
+                        Ref(String(trigger, "targetHotspotId"), ["hotspot"], sceneId, $"{path}.when.targetHotspotId");
+                    }
+                });
+            }
             if (!content)
             {
                 return;

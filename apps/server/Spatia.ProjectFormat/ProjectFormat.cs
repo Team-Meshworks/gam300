@@ -104,6 +104,28 @@ public static partial class ProjectFormat
                 ? new ContentProject(2, String(root, "projectId"), String(root, "title"), JsonSerializer.Deserialize<ContentScene[]>(scenes, JsonOptions)!)
                 : new LegacyProject(1, String(root, "projectId"), String(root, "title"), JsonSerializer.Deserialize<LegacyScene[]>(scenes, JsonOptions)!);
 
+            // Older files may omit scene hotspots and interactions; store empty lists for later edits
+            value = value switch
+            {
+                LegacyProject legacy => legacy with
+                {
+                    Scenes = legacy.Scenes.Select(scene => scene with
+                    {
+                        Hotspots = scene.Hotspots ?? [],
+                        Interactions = scene.Interactions ?? [],
+                    }).ToArray(),
+                },
+                ContentProject contentProject => contentProject with
+                {
+                    Scenes = contentProject.Scenes.Select(scene => scene with
+                    {
+                        Hotspots = scene.Hotspots ?? [],
+                        Interactions = scene.Interactions ?? [],
+                    }).ToArray(),
+                },
+                _ => value,
+            };
+
             // Normalize only the newly constructed copy, then check its actual saved byte budget
             Normalize(value);
             if (Encoding.UTF8.GetByteCount(Encode(value)) > MaxProjectBytes)
