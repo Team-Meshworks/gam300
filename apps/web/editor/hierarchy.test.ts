@@ -3,6 +3,7 @@ import { createDocumentStore } from "./document-store";
 import { validateRecoveryHistory } from "./recovery-history";
 import { serializeProject } from "../shared/project/project-serialization";
 import m1 from "../shared/project/fixtures/m1-project.json";
+import m2 from "../shared/project/fixtures/m2-project.json";
 import manifest from "../shared/project/fixtures/project-format-cases.json";
 import type { ContentProject } from "../shared/project/project-content";
 import type { CatalogueAsset } from "../shared/assets/catalogue";
@@ -31,6 +32,35 @@ const content = (store: ReturnType<typeof setup>) => store.getSnapshot().project
 // Exercise hierarchy edits through the same store used by panels and keyboard commands
 // Assertions cover portable JSON and local history independently so neither can hide data loss
 describe("authored hierarchy", () => {
+  it("renames the first room and retains its undo history across recovery", () => {
+    const store = setup();
+    const scene = store.getSnapshot().project!.scenes[0]!;
+    expect(store.renameObject(scene.id, "Main gallery").ok).toBe(true);
+    const renamed = store.getSnapshot().project!;
+    const recovered = validateRecoveryHistory(store.getRecoveryHistory(), renamed, kinds);
+    expect(recovered.ok).toBe(true);
+    expect(
+      store.loadProject(JSON.stringify(renamed), kinds, recovered.ok ? recovered.value : undefined)
+        .ok,
+    ).toBe(true);
+    store.undo();
+    expect(store.getSnapshot().project!.scenes[0]!.name).toBe(scene.name);
+    store.redo();
+    expect(store.getSnapshot().project!.scenes[0]!.name).toBe("Main gallery");
+  });
+  it("renames only the placed instance and preserves identity through undo and redo", () => {
+    const store = setup();
+    const before = store.getSnapshot().objects[0]!;
+    expect(store.renameObject(before.id, "  Display pedestal  ").ok).toBe(true);
+    expect(store.getSnapshot().objects[0]).toEqual({ ...before, name: "Display pedestal" });
+    const renamed = store.getSnapshot();
+    expect(store.renameObject(before.id, " ").ok).toBe(false);
+    expect(store.getSnapshot()).toBe(renamed);
+    store.undo();
+    expect(store.getSnapshot().objects[0]).toEqual(before);
+    store.redo();
+    expect(store.getSnapshot().objects[0]!.name).toBe("Display pedestal");
+  });
   it("rejects room nesting without changing the document or history", () => {
     const roomModel = {
       ...assets[1]!,
@@ -66,6 +96,27 @@ describe("authored hierarchy", () => {
     expect(store.addObject("test-crate-v1", [0, 0, 0], "missing").ok).toBe(false);
     expect(store.getSnapshot()).toBe(restored);
   });
+  it("upgrades on the first group edit and retains earlier object undo steps", () => {
+    const store = setup();
+    const object = store.getSnapshot().objects[0]!;
+    const moved = { ...object.transform, position: [4, 0, 0] as const };
+    store.setTransform(object.id, moved);
+    const folder = group(store, "Exhibit A");
+    expect(content(store).schemaVersion).toBe(2);
+    expect(store.reparent(object.id, folder.id).ok).toBe(true);
+    expect(content(store).scenes[0]!.objects[0]!.transform).toEqual(moved);
+    store.undo();
+    expect(content(store).scenes[0]!.objects[0]!.parentId).toBeNull();
+    store.undo();
+    expect(content(store).scenes[0]!.groups).toEqual([]);
+    store.undo();
+    expect(store.getSnapshot().objects[0]!.transform).toEqual(object.transform);
+    store.redo();
+    store.redo();
+    store.redo();
+    expect(content(store).scenes[0]!.objects[0]!.parentId).toBe(folder.id);
+  });
+
   it("rejects cycles, missing parents and invalid names atomically", () => {
     const store = setup();
     const outer = group(store, "Outer");
@@ -127,5 +178,36 @@ describe("authored hierarchy", () => {
     reopened.undo();
     expect(content(reopened).scenes[0]!.groups).toEqual([]);
     expect(content(reopened).scenes[0]!.objects[0]!.parentId).toBeNull();
+  });
+
+  it("retains other scenes and attached content and rejects damaged recovered groups", () => {
+    const store = setup(m2);
+    const original = content(store);
+    group(store, "New exhibit");
+    expect(content(store).scenes[1]).toBe(original.scenes[1]);
+    expect(content(store).scenes[0]!.rules).toBe(original.scenes[0]!.rules);
+    expect(content(store).scenes[0]!.objects).toEqual(original.scenes[0]!.objects);
+    const history = JSON.parse(JSON.stringify(store.getRecoveryHistory()));
+    history.past[0].groups[0].parentId = history.past[0].groups[0].id;
+    const before = store.getSnapshot();
+    expect(store.loadProject(JSON.stringify(content(store)), kinds, history).ok).toBe(false);
+    expect(store.getSnapshot()).toBe(before);
+  });
+
+  it("still opens legacy object-only histories for a v2 document", () => {
+    const store = setup(m2);
+    const scene = content(store).scenes[0]!;
+    const old = {
+      version: 1,
+      projectId: m2.projectId,
+      sceneId: scene.id,
+      current: scene.objects,
+      past: [],
+      future: [],
+    };
+    const result = validateRecoveryHistory(old, content(store), kinds);
+    expect(result.ok).toBe(true);
+    if (result.ok)
+      expect(validateRecoveryHistory(result.value, content(store), kinds).ok).toBe(true);
   });
 });

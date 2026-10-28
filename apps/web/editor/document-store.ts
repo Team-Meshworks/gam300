@@ -398,6 +398,11 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       }));
     },
     renameObject(id: string, name: string): ValidationResult<true> {
+      // The environment row uses the scene's existing name field, with the same undo order
+      if (id === project?.scenes[0]?.id) {
+        if (!name.trim()) return invalid("name", "Enter a room name");
+        return editHierarchy("Rename room", (scene) => ({ ...scene, name: name.trim() }));
+      }
       const object = objects.find((entry) => entry.id === id);
       if (!object) return invalid("objectId", "Choose an object in this scene");
       const trimmed = name.trim();
