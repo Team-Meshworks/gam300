@@ -69,6 +69,8 @@ export interface InitSceneHandle {
   ) => void;
   getDropPosition: (clientX: number, clientY: number) => Vector3Tuple | undefined;
   showDropPosition: (position: Vector3Tuple | undefined) => void;
+  pickObjectAt: (clientX: number, clientY: number) => string | undefined;
+  worldToLocal: (objectId: string, position: Vector3Tuple) => Vector3Tuple | undefined;
   setEditingEnabled: (enabled: boolean) => void;
   setNavigationTool: (tool: NavigationTool) => void;
   modeManager: ModeManager;
@@ -184,6 +186,7 @@ export function initScene(
   const environmentBounds = new THREE.Box3();
   const instances = new Map<string, THREE.Group>();
   const instanceAssets = new Map<string, string>();
+  const hotspotSprites = new Map<string, THREE.Sprite>();
   const bounds = new Map<string, THREE.Box3>();
   const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   let drag:
@@ -294,6 +297,33 @@ export function initScene(
       }
     }
     return picked;
+  }
+
+  function syncHotspots() {
+    const editorMode = modeManager.getState().mode === "editor";
+    const current = new Set<string>();
+    for (const hotspot of projectScene?.hotspots ?? []) {
+      current.add(hotspot.id);
+      const owner = instances.get(hotspot.objectId);
+      if (owner === undefined) continue;
+      let sprite = hotspotSprites.get(hotspot.id);
+      if (sprite === undefined) {
+        const source = models.get(HOTSPOT_ASSET_ID)?.children[0];
+        if (!(source instanceof THREE.Sprite)) continue;
+        sprite = source.clone();
+        hotspotSprites.set(hotspot.id, sprite);
+      }
+      if (sprite.parent !== owner) owner.add(sprite);
+      const [x, y, z] = hotspot.position;
+      sprite.position.set(x, y + HOTSPOT_SIZE / 2, z);
+      sprite.visible = editorMode;
+    }
+    for (const [id, sprite] of hotspotSprites) {
+      if (!current.has(id)) {
+        sprite.parent?.remove(sprite);
+        hotspotSprites.delete(id);
+      }
+    }
   }
 
   let lastFrameTime = performance.now();
@@ -415,8 +445,14 @@ export function initScene(
         instance.position.fromArray(object.transform.position);
         instance.quaternion.fromArray(object.transform.rotation);
         instance.scale.fromArray(object.transform.scale);
-        bounds.set(object.id, new THREE.Box3().setFromObject(instance));
+        // Exclude attached markers so selection outlines match the model itself.
+        const content = instance.children.find((child) => !(child instanceof THREE.Sprite));
+        bounds.set(
+          object.id,
+          new THREE.Box3().setFromObject(content === undefined ? instance : content),
+        );
       }
+      syncHotspots();
     }
     const selectedBounds = getSelectionBounds();
     selection.visible = selectedBounds !== undefined && modeManager.getState().mode === "editor";
@@ -564,6 +600,29 @@ export function initScene(
       }
     }
     return id;
+  }
+
+  function pickObjectAt(clientX: number, clientY: number): string | undefined {
+    const ray = screenRay(clientX, clientY);
+    const raycaster = new THREE.Raycaster(ray.origin, ray.direction);
+    raycaster.camera = camera;
+    let nearest = Infinity;
+    let id: string | undefined;
+    for (const [objectId, instance] of instances) {
+      const hit = raycaster.intersectObject(instance, true)[0];
+      if (hit !== undefined && hit.distance < nearest) {
+        nearest = hit.distance;
+        id = objectId;
+      }
+    }
+    return id;
+  }
+
+  function worldToLocal(objectId: string, position: Vector3Tuple): Vector3Tuple | undefined {
+    const instance = instances.get(objectId);
+    if (instance === undefined) return;
+    instance.updateWorldMatrix(true, false);
+    return instance.worldToLocal(new THREE.Vector3().fromArray(position)).toArray() as Vector3Tuple;
   }
 
   function pointerDown(event: PointerEvent) {
@@ -727,6 +786,8 @@ export function initScene(
     orbit.enabled = mode === "editor" && editingEnabled;
     applyNavigationTool();
     selection.visible = mode === "editor" && getSelectionBounds() !== undefined;
+    // Markers are authoring aids; visitors interact with the objects themselves.
+    for (const sprite of hotspotSprites.values()) sprite.visible = mode === "editor";
     updateGizmo();
   });
   observer.observe(host);
@@ -804,6 +865,8 @@ export function initScene(
     update,
     getDropPosition,
     showDropPosition,
+    pickObjectAt,
+    worldToLocal,
     setEditingEnabled(enabled) {
       editingEnabled = enabled;
       if (!enabled) {
@@ -851,6 +914,7 @@ export function initScene(
         scene.remove(instance);
       }
       instances.clear();
+      hotspotSprites.clear();
       models.clear();
       disposeModels(scene);
       for (const material of hotspotMaterials) {

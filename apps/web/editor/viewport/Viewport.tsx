@@ -1,7 +1,11 @@
 import { useEffect, useRef, type DragEvent, type ReactNode } from "react";
 import { assetDragType, type CatalogueAsset } from "../../shared/assets/catalogue";
 import type { SceneObject, Vector3Tuple } from "../../shared/project/scene-object";
-import type { ProjectScene, Transform } from "../../shared/project/project-types";
+import type {
+  HotspotDropTarget,
+  ProjectScene,
+  Transform,
+} from "../../shared/project/project-types";
 import type { initScene, NavigationTool, ViewportStatus } from "../graphics/scene";
 import type { ModeManager } from "../graphics/modeManager";
 
@@ -29,7 +33,7 @@ type ViewportProps = {
   onTransform: (id: string, transform: Transform) => void;
   onObjectClick: (id: string) => void;
   onSceneUpdate: (deltaSeconds: number) => void;
-  onPlace: (assetId: string, position: Vector3Tuple) => void;
+  onPlace: (assetId: string, position: Vector3Tuple, hotspotTarget?: HotspotDropTarget) => void;
   onDragFinish: () => void;
   onRetry: () => void;
   onManager: (manager: ModeManager) => void;
@@ -165,9 +169,19 @@ export function Viewport({
           event.preventDefault();
           const assetId = event.dataTransfer.getData(assetDragType);
           if (accepts(event) && assets.some((asset) => asset.id === assetId)) {
-            const position = sceneRef.current?.getDropPosition(event.clientX, event.clientY);
+            const scene = sceneRef.current;
+            const position = scene?.getDropPosition(event.clientX, event.clientY);
             if (position !== undefined) {
-              onPlace(assetId, position);
+              const objectId = scene?.pickObjectAt(event.clientX, event.clientY);
+              const localPosition =
+                objectId === undefined ? undefined : scene?.worldToLocal(objectId, position);
+              onPlace(
+                assetId,
+                position,
+                objectId === undefined || localPosition === undefined
+                  ? undefined
+                  : { objectId, localPosition },
+              );
             }
           }
           sceneRef.current?.showDropPosition(undefined);

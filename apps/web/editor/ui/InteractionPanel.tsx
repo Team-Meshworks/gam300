@@ -1,4 +1,5 @@
 import type { SceneObject } from "../../shared/project/scene-object";
+import type { ProjectHotspot } from "../../shared/project/project-types";
 import { ACTIONS, type ActionType } from "../interaction/actionHandler";
 import { AUDIO_TRACKS } from "../interaction/audio";
 import type { Interaction } from "../interaction/interactionHandler";
@@ -6,7 +7,6 @@ import { DEFAULT_ELAPSED_SECONDS, TRIGGERS, type TriggerType } from "../interact
 import { Icon } from "./Icon";
 
 type Choice = { value: string; label: string };
-type Room = { id: string; name: string };
 
 const triggerChoices: Choice[] = TRIGGERS.map(({ type, label }) => ({ value: type, label }));
 const actionChoices: Choice[] = ACTIONS.map(({ type, label }) => ({ value: type, label }));
@@ -16,49 +16,47 @@ const secondChoices: Choice[] = [2, 5, 10, 15].map((seconds) => ({
 }));
 const audioChoices: Choice[] = AUDIO_TRACKS.map(({ label, url }) => ({ value: url, label }));
 
-function sceneTargetChoices(
-  room: Room | undefined,
+function hotspotChoices(
+  hotspots: readonly ProjectHotspot[],
   objects: readonly Pick<SceneObject, "id" | "name">[],
 ): Choice[] {
-  return [
-    ...(room === undefined ? [] : [{ value: room.id, label: room.name }]),
-    ...objects.map((object) => ({ value: object.id, label: object.name })),
-  ];
+  const names = new Map(objects.map((object) => [object.id, object.name]));
+  const counts = new Map<string, number>();
+  return hotspots.map((hotspot) => {
+    const count = (counts.get(hotspot.objectId) ?? 0) + 1;
+    counts.set(hotspot.objectId, count);
+    return {
+      value: hotspot.id,
+      label: `${names.get(hotspot.objectId) ?? "Object"} hotspot ${count}`,
+    };
+  });
 }
 
-function firstSceneTargetId(
-  room: Room | undefined,
-  objects: readonly Pick<SceneObject, "id">[],
-): string {
-  return objects[0]?.id ?? room?.id ?? "";
+function firstHotspotId(hotspots: readonly ProjectHotspot[]): string {
+  return hotspots[0]?.id ?? "";
 }
 
-function newInteraction(
-  room: Room | undefined,
-  objects: readonly Pick<SceneObject, "id">[],
-): Interaction {
-  return {
-    when: {
-      type: "visitor-clicks-object",
-      targetObjectId: firstSceneTargetId(room, objects),
-    },
-    do: { type: "print-hi" },
-  };
+function newInteraction(hotspots: readonly ProjectHotspot[]): Interaction {
+  return hotspots.length === 0
+    ? { when: { type: "scene-starts" }, do: { type: "print-hi" } }
+    : {
+        when: { type: "visitor-clicks-hotspot", targetHotspotId: firstHotspotId(hotspots) },
+        do: { type: "print-hi" },
+      };
 }
 
 function withTriggerType(
   interaction: Interaction,
   type: TriggerType,
-  room: Room | undefined,
-  objects: readonly Pick<SceneObject, "id">[],
+  hotspots: readonly ProjectHotspot[],
 ): Interaction {
   switch (type) {
-    case "visitor-clicks-object": {
-      const targetObjectId =
-        interaction.when.type === "visitor-clicks-object"
-          ? interaction.when.targetObjectId
-          : firstSceneTargetId(room, objects);
-      return { ...interaction, when: { type, targetObjectId } };
+    case "visitor-clicks-hotspot": {
+      const targetHotspotId =
+        interaction.when.type === "visitor-clicks-hotspot"
+          ? interaction.when.targetHotspotId
+          : firstHotspotId(hotspots);
+      return { ...interaction, when: { type, targetHotspotId } };
     }
     case "scene-starts":
       return { ...interaction, when: { type } };
@@ -73,8 +71,8 @@ function withTriggerType(
   }
 }
 
-function withTriggerTarget(interaction: Interaction, targetObjectId: string): Interaction {
-  return { ...interaction, when: { type: "visitor-clicks-object", targetObjectId } };
+function withTriggerTarget(interaction: Interaction, targetHotspotId: string): Interaction {
+  return { ...interaction, when: { type: "visitor-clicks-hotspot", targetHotspotId } };
 }
 
 function withActionType(interaction: Interaction, type: ActionType): Interaction {
@@ -97,15 +95,17 @@ function withActionType(interaction: Interaction, type: ActionType): Interaction
 
 export function InteractionPanel({
   interactions,
-  room,
+  hotspots,
   objects,
   onChange,
 }: {
   interactions: readonly Interaction[];
-  room: Room | undefined;
+  hotspots: readonly ProjectHotspot[];
   objects: readonly SceneObject[];
   onChange: (next: Interaction[]) => void;
 }) {
+  const targets = hotspotChoices(hotspots, objects);
+
   function update(index: number, next: Interaction) {
     onChange(interactions.map((rule, at) => (at === index ? next : rule)));
   }
@@ -125,7 +125,7 @@ export function InteractionPanel({
             <strong>No interactions yet</strong>
           </p>
           <p className="panel-empty">
-            Add one to choose what happens when visitors click, walk in or look around.
+            Add one to choose what happens when visitors click a hotspot, walk in or look around.
           </p>
         </div>
       ) : (
@@ -158,17 +158,15 @@ export function InteractionPanel({
                       value={interaction.when.type}
                       choices={triggerChoices}
                       onChange={(value) =>
-                        update(
-                          index,
-                          withTriggerType(interaction, value as TriggerType, room, objects),
-                        )
+                        update(index, withTriggerType(interaction, value as TriggerType, hotspots))
                       }
                     />
-                    {interaction.when.type === "visitor-clicks-object" && (
+                    {interaction.when.type === "visitor-clicks-hotspot" && (
                       <Dropdown
-                        label={`${name} object`}
-                        value={interaction.when.targetObjectId}
-                        choices={sceneTargetChoices(room, objects)}
+                        label={`${name} hotspot`}
+                        value={interaction.when.targetHotspotId}
+                        choices={targets}
+                        emptyLabel="Attach a hotspot first"
                         onChange={(value) => update(index, withTriggerTarget(interaction, value))}
                         target
                       />
@@ -229,10 +227,15 @@ export function InteractionPanel({
       <button
         className="ui-button panel-pill interaction-add"
         type="button"
-        onClick={() => onChange([...interactions, newInteraction(room, objects)])}
+        onClick={() => onChange([...interactions, newInteraction(hotspots)])}
       >
         + Add Interaction
       </button>
+      {hotspots.length === 0 && (
+        <p className="panel-empty">
+          Select an object and add a hotspot to create a click interaction.
+        </p>
+      )}
     </section>
   );
 }

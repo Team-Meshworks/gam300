@@ -1,4 +1,4 @@
-import type { EntityId, Interaction } from "../../shared/project/project-types";
+import type { EntityId, Interaction, ProjectHotspot } from "../../shared/project/project-types";
 import { runAction as runBrowserAction, type Action } from "./actionHandler";
 import { triggerMatches, triggerSeconds, type TriggerEvent } from "./triggerHandler";
 
@@ -19,10 +19,28 @@ export type InteractionHandler = Readonly<{
 
 export function createInteractionHandler(
   interactions: readonly Interaction[],
+  hotspots: readonly ProjectHotspot[],
   runAction: (action: Action) => void = runBrowserAction,
 ): InteractionHandler {
   let elapsedSeconds = 0;
   const fired = new Set<Interaction>();
+
+  // Object -> hotspot -> rules keeps a click lookup proportional to the clicked
+  // object's own hotspots instead of scanning every hotspot or interaction.
+  const hotspotsByObject = new Map<EntityId, EntityId[]>();
+  for (const hotspot of hotspots) {
+    const attached = hotspotsByObject.get(hotspot.objectId);
+    if (attached === undefined) hotspotsByObject.set(hotspot.objectId, [hotspot.id]);
+    else attached.push(hotspot.id);
+  }
+  const interactionsByHotspot = new Map<EntityId, Interaction[]>();
+  for (const interaction of interactions) {
+    if (interaction.when.type !== "visitor-clicks-hotspot") continue;
+    const target = interaction.when.targetHotspotId;
+    const attached = interactionsByHotspot.get(target);
+    if (attached === undefined) interactionsByHotspot.set(target, [interaction]);
+    else attached.push(interaction);
+  }
 
   function run(event: TriggerEvent): void {
     for (const interaction of interactions) {
@@ -35,7 +53,13 @@ export function createInteractionHandler(
       run({ type: "scene-starts" });
     },
     objectClicked(objectId) {
-      run({ type: "visitor-clicks-object", objectId });
+      const hotspotIds = hotspotsByObject.get(objectId);
+      if (hotspotIds === undefined) return;
+      for (const hotspotId of hotspotIds) {
+        for (const interaction of interactionsByHotspot.get(hotspotId) ?? []) {
+          runAction(interaction.do);
+        }
+      }
     },
     update(deltaSeconds) {
       if (!Number.isFinite(deltaSeconds) || deltaSeconds <= 0) return;

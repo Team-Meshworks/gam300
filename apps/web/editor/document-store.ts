@@ -1,6 +1,6 @@
-import { validateTransform } from "../shared/project/spatial-validation";
+import { validatePosition, validateTransform } from "../shared/project/spatial-validation";
 import { invalid } from "../shared/project/validation-helpers";
-import type { Transform } from "../shared/project/project-types";
+import type { ProjectHotspot, ProjectScene, Transform } from "../shared/project/project-types";
 import { prepareTransformCommand } from "./transform-command";
 import { createCommandHistory } from "./command-history";
 import { captureRecoveryHistory, validateRecoveryHistory } from "./recovery-history";
@@ -21,6 +21,17 @@ function freezeInteractions(interactions: readonly Interaction[]): readonly Inte
   );
 }
 
+function freezeHotspots(hotspots: readonly ProjectHotspot[]): readonly ProjectHotspot[] {
+  return Object.freeze(
+    hotspots.map((hotspot) =>
+      Object.freeze({
+        ...hotspot,
+        position: Object.freeze([...hotspot.position]) as ProjectHotspot["position"],
+      }),
+    ),
+  );
+}
+
 function freezeProject(project: ProjectDocument): ProjectDocument {
   // Freeze the reader's separate copy before exposing it to panels or commands
   for (const scene of project.scenes) {
@@ -32,6 +43,11 @@ function freezeProject(project: ProjectDocument): ProjectDocument {
       Object.freeze(object);
     }
     Object.freeze(scene.objects);
+    for (const hotspot of scene.hotspots) {
+      Object.freeze(hotspot.position);
+      Object.freeze(hotspot);
+    }
+    Object.freeze(scene.hotspots);
     Object.freeze(scene.startCamera.position);
     Object.freeze(scene.startCamera.rotation);
     Object.freeze(scene.startCamera);
@@ -85,17 +101,22 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
     canRedo: boolean;
   }> = Object.freeze({ objects, project, canUndo: false, canRedo: false });
 
+  function replaceScene(
+    next: Partial<Pick<ProjectScene, "objects" | "hotspots" | "interactions">>,
+  ) {
+    const scene = project?.scenes[0];
+    if (project === null || scene === undefined) return;
+    project = Object.freeze({
+      ...project,
+      scenes: Object.freeze([Object.freeze({ ...scene, ...next })]),
+    });
+  }
+
   function replaceObjects(nextObjects: readonly SceneObject[]) {
     objects = Object.freeze(nextObjects);
-    const scene = project?.scenes[0];
-    if (project !== null && scene !== undefined) {
-      // Keep the editor's object list and saved document on the same array
-      // Earlier snapshots retain their original scene and object order
-      project = Object.freeze({
-        ...project,
-        scenes: Object.freeze([Object.freeze({ ...scene, objects })]),
-      });
-    }
+    // Keep the editor's object list and saved document on the same array
+    // Earlier snapshots retain their original scene and object order
+    replaceScene({ objects });
   }
 
   function publish() {
@@ -275,6 +296,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
               fovDegrees: 40,
             },
             objects: options.startEmpty ? [] : objects,
+            hotspots: [],
             interactions: [],
           },
         ],
@@ -384,16 +406,66 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
         return { ok: false, error: `${result.error.path}: ${result.error.message}` } as const;
       return { ok: true, changed: result.value.changed } as const;
     },
+    addHotspot(objectId: string, position: Vector3Tuple = [0, 0, 0]) {
+      const scene = project?.scenes[0];
+      if (project === null || scene === undefined) {
+        return invalid("project", "Choose a room before adding hotspots");
+      }
+      if (!objects.some((object) => object.id === objectId)) {
+        return invalid("objectId", "Select an object to attach the hotspot to");
+      }
+      if (scene.hotspots.length >= 200) {
+        return invalid("hotspots", "This scene has reached its 200-hotspot limit");
+      }
+      const checked = validatePosition(position, "position");
+      if (!checked.ok) return checked;
+      const hotspot = Object.freeze({
+        id: crypto.randomUUID(),
+        objectId,
+        position: Object.freeze([...checked.value]) as ProjectHotspot["position"],
+      });
+      replaceScene({ hotspots: Object.freeze([...scene.hotspots, hotspot]) });
+      publish();
+      return { ok: true, value: hotspot } as const;
+    },
+    deleteHotspot(hotspotId: string) {
+      const scene = project?.scenes[0];
+      if (project === null || scene === undefined) {
+        return invalid("project", "No project is open");
+      }
+      if (!scene.hotspots.some((hotspot) => hotspot.id === hotspotId)) {
+        return invalid("hotspotId", "This hotspot is no longer in the scene");
+      }
+      const removed = new Set([hotspotId]);
+      replaceScene({
+        hotspots: freezeHotspots(scene.hotspots.filter((hotspot) => hotspot.id !== hotspotId)),
+        interactions: freezeInteractions(
+          scene.interactions.filter(
+            (interaction) =>
+              interaction.when.type !== "visitor-clicks-hotspot" ||
+              !removed.has(interaction.when.targetHotspotId),
+          ),
+        ),
+      });
+      publish();
+      return { ok: true, value: true } as const;
+    },
     setInteractions(nextInteractions: readonly Interaction[]) {
       const scene = project?.scenes[0];
       if (project === null || scene === undefined) {
         return invalid("project", "Place an object or open a project before adding interactions");
       }
+      const hotspotIds = new Set(scene.hotspots.map((hotspot) => hotspot.id.toLowerCase()));
+      for (const interaction of nextInteractions) {
+        if (
+          interaction.when.type === "visitor-clicks-hotspot" &&
+          !hotspotIds.has(interaction.when.targetHotspotId.toLowerCase())
+        ) {
+          return invalid("when.targetHotspotId", "Choose a hotspot in this scene");
+        }
+      }
       const interactions = freezeInteractions(nextInteractions);
-      project = Object.freeze({
-        ...project,
-        scenes: Object.freeze([Object.freeze({ ...scene, interactions })]),
-      });
+      replaceScene({ interactions });
       publish();
       return { ok: true, value: interactions } as const;
     },
@@ -410,6 +482,29 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
             Object.freeze([...current.slice(0, index), object, ...current.slice(index)]),
         }),
       );
+      // Attachments cannot outlive their object, so remove them and their click rules.
+      const scene = project?.scenes[0];
+      if (scene !== undefined) {
+        const removed = new Set(
+          scene.hotspots
+            .filter((hotspot) => hotspot.objectId === objectId)
+            .map((hotspot) => hotspot.id),
+        );
+        if (removed.size > 0) {
+          replaceScene({
+            hotspots: freezeHotspots(
+              scene.hotspots.filter((hotspot) => hotspot.objectId !== objectId),
+            ),
+            interactions: freezeInteractions(
+              scene.interactions.filter(
+                (interaction) =>
+                  interaction.when.type !== "visitor-clicks-hotspot" ||
+                  !removed.has(interaction.when.targetHotspotId),
+              ),
+            ),
+          });
+        }
+      }
       clearEdit();
       publish();
       return { ok: true, value: object };

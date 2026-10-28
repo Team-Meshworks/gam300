@@ -78,15 +78,43 @@ export function validateProject(
     if (!environment.ok) {
       return environment;
     }
+    const objectIds = new Set<string>();
     for (const [objectIndex, object] of scene.objects.entries()) {
       const objectPath = `${path}.objects[${objectIndex}]`;
       const objectId = checkEntityId(object.id, `${objectPath}.id`, seen);
       if (!objectId.ok) {
         return objectId;
       }
+      objectIds.add(object.id.toLowerCase());
       const asset = checkAsset(object.assetId, "model", `${objectPath}.assetId`, assetKinds);
       if (!asset.ok) {
         return asset;
+      }
+    }
+
+    const hotspotIds = new Set<string>();
+    for (const [hotspotIndex, hotspot] of scene.hotspots.entries()) {
+      const hotspotPath = `${path}.hotspots[${hotspotIndex}]`;
+      const hotspotId = checkEntityId(hotspot.id, `${hotspotPath}.id`, seen);
+      if (!hotspotId.ok) {
+        return hotspotId;
+      }
+      hotspotIds.add(hotspot.id.toLowerCase());
+      if (!objectIds.has(hotspot.objectId.toLowerCase())) {
+        return invalid(
+          `${hotspotPath}.objectId`,
+          "Hotspot must reference an object in the same scene",
+        );
+      }
+    }
+
+    for (const [interactionIndex, interaction] of scene.interactions.entries()) {
+      if (interaction.when.type !== "visitor-clicks-hotspot") continue;
+      if (!hotspotIds.has(interaction.when.targetHotspotId.toLowerCase())) {
+        return invalid(
+          `${path}.interactions[${interactionIndex}].when.targetHotspotId`,
+          "Click trigger must reference a hotspot in the same scene",
+        );
       }
     }
   }

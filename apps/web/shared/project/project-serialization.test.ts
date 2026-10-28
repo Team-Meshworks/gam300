@@ -28,12 +28,19 @@ describe("project JSON serialization", () => {
       scenes: [
         {
           ...scene,
+          hotspots: [
+            {
+              id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+              objectId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+              position: [0, 0, 0],
+            },
+          ],
           interactions: [
             { when: { type: "scene-starts" }, do: { type: "print-hi" } },
             {
               when: {
-                type: "visitor-clicks-object",
-                targetObjectId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+                type: "visitor-clicks-hotspot",
+                targetHotspotId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
               },
               do: { type: "open-link", url: "https://example.com" },
             },

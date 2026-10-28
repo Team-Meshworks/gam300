@@ -14,7 +14,8 @@ function sampleProject() {
     environmentAssetId: "test-room-v1",
     startCamera: { position: [0, 1.6, 5], rotation: [0, 0, 0, 1], fovDegrees: 60 },
     objects: [object],
-    interactions: [],
+    hotspots: [] as { id: string; objectId: string; position: [number, number, number] }[],
+    interactions: [] as { when: unknown; do: unknown }[],
   };
   const project = {
     schemaVersion: 1,
@@ -152,6 +153,40 @@ describe("project IDs and asset references", () => {
     expect(validateProject(project, assets)).toMatchObject({
       ok: false,
       error: { path: "project.scenes[0].environmentAssetId" },
+    });
+  });
+
+  it("rejects hotspot IDs, attachment references and dangling click rules", () => {
+    const { project, scene, object, assets } = sampleProject();
+    scene.hotspots.push({
+      id: object.id,
+      objectId: object.id,
+      position: [0, 0, 0],
+    });
+    expect(validateProject(project, assets)).toMatchObject({
+      ok: false,
+      error: { path: "project.scenes[0].hotspots[0].id" },
+    });
+
+    scene.hotspots = [
+      { id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee", objectId: object.id, position: [0, 0, 0] },
+    ];
+    scene.hotspots[0]!.objectId = "ffffffff-ffff-4fff-8fff-ffffffffffff";
+    expect(validateProject(project, assets)).toMatchObject({
+      ok: false,
+      error: { path: "project.scenes[0].hotspots[0].objectId" },
+    });
+
+    scene.hotspots[0]!.objectId = object.id;
+    scene.interactions = [
+      {
+        when: { type: "visitor-clicks-hotspot", targetHotspotId: "missing" },
+        do: { type: "print-hi" },
+      },
+    ];
+    expect(validateProject(project, assets)).toMatchObject({
+      ok: false,
+      error: { path: "project.scenes[0].interactions[0].when.targetHotspotId" },
     });
   });
 

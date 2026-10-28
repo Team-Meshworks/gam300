@@ -483,6 +483,19 @@ a {
 .environment-row[aria-pressed="true"] {
   background: #e2dccb;
 }
+.hotspot-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  margin-left: auto;
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.hotspot-indicator .icon {
+  width: 1rem;
+  height: 1rem;
+}
 
 /* Interactions need more room than the other panels for the two columns */
 .panel-slot.is-interaction {

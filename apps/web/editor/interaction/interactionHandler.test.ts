@@ -1,9 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
+import type { ProjectHotspot } from "../../shared/project/project-types";
 import { createInteractionHandler, type Interaction } from "./interactionHandler";
 import { DEFAULT_ELAPSED_SECONDS } from "./triggerHandler";
 
+const hotspots: readonly ProjectHotspot[] = [
+  { id: "crate-hotspot", objectId: "crate", position: [0, 0, 0] },
+];
+
 const clickInteraction: Interaction = {
-  when: { type: "visitor-clicks-object", targetObjectId: "crate" },
+  when: { type: "visitor-clicks-hotspot", targetHotspotId: "crate-hotspot" },
   do: { type: "print-hi" },
 };
 
@@ -20,7 +25,11 @@ const elapsedInteraction: Interaction = {
 describe("interaction handler", () => {
   it("runs the action for a scene start", () => {
     const runAction = vi.fn();
-    const handler = createInteractionHandler([sceneStartInteraction, clickInteraction], runAction);
+    const handler = createInteractionHandler(
+      [sceneStartInteraction, clickInteraction],
+      hotspots,
+      runAction,
+    );
 
     handler.sceneStarted();
 
@@ -29,7 +38,11 @@ describe("interaction handler", () => {
 
   it("runs only the click interactions for the clicked object", () => {
     const runAction = vi.fn();
-    const handler = createInteractionHandler([clickInteraction, sceneStartInteraction], runAction);
+    const handler = createInteractionHandler(
+      [clickInteraction, sceneStartInteraction],
+      hotspots,
+      runAction,
+    );
 
     handler.objectClicked("other");
     expect(runAction).not.toHaveBeenCalled();
@@ -40,7 +53,7 @@ describe("interaction handler", () => {
 
   it("waits two seconds by default and fires each elapsed interaction once", () => {
     const runAction = vi.fn();
-    const handler = createInteractionHandler([elapsedInteraction], runAction);
+    const handler = createInteractionHandler([elapsedInteraction], hotspots, runAction);
 
     handler.update(DEFAULT_ELAPSED_SECONDS - 0.01);
     expect(runAction).not.toHaveBeenCalled();
@@ -58,7 +71,7 @@ describe("interaction handler", () => {
       when: { type: "time-elapsed", seconds: 5 },
       do: { type: "open-link", url: "https://example.com" },
     };
-    const handler = createInteractionHandler([interaction], runAction);
+    const handler = createInteractionHandler([interaction], hotspots, runAction);
 
     handler.update(4.99);
     expect(runAction).not.toHaveBeenCalled();
@@ -73,7 +86,7 @@ describe("interaction handler", () => {
 
   it("ignores non-positive and invalid time updates", () => {
     const runAction = vi.fn();
-    const handler = createInteractionHandler([elapsedInteraction], runAction);
+    const handler = createInteractionHandler([elapsedInteraction], hotspots, runAction);
 
     handler.update(0);
     handler.update(-5);

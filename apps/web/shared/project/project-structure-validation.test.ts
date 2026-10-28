@@ -15,6 +15,13 @@ function sampleProject() {
     environmentAssetId: "room-v1",
     startCamera: { position: [0, 1.6, 5], rotation: [0, 0, 0, 1], fovDegrees: 60 },
     objects: [object],
+    hotspots: [
+      {
+        id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        objectId: object.id,
+        position: [0, 0, 0] as [number, number, number],
+      },
+    ],
     interactions: [] as { when: unknown; do: unknown }[],
   };
   const project = {
@@ -92,18 +99,22 @@ describe("M1 project structure", () => {
   });
 
   it("accepts legacy scenes without interactions and validates saved rules", () => {
-    const { project, scene, object } = sampleProject();
+    const { project, scene } = sampleProject();
     const legacyScene = structuredClone(scene) as Record<string, unknown>;
     delete legacyScene.interactions;
+    delete legacyScene.hotspots;
     expect(validateProjectStructure({ ...project, scenes: [legacyScene] })).toEqual({
       ok: true,
-      value: { ...project, scenes: [{ ...legacyScene, interactions: [] }] },
+      value: { ...project, scenes: [{ ...legacyScene, hotspots: [], interactions: [] }] },
     });
 
     scene.interactions = [
       { when: { type: "scene-starts" }, do: { type: "print-hi" } },
       {
-        when: { type: "visitor-clicks-object", targetObjectId: object.id },
+        when: {
+          type: "visitor-clicks-hotspot",
+          targetHotspotId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        },
         do: { type: "open-link", url: "https://example.com" },
       },
       {
@@ -120,6 +131,12 @@ describe("M1 project structure", () => {
     expect(validateProjectStructure(project)).toMatchObject({
       ok: false,
       error: { path: "project.scenes[0].interactions[0].when.type" },
+    });
+
+    scene.interactions = [{ when: { type: "visitor-clicks-hotspot" }, do: { type: "print-hi" } }];
+    expect(validateProjectStructure(project)).toMatchObject({
+      ok: false,
+      error: { path: "project.scenes[0].interactions[0].when.targetHotspotId" },
     });
 
     scene.interactions = [{ when: { type: "time-elapsed", seconds: 0 }, do: { type: "print-hi" } }];
@@ -152,6 +169,37 @@ describe("M1 project structure", () => {
     expect(validateProjectStructure(project)).toMatchObject({
       ok: false,
       error: { path: "project.scenes[0].interactions" },
+    });
+  });
+
+  it("validates hotspot fields and limits", () => {
+    const { project, scene } = sampleProject();
+    const hotspot = scene.hotspots[0];
+    if (hotspot === undefined) throw new Error("Sample project needs a hotspot");
+
+    hotspot.position[0] = Infinity;
+    expect(validateProjectStructure(project)).toMatchObject({
+      ok: false,
+      error: { path: "project.scenes[0].hotspots[0].position" },
+    });
+
+    hotspot.position[0] = 0;
+    scene.hotspots = [
+      { id: hotspot.id, objectId: 42, position: [0, 0, 0] },
+    ] as unknown as typeof scene.hotspots;
+    expect(validateProjectStructure(project)).toMatchObject({
+      ok: false,
+      error: { path: "project.scenes[0].hotspots[0].objectId" },
+    });
+
+    scene.hotspots = Array.from({ length: 201 }, (_, index) => ({
+      id: `aaaaaaaa-aaaa-4aaa-8aaa-${index.toString(16).padStart(12, "0")}`,
+      objectId: hotspot.objectId,
+      position: [0, 0, 0],
+    }));
+    expect(validateProjectStructure(project)).toMatchObject({
+      ok: false,
+      error: { path: "project.scenes[0].hotspots" },
     });
   });
 

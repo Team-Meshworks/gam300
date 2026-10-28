@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import type { SceneObject } from "../../shared/project/scene-object";
-import type { Transform, Vector3Tuple } from "../../shared/project/project-types";
+import type { ProjectHotspot, Transform, Vector3Tuple } from "../../shared/project/project-types";
 import { Icon, type IconName } from "./Icon";
 import type { Interaction } from "../interaction/interactionHandler";
 import { InteractionPanel } from "./InteractionPanel";
@@ -21,6 +21,7 @@ export function SidePanels({
   objects,
   selectedId,
   selectedObject,
+  hotspots,
   interactions,
   thumbnailFor,
   onSelect,
@@ -32,6 +33,7 @@ export function SidePanels({
   objects: readonly SceneObject[];
   selectedId: string | null;
   selectedObject: SceneObject | undefined;
+  hotspots: readonly ProjectHotspot[];
   interactions: readonly Interaction[];
   thumbnailFor: (assetId: string) => string | undefined;
   onSelect: (id: string) => void;
@@ -73,6 +75,7 @@ export function SidePanels({
             <SceneTreePanel
               room={room}
               objects={objects}
+              hotspots={hotspots}
               selectedId={selectedId}
               onSelect={onSelect}
               thumbnailFor={thumbnailFor}
@@ -81,7 +84,7 @@ export function SidePanels({
           {panel === "interaction" && (
             <InteractionPanel
               interactions={interactions}
-              room={room}
+              hotspots={hotspots}
               objects={objects}
               onChange={onInteractionsChange}
             />
@@ -248,18 +251,24 @@ function NumberField({
 function SceneTreePanel({
   room,
   objects,
+  hotspots,
   selectedId,
   onSelect,
   thumbnailFor,
 }: {
   room: Room | undefined;
   objects: readonly SceneObject[];
+  hotspots: readonly ProjectHotspot[];
   selectedId: string | null;
   onSelect: (id: string) => void;
   thumbnailFor: (assetId: string) => string | undefined;
 }) {
   const [expanded, setExpanded] = useState(false);
   const count = objects.length + (room === undefined ? 0 : 1);
+  const hotspotCounts = new Map<string, number>();
+  for (const hotspot of hotspots) {
+    hotspotCounts.set(hotspot.objectId, (hotspotCounts.get(hotspot.objectId) ?? 0) + 1);
+  }
   return (
     <section className="editor-panel" aria-labelledby="objects-heading">
       <PanelHeading id="objects-heading">
@@ -283,20 +292,35 @@ function SceneTreePanel({
                 </button>
               </li>
             )}
-            {objects.map((object) => (
-              <li key={object.id}>
-                <button
-                  className="object-row"
-                  type="button"
-                  aria-pressed={selectedId === object.id}
-                  data-object-id={object.id}
-                  onClick={() => onSelect(object.id)}
-                >
-                  <img src={thumbnailFor(object.assetId)} alt="" draggable={false} />
-                  <span>{object.name}</span>
-                </button>
-              </li>
-            ))}
+            {objects.map((object) => {
+              const hotspotCount = hotspotCounts.get(object.id) ?? 0;
+              return (
+                <li key={object.id}>
+                  <button
+                    className="object-row"
+                    type="button"
+                    aria-pressed={selectedId === object.id}
+                    data-object-id={object.id}
+                    onClick={() => onSelect(object.id)}
+                  >
+                    <img src={thumbnailFor(object.assetId)} alt="" draggable={false} />
+                    <span>{object.name}</span>
+                    {hotspotCount > 0 && (
+                      <span
+                        className="hotspot-indicator"
+                        title={`${hotspotCount} ${hotspotCount === 1 ? "hotspot" : "hotspots"}`}
+                      >
+                        <Icon name="hotspot" />
+                        <span className="sr-only">
+                          {hotspotCount} {hotspotCount === 1 ? "hotspot" : "hotspots"}
+                        </span>
+                        {hotspotCount > 1 && <span aria-hidden="true">{hotspotCount}</span>}
+                      </span>
+                    )}
+                  </button>
+                </li>
+              );
+            })}
           </ul>
           {count > 6 && (
             <button

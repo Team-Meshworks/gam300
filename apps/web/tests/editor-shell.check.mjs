@@ -377,29 +377,52 @@ try {
   const hotspot = page.getByRole("button", { name: "Add Hotspot", exact: true });
   assert.equal(await hotspot.isEnabled(), true);
   await hotspot.click();
-  assert.equal(await rows.count(), 1, "The hotspot button creates a hotspot");
-  assert.match(await rows.first().textContent(), /Hotspot/);
-  await undo.click();
-  assert.equal(await rows.count(), 0);
+  await page.getByText("Select an object to attach the hotspot to", { exact: true }).waitFor();
+  assert.equal(await rows.count(), 0, "Hotspots need an object to attach to");
+
+  await asset.click();
+  assert.equal(await rows.count(), 1);
+  await hotspot.click();
+  await page.getByText("Hotspot attached to the selected object", { exact: true }).waitFor();
+  assert.equal(await rows.count(), 1, "Attaching a hotspot does not create a scene row");
+  const hotspotIndicator = rows.first().locator(".hotspot-indicator");
+  await hotspotIndicator.waitFor();
+  assert.equal(await hotspotIndicator.getAttribute("title"), "1 hotspot");
+
+  await page.getByRole("button", { name: "Interaction", exact: true }).click();
+  const interactionPanel = page.locator(".editor-panel").filter({ hasText: "Interactions" });
+  await interactionPanel.getByRole("button", { name: "+ Add Interaction", exact: true }).click();
+  const hotspotTarget = interactionPanel.getByLabel("Interaction 1 hotspot", { exact: true });
+  assert.equal(
+    await hotspotTarget.locator("option").first().textContent(),
+    "test-crate 1 hotspot 1",
+  );
+  await page.getByRole("button", { name: "Scene tree", exact: true }).click();
+
   const hotspotStage = await stage.boundingBox();
   const hotspotDock = await page.locator(".bottom-dock").boundingBox();
   assert.ok(hotspotStage);
   assert.ok(hotspotDock);
+  const crateCentre = new THREE.Vector3(0, 0, 0).project(camera);
   await hotspot.dragTo(stage, {
     targetPosition: {
-      x: hotspotStage.width * 0.65,
-      y: (hotspotDock.y - hotspotStage.y) * 0.7,
+      x: ((crateCentre.x + 1) * hotspotStage.width) / 2,
+      y: ((1 - crateCentre.y) * hotspotStage.height) / 2,
     },
   });
-  assert.equal(await rows.count(), 1, "Hotspots use the same drag and drop path as models");
-  assert.match(await rows.first().textContent(), /Hotspot/);
-  assert.doesNotMatch(
-    await page.getByLabel("Selected position").textContent(),
-    /X 0\.00 · Y 0\.00 · Z 0\.00 m/,
-    "Dropped hotspots snap to the ground plane",
+  assert.equal(await rows.count(), 1, "Dropping a hotspot onto an object attaches it");
+  assert.equal(await hotspotIndicator.getAttribute("title"), "2 hotspots");
+  await page.getByRole("button", { name: "Interaction", exact: true }).click();
+  await interactionPanel.getByRole("button", { name: "+ Add Interaction", exact: true }).click();
+  assert.equal(
+    await interactionPanel
+      .getByLabel("Interaction 2 hotspot", { exact: true })
+      .locator("option")
+      .first()
+      .textContent(),
+    "test-crate 1 hotspot 1",
   );
-  await undo.click();
-  assert.equal(await rows.count(), 0);
+  await page.getByRole("button", { name: "Scene tree", exact: true }).click();
 
   const samplePath = "**/*test-crate*.glb*";
   await page.route(samplePath, (route) => {

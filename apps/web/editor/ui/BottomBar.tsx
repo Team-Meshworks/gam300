@@ -201,7 +201,7 @@ export function BottomBar({
                   draggable={ready}
                   disabled={!ready}
                   aria-label={`Add ${asset.name}`}
-                  title="Drag into the scene, or click to add"
+                  title="Click to attach to the selected object, or drag onto an object"
                   onClick={() => onAdd(asset.id)}
                   onDragStart={(event) => {
                     event.dataTransfer.setData(assetDragType, asset.id);

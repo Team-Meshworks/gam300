@@ -39,8 +39,21 @@ export type ProjectObject = Readonly<{
   transform: Transform;
 }>;
 
+// A hotspot is an interaction marker attached to one placed object.
+// Position is local to that object, so moving the object moves its hotspots.
+export type ProjectHotspot = Readonly<{
+  id: EntityId;
+  objectId: EntityId;
+  position: Vector3Tuple;
+}>;
+
+export type HotspotDropTarget = Readonly<{
+  objectId: EntityId;
+  localPosition: Vector3Tuple;
+}>;
+
 export type InteractionTrigger =
-  | Readonly<{ type: "visitor-clicks-object"; targetObjectId: EntityId }>
+  | Readonly<{ type: "visitor-clicks-hotspot"; targetHotspotId: EntityId }>
   | Readonly<{ type: "scene-starts" }>
   | Readonly<{ type: "time-elapsed"; seconds?: number }>;
 
@@ -61,6 +74,8 @@ export type ProjectScene = Readonly<{
   startCamera: CameraPose;
   // Keep the scene list order when saving
   objects: readonly ProjectObject[];
+  // Click triggers can only target these object-bound hotspots
+  hotspots: readonly ProjectHotspot[];
   // Authored WHEN -> DO rules run in preview
   interactions: readonly Interaction[];
 }>;

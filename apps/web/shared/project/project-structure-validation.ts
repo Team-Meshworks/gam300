@@ -1,11 +1,18 @@
-import type { Interaction, ProjectDocument, ProjectObject, ProjectScene } from "./project-types";
-import { validateCameraPose, validateTransform } from "./spatial-validation";
+import type {
+  Interaction,
+  ProjectDocument,
+  ProjectHotspot,
+  ProjectObject,
+  ProjectScene,
+} from "./project-types";
+import { validateCameraPose, validatePosition, validateTransform } from "./spatial-validation";
 import { checkFields, invalid, isRecord } from "./validation-helpers";
 import type { ValidationResult } from "./validation-helpers";
 import { MAX_PROJECT_BYTES } from "./project-limits";
 
 // Starting limits from the project handoff
 const MAX_OBJECTS_PER_SCENE = 200;
+const MAX_HOTSPOTS_PER_SCENE = 200;
 const MAX_INTERACTIONS_PER_SCENE = 200;
 const MAX_ELAPSED_SECONDS = 86_400;
 
@@ -62,6 +69,37 @@ function validateObject(
   };
 }
 
+function validateHotspot(
+  raw: unknown,
+  path: string,
+  budget: TextBudget,
+): ValidationResult<ProjectHotspot> {
+  if (!isRecord(raw)) {
+    return invalid(path, "Hotspot must be an object");
+  }
+  const fields = checkFields(raw, ["id", "objectId", "position"], path);
+  if (!fields.ok) {
+    return fields;
+  }
+
+  const id = readText(raw.id, `${path}.id`, budget);
+  if (!id.ok) {
+    return id;
+  }
+  const objectId = readText(raw.objectId, `${path}.objectId`, budget);
+  if (!objectId.ok) {
+    return objectId;
+  }
+  const position = validatePosition(raw.position, `${path}.position`);
+  if (!position.ok) {
+    return position;
+  }
+  return {
+    ok: true,
+    value: { id: id.value, objectId: objectId.value, position: position.value },
+  };
+}
+
 function validateTrigger(
   raw: unknown,
   path: string,
@@ -74,14 +112,14 @@ function validateTrigger(
     return invalid(`${path}.type`, "Required field is missing");
   }
   switch (raw.type) {
-    case "visitor-clicks-object": {
-      const fields = checkFields(raw, ["type", "targetObjectId"], path);
+    case "visitor-clicks-hotspot": {
+      const fields = checkFields(raw, ["type", "targetHotspotId"], path);
       if (!fields.ok) return fields;
-      const target = readText(raw.targetObjectId, `${path}.targetObjectId`, budget);
+      const target = readText(raw.targetHotspotId, `${path}.targetHotspotId`, budget);
       if (!target.ok) return target;
       return {
         ok: true,
-        value: { type: "visitor-clicks-object", targetObjectId: target.value },
+        value: { type: "visitor-clicks-hotspot", targetHotspotId: target.value },
       };
     }
     case "scene-starts": {
@@ -174,7 +212,7 @@ function validateScene(
     raw,
     ["id", "name", "environmentAssetId", "startCamera", "objects"],
     path,
-    ["interactions"],
+    ["hotspots", "interactions"],
   );
   if (!fields.ok) {
     return fields;
@@ -212,6 +250,21 @@ function validateScene(
     objects.push(object.value);
   }
 
+  // Older project files have no hotspots and start with an empty list
+  const hotspots: ProjectHotspot[] = [];
+  if (raw.hotspots !== undefined) {
+    if (!Array.isArray(raw.hotspots) || raw.hotspots.length > MAX_HOTSPOTS_PER_SCENE) {
+      return invalid(`${path}.hotspots`, "Hotspots must be an array with at most 200 entries");
+    }
+    for (const [index, entry] of raw.hotspots.entries()) {
+      const hotspot = validateHotspot(entry, `${path}.hotspots[${index}]`, budget);
+      if (!hotspot.ok) {
+        return hotspot;
+      }
+      hotspots.push(hotspot.value);
+    }
+  }
+
   // Older project files have no interactions and start with an empty list
   const interactions: Interaction[] = [];
   if (raw.interactions !== undefined) {
@@ -237,6 +290,7 @@ function validateScene(
       environmentAssetId: environmentAssetId.value,
       startCamera: camera.value,
       objects,
+      hotspots,
       interactions,
     },
   };

@@ -3,7 +3,7 @@ import type { EntityId, InteractionTrigger } from "../../shared/project/project-
 export const DEFAULT_ELAPSED_SECONDS = 2;
 
 export const TRIGGERS = Object.freeze([
-  { type: "visitor-clicks-object", label: "The visitor clicks this object" },
+  { type: "visitor-clicks-hotspot", label: "The visitor clicks this hotspot's object" },
   { type: "scene-starts", label: "The scene starts" },
   { type: "time-elapsed", label: "A set time has passed" },
 ] as const);
@@ -14,14 +14,14 @@ export type TriggerDefinition = (typeof TRIGGERS)[number];
 export type Trigger = InteractionTrigger;
 
 export type TriggerEvent =
-  | Readonly<{ type: "visitor-clicks-object"; objectId: EntityId }>
+  | Readonly<{ type: "visitor-clicks-hotspot"; hotspotId: EntityId }>
   | Readonly<{ type: "scene-starts" }>
   | Readonly<{ type: "time-elapsed" }>;
 
 export function triggerMatches(trigger: Trigger, event: TriggerEvent): boolean {
   switch (trigger.type) {
-    case "visitor-clicks-object":
-      return event.type === "visitor-clicks-object" && trigger.targetObjectId === event.objectId;
+    case "visitor-clicks-hotspot":
+      return event.type === "visitor-clicks-hotspot" && trigger.targetHotspotId === event.hotspotId;
     case "scene-starts":
       return event.type === "scene-starts";
     case "time-elapsed":

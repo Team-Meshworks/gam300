@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { assets } from "virtual:asset-catalogue";
-import { HOTSPOT_ASSET } from "../shared/assets/hotspot";
+import { HOTSPOT_ASSET, HOTSPOT_ASSET_ID } from "../shared/assets/hotspot";
 import type { Vector3Tuple } from "../shared/project/scene-object";
-import type { Transform } from "../shared/project/project-types";
+import type { HotspotDropTarget, ProjectHotspot, Transform } from "../shared/project/project-types";
 import { createDocumentStore } from "./document-store";
 import {
   handleDeleteShortcut,
@@ -25,6 +25,7 @@ import { useProjectSession } from "./persistence/use-project-session";
 const editorAssets = [...assets, HOTSPOT_ASSET];
 const assetKinds = new Map(editorAssets.map((asset) => [asset.id, asset.kind]));
 const EMPTY_INTERACTIONS: readonly Interaction[] = Object.freeze([]);
+const EMPTY_HOTSPOTS: readonly ProjectHotspot[] = Object.freeze([]);
 
 export function App() {
   const [store] = useState(() => createDocumentStore(editorAssets));
@@ -69,8 +70,12 @@ export function App() {
   const visitor = modeState?.mode === "visitor";
   const [navigationTool, setNavigationTool] = useState<NavigationTool>("select");
   const interactions = projectScene?.interactions ?? EMPTY_INTERACTIONS;
+  const hotspots = projectScene?.hotspots ?? EMPTY_HOTSPOTS;
 
-  const interactionHandler = useMemo(() => createInteractionHandler(interactions), [interactions]);
+  const interactionHandler = useMemo(
+    () => createInteractionHandler(interactions, hotspots),
+    [interactions, hotspots],
+  );
   const interactionHandlerRef = useRef(interactionHandler);
   useEffect(() => {
     interactionHandlerRef.current = interactionHandler;
@@ -219,9 +224,31 @@ export function App() {
     [store, setNotice],
   );
 
-  function place(assetId: string, position: Vector3Tuple) {
+  function place(assetId: string, position: Vector3Tuple, hotspotTarget?: HotspotDropTarget) {
     if (visitor) return;
     session.clearError();
+    if (assetId === HOTSPOT_ASSET_ID) {
+      if (projectScene === undefined) {
+        setNotice("Choose a room before adding hotspots");
+        return;
+      }
+      const objectId = hotspotTarget?.objectId ?? selection;
+      if (objectId === null) {
+        setNotice("Select an object to attach the hotspot to");
+        return;
+      }
+      const result = store.addHotspot(
+        objectId,
+        hotspotTarget?.objectId === objectId ? hotspotTarget.localPosition : [0, 0, 0],
+      );
+      if (!result.ok) {
+        setError(result.error.message);
+        return;
+      }
+      setError("");
+      setNotice("Hotspot attached to the selected object");
+      return;
+    }
     // Choosing the first room turns the grid scene into a saveable project
     // Room placement uses the environment slot so it survives JSON reconstruction
     if (assetKinds.get(assetId) === "environment") {
@@ -308,6 +335,7 @@ export function App() {
           objects={objects}
           selectedId={roomSelected ? projectScene.id : selection}
           selectedObject={selectedObject}
+          hotspots={hotspots}
           interactions={interactions}
           thumbnailFor={thumbnailFor}
           onSelect={setSelectedId}
