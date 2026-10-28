@@ -2,6 +2,7 @@ import type { ProjectDocument } from "./project-types";
 import { validateProjectStructure } from "./project-structure-validation";
 import { invalid } from "./validation-helpers";
 import type { ValidationResult } from "./validation-helpers";
+import { validateContentReferences } from "./project-content-validation";
 
 // UUID text form with all five groups present
 // Uppercase letters are allowed in saved IDs too
@@ -54,6 +55,10 @@ export function validateProject(
   const result = validateProjectStructure(raw);
   if (!result.ok) {
     return result;
+  }
+  // Reference checks consume the rebuilt version-specific document after structure validation succeeds
+  if (result.value.schemaVersion === 2) {
+    return validateContentReferences(result.value, assetKinds);
   }
 
   // One ID pool across the project, scenes and placed objects

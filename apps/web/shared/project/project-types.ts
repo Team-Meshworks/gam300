@@ -1,5 +1,6 @@
 // Plain project data for JSON saving
 // Validate imports before using them as a ProjectDocument
+import type { ContentProject } from "./project-content";
 
 // Project, scene and object IDs use UUID strings
 // Reuse these IDs when saving or undoing an edit
@@ -19,6 +20,7 @@ export type QuaternionTuple = readonly [x: number, y: number, z: number, w: numb
 export type Transform = Readonly<{
   position: Vector3Tuple;
   rotation: QuaternionTuple;
+
   // Positive scale on each local axis
   // No mirroring or shear
   scale: Vector3Tuple;
@@ -26,8 +28,10 @@ export type Transform = Readonly<{
 
 export type CameraPose = Readonly<{
   position: Vector3Tuple;
+
   // Camera looks along its local negative Z axis
   rotation: QuaternionTuple;
+
   // Vertical field of view in degrees
   fovDegrees: number;
 }>;
@@ -70,8 +74,12 @@ export type Interaction = Readonly<{
 export type ProjectScene = Readonly<{
   id: EntityId;
   name: string;
+
+  // One environment can model several connected rooms for uninterrupted walking
+  // TODO: multiple environment assets per scene if necessary
   environmentAssetId: AssetId;
   startCamera: CameraPose;
+
   // Keep the scene list order when saving
   objects: readonly ProjectObject[];
   // Click triggers can only target these object-bound hotspots
@@ -82,13 +90,16 @@ export type ProjectScene = Readonly<{
 
 // Readonly is a compile-time check
 // Route edits through the document store
-export type ProjectDocument = Readonly<{
+export type LegacyProjectDocument = Readonly<{
   // Saved format version
   // Keep edit counters and server revisions outside this document
   schemaVersion: 1;
   projectId: EntityId;
   title: string;
-  // One scene for M1
-  // Validator needs to check the array length
+
+  // Array order is the authored scene order; version 1 contains exactly one scene
   scenes: readonly ProjectScene[];
 }>;
+
+// Keep each version intact so readers and edits must narrow before accessing version-specific data
+export type ProjectDocument = LegacyProjectDocument | ContentProject;

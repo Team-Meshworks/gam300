@@ -53,7 +53,7 @@ describe("M1 project structure", () => {
     expect(result.value.scenes[0]?.startCamera.position[1]).toBe(1.6);
   });
 
-  it.each([0, 2, "1"])("rejects unsupported or wrongly typed version %j", (schemaVersion) => {
+  it.each([0, 3, "1"])("rejects unsupported or wrongly typed version %j", (schemaVersion) => {
     const { project } = sampleProject();
     expect(validateProjectStructure({ ...project, schemaVersion })).toMatchObject({
       ok: false,
@@ -262,6 +262,7 @@ describe("M1 project structure", () => {
     const { project } = sampleProject();
     project.title = "";
     const overhead = new TextEncoder().encode(JSON.stringify(project)).byteLength;
+
     // ASCII makes each added character exactly one byte here
     project.title = "a".repeat(5 * 1024 * 1024 - overhead);
     expect(validateProjectStructure(project).ok).toBe(true);
@@ -274,6 +275,7 @@ describe("M1 project structure", () => {
 
   it.each(["展", "\n"])("counts UTF-8 and JSON escaping in the size limit: %j", (text) => {
     const { project } = sampleProject();
+
     // Both fit the quick character budget but exceed the encoded document limit
     project.title = text.repeat(3 * 1024 * 1024);
     expect(validateProjectStructure(project)).toMatchObject({

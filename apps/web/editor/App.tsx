@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { assets } from "virtual:asset-catalogue";
-import { HOTSPOT_ASSET, HOTSPOT_ASSET_ID } from "../shared/assets/hotspot";
+import { HOTSPOT_ASSET, HOTSPOT_ASSET_ID } from "../shared/asset-runtime/hotspot";
 import type { Vector3Tuple } from "../shared/project/scene-object";
 import type { HotspotDropTarget, ProjectHotspot, Transform } from "../shared/project/project-types";
+import { missingProjectCapabilities } from "../shared/project/project-capabilities";
 import { createDocumentStore } from "./document-store";
 import {
   handleDeleteShortcut,
@@ -61,6 +62,7 @@ export function App() {
   const selection = objects.some((object) => object.id === selectedId) ? selectedId : null;
   const projectScene = project?.scenes[0];
   const roomAsset = editorAssets.find((asset) => asset.id === projectScene?.environmentAssetId);
+
   // Room selection uses the scene ID because its asset lives in the environment field
   // Object commands still receive only placed-object IDs
   const roomSelected = projectScene !== undefined && selectedId === projectScene.id;
@@ -126,7 +128,9 @@ export function App() {
     storageOperation === "import";
 
   const deleteSelection = useCallback(() => {
-    if (selection === null || visitor) return;
+    if (selection === null || visitor) {
+      return;
+    }
     const result = store.deleteObject(selection);
     if (!result.ok) {
       setError(result.error.message);
@@ -141,7 +145,9 @@ export function App() {
   useEffect(() => {
     function onHistoryKeyDown(event: KeyboardEvent) {
       // Foreground file operations own the keyboard; background backups must not block edits.
-      if (visitor || (storageOperation !== null && storageOperation !== "backup")) return;
+      if (visitor || (storageOperation !== null && storageOperation !== "backup")) {
+        return;
+      }
       const editingText = event.composedPath().some(isTextEditingTarget);
       handleHistoryShortcut(event, store, editingText);
       handleObjectShortcut(
@@ -201,7 +207,9 @@ export function App() {
   // Keep keyboard saving on the same path as the menu and its file picker
   useEffect(() => {
     function saveShortcut(event: KeyboardEvent) {
-      if (visitor || event.defaultPrevented || event.isComposing || event.altKey) return;
+      if (visitor || event.defaultPrevented || event.isComposing || event.altKey) {
+        return;
+      }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
         event.preventDefault();
         document.getElementById(event.shiftKey ? "project-save-as" : "project-save")?.click();
@@ -225,7 +233,9 @@ export function App() {
   );
 
   function place(assetId: string, position: Vector3Tuple, hotspotTarget?: HotspotDropTarget) {
-    if (visitor) return;
+    if (visitor) {
+      return;
+    }
     session.clearError();
     if (assetId === HOTSPOT_ASSET_ID) {
       if (projectScene === undefined) {
@@ -249,6 +259,7 @@ export function App() {
       setNotice("Hotspot attached to the selected object");
       return;
     }
+
     // Choosing the first room turns the grid scene into a saveable project
     // Room placement uses the environment slot so it survives JSON reconstruction
     if (assetKinds.get(assetId) === "environment") {
@@ -256,6 +267,7 @@ export function App() {
         setNotice("Wait for the project to finish opening, then choose a room");
         return;
       }
+
       // The library keeps the room available after placement
       // Dropping the current room again leaves the scene and undo history alone
       if (store.getSnapshot().project?.scenes[0]?.environmentAssetId === assetId) {
@@ -270,10 +282,19 @@ export function App() {
       }
       setError("");
       setDragging(false);
-      if (created.value.scenes[0]?.objects.length === 0) session.markPristine(created.value);
+      if (created.value.scenes[0]?.objects.length === 0) {
+        session.markPristine(created.value);
+      }
       setNotice("Project created; choose Save to name its file");
       return;
     }
+    // Clicks and drops share this path; room selection starts the project before furnishing it
+    if (store.getSnapshot().project === null) {
+      setDragging(false);
+      setError("Choose a room first");
+      return;
+    }
+
     const result = store.addObject(assetId, position);
     if (!result.ok) {
       setError(result.error);
@@ -302,6 +323,15 @@ export function App() {
         onRedo={store.redo}
         canPreview={manager !== null && !session.busy}
         onPreview={() => {
+          const current = store.getSnapshot().project;
+          const unavailable =
+            current === null ? [] : missingProjectCapabilities(current, new Set());
+          if (unavailable.length > 0) {
+            setNotice(
+              "This preview does not support all the scenes and interactions in this project",
+            );
+            return;
+          }
           manager?.setMode("visitor");
           document.getElementById("viewport")?.focus();
         }}
@@ -316,7 +346,9 @@ export function App() {
         onChange={(event) => {
           const file = event.currentTarget.files?.[0];
           event.currentTarget.value = "";
-          if (file !== undefined) void session.importFile(file);
+          if (file !== undefined) {
+            void session.importFile(file);
+          }
         }}
       />
 

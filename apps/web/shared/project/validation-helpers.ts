@@ -14,6 +14,17 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+// Only call after validation has produced a separate bounded JSON tree
+export function freezeValidatedData<T>(value: T): T {
+  if (value !== null && typeof value === "object") {
+    for (const child of Object.values(value)) {
+      freezeValidatedData(child);
+    }
+    Object.freeze(value);
+  }
+  return value;
+}
+
 export function checkFields(
   record: Record<string, unknown>,
   fields: readonly string[],
@@ -26,6 +37,7 @@ export function checkFields(
       return invalid(`${path}.${field}`, "Required field is missing");
     }
   }
+
   // Catch misspelled or unsupported fields before we discard anything
   for (const field of Object.keys(record)) {
     if (!fields.includes(field) && !optional.includes(field)) {

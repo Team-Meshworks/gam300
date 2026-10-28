@@ -9,6 +9,7 @@ import { validateCameraPose, validatePosition, validateTransform } from "./spati
 import { checkFields, invalid, isRecord } from "./validation-helpers";
 import type { ValidationResult } from "./validation-helpers";
 import { MAX_PROJECT_BYTES } from "./project-limits";
+import { validateContentStructure } from "./project-content-validation";
 
 // Starting limits from the project handoff
 const MAX_OBJECTS_PER_SCENE = 200;
@@ -22,6 +23,13 @@ function readText(raw: unknown, path: string, budget: TextBudget): ValidationRes
   if (typeof raw !== "string") {
     return invalid(path, "Expected a string");
   }
+  // PostgreSQL jsonb cannot store NUL; reject it without altering authored text
+  if (raw.includes("\u0000")) {
+    return invalid(path, "Text contains an unsupported NUL character");
+  }
+  if (/[\ud800-\udfff]/u.test(raw)) {
+    return invalid(path, "Text contains invalid Unicode");
+  }
 
   // Catch oversized text before copying the whole document
   // UTF-8 JSON takes at least as many bytes as these string lengths
@@ -29,6 +37,7 @@ function readText(raw: unknown, path: string, budget: TextBudget): ValidationRes
   if (budget.remaining < 0) {
     return invalid(path, "Project exceeds the 5 MiB document limit");
   }
+
   // Preserve names exactly as authored, including spacing
   return { ok: true, value: raw };
 }
@@ -217,6 +226,7 @@ function validateScene(
   if (!fields.ok) {
     return fields;
   }
+
   // Check the count before walking the object list
   // An empty room is valid while the author is getting started
   if (!Array.isArray(raw.objects) || raw.objects.length > MAX_OBJECTS_PER_SCENE) {
@@ -303,9 +313,14 @@ export function validateProjectStructure(raw: unknown): ValidationResult<Project
   if (!isRecord(raw)) {
     return invalid("project", "Project must be an object");
   }
+
   // Read the version before interpreting fields from a different format
   if (!Object.hasOwn(raw, "schemaVersion")) {
     return invalid("project.schemaVersion", "Required field is missing");
+  }
+  // Dispatch v2 before the legacy exact-field checks so each released shape keeps its own rules
+  if (raw.schemaVersion === 2) {
+    return validateContentStructure(raw);
   }
   if (raw.schemaVersion !== 1) {
     return invalid(
@@ -342,6 +357,7 @@ export function validateProjectStructure(raw: unknown): ValidationResult<Project
     title: title.value,
     scenes: [scene.value],
   };
+
   // Count UTF-8 bytes with JSON punctuation and escaping included
   // Only serialize the checked copy so extra input fields can't enter the output
   if (new TextEncoder().encode(JSON.stringify(document)).byteLength > MAX_PROJECT_BYTES) {

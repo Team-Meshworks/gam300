@@ -1,5 +1,5 @@
 import { useEffect, useRef, type DragEvent, type ReactNode } from "react";
-import { assetDragType, type CatalogueAsset } from "../../shared/assets/catalogue";
+import { assetDragType, type CatalogueAsset } from "../../shared/asset-runtime/catalogue";
 import type { SceneObject, Vector3Tuple } from "../../shared/project/scene-object";
 import type {
   HotspotDropTarget,

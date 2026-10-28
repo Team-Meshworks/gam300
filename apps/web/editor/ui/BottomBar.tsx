@@ -7,7 +7,7 @@ import {
   type MouseEvent,
   type PointerEvent,
 } from "react";
-import { assetDragType, type CatalogueAsset } from "../../shared/assets/catalogue";
+import { assetDragType, type CatalogueAsset } from "../../shared/asset-runtime/catalogue";
 import type { NavigationTool } from "../graphics/scene";
 import { dockEdges, loadDockEdge, nearestEdge, saveDockEdge, type DockEdge } from "./dock-edge";
 import { Icon, type IconName } from "./Icon";

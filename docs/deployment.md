@@ -50,7 +50,9 @@ On Windows, use `run.bat`. Open http://localhost:8081. Stop this local applicati
 The Dockerfile builds with pinned Node/npm and serves the result through pinned Caddy.
 The launchers restore Git LFS delivery assets and check prerequisites. The container
 build runs lint, formatting, unit tests, TypeScript, all four authoring browser suites
-and the packaged-build browser checks before the web service starts. Host Node/npm
+and the packaged-build browser checks before the web service starts. CI sets
+`RUN_BUILD_CHECKS=false` after its source checks pass, then tests the final Caddy image;
+standalone builds retain all checks by default. Host Node/npm
 and Playwright are unnecessary. API/PostgreSQL services remain M2 implementation work.
 Only delivery assets enter the build; editable source files and local secrets are excluded.
 The existing asset validator runs with `--delivery-only` inside the build: it checks
@@ -120,11 +122,27 @@ that the sample control loads its project in development and is absent in produc
 The Docker build includes TypeScript checking. Both build modes retain the 500 kB
 JavaScript chunk-budget check.
 
+Lint and formatting run once on Linux. Native Windows and macOS jobs retain setup,
+dependency-boundary, unit and build checks. Module-removal experiments run when
+architecture tooling, package manifests, compiler/build configuration or CI changes,
+and on manual runs. Every run still checks live imports for forbidden dependencies
+and cycles. CI generates the detailed architecture graph as a test artifact; comment
+and line-number changes do not require regenerating a tracked graph to pass.
+
 The recovery check includes place–move–undo–save–reload and JSON transfer into a fresh
 browser context. Its output and the editor check output are retained under `apps/web/test-results/`.
 
+The server job uses the SDK pinned in `apps/server/global.json`, locked NuGet restore,
+Release build, both C# format checks, migration checks and the complete TUnit suite.
+Its disposable PostgreSQL 18.6 service publishes only to loopback and uses synthetic
+test credentials. The suite applies migrations in isolated schemas and includes the
+existing Chromium account flow. Test reports and browser-version evidence are retained
+for 14 days. The separate account cold-restart acceptance remains a local operator check;
+see the [server setup](../apps/server/README.md).
+
 The check job has no package-write permission. After a successful push or manual run on
-`dev` or `main`, a separate publishing job pushes the exact tested image to the private GHCR package
+`dev` or `main`, and after the web, native compatibility and server jobs pass, a separate
+publishing job pushes the exact tested image to the private GHCR package
 `ghcr.io/team-meshworks/gam300`. Each release records its immutable digest, source commit,
 branch and CI run ID. The short-lived image-transfer artifact is retained for two days;
 test/web artifacts for 14 days and the small release bundle for 90 days. Retain registry
