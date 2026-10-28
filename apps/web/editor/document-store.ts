@@ -200,6 +200,32 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
   }
 
   return {
+    renameObject(id: string, name: string): ValidationResult<true> {
+      const object = objects.find((entry) => entry.id === id);
+      if (!object) return invalid("objectId", "Choose an object in this scene");
+      const trimmed = name.trim();
+      if (!trimmed) return invalid("name", "Enter an object name");
+      if (trimmed === object.name) return { ok: true, value: true };
+
+      // Rename only this placed instance; retain its asset reference, identity and attachments
+      const renamed = Object.freeze({ ...object, name: trimmed });
+      const checked = checkContentObjects(
+        objects.map((entry) => (entry.id === id ? renamed : entry)),
+      );
+      if (!checked.ok) return checked;
+      replaceObjects(
+        history.execute(objects, {
+          label: "Rename object",
+          apply: (current) =>
+            Object.freeze(current.map((entry) => (entry.id === id ? renamed : entry))),
+          revert: (current) =>
+            Object.freeze(current.map((entry) => (entry.id === id ? object : entry))),
+        }),
+      );
+      clearEdit();
+      publish();
+      return { ok: true, value: true };
+    },
     copyObject(objectId: string): ValidationResult<SceneObject> {
       const object = objects.find((entry) => entry.id === objectId);
       if (!object) {

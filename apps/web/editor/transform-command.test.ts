@@ -195,3 +195,17 @@ it("moves nested attachments atomically and rejects distortion without changing 
     ).ok,
   ).toBe(false);
 });
+
+// Instance labels must not alter the catalogue identity or make undo lose the original object
+it("renames a placed object without changing its asset and restores the name on undo", () => {
+  const { store, object } = setup();
+  expect(store.renameObject(object.id, "  Exhibit  ").ok).toBe(true);
+  expect(store.getSnapshot().objects[0]).toEqual({ ...object, name: "Exhibit" });
+  const renamed = store.getSnapshot();
+  expect(store.renameObject(object.id, " ").ok).toBe(false);
+  expect(store.getSnapshot()).toBe(renamed);
+  store.undo();
+  expect(store.getSnapshot().objects[0]).toBe(object);
+  store.redo();
+  expect(store.getSnapshot().objects[0]!.name).toBe("Exhibit");
+});
