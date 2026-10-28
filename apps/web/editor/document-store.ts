@@ -323,6 +323,71 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
   }
 
   return {
+    addAttachedObject(assetId: string, parentId: string, position: Vector3Tuple) {
+      // A placed case is identified by its object ID, never its asset name or list position
+      // The caller supplies the model's display surface in world coordinates
+      if (!objects.some((object) => object.id === parentId)) {
+        return { ok: false, error: "This display case is no longer in the scene" } as const;
+      }
+      const asset = assets.find((entry) => entry.id === assetId && entry.kind === "model");
+      if (!asset || projectAssets.get(assetId) !== "model") {
+        return { ok: false, error: "Choose a model from this project's catalog" } as const;
+      }
+      const transform = validateTransform(
+        { position, rotation: [0, 0, 0, 1], scale: [1, 1, 1] },
+        "transform",
+      );
+      if (!transform.ok) return { ok: false, error: transform.error.message } as const;
+      // A case owns one displayed object; replacement keeps its identity and authored content
+      // Reject ambiguous older layouts rather than silently deleting overlapping objects
+      const displayed = objects.filter(
+        (entry) => (entry as ContentObject).parentId?.toLowerCase() === parentId.toLowerCase(),
+      );
+      if (displayed.length > 1) {
+        return {
+          ok: false,
+          error: "Remove extra attached objects before replacing this display",
+        } as const;
+      }
+      const previous = displayed[0] as ContentObject | undefined;
+      const object: ContentObject = {
+        id: previous?.id ?? crypto.randomUUID(),
+        name: asset.name,
+        assetId,
+        transform: previous?.transform ?? transform.value,
+        parentId,
+        visible: previous?.visible ?? true,
+        components: previous?.components ?? [],
+      };
+      // Placement and attachment enter history together after full document validation
+      // This also upgrades older projects without losing their earlier undo steps
+      const result = editHierarchy(
+        previous ? "Replace displayed asset" : "Place asset on display case",
+        (scene) => ({
+          ...scene,
+          objects: previous
+            ? scene.objects.map((entry) => (entry.id === previous.id ? object : entry))
+            : [...scene.objects, object],
+        }),
+      );
+      return result.ok
+        ? ({ ok: true, object } as const)
+        : ({ ok: false, error: result.error.message } as const);
+    },
+    removeDisplayedAsset(parentId: string) {
+      if (!objects.some((object) => object.id === parentId)) {
+        return invalid("parentId", "This display case is no longer in the scene");
+      }
+      const displayed = objects.filter(
+        (entry) => (entry as ContentObject).parentId?.toLowerCase() === parentId.toLowerCase(),
+      );
+      if (displayed.length !== 1) {
+        return invalid("parentId", "Choose a case containing exactly one displayed asset");
+      }
+      // Reuse deletion validation so dependent children or interaction references stay protected
+      // The case remains in place and Undo restores the displayed object with its original ID
+      return this.deleteObject(displayed[0]!.id);
+    },
     createGroup(name: string, parentId: string | null = null): ValidationResult<ProjectGroup> {
       // The file format permits unfinished labels, but a newly named folder must be identifiable
       if (!name.trim()) return invalid("name", "Enter a group name");
