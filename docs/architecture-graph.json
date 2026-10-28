@@ -262,7 +262,7 @@
     "shared/project/project-serialization.ts": "57ecf9585608f2703da3410955f8dc2a9a62f8c494b29b5b310361ebdf8c2f73",
     "shared/project/project-structure-validation.test.ts": "17433f798aa5e4ecae9732f9845eb8020687c66f22affb47c91acec18a475adc",
     "shared/project/project-structure-validation.ts": "8deb995cb417018d6e6eca4de89a95b2eb79ad87ee16e00327c2a5bd3d2cf1c6",
-    "shared/project/project-types.ts": "179e7570e289e9905543bef7ee9617c66a0419cce9b19df24b93b0f53827b708",
+    "shared/project/project-types.ts": "8eec483efc0970debcae06388c630b73199c64ba0d5a614169c4cc6eecbea88f",
     "shared/project/project-validation.test.ts": "9221fd078f690b50a459f4579dc556e353bf484ba307e6b16272e68e7b03a3b3",
     "shared/project/project-validation.ts": "f88a750884b31852e59638abdeff50b3c05082dc5b1480ce3115a8cf76903976",
     "shared/project/scene-object.ts": "eb0421d014733ee53241324fbf7f110bf3415cc6c737080a4416eafaac4748d1",

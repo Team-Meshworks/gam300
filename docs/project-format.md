@@ -25,6 +25,8 @@ Version-2 objects retain the model asset and transform fields and add `parentId`
 for the room root. Groups have `id`, `name` and `parentId`. Parent cycles are invalid
 
 Parents organize the hierarchy; object transforms remain in world coordinates.
+When an author moves a parent object, the editor updates its descendants together.
+Display-case placement uses this existing parent link, retaining attachment after reopening.
 One environment can contain several connected physical rooms. Walking between those
 rooms stays in the same scene; scene navigation is an explicit authored action.
 Collapsing the tree and runtime camera, playback or visibility changes do not modify
