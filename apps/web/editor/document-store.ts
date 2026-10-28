@@ -1,7 +1,11 @@
 import { validateTransform } from "../shared/project/spatial-validation";
 import { freezeValidatedData, invalid } from "../shared/project/validation-helpers";
 import { validateProject } from "../shared/project/project-validation";
-import type { ContentObject } from "../shared/project/project-content";
+import type {
+  ContentObject,
+  ContentProject,
+  ProjectGroup,
+} from "../shared/project/project-content";
 import type { Transform } from "../shared/project/project-types";
 import { prepareTransformCommand } from "./transform-command";
 import { createCommandHistory, type EditCommand } from "./command-history";
@@ -242,7 +246,94 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
     return { ok: true, value: object };
   }
 
+  function editHierarchy(
+    label: string,
+    change: (scene: ContentProject["scenes"][number]) => ContentProject["scenes"][number],
+  ): ValidationResult<true> {
+    if (project === null) return invalid("project", "Choose a room first");
+
+    // Grouping is the first operation that needs the v2 format in a released v1 project
+    // Convert a candidate only; failed edits must leave the live document and history untouched
+    const upgradeObjects = (items: readonly SceneObject[]) =>
+      items.map((object) => ({
+        ...object,
+        parentId: null,
+        visible: true,
+        components: [],
+      }));
+    const content: ContentProject =
+      project.schemaVersion === 2
+        ? project
+        : {
+            ...project,
+            schemaVersion: 2,
+            scenes: project.scenes.map((scene) => ({
+              ...scene,
+              objects: upgradeObjects(scene.objects),
+              groups: [],
+              zones: [],
+              viewpoints: [],
+              rules: [],
+            })),
+          };
+    const scene = content.scenes[0]!;
+    const nextScene = change(scene);
+    if (JSON.stringify(nextScene) === JSON.stringify(scene)) return { ok: true, value: true };
+    const checked = validateProject(
+      { ...content, scenes: [nextScene, ...content.scenes.slice(1)] },
+      projectAssets,
+    );
+    if (!checked.ok) return checked;
+
+    // Carry older placement/transform undo steps across the one-time format upgrade
+    // Every retained state must pass the same v2 checks before any state is installed
+    if (project.schemaVersion === 1) {
+      const old = history.getStates();
+      const converted = { past: [] as HistoryState[], future: [] as HistoryState[] };
+      for (const stack of ["past", "future"] as const) {
+        for (const state of old[stack]) {
+          const items = isHierarchyState(state) ? state.objects : state;
+          const candidate = { ...scene, objects: upgradeObjects(items) };
+          const valid = validateProject({ ...content, scenes: [candidate] }, projectAssets);
+          if (!valid.ok)
+            return invalid("history", "An earlier edit cannot be retained in the grouped format");
+          converted[stack].push(
+            freezeValidatedData({ objects: candidate.objects, groups: [], sceneName: scene.name }),
+          );
+        }
+      }
+      project = freezeProject(content);
+      objects = project.scenes[0]!.objects;
+      history.restoreStates(historyState(), converted.past, converted.future);
+    }
+
+    // One immutable state includes the group records and every affected membership
+    // Undoing an ungroup therefore restores both the folder and its original children
+    const before = historyState();
+    const validProject = checked.value as ContentProject;
+    const next = freezeValidatedData({
+      objects: validProject.scenes[0]!.objects,
+      groups: validProject.scenes[0]!.groups,
+      sceneName: validProject.scenes[0]!.name,
+    });
+    restoreState(history.execute(before, { label, apply: () => next, revert: () => before }));
+    clearEdit();
+    publish();
+    return { ok: true, value: true };
+  }
+
   return {
+    createGroup(name: string, parentId: string | null = null): ValidationResult<ProjectGroup> {
+      // The file format permits unfinished labels, but a newly named folder must be identifiable
+      if (!name.trim()) return invalid("name", "Enter a group name");
+      // Stable group IDs use the same namespace as objects and survive save, undo and redo
+      const group: ProjectGroup = { id: crypto.randomUUID(), name: name.trim(), parentId };
+      const result = editHierarchy("Create group", (scene) => ({
+        ...scene,
+        groups: [...scene.groups, group],
+      }));
+      return result.ok ? { ok: true, value: group } : result;
+    },
     renameObject(id: string, name: string): ValidationResult<true> {
       const object = objects.find((entry) => entry.id === id);
       if (!object) return invalid("objectId", "Choose an object in this scene");

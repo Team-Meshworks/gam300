@@ -176,3 +176,24 @@ it("reopens hierarchy recovery and rejects damaged group parentage atomically", 
   ];
   expect(validateRecoveryHistory(recovered.history, recovered.project, kinds).ok).toBe(false);
 });
+
+// The first group edit upgrades legacy data and retains earlier object edits in the same history
+it("creates a group without losing earlier undo steps or reopening history", () => {
+  const store = setup();
+  const id = store.getSnapshot().objects[0]!.id;
+  const original = store.getSnapshot().objects[0]!.name;
+  store.renameObject(id, "Exhibit");
+  expect(store.createGroup("Gallery").ok).toBe(true);
+  expect(store.getSnapshot().project!.schemaVersion).toBe(2);
+  const reopened = reopen(capture(store));
+  reopened.undo();
+  reopened.undo();
+  expect(reopened.getSnapshot().objects[0]!.name).toBe(original);
+  reopened.redo();
+  reopened.redo();
+  expect(capture(reopened).project.scenes[0].groups[0].name).toBe("Gallery");
+  const before = reopened.getSnapshot();
+  expect(reopened.createGroup(" ").ok).toBe(false);
+  expect(reopened.createGroup("Invalid", crypto.randomUUID()).ok).toBe(false);
+  expect(reopened.getSnapshot()).toBe(before);
+});
