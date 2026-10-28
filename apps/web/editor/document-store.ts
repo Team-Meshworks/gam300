@@ -334,6 +334,46 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       }));
       return result.ok ? { ok: true, value: group } : result;
     },
+    renameGroup(id: string, name: string): ValidationResult<true> {
+      if (!name.trim()) return invalid("name", "Enter a group name");
+      if (
+        project?.schemaVersion !== 2 ||
+        !project.scenes[0]!.groups.some((group) => group.id === id)
+      ) {
+        return invalid("groupId", "Choose a group in this scene");
+      }
+      return editHierarchy("Rename group", (scene) => ({
+        ...scene,
+        groups: scene.groups.map((group) =>
+          group.id === id ? { ...group, name: name.trim() } : group,
+        ),
+      }));
+    },
+    ungroup(id: string): ValidationResult<true> {
+      const group =
+        project?.schemaVersion === 2
+          ? project.scenes[0]!.groups.find((entry) => entry.id === id)
+          : undefined;
+      if (!group) return invalid("groupId", "Choose a group in this scene");
+
+      // Removing a folder releases its direct children to its parent without deleting content
+      // Deeper descendants keep their parents and all transforms stay in world coordinates
+      return editHierarchy("Ungroup", (scene) => ({
+        ...scene,
+        groups: scene.groups
+          .filter((entry) => entry.id !== id)
+          .map((entry) =>
+            entry.parentId?.toLowerCase() === id.toLowerCase()
+              ? { ...entry, parentId: group.parentId }
+              : entry,
+          ),
+        objects: scene.objects.map((object) =>
+          object.parentId?.toLowerCase() === id.toLowerCase()
+            ? { ...object, parentId: group.parentId }
+            : object,
+        ),
+      }));
+    },
     reparent(id: string, parentId: string | null): ValidationResult<true> {
       // Rooms are independent spaces; reject nesting at the command boundary for every caller
       if (
