@@ -255,7 +255,7 @@
     "shared/asset-runtime/hotspot.ts": "1981f66fb7e803218b2cbf88b6e64c649a8dd4f2298b70882003495b631e16aa",
     "shared/asset-runtime/manifest-module.d.ts": "ff7add6e7e483a4cc6a0dd48c9ead7b2f4cd0b0a5ccc7fb06181e1a5d2d1326e",
     "shared/project/project-capabilities.ts": "b3e43a4a88bebd86fd0a35ccf6260d32fec6045ffb9fc40da80c783e3e65abf3",
-    "shared/project/project-content-validation.ts": "a7b6663e088d2180edb86b63d08fe1630ba86e562458bc444916247ef03edcaa",
+    "shared/project/project-content-validation.ts": "bce494c0c39aa634fa585ba0941cb0318ff3c76cc2b51bc0ecc6cd7114ac954f",
     "shared/project/project-content.test.ts": "348f9d8fd26a3273e1e4bc701565345607c6eba773ceef342702b08a004a9bc0",
     "shared/project/project-content.ts": "eaaa6d461b14bc6a0b103c1754945ddcda3c274231796077e19d2df756baad92",
     "shared/project/project-deserialization.test.ts": "a4159c5ffc88b8d3f22ed9fcca5b7b37cb7a90d1766dc46080264ca3b552ffb1",

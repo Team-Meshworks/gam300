@@ -642,12 +642,7 @@ export function validateContentReferences(
 
       // Scene-level hotspots attach to objects and drive the authored click interactions
       scene.hotspots.forEach((hotspot, index) => {
-        reference(
-          hotspot.objectId,
-          ["object"],
-          scene.id,
-          `${path}.hotspots[${index}].objectId`,
-        );
+        reference(hotspot.objectId, ["object"], scene.id, `${path}.hotspots[${index}].objectId`);
       });
       scene.interactions.forEach((value, index) => {
         if (value.when.type === "visitor-clicks-hotspot") {
