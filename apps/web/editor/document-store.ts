@@ -334,6 +334,29 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       }));
       return result.ok ? { ok: true, value: group } : result;
     },
+    reparent(id: string, parentId: string | null): ValidationResult<true> {
+      // Rooms are independent spaces; reject nesting at the command boundary for every caller
+      if (
+        parentId !== null &&
+        objects.some((object) => object.id === id && object.assetId === "test-room-module-v1")
+      ) {
+        return invalid("parentId", "Rooms must remain at the scene root");
+      }
+      const groups = project?.schemaVersion === 2 ? project.scenes[0]!.groups : [];
+      if (!objects.some((object) => object.id === id) && !groups.some((group) => group.id === id)) {
+        return invalid("id", "Choose an object or group in this scene");
+      }
+
+      // The shared validator rejects missing parents, self-parenting and descendant cycles
+      // Reparenting retains world transforms; later object movement carries its descendants
+      return editHierarchy("Move in hierarchy", (scene) => ({
+        ...scene,
+        objects: scene.objects.map((object) =>
+          object.id === id ? { ...object, parentId } : object,
+        ),
+        groups: scene.groups.map((group) => (group.id === id ? { ...group, parentId } : group)),
+      }));
+    },
     renameObject(id: string, name: string): ValidationResult<true> {
       const object = objects.find((entry) => entry.id === id);
       if (!object) return invalid("objectId", "Choose an object in this scene");
@@ -571,7 +594,11 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
         listeners.delete(listener);
       };
     },
-    addObject(assetId: string, position: Vector3Tuple) {
+    addObject(assetId: string, position: Vector3Tuple, parentId: string | null = null) {
+      if (assetId === "test-room-module-v1" && parentId !== null) {
+        return { ok: false, error: "Rooms must remain at the scene root" } as const;
+      }
+
       const asset = assets.find((entry) => entry.id === assetId);
       if (asset === undefined) {
         return { ok: false, error: "Choose an asset from the library." } as const;
@@ -601,6 +628,18 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
           ? { parentId: null, visible: true, components: Object.freeze([]) }
           : {}),
       });
+      // Placement and membership enter history together so Undo never leaves a half-placed child
+      // The first room is the scene environment; its children use the existing root representation
+      if (parentId !== null && parentId !== project?.scenes[0]?.id) {
+        const child = { ...object, parentId, visible: true, components: [] };
+        const result = editHierarchy("Add object", (scene) => ({
+          ...scene,
+          objects: [...scene.objects, child],
+        }));
+        return result.ok
+          ? ({ ok: true, object: child } as const)
+          : ({ ok: false, error: result.error.message } as const);
+      }
       // V2 defaults belong to the authored object so saving and undo retain the same shape
       const validPlacement = checkContentObjects([...objects, object]);
       if (!validPlacement.ok) {
