@@ -27,13 +27,15 @@ export function validateClassAssignment(
     !project.classIds.includes(draft.classId)
   )
     return { ok: false, message: "Choose a class available for this project." };
+  const eligibleIds = new Set(
+    students
+      .filter((student) => student.classIds.includes(draft.classId))
+      .map((student) => student.id),
+  );
   if (
     !draft.studentIds.length ||
     new Set(draft.studentIds).size !== draft.studentIds.length ||
-    draft.studentIds.some(
-      (id) =>
-        !students.some((student) => student.id === id && student.classIds.includes(draft.classId)),
-    )
+    draft.studentIds.some((id) => !eligibleIds.has(id))
   )
     return {
       ok: false,

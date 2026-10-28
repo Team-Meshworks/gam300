@@ -15,8 +15,28 @@ try {
   await page.getByRole("heading", { name: "UI foundation" }).waitFor();
 
   const newProject = page.getByRole("link", { name: "New project", exact: true });
+  await page.getByRole("link", { name: "Review", exact: true }).click();
+  await page.goBack();
+  assert.equal(new URL(page.url()).hash, "");
+  assert.equal(
+    await page.getByRole("link", { name: "New project", exact: true }).getAttribute("aria-current"),
+    "page",
+    "Returning to the unfragmented preview restores its default screen",
+  );
+  await page.goForward();
   await newProject.focus();
   await page.keyboard.press("Enter");
+  await page.getByRole("link", { name: "Skip to workspace" }).focus();
+  await page.keyboard.press("Enter");
+  assert.equal(
+    new URL(page.url()).hash,
+    "#new-project",
+    "Skipping to the workspace must preserve the current screen in browser history",
+  );
+  assert.equal(
+    await page.locator("#workspace").evaluate((node) => node === document.activeElement),
+    true,
+  );
   const preview = page.getByRole("button", { name: "Preview project" });
   await preview.click();
   assert.equal(await page.getByRole("dialog").count(), 0, "Required fields block an empty preview");
@@ -61,9 +81,18 @@ try {
   await page.getByLabel("Your review").fill("Helpful feedback");
   await page.getByRole("button", { name: "Preview review" }).click();
   assert.equal(await page.getByRole("dialog").getByText("Helpful feedback").isVisible(), true);
-  await page.keyboard.press("Escape");
+  await page.goBack();
+  await page.getByRole("heading", { name: "New Project", exact: true, level: 1 }).waitFor();
+  assert.equal(
+    await page.getByRole("dialog").count(),
+    0,
+    "A preview dialog closes when browser history switches screens",
+  );
+  await page.goForward();
+  await page.getByRole("heading", { name: "Submission review", exact: true, level: 1 }).waitFor();
 
   await page.getByRole("link", { name: "Accounts", exact: true }).click();
+  await page.getByRole("button", { name: "Open Ridgeview Secondary School" }).click();
   const accounts = page.getByRole("tabpanel", { name: /Students|Teachers|All/ });
   const allTab = page.getByRole("tab", { name: "All", exact: true });
   const studentsTab = page.getByRole("tab", { name: "Students", exact: true });
@@ -109,6 +138,7 @@ try {
           view
         ],
         exact: true,
+        level: 1,
       })
       .waitFor();
     for (const width of [1366, 1024, 768]) {
@@ -131,6 +161,7 @@ try {
           view
         ],
         exact: true,
+        level: 1,
       })
       .waitFor();
     await page.screenshot({
@@ -138,6 +169,37 @@ try {
       fullPage: true,
     });
   }
+
+  // Cancel returns to the screen that opened the form and discards its draft.
+  await page.getByRole("link", { name: "Classes", exact: true }).click();
+  await page.getByRole("link", { name: "New project", exact: true }).click();
+  await page.getByLabel("Project title").fill("Discard this draft");
+  await page.getByLabel("Choose cover image").setInputFiles({
+    name: "cover.png",
+    mimeType: "image/png",
+    buffer: Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/aX8AAAAASUVORK5CYII=",
+      "base64",
+    ),
+  });
+  await page.getByRole("img", { name: "Selected cover image" }).waitFor();
+  assert.equal(await page.getByRole("button", { name: "Clear form" }).count(), 0);
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.getByRole("heading", { name: "Class assignments", exact: true, level: 1 }).waitFor();
+  await page.getByRole("link", { name: "New project", exact: true }).click();
+  assert.equal(await page.getByLabel("Project title").inputValue(), "");
+  assert.equal(await page.getByRole("img", { name: "Selected cover image" }).count(), 0);
+  assert.equal(await page.getByLabel("Choose cover image").inputValue(), "");
+  await page.getByRole("link", { name: "Accounts", exact: true }).click();
+  await page.getByRole("link", { name: "New project", exact: true }).click();
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.getByRole("heading", { name: "Accounts", exact: true, level: 1 }).waitFor();
+  assert.equal(await page.getByLabel("Search accounts").inputValue(), "Aisyah");
+
+  await page.goto(new URL("#new-project", baseUrl).href);
+  await page.reload();
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.getByRole("heading", { name: "Class assignments", exact: true, level: 1 }).waitFor();
   assert.deepEqual(errors, []);
   console.log("UI foundation browser checks passed");
 } finally {

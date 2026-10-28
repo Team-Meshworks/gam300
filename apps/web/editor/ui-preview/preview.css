@@ -98,22 +98,6 @@
 .sp-assignment-card h2 svg {
   margin-right: 10px;
 }
-.sp-directory {
-  display: grid;
-  gap: 24px;
-}
-.sp-directory-heading {
-  display: flex;
-  justify-content: space-between;
-  gap: 24px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-.sp-directory-heading .sp-search {
-  flex: 1;
-  max-width: 400px;
-  min-width: 220px;
-}
 @media (max-width: 1100px) {
   .sp-tabs {
     gap: 14px;

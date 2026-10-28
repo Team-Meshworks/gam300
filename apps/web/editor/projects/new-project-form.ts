@@ -14,6 +14,8 @@ export type NewProjectDraft = Readonly<{
   dueDate: string;
   classId: string;
   imageType: string;
+  // Local selection only; the future host owns upload and asset references
+  coverImage?: File;
   studentIds: readonly string[];
 }>;
 export type ProjectCreationResult =
@@ -41,20 +43,22 @@ export function validateNewProject(
     return { ok: false, field: "dueDate", message: "Choose a valid due date." };
   if (!classes.some((item) => item.id === draft.classId))
     return { ok: false, field: "classId", message: "Choose an available class." };
+  const eligibleIds = new Set(
+    students
+      .filter((student) => student.classIds.includes(draft.classId))
+      .map((student) => student.id),
+  );
   if (
     !draft.studentIds.length ||
     new Set(draft.studentIds).size !== draft.studentIds.length ||
-    draft.studentIds.some(
-      (id) =>
-        !students.some((student) => student.id === id && student.classIds.includes(draft.classId)),
-    )
+    draft.studentIds.some((id) => !eligibleIds.has(id))
   )
     return {
       ok: false,
       field: "studentIds",
       message: "Select students available in the chosen class. The roster may have changed.",
     };
-  if (!["Cover image", "Gallery", "360°"].includes(draft.imageType))
+  if (!["Cover image", "360°"].includes(draft.imageType))
     return { ok: false, field: "imageType", message: "Choose an available image type." };
   return { ok: true, value: { ...draft, studentIds: [...draft.studentIds] } };
 }

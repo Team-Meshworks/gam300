@@ -1,0 +1,67 @@
+.sp-organization-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px 10px;
+}
+.sp-organization-card {
+  display: grid;
+  gap: 20px;
+  align-content: space-between;
+  min-height: 197px;
+}
+.sp-organization-card h3 {
+  font-size: 22px;
+}
+.sp-organization-card .sp-button {
+  justify-self: start;
+}
+.sp-organization-detail {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  gap: 24px;
+  align-items: start;
+}
+.sp-directory-project {
+  display: flex;
+  gap: 16px;
+  border-top: 1px solid var(--sp-border);
+  padding-top: 20px;
+}
+.sp-directory-project img {
+  width: 120px;
+  height: 90px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+.sp-directory-project h4 {
+  font-size: 14px;
+}
+.sp-directory-project .sp-button {
+  margin-top: 12px;
+}
+@media (max-width: 1100px) {
+  .sp-organization-detail {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 800px) {
+  .sp-organization-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.sp-directory {
+  display: grid;
+  gap: 24px;
+}
+.sp-directory-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.sp-directory-heading .sp-search {
+  flex: 1;
+  max-width: 400px;
+  min-width: 220px;
+}

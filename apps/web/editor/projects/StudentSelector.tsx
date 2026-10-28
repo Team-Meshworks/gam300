@@ -20,10 +20,12 @@ export function StudentSelector({
   const id = useId();
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState<"all" | "selected">("all");
+  const selectedIds = new Set(selected);
+  const search = query.trim().toLowerCase();
   const visible = available.filter(
     (student) =>
-      (student.name + " " + student.account).toLowerCase().includes(query.trim().toLowerCase()) &&
-      (tab === "all" || selected.includes(student.id)),
+      (student.name + " " + student.account).toLowerCase().includes(search) &&
+      (tab === "all" || selectedIds.has(student.id)),
   );
   return (
     <section className="sp-students" aria-labelledby={`${id}-heading`}>
@@ -75,7 +77,7 @@ export function StudentSelector({
               <label className="sp-person-row">
                 <input
                   type="checkbox"
-                  checked={selected.includes(student.id)}
+                  checked={selectedIds.has(student.id)}
                   onChange={(event) =>
                     onChange(
                       event.target.checked

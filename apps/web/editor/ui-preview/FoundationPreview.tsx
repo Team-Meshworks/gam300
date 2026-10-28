@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { WorkspaceShell } from "../../shared/ui/WorkspaceShell";
 import { Dialog } from "../../shared/ui/Dialog";
 import { PageState } from "../../shared/ui/PageState";
@@ -24,7 +24,7 @@ const views = [
     id: "review",
     link: "Review",
     title: "Submission review",
-    description: "Review and class-assignment component examples.",
+    description: "Explore student submission states and teacher review outcomes.",
   },
   {
     id: "accounts",
@@ -42,10 +42,27 @@ export function FoundationPreview() {
   const [active, setActive] = useState(currentView);
   const [state, setState] = useState<ExampleState>("ready");
   const [dialog, setDialog] = useState<{ title: string; body: ReactNode } | null>(null);
+  const previousView = useRef(active);
+  const newProjectOrigin = useRef<(typeof views)[number]["id"]>("classes");
+  useEffect(() => {
+    if (previousView.current !== active) {
+      if (active === "new-project") newProjectOrigin.current = previousView.current;
+      document.getElementById("workspace")?.focus();
+      previousView.current = active;
+    }
+  }, [active]);
   useEffect(() => {
     const update = () => {
+      if (!location.hash) {
+        setDialog(null);
+        setActive("new-project");
+        return;
+      }
       const requested = views.find((view) => `#${view.id}` === location.hash);
-      if (requested) setActive(requested.id);
+      if (requested) {
+        setDialog(null);
+        setActive(requested.id);
+      }
     };
     window.addEventListener("hashchange", update);
     return () => window.removeEventListener("hashchange", update);
@@ -56,7 +73,14 @@ export function FoundationPreview() {
   const view = views.find((item) => item.id === active) ?? views[0];
   return (
     <>
-      <a className="sp-skip-link" href="#workspace">
+      <a
+        className="sp-skip-link"
+        href="#workspace"
+        onClick={(event) => {
+          event.preventDefault();
+          document.getElementById("workspace")?.focus();
+        }}
+      >
         Skip to workspace
       </a>
       <aside className="sp-preview-tools" aria-label="Development preview">
@@ -114,7 +138,12 @@ export function FoundationPreview() {
         >
           <legend className="sp-sr-only">{view.title} example</legend>
           <section hidden={active !== "new-project"}>
-            <NewProjectExample onPreview={openPreview} />
+            <NewProjectExample
+              onPreview={openPreview}
+              onCancel={() => {
+                location.hash = newProjectOrigin.current;
+              }}
+            />
           </section>
           <section hidden={active !== "review"}>
             <ReviewExample onPreview={openPreview} />

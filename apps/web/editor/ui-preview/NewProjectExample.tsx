@@ -14,8 +14,10 @@ type Outcome = "unavailable" | "success" | "rejected" | "unknown";
 // Simulation remains in the development entry; the reusable form never imports fixtures
 export function NewProjectExample({
   onPreview,
+  onCancel,
 }: {
   onPreview: (title: string, body: ReactNode) => void;
+  onCancel: () => void;
 }) {
   const [outcome, setOutcome] = useState<Outcome>("unavailable");
   const [reset, setReset] = useState(0);
@@ -47,6 +49,12 @@ export function NewProjectExample({
           <dd>{classes.find((item) => item.id === draft.classId)?.label}</dd>
           <dt>Image type</dt>
           <dd>{draft.imageType}</dd>
+          {draft.coverImage && (
+            <>
+              <dt>Cover image file</dt>
+              <dd>{draft.coverImage.name} (local preview only)</dd>
+            </>
+          )}
           <dt>Students</dt>
           <dd>
             {students
@@ -110,6 +118,12 @@ export function NewProjectExample({
         classes={classes}
         students={roster}
         onPreview={preview}
+        onCancel={() => {
+          setReset((value) => value + 1);
+          setCreated(false);
+          setAttempts(0);
+          onCancel();
+        }}
         {...(outcome !== "unavailable" ? { onSubmit: simulate } : {})}
         onCreated={() => setCreated(true)}
       />

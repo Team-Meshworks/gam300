@@ -5,6 +5,7 @@ import { Button } from "../../shared/ui/Button";
 import { Field } from "../../shared/ui/Field";
 import { StudentSelector } from "./StudentSelector";
 import { ClassSelect } from "./ClassSelect";
+import { CoverImagePicker } from "./CoverImagePicker";
 import {
   validateNewProject,
   type NewProjectDraft,
@@ -31,6 +32,7 @@ export function NewProjectForm({
   onSubmit,
   onCreated,
   onPreview,
+  onCancel,
 }: {
   organizationName: string;
   creatorName: string;
@@ -39,12 +41,14 @@ export function NewProjectForm({
   onSubmit?: (draft: NewProjectDraft) => Promise<ProjectCreationResult>;
   onCreated?: (projectId: string) => void;
   onPreview?: (draft: NewProjectDraft) => void;
+  onCancel?: () => void;
 }) {
   const [phase, setPhase] = useState<"editing" | "pending" | "created" | "unknown">("editing");
   const [error, setError] = useState("");
   const inFlight = useRef(false);
   const mounted = useRef(false);
   const formRef = useRef<HTMLFormElement>(null);
+  const coverInputRef = useRef<HTMLInputElement>(null);
   const errorRef = useRef<HTMLParagraphElement>(null);
   useEffect(() => {
     mounted.current = true;
@@ -66,6 +70,7 @@ export function NewProjectForm({
   const [form, setForm] = useState(emptyForm);
   const [selectorReset, setSelectorReset] = useState(0);
   const [selected, setSelected] = useState<readonly string[]>([]);
+  const [coverImage, setCoverImage] = useState<File | null>(null);
   const available = students.filter(
     (student) => !form.classId || student.classIds.includes(form.classId),
   );
@@ -74,7 +79,11 @@ export function NewProjectForm({
   }
   function checkedDraft() {
     if (!formRef.current?.reportValidity()) return;
-    const checked = validateNewProject({ ...form, studentIds: selected }, classes, students);
+    const checked = validateNewProject(
+      { ...form, studentIds: selected, ...(coverImage ? { coverImage } : {}) },
+      classes,
+      students,
+    );
     if (!checked.ok) {
       setError(checked.message);
       return;
@@ -122,13 +131,6 @@ export function NewProjectForm({
       onSubmit={(event) => {
         event.preventDefault();
         void submit();
-      }}
-      onReset={() => {
-        if (phase !== "editing") return;
-        setError("");
-        setForm(emptyForm);
-        setSelectorReset((value) => value + 1);
-        setSelected([]);
       }}
     >
       {!onSubmit && (
@@ -206,25 +208,46 @@ export function NewProjectForm({
             <fieldset className="sp-image-options">
               <legend>Project image type</legend>
               <div>
-                {["Cover image", "Gallery", "360°"].map((type) => (
-                  <label key={type}>
-                    <input
-                      type="radio"
-                      name="image-type"
-                      value={type}
-                      checked={form.imageType === type}
-                      onChange={() => update("imageType", type)}
-                    />
-                    <FontAwesomeIcon icon={faImage} aria-hidden="true" />
-                    <span>{type}</span>
-                  </label>
-                ))}
+                {["Cover image", "Gallery", "360°"].map((type) =>
+                  type === "Gallery" ? (
+                    <Button
+                      key={type}
+                      className="sp-gallery-button"
+                      onClick={() => {
+                        update("imageType", "Cover image");
+                        coverInputRef.current?.click();
+                      }}
+                    >
+                      <FontAwesomeIcon icon={faImage} aria-hidden="true" />
+                      <span>Gallery</span>
+                    </Button>
+                  ) : (
+                    <label key={type}>
+                      <input
+                        type="radio"
+                        name="image-type"
+                        value={type}
+                        checked={form.imageType === type}
+                        onChange={() => update("imageType", type)}
+                      />
+                      <FontAwesomeIcon icon={faImage} aria-hidden="true" />
+                      <span>{type}</span>
+                    </label>
+                  ),
+                )}
               </div>
               <p className="sp-hint">
-                Choose the type of image students will use for this project. You can change this
-                later.
+                Select a cover picture from your device. The 360° viewer is not connected yet.
               </p>
             </fieldset>
+            <div hidden={form.imageType !== "Cover image"}>
+              <CoverImagePicker
+                key={selectorReset}
+                file={coverImage}
+                onChange={setCoverImage}
+                inputRef={coverInputRef}
+              />
+            </div>
             <Field id="project-description" label="Project description" required>
               <textarea
                 id="project-description"
@@ -273,7 +296,14 @@ export function NewProjectForm({
             </p>
           </div>
           <div className="sp-actions">
-            <Button type="reset">Clear form</Button>
+            <Button
+              disabled={!onCancel}
+              onClick={() => {
+                if (!inFlight.current && phase === "editing") onCancel?.();
+              }}
+            >
+              Cancel
+            </Button>
             {onPreview && (
               <Button
                 onClick={() => {

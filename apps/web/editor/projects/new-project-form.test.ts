@@ -20,6 +20,17 @@ const draft: NewProjectDraft = {
 };
 
 describe("New Project frontend validation", () => {
+  it("treats Gallery as a picker rather than an image type", () => {
+    expect(validateNewProject({ ...draft, imageType: "Gallery" }, classes, students)).toMatchObject(
+      { ok: false, field: "imageType" },
+    );
+  });
+  it("preserves the selected local cover file for the host", () => {
+    const coverImage = new File(["local image"], "cover.png", { type: "image/png" });
+    const result = validateNewProject({ ...draft, coverImage }, classes, students);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.coverImage).toBe(coverImage);
+  });
   it("keeps every entered field and a calendar date without inventing a timezone cutoff", () => {
     expect(validateNewProject(draft, classes, students)).toEqual({ ok: true, value: draft });
   });
