@@ -147,3 +147,32 @@ describe("local recovery history", () => {
     expect(restored.getSnapshot().canUndo).toBe(false);
   });
 });
+
+// Recovery validates complete hierarchy snapshots before any undo state reaches the store
+it("reopens hierarchy recovery and rejects damaged group parentage atomically", () => {
+  const store = setup();
+  const saved = capture(store);
+  saved.project.schemaVersion = 2;
+  const scene = saved.project.scenes[0];
+  Object.assign(scene, { groups: [], zones: [], viewpoints: [], rules: [] });
+  scene.objects = scene.objects.map((object: object) => ({
+    ...object,
+    parentId: null,
+    visible: true,
+    components: [],
+  }));
+  expect(store.loadProject(JSON.stringify(saved.project), kinds).ok).toBe(true);
+  const id = store.getSnapshot().objects[0]!.id;
+  store.renameObject(id, "Exhibit");
+  const recovered = capture(store);
+  expect(recovered.history.version).toBe(2);
+  const restored = reopen(recovered);
+  restored.undo();
+  expect(restored.getSnapshot().objects[0]!.name).not.toBe("Exhibit");
+  restored.redo();
+  expect(restored.getSnapshot().objects[0]!.name).toBe("Exhibit");
+  recovered.history.past[0].groups = [
+    { id: crypto.randomUUID(), name: "Broken", parentId: crypto.randomUUID() },
+  ];
+  expect(validateRecoveryHistory(recovered.history, recovered.project, kinds).ok).toBe(false);
+});

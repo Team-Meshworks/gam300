@@ -9,13 +9,24 @@ import {
 } from "../shared/project/validation-helpers";
 
 type Objects = readonly ProjectObject[];
+// V2 history keeps membership and group records beside objects in one atomic undo step
+// Legacy arrays remain readable so existing browser backups still reopen
+export type HierarchyState = Readonly<{
+  objects: Objects;
+  sceneName?: string;
+  groups: readonly import("../shared/project/project-content").ProjectGroup[];
+}>;
+export type HistoryState = Objects | HierarchyState;
+export function isHierarchyState(state: HistoryState): state is HierarchyState {
+  return !Array.isArray(state);
+}
 export type RecoveryHistory = Readonly<{
-  version: 1;
+  version: 1 | 2;
   projectId: string;
   sceneId: string;
-  current: Objects;
-  past: readonly Objects[];
-  future: readonly Objects[];
+  current: HistoryState;
+  past: readonly HistoryState[];
+  future: readonly HistoryState[];
 }>;
 
 export const MAX_HISTORY_BYTES = 20 * 1024 * 1024;
@@ -24,21 +35,24 @@ export const MAX_HISTORY_BYTES = 20 * 1024 * 1024;
 // This is local recovery data only; it never enters the portable project format
 export function captureRecoveryHistory(
   project: ProjectDocument,
-  states: { past: Objects[]; future: Objects[] },
+  states: { past: HistoryState[]; future: HistoryState[] },
 ): RecoveryHistory {
   const scene = project.scenes[0]!;
   const result: RecoveryHistory = {
-    version: 1,
+    version: project.schemaVersion === 2 ? 2 : 1,
     projectId: project.projectId,
     sceneId: scene.id,
-    current: scene.objects,
+    current:
+      project.schemaVersion === 2
+        ? { objects: scene.objects, groups: project.scenes[0]!.groups, sceneName: scene.name }
+        : scene.objects,
     past: [...states.past],
     future: [...states.future],
   };
 
   // Keep the closest edits when a large project exceeds the recovery budget
-  const past = result.past as Objects[];
-  const future = result.future as Objects[];
+  const past = result.past as HistoryState[];
+  const future = result.future as HistoryState[];
   while (
     new TextEncoder().encode(JSON.stringify(result)).byteLength > MAX_HISTORY_BYTES &&
     past.length + future.length > 0
@@ -70,7 +84,11 @@ export function validateRecoveryHistory(
     return fields;
   }
   const scene = project.scenes[0]!;
-  if (raw.version !== 1 || raw.projectId !== project.projectId || raw.sceneId !== scene.id) {
+  if (
+    (raw.version !== 1 && raw.version !== 2) ||
+    raw.projectId !== project.projectId ||
+    raw.sceneId !== scene.id
+  ) {
     return invalid("history", "Recovery history belongs to a different project or version");
   }
   if (
@@ -90,22 +108,60 @@ export function validateRecoveryHistory(
 
   // Validate each candidate object list against the full document, retaining all other scenes
   // Freeze the separate checked copy before recovered commands can expose it to editor panels
-  function readObjects(objects: unknown): ValidationResult<Objects> {
+  const version = raw.version;
+  function readObjects(input: unknown): ValidationResult<HistoryState> {
+    // Old histories only replaced objects; retain their existing document groups
+    // New histories validate both collections together, including every parent reference
+    let objects = input;
+    // Older backups predate room renaming and inherit their document's scene name
+    let sceneName: unknown = scene.name;
+    let groups = project.schemaVersion === 2 ? project.scenes[0]!.groups : undefined;
+    if (version === 2) {
+      if (project.schemaVersion !== 2 || !isRecord(input)) {
+        return invalid("history", "Hierarchy history requires a content scene");
+      }
+      const fields = checkFields(
+        input,
+        "sceneName" in input ? ["objects", "groups", "sceneName"] : ["objects", "groups"],
+        "history.state",
+      );
+      if (!fields.ok) return fields;
+      if ("sceneName" in input) sceneName = input.sceneName;
+      objects = input.objects;
+      groups = input.groups as typeof groups;
+    }
     const checked = validateProject(
-      { ...project, scenes: [{ ...scene, objects }, ...project.scenes.slice(1)] },
+      {
+        ...project,
+        scenes: [
+          { ...scene, name: sceneName, objects, ...(groups === undefined ? {} : { groups }) },
+          ...project.scenes.slice(1),
+        ],
+      },
       assetKinds,
     );
     if (!checked.ok) {
       return checked;
     }
-    const result = checked.value.scenes[0]!.objects;
+    const result: HistoryState =
+      checked.value.schemaVersion === 2
+        ? {
+            objects: checked.value.scenes[0]!.objects,
+            groups: checked.value.scenes[0]!.groups,
+            sceneName: checked.value.scenes[0]!.name,
+          }
+        : checked.value.scenes[0]!.objects;
     return { ok: true, value: freezeValidatedData(result) };
   }
 
   // The history's current snapshot must describe the same normalized data as the saved scene
   // Reject mismatches before restoring either stack so undo cannot introduce unrelated state
   const current = readObjects(raw.current);
-  const expected = readObjects(scene.objects);
+  const expected = readObjects(
+    raw.version === 2 && project.schemaVersion === 2
+      ? { objects: scene.objects, groups: project.scenes[0]!.groups, sceneName: scene.name }
+      : scene.objects,
+  );
   if (!current.ok) {
     return current;
   }
@@ -117,8 +173,8 @@ export function validateRecoveryHistory(
   }
 
   // Rebuild both stacks in saved order and reject the whole history if any entry is invalid
-  const past: Objects[] = [];
-  const future: Objects[] = [];
+  const past: HistoryState[] = [];
+  const future: HistoryState[] = [];
   for (const [input, output] of [
     [raw.past, past],
     [raw.future, future],
@@ -135,7 +191,7 @@ export function validateRecoveryHistory(
   return {
     ok: true,
     value: Object.freeze({
-      version: 1,
+      version: project.schemaVersion === 2 ? 2 : 1,
       projectId: project.projectId,
       sceneId: scene.id,
       current: current.value,

@@ -4,8 +4,13 @@ import { validateProject } from "../shared/project/project-validation";
 import type { ContentObject } from "../shared/project/project-content";
 import type { Transform } from "../shared/project/project-types";
 import { prepareTransformCommand } from "./transform-command";
-import { createCommandHistory } from "./command-history";
-import { captureRecoveryHistory, validateRecoveryHistory } from "./recovery-history";
+import { createCommandHistory, type EditCommand } from "./command-history";
+import {
+  captureRecoveryHistory,
+  validateRecoveryHistory,
+  isHierarchyState,
+  type HistoryState,
+} from "./recovery-history";
 import type { CatalogueAsset } from "../shared/assets/catalogue.ts";
 import type { SceneObject, Vector3Tuple } from "../shared/project/scene-object.ts";
 import { deserializeProject } from "../shared/project/project-deserialization";
@@ -33,7 +38,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
   let projectAssets: ReadonlyMap<string, string> = new Map();
 
   // Keep history here so the buttons and future edit controls share one undo order.
-  const history = createCommandHistory<readonly SceneObject[]>();
+  const history = createCommandHistory<HistoryState>();
 
   // This clipboard belongs to the open editor, not the operating system.
   // Objects are immutable, so later edits won't change the captured copy.
@@ -87,6 +92,44 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
     }
   }
 
+  function historyState(): HistoryState {
+    return project?.schemaVersion === 2
+      ? { objects, groups: project.scenes[0]!.groups, sceneName: project.scenes[0]!.name }
+      : objects;
+  }
+
+  function restoreState(state: HistoryState) {
+    // Restore group membership before publishing so panels never see a half-restored tree
+    if (isHierarchyState(state) && project?.schemaVersion === 2) {
+      project = Object.freeze({
+        ...project,
+        scenes: Object.freeze([
+          Object.freeze({
+            ...project.scenes[0]!,
+            groups: state.groups,
+            name: state.sceneName ?? project.scenes[0]!.name,
+          }),
+          ...project.scenes.slice(1),
+        ]),
+      });
+    }
+    replaceObjects(isHierarchyState(state) ? state.objects : state);
+  }
+
+  function executeObjects(
+    current: readonly SceneObject[],
+    command: EditCommand<readonly SceneObject[]>,
+  ) {
+    // Existing placement, copying and transforms share the hierarchy's single undo order
+    // Their commands change only objects and retain the surrounding group snapshot
+    const before = historyState();
+    const after = command.apply(current);
+    if (after === current) return current;
+    const next: HistoryState = isHierarchyState(before) ? { ...before, objects: after } : after;
+    history.execute(before, { label: command.label, apply: () => next, revert: () => before });
+    return after;
+  }
+
   function checkContentObjects(next: readonly SceneObject[]): ValidationResult<true> {
     // Validate the proposed document before a command changes either objects or undo history
     if (project?.schemaVersion !== 2) {
@@ -129,7 +172,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
     if (!checked.ok) {
       return checked;
     }
-    replaceObjects(history.execute(objects, command));
+    replaceObjects(executeObjects(objects, command));
     clearEdit();
     publish();
     return { ok: true, value: { changed: true, object } };
@@ -188,7 +231,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       return validCopy;
     }
     replaceObjects(
-      history.execute(objects, {
+      executeObjects(objects, {
         label: "Copy object",
         apply: (current) => Object.freeze([...current, object]),
         revert: (current) => Object.freeze(current.filter((entry) => entry.id !== object.id)),
@@ -214,7 +257,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       );
       if (!checked.ok) return checked;
       replaceObjects(
-        history.execute(objects, {
+        executeObjects(objects, {
           label: "Rename object",
           apply: (current) =>
             Object.freeze(current.map((entry) => (entry.id === id ? renamed : entry))),
@@ -425,7 +468,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       // Undo from the previous project must never reintroduce its objects here
       history.clear();
       if (recovered?.ok) {
-        history.restoreStates(objects, recovered.value.past, recovered.value.future);
+        history.restoreStates(historyState(), recovered.value.past, recovered.value.future);
       }
       clearEdit();
       publish();
@@ -476,7 +519,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       // Capture this object once. Redo puts back this exact copy, including its ID.
       // Validation above finishes before the command can enter history.
       replaceObjects(
-        history.execute(objects, {
+        executeObjects(objects, {
           label: "Add object",
           apply: (current) => Object.freeze([...current, object]),
           revert: (current) => Object.freeze(current.filter((entry) => entry.id !== object.id)),
@@ -515,7 +558,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
 
       // Remember the slot as well as the whole object, so undo restores list order.
       replaceObjects(
-        history.execute(objects, {
+        executeObjects(objects, {
           label: "Delete object",
           apply: (current) => Object.freeze(current.filter((entry) => entry.id !== objectId)),
           revert: (current) =>
@@ -528,22 +571,24 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
     },
     undo() {
       clearEdit();
-      const next = history.undo(objects);
+      const before = historyState();
+      const next = history.undo(before);
 
       // Nothing changed, so there is no new snapshot to send to the UI.
-      if (next === objects) {
+      if (next === before) {
         return;
       }
-      replaceObjects(next);
+      restoreState(next);
       publish();
     },
     redo() {
       clearEdit();
-      const next = history.redo(objects);
-      if (next === objects) {
+      const before = historyState();
+      const next = history.redo(before);
+      if (next === before) {
         return;
       }
-      replaceObjects(next);
+      restoreState(next);
       publish();
     },
   };
