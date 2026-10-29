@@ -1703,6 +1703,48 @@ and zero public tables), with no HTTPS/restart temporary directories. The exact 
 container was returned to its original stopped state, retaining its original volume;
 Docker Desktop stayed as found. The earlier 439-file evidence archive remained intact.
 
+## SCRUM-161 part 1: classes and rosters
+
+The class foundation stores classes and retained educator/student memberships in
+PostgreSQL, separate from authored project JSON. A classroom belongs to one active
+organization when created. Database foreign keys bind each member to that same
+organization and the member's existing Identity role. Removal marks a membership
+inactive rather than deleting its history.
+
+`POST /api/classes` creates a class with a bounded `name`, optional `orgId` and
+optional `managedByUserIds`. An educator's organization is derived from the current
+account and that educator becomes a manager. An administrator supplies an active
+organization and may select active educators in it. The response contains the new
+class ID, organization ID and name. Class creation is not idempotent; reconcile an
+uncertain response before retrying.
+
+`GET /api/classes` and `GET /api/classes/{id}` expose classes only to current
+managers, active enrolled students or an administrator. Only managers and
+administrators can read `/roster` and `/eligible-students`. The latter returns
+active creators in the class organization and whether each is enrolled. List routes
+use an exclusive UUID `cursor`, default `limit=10` and maximum `limit=20`.
+
+`PUT /api/classes/{id}/members/{userId}` adds or reactivates an active educator or
+creator from the class organization. `DELETE` on the same route deactivates the
+membership; both operations are idempotent. Writes lock the class row and recheck
+the caller's current authority after waiting. Unknown or unauthorized class IDs
+return `class_not_found`; invalid member choices return `invalid_class_members`.
+These routes require a full account, CSRF protection for writes and the existing
+account-write rate limit.
+
+This part does not create assignments or student drafts. Later SCRUM-161 work must
+keep roster changes and affected drafts consistent under the shared project lock.
+The selected deadline policy is an absolute Unix timestamp entered and displayed in
+each user's device time. Server-side copies retain class review requirements;
+imports of unknown origin need review or trusted verification before publishing.
+Those assignment, provenance, review and publication integrations are not provided
+by these roster routes.
+
+On 29 October 2026 the focused class suite passed 8/8 cases, the route inventory,
+migration-schema comparison and Identity-to-current upgrade checks each passed,
+and the Release build, EF model check and both project formatting checks passed.
+The complete server suite and restart acceptance remain for the final integration.
+
 SCRUM-126 project-home UI, SCRUM-67 autosave/recovery integration, publication/asset
 delivery, hosted CI and deployment remain separate. Production still has no approved
 asset catalogue. These backend checks do not complete parent Story/Epic acceptance.

@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.WebUtilities;
 using Npgsql;
 using Spatia.Server.Accounts;
+using Spatia.Server.Classes;
 using Spatia.Server.Persistence;
 using Spatia.Server.Projects;
 using Spatia.Server.Security;
@@ -211,6 +212,7 @@ public static class SpatiaApplication
         app.MapProjectReads();
         app.MapProjectSaves();
         app.MapProjectLifecycle();
+        app.MapClassrooms();
         return app;
     }
 

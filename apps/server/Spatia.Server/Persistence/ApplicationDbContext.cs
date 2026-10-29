@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Spatia.Server.Accounts;
+using Spatia.Server.Classes;
 using Spatia.Server.Projects;
 
 namespace Spatia.Server.Persistence;
@@ -32,6 +33,12 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     /// Gets the account permissions assigned to individual projects
     /// </summary>
     public DbSet<ProjectAssignment> ProjectAssignments => Set<ProjectAssignment>();
+
+    /// <summary>Gets organization-owned classes.</summary>
+    public DbSet<Classroom> Classrooms => Set<Classroom>();
+
+    /// <summary>Gets retained educator and student class memberships.</summary>
+    public DbSet<ClassroomMember> ClassroomMembers => Set<ClassroomMember>();
 
     /// <summary>
     /// Configures account, organization and project mappings, constraints and fixed role seeds
@@ -87,6 +94,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                 "CK_organization_memberships_role_id",
                 $"role_id IN ('{ApplicationRoles.EducatorId:D}'::uuid, '{ApplicationRoles.CreatorId:D}'::uuid)"));
             membership.HasKey(record => new { record.OrganizationId, record.UserId });
+            membership.HasAlternateKey(record => new { record.OrganizationId, record.UserId, record.RoleId });
             membership.Property(record => record.OrganizationId).HasColumnName("organization_id");
             membership.Property(record => record.UserId).HasColumnName("user_id");
             membership.Property(record => record.RoleId).HasColumnName("role_id");
@@ -157,6 +165,43 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                 .OnDelete(DeleteBehavior.Restrict);
             assignment.HasOne<ApplicationUser>().WithMany()
                 .HasForeignKey(record => record.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<Classroom>(classroom =>
+        {
+            classroom.ToTable("classrooms", table => table.HasCheckConstraint(
+                "CK_classrooms_name", "length(btrim(name)) BETWEEN 1 AND 256"));
+            classroom.HasKey(record => record.Id);
+            classroom.HasAlternateKey(record => new { record.Id, record.OrganizationId });
+            classroom.Property(record => record.Id).HasColumnName("id");
+            classroom.Property(record => record.OrganizationId).HasColumnName("organization_id");
+            classroom.Property(record => record.Name).HasColumnName("name").HasMaxLength(256).IsRequired();
+            classroom.HasIndex(record => record.OrganizationId);
+            classroom.HasOne<Organization>().WithMany()
+                .HasForeignKey(record => record.OrganizationId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<ClassroomMember>(member =>
+        {
+            member.ToTable("classroom_members", table => table.HasCheckConstraint(
+                "CK_classroom_members_role_id",
+                $"role_id IN ('{ApplicationRoles.EducatorId:D}'::uuid, '{ApplicationRoles.CreatorId:D}'::uuid)"));
+            member.HasKey(record => new { record.ClassroomId, record.UserId });
+            member.Property(record => record.ClassroomId).HasColumnName("classroom_id");
+            member.Property(record => record.OrganizationId).HasColumnName("organization_id");
+            member.Property(record => record.UserId).HasColumnName("user_id");
+            member.Property(record => record.RoleId).HasColumnName("role_id");
+            member.Property(record => record.IsActive).HasColumnName("active");
+            member.HasIndex(record => new { record.UserId, record.IsActive, record.ClassroomId });
+            member.HasOne<Classroom>().WithMany()
+                .HasForeignKey(record => new { record.ClassroomId, record.OrganizationId })
+                .HasPrincipalKey(record => new { record.Id, record.OrganizationId })
+                .OnDelete(DeleteBehavior.Restrict);
+            member.HasOne<OrganizationMembership>().WithMany()
+                .HasForeignKey(record => new { record.OrganizationId, record.UserId, record.RoleId })
+                .HasPrincipalKey(record => new { record.OrganizationId, record.UserId, record.RoleId })
                 .OnDelete(DeleteBehavior.Restrict);
         });
     }

@@ -300,6 +300,69 @@ namespace Spatia.Server.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Spatia.Server.Classes.Classroom", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("name");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrganizationId");
+
+                    b.ToTable("classrooms", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_classrooms_name", "length(btrim(name)) BETWEEN 1 AND 256");
+                        });
+                });
+
+            modelBuilder.Entity("Spatia.Server.Classes.ClassroomMember", b =>
+                {
+                    b.Property<Guid>("ClassroomId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("classroom_id");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("active");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
+                    b.Property<Guid>("RoleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("role_id");
+
+                    b.HasKey("ClassroomId", "UserId");
+
+                    b.HasIndex("ClassroomId", "OrganizationId");
+
+                    b.HasIndex("OrganizationId", "UserId", "RoleId");
+
+                    b.HasIndex("UserId", "IsActive", "ClassroomId");
+
+                    b.ToTable("classroom_members", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_classroom_members_role_id", "role_id IN ('d14c51b6-510a-4430-a27c-bfdc6e9d801b'::uuid, '862d776c-4d56-4dd8-919d-26044b6d8a44'::uuid)");
+                        });
+                });
+
             modelBuilder.Entity("Spatia.Server.Projects.Project", b =>
                 {
                     b.Property<Guid>("Id")
@@ -456,6 +519,32 @@ namespace Spatia.Server.Persistence.Migrations
                     b.HasOne("Microsoft.AspNetCore.Identity.IdentityUserRole<System.Guid>", null)
                         .WithMany()
                         .HasForeignKey("UserId", "RoleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Spatia.Server.Classes.Classroom", b =>
+                {
+                    b.HasOne("Spatia.Server.Accounts.Organization", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Spatia.Server.Classes.ClassroomMember", b =>
+                {
+                    b.HasOne("Spatia.Server.Classes.Classroom", null)
+                        .WithMany()
+                        .HasForeignKey("ClassroomId", "OrganizationId")
+                        .HasPrincipalKey("Id", "OrganizationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Spatia.Server.Accounts.OrganizationMembership", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId", "UserId", "RoleId")
+                        .HasPrincipalKey("OrganizationId", "UserId", "RoleId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
