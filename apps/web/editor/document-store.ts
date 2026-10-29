@@ -41,6 +41,62 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
   let project: ProjectDocument | null = null;
   let projectAssets: ReadonlyMap<string, string> = new Map();
 
+  function snapRoom(position: Vector3Tuple): Vector3Tuple | null {
+    // The approved test-room GLB spans -5 to 5 on floor axes and -0.2 to 3 in height
+    // Keep this asset-specific until production rooms supply approved connection points
+    const rooms = objects.filter((object) => object.assetId === "test-room-module-v1");
+    const footprints = rooms.map(({ transform }) => {
+      const [x, y, z, w] = transform.rotation;
+      const [sx, sy, sz] = transform.scale;
+      // Project the transformed room bounds onto the floor, including tilted rooms
+      // Conservative bounds prevent a new room from cutting through existing geometry
+      const xx = 1 - 2 * (y * y + z * z);
+      const xy = 2 * (x * y - z * w);
+      const xz = 2 * (x * z + y * w);
+      const zx = 2 * (x * z - y * w);
+      const zy = 2 * (y * z + x * w);
+      const zz = 1 - 2 * (x * x + y * y);
+      return {
+        x: transform.position[0] + xy * 1.4 * sy,
+        z: transform.position[2] + zy * 1.4 * sy,
+        halfX: Math.abs(xx * sx * 5) + Math.abs(xy * sy * 1.6) + Math.abs(xz * sz * 5),
+        halfZ: Math.abs(zx * sx * 5) + Math.abs(zy * sy * 1.6) + Math.abs(zz * sz * 5),
+      };
+    });
+    // The initial environment has no object transform and always occupies the origin
+    if (project?.scenes[0]?.environmentAssetId === "test-room-v1") {
+      footprints.unshift({ x: 0, z: 0, halfX: 5, halfZ: 5 });
+    }
+    if (footprints.length === 0) {
+      return position;
+    }
+
+    // Compare the four adjoining positions on every room, skipping occupied sides
+    // Pointer proximity chooses the side; stable ordering resolves exact ties
+    const candidates: Vector3Tuple[] = footprints.flatMap((room) => [
+      [room.x + room.halfX + 5, 0, room.z],
+      [room.x - room.halfX - 5, 0, room.z],
+      [room.x, 0, room.z + room.halfZ + 5],
+      [room.x, 0, room.z - room.halfZ - 5],
+    ]);
+    const available = candidates.filter(
+      ([x, , z]) =>
+        Math.abs(x) <= 10_000 &&
+        Math.abs(z) <= 10_000 &&
+        footprints.every(
+          (room) =>
+            Math.abs(x - room.x) >= room.halfX + 5 - 1e-8 ||
+            Math.abs(z - room.z) >= room.halfZ + 5 - 1e-8,
+        ),
+    );
+    available.sort(
+      (a, b) =>
+        Math.hypot(a[0] - position[0], a[2] - position[2]) -
+        Math.hypot(b[0] - position[0], b[2] - position[2]),
+    );
+    return available[0] ?? null;
+  }
+
   // Keep history here so the buttons and future edit controls share one undo order.
   const history = createCommandHistory<HistoryState>();
 
@@ -719,11 +775,26 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       if (project !== null && (asset.kind !== "model" || projectAssets.get(asset.id) !== "model")) {
         return { ok: false, error: "Choose a model from this project's catalog." } as const;
       }
-      if (!position.every((value) => Number.isFinite(value) && Math.abs(value) <= 10_000)) {
+      if (
+        position.length !== 3 ||
+        !position.every((value) => Number.isFinite(value) && Math.abs(value) <= 10_000)
+      ) {
         return { ok: false, error: "Choose a position inside the scene." } as const;
       }
       if (objects.length >= 200) {
         return { ok: false, error: "This scene has reached its 200-object limit." } as const;
+      }
+      // Snap before creating the command so saved data, rendering and Redo share one position
+      // Other assets keep their chosen coordinates and parent-selection behavior
+      if (assetId === "test-room-module-v1" && project !== null) {
+        const snapped = snapRoom(position);
+        if (snapped === null) {
+          return {
+            ok: false,
+            error: "No adjoining room position is available inside the scene",
+          } as const;
+        }
+        position = snapped;
       }
       const object: SceneObject = Object.freeze({
         id: crypto.randomUUID(),
