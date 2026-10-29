@@ -1,5 +1,8 @@
 import type { ProjectDocument } from "./project-types";
-import { validateProjectStructure } from "./project-structure-validation";
+import {
+  validateProjectStructure,
+  type ProjectStructureOptions,
+} from "./project-structure-validation";
 import { invalid } from "./validation-helpers";
 import type { ValidationResult } from "./validation-helpers";
 import { validateContentReferences } from "./project-content-validation";
@@ -51,8 +54,9 @@ function checkAsset(
 export function validateProject(
   raw: unknown,
   assetKinds: ReadonlyMap<string, string>,
+  options: ProjectStructureOptions = {},
 ): ValidationResult<ProjectDocument> {
-  const result = validateProjectStructure(raw);
+  const result = validateProjectStructure(raw, options);
   if (!result.ok) {
     return result;
   }

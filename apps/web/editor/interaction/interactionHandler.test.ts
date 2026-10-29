@@ -36,6 +36,21 @@ describe("interaction handler", () => {
     expect(runAction).toHaveBeenCalledExactlyOnceWith(sceneStartInteraction.do);
   });
 
+  it("continues after an action throws", () => {
+    const runAction = vi.fn().mockImplementationOnce(() => {
+      throw new Error("action failed");
+    });
+    const handler = createInteractionHandler(
+      [sceneStartInteraction, sceneStartInteraction],
+      hotspots,
+      runAction,
+    );
+
+    handler.sceneStarted();
+
+    expect(runAction).toHaveBeenCalledTimes(2);
+  });
+
   it("runs only the click interactions for the clicked object", () => {
     const runAction = vi.fn();
     const handler = createInteractionHandler(

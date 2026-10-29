@@ -42,6 +42,15 @@ describe("action handler", () => {
     expect(remove).toHaveBeenCalledOnce();
   });
 
+  it("does not open an invalid link", () => {
+    const createElement = vi.fn();
+    vi.stubGlobal("document", { createElement });
+
+    runAction({ type: "open-link", url: "https://[" });
+
+    expect(createElement).not.toHaveBeenCalled();
+  });
+
   it("plays audio from the action URL", () => {
     vi.stubGlobal("Audio", FakeAudio);
 

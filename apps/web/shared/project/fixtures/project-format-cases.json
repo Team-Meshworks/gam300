@@ -1720,6 +1720,100 @@
           "value": "https://[::ffff:192.0.2.1]/"
         }
       ]
+    },
+    {
+      "name": "v1 interaction URL accepts 320 characters",
+      "base": "m1",
+      "valid": true,
+      "patches": [
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": { "type": "scene-starts" },
+              "do": { "type": "open-link", "url": "https://example.com/" }
+            }
+          ]
+        },
+        {
+          "path": ["scenes", 0, "interactions", 0, "do", "url"],
+          "value": "https://example.com/",
+          "repeat": 16
+        }
+      ]
+    },
+    {
+      "name": "v1 interaction URL rejects http",
+      "base": "m1",
+      "valid": false,
+      "path": "project.scenes[0].interactions[0].do.url",
+      "patches": [
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": { "type": "scene-starts" },
+              "do": { "type": "open-link", "url": "http://example.com/" }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "v1 interaction URL rejects credentials",
+      "base": "m1",
+      "valid": false,
+      "path": "project.scenes[0].interactions[0].do.url",
+      "patches": [
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": { "type": "scene-starts" },
+              "do": { "type": "open-link", "url": "https://user:pass@example.com/" }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "v1 interaction URL rejects malformed host",
+      "base": "m1",
+      "valid": false,
+      "path": "project.scenes[0].interactions[0].do.url",
+      "patches": [
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": { "type": "scene-starts" },
+              "do": { "type": "open-link", "url": "https://[" }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "v1 interaction URL rejects over 2048 characters",
+      "base": "m1",
+      "valid": false,
+      "path": "project.scenes[0].interactions[0].do.url",
+      "patches": [
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": { "type": "scene-starts" },
+              "do": { "type": "open-link", "url": "https://example.com/" }
+            }
+          ]
+        },
+        {
+          "path": ["scenes", 0, "interactions", 0, "do", "url"],
+          "value": "https://example.com/",
+          "repeat": 103
+        }
+      ]
     }
   ],
   "rawCases": [

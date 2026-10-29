@@ -42,9 +42,17 @@ export function createInteractionHandler(
     else attached.push(interaction);
   }
 
+  function execute(action: Action): void {
+    try {
+      runAction(action);
+    } catch {
+      // One failed action must not prevent later actions from running
+    }
+  }
+
   function run(event: TriggerEvent): void {
     for (const interaction of interactions) {
-      if (triggerMatches(interaction.when, event)) runAction(interaction.do);
+      if (triggerMatches(interaction.when, event)) execute(interaction.do);
     }
   }
 
@@ -57,7 +65,7 @@ export function createInteractionHandler(
       if (hotspotIds === undefined) return;
       for (const hotspotId of hotspotIds) {
         for (const interaction of interactionsByHotspot.get(hotspotId) ?? []) {
-          runAction(interaction.do);
+          execute(interaction.do);
         }
       }
     },
@@ -68,7 +76,7 @@ export function createInteractionHandler(
         if (interaction.when.type !== "time-elapsed" || fired.has(interaction)) continue;
         if (elapsedSeconds < triggerSeconds(interaction.when)) continue;
         fired.add(interaction);
-        runAction(interaction.do);
+        execute(interaction.do);
       }
     },
     reset() {

@@ -163,6 +163,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
         ),
       },
       projectAssets,
+      { allowDraftLinks: true },
     );
     return checked.ok ? { ok: true, value: true } : checked;
   }

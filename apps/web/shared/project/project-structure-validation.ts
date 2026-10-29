@@ -10,6 +10,11 @@ import { checkFields, invalid, isRecord } from "./validation-helpers";
 import type { ValidationResult } from "./validation-helpers";
 import { MAX_PROJECT_BYTES } from "./project-limits";
 import { validateContentStructure } from "./project-content-validation";
+import {
+  isPortableHttpsUrl,
+  MAX_PORTABLE_URL_LENGTH,
+  PORTABLE_HTTPS_URL_ERROR,
+} from "./portable-url";
 
 // Starting limits from the project handoff
 const MAX_OBJECTS_PER_SCENE = 200;
@@ -18,6 +23,10 @@ const MAX_INTERACTIONS_PER_SCENE = 200;
 const MAX_ELAPSED_SECONDS = 86_400;
 
 type TextBudget = { remaining: number };
+
+export type ProjectStructureOptions = {
+  readonly allowDraftLinks?: boolean;
+};
 
 function readText(raw: unknown, path: string, budget: TextBudget): ValidationResult<string> {
   if (typeof raw !== "string") {
@@ -158,6 +167,7 @@ function validateAction(
   raw: unknown,
   path: string,
   budget: TextBudget,
+  allowDraftLinks: boolean,
 ): ValidationResult<Interaction["do"]> {
   if (!isRecord(raw)) {
     return invalid(path, "Action must be an object");
@@ -171,6 +181,14 @@ function validateAction(
       if (!fields.ok) return fields;
       const url = readText(raw.url, `${path}.url`, budget);
       if (!url.ok) return url;
+      if (!allowDraftLinks) {
+        if (url.value.length > MAX_PORTABLE_URL_LENGTH) {
+          return invalid(`${path}.url`, `Text exceeds ${MAX_PORTABLE_URL_LENGTH} characters`);
+        }
+        if (!isPortableHttpsUrl(url.value)) {
+          return invalid(`${path}.url`, PORTABLE_HTTPS_URL_ERROR);
+        }
+      }
       return { ok: true, value: { type: "open-link", url: url.value } };
     }
     case "play-audio": {
@@ -178,6 +196,9 @@ function validateAction(
       if (!fields.ok) return fields;
       const url = readText(raw.url, `${path}.url`, budget);
       if (!url.ok) return url;
+      if (!allowDraftLinks && url.value.length > MAX_PORTABLE_URL_LENGTH) {
+        return invalid(`${path}.url`, `Text exceeds ${MAX_PORTABLE_URL_LENGTH} characters`);
+      }
       return { ok: true, value: { type: "play-audio", url: url.value } };
     }
     case "print-hi": {
@@ -194,6 +215,7 @@ function validateInteraction(
   raw: unknown,
   path: string,
   budget: TextBudget,
+  allowDraftLinks: boolean,
 ): ValidationResult<Interaction> {
   if (!isRecord(raw)) {
     return invalid(path, "Interaction must be an object");
@@ -204,7 +226,7 @@ function validateInteraction(
   }
   const when = validateTrigger(raw.when, `${path}.when`, budget);
   if (!when.ok) return when;
-  const action = validateAction(raw.do, `${path}.do`, budget);
+  const action = validateAction(raw.do, `${path}.do`, budget, allowDraftLinks);
   if (!action.ok) return action;
   return { ok: true, value: { when: when.value, do: action.value } };
 }
@@ -213,6 +235,7 @@ function validateScene(
   raw: unknown,
   path: string,
   budget: TextBudget,
+  allowDraftLinks: boolean,
 ): ValidationResult<ProjectScene> {
   if (!isRecord(raw)) {
     return invalid(path, "Scene must be an object");
@@ -285,7 +308,12 @@ function validateScene(
       );
     }
     for (const [index, entry] of raw.interactions.entries()) {
-      const interaction = validateInteraction(entry, `${path}.interactions[${index}]`, budget);
+      const interaction = validateInteraction(
+        entry,
+        `${path}.interactions[${index}]`,
+        budget,
+        allowDraftLinks,
+      );
       if (!interaction.ok) {
         return interaction;
       }
@@ -309,7 +337,10 @@ function validateScene(
 // Structure check for already-parsed data
 // Use validateProject to include ID and asset-reference checks
 // The future file reader must also limit file bytes before parsing
-export function validateProjectStructure(raw: unknown): ValidationResult<ProjectDocument> {
+export function validateProjectStructure(
+  raw: unknown,
+  options: ProjectStructureOptions = {},
+): ValidationResult<ProjectDocument> {
   if (!isRecord(raw)) {
     return invalid("project", "Project must be an object");
   }
@@ -346,7 +377,12 @@ export function validateProjectStructure(raw: unknown): ValidationResult<Project
   if (!title.ok) {
     return title;
   }
-  const scene = validateScene(raw.scenes[0], "project.scenes[0]", budget);
+  const scene = validateScene(
+    raw.scenes[0],
+    "project.scenes[0]",
+    budget,
+    options.allowDraftLinks === true,
+  );
   if (!scene.ok) {
     return scene;
   }

@@ -32,6 +32,7 @@ try {
     (test) =>
       test.patches.length === 0 ||
       test.name.startsWith("storage NUL") ||
+      test.name.startsWith("v1 interaction URL") ||
       (test.patches.length === 1 && test.patches[0].path.at(-1) === "url"),
   );
 
@@ -43,7 +44,14 @@ try {
       for (const segment of patch.path.slice(0, -1)) {
         parent = parent[segment];
       }
-      parent[patch.path.at(-1)] = patch.value;
+      const repeated = patch.repeat;
+      const value =
+        repeated === undefined
+          ? patch.value
+          : typeof patch.value === "string"
+            ? patch.value.repeat(repeated)
+            : Array.from({ length: repeated }, () => structuredClone(patch.value));
+      parent[patch.path.at(-1)] = value;
     }
     return JSON.stringify(document);
   });

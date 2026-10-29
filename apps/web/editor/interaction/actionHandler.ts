@@ -1,3 +1,4 @@
+import { isPortableHttpsUrl, MAX_PORTABLE_URL_LENGTH } from "../../shared/project/portable-url";
 import type { InteractionAction } from "../../shared/project/project-types";
 
 export const ACTIONS = Object.freeze([
@@ -28,6 +29,7 @@ export function runAction(action: Action): void {
 }
 
 function openInNewTab(url: string): void {
+  if (url.length > MAX_PORTABLE_URL_LENGTH || !isPortableHttpsUrl(url)) return;
   const link = document.createElement("a");
   link.href = url;
   link.target = "_blank";

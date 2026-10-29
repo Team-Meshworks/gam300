@@ -240,6 +240,23 @@ it("stores interactions in the project and reloads them with the scene", () => {
   assert.equal(loaded.ok, true);
   assert.deepEqual(reopened.getSnapshot().objects, store.getSnapshot().objects);
   assert.deepEqual(reopened.getSnapshot().project?.scenes[0]?.interactions, interactions);
+
+  assert.equal(
+    store.setInteractions([
+      {
+        when: { type: "visitor-clicks-hotspot", targetHotspotId: hotspot.value.id },
+        do: { type: "open-link", url: "https://[" },
+      },
+    ]).ok,
+    true,
+  );
+  assert.equal(
+    reopened.loadProject(
+      JSON.stringify(store.getSnapshot().project),
+      new Map(assets.map((asset) => [asset.id, asset.kind])),
+    ).ok,
+    false,
+  );
 });
 
 it("creates a saveable room project while preserving model IDs, transforms and history", () => {

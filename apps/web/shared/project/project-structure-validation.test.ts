@@ -125,6 +125,51 @@ describe("M1 project structure", () => {
     expect(validateProjectStructure(project)).toEqual({ ok: true, value: project });
   });
 
+  it("validates v1 link URLs and interaction URL lengths", () => {
+    const { project, scene } = sampleProject();
+    const validateLink = (url: string) => {
+      scene.interactions = [{ when: { type: "scene-starts" }, do: { type: "open-link", url } }];
+      return validateProjectStructure(project);
+    };
+
+    for (const url of ["https://[", "http://example.com", "https://user:pass@example.com"]) {
+      expect(validateLink(url)).toMatchObject({
+        ok: false,
+        error: {
+          path: "project.scenes[0].interactions[0].do.url",
+          message: "Expected an absolute HTTPS URL without credentials",
+        },
+      });
+    }
+
+    expect(validateLink(`https://example.com/${"a".repeat(300)}`).ok).toBe(true);
+
+    const oversized = `https://example.com/${"a".repeat(2048)}`;
+    expect(validateLink(oversized)).toMatchObject({
+      ok: false,
+      error: {
+        path: "project.scenes[0].interactions[0].do.url",
+        message: "Text exceeds 2048 characters",
+      },
+    });
+
+    scene.interactions = [
+      { when: { type: "scene-starts" }, do: { type: "play-audio", url: "/audio/ding.wav" } },
+    ];
+    expect(validateProjectStructure(project).ok).toBe(true);
+
+    scene.interactions = [
+      { when: { type: "scene-starts" }, do: { type: "play-audio", url: `/${"a".repeat(2048)}` } },
+    ];
+    expect(validateProjectStructure(project)).toMatchObject({
+      ok: false,
+      error: {
+        path: "project.scenes[0].interactions[0].do.url",
+        message: "Text exceeds 2048 characters",
+      },
+    });
+  });
+
   it("rejects malformed interactions with their full paths", () => {
     const { project, scene } = sampleProject();
     scene.interactions = [{ when: { type: "unknown" }, do: { type: "print-hi" } }];
@@ -158,6 +203,17 @@ describe("M1 project structure", () => {
       ok: false,
       error: { path: "project.scenes[0].interactions[0].extra" },
     });
+  });
+
+  it("keeps invalid interaction URLs as editable drafts", () => {
+    const { project, scene } = sampleProject();
+    scene.interactions = [
+      { when: { type: "scene-starts" }, do: { type: "open-link", url: "https://[" } },
+      { when: { type: "scene-starts" }, do: { type: "play-audio", url: `/${"a".repeat(2048)}` } },
+    ];
+
+    expect(validateProjectStructure(project, { allowDraftLinks: true }).ok).toBe(true);
+    expect(validateProjectStructure(project).ok).toBe(false);
   });
 
   it("rejects more than 200 interactions", () => {

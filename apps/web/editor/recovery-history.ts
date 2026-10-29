@@ -9,6 +9,8 @@ import {
   type ValidationResult,
 } from "../shared/project/validation-helpers";
 
+const DRAFT_PROJECT = { allowDraftLinks: true } as const;
+
 export type ProjectHistoryState = Readonly<{ project: ProjectDocument; activeSceneId: string }>;
 
 function firstViews(project: ProjectDocument): readonly NamedViewpoint[] {
@@ -147,7 +149,7 @@ export function validateRecoveryHistory(
       if (!isRecord(value)) return invalid("history.documents", "Invalid saved edit");
       const fields = checkFields(value, ["project", "activeSceneId"], "history.documents");
       if (!fields.ok) return fields;
-      const checked = validateProject(value.project, assetKinds);
+      const checked = validateProject(value.project, assetKinds, DRAFT_PROJECT);
       if (!checked.ok) return checked;
       if (
         checked.value.projectId !== project.projectId ||
@@ -250,6 +252,7 @@ export function validateRecoveryHistory(
       validateProject(
         { ...project, scenes: [{ ...scene, objects, viewpoints: value }] },
         assetKinds,
+        DRAFT_PROJECT,
       );
     const current = read(data.current, raw.current);
     if (!current.ok) return current;
@@ -296,6 +299,7 @@ export function validateRecoveryHistory(
         ],
       },
       assetKinds,
+      DRAFT_PROJECT,
     );
     if (!checked.ok) return checked;
     const result = checked.value.scenes[0]!.objects;

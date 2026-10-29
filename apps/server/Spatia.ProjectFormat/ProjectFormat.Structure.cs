@@ -440,7 +440,7 @@ public static partial class ProjectFormat
 
     private static void InteractionAction(JsonElement value, string path)
     {
-        // Actions carry optional media links as authored text; preview decides whether to execute them
+        // Open links use the shared portable HTTPS rules; audio remains authored text
         if (value.ValueKind != JsonValueKind.Object)
         {
             Fail(path, "Expected an action");
@@ -450,9 +450,16 @@ public static partial class ProjectFormat
         switch (type)
         {
             case "open-link":
+                Fields(value, path, "type", "url");
+                var link = Text(Get(value, "url"), $"{path}.url", 2048);
+                if (!HttpsLink(link))
+                {
+                    Fail($"{path}.url", "Expected an absolute HTTPS URL without credentials");
+                }
+                break;
             case "play-audio":
                 Fields(value, path, "type", "url");
-                Text(Get(value, "url"), $"{path}.url");
+                Text(Get(value, "url"), $"{path}.url", 2048);
                 break;
             case "print-hi":
                 Fields(value, path, "type");
