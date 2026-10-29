@@ -68,6 +68,17 @@ internal sealed class HttpsApplicationFixture : IAsyncDisposable
     public TaskCompletionSource HoldsEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     public TaskCompletionSource ReleaseHolds { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
+    public (string Certificate, string Key) WritePemFiles()
+    {
+        var certificate = Path.Combine(KeyDirectory, "browser-cert.pem");
+        var key = Path.Combine(KeyDirectory, "browser-key.pem");
+        File.WriteAllText(certificate, _certificate.ExportCertificatePem());
+        using var privateKey = _certificate.GetECDsaPrivateKey()
+            ?? throw new InvalidOperationException("Expected the fixture's ECDSA private key.");
+        File.WriteAllText(key, privateKey.ExportPkcs8PrivateKeyPem());
+        return (certificate, key);
+    }
+
     public static async Task<HttpsApplicationFixture> CreateAsync(Action<WebApplicationBuilder>? configure = null,
         Action<WebApplication>? map = null, string environmentName = "Testing")
     {
