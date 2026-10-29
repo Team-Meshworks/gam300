@@ -99,6 +99,19 @@ try {
   await asset.click();
   assert.equal(await rows.count(), 1);
   const firstId = await rows.first().getAttribute("data-object-id");
+  const disclosure = page.locator(".environment-row").locator("..").locator(".scene-disclosure");
+  await disclosure.focus();
+  await page.keyboard.press("ArrowLeft");
+  assert.equal(await disclosure.getAttribute("aria-expanded"), "false");
+  assert.equal(await rows.first().isVisible(), false);
+  assert.equal(await rows.first().getAttribute("aria-pressed"), "true");
+  await page.keyboard.press("ArrowRight");
+  assert.equal(await rows.first().isVisible(), true);
+  assert.equal(await rows.first().getAttribute("data-object-id"), firstId);
+  await page.keyboard.press("Space");
+  assert.equal(await rows.first().isVisible(), false);
+  await page.keyboard.press("Enter");
+  assert.equal(await rows.first().isVisible(), true);
   const stageBox = await stage.boundingBox();
   assert.ok(stageBox);
   // Find an exposed canvas point without assuming where the asset panel is docked

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import type { SceneObject } from "../../shared/project/scene-object";
 import { Icon } from "./Icon";
 
@@ -19,6 +19,9 @@ export function SceneTreePanel({
   thumbnailFor: (assetId: string) => string | undefined;
 }) {
   const [expanded, setExpanded] = useState(false);
+  // Disclosure is local view state and must never change the project or selected object
+  const [collapsed, setCollapsed] = useState(false);
+  const listId = useId();
   const count = objects.length + (room === undefined ? 0 : 1);
   return (
     <section className="editor-panel" aria-labelledby="objects-heading">
@@ -33,31 +36,51 @@ export function SceneTreePanel({
           <ul role="list" className={`scene-tree${expanded ? " is-expanded" : ""}`}>
             {room !== undefined && (
               <li>
-                <button
-                  className="environment-row"
-                  type="button"
-                  aria-pressed={selectedId === room.id}
-                  onClick={() => onSelect(room.id)}
-                >
-                  <img src={room.thumbnail} alt="" draggable={false} />
-                  <span>{room.name}</span>
-                </button>
+                <div className="scene-root">
+                  <button
+                    type="button"
+                    className="scene-disclosure"
+                    aria-label={`${collapsed ? "Expand" : "Collapse"} scene objects`}
+                    aria-expanded={!collapsed}
+                    aria-controls={listId}
+                    onClick={() => setCollapsed(!collapsed)}
+                    onKeyDown={(event) => {
+                      if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+                        event.preventDefault();
+                        setCollapsed(event.key === "ArrowLeft");
+                      }
+                    }}
+                  >
+                    <Icon name={collapsed ? "chevronRight" : "caretDown"} />
+                  </button>
+                  <button
+                    className="environment-row"
+                    type="button"
+                    aria-pressed={selectedId === room.id}
+                    onClick={() => onSelect(room.id)}
+                  >
+                    <img src={room.thumbnail} alt="" draggable={false} />
+                    <span>{room.name}</span>
+                  </button>
+                </div>
+                <ul className="scene-objects" id={listId} role="list" hidden={collapsed}>
+                  {objects.map((object) => (
+                    <li key={object.id}>
+                      <button
+                        className="object-row"
+                        type="button"
+                        aria-pressed={selectedId === object.id}
+                        data-object-id={object.id}
+                        onClick={() => onSelect(object.id)}
+                      >
+                        <img src={thumbnailFor(object.assetId)} alt="" draggable={false} />
+                        <span>{object.name}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
               </li>
             )}
-            {objects.map((object) => (
-              <li key={object.id}>
-                <button
-                  className="object-row"
-                  type="button"
-                  aria-pressed={selectedId === object.id}
-                  data-object-id={object.id}
-                  onClick={() => onSelect(object.id)}
-                >
-                  <img src={thumbnailFor(object.assetId)} alt="" draggable={false} />
-                  <span>{object.name}</span>
-                </button>
-              </li>
-            ))}
           </ul>
           {count > 6 && (
             <button
