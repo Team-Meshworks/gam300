@@ -1860,7 +1860,8 @@ rechecks membership and is denied. Removing an educator waits for every mapped
 project in that class, so the transaction grows with the number of drafts.
 This protects known original drafts only; copy/import policy remains deferred.
 Three focused access and concurrency cases passed on 29 October 2026, along with
-the Release build and both formatting checks.
+the Release build and both formatting checks. The original-student assignment
+rule and the 21 project-lifecycle regression cases passed on 30 October 2026.
 
 ## SCRUM-161 part 7: restart and reassignment evidence
 
@@ -1891,13 +1892,30 @@ existing browser-output directory. The rerun used Node 24.19.0 and Chromium
 * Metadata and class mapping stay outside authored project JSON. Ordinary project
   creation uses the existing lifecycle path and has not gained new requirements.
 * The backend preserves the selected instant without an end-of-day conversion.
-  SCRUM-162 must verify device-local entry and display; SCRUM-164 owns submission
-  cutoff and review behavior. SCRUM-173 owns the deferred file-origin policy.
+  SCRUM-162 owns device-local entry and display; SCRUM-164 owns submission cutoff
+  and review behavior. SCRUM-173 owns the deferred file-origin policy.
 
 On 30 October 2026 the complete server suite passed 570 tests with no failures or
 skips, including both browser checks. The Release build and server/test formatting
-checks passed. The frontend and submission/review integrations above have not yet
-been verified end to end.
+checks passed.
+
+On 30 October 2026 the backend was also tested together with the exact draft
+publication PR #27 head `5acec3242446f35e57a8169c1b5a01c5eeca1b8b`. The two
+branches conflict in the EF model snapshot; the disposable combined workspace
+used a regenerated snapshot and had no pending model changes. A fresh database,
+an upgrade from publication-first with an existing edition, and an upgrade from
+class-first with existing mappings all passed. The combined class and publication
+regressions passed 171 cases. The unavailable publication integration rejected a
+known class draft and created no edition. SCRUM-164 review and the production
+publication adapter are not implemented, so this does not verify approval or
+publication of a reviewed assignment.
+
+A separate SCRUM-162 local integration connected the creation, assignment-list
+and detail screens to this backend in a disposable browser/server test. It
+verified two student drafts, direct access denial between students, a lost
+response retried across tabs with one committed assignment, and local deadline
+display in Singapore and New York. The screens still need the SCRUM-126 host and
+SCRUM-67 navigation coordination before they are reachable in production.
 
 SCRUM-126 project-home UI, SCRUM-67 autosave/recovery integration, publication/asset
 delivery, hosted CI and deployment remain separate. Production still has no approved
