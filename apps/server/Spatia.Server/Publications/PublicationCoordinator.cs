@@ -48,8 +48,6 @@ internal sealed class PublicationCoordinator(ApplicationDbContext database, Proj
             }
             var parsed = documents.ReadStored(projectId, project.SchemaVersion, project.UnvalidatedDocumentJson);
             if (!parsed.Ok) { return PublicationResult.Rejected(PublicationRejection.InvalidDocument); }
-            var serialized = documents.Serialize(parsed.Value!);
-            if (!serialized.Ok) { return PublicationResult.Rejected(PublicationRejection.InvalidDocument); }
             var requiredAssets = PublicationDocumentAssets.Required(parsed.Value!);
             var prepared = await _integration.PrepareAsync(database, project, request, parsed.Value!, cancellationToken);
             if (prepared.Failure is { } preparationFailure) { return PublicationResult.Rejected(preparationFailure); }
@@ -78,7 +76,7 @@ internal sealed class PublicationCoordinator(ApplicationDbContext database, Proj
                 INSERT INTO publications (id, project_id, published_by_id, source_revision, schema_version,
                     document, asset_references, request_digest)
                 VALUES ({request.PublicationId}, {projectId}, {project.ActorId}, {project.Revision}, {project.SchemaVersion},
-                    CAST({serialized.Value!} AS jsonb), CAST({manifest} AS jsonb), {digest})
+                    CAST({project.UnvalidatedDocumentJson} AS jsonb), CAST({manifest} AS jsonb), {digest})
                 ON CONFLICT (id) DO NOTHING
                 """, cancellationToken);
             edition = await FindAsync(request.PublicationId, cancellationToken)

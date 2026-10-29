@@ -1763,10 +1763,13 @@ and before commit. The other lock purposes keep their existing behavior and enum
 values.
 
 For a new ID, the confirmed revision must equal the locked draft revision, including
-metadata revisions. The coordinator reconstructs and validates the stored v1/v2
-document through `ProjectDocumentService`, serializes that saved content and checks
-the target player's capabilities. It accepts no replacement document from a publish
-caller. Every authored environment, model, image, audio and video ID must appear in
+metadata revisions. The coordinator validates the stored v1/v2 document through
+`ProjectDocumentService` and checks the target player's capabilities, then copies
+the locked draft's jsonb into the snapshot. Stored validation preserves saved numeric
+values and checks the compact document's byte budget without normalizing rotations
+again; PostgreSQL's whitespace and numeric expansion do not count as upload bytes.
+Imports and draft writes retain their existing normalization. It accepts no replacement
+document from a publish caller. Every authored environment, model, image, audio and video ID must appear in
 the complete pinned manifest; an owning resolver may also supply required derived
 resources. Missing, duplicate or incorrectly cased references cannot commit.
 
@@ -1830,6 +1833,10 @@ uniqueness, immutable updates, manifest constraints and retry identity. Coordina
 tests additionally cover lock waits, concurrent saves/publishes, current account and
 assignment changes, exact revision checks, runtime/asset rejection, atomic policy
 rollback, unrelated database failures, cancellation and lost commit acknowledgements.
+Snapshot regressions use actual saves to verify exact v1/v2 jsonb capture, unchanged
+drafts and retries, and valid 5 MiB documents whose rotations would grow on another
+normalization pass. Malformed, unknown-field, unresolvable-asset and oversized stored
+documents remain rejected before any publication commits.
 They do not supply evidence of the production publish API, approval, byte delivery,
 API restart or browser acceptance. Full server regression is required because the
 lock service and migration are shared by the account/project fixtures.

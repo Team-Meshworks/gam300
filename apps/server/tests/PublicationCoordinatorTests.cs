@@ -226,9 +226,13 @@ public sealed partial class PublicationCoordinatorTests
     [Arguments("schema")]
     [Arguments("route")]
     [Arguments("unsupported")]
+    [Arguments("rotation")]
+    [Arguments("unknown-field")]
+    [Arguments("unknown-asset")]
+    [Arguments("oversize")]
     public async Task PublicationCoordinator_StoredDocumentMustValidateAndRunOnTarget(string change)
     {
-        await using var fixture = await PublicationCoordinatorFixture.CreateAsync(2);
+        await using var fixture = await PublicationCoordinatorFixture.CreateAsync(change == "oversize" ? 1 : 2);
         await using (var database = fixture.Database())
         {
             var project = await database.Projects.SingleAsync();
@@ -247,6 +251,17 @@ public sealed partial class PublicationCoordinatorTests
                     break;
                 case "schema": project.SchemaVersion = 1; break;
                 case "route": project.DocumentJson = ProjectTestDocuments.Create(Guid.NewGuid(), "Wrong project", 2); break;
+                case "rotation":
+                case "unknown-field":
+                case "unknown-asset":
+                case "oversize":
+                    var invalid = JsonNode.Parse(project.DocumentJson)!;
+                    if (change == "rotation") { invalid["scenes"]![0]!["startCamera"]!["rotation"] = new JsonArray(0, 0, 0, 0); }
+                    if (change == "unknown-field") { invalid["extra"] = true; }
+                    if (change == "unknown-asset") { invalid["scenes"]![0]!["environmentAssetId"] = "missing"; }
+                    if (change == "oversize") { invalid["title"] = new string('x', Spatia.ProjectFormat.ProjectFormat.MaxProjectBytes); }
+                    project.DocumentJson = invalid.ToJsonString();
+                    break;
                 default: fixture.Integration.RuntimeCapabilities = []; break;
             }
             await database.SaveChangesAsync();
