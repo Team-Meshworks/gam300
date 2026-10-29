@@ -7,11 +7,14 @@ project APIs, one publication-access effects matrix, unresolved decisions and th
 evidence needed for acceptance. It does not approve a new audience or retention
 policy, or claim that publication, class or recovery integration is implemented.
 
-**Review status:** awaiting joint SCRUM-69/SCRUM-71 review. The Jira descriptions
-reviewed on 29 October 2026 require agreement, not an inferred policy. The existing
-archive/reopen handoff below predates that review and still needs confirmation by
-the publication-access owner. Record the decision and its review link in this
-document when agreed; an unresolved row is not an accepted publishing default.
+**Review status:** [Foo's SCRUM-71 feedback on 29 October 2026][foo-review] explicitly
+confirms the existing archive/reopen rule. His other policy suggestions are recorded
+below as proposals; recording them does not constitute joint acceptance. Audience
+authority, retention, request cutoff and class provenance still need decisions from
+the named owners. Policy confirmation does not establish implementation or complete
+SCRUM-69 acceptance.
+
+[foo-review]: https://github.com/Team-Meshworks/gam300/pull/26#issuecomment-6496535846
 
 ## Ownership and current implementation
 
@@ -106,10 +109,12 @@ without relabeling one user's unsaved content as another's.
 
 **Implemented** below describes current draft behavior only. **Required** comes
 from the linked Jira contracts and still needs consumer implementation/evidence.
-**Existing handoff** is the archive/reopen policy previously recorded in the server
-README; it has not yet been jointly accepted here. **Open Dn** identifies a decision
-below. A publication's stored edition is immutable; lifecycle changes do not rewrite
-its content, assets or private review history. Retention/deletion policy is separate.
+**Owner-confirmed** is the existing archive/reopen rule explicitly confirmed by
+SCRUM-71 in [Foo's review][foo-review]; delivery enforcement still needs evidence.
+**Proposal** records his other feedback pending agreement by the relevant owners.
+**Open Dn** identifies remaining decisions below. A publication's stored edition is
+immutable; lifecycle changes do not rewrite its content, assets or private review
+history. Retention/deletion policy is separate.
 
 Public and unlisted links permit anonymous access under SCRUM-71; unlisted means
 anyone holding the link, not a private audience. Authenticated publications reject
@@ -120,12 +125,14 @@ protected asset bytes, including direct URLs and cache paths.
 | --- | --- | --- | --- | --- |
 | Create or duplicate an ordinary project | Implemented independent draft and fresh authority; no publication is created or copied. New publication must separately check `CanPublish`. | No new edition or link is created; source editions are unchanged. | Same; copied draft authority is not visitor authority. | Existing API; publisher implementation belongs to SCRUM-70/85. Class-origin copy/import rules are Open D6. |
 | Save a newer draft revision | Implemented revision advance. Required: a class-assigned project needs submission/approval for that exact new revision. | Existing edition stays immutable; a later draft/review change alone does not replace or revoke it. | Same content invariant; current SCRUM-71 access policy still applies. | SCRUM-164 and SCRUM-70/85 integration required. |
-| Replace direct assignments or change a class roster | Implemented direct assignment replacement advances revision and rechecks current authority. Required: a roster change must participate in the shared locking/revision contract; neither event may turn class work into unrestricted work or reuse approval for an older revision. | Edition content is unchanged. Whether existing links remain accessible after reassignment/roster change is Open D1. | Edition content is unchanged. Which current members retain/gain access is Open D2. | SCRUM-69/71 agree effects; SCRUM-161/164 provide class mapping and approval contracts. |
-| Archive | Implemented: retain authorized draft reads and management; deny saves, duplicate, assignment changes and effective publishing permission. Metadata revision advances. | Existing handoff: deny retrieval, retain snapshot. | Existing handoff: deny retrieval, retain snapshot, including for administrators on the visitor delivery path. | Joint confirmation and enforcement on JSON/assets/cache paths pending, Open D3. Private management access is not visitor access. |
-| Reopen | Implemented: advance revision and derive current permissions. Required: reopening does not resurrect approval for an older revision. | Existing handoff: remove only the archive restriction; independent revocation and audience policy still apply. | Same, with current authenticated audience checks. Reopening does not restore removed membership. | Open D3; no unconditional link reactivation. |
-| Return, reject or revoke private review approval | Required: SCRUM-164 controls the current approval result; its return/revocation semantics are unresolved. Existing `CanPublish` never becomes an approval grant. | Existing editions are unchanged; any publication revocation is a separate SCRUM-71 action. | Same; private review evidence does not become publication data. | SCRUM-164 decision plus SCRUM-71 integration, Open D4. |
+| Replace direct assignments or change a class roster | Implemented direct assignment replacement advances revision and rechecks current authority. Required: a roster change must participate in the shared locking/revision contract; neither event may turn class work into unrestricted work or reuse approval for an older revision. | Proposal: retain the original student's publication without transferring it to another student; links remain available unless archived, hidden or revoked. | Proposal: loss of project permission removes permission-derived visitor access unless the person is separately in the publication audience. Exact audience rules remain Open D2. | Foo's D1/D2 proposals; SCRUM-69/71 agreement and SCRUM-161/164 mapping/approval contracts remain necessary. |
+| Archive | Implemented: retain authorized draft reads and management; deny saves, duplicate, assignment changes and effective publishing permission. Metadata revision advances. | Owner-confirmed: deny retrieval, retain snapshot. | Owner-confirmed: deny retrieval, retain snapshot, including for administrators on the visitor delivery path. | Archive rule confirmed in Foo's review; request cutoff and JSON/assets/cache enforcement remain Open D3. Private management access is not visitor access. |
+| Reopen | Implemented: advance revision and derive current permissions. Required: reopening does not resurrect approval for an older revision. | Owner-confirmed: remove only the archive restriction; independent revocation and audience policy still apply. | Same, with current authenticated audience checks. Reopening does not restore removed membership. | Rule confirmed in Foo's review; enforcement evidence remains outstanding. No unconditional link reactivation. |
+| Return, reject or revoke private review approval | Required: SCRUM-164 controls the current approval result; its return/revocation semantics are unresolved. Existing `CanPublish` never becomes an approval grant. | Existing editions are unchanged; any publication revocation is a separate SCRUM-71 action. Foo supports this existing requirement. | Same; private review evidence does not become publication data. | SCRUM-164 still defines review-state transitions and races; current-revision approval remains required for a new class edition, Open D4. |
+| Hide or restore a publication | Proposal: an authorized administrator/educator can hide the publication without altering the draft or published edition. Exact management authority remains open. | Proposal: hiding blocks direct links and protected assets while retaining the edition for restoration. Restoration must respect other access restrictions; its contract remains open. | Same, subject to the eventual audience policy. | Foo's Hide proposal, D2/D5. This does not grant all educators or directory administrators publication-management authority. |
+| Delete a publication | Proposal: an authorized person can permanently remove publication access; draft effects and deletion authority still need definition. | Proposal: the deleted link stays unavailable, including after backup restore. Keep assets needed by other projects/publications. | Same. | Foo's Delete/retention proposal, D5; the suggested 30-day backup period is not adopted. |
 | Revoke publication access | Does not by itself grant or revoke draft management or change stored draft content. | Required: revoked links cannot keep fetching data contrary to the agreed policy. | Same, including unrelated and formerly permitted sessions. | SCRUM-71 owns authorization, response and cache enforcement; propagation/retention details Open D5. |
-| Disable an account or remove current organization membership | Implemented: account authority is re-resolved; invalid sessions cannot use project APIs. It is not a project-row metadata revision. | Whether this affects editions previously published by that account is Open D1/D5, not implied by draft logout. | Required current-session/audience checks; membership-to-audience relationship is Open D2. | Account foundation SCRUM-68; publication lifecycle policy SCRUM-71. |
+| Disable an account or remove current organization membership | Implemented: account authority is re-resolved; invalid sessions cannot use project APIs. It is not a project-row metadata revision. | Proposal for publisher disablement: retain the original publication and public/unlisted access unless archived, hidden or revoked. Organization-membership removal was not separately resolved by the review. | Required current-session/audience checks; membership-to-audience relationship is Open D2. | Foo's disablement proposal, Open D1/D5; account foundation SCRUM-68 and access policy SCRUM-71. |
 
 ### Decisions requiring owner review
 
@@ -135,12 +142,19 @@ implement the contract. This document does not disable existing direct-project A
 
 | Decision | Question to resolve | Owner / required input | Status |
 | --- | --- | --- | --- |
-| D1 | After reassignment, roster change or publisher disablement, do existing public/unlisted links remain available, suspend, or require explicit revocation? Which actor may change that policy? | SCRUM-69 + SCRUM-71, with partner input where needed | Open; no decision/evidence link yet |
-| D2 | Is an authenticated audience evaluated from current assignment/roster membership, a publication-specific audience, or another agreed rule? How do removed/new members and administrators behave? Draft `CanManage` is not an automatic visitor grant. | SCRUM-71 + SCRUM-69; SCRUM-161 supplies roster facts | Open; no decision/evidence link yet |
-| D3 | Confirm the existing archive-denies/reopen-removes-only-archive handoff across all audiences and direct asset/cache paths; specify how an in-flight retrieval relates to the archive commit. | SCRUM-69 + SCRUM-71 | Existing handoff recorded; joint acceptance pending |
-| D4 | What are private review return/revocation semantics and races, and how does the publisher consume the resulting current-revision approval? Existing published editions remain immutable. | SCRUM-164; SCRUM-70/85 and SCRUM-69/71 consume it | Open; review-state implementation belongs to SCRUM-164 |
-| D5 | What retention/deletion, cache and revocation propagation rules apply to snapshots/assets after archive, reassignment, account disablement and explicit revocation? Already downloaded bytes cannot be recalled. | SCRUM-71, SCRUM-73 and partner input; SCRUM-69 supplies events | Open; no retention duration or propagation deadline adopted |
-| D6 | How is server-owned class provenance retained through roster removal, reassignment and duplication/import, and what transitions, if any, can remove it? A copy or missing roster row must not silently bypass the class review requirement. | SCRUM-161 + SCRUM-164 with SCRUM-69/71 and SCRUM-70/85 | Open; no client boolean, JSON field or absent mapping is accepted as approval evidence |
+| D1 | Foo proposes retaining each student's existing public/unlisted publications through reassignment, roster changes and publisher disablement, with access removed separately by archive, hide or revocation. Confirm that policy, the authority to change it and organization-membership removal effects. | SCRUM-69 + SCRUM-71, with partner input where needed | Proposal recorded in [Foo's review][foo-review]; joint decision pending |
+| D2 | Foo tentatively proposes student-selected publication audiences, authorized changes, and publisher/authorized-person access while relevant permissions remain. Define eligible recipients, who may select/change audiences, and any permission-derived visitor grants after reassignment. Draft `CanManage` is not yet an agreed visitor grant. | SCRUM-71 + SCRUM-69; SCRUM-161 supplies roster facts | Tentative proposal; audience and management authority remain open |
+| D3 | The archive-denies/reopen-removes-only-archive rule is confirmed by SCRUM-71. Foo proposes allowing delivery already underway to finish and blocking new requests after the change. Define the authorization/delivery cutoff relative to commit, including direct assets and cache responses, and verify the race. | SCRUM-69 + SCRUM-71 | Archive/reopen rule owner-confirmed; in-flight cutoff remains a proposal and enforcement unverified |
+| D4 | Foo supports keeping existing editions unchanged after return/revoked approval, with separate hide/revocation and current-revision approval for a new class edition. Define private review transitions, decision/publication races and the approval result consumed under the project lock. | SCRUM-164; SCRUM-70/85 and SCRUM-69/71 consume it | Existing publication invariants supported; review-state contract and implementation remain open |
+| D5 | Foo proposes reversible hiding, retention until authorized deletion, permanent loss of deleted-link access, shared-asset preservation, and no resurrection on backup restore. Define actor scope, restoration/deletion effects, cache invalidation and retention ownership. His suggested 30-day backup period requires agreement; already downloaded bytes cannot be recalled. | SCRUM-71, SCRUM-73 and partner input; SCRUM-94 verifies restore/retention; SCRUM-69 supplies events | Proposal recorded; no retention duration or propagation deadline adopted |
+| D6 | Foo proposes keeping class copies/imports subject to educator approval; ordinary independent projects need no educator approval but still require existing publishing permission. Define trusted server provenance through roster removal, reassignment, duplication/import and any allowed reclassification. Specify supported import paths and unverifiable-origin handling; client JSON alone cannot prove origin. | SCRUM-161 + SCRUM-164 with SCRUM-69/71 and SCRUM-70/85 | Proposal awaiting class/review owner input; provenance contract remains open |
+
+Foo cites Figma Hide/Delete controls as context. This record preserves his proposal;
+it does not verify those screens or add their implementation to SCRUM-69. Decisions
+must distinguish visitor access from private management/review access, and record
+the authorized actor and organization/project scope rather than granting authority
+from a role name alone. SCRUM-94 must verify the chosen deletion policy after restore;
+this document does not select a backup-retention period or restoration mechanism.
 
 ## Shared transaction and class-review integration
 
@@ -212,8 +226,9 @@ local restart artifact was not independently opened during this handoff review.
 Before closing the story, attach these integration results to the relevant issues
 and this record:
 
-- **SCRUM-69/71:** accepted D1-D3 decisions and applicable D5/D6 decisions, with review
-  links; real PostgreSQL/API/browser coverage for anonymous, permitted,
+- **SCRUM-69/71:** joint decisions on D1/D2, the remaining D3 request cutoff and
+  applicable D5/D6 proposals, alongside the recorded archive/reopen confirmation;
+  real PostgreSQL/API/browser coverage for anonymous, permitted,
   unrelated-student and administrator sessions across public/unlisted/authenticated
   editions, JSON, direct assets and cache paths. Exercise archive/reopen,
   reassignment, roster removal and explicit revocation, including in-flight requests.
