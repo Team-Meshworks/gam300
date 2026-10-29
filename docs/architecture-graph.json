@@ -237,7 +237,8 @@
     "editor/transform-command.ts": "338ad5ff277ed1bfa0b9bb9164a441be0fb5fb125a392e35e3ba632e9a179d13",
     "editor/ui/BottomBar.tsx": "a5a52f3200e6f12f9a1173c7859da124eabf4cd6fd0c6e1ec1d25b3df1afb69a",
     "editor/ui/Icon.tsx": "536064fa8990e7e522f64eba9e25106359c903257d84837b6575ba5c99307e1b",
-    "editor/ui/SidePanels.tsx": "31d945caaffab3d3518232ca56e6b858fca18b5e8cff690b942cbbe5e4342d2b",
+    "editor/ui/SceneTreePanel.tsx": "826d7e50e236cb45ac427f05c3f2e8f8f20b6f49ea6d26fcff57a726b3a57c94",
+    "editor/ui/SidePanels.tsx": "b2dcb37668a5d9142f2e83b69ee0eb16f97ed82dd9d17ebbef87072ffccc71b0",
     "editor/ui/TopBar.tsx": "f7122b3c7bd93b7257bbb74392b996acbf3397650fecea4e69bd3d6c2c0fef21",
     "editor/ui/dock-edge.test.ts": "5f23848e403e898efc84d2c34ae327b5d5313a066c6391a79cec336e73759ead",
     "editor/ui/dock-edge.ts": "16fbf3250e0c840d7d6d0add10b5fb4ee008afafcbbebe1b860c15171d7196af",
@@ -2062,6 +2063,44 @@
       "from": "editor"
     },
     {
+      "file": "editor/ui/SceneTreePanel.tsx",
+      "line": 1,
+      "kind": "static",
+      "specifier": "react",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/ui/SceneTreePanel.tsx",
+      "line": 2,
+      "kind": "type",
+      "specifier": "../../shared/project/scene-object",
+      "target": "shared/project/scene-object.ts",
+      "from": "editor",
+      "to": "project"
+    },
+    {
+      "file": "editor/ui/SceneTreePanel.tsx",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./Icon",
+      "target": "editor/ui/Icon.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/SceneTreePanel.tsx",
+      "line": 24,
+      "kind": "implicit-jsx",
+      "specifier": "react/jsx-runtime",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
       "file": "editor/ui/SidePanels.tsx",
       "line": 1,
       "kind": "static",
@@ -2101,6 +2140,15 @@
     {
       "file": "editor/ui/SidePanels.tsx",
       "line": 5,
+      "kind": "static",
+      "specifier": "./SceneTreePanel",
+      "target": "editor/ui/SceneTreePanel.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/SidePanels.tsx",
+      "line": 6,
       "kind": "static",
       "specifier": "./rotation-angles",
       "target": "editor/ui/rotation-angles.ts",
