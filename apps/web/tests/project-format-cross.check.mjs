@@ -26,12 +26,16 @@ try {
   const { serializeProject } = await modules.ssrLoadModule(
     "/shared/project/project-serialization.ts",
   );
+  const { missingProjectCapabilities } = await modules.ssrLoadModule(
+    "/shared/project/project-capabilities.ts",
+  );
 
-  // Exercise released examples, storage text and every URL case from the shared corpus
+  // Exercise released examples, disabled rules, storage text and URL cases from the shared corpus
   const cases = manifest.cases.filter(
     (test) =>
       test.patches.length === 0 ||
       test.name.startsWith("storage NUL") ||
+      test.name === "known disabled rule retained" ||
       (test.patches.length === 1 && test.patches[0].path.at(-1) === "url"),
   );
 
@@ -104,6 +108,17 @@ try {
       // Reopen actual C# output, including documents the server first received from the browser writer
       const reopened = deserializeProject(output.json, kinds);
       assert.ok(reopened.ok, `Browser reopening C# output ${index}`);
+
+      // Compare the entire reopened document and both capability reports in authored order
+      // This catches lost scene data or differing diagnostics even when both readers accept JSON
+      const original = deserializeProject(peerInputs[index], kinds);
+      assert.ok(original.ok, `Browser reopening exchange input ${index}`);
+      assert.deepEqual(reopened.value, original.value, `Cross-runtime content ${index}`);
+      assert.deepEqual(
+        output.capabilities,
+        missingProjectCapabilities(original.value, new Set()),
+        `Cross-runtime capability diagnostics ${index}`,
+      );
 
       // A successful reopen must also retain the original escaped or Unicode URL spelling
       const source = JSON.parse(peerInputs[index]);

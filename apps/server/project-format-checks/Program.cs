@@ -27,7 +27,14 @@ if (args is ["--exchange"])
         // Only accepted documents reach the writer; rejection retains its original field path
         var read = Format.Deserialize(input, assets);
         var saved = read.Ok ? Format.Serialize(read.Value, assets) : new FormatResult<string>(null, read.Error);
-        return new { ok = saved.Ok, json = saved.Value, path = saved.Error?.Path };
+
+        // Compare all missing capabilities with the browser for the same validated document
+        // An empty supported set exposes every requirement without choosing a player's feature set
+        var capabilities = read.Ok
+            ? ProjectCapabilities.Missing(read.Value!, new HashSet<string>(StringComparer.Ordinal))
+                .Select(issue => new { path = issue.Path, capability = issue.Capability }).ToArray()
+            : null;
+        return new { ok = saved.Ok, json = saved.Value, path = saved.Error?.Path, capabilities };
     });
 
     // Emit one response array and stop before the human-readable fixture summary reaches stdout
