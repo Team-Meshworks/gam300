@@ -1832,6 +1832,16 @@ This protects known original drafts only; copy/import policy remains deferred.
 Three focused access and concurrency cases passed on 29 October 2026, along with
 the Release build and both formatting checks.
 
+## SCRUM-161 part 7: restart and reassignment evidence
+
+The assignment storage and independent drafts were checked after stopping the
+server and starting a fresh instance against the same database. Two additional
+cases exercised project-assignment replacement racing with class removal in both
+orders. The original draft, revision and class mapping survived; re-adding a
+student did not restore a project grant that had separately been removed. All
+three cases passed on 29 October 2026. Production assignment creation and read
+routes, client-side local-time conversion and copy/import policy remain pending.
+
 SCRUM-126 project-home UI, SCRUM-67 autosave/recovery integration, publication/asset
 delivery, hosted CI and deployment remain separate. Production still has no approved
 asset catalogue. These backend checks do not complete parent Story/Epic acceptance.

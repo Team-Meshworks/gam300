@@ -351,6 +351,101 @@ public sealed class ClassAssignmentCoordinatorTests
         await AssertStoredDraftAsync(fixture, projects[data.FirstStudent], "Assignment", 0);
     }
 
+    [Test]
+    [Arguments(true)]
+    [Arguments(false)]
+    public async Task AssignmentAccess_ReassignmentAndRosterRemovalPreserveTheDraft(bool reassignFirst)
+    {
+        var pause = new CommitPause();
+        var classProjectProbe = new ClassProjectLockProbe();
+        var projectProbe = new ProjectLockProbe();
+        await using var fixture = await CreateFixtureAsync(builder =>
+            builder.Services.AddDbContext<ApplicationDbContext>(options => options.AddInterceptors(pause, classProjectProbe, projectProbe)));
+        var data = await SeedAsync(fixture);
+        var projects = await CreateProjectsAsync(fixture, data);
+        var token = await fixture.GetCsrfAsync();
+        pause.Armed = true;
+        var first = reassignFirst
+            ? ReassignAsync(fixture, projects[data.FirstStudent], data.Educator, token)
+            : ChangeMemberAsync(fixture, data.ClassroomId, data.FirstStudent, HttpMethod.Delete, token);
+        Task<HttpResponseMessage>? second = null;
+        try
+        {
+            var blocker = await pause.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            if (reassignFirst)
+            {
+                classProjectProbe.Arm();
+                second = ChangeMemberAsync(fixture, data.ClassroomId, data.FirstStudent, HttpMethod.Delete, token);
+            }
+            else
+            {
+                projectProbe.Arm();
+                second = ReassignAsync(fixture, projects[data.FirstStudent], data.Educator, token);
+            }
+            var waiter = await (reassignFirst ? classProjectProbe.Entered.Task : projectProbe.Entered.Task)
+                .WaitAsync(TimeSpan.FromSeconds(10));
+            await WaitBlockedAsync(fixture, waiter, blocker);
+            pause.Release.TrySetResult();
+            using var firstResult = await first;
+            using var secondResult = await second;
+            await Assert.That(firstResult.StatusCode).IsEqualTo(reassignFirst ? HttpStatusCode.OK : HttpStatusCode.NoContent);
+            await Assert.That(secondResult.StatusCode).IsEqualTo(reassignFirst ? HttpStatusCode.NoContent : HttpStatusCode.OK);
+        }
+        finally
+        {
+            pause.Release.TrySetResult();
+            if (second is not null && !second.IsCompleted) { await second; }
+            if (!first.IsCompleted) { await first; }
+        }
+        await AssertStoredDraftAsync(fixture, projects[data.FirstStudent], "Assignment", 1);
+        await using (var scope = fixture.Database.Services.CreateAsyncScope())
+        {
+            var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            await Assert.That(await database.ClassAssignmentStudents.AnyAsync(row => row.StudentId == data.FirstStudent
+                && row.ProjectId == projects[data.FirstStudent])).IsTrue();
+            await Assert.That(await database.ProjectProvenances.AnyAsync(row => row.ProjectId == projects[data.FirstStudent]
+                && row.Kind == ProjectProvenance.Class)).IsTrue();
+            await Assert.That(await database.ProjectAssignments.AnyAsync(row => row.ProjectId == projects[data.FirstStudent]
+                && row.UserId == data.FirstStudent)).IsFalse();
+        }
+        using (var restored = await ChangeMemberAsync(fixture, data.ClassroomId, data.FirstStudent, HttpMethod.Put))
+        { await Assert.That(restored.StatusCode).IsEqualTo(HttpStatusCode.NoContent); }
+        using var student = fixture.CreateClient();
+        await fixture.SignInAsync(data.FirstStudent, student);
+        await AssertProjectStatusAsync(student, projects[data.FirstStudent], HttpStatusCode.NotFound);
+    }
+
+    [Test]
+    public async Task AssignmentPersistence_ServerRestartRetainsRosterMetadataAndIndependentDrafts()
+    {
+        await using var fixture = await CreateFixtureAsync();
+        var data = await SeedAsync(fixture);
+        var projects = await CreateProjectsAsync(fixture, data);
+        using (var student = fixture.CreateClient())
+        {
+            await fixture.SignInAsync(data.FirstStudent, student);
+            using var saved = await SaveDraftAsync(student, projects[data.FirstStudent], "Saved before restart", await fixture.GetCsrfAsync(student));
+            await Assert.That(saved.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        }
+        await fixture.App.StopAsync();
+        await using var restarted = await fixture.CreateSiblingAsync(_ => { });
+        await restarted.SignInAsync(data.Educator);
+        using (var classroom = await restarted.Client.GetAsync($"/api/classes/{data.ClassroomId:D}"))
+        { await Assert.That(classroom.StatusCode).IsEqualTo(HttpStatusCode.OK); }
+        await AssertProjectStatusAsync(restarted.Client, projects[data.FirstStudent], HttpStatusCode.OK);
+        await AssertStoredDraftAsync(restarted, projects[data.FirstStudent], "Saved before restart", 1);
+        await AssertStoredDraftAsync(restarted, projects[data.SecondStudent], "Assignment", 0);
+        await using var scope = restarted.Database.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var assignment = await database.ClassAssignments.AsNoTracking().SingleAsync();
+        await Assert.That(assignment.Title).IsEqualTo("Assignment");
+        await Assert.That(assignment.Description).IsEqualTo("Description");
+        await Assert.That(assignment.Instructions).IsEqualTo("Instructions");
+        await Assert.That(assignment.DueAtUnixSeconds).IsEqualTo(2_000_000_000L);
+        await Assert.That(await database.ClassAssignmentStudents.CountAsync()).IsEqualTo(2);
+        await Assert.That(await database.ProjectProvenances.CountAsync(row => row.Kind == ProjectProvenance.Class)).IsEqualTo(2);
+    }
+
     private static Task<HttpsApplicationFixture> CreateFixtureAsync(Action<WebApplicationBuilder>? configure = null) =>
         HttpsApplicationFixture.CreateAsync(configure, app => app.MapPost("/_test/class-assignments/{id:guid}",
             (Guid id, ClassAssignmentRequest request, HttpContext context, ApplicationDbContext database,
@@ -420,6 +515,22 @@ public sealed class ClassAssignmentCoordinatorTests
         };
         message.Headers.Add("X-CSRF-TOKEN", token);
         return await client.SendAsync(message);
+    }
+
+    private static async Task<HttpResponseMessage> ReassignAsync(HttpsApplicationFixture fixture, Guid projectId, Guid educator, string token)
+    {
+        using var message = new HttpRequestMessage(HttpMethod.Patch, $"/api/projects/{projectId:D}/assignments")
+        {
+            Content = JsonContent.Create(new
+            {
+                expectedRevision = 0,
+                managedByUserIds = new[] { educator },
+                assignedCreatorIds = Array.Empty<Guid>(),
+                canPublishUserIds = Array.Empty<Guid>(),
+            }),
+        };
+        message.Headers.Add("X-CSRF-TOKEN", token);
+        return await fixture.Client.SendAsync(message);
     }
 
     private static async Task AssertProjectStatusAsync(HttpClient client, Guid projectId, HttpStatusCode expected)
