@@ -1806,12 +1806,20 @@ origins in one transaction. Any failure rolls the entire batch back. Retrying an
 identical request ID returns the original draft IDs; reusing it with changed
 details returns a conflict. Assignment metadata remains outside project JSON.
 
-The coordinator has no production route yet. Roster/project access must be
-coordinated before exposing it, and copy/import origin policy remains deferred
-until the dedicated project file format is defined. Five focused cases passed
-on 29 October 2026, covering independent drafts, rollback and retry, authorization,
-concurrent identical requests and roster rechecks. The Release build and both
-project formatting checks also passed.
+`POST /api/classes/{id}/assignments` exposes this coordinator to an authorized
+class manager or administrator. It accepts `requestId`, `sourceProjectId`,
+`sourceRevision`, `dueAtUnixSeconds`, `title`, `description`, `instructions` and
+`studentIds`. A source project in the same organization must be manageable by the
+caller. The request uses the host's 16 KiB limit and the normal full-account,
+CSRF and write-rate boundaries. A new batch returns 201; an identical committed
+retry returns 200 with the original mapping. Changed intent for a request ID
+returns 409. Invalid or ineligible input creates no partial assignment.
+
+Copy/import origin policy remains deferred to M3's SCRUM-173. SCRUM-164 and
+SCRUM-85 own the review and publication integrations; this route does not claim
+to enforce either. The independent draft, retry and roster checks run against
+this production route. Fourteen focused assignment cases, the production-route
+inventory, the Release build and both formatting checks passed on 30 October 2026.
 
 ## SCRUM-161 part 6: class membership and draft access
 
@@ -1839,13 +1847,14 @@ server and starting a fresh instance against the same database. Two additional
 cases exercised project-assignment replacement racing with class removal in both
 orders. The original draft, revision and class mapping survived; re-adding a
 student did not restore a project grant that had separately been removed. All
-three cases passed on 29 October 2026. Production assignment creation and read
-routes, client-side local-time conversion and copy/import policy remain pending.
+three cases passed on 29 October 2026. Assignment read routes, client-side
+local-time conversion and copy/import policy remain pending.
 
-The complete server run passed 563 of 565 cases; the two browser cases could not
-find Playwright in this worktree. Both passed on a separate rerun using the local
-Playwright/Chromium cache and an existing browser-output directory. The rerun used
-Node 24.19.0 and Chromium 153.0.8010.12. No application code changed between runs.
+Before exposing the assignment creation route, the complete server run passed
+563 of 565 cases; the two browser cases could not find Playwright in this worktree.
+Both passed on a separate rerun using the local Playwright/Chromium cache and an
+existing browser-output directory. The rerun used Node 24.19.0 and Chromium
+153.0.8010.12. No application code changed between those two runs.
 
 SCRUM-126 project-home UI, SCRUM-67 autosave/recovery integration, publication/asset
 delivery, hosted CI and deployment remain separate. Production still has no approved

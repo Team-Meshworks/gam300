@@ -22,6 +22,8 @@ public static class ClassroomEndpoints
         group.MapGet("/{id:guid}/roster", RosterAsync);
         group.MapGet("/{id:guid}/eligible-students", EligibleStudentsAsync);
         group.MapPost("/", CreateAsync).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
+        group.MapPost("/{id:guid}/assignments", ClassAssignmentCoordinator.CreateAsync)
+            .RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
         group.MapPut("/{id:guid}/members/{userId:guid}", AddMemberAsync).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
         group.MapDelete("/{id:guid}/members/{userId:guid}", RemoveMemberAsync).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
         return endpoints;

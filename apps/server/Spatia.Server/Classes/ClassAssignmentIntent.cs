@@ -1,11 +1,14 @@
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Spatia.Server.Projects;
 
 namespace Spatia.Server.Classes;
 
-internal sealed record ClassAssignmentRequest(Guid? RequestId, Guid? SourceProjectId, long? SourceRevision,
-    long? DueAtUnixSeconds, string? Title, string? Description, string? Instructions, Guid[]? StudentIds);
+internal sealed record ClassAssignmentRequest(Guid? RequestId, Guid? SourceProjectId,
+    [property: JsonNumberHandling(JsonNumberHandling.Strict)] long? SourceRevision,
+    [property: JsonNumberHandling(JsonNumberHandling.Strict)] long? DueAtUnixSeconds,
+    string? Title, string? Description, string? Instructions, Guid[]? StudentIds);
 
 internal static class ClassAssignmentIntent
 {

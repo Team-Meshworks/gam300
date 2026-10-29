@@ -3,7 +3,6 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
@@ -12,7 +11,6 @@ using Spatia.Server.Accounts;
 using Spatia.Server.Classes;
 using Spatia.Server.Persistence;
 using Spatia.Server.Projects;
-using Spatia.Server.Security;
 
 namespace Spatia.Server.Tests;
 
@@ -136,6 +134,42 @@ public sealed class ClassAssignmentCoordinatorTests
         var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         await Assert.That(await database.ClassAssignments.AnyAsync()).IsFalse();
         await Assert.That(await database.Projects.CountAsync()).IsEqualTo(1);
+    }
+
+    [Test]
+    public async Task AssignmentCoordinator_ProductionRequestBoundaryRejectsInvalidBodiesAndMissingCsrf()
+    {
+        await using var fixture = await CreateFixtureAsync();
+        var data = await SeedAsync(fixture);
+        var request = Request(data);
+        var path = $"/api/classes/{data.ClassroomId:D}/assignments";
+        using (var noCsrf = await fixture.Client.PostAsJsonAsync(path, request))
+        { await Assert.That(noCsrf.StatusCode).IsEqualTo(HttpStatusCode.BadRequest); }
+        var token = await fixture.GetCsrfAsync();
+        var json = JsonSerializer.Serialize(request, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        var stringDeadline = json.Replace("\"dueAtUnixSeconds\":2000000000", "\"dueAtUnixSeconds\":\"2000000000\"", StringComparison.Ordinal);
+        await Assert.That(stringDeadline).IsNotEqualTo(json);
+        using (var message = new HttpRequestMessage(HttpMethod.Post, path)
+        {
+            Content = new StringContent(stringDeadline, System.Text.Encoding.UTF8, "application/json"),
+        })
+        {
+            message.Headers.Add("X-CSRF-TOKEN", token);
+            using var rejected = await fixture.Client.SendAsync(message);
+            await Assert.That(rejected.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
+        }
+        using (var message = new HttpRequestMessage(HttpMethod.Post, path)
+        {
+            Content = new StringContent(json.PadRight(17 * 1024), System.Text.Encoding.UTF8, "application/json"),
+        })
+        {
+            message.Headers.Add("X-CSRF-TOKEN", token);
+            using var rejected = await fixture.Client.SendAsync(message);
+            await Assert.That(rejected.StatusCode).IsEqualTo(HttpStatusCode.RequestEntityTooLarge);
+        }
+        await using var scope = fixture.Database.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await Assert.That(await database.ClassAssignments.AnyAsync()).IsFalse();
     }
 
     [Test]
@@ -447,11 +481,7 @@ public sealed class ClassAssignmentCoordinatorTests
     }
 
     private static Task<HttpsApplicationFixture> CreateFixtureAsync(Action<WebApplicationBuilder>? configure = null) =>
-        HttpsApplicationFixture.CreateAsync(configure, app => app.MapPost("/_test/class-assignments/{id:guid}",
-            (Guid id, ClassAssignmentRequest request, HttpContext context, ApplicationDbContext database,
-                ProjectAccessService access, ProjectDocumentService documents, CancellationToken cancellationToken) =>
-                ClassAssignmentCoordinator.CreateAsync(id, request, context, database, access, documents, cancellationToken))
-            .RequireAuthorization(SecurityPolicies.FullAccount), environmentName: "Development");
+        HttpsApplicationFixture.CreateAsync(configure, environmentName: "Development");
 
     private static async Task<Seeded> SeedAsync(HttpsApplicationFixture fixture)
     {
@@ -553,7 +583,7 @@ public sealed class ClassAssignmentCoordinatorTests
         HttpClient? client = null, string? token = null)
     {
         client ??= fixture.Client;
-        using var message = new HttpRequestMessage(HttpMethod.Post, "/_test/class-assignments/" + id.ToString("D"))
+        using var message = new HttpRequestMessage(HttpMethod.Post, "/api/classes/" + id.ToString("D") + "/assignments")
         {
             Content = JsonContent.Create(request),
         };

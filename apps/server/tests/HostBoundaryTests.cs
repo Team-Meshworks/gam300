@@ -89,13 +89,13 @@ public sealed class HostBoundaryTests
     {
         await using var app = SpatiaApplication.Build(CreateConfigurationBuilder());
         var endpoints = ((IEndpointRouteBuilder)app).DataSources.SelectMany(source => source.Endpoints).OfType<RouteEndpoint>().ToArray();
-        await Assert.That(endpoints.Length).IsEqualTo(22);
+        await Assert.That(endpoints.Length).IsEqualTo(23);
         var expected = new[] { "GET /api/auth/csrf", "POST /api/auth/login", "GET /api/auth/session", "POST /api/auth/logout", "POST /api/auth/password",
             "POST /api/admin/organizations", "POST /api/admin/users", "POST /api/admin/users/{id:guid}/password",
             "GET /api/projects/", "GET /api/projects/{id:guid}", "PUT /api/projects/{id:guid}",
             "POST /api/projects/", "POST /api/projects/{id:guid}/duplicate", "PATCH /api/projects/{id:guid}/assignments", "PATCH /api/projects/{id:guid}/archive",
             "GET /api/classes/", "GET /api/classes/{id:guid}", "GET /api/classes/{id:guid}/roster", "GET /api/classes/{id:guid}/eligible-students",
-            "POST /api/classes/", "PUT /api/classes/{id:guid}/members/{userId:guid}", "DELETE /api/classes/{id:guid}/members/{userId:guid}" };
+            "POST /api/classes/", "POST /api/classes/{id:guid}/assignments", "PUT /api/classes/{id:guid}/members/{userId:guid}", "DELETE /api/classes/{id:guid}/members/{userId:guid}" };
         await Assert.That(string.Join(";", endpoints.Select(endpoint =>
             endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Single() + " " + endpoint.RoutePattern.RawText).Order()))
             .IsEqualTo(string.Join(";", expected.Order()));
