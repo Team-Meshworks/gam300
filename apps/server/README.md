@@ -1604,9 +1604,10 @@ The current SCRUM-69/SCRUM-71
 [lifecycle and publication-access handoff](../../docs/project-lifecycle-publication-access.md)
 consolidates the implemented API/error contract, the publication-effects matrix,
 open policy decisions and acceptance evidence. It records SCRUM-71's archive/reopen
-confirmation and separates the remaining proposals from agreed requirements. The
-historical checks below establish the direct-project backend, not completion of
-class, publication-access or unsaved-editor recovery integration.
+confirmation and the discussion agreement on authenticated audiences and publication
+management, separately from remaining proposals. The historical checks below establish
+the direct-project backend, not completion of class, publication-access or
+unsaved-editor recovery integration.
 
 The production PUT now connects `SaveEnvelopeReader`, `ProjectSaveService` and
 `ProjectHttpResults` under FullAccount, CSRF and the 6 MiB request limit. It returns
@@ -1672,10 +1673,10 @@ Publication storage/delivery is not implemented in this slice. The existing back
 handoff is to deny archived-project publication/asset retrieval without erasing
 snapshots; reopening removes only that restriction and does not undo independent
 revocation/audience policy. The [shared effects matrix](../../docs/project-lifecycle-publication-access.md#shared-publication-access-effects-matrix)
-records SCRUM-71's confirmation of that rule and the remaining reassignment,
-audience, request-cutoff, class and retention proposals requiring owner agreement.
-The confirmation is not evidence of publication integration or acceptance of those
-other proposals.
+records SCRUM-71's confirmation of that rule and the agreed authenticated audience
+and project-scoped management rules. Public/unlisted link continuity, request cutoff,
+class provenance and retention still require owner decisions. The agreements are not
+evidence of publication integration.
 
 Focused verification on **26 October 2026** passed **8/8** PUT route cases, **13/13**
 production transport/security cases, **21/21** lifecycle cases and the **15-route**
