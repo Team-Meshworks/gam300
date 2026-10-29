@@ -1821,6 +1821,22 @@ to enforce either. The independent draft, retry and roster checks run against
 this production route. Fourteen focused assignment cases, the production-route
 inventory, the Release build and both formatting checks passed on 30 October 2026.
 
+`GET /api/classes/{id}/assignments` lists visible assignments using an exclusive
+UUID `cursor`, default `limit=10` and maximum `limit=20`. `GET` on
+`/api/classes/{id}/assignments/{assignmentId}` returns one visible assignment.
+Each result includes its title, description, instructions, Unix-second deadline
+and visible student/project mappings; source projects and request digests are not
+returned. Students see only their own mapped project when their edit grant and
+class membership are current. Educators see only projects for which they retain a
+manage grant and active class membership; administrators retain existing access.
+An inaccessible assignment returns `class_assignment_not_found`. Reads use one
+consistent database snapshot and `Cache-Control: no-store`.
+Three focused read cases covered grant and roster filtering, pagination and
+preservation of the same Unix instant across device offsets and adjacent seconds.
+The server-restart, eight roster, route-inventory, Release-build and formatting
+checks also passed on 30 October 2026. These checks do not implement or validate
+the editor's actual local-time conversion or the submission cutoff.
+
 ## SCRUM-161 part 6: class membership and draft access
 
 For a server-created student draft with a retained assignment mapping, project
@@ -1847,8 +1863,8 @@ server and starting a fresh instance against the same database. Two additional
 cases exercised project-assignment replacement racing with class removal in both
 orders. The original draft, revision and class mapping survived; re-adding a
 student did not restore a project grant that had separately been removed. All
-three cases passed on 29 October 2026. Assignment read routes, client-side
-local-time conversion and copy/import policy remain pending.
+three cases passed on 29 October 2026. Client-side local-time conversion and
+copy/import policy remain pending.
 
 Before exposing the assignment creation route, the complete server run passed
 563 of 565 cases; the two browser cases could not find Playwright in this worktree.

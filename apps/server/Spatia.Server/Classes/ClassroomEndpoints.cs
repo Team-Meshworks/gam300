@@ -21,6 +21,8 @@ public static class ClassroomEndpoints
         group.MapGet("/{id:guid}", GetAsync);
         group.MapGet("/{id:guid}/roster", RosterAsync);
         group.MapGet("/{id:guid}/eligible-students", EligibleStudentsAsync);
+        group.MapGet("/{id:guid}/assignments", ClassAssignmentReads.ListAsync);
+        group.MapGet("/{id:guid}/assignments/{assignmentId:guid}", ClassAssignmentReads.GetAsync);
         group.MapPost("/", CreateAsync).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
         group.MapPost("/{id:guid}/assignments", ClassAssignmentCoordinator.CreateAsync)
             .RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
@@ -237,7 +239,7 @@ public static class ClassroomEndpoints
                        || (membership.RoleId == ApplicationRoles.CreatorId && role.Name == ApplicationRoles.Creator))
                select (Guid?)membership.RoleId).SingleOrDefaultAsync(cancellationToken);
 
-    private static bool TryPage(HttpContext context, out int limit, out Guid? cursor)
+    internal static bool TryPage(HttpContext context, out int limit, out Guid? cursor)
     {
         limit = 10;
         cursor = null;
@@ -275,7 +277,7 @@ public static class ClassroomEndpoints
     private static IResult NotFound(HttpContext context) => ApiProblems.Create(context, 404, "class_not_found", "The class is unavailable.");
     private static IResult InvalidInput(HttpContext context) => ApiProblems.Create(context, 400, "invalid_class_input", "Check the class details.");
     private static IResult InvalidMembers(HttpContext context) => ApiProblems.Create(context, 422, "invalid_class_members", "Choose active accounts in this organization.");
-    private static IResult InvalidQuery(HttpContext context) => ApiProblems.Create(context, 400, "invalid_class_query", "Check the class list filters and cursor.");
+    internal static IResult InvalidQuery(HttpContext context) => ApiProblems.Create(context, 400, "invalid_class_query", "Check the class list filters and cursor.");
 
     private sealed record CreateClassroomRequest(string? Name, Guid? OrgId, Guid[]? ManagedByUserIds);
 }
