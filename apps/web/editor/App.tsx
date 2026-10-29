@@ -30,7 +30,7 @@ const EMPTY_HOTSPOTS: readonly ProjectHotspot[] = Object.freeze([]);
 
 export function App() {
   const [store] = useState(() => createDocumentStore(editorAssets));
-  const { objects, project, canUndo, canRedo } = useSyncExternalStore(
+  const { objects, project, activeSceneId, canUndo, canRedo } = useSyncExternalStore(
     store.subscribe,
     store.getSnapshot,
   );
@@ -60,7 +60,10 @@ export function App() {
   const [manager, setManager] = useState<ModeManager | null>(null);
   const [modeState, setModeState] = useState<ModeManagerState | null>(null);
   const selection = objects.some((object) => object.id === selectedId) ? selectedId : null;
-  const projectScene = project?.scenes[0];
+  const projectScene = useMemo(
+    () => project?.scenes.find((scene) => scene.id === activeSceneId),
+    [project, activeSceneId],
+  );
   const roomAsset = editorAssets.find((asset) => asset.id === projectScene?.environmentAssetId);
 
   // Room selection uses the scene ID because its asset lives in the environment field
@@ -270,7 +273,7 @@ export function App() {
 
       // The library keeps the room available after placement
       // Dropping the current room again leaves the scene and undo history alone
-      if (store.getSnapshot().project?.scenes[0]?.environmentAssetId === assetId) {
+      if (projectScene?.environmentAssetId === assetId) {
         setDragging(false);
         setNotice("This room is already in the scene");
         return;
@@ -378,7 +381,7 @@ export function App() {
         <Viewport
           assets={editorAssets}
           objects={objects}
-          projectScene={project?.scenes[0] ?? null}
+          projectScene={projectScene ?? null}
           selectedId={roomSelected ? projectScene.id : selection}
           dragging={dragging}
           editingEnabled={!switching}

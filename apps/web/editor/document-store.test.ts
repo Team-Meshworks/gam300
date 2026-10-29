@@ -355,7 +355,8 @@ it("attaches hotspots to objects and removes their rules with the object", () =>
   assert.deepEqual(store.getSnapshot().project?.scenes[0]?.interactions, [unrelated]);
   store.undo();
   assert.equal(store.getSnapshot().objects.length, 1);
-  assert.deepEqual(store.getSnapshot().project?.scenes[0]?.hotspots, []);
+  assert.deepEqual(store.getSnapshot().project?.scenes[0]?.hotspots, [added.value]);
+  assert.deepEqual(store.getSnapshot().project?.scenes[0]?.interactions, [unrelated, click]);
 });
 
 it("deleting a hotspot keeps unrelated interactions", () => {

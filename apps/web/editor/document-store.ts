@@ -1,11 +1,15 @@
 import { validatePosition, validateTransform } from "../shared/project/spatial-validation";
 import { freezeValidatedData, invalid } from "../shared/project/validation-helpers";
 import { validateProject } from "../shared/project/project-validation";
-import type { ContentObject } from "../shared/project/project-content";
+import type { ContentObject, ProjectViewpoint } from "../shared/project/project-content";
 import type { ProjectHotspot, ProjectScene, Transform } from "../shared/project/project-types";
 import { prepareTransformCommand } from "./transform-command";
-import { createCommandHistory } from "./command-history";
-import { captureRecoveryHistory, validateRecoveryHistory } from "./recovery-history";
+import { createCommandHistory, type EditCommand } from "./command-history";
+import {
+  captureProjectHistory,
+  validateRecoveryHistory,
+  type ProjectHistoryState,
+} from "./recovery-history";
 import type { CatalogueAsset } from "../shared/asset-runtime/catalogue.ts";
 import type { SceneObject, Vector3Tuple } from "../shared/project/scene-object.ts";
 import { deserializeProject } from "../shared/project/project-deserialization";
@@ -62,7 +66,24 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
   let projectAssets: ReadonlyMap<string, string> = new Map();
 
   // Keep history here so the buttons and future edit controls share one undo order.
-  const history = createCommandHistory<readonly SceneObject[]>();
+  type State = Readonly<{ objects: readonly SceneObject[] }> &
+    (ProjectHistoryState | Readonly<{ project: null; activeSceneId: null }>);
+  type SceneEdit = Pick<ProjectScene, "objects" | "hotspots" | "interactions">;
+  let state: State = Object.freeze({ objects, project: null, activeSceneId: null });
+  const history = createCommandHistory<State>();
+
+  function fromProject(document: ProjectDocument, active: string): State {
+    const scene = document.scenes.find((s) => s.id === active);
+    if (!scene) throw new Error("History refers to a missing active scene");
+    return Object.freeze({ project: document, activeSceneId: scene.id, objects: scene.objects });
+  }
+  function activeScene() {
+    return project?.scenes.find((scene) => scene.id === state.activeSceneId);
+  }
+  function sceneState(): SceneEdit {
+    const scene = activeScene();
+    return { objects, hotspots: scene?.hotspots ?? [], interactions: scene?.interactions ?? [] };
+  }
 
   // This clipboard belongs to the open editor, not the operating system.
   // Objects are immutable, so later edits won't change the captured copy.
@@ -86,50 +107,61 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
   let snapshot: Readonly<{
     objects: readonly SceneObject[];
     project: ProjectDocument | null;
+    activeSceneId: string | null;
     canUndo: boolean;
     canRedo: boolean;
-  }> = Object.freeze({ objects, project, canUndo: false, canRedo: false });
+  }> = Object.freeze({ objects, project, activeSceneId: null, canUndo: false, canRedo: false });
 
-  function replaceScene(
-    next: Partial<Pick<ProjectScene, "objects" | "hotspots" | "interactions">>,
-  ) {
-    const scene = project?.scenes[0];
-    if (project === null || scene === undefined) return;
-    // The current editor edits the first scene while retaining every other scene unchanged
-    project =
-      project.schemaVersion === 2
-        ? Object.freeze({
-            ...project,
-            scenes: Object.freeze([
-              Object.freeze({
-                ...project.scenes[0]!,
-                ...next,
-                objects: (next.objects ?? project.scenes[0]!.objects) as readonly ContentObject[],
-              }),
-              ...project.scenes.slice(1),
-            ]),
-          })
-        : Object.freeze({
-            ...project,
-            scenes: Object.freeze([Object.freeze({ ...scene, ...next })]),
-          });
+  function replaceState(next: State) {
+    state = next;
+    objects = next.objects;
+    project = next.project;
   }
 
-  function replaceObjects(nextObjects: readonly SceneObject[]) {
-    objects = Object.freeze(nextObjects);
-    // Keep the editor's object list and saved document on the same array
-    // Earlier snapshots retain their original scene and object order
-    replaceScene({ objects });
+  function executeState(after: State, label: string) {
+    const before = state;
+    replaceState(history.execute(before, { label, apply: () => after, revert: () => before }));
+  }
+
+  function executeScene(label: string, next: SceneEdit) {
+    if (state.project === null) {
+      executeState(Object.freeze({ ...state, objects: next.objects }), label);
+      return;
+    }
+    // Capture the whole document, preserving untouched scenes and their object identity.
+    const document = Object.freeze({
+      ...state.project,
+      scenes: Object.freeze(
+        state.project.scenes.map((scene) =>
+          scene.id === state.activeSceneId ? Object.freeze({ ...scene, ...next }) : scene,
+        ),
+      ),
+    }) as ProjectDocument;
+    executeState(fromProject(document, state.activeSceneId), label);
+  }
+
+  function executeObjects(command: EditCommand<readonly SceneObject[]>) {
+    const next = command.apply(objects);
+    if (next !== objects) executeScene(command.label, { ...sceneState(), objects: next });
   }
 
   function checkContentObjects(next: readonly SceneObject[]): ValidationResult<true> {
-    // Validate the proposed document before a command changes either objects or undo history
-    if (project?.schemaVersion !== 2) {
+    return checkScene({ ...sceneState(), objects: next });
+  }
+
+  function checkScene(next: SceneEdit): ValidationResult<true> {
+    // Validate all affected lists together before changing the document or history.
+    if (project === null) {
       return { ok: true, value: true };
     }
     // Recheck the whole project because a local object edit can affect parents and rule targets
     const checked = validateProject(
-      { ...project, scenes: [{ ...project.scenes[0], objects: next }, ...project.scenes.slice(1)] },
+      {
+        ...project,
+        scenes: project.scenes.map((scene) =>
+          scene.id === state.activeSceneId ? { ...scene, ...next } : scene,
+        ),
+      },
       projectAssets,
     );
     return checked.ok ? { ok: true, value: true } : checked;
@@ -139,6 +171,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
     snapshot = Object.freeze({
       objects,
       project,
+      activeSceneId: state.activeSceneId,
       canUndo: history.canUndo,
       canRedo: history.canRedo,
     });
@@ -162,7 +195,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
     if (!checked.ok) {
       return checked;
     }
-    replaceObjects(history.execute(objects, command));
+    executeObjects(command);
     clearEdit();
     publish();
     return { ok: true, value: { changed: true, object } };
@@ -220,19 +253,26 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
     if (!validCopy.ok) {
       return validCopy;
     }
-    replaceObjects(
-      history.execute(objects, {
-        label: "Copy object",
-        apply: (current) => Object.freeze([...current, object]),
-        revert: (current) => Object.freeze(current.filter((entry) => entry.id !== object.id)),
-      }),
-    );
+    executeObjects({
+      label: "Copy object",
+      apply: (current) => Object.freeze([...current, object]),
+      revert: (current) => Object.freeze(current.filter((entry) => entry.id !== object.id)),
+    });
     clearEdit();
     publish();
     return { ok: true, value: object };
   }
 
   return {
+    switchScene(id: string): ValidationResult<true> {
+      if (!project?.scenes.some((scene) => scene.id === id))
+        return invalid("scene", "This scene no longer exists");
+      if (id === state.activeSceneId) return { ok: true, value: true };
+      clearEdit();
+      replaceState(fromProject(project, id));
+      publish();
+      return { ok: true, value: true };
+    },
     copyObject(objectId: string): ValidationResult<SceneObject> {
       const object = objects.find((entry) => entry.id === objectId);
       if (!object) {
@@ -325,6 +365,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       // Return to the first-visit screen after the session has safely persisted New
       project = null;
       objects = Object.freeze([]);
+      state = Object.freeze({ objects, project: null, activeSceneId: null });
       projectAssets = new Map();
       history.clear();
       clearEdit();
@@ -333,7 +374,17 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       publish();
     },
     getRecoveryHistory() {
-      return project === null ? undefined : captureRecoveryHistory(project, history.getStates());
+      if (state.project === null) return undefined;
+      const states = history.getStates();
+      const saved = (entry: State): ProjectHistoryState => {
+        // createProject upgrades the grid-only history before it can be persisted.
+        if (entry.project === null) throw new Error("Project history contains a grid-only edit");
+        return { project: entry.project, activeSceneId: entry.activeSceneId };
+      };
+      return captureProjectHistory(state.project, state.activeSceneId, {
+        past: states.past.map(saved),
+        future: states.future.map(saved),
+      });
     },
     createProject(
       environmentAssetId: string,
@@ -388,7 +439,24 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       }
       project = freezeProject(checked.value);
       objects = project.scenes[0]!.objects;
+      state = fromProject(project, project.scenes[0]!.id);
       projectAssets = kinds;
+
+      // Choosing the first room promotes all grid edits, including redo, into this document.
+      // Undo must not bring back a null project or borrow attachments from a later edit.
+      if (!options.startEmpty) {
+        const old = history.getStates();
+        const created = project;
+        const upgrade = (entry: State) =>
+          fromProject(
+            freezeProject({
+              ...created,
+              scenes: [{ ...created.scenes[0]!, objects: entry.objects }],
+            } as ProjectDocument),
+            created.scenes[0]!.id,
+          );
+        history.restoreStates(state, old.past.map(upgrade), old.future.map(upgrade));
+      }
 
       // New starts a separate document; Undo must keep the previous project's objects out
       if (options.startEmpty) {
@@ -428,13 +496,48 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       project = loaded;
       clipboard = null;
       pasteCount = 0;
-      objects = scene.objects;
+      replaceState(
+        fromProject(
+          loaded,
+          recovered?.ok ? (recovered.value.documents?.activeSceneId ?? scene.id) : scene.id,
+        ),
+      );
       projectAssets = loadedAssets;
 
       // Undo from the previous project must never reintroduce its objects here
       history.clear();
       if (recovered?.ok) {
-        history.restoreStates(objects, recovered.value.past, recovered.value.future);
+        const documents = recovered.value.documents;
+        if (documents) {
+          const restore = (entry: ProjectHistoryState) =>
+            fromProject(freezeProject(entry.project), entry.activeSceneId);
+          history.restoreStates(state, documents.past.map(restore), documents.future.map(restore));
+        } else {
+          // Older history edits the first scene; retain every other scene and its references.
+          const legacy = (
+            objects: readonly SceneObject[],
+            viewpoints?: readonly ProjectViewpoint[],
+          ) =>
+            fromProject(
+              freezeProject({
+                ...loaded,
+                scenes: [
+                  { ...scene, objects, ...(viewpoints ? { viewpoints } : {}) },
+                  ...loaded.scenes.slice(1),
+                ],
+              } as ProjectDocument),
+              scene.id,
+            );
+          history.restoreStates(
+            state,
+            recovered.value.past.map((objects, i) =>
+              legacy(objects, recovered.value.views?.past[i]),
+            ),
+            recovered.value.future.map((objects, i) =>
+              legacy(objects, recovered.value.views?.future[i]),
+            ),
+          );
+        }
       }
       clearEdit();
       publish();
@@ -484,13 +587,11 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
 
       // Capture this object once. Redo puts back this exact copy, including its ID.
       // Validation above finishes before the command can enter history.
-      replaceObjects(
-        history.execute(objects, {
-          label: "Add object",
-          apply: (current) => Object.freeze([...current, object]),
-          revert: (current) => Object.freeze(current.filter((entry) => entry.id !== object.id)),
-        }),
-      );
+      executeObjects({
+        label: "Add object",
+        apply: (current) => Object.freeze([...current, object]),
+        revert: (current) => Object.freeze(current.filter((entry) => entry.id !== object.id)),
+      });
       clearEdit();
       publish();
       return { ok: true, object } as const;
@@ -510,7 +611,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       return { ok: true, changed: result.value.changed } as const;
     },
     addHotspot(objectId: string, position: Vector3Tuple = [0, 0, 0]) {
-      const scene = project?.scenes[0];
+      const scene = activeScene();
       if (project === null || scene === undefined) {
         return invalid("project", "Choose a room before adding hotspots");
       }
@@ -527,34 +628,44 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
         objectId,
         position: Object.freeze([...checked.value]) as ProjectHotspot["position"],
       });
-      replaceScene({ hotspots: Object.freeze([...scene.hotspots, hotspot]) });
+      const next = { ...sceneState(), hotspots: Object.freeze([...scene.hotspots, hotspot]) };
+      const valid = checkScene(next);
+      if (!valid.ok) return valid;
+      executeScene("Add hotspot", next);
+      clearEdit();
       publish();
       return { ok: true, value: hotspot } as const;
     },
     deleteHotspot(hotspotId: string) {
-      const scene = project?.scenes[0];
+      const scene = activeScene();
       if (project === null || scene === undefined) {
         return invalid("project", "No project is open");
       }
-      if (!scene.hotspots.some((hotspot) => hotspot.id === hotspotId)) {
+      if (!scene.hotspots.some((hotspot) => hotspot.id.toLowerCase() === hotspotId.toLowerCase())) {
         return invalid("hotspotId", "This hotspot is no longer in the scene");
       }
-      const removed = new Set([hotspotId]);
-      replaceScene({
-        hotspots: freezeHotspots(scene.hotspots.filter((hotspot) => hotspot.id !== hotspotId)),
+      const next = {
+        ...sceneState(),
+        hotspots: freezeHotspots(
+          scene.hotspots.filter((hotspot) => hotspot.id.toLowerCase() !== hotspotId.toLowerCase()),
+        ),
         interactions: freezeInteractions(
           scene.interactions.filter(
             (interaction) =>
               interaction.when.type !== "visitor-clicks-hotspot" ||
-              !removed.has(interaction.when.targetHotspotId),
+              interaction.when.targetHotspotId.toLowerCase() !== hotspotId.toLowerCase(),
           ),
         ),
-      });
+      };
+      const valid = checkScene(next);
+      if (!valid.ok) return valid;
+      executeScene("Delete hotspot", next);
+      clearEdit();
       publish();
       return { ok: true, value: true } as const;
     },
     setInteractions(nextInteractions: readonly Interaction[]) {
-      const scene = project?.scenes[0];
+      const scene = activeScene();
       if (project === null || scene === undefined) {
         return invalid("project", "Place an object or open a project before adding interactions");
       }
@@ -568,77 +679,76 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
         }
       }
       const interactions = freezeInteractions(nextInteractions);
-      replaceScene({ interactions });
+      const next = { ...sceneState(), interactions };
+      const valid = checkScene(next);
+      if (!valid.ok) return valid;
+      if (JSON.stringify(interactions) === JSON.stringify(scene.interactions)) {
+        return { ok: true, value: scene.interactions } as const;
+      }
+      executeScene("Edit interactions", next);
+      clearEdit();
       publish();
       return { ok: true, value: interactions } as const;
     },
     deleteObject(objectId: string): ValidationResult<SceneObject> {
-      const index = objects.findIndex((object) => object.id === objectId);
+      const index = objects.findIndex(
+        (object) => object.id.toLowerCase() === objectId.toLowerCase(),
+      );
       const object = objects[index];
       if (!object) {
         return invalid("objectId", "This object is no longer in the scene");
       }
 
-      // Reject dangling content, hierarchy and navigation references before touching history
-      const validDeletion = checkContentObjects(objects.filter((entry) => entry.id !== objectId));
+      // Remove attachments before validation so deletion is valid for both project versions.
+      const current = sceneState();
+      const removed = new Set(
+        current.hotspots
+          .filter((hotspot) => hotspot.objectId.toLowerCase() === object.id.toLowerCase())
+          .map((hotspot) => hotspot.id.toLowerCase()),
+      );
+      const next: SceneEdit = {
+        objects: Object.freeze(objects.filter((entry) => entry !== object)),
+        hotspots: Object.freeze(
+          current.hotspots.filter((hotspot) => !removed.has(hotspot.id.toLowerCase())),
+        ),
+        interactions: Object.freeze(
+          current.interactions.filter(
+            (interaction) =>
+              interaction.when.type !== "visitor-clicks-hotspot" ||
+              !removed.has(interaction.when.targetHotspotId.toLowerCase()),
+          ),
+        ),
+      };
+      // Other content, hierarchy and navigation references still must remain valid.
+      const validDeletion = checkScene(next);
       if (!validDeletion.ok) {
         return validDeletion;
       }
 
-      // Remember the slot as well as the whole object, so undo restores list order.
-      replaceObjects(
-        history.execute(objects, {
-          label: "Delete object",
-          apply: (current) => Object.freeze(current.filter((entry) => entry.id !== objectId)),
-          revert: (current) =>
-            Object.freeze([...current.slice(0, index), object, ...current.slice(index)]),
-        }),
-      );
-      // Attachments cannot outlive their object, so remove them and their click rules.
-      const scene = project?.scenes[0];
-      if (scene !== undefined) {
-        const removed = new Set(
-          scene.hotspots
-            .filter((hotspot) => hotspot.objectId === objectId)
-            .map((hotspot) => hotspot.id),
-        );
-        if (removed.size > 0) {
-          replaceScene({
-            hotspots: freezeHotspots(
-              scene.hotspots.filter((hotspot) => hotspot.objectId !== objectId),
-            ),
-            interactions: freezeInteractions(
-              scene.interactions.filter(
-                (interaction) =>
-                  interaction.when.type !== "visitor-clicks-hotspot" ||
-                  !removed.has(interaction.when.targetHotspotId),
-              ),
-            ),
-          });
-        }
-      }
+      // One snapshot restores all three lists, including their IDs and original order.
+      executeScene("Delete object", next);
       clearEdit();
       publish();
       return { ok: true, value: object };
     },
     undo() {
       clearEdit();
-      const next = history.undo(objects);
+      const next = history.undo(state);
 
       // Nothing changed, so there is no new snapshot to send to the UI.
-      if (next === objects) {
+      if (next === state) {
         return;
       }
-      replaceObjects(next);
+      replaceState(next);
       publish();
     },
     redo() {
       clearEdit();
-      const next = history.redo(objects);
-      if (next === objects) {
+      const next = history.redo(state);
+      if (next === state) {
         return;
       }
-      replaceObjects(next);
+      replaceState(next);
       publish();
     },
   };
