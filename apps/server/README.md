@@ -1814,6 +1814,8 @@ caller. The request uses the host's 16 KiB limit and the normal full-account,
 CSRF and write-rate boundaries. A new batch returns 201; an identical committed
 retry returns 200 with the original mapping. Changed intent for a request ID
 returns 409. Invalid or ineligible input creates no partial assignment.
+For a new template, create a source with the existing project lifecycle first;
+an assignment failure never removes that source project.
 
 Copy/import origin policy remains deferred to M3's SCRUM-173. SCRUM-164 and
 SCRUM-85 own the review and publication integrations; this route does not claim
@@ -1872,6 +1874,27 @@ Before exposing the assignment creation route, the complete server run passed
 Both passed on a separate rerun using the local Playwright/Chromium cache and an
 existing browser-output directory. The rerun used Node 24.19.0 and Chromium
 153.0.8010.12. No application code changed between those two runs.
+
+## SCRUM-161 M2 acceptance check
+
+* Class and roster APIs authorize current accounts, limit results and student
+  selection to the class organization, and retain removed memberships.
+* Assignment creation validates required metadata, stores integer Unix seconds
+  and atomically creates independent drafts from a manageable source project.
+  Identical retries return the committed mappings; failures leave no partial batch.
+* Student and educator reads use current class membership and the shared project
+  grants. Tests cover cross-organization input, direct-ID denial, roster and
+  reassignment races, distinct drafts and a server restart.
+* Metadata and class mapping stay outside authored project JSON. Ordinary project
+  creation uses the existing lifecycle path and has not gained new requirements.
+* The backend preserves the selected instant without an end-of-day conversion.
+  SCRUM-162 must verify device-local entry and display; SCRUM-164 owns submission
+  cutoff and review behavior. SCRUM-173 owns the deferred file-origin policy.
+
+On 30 October 2026 the complete server suite passed 570 tests with no failures or
+skips, including both browser checks. The Release build and server/test formatting
+checks passed. The frontend and submission/review integrations above have not yet
+been verified end to end.
 
 SCRUM-126 project-home UI, SCRUM-67 autosave/recovery integration, publication/asset
 delivery, hosted CI and deployment remain separate. Production still has no approved
