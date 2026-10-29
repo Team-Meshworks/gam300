@@ -11,6 +11,20 @@ const browser = await chromium.launch({
   ...(process.env.PLAYWRIGHT_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHANNEL } : {}),
 });
 const url = process.argv[2] ?? "http://127.0.0.1:5173/";
+// Asset library is a pop up now. Only open it when closed, since the button toggles it
+async function openLibrary(page) {
+  if ((await page.locator(".asset-picker").count()) === 0) {
+    await page.getByRole("button", { name: "Asset library", exact: true }).click();
+  }
+}
+
+// Clicking a card only picks it, Add is what places it
+async function addAsset(page, name) {
+  await openLibrary(page);
+  await page.locator(".asset-picker").getByRole("button", { name, exact: true }).click();
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+}
+
 try {
   const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
   const errors = [];
@@ -39,8 +53,8 @@ try {
   });
   await page.goto(url);
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
-  await page.getByRole("button", { name: "Add test-room", exact: true }).click();
-  await page.getByRole("button", { name: "Add test-crate", exact: true }).click();
+  await addAsset(page, "test-room");
+  await addAsset(page, "test-crate");
   const position = await page.getByLabel("Selected position").textContent();
   await page.getByRole("button", { name: "Preview", exact: true }).click();
   await page.waitForFunction(() => typeof window.finishBackup === "function");

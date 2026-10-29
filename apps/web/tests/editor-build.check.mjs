@@ -11,6 +11,20 @@ const browser = await chromium.launch({
 const url = process.argv[2] ?? "http://127.0.0.1:4173/";
 const isDevelopment = process.env.BUILD_MODE === "development";
 
+// Asset library is a pop up now. Only open it when closed, since the button toggles it
+async function openLibrary(page) {
+  if ((await page.locator(".asset-picker").count()) === 0) {
+    await page.getByRole("button", { name: "Asset library", exact: true }).click();
+  }
+}
+
+// Clicking a card only picks it, Add is what places it
+async function addAsset(page, name) {
+  await openLibrary(page);
+  await page.locator(".asset-picker").getByRole("button", { name, exact: true }).click();
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+}
+
 try {
   const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
   const errors = [];
@@ -30,12 +44,15 @@ try {
   await coreRequest;
   await modelRequest;
   assert.equal(await page.locator("canvas").count(), 0, "Shell renders before Three.js arrives");
-  const asset = page.getByRole("button", { name: "Add test-crate", exact: true });
+  const asset = page
+    .locator(".asset-picker")
+    .getByRole("button", { name: "test-crate", exact: true });
+  await openLibrary(page);
   assert.equal(await asset.isDisabled(), true);
   releaseCore();
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   assert.equal(await page.locator("canvas").count(), 1);
-  await asset.click();
+  await addAsset(page, "test-crate");
   assert.equal(await page.locator(".object-row").count(), 1);
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   assert.equal(await page.locator(".object-row").count(), 0);

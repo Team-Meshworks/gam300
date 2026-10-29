@@ -8,6 +8,20 @@ const useFileTransfer = () => {
   window.showSaveFilePicker = undefined;
 };
 const browser = await chromium.launch({ args: ["--enable-unsafe-swiftshader"] });
+// Asset library is a pop up now. Only open it when closed, since the button toggles it
+async function openLibrary(page) {
+  if ((await page.locator(".asset-picker").count()) === 0) {
+    await page.getByRole("button", { name: "Asset library", exact: true }).click();
+  }
+}
+
+// Clicking a card only picks it, Add is what places it
+async function addAsset(page, name) {
+  await openLibrary(page);
+  await page.locator(".asset-picker").getByRole("button", { name, exact: true }).click();
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+}
+
 try {
   const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
   await page.addInitScript(useFileTransfer);
@@ -23,19 +37,22 @@ try {
   assert.ok(response.headers()["content-security-policy"], "The real server applies its policy");
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   assert.equal(await page.locator("canvas").count(), 1);
-  const asset = page.getByRole("button", { name: "Add test-crate", exact: true });
+  const asset = page
+    .locator(".asset-picker")
+    .getByRole("button", { name: "test-crate", exact: true });
+  await openLibrary(page);
   assert.ok(
     await asset.locator("img").evaluate((image) => image.complete && image.naturalWidth > 0),
   );
-  await asset.click();
+  await addAsset(page, "test-crate");
   assert.equal(await page.locator(".object-row").count(), 1);
   if (process.env.CHECK_SCREENSHOT) {
     await page.screenshot({ path: process.env.CHECK_SCREENSHOT });
   }
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   assert.equal(await page.locator(".object-row").count(), 0);
-  await page.getByRole("button", { name: "Add test-room", exact: true }).click();
-  await asset.click();
+  await addAsset(page, "test-room");
+  await addAsset(page, "test-crate");
   const originalPosition = await page.getByLabel("Selected position").textContent();
   // No more move buttons, so nudge through the Position panel then go back to the tree
   await page.getByRole("button", { name: "Position", exact: true }).click();
