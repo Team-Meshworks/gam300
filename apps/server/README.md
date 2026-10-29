@@ -1709,7 +1709,7 @@ SCRUM-126 project-home UI, SCRUM-67 autosave/recovery integration, publication/a
 delivery, hosted CI and deployment remain separate. Production still has no approved
 asset catalogue. These backend checks do not complete parent Story/Epic acceptance.
 
-## Immutable publication storage (SCRUM-85, Part 1)
+## Immutable publication snapshots (SCRUM-85)
 
 `AddPublicationSnapshots` adds a durable `publications` ledger. Each row holds its
 stable publication ID, source project and exact source revision, publishing actor,
@@ -1742,15 +1742,74 @@ is deliberately no uniqueness constraint on project/revision. Later draft edits 
 newer editions do not replace the older ID's retry record. The global primary key
 also prevents two projects from claiming the same publication ID.
 
-This part exposes **no publication HTTP endpoint** and registers no publishing or
-retrieval service. The persistence model and identity comparison do not authorize
-access, validate complete authored content, acquire the shared project lock, derive
-a request digest, enforce educator approval, commit a publish operation or return a
-visitor URL. Those belong to the following SCRUM-85 parts: the transaction
-coordinator; SCRUM-161/164, 71 and 73 integration; the protected publish API with its
-canonical committed HTTPS URL; protected durable retrieval; and linked browser/
-device acceptance with SCRUM-70/127. UI, QR, catalogue processing and deployment
-remain with their owning issues.
+Parts 1 and 2 supply storage and an internal transaction coordinator. They expose
+**no publication HTTP endpoint** and register no publishing or retrieval service.
+The default integration denies publication, including in Development. Completing
+SCRUM-85 still requires SCRUM-161/164, 71 and 73 integration; the protected publish
+API with its canonical committed HTTPS URL; protected durable retrieval; and linked
+browser/device acceptance with SCRUM-70/127. UI, QR, catalogue processing and
+deployment remain with their owning issues. [Draft PR #27](https://github.com/Team-Meshworks/gam300/pull/27)
+tracks the full backend implementation and stays draft while these parts remain.
+
+### Transaction coordinator (Part 2)
+
+`PublicationCoordinator` owns one read-committed transaction. It uses
+`ProjectAccessService.LockAsync(..., Publish)` and the existing project-row lock
+shared by draft saves, assignment changes and archive operations. Publishing checks
+current account, organization membership, session, archive state and `CanPublish`;
+it does not require a creator to have `CanManage` or grant any additional authority.
+Account/stamp/role/session authority is checked again after potentially slow work
+and before commit. The other lock purposes keep their existing behavior and enum
+values.
+
+For a new ID, the confirmed revision must equal the locked draft revision, including
+metadata revisions. The coordinator reconstructs and validates the stored v1/v2
+document through `ProjectDocumentService`, serializes that saved content and checks
+the target player's capabilities. It accepts no replacement document from a publish
+caller. Every authored environment, model, image, audio and video ID must appear in
+the complete pinned manifest; an owning resolver may also supply required derived
+resources. Missing, duplicate or incorrectly cased references cannot commit.
+
+`PublicationRequest` is a private coordinator input, **not a proposed public audience
+DTO**. Its bounded object-valued `IntentJson` retains the complete original intent.
+SHA-256 framing is `spatia-publication-v1`, publication UUID, route/project UUID,
+authorized actor UUID, invariant decimal confirmed revision, then the original
+UTF-8 intent, with a newline after each preceding field. Whitespace, key order,
+number spelling and extra fields all participate in retry identity. The future
+adapter must pass all accepted policy inputs; the owning integration must validate
+the complete intent schema and reject unknown fields. No public/unlisted/restricted
+policy or lifecycle choice is defined here.
+
+The durable ID lookup precedes current-revision and document checks. An exact retry
+can acknowledge its historical edition after later saves or publications, while
+rechecking current project and publication access. It cannot reset revocation,
+stage policy again, request approval of a newer draft or recapture newer assets.
+Changed project, actor, revision or intent returns a bounded ID conflict without
+the conflicting edition's content. `INSERT ... ON CONFLICT (id) DO NOTHING` handles
+simultaneous global ID claims from different project locks without aborting the
+transaction. A subsequent read reconciles the winning row; unrelated constraint
+errors propagate and roll back instead of masquerading as successful retries.
+
+`IPublicationIntegration` is a private seam for Part 3, with three phases under the
+retained transaction and lock:
+
+- Read-only preparation: validate the whole intent, trusted class classification,
+  exact-revision approval and new-edition policy; resolve approved immutable assets
+  and actual runtime capabilities. No dependency may infer approval from missing
+  rows or from the development catalogue.
+- Stage the new edition's owned policy records after its insert, in the same context
+  and transaction. Persist those writes before returning; never commit independently
+  or emit external side effects. Failure rolls back policy and ledger together.
+- Authorize an existing edition's replay against the current shared policy without
+  restaging or changing history.
+
+No production integration is supplied yet. The fixture gates and synthetic hashes
+prove orchestration and rollback only; they are not catalogue approval, class review
+or audience protection. The fallback denies both creation and replay. A committed
+acknowledgement contains the persisted ID, project, revision and original timestamp,
+and is constructed only after commit and a final cancellation/session check. A
+failed or canceled commit may already be durable: retry the **same** ID and original
+intent in a new request/context. No visitor URL is returned by this internal layer.
 
 Use the existing disposable PostgreSQL fixture and pinned SDK/tool/dependencies.
 The new migration uses PostgreSQL functions and a trigger, so use migrations rather
@@ -1760,18 +1819,22 @@ to roll back a live publication rollout without an explicit data-preservation pl
 After the ordinary build and migration checks above, the focused tests are:
 
 ```powershell
-dotnet test --project tests/Spatia.Server.Tests.csproj -c Release --no-build --results-directory test-results/scrum85-part1-focused -- --report-trx --minimum-expected-tests 1 --treenode-filter '/*/*/*/Publication*'
+dotnet test --project tests/Spatia.Server.Tests.csproj -c Release --no-build --results-directory test-results/scrum85-publication-focused -- --report-trx --minimum-expected-tests 1 --treenode-filter '/*/*/*/Publication*'
 ```
 
-They exercise real migration upgrade/reapply/idempotence, fresh-context persistence,
+The publication filter includes both storage and coordinator tests. They exercise
+real migration upgrade/reapply/idempotence, fresh-context persistence,
 later draft edits, visibility before/after commit, rollback and failed batches,
 concurrent same-ID claims in both commit/rollback outcomes, cross-project ID
-uniqueness, immutable updates, manifest constraints and retry identity. These are
-storage tests, not evidence of publish API, approval, byte delivery, API restart or
-browser acceptance. Full server regression is still required because the migration
-is applied by the shared account/project fixtures.
+uniqueness, immutable updates, manifest constraints and retry identity. Coordinator
+tests additionally cover lock waits, concurrent saves/publishes, current account and
+assignment changes, exact revision checks, runtime/asset rejection, atomic policy
+rollback, unrelated database failures, cancellation and lost commit acknowledgements.
+They do not supply evidence of the production publish API, approval, byte delivery,
+API restart or browser acceptance. Full server regression is required because the
+lock service and migration are shared by the account/project fixtures.
 
-Local verification on **29 October 2026** passed all **97/97** new tests, with zero
+Part 1 local verification on **29 October 2026** passed all **97/97** new tests, with zero
 skipped, plus the Release build, both formatting checks and EF model/migration
 checks. Full backend regression passed **628/629**, with the existing
 `Browser_ProjectListOpenAndAccountSwitchUseCurrentSession` reaching its 30-second

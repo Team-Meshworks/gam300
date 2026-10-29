@@ -224,7 +224,7 @@ public sealed class ProjectAccessService(
         {
             return ProjectAccessResult.Denied(ProjectAccessFailure.NotFound);
         }
-        if (purpose != ProjectLockPurpose.EditDraft && !snapshot.CanManage)
+        if (purpose is ProjectLockPurpose.ManageAssignments or ProjectLockPurpose.ChangeArchiveState && !snapshot.CanManage)
         {
             return ProjectAccessResult.Denied(ProjectAccessFailure.OperationForbidden);
         }
@@ -233,6 +233,10 @@ public sealed class ProjectAccessService(
             return ProjectAccessResult.Denied(ProjectAccessFailure.ProjectReadOnly);
         }
         if (purpose == ProjectLockPurpose.EditDraft && !snapshot.CanEdit)
+        {
+            return ProjectAccessResult.Denied(ProjectAccessFailure.OperationForbidden);
+        }
+        if (purpose == ProjectLockPurpose.Publish && !snapshot.CanPublish)
         {
             return ProjectAccessResult.Denied(ProjectAccessFailure.OperationForbidden);
         }
