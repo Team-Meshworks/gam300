@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Spatia.Server.Accounts;
 using Spatia.Server.Classes;
 using Spatia.Server.Projects;
+using Spatia.Server.Reviews;
 
 namespace Spatia.Server.Persistence;
 
@@ -48,6 +49,12 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     /// <summary>Gets established project origins; absent origins are unverified.</summary>
     public DbSet<ProjectProvenance> ProjectProvenances => Set<ProjectProvenance>();
+
+    /// <summary>Gets immutable private student submission evidence.</summary>
+    public DbSet<ReviewSubmission> ReviewSubmissions => Set<ReviewSubmission>();
+
+    /// <summary>Gets the append-only educator review decisions.</summary>
+    public DbSet<ReviewDecision> ReviewDecisions => Set<ReviewDecision>();
 
     /// <summary>
     /// Configures account, organization and project mappings, constraints and fixed role seeds
@@ -259,6 +266,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                 "CK_class_assignment_students_role_id", $"role_id = '{ApplicationRoles.CreatorId:D}'::uuid"));
             student.HasKey(record => new { record.AssignmentId, record.StudentId });
             student.HasAlternateKey(record => new { record.AssignmentId, record.StudentId, record.OrganizationId });
+            student.HasAlternateKey(record => new { record.ProjectId, record.StudentId });
             student.Property(record => record.AssignmentId).HasColumnName("assignment_id");
             student.Property(record => record.ClassroomId).HasColumnName("classroom_id");
             student.Property(record => record.OrganizationId).HasColumnName("organization_id");
@@ -304,5 +312,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                 .HasPrincipalKey(record => new { record.AssignmentId, record.StudentId, record.OrganizationId })
                 .OnDelete(DeleteBehavior.Restrict);
         });
+        builder.ApplyConfiguration(new ReviewSubmissionConfiguration());
+        builder.ApplyConfiguration(new ReviewDecisionConfiguration());
     }
 }

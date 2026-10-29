@@ -1920,3 +1920,14 @@ SCRUM-67 navigation coordination before they are reachable in production.
 SCRUM-126 project-home UI, SCRUM-67 autosave/recovery integration, publication/asset
 delivery, hosted CI and deployment remain separate. Production still has no approved
 asset catalogue. These backend checks do not complete parent Story/Epic acceptance.
+
+## SCRUM-164: private review evidence foundation
+
+Review submissions retain a document snapshot, the exact source revision, the
+student-to-project mapping, immutable asset identities and the due instant that
+applied at submission. A submission exactly at that instant is on time; later
+submissions are late, not rejected. Educator decisions are append-only, and the
+database rejects changes to stored evidence. Migration rollback refuses to discard
+existing review records. Writers must validate the document and resolve trusted
+asset identities before insertion. This storage foundation does not itself expose
+submission or decision routes and does not approve publication.
