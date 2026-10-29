@@ -1929,8 +1929,8 @@ applied at submission. A submission exactly at that instant is on time; later
 submissions are late, not rejected. Educator decisions are append-only, and the
 database rejects changes to stored evidence. Migration rollback refuses to discard
 existing review records. Writers must validate the document and resolve trusted
-asset identities before insertion. This storage foundation does not itself expose
-submission or decision routes and does not approve publication.
+asset identities before insertion. The storage foundation does not itself approve
+publication.
 
 `ReviewApproval.CheckLockedAsync` is the review handoff for a publisher that has
 already reauthorized the actor and acquired the project lock. It also confirms
@@ -1939,3 +1939,12 @@ approval on the latest submission of that exact revision; a later submission,
 return, revocation or project revision removes eligibility for a new publication.
 An unmapped project returns unverified origin rather than an ordinary-project
 exemption. Existing published editions are not changed by this check.
+
+`POST /api/projects/{id}/submissions` accepts a student-confirmed saved revision
+and a unique submission ID. It stores the saved document and its deadline under
+the project lock. An identical retry returns the original submission; changed
+intent or a stale revision is rejected. The response includes the recorded due
+instant and whether the server received the submission late. Only the mapped
+student with current access can submit. The default asset resolver rejects the
+request until the asset owner can supply approved, retained immutable bytes and
+their identities. Review decision routes and publication integration remain separate.
