@@ -196,7 +196,7 @@
     ]
   },
   "files": {
-    "architecture.check.mjs": "ed2d036e255cf85a5c589e639d60ad270a89cd49b8a363a5af4ff0afd3b8eb5a",
+    "architecture.check.mjs": "45c2cad2ba19bb129e02f5eba71005bf05647f2ddf2b68bd16c7130f584cc8c1",
     "architecture.mjs": "b47c6e18e441972ea4204cfb90902238312599f5da026204b0a6d0b335bbe908",
     "asset-catalogue-plugin.ts": "17bec6aa65dd50167fe6c055fb38af453a647f3648a2bf296f9927ed32f7a158",
     "editor/App.tsx": "36d2a98161e373866fbf21f4b839c475720462d0b2c4ea20abe7a9ee33713fc0",
@@ -278,7 +278,7 @@
     "tests/caching.check.mjs": "3ff36ae487a43e4585556b9482e25008526b6282f448572c956b27f1e2f17aac",
     "tests/caching.measure.mjs": "aadf27638c20f8a79d5fe302ec7a3f0ad9bab52661bc5be39df65fb89b53e727",
     "tests/deployment.check.mjs": "c4cedc5151c1b043b6eee66ae1dcf144c97cc2645d8f1956f99f70942c07ab9e",
-    "tests/editor-build.check.mjs": "12fc7e8497303a0eb0127a7c1b12355baa3b921f1eb5753baaf31f00dadea96f",
+    "tests/editor-build.check.mjs": "6b361ef0d99bed3b957dd70cb76313d87b65e19d155ac76414301bbd497e9f22",
     "tests/editor-integration.check.mjs": "01ae358ec88769454cac1e0fb162c9ce7fe4c2096cafad431aaa8a00620d761d",
     "tests/editor-shell.check.mjs": "b6fe46f53b1a0d53a37fc95c7935b291eaa6f9eeb9feeb42200f741ae173b99e",
     "tests/history-recovery.check.mjs": "ced88ecb9068bea916aab1aa3feae714d70754b49d13ce6c9365e44fd668ca4f",
