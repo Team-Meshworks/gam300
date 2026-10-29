@@ -173,6 +173,37 @@ public sealed class ClassAssignmentCoordinatorTests
     }
 
     [Test]
+    public async Task AssignmentCoordinator_RejectsCrossOrganizationSourceForAdministrator()
+    {
+        await using var fixture = await CreateFixtureAsync();
+        var data = await SeedAsync(fixture);
+        var foreignProject = Guid.NewGuid();
+        await using (var scope = fixture.Database.Services.CreateAsyncScope())
+        {
+            var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var organization = await database.OrganizationMemberships.Where(row => row.UserId == data.ForeignStudent)
+                .Select(row => row.OrganizationId).SingleAsync();
+            database.Projects.Add(new Project
+            {
+                Id = foreignProject,
+                OrganizationId = organization,
+                SchemaVersion = 1,
+                DocumentJson = ProjectTestDocuments.Create(foreignProject, "Foreign template"),
+                UpdatedAt = DateTimeOffset.UtcNow,
+            });
+            await database.SaveChangesAsync();
+        }
+        using var administrator = fixture.CreateClient();
+        await fixture.SignInAsync(await fixture.CreateAccountAsync(ApplicationRoles.Administrator), administrator);
+        using var rejected = await SendAsync(fixture, data.ClassroomId, Request(data) with { SourceProjectId = foreignProject }, administrator);
+        await Assert.That(rejected.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+        await using var verification = fixture.Database.Services.CreateAsyncScope();
+        var reopened = verification.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await Assert.That(await reopened.ClassAssignments.AnyAsync()).IsFalse();
+        await Assert.That(await reopened.Projects.CountAsync()).IsEqualTo(2);
+    }
+
+    [Test]
     public async Task AssignmentReads_RespectClassMembershipAndExistingProjectGrants()
     {
         await using var fixture = await CreateFixtureAsync();

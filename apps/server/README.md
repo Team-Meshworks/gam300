@@ -1830,7 +1830,8 @@ returned. Students see only their own mapped project when their edit grant and
 class membership are current. Educators see only projects for which they retain a
 manage grant and active class membership; administrators retain existing access.
 An inaccessible assignment returns `class_assignment_not_found`. Reads use one
-consistent database snapshot and `Cache-Control: no-store`.
+consistent database snapshot, the shared project-visibility query and
+`Cache-Control: no-store`.
 Three focused read cases covered grant and roster filtering, pagination and
 preservation of the same Unix instant across device offsets and adjacent seconds.
 The server-restart, eight roster, route-inventory, Release-build and formatting

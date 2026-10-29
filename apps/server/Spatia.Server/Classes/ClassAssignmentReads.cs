@@ -1,10 +1,8 @@
 using System.Data;
 using Microsoft.EntityFrameworkCore;
-using Spatia.Server.Accounts;
 using Spatia.Server.Hosting;
 using Spatia.Server.Persistence;
 using Spatia.Server.Projects;
-using Spatia.Server.Security;
 
 namespace Spatia.Server.Classes;
 
@@ -36,17 +34,9 @@ internal static class ClassAssignmentReads
         if (account is null) { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired); }
         if (account.MustChangePassword) { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.PasswordChangeRequired); }
 
-        var mappings = database.ClassAssignmentStudents.AsNoTracking().Where(row => row.ClassroomId == id);
-        mappings = account.Role switch
-        {
-            ApplicationRoles.Administrator => mappings,
-            ApplicationRoles.Educator => mappings.Where(row => database.ProjectAssignments.Any(grant =>
-                grant.ProjectId == row.ProjectId && grant.UserId == account.UserId && grant.CanManage)),
-            ApplicationRoles.Creator => mappings.Where(row => row.StudentId == account.UserId
-                && database.ProjectAssignments.Any(grant => grant.ProjectId == row.ProjectId
-                    && grant.UserId == account.UserId && grant.CanEdit)),
-            _ => mappings.Where(_ => false),
-        };
+        var visibleProjects = access.VisibleProjects(account);
+        var mappings = database.ClassAssignmentStudents.AsNoTracking().Where(row => row.ClassroomId == id
+            && visibleProjects.Any(project => project.Id == row.ProjectId));
         var assignments = database.ClassAssignments.AsNoTracking().Where(row => row.ClassroomId == id
             && mappings.Any(mapping => mapping.AssignmentId == row.Id));
         if (assignmentId is { } exact) { assignments = assignments.Where(row => row.Id == exact); }

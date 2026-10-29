@@ -280,7 +280,7 @@ public sealed class ProjectAccessService(
         return row is null ? null : Snapshot(account, row.Project, row.CanPublish);
     }
 
-    private IQueryable<Project> VisibleProjects(CurrentAccount account)
+    internal IQueryable<Project> VisibleProjects(CurrentAccount account)
     {
         var projects = database.Projects.AsNoTracking();
         return account.Role switch
