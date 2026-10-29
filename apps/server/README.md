@@ -1778,6 +1778,20 @@ On 29 October 2026 seven focused PostgreSQL cases passed, including timestamp
 bounds and invalid mappings. The migration-schema comparison, Identity-to-current
 upgrade, Release build, EF model check and both formatting checks also passed.
 
+## SCRUM-161 part 4: assignment request validation
+
+An assignment creation request has a stable request UUID, source project and
+revision, Unix-second deadline, required title/description/instructions and one
+to twenty distinct student IDs. Text must be nonblank, contain no NUL or unpaired
+UTF-16 surrogate, and the title is limited to 256 characters. The host's request
+limit bounds the complete body.
+
+The server-derived SHA-256 retry digest binds the class, actor, request ID,
+source, metadata and student set. Reordering the same students does not change
+the digest; changing the actor or content does. This validation does not grant
+authority or create an assignment; the transaction and routes remain pending.
+The two focused request-validation and retry-digest cases passed on 29 October 2026.
+
 SCRUM-126 project-home UI, SCRUM-67 autosave/recovery integration, publication/asset
 delivery, hosted CI and deployment remain separate. Production still has no approved
 asset catalogue. These backend checks do not complete parent Story/Epic acceptance.
