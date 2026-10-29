@@ -127,10 +127,15 @@ with **Open sample project**. Set `BUILD_MODE=production` explicitly for the pro
 variant, which omits that control. `/version.txt` reports the checkout commit.
 
 The separate entry pages are available at `/landing` and `/login`; `/` continues to open
-the editor. The login page calls the existing account API on the same origin. The web-only
-launcher and its Caddy server do not start or proxy that API, so signing in requires an
-environment that serves the account API on the same origin. A verified session currently
-shows that the project workspace is not yet connected.
+the editor. The web-only launcher does not start the account API. To use sign-in, follow
+the [local API and PostgreSQL setup](docs/deployment.md#local-api-and-postgresql-integration):
+set the private database passwords and start the combined Compose stack. Open
+[https://localhost:8444/landing](https://localhost:8444/landing) or
+[https://localhost:8444/login](https://localhost:8444/login). Caddy uses a local CA, so
+the browser must trust its certificate. Sign-in requires a provisioned username; public
+signup is unavailable. See the [private administrator bootstrap](apps/server/README.md#private-bootstrap-and-administrator-operations-part-4)
+and provisioning instructions in the server guide. A verified session currently shows
+that the project workspace is not yet connected.
 
 In the editor, add **test-room**, add **test-crate**, move it and try **Undo**.
 Use the project menu's **Save** to save a JSON file. After editing, allow two seconds for
@@ -188,8 +193,17 @@ For hot reload, install the pinned Node/npm versions in `apps/web/.nvmrc` and
 `apps/web/package.json`, then run `npm --prefix apps/web ci` and `npm --prefix apps/web run dev`
 from the root. The submission launcher above needs no host Node installation.
 Vite development and preview serve `/landing` and `/login` through the separate entry
-bundle; the packaged Caddy configuration serves the same routes. Vite does not configure
-an account API proxy. See the [server guide](apps/server/README.md) for API setup.
+bundle; the packaged Caddy configuration serves the same routes. For account integration
+with hot reload, start the combined API stack above and configure `apps/web/.env.local`
+using [the example](apps/web/.env.example). Set `SPATIA_API_ORIGIN` to
+`https://localhost:8444`, `SPATIA_DEV_TLS_CERT` and `SPATIA_DEV_TLS_KEY` to a valid
+trusted localhost certificate and private key in PEM format, and `SPATIA_API_CA` to the
+local Caddy root certificate described in the deployment guide. Vite serves HTTPS and
+proxies `/api` to that origin with certificate verification enabled. Keep these paths and
+private keys out of source control; the settings use `SPATIA_`, not `VITE_`, and are not
+client configuration. Without an API origin, `/api` returns a 503 response. The existing
+account API handles cookies and CSRF. See the [server guide](apps/server/README.md) for
+account setup.
 Individual maintenance commands below run from `apps/web/`:
 
 | Command                                             | Purpose                                                               |

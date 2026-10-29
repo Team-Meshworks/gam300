@@ -66,7 +66,9 @@ public sealed class EntryLoginIntegrationTests
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
         {
             if (File.Exists(Path.Combine(directory.FullName, "apps", "web", "vite.config.ts")))
+            {
                 return directory.FullName;
+            }
         }
         throw new InvalidOperationException("Cannot locate the repository root.");
     }

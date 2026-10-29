@@ -100,7 +100,8 @@ internal sealed class HttpsApplicationFixture : IAsyncDisposable
             request.CertificateExtensions.Add(names.Build());
             using var created = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddMinutes(-1), DateTimeOffset.UtcNow.AddHours(1));
             // Schannel needs the temporary PFX-backed key rather than the creation-time key
-            certificate = X509CertificateLoader.LoadPkcs12(created.Export(X509ContentType.Pkcs12), password: null);
+            certificate = X509CertificateLoader.LoadPkcs12(created.Export(X509ContentType.Pkcs12), password: null,
+                X509KeyStorageFlags.Exportable);
             fixture = new HttpsApplicationFixture(database, certificate, directory, new TestTimeProvider(), true, configure, environmentName);
             await fixture.StartAsync(map);
             return fixture;

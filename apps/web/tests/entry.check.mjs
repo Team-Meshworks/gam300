@@ -38,6 +38,8 @@ try {
         });
       return route.fulfill({ status: 200, json: { requestToken: "browser-test-token" } });
     }
+    if (path === "/api/auth/session" && mode === "unavailable")
+      return route.fulfill({ status: 503 });
     if (path === "/api/auth/session")
       return mode === "signed-in" || mode === "forced"
         ? route.fulfill({
@@ -74,6 +76,14 @@ try {
     }
     return route.fulfill({ status: 404 });
   });
+
+  mode = "unavailable";
+  await page.goto(origin + "/login");
+  await page
+    .getByRole("alert")
+    .getByText(/account service is unavailable/i)
+    .waitFor();
+  mode = "anonymous";
 
   for (const width of [1440, 1024, 768, 390]) {
     await page.setViewportSize({ width, height: 900 });

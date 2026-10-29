@@ -14,7 +14,9 @@ try {
   const address = server.httpServer.address();
   assert.ok(address && typeof address !== "string");
   const origin = `https://127.0.0.1:${address.port}`;
-  browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH });
+  browser = await chromium.launch({
+    executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
+  });
   async function context() {
     const result = await browser.newContext({ ignoreHTTPSErrors: true });
     await result.route("**/*", (route) => {
@@ -37,14 +39,32 @@ try {
   const first = await context();
   const page = await first.newPage();
   page.setDefaultTimeout(10000);
-  await page.goto(origin + "/login");
+  await page.goto(origin + "/landing");
+  await page
+    .getByRole("link", { name: /get started/i })
+    .first()
+    .click();
+  await page.getByRole("heading", { name: "Welcome back." }).waitFor();
+  assert.equal(new URL(page.url()).pathname, "/login");
+  await page.getByRole("link", { name: /back to home/i }).click();
+  assert.equal(new URL(page.url()).pathname, "/landing");
+  await page
+    .getByRole("link", { name: /get started/i })
+    .first()
+    .click();
+  await page.getByRole("heading", { name: "Welcome back." }).waitFor();
+  await page.reload();
   await page.getByRole("heading", { name: "Welcome back." }).waitFor();
   await login(page, admin, "Synthetic-incorrect-password1!");
   await page.getByText(/username or password could not be accepted/i).waitFor();
   assert.equal((await session(page)).status, 401);
+  await page.reload();
+  await page.getByRole("heading", { name: "Welcome back." }).waitFor();
   await login(page, admin, oldPassword);
   await page.getByRole("heading", { name: "Change your password." }).waitFor();
   assert.equal((await session(page)).body.mustChangePassword, true);
+  await page.reload();
+  await page.getByRole("heading", { name: "Change your password." }).waitFor();
   const cookies = await first.cookies(origin);
   for (const name of ["__Host-Spatia.Application", "__Host-Spatia.Antiforgery"]) {
     const cookie = cookies.find((item) => item.name === name);
@@ -54,7 +74,10 @@ try {
     assert.equal(cookie.sameSite, "Lax");
     assert.equal(cookie.path, "/");
   }
-  assert.equal(await page.evaluate(async () => (await fetch("/api/auth/logout", { method: "POST" })).status), 400);
+  assert.equal(
+    await page.evaluate(async () => (await fetch("/api/auth/logout", { method: "POST" })).status),
+    400,
+  );
   assert.equal((await session(page)).status, 200);
   await page.getByLabel("Current password").fill(oldPassword);
   await page.getByLabel("New password", { exact: true }).fill(newPassword);
@@ -64,10 +87,19 @@ try {
   assert.equal((await session(page)).body.mustChangePassword, false);
   await page.reload();
   await page.getByRole("heading", { name: /You.re signed in/ }).waitFor();
-  const browserStorage = await page.evaluate(() => JSON.stringify({ local: { ...localStorage }, session: { ...sessionStorage }, cookies: document.cookie }));
+  const browserStorage = await page.evaluate(() =>
+    JSON.stringify({
+      local: { ...localStorage },
+      session: { ...sessionStorage },
+      cookies: document.cookie,
+    }),
+  );
   assert.ok(!browserStorage.includes(oldPassword) && !browserStorage.includes(newPassword));
   assert.ok(!browserStorage.includes("__Host-Spatia.Application"));
   await page.getByRole("button", { name: "Log out" }).click();
+  await page.getByRole("heading", { name: "Welcome back." }).waitFor();
+  assert.equal((await session(page)).status, 401);
+  await page.reload();
   await page.getByRole("heading", { name: "Welcome back." }).waitFor();
   assert.equal((await session(page)).status, 401);
   await first.close();

@@ -41,8 +41,14 @@ export function LoginPage() {
       .then((value) => {
         if (!cancelled && generation.current === current) setSession(value);
       })
-      .catch(() => {
-        /* A standalone frontend can still render the login form without a running API */
+      .catch((failure: unknown) => {
+        if (!cancelled && generation.current === current) {
+          setError(
+            failure instanceof Error
+              ? failure.message
+              : "The account service is unavailable. Please try again later.",
+          );
+        }
       });
     return () => {
       mounted.current = false;
