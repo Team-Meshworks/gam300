@@ -1757,6 +1757,27 @@ On 29 October 2026 both staging cases passed for the two supported project
 formats, all 21 existing lifecycle cases passed, and the Release build and both
 formatting checks passed. Assignment batch integration remains to be implemented.
 
+## SCRUM-161 part 3: assignment and provenance storage
+
+Assignment metadata stores the title, description, instructions and an absolute
+deadline as integer Unix seconds. Clients enter and display that instant in their
+own device's local time; the server does not store a class time zone. The supported
+range matches `DateTimeOffset.FromUnixTimeSeconds`. Assignment and student-project
+mappings are server-owned and kept outside the authored project document.
+
+The database ties each mapping to the assignment's class and organization, an
+enrolled Creator-role account and a project in the same organization. A project
+origin can be recorded as ordinary or as class work tied to a retained student
+mapping. A missing origin record means unverified, including existing projects
+whose creation history cannot be established. Class origins must survive copies;
+unverified imports require review or trusted verification before publication.
+The storage alone does not create assignments, classify existing projects or enforce
+the review/publication policy; SCRUM-164 and SCRUM-85 own those consumers.
+
+On 29 October 2026 seven focused PostgreSQL cases passed, including timestamp
+bounds and invalid mappings. The migration-schema comparison, Identity-to-current
+upgrade, Release build, EF model check and both formatting checks also passed.
+
 SCRUM-126 project-home UI, SCRUM-67 autosave/recovery integration, publication/asset
 delivery, hosted CI and deployment remain separate. Production still has no approved
 asset catalogue. These backend checks do not complete parent Story/Epic acceptance.

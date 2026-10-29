@@ -300,6 +300,131 @@ namespace Spatia.Server.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Spatia.Server.Classes.ClassAssignment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ClassroomId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("classroom_id");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("description");
+
+                    b.Property<long>("DueAtUnixSeconds")
+                        .HasColumnType("bigint")
+                        .HasColumnName("due_at_unix_seconds");
+
+                    b.Property<string>("Instructions")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("instructions");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
+                    b.Property<byte[]>("RequestDigest")
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("request_digest");
+
+                    b.Property<Guid>("SourceProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("source_project_id");
+
+                    b.Property<long>("SourceRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("source_revision");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("title");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("ClassroomId", "Id");
+
+                    b.HasIndex("ClassroomId", "OrganizationId");
+
+                    b.HasIndex("SourceProjectId", "OrganizationId");
+
+                    b.ToTable("class_assignments", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_class_assignments_description", "length(btrim(description)) > 0");
+
+                            t.HasCheckConstraint("CK_class_assignments_due", "due_at_unix_seconds BETWEEN -62135596800 AND 253402300799");
+
+                            t.HasCheckConstraint("CK_class_assignments_instructions", "length(btrim(instructions)) > 0");
+
+                            t.HasCheckConstraint("CK_class_assignments_request_digest", "octet_length(request_digest) = 32");
+
+                            t.HasCheckConstraint("CK_class_assignments_source_revision", "source_revision BETWEEN 0 AND 9007199254740991");
+
+                            t.HasCheckConstraint("CK_class_assignments_title", "length(btrim(title)) BETWEEN 1 AND 256");
+                        });
+                });
+
+            modelBuilder.Entity("Spatia.Server.Classes.ClassAssignmentStudent", b =>
+                {
+                    b.Property<Guid>("AssignmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("assignment_id");
+
+                    b.Property<Guid>("StudentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("student_id");
+
+                    b.Property<Guid>("ClassroomId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("classroom_id");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
+                    b.Property<Guid>("RoleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("role_id");
+
+                    b.HasKey("AssignmentId", "StudentId");
+
+                    b.HasIndex("ProjectId")
+                        .IsUnique();
+
+                    b.HasIndex("ClassroomId", "StudentId");
+
+                    b.HasIndex("ProjectId", "OrganizationId");
+
+                    b.HasIndex("StudentId", "AssignmentId");
+
+                    b.HasIndex("AssignmentId", "ClassroomId", "OrganizationId");
+
+                    b.HasIndex("OrganizationId", "StudentId", "RoleId");
+
+                    b.ToTable("class_assignment_students", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_class_assignment_students_role_id", "role_id = '862d776c-4d56-4dd8-919d-26044b6d8a44'::uuid");
+                        });
+                });
+
             modelBuilder.Entity("Spatia.Server.Classes.Classroom", b =>
                 {
                     b.Property<Guid>("Id")
@@ -457,6 +582,42 @@ namespace Spatia.Server.Persistence.Migrations
                     b.ToTable("project_assignments", (string)null);
                 });
 
+            modelBuilder.Entity("Spatia.Server.Projects.ProjectProvenance", b =>
+                {
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
+                    b.Property<Guid?>("ClassAssignmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("class_assignment_id");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("kind");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
+                    b.Property<Guid?>("StudentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("student_id");
+
+                    b.HasKey("ProjectId");
+
+                    b.HasIndex("ProjectId", "OrganizationId");
+
+                    b.HasIndex("ClassAssignmentId", "StudentId", "OrganizationId");
+
+                    b.ToTable("project_provenance", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_project_provenance_kind", "(kind = 'ordinary' AND class_assignment_id IS NULL AND student_id IS NULL)\nOR (kind = 'class' AND class_assignment_id IS NOT NULL AND student_id IS NOT NULL)");
+                        });
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<System.Guid>", b =>
                 {
                     b.HasOne("Microsoft.AspNetCore.Identity.IdentityRole<System.Guid>", null)
@@ -523,6 +684,59 @@ namespace Spatia.Server.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Spatia.Server.Classes.ClassAssignment", b =>
+                {
+                    b.HasOne("Spatia.Server.Accounts.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Spatia.Server.Classes.Classroom", null)
+                        .WithMany()
+                        .HasForeignKey("ClassroomId", "OrganizationId")
+                        .HasPrincipalKey("Id", "OrganizationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Spatia.Server.Projects.Project", null)
+                        .WithMany()
+                        .HasForeignKey("SourceProjectId", "OrganizationId")
+                        .HasPrincipalKey("Id", "OrganizationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Spatia.Server.Classes.ClassAssignmentStudent", b =>
+                {
+                    b.HasOne("Spatia.Server.Classes.ClassroomMember", null)
+                        .WithMany()
+                        .HasForeignKey("ClassroomId", "StudentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Spatia.Server.Projects.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId", "OrganizationId")
+                        .HasPrincipalKey("Id", "OrganizationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Spatia.Server.Classes.ClassAssignment", null)
+                        .WithMany()
+                        .HasForeignKey("AssignmentId", "ClassroomId", "OrganizationId")
+                        .HasPrincipalKey("Id", "ClassroomId", "OrganizationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Spatia.Server.Accounts.OrganizationMembership", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId", "StudentId", "RoleId")
+                        .HasPrincipalKey("OrganizationId", "UserId", "RoleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Spatia.Server.Classes.Classroom", b =>
                 {
                     b.HasOne("Spatia.Server.Accounts.Organization", null)
@@ -576,6 +790,22 @@ namespace Spatia.Server.Persistence.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("Spatia.Server.Projects.ProjectProvenance", b =>
+                {
+                    b.HasOne("Spatia.Server.Projects.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId", "OrganizationId")
+                        .HasPrincipalKey("Id", "OrganizationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Spatia.Server.Classes.ClassAssignmentStudent", null)
+                        .WithMany()
+                        .HasForeignKey("ClassAssignmentId", "StudentId", "OrganizationId")
+                        .HasPrincipalKey("AssignmentId", "StudentId", "OrganizationId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 #pragma warning restore 612, 618
         }

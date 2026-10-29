@@ -40,6 +40,15 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     /// <summary>Gets retained educator and student class memberships.</summary>
     public DbSet<ClassroomMember> ClassroomMembers => Set<ClassroomMember>();
 
+    /// <summary>Gets server-owned class assignment metadata.</summary>
+    public DbSet<ClassAssignment> ClassAssignments => Set<ClassAssignment>();
+
+    /// <summary>Gets the independent student drafts for class assignments.</summary>
+    public DbSet<ClassAssignmentStudent> ClassAssignmentStudents => Set<ClassAssignmentStudent>();
+
+    /// <summary>Gets established project origins; absent origins are unverified.</summary>
+    public DbSet<ProjectProvenance> ProjectProvenances => Set<ProjectProvenance>();
+
     /// <summary>
     /// Configures account, organization and project mappings, constraints and fixed role seeds
     /// </summary>
@@ -131,6 +140,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                     """);
             });
             project.HasKey(record => record.Id);
+            project.HasAlternateKey(record => new { record.Id, record.OrganizationId });
             project.Property(record => record.Id).HasColumnName("id");
             project.Property(record => record.OrganizationId).HasColumnName("organization_id");
             project.Property(record => record.IsArchived).HasColumnName("archived");
@@ -202,6 +212,98 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             member.HasOne<OrganizationMembership>().WithMany()
                 .HasForeignKey(record => new { record.OrganizationId, record.UserId, record.RoleId })
                 .HasPrincipalKey(record => new { record.OrganizationId, record.UserId, record.RoleId })
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<ClassAssignment>(assignment =>
+        {
+            assignment.ToTable("class_assignments", table =>
+            {
+                table.HasCheckConstraint("CK_class_assignments_title", "length(btrim(title)) BETWEEN 1 AND 256");
+                table.HasCheckConstraint("CK_class_assignments_description", "length(btrim(description)) > 0");
+                table.HasCheckConstraint("CK_class_assignments_instructions", "length(btrim(instructions)) > 0");
+                table.HasCheckConstraint("CK_class_assignments_due", $"due_at_unix_seconds BETWEEN {ClassAssignment.MinimumUnixSeconds} AND {ClassAssignment.MaximumUnixSeconds}");
+                table.HasCheckConstraint("CK_class_assignments_source_revision", $"source_revision BETWEEN 0 AND {Project.MaxRevision}");
+                table.HasCheckConstraint("CK_class_assignments_request_digest", "octet_length(request_digest) = 32");
+            });
+            assignment.HasKey(record => record.Id);
+            assignment.HasAlternateKey(record => new { record.Id, record.ClassroomId, record.OrganizationId });
+            assignment.Property(record => record.Id).HasColumnName("id");
+            assignment.Property(record => record.ClassroomId).HasColumnName("classroom_id");
+            assignment.Property(record => record.OrganizationId).HasColumnName("organization_id");
+            assignment.Property(record => record.CreatedByUserId).HasColumnName("created_by_user_id");
+            assignment.Property(record => record.SourceProjectId).HasColumnName("source_project_id");
+            assignment.Property(record => record.SourceRevision).HasColumnName("source_revision");
+            assignment.Property(record => record.DueAtUnixSeconds).HasColumnName("due_at_unix_seconds");
+            assignment.Property(record => record.Title).HasColumnName("title").HasMaxLength(256).IsRequired();
+            assignment.Property(record => record.Description).HasColumnName("description").IsRequired();
+            assignment.Property(record => record.Instructions).HasColumnName("instructions").IsRequired();
+            assignment.Property(record => record.RequestDigest).HasColumnName("request_digest").IsRequired();
+            assignment.HasIndex(record => new { record.ClassroomId, record.Id });
+            assignment.HasOne<Classroom>().WithMany()
+                .HasForeignKey(record => new { record.ClassroomId, record.OrganizationId })
+                .HasPrincipalKey(record => new { record.Id, record.OrganizationId })
+                .OnDelete(DeleteBehavior.Restrict);
+            assignment.HasOne<Project>().WithMany()
+                .HasForeignKey(record => new { record.SourceProjectId, record.OrganizationId })
+                .HasPrincipalKey(record => new { record.Id, record.OrganizationId })
+                .OnDelete(DeleteBehavior.Restrict);
+            assignment.HasOne<ApplicationUser>().WithMany()
+                .HasForeignKey(record => record.CreatedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<ClassAssignmentStudent>(student =>
+        {
+            student.ToTable("class_assignment_students", table => table.HasCheckConstraint(
+                "CK_class_assignment_students_role_id", $"role_id = '{ApplicationRoles.CreatorId:D}'::uuid"));
+            student.HasKey(record => new { record.AssignmentId, record.StudentId });
+            student.HasAlternateKey(record => new { record.AssignmentId, record.StudentId, record.OrganizationId });
+            student.Property(record => record.AssignmentId).HasColumnName("assignment_id");
+            student.Property(record => record.ClassroomId).HasColumnName("classroom_id");
+            student.Property(record => record.OrganizationId).HasColumnName("organization_id");
+            student.Property(record => record.StudentId).HasColumnName("student_id");
+            student.Property(record => record.RoleId).HasColumnName("role_id");
+            student.Property(record => record.ProjectId).HasColumnName("project_id");
+            student.HasIndex(record => record.ProjectId).IsUnique();
+            student.HasIndex(record => new { record.StudentId, record.AssignmentId });
+            student.HasOne<ClassAssignment>().WithMany()
+                .HasForeignKey(record => new { record.AssignmentId, record.ClassroomId, record.OrganizationId })
+                .HasPrincipalKey(record => new { record.Id, record.ClassroomId, record.OrganizationId })
+                .OnDelete(DeleteBehavior.Restrict);
+            student.HasOne<ClassroomMember>().WithMany()
+                .HasForeignKey(record => new { record.ClassroomId, UserId = record.StudentId })
+                .HasPrincipalKey(record => new { record.ClassroomId, record.UserId })
+                .OnDelete(DeleteBehavior.Restrict);
+            student.HasOne<OrganizationMembership>().WithMany()
+                .HasForeignKey(record => new { record.OrganizationId, UserId = record.StudentId, record.RoleId })
+                .HasPrincipalKey(record => new { record.OrganizationId, record.UserId, record.RoleId })
+                .OnDelete(DeleteBehavior.Restrict);
+            student.HasOne<Project>().WithMany()
+                .HasForeignKey(record => new { record.ProjectId, record.OrganizationId })
+                .HasPrincipalKey(record => new { record.Id, record.OrganizationId })
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<ProjectProvenance>(origin =>
+        {
+            origin.ToTable("project_provenance", table => table.HasCheckConstraint("CK_project_provenance_kind", """
+                (kind = 'ordinary' AND class_assignment_id IS NULL AND student_id IS NULL)
+                OR (kind = 'class' AND class_assignment_id IS NOT NULL AND student_id IS NOT NULL)
+                """));
+            origin.HasKey(record => record.ProjectId);
+            origin.Property(record => record.ProjectId).HasColumnName("project_id");
+            origin.Property(record => record.OrganizationId).HasColumnName("organization_id");
+            origin.Property(record => record.Kind).HasColumnName("kind").HasMaxLength(16).IsRequired();
+            origin.Property(record => record.ClassAssignmentId).HasColumnName("class_assignment_id");
+            origin.Property(record => record.StudentId).HasColumnName("student_id");
+            origin.HasOne<Project>().WithMany()
+                .HasForeignKey(record => new { record.ProjectId, record.OrganizationId })
+                .HasPrincipalKey(record => new { record.Id, record.OrganizationId })
+                .OnDelete(DeleteBehavior.Restrict);
+            origin.HasOne<ClassAssignmentStudent>().WithMany()
+                .HasForeignKey(record => new { AssignmentId = record.ClassAssignmentId, record.StudentId, record.OrganizationId })
+                .HasPrincipalKey(record => new { record.AssignmentId, record.StudentId, record.OrganizationId })
                 .OnDelete(DeleteBehavior.Restrict);
         });
     }
