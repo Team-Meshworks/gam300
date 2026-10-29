@@ -3,11 +3,12 @@ using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Spatia.Server.Accounts;
 using Spatia.Server.Projects;
+using Spatia.Server.Publications;
 
 namespace Spatia.Server.Persistence;
 
 /// <summary>
-/// Stores Identity accounts, organization memberships and project drafts with their access assignments
+/// Stores accounts, organizations, project drafts with access assignments and immutable publication editions
 /// </summary>
 /// <param name="options">The database provider and context configuration</param>
 public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
@@ -34,12 +35,18 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<ProjectAssignment> ProjectAssignments => Set<ProjectAssignment>();
 
     /// <summary>
+    /// Gets immutable publication editions; current audience and lifecycle authorization must be checked separately
+    /// </summary>
+    public DbSet<Publication> Publications => Set<Publication>();
+
+    /// <summary>
     /// Configures account, organization and project mappings, constraints and fixed role seeds
     /// </summary>
     /// <param name="builder">The model builder receiving the database mappings</param>
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+        builder.ApplyConfiguration(new PublicationConfiguration());
 
         builder.Entity<ApplicationUser>(user =>
         {

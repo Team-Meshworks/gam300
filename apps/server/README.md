@@ -1660,7 +1660,9 @@ before selecting a new revision. PUT retains its exact-latest retry protocol. Ev
 operation checks the original session cutoff before and after commit; a failure after
 commit can be durable without an acknowledgement.
 
-Publication storage/delivery is not implemented in this slice. Its defined policy is
+The SCRUM-66/69 slice did not implement publication storage or delivery. SCRUM-85's
+storage foundation is documented below; publish and visitor routes remain pending.
+The defined lifecycle policy is
 to deny archived-project publication/asset retrieval without erasing snapshots. Reopen
 removes only that restriction and does not undo independent revocation/audience policy.
 The future publication consumer must check the existing archive flag. This is a policy
@@ -1706,3 +1708,74 @@ Docker Desktop stayed as found. The earlier 439-file evidence archive remained i
 SCRUM-126 project-home UI, SCRUM-67 autosave/recovery integration, publication/asset
 delivery, hosted CI and deployment remain separate. Production still has no approved
 asset catalogue. These backend checks do not complete parent Story/Epic acceptance.
+
+## Immutable publication storage (SCRUM-85, Part 1)
+
+`AddPublicationSnapshots` adds a durable `publications` ledger. Each row holds its
+stable publication ID, source project and exact source revision, publishing actor,
+schema version, complete jsonb document, jsonb asset-reference manifest, 32-byte
+server-derived request digest and database-generated timestamp. The document and
+manifest share one row and one transaction: the asset list cannot become visible
+partly populated or be extended after the edition commits.
+
+`PublicationAssetManifest` serializes exact, case-sensitive asset IDs with lowercase
+SHA-256 byte identities in deterministic ordinal order. Each ID appears once. This
+is a storage representation, not an asset catalogue or a grant of access. The
+coordinator must obtain approved immutable references from SCRUM-73 and verify
+complete document coverage; structural validity alone proves neither approval nor
+availability/retention of the bytes. No mutable file path or delivery URL is stored
+as an immutable identity.
+
+PostgreSQL checks document/project/schema agreement, bounded source revisions,
+complete manifest entries, distinct asset IDs, finite timestamps, required fields
+and digest length. The `TR_publications_immutable` trigger rejects **every UPDATE**,
+including direct SQL, manifest replacement and request-identity changes. Foreign
+keys restrict deletion of referenced projects/accounts instead of cascading into
+publication history. There is no purge job, expiry rule or new retention policy.
+Audience and revocation state belong to SCRUM-71 and must remain separate from the
+immutable snapshot.
+
+`PublicationRetryPolicy` compares an ID's persisted project, actor, source revision
+and request digest. The exact identity replays; changed identity conflicts. A new
+ID requires a new insert. Different IDs may refer to the same saved revision; there
+is deliberately no uniqueness constraint on project/revision. Later draft edits or
+newer editions do not replace the older ID's retry record. The global primary key
+also prevents two projects from claiming the same publication ID.
+
+This part exposes **no publication HTTP endpoint** and registers no publishing or
+retrieval service. The persistence model and identity comparison do not authorize
+access, validate complete authored content, acquire the shared project lock, derive
+a request digest, enforce educator approval, commit a publish operation or return a
+visitor URL. Those belong to the following SCRUM-85 parts: the transaction
+coordinator; SCRUM-161/164, 71 and 73 integration; the protected publish API with its
+canonical committed HTTPS URL; protected durable retrieval; and linked browser/
+device acceptance with SCRUM-70/127. UI, QR, catalogue processing and deployment
+remain with their owning issues.
+
+Use the existing disposable PostgreSQL fixture and pinned SDK/tool/dependencies.
+The new migration uses PostgreSQL functions and a trigger, so use migrations rather
+than `EnsureCreated` to create its schema. Migration rollback removes publication
+data and its helper functions; it is not a retention operation and must not be used
+to roll back a live publication rollout without an explicit data-preservation plan.
+After the ordinary build and migration checks above, the focused tests are:
+
+```powershell
+dotnet test --project tests/Spatia.Server.Tests.csproj -c Release --no-build --results-directory test-results/scrum85-part1-focused -- --report-trx --minimum-expected-tests 1 --treenode-filter '/*/*/*/Publication*'
+```
+
+They exercise real migration upgrade/reapply/idempotence, fresh-context persistence,
+later draft edits, visibility before/after commit, rollback and failed batches,
+concurrent same-ID claims in both commit/rollback outcomes, cross-project ID
+uniqueness, immutable updates, manifest constraints and retry identity. These are
+storage tests, not evidence of publish API, approval, byte delivery, API restart or
+browser acceptance. Full server regression is still required because the migration
+is applied by the shared account/project fixtures.
+
+Local verification on **29 October 2026** passed all **97/97** new tests, with zero
+skipped, plus the Release build, both formatting checks and EF model/migration
+checks. Full backend regression passed **628/629**, with the existing
+`Browser_ProjectListOpenAndAccountSwitchUseCurrentSession` reaching its 30-second
+timeout. An isolated rerun passed **1/1** in 9.481 seconds without changing source
+or timeouts; the original full run is retained as a failure, not reported as clean.
+TRX/HTML evidence is under `test-results/scrum85-part1-focused-corrected/`,
+`test-results/scrum85-part1-full/` and `test-results/scrum85-part1-browser-retry/`.
