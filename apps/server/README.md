@@ -7,8 +7,9 @@ logout and current-password change to the existing CSRF bootstrap and three admi
 POSTs. [Accounts Part 7](#scrum-45-part-7-authorized-project-list-and-open) adds protected
 project list/open routes. The [backend follow-on](#scrum-6645-protected-save-and-project-lifecycle)
 adds PUT, create/duplicate, assignment and archive/reopen, for fifteen production routes.
-A parsed envelope remains untrusted until `ProjectSaveService` accepts it through
-the shared project validator, the packaged catalogue and current authorization.
+A parsed envelope remains untrusted: the service requires current authorization and
+the bounded envelope checks. New mutations also pass the shared project validator and
+packaged catalogue; a known exact retry is reconciled before mutable content validation.
 The [Part 5d boundary](#scrum-66-part-5d-validated-document-and-storage-boundary)
 is registered in the application and used by the read, save and creation routes.
 
@@ -33,6 +34,61 @@ Kestrel limit; deployment must also preserve this contract at its reverse proxy.
 Expected failures return fixed status/code/path/message data without authored
 content. Cancellation and stream I/O failures propagate, and the reader leaves the
 request body open. It does not emit an HTTP response or grant access.
+
+## Draft save retry contract
+
+Each save committed by the receipt-enabled server has a receipt keyed by project and
+`clientMutationId`, retained for the project's lifetime. It records the actor, original
+expected revision, request digest, committed revision and saved time. Document, revision
+and receipt commit in one transaction under the project-row lock used by assignment and
+archive writes.
+Current edit authorization and session checks apply before any replay or conflict is
+disclosed. Archive denies saves; a later reopen can replay if the actor has edit access.
+Receipts contain metadata and a digest, not another document; storage grows with each
+successful save and there is no automatic expiry.
+
+An exact retry returns its original `{projectId,revision,clientMutationId,savedAt}`
+acknowledgement without writing another revision, even after newer saves or metadata
+changes. That acknowledgement confirms the original commit; it does not assert that
+its revision is still current. Reusing an accepted project mutation ID with a different
+actor, original expected revision or original document representation returns an
+authorized 409. A known exact receipt is checked before mutable document/catalogue
+validation, after bounded envelope parsing and current authorization. Unknown IDs
+still undergo full validation and require the current revision. Keep the exact pending
+JSON and ID after an uncertain outcome; whitespace, key order, escapes and numeric
+spelling are part of the server-derived [retry digest](#scrum-66-part-5d-validated-document-and-storage-boundary).
+
+Migration `20261029122111_AddProjectSaveReceipts` backfills only the latest populated
+legacy mutation slot, deriving its expected revision as the stored revision minus one.
+It cannot reconstruct older or cleared slots. A populated slot at revision zero violates
+the receipt constraint and rolls back the migration instead of being silently skipped;
+investigate such data before retrying. Receipts are authoritative for replay; the legacy
+latest fields remain, and metadata changes may clear them without deleting receipts.
+Do not allow older server binaries to write during or after migration: mixed-version
+writers can bypass the receipt table. Downgrading the schema drops receipts and loses
+their retry history. Review a coordinated write boundary and data provenance before any
+rollout; this implementation does not establish a deployed migration or erase old data.
+
+### Receipt verification — 29 October 2026
+
+On the receipt working tree based on `29e81ff`, the real PostgreSQL 18.6 full repeat
+passed **557/557**, zero skipped, in **3m10.498s**. Earlier targeted tests failed against
+the latest-only implementation, then 12 historical route/lifecycle cases and 14 receipt
+cases passed after the change. Both full runs passed all 51 persistence cases after
+correcting two test expectations from foreign-key violation to restrict violation.
+The first full run passed 556/557; a test-only cookie-minting failure occurred before
+the save, with cause undetermined. A sandboxed rerun executed zero tests because named
+pipe IPC was denied; the unchanged five-case normal rerun passed 5/5. No code changed
+between the full runs.
+
+The guarded cold API and PostgreSQL restart passed in **21.964s**. Save A committed
+revision 2 and B committed revision 3 with different content. After restart an exact A
+retry returned its original acknowledgement without changing B. Changed reuse of A
+returned 409; a fresh authorized Creator reopened B with its revision, content and saved time.
+Existing session, storage and account lifecycle checks also passed. The nonsecret
+result and test reports are local ignored artifacts under `.artifacts/`; they are not
+part of the repository. This is backend verification, not client autosave integration,
+deployed migration or parent acceptance.
 
 ## Toolchain and checks
 
@@ -1038,6 +1094,9 @@ parent acceptance criteria.
 
 ## SCRUM-66 Part 5a: revision and retry decisions
 
+The following Part 5a–5c sections are historical checkpoint notes. Their latest-only
+retry behavior and future-work descriptions are superseded by the [current contract](#draft-save-retry-contract).
+
 `ProjectSavePolicy.Decide` implements the document-independent revision and
 latest-mutation rules. It takes an existing `ProjectAccessSnapshot`, expected
 revision, mutation ID and an opaque 32-byte request digest. It returns
@@ -1432,6 +1491,9 @@ shared-format integration and saved-project restart/browser acceptance were stil
 
 ## SCRUM-66 Part 5d: validated document and storage boundary
 
+This section records the Part 5d checkpoint. Its validation-before-retry ordering is
+superseded by the [current contract](#draft-save-retry-contract); the digest framing remains in use.
+
 `ProjectSaveService.SaveAsync(context, projectId, envelope, cancellationToken)` now
 owns validation and digest creation. It accepts no caller-supplied schema version or
 digest. After obtaining the existing `EditDraft` lock and current account authority,
@@ -1647,7 +1709,8 @@ accounts produce fixed `422 invalid_project_assignments`; foreign/inaccessible p
 IDs remain indistinguishable from missing ones.
 
 Each successful metadata request advances the common revision/time and clears all
-three remembered-save fields, even when the requested archive state is unchanged.
+three legacy remembered-save fields, even when the requested archive state is unchanged;
+durable save receipts remain.
 Stale requests return an authorized 409, and maximum revisions reject metadata changes.
 The source at maximum revision can still be duplicated into a new revision-0 project.
 Archived projects retain permitted reads/management, but saves, duplication, assignment
@@ -1656,7 +1719,7 @@ assignments. Metadata operations never replace or erase the document.
 
 Creation/duplication have no idempotency key; an uncertain response requires inspecting
 the project list before making another copy. Metadata uncertainty requires reopening
-before selecting a new revision. PUT retains its exact-latest retry protocol. Every
+before selecting a new revision. PUT uses the [durable retry contract](#draft-save-retry-contract). Every
 operation checks the original session cutoff before and after commit; a failure after
 commit can be durable without an acknowledgement.
 

@@ -21,7 +21,7 @@ public sealed class ProjectSaveEndpointTests
     [Test]
     [Arguments(1)]
     [Arguments(2)]
-    public async Task ProjectPut_SaveOpenExactRetryAndChangedRetryUseOneCommittedRevision(int version)
+    public async Task ProjectPut_HistoricalRetryReturnsOriginalAcknowledgementWithoutChangingNewerDraft(int version)
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
         var project = await SeedAsync(fixture);
@@ -51,6 +51,132 @@ public sealed class ProjectSaveEndpointTests
         using var stale = await PutAsync(fixture, project.Id, Envelope(document, Guid.NewGuid()));
         await AssertProblemAsync(fixture, stale, HttpStatusCode.Conflict, "revision_conflict", 1);
         await AssertUnchangedAsync(await ReadAsync(fixture), stored);
+
+        using var second = await PutAsync(fixture, project.Id,
+            Envelope(ProjectTestDocuments.Create(project.Id, "Newer draft", version), Guid.NewGuid(), 1));
+        await Assert.That(second.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        var newer = await ReadAsync(fixture);
+        await Assert.That(newer.Revision).IsEqualTo(2L);
+        using var historical = await PutAsync(fixture, project.Id, body);
+        await Assert.That(historical.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        await Assert.That(JsonElement.DeepEquals(await historical.Content.ReadFromJsonAsync<JsonElement>(), acknowledgement)).IsTrue();
+        await AssertUnchangedAsync(await ReadAsync(fixture), newer);
+    }
+
+    [Test]
+    [Arguments("content")]
+    [Arguments("whitespace")]
+    [Arguments("number-spelling")]
+    [Arguments("revision")]
+    [Arguments("actor")]
+    public async Task ProjectPut_HistoricalMutationIdCannotBeReusedAtTheCurrentRevision(string change)
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
+        var project = await SeedAsync(fixture);
+        var mutation = Guid.NewGuid();
+        var document = ProjectTestDocuments.Create(project.Id, BodyMarker);
+        using var first = await PutAsync(fixture, project.Id, Envelope(document, mutation));
+        await Assert.That(first.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        using var second = await PutAsync(fixture, project.Id,
+            Envelope(ProjectTestDocuments.Create(project.Id, "Newer draft"), Guid.NewGuid(), 1));
+        await Assert.That(second.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        var newer = await ReadAsync(fixture);
+        if (change == "actor")
+        {
+            var actor = await fixture.CreateAccountAsync();
+            await using var scope = fixture.Database.Services.CreateAsyncScope();
+            var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            await database.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE organization_memberships SET organization_id = {project.OrganizationId} WHERE user_id = {actor}");
+            database.ProjectAssignments.Add(new ProjectAssignment { ProjectId = project.Id, UserId = actor, CanEdit = true });
+            await database.SaveChangesAsync();
+            await fixture.SignInAsync(actor);
+        }
+        document = change switch
+        {
+            "content" => document.Replace(BodyMarker, "Changed", StringComparison.Ordinal),
+            "whitespace" => "{ \n" + document[1..],
+            "number-spelling" => document.Replace("\"schemaVersion\":1", "\"schemaVersion\":1.0", StringComparison.Ordinal),
+            _ => document
+        };
+        foreach (var revision in change == "revision" ? new[] { 2L } : new[] { 0L, 2L })
+        {
+            using var reused = await PutAsync(fixture, project.Id, Envelope(document, mutation, revision));
+            await AssertProblemAsync(fixture, reused, HttpStatusCode.Conflict, "revision_conflict", 2);
+            await AssertUnchangedAsync(await ReadAsync(fixture), newer);
+        }
+    }
+
+    [Test]
+    [Arguments("catalogue")]
+    [Arguments("revision-limit")]
+    public async Task ProjectPut_HistoricalRetrySurvivesCatalogueChangeOrRevisionExhaustion(string change)
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
+        var project = await SeedAsync(fixture);
+        var document = ProjectTestDocuments.Create(project.Id, BodyMarker);
+        var original = Envelope(document, Guid.NewGuid());
+        using var first = await PutAsync(fixture, project.Id, original);
+        await Assert.That(first.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        using var second = await PutAsync(fixture, project.Id, Envelope(document, Guid.NewGuid(), 1));
+        await Assert.That(second.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        if (change == "revision-limit")
+        {
+            await using var scope = fixture.Database.Services.CreateAsyncScope();
+            await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE projects SET revision = {Project.MaxRevision} WHERE id = {project.Id}");
+        }
+        var before = await ReadAsync(fixture);
+        await using var otherHost = await fixture.CreateSiblingAsync(builder =>
+        {
+            if (change == "catalogue")
+            {
+                builder.Environment.EnvironmentName = "Testing";
+                builder.Services.AddSingleton<Microsoft.Extensions.Hosting.IHostEnvironment>(builder.Environment);
+            }
+        });
+        await otherHost.SignInAsync(before.LastMutationActorId!.Value);
+        using var unknown = await PutAsync(otherHost, project.Id, Envelope(document, Guid.NewGuid(), before.Revision));
+        await AssertProblemAsync(otherHost, unknown,
+            change == "catalogue" ? HttpStatusCode.UnprocessableEntity : HttpStatusCode.Conflict,
+            change == "catalogue" ? "invalid_document" : "revision_exhausted", change == "catalogue" ? null : before.Revision);
+        using var retry = await PutAsync(otherHost, project.Id, original);
+        await Assert.That(retry.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        await Assert.That(await retry.Content.ReadAsStringAsync()).IsEqualTo(await first.Content.ReadAsStringAsync());
+        await AssertUnchangedAsync(await ReadAsync(fixture), before);
+    }
+
+    [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task ProjectPut_ReceiptFailureRollsBackDraftAndPreservesPreviousReceipts(bool beforeCommit)
+    {
+        var commitFailure = new CommitFailure();
+        var insertFailure = new ReceiptInsertFailure();
+        await using var fixture = await HttpsApplicationFixture.CreateAsync(builder =>
+            builder.Services.AddDbContext<ApplicationDbContext>(options => options.AddInterceptors(commitFailure, insertFailure)),
+            environmentName: "Development");
+        var project = await SeedAsync(fixture);
+        var original = Envelope(ProjectTestDocuments.Create(project.Id, "First saved draft"), Guid.NewGuid());
+        using var first = await PutAsync(fixture, project.Id, original);
+        await Assert.That(first.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        var before = await ReadAsync(fixture);
+        commitFailure.Armed = beforeCommit;
+        insertFailure.Armed = !beforeCommit;
+        var attempted = Envelope(ProjectTestDocuments.Create(project.Id, BodyMarker), Guid.NewGuid(), 1);
+        using var failure = await PutAsync(fixture, project.Id, attempted);
+        await AssertProblemAsync(fixture, failure, HttpStatusCode.ServiceUnavailable, "storage_unavailable");
+        await AssertUnchangedAsync(await ReadAsync(fixture), before);
+        await using var scope = fixture.Database.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await Assert.That(await database.Database.SqlQuery<long>($"SELECT count(*) AS \"Value\" FROM project_save_receipts").SingleAsync()).IsEqualTo(1L);
+        using var retried = await PutAsync(fixture, project.Id, attempted);
+        await Assert.That(retried.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        await Assert.That((await ReadAsync(fixture)).Revision).IsEqualTo(2L);
+        using var historical = await PutAsync(fixture, project.Id, original);
+        await Assert.That(historical.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        await Assert.That(await historical.Content.ReadAsStringAsync()).IsEqualTo(await first.Content.ReadAsStringAsync());
+        await Assert.That(await database.Database.SqlQuery<long>($"SELECT count(*) AS \"Value\" FROM project_save_receipts").SingleAsync()).IsEqualTo(2L);
     }
 
     [Test]
@@ -62,6 +188,9 @@ public sealed class ProjectSaveEndpointTests
         var body = Envelope(document, Guid.NewGuid());
         using var original = await PutAsync(fixture, project.Id, body);
         await Assert.That(original.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        using var newer = await PutAsync(fixture, project.Id,
+            Envelope(ProjectTestDocuments.Create(project.Id, "Newer draft"), Guid.NewGuid(), 1));
+        await Assert.That(newer.StatusCode).IsEqualTo(HttpStatusCode.OK);
         var stored = await ReadAsync(fixture);
         foreach (var (invalid, status, code) in new[]
         {
@@ -95,6 +224,9 @@ public sealed class ProjectSaveEndpointTests
         var body = Envelope(ProjectTestDocuments.Create(project.Id, BodyMarker), Guid.NewGuid());
         using var original = await PutAsync(fixture, project.Id, body);
         await Assert.That(original.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        using var newer = await PutAsync(fixture, project.Id,
+            Envelope(ProjectTestDocuments.Create(project.Id, "Newer draft"), Guid.NewGuid(), 1));
+        await Assert.That(newer.StatusCode).IsEqualTo(HttpStatusCode.OK);
         var stored = await ReadAsync(fixture);
         await using (var scope = fixture.Database.Services.CreateAsyncScope())
         {
@@ -125,18 +257,28 @@ public sealed class ProjectSaveEndpointTests
     }
 
     [Test]
-    public async Task ProjectPut_ConcurrentRequestsFromOneRevisionCommitOnlyOneDraft()
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task ProjectPut_ConcurrentRequestsFromOneRevisionCommitOnlyOneDraftAndReceipt(bool identical)
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
         var project = await SeedAsync(fixture);
         var csrf = await fixture.GetCsrfAsync();
         var bodies = new[] { "First", "Second" }.Select(title => Envelope(ProjectTestDocuments.Create(project.Id, title), Guid.NewGuid())).ToArray();
+        if (identical) { bodies[1] = bodies[0]; }
         var responses = await Task.WhenAll(bodies.Select(body => PutAsync(fixture, project.Id, body, csrf)));
         try
         {
-            await Assert.That(responses.Count(response => response.StatusCode == HttpStatusCode.OK)).IsEqualTo(1);
-            var loser = responses.Single(response => response.StatusCode != HttpStatusCode.OK);
-            await AssertProblemAsync(fixture, loser, HttpStatusCode.Conflict, "revision_conflict", 1);
+            await Assert.That(responses.Count(response => response.StatusCode == HttpStatusCode.OK)).IsEqualTo(identical ? 2 : 1);
+            if (identical)
+            {
+                await Assert.That(await responses[0].Content.ReadAsStringAsync()).IsEqualTo(await responses[1].Content.ReadAsStringAsync());
+            }
+            else
+            {
+                var loser = responses.Single(response => response.StatusCode != HttpStatusCode.OK);
+                await AssertProblemAsync(fixture, loser, HttpStatusCode.Conflict, "revision_conflict", 1);
+            }
             var stored = await ReadAsync(fixture);
             await Assert.That(stored.Revision).IsEqualTo(1L);
             using var winner = JsonDocument.Parse(bodies[Array.FindIndex(responses, response => response.StatusCode == HttpStatusCode.OK)]);
@@ -144,6 +286,10 @@ public sealed class ProjectSaveEndpointTests
             using var actual = JsonDocument.Parse(stored.DocumentJson);
             await Assert.That(actual.RootElement.GetProperty("title").GetString())
                 .IsEqualTo(winner.RootElement.GetProperty("document").GetProperty("title").GetString());
+            await using var scope = fixture.Database.Services.CreateAsyncScope();
+            var receipt = await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().ProjectSaveReceipts.SingleAsync();
+            await Assert.That(receipt.ClientMutationId).IsEqualTo(stored.LastMutationId!.Value);
+            await Assert.That(receipt.Revision).IsEqualTo(1L);
         }
         finally
         {
@@ -237,6 +383,22 @@ public sealed class ProjectSaveEndpointTests
             TransactionEventData eventData, InterceptionResult result, CancellationToken cancellationToken = default)
         {
             if (Armed) { Armed = false; throw new NpgsqlException(BodyMarker); }
+            return ValueTask.FromResult(result);
+        }
+    }
+
+    private sealed class ReceiptInsertFailure : DbCommandInterceptor
+    {
+        public bool Armed { get; set; }
+
+        public override ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(DbCommand command,
+            CommandEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
+        {
+            if (Armed && command.CommandText.StartsWith("INSERT INTO project_save_receipts", StringComparison.Ordinal))
+            {
+                Armed = false;
+                throw new NpgsqlException(BodyMarker);
+            }
             return ValueTask.FromResult(result);
         }
     }
