@@ -588,6 +588,45 @@ public sealed class ClassAssignmentCoordinatorTests
     }
 
     [Test]
+    public async Task AssignmentAccess_ClassDraftCannotBeTransferredToAnotherStudent()
+    {
+        await using var fixture = await CreateFixtureAsync();
+        var data = await SeedAsync(fixture);
+        var projects = await CreateProjectsAsync(fixture, data);
+        var projectId = projects[data.FirstStudent];
+        using var firstStudent = fixture.CreateClient();
+        using var secondStudent = fixture.CreateClient();
+        await fixture.SignInAsync(data.FirstStudent, firstStudent);
+        await fixture.SignInAsync(data.SecondStudent, secondStudent);
+        var token = await fixture.GetCsrfAsync();
+
+        foreach (var creators in new[] { new[] { data.SecondStudent }, new[] { data.FirstStudent, data.SecondStudent } })
+        {
+            using var rejected = await SetCreatorsAsync(fixture, projectId, data.Educator, creators, 0, token);
+            await Assert.That(rejected.StatusCode).IsEqualTo(HttpStatusCode.UnprocessableEntity);
+            await Assert.That((await rejected.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString())
+                .IsEqualTo("invalid_project_assignments");
+        }
+        await AssertStoredDraftAsync(fixture, projectId, "Assignment", 0);
+        await AssertProjectStatusAsync(firstStudent, projectId, HttpStatusCode.OK);
+        await AssertProjectStatusAsync(secondStudent, projectId, HttpStatusCode.NotFound);
+
+        using (var revoked = await SetCreatorsAsync(fixture, projectId, data.Educator, [], 0, token))
+        { await Assert.That(revoked.StatusCode).IsEqualTo(HttpStatusCode.OK); }
+        await AssertProjectStatusAsync(firstStudent, projectId, HttpStatusCode.NotFound);
+        using (var restored = await SetCreatorsAsync(fixture, projectId, data.Educator, [data.FirstStudent], 1, token))
+        { await Assert.That(restored.StatusCode).IsEqualTo(HttpStatusCode.OK); }
+        await AssertProjectStatusAsync(firstStudent, projectId, HttpStatusCode.OK);
+        await AssertStoredDraftAsync(fixture, projectId, "Assignment", 2);
+        await using var scope = fixture.Database.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await Assert.That(await database.ClassAssignmentStudents.AnyAsync(row => row.ProjectId == projectId
+            && row.StudentId == data.FirstStudent)).IsTrue();
+        await Assert.That(await database.ProjectProvenances.AnyAsync(row => row.ProjectId == projectId
+            && row.StudentId == data.FirstStudent && row.Kind == ProjectProvenance.Class)).IsTrue();
+    }
+
+    [Test]
     [Arguments(true)]
     [Arguments(false)]
     public async Task AssignmentAccess_ReassignmentAndRosterRemovalPreserveTheDraft(bool reassignFirst)
@@ -753,15 +792,19 @@ public sealed class ClassAssignmentCoordinatorTests
         return await client.SendAsync(message);
     }
 
-    private static async Task<HttpResponseMessage> ReassignAsync(HttpsApplicationFixture fixture, Guid projectId, Guid educator, string token)
+    private static Task<HttpResponseMessage> ReassignAsync(HttpsApplicationFixture fixture, Guid projectId, Guid educator, string token) =>
+        SetCreatorsAsync(fixture, projectId, educator, [], 0, token);
+
+    private static async Task<HttpResponseMessage> SetCreatorsAsync(HttpsApplicationFixture fixture, Guid projectId, Guid educator,
+        Guid[] creators, long revision, string token)
     {
         using var message = new HttpRequestMessage(HttpMethod.Patch, $"/api/projects/{projectId:D}/assignments")
         {
             Content = JsonContent.Create(new
             {
-                expectedRevision = 0,
+                expectedRevision = revision,
                 managedByUserIds = new[] { educator },
-                assignedCreatorIds = Array.Empty<Guid>(),
+                assignedCreatorIds = creators,
                 canPublishUserIds = Array.Empty<Guid>(),
             }),
         };

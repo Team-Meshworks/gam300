@@ -1849,6 +1849,9 @@ still be a manager of its class. Administrators retain their existing access.
 Ordinary projects use their existing permission rules. Removing a member preserves
 the drafts and project grants; re-adding that member restores only grants that
 still exist. Adding a new class manager does not create project grants.
+The project assignment endpoint rejects attempts to give a class draft to a
+different student. Its original student's grant may be removed and restored
+without moving the draft or changing its class-origin mapping.
 
 Removal locks the class first, then the affected original student projects in
 project-ID order, and rechecks the caller after waiting. A project write already

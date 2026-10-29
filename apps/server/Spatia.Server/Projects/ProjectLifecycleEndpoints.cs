@@ -96,6 +96,12 @@ public static class ProjectLifecycleEndpoints
         {
             return RevisionProblem(context, project.Revision, request.ExpectedRevision == project.Revision);
         }
+        var originalStudent = await database.ClassAssignmentStudents.Where(row => row.ProjectId == id)
+            .Select(row => (Guid?)row.StudentId).SingleOrDefaultAsync(cancellationToken);
+        if (originalStudent is { } studentId && request.AssignedCreatorIds.Any(userId => userId != studentId))
+        {
+            return ApiProblems.Create(context, 422, "invalid_project_assignments", "A class draft can only be assigned to its original student.");
+        }
         var ids = request.ManagedByUserIds.Concat(request.AssignedCreatorIds).ToArray();
         var eligible = await (from membership in database.OrganizationMemberships
                               join user in database.Users on membership.UserId equals user.Id
