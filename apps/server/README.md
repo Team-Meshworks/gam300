@@ -1842,6 +1842,11 @@ student did not restore a project grant that had separately been removed. All
 three cases passed on 29 October 2026. Production assignment creation and read
 routes, client-side local-time conversion and copy/import policy remain pending.
 
+The complete server run passed 563 of 565 cases; the two browser cases could not
+find Playwright in this worktree. Both passed on a separate rerun using the local
+Playwright/Chromium cache and an existing browser-output directory. The rerun used
+Node 24.19.0 and Chromium 153.0.8010.12. No application code changed between runs.
+
 SCRUM-126 project-home UI, SCRUM-67 autosave/recovery integration, publication/asset
 delivery, hosted CI and deployment remain separate. Production still has no approved
 asset catalogue. These backend checks do not complete parent Story/Epic acceptance.
