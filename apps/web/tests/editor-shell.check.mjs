@@ -20,6 +20,30 @@ async function nudge(page, name, axis, metres) {
   await page.getByRole("button", { name: "Scene tree", exact: true }).click();
 }
 
+async function storedDocuments(page) {
+  return page.evaluate(
+    () =>
+      new Promise((resolve, reject) => {
+        const open = indexedDB.open("vthere-local-drafts", 2);
+        open.onerror = () => reject(open.error);
+        open.onsuccess = () => {
+          const database = open.result;
+          const transaction = database.transaction(["drafts", "session"], "readonly");
+          const drafts = transaction.objectStore("drafts").getAll();
+          const sessions = transaction.objectStore("session").getAll();
+          transaction.oncomplete = () => {
+            database.close();
+            resolve([...drafts.result, ...sessions.result].map((record) => record.document).sort());
+          };
+          transaction.onabort = () => {
+            database.close();
+            reject(transaction.error);
+          };
+        };
+      }),
+  );
+}
+
 try {
   const page = await browser.newPage({ viewport: { width: 1366, height: 768 }, hasTouch: true });
   const pageErrors = [];
@@ -41,6 +65,7 @@ try {
   const redo = page.getByRole("button", { name: "Redo", exact: true });
   const rows = page.locator(".object-row");
   const stage = page.locator(".viewport-stage");
+  const library = page.getByRole("button", { name: "Asset library", exact: true });
   await ready.waitFor();
   assert.equal(await page.title(), "Untitled - Spatia");
   assert.equal(await page.getByRole("heading", { name: "Spatia", exact: true }).count(), 1);
@@ -159,8 +184,7 @@ try {
   camera.quaternion.fromArray(pose.rotation);
   camera.updateMatrixWorld(true);
   const center = new THREE.Vector3(spawn[0], spawn[1] + 0.5, spawn[2]).project(camera);
-  const libraryControl = page.getByRole("button", { name: "Asset library", exact: true });
-  await libraryControl.click();
+  await library.click();
   await stage.click({
     position: {
       x: ((center.x + 1) * stageBox.width) / 2,
@@ -247,7 +271,7 @@ try {
     await page.screenshot({ path: process.env.CHECK_SCREENSHOT, fullPage: true });
   }
 
-  await libraryControl.click();
+  await library.click();
   await asset.dragTo(page.getByRole("heading", { name: "Asset library", exact: true }));
   assert.equal(await rows.count(), 2, "Dropping outside the scene leaves objects unchanged");
   const tileBox = await asset.boundingBox();
@@ -394,6 +418,7 @@ try {
   const roomRow = page.locator(".environment-row");
   assert.equal(await roomRow.textContent(), fixture.scenes[0].name);
   assert.equal(await page.locator(".panel-count").textContent(), "3");
+  assert.equal(await roomRow.getAttribute("data-scene-id"), "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb");
   await roomRow.click();
   assert.equal(await roomRow.getAttribute("aria-pressed"), "true");
   // Reuse the same room tile and undo only its newly placed instance
@@ -401,8 +426,23 @@ try {
   assert.equal(await rows.count(), 3);
   await undo.click();
   assert.deepEqual(await rows.allTextContents(), ["First crate", "Second crate"]);
+  await roomRow.click();
+  // Disclosure changes presentation only and must leave the stored draft untouched
+  const savedBeforeTree = await storedDocuments(page);
+  assert.ok(savedBeforeTree.length > 0);
+  await disclosure.click();
+  assert.equal(await rows.first().isVisible(), false);
+  assert.equal(await roomRow.getAttribute("aria-pressed"), "true");
+  await disclosure.click();
+  assert.equal(await rows.first().isVisible(), true);
+  assert.equal(await roomRow.getAttribute("aria-pressed"), "true");
   assert.equal(await undo.isDisabled(), true);
   assert.equal(await redo.isDisabled(), false);
+  assert.deepEqual(
+    await storedDocuments(page),
+    savedBeforeTree,
+    "Tree expansion preserves saved JSON",
+  );
   await asset.click();
   assert.equal(await rows.count(), 3);
   await undo.click();
@@ -423,7 +463,6 @@ try {
   await nudge(page, "Second crate", "Z", 1);
   await rows.first().click();
   // Asset panel floats over this part of the scene, close it first so the click reach the wall
-  const library = page.getByRole("button", { name: "Asset library", exact: true });
   await library.click();
   const hiddenCrate = new THREE.Vector3(-1, 0.5, 3).project(camera);
   await stage.click({
@@ -442,27 +481,38 @@ try {
     "true",
     "Clicking the wall selects the room in the hierarchy",
   );
-  await rows.nth(1).click();
-  assert.equal(await rows.nth(1).getAttribute("aria-pressed"), "true", "List bypasses occlusion");
+  await rows.nth(1).focus();
+  await page.keyboard.press("Enter");
+  assert.equal(
+    await rows.nth(1).getAttribute("aria-pressed"),
+    "true",
+    "Keyboard tree selection bypasses occlusion",
+  );
   assert.equal(await roomRow.getAttribute("aria-pressed"), "false");
   await library.click();
 
   // Finish the nudge's automatic backup before opening the project menu
   // Backup temporarily disables New; its timer must not interrupt the pointer click
   // Check the persisted edit rather than sleeping for an assumed storage duration
-  await page.waitForFunction(async (expectedZ) => {
-    const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
-    const result = await loadRecoverySession(
-      new Map([
-        ["test-room-v1", "environment"],
-        ["test-crate-v1", "model"],
-        ["sample-snowglobe-v1", "model"],
-      ]),
-    );
-    return (
-      result.ok &&
-      result.value?.document?.scenes[0]?.objects[1]?.transform.position[2] === expectedZ
-    );
+  await page.evaluate(async (expectedZ) => {
+    // Wait for the persisted snapshot before navigating away from the current session
+    for (let attempt = 0; attempt < 200; attempt++) {
+      const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
+      const result = await loadRecoverySession(
+        new Map([
+          ["test-room-v1", "environment"],
+          ["test-crate-v1", "model"],
+          ["sample-snowglobe-v1", "model"],
+        ]),
+      );
+      if (
+        result.ok &&
+        result.value?.document?.scenes[0]?.objects[1]?.transform.position[2] === expectedZ
+      )
+        return;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    throw new Error("The expected recovery snapshot was not saved");
   }, fixture.scenes[0].objects[1].transform.position[2] + 1);
 
   // New projects and recovered sessions should show the same asset choices
@@ -500,41 +550,11 @@ try {
   assert.equal(await room.isVisible(), true, "Recovery keeps the room in the library");
   await roomRow.waitFor();
   assert.equal(await page.locator(".panel-count").textContent(), "1");
+  assert.equal(
+    await page.getByText("No objects in this scene.", { exact: true }).isVisible(),
+    true,
+  );
 
-  const samplePath = "**/*test-crate*.glb*";
-  await page.route(samplePath, (route) => {
-    // Vite also serves a JavaScript URL module for each model
-    // Fail the model download after the application itself has loaded
-    return route.request().resourceType() === "script"
-      ? route.continue()
-      : route.fulfill({ status: 503, body: "Unavailable" });
-  });
-  await page.reload();
-  await page.getByRole("status").filter({ hasText: "Couldn't load the 3D view" }).waitFor();
-  assert.equal(await asset.isDisabled(), true);
-  await page.unroute(samplePath);
-  const retry = page.getByRole("button", { name: "Retry", exact: true });
-  await retry.focus();
-  await page.keyboard.press("Enter");
-  await ready.waitFor();
-  assert.equal(await page.locator("canvas").count(), 1, "Retry replaces the old canvas");
-  assert.equal(await asset.isEnabled(), true);
-  assert.equal(await retry.count(), 0);
-
-  await page.addInitScript(() => {
-    const original = HTMLCanvasElement.prototype.getContext;
-    HTMLCanvasElement.prototype.getContext = function (type, ...args) {
-      return type === "webgl2" ? null : original.call(this, type, ...args);
-    };
-  });
-  await page.reload();
-  const unsupported = page.getByRole("status").filter({ hasText: "The 3D view needs WebGL 2" });
-  await unsupported.waitFor();
-  await retry.click();
-  await unsupported.waitFor();
-  assert.equal(await page.locator("canvas").count(), 0);
-  assert.equal(await asset.isDisabled(), true);
-  assert.deepEqual(pageErrors, [], "No uncaught page errors in any flow");
   // Object parenting uses selection and drag/drop without a separate group form
   const nestedContext = await browser.newContext();
   try {
@@ -627,8 +647,87 @@ try {
     await nestedContext.close();
   }
 
+  // Imported content is identified beneath its owner without inventing another viewport entity
+  // Keyboard selection and disclosure must leave the authored document untouched
+  const contentContext = await browser.newContext();
+  try {
+    const contentPage = await contentContext.newPage();
+    await contentPage.goto(process.argv[2] ?? "http://127.0.0.1:5173/");
+    const contentProject = structuredClone(fixture);
+    contentProject.schemaVersion = 2;
+    const scene = contentProject.scenes[0];
+    Object.assign(scene, { groups: [], zones: [], viewpoints: [], rules: [] });
+    for (const object of scene.objects) {
+      Object.assign(object, { parentId: null, visible: true, components: [] });
+    }
+    const component = {
+      id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+      type: "hotspot",
+      label: "Exhibit details",
+    };
+    scene.objects[0].components.push(component);
+    await contentPage.locator("#project-import").setInputFiles({
+      name: "content-tree.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify(contentProject)),
+    });
+    await contentPage.getByText("Project opened", { exact: true }).waitFor();
+    const contentRow = contentPage.locator(`[data-component-id="${component.id}"]`);
+    await contentRow.waitFor();
+    const owner = contentPage.locator(`[data-object-id="${scene.objects[0].id}"]`);
+    assert.equal(await contentRow.getAttribute("data-owner-id"), scene.objects[0].id);
+    await contentRow.focus();
+    await contentPage.keyboard.press("Enter");
+    assert.equal(await owner.getAttribute("aria-pressed"), "true");
+    const before = await storedDocuments(contentPage);
+    await contentPage.getByRole("button", { name: "Collapse First crate", exact: true }).click();
+    assert.equal(await contentRow.isVisible(), false);
+    assert.equal(await owner.getAttribute("aria-pressed"), "true");
+    await contentPage
+      .getByRole("button", { name: "Expand First crate", exact: true })
+      .press("ArrowRight");
+    assert.equal(await contentRow.isVisible(), true);
+    assert.deepEqual(await storedDocuments(contentPage), before);
+  } finally {
+    await contentContext.close();
+  }
+
+  const samplePath = "**/*test-crate*.glb*";
+  await page.route(samplePath, (route) => {
+    // Vite also serves a JavaScript URL module for each model
+    // Fail the model download after the application itself has loaded
+    return route.request().resourceType() === "script"
+      ? route.continue()
+      : route.fulfill({ status: 503, body: "Unavailable" });
+  });
+  await page.reload();
+  await page.getByRole("status").filter({ hasText: "Couldn't load the 3D view" }).waitFor();
+  assert.equal(await asset.isDisabled(), true);
+  await page.unroute(samplePath);
+  const retry = page.getByRole("button", { name: "Retry", exact: true });
+  await retry.focus();
+  await page.keyboard.press("Enter");
+  await ready.waitFor();
+  assert.equal(await page.locator("canvas").count(), 1, "Retry replaces the old canvas");
+  assert.equal(await asset.isEnabled(), true);
+  assert.equal(await retry.count(), 0);
+
+  await page.addInitScript(() => {
+    const original = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function (type, ...args) {
+      return type === "webgl2" ? null : original.call(this, type, ...args);
+    };
+  });
+  await page.reload();
+  const unsupported = page.getByRole("status").filter({ hasText: "The 3D view needs WebGL 2" });
+  await unsupported.waitFor();
+  await retry.click();
+  await unsupported.waitFor();
+  assert.equal(await page.locator("canvas").count(), 0);
+  assert.equal(await asset.isDisabled(), true);
+  assert.deepEqual(pageErrors, [], "No uncaught page errors in any flow");
   console.log(
-    "PASS: placement, single-pointer movement, cancellation, room occlusion, project loading, undo/redo, keyboard, resizing, retry and WebGL fallback",
+    "PASS: placement, movement, cancellation, hierarchy expansion, saved JSON preservation, room occlusion, project loading, undo/redo, keyboard, resizing, retry and WebGL fallback",
   );
 } finally {
   await browser.close();

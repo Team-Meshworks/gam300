@@ -73,15 +73,23 @@ try {
   assert.equal(await page.locator(".object-row").count(), 2);
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   await page.evaluate(() => window.finishBackup());
-  await page.waitForFunction(async () => {
-    const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
-    const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
-    const saved = await loadRecoverySession(new Map(assets.map((asset) => [asset.id, asset.kind])));
-    return (
-      saved.ok &&
-      saved.value?.document.scenes[0].objects.length === 1 &&
-      saved.value.history?.future.length === 1
-    );
+  await page.evaluate(async () => {
+    // Wait for the persisted snapshot before navigating away from the current session
+    for (let attempt = 0; attempt < 200; attempt++) {
+      const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
+      const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
+      const saved = await loadRecoverySession(
+        new Map(assets.map((asset) => [asset.id, asset.kind])),
+      );
+      if (
+        saved.ok &&
+        saved.value?.document.scenes[0].objects.length === 1 &&
+        saved.value.history?.future.length === 1
+      )
+        return;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    throw new Error("The expected recovery snapshot was not saved");
   });
   // A deferred wheel commit must not edit the document behind a project decision
   await page.locator(".object-row").first().click();

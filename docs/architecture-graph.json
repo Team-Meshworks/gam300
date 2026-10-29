@@ -274,9 +274,9 @@
     "tests/caching.check.mjs": "c839974ba242e72e822d6aff941db64d3bc6ac35bb9770b89c44598109502a6f",
     "tests/caching.measure.mjs": "0181addfc3a470bd5504169e3e0a88d3292ecb3e341beded0ca90766e4d40ea7",
     "tests/deployment.check.mjs": "c4cedc5151c1b043b6eee66ae1dcf144c97cc2645d8f1956f99f70942c07ab9e",
-    "tests/editor-build.check.mjs": "ddad12cec87babbd5365e3d4cd4ec25187d8e1a5485d04bf2dcce3b3e273606a",
-    "tests/editor-integration.check.mjs": "01ae358ec88769454cac1e0fb162c9ce7fe4c2096cafad431aaa8a00620d761d",
-    "tests/editor-shell.check.mjs": "74ac188ddce0f3e7a53db2a138813ea3e53e2061e3722d324fc938f893eab195",
+    "tests/editor-build.check.mjs": "cfe7cc208f94ee281cbd78905b69a6fa6c8a47a98ba40e9c3071ffd6dbac4980",
+    "tests/editor-integration.check.mjs": "0f5fbbe1afeead78bd659360d03dc01781226651cd4297f37f820d9bb811b391",
+    "tests/editor-shell.check.mjs": "fa9b083de07795fcd2a530458e2464bccb7277c8a69c1ea1cd71fd5a06685fd8",
     "tests/history-recovery.check.mjs": "3d9ceb4d7017d144eb320135dae052cbcfdf3f849d6757a825f3e2764c4e32e7",
     "tests/local-drafts.check.mjs": "a52e4b31be4c7a0f701a7bd2f9cd38a0d2fa97fdaea621f2144bc71baee87c6c",
     "tests/project-format-cross.check.mjs": "0d382287fd435f4f03647d8141f7d854ab7a6ec6906a07886e65a4352b0917e9",
@@ -3395,7 +3395,7 @@
     },
     {
       "file": "tests/editor-integration.check.mjs",
-      "line": 77,
+      "line": 79,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -3404,7 +3404,7 @@
     },
     {
       "file": "tests/editor-integration.check.mjs",
-      "line": 78,
+      "line": 80,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
       "target": "shared/assets/catalogue.ts",
@@ -3413,7 +3413,7 @@
     },
     {
       "file": "tests/editor-integration.check.mjs",
-      "line": 91,
+      "line": 99,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -3422,7 +3422,7 @@
     },
     {
       "file": "tests/editor-integration.check.mjs",
-      "line": 92,
+      "line": 100,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
       "target": "shared/assets/catalogue.ts",
@@ -3431,7 +3431,7 @@
     },
     {
       "file": "tests/editor-integration.check.mjs",
-      "line": 156,
+      "line": 164,
       "kind": "test-environment",
       "specifier": "three",
       "target": {
@@ -3441,7 +3441,7 @@
     },
     {
       "file": "tests/editor-integration.check.mjs",
-      "line": 157,
+      "line": 165,
       "kind": "dynamic",
       "specifier": "/graphics/scene.ts",
       "target": "editor/graphics/scene.ts",
@@ -3450,7 +3450,7 @@
     },
     {
       "file": "tests/editor-integration.check.mjs",
-      "line": 158,
+      "line": 166,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
       "target": "shared/assets/catalogue.ts",
@@ -3509,7 +3509,7 @@
     },
     {
       "file": "tests/editor-shell.check.mjs",
-      "line": 454,
+      "line": 500,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -3518,7 +3518,7 @@
     },
     {
       "file": "tests/editor-shell.check.mjs",
-      "line": 484,
+      "line": 534,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -3842,7 +3842,7 @@
     },
     {
       "file": "tests/editor-integration.check.mjs",
-      "line": 156,
+      "line": 164,
       "expression": "threePath"
     },
     {
