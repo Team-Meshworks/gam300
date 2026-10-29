@@ -478,6 +478,7 @@ a {
   padding-left: 1.75rem;
 }
 .object-row,
+.group-row,
 .environment-row {
   display: flex;
   gap: 0.6rem;
@@ -497,10 +498,12 @@ a {
   height: 1.75rem;
   object-fit: contain;
 }
+.group-row:hover,
 .object-row:hover,
 .environment-row:hover {
   background: #ebe7dc;
 }
+.group-row[aria-pressed="true"],
 .object-row[aria-pressed="true"],
 .environment-row[aria-pressed="true"] {
   background: #e2dccb;
@@ -1225,4 +1228,27 @@ a {
   .project-name {
     font-size: 0.9375rem;
   }
+}
+
+.scene-tree .object-row img,
+.scene-tree .environment-row img {
+  width: 1rem;
+  height: 1rem;
+  object-fit: contain;
+}
+/* Parent and child labels share the same type size and a stable disclosure column */
+.scene-tree .object-row,
+.scene-tree .group-row,
+.scene-tree .environment-row {
+  font-size: 0.875rem;
+}
+.scene-disclosure-space {
+  width: 1.5rem;
+  flex-shrink: 0;
+}
+
+.group-row .icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex-shrink: 0;
 }

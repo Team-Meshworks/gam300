@@ -392,7 +392,7 @@ try {
   const room = page.getByRole("button", { name: "Add test-room", exact: true });
   assert.equal(await room.isVisible(), true, "Opening a project keeps the room in the library");
   const roomRow = page.locator(".environment-row");
-  assert.equal(await roomRow.textContent(), "test-room");
+  assert.equal(await roomRow.textContent(), fixture.scenes[0].name);
   assert.equal(await page.locator(".panel-count").textContent(), "3");
   await roomRow.click();
   assert.equal(await roomRow.getAttribute("aria-pressed"), "true");
@@ -535,6 +535,40 @@ try {
   assert.equal(await page.locator("canvas").count(), 0);
   assert.equal(await asset.isDisabled(), true);
   assert.deepEqual(pageErrors, [], "No uncaught page errors in any flow");
+  // Object parenting uses selection and drag/drop without a separate group form
+  const nestedContext = await browser.newContext();
+  try {
+    const nested = await nestedContext.newPage();
+    await nested.goto(process.argv[2] ?? "http://127.0.0.1:5173/");
+    await nested.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
+    const addRoom = nested.getByRole("button", { name: "Add test-room", exact: true });
+    const addCrate = nested.getByRole("button", { name: "Add test-crate", exact: true });
+    await addRoom.click();
+    await addCrate.click();
+    const parent = nested.locator("[data-object-id]").first();
+    await parent.click();
+    const labelX = await parent
+      .locator("span")
+      .evaluate((element) => element.getBoundingClientRect().x);
+    await addCrate.click();
+    assert.equal(await parent.locator("../..").locator("[data-object-id]").count(), 2);
+    assert.equal(
+      await parent.locator("span").evaluate((element) => element.getBoundingClientRect().x),
+      labelX,
+    );
+    const sizes = await nested
+      .locator(".object-row, .environment-row")
+      .evaluateAll((rows) => rows.map((row) => getComputedStyle(row).fontSize));
+    assert.equal(new Set(sizes).size, 1, "All tree levels use the parent font size");
+    await addRoom.click();
+    const roomInstance = nested.locator("[data-object-id]").filter({ hasText: "test-room" });
+    await roomInstance.click();
+    await addCrate.click();
+    assert.equal(await roomInstance.locator("../..").locator("[data-object-id]").count(), 2);
+  } finally {
+    await nestedContext.close();
+  }
+
   console.log(
     "PASS: placement, single-pointer movement, cancellation, room occlusion, project loading, undo/redo, keyboard, resizing, retry and WebGL fallback",
   );

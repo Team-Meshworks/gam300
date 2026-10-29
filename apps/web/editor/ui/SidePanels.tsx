@@ -2,8 +2,10 @@ import { useState, type ReactNode } from "react";
 import type { SceneObject } from "../../shared/project/scene-object";
 import type { Transform, Vector3Tuple } from "../../shared/project/project-types";
 import { Icon, type IconName } from "./Icon";
-import { SceneTreePanel, type Room } from "./SceneTreePanel";
 import { degreesToQuaternion, quaternionToDegrees } from "./rotation-angles";
+
+import { SceneTreePanel, type Room } from "./SceneTreePanel";
+import type { ProjectGroup } from "../../shared/project/project-content";
 
 type PanelId = "position" | "tree" | "interaction";
 
@@ -22,7 +24,9 @@ export function SidePanels({
   thumbnailFor,
   onSelect,
   onTransform,
+  groups,
 }: {
+  groups: readonly ProjectGroup[];
   visitor: boolean;
   room: Room | undefined;
   objects: readonly SceneObject[];
@@ -65,7 +69,9 @@ export function SidePanels({
           )}
           {panel === "tree" && (
             <SceneTreePanel
+              key={room?.id ?? "draft"}
               room={room}
+              groups={groups}
               objects={objects}
               selectedId={selectedId}
               onSelect={onSelect}

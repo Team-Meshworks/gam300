@@ -56,7 +56,8 @@ export function App() {
   const [modeState, setModeState] = useState<ModeManagerState | null>(null);
   const selection = objects.some((object) => object.id === selectedId) ? selectedId : null;
   const projectScene = project?.scenes[0];
-  const roomAsset = assets.find((asset) => asset.id === projectScene?.environmentAssetId);
+  const groups = project?.schemaVersion === 2 ? project.scenes[0]!.groups : [];
+  const groupSelected = groups.some((group) => group.id === selectedId);
 
   // Room selection uses the scene ID because its asset lives in the environment field
   // Object commands still receive only placed-object IDs
@@ -225,6 +226,7 @@ export function App() {
         return;
       }
       setError("");
+      setSelectedId(created.value.scenes[0]!.id);
       setDragging(false);
       if (created.value.scenes[0]?.objects.length === 0) {
         session.markPristine(created.value);
@@ -239,7 +241,11 @@ export function App() {
       return;
     }
 
-    const result = store.addObject(assetId, position);
+    const result = store.addObject(
+      assetId,
+      position,
+      roomSelected || groupSelected ? selectedId : selection,
+    );
     if (!result.ok) {
       setError(result.error);
       return;
@@ -304,12 +310,13 @@ export function App() {
               ? undefined
               : {
                   id: projectScene.id,
-                  name: roomAsset?.name ?? projectScene.name,
+                  name: projectScene.name,
                   thumbnail: thumbnailFor(projectScene.environmentAssetId),
                 }
           }
+          groups={groups}
           objects={objects}
-          selectedId={roomSelected ? projectScene.id : selection}
+          selectedId={roomSelected ? projectScene.id : groupSelected ? selectedId : selection}
           selectedObject={selectedObject}
           thumbnailFor={thumbnailFor}
           onSelect={setSelectedId}
