@@ -2,7 +2,7 @@
 
 `NewProjectForm` is a reusable frontend form. Supply `organizationName`, `creatorName`, `classes` and `students` from host-validated, authorized data. Each student includes the class IDs for which they are eligible. Key the form by identity and organization so a change of either remounts it instead of retaining the previous context's entries.
 
-The types in `new-project-form.ts` describe UI data, not an agreed backend wire contract. The validated `NewProjectDraft` contains a calendar-date string (`YYYY-MM-DD`); do not infer a timezone or cutoff. Once the SCRUM-161 API contract exists, the host must map the draft to it and enforce authorization and roster eligibility on the server.
+The types in `new-project-form.ts` describe UI data, not the backend wire format. The validated `NewProjectDraft` contains the entering device's local date and time. Convert it with `localDeadlineToUnixSeconds` for SCRUM-161 and display saved seconds with `formatLocalDeadline` in the viewer's local time. Nonexistent local times are rejected; for an ambiguous repeated time, the device's JavaScript date rules choose the instant. A request contains at most 20 selected students, and the server enforces authorization and roster eligibility.
 
 Gallery sits beside Cover image and 360° in equally sized, 52px-high controls and opens the device's file chooser for an optional cover image. The draft may contain a local `coverImage` File; the preview does not upload or persist it. `imageType` accepts Cover image or 360°; Gallery is an action, not an image type. The cover preview releases its object URL when replaced, removed or unmounted. The 360° option remains unconnected. A host integrating storage must define the file upload and persistence contract separately.
 
