@@ -565,6 +565,37 @@ try {
     await roomInstance.click();
     await addCrate.click();
     assert.equal(await roomInstance.locator("../..").locator("[data-object-id]").count(), 2);
+    const child = roomInstance.locator("../..").locator("[data-object-id]").last();
+    const movedId = await child.getAttribute("data-object-id");
+    // Inspect the hover state before release as well as the resulting parent after a real drop
+    const transfer = await nested.evaluateHandle(() => new DataTransfer());
+    await child.dispatchEvent("dragstart", { dataTransfer: transfer });
+    await parent.dispatchEvent("dragover", { dataTransfer: transfer });
+    // Wait for React to render feedback after synthetic drag events
+    await nested.locator("[data-drop-target]").waitFor();
+    assert.equal(await parent.locator("..").getAttribute("data-drop-target"), "true");
+    await child.dispatchEvent("dragend", { dataTransfer: transfer });
+    await nested.locator("[data-drop-target]").waitFor({ state: "detached" });
+    await transfer.dispose();
+    await child.dragTo(parent);
+    assert.equal(await parent.locator("../..").locator("[data-object-id]").count(), 3);
+    assert.equal(await nested.getByRole("button", { name: "New group", exact: true }).count(), 0);
+    assert.equal(await nested.getByRole("combobox").count(), 0);
+    await roomInstance.dragTo(parent);
+    await nested
+      .getByRole("alert")
+      .filter({ hasText: "Rooms must remain at the scene root" })
+      .waitFor();
+    // Keyboard moves and undo use the same parent validation as pointer drops
+    const moved = nested.locator(`[data-object-id="${movedId}"]`);
+    await moved.press("Control+x");
+    await roomInstance.press("Control+v");
+    assert.equal(
+      await roomInstance.locator("../..").locator(`[data-object-id="${movedId}"]`).count(),
+      1,
+    );
+    await nested.getByRole("button", { name: "Undo", exact: true }).click();
+    assert.equal(await parent.locator("../..").locator(`[data-object-id="${movedId}"]`).count(), 1);
   } finally {
     await nestedContext.close();
   }

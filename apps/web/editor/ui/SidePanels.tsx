@@ -4,7 +4,7 @@ import type { Transform, Vector3Tuple } from "../../shared/project/project-types
 import { Icon, type IconName } from "./Icon";
 import { degreesToQuaternion, quaternionToDegrees } from "./rotation-angles";
 
-import { SceneTreePanel, type Room } from "./SceneTreePanel";
+import { SceneTreePanel, type Room, type HierarchyActions } from "./SceneTreePanel";
 import type { ProjectGroup } from "../../shared/project/project-content";
 
 type PanelId = "position" | "tree" | "interaction";
@@ -25,8 +25,10 @@ export function SidePanels({
   onSelect,
   onTransform,
   groups,
+  hierarchy,
 }: {
   groups: readonly ProjectGroup[];
+  hierarchy: HierarchyActions;
   visitor: boolean;
   room: Room | undefined;
   objects: readonly SceneObject[];
@@ -72,6 +74,7 @@ export function SidePanels({
               key={room?.id ?? "draft"}
               room={room}
               groups={groups}
+              hierarchy={hierarchy}
               objects={objects}
               selectedId={selectedId}
               onSelect={onSelect}

@@ -1252,3 +1252,13 @@ a {
   height: 1.25rem;
   flex-shrink: 0;
 }
+
+.scene-root[data-drop-target] {
+  outline: 2px solid #777;
+  outline-offset: -2px;
+  border-radius: 0.6rem;
+  background: #e2dccb;
+}
+.scene-root[data-dragging] {
+  opacity: 0.5;
+}

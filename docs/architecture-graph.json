@@ -200,7 +200,7 @@
     "architecture.check.mjs": "712edf41ac0ee3637c1c83e413c68db7dfdb2b5158ea5b8c0762bc84f37ec6f4",
     "architecture.mjs": "6f851703acc17eba0a9c5aca7cb58fb80ab8d10f36faac54753449ea7e8b5e4a",
     "asset-catalogue-plugin.ts": "580b26c28695231be194830f1d638c9a07ea317c68f68d2149680d4951efff26",
-    "editor/App.tsx": "8bee69ea67575362628d09972a4727f566be212fc3cbd9a9d0b866eb8e116748",
+    "editor/App.tsx": "074de0660232b843f78935fe1cc7713a9fdeed2d0041321a7c72cfa730e59e53",
     "editor/ProjectConfirmation.tsx": "07a0fedf8fbf88865b3b8232c8665c139348fc64ebce478ea01e55eb7fd14eff",
     "editor/asset-library.test.ts": "c9e2edecc20490b0ef9ee9b91b294899e20aeac5dc107ddf9d7bc28ed1d87fb9",
     "editor/asset-library.ts": "9caeac93faee31a72a062e61018ad3a3ed99af699478e87d645bbc618d5a67ec",
@@ -237,8 +237,8 @@
     "editor/transform-command.ts": "338ad5ff277ed1bfa0b9bb9164a441be0fb5fb125a392e35e3ba632e9a179d13",
     "editor/ui/BottomBar.tsx": "a5a52f3200e6f12f9a1173c7859da124eabf4cd6fd0c6e1ec1d25b3df1afb69a",
     "editor/ui/Icon.tsx": "536064fa8990e7e522f64eba9e25106359c903257d84837b6575ba5c99307e1b",
-    "editor/ui/SceneTreePanel.tsx": "d58f174da73156cdc4cc8c79547e3b13dbc364ff2bc14f7f90de69be99e3e502",
-    "editor/ui/SidePanels.tsx": "5d50729e93a83b5a644a5fcdd28c664031f29290268ca6248e0f978671995184",
+    "editor/ui/SceneTreePanel.tsx": "5a8a98b76105d45577920d36f27e186e79813a259cc7b0795c9f5c0976302df9",
+    "editor/ui/SidePanels.tsx": "3033756f848cc5616a996c294a8f2b377f33c7ad50b7992849f14e03e70aac9a",
     "editor/ui/TopBar.tsx": "f7122b3c7bd93b7257bbb74392b996acbf3397650fecea4e69bd3d6c2c0fef21",
     "editor/ui/dock-edge.test.ts": "5f23848e403e898efc84d2c34ae327b5d5313a066c6391a79cec336e73759ead",
     "editor/ui/dock-edge.ts": "16fbf3250e0c840d7d6d0add10b5fb4ee008afafcbbebe1b860c15171d7196af",
@@ -276,7 +276,7 @@
     "tests/deployment.check.mjs": "c4cedc5151c1b043b6eee66ae1dcf144c97cc2645d8f1956f99f70942c07ab9e",
     "tests/editor-build.check.mjs": "ddad12cec87babbd5365e3d4cd4ec25187d8e1a5485d04bf2dcce3b3e273606a",
     "tests/editor-integration.check.mjs": "01ae358ec88769454cac1e0fb162c9ce7fe4c2096cafad431aaa8a00620d761d",
-    "tests/editor-shell.check.mjs": "349dda26de93177ce7387ddb1134b7de361d305f39bbf75cbe722c009134df66",
+    "tests/editor-shell.check.mjs": "a5ea053b17d90cb528a2990da4d1ff8604fb7e59de9a02dabebf4e121ec8f7e7",
     "tests/history-recovery.check.mjs": "3d9ceb4d7017d144eb320135dae052cbcfdf3f849d6757a825f3e2764c4e32e7",
     "tests/local-drafts.check.mjs": "a52e4b31be4c7a0f701a7bd2f9cd38a0d2fa97fdaea621f2144bc71baee87c6c",
     "tests/project-format-cross.check.mjs": "0d382287fd435f4f03647d8141f7d854ab7a6ec6906a07886e65a4352b0917e9",
@@ -286,7 +286,7 @@
     "shared/project/fixtures/m1-project.json": "3aeeee4397fd9ad18fc06eba32815ef5032ecf8184200aaa38a2076b882a4947",
     "shared/project/fixtures/m2-project.json": "ccafa7cfce33d73c5ffc77672ebe30101a059d30d1c9a9855c0f3e65c1b9fe78",
     "shared/project/fixtures/project-format-cases.json": "c8e38b2bee10cb9979ef61635580015edec86c65b65906e096a508b8aa8a9b46",
-    "editor/styles.css": "d37546abb9f1bb030d081961268eeb2161885fab36634b389c8dde06c884ee04"
+    "editor/styles.css": "03eddb8774c2acd3af3ad83f55cc26083aea22d0fc86b5aff292426221d828a5"
   },
   "imports": [
     {
@@ -2101,7 +2101,7 @@
     },
     {
       "file": "editor/ui/SceneTreePanel.tsx",
-      "line": 65,
+      "line": 87,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -2175,7 +2175,7 @@
     },
     {
       "file": "editor/ui/SidePanels.tsx",
-      "line": 43,
+      "line": 45,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {

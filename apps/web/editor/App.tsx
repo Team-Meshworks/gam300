@@ -315,6 +315,18 @@ export function App() {
                 }
           }
           groups={groups}
+          hierarchy={{
+            // The store owns validation and undo; panels only choose the requested operation
+            move(id, parentId) {
+              const result = store.reparent(id, parentId);
+              if (!result.ok) {
+                setError(result.error.message);
+                return;
+              }
+              setError("");
+              setNotice("Hierarchy updated. Undo is available.");
+            },
+          }}
           objects={objects}
           selectedId={roomSelected ? projectScene.id : groupSelected ? selectedId : selection}
           selectedObject={selectedObject}
