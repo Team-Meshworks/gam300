@@ -1762,8 +1762,10 @@ formatting checks passed. Assignment batch integration remains to be implemented
 Assignment metadata stores the title, description, instructions and an absolute
 deadline as integer Unix seconds. Clients enter and display that instant in their
 own device's local time; the server does not store a class time zone. The supported
-range matches `DateTimeOffset.FromUnixTimeSeconds`. Assignment and student-project
-mappings are server-owned and kept outside the authored project document.
+range matches `DateTimeOffset.FromUnixTimeSeconds`. The selected deadline is the
+chosen instant, rather than the end of a calendar day; SCRUM-164 owns submission
+behavior at or after that cutoff. Assignment and student-project mappings are
+server-owned and kept outside the authored project document.
 
 The database ties each mapping to the assignment's class and organization, an
 enrolled Creator-role account and a project in the same organization. A project
@@ -1773,6 +1775,9 @@ whose creation history cannot be established. The policy for copies, imports and
 other unverified content is deferred until a dedicated project file format is
 defined. The storage alone does not create assignments, classify existing projects
 or enforce the review/publication policy; SCRUM-164 and SCRUM-85 own those consumers.
+The project/organization composite foreign keys are declared in the migration
+alongside EF's single-project relationships, so tracked ordinary projects retain
+their existing update behavior. Future migrations must preserve those constraints.
 
 On 29 October 2026 seven focused PostgreSQL cases passed, including timestamp
 bounds and invalid mappings. The migration-schema comparison, Identity-to-current

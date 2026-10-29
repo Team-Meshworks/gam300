@@ -1,5 +1,7 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using Spatia.Server.Accounts;
@@ -107,6 +109,43 @@ public sealed class ClassAssignmentPersistenceTests
         var reopened = verification.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         await Assert.That(await reopened.ClassAssignmentStudents.CountAsync()).IsEqualTo(1);
         await Assert.That(await reopened.ProjectProvenances.CountAsync()).IsEqualTo(1);
+    }
+
+    [Test]
+    [Arguments("source")]
+    [Arguments("student")]
+    public async Task ClassAssignmentDatabase_RejectsMovingReferencedProjectsToAnotherOrganization(string scenario)
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
+        var data = await SeedAsync(fixture);
+        var projectId = scenario == "source" ? data.SourceId : data.ProjectId;
+        await using (var scope = fixture.Database.Services.CreateAsyncScope())
+        {
+            var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var project = await database.Projects.SingleAsync(row => row.Id == projectId);
+            project.OrganizationId = data.ForeignOrganizationId;
+            var failure = await Assert.ThrowsAsync<DbUpdateException>(async () => await database.SaveChangesAsync());
+            await Assert.That((failure?.InnerException as PostgresException)?.SqlState).IsEqualTo(PostgresErrorCodes.ForeignKeyViolation);
+        }
+        await using var verification = fixture.Database.Services.CreateAsyncScope();
+        var reopened = verification.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await Assert.That((await reopened.Projects.SingleAsync(row => row.Id == projectId)).OrganizationId).IsEqualTo(data.OrganizationId);
+    }
+
+    [Test]
+    public async Task ClassAssignmentDatabase_OrganizationConstraintMigrationRoundTripsExistingData()
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
+        var data = await SeedAsync(fixture);
+        await using var scope = fixture.Database.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var migrator = database.GetService<IMigrator>();
+        await migrator.MigrateAsync("20261029150457_AddClassAssignmentStorage");
+        await migrator.MigrateAsync();
+        await Assert.That(await database.Database.GetPendingMigrationsAsync()).IsEmpty();
+        await Assert.That(await database.ClassAssignments.AnyAsync(row => row.Id == data.AssignmentId)).IsTrue();
+        await Assert.That(await database.ClassAssignmentStudents.AnyAsync(row => row.ProjectId == data.ProjectId)).IsTrue();
+        await Assert.That(await database.ProjectProvenances.AnyAsync(row => row.ProjectId == data.ProjectId)).IsTrue();
     }
 
     private static async Task<Seeded> SeedAsync(HttpsApplicationFixture fixture)

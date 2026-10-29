@@ -356,11 +356,11 @@ namespace Spatia.Server.Persistence.Migrations
 
                     b.HasIndex("CreatedByUserId");
 
+                    b.HasIndex("SourceProjectId");
+
                     b.HasIndex("ClassroomId", "Id");
 
                     b.HasIndex("ClassroomId", "OrganizationId");
-
-                    b.HasIndex("SourceProjectId", "OrganizationId");
 
                     b.ToTable("class_assignments", null, t =>
                         {
@@ -410,8 +410,6 @@ namespace Spatia.Server.Persistence.Migrations
                         .IsUnique();
 
                     b.HasIndex("ClassroomId", "StudentId");
-
-                    b.HasIndex("ProjectId", "OrganizationId");
 
                     b.HasIndex("StudentId", "AssignmentId");
 
@@ -537,6 +535,9 @@ namespace Spatia.Server.Persistence.Migrations
 
                     b.HasIndex("LastMutationActorId");
 
+                    b.HasIndex("Id", "OrganizationId")
+                        .IsUnique();
+
                     b.HasIndex("OrganizationId", "IsArchived");
 
                     b.ToTable("projects", null, t =>
@@ -607,8 +608,6 @@ namespace Spatia.Server.Persistence.Migrations
                         .HasColumnName("student_id");
 
                     b.HasKey("ProjectId");
-
-                    b.HasIndex("ProjectId", "OrganizationId");
 
                     b.HasIndex("ClassAssignmentId", "StudentId", "OrganizationId");
 
@@ -692,16 +691,15 @@ namespace Spatia.Server.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("Spatia.Server.Classes.Classroom", null)
+                    b.HasOne("Spatia.Server.Projects.Project", null)
                         .WithMany()
-                        .HasForeignKey("ClassroomId", "OrganizationId")
-                        .HasPrincipalKey("Id", "OrganizationId")
+                        .HasForeignKey("SourceProjectId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("Spatia.Server.Projects.Project", null)
+                    b.HasOne("Spatia.Server.Classes.Classroom", null)
                         .WithMany()
-                        .HasForeignKey("SourceProjectId", "OrganizationId")
+                        .HasForeignKey("ClassroomId", "OrganizationId")
                         .HasPrincipalKey("Id", "OrganizationId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
@@ -709,16 +707,15 @@ namespace Spatia.Server.Persistence.Migrations
 
             modelBuilder.Entity("Spatia.Server.Classes.ClassAssignmentStudent", b =>
                 {
-                    b.HasOne("Spatia.Server.Classes.ClassroomMember", null)
+                    b.HasOne("Spatia.Server.Projects.Project", null)
                         .WithMany()
-                        .HasForeignKey("ClassroomId", "StudentId")
+                        .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("Spatia.Server.Projects.Project", null)
+                    b.HasOne("Spatia.Server.Classes.ClassroomMember", null)
                         .WithMany()
-                        .HasForeignKey("ProjectId", "OrganizationId")
-                        .HasPrincipalKey("Id", "OrganizationId")
+                        .HasForeignKey("ClassroomId", "StudentId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
@@ -796,8 +793,7 @@ namespace Spatia.Server.Persistence.Migrations
                 {
                     b.HasOne("Spatia.Server.Projects.Project", null)
                         .WithMany()
-                        .HasForeignKey("ProjectId", "OrganizationId")
-                        .HasPrincipalKey("Id", "OrganizationId")
+                        .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 

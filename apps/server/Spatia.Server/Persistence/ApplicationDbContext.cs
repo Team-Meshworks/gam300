@@ -140,7 +140,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                     """);
             });
             project.HasKey(record => record.Id);
-            project.HasAlternateKey(record => new { record.Id, record.OrganizationId });
+            // Composite organization foreign keys are added by migration so EF can still update this property.
+            project.HasIndex(record => new { record.Id, record.OrganizationId }).IsUnique();
             project.Property(record => record.Id).HasColumnName("id");
             project.Property(record => record.OrganizationId).HasColumnName("organization_id");
             project.Property(record => record.IsArchived).HasColumnName("archived");
@@ -245,8 +246,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                 .HasPrincipalKey(record => new { record.Id, record.OrganizationId })
                 .OnDelete(DeleteBehavior.Restrict);
             assignment.HasOne<Project>().WithMany()
-                .HasForeignKey(record => new { record.SourceProjectId, record.OrganizationId })
-                .HasPrincipalKey(record => new { record.Id, record.OrganizationId })
+                .HasForeignKey(record => record.SourceProjectId)
                 .OnDelete(DeleteBehavior.Restrict);
             assignment.HasOne<ApplicationUser>().WithMany()
                 .HasForeignKey(record => record.CreatedByUserId)
@@ -280,8 +280,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                 .HasPrincipalKey(record => new { record.OrganizationId, record.UserId, record.RoleId })
                 .OnDelete(DeleteBehavior.Restrict);
             student.HasOne<Project>().WithMany()
-                .HasForeignKey(record => new { record.ProjectId, record.OrganizationId })
-                .HasPrincipalKey(record => new { record.Id, record.OrganizationId })
+                .HasForeignKey(record => record.ProjectId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -298,8 +297,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             origin.Property(record => record.ClassAssignmentId).HasColumnName("class_assignment_id");
             origin.Property(record => record.StudentId).HasColumnName("student_id");
             origin.HasOne<Project>().WithMany()
-                .HasForeignKey(record => new { record.ProjectId, record.OrganizationId })
-                .HasPrincipalKey(record => new { record.Id, record.OrganizationId })
+                .HasForeignKey(record => record.ProjectId)
                 .OnDelete(DeleteBehavior.Restrict);
             origin.HasOne<ClassAssignmentStudent>().WithMany()
                 .HasForeignKey(record => new { AssignmentId = record.ClassAssignmentId, record.StudentId, record.OrganizationId })
