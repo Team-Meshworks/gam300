@@ -128,10 +128,10 @@ public sealed class ReviewSubmissionEndpointTests
         finally { foreach (var response in results) { response.Dispose(); } }
     }
 
-    private static Task<HttpsApplicationFixture> CreateFixtureAsync(FixtureAssets assets) =>
+    internal static Task<HttpsApplicationFixture> CreateFixtureAsync(FixtureAssets assets) =>
         HttpsApplicationFixture.CreateAsync(builder => builder.Services.AddSingleton<IReviewAssetResolver>(assets), environmentName: "Development");
 
-    private static async Task<Seeded> SeedAsync(HttpsApplicationFixture fixture, bool late)
+    internal static async Task<Seeded> SeedAsync(HttpsApplicationFixture fixture, bool late)
     {
         var educator = await fixture.CreateAccountAsync(ApplicationRoles.Educator);
         var student = await fixture.CreateAccountAsync();
@@ -202,7 +202,7 @@ public sealed class ReviewSubmissionEndpointTests
         UpdatedAt = DateTimeOffset.UtcNow,
     };
 
-    private static async Task<HttpResponseMessage> SubmitAsync(HttpsApplicationFixture fixture, Guid projectId, Guid submissionId,
+    internal static async Task<HttpResponseMessage> SubmitAsync(HttpsApplicationFixture fixture, Guid projectId, Guid submissionId,
         long revision, bool confirmed, HttpClient? client = null, string? token = null)
     {
         client ??= fixture.Client;
@@ -214,7 +214,7 @@ public sealed class ReviewSubmissionEndpointTests
         return await client.SendAsync(message);
     }
 
-    private static async Task<HttpResponseMessage> SaveAsync(HttpsApplicationFixture fixture, Guid projectId)
+    internal static async Task<HttpResponseMessage> SaveAsync(HttpsApplicationFixture fixture, Guid projectId)
     {
         using var document = JsonDocument.Parse(ProjectTestDocuments.Create(projectId, "Newer draft"));
         using var message = new HttpRequestMessage(HttpMethod.Put, $"/api/projects/{projectId:D}")
@@ -225,9 +225,9 @@ public sealed class ReviewSubmissionEndpointTests
         return await fixture.Client.SendAsync(message);
     }
 
-    private sealed record Seeded(Guid Educator, Guid Student, Guid OtherStudent, Guid ClassroomId, Guid ProjectId, long Due);
+    internal sealed record Seeded(Guid Educator, Guid Student, Guid OtherStudent, Guid ClassroomId, Guid ProjectId, long Due);
 
-    private sealed class FixtureAssets : IReviewAssetResolver
+    internal sealed class FixtureAssets : IReviewAssetResolver
     {
         public string Mode { get; init; } = "valid";
         public int Calls;

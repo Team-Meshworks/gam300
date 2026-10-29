@@ -24,6 +24,13 @@ public static class ReviewSubmissionEndpoints
         endpoints.MapPost("/api/projects/{id:guid}/submissions", SubmitAsync)
             .RequireAuthorization(SecurityPolicies.FullAccount)
             .RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
+        endpoints.MapGet("/api/projects/{id:guid}/submissions", ReviewReads.ListAsync)
+            .RequireAuthorization(SecurityPolicies.FullAccount);
+        endpoints.MapGet("/api/projects/{id:guid}/submissions/{submissionId:guid}", ReviewReads.GetAsync)
+            .RequireAuthorization(SecurityPolicies.FullAccount);
+        endpoints.MapPost("/api/projects/{id:guid}/submissions/{submissionId:guid}/decisions", ReviewDecisions.DecideAsync)
+            .RequireAuthorization(SecurityPolicies.FullAccount)
+            .RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
         return endpoints;
     }
 
@@ -98,6 +105,14 @@ public static class ReviewSubmissionEndpoints
         { SqlState: PostgresErrorCodes.UniqueViolation, ConstraintName: "PK_review_submissions" })
         {
             return Conflict(context);
+        }
+        var current = await access.LockAsync(context, id, ProjectLockPurpose.EditDraft, cancellationToken);
+        if (current.Failure is { } currentFailure) { return ProjectHttpResults.FromAccessFailure(context, currentFailure); }
+        var currentAccount = await access.ResolveCurrentAccountAsync(context, cancellationToken);
+        if (currentAccount is null) { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired); }
+        if (currentAccount.Role != ApplicationRoles.Creator)
+        {
+            return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.OperationForbidden);
         }
         return await ClassroomEndpoints.CompleteAsync(context, transaction,
             Results.Json(Acknowledgement(submission), statusCode: 201), cancellationToken);

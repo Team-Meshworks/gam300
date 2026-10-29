@@ -1906,8 +1906,8 @@ used a regenerated snapshot and had no pending model changes. A fresh database,
 an upgrade from publication-first with an existing edition, and an upgrade from
 class-first with existing mappings all passed. The combined class and publication
 regressions passed 171 cases. The unavailable publication integration rejected a
-known class draft and created no edition. SCRUM-164 review and the production
-publication adapter are not implemented, so this does not verify approval or
+known class draft and created no edition. At that point SCRUM-164 review and the production
+publication adapter were not implemented, so that run did not verify approval or
 publication of a reviewed assignment.
 
 A separate SCRUM-162 local integration connected the creation, assignment-list
@@ -1947,4 +1947,19 @@ intent or a stale revision is rejected. The response includes the recorded due
 instant and whether the server received the submission late. Only the mapped
 student with current access can submit. The default asset resolver rejects the
 request until the asset owner can supply approved, retained immutable bytes and
-their identities. Review decision routes and publication integration remain separate.
+their identities. Publication integration remains separate.
+
+Authorized students and educators can list private submissions and retrieve the
+saved document, asset identities and decision history through the corresponding
+GET routes. Lists use an exclusive UUID cursor and a maximum page size of 20.
+The detail response reports the latest decision and whether the submission is
+the latest one for the current project revision; old approvals are history only.
+An educator with current class membership and project management authority can
+approve or return the current submission. An approval can also be revoked or
+returned; after either, the student must submit again before another decision.
+Identical decision retries return the stored result. The project lock serializes
+submission, decision, draft edits and membership or grant changes. Changes to
+the draft or a later submission remove review approval for a future publication,
+without modifying existing published editions. Administrators gain no separate
+review authority. The publisher must still enforce its own authorization and
+consume the review check; it is not connected by these routes.
