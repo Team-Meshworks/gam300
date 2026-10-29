@@ -1735,10 +1735,10 @@ account-write rate limit.
 This part does not create assignments or student drafts. Later SCRUM-161 work must
 keep roster changes and affected drafts consistent under the shared project lock.
 The selected deadline policy is an absolute Unix timestamp entered and displayed in
-each user's device time. Server-side copies retain class review requirements;
-imports of unknown origin need review or trusted verification before publishing.
-Those assignment, provenance, review and publication integrations are not provided
-by these roster routes.
+each user's device time. Copy/import provenance and how an unknown origin affects
+publication are deferred until a dedicated project file format is defined. Those
+assignment, provenance, review and publication integrations are not provided by
+these roster routes.
 
 On 29 October 2026 the focused class suite passed 8/8 cases, the route inventory,
 migration-schema comparison and Identity-to-current upgrade checks each passed,
@@ -1769,10 +1769,10 @@ The database ties each mapping to the assignment's class and organization, an
 enrolled Creator-role account and a project in the same organization. A project
 origin can be recorded as ordinary or as class work tied to a retained student
 mapping. A missing origin record means unverified, including existing projects
-whose creation history cannot be established. Class origins must survive copies;
-unverified imports require review or trusted verification before publication.
-The storage alone does not create assignments, classify existing projects or enforce
-the review/publication policy; SCRUM-164 and SCRUM-85 own those consumers.
+whose creation history cannot be established. The policy for copies, imports and
+other unverified content is deferred until a dedicated project file format is
+defined. The storage alone does not create assignments, classify existing projects
+or enforce the review/publication policy; SCRUM-164 and SCRUM-85 own those consumers.
 
 On 29 October 2026 seven focused PostgreSQL cases passed, including timestamp
 bounds and invalid mappings. The migration-schema comparison, Identity-to-current
@@ -1789,8 +1789,24 @@ limit bounds the complete body.
 The server-derived SHA-256 retry digest binds the class, actor, request ID,
 source, metadata and student set. Reordering the same students does not change
 the digest; changing the actor or content does. This validation does not grant
-authority or create an assignment; the transaction and routes remain pending.
+authority or create an assignment.
 The two focused request-validation and retry-digest cases passed on 29 October 2026.
+
+## SCRUM-161 part 5: assignment transaction
+
+An internal coordinator locks and reauthorizes the class and source project,
+checks the current roster and source revision, then creates at most twenty
+independent student drafts, their assignment mappings and server-known class
+origins in one transaction. Any failure rolls the entire batch back. Retrying an
+identical request ID returns the original draft IDs; reusing it with changed
+details returns a conflict. Assignment metadata remains outside project JSON.
+
+The coordinator has no production route yet. Roster/project access must be
+coordinated before exposing it, and copy/import origin policy remains deferred
+until the dedicated project file format is defined. Five focused cases passed
+on 29 October 2026, covering independent drafts, rollback and retry, authorization,
+concurrent identical requests and roster rechecks. The Release build and both
+project formatting checks also passed.
 
 SCRUM-126 project-home UI, SCRUM-67 autosave/recovery integration, publication/asset
 delivery, hosted CI and deployment remain separate. Production still has no approved

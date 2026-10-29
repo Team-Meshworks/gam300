@@ -179,7 +179,7 @@ public static class ClassroomEndpoints
         return await CompleteAsync(context, transaction, Results.NoContent(), cancellationToken);
     }
 
-    private static async Task<(Classroom? Classroom, IResult? Failure)> FindAsync(Guid id, HttpContext context,
+    internal static async Task<(Classroom? Classroom, IResult? Failure)> FindAsync(Guid id, HttpContext context,
         ApplicationDbContext database, ProjectAccessService access, bool managerOnly, bool lockRow, CancellationToken cancellationToken)
     {
         if (lockRow)
@@ -241,7 +241,7 @@ public static class ClassroomEndpoints
         return true;
     }
 
-    private static async Task<IResult> CompleteAsync(HttpContext context, IDbContextTransaction transaction, IResult result,
+    internal static async Task<IResult> CompleteAsync(HttpContext context, IDbContextTransaction transaction, IResult result,
         CancellationToken cancellationToken)
     {
         if (HasExpired(context)) { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired); }
