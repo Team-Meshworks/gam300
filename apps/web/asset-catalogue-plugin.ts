@@ -23,6 +23,7 @@ type Entry = {
   thumbnailMode?: "generated";
   placement?: "bottom-center";
   access: string;
+  category: string;
 };
 
 function deliveryPath(value: unknown, extension: RegExp): string {
@@ -51,6 +52,8 @@ export function assetCataloguePlugin(): Plugin {
       !entry.name.trim() ||
       !["environment", "model"].includes(entry.kind) ||
       entry.access !== "development-only" ||
+      typeof entry.category !== "string" ||
+      !entry.category.trim() ||
       (entry.placement !== undefined && entry.placement !== "bottom-center") ||
       (entry.thumbnail === null && entry.thumbnailMode !== "generated")
     ) {
@@ -133,6 +136,8 @@ export function assetCataloguePlugin(): Plugin {
             JSON.stringify(entry.name) +
             ",kind:" +
             JSON.stringify(entry.kind) +
+            ",category:" +
+            JSON.stringify(entry.category) +
             ",sha256:" +
             JSON.stringify(entry.sha256) +
             ",url:model" +

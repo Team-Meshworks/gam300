@@ -1,4 +1,4 @@
-import { searchAssets, type CatalogueAsset } from "../shared/assets/catalogue";
+import { assetCategories, searchAssets, type CatalogueAsset } from "../shared/assets/catalogue";
 import type { SceneObject, Vector3Tuple } from "../shared/project/scene-object";
 import type { ProjectDocument } from "../shared/project/project-types";
 import type { createDocumentStore } from "./document-store";
@@ -6,6 +6,7 @@ import type { createDocumentStore } from "./document-store";
 type LibrarySnapshot = Readonly<{
   mode: "closed" | "browsing" | "placing";
   query: string;
+  category: (typeof assetCategories)[number];
   results: readonly CatalogueAsset[];
   assetId: string | null;
   canRemove: boolean;
@@ -23,6 +24,7 @@ export function createAssetLibrary(
   let snapshot: LibrarySnapshot = Object.freeze({
     mode: "closed",
     query: "",
+    category: "All",
     results: models,
     assetId: null,
     canRemove: false,
@@ -91,8 +93,25 @@ export function createAssetLibrary(
     },
     search(query: string) {
       // Search is literal, case-insensitive name matching with catalogue order preserved
-      // Categories/tags remain deferred until the actual filter list is agreed
-      publish({ ...snapshot, query, results: Object.freeze(searchAssets(models, query)) });
+      // The current category stays active while the user changes the search text
+      publish({
+        ...snapshot,
+        query,
+        results: Object.freeze(searchAssets(models, query, snapshot.category)),
+      });
+    },
+    // Reject unknown category values without disturbing the picker or current project
+    filter(category: string) {
+      const selected = assetCategories.find((value) => value === category);
+      if (selected === undefined) {
+        return false;
+      }
+      publish({
+        ...snapshot,
+        category: selected,
+        results: Object.freeze(searchAssets(models, snapshot.query, selected)),
+      });
+      return true;
     },
     choose(assetId: string): { ok: true } | { ok: false; error: string } {
       if (snapshot.mode !== "browsing" || !snapshot.results.some((asset) => asset.id === assetId)) {

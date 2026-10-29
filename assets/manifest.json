@@ -9,7 +9,7 @@
       "sourceFile": "source/test-room.blend",
       "byteSize": 7864,
       "sha256": "121c9d86eefb1961a697a390967dfeface3ce1f612334d2fbc447551ddfd88d1",
-      "category": "test-assets",
+      "category": "Architecture",
       "thumbnail": "delivery/thumbnails/test-room.png",
       "access": "development-only",
       "license": {
@@ -44,7 +44,7 @@
       "sourceFile": "source/test-crate.blend",
       "byteSize": 1952,
       "sha256": "b8ecc4ef7611af4c07a0c0b9eafdb39de080a05098e18f064ac7a26ebb04a28a",
-      "category": "test-assets",
+      "category": "Objects",
       "thumbnail": "delivery/thumbnails/test-crate.png",
       "access": "development-only",
       "license": {
@@ -79,7 +79,7 @@
       "sourceFile": "source/snowglobe.glb",
       "byteSize": 619712,
       "sha256": "725c40d8821852604a781a8bb3500db884804be6c7ce6594a8244718f48ab4ee",
-      "category": "test-assets",
+      "category": "Objects",
       "thumbnail": null,
       "thumbnailMode": "generated",
       "placement": "bottom-center",
@@ -100,7 +100,7 @@
       "sourceFile": "source/test-room.blend",
       "byteSize": 7864,
       "sha256": "121c9d86eefb1961a697a390967dfeface3ce1f612334d2fbc447551ddfd88d1",
-      "category": "test-assets",
+      "category": "Architecture",
       "thumbnail": "delivery/thumbnails/test-room.png",
       "access": "development-only",
       "license": {
