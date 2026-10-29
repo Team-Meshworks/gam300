@@ -174,7 +174,20 @@ public static class ClassroomEndpoints
             }
             else { member.IsActive = true; }
         }
-        else if (member is not null) { member.IsActive = false; }
+        else if (member is { IsActive: true })
+        {
+            var allProjects = member.RoleId == ApplicationRoles.EducatorId;
+            // Class then project locks serialize removals with already-authorized project writes.
+            await database.Database.ExecuteSqlInterpolatedAsync($"""
+                SELECT p.id FROM projects p
+                JOIN class_assignment_students s ON s.project_id = p.id
+                WHERE s.classroom_id = {id} AND ({allProjects} OR s.student_id = {userId})
+                ORDER BY p.id FOR UPDATE OF p
+                """, cancellationToken);
+            var (_, reauthorizationFailure) = await FindAsync(id, context, database, access, true, false, cancellationToken);
+            if (reauthorizationFailure is not null) { return reauthorizationFailure; }
+            member.IsActive = false;
+        }
         await database.SaveChangesAsync(cancellationToken);
         return await CompleteAsync(context, transaction, Results.NoContent(), cancellationToken);
     }

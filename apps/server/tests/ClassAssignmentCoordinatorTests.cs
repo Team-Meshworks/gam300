@@ -207,6 +207,150 @@ public sealed class ClassAssignmentCoordinatorTests
         await Assert.That(await database.Projects.CountAsync()).IsEqualTo(1);
     }
 
+    [Test]
+    public async Task AssignmentAccess_RequiresCurrentClassMembershipButPreservesDraftsAndOtherProjects()
+    {
+        await using var fixture = await CreateFixtureAsync();
+        var data = await SeedAsync(fixture);
+        var projects = await CreateProjectsAsync(fixture, data);
+        var anotherEducator = await fixture.CreateAccountAsync(ApplicationRoles.Educator);
+        await using (var scope = fixture.Database.Services.CreateAsyncScope())
+        {
+            var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var organization = await database.Classrooms.Where(row => row.Id == data.ClassroomId)
+                .Select(row => row.OrganizationId).SingleAsync();
+            await database.OrganizationMemberships.Where(row => row.UserId == anotherEducator)
+                .ExecuteUpdateAsync(set => set.SetProperty(row => row.OrganizationId, organization));
+            database.ClassroomMembers.Add(new ClassroomMember
+            {
+                ClassroomId = data.ClassroomId,
+                OrganizationId = organization,
+                UserId = anotherEducator,
+                RoleId = ApplicationRoles.EducatorId,
+            });
+            database.ProjectAssignments.AddRange(
+                new ProjectAssignment { ProjectId = data.SourceProject, UserId = data.FirstStudent, CanEdit = true },
+                new ProjectAssignment { ProjectId = projects[data.SecondStudent], UserId = data.FirstStudent, CanEdit = true },
+                new ProjectAssignment { ProjectId = projects[data.FirstStudent], UserId = anotherEducator, CanEdit = true, CanManage = true },
+                new ProjectAssignment { ProjectId = data.SourceProject, UserId = anotherEducator, CanEdit = true, CanManage = true });
+            await database.SaveChangesAsync();
+        }
+        using var studentClient = fixture.CreateClient();
+        using var educatorClient = fixture.CreateClient();
+        await fixture.SignInAsync(data.FirstStudent, studentClient);
+        await fixture.SignInAsync(anotherEducator, educatorClient);
+        await AssertProjectStatusAsync(studentClient, projects[data.FirstStudent], HttpStatusCode.OK);
+        await AssertProjectStatusAsync(studentClient, projects[data.SecondStudent], HttpStatusCode.NotFound);
+        await AssertProjectStatusAsync(educatorClient, projects[data.FirstStudent], HttpStatusCode.OK);
+
+        using (var removed = await ChangeMemberAsync(fixture, data.ClassroomId, data.FirstStudent, HttpMethod.Delete))
+        { await Assert.That(removed.StatusCode).IsEqualTo(HttpStatusCode.NoContent); }
+        using (var removed = await ChangeMemberAsync(fixture, data.ClassroomId, anotherEducator, HttpMethod.Delete))
+        { await Assert.That(removed.StatusCode).IsEqualTo(HttpStatusCode.NoContent); }
+        await AssertProjectStatusAsync(studentClient, projects[data.FirstStudent], HttpStatusCode.NotFound);
+        await AssertProjectStatusAsync(educatorClient, projects[data.FirstStudent], HttpStatusCode.NotFound);
+        await AssertProjectStatusAsync(studentClient, data.SourceProject, HttpStatusCode.OK);
+        await AssertProjectStatusAsync(educatorClient, data.SourceProject, HttpStatusCode.OK);
+        using (var listed = await studentClient.GetAsync("/api/projects"))
+        {
+            var ids = (await listed.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("items").EnumerateArray()
+                .Select(row => row.GetProperty("projectId").GetGuid()).ToArray();
+            await Assert.That(ids.Contains(projects[data.FirstStudent])).IsFalse();
+        }
+        using (var save = await SaveDraftAsync(studentClient, projects[data.FirstStudent], "Denied", await fixture.GetCsrfAsync(studentClient)))
+        { await Assert.That(save.StatusCode).IsEqualTo(HttpStatusCode.NotFound); }
+        await using (var scope = fixture.Database.Services.CreateAsyncScope())
+        {
+            var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            await Assert.That(await database.Projects.AnyAsync(row => row.Id == projects[data.FirstStudent] && row.Revision == 0)).IsTrue();
+            await Assert.That(await database.ProjectAssignments.AnyAsync(row => row.ProjectId == projects[data.FirstStudent]
+                && row.UserId == data.FirstStudent && row.CanEdit)).IsTrue();
+        }
+        using (var restored = await ChangeMemberAsync(fixture, data.ClassroomId, data.FirstStudent, HttpMethod.Put))
+        { await Assert.That(restored.StatusCode).IsEqualTo(HttpStatusCode.NoContent); }
+        using (var restored = await ChangeMemberAsync(fixture, data.ClassroomId, anotherEducator, HttpMethod.Put))
+        { await Assert.That(restored.StatusCode).IsEqualTo(HttpStatusCode.NoContent); }
+        await AssertProjectStatusAsync(studentClient, projects[data.FirstStudent], HttpStatusCode.OK);
+        await AssertProjectStatusAsync(educatorClient, projects[data.FirstStudent], HttpStatusCode.OK);
+    }
+
+    [Test]
+    public async Task AssignmentAccess_SaveAlreadyHoldingProjectLockIsPreservedBeforeRemoval()
+    {
+        var pause = new CommitPause();
+        var probe = new ClassProjectLockProbe();
+        await using var fixture = await CreateFixtureAsync(builder =>
+            builder.Services.AddDbContext<ApplicationDbContext>(options => options.AddInterceptors(pause, probe)));
+        var data = await SeedAsync(fixture);
+        var projects = await CreateProjectsAsync(fixture, data);
+        using var student = fixture.CreateClient();
+        await fixture.SignInAsync(data.FirstStudent, student);
+        var studentToken = await fixture.GetCsrfAsync(student);
+        var educatorToken = await fixture.GetCsrfAsync();
+        pause.Armed = true;
+        var saving = SaveDraftAsync(student, projects[data.FirstStudent], "Saved before removal", studentToken);
+        Task<HttpResponseMessage>? removing = null;
+        try
+        {
+            var blocker = await pause.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            probe.Arm();
+            removing = ChangeMemberAsync(fixture, data.ClassroomId, data.FirstStudent, HttpMethod.Delete, educatorToken);
+            var waiter = await probe.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            await WaitBlockedAsync(fixture, waiter, blocker);
+            pause.Release.TrySetResult();
+            using var saved = await saving;
+            using var removed = await removing;
+            await Assert.That(saved.StatusCode).IsEqualTo(HttpStatusCode.OK);
+            await Assert.That(removed.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
+        }
+        finally
+        {
+            pause.Release.TrySetResult();
+            if (removing is not null && !removing.IsCompleted) { await removing; }
+            if (!saving.IsCompleted) { await saving; }
+        }
+        await AssertProjectStatusAsync(student, projects[data.FirstStudent], HttpStatusCode.NotFound);
+        await AssertStoredDraftAsync(fixture, projects[data.FirstStudent], "Saved before removal", 1);
+    }
+
+    [Test]
+    public async Task AssignmentAccess_SaveWaitingForRemovalRechecksMembership()
+    {
+        var pause = new CommitPause();
+        var probe = new ProjectLockProbe();
+        await using var fixture = await CreateFixtureAsync(builder =>
+            builder.Services.AddDbContext<ApplicationDbContext>(options => options.AddInterceptors(pause, probe)));
+        var data = await SeedAsync(fixture);
+        var projects = await CreateProjectsAsync(fixture, data);
+        using var student = fixture.CreateClient();
+        await fixture.SignInAsync(data.FirstStudent, student);
+        var studentToken = await fixture.GetCsrfAsync(student);
+        var educatorToken = await fixture.GetCsrfAsync();
+        pause.Armed = true;
+        var removing = ChangeMemberAsync(fixture, data.ClassroomId, data.FirstStudent, HttpMethod.Delete, educatorToken);
+        Task<HttpResponseMessage>? saving = null;
+        try
+        {
+            var blocker = await pause.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            probe.Arm();
+            saving = SaveDraftAsync(student, projects[data.FirstStudent], "Must not save", studentToken);
+            var waiter = await probe.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            await WaitBlockedAsync(fixture, waiter, blocker);
+            pause.Release.TrySetResult();
+            using var removed = await removing;
+            using var denied = await saving;
+            await Assert.That(removed.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
+            await Assert.That(denied.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+        }
+        finally
+        {
+            pause.Release.TrySetResult();
+            if (saving is not null && !saving.IsCompleted) { await saving; }
+            if (!removing.IsCompleted) { await removing; }
+        }
+        await AssertStoredDraftAsync(fixture, projects[data.FirstStudent], "Assignment", 0);
+    }
+
     private static Task<HttpsApplicationFixture> CreateFixtureAsync(Action<WebApplicationBuilder>? configure = null) =>
         HttpsApplicationFixture.CreateAsync(configure, app => app.MapPost("/_test/class-assignments/{id:guid}",
             (Guid id, ClassAssignmentRequest request, HttpContext context, ApplicationDbContext database,
@@ -250,6 +394,49 @@ public sealed class ClassAssignmentCoordinatorTests
 
     private static ClassAssignmentRequest Request(Seeded data) => new(Guid.NewGuid(), data.SourceProject, 0, 2_000_000_000,
         "Assignment", "Description", "Instructions", [data.FirstStudent, data.SecondStudent]);
+
+    private static async Task<Dictionary<Guid, Guid>> CreateProjectsAsync(HttpsApplicationFixture fixture, Seeded data)
+    {
+        using var created = await SendAsync(fixture, data.ClassroomId, Request(data));
+        await Assert.That(created.StatusCode).IsEqualTo(HttpStatusCode.Created);
+        return (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("projects").EnumerateArray()
+            .ToDictionary(row => row.GetProperty("studentId").GetGuid(), row => row.GetProperty("projectId").GetGuid());
+    }
+
+    private static async Task<HttpResponseMessage> ChangeMemberAsync(HttpsApplicationFixture fixture, Guid classroomId,
+        Guid userId, HttpMethod method, string? token = null)
+    {
+        using var message = new HttpRequestMessage(method, $"/api/classes/{classroomId:D}/members/{userId:D}");
+        message.Headers.Add("X-CSRF-TOKEN", token ?? await fixture.GetCsrfAsync());
+        return await fixture.Client.SendAsync(message);
+    }
+
+    private static async Task<HttpResponseMessage> SaveDraftAsync(HttpClient client, Guid projectId, string title, string token)
+    {
+        using var document = JsonDocument.Parse(ProjectTestDocuments.Create(projectId, title));
+        using var message = new HttpRequestMessage(HttpMethod.Put, $"/api/projects/{projectId:D}")
+        {
+            Content = JsonContent.Create(new { expectedRevision = 0, clientMutationId = Guid.NewGuid(), document = document.RootElement }),
+        };
+        message.Headers.Add("X-CSRF-TOKEN", token);
+        return await client.SendAsync(message);
+    }
+
+    private static async Task AssertProjectStatusAsync(HttpClient client, Guid projectId, HttpStatusCode expected)
+    {
+        using var response = await client.GetAsync($"/api/projects/{projectId:D}");
+        await Assert.That(response.StatusCode).IsEqualTo(expected);
+    }
+
+    private static async Task AssertStoredDraftAsync(HttpsApplicationFixture fixture, Guid projectId, string title, long revision)
+    {
+        await using var scope = fixture.Database.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var project = await database.Projects.AsNoTracking().SingleAsync(row => row.Id == projectId);
+        using var document = JsonDocument.Parse(project.DocumentJson);
+        await Assert.That(project.Revision).IsEqualTo(revision);
+        await Assert.That(document.RootElement.GetProperty("title").GetString()).IsEqualTo(title);
+    }
 
     private static async Task<HttpResponseMessage> SendAsync(HttpsApplicationFixture fixture, Guid id, ClassAssignmentRequest request,
         HttpClient? client = null, string? token = null)
@@ -324,6 +511,42 @@ public sealed class ClassAssignmentCoordinatorTests
             CommandEventData eventData, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
         {
             if (command.CommandText.Contains("classrooms", StringComparison.Ordinal)
+                && command.CommandText.Contains("FOR UPDATE", StringComparison.Ordinal)
+                && Interlocked.Exchange(ref _armed, 0) == 1)
+            {
+                Entered.TrySetResult(((NpgsqlConnection)command.Connection!).ProcessID);
+            }
+            return ValueTask.FromResult(result);
+        }
+    }
+
+    private sealed class ClassProjectLockProbe : DbCommandInterceptor
+    {
+        private int _armed;
+        public TaskCompletionSource<int> Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public void Arm() => Interlocked.Exchange(ref _armed, 1);
+        public override ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(DbCommand command,
+            CommandEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
+        {
+            if (command.CommandText.Contains("class_assignment_students", StringComparison.Ordinal)
+                && command.CommandText.Contains("FOR UPDATE OF p", StringComparison.Ordinal)
+                && Interlocked.Exchange(ref _armed, 0) == 1)
+            {
+                Entered.TrySetResult(((NpgsqlConnection)command.Connection!).ProcessID);
+            }
+            return ValueTask.FromResult(result);
+        }
+    }
+
+    private sealed class ProjectLockProbe : DbCommandInterceptor
+    {
+        private int _armed;
+        public TaskCompletionSource<int> Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public void Arm() => Interlocked.Exchange(ref _armed, 1);
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(DbCommand command,
+            CommandEventData eventData, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
+        {
+            if (command.CommandText.Contains("FROM projects", StringComparison.Ordinal)
                 && command.CommandText.Contains("FOR UPDATE", StringComparison.Ordinal)
                 && Interlocked.Exchange(ref _armed, 0) == 1)
             {

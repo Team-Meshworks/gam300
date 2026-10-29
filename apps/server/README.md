@@ -1808,6 +1808,25 @@ on 29 October 2026, covering independent drafts, rollback and retry, authorizati
 concurrent identical requests and roster rechecks. The Release build and both
 project formatting checks also passed.
 
+## SCRUM-161 part 6: class membership and draft access
+
+For a server-created student draft with a retained assignment mapping, project
+reads and writes require both the existing project grant and current class
+membership. A student can access only their own mapped draft; an educator must
+still be a manager of its class. Administrators retain their existing access.
+Ordinary projects use their existing permission rules. Removing a member preserves
+the drafts and project grants; re-adding that member restores only grants that
+still exist. Adding a new class manager does not create project grants.
+
+Removal locks the class first, then the affected original student projects in
+project-ID order, and rechecks the caller after waiting. A project write already
+holding its lock finishes before removal; a write that waits behind removal
+rechecks membership and is denied. Removing an educator waits for every mapped
+project in that class, so the transaction grows with the number of drafts.
+This protects known original drafts only; copy/import policy remains deferred.
+Three focused access and concurrency cases passed on 29 October 2026, along with
+the Release build and both formatting checks.
+
 SCRUM-126 project-home UI, SCRUM-67 autosave/recovery integration, publication/asset
 delivery, hosted CI and deployment remain separate. Production still has no approved
 asset catalogue. These backend checks do not complete parent Story/Epic acceptance.
