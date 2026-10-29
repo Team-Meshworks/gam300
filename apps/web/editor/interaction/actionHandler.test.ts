@@ -21,19 +21,25 @@ afterEach(() => {
 
 describe("action handler", () => {
   it("opens a link in a new tab", () => {
-    const open = vi.fn();
-    vi.stubGlobal("window", { open });
-
-    runAction({
-      type: "open-link",
-      url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    const url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
+    const click = vi.fn();
+    const remove = vi.fn();
+    const link = { href: "", target: "", rel: "", click, remove };
+    const append = vi.fn();
+    vi.stubGlobal("document", {
+      createElement: vi.fn(() => link),
+      body: { append },
     });
 
-    expect(open).toHaveBeenCalledWith(
-      "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-      "_blank",
-      "noopener,noreferrer",
-    );
+    runAction({ type: "open-link", url });
+
+    expect(document.createElement).toHaveBeenCalledWith("a");
+    expect(link.href).toBe(url);
+    expect(link.target).toBe("_blank");
+    expect(link.rel).toBe("noopener noreferrer");
+    expect(append).toHaveBeenCalledWith(link);
+    expect(click).toHaveBeenCalledOnce();
+    expect(remove).toHaveBeenCalledOnce();
   });
 
   it("plays audio from the action URL", () => {
@@ -65,14 +71,14 @@ describe("action handler", () => {
   });
 
   it("does nothing when a URL is missing", () => {
-    const open = vi.fn();
-    vi.stubGlobal("window", { open });
+    const createElement = vi.fn();
+    vi.stubGlobal("document", { createElement });
     vi.stubGlobal("Audio", FakeAudio);
 
     runAction({ type: "open-link" });
     runAction({ type: "play-audio" });
 
-    expect(open).not.toHaveBeenCalled();
+    expect(createElement).not.toHaveBeenCalled();
     expect(FakeAudio.latest).toBeUndefined();
   });
 });

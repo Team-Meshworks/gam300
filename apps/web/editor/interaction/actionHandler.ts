@@ -16,7 +16,7 @@ let activeAudio: HTMLAudioElement | undefined;
 export function runAction(action: Action): void {
   switch (action.type) {
     case "open-link":
-      if (action.url !== undefined) window.open(action.url, "_blank", "noopener,noreferrer");
+      if (action.url !== undefined) openInNewTab(action.url);
       return;
     case "play-audio":
       if (action.url !== undefined) playAudio(action.url);
@@ -25,6 +25,16 @@ export function runAction(action: Action): void {
       window.alert("hi");
       return;
   }
+}
+
+function openInNewTab(url: string): void {
+  const link = document.createElement("a");
+  link.href = url;
+  link.target = "_blank";
+  link.rel = "noopener noreferrer";
+  document.body.append(link);
+  link.click();
+  link.remove();
 }
 
 function playAudio(url: string): void {
