@@ -581,6 +581,28 @@ try {
     assert.equal(await parent.locator("../..").locator("[data-object-id]").count(), 3);
     assert.equal(await nested.getByRole("button", { name: "New group", exact: true }).count(), 0);
     assert.equal(await nested.getByRole("combobox").count(), 0);
+    // Inline renaming is a single edit; cancelling must never alter the authored name
+    await parent.dblclick();
+    const rename = nested.getByRole("textbox", { name: /^Rename / });
+    await rename.fill("Display pedestal");
+    await rename.press("Enter");
+    assert.equal(await parent.textContent(), "Display pedestal");
+    await parent.press("F2");
+    // Cancelling a draft must preserve both the name and the horizontal scroll width
+    const treeWidth = await nested
+      .locator(".scene-tree")
+      .evaluate((element) => element.scrollWidth);
+    await rename.fill("Cancelled name");
+    await rename.press("Escape");
+    assert.equal(
+      await nested.locator(".scene-tree").evaluate((element) => element.scrollWidth),
+      treeWidth,
+    );
+    assert.equal(await parent.textContent(), "Display pedestal");
+    await nested.getByRole("button", { name: "Undo", exact: true }).click();
+    assert.match(await parent.textContent(), /test-crate/);
+    await nested.getByRole("button", { name: "Redo", exact: true }).click();
+    assert.equal(await parent.textContent(), "Display pedestal");
     await roomInstance.dragTo(parent);
     await nested
       .getByRole("alert")
@@ -596,6 +618,11 @@ try {
     );
     await nested.getByRole("button", { name: "Undo", exact: true }).click();
     assert.equal(await parent.locator("../..").locator(`[data-object-id="${movedId}"]`).count(), 1);
+    // The first room is stored as the scene, so exercise its rename separately
+    await nested.locator(".environment-row").press("F2");
+    await nested.getByRole("textbox", { name: /^Rename / }).fill("Main gallery");
+    await nested.getByRole("textbox", { name: /^Rename / }).press("Enter");
+    assert.equal(await nested.locator(".environment-row").textContent(), "Main gallery");
   } finally {
     await nestedContext.close();
   }

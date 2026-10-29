@@ -316,6 +316,12 @@ export function App() {
           }
           groups={groups}
           hierarchy={{
+            // Route room and object renames through the same validation and undo history
+            rename(id, name) {
+              const result = store.renameObject(id, name);
+              if (!result.ok) setError(result.error.message);
+              return result.ok;
+            },
             // The store owns validation and undo; panels only choose the requested operation
             move(id, parentId) {
               const result = store.reparent(id, parentId);

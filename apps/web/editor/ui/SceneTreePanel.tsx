@@ -7,6 +7,7 @@ import { Icon } from "./Icon";
 // Additional room models are ordinary placed objects within this same scene
 export type Room = { id: string; name: string; thumbnail: string | undefined };
 export type HierarchyActions = {
+  rename: (id: string, name: string) => boolean;
   move: (id: string, parentId: string | null) => void;
 };
 
@@ -32,7 +33,8 @@ export function SceneTreePanel({
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
   const [showAll, setShowAll] = useState(false);
   const moving = useRef<string | null>(null);
-
+  // The draft name stays in the input until a confirmed store command succeeds
+  const [renaming, setRenaming] = useState<string | null>(null);
   const listId = useId();
   const dragging = useRef<string | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
@@ -103,6 +105,46 @@ export function SceneTreePanel({
     );
   }
 
+  // Overlay the existing row so editing cannot change its measured width or scroll position
+  function renameField(id: string, name: string) {
+    return renaming === id ? (
+      <input
+        className="tree-rename"
+        aria-label={`Rename ${name}`}
+        defaultValue={name}
+        size={Math.max(4, Math.min(18, name.length + 1))}
+        onInput={(event) => {
+          event.currentTarget.size = Math.max(
+            4,
+            Math.min(18, event.currentTarget.value.length + 1),
+          );
+        }}
+        maxLength={120}
+        ref={(input) => {
+          // Native autofocus scrolls the whole tree to reveal the field's right edge
+          if (input) {
+            input.focus({ preventScroll: true });
+            input.select();
+          }
+        }}
+        // Leaving the field cancels the draft without changing the selected object
+        onBlur={() => setRenaming(null)}
+        onKeyDown={(event) => {
+          // Keep draft text outside project state until Enter validates one rename command
+          event.stopPropagation();
+          if (event.key === "Escape") {
+            event.preventDefault();
+            setRenaming(null);
+          }
+          if (event.key === "Enter") {
+            event.preventDefault();
+            if (hierarchy.rename(id, event.currentTarget.value)) setRenaming(null);
+          }
+        }}
+      />
+    ) : null;
+  }
+
   function renderChildren(parentId: string | null) {
     const descendants = children.get(parentId?.toLowerCase() ?? null) ?? [];
     return descendants.map((node) => {
@@ -138,8 +180,9 @@ export function SceneTreePanel({
             ) : (
               <span className="scene-disclosure-space" aria-hidden="true" />
             )}
-
+            {renameField(node.id, node.name)}
             <button
+              style={{ visibility: renaming === node.id ? "hidden" : undefined }}
               className={isObject ? "object-row" : "group-row"}
               type="button"
               data-object-id={isObject ? node.id : undefined}
@@ -147,6 +190,10 @@ export function SceneTreePanel({
               aria-pressed={selectedId === node.id}
               draggable
               title="Drag to reparent, or use Ctrl+X then Ctrl+V on the destination"
+              // Object rows can enter the same rename flow by mouse or keyboard
+              onDoubleClick={() => {
+                if (isObject) setRenaming(node.id);
+              }}
               onDragStart={(event) => {
                 // Selection remains unchanged while moving a row between parents
                 dragging.current = node.id;
@@ -160,6 +207,11 @@ export function SceneTreePanel({
                 setDropTarget(null);
               }}
               onKeyDown={(event) => {
+                if (event.key === "F2" && isObject) {
+                  event.preventDefault();
+                  setRenaming(node.id);
+                  return;
+                }
                 // Keyboard reparenting shares validation with drag and drop
                 if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "x") {
                   event.preventDefault();
@@ -272,13 +324,21 @@ export function SceneTreePanel({
                 ) : (
                   <span className="scene-disclosure-space" aria-hidden="true" />
                 )}
-
+                {/* The environment row uses its scene ID for the same rename command */}
+                {renameField(room.id, room.name)}
                 <button
+                  style={{ visibility: renaming === room.id ? "hidden" : undefined }}
+                  onDoubleClick={() => setRenaming(room.id)}
                   className="environment-row"
                   type="button"
                   aria-pressed={selectedId === room.id}
                   data-scene-id={room.id}
                   onKeyDown={(event) => {
+                    if (event.key === "F2") {
+                      event.preventDefault();
+                      setRenaming(room.id);
+                      return;
+                    }
                     if (
                       (event.ctrlKey || event.metaKey) &&
                       event.key.toLowerCase() === "v" &&
