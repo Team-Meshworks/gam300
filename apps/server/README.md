@@ -1944,7 +1944,7 @@ exemption. Existing published editions are not changed by this check.
 and a unique submission ID. It stores the saved document and its deadline under
 the project lock. An identical retry returns the original submission; changed
 intent or a stale revision is rejected. The response includes the recorded due
-instant and whether the server received the submission late. Only the mapped
+instant and whether the server recorded the submission after it. Only the mapped
 student with current access can submit. The default asset resolver rejects the
 request until the asset owner can supply approved, retained immutable bytes and
 their identities. Publication integration remains separate.
@@ -1961,5 +1961,19 @@ Identical decision retries return the stored result. The project lock serializes
 submission, decision, draft edits and membership or grant changes. Changes to
 the draft or a later submission remove review approval for a future publication,
 without modifying existing published editions. Administrators gain no separate
-review authority. The publisher must still enforce its own authorization and
-consume the review check; it is not connected by these routes.
+review authority. New writes recheck account authority before commit. The
+publisher must still enforce its own authorization and consume the review check;
+it is not connected by these routes.
+
+A disposable integration with draft publication PR #27 at `5acec324` regenerated
+the combined EF snapshot and found no pending model changes. Fresh databases and
+both upgrade orders passed, preserving an existing edition or review evidence.
+A test-only adapter denied unverified and unapproved work, published a currently
+approved revision and left its edition unchanged after later review changes.
+This does not enable production publication or supply its audience or asset policy.
+The database context, EF snapshot and this guide need conflict resolution when
+the feature branches are actually integrated.
+
+The complete local server suite passed 612 tests with no failures or skips,
+including the browser checks. The Release build, both formatting checks and the
+review branch's EF pending-model check also passed.
