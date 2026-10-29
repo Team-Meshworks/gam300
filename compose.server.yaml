@@ -1,0 +1,125 @@
+# Extend the existing local stack with: docker compose -f compose.yaml -f compose.server.yaml up --build
+# Builds the backend sources in apps/server
+services:
+  postgres:
+    restart: unless-stopped
+    image: postgres:18.6@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336
+    environment:
+      POSTGRES_DB: spatia
+      POSTGRES_USER: spatia
+      POSTGRES_PASSWORD: ${SPATIA_DATABASE_PASSWORD:?Set a private database password}
+    # No host port; only the API and migration container need database access
+    volumes:
+      - database:/var/lib/postgresql
+    networks: [database]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U spatia -d spatia"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  migrate:
+    image: ${MIGRATION_IMAGE:-spatia-migrations:local}
+    build:
+      context: .
+      dockerfile: deploy/server.Dockerfile
+      target: migrations
+    environment:
+      # Supply a hexadecimal password to avoid connection-string delimiters
+      ConnectionStrings__Spatia: 'Host=postgres;Database=spatia;Username=spatia;Password="${SPATIA_DATABASE_PASSWORD:?Set a private database password}"'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [database]
+    restart: "no"
+
+  api:
+    restart: unless-stopped
+    image: ${API_IMAGE:-spatia-api:local}
+    build:
+      context: .
+      dockerfile: deploy/server.Dockerfile
+      target: api
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${SERVER_ENVIRONMENT:-Development}
+      ConnectionStrings__Spatia: 'Host=postgres;Database=spatia;Username=spatia_api;Password="${SPATIA_API_PASSWORD:?Set a separate hexadecimal API password}"'
+      DataProtection__KeyDirectory: /var/lib/spatia/keys
+      AllowedHosts: ${SERVER_ALLOWED_HOSTS:-localhost}
+      # Trust only the gateway's fixed address on this isolated application network
+      TrustedProxies__0: ${SERVER_NETWORK_PREFIX:-172.30.90}.2
+    volumes:
+      - keys:/var/lib/spatia/keys
+    depends_on:
+      database-access:
+        condition: service_completed_successfully
+    networks: [application, database]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+
+  database-access:
+    # Apply grants after each migration; the running API never receives the administrator password
+    image: postgres:18.6@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336
+    environment:
+      PGHOST: postgres
+      PGDATABASE: spatia
+      PGUSER: spatia
+      PGPASSWORD: ${SPATIA_DATABASE_PASSWORD:?Set a private database password}
+      API_PASSWORD: ${SPATIA_API_PASSWORD:?Set a separate hexadecimal API password}
+    entrypoint: [/bin/sh, -ec]
+    command:
+      - |
+        case "$$API_PASSWORD" in *[!0-9a-fA-F]*|'') echo 'API password must be hexadecimal' >&2; exit 1 ;; esac
+        test "$${#API_PASSWORD}" -ge 32
+        psql --set=ON_ERROR_STOP=1 --set=api_password="$$API_PASSWORD" <<'SQL'
+        SELECT 'CREATE ROLE spatia_api LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION'
+        WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'spatia_api') \gexec
+        ALTER ROLE spatia_api PASSWORD :'api_password';
+        GRANT CONNECT ON DATABASE spatia TO spatia_api;
+        GRANT USAGE ON SCHEMA public TO spatia_api;
+        GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO spatia_api;
+        GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO spatia_api;
+        REVOKE ALL ON TABLE public."__EFMigrationsHistory" FROM spatia_api;
+        SQL
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    networks: [database]
+    restart: "no"
+
+  web:
+    # Reuse the editor build, health check and security settings from compose.yaml
+    networks: [application]
+    ports: !reset []
+
+  gateway:
+    restart: unless-stopped
+    image: caddy:2.11.4-alpine@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b
+    ports:
+      - "127.0.0.1:${APP_PORT:-8081}:8080"
+      - "127.0.0.1:${SERVER_PORT:-8444}:8443"
+    volumes:
+      - ${SERVER_CADDYFILE:-./deploy/server.Caddyfile}:/etc/caddy/Caddyfile:ro
+      - gateway-data:/data
+      - gateway-config:/config
+    depends_on: [api, web]
+    networks:
+      application:
+        ipv4_address: ${SERVER_NETWORK_PREFIX:-172.30.90}.2
+
+volumes:
+  database:
+  keys:
+  gateway-data:
+  gateway-config:
+
+networks:
+  application:
+    ipam:
+      config:
+        - subnet: ${SERVER_NETWORK_PREFIX:-172.30.90}.0/24
+          # Keep automatic service addresses away from the trusted proxy's fixed address
+          ip_range: ${SERVER_NETWORK_PREFIX:-172.30.90}.128/25
+  database:
+    internal: true

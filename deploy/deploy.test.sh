@@ -4,9 +4,11 @@ set -euo pipefail
 source_directory=$(cd -- "$(dirname -- "$0")" && pwd)
 temporary=$(mktemp -d)
 trap 'rm -rf -- "$temporary"' EXIT
-mkdir -p "$temporary/bin" "$temporary/bundle" "$temporary/state"
+mkdir -p "$temporary/bin" "$temporary/bundle/deploy" "$temporary/state"
 cp "$source_directory/deploy.sh" "$temporary/bundle/"
 cp "$source_directory/../compose.yaml" "$temporary/bundle/"
+cp "$source_directory/../compose.server.yaml" "$temporary/bundle/"
+cp "$source_directory/server.Caddyfile" "$temporary/bundle/deploy/"
 export DEPLOY_ROOT="$temporary/deployments" FAKE_STATE="$temporary/state"
 export PATH="$temporary/bin:$PATH"
 unset APP_URL
@@ -14,10 +16,11 @@ unset APP_URL
 cat > "$temporary/bin/docker" <<'MOCK'
 #!/usr/bin/env bash
 set -euo pipefail
+printf '%s\n' "$*" >> "$FAKE_STATE/calls"
 while (($#)); do
   case "$1" in
     --env-file) configuration=$2; shift 2 ;;
-    pull|up|down|logs) operation=$1; shift ;;
+    pull|up|down|logs|stop|exec) operation=$1; shift ;;
     *) shift ;;
   esac
 done
@@ -30,15 +33,25 @@ case "$operation" in
     ;;
   down) rm -f -- "$FAKE_STATE/$APP_PORT" ;;
   logs) echo 'Simulated failed health check' ;;
+  stop) : ;;
+  exec)
+    [[ "${FAKE_FAIL_BACKUP:-0}" == 0 ]]
+    echo 'Simulated database backup'
+    ;;
 esac
 MOCK
 cat > "$temporary/bin/curl" <<'MOCK'
 #!/usr/bin/env bash
 set -euo pipefail
 url=${!#}
-port=${url#http://127.0.0.1:}
+port=${url#*://}
+port=${port#*:}
 port=${port%%/*}
-cat "$FAKE_STATE/$port"
+case "$url" in
+  */api/auth/csrf) [[ "${FAKE_FAIL_API:-0}" == 0 ]] ;;
+  */api/auth/session) printf '%s' "${FAKE_SESSION_STATUS:-401}" ;;
+  *) cat "$FAKE_STATE/$port" ;;
+esac
 MOCK
 chmod +x "$temporary/bin/docker" "$temporary/bin/curl"
 
@@ -71,3 +84,47 @@ grep -qx "REVISION=$first" "$DEPLOY_ROOT/development/previous/.env"
 grep -qx "REVISION=$third" "$DEPLOY_ROOT/development/current/.env"
 [[ "$(cat "$FAKE_STATE/8081")" == "$second" ]]
 echo 'PASS: branch isolation, immutable images, pull failure, rollback and previous release retention'
+
+api="ghcr.io/team-meshworks/gam300@sha256:$(printf 'b%.0s' {1..64})"
+migration="ghcr.io/team-meshworks/gam300@sha256:$(printf 'c%.0s' {1..64})"
+if "${deploy[@]}" dev "$image" "$first" "$api"; then exit 1; fi
+if "${deploy[@]}" dev "$image" "$first" "$api" 'untrusted:latest'; then exit 1; fi
+if "${deploy[@]}" dev "$image" "$first" "$api" "$migration"; then exit 1; fi
+
+export APP_URL=https://127.0.0.1:8082
+# Failed first server rollout restores the existing editor and keeps its release
+if FAKE_FAIL_API=1 "${deploy[@]}" dev "$image" "$first" "$api" "$migration"; then exit 1; fi
+grep -qx "REVISION=$third" "$DEPLOY_ROOT/development/current/.env"
+[[ "$(cat "$FAKE_STATE/8082")" == "$third" ]]
+
+"${deploy[@]}" dev "$image" "$first" "$api" "$migration"
+configuration="$DEPLOY_ROOT/development/current"
+grep -qx "API_IMAGE=$api" "$configuration/.env"
+grep -qx "MIGRATION_IMAGE=$migration" "$configuration/.env"
+grep -qx 'SERVER_ENVIRONMENT=Development' "$configuration/.env"
+grep -qx 'SERVER_NETWORK_PREFIX=172.30.92' "$configuration/.env"
+[[ -f "$configuration/compose.server.yaml" ]]
+[[ -f "$DEPLOY_ROOT/development/gateway-$first/server.Caddyfile" ]]
+[[ "$(stat -c %a "$configuration/.env")" == 600 ]]
+cp "$DEPLOY_ROOT/development/server.env" "$temporary/saved-server.env"
+
+# Failed backups leave the running release alone
+if FAKE_FAIL_BACKUP=1 "${deploy[@]}" dev "$image" "$second" "$api" "$migration"; then exit 1; fi
+[[ "$(cat "$FAKE_STATE/8082")" == "$first" ]]
+if FAKE_SESSION_STATUS=200 "${deploy[@]}" dev "$image" "$second" "$api" "$migration"; then exit 1; fi
+[[ "$(cat "$FAKE_STATE/8082")" == "$first" ]]
+grep -q -- '--no-deps --wait --wait-timeout 90 web api gateway' "$FAKE_STATE/calls"
+grep -q 'Simulated database backup' "$DEPLOY_ROOT"/development/backups/*.dump
+
+"${deploy[@]}" dev "$image" "$second" "$api" "$migration"
+cmp "$temporary/saved-server.env" "$DEPLOY_ROOT/development/server.env"
+[[ "$(cat "$FAKE_STATE/8081")" == "$second" ]]
+export APP_URL=https://127.0.0.1:8081
+"${deploy[@]}" main "$image" "$third" "$api" "$migration"
+grep -qx 'SERVER_ENVIRONMENT=Production' "$DEPLOY_ROOT/production/current/.env"
+grep -qx 'SERVER_NETWORK_PREFIX=172.30.91' "$DEPLOY_ROOT/production/current/.env"
+if cmp -s "$DEPLOY_ROOT/development/server.env" "$DEPLOY_ROOT/production/server.env"; then exit 1; fi
+[[ "$(cat "$FAKE_STATE/8082")" == "$second" ]]
+if "${deploy[@]}" main "$image" "$first"; then exit 1; fi
+[[ "$(cat "$FAKE_STATE/8081")" == "$third" ]]
+echo 'PASS: server image validation, private settings, API health, backups and runtime rollback without schema reversal'
