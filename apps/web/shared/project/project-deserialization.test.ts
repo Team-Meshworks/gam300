@@ -8,6 +8,15 @@ const assets = new Map([
 ]);
 
 describe("project JSON reader", () => {
+  it("rejects duplicate keys, including escaped spellings, before replacing a project", () => {
+    for (const duplicate of ['"schemaVersion":1,', '"schema\\u0056ersion":1,']) {
+      const text = JSON.stringify(fixture).replace("{", `{${duplicate}`);
+      expect(deserializeProject(text, assets)).toEqual({
+        ok: false,
+        error: { path: "project", message: "Project JSON contains duplicate fields" },
+      });
+    }
+  });
   it("reads indented JSON with escaped quotes, backslashes and brackets in names", () => {
     const input = { ...fixture, title: 'Room "A" \\ ' + "[{".repeat(40) + "展览\n" };
     expect(deserializeProject(JSON.stringify(input, null, 2), assets)).toEqual({

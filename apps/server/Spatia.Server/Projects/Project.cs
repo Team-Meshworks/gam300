@@ -33,7 +33,6 @@ public sealed class Project
     /// <summary>
     /// Gets or sets the schema version that must match the stored document
     /// </summary>
-    // TODO: Assign SchemaVersion and DocumentJson together from a document accepted by SCRUM-50 validation
     public int SchemaVersion { get; set; }
 
     /// <summary>
@@ -49,7 +48,6 @@ public sealed class Project
     /// <summary>
     /// Gets or sets the actor associated with the latest remembered mutation, or null when absent
     /// </summary>
-    // TODO: Have SCRUM-69 clear this slot on metadata revisions so retries cannot acknowledge unrelated edits
     public Guid? LastMutationActorId { get; set; }
 
     /// <summary>
@@ -60,6 +58,5 @@ public sealed class Project
     /// <summary>
     /// Gets or sets the latest mutation's 32-byte server-derived digest, or null when no mutation is remembered
     /// </summary>
-    // TODO: Agree the SCRUM-50 document representation with Part 5 before computing mutation digests
     public byte[]? LastMutationDigest { get; set; }
 }

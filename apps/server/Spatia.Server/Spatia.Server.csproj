@@ -9,6 +9,8 @@
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Spatia.Server.Tests" />
+    <ProjectReference Include="../Spatia.ProjectFormat/Spatia.ProjectFormat.csproj" />
+    <EmbeddedResource Include="../../../assets/manifest.json" LogicalName="Spatia.Assets.Manifest" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.12" />

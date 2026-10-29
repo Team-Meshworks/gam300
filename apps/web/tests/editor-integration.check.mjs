@@ -86,11 +86,29 @@ try {
   // A deferred wheel commit must not edit the document behind a project decision
   await page.locator(".object-row").first().click();
   const box = await page.locator("canvas").boundingBox();
-  const camera = new THREE.PerspectiveCamera(40, box.width / box.height, 0.1, 100);
-  camera.position.set(12, 16, 18);
-  camera.lookAt(0, 0, 0);
+  // Use the completed backup's camera and object pose instead of editor startup constants
+  const scene = await page.evaluate(async () => {
+    const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
+    const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
+    const result = await loadRecoverySession(
+      new Map(assets.map((asset) => [asset.id, asset.kind])),
+    );
+    if (!result.ok || !result.value?.document)
+      throw new Error("Missing backed-up interaction fixture");
+    return result.value.document.scenes[0];
+  });
+  const camera = new THREE.PerspectiveCamera(
+    scene.startCamera.fovDegrees,
+    box.width / box.height,
+    0.1,
+    100,
+  );
+  camera.position.fromArray(scene.startCamera.position);
+  camera.quaternion.fromArray(scene.startCamera.rotation);
   camera.updateMatrixWorld(true);
-  const point = new THREE.Vector3(0, 0.5, 0).project(camera);
+  const point = new THREE.Vector3(...scene.objects[0].transform.position)
+    .add(new THREE.Vector3(0, 0.5, 0))
+    .project(camera);
   await page.evaluate(
     ({ x, y }) => {
       document.querySelector("canvas").dispatchEvent(

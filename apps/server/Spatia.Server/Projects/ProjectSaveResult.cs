@@ -1,17 +1,18 @@
 namespace Spatia.Server.Projects;
 
 /// <summary>
-/// Contains a committed save acknowledgement, an access denial or a revision rejection
+/// Contains a committed save acknowledgement, an access/document denial or a revision rejection
 /// </summary>
 public sealed class ProjectSaveResult
 {
     private ProjectSaveResult(ProjectSaveAcknowledgement? acknowledgement, ProjectAccessFailure? accessFailure,
-        ProjectSaveDecision? rejection, long? currentRevision)
+        ProjectSaveDecision? rejection, long? currentRevision, bool invalidDocument = false)
     {
         Acknowledgement = acknowledgement;
         AccessFailure = accessFailure;
         Rejection = rejection;
         CurrentRevision = currentRevision;
+        InvalidDocument = invalidDocument;
     }
 
     /// <summary>
@@ -33,6 +34,13 @@ public sealed class ProjectSaveResult
     /// Gets the current revision accompanying a revision rejection, or null for other outcomes
     /// </summary>
     public long? CurrentRevision { get; }
+
+    /// <summary>
+    /// Gets whether the original document failed validation, without retaining private input or validator paths
+    /// </summary>
+    public bool InvalidDocument { get; }
+
+    internal static ProjectSaveResult Invalid() => new(null, null, null, null, true);
 
     internal static ProjectSaveResult Committed(ProjectSaveAcknowledgement acknowledgement) =>
         new(acknowledgement, null, null, null);

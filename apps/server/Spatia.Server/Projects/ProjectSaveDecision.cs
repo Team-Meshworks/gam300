@@ -13,7 +13,6 @@ public enum ProjectSaveDecision
     /// <summary>
     /// The request requires a new write after domain validation
     /// </summary>
-    // TODO: Consume WriteRequired in a save only after SCRUM-50 document validation
     WriteRequired,
 
     /// <summary>

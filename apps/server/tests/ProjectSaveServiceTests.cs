@@ -2,15 +2,20 @@ using System.Data;
 using System.Data.Common;
 using System.Net;
 using System.Net.Http.Json;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using Spatia.Server.Persistence;
 using Spatia.Server.Projects;
+using Format = Spatia.ProjectFormat.ProjectFormat;
 
 namespace Spatia.Server.Tests;
 
@@ -20,7 +25,9 @@ public sealed class ProjectSaveServiceTests
     private const string BodyMarker = "private-save-body-not-for-denied-readers";
 
     [Test]
-    public async Task SaveService_CommitReplayNewRevisionAndOlderRetryPreserveAuthoritativeState()
+    [Arguments(1)]
+    [Arguments(2)]
+    public async Task SaveService_CommitReplayNewRevisionAndOlderRetryPreserveAuthoritativeState(int version)
     {
         await using var fixture = await CreateFixtureAsync();
         var seeded = await SeedAsync(fixture);
@@ -30,13 +37,21 @@ public sealed class ProjectSaveServiceTests
             password = AuthTestRequests.CurrentPassword,
         });
         await Assert.That(login.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
-        var request = CreateRequest(seeded.ProjectId);
+        var request = CreateRequest(seeded.ProjectId) with { DocumentJson = ProjectTestDocuments.Create(seeded.ProjectId, BodyMarker, version) };
         var first = await SaveAsync(fixture, seeded.ProjectId, request);
         var acknowledgement = await AssertCommittedAsync(first, seeded.ProjectId, request.ClientMutationId, 1);
         var stored = await ReadAsync(fixture, seeded.ProjectId);
         await Assert.That(acknowledgement.GetProperty("savedAt").GetDateTimeOffset()).IsEqualTo(stored.UpdatedAt);
         await Assert.That(stored.LastMutationActorId).IsEqualTo((Guid?)seeded.ActorId);
-        await Assert.That(stored.LastMutationDigest!.SequenceEqual(request.RequestDigest)).IsTrue();
+        var expectedDigest = SHA256.HashData(Encoding.UTF8.GetBytes(
+            "spatia-save-v1\n" + seeded.ProjectId.ToString("D") + "\n" + seeded.ActorId.ToString("D") + "\n0\n" + request.DocumentJson));
+        await Assert.That(stored.LastMutationDigest!.SequenceEqual(expectedDigest)).IsTrue();
+        var documents = fixture.App.Services.GetRequiredService<ProjectDocumentService>();
+        var reopened = documents.ReadStored(seeded.ProjectId, stored.SchemaVersion, stored.DocumentJson);
+        await Assert.That(reopened.Ok).IsTrue();
+        await Assert.That(reopened.Value!.SchemaVersion).IsEqualTo(version);
+        await Assert.That(documents.Serialize(reopened.Value).Value)
+            .IsEqualTo(documents.Serialize(documents.Read(seeded.ProjectId, request.DocumentJson).Value!).Value);
 
         var replay = await SaveAsync(fixture, seeded.ProjectId, request);
         await Assert.That(replay.GetProperty("acknowledgement").GetRawText()).IsEqualTo(acknowledgement.GetRawText());
@@ -51,7 +66,9 @@ public sealed class ProjectSaveServiceTests
     }
 
     [Test]
-    [Arguments("digest")]
+    [Arguments("content")]
+    [Arguments("whitespace")]
+    [Arguments("number-spelling")]
     [Arguments("actor")]
     [Arguments("original-revision")]
     public async Task SaveService_ChangedLatestMutationIdentityConflictsWithoutAnotherWrite(string change)
@@ -77,7 +94,9 @@ public sealed class ProjectSaveServiceTests
         }
         request = change switch
         {
-            "digest" => request with { DocumentJson = Document(seeded.ProjectId, "Changed"), RequestDigest = new byte[32] },
+            "content" => request with { DocumentJson = ProjectTestDocuments.Create(seeded.ProjectId, "Changed") },
+            "whitespace" => request with { DocumentJson = "{ " + request.DocumentJson[1..] },
+            "number-spelling" => request with { DocumentJson = request.DocumentJson.Replace("\"schemaVersion\":1", "\"schemaVersion\":1.0", StringComparison.Ordinal) },
             "original-revision" => request with { ExpectedRevision = 1 },
             _ => request,
         };
@@ -375,11 +394,98 @@ public sealed class ProjectSaveServiceTests
         var request = CreateRequest(seeded.ProjectId);
 
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await InvokeAsync(new DefaultHttpContext(), database, access, seeded.ProjectId, request, CancellationToken.None));
+            await InvokeAsync(new DefaultHttpContext { RequestServices = scope.ServiceProvider }, database, access,
+                seeded.ProjectId, request, CancellationToken.None));
 
         await Assert.That(database.Database.CurrentTransaction).IsEqualTo(transaction);
         await Assert.That(await database.Projects.CountAsync()).IsEqualTo(1);
         await Assert.That((await ReadAsync(fixture, seeded.ProjectId)).Revision).IsEqualTo(0L);
+    }
+
+    [Test]
+    [Arguments("unknown-field")]
+    [Arguments("duplicate-field")]
+    [Arguments("future-version")]
+    [Arguments("invalid-reference")]
+    [Arguments("unavailable-asset")]
+    [Arguments("route-mismatch")]
+    [Arguments("nul")]
+    [Arguments("original-size")]
+    [Arguments("normalized-size")]
+    public async Task SaveService_InvalidDocumentsPreserveTheCommittedDraftAndRetrySlot(string change)
+    {
+        await using var fixture = await CreateFixtureAsync();
+        var seeded = await SeedAsync(fixture);
+        await fixture.SignInAsync(seeded.ActorId);
+        var original = CreateRequest(seeded.ProjectId);
+        await AssertCommittedAsync(await SaveAsync(fixture, seeded.ProjectId, original), seeded.ProjectId, original.ClientMutationId, 1);
+        var before = await ReadAsync(fixture, seeded.ProjectId);
+        var json = change switch
+        {
+            "unknown-field" => "{\"" + BodyMarker + "\":true," + original.DocumentJson[1..],
+            "duplicate-field" => original.DocumentJson.Replace("\"name\":", "\"name\":\"discarded\",\"name\":", StringComparison.Ordinal),
+            "future-version" => original.DocumentJson.Replace("\"schemaVersion\":1", "\"schemaVersion\":3", StringComparison.Ordinal),
+            "invalid-reference" => ProjectTestDocuments.Create(seeded.ProjectId, BodyMarker, 2).Replace("00000015-0000-4000-8000-000000000000", "ffffffff-ffff-4fff-8fff-ffffffffffff", StringComparison.Ordinal)
+                .Replace("\"viewpointId\":\"ffffffff-ffff-4fff-8fff-ffffffffffff\"", "\"viewpointId\":\"eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee\"", StringComparison.Ordinal),
+            "unavailable-asset" => original.DocumentJson.Replace("test-crate-v1", "demo-image-v1", StringComparison.Ordinal),
+            "route-mismatch" => ProjectTestDocuments.Create(Guid.NewGuid(), BodyMarker),
+            "nul" => ProjectTestDocuments.Create(seeded.ProjectId, "before\0after"),
+            "original-size" => original.DocumentJson.PadRight(Format.MaxProjectBytes + 1),
+            "normalized-size" => ExpandedDocument(seeded.ProjectId, Format.MaxProjectBytes - 8),
+            _ => throw new ArgumentOutOfRangeException(nameof(change)),
+        };
+        var request = original with { ExpectedRevision = 1, ClientMutationId = Guid.NewGuid(), DocumentJson = json };
+        using var response = await AuthTestRequests.PostAsync(fixture, Path(seeded.ProjectId), request);
+        await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.UnprocessableEntity);
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+        await Assert.That(problem.GetProperty("code").GetString()).IsEqualTo("invalid_document");
+        await Assert.That(string.Join(',', problem.EnumerateObject().Select(property => property.Name).Order(StringComparer.Ordinal)))
+            .IsEqualTo("code,status,title,traceId,type");
+        await Assert.That(problem.GetRawText().Contains(BodyMarker, StringComparison.Ordinal)).IsFalse();
+        await Assert.That(response.Headers.CacheControl!.NoStore).IsTrue();
+        await AuthTestRequests.AssertSafeAsync(fixture, response);
+        await Assert.That(fixture.Logs.Messages.Contains(BodyMarker, StringComparison.Ordinal)).IsFalse();
+        await AssertSameAsync(await ReadAsync(fixture, seeded.ProjectId), before);
+        await AssertCommittedAsync(await SaveAsync(fixture, seeded.ProjectId, original), seeded.ProjectId, original.ClientMutationId, 1);
+        await AssertSameAsync(await ReadAsync(fixture, seeded.ProjectId), before);
+    }
+
+    [Test]
+    public async Task SaveService_JsonbExpansionStillReopensWithinTheAuthoredByteBudget()
+    {
+        await using var fixture = await CreateFixtureAsync();
+        var seeded = await SeedAsync(fixture);
+        await fixture.SignInAsync(seeded.ActorId);
+        var documents = fixture.App.Services.GetRequiredService<ProjectDocumentService>();
+        var node = JsonNode.Parse(ProjectTestDocuments.Create(seeded.ProjectId, ""))!;
+        node["scenes"]![0]!["objects"]![0]!["transform"]!["scale"] = new JsonArray(double.MaxValue, double.Epsilon, 1);
+        var baseline = documents.Serialize(documents.Read(seeded.ProjectId, node.ToJsonString()).Value!).Value!;
+        node["title"] = new string('x', Format.MaxProjectBytes - Encoding.UTF8.GetByteCount(baseline) - 16);
+        var request = CreateRequest(seeded.ProjectId) with { DocumentJson = node.ToJsonString() };
+        await Assert.That(Encoding.UTF8.GetByteCount(request.DocumentJson) <= Format.MaxProjectBytes).IsTrue();
+        await AssertCommittedAsync(await SaveAsync(fixture, seeded.ProjectId, request), seeded.ProjectId, request.ClientMutationId, 1);
+
+        var stored = await ReadAsync(fixture, seeded.ProjectId);
+        await Assert.That(Encoding.UTF8.GetByteCount(stored.DocumentJson) > Format.MaxProjectBytes).IsTrue();
+        var reopened = documents.ReadStored(seeded.ProjectId, stored.SchemaVersion, stored.DocumentJson);
+        await Assert.That(reopened.Ok).IsTrue();
+        await Assert.That(reopened.Value!.Title).IsEqualTo(node["title"]!.GetValue<string>());
+        var exported = documents.Serialize(reopened.Value);
+        await Assert.That(exported.Ok).IsTrue();
+        await Assert.That(Encoding.UTF8.GetByteCount(exported.Value!) <= Format.MaxProjectBytes).IsTrue();
+        await Assert.That(exported.Value).IsEqualTo(documents.Serialize(documents.Read(seeded.ProjectId, request.DocumentJson).Value!).Value);
+        await AssertCommittedAsync(await SaveAsync(fixture, seeded.ProjectId, request), seeded.ProjectId, request.ClientMutationId, 1);
+        await AssertSameAsync(await ReadAsync(fixture, seeded.ProjectId), stored);
+    }
+
+    private static string ExpandedDocument(Guid id, int bytes)
+    {
+        var node = JsonNode.Parse(ProjectTestDocuments.Create(id, ""))!;
+        node["scenes"]![0]!["objects"]![0]!["transform"]!["scale"] = new JsonArray(1e20, 1e20, 1e20);
+        // Exponents fit the upload budget but the browser-compatible decimal representation exceeds it
+        var raw = node.ToJsonString().Replace("1E+20", "1e20", StringComparison.Ordinal);
+        node["title"] = new string('x', bytes - Encoding.UTF8.GetByteCount(raw));
+        return node.ToJsonString().Replace("1E+20", "1e20", StringComparison.Ordinal);
     }
 
     private static Task<HttpsApplicationFixture> CreateFixtureAsync(Action<WebApplicationBuilder>? configure = null,
@@ -391,6 +497,10 @@ public sealed class ProjectSaveServiceTests
                 var result = await (operation is null
                     ? InvokeAsync(context, database, access, id, request, context.RequestAborted)
                     : operation(context, database, access, id, request));
+                if (result.InvalidDocument)
+                {
+                    return ProjectHttpResults.FromSave(context, result);
+                }
                 return Results.Json(new
                 {
                     result.Acknowledgement,
@@ -398,24 +508,22 @@ public sealed class ProjectSaveServiceTests
                     rejection = result.Rejection?.ToString(),
                     result.CurrentRevision,
                 });
-            }).AllowAnonymous());
+            }).AllowAnonymous().WithMetadata(new RequestSizeLimitAttribute(SaveEnvelopeReader.MaxRequestBytes)),
+            environmentName: "Development");
 
     private static Task<ProjectSaveResult> InvokeAsync(HttpContext context, ApplicationDbContext database,
         ProjectAccessService access, Guid id, ProbeRequest request, CancellationToken cancellationToken) =>
-        new ProjectSaveService(database, access).SaveAsync(context, id, request.ToEnvelope(), request.SchemaVersion,
-            request.RequestDigest, cancellationToken);
+        new ProjectSaveService(database, access, context.RequestServices.GetRequiredService<ProjectDocumentService>())
+            .SaveAsync(context, id, request.ToEnvelope(), cancellationToken);
 
-    // Synthetic documents/digests exercise transaction composition, not SCRUM-50 validation or hashing
-    private sealed record ProbeRequest(long ExpectedRevision, Guid ClientMutationId, int SchemaVersion,
-        string DocumentJson, byte[] RequestDigest)
+    // This probe exercises the registered validator and real save transaction without exposing a production route
+    private sealed record ProbeRequest(long ExpectedRevision, Guid ClientMutationId, string DocumentJson)
     {
         public ParsedSaveEnvelope ToEnvelope() => new(ExpectedRevision, ClientMutationId, DocumentJson);
     }
 
     private static ProbeRequest CreateRequest(Guid id) =>
-        new(0, Guid.NewGuid(), 1, Document(id, BodyMarker), Enumerable.Repeat((byte)42, 32).ToArray());
-
-    private static string Document(Guid id, string title) => JsonSerializer.Serialize(new { projectId = id, schemaVersion = 1, title });
+        new(0, Guid.NewGuid(), ProjectTestDocuments.Create(id, BodyMarker));
 
     private static string Path(Guid id) => "/_test/project-save/" + id.ToString("D");
 
@@ -430,7 +538,7 @@ public sealed class ProjectSaveServiceTests
             Id = id,
             OrganizationId = (await database.Organizations.SingleAsync()).Id,
             SchemaVersion = 1,
-            DocumentJson = Document(id, "Original"),
+            DocumentJson = ProjectTestDocuments.Create(id, "Original"),
             UpdatedAt = DateTimeOffset.UnixEpoch,
         });
         database.ProjectAssignments.Add(new ProjectAssignment { ProjectId = id, UserId = actorId, CanEdit = true });

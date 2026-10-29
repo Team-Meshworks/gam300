@@ -96,7 +96,7 @@ function typecheck(root, name, cache) {
     .map((file) => resolve(root, file));
   // The catalogue's Vite module is an ambient contract, not a directly imported .d.ts
   if (["editor", "checks"].includes(name)) {
-    const declaration = resolve(root, "shared/assets/manifest-module.d.ts");
+    const declaration = resolve(root, "shared/asset-runtime/manifest-module.d.ts");
     if (existsSync(declaration)) roots.push(declaration);
   }
   const program = ts.createProgram(roots, settings, host);
@@ -152,6 +152,15 @@ try {
   const root = copy("violations");
   const projectFile = "shared/project/project-types.ts";
   const original = readFileSync(resolve(root, projectFile), "utf8");
+  // A harmless comment changes source hashes without changing any dependency boundary
+  writeFileSync(
+    resolve(root, projectFile),
+    original + "\n// Comment-only architecture regression\n",
+  );
+  const commentOnly = command(root, ["architecture.mjs"]);
+  assert.equal(commentOnly.status, 0, commentOnly.output);
+  writeFileSync(resolve(root, projectFile), original);
+
   const configPath = resolve(root, "tsconfig.app.json");
   const config = readFileSync(configPath, "utf8");
   const cases = [

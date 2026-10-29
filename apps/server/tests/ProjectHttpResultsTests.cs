@@ -37,6 +37,14 @@ public sealed class ProjectHttpResultsTests
     }
 
     [Test]
+    public async Task ProjectHttp_InvalidDocumentExposesNoValidatorPathOrRevision()
+    {
+        var response = await ExecuteAsync(context => ProjectHttpResults.FromSave(context, ProjectSaveResult.Invalid()));
+        await AssertProblemAsync(response, 422, "invalid_document");
+        await AssertFieldsAsync(response.Json, "type", "title", "status", "code", "traceId");
+    }
+
+    [Test]
     [Arguments(ProjectSaveDecision.Conflict, 13L, "revision_conflict")]
     [Arguments(ProjectSaveDecision.RevisionExhausted, Project.MaxRevision, "revision_exhausted")]
     public async Task ProjectHttp_ConflictExposesOnlyTheAuthorizedCurrentRevision(

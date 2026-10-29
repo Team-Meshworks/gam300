@@ -25,7 +25,7 @@ public static class SaveEnvelopeReader
     /// <param name="cancellationToken">The token used to cancel body reading and parsing preparation</param>
     /// <returns>The parsed envelope with unvalidated document JSON, or a safe request error</returns>
     /// <remarks>
-    /// TODO: Integrate SCRUM-50 validation after this bounded reader before enabling production save handlers
+    /// Pass accepted envelopes to ProjectSaveService for content validation and authorization
     /// </remarks>
     /// <exception cref="ArgumentNullException"><paramref name="request"/> is null</exception>
     /// <exception cref="OperationCanceledException">The operation is canceled</exception>
@@ -193,7 +193,7 @@ public static class SaveEnvelopeReader
             return Failure(422, "project_id_mismatch", "document.projectId", "Document project ID does not match the route");
         }
 
-        // TODO: Apply SCRUM-50 validation to this original JSON, including duplicate/unknown keys and references, before jsonb storage
+        // Retain original JSON for validation and retry identity before any normalization or jsonb conversion
         return SaveEnvelopeReadResult.Success(new(expectedRevision, clientMutationId, documentJson));
     }
 

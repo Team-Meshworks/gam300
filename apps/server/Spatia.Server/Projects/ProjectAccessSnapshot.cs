@@ -22,8 +22,7 @@ namespace Spatia.Server.Projects;
 /// <remarks>
 /// This server-side snapshot includes mutation metadata that must be excluded from public project responses
 /// </remarks>
-// TODO: Validate and reconstruct UnvalidatedDocumentJson through SCRUM-50 before consuming authored content
-// TODO: Build the public GET envelope from SCRUM-50-accepted content without actor IDs or mutation digests
+// Reconstruct UnvalidatedDocumentJson through ProjectDocumentService before consuming authored content
 public sealed record ProjectAccessSnapshot(
     Guid ActorId,
     Guid ProjectId,

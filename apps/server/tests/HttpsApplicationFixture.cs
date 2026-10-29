@@ -36,12 +36,14 @@ internal sealed class HttpsApplicationFixture : IAsyncDisposable
     private readonly bool _ownsResources;
     private readonly string _artifactsRoot;
     private readonly Action<WebApplicationBuilder>? _configure;
+    private readonly string _environmentName;
     private readonly List<HttpClient> _clients = [];
     private int _writes;
     private int _heldRequests;
 
     private HttpsApplicationFixture(PostgresAccountFixture database, X509Certificate2 certificate,
-        string keyDirectory, TestTimeProvider clock, bool ownsResources, Action<WebApplicationBuilder>? configure)
+        string keyDirectory, TestTimeProvider clock, bool ownsResources, Action<WebApplicationBuilder>? configure,
+        string environmentName)
     {
         Database = database;
         _certificate = certificate;
@@ -49,6 +51,7 @@ internal sealed class HttpsApplicationFixture : IAsyncDisposable
         Clock = clock;
         _ownsResources = ownsResources;
         _configure = configure;
+        _environmentName = environmentName;
         _artifactsRoot = Path.GetFullPath(Path.GetDirectoryName(keyDirectory)!);
     }
 
@@ -66,9 +69,9 @@ internal sealed class HttpsApplicationFixture : IAsyncDisposable
     public TaskCompletionSource ReleaseHolds { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     public static async Task<HttpsApplicationFixture> CreateAsync(Action<WebApplicationBuilder>? configure = null,
-        Action<WebApplication>? map = null)
+        Action<WebApplication>? map = null, string environmentName = "Testing")
     {
-        var database = await PostgresAccountFixture.CreateAsync();
+        var database = await PostgresAccountFixture.CreateForApplicationAsync();
         var artifactsRoot = Path.GetFullPath(".artifacts");
         string? directory = null;
         X509Certificate2? certificate = null;
@@ -77,9 +80,9 @@ internal sealed class HttpsApplicationFixture : IAsyncDisposable
         {
             directory = Path.Combine(artifactsRoot, "https-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(directory);
-            using var rsa = RSA.Create(2048);
-            var request = new CertificateRequest("CN=Spatia synthetic HTTPS test", rsa, HashAlgorithmName.SHA256,
-                RSASignaturePadding.Pkcs1);
+            // Keep a fresh key per fixture without repeated RSA key-generation cost
+            using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+            var request = new CertificateRequest("CN=Spatia synthetic HTTPS test", key, HashAlgorithmName.SHA256);
             var names = new SubjectAlternativeNameBuilder();
             names.AddIpAddress(IPAddress.Loopback);
             names.AddDnsName("localhost");
@@ -87,7 +90,7 @@ internal sealed class HttpsApplicationFixture : IAsyncDisposable
             using var created = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddMinutes(-1), DateTimeOffset.UtcNow.AddHours(1));
             // Schannel needs the temporary PFX-backed key rather than the creation-time key
             certificate = X509CertificateLoader.LoadPkcs12(created.Export(X509ContentType.Pkcs12), password: null);
-            fixture = new HttpsApplicationFixture(database, certificate, directory, new TestTimeProvider(), true, configure);
+            fixture = new HttpsApplicationFixture(database, certificate, directory, new TestTimeProvider(), true, configure, environmentName);
             await fixture.StartAsync(map);
             return fixture;
         }
@@ -111,7 +114,7 @@ internal sealed class HttpsApplicationFixture : IAsyncDisposable
     }
     public async Task<HttpsApplicationFixture> CreateSiblingAsync(Action<WebApplicationBuilder> configure)
     {
-        var fixture = new HttpsApplicationFixture(Database, _certificate, KeyDirectory, Clock, false, configure);
+        var fixture = new HttpsApplicationFixture(Database, _certificate, KeyDirectory, Clock, false, configure, _environmentName);
         try
         {
             await fixture.StartAsync();
@@ -256,7 +259,7 @@ internal sealed class HttpsApplicationFixture : IAsyncDisposable
         {
             ApplicationName = "Spatia.Part3." + Database.SchemaName,
         };
-        var builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = "Testing" });
+        var builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = _environmentName });
         builder.Configuration.Sources.Clear();
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
         {

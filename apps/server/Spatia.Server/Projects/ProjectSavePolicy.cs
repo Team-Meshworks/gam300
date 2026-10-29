@@ -24,7 +24,6 @@ public static class ProjectSavePolicy
     /// <exception cref="ArgumentNullException"><paramref name="project"/> is null</exception>
     /// <exception cref="ArgumentOutOfRangeException">The expected revision is outside the supported range</exception>
     /// <exception cref="ArgumentException">The digest or editable snapshot metadata is invalid</exception>
-    // TODO: Integrate SCRUM-50 validation and server-side request digest creation before wiring this into saves
     public static ProjectSaveDecision Decide(ProjectAccessSnapshot project, long expectedRevision,
         Guid clientMutationId, ReadOnlySpan<byte> requestDigest)
     {
@@ -53,7 +52,6 @@ public static class ProjectSavePolicy
         // shortcut: Only the latest mutation is remembered, add a ledger if historical ID reuse must be rejected
         if (project.LastMutationId == clientMutationId)
         {
-            // TODO: Bind digest creation to the SCRUM-50 representation, project, actor and original expected revision
             return project.LastMutationActorId == project.ActorId
                 && expectedRevision == project.Revision - 1
                 && lastDigest!.Value.AsSpan().SequenceEqual(requestDigest)
@@ -64,7 +62,6 @@ public static class ProjectSavePolicy
             return ProjectSaveDecision.Conflict;
         }
 
-        // TODO: Apply a WriteRequired decision only after SCRUM-50 validation in the locked atomic save transaction
         return project.Revision == Project.MaxRevision
             ? ProjectSaveDecision.RevisionExhausted : ProjectSaveDecision.WriteRequired;
     }
