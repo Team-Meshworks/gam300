@@ -177,7 +177,7 @@ export function ClassAssignmentForm({
             )}
             <p className="sp-hint">
               {selected.length} {selected.length === 1 ? "student" : "students"} selected. Only the
-              selected students will be assigned.
+              selected students will be assigned, up to 20 at a time.
             </p>
             <Button type="submit" disabled={!onAssign}>
               {phase === "pending" ? "Assigning…" : "Assign class"}

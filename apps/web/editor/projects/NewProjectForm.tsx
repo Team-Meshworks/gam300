@@ -195,10 +195,10 @@ export function NewProjectForm({
                   setSelectorReset((count) => count + 1);
                 }}
               />
-              <Field id="project-due" label="Due date" required>
+              <Field id="project-due" label="Due date and time" required>
                 <input
                   id="project-due"
-                  type="date"
+                  type="datetime-local"
                   required
                   value={form.dueDate}
                   onChange={(event) => update("dueDate", event.target.value)}
@@ -292,7 +292,7 @@ export function NewProjectForm({
               {selected.length} {selected.length === 1 ? "student" : "students"} selected
             </strong>
             <p className="sp-hint">
-              Check your project details and selected students before creating.
+              Check your project details and select up to 20 students before creating.
             </p>
           </div>
           <div className="sp-actions">
