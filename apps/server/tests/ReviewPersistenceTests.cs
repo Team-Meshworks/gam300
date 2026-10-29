@@ -143,7 +143,7 @@ public sealed class ReviewPersistenceTests
         await Assert.That((error?.InnerException as PostgresException)?.SqlState).IsEqualTo(sqlState);
     }
 
-    private static async Task<Seeded> SeedAsync(PostgresAccountFixture fixture)
+    internal static async Task<Seeded> SeedAsync(PostgresAccountFixture fixture)
     {
         var data = new Seeded(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
             Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
@@ -205,7 +205,7 @@ public sealed class ReviewPersistenceTests
         UpdatedAt = DateTimeOffset.UtcNow,
     };
 
-    private static ReviewSubmission Submission(Seeded data) => new()
+    internal static ReviewSubmission Submission(Seeded data) => new()
     {
         Id = data.SubmissionId,
         ProjectId = data.ProjectId,
@@ -220,7 +220,7 @@ public sealed class ReviewPersistenceTests
         RequestDigest = new byte[32],
     };
 
-    private static ReviewDecision Decision(Seeded data) => new()
+    internal static ReviewDecision Decision(Seeded data) => new()
     {
         Id = data.DecisionId,
         SubmissionId = data.SubmissionId,
@@ -231,6 +231,6 @@ public sealed class ReviewPersistenceTests
         RequestDigest = new byte[32],
     };
 
-    private sealed record Seeded(Guid OrganizationId, Guid EducatorId, Guid StudentId, Guid OtherStudentId,
+    internal sealed record Seeded(Guid OrganizationId, Guid EducatorId, Guid StudentId, Guid OtherStudentId,
         Guid ClassroomId, Guid SourceId, Guid ProjectId, Guid AssignmentId, Guid SubmissionId, Guid DecisionId);
 }

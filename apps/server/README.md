@@ -1931,3 +1931,11 @@ database rejects changes to stored evidence. Migration rollback refuses to disca
 existing review records. Writers must validate the document and resolve trusted
 asset identities before insertion. This storage foundation does not itself expose
 submission or decision routes and does not approve publication.
+
+`ReviewApproval.CheckLockedAsync` is the review handoff for a publisher that has
+already reauthorized the actor and acquired the project lock. It also confirms
+the current project revision under that lock. Known class drafts require an
+approval on the latest submission of that exact revision; a later submission,
+return, revocation or project revision removes eligibility for a new publication.
+An unmapped project returns unverified origin rather than an ordinary-project
+exemption. Existing published editions are not changed by this check.
