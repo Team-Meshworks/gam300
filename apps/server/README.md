@@ -1745,6 +1745,18 @@ migration-schema comparison and Identity-to-current upgrade checks each passed,
 and the Release build, EF model check and both project formatting checks passed.
 The complete server suite and restart acceptance remain for the final integration.
 
+## SCRUM-161 part 2: shared draft creation
+
+The existing project lifecycle now stages validated drafts and their initial
+assignments inside a caller-owned read-committed transaction. The caller retains
+commit and rollback control, so a later class batch can reuse the same document
+validation and insertion path. The ordinary create and duplicate routes retain
+their current authority and response behavior.
+
+On 29 October 2026 both staging cases passed for the two supported project
+formats, all 21 existing lifecycle cases passed, and the Release build and both
+formatting checks passed. Assignment batch integration remains to be implemented.
+
 SCRUM-126 project-home UI, SCRUM-67 autosave/recovery integration, publication/asset
 delivery, hosted CI and deployment remain separate. Production still has no approved
 asset catalogue. These backend checks do not complete parent Story/Epic acceptance.
