@@ -126,6 +126,12 @@ selects an isolated local project. The launchers default to the M1 development b
 with **Open sample project**. Set `BUILD_MODE=production` explicitly for the production
 variant, which omits that control. `/version.txt` reports the checkout commit.
 
+The separate entry pages are available at `/landing` and `/login`; `/` continues to open
+the editor. The login page calls the existing account API on the same origin. The web-only
+launcher and its Caddy server do not start or proxy that API, so signing in requires an
+environment that serves the account API on the same origin. A verified session currently
+shows that the project workspace is not yet connected.
+
 In the editor, add **test-room**, add **test-crate**, move it and try **Undo**.
 Use the project menu's **Save** to save a JSON file. After editing, allow two seconds for
 the quiet browser backup before reloading to check recovery.
@@ -181,6 +187,9 @@ The server is developed and tested separately; it is not required to run the cur
 For hot reload, install the pinned Node/npm versions in `apps/web/.nvmrc` and
 `apps/web/package.json`, then run `npm --prefix apps/web ci` and `npm --prefix apps/web run dev`
 from the root. The submission launcher above needs no host Node installation.
+Vite development and preview serve `/landing` and `/login` through the separate entry
+bundle; the packaged Caddy configuration serves the same routes. Vite does not configure
+an account API proxy. See the [server guide](apps/server/README.md) for API setup.
 Individual maintenance commands below run from `apps/web/`:
 
 | Command                                             | Purpose                                                               |
