@@ -186,6 +186,15 @@ export function initScene(
   const environmentBounds = new THREE.Box3();
   const instances = new Map<string, THREE.Group>();
   const instanceAssets = new Map<string, string>();
+  function instanceFor(objectId: string): THREE.Group | undefined {
+    const exact = instances.get(objectId);
+    if (exact !== undefined) return exact;
+    const key = objectId.toLowerCase();
+    for (const [id, instance] of instances) {
+      if (id.toLowerCase() === key) return instance;
+    }
+    return undefined;
+  }
   const hotspotSprites = new Map<string, THREE.Sprite>();
   const bounds = new Map<string, THREE.Box3>();
   const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
@@ -205,7 +214,9 @@ export function initScene(
   // Scroll that is shown but not yet saved.
   let wheelEdit:
     { id: string; transform: Transform; current: Transform; timer: number } | undefined;
-  let visitorClick: { pointerId: number; x: number; y: number } | undefined;
+  let visitorClick:
+    | { pointerId: number; x: number; y: number; dragged: boolean }
+    | undefined;
 
   function render() {
     if (!disposed) {
@@ -304,7 +315,7 @@ export function initScene(
     const current = new Set<string>();
     for (const hotspot of projectScene?.hotspots ?? []) {
       current.add(hotspot.id);
-      const owner = instances.get(hotspot.objectId);
+      const owner = instanceFor(hotspot.objectId);
       if (owner === undefined) continue;
       let sprite = hotspotSprites.get(hotspot.id);
       if (sprite === undefined) {
@@ -445,6 +456,8 @@ export function initScene(
         instance.position.fromArray(object.transform.position);
         instance.quaternion.fromArray(object.transform.rotation);
         instance.scale.fromArray(object.transform.scale);
+        // Bounds read the parent's world matrix, which must reflect this frame's transform.
+        instance.updateMatrixWorld(true);
         // Exclude attached markers so selection outlines match the model itself.
         const content = instance.children.find((child) => !(child instanceof THREE.Sprite));
         bounds.set(
@@ -630,7 +643,12 @@ export function initScene(
     if (modeManager.getState().mode === "visitor") {
       visitorClick =
         event.button === 0
-          ? { pointerId: event.pointerId, x: event.clientX, y: event.clientY }
+          ? {
+              pointerId: event.pointerId,
+              x: event.clientX,
+              y: event.clientY,
+              dragged: false,
+            }
           : undefined;
       return;
     }
@@ -672,6 +690,18 @@ export function initScene(
   }
 
   function pointerMove(event: PointerEvent) {
+    if (modeManager.getState().mode === "visitor") {
+      const click = visitorClick;
+      if (
+        click !== undefined &&
+        click.pointerId === event.pointerId &&
+        Math.hypot(event.clientX - click.x, event.clientY - click.y) >
+          VISITOR_CLICK_TOLERANCE
+      ) {
+        click.dragged = true;
+      }
+      return;
+    }
     if (drag === undefined || event.pointerId !== drag.pointerId) return;
     const ray = screenRay(event.clientX, event.clientY);
     if (drag.currentMode === "move") {
@@ -693,11 +723,7 @@ export function initScene(
     if (modeManager.getState().mode === "visitor") {
       const click = visitorClick;
       visitorClick = undefined;
-      if (
-        click !== undefined &&
-        click.pointerId === event.pointerId &&
-        Math.hypot(event.clientX - click.x, event.clientY - click.y) <= VISITOR_CLICK_TOLERANCE
-      ) {
+      if (click !== undefined && click.pointerId === event.pointerId && !click.dragged) {
         const id = pick(event.clientX, event.clientY);
         if (id !== null) callbacks.onObjectClick(id);
       }

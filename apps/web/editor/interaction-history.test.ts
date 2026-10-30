@@ -117,9 +117,10 @@ describe.each([1, 2] as const)("v%i interaction undo and recovery", (version) =>
       const store = setup(version);
       const a = addObject(store);
       const b = addObject(store);
+      const c = addObject(store);
       const h1 = addHotspot(store, a.id);
       const h2 = addHotspot(store, b.id);
-      const h3 = addHotspot(store, a.id);
+      const h3 = addHotspot(store, c.id);
       expect(
         store.setInteractions([clickRule(h1.id), clickRule(h2.id), clickRule(h3.id), startRule]).ok,
       ).toBe(true);
@@ -140,14 +141,8 @@ describe.each([1, 2] as const)("v%i interaction undo and recovery", (version) =>
           : store.deleteHotspot(h1.id.toUpperCase());
       expect(result.ok).toBe(true);
       expect(notifications).toBe(1);
-      expect(scene(store).hotspots.map((h) => h.id)).toEqual(
-        target === "object" ? [h2.id] : [h2.id, h3.id],
-      );
-      expect(scene(store).interactions).toEqual(
-        target === "object"
-          ? [clickRule(h2.id), startRule]
-          : [clickRule(h2.id), clickRule(h3.id), startRule],
-      );
+      expect(scene(store).hotspots.map((h) => h.id)).toEqual([h2.id, h3.id]);
+      expect(scene(store).interactions).toEqual([clickRule(h2.id), clickRule(h3.id), startRule]);
       const after = store.getSnapshot().project!;
       const reopened = assertRecoverable(store);
       for (const current of [store, reopened]) {
@@ -156,7 +151,7 @@ describe.each([1, 2] as const)("v%i interaction undo and recovery", (version) =>
         current.redo();
         expect(current.getSnapshot().project).toEqual(after);
       }
-      expect(before.scenes[0]!.objects).toHaveLength(2);
+      expect(before.scenes[0]!.objects).toHaveLength(3);
       expect(before.scenes[0]!.hotspots).toHaveLength(3);
       expect(Object.isFrozen(scene(reopened).interactions[0]!.when)).toBe(true);
     },
@@ -180,7 +175,7 @@ describe.each([1, 2] as const)("v%i interaction undo and recovery", (version) =>
     ).toBe(false);
     expect(store.getSnapshot()).toBe(before);
     expect(store.getRecoveryHistory()).toEqual(history);
-    addHotspot(store, object.id);
+    addHotspot(store, addObject(store).id);
     expect(store.getSnapshot().canRedo).toBe(false);
     assertRecoverable(store);
   });

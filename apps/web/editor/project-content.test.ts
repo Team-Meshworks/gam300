@@ -108,6 +108,15 @@ describe("content document preservation in the existing editor", () => {
     expect(store.getSnapshot().project).toEqual(after);
   });
 
+  it("adds at most one hotspot to each content object", () => {
+    const store = setup();
+    const [first, second] = store.getSnapshot().objects;
+    expect(store.addHotspot(first!.id).ok).toBe(false);
+    expect(store.addHotspot(second!.id).ok).toBe(true);
+    expect(store.addHotspot(second!.id).ok).toBe(false);
+    expect(serializeProject(store.getSnapshot().project, kinds).ok).toBe(true);
+  });
+
   it("rejects invalid richer imports and transforms without replacing the open document", () => {
     const store = setup();
     const before = store.getSnapshot();

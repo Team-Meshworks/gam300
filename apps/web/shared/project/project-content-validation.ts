@@ -568,6 +568,7 @@ export function validateContentReferences(
       }
 
       // Model approval does not imply approval of attached media or navigation destinations
+      const hotspotObjects = new Set<string>();
       scene.objects.forEach((object, index) => {
         const objectPath = `${path}.objects[${index}]`;
         asset(object.assetId, "model", `${objectPath}.assetId`);
@@ -575,6 +576,13 @@ export function validateContentReferences(
           const componentPath = `${objectPath}.components[${index}]`;
           if ("assetId" in component) {
             asset(component.assetId, component.type, `${componentPath}.assetId`);
+          }
+          if (component.type === "hotspot") {
+            const objectKey = object.id.toLowerCase();
+            if (hotspotObjects.has(objectKey)) {
+              fail(`${componentPath}.type`, "Each object can have at most one hotspot");
+            }
+            hotspotObjects.add(objectKey);
           }
           if (component.type === "navigationPoint") {
             destination(component.sceneId, component.viewpointId, componentPath);
@@ -584,7 +592,12 @@ export function validateContentReferences(
 
       // Scene-level hotspots attach to objects and drive the authored click interactions
       scene.hotspots.forEach((hotspot, index) => {
+        const objectKey = hotspot.objectId.toLowerCase();
         reference(hotspot.objectId, ["object"], scene.id, `${path}.hotspots[${index}].objectId`);
+        if (hotspotObjects.has(objectKey)) {
+          fail(`${path}.hotspots[${index}].objectId`, "Each object can have at most one hotspot");
+        }
+        hotspotObjects.add(objectKey);
       });
       scene.interactions.forEach((value, index) => {
         if (value.when.type === "visitor-clicks-hotspot") {

@@ -20,16 +20,11 @@ function hotspotChoices(
   hotspots: readonly ProjectHotspot[],
   objects: readonly Pick<SceneObject, "id" | "name">[],
 ): Choice[] {
-  const names = new Map(objects.map((object) => [object.id, object.name]));
-  const counts = new Map<string, number>();
-  return hotspots.map((hotspot) => {
-    const count = (counts.get(hotspot.objectId) ?? 0) + 1;
-    counts.set(hotspot.objectId, count);
-    return {
-      value: hotspot.id,
-      label: `${names.get(hotspot.objectId) ?? "Object"} hotspot ${count}`,
-    };
-  });
+  const names = new Map(objects.map((object) => [object.id.toLowerCase(), object.name]));
+  return hotspots.map((hotspot) => ({
+    value: hotspot.id,
+    label: names.get(hotspot.objectId.toLowerCase()) ?? "Object",
+  }));
 }
 
 function firstHotspotId(hotspots: readonly ProjectHotspot[]): string {

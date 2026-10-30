@@ -1814,6 +1814,70 @@
           "repeat": 103
         }
       ]
+    },
+    {
+      "name": "v1 rejects a second hotspot on one object",
+      "base": "m1",
+      "valid": false,
+      "path": "project.scenes[0].hotspots[1].objectId",
+      "patches": [
+        {
+          "path": ["scenes", 0, "hotspots"],
+          "value": [
+            {
+              "id": "00000070-0000-4000-8000-000000000000",
+              "objectId": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+              "position": [0, 0, 0]
+            },
+            {
+              "id": "00000071-0000-4000-8000-000000000000",
+              "objectId": "DDDDDDDD-DDDD-4DDD-8DDD-DDDDDDDDDDDD",
+              "position": [1, 0, 0]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "v2 rejects a second hotspot component on one object",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].objects[1].components[1].type",
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 1, "components"],
+          "value": [
+            {
+              "id": "00000072-0000-4000-8000-000000000000",
+              "type": "hotspot",
+              "label": "First marker"
+            },
+            {
+              "id": "00000073-0000-4000-8000-000000000000",
+              "type": "hotspot",
+              "label": "Second marker"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "v2 rejects a scene hotspot when the object has a hotspot component",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].hotspots[0].objectId",
+      "patches": [
+        {
+          "path": ["scenes", 0, "hotspots"],
+          "value": [
+            {
+              "id": "00000074-0000-4000-8000-000000000000",
+              "objectId": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+              "position": [0, 0, 0]
+            }
+          ]
+        }
+      ]
     }
   ],
   "rawCases": [

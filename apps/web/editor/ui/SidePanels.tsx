@@ -265,10 +265,7 @@ function SceneTreePanel({
 }) {
   const [expanded, setExpanded] = useState(false);
   const count = objects.length + (room === undefined ? 0 : 1);
-  const hotspotCounts = new Map<string, number>();
-  for (const hotspot of hotspots) {
-    hotspotCounts.set(hotspot.objectId, (hotspotCounts.get(hotspot.objectId) ?? 0) + 1);
-  }
+  const hotspotObjects = new Set(hotspots.map((hotspot) => hotspot.objectId.toLowerCase()));
   return (
     <section className="editor-panel" aria-labelledby="objects-heading">
       <PanelHeading id="objects-heading">
@@ -293,7 +290,7 @@ function SceneTreePanel({
               </li>
             )}
             {objects.map((object) => {
-              const hotspotCount = hotspotCounts.get(object.id) ?? 0;
+              const hasHotspot = hotspotObjects.has(object.id.toLowerCase());
               return (
                 <li key={object.id}>
                   <button
@@ -305,16 +302,10 @@ function SceneTreePanel({
                   >
                     <img src={thumbnailFor(object.assetId)} alt="" draggable={false} />
                     <span>{object.name}</span>
-                    {hotspotCount > 0 && (
-                      <span
-                        className="hotspot-indicator"
-                        title={`${hotspotCount} ${hotspotCount === 1 ? "hotspot" : "hotspots"}`}
-                      >
+                    {hasHotspot && (
+                      <span className="hotspot-indicator" title="Has hotspot">
                         <Icon name="hotspot" />
-                        <span className="sr-only">
-                          {hotspotCount} {hotspotCount === 1 ? "hotspot" : "hotspots"}
-                        </span>
-                        {hotspotCount > 1 && <span aria-hidden="true">{hotspotCount}</span>}
+                        <span className="sr-only">Has hotspot</span>
                       </span>
                     )}
                   </button>

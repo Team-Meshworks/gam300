@@ -347,6 +347,12 @@ it("attaches hotspots to objects and removes their rules with the object", () =>
   assert.deepEqual(added.value.position, [0.25, 0, -0.5]);
   assert.deepEqual(store.getSnapshot().project?.scenes[0]?.hotspots, [added.value]);
 
+  const duplicate = store.addHotspot(object.object.id.toUpperCase(), [0, 0, 0]);
+  assert.equal(duplicate.ok, false);
+  if (!duplicate.ok) {
+    assert.equal(duplicate.error.message, "Each object can have at most one hotspot");
+  }
+
   const unrelated = {
     when: { type: "scene-starts" as const },
     do: { type: "print-hi" as const },

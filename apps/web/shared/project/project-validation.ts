@@ -102,6 +102,7 @@ export function validateProject(
     }
 
     const hotspotIds = new Set<string>();
+    const hotspotObjects = new Set<string>();
     for (const [hotspotIndex, hotspot] of scene.hotspots.entries()) {
       const hotspotPath = `${path}.hotspots[${hotspotIndex}]`;
       const hotspotId = checkEntityId(hotspot.id, `${hotspotPath}.id`, seen);
@@ -109,12 +110,17 @@ export function validateProject(
         return hotspotId;
       }
       hotspotIds.add(hotspot.id.toLowerCase());
-      if (!objectIds.has(hotspot.objectId.toLowerCase())) {
+      const objectKey = hotspot.objectId.toLowerCase();
+      if (!objectIds.has(objectKey)) {
         return invalid(
           `${hotspotPath}.objectId`,
           "Hotspot must reference an object in the same scene",
         );
       }
+      if (hotspotObjects.has(objectKey)) {
+        return invalid(`${hotspotPath}.objectId`, "Each object can have at most one hotspot");
+      }
+      hotspotObjects.add(objectKey);
     }
 
     for (const [interactionIndex, interaction] of scene.interactions.entries()) {

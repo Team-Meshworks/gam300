@@ -616,8 +616,19 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       if (project === null || scene === undefined) {
         return invalid("project", "Choose a room before adding hotspots");
       }
-      if (!objects.some((object) => object.id === objectId)) {
+      const objectKey = objectId.toLowerCase();
+      const target = objects.find((object) => object.id.toLowerCase() === objectKey);
+      if (target === undefined) {
         return invalid("objectId", "Select an object to attach the hotspot to");
+      }
+      if (scene.hotspots.some((hotspot) => hotspot.objectId.toLowerCase() === objectKey)) {
+        return invalid("objectId", "Each object can have at most one hotspot");
+      }
+      if (
+        project.schemaVersion === 2 &&
+        (target as ContentObject).components.some((component) => component.type === "hotspot")
+      ) {
+        return invalid("objectId", "Each object can have at most one hotspot");
       }
       if (scene.hotspots.length >= 200) {
         return invalid("hotspots", "This scene has reached its 200-hotspot limit");
@@ -626,7 +637,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       if (!checked.ok) return checked;
       const hotspot = Object.freeze({
         id: crypto.randomUUID(),
-        objectId,
+        objectId: target.id,
         position: Object.freeze([...checked.value]) as ProjectHotspot["position"],
       });
       const next = { ...sceneState(), hotspots: Object.freeze([...scene.hotspots, hotspot]) };

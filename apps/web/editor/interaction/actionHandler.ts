@@ -28,6 +28,11 @@ export function runAction(action: Action): void {
   }
 }
 
+export function stopActiveAudio(): void {
+  activeAudio?.pause();
+  activeAudio = undefined;
+}
+
 function openInNewTab(url: string): void {
   if (url.length > MAX_PORTABLE_URL_LENGTH || !isPortableHttpsUrl(url)) return;
   const link = document.createElement("a");
@@ -40,7 +45,7 @@ function openInNewTab(url: string): void {
 }
 
 function playAudio(url: string): void {
-  activeAudio?.pause();
+  stopActiveAudio();
   const audio = new Audio(url);
   activeAudio = audio;
   void audio.play().catch(() => {

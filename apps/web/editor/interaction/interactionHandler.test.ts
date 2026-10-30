@@ -66,6 +66,23 @@ describe("interaction handler", () => {
     expect(runAction).toHaveBeenCalledExactlyOnceWith(clickInteraction.do);
   });
 
+  it("matches click rules and hotspots case-insensitively in author order", () => {
+    const runAction = vi.fn();
+    const first: Interaction = {
+      when: { type: "visitor-clicks-hotspot", targetHotspotId: "CRATE-HOTSPOT" },
+      do: { type: "open-link", url: "https://example.com/first" },
+    };
+    const second: Interaction = {
+      when: { type: "visitor-clicks-hotspot", targetHotspotId: "crate-hotspot" },
+      do: { type: "open-link", url: "https://example.com/second" },
+    };
+    const handler = createInteractionHandler([first, clickInteraction, second], hotspots, runAction);
+
+    handler.objectClicked("CRATE");
+
+    expect(runAction.mock.calls).toEqual([[first.do], [clickInteraction.do], [second.do]]);
+  });
+
   it("waits two seconds by default and fires each elapsed interaction once", () => {
     const runAction = vi.fn();
     const handler = createInteractionHandler([elapsedInteraction], hotspots, runAction);

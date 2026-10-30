@@ -120,6 +120,9 @@ public static partial class ProjectFormat
                 }
             }
 
+            // One interactive marker per object keeps click dispatch unambiguous
+            var hotspotObjects = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
             // Resolve model and media assets separately so an approved asset of the wrong kind is rejected
             Array(Get(scene, "objects"), $"{path}.objects", 200, (item, path) =>
             {
@@ -134,6 +137,11 @@ public static partial class ProjectFormat
                         Asset(String(component, "assetId"), type, $"{path}.assetId");
                     }
 
+                    if (type == "hotspot" && !hotspotObjects.Add(String(item, "id")))
+                    {
+                        Fail($"{path}.type", "Each object can have at most one hotspot");
+                    }
+
                     if (type == "navigationPoint")
                     {
                         Destination(component, path);
@@ -146,7 +154,14 @@ public static partial class ProjectFormat
             if (scene.TryGetProperty("hotspots", out var hotspots))
             {
                 Array(hotspots, $"{path}.hotspots", 200, (item, path) =>
-                    Ref(String(item, "objectId"), ["object"], sceneId, $"{path}.objectId"));
+                {
+                    var objectId = String(item, "objectId");
+                    Ref(objectId, ["object"], sceneId, $"{path}.objectId");
+                    if (!hotspotObjects.Add(objectId))
+                    {
+                        Fail($"{path}.objectId", "Each object can have at most one hotspot");
+                    }
+                });
             }
             if (scene.TryGetProperty("interactions", out var interactions))
             {

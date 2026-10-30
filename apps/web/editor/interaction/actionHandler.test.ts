@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { runAction } from "./actionHandler";
+import { runAction, stopActiveAudio } from "./actionHandler";
 
 class FakeAudio {
   static latest: FakeAudio | undefined;
@@ -14,6 +14,7 @@ class FakeAudio {
 }
 
 afterEach(() => {
+  stopActiveAudio();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   FakeAudio.latest = undefined;
@@ -68,6 +69,17 @@ describe("action handler", () => {
     runAction({ type: "play-audio", url: "/audio/ding.wav" });
 
     expect(first?.pause).toHaveBeenCalledOnce();
+  });
+
+  it("stops active audio once when the preview resets", () => {
+    vi.stubGlobal("Audio", FakeAudio);
+    runAction({ type: "play-audio", url: "/audio/ding.wav" });
+    const audio = FakeAudio.latest;
+
+    stopActiveAudio();
+    stopActiveAudio();
+
+    expect(audio?.pause).toHaveBeenCalledOnce();
   });
 
   it("shows a hi alert", () => {

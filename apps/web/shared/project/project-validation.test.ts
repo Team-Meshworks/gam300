@@ -190,6 +190,26 @@ describe("project IDs and asset references", () => {
     });
   });
 
+  it("allows only one hotspot per object, comparing UUID case-insensitively", () => {
+    const { project, scene, object, assets } = sampleProject();
+    scene.hotspots = [
+      { id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee", objectId: object.id, position: [0, 0, 0] },
+      {
+        id: "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        objectId: object.id.toUpperCase(),
+        position: [0, 0, 0],
+      },
+    ];
+
+    expect(validateProject(project, assets)).toEqual({
+      ok: false,
+      error: {
+        path: "project.scenes[0].hotspots[1].objectId",
+        message: "Each object can have at most one hotspot",
+      },
+    });
+  });
+
   it("runs the existing structure and spatial checks before checking references", () => {
     const { project, object, assets } = sampleProject();
     expect(validateProject(null, assets)).toMatchObject({ ok: false, error: { path: "project" } });

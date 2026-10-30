@@ -1,5 +1,9 @@
 import type { EntityId, Interaction, ProjectHotspot } from "../../shared/project/project-types";
-import { runAction as runBrowserAction, type Action } from "./actionHandler";
+import {
+  runAction as runBrowserAction,
+  stopActiveAudio,
+  type Action,
+} from "./actionHandler";
 import { triggerMatches, triggerSeconds, type TriggerEvent } from "./triggerHandler";
 
 export type { Interaction } from "../../shared/project/project-types";
@@ -25,20 +29,20 @@ export function createInteractionHandler(
   let elapsedSeconds = 0;
   const fired = new Set<Interaction>();
 
-  // Object -> hotspot -> rules keeps a click lookup proportional to the clicked
-  // object's own hotspots instead of scanning every hotspot or interaction.
-  const hotspotsByObject = new Map<EntityId, EntityId[]>();
+  // UUIDs keep their authored spelling but compare case-insensitively at runtime.
+  const objectByHotspot = new Map<string, string>();
   for (const hotspot of hotspots) {
-    const attached = hotspotsByObject.get(hotspot.objectId);
-    if (attached === undefined) hotspotsByObject.set(hotspot.objectId, [hotspot.id]);
-    else attached.push(hotspot.id);
+    objectByHotspot.set(hotspot.id.toLowerCase(), hotspot.objectId.toLowerCase());
   }
-  const interactionsByHotspot = new Map<EntityId, Interaction[]>();
+
+  // Index in author order so clicks never reshuffle rules by hotspot
+  const interactionsByObject = new Map<string, Interaction[]>();
   for (const interaction of interactions) {
     if (interaction.when.type !== "visitor-clicks-hotspot") continue;
-    const target = interaction.when.targetHotspotId;
-    const attached = interactionsByHotspot.get(target);
-    if (attached === undefined) interactionsByHotspot.set(target, [interaction]);
+    const objectId = objectByHotspot.get(interaction.when.targetHotspotId.toLowerCase());
+    if (objectId === undefined) continue;
+    const attached = interactionsByObject.get(objectId);
+    if (attached === undefined) interactionsByObject.set(objectId, [interaction]);
     else attached.push(interaction);
   }
 
@@ -61,12 +65,8 @@ export function createInteractionHandler(
       run({ type: "scene-starts" });
     },
     objectClicked(objectId) {
-      const hotspotIds = hotspotsByObject.get(objectId);
-      if (hotspotIds === undefined) return;
-      for (const hotspotId of hotspotIds) {
-        for (const interaction of interactionsByHotspot.get(hotspotId) ?? []) {
-          execute(interaction.do);
-        }
+      for (const interaction of interactionsByObject.get(objectId.toLowerCase()) ?? []) {
+        execute(interaction.do);
       }
     },
     update(deltaSeconds) {
@@ -82,6 +82,7 @@ export function createInteractionHandler(
     reset() {
       elapsedSeconds = 0;
       fired.clear();
+      stopActiveAudio();
     },
   };
 }
