@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createDocumentStore } from "./document-store";
-import type { CatalogueAsset } from "../shared/assets/catalogue";
+import type { CatalogueAsset } from "../shared/asset-runtime/catalogue";
 import type { Transform } from "../shared/project/project-types";
 import fixture from "../shared/project/fixtures/m1-project.json";
 import { serializeProject } from "../shared/project/project-serialization";

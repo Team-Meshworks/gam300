@@ -5,16 +5,20 @@ RUN case "$BUILD_MODE" in development|production) ;; *) echo >&2 "Invalid BUILD_
 RUN npm install --global npm@11.17.0
 COPY apps/web/package.json apps/web/package-lock.json ./
 RUN npm ci --no-audit --no-fund
+# Standalone builds keep all checks; CI has already run these before packaging the same checkout
+ARG RUN_BUILD_CHECKS=true
+RUN case "$RUN_BUILD_CHECKS" in true|false) ;; *) echo >&2 "Invalid RUN_BUILD_CHECKS: use true or false"; exit 1 ;; esac
+# Cache the browser and system packages with dependencies rather than invalidating them on source edits
+RUN if [ "$RUN_BUILD_CHECKS" = true ]; then npx --no-install playwright install --with-deps chromium; fi
 COPY apps/web/ ./
 COPY assets/manifest.json /app/assets/manifest.json
 COPY assets/delivery/ /app/assets/delivery/
-COPY assets/tools/validate-assets.mjs /app/assets/tools/validate-assets.mjs
-RUN node /app/assets/tools/validate-assets.mjs --delivery-only
-RUN npm run lint && npm run format:check && npm run test:unit
+COPY tools/validate-assets.mjs /app/tools/validate-assets.mjs
+RUN node /app/tools/validate-assets.mjs --delivery-only
+RUN if [ "$RUN_BUILD_CHECKS" = true ]; then npm run lint && npm run format:check && npm run test:unit; fi
 RUN NODE_ENV="$BUILD_MODE" npm run build:editor -- --mode "$BUILD_MODE"
-RUN npx --no-install playwright install --with-deps chromium
 COPY tools/check-browser.mjs /app/tools/check-browser.mjs
-RUN BUILD_MODE="$BUILD_MODE" node /app/tools/check-browser.mjs
+RUN if [ "$RUN_BUILD_CHECKS" = true ]; then BUILD_MODE="$BUILD_MODE" node /app/tools/check-browser.mjs; fi
 
 FROM caddy:2.11.4-alpine@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b
 RUN setcap -r /usr/bin/caddy

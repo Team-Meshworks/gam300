@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-  <a href="#project-status"><img src="https://img.shields.io/badge/status-M1_prototype-orange" alt="Status: M1 prototype"></a>
+  <a href="#project-status"><img src="https://img.shields.io/badge/status-prototype-orange" alt="Status: prototype"></a>
   <a href="https://github.com/Team-Meshworks/gam300/actions/workflows/ci.yml"><img src="https://github.com/Team-Meshworks/gam300/actions/workflows/ci.yml/badge.svg?branch=dev&amp;event=push" alt="Latest push CI run on dev"></a>
   <a href="#quick-start"><img src="https://img.shields.io/badge/Node.js-24-339933?logo=nodedotjs&amp;logoColor=white" alt="Node.js 24"></a>
   <a href="apps/web/package.json"><img src="https://img.shields.io/badge/React-19-149ECA?logo=react&amp;logoColor=white" alt="React 19"></a>
@@ -29,26 +29,25 @@
 with educator support. The goal is to let authors arrange curated assets, add **WHEN → DO**
 interactions without writing code, and share spaces that others can explore.
 
-This repository currently contains the editor prototype. **Meshworks** is the development
-team; **VThere** is the commissioning company.
+This repository contains the editor prototype and a separately developed account and project API.
 
 ## Features
 
-- **Build a 3D scene** — drag sample models onto the ground grid, or add them with a click or keyboard.
-- **Select and move objects** — use the scene or object list, custom axis handles, and movement buttons.
-- **Undo and redo** — reverse object placement and movement while preserving object identity.
+- **Build a 3D scene** — choose a room, then drag sample models into it or add them with a click or keyboard.
+- **Edit objects** — select from the scene or object list, move with axis handles, and edit position, rotation and scale. Copy, paste, duplicate and delete objects with keyboard shortcuts.
+- **Undo and redo** — reverse edits while preserving object identity.
 - **Explore your scene** — switch between an orbit camera and a first-person visitor camera.
 - **Load a sample project** — try a room, two crates, and a saved starting camera in development mode.
 - **Recover from loading errors** — retry failed assets, with feedback when WebGL 2 is unavailable.
 - **Save and reopen work** — recover a project from browser storage, or use Open, Save and Save As for project JSON files.
+- **Validate project data** — TypeScript and C# support validation and cross-runtime round trips for versions 1 and 2 of the [project format](docs/project-format.md).
 
 ## Project status
 
-**M1 prototype, under active development.** The interface and sample content are provisional.
+**Prototype, under active development.** The interface and sample content are provisional.
 Choose a room to create a saveable project. The editor quietly backs up the current session
 in this browser and reopens it on reload, including valid undo history. **Saved** and
 **Not saved** describe the JSON file; browser recovery does not mark that file as saved.
-Loose objects on the initial grid need a room before they can be saved as a project.
 
 The project menu provides **New**, **Open**, **Save** and **Save As**. New/Open offers
 **Save**, **Don’t Save** and **Cancel** when there are unsaved edits. Supported browsers
@@ -58,10 +57,16 @@ receipt. Save also retries a failed browser backup. Cancelled or failed operatio
 the current scene. If an older backup is damaged, recovery asks before opening another readable
 backup and keeps the damaged record.
 
-The WHEN → DO rule builder, accounts, PostgreSQL saving and publication/sharing are planned.
-The current visitor camera is part of the editor;
-a separate visitor application is still to come. Sample asset distribution rights remain
-under review; see the [asset pipeline notes](assets/README.md).
+The server implements Identity accounts and sessions, administrator provisioning, and authorized
+PostgreSQL project list, open, save, creation, duplication, assignment and archive routes.
+The editor does not yet use those routes for its project workflow; browser recovery and JSON files
+remain the current editor storage paths. See the [server guide](apps/server/README.md) for setup
+and the API boundary. Integrated server saving and recovery remain in progress.
+
+The WHEN → DO rule builder and publication/sharing are planned. Preview is part of the editor;
+a separate visitor application is still to come. Projects with unsupported multi-scene, content
+or rule capabilities are preserved, but cannot be previewed in the current editor.
+Sample asset distribution rights remain under review; see the [asset pipeline notes](assets/README.md).
 
 ## Wiki
 
@@ -106,11 +111,11 @@ run.bat
 The launcher checks Git/Git LFS, Docker's Linux engine and Compose, restores delivery
 assets, installs **Node 24.19.0/npm 11.17.0** inside the pinned container, runs `npm ci`,
 lint, formatting, unit tests, TypeScript/build checks,
-all four authoring browser suites and the production/development build browser check.
+all four authoring browser suites and a browser check of the selected build mode.
 Only a successful build and tests start the application. Failures print their stage
 and return a nonzero exit code. Node, npm, Chromium and an application database do not
-need to be installed on the host. The current M1 application requires only the web
-service; the API and PostgreSQL will join this command when implemented in M2.
+need to be installed on the host. This launcher starts only the web service. It does not
+start the API or PostgreSQL; server development and checks have separate prerequisites in the [server guide](apps/server/README.md).
 
 Open [localhost:8081](http://localhost:8081). Stop with
 `docker compose --project-name spatia-local down`. The first run downloads the locked
@@ -136,16 +141,26 @@ The same Dockerfile is used by CI and deployment. See the
 | Mode    | Input                                             | Action                             |
 | ------- | ------------------------------------------------- | ---------------------------------- |
 | Editor  | Drag an asset / click or press Enter on its tile  | Place an object                    |
-| Editor  | Click an object or its entry in the scene list    | Select an object                   |
+| Editor  | Select tool and click an object, or click its list entry | Select an object          |
 | Editor  | Drag a selected object's axis handle              | Move along that axis               |
-| Editor  | X / Y / Z movement buttons                        | Move in 0.25 m steps               |
+| Editor  | Right-drag an axis / selected object              | Rotate on an axis / freely         |
+| Editor  | Shift while rotating an axis                      | Snap rotation                      |
+| Editor  | Scroll over a selected object                     | Scale it                           |
+| Editor  | Position panel                                    | Edit position, rotation and scale  |
+| Editor  | Ctrl/Cmd+C, V or D                                | Copy, paste or duplicate selection |
+| Editor  | Delete / Backspace                                | Delete selection                   |
+| Editor  | Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z or Ctrl/Cmd+Y        | Undo / redo                        |
+| Editor  | Ctrl/Cmd+S / Ctrl/Cmd+Shift+S                     | Save / Save As                     |
 | Editor  | Escape during placement or movement               | Cancel the change                  |
-| Editor  | Left-drag away from handles / right-drag / scroll | Orbit / pan / zoom                 |
+| Editor  | Left-drag with Orbit / Pan / Zoom tool            | Orbit / pan / zoom camera          |
+| Editor  | Right-drag / scroll on background                 | Pan / zoom camera                  |
 | Visitor | W / A / S / D                                     | Move forward / left / back / right |
 | Visitor | Left mouse drag                                   | Look around                        |
 | Visitor | Shift / Space / Ctrl                              | Sprint / fly up / fly down         |
 
-Use **Enter Visitor** and **Exit Visitor** to switch camera modes. Authoring controls and
+Viewport object picking and transforms require the Select tool. Choose Select, Orbit, Pan
+or Zoom in the camera toolbar. Drag its grip to an edge, or
+open the dock menu to choose an edge. Use **Preview** and **Exit preview** to switch camera modes. Authoring controls and
 save shortcuts are inactive while visiting; movement stops when the window loses focus.
 
 ## Tech stack
@@ -154,12 +169,12 @@ save shortcuts are inactive while visiting; movement stops when the window loses
 | --------------------- | ------------------------------------------- |
 | Interface             | React 19, TypeScript 6, native HTML and CSS |
 | 3D rendering          | Three.js with custom translation controls   |
+| Server                | ASP.NET Core 10, Identity, EF Core/Npgsql, PostgreSQL |
 | Development and build | Vite 8, Node.js 24, npm                     |
-| Quality checks        | ESLint, Prettier, Vitest, Playwright        |
+| Quality checks        | ESLint, Prettier, Vitest, Playwright, TUnit |
 | Delivery              | Docker, Caddy, GitHub Actions, Git LFS      |
 
-ASP.NET Core/Identity and PostgreSQL via EF Core/Npgsql are planned for the application
-backend. They are not required to run the current editor.
+The server is developed and tested separately; it is not required to run the current editor.
 
 ## Development
 
@@ -173,6 +188,8 @@ Individual maintenance commands below run from `apps/web/`:
 | `npm run dev`                                       | Start the development server with hot reload                          |
 | `npm run build`                                     | Typecheck and build the editor into `apps/web/dist/editor/`                |
 | `npm run preview`                                   | Serve the latest local build                                          |
+| `npm run check:architecture`                        | Check source dependency boundaries                                  |
+| `npm run test:architecture`                         | Test architecture enforcement                                        |
 | `npm run typecheck`                                 | Check TypeScript types                                                |
 | `npm run lint`                                      | Run ESLint with zero warnings allowed                                 |
 | `npm run format:check`                              | Check formatting                                                      |
@@ -194,7 +211,10 @@ On Ubuntu, use `npx playwright install --with-deps chromium` to install Chromium
 system libraries as well. See [Playwright's CI instructions](https://playwright.dev/docs/ci).
 
 Validate asset metadata and GLBs from the repository root with
-`node assets/tools/validate-assets.mjs`.
+`node tools/validate-assets.mjs`. Run `node tools/validate-assets.check.mjs` to check
+the validator itself. For the server, use the pinned .NET SDK 10.0.401 and follow the
+[server toolchain and checks](apps/server/README.md#toolchain-and-checks), including its
+disposable PostgreSQL prerequisites.
 
 Run `npm run test:caching` in `apps/web/` against the development server to check asset cache
 lifetime and shared resources. `npm run measure:caching` starts its own local server and
@@ -202,8 +222,9 @@ records comparable baseline/cached timings.
 
 ### Development environments and verification
 
-The npm workflow needs no application database, `.env` file, private local fixture or
-Docker installation. Access to this private repository and its Git LFS objects is required.
+The web npm workflow needs no application database, `.env` file, private local fixture or
+Docker installation. Server integration checks have separate database and configuration
+requirements. Access to this private repository and its Git LFS objects is required.
 Use the pinned Node/npm versions above; if necessary install the matching npm with
 `npm install --global npm@11.17.0`. On Windows, use `npm.cmd` / `npx.cmd` when PowerShell
 blocks the `.ps1` launchers.
@@ -212,7 +233,7 @@ blocks the `.ps1` launchers.
 | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Windows 11                 | Fresh-clone native build and all browser checks passed on build 26200; launcher failure/startup checks also passed. Host Node was preinstalled for that native test.         |
 | Ubuntu 24.04               | Clean GitHub Actions build/test/container checks; [baseline CI](https://github.com/Team-Meshworks/gam300/actions/runs/36964933555). The current PR must pass its own checks. |
-| macOS Tahoe                | The workflow requires native install/type/build/lint/unit/setup checks on `macos-26`. Refer to the current PR for its actual result; no physical Mac test is claimed.        |
+| macOS Tahoe                | The workflow runs native setup, architecture, unit and build checks on `macos-26`; lint and formatting run on Ubuntu. Refer to the current PR for its actual result; no physical Mac test is claimed.        |
 | Local Ubuntu 26.04 / WSL 2 | Root launcher passed with no native Node/npm, a fresh checkout and an empty isolated Docker build cache. Git LFS was configured in the test directory.                       |
 
 For a clean reproduction, clone into a new directory and run the root launcher.
@@ -231,23 +252,49 @@ run.bat / run.sh     One-command submission build, tests and startup
 apps/
   web/
     editor/          React UI, document state, viewport, and camera controls
-    shared/          Asset catalogue, project types, validation, and fixtures
+    shared/
+      asset-runtime/ Asset catalogue contracts and model cache (TypeScript)
+      project/       Project types, validation, and shared JSON fixtures
     tests/           Browser and deployment checks
+  server/
+    Spatia.Server/   ASP.NET Core accounts, project API, and persistence
+    Spatia.ProjectFormat/  C# project format and validation
+    tests/           TUnit API/database integration tests
+    project-format-checks/  Standalone cross-runtime format checks
 assets/
   source/            Original editable assets
   delivery/          Runtime models and thumbnails
-  tools/             Asset validation
 deploy/              Caddy configuration and deployment/rollback scripts
-tools/               Browser-check orchestration
+tools/               Setup checks, offline asset validation and browser-check orchestration
 docs/
   proposal.md        Product brief and scope
   design/            UI/UX exports; PDD pending
   architecture.md    Implemented and planned component boundaries
+  project-format.md  Versioned project data contracts
   deliverables.md    M1 owners, statuses and Jira mapping
-  planning/          Supplied feature/deliverable planning workbooks
   deployment.md      Build, hosting and operational evidence
 .github/workflows/   Automatic CI and manual deployment
 ```
+
+Keep source with its owning application or feature; web unit tests live beside the
+modules they exercise. The web and server `tests/` folders run different toolchains.
+The standalone server format checker and API tests both read the fixtures in
+`apps/web/shared/project/fixtures/`. See the [server setup](apps/server/README.md)
+for its separate SDK, database and test prerequisites.
+
+Root `assets/` contains the binary pipeline; `apps/web/shared/asset-runtime/` contains its
+browser code. `source/` preserves originals and `delivery/` holds the manifest's runtime
+files, even when an original and its delivery currently have identical bytes. Vite
+loads catalogue assets from `assets/delivery/` and emits hashed URLs; do not copy them
+into an editor public directory. Saved projects keep stable asset IDs.
+
+`node_modules/`, `bin/`, `obj/`, `apps/web/dist/`, `test-results/`, `ci-artifacts/`,
+`outputs/` and `.artifacts/` are ignored local dependencies, build output or check
+evidence. Repeated output-folder names belong to their invoking tools; they are not
+additional source trees. Root `test-results/` holds repository checks and disposable
+architecture copies; application check reports stay under that application's
+`test-results/`. Preserve retained evidence when cleaning local output. Local handoff
+material under `docs/personal/` is also ignored and is separate from shared docs.
 
 ## CI and deployment
 
@@ -257,12 +304,14 @@ Deployment remains a separate manual action.
 
 1. Open a pull request into `dev`; its CI checks start automatically. For an extra run,
    open **Actions → CI → Run workflow** and select the branch.
-2. Wait for lint, formatting, asset validation, unit tests, editor/integration/recovery/history checks,
-   native Windows/macOS checks, and the container build and checks on Ubuntu 24.04.
+2. Wait for web lint, formatting, architecture and asset validation, unit and browser checks,
+   native Windows/macOS checks, the Ubuntu container checks, shared project-format checks,
+   and server build and tests against disposable PostgreSQL.
 3. Successful push/manual runs on `dev` or `main` publish the tested image and a release
    descriptor. Pull request runs and manual runs on feature branches do not publish images.
 4. To deploy, open **Actions → Deploy → Run workflow**, select the same branch, and enter
-   the successful CI run ID. Deployment uses that exact tested image.
+   the successful CI run ID. Deployment uses that exact tested web image; it does not deploy
+   the server or database.
 
 `dev` deploys to **development**; `main` deploys to **production**. Promote releases through
 a `dev` → `main` pull request; the resulting push runs CI on the integrated `main` commit.
@@ -277,8 +326,7 @@ covers the Actions UI and required repository access.
 1. Branch from `dev` and keep changes focused on one feature or fix.
 2. Run type, lint, and formatting checks, plus the tests relevant to your change.
 3. Open a pull request into `dev` with a summary, verification results, and screenshots for UI changes.
-4. Obtain reviewer approval and wait for passing CI before merging. GitHub branch protection
-   is unavailable on the current private-repository plan, so maintainers enforce this step.
+4. Obtain reviewer approval and wait for passing CI before merging.
 
 Report bugs through [GitHub Issues](https://github.com/Team-Meshworks/gam300/issues), including
 reproduction steps, expected behavior, and browser/OS details. For asset changes, include

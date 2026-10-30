@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { CatalogueAsset } from "../../shared/assets/catalogue";
+import type { CatalogueAsset } from "../../shared/asset-runtime/catalogue";
 import {
   filterAssets,
   filterOptions,

@@ -28,6 +28,10 @@ try {
     const source = await (await fetch("/graphics/scene.ts")).text();
     const THREE = await import(source.match(/import \* as THREE from "([^"]+)"/)[1]);
     const cachePath = source.match(/from "([^"]*ModelCache[^\"]*)"/)[1];
+    check(
+      cachePath.includes("/shared/asset-runtime/"),
+      "The renderer must load the shared asset-runtime module",
+    );
     const { ModelCache } = await import(cachePath);
     const cacheSource = await (await fetch(cachePath)).text();
     const { GLTFLoader } = await import(
@@ -59,7 +63,12 @@ try {
       counts.generatedThumbnails++;
       return originalImage.apply(this, args);
     };
-    function start(cache, library = assets) {
+    // Keep the load-count fixture fixed when the production catalogue gains more assets
+    const fixtureIds = new Set(["test-room-v1", "test-crate-v1", "sample-snowglobe-v1"]);
+    const libraryFixture = assets.filter((asset) => fixtureIds.has(asset.id));
+    check(libraryFixture.length === fixtureIds.size, "Caching fixture assets are missing");
+
+    function start(cache, library = libraryFixture) {
       const host = document.createElement("div");
       host.style.cssText = "width:800px;height:600px;position:relative";
       document.querySelector("main").append(host);

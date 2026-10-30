@@ -7,7 +7,7 @@ import {
   type MouseEvent,
   type PointerEvent,
 } from "react";
-import type { CatalogueAsset } from "../../shared/assets/catalogue";
+import type { CatalogueAsset } from "../../shared/asset-runtime/catalogue";
 import type { NavigationTool } from "../graphics/scene";
 import { AssetPicker } from "./AssetPicker";
 import { dockEdges, loadDockEdge, nearestEdge, saveDockEdge, type DockEdge } from "./dock-edge";

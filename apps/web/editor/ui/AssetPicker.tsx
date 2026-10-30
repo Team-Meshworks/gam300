@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { assetDragType, type CatalogueAsset } from "../../shared/assets/catalogue";
+import { assetDragType, type CatalogueAsset } from "../../shared/asset-runtime/catalogue";
 import {
   categoryOf,
   filterAssets,

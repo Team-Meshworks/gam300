@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import * as THREE from "three";
 
@@ -37,7 +38,7 @@ try {
   const page = await browser.newPage({ viewport: { width: 1366, height: 768 }, hasTouch: true });
   const pageErrors = [];
   const consoleErrors = [];
-  page.on("pageerror", (error) => pageErrors.push(error.message));
+  page.on("pageerror", (error) => pageErrors.push(error.stack ?? error.message));
   page.on("console", (message) => {
     if (message.type() === "error") {
       consoleErrors.push(message.text());
@@ -56,6 +57,17 @@ try {
   const redo = page.getByRole("button", { name: "Redo", exact: true });
   const rows = page.locator(".object-row");
   const stage = page.locator(".viewport-stage");
+  // Library covers the middle of the scene, so drop halfway between it and the right edge
+  async function dropPointBesideLibrary() {
+    await openLibrary(page);
+    const stageBox = await stage.boundingBox();
+    const pickerBox = await picker.boundingBox();
+    assert.ok(stageBox && pickerBox);
+    return {
+      x: (pickerBox.x + pickerBox.width + stageBox.x + stageBox.width) / 2 - stageBox.x,
+      y: stageBox.height / 2,
+    };
+  }
   await ready.waitFor();
   assert.equal(await page.title(), "Untitled - Spatia");
   assert.equal(await page.getByRole("heading", { name: "Spatia", exact: true }).count(), 1);
@@ -89,19 +101,42 @@ try {
   assert.equal(await rows.count(), 0, "Picking a card alone places nothing");
   await add.focus();
   await page.keyboard.press("Enter");
+  await page.getByRole("alert").filter({ hasText: "Choose a room first" }).waitFor();
+  assert.equal(await rows.count(), 0, "A crate cannot start a project without an environment");
+  assert.equal(await undo.isDisabled(), true);
+
+  // A viewport drop follows the same room-first rule as the asset's Add button
+  await asset.dragTo(stage, { targetPosition: await dropPointBesideLibrary() });
+  assert.equal(await rows.count(), 0, "Dropping a crate before choosing a room changes nothing");
+  assert.equal(await undo.isDisabled(), true);
+  await page.getByText("Add a room from the asset library to start.", { exact: true }).waitFor();
+
+  await addAsset(page, "test-room");
+  await ready.waitFor();
+  assert.equal(
+    await page.getByRole("alert").count(),
+    0,
+    "Choosing a room clears the placement error",
+  );
+  // Load a known camera pose so pointer checks do not depend on the editor startup view
+  const fixture = JSON.parse(
+    readFileSync(new URL("../shared/project/fixtures/m1-project.json", import.meta.url), "utf8"),
+  );
+  const emptyFixture = structuredClone(fixture);
+  emptyFixture.scenes[0].objects = [];
+  await page.locator("#project-import").setInputFiles({
+    name: "pointer-fixture.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(emptyFixture)),
+  });
+  await page.getByText("Project opened", { exact: true }).waitFor();
+  await addAsset(page, "test-crate");
   assert.equal(await rows.count(), 1);
   assert.equal(await picker.count(), 0, "Add closes the library");
   const firstId = await rows.first().getAttribute("data-object-id");
   const stageBox = await stage.boundingBox();
   assert.ok(stageBox);
-  // Library covers the middle of the scene, so drop to the right of it
-  await openLibrary(page);
-  const pickerBox = await picker.boundingBox();
-  assert.ok(pickerBox);
-  const dropPoint = {
-    x: (pickerBox.x + pickerBox.width + stageBox.x + stageBox.width) / 2 - stageBox.x,
-    y: stageBox.height / 2,
-  };
+  const dropPoint = await dropPointBesideLibrary();
   await asset.dragTo(stage, { targetPosition: dropPoint });
   assert.equal(await rows.count(), 2, "One completed drop creates one object");
   assert.equal(await picker.count(), 0, "A finished drop closes the library");
@@ -109,7 +144,36 @@ try {
   assert.notEqual(firstId, secondId);
   assert.equal(await rows.nth(1).getAttribute("aria-pressed"), "true");
 
-  await stage.click({ position: { x: stageBox.width / 2, y: stageBox.height / 2 - 10 } });
+  // Read the authored spawn position before projecting it through the fixture camera
+  await rows.first().click();
+  await page.getByRole("button", { name: "Position", exact: true }).click();
+  const spawn = await Promise.all(
+    ["X", "Y", "Z"].map(async (axis) =>
+      Number(
+        await page
+          .getByRole("textbox", { name: `test-crate 1 transform ${axis} (m)`, exact: true })
+          .inputValue(),
+      ),
+    ),
+  );
+  await page.getByRole("button", { name: "Scene tree", exact: true }).click();
+  const pose = fixture.scenes[0].startCamera;
+  const camera = new THREE.PerspectiveCamera(
+    pose.fovDegrees,
+    stageBox.width / stageBox.height,
+    0.1,
+    100,
+  );
+  camera.position.fromArray(pose.position);
+  camera.quaternion.fromArray(pose.rotation);
+  camera.updateMatrixWorld(true);
+  const center = new THREE.Vector3(spawn[0], spawn[1] + 0.5, spawn[2]).project(camera);
+  await stage.click({
+    position: {
+      x: ((center.x + 1) * stageBox.width) / 2,
+      y: ((1 - center.y) * stageBox.height) / 2,
+    },
+  });
   assert.equal(
     await rows.first().getAttribute("aria-pressed"),
     "true",
@@ -118,21 +182,20 @@ try {
   const position = page.locator('output[aria-label="Selected position"]');
   const initialPosition = await position.textContent();
   await nudge(page, "test-crate 1", "X", 0.25);
-  assert.match(await position.textContent(), /X 0\.25/);
+  assert.notEqual(await position.textContent(), initialPosition);
   await undo.click();
   assert.equal(await position.textContent(), initialPosition);
 
-  const camera = new THREE.PerspectiveCamera(40, stageBox.width / stageBox.height, 0.1, 100);
-  camera.position.set(12, 16, 18);
-  camera.lookAt(0, 0, 0);
-  camera.updateMatrixWorld(true);
-  const origin = new THREE.Vector3().project(camera);
-  const xAxis = new THREE.Vector3(1, 0, 0).project(camera);
+  const origin = new THREE.Vector3(...spawn).project(camera);
+  const xAxis = new THREE.Vector3(spawn[0] + 1, spawn[1], spawn[2]).project(camera);
   const axisDirection = new THREE.Vector2(
     (xAxis.x - origin.x) * stageBox.width,
     -(xAxis.y - origin.y) * stageBox.height,
   ).normalize();
-  const pivot = { x: stageBox.x + stageBox.width / 2, y: stageBox.y + stageBox.height / 2 };
+  const pivot = {
+    x: stageBox.x + ((origin.x + 1) * stageBox.width) / 2,
+    y: stageBox.y + ((1 - origin.y) * stageBox.height) / 2,
+  };
   const alongAxis = (pixels) => ({
     x: pivot.x + axisDirection.x * pixels,
     y: pivot.y + axisDirection.y * pixels,
@@ -177,7 +240,8 @@ try {
     type: "touchMove",
     touchPoints: [touchPoint(75, 1), touchPoint(115, 2)],
   });
-  await stage.locator("canvas").dispatchEvent("pointercancel", { pointerId: 999 });
+  // Check foreign capture loss without inventing a cancellation for a nonexistent browser pointer
+  // CDP owns the real touch sequence and its final cancellation/release events
   await stage.locator("canvas").dispatchEvent("lostpointercapture", { pointerId: 999 });
   await touchSession.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
   await touchSession.detach();
@@ -392,16 +456,55 @@ try {
   assert.equal(await rows.nth(1).getAttribute("aria-pressed"), "true", "List bypasses occlusion");
   assert.equal(await roomRow.getAttribute("aria-pressed"), "false");
 
+  // Finish the nudge's automatic backup before opening the project menu
+  // Backup temporarily disables New; its timer must not interrupt the pointer click
+  // Check the persisted edit rather than sleeping for an assumed storage duration
+  await page.waitForFunction(async (expectedZ) => {
+    const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
+    const result = await loadRecoverySession(
+      new Map([
+        ["test-room-v1", "environment"],
+        ["test-crate-v1", "model"],
+        ["sample-snowglobe-v1", "model"],
+      ]),
+    );
+    return (
+      result.ok &&
+      result.value?.document?.scenes[0]?.objects[1]?.transform.position[2] === expectedZ
+    );
+  }, fixture.scenes[0].objects[1].transform.position[2] + 1);
+
   // New projects and recovered sessions should show the same asset choices
   await page.locator(".draft-menu summary").click();
   await page.getByRole("button", { name: "New", exact: true }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Don’t Save", exact: true }).click();
   await page.getByRole("dialog").waitFor({ state: "hidden" });
+  await page.getByText("Add a room from the asset library to start.", { exact: true }).waitFor();
   await openLibrary(page);
   assert.equal(await room.isVisible(), true);
   await addAsset(page, "test-room");
+  await roomRow.waitFor();
   assert.equal(await rows.count(), 0);
   assert.equal(await undo.isDisabled(), true);
+  // Choosing a room follows the blank New record; wait for its backup before reloading
+  let roomBackedUp = false;
+  const backupDeadline = Date.now() + 10000;
+  while (Date.now() < backupDeadline) {
+    roomBackedUp = await page.evaluate(async () => {
+      const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
+      const result = await loadRecoverySession(
+        new Map([
+          ["test-room-v1", "environment"],
+          ["test-crate-v1", "model"],
+          ["sample-snowglobe-v1", "model"],
+        ]),
+      );
+      return result.ok && result.value?.document?.scenes[0]?.objects.length === 0;
+    });
+    if (roomBackedUp) break;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  assert.equal(roomBackedUp, true, "The selected room is backed up before refresh");
   await page.reload();
   await ready.waitFor();
   await openLibrary(page);

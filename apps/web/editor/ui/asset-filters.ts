@@ -1,4 +1,4 @@
-import type { CatalogueAsset } from "../../shared/assets/catalogue";
+import type { CatalogueAsset } from "../../shared/asset-runtime/catalogue";
 
 // "all", "favourites", or "category:Pottery" for one category
 export type AssetFilter = string;
