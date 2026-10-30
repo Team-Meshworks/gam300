@@ -66,6 +66,9 @@ try {
     "Sample control matches the build mode",
   );
   if (isDevelopment) {
+    // Undo above restores the pristine room; leave an authored edit to exercise the save decision.
+    await asset.click();
+    assert.equal(await page.locator(".object-row").count(), 1);
     await sample.click();
     // Opening a sample uses the same save decision as replacing any room-based project
     await page.getByRole("dialog").getByRole("button", { name: "Don’t Save", exact: true }).click();
