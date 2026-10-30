@@ -582,3 +582,101 @@ html.asset-admin-preview-page,
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+/* Use one menu treatment for form fields and the local preview controls */
+.asset-admin-select {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font: var(--aa-text-body)/1.4 var(--aa-font);
+  color: var(--aa-heading);
+}
+.asset-admin-select > label,
+.asset-admin-select > span {
+  color: var(--aa-muted);
+  font-weight: 600;
+}
+.asset-admin-select > button,
+.asset-admin-select > input {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 16px;
+  border: 1px solid var(--aa-border);
+  border-radius: 22px;
+  background: var(--aa-paper);
+  color: var(--aa-heading);
+  font: 500 var(--aa-text-body)/1.4 var(--aa-font);
+  text-align: left;
+  cursor: pointer;
+}
+/* Read-only type fields share the form styling without suggesting a menu */
+.asset-admin-select > input[readonly] {
+  cursor: default;
+  background: var(--aa-surface);
+}
+.asset-admin-select > button > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.asset-admin-select > button > svg {
+  flex-shrink: 0;
+  color: var(--aa-muted);
+}
+.asset-admin-select > button:disabled {
+  opacity: 1;
+  background: var(--aa-surface);
+  color: var(--aa-muted);
+  cursor: not-allowed;
+}
+.asset-admin-select > button:focus-visible,
+.asset-admin-select-menu button:focus-visible {
+  outline: 3px solid var(--aa-focus);
+  outline-offset: 3px;
+}
+.asset-admin-select-menu {
+  position: fixed;
+  inset: auto;
+  box-sizing: border-box;
+  min-width: 0;
+  margin: 0;
+  padding: 8px;
+  overflow-y: auto;
+  border: 1px solid var(--aa-border);
+  border-radius: 12px;
+  background: var(--aa-paper);
+  color: var(--aa-ink);
+  box-shadow: 0 8px 24px var(--aa-shadow);
+  font: var(--aa-text-body)/1.4 var(--aa-font);
+}
+.asset-admin-select-menu button {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 36px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--aa-paper);
+  color: var(--aa-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.asset-admin-select-menu button[data-active="true"],
+.asset-admin-select-menu button[aria-selected="true"] {
+  background: var(--aa-selected);
+}
+.asset-admin-select-menu button > svg {
+  flex-shrink: 0;
+}
+.asset-admin-preview-controls .asset-admin-select {
+  min-width: 140px;
+}
