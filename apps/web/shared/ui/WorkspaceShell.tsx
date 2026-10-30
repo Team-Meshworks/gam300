@@ -9,11 +9,13 @@ export function WorkspaceShell({
   name,
   initials,
   onSignOut,
+  homeHref = "#new-project",
   children,
 }: {
   name: string;
   initials: string;
   onSignOut?: () => void;
+  homeHref?: string;
   children: ReactNode;
 }) {
   return (
@@ -21,7 +23,7 @@ export function WorkspaceShell({
       <img className="sp-wash sp-wash--left" src={washLeft} alt="" />
       <img className="sp-wash sp-wash--right" src={washRight} alt="" />
       <header className="sp-navigation">
-        <a className="sp-brand" href="#new-project" aria-label="Spatia home">
+        <a className="sp-brand" href={homeHref} aria-label="Spatia home">
           <span className="sp-brand-mark">
             <img src={landmark} alt="" />
           </span>

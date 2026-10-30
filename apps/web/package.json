@@ -31,6 +31,7 @@
     "test:ui": "node tests/ui-foundation.check.mjs",
     "test:entry": "node tests/entry.check.mjs",
     "test:entry-config": "node tests/account-dev-server.check.mjs",
+    "test:workspace": "node tests/workspace-routes.check.mjs",
     "test:new-project": "node tests/new-project.check.mjs",
     "test:classes": "node tests/class-assignment.check.mjs",
     "test:review-directory": "node tests/review-directory.check.mjs"
