@@ -3,6 +3,7 @@ import fixture from "../../shared/project/fixtures/m1-project.json";
 import { deserializeProject } from "../../shared/project/project-deserialization";
 import { createServerAutosave } from "./server-autosave";
 import type { ServerDraftRequest, ServerDraftResult } from "./server-draft-write";
+import type { ServerSaveRecovery } from "./server-save-recovery";
 
 const assetKinds = new Map([
   ["test-room-v1", "environment"],
@@ -131,4 +132,119 @@ describe("server autosave scheduling", () => {
       session.dispose();
     },
   );
+
+  it("cancels pending work and ignores late responses after leaving the session", async () => {
+    const { session, write, onStatus } = setup();
+    let finish!: (result: ServerDraftResult) => void;
+    write.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    session.changed(changed("First"));
+    const saving = session.flush();
+    await vi.advanceTimersByTimeAsync(0);
+    // Leaving aborts the old request and suppresses its late status updates
+    session.dispose();
+    const statusCount = onStatus.mock.calls.length;
+    expect(write.mock.calls[0]![1].aborted).toBe(true);
+    finish(saved(write.mock.calls[0]![0]));
+    await saving;
+    expect(onStatus).toHaveBeenCalledTimes(statusCount);
+    expect(session.changed(changed("After logout"))).toBe(false);
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(write).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects wrong-project and invalid snapshots before scheduling writes", async () => {
+    const { session, write } = setup();
+    // Neither a different project nor invalid authored data may start a save
+    expect(session.changed({ ...document, projectId: crypto.randomUUID() })).toBe(false);
+    expect(session.changed({ ...document, scenes: [] })).toBe(false);
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(write).not.toHaveBeenCalled();
+    session.dispose();
+  });
+});
+
+describe("server autosave recovery", () => {
+  it("preserves edits when the server revision cannot advance further", async () => {
+    const backup = vi.fn(async () => true);
+    const write = vi.fn(async (request: ServerDraftRequest) => saved(request));
+    const session = createServerAutosave({
+      document,
+      revision: Number.MAX_SAFE_INTEGER,
+      assetKinds,
+      onStatus: vi.fn(),
+      backup,
+      write,
+    });
+    // Preserve the local edit when the revision counter cannot safely increase
+    session.changed(changed("Keep this edit"));
+    await session.flush();
+    expect(write).not.toHaveBeenCalled();
+    expect(backup).toHaveBeenCalledTimes(1);
+    expect(session.getStatus()).toBe("rejected");
+    await session.dispose();
+  });
+
+  it("reopens an uncertain save with identical bytes before saving newer edits", async () => {
+    let snapshot!: { documentJson: string; serverSave: ServerSaveRecovery };
+    const backup = vi.fn(async (documentJson: string, serverSave: ServerSaveRecovery) => {
+      snapshot = { documentJson, serverSave };
+      return true;
+    });
+    const firstWrite = vi.fn(async (): Promise<ServerDraftResult> => ({ kind: "failed" }));
+    const first = createServerAutosave({
+      document,
+      revision: 3,
+      assetKinds,
+      onStatus: vi.fn(),
+      backup,
+      write: firstWrite,
+    });
+    // Preserve the original in-flight snapshot separately from later offline edits
+    first.changed(changed("Sent before disconnect"));
+    await first.flush();
+    first.changed(changed("Edited offline"));
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(firstWrite).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(snapshot.documentJson).title).toBe("Edited offline");
+    expect(JSON.parse(snapshot.serverSave.pending!.documentJson).title).toBe(
+      "Sent before disconnect",
+    );
+    const originalPending = snapshot.serverSave.pending;
+    first.dispose();
+
+    // Start a fresh owner using only the stored scene and retry metadata
+    // Its first request must still refer to the edit sent before the disconnect
+    const write = vi.fn(async (request: ServerDraftRequest) => saved(request));
+    const reopened = createServerAutosave({
+      document: changed("Edited offline"),
+      revision: 3,
+      assetKinds,
+      onStatus: vi.fn(),
+      recovery: snapshot.serverSave,
+      backup,
+      write,
+    });
+    expect(reopened.getStatus()).toBe("unsaved");
+    await reopened.flush();
+    // Retry the original mutation before advancing to the later edited document
+    const replay = JSON.parse(write.mock.calls[0]![0].body);
+    expect(replay.clientMutationId).toBe(originalPending!.clientMutationId);
+    expect(replay.document.title).toBe("Sent before disconnect");
+    expect(replay.expectedRevision).toBe(3);
+    expect(reopened.getStatus()).toBe("unsaved");
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(JSON.parse(write.mock.calls[1]![0].body)).toMatchObject({
+      expectedRevision: 4,
+      document: { title: "Edited offline" },
+    });
+    expect(snapshot.serverSave.pending).toBeNull();
+    expect(snapshot.serverSave.revision).toBe(5);
+    expect(reopened.getStatus()).toBe("saved");
+    reopened.dispose();
+  });
 });
