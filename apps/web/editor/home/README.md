@@ -11,6 +11,8 @@ entry route both serve it. It does not mount the local-only editor or its recove
    coordinating account/project changes with recovery still require SCRUM-67. A blank
    project also needs an approved environment catalogue; `ProjectDocumentService`
    currently accepts development sample assets only and rejects production assets.
+   Until a production catalogue is available, non-empty project lists, project reads,
+   duplication and class-assignment creation also fail when stored documents are validated.
 2. Class/roster and SCRUM-162 assignment screens are mounted. The SCRUM-161 class,
    roster, eligibility and assignment contracts were checked before implementation.
    Class creation and membership changes use real API routes; authorised teachers and
@@ -27,24 +29,27 @@ The shared shell supplies the existing Figma landmark and ambient SVGs. Project 
 review state and published editions are not fabricated from the design's example data.
 The API does not currently supply those fields. No Figma connector calls were used.
 
-The available Git refs were checked. A fresh fetch required interactive GitHub authentication
-and was stopped. New remote work may exist beyond the local refs. This branch starts from
-`d186723` on `feature/scrum-162-assignment-api-integration`; SCRUM-161 remains a separate
-backend branch. No shared branch is merged or pushed by this work.
+At the 31 October 2026 audit, GitHub reported `dev` at `29e81ff` and
+`admin/student-screens` at `ce205e5`, 26 commits and 123 files ahead of `dev`. This branch
+starts from `d186723` on `feature/scrum-162-assignment-api-integration`; both feature
+branches remain local and unpublished. SCRUM-161 is a separate backend
+[draft PR](https://github.com/Team-Meshworks/gam300/pull/30). The frontend owner has been
+asked to agree a review and landing plan for the shared prerequisites.
 
-The current Jira browser session requires sign-in, so the issue descriptions could not be
-refreshed through Browser Use. The coverage below uses the scope already established in
-the task and verifies it against the available code. It is not a fresh Jira status update.
+Jira at that audit lists SCRUM-126 and SCRUM-162 as To Do and assigned to Dalton. SCRUM-69
+remains In Progress and formally blocks SCRUM-126, although its core lifecycle routes are
+already on `dev`. SCRUM-67 recovery is In Progress; SCRUM-73 approved assets and SCRUM-170
+directory operations are To Do. SCRUM-171 owns the separate directory screens.
 
 ## Acceptance coverage and remaining blockers
 
 | Area                                          | Implemented here                                                                                                                                                                            | Remaining dependency                                                                                                                                                     |
 | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| SCRUM-126 authenticated home                  | Verified login entry, session revalidation, account-context remounting, authorised lists, search, loading/error/empty states and logout                                                     | None for these flows                                                                                                                                                     |
-| SCRUM-126 project lifecycle                   | Duplicate, archive and reopen using current revisions and verified acknowledgements                                                                                                         | Blank creation needs an approved environment catalogue/selection contract (SCRUM-73); current assets are development-only                                                |
+| SCRUM-126 authenticated home                  | Verified login entry, session revalidation, account-context remounting, authorised lists, search, loading/error/empty states and logout                                                     | Non-empty production project lists require an approved server catalogue (SCRUM-73)                                                                                       |
+| SCRUM-126 project lifecycle                   | Duplicate, archive and reopen using current revisions and verified acknowledgements                                                                                                         | Blank creation needs an approved environment selection; production duplication needs an approved server catalogue (SCRUM-73)                                            |
 | SCRUM-126 project opening/account transitions | Unsent assignment details are guarded; pending sends block navigation; uncertain assignment requests remain recoverable                                                                     | SCRUM-67 must supply authenticated server-project loading and the shared save/export/cancel recovery coordinator before editor links can be enabled                      |
 | SCRUM-126 minimal administration/access       | Teacher class creation, authorised roster reads, student enrolment and member removal                                                                                                       | Account provisioning selectors need authorised organisation/account reads; safe project-access editing also needs the current grant set and project organisation context |
-| SCRUM-162 assignment creation                 | Existing source/revision, class, enrolled students, title, description, instructions and device-local due time; Unix-second transport; one draft per student; durable exact-request retries | Requires the separate SCRUM-161 backend branch in an integrated build; opening created drafts still needs SCRUM-67                                                       |
+| SCRUM-162 assignment creation                 | Existing source/revision, class, enrolled students, title, description, instructions and device-local due time; Unix-second transport; one draft per student; durable exact-request retries | Requires SCRUM-161; production creation also needs the approved server catalogue (SCRUM-73); opening drafts still needs SCRUM-67                                         |
 | SCRUM-162 assignment lists/details            | Mounted in `/home`, teacher/student views, device-local deadline display, authorised roster names including after retry recovery                                                            | Editor opening as above; image/360-degree controls stay hidden because the assignment API does not persist them                                                          |
 
 `AccountAdministrationEndpoints` currently exposes provisioning writes without an authorised
