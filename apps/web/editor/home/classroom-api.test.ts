@@ -18,20 +18,18 @@ it("retains organisation identity and rejects inconsistent class lists", async (
   expect(() => classroom({ ...row, organizationId: null })).toThrow("verified");
 });
 it("reads enrolled and eligible students from their distinct authorised routes", async () => {
-  const request = vi
-    .fn<typeof fetch>()
-    .mockImplementation(async (path) =>
-      String(path).includes("eligible-students")
-        ? json([{ userId: studentId, userName: "Alice", enrolled: true }])
-        : json([
-            {
-              userId: studentId,
-              userName: "Alice",
-              accountActive: true,
-              roleId: "862d776c-4d56-4dd8-919d-26044b6d8a44",
-            },
-          ]),
-    );
+  const request = vi.fn<typeof fetch>().mockImplementation(async (path) =>
+    String(path).includes("eligible-students")
+      ? json([{ userId: studentId, userName: "Alice", enrolled: true }])
+      : json([
+          {
+            userId: studentId,
+            userName: "Alice",
+            accountActive: true,
+            roleId: "862d776c-4d56-4dd8-919d-26044b6d8a44",
+          },
+        ]),
+  );
   expect(await createClassroomClient(request).roster(classId)).toEqual({
     members: [{ userId: studentId, userName: "Alice", accountActive: true, role: "Creator" }],
     eligible: [{ userId: studentId, userName: "Alice", enrolled: true }],
@@ -43,20 +41,18 @@ it("reads enrolled and eligible students from their distinct authorised routes",
 });
 it("does not manufacture roster permissions from an unknown role or invalid enrolment", async () => {
   for (const badRole of [true, false]) {
-    const request = vi
-      .fn<typeof fetch>()
-      .mockImplementation(async (path) =>
-        String(path).includes("eligible-students")
-          ? json([{ userId: studentId, userName: "Alice", enrolled: badRole ? false : "true" }])
-          : json([
-              {
-                userId: studentId,
-                userName: "Alice",
-                accountActive: true,
-                roleId: badRole ? "unknown" : "862d776c-4d56-4dd8-919d-26044b6d8a44",
-              },
-            ]),
-      );
+    const request = vi.fn<typeof fetch>().mockImplementation(async (path) =>
+      String(path).includes("eligible-students")
+        ? json([{ userId: studentId, userName: "Alice", enrolled: badRole ? false : "true" }])
+        : json([
+            {
+              userId: studentId,
+              userName: "Alice",
+              accountActive: true,
+              roleId: badRole ? "unknown" : "862d776c-4d56-4dd8-919d-26044b6d8a44",
+            },
+          ]),
+    );
     await expect(createClassroomClient(request).roster(classId)).rejects.toThrow("verified");
   }
 });

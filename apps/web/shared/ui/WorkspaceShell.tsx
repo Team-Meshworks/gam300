@@ -43,7 +43,9 @@ export function WorkspaceShell({
         </a>
         <div className="sp-account">
           <Avatar name={name} initials={initials} />
-          <span>{name}</span>
+          <span className="sp-account-name" title={name}>
+            {name}
+          </span>
           <Button disabled={!onSignOut} onClick={onSignOut}>
             Log Out
           </Button>

@@ -207,6 +207,7 @@ export function AssignmentCreationScreen({
           localStorage.removeItem(pendingKey(request.actorId));
           setPending(null);
           setConfirmed({ classId: request.classId, assignmentId: result.assignmentId });
+          changeClass(request.classId);
           return { kind: "created", projectId: result.projects[0]!.projectId };
         }
         if (result.kind === "rejected") {

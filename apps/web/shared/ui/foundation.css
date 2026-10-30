@@ -134,6 +134,7 @@ p {
 }
 .sp-brand {
   display: inline-flex;
+  flex-shrink: 0;
   gap: 12px;
   align-items: center;
   text-decoration: none;
@@ -157,6 +158,16 @@ p {
   gap: 14px;
   font-size: 13px;
   min-width: 0;
+}
+.sp-account-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sp-account .sp-button {
+  flex-shrink: 0;
 }
 .sp-avatar {
   flex-shrink: 0;
@@ -460,11 +471,15 @@ h3 + .sp-hint {
 }
 @media (max-width: 600px) {
   .sp-navigation {
-    padding: 0 20px;
-    height: 84px;
+    padding: 20px;
+    height: auto;
+    min-height: 84px;
+    flex-wrap: wrap;
+    gap: 16px;
   }
   .sp-account {
     gap: 8px;
+    flex: 1 1 100%;
   }
   .sp-navigation .sp-button {
     padding: 8px 12px;

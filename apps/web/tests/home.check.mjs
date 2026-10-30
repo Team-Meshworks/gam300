@@ -12,7 +12,7 @@ const projectId = "aefea67c-caca-4300-923c-937f1c785578";
 const copyId = "bbf2b1d0-b388-4df8-a995-930148dcdd19";
 const session = {
   userId,
-  displayName: "Test Teacher",
+  displayName: "TeacherWithALongUnbrokenAccountName".repeat(4),
   orgId,
   role: "Educator",
   mustChangePassword: false,
@@ -111,6 +111,13 @@ try {
     assert.ok(
       await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
       `home overflows at ${width}`,
+    );
+    assert.ok(
+      await page.getByRole("button", { name: "Log Out", exact: true }).evaluate((element) => {
+        const bounds = element.getBoundingClientRect();
+        return bounds.left >= 0 && bounds.right <= innerWidth;
+      }),
+      `logout must remain on screen with a long account name at ${width}`,
     );
     for (const image of await page.locator(".sp-shell img").all()) {
       await image.evaluate((element) => element.decode());

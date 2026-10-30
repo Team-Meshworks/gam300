@@ -220,6 +220,7 @@ try {
   await page.getByRole("button", { name: "New assignment", exact: true }).click();
   await page.getByRole("button", { name: "Retry same assignment", exact: true }).click();
   await page.getByRole("heading", { name: "Silk Road assignment", exact: true }).waitFor();
+  await page.getByRole("button", { name: "Open project for Alice", exact: true }).waitFor();
   assert.equal(attempts.length, 2);
   assert.deepEqual(attempts[1], attempts[0]);
   assert.equal(
