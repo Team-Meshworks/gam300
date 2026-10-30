@@ -6,6 +6,7 @@ import type { ValidationResult } from "../../shared/project/validation-helpers";
 import type { ProjectFileHandle } from "./project-files";
 import { validateRecoveryHistory, type RecoveryHistory } from "../recovery-history";
 import { IndexedDBDraftDatabase, type IDraftDatabase } from "./draft-db";
+import { validateServerSaveRecovery, type ServerSaveRecovery } from "./server-save-recovery";
 
 const STORE_NAME = "drafts";
 const LOCAL_PRINCIPAL = "local";
@@ -364,6 +365,8 @@ export type RecoverySession = Readonly<{
   fileText?: string;
   history?: RecoveryHistory;
   historyWarning?: string;
+  // Present for signed-in project recovery; local JSON-file sessions omit this
+  serverSave?: ServerSaveRecovery;
 }>;
 
 // Account ID comes from the authenticated session
@@ -440,6 +443,7 @@ export async function getRecoverySession(
         ...(Object.hasOwn(raw, "fileHandle") ? ["fileHandle"] : []),
         ...(Object.hasOwn(raw, "fileText") ? ["fileText"] : []),
         ...(Object.hasOwn(raw, "history") ? ["history"] : []),
+        ...(Object.hasOwn(raw, "serverSave") ? ["serverSave"] : []),
       ],
       "recovery",
     );
@@ -453,6 +457,7 @@ export async function getRecoverySession(
         raw.savedJson !== null ||
         !raw.pristine ||
         raw.history !== undefined ||
+        raw.serverSave !== undefined ||
         scope !== undefined
       ) {
         return invalid("storage", "Empty recovery session contains project metadata");
@@ -470,6 +475,15 @@ export async function getRecoverySession(
     }
     const document = deserializeProject(raw.document, assetKinds);
     if (!document.ok) return document;
+    // Validate the pending request alongside the scene before offering recovery
+    // A damaged retry record must stay stored for inspection rather than being sent
+    const serverSave =
+      raw.serverSave === undefined
+        ? undefined
+        : validateServerSaveRecovery(raw.serverSave, document.value.projectId, assetKinds);
+    if (serverSave && !serverSave.ok) return serverSave;
+    if (serverSave && scope === undefined)
+      return invalid("storage", "Server recovery requires an account and project");
     if (projectId !== undefined && document.value.projectId.toLowerCase() !== projectId)
       return invalid(
         "storage",
@@ -527,6 +541,7 @@ export async function getRecoverySession(
           document.value.scenes[0]?.objects.length === 0,
         fileHandle,
         fileText,
+        ...(serverSave?.ok ? { serverSave: serverSave.value } : {}),
         ...(history?.ok ? { history: history.value } : {}),
         ...(history && !history.ok
           ? { historyWarning: "Scene recovered, but its undo history could not be restored" }
@@ -595,6 +610,20 @@ export async function applySaveRecoverySession(
       session.history !== undefined)
   ) {
     return invalid("storage", "Empty recovery session contains project metadata");
+  }
+  // Server retry metadata only belongs to a nonempty authenticated project
+  if (session.serverSave !== undefined) {
+    if (scope === undefined || session.document === null) {
+      return invalid("storage", "Server recovery requires an account and project");
+    }
+    const serverSave = validateServerSaveRecovery(
+      session.serverSave,
+      session.document.projectId,
+      assetKinds,
+    );
+    if (!serverSave.ok) {
+      return serverSave;
+    }
   }
   const history =
     session.history === undefined || session.document === null

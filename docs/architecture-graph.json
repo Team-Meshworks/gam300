@@ -222,7 +222,7 @@
     "editor/persistence/draft-db.ts": "9c1aece3becbd9db33c2164533cfc86d9cf7b4bef9306678d9c9aaca9b800c5a",
     "editor/persistence/idb-database-connection.ts": "d07c765187e280e825a3d73665837a55b12cf203ab93a22c18634849ec6b6347",
     "editor/persistence/local-drafts.test.ts": "dd5182040b6fa91218fedee7aaf68c554279a7ed2309cd7017cc5311b78923cb",
-    "editor/persistence/local-drafts.ts": "3e12b996efa9736455b27fc53fdcabd92f903f4f775d8b3aa4ff7d04b00b7b67",
+    "editor/persistence/local-drafts.ts": "0a55616b1fa1155a64681d14d8aae3baa2c4dfb812e7c7d978b265c0546d5ea6",
     "editor/persistence/project-files.ts": "20e7466377e31ea388fe527abc4c33e465538b8b06709a5d78c78bc116c6b273",
     "editor/persistence/server-draft-write.test.ts": "f1cd956a9f9e6cc3a888429cff600048e37d218a3e9c2175eb7631166e3f3e60",
     "editor/persistence/server-draft-write.ts": "3e9bd5d5b2cbfa6af8f2de7fc502c0cc1fe8fc6b5acc3ee12007286d0e62d3bc",
@@ -1384,6 +1384,15 @@
       "kind": "static",
       "specifier": "./draft-db",
       "target": "editor/persistence/draft-db.ts",
+      "from": "persistence",
+      "to": "persistence"
+    },
+    {
+      "file": "editor/persistence/local-drafts.ts",
+      "line": 9,
+      "kind": "static",
+      "specifier": "./server-save-recovery",
+      "target": "editor/persistence/server-save-recovery.ts",
       "from": "persistence",
       "to": "persistence"
     },
