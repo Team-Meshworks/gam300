@@ -50,8 +50,9 @@ the task and verifies it against the available code. It is not a fresh Jira stat
 `AccountAdministrationEndpoints` currently exposes provisioning writes without an authorised
 organisation/account directory. `PATCH /api/projects/{id}/assignments` replaces the full grant
 set, but project reads do not expose that set. Do not build replacement-grant forms using
-empty defaults or ask users to guess account IDs. The directory belongs with SCRUM-168;
-agree the current-grant read contract before implementing those SCRUM-126 controls.
+empty defaults or ask users to guess account IDs. SCRUM-170 owns authorised directory
+reads and SCRUM-171 owns directory screens; agree the current-grant read contract before
+implementing those SCRUM-126 controls.
 Administrators can create a class only in an organisation identified by an existing
 authorised class until that directory is available.
 
@@ -83,7 +84,7 @@ and logout protection, locking navigation while sending, lost-response recovery 
 with the identical request/body, and a Singapore-entered deadline displayed in New York.
 Assignment and student-detail layouts were checked at desktop and mobile widths. The
 administrator class form can reuse an organisation identified by an existing authorised
-class; selecting a new organisation awaits the SCRUM-168 directory.
+class; selecting a new organisation awaits SCRUM-170's authorised directory reads.
 
 ## Combined verification
 
