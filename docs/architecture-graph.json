@@ -201,6 +201,7 @@
     "editor/App.tsx": "1959ecf211967dd57842a5e47147360cb2a8e15c047302c6b4896edd24eecea7",
     "editor/ProjectConfirmation.tsx": "07a0fedf8fbf88865b3b8232c8665c139348fc64ebce478ea01e55eb7fd14eff",
     "editor/asset-administration/AssetAdministration.tsx": "bc26859559ae967b61c72deb8167c047a39fda5902e8c6755f6ab085abb4f7e8",
+    "editor/asset-administration/AssetAdministrationPreview.tsx": "840638b61efdd9d3c14c7191473e5d42fb32c2618d062cec88cab78484a7c18b",
     "editor/asset-administration/AssetSelect.tsx": "7d2f837e8bb3c02ebef20a749b46b5dd7601f6b33a6f084421eed0ce5d8fef3b",
     "editor/asset-administration/asset-administration.ts": "4e93dff7cd44dab19805132bc72c4f965dfe6eff6c82be45feff3455ce9660d0",
     "editor/command-history.test.ts": "783c026523513ea5520cde04e61502aba13ca3a612b509a904c2a50e50be2d1f",
@@ -219,7 +220,7 @@
     "editor/graphics/translation.ts": "a4ea05b137e4dee436848693a57273c54025856bdf943eb1e9413de5509bb2d4",
     "editor/history-shortcuts.test.ts": "fc33404f4da0e7c9fd27d2da50d63eb3367c790cda0f985dd98b398b651e3a3b",
     "editor/history-shortcuts.ts": "e9d147c651ba15b45484207f805fbb648beb13c7393e4538d249c159c4b4e583",
-    "editor/main.tsx": "240b88cb33a8ef53b7f8a66df6385b1ada2dcb6b39380f2cfd21e5416fd0346b",
+    "editor/main.tsx": "31d12d70ac79fe0b2394f66a5919bf3c23c2cee6b1cf2a535d2384c0aaa95efe",
     "editor/object-copy.test.ts": "4266a7ac699c9ad5bec8962b7b1dd52bae9e6874d571235184aa304d0d6c8088",
     "editor/persistence/draft-db.ts": "9c1aece3becbd9db33c2164533cfc86d9cf7b4bef9306678d9c9aaca9b800c5a",
     "editor/persistence/idb-database-connection.ts": "d07c765187e280e825a3d73665837a55b12cf203ab93a22c18634849ec6b6347",
@@ -698,6 +699,62 @@
     {
       "file": "editor/asset-administration/AssetAdministration.tsx",
       "line": 29,
+      "kind": "implicit-jsx",
+      "specifier": "react/jsx-runtime",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/asset-administration/AssetAdministrationPreview.tsx",
+      "line": 1,
+      "kind": "static",
+      "specifier": "react",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/asset-administration/AssetAdministrationPreview.tsx",
+      "line": 2,
+      "kind": "static",
+      "specifier": "virtual:asset-catalogue",
+      "target": "shared/asset-runtime/catalogue.ts",
+      "from": "editor",
+      "to": "catalogue"
+    },
+    {
+      "file": "editor/asset-administration/AssetAdministrationPreview.tsx",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./AssetSelect",
+      "target": "editor/asset-administration/AssetSelect.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/asset-administration/AssetAdministrationPreview.tsx",
+      "line": 4,
+      "kind": "static",
+      "specifier": "./AssetAdministration",
+      "target": "editor/asset-administration/AssetAdministration.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/asset-administration/AssetAdministrationPreview.tsx",
+      "line": 5,
+      "kind": "type",
+      "specifier": "./asset-administration",
+      "target": "editor/asset-administration/asset-administration.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/asset-administration/AssetAdministrationPreview.tsx",
+      "line": 137,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -1268,7 +1325,16 @@
     },
     {
       "file": "editor/main.tsx",
-      "line": 13,
+      "line": 15,
+      "kind": "dynamic",
+      "specifier": "./asset-administration/AssetAdministrationPreview",
+      "target": "editor/asset-administration/AssetAdministrationPreview.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/main.tsx",
+      "line": 18,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
