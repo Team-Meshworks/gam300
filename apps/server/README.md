@@ -1920,3 +1920,24 @@ SCRUM-67 navigation coordination before they are reachable in production.
 SCRUM-126 project-home UI, SCRUM-67 autosave/recovery integration, publication/asset
 delivery, hosted CI and deployment remain separate. Production still has no approved
 asset catalogue. These backend checks do not complete parent Story/Epic acceptance.
+
+### SCRUM-161 backend review, 30 October 2026
+
+The live Jira criteria were refreshed and still specify backend class/roster access,
+server-owned assignment metadata, independent drafts, bounded retry/failure behavior,
+restart persistence and preservation of each draft's original student. Device-local UI,
+submission/review behavior and deferred file-origin policy remain with SCRUM-162,
+SCRUM-164 and SCRUM-173 respectively.
+
+The GitHub comparison confirmed `dev` is still `29e81ff763243a048fc73dd340a2cb7dbd1d34ce`.
+Publication PR #27 remains an open draft at `5acec3242446f35e57a8169c1b5a01c5eeca1b8b`.
+Local Git fetch could not authenticate, so these read-only GitHub checks established
+remote freshness without changing the feature branch or publishing anything.
+
+Two backend acceptance tests now verify a full 20-student batch, rejection of a
+21-student request before any write, and replay after an exception following the
+actual database commit. The latter checks the durable draft IDs before retrying;
+both cases prove that replay preserves the original independent drafts and grants.
+All nine assignment coordinator cases passed, with no failures or skips. Locked
+restore, the Release build and test formatting checks passed. Application behavior
+was unchanged; the review added regression evidence rather than another feature.
