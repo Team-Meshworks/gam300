@@ -149,6 +149,7 @@ jobs:
           trap 'kill "$server_pid" 2>/dev/null || true' EXIT
           curl --fail --silent --show-error --retry 30 --retry-delay 1 --retry-connrefused http://127.0.0.1:5173/ > /dev/null
           npm run test:browser | tee test-results/editor.log
+          npm run test:asset-admin | tee test-results/asset-administration.log
           npm run test:integration | tee test-results/integration.log
           npm run test:caching | tee test-results/caching.log
           npm run test:recovery | tee test-results/recovery.log
