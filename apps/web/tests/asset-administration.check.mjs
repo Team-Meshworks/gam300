@@ -252,8 +252,130 @@ try {
   await page.getByRole("button", { name: "Try again" }).click();
   await page.getByRole("heading", { name: "Spaces unavailable" }).waitFor();
 
+  // Object and space libraries use the distinct layouts in the supplied admin PDF
+  await choose("Test response", "Normal");
+  await choose("Library", "Physical assets");
+  await page.getByRole("heading", { name: "All Assets", exact: true }).waitFor();
+  assert.equal(
+    await page
+      .locator(".asset-admin-grid")
+      .evaluate((grid) => getComputedStyle(grid).gridTemplateColumns.split(" ").length),
+    4,
+  );
+  await page.locator(".asset-admin-preview-controls").evaluate((details) => {
+    details.open = false;
+  });
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.locator(".asset-admin-card").first().waitFor();
+  await page
+    .locator(".asset-admin-thumbnail img")
+    .evaluateAll((images) => Promise.all(images.map((image) => image.decode())));
+  await page.screenshot({ path: "test-results/scrum168/assets.png", fullPage: true });
+
+  // Model dialogs keep their own asset type rather than inheriting the space form
+  await page.locator(".asset-admin-card").first().getByRole("button").click();
+  assert.equal(
+    (await dialog.getByRole("textbox", { name: "Asset Type" }).inputValue()).trim(),
+    "3D Model",
+  );
+  await checkDialogTypography();
+  await page.screenshot({ path: "test-results/scrum168/asset-details.png", fullPage: true });
+  await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.getByRole("button", { name: "+ Add Assets", exact: true }).click();
+  assert.equal(
+    (await dialog.getByRole("textbox", { name: "Asset Type" }).inputValue()).trim(),
+    "3D Model",
+  );
+  await checkDialogTypography();
+  await page.screenshot({ path: "test-results/scrum168/add-asset.png", fullPage: true });
+  await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+
+  // Custom menus keep Escape local and keep category choices specific to the asset type
+  await page.getByRole("button", { name: "+ Add Assets", exact: true }).click();
+  await dialog.getByRole("combobox", { name: "Filter Category" }).click();
+  assert.deepEqual(
+    await page
+      .getByRole("listbox", { name: "Filter Category" })
+      .getByRole("option")
+      .allTextContents(),
+    ["Objects", "Furniture", "Architecture", "Clothing", "Tools & Equipment"],
+  );
+  await page.screenshot({ path: "test-results/scrum168/category-menu.png", fullPage: true });
+  await page.keyboard.press("Escape");
+  assert.equal(await dialog.isVisible(), true);
+  assert.equal(await page.getByRole("listbox", { name: "Filter Category" }).isVisible(), false);
+  await dialog.getByRole("combobox", { name: "Filter Category" }).focus();
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Enter");
+  assert.equal(
+    (await dialog.getByRole("combobox", { name: "Filter Category" }).textContent()).trim(),
+    "Furniture",
+  );
+  // Model intake keeps its type fixed while categories remain editable
+  const typeField = dialog.getByRole("textbox", { name: "Asset Type" });
+  assert.equal(await typeField.getAttribute("readonly"), "");
+  assert.equal(await typeField.inputValue(), "3D Model");
+  assert.equal(await dialog.getByRole("combobox", { name: "Asset Type" }).count(), 0);
+  await dialog.getByRole("heading", { name: "Upload 3D Model", exact: true }).waitFor();
+  await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+
+  // Overflow belongs to the catalogue region, with no outer-page scrollbar
+  await page.getByText("Local preview controls", { exact: true }).click();
+  await page.getByLabel("More sample assets", { exact: true }).check();
+  await page.locator(".asset-admin-card").nth(10).waitFor({ state: "attached" });
+  await page.locator(".asset-admin-preview-controls").evaluate((details) => {
+    details.open = false;
+  });
+  assert.equal(
+    await page
+      .locator(".asset-admin-scroll")
+      .evaluate((region) => region.scrollHeight > region.clientHeight),
+    true,
+  );
+  assert.equal(
+    await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight),
+    true,
+  );
+  await page.screenshot({ path: "test-results/scrum168/internal-scroll.png", fullPage: true });
+
+  // Narrow screens keep controls reachable without horizontal document overflow
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  assert.equal(await page.evaluate(() => document.body.scrollHeight <= innerHeight), true);
+  await page.screenshot({ path: "test-results/scrum168/mobile.png", fullPage: true });
+  // Mobile dialogs retain the same type scale and keep actions reachable inside their own scroll area
+  await page.getByRole("button", { name: "+ Add Assets", exact: true }).click();
+  await checkDialogTypography();
+  const mobileDialog = await dialog.boundingBox();
+  assert.ok(mobileDialog.x >= 0 && mobileDialog.x + mobileDialog.width <= 390);
+  assert.ok(mobileDialog.y >= 0 && mobileDialog.y + mobileDialog.height <= 844);
+  await page.screenshot({ path: "test-results/scrum168/mobile-upload.png", fullPage: true });
+  await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+
+  // Account labels come from the preview identity and logout removes the active screen
+  await page.getByText("Local preview controls", { exact: true }).click();
+  await page.getByLabel("Display name", { exact: true }).fill("Alex Tan");
+  await page.locator(".asset-admin-account").getByText("Alex Tan", { exact: true }).waitFor();
+  assert.equal(
+    await page.locator(".asset-admin-account").getByText("AT", { exact: true }).count(),
+    1,
+  );
+  assert.equal(await page.locator("select").count(), 0);
+  assert.equal(
+    await page
+      .locator(".asset-admin-scroll")
+      .evaluate((region) => getComputedStyle(region, "::-webkit-scrollbar").width),
+    "8px",
+  );
+  await page.getByRole("button", { name: "Log Out", exact: true }).click();
+  await page.getByRole("heading", { name: "Signed out", exact: true }).waitFor();
+  assert.equal(await page.locator(".asset-admin-grid").count(), 0);
+
   assert.deepEqual(errors, []);
-  console.log("PASS: space intake, cancellation, availability and access states");
+  console.log(
+    "PASS: asset administration search, submission recovery, authoritative state, role gating, confirmation and keyboard/mobile checks",
+  );
 } catch (error) {
   await page.screenshot({ path: "test-results/scrum168/failure.png", fullPage: true });
   console.error(await page.locator("body").innerText());
