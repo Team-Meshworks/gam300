@@ -224,7 +224,7 @@
     "editor/persistence/local-drafts.test.ts": "33b45127ff1ab9decbe7dd558a23a2d8a46cf0c18bea3b7f31d4fea5babc857b",
     "editor/persistence/local-drafts.ts": "371a9116510bb3b283d491487200a35b12b9e1ef4972e548025d54b6a27a8e77",
     "editor/persistence/project-files.ts": "20e7466377e31ea388fe527abc4c33e465538b8b06709a5d78c78bc116c6b273",
-    "editor/persistence/server-autosave.test.ts": "ce166330a832d96f30233c4c30bfd4cfe6c28c88752ea29b01d29bb545da5970",
+    "editor/persistence/server-autosave.test.ts": "ee19969b8159cd5d030296db4cffe44acce9534e4bd969fc0d524d3e3f6d2900",
     "editor/persistence/server-autosave.ts": "ee5ee23eacb324620cc6ee2ab54ecda9d29d195dac569aaf72328331f67d417a",
     "editor/persistence/server-draft-write.test.ts": "f1cd956a9f9e6cc3a888429cff600048e37d218a3e9c2175eb7631166e3f3e60",
     "editor/persistence/server-draft-write.ts": "3e9bd5d5b2cbfa6af8f2de7fc502c0cc1fe8fc6b5acc3ee12007286d0e62d3bc",

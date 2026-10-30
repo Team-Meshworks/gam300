@@ -247,4 +247,82 @@ describe("server autosave recovery", () => {
     expect(reopened.getStatus()).toBe("saved");
     reopened.dispose();
   });
+
+  it("does not send when the recovery write fails and retries after storage recovers", async () => {
+    // Fail the local backup first, then let storage work on the next attempt
+    // The server must receive nothing until the retry identity is safely stored
+    const backup = vi.fn().mockResolvedValueOnce(false).mockResolvedValue(true);
+    const write = vi.fn(async (request: ServerDraftRequest) => saved(request));
+    const session = createServerAutosave({
+      document,
+      revision: 3,
+      assetKinds,
+      onStatus: vi.fn(),
+      backup,
+      write,
+    });
+    session.changed(changed("Keep in memory"));
+    await session.flush();
+    expect(write).not.toHaveBeenCalled();
+    expect(session.getStatus()).toBe("failed");
+    // Storage recovery retries the same captured mutation instead of creating a new one
+    const mutation = backup.mock.calls[0]![1].pending.clientMutationId;
+    await session.flush();
+    expect(JSON.parse(write.mock.calls[0]![0].body).clientMutationId).toBe(mutation);
+    expect(session.getStatus()).toBe("saved");
+    session.dispose();
+  });
+
+  it("backs up edits during a conflict without sending them over the server copy", async () => {
+    const backup = vi.fn(async () => true);
+    const write = vi.fn(async (): Promise<ServerDraftResult> => ({ kind: "conflict" }));
+    const session = createServerAutosave({
+      document,
+      revision: 3,
+      assetKinds,
+      onStatus: vi.fn(),
+      backup,
+      write,
+    });
+    session.changed(changed("Conflicting edit"));
+    await session.flush();
+    session.changed(changed("More local work"));
+    // A conflict pauses server writes while local recovery continues accepting edits
+    await session.flush();
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(write).toHaveBeenCalledTimes(1);
+    expect(backup).toHaveBeenCalledTimes(2);
+    expect(session.getStatus()).toBe("conflict");
+    session.dispose();
+  });
+
+  it("cancels before sending if the account changes while recovery storage is busy", async () => {
+    let finish!: (ok: boolean) => void;
+    const backup = vi.fn(
+      () =>
+        new Promise<boolean>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const write = vi.fn(async (request: ServerDraftRequest) => saved(request));
+    const onStatus = vi.fn();
+    const session = createServerAutosave({
+      document,
+      revision: 3,
+      assetKinds,
+      onStatus,
+      backup,
+      write,
+    });
+    session.changed(changed("Old account"));
+    // An account change during the backup cancels the request before network delivery
+    const saving = session.flush();
+    await vi.advanceTimersByTimeAsync(0);
+    session.dispose();
+    const count = onStatus.mock.calls.length;
+    finish(true);
+    await saving;
+    expect(write).not.toHaveBeenCalled();
+    expect(onStatus).toHaveBeenCalledTimes(count);
+  });
 });
