@@ -76,4 +76,90 @@ public sealed class PublicationReadFilterTests
         }
     }
 
+    [Test]
+    // Apply each audience decision to both document and asset handlers
+    public async Task PublicationRead_AudienceMatrixAppliesToBothSnapshotsAndAssets()
+    {
+        // Pair every audience with anonymous, named and administrator sessions
+        // Repeat the decision for the edition JSON and its protected asset bytes
+        foreach (var audience in Enum.GetValues<PublicationAudience>())
+        {
+            foreach (var actor in new[] { "anonymous", "permitted", "unrelated", "administrator", "permitted-administrator" })
+            {
+                foreach (var kind in Enum.GetValues<PublicationReadKind>())
+                {
+                    var member = actor is "permitted" or "permitted-administrator";
+                    var reader = new Reader { Policy = new(audience, false, member) };
+                    using var provider = Services(reader);
+                    var context = Context(provider, kind);
+                    if (actor != "anonymous")
+                    {
+                        Authenticate(context, administrator: actor.Contains("administrator", StringComparison.Ordinal));
+                    }
+                    // Record whether the protected handler ran, then compare the response and lookup inputs
+                    var reached = false;
+                    var result = await InvokeAsync(context, kind, () => reached = true);
+                    var expected = audience != PublicationAudience.Authenticated || member;
+                    await Assert.That(reached).IsEqualTo(expected);
+                    await Assert.That(result is IStatusCodeHttpResult { StatusCode: 404 }).IsEqualTo(!expected);
+                    await Assert.That(reader.Account?.UserId).IsEqualTo(actor == "anonymous" ? (Guid?)null : AccountId);
+                    await Assert.That(reader.AssetId).IsEqualTo(kind == PublicationReadKind.Asset ? "image-v1" : null);
+                }
+            }
+        }
+    }
+
+    private static ServiceProvider Services(Reader reader) => new ServiceCollection()
+        .AddSingleton<IPublicationAccessReader>(reader).BuildServiceProvider();
+
+    private static DefaultHttpContext Context(IServiceProvider services, PublicationReadKind kind)
+    {
+        var context = new DefaultHttpContext { RequestServices = services };
+        context.Request.Method = "GET";
+        context.Request.RouteValues["publicationId"] = EditionId.ToString("D");
+        if (kind == PublicationReadKind.Asset)
+        {
+            context.Request.RouteValues["assetId"] = "image-v1";
+        }
+        return context;
+    }
+
+    // Supply matching account and session features so tests can change expiry independently
+    private static TestTimeProvider Authenticate(HttpContext context, bool administrator = false)
+    {
+        var role = administrator ? ApplicationRoles.Administrator : ApplicationRoles.Creator;
+        context.User = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(ClaimTypes.NameIdentifier, AccountId.ToString("D")), new Claim(ClaimTypes.Role, role)], "synthetic-session"));
+        context.Features.Set(new CurrentAccount(AccountId, "synthetic-reader", role, null, false));
+        var clock = new TestTimeProvider();
+        context.Features.Set(new ValidatedAccountSession(AccountId, "synthetic-stamp", clock.GetUtcNow().AddMinutes(1), clock));
+        return clock;
+    }
+
+    private static ValueTask<object?> InvokeAsync(HttpContext context, PublicationReadKind kind, Action reached) =>
+        new PublicationReadFilter(kind).InvokeAsync(new DefaultEndpointFilterInvocationContext(context), _ =>
+        {
+            reached();
+            return ValueTask.FromResult<object?>("synthetic-protected-content");
+        });
+
+    // Synthetic editions keep publication storage out of these access-boundary tests
+    private sealed class Reader : IPublicationAccessReader
+    {
+        internal PublicationReadPolicy? Policy = new(PublicationAudience.Public, false, false);
+        internal CurrentAccount? Account;
+        internal string? AssetId;
+        internal int Calls;
+        internal CancellationToken Token;
+
+        public ValueTask<PublicationReadPolicy?> ReadAsync(
+            Guid publicationId, string? assetId, CurrentAccount? account, CancellationToken cancellationToken)
+        {
+            Calls++;
+            Account = account;
+            AssetId = assetId;
+            Token = cancellationToken;
+            return ValueTask.FromResult(publicationId == EditionId && (assetId is null or "image-v1") ? Policy : null);
+        }
+    }
 }
