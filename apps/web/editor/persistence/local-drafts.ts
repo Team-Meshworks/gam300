@@ -714,3 +714,59 @@ export async function applySaveRecoverySession(
     }
   });
 }
+
+// Closing an authenticated session can remove its confirmed cache
+// Keep uncertain requests and unsynced edits available to the original account
+export async function clearConfirmedServerRecovery(
+  scope: RecoveryScope,
+  database: IDraftDatabase = new IndexedDBDraftDatabase(),
+): Promise<ValidationResult<boolean>> {
+  const key = recoveryKey(scope);
+  if (key === null) return invalid("storage", "Invalid recovery account or project");
+  // Open only the account-scoped record after validating its identity
+  let connection: IDBDatabase;
+  try {
+    connection = await database.getIndexedDB();
+  } catch {
+    return invalid("storage", "Recovery storage could not open");
+  }
+  return new Promise((resolve) => {
+    let removed = false;
+    try {
+      // Compare and delete in one transaction so a newer tab's edits survive cleanup
+      const tx = connection.transaction("session", "readwrite");
+      const store = tx.objectStore("session");
+      const read = store.get(key);
+      tx.onabort = () => {
+        connection.close();
+        resolve(invalid("storage", "Recovery cache could not be cleared"));
+      };
+      tx.oncomplete = () => {
+        connection.close();
+        resolve({ ok: true, value: removed });
+      };
+      read.onsuccess = () => {
+        const raw: unknown = read.result;
+        // Only remove an exact confirmed copy with no outstanding request
+        // Missing metadata or newer local edits leave the backup in place
+        if (
+          !isRecord(raw) ||
+          !isRecord(raw.serverSave) ||
+          raw.serverSave.pending !== null ||
+          typeof raw.document !== "string" ||
+          raw.document !== raw.serverSave.confirmedJson
+        )
+          return;
+        try {
+          store.delete(key);
+          removed = true;
+        } catch {
+          tx.abort();
+        }
+      };
+    } catch {
+      connection.close();
+      resolve(invalid("storage", "Recovery cache could not be cleared"));
+    }
+  });
+}

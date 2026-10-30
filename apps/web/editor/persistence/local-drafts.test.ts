@@ -7,6 +7,7 @@ import { serializeProject } from "../../shared/project/project-serialization";
 import type { ProjectDocument } from "../../shared/project/project-types";
 import {
   applySaveRecoverySession,
+  clearConfirmedServerRecovery,
   applySaveToLocalDraft,
   getLatestLocalDraft,
   getLocalDraft,
@@ -185,7 +186,9 @@ function storedDraftKey(id: string) {
   return `drafts:${JSON.stringify(["local", id])}`;
 }
 
-function recoverySession(): Omit<RecoverySession, "revision" | "historyWarning"> {
+function recoverySession(): Omit<RecoverySession, "revision" | "historyWarning"> & {
+  document: ProjectDocument;
+} {
   return {
     document: fixture as unknown as ProjectDocument,
     fileName: "scene.json",
@@ -528,6 +531,49 @@ describe("persisted server save identity", () => {
     expect(await getRecoverySession(assets, database, scope)).toMatchObject({
       ok: true,
       value: { revision: 1, serverSave },
+    });
+  });
+
+  it("clears only confirmed cache data and preserves pending or newer local work", async () => {
+    // Walk through a confirmed copy, an uncertain request and an unsent edit
+    // Only the first record is safe for automatic cleanup
+    const database = new FakeDraftDatabase();
+    const confirmed = { ...serverSave, pending: null };
+    await applySaveRecoverySession(
+      { ...recoverySession(), serverSave: confirmed },
+      0,
+      assets,
+      database,
+      undefined,
+      scope,
+    );
+    expect(await clearConfirmedServerRecovery(scope, database)).toEqual({ ok: true, value: true });
+    expect(await getRecoverySession(assets, database, scope)).toEqual({ ok: true, value: null });
+    await applySaveRecoverySession(
+      { ...recoverySession(), serverSave },
+      0,
+      assets,
+      database,
+      undefined,
+      scope,
+    );
+    expect(await clearConfirmedServerRecovery(scope, database)).toEqual({ ok: true, value: false });
+    await applySaveRecoverySession(
+      {
+        ...recoverySession(),
+        document: { ...recoverySession().document, title: "Unsynced" },
+        serverSave: confirmed,
+      },
+      1,
+      assets,
+      database,
+      undefined,
+      scope,
+    );
+    expect(await clearConfirmedServerRecovery(scope, database)).toEqual({ ok: true, value: false });
+    expect(await getRecoverySession(assets, database, scope)).toMatchObject({
+      ok: true,
+      value: { document: { title: "Unsynced" } },
     });
   });
 });
