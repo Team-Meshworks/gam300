@@ -680,3 +680,157 @@ html.asset-admin-preview-page,
 .asset-admin-preview-controls .asset-admin-select {
   min-width: 140px;
 }
+
+/* Firefox uses these colours; Chromium gets a drawn track and rounded thumb below */
+.asset-admin-scroll,
+.asset-admin-dialog,
+.asset-admin-select-menu,
+.asset-admin-preview-controls {
+  scrollbar-width: thin;
+  scrollbar-color: var(--aa-scroll-thumb) var(--aa-scroll-track);
+  scrollbar-gutter: stable;
+}
+@supports selector(::-webkit-scrollbar) {
+  .asset-admin-scroll,
+  .asset-admin-dialog,
+  .asset-admin-select-menu,
+  .asset-admin-preview-controls {
+    scrollbar-width: auto;
+    scrollbar-color: auto;
+  }
+}
+:is(
+  .asset-admin-scroll,
+  .asset-admin-dialog,
+  .asset-admin-select-menu,
+  .asset-admin-preview-controls
+)::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+:is(
+  .asset-admin-scroll,
+  .asset-admin-dialog,
+  .asset-admin-select-menu,
+  .asset-admin-preview-controls
+)::-webkit-scrollbar-track {
+  background: var(--aa-scroll-track);
+  border-radius: 8px;
+}
+:is(
+  .asset-admin-scroll,
+  .asset-admin-dialog,
+  .asset-admin-select-menu,
+  .asset-admin-preview-controls
+)::-webkit-scrollbar-thumb {
+  background: var(--aa-scroll-thumb);
+  border: 2px solid var(--aa-scroll-track);
+  border-radius: 8px;
+}
+:is(
+    .asset-admin-scroll,
+    .asset-admin-dialog,
+    .asset-admin-select-menu,
+    .asset-admin-preview-controls
+  )::-webkit-scrollbar-thumb:hover {
+  background: var(--aa-scroll-hover);
+}
+:is(
+  .asset-admin-scroll,
+  .asset-admin-dialog,
+  .asset-admin-select-menu,
+  .asset-admin-preview-controls
+)::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+@media (max-width: 1050px) {
+  .asset-admin-preview {
+    padding: 80px 40px;
+  }
+  .asset-admin-preview header {
+    left: 40px;
+    right: 40px;
+  }
+  .asset-admin {
+    padding: 28px;
+  }
+  .asset-admin-heading {
+    gap: 24px;
+  }
+  .asset-admin-models .asset-admin-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 850px) {
+  .asset-admin-preview {
+    padding: 72px 24px 24px;
+  }
+  .asset-admin-preview header {
+    top: 20px;
+    left: 24px;
+    right: 24px;
+  }
+  .asset-admin {
+    padding: 24px;
+    border-radius: 28px;
+  }
+  .asset-admin-heading {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .asset-admin-heading > div {
+    flex-basis: calc(100% - 48px);
+  }
+  .asset-admin-search {
+    flex-basis: 100%;
+    order: 1;
+  }
+  .asset-admin-grid,
+  .asset-admin-models .asset-admin-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .asset-admin-toolbar {
+    margin-top: 20px;
+  }
+}
+@media (max-width: 520px) {
+  .asset-admin-preview {
+    padding: 72px 16px 24px;
+  }
+  .asset-admin-preview header {
+    left: 20px;
+    right: 20px;
+  }
+  .asset-admin-account {
+    gap: 12px;
+  }
+  .asset-admin-account > span:first-child {
+    display: none;
+  }
+  .asset-admin-account > span:nth-child(2) {
+    max-width: 88px;
+  }
+  .asset-admin {
+    padding: 20px;
+    border-radius: 24px;
+  }
+  .asset-admin-grid,
+  .asset-admin-models .asset-admin-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .asset-admin-dialog {
+    width: calc(100% - 32px);
+    max-height: calc(100dvh - 32px);
+    padding: 20px;
+    border-radius: 20px;
+  }
+  .asset-admin-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .asset-admin-preview-controls {
+    bottom: 4px;
+  }
+}
