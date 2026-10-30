@@ -213,6 +213,132 @@ public sealed class PublicationReadFilterTests
         await Assert.That(reached).IsFalse();
     }
 
+    [Test]
+    [Arguments("POST")]
+    [Arguments("PUT")]
+    [Arguments("PATCH")]
+    [Arguments("DELETE")]
+    // Keep visitor links read-only for every audience
+    public async Task PublicationRead_VisitorAccessNeverGrantsWriteAccess(string method)
+    {
+        var reader = new Reader();
+        using var provider = Services(reader);
+        var context = Context(provider, PublicationReadKind.Snapshot);
+        Authenticate(context, administrator: true);
+        context.Request.Method = method;
+        var reached = false;
+        var result = await InvokeAsync(context, PublicationReadKind.Snapshot, () => reached = true);
+        await Assert.That(result is IStatusCodeHttpResult { StatusCode: 405 }).IsTrue();
+        await Assert.That(reached).IsFalse();
+        await Assert.That(reader.Calls).IsEqualTo(0);
+    }
+
+    [Test]
+    // Reject malformed identifiers and assets outside the requested edition
+    public async Task PublicationRead_InvalidRoutesAndAssetsFromOtherEditionsAreDenied()
+    {
+        var reader = new Reader();
+        using var provider = Services(reader);
+        // Invalid edition IDs fail before the reader has a chance to query storage
+        foreach (var edition in new[] { "bad-id", Guid.Empty.ToString("D") })
+        {
+            var context = Context(provider, PublicationReadKind.Snapshot);
+            context.Request.RouteValues["publicationId"] = edition;
+            var result = await InvokeAsync(context, PublicationReadKind.Snapshot, () => throw new InvalidOperationException());
+            await Assert.That(result is IStatusCodeHttpResult { StatusCode: 404 }).IsTrue();
+        }
+        await Assert.That(reader.Calls).IsEqualTo(0);
+
+        // Asset IDs must also resolve through the requested edition rather than a path
+        foreach (var asset in new[] { "", "other-edition-asset", "../private-key" })
+        {
+            var context = Context(provider, PublicationReadKind.Asset);
+            context.Request.RouteValues["assetId"] = asset;
+            var result = await InvokeAsync(context, PublicationReadKind.Asset, () => throw new InvalidOperationException());
+            await Assert.That(result is IStatusCodeHttpResult { StatusCode: 404 }).IsTrue();
+        }
+        var wrongEdition = Context(provider, PublicationReadKind.Asset);
+        wrongEdition.Request.RouteValues["publicationId"] = Guid.NewGuid().ToString("D");
+        var denied = await InvokeAsync(wrongEdition, PublicationReadKind.Asset, () => throw new InvalidOperationException());
+        await Assert.That(denied is IStatusCodeHttpResult { StatusCode: 404 }).IsTrue();
+    }
+
+    [Test]
+    // Real HTTP requests check revocation, HEAD and cache headers across both routes
+    public async Task PublicationRead_HttpRequestsRecheckRevocationAndCannotCacheProtectedResponses()
+    {
+        var reader = new Reader();
+        var reads = 0;
+        // Run the filter in a loopback app so response headers and real HTTP methods are exercised
+        var builder = WebApplication.CreateBuilder();
+        builder.Logging.ClearProviders();
+        builder.WebHost.UseUrls("http://127.0.0.1:0");
+        builder.Services.AddSingleton<IPublicationAccessReader>(reader);
+        await using var app = builder.Build();
+        foreach (var (path, kind) in new[]
+        {
+            ("/publications/{publicationId}/snapshot", PublicationReadKind.Snapshot),
+            ("/publications/{publicationId}/assets/{assetId}", PublicationReadKind.Asset),
+        })
+        {
+            app.MapMethods(path, ["GET", "HEAD", "POST"], (HttpContext context) =>
+            {
+                Interlocked.Increment(ref reads);
+                context.Response.Headers.CacheControl = "public, max-age=86400";
+                return Results.Text("synthetic-protected-content");
+            }).RequirePublicationRead(kind);
+        }
+        await app.StartAsync();
+        try
+        {
+            var address = app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single();
+            using var client = new HttpClient { BaseAddress = new Uri(address) };
+            foreach (var suffix in new[] { "snapshot", "assets/image-v1" })
+            {
+                var path = $"/publications/{EditionId:D}/{suffix}";
+                // First allow the link and verify a handler cannot make its response publicly cacheable
+                reader.Policy = new(PublicationAudience.Unlisted, false, false);
+                using var allowed = await client.GetAsync(path);
+                await Assert.That(allowed.StatusCode).IsEqualTo(HttpStatusCode.OK);
+                await Assert.That(allowed.Headers.CacheControl!.NoStore).IsTrue();
+                await Assert.That(allowed.Headers.CacheControl.Private).IsTrue();
+                await Assert.That(allowed.Headers.CacheControl.Public).IsFalse();
+
+                // Change the stored policy and verify the next request cannot reuse protected content
+                reader.Policy = reader.Policy with { IsRevoked = true };
+                using var denied = await client.GetAsync(path);
+                await Assert.That(denied.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+                await Assert.That(denied.Headers.CacheControl!.NoStore).IsTrue();
+                var body = await denied.Content.ReadAsStringAsync();
+                await Assert.That(body.Contains("synthetic-protected-content", StringComparison.Ordinal)).IsFalse();
+                await Assert.That(body.Contains(EditionId.ToString("D"), StringComparison.Ordinal)).IsFalse();
+
+                // HEAD must obey the same restriction without returning a response body
+                using var request = new HttpRequestMessage(HttpMethod.Head, path);
+                using var head = await client.SendAsync(request);
+                await Assert.That(head.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+                await Assert.That((await head.Content.ReadAsByteArrayAsync()).Length).IsEqualTo(0);
+
+                using var write = await client.PostAsync(path, null);
+                await Assert.That(write.StatusCode).IsEqualTo(HttpStatusCode.MethodNotAllowed);
+
+                // Conditional and range requests still pass through the current revocation check
+                using var cachedRequest = new HttpRequestMessage(HttpMethod.Get, path);
+                cachedRequest.Headers.TryAddWithoutValidation("If-None-Match", "\"old-edition\"");
+                cachedRequest.Headers.TryAddWithoutValidation("Range", "bytes=0-4");
+                using var cachedResponse = await client.SendAsync(cachedRequest);
+                await Assert.That(cachedResponse.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+                await Assert.That(cachedResponse.Headers.CacheControl!.NoStore).IsTrue();
+            }
+            await Assert.That(reads).IsEqualTo(2);
+            await Assert.That(reader.Calls).IsEqualTo(8);
+        }
+        finally
+        {
+            await app.StopAsync();
+        }
+    }
+
     private static ServiceProvider Services(Reader reader) => new ServiceCollection()
         .AddSingleton<IPublicationAccessReader>(reader).BuildServiceProvider();
 
