@@ -200,6 +200,7 @@
     "asset-catalogue-plugin.ts": "17bec6aa65dd50167fe6c055fb38af453a647f3648a2bf296f9927ed32f7a158",
     "editor/App.tsx": "1959ecf211967dd57842a5e47147360cb2a8e15c047302c6b4896edd24eecea7",
     "editor/ProjectConfirmation.tsx": "07a0fedf8fbf88865b3b8232c8665c139348fc64ebce478ea01e55eb7fd14eff",
+    "editor/asset-administration/AssetSelect.tsx": "7d2f837e8bb3c02ebef20a749b46b5dd7601f6b33a6f084421eed0ce5d8fef3b",
     "editor/asset-administration/asset-administration.ts": "4e93dff7cd44dab19805132bc72c4f965dfe6eff6c82be45feff3455ce9660d0",
     "editor/command-history.test.ts": "783c026523513ea5520cde04e61502aba13ca3a612b509a904c2a50e50be2d1f",
     "editor/command-history.ts": "e243335582ab03da9d131bd80edef7b908e3eb0a751d6ebfa7deb77750fc54ad",
@@ -638,6 +639,36 @@
     {
       "file": "editor/ProjectConfirmation.tsx",
       "line": 21,
+      "kind": "implicit-jsx",
+      "specifier": "react/jsx-runtime",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/asset-administration/AssetSelect.tsx",
+      "line": 1,
+      "kind": "static",
+      "specifier": "react",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/asset-administration/AssetSelect.tsx",
+      "line": 2,
+      "kind": "type",
+      "specifier": "react",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/asset-administration/AssetSelect.tsx",
+      "line": 137,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
