@@ -226,6 +226,7 @@
     "editor/persistence/project-files.ts": "20e7466377e31ea388fe527abc4c33e465538b8b06709a5d78c78bc116c6b273",
     "editor/persistence/server-draft-write.test.ts": "f1cd956a9f9e6cc3a888429cff600048e37d218a3e9c2175eb7631166e3f3e60",
     "editor/persistence/server-draft-write.ts": "3e9bd5d5b2cbfa6af8f2de7fc502c0cc1fe8fc6b5acc3ee12007286d0e62d3bc",
+    "editor/persistence/server-project-read.test.ts": "da38d6ada4f8c65c365d400d30396d90cb01b3fb03be6831edaecc81737ec2ba",
     "editor/persistence/server-project-read.ts": "4771b7aef815dcf01b9f2c907224ae9bbe96209da4b1bb3350d81589dfad410a",
     "editor/persistence/server-save-progress.test.ts": "4eb3091bc78c665e7c9ccdfc2dd5fed6f77ec57dde1625b3ec5a5652ede7cf76",
     "editor/persistence/server-save-progress.ts": "a67877d00c616ccc9e1956ca4f5bc7373fe22002fa9b4b079700618db3a55e75",
@@ -1413,6 +1414,34 @@
       "target": "shared/project/validation-helpers.ts",
       "from": "persistence",
       "to": "project"
+    },
+    {
+      "file": "editor/persistence/server-project-read.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/persistence/server-project-read.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "../../shared/project/fixtures/m1-project.json",
+      "target": "shared/project/fixtures/m1-project.json",
+      "from": "checks",
+      "to": "project"
+    },
+    {
+      "file": "editor/persistence/server-project-read.test.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./server-project-read",
+      "target": "editor/persistence/server-project-read.ts",
+      "from": "checks",
+      "to": "persistence"
     },
     {
       "file": "editor/persistence/server-project-read.ts",
