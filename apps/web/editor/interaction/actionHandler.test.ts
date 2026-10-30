@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { runAction, stopActiveAudio } from "./actionHandler";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createActionRunner, type ActionRunner } from "./actionHandler";
 
 class FakeAudio {
   static latest: FakeAudio | undefined;
@@ -13,8 +13,14 @@ class FakeAudio {
   }
 }
 
+let runner: ActionRunner;
+
+beforeEach(() => {
+  runner = createActionRunner();
+});
+
 afterEach(() => {
-  stopActiveAudio();
+  runner.stop();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   FakeAudio.latest = undefined;
@@ -32,7 +38,7 @@ describe("action handler", () => {
       body: { append },
     });
 
-    runAction({ type: "open-link", url });
+    runner.run({ type: "open-link", url });
 
     expect(document.createElement).toHaveBeenCalledWith("a");
     expect(link.href).toBe(url);
@@ -47,7 +53,7 @@ describe("action handler", () => {
     const createElement = vi.fn();
     vi.stubGlobal("document", { createElement });
 
-    runAction({ type: "open-link", url: "https://[" });
+    runner.run({ type: "open-link", url: "https://[" });
 
     expect(createElement).not.toHaveBeenCalled();
   });
@@ -55,7 +61,7 @@ describe("action handler", () => {
   it("plays audio from the action URL", () => {
     vi.stubGlobal("Audio", FakeAudio);
 
-    runAction({ type: "play-audio", url: "/audio/ding.wav" });
+    runner.run({ type: "play-audio", url: "/audio/ding.wav" });
 
     expect(FakeAudio.latest?.src).toBe("/audio/ding.wav");
     expect(FakeAudio.latest?.play).toHaveBeenCalledOnce();
@@ -64,29 +70,40 @@ describe("action handler", () => {
   it("stops the previous audio before playing another", () => {
     vi.stubGlobal("Audio", FakeAudio);
 
-    runAction({ type: "play-audio", url: "/audio/ding.wav" });
+    runner.run({ type: "play-audio", url: "/audio/ding.wav" });
     const first = FakeAudio.latest;
-    runAction({ type: "play-audio", url: "/audio/ding.wav" });
+    runner.run({ type: "play-audio", url: "/audio/ding.wav" });
 
     expect(first?.pause).toHaveBeenCalledOnce();
   });
 
   it("stops active audio once when the preview resets", () => {
     vi.stubGlobal("Audio", FakeAudio);
-    runAction({ type: "play-audio", url: "/audio/ding.wav" });
+    runner.run({ type: "play-audio", url: "/audio/ding.wav" });
     const audio = FakeAudio.latest;
 
-    stopActiveAudio();
-    stopActiveAudio();
+    runner.stop();
+    runner.stop();
 
     expect(audio?.pause).toHaveBeenCalledOnce();
+  });
+
+  it("keeps each runner's playback separate", () => {
+    vi.stubGlobal("Audio", FakeAudio);
+    const other = createActionRunner();
+    runner.run({ type: "play-audio", url: "/audio/ding.wav" });
+    const audio = FakeAudio.latest;
+
+    other.stop();
+
+    expect(audio?.pause).not.toHaveBeenCalled();
   });
 
   it("shows a hi alert", () => {
     const alert = vi.fn();
     vi.stubGlobal("window", { alert });
 
-    runAction({ type: "print-hi" });
+    runner.run({ type: "print-hi" });
 
     expect(alert).toHaveBeenCalledExactlyOnceWith("hi");
   });
@@ -96,8 +113,8 @@ describe("action handler", () => {
     vi.stubGlobal("document", { createElement });
     vi.stubGlobal("Audio", FakeAudio);
 
-    runAction({ type: "open-link" });
-    runAction({ type: "play-audio" });
+    runner.run({ type: "open-link" });
+    runner.run({ type: "play-audio" });
 
     expect(createElement).not.toHaveBeenCalled();
     expect(FakeAudio.latest).toBeUndefined();

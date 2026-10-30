@@ -1,5 +1,5 @@
 import type { EntityId, Interaction, ProjectHotspot } from "../../shared/project/project-types";
-import { runAction as runBrowserAction, stopActiveAudio, type Action } from "./actionHandler";
+import { createActionRunner, type Action, type ActionRunner } from "./actionHandler";
 import { triggerMatches, triggerSeconds, type TriggerEvent } from "./triggerHandler";
 
 export type { Interaction } from "../../shared/project/project-types";
@@ -20,7 +20,7 @@ export type InteractionHandler = Readonly<{
 export function createInteractionHandler(
   interactions: readonly Interaction[],
   hotspots: readonly ProjectHotspot[],
-  runAction: (action: Action) => void = runBrowserAction,
+  actions: ActionRunner = createActionRunner(),
 ): InteractionHandler {
   let elapsedSeconds = 0;
   const fired = new Set<Interaction>();
@@ -44,7 +44,7 @@ export function createInteractionHandler(
 
   function execute(action: Action): void {
     try {
-      runAction(action);
+      actions.run(action);
     } catch {
       // One failed action must not prevent later actions from running
     }
@@ -78,7 +78,7 @@ export function createInteractionHandler(
     reset() {
       elapsedSeconds = 0;
       fired.clear();
-      stopActiveAudio();
+      actions.stop();
     },
   };
 }

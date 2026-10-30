@@ -12,25 +12,45 @@ export type ActionDefinition = (typeof ACTIONS)[number];
 
 export type Action = InteractionAction;
 
-let activeAudio: HTMLAudioElement | undefined;
+// Each preview session owns its playback, so stopping one never touches another
+export type ActionRunner = Readonly<{
+  run(action: Action): void;
+  stop(): void;
+}>;
 
-export function runAction(action: Action): void {
-  switch (action.type) {
-    case "open-link":
-      if (action.url !== undefined) openInNewTab(action.url);
-      return;
-    case "play-audio":
-      if (action.url !== undefined) playAudio(action.url);
-      return;
-    case "print-hi":
-      window.alert("hi");
-      return;
+export function createActionRunner(): ActionRunner {
+  let activeAudio: HTMLAudioElement | undefined;
+
+  function stop(): void {
+    activeAudio?.pause();
+    activeAudio = undefined;
   }
-}
 
-export function stopActiveAudio(): void {
-  activeAudio?.pause();
-  activeAudio = undefined;
+  function playAudio(url: string): void {
+    stop();
+    const audio = new Audio(url);
+    activeAudio = audio;
+    void audio.play().catch(() => {
+      if (activeAudio === audio) activeAudio = undefined;
+    });
+  }
+
+  return {
+    run(action) {
+      switch (action.type) {
+        case "open-link":
+          if (action.url !== undefined) openInNewTab(action.url);
+          return;
+        case "play-audio":
+          if (action.url !== undefined) playAudio(action.url);
+          return;
+        case "print-hi":
+          window.alert("hi");
+          return;
+      }
+    },
+    stop,
+  };
 }
 
 function openInNewTab(url: string): void {
@@ -42,13 +62,4 @@ function openInNewTab(url: string): void {
   document.body.append(link);
   link.click();
   link.remove();
-}
-
-function playAudio(url: string): void {
-  stopActiveAudio();
-  const audio = new Audio(url);
-  activeAudio = audio;
-  void audio.play().catch(() => {
-    if (activeAudio === audio) activeAudio = undefined;
-  });
 }

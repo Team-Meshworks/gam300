@@ -214,7 +214,10 @@ export function initScene(
   // Scroll that is shown but not yet saved.
   let wheelEdit:
     { id: string; transform: Transform; current: Transform; timer: number } | undefined;
-  let visitorClick: { pointerId: number; x: number; y: number; dragged: boolean } | undefined;
+  // A press stays tied to the object under it; once it becomes a drag it can no longer click
+  let visitorClick:
+    | { pointerId: number; x: number; y: number; target: string | null; dragged: boolean }
+    | undefined;
 
   function render() {
     if (!disposed) {
@@ -645,6 +648,7 @@ export function initScene(
               pointerId: event.pointerId,
               x: event.clientX,
               y: event.clientY,
+              target: pick(event.clientX, event.clientY),
               dragged: false,
             }
           : undefined;
@@ -720,9 +724,14 @@ export function initScene(
     if (modeManager.getState().mode === "visitor") {
       const click = visitorClick;
       visitorClick = undefined;
-      if (click !== undefined && click.pointerId === event.pointerId && !click.dragged) {
-        const id = pick(event.clientX, event.clientY);
-        if (id !== null) callbacks.onObjectClick(id);
+      if (
+        click !== undefined &&
+        click.pointerId === event.pointerId &&
+        !click.dragged &&
+        click.target !== null &&
+        pick(event.clientX, event.clientY) === click.target
+      ) {
+        callbacks.onObjectClick(click.target);
       }
       return;
     }

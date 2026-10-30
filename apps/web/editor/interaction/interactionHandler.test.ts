@@ -22,13 +22,18 @@ const elapsedInteraction: Interaction = {
   do: { type: "print-hi" },
 };
 
+// Records actions without touching the browser
+function recorder(run = vi.fn()) {
+  return { run, stop: vi.fn() };
+}
+
 describe("interaction handler", () => {
   it("runs the action for a scene start", () => {
     const runAction = vi.fn();
     const handler = createInteractionHandler(
       [sceneStartInteraction, clickInteraction],
       hotspots,
-      runAction,
+      recorder(runAction),
     );
 
     handler.sceneStarted();
@@ -43,7 +48,7 @@ describe("interaction handler", () => {
     const handler = createInteractionHandler(
       [sceneStartInteraction, sceneStartInteraction],
       hotspots,
-      runAction,
+      recorder(runAction),
     );
 
     handler.sceneStarted();
@@ -56,7 +61,7 @@ describe("interaction handler", () => {
     const handler = createInteractionHandler(
       [clickInteraction, sceneStartInteraction],
       hotspots,
-      runAction,
+      recorder(runAction),
     );
 
     handler.objectClicked("other");
@@ -79,7 +84,7 @@ describe("interaction handler", () => {
     const handler = createInteractionHandler(
       [first, clickInteraction, second],
       hotspots,
-      runAction,
+      recorder(runAction),
     );
 
     handler.objectClicked("CRATE");
@@ -89,7 +94,7 @@ describe("interaction handler", () => {
 
   it("waits two seconds by default and fires each elapsed interaction once", () => {
     const runAction = vi.fn();
-    const handler = createInteractionHandler([elapsedInteraction], hotspots, runAction);
+    const handler = createInteractionHandler([elapsedInteraction], hotspots, recorder(runAction));
 
     handler.update(DEFAULT_ELAPSED_SECONDS - 0.01);
     expect(runAction).not.toHaveBeenCalled();
@@ -107,7 +112,7 @@ describe("interaction handler", () => {
       when: { type: "time-elapsed", seconds: 5 },
       do: { type: "open-link", url: "https://example.com" },
     };
-    const handler = createInteractionHandler([interaction], hotspots, runAction);
+    const handler = createInteractionHandler([interaction], hotspots, recorder(runAction));
 
     handler.update(4.99);
     expect(runAction).not.toHaveBeenCalled();
@@ -120,9 +125,19 @@ describe("interaction handler", () => {
     expect(runAction).toHaveBeenCalledTimes(2);
   });
 
+  it("stops its own playback when the preview resets", () => {
+    const actions = recorder();
+    const handler = createInteractionHandler([sceneStartInteraction], hotspots, actions);
+
+    handler.sceneStarted();
+    handler.reset();
+
+    expect(actions.stop).toHaveBeenCalledOnce();
+  });
+
   it("ignores non-positive and invalid time updates", () => {
     const runAction = vi.fn();
-    const handler = createInteractionHandler([elapsedInteraction], hotspots, runAction);
+    const handler = createInteractionHandler([elapsedInteraction], hotspots, recorder(runAction));
 
     handler.update(0);
     handler.update(-5);

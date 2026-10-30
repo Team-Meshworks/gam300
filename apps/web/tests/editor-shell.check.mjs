@@ -500,17 +500,32 @@ try {
   assert.equal(await rows.count(), 1, "Attaching a hotspot does not create a scene row");
   const hotspotIndicator = rows.first().locator(".hotspot-indicator");
   await hotspotIndicator.waitFor();
-  assert.equal(await hotspotIndicator.getAttribute("title"), "1 hotspot");
+  assert.equal(await hotspotIndicator.getAttribute("title"), "Has hotspot");
 
   await page.getByRole("button", { name: "Interaction", exact: true }).click();
   const interactionPanel = page.locator(".editor-panel").filter({ hasText: "Interactions" });
   await interactionPanel.getByRole("button", { name: "+ Add Interaction", exact: true }).click();
   const hotspotTarget = interactionPanel.getByLabel("Interaction 1 hotspot", { exact: true });
-  assert.equal(
-    await hotspotTarget.locator("option").first().textContent(),
-    "test-crate 1 hotspot 1",
-  );
+  assert.equal(await hotspotTarget.locator("option").first().textContent(), "test-crate 1");
   await page.getByRole("button", { name: "Scene tree", exact: true }).click();
+
+  // Preview offers each click target as a keyboard control that runs the same rule
+  const alerts = [];
+  const recordAlert = (dialog) => alerts.push(dialog.message());
+  page.on("dialog", recordAlert);
+  await page.getByRole("button", { name: "Preview", exact: true }).click();
+  const previewTargets = page.getByRole("navigation", { name: "Interactive objects" });
+  const crateTarget = previewTargets.getByRole("button", { name: "test-crate 1", exact: true });
+  await crateTarget.waitFor();
+  await crateTarget.focus();
+  await page.keyboard.press("Enter");
+  for (let attempt = 0; attempt < 40 && alerts.length === 0; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  assert.deepEqual(alerts, ["hi"], "Keyboard activation runs the click interaction");
+  await page.getByRole("button", { name: "Exit preview", exact: true }).click();
+  assert.equal(await previewTargets.count(), 0, "Editing hides the preview targets");
+  page.off("dialog", recordAlert);
 
   const hotspotStage = await stage.boundingBox();
   const hotspotDock = await page.locator(".bottom-dock").boundingBox();
@@ -523,19 +538,12 @@ try {
       y: ((1 - crateCentre.y) * hotspotStage.height) / 2,
     },
   });
-  assert.equal(await rows.count(), 1, "Dropping a hotspot onto an object attaches it");
-  assert.equal(await hotspotIndicator.getAttribute("title"), "2 hotspots");
-  await page.getByRole("button", { name: "Interaction", exact: true }).click();
-  await interactionPanel.getByRole("button", { name: "+ Add Interaction", exact: true }).click();
-  assert.equal(
-    await interactionPanel
-      .getByLabel("Interaction 2 hotspot", { exact: true })
-      .locator("option")
-      .first()
-      .textContent(),
-    "test-crate 1 hotspot 1",
-  );
-  await page.getByRole("button", { name: "Scene tree", exact: true }).click();
+  await page
+    .getByRole("alert")
+    .filter({ hasText: "Each object can have at most one hotspot" })
+    .waitFor();
+  assert.equal(await rows.count(), 1, "Dropping a second hotspot does not add a row");
+  assert.equal(await hotspotIndicator.getAttribute("title"), "Has hotspot");
 
   const samplePath = "**/*test-crate*.glb*";
   await page.route(samplePath, (route) => {
@@ -572,7 +580,7 @@ try {
   assert.equal(await asset.isDisabled(), true);
   assert.deepEqual(pageErrors, [], "No uncaught page errors in any flow");
   console.log(
-    "PASS: placement, hotspot, single-pointer movement, cancellation, room occlusion, project loading, undo/redo, keyboard, resizing, retry and WebGL fallback",
+    "PASS: placement, hotspot, preview keyboard activation, single-pointer movement, cancellation, room occlusion, project loading, undo/redo, keyboard, resizing, retry and WebGL fallback",
   );
 } finally {
   await browser.close();

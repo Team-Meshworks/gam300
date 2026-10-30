@@ -1156,6 +1156,28 @@ a {
   font-weight: 650;
 }
 
+/* Preview lists click targets where the hidden panels were, for keyboard and screen readers */
+.preview-targets {
+  position: absolute;
+  top: 6rem;
+  left: 1.5rem;
+  z-index: 3;
+  max-height: calc(100% - 8rem);
+  overflow-y: auto;
+}
+.preview-targets ul {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0.25rem;
+  list-style: none;
+}
+.preview-targets .panel-pill {
+  margin: 0;
+}
+
 /* Preview hide the editing controls, they stay inert for the checks */
 .is-previewing .project-card,
 .is-previewing .history-controls,

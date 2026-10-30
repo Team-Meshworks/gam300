@@ -15,6 +15,7 @@ import type { NavigationTool, ViewportStatus } from "./graphics/scene";
 import type { ModeManager, ModeManagerState } from "./graphics/modeManager";
 import { createInteractionHandler, type Interaction } from "./interaction/interactionHandler";
 import { BottomBar } from "./ui/BottomBar";
+import { PreviewTargets } from "./ui/PreviewTargets";
 import { SidePanels } from "./ui/SidePanels";
 import { TopBar } from "./ui/TopBar";
 import { Viewport } from "./viewport/Viewport";
@@ -85,9 +86,11 @@ export function App() {
   useEffect(() => {
     interactionHandlerRef.current = interactionHandler;
   }, [interactionHandler]);
+  // Leaving Preview, replacing the handler or unmounting ends that preview session
   useEffect(() => {
-    if (visitor) interactionHandler.sceneStarted();
-    else interactionHandler.reset();
+    if (!visitor) return;
+    interactionHandler.sceneStarted();
+    return () => interactionHandler.reset();
   }, [visitor, interactionHandler]);
   const onObjectClick = useCallback((id: string) => {
     interactionHandlerRef.current.objectClicked(id);
@@ -402,6 +405,14 @@ export function App() {
           }}
           onManager={onManager}
         >
+          {visitor && (
+            <PreviewTargets
+              objects={objects}
+              hotspots={hotspots}
+              interactions={interactions}
+              onActivate={onObjectClick}
+            />
+          )}
           {!visitor && (
             <BottomBar
               assets={assets}
