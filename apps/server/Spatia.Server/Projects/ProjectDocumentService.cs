@@ -63,14 +63,14 @@ public sealed class ProjectDocumentService
     public FormatResult<IAuthoredProject> Read(string json) => Format.Deserialize(json, _assets);
 
     /// <summary>
-    /// Reconstructs stored jsonb without treating PostgreSQL's whitespace and numeric expansion as upload bytes
+    /// Validates stored values without renormalizing or treating jsonb expansion as upload bytes
     /// </summary>
     public FormatResult<IAuthoredProject> ReadStored(Guid projectId, int schemaVersion, string json)
     {
         try
         {
             using var parsed = JsonDocument.Parse(json, new JsonDocumentOptions { MaxDepth = Format.MaxJsonDepth });
-            var result = Bind(projectId, Format.Validate(parsed.RootElement, _assets));
+            var result = Bind(projectId, Format.ValidateStored(parsed.RootElement, _assets));
             return result.Ok && result.Value!.SchemaVersion != schemaVersion
                 ? new(null, new("project.schemaVersion", "Stored project format does not match its metadata")) : result;
         }

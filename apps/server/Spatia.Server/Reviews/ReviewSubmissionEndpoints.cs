@@ -73,8 +73,6 @@ public static class ReviewSubmissionEndpoints
         }
         var document = documents.ReadStored(id, project.SchemaVersion, project.UnvalidatedDocumentJson);
         if (!document.Ok) { return ApiProblems.Create(context, 503, "project_unavailable", "The project is unavailable."); }
-        var serialized = documents.Serialize(document.Value!);
-        if (!serialized.Ok) { return ApiProblems.Create(context, 503, "project_unavailable", "The project is unavailable."); }
         var required = ReviewAssetManifest.Required(document.Value!).ToFrozenSet(StringComparer.Ordinal);
         var references = await assets.ResolveAsync(database, project, required, cancellationToken);
         var manifest = ReviewAssetManifest.Serialize(required, references);
@@ -95,7 +93,7 @@ public static class ReviewSubmissionEndpoints
             DueAtUnixSeconds = mapping.DueAtUnixSeconds,
             SchemaVersion = document.Value!.SchemaVersion,
             CompletionConfirmed = true,
-            DocumentJson = serialized.Value!,
+            DocumentJson = project.UnvalidatedDocumentJson,
             AssetReferencesJson = manifest,
             RequestDigest = digest,
         };

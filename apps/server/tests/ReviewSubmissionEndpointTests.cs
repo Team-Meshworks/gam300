@@ -1,6 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -9,12 +11,74 @@ using Spatia.Server.Classes;
 using Spatia.Server.Persistence;
 using Spatia.Server.Projects;
 using Spatia.Server.Reviews;
+using Format = Spatia.ProjectFormat.ProjectFormat;
 
 namespace Spatia.Server.Tests;
 
 [NotInParallel]
 public sealed class ReviewSubmissionEndpointTests
 {
+    [Test]
+    [Arguments(1, "rotation")]
+    [Arguments(2, "rotation")]
+    [Arguments(1, "read-limit")]
+    [Arguments(1, "serialize-limit")]
+    public async Task ReviewSubmission_PreservesExactSavedContentAfterEditAndRestart(int version, string scenario)
+    {
+        var resolver = new FixtureAssets();
+        await using var fixture = await CreateFixtureAsync(resolver);
+        var data = await SeedAsync(fixture, false);
+        var input = JsonNode.Parse(ProjectTestDocuments.Create(data.ProjectId, "Saved snapshot", version))!;
+        input["scenes"]![0]!["startCamera"]!["rotation"] = scenario switch
+        {
+            "read-limit" => new JsonArray(0.47490965438830257, -0.6980326014100272, -0.1736294030169948, -0.5070149287205405),
+            "serialize-limit" => new JsonArray(0.6267845488506097, -0.36662911366558604, 0.5535539462274982, -0.4078017299508285),
+            _ => new JsonArray(-0.04334603238835914, -0.4929046071223118, 0.7105726134622642, 0.5002526669106266),
+        };
+        if (scenario != "rotation")
+        {
+            var documents = fixture.App.Services.GetRequiredService<ProjectDocumentService>();
+            var saved = documents.Serialize(documents.Read(data.ProjectId, input.ToJsonString()).Value!).Value!;
+            input["title"] = input["title"]!.GetValue<string>()
+                + new string('x', Format.MaxProjectBytes - Encoding.UTF8.GetByteCount(saved));
+        }
+        var original = input.ToJsonString();
+        await Assert.That(Encoding.UTF8.GetByteCount(original) <= Format.MaxProjectBytes).IsTrue();
+        if (scenario != "rotation") { await Assert.That(Encoding.UTF8.GetByteCount(original)).IsEqualTo(Format.MaxProjectBytes); }
+        using (var saved = await SaveAsync(fixture, data.ProjectId, 0, original))
+        { await Assert.That(saved.StatusCode).IsEqualTo(HttpStatusCode.OK); }
+
+        string savedJson;
+        await using (var scope = fixture.Database.Services.CreateAsyncScope())
+        {
+            var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            savedJson = (await database.Projects.AsNoTracking().SingleAsync(row => row.Id == data.ProjectId)).DocumentJson;
+        }
+        if (scenario != "rotation") { await Assert.That(Encoding.UTF8.GetByteCount(savedJson) > Format.MaxProjectBytes).IsTrue(); }
+        var submissionId = Guid.NewGuid();
+        using (var submitted = await SubmitAsync(fixture, data.ProjectId, submissionId, 1, true))
+        { await Assert.That(submitted.StatusCode).IsEqualTo(HttpStatusCode.Created); }
+        using (var edited = await SaveAsync(fixture, data.ProjectId, 1))
+        { await Assert.That(edited.StatusCode).IsEqualTo(HttpStatusCode.OK); }
+
+        await using (var scope = fixture.Database.Services.CreateAsyncScope())
+        {
+            var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var evidence = await database.ReviewSubmissions.AsNoTracking().SingleAsync();
+            await Assert.That(evidence.DocumentJson).IsEqualTo(savedJson);
+            await Assert.That(evidence.SourceRevision).IsEqualTo(1L);
+            await Assert.That(evidence.AssetReferencesJson.Contains(new string('a', 64), StringComparison.Ordinal)).IsTrue();
+        }
+        await fixture.App.StopAsync();
+        await using var restarted = await fixture.CreateSiblingAsync(_ => { });
+        await restarted.SignInAsync(data.Educator);
+        using var detail = await restarted.Client.GetAsync($"/api/projects/{data.ProjectId:D}/submissions/{submissionId:D}");
+        await Assert.That(detail.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        var history = await detail.Content.ReadFromJsonAsync<JsonElement>();
+        using var expected = JsonDocument.Parse(savedJson);
+        await Assert.That(JsonElement.DeepEquals(history.GetProperty("document"), expected.RootElement)).IsTrue();
+    }
+
     [Test]
     [Arguments(true)]
     [Arguments(false)]
@@ -214,12 +278,13 @@ public sealed class ReviewSubmissionEndpointTests
         return await client.SendAsync(message);
     }
 
-    internal static async Task<HttpResponseMessage> SaveAsync(HttpsApplicationFixture fixture, Guid projectId)
+    internal static async Task<HttpResponseMessage> SaveAsync(HttpsApplicationFixture fixture, Guid projectId,
+        long revision = 0, string? json = null)
     {
-        using var document = JsonDocument.Parse(ProjectTestDocuments.Create(projectId, "Newer draft"));
+        using var document = JsonDocument.Parse(json ?? ProjectTestDocuments.Create(projectId, "Newer draft"));
         using var message = new HttpRequestMessage(HttpMethod.Put, $"/api/projects/{projectId:D}")
         {
-            Content = JsonContent.Create(new { expectedRevision = 0, clientMutationId = Guid.NewGuid(), document = document.RootElement }),
+            Content = JsonContent.Create(new { expectedRevision = revision, clientMutationId = Guid.NewGuid(), document = document.RootElement }),
         };
         message.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync());
         return await fixture.Client.SendAsync(message);
