@@ -19,6 +19,7 @@
     "test:architecture": "node architecture.check.mjs",
     "test:unit": "vitest run",
     "test:browser": "node tests/editor-shell.check.mjs",
+    "test:asset-admin": "node tests/asset-administration.check.mjs",
     "test:integration": "node tests/editor-integration.check.mjs",
     "test:caching": "node tests/caching.check.mjs",
     "measure:caching": "node tests/caching.measure.mjs",
