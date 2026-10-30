@@ -200,7 +200,7 @@
     "asset-catalogue-plugin.ts": "17bec6aa65dd50167fe6c055fb38af453a647f3648a2bf296f9927ed32f7a158",
     "editor/App.tsx": "1959ecf211967dd57842a5e47147360cb2a8e15c047302c6b4896edd24eecea7",
     "editor/ProjectConfirmation.tsx": "07a0fedf8fbf88865b3b8232c8665c139348fc64ebce478ea01e55eb7fd14eff",
-    "editor/asset-administration/AssetAdministration.tsx": "81bd2854d5a699fa00479420f3a2221ea8d7c37ec5e1062ac0e847227ecd6e2f",
+    "editor/asset-administration/AssetAdministration.tsx": "bc26859559ae967b61c72deb8167c047a39fda5902e8c6755f6ab085abb4f7e8",
     "editor/asset-administration/AssetSelect.tsx": "7d2f837e8bb3c02ebef20a749b46b5dd7601f6b33a6f084421eed0ce5d8fef3b",
     "editor/asset-administration/asset-administration.ts": "4e93dff7cd44dab19805132bc72c4f965dfe6eff6c82be45feff3455ce9660d0",
     "editor/command-history.test.ts": "783c026523513ea5520cde04e61502aba13ca3a612b509a904c2a50e50be2d1f",
@@ -662,6 +662,16 @@
       "file": "editor/asset-administration/AssetAdministration.tsx",
       "line": 2,
       "kind": "type",
+      "specifier": "react",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/asset-administration/AssetAdministration.tsx",
+      "line": 3,
+      "kind": "type",
       "specifier": "./asset-administration",
       "target": "editor/asset-administration/asset-administration.ts",
       "from": "editor",
@@ -669,7 +679,7 @@
     },
     {
       "file": "editor/asset-administration/AssetAdministration.tsx",
-      "line": 7,
+      "line": 8,
       "kind": "static",
       "specifier": "./asset-administration.css",
       "target": "editor/asset-administration/asset-administration.css",
@@ -678,7 +688,7 @@
     },
     {
       "file": "editor/asset-administration/AssetAdministration.tsx",
-      "line": 8,
+      "line": 9,
       "kind": "static",
       "specifier": "./AssetSelect",
       "target": "editor/asset-administration/AssetSelect.tsx",
@@ -687,7 +697,7 @@
     },
     {
       "file": "editor/asset-administration/AssetAdministration.tsx",
-      "line": 28,
+      "line": 29,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
