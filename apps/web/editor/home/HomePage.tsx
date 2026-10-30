@@ -2,7 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import { createAccountClient, type AccountSession } from "../accounts/account-client";
 import { WorkspaceShell } from "../../shared/ui/WorkspaceShell";
 import { Button } from "../../shared/ui/Button";
+import { Dialog } from "../../shared/ui/Dialog";
 import { ProjectHome } from "./ProjectHome";
+import { ClassHome } from "./ClassHome";
+import { AssignmentCreationScreen } from "../projects/AssignmentScreens";
+import type { FormNavigationState } from "../projects/NewProjectForm";
 import "./home.css";
 
 const accounts = createAccountClient();
@@ -81,16 +85,102 @@ export function HomePage() {
       )}
       {session && !session.mustChangePassword && (
         <div hidden={checking || !!error} inert={checking || !!error}>
-          <WorkspaceShell
+          <HomeWorkspace
             key={`${session.userId}:${session.orgId}:${session.role}`}
-            name={session.displayName}
-            initials={session.displayName.slice(0, 2).toUpperCase()}
+            session={session}
             onSignOut={() => void signOut()}
-          >
-            <ProjectHome session={session} />
-          </WorkspaceShell>
+          />
         </div>
       )}
     </>
+  );
+}
+
+function HomeWorkspace({ session, onSignOut }: { session: AccountSession; onSignOut: () => void }) {
+  const [view, setView] = useState<"projects" | "classes" | "assignment">("projects");
+  const [navigation, setNavigation] = useState<FormNavigationState>({
+    dirty: false,
+    locked: false,
+  });
+  const [leave, setLeave] = useState<(() => void) | null>(null);
+  useEffect(() => {
+    if (!navigation.dirty && !navigation.locked) return;
+    const preventLoss = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener("beforeunload", preventLoss);
+    return () => window.removeEventListener("beforeunload", preventLoss);
+  }, [navigation.dirty, navigation.locked]);
+  function navigate(action: () => void) {
+    if (navigation.locked) return;
+    if (navigation.dirty) setLeave(() => action);
+    else action();
+  }
+  useEffect(() => {
+    document.getElementById("workspace")?.focus();
+  }, [view]);
+  return (
+    <WorkspaceShell
+      name={session.displayName}
+      initials={session.displayName.slice(0, 2).toUpperCase()}
+      onHome={() => navigate(() => setView("projects"))}
+      onSignOut={() => navigate(onSignOut)}
+    >
+      <nav aria-label="Workspace" className="sp-home-navigation">
+        <Button
+          disabled={navigation.locked}
+          aria-current={view === "projects" ? "page" : undefined}
+          onClick={() => navigate(() => setView("projects"))}
+        >
+          Projects
+        </Button>
+        <Button
+          disabled={navigation.locked}
+          aria-current={view === "classes" ? "page" : undefined}
+          onClick={() => navigate(() => setView("classes"))}
+        >
+          Classes
+        </Button>
+      </nav>
+      {view === "projects" ? (
+        <ProjectHome session={session} />
+      ) : view === "classes" ? (
+        <ClassHome session={session} onCreateAssignment={() => setView("assignment")} />
+      ) : (
+        <>
+          <div className="sp-page-heading">
+            <h1>New class assignment</h1>
+            <p>
+              Create an independent project for each selected student from an existing source
+              project.
+            </p>
+          </div>
+          <AssignmentCreationScreen
+            expectedUserId={session.userId}
+            onCancel={() => navigate(() => setView("classes"))}
+            onNavigationStateChange={setNavigation}
+          />
+        </>
+      )}
+      {leave && (
+        <Dialog title="Leave this assignment?" onClose={() => setLeave(null)}>
+          <p>
+            Your unsent details will be discarded. Stay here to finish or keep a copy before
+            leaving.
+          </p>
+          <Button
+            onClick={() => {
+              const action = leave;
+              setLeave(null);
+              setNavigation({ dirty: false, locked: false });
+              action();
+            }}
+          >
+            Discard details and leave
+          </Button>
+          <Button variant="primary" onClick={() => setLeave(null)}>
+            Keep editing
+          </Button>
+        </Dialog>
+      )}
+    </WorkspaceShell>
   );
 }

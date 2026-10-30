@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "../../shared/ui/Button";
 import { Field } from "../../shared/ui/Field";
-import { NewProjectForm } from "./NewProjectForm";
+import { NewProjectForm, type FormNavigationState } from "./NewProjectForm";
 import { formatLocalDeadline, localDeadlineToUnixSeconds } from "./deadline";
 import {
   assignmentChoices,
@@ -64,9 +64,13 @@ function loadPending(userId: string): PendingAssignment | null {
 export function AssignmentCreationScreen({
   onOpenProject,
   onCancel,
+  expectedUserId,
+  onNavigationStateChange,
 }: {
   onOpenProject?: (projectId: string) => void;
   onCancel?: () => void;
+  expectedUserId?: string;
+  onNavigationStateChange?: (state: FormNavigationState) => void;
 }) {
   const [setup, setSetup] = useState<Setup | null>(null);
   const [message, setMessage] = useState("");
@@ -77,6 +81,10 @@ export function AssignmentCreationScreen({
   const [pending, setPending] = useState<PendingAssignment | null>(null);
   const [restoredPending, setRestoredPending] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [formNavigation, setFormNavigation] = useState<FormNavigationState>({
+    dirty: false,
+    locked: false,
+  });
   const [confirmed, setConfirmed] = useState<{ classId: string; assignmentId: string } | null>(
     null,
   );
@@ -88,6 +96,10 @@ export function AssignmentCreationScreen({
     void (async () => {
       try {
         const session = await assignmentSession(controller.signal);
+        if (expectedUserId && session.userId !== expectedUserId) {
+          setMessage("The account changed. Reload before creating an assignment.");
+          return;
+        }
         if (session.role !== "Educator" && session.role !== "Administrator") {
           setMessage("Class assignment creation is unavailable for this account.");
           return;
@@ -107,7 +119,17 @@ export function AssignmentCreationScreen({
       controller.abort();
       rosterController.current?.abort();
     };
-  }, []);
+  }, [expectedUserId]);
+  useEffect(() => {
+    onNavigationStateChange?.({
+      dirty: !confirmed && !pending && (formNavigation.dirty || !!sourceId),
+      locked: busy || formNavigation.locked,
+    });
+  }, [confirmed, pending, formNavigation, sourceId, busy, onNavigationStateChange]);
+  useEffect(
+    () => () => onNavigationStateChange?.({ dirty: false, locked: false }),
+    [onNavigationStateChange],
+  );
 
   function changeClass(classId: string) {
     rosterController.current?.abort();
@@ -246,7 +268,7 @@ export function AssignmentCreationScreen({
       />
     );
   return (
-    <section aria-label="Create class assignment">
+    <section aria-label="Create class assignment" className="sp-assignment-create">
       {pending && (
         <div role="status" className="sp-creation-notice">
           <p>
@@ -302,6 +324,7 @@ export function AssignmentCreationScreen({
             onClassChange={changeClass}
             onSubmit={create}
             {...(onCancel ? { onCancel } : {})}
+            onNavigationStateChange={setFormNavigation}
           />
         </>
       )}
@@ -314,11 +337,13 @@ export function AssignmentDetailsScreen({
   assignmentId,
   studentNames,
   onOpenProject,
+  ownProject = false,
 }: {
   classId: string;
   assignmentId: string;
   studentNames?: Record<string, string>;
   onOpenProject?: (projectId: string) => void;
+  ownProject?: boolean;
 }) {
   const key = `${classId}:${assignmentId}`;
   const [result, setResult] = useState<{ key: string; details: AssignmentDetails | null } | null>(
@@ -340,7 +365,7 @@ export function AssignmentDetailsScreen({
     return <p role="alert">This assignment is unavailable for the current account.</p>;
   const details = result.details;
   return (
-    <section aria-label="Assignment details">
+    <section aria-label="Assignment details" className="sp-assignment-details">
       <h2>{details.title}</h2>
       <p>{details.description}</p>
       <h3>Instructions</h3>
@@ -352,9 +377,16 @@ export function AssignmentDetailsScreen({
           disabled={!onOpenProject}
           onClick={() => onOpenProject?.(project.projectId)}
         >
-          Open project for {studentNames?.[project.studentId] ?? `student ${index + 1}`}
+          {ownProject
+            ? "Open your project"
+            : `Open project for ${studentNames?.[project.studentId] ?? `student ${index + 1}`}`}
         </Button>
       ))}
+      {!onOpenProject && (
+        <p className="sp-hint">
+          Opening projects is not available yet. You can read your assignment and instructions here.
+        </p>
+      )}
     </section>
   );
 }
@@ -362,9 +394,13 @@ export function AssignmentDetailsScreen({
 export function AssignmentListScreen({
   classId,
   onOpenProject,
+  studentNames,
+  ownProject = false,
 }: {
   classId: string;
   onOpenProject?: (projectId: string) => void;
+  studentNames?: Record<string, string>;
+  ownProject?: boolean;
 }) {
   const [result, setResult] = useState<{
     classId: string;
@@ -390,6 +426,8 @@ export function AssignmentListScreen({
           key={selected.assignmentId}
           classId={classId}
           assignmentId={selected.assignmentId}
+          ownProject={ownProject}
+          {...(studentNames ? { studentNames } : {})}
           {...(onOpenProject ? { onOpenProject } : {})}
         />
       </>
@@ -401,7 +439,7 @@ export function AssignmentListScreen({
   return (
     <section aria-label="Class assignments">
       <h2>Assignments</h2>
-      <ul>
+      <ul className="sp-assignment-list">
         {result.items.map((item) => (
           <li key={item.assignmentId}>
             <Button onClick={() => setSelected({ classId, assignmentId: item.assignmentId })}>

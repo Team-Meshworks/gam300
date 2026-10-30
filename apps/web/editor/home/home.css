@@ -74,6 +74,72 @@
 .sp-home-notice {
   margin: 16px 0;
 }
+.sp-home-navigation {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 30px;
+}
+.sp-home-navigation button[aria-current="page"] {
+  background: var(--sp-ink);
+  color: white;
+}
+.sp-class-home .sp-page-heading {
+  flex-wrap: wrap;
+}
+.sp-class-home .sp-home-toolbar > .sp-field {
+  min-width: min(340px, 100%);
+}
+.sp-class-assignments {
+  margin: 32px 0;
+}
+.sp-class-students,
+.sp-assignment-list {
+  display: grid;
+  gap: 12px;
+  list-style: none;
+  padding: 0;
+  margin: 20px 0;
+}
+.sp-class-students li,
+.sp-assignment-list li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--sp-border);
+  padding: 12px 0;
+}
+.sp-assignment-list span {
+  font-size: 13px;
+  color: var(--sp-muted);
+}
+.sp-assignment-details {
+  display: grid;
+  gap: 18px;
+  padding: 24px 0;
+}
+.sp-assignment-details p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.sp-assignment-details .sp-button {
+  justify-self: start;
+  max-width: 100%;
+  white-space: normal;
+}
+.sp-assignment-create > .sp-field {
+  max-width: 540px;
+  margin-bottom: 16px;
+}
+.sp-assignment-create > .sp-button {
+  margin-bottom: 28px;
+}
+.sp-class-home .sp-table th,
+.sp-class-home .sp-table td {
+  overflow-wrap: anywhere;
+}
 @media (max-width: 600px) {
   .sp-home-projects > .sp-page-heading,
   .sp-home-project-card {

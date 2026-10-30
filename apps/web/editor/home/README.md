@@ -11,9 +11,11 @@ entry route both serve it. It does not mount the local-only editor or its recove
    coordinating account/project changes with recovery still require SCRUM-67. A blank
    project also needs an approved environment catalogue; `ProjectDocumentService`
    currently accepts development sample assets only and rejects production assets.
-2. Mount SCRUM-162 class/roster and assignment screens, retaining the existing exact-request
-   retry protocol and device-local deadline conversion. Check the SCRUM-161 wire contracts
-   before this part. Keep editor opening unavailable while SCRUM-67 is missing.
+2. Class/roster and SCRUM-162 assignment screens are mounted. The SCRUM-161 class,
+   roster, eligibility and assignment contracts were checked before implementation.
+   Class creation and membership changes use real API routes; authorised teachers and
+   administrators can create assignments. Students receive only their authorised assignment
+   lists and details. Editor opening remains unavailable while SCRUM-67 is missing.
 3. Check remaining SCRUM-126 administration needs, run the combined checks and record
    acceptance coverage and remaining dependencies. Commit each completed part locally.
 
@@ -45,3 +47,11 @@ Part 1 checks: production build and architecture check passed; six focused API t
 The browser regression passed anonymous/forced-password gates, role controls, archive/reopen,
 uncertain duplication, denied-list recovery, logout and layouts at 1440, 1024, 768 and 390px.
 Browser API responses in this regression are contract fixtures, not a live backend.
+
+Part 2 checks: 42 focused tests, production build and architecture check passed. The workspace
+browser check covers class creation, enrolment/removal, denied roster refreshes, dirty-form
+and logout protection, locking navigation while sending, lost-response recovery after reload
+with the identical request/body, and a Singapore-entered deadline displayed in New York.
+Assignment and student-detail layouts were checked at desktop and mobile widths. The
+administrator class form can reuse an organisation identified by an existing authorised
+class; selecting a new organisation awaits the SCRUM-168 directory.
