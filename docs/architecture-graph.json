@@ -224,6 +224,7 @@
     "editor/persistence/local-drafts.test.ts": "33b45127ff1ab9decbe7dd558a23a2d8a46cf0c18bea3b7f31d4fea5babc857b",
     "editor/persistence/local-drafts.ts": "371a9116510bb3b283d491487200a35b12b9e1ef4972e548025d54b6a27a8e77",
     "editor/persistence/project-files.ts": "20e7466377e31ea388fe527abc4c33e465538b8b06709a5d78c78bc116c6b273",
+    "editor/persistence/server-autosave.test.ts": "2fef50bc5e71d09028a341cefae284812604a832195e842c37dfffe0a8be8d25",
     "editor/persistence/server-autosave.ts": "ee5ee23eacb324620cc6ee2ab54ecda9d29d195dac569aaf72328331f67d417a",
     "editor/persistence/server-draft-write.test.ts": "f1cd956a9f9e6cc3a888429cff600048e37d218a3e9c2175eb7631166e3f3e60",
     "editor/persistence/server-draft-write.ts": "3e9bd5d5b2cbfa6af8f2de7fc502c0cc1fe8fc6b5acc3ee12007286d0e62d3bc",
@@ -1404,6 +1405,52 @@
       "specifier": "./server-save-recovery",
       "target": "editor/persistence/server-save-recovery.ts",
       "from": "persistence",
+      "to": "persistence"
+    },
+    {
+      "file": "editor/persistence/server-autosave.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/persistence/server-autosave.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "../../shared/project/fixtures/m1-project.json",
+      "target": "shared/project/fixtures/m1-project.json",
+      "from": "checks",
+      "to": "project"
+    },
+    {
+      "file": "editor/persistence/server-autosave.test.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "../../shared/project/project-deserialization",
+      "target": "shared/project/project-deserialization.ts",
+      "from": "checks",
+      "to": "project"
+    },
+    {
+      "file": "editor/persistence/server-autosave.test.ts",
+      "line": 4,
+      "kind": "static",
+      "specifier": "./server-autosave",
+      "target": "editor/persistence/server-autosave.ts",
+      "from": "checks",
+      "to": "persistence"
+    },
+    {
+      "file": "editor/persistence/server-autosave.test.ts",
+      "line": 5,
+      "kind": "type",
+      "specifier": "./server-draft-write",
+      "target": "editor/persistence/server-draft-write.ts",
+      "from": "checks",
       "to": "persistence"
     },
     {
