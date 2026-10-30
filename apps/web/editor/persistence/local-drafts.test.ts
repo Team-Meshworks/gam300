@@ -381,3 +381,89 @@ describe("applySaveRecoverySession", () => {
     });
   });
 });
+
+describe("account-scoped recovery", () => {
+  // Same project ID under two accounts catches accidental project-only lookups
+  const alice = { accountId: "alice", projectId: fixture.projectId };
+  const bob = { accountId: "bob", projectId: fixture.projectId };
+
+  it("keeps each account's copy separate from the local-only session", async () => {
+    const database = new FakeDraftDatabase();
+    await applySaveRecoverySession(recoverySession(), 0, assets, database);
+    // A local draft and two signed-in accounts must keep three independent copies
+    const aliceSession = { ...recoverySession(), fileName: "alice.json" };
+    const bobSession = { ...recoverySession(), fileName: "bob.json" };
+    expect(
+      await applySaveRecoverySession(aliceSession, 0, assets, database, undefined, alice),
+    ).toEqual({ ok: true, value: 1 });
+    expect(await applySaveRecoverySession(bobSession, 0, assets, database, undefined, bob)).toEqual(
+      { ok: true, value: 1 },
+    );
+    expect(await getRecoverySession(assets, database, alice)).toMatchObject({
+      ok: true,
+      value: { fileName: "alice.json" },
+    });
+    expect(await getRecoverySession(assets, database, bob)).toMatchObject({
+      ok: true,
+      value: { fileName: "bob.json" },
+    });
+    expect(await getRecoverySession(assets, database)).toMatchObject({
+      ok: true,
+      value: { fileName: "scene.json" },
+    });
+  });
+
+  it("never falls back to another account or the local session when a scoped backup is missing", async () => {
+    const database = new FakeDraftDatabase();
+    await applySaveRecoverySession(recoverySession(), 0, assets, database);
+    await applySaveRecoverySession(recoverySession(), 0, assets, database, undefined, alice);
+    // A missing scoped key stays empty even when other accounts have saved drafts
+    expect(await getRecoverySession(assets, database, bob)).toEqual({ ok: true, value: null });
+    expect(
+      await getRecoverySession(assets, database, { ...alice, projectId: crypto.randomUUID() }),
+    ).toEqual({ ok: true, value: null });
+  });
+
+  it("rejects stale writes within the same account and project", async () => {
+    const database = new FakeDraftDatabase();
+    await applySaveRecoverySession(recoverySession(), 0, assets, database, undefined, alice);
+    // Another tab still thinks this record is at revision zero
+    // Its write must leave the committed revision-one copy intact
+    expect(
+      await applySaveRecoverySession(recoverySession(), 0, assets, database, undefined, alice),
+    ).toMatchObject({ ok: false });
+    expect(await getRecoverySession(assets, database, alice)).toMatchObject({
+      ok: true,
+      value: { revision: 1 },
+    });
+  });
+
+  it("rejects a different project on both write and recovery", async () => {
+    const database = new FakeDraftDatabase();
+    const other = { ...alice, projectId: crypto.randomUUID() };
+    expect(
+      await applySaveRecoverySession(recoverySession(), 0, assets, database, undefined, other),
+    ).toMatchObject({ ok: false });
+    // A corrupted record under the right key still needs its document identity checked
+    database.records.set(
+      `session:${JSON.stringify(["account", other.accountId, other.projectId])}`,
+      {
+        ...recoverySession(),
+        revision: 1,
+        document: serializedFixture(),
+      },
+    );
+    expect(await getRecoverySession(assets, database, other)).toMatchObject({ ok: false });
+  });
+
+  it("does not treat an empty account as a local-only session", async () => {
+    const database = new FakeDraftDatabase();
+    // Invalid identity must not silently select the local-only storage key
+    const scope = { ...alice, accountId: "" };
+    expect(await getRecoverySession(assets, database, scope)).toMatchObject({ ok: false });
+    expect(
+      await applySaveRecoverySession(recoverySession(), 0, assets, database, undefined, scope),
+    ).toMatchObject({ ok: false });
+    expect(database.records.size).toBe(0);
+  });
+});

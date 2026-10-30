@@ -221,7 +221,7 @@
     "editor/object-copy.test.ts": "4266a7ac699c9ad5bec8962b7b1dd52bae9e6874d571235184aa304d0d6c8088",
     "editor/persistence/draft-db.ts": "9c1aece3becbd9db33c2164533cfc86d9cf7b4bef9306678d9c9aaca9b800c5a",
     "editor/persistence/idb-database-connection.ts": "d07c765187e280e825a3d73665837a55b12cf203ab93a22c18634849ec6b6347",
-    "editor/persistence/local-drafts.test.ts": "5064ce46c556d4ca64f43c2644150a1163f21d0813bbc055a290358b2777ed57",
+    "editor/persistence/local-drafts.test.ts": "dd5182040b6fa91218fedee7aaf68c554279a7ed2309cd7017cc5311b78923cb",
     "editor/persistence/local-drafts.ts": "3e12b996efa9736455b27fc53fdcabd92f903f4f775d8b3aa4ff7d04b00b7b67",
     "editor/persistence/project-files.ts": "20e7466377e31ea388fe527abc4c33e465538b8b06709a5d78c78bc116c6b273",
     "editor/persistence/server-draft-write.test.ts": "f1cd956a9f9e6cc3a888429cff600048e37d218a3e9c2175eb7631166e3f3e60",
