@@ -441,3 +441,144 @@ html.asset-admin-preview-page,
 .asset-admin-denied p {
   margin: 16px 0 24px;
 }
+
+/* Size the task dialog independently of the catalogue frame */
+.asset-admin-dialog {
+  width: min(640px, calc(100% - 48px));
+  max-height: calc(100dvh - 80px);
+  margin: auto;
+  padding: 28px 32px;
+  border: 1px solid var(--aa-border);
+  border-radius: 24px;
+  background: var(--aa-paper);
+  color: var(--aa-heading);
+  box-shadow: 0 16px 40px var(--aa-shadow);
+}
+/* Keep viewing compact while uploads retain room for the file chooser */
+.asset-admin-dialog-detail {
+  width: min(560px, calc(100% - 48px));
+  padding: 24px;
+}
+.asset-admin-dialog-detail .asset-admin-detail-preview {
+  min-height: 120px;
+  height: min(16dvh, 160px);
+}
+
+.asset-admin-dialog::backdrop {
+  background: var(--aa-backdrop);
+}
+.asset-admin-dialog-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+  margin-bottom: 16px;
+}
+.asset-admin-dialog-heading h2 {
+  font-size: var(--aa-text-title);
+  line-height: 1.25;
+}
+.asset-admin-upload,
+.asset-admin-detail-preview {
+  display: flex;
+  position: relative;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  min-height: 160px;
+  height: min(26dvh, 260px);
+  border-radius: 16px;
+}
+.asset-admin-upload {
+  padding: 20px;
+  border: 1px dashed var(--aa-ink);
+  background: var(--aa-upload-surface);
+  color: var(--aa-muted);
+  text-align: center;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.asset-admin-upload-symbol {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  color: var(--aa-ink);
+}
+.asset-admin-upload-symbol svg {
+  width: 44px;
+  height: 44px;
+}
+.asset-admin-upload input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+.asset-admin-upload:focus-within {
+  outline: 3px solid var(--aa-focus);
+  outline-offset: 4px;
+}
+.asset-admin-help {
+  font-size: var(--aa-text-small);
+}
+.asset-admin-detail-preview {
+  overflow: hidden;
+  background: var(--aa-placeholder);
+}
+.asset-admin-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.asset-admin-validation {
+  margin-top: 16px;
+  font-size: var(--aa-text-small);
+}
+.asset-admin-validation ul {
+  margin: 8px 0 0;
+  padding-left: 20px;
+  list-style: disc;
+}
+.asset-admin-message {
+  margin-top: 16px !important;
+  padding: 12px 16px;
+  border: 1px solid var(--aa-danger);
+  background: var(--aa-danger-surface);
+  color: var(--aa-danger);
+}
+.asset-admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 20px;
+}
+.asset-admin-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: var(--aa-text-body);
+}
+.asset-admin-actions > button:first-child {
+  color: var(--aa-cancel-ink);
+  background: var(--aa-paper);
+}
+.asset-admin .asset-admin-danger {
+  color: var(--aa-danger);
+  background: var(--aa-danger-surface);
+}
+.asset-admin-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
