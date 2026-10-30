@@ -200,6 +200,7 @@
     "asset-catalogue-plugin.ts": "17bec6aa65dd50167fe6c055fb38af453a647f3648a2bf296f9927ed32f7a158",
     "editor/App.tsx": "1959ecf211967dd57842a5e47147360cb2a8e15c047302c6b4896edd24eecea7",
     "editor/ProjectConfirmation.tsx": "07a0fedf8fbf88865b3b8232c8665c139348fc64ebce478ea01e55eb7fd14eff",
+    "editor/asset-administration/AssetAdministration.tsx": "827563c3e9f0bfb90c971813737152b1280e1d02264b0d07059f33cf635a70f1",
     "editor/asset-administration/AssetSelect.tsx": "7d2f837e8bb3c02ebef20a749b46b5dd7601f6b33a6f084421eed0ce5d8fef3b",
     "editor/asset-administration/asset-administration.ts": "4e93dff7cd44dab19805132bc72c4f965dfe6eff6c82be45feff3455ce9660d0",
     "editor/command-history.test.ts": "783c026523513ea5520cde04e61502aba13ca3a612b509a904c2a50e50be2d1f",
@@ -276,6 +277,7 @@
     "vite.config.ts": "50329f07010d85bc43b6f9ab2f3ea7b0ca22fa6059f6346d8872bf1b09ac5da6",
     "vitest.config.ts": "6d56840bcf381e145f69828ff965fe1c8065e1610a38219c19dbb4e9d87d7dbf",
     "editor/index.html": "f14296264b1f8edda142de2fa8b8c58d1e98e50265637afe5f29924558900279",
+    "editor/asset-administration/asset-administration.css": "9c3ac0cda82aa090b192e9c68fcec2c462b3c054e5bf69c59a7ecdcbdac8db46",
     "shared/project/fixtures/m1-project.json": "3aeeee4397fd9ad18fc06eba32815ef5032ecf8184200aaa38a2076b882a4947",
     "editor/styles.css": "c1b1ad140f0bb8f6ddeed5f4049e72bf856978fd0f32f691b96ddc3e433b04d3",
     "shared/project/fixtures/m2-project.json": "ccafa7cfce33d73c5ffc77672ebe30101a059d30d1c9a9855c0f3e65c1b9fe78",
@@ -639,6 +641,44 @@
     {
       "file": "editor/ProjectConfirmation.tsx",
       "line": 21,
+      "kind": "implicit-jsx",
+      "specifier": "react/jsx-runtime",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/asset-administration/AssetAdministration.tsx",
+      "line": 1,
+      "kind": "static",
+      "specifier": "react",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/asset-administration/AssetAdministration.tsx",
+      "line": 2,
+      "kind": "type",
+      "specifier": "./asset-administration",
+      "target": "editor/asset-administration/asset-administration.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/asset-administration/AssetAdministration.tsx",
+      "line": 7,
+      "kind": "static",
+      "specifier": "./asset-administration.css",
+      "target": "editor/asset-administration/asset-administration.css",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/asset-administration/AssetAdministration.tsx",
+      "line": 26,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
