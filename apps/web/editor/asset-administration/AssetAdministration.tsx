@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type {
   AssetAdministrationData,
   AssetAdministrationService,
   AssetCandidate,
 } from "./asset-administration";
 import "./asset-administration.css";
+import { AssetSelect } from "./AssetSelect";
 
 type Props = {
   session: { userId: string; role: string; mustChangePassword: boolean } | null;
@@ -13,6 +14,7 @@ type Props = {
   onClose: () => void;
 };
 type Notice = { kind: "denied" | "unavailable" | "invalid"; message: string };
+type Selection = { kind: "upload" } | { kind: "detail"; id: string } | null;
 
 // Mount after resolving the current account in the admin shell
 // Remount on account changes so one admin cannot inherit another account's list or file input
@@ -34,12 +36,20 @@ export function AssetAdministration(props: Props) {
 }
 
 function AssetAdministrationScreen({ service, kind, onClose }: Props) {
+  // Keep returned records, view filters and the unsent form separate so retries preserve user input
   const [data, setData] = useState<AssetAdministrationData | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [loading, setLoading] = useState(true);
   const [reload, setReload] = useState(0);
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState("all");
+  const [selection, setSelection] = useState<Selection>(null);
+  const [category, setCategory] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [outcome, setOutcome] = useState("");
+  const [confirmation, setConfirmation] = useState(false);
+  const dialog = useRef<HTMLDialogElement>(null);
+  const operation = useRef<AbortController | null>(null);
 
   // Read fresh state when the host changes its service or the admin retries a failed load
   // Ignore aborted responses so a closed screen cannot publish stale data into its replacement
@@ -70,8 +80,19 @@ function AssetAdministrationScreen({ service, kind, onClose }: Props) {
       });
     return () => {
       controller.abort();
+      operation.current?.abort();
     };
   }, [service, reload]);
+
+  // Native modal behavior keeps keyboard focus inside the dialog and restores its opener on close
+  useEffect(() => {
+    if (selection && !dialog.current?.open) {
+      dialog.current?.showModal();
+    }
+    if (!selection) {
+      dialog.current?.close();
+    }
+  }, [selection]);
 
   // Keep search and visibility filters outside the returned records
   // Opening a detail view still resolves its stable ID from the full list
@@ -81,9 +102,94 @@ function AssetAdministrationScreen({ service, kind, onClose }: Props) {
       asset.name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()) &&
       (tab === "all" || (tab === "hidden" ? asset.hidden : !asset.hidden)),
   );
+  const selected =
+    selection?.kind === "detail" ? items.find((asset) => asset.id === selection.id) : null;
   const title = kind === "environment" ? "All 3D Spaces" : "All Assets";
   const noun = kind === "environment" ? "3D spaces" : "assets";
   const filtered = query.trim().length > 0 || tab !== "all";
+  const categoryChoices = data?.policy.categories[kind] ?? null;
+
+  function closeDialog() {
+    // Keep the selected file and draft fields in place while a server response is pending
+    if (busy) {
+      return;
+    }
+    setSelection(null);
+    setNotice(null);
+    setConfirmation(false);
+  }
+
+  // Offer only actions permitted for this record and require a second step for deletion
+  async function changeAvailability(action: "hide" | "show" | "delete") {
+    if (!selected?.actions.includes(action) || busy) {
+      return;
+    }
+    if (action === "delete" && !confirmation) {
+      setConfirmation(true);
+      return;
+    }
+    await mutate((signal) => service.changeAvailability(selected.id, action, signal));
+  }
+
+  async function mutate(
+    send: (signal: AbortSignal) => ReturnType<AssetAdministrationService["changeAvailability"]>,
+  ) {
+    // Bind this request to the mounted screen; account changes abort it before a stale result can apply
+    const controller = new AbortController();
+    operation.current = controller;
+    setBusy(true);
+    setNotice(null);
+    setOutcome("");
+    try {
+      const result = await send(controller.signal);
+      if (controller.signal.aborted) {
+        return;
+      }
+      if (!result.ok) {
+        setNotice(result);
+        return;
+      }
+      // Replace only the confirmed record; failed mutations leave the list and form unchanged
+      const previousId = selected?.id;
+      const confirmed = result.value;
+      setData(
+        (current) =>
+          current && {
+            ...current,
+            assets:
+              confirmed && !current.assets.some((asset) => asset.id === confirmed.id)
+                ? [...current.assets, confirmed]
+                : current.assets.flatMap((asset) =>
+                    asset.id === (confirmed?.id ?? previousId)
+                      ? confirmed
+                        ? [confirmed]
+                        : []
+                      : [asset],
+                  ),
+          },
+      );
+      setSelection(null);
+      setConfirmation(false);
+      // Announce the confirmed state after closing the form; uploaded candidates can still be pending
+      setOutcome(
+        confirmed
+          ? `${confirmed.name}: ${confirmed.status === "approved" ? (confirmed.hidden ? "hidden" : "available") : confirmed.status}`
+          : "Asset deleted",
+      );
+    } catch {
+      if (!controller.signal.aborted) {
+        setNotice({
+          kind: "unavailable",
+          message: "The change could not be confirmed. Please try again.",
+        });
+      }
+    } finally {
+      // Only the active screen clears its pending state after a completed or failed request
+      if (!controller.signal.aborted) {
+        setBusy(false);
+      }
+    }
+  }
 
   function thumbnail(asset: AssetCandidate) {
     // Accept local delivery paths only; candidate metadata must not trigger arbitrary remote requests
@@ -165,6 +271,9 @@ function AssetAdministrationScreen({ service, kind, onClose }: Props) {
           ))}
         </div>
       </div>
+      <p className="asset-admin-outcome" role="status">
+        {outcome}
+      </p>
       <div className="asset-admin-scroll" tabIndex={0} role="region" aria-label={`${noun} list`}>
         {loading ? (
           <div className="asset-admin-grid" role="status" aria-label="Loading assets">
@@ -172,7 +281,7 @@ function AssetAdministrationScreen({ service, kind, onClose }: Props) {
               <div key={id} className="asset-admin-skeleton" />
             ))}
           </div>
-        ) : notice ? (
+        ) : notice && !selection ? (
           <div className="asset-admin-state" role="alert">
             <h2>
               {notice.kind === "denied"
@@ -231,6 +340,18 @@ function AssetAdministrationScreen({ service, kind, onClose }: Props) {
                         : asset.status}
                     </span>
                   </div>
+                  <button
+                    className="asset-admin-primary"
+                    onClick={() => {
+                      setNotice(null);
+                      setConfirmation(false);
+                      setSelection({ kind: "detail", id: asset.id });
+                    }}
+                  >
+                    View{" "}
+                    {kind === "environment" && asset.status === "approved" ? "Model" : "details"}
+                    <span className="asset-admin-sr">: {asset.name}</span>
+                  </button>
                 </div>
               </article>
             ))}
@@ -259,6 +380,145 @@ function AssetAdministrationScreen({ service, kind, onClose }: Props) {
           </div>
         )}
       </div>
+      <dialog
+        ref={dialog}
+        className={`asset-admin-dialog${selection?.kind === "detail" ? " asset-admin-dialog-detail" : ""}`}
+        aria-labelledby="asset-dialog-heading"
+        onCancel={(event) => {
+          // File chooser cancellation also bubbles here; only close for the dialog’s own Escape event
+          if (event.target !== event.currentTarget) {
+            return;
+          }
+          event.preventDefault();
+          closeDialog();
+        }}
+      >
+        <form aria-busy={busy}>
+          <div className="asset-admin-dialog-heading">
+            <h2 id="asset-dialog-heading">
+              {selected?.name ?? (kind === "environment" ? "Upload 3D Space" : "Upload 3D Model")}
+            </h2>
+            <button
+              type="button"
+              className="asset-admin-close"
+              aria-label="Close asset details"
+              disabled={busy}
+              onClick={closeDialog}
+            >
+              <svg
+                aria-hidden="true"
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              >
+                <path d="m7 7 10 10M17 7 7 17" />
+              </svg>
+            </button>
+          </div>
+          {selected && <div className="asset-admin-detail-preview">{thumbnail(selected)}</div>}
+          <h3>
+            {(selected?.kind ?? kind) === "environment" ? "3D Space Details" : "Asset Details"}
+          </h3>
+          <div className="asset-admin-fields">
+            {/* Keep intake tied to the current library so submissions cannot move into another list */}
+            <label className="asset-admin-select">
+              <span>Asset Type</span>
+              <input readOnly value={kind === "environment" ? "3D Space" : "3D Model"} />
+            </label>
+            <AssetSelect
+              label="Filter Category"
+              disabled={busy || selection?.kind !== "upload" || categoryChoices === null}
+              value={selected ? (selected.category ?? "") : category}
+              options={(selected?.category ? [selected.category] : (categoryChoices ?? [])).map(
+                (value) => ({ value, label: value }),
+              )}
+              placeholder="Not configured"
+              onChange={setCategory}
+            />
+          </div>
+          {selected && (selected.status !== "approved" || selected.validation.length > 0) && (
+            <div className="asset-admin-validation">
+              <p>
+                Status: <strong>{selected.status}</strong>
+              </p>
+              {selected.validation.length > 0 && (
+                <ul aria-label="Validation results">
+                  {selected.validation.map((message, i) => (
+                    <li key={i}>{message}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+          {notice && (
+            <p className="asset-admin-message" role="alert">
+              {notice.message}
+            </p>
+          )}
+          {confirmation && (
+            <p className="asset-admin-message" role="alert">
+              Delete {selected?.name} from the asset library?
+            </p>
+          )}
+          <div className="asset-admin-actions">
+            <button type="button" disabled={busy} onClick={closeDialog}>
+              Cancel
+            </button>
+            {selected?.actions.map((action) => (
+              <button
+                key={action}
+                type="button"
+                className={action === "delete" ? "asset-admin-danger" : ""}
+                disabled={busy}
+                onClick={() => {
+                  void changeAvailability(action);
+                }}
+              >
+                <svg
+                  aria-hidden="true"
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.7"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  {action === "delete" ? (
+                    <>
+                      <path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14M10 10v7m4-7v7" />
+                    </>
+                  ) : action === "show" ? (
+                    <>
+                      <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7Z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </>
+                  ) : (
+                    <>
+                      <path d="m3 3 18 18M10 5a12 12 0 0 1 11 7 15 15 0 0 1-4 5M7 7a15 15 0 0 0-4 5c3 6 9 9 15 5" />
+                      <path d="M10 10a3 3 0 0 0 4 4" />
+                    </>
+                  )}
+                </svg>
+                {busy
+                  ? "Saving…"
+                  : action === "delete"
+                    ? confirmation
+                      ? "Confirm Delete"
+                      : "Delete"
+                    : action === "hide"
+                      ? "Hide"
+                      : "Show"}
+              </button>
+            ))}
+          </div>
+        </form>
+      </dialog>
     </section>
   );
 }
