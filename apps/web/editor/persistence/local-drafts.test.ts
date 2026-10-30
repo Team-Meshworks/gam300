@@ -577,3 +577,22 @@ describe("persisted server save identity", () => {
     });
   });
 });
+
+// Blank local projects remain valid, but cannot masquerade as authenticated recovery
+it("rejects blank account-scoped recovery without replacing the previous backup", async () => {
+  const database = new FakeDraftDatabase();
+  const scope = { accountId: "student-a", projectId: fixture.projectId };
+  const empty = { document: null, fileName: "", savedJson: null, pristine: true };
+  expect(
+    await applySaveRecoverySession(empty, 0, assets, database, undefined, scope),
+  ).toMatchObject({ ok: false });
+  expect(database.records.size).toBe(0);
+
+  // Stored data is untrusted too; reject an invalid scoped blank record on read
+  database.records.set(
+    `session:${JSON.stringify(["account", scope.accountId, scope.projectId.toLowerCase()])}`,
+    { ...empty, revision: 1 },
+  );
+  expect(await getRecoverySession(assets, database, scope)).toMatchObject({ ok: false });
+  expect(database.records.size).toBe(1);
+});
