@@ -68,6 +68,7 @@ export const modules = {
     packages: ["react"],
     public: [
       "editor/persistence/use-project-session.ts",
+      "editor/persistence/server-project-session.ts",
       "editor/persistence/server-project-read.ts",
     ],
   },

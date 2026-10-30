@@ -1,8 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import fixture from "../../shared/project/fixtures/m1-project.json";
 import contentFixture from "../../shared/project/fixtures/m2-project.json";
 import contentCases from "../../shared/project/fixtures/project-format-cases.json";
-import { validateServerSaveRecovery } from "./server-save-recovery";
 import { serializeProject } from "../../shared/project/project-serialization";
 import type { ProjectDocument } from "../../shared/project/project-types";
 import {
@@ -16,7 +15,15 @@ import {
 } from "./local-drafts";
 import type { IDraftDatabase } from "./draft-db";
 import type { ValidationResult } from "../../shared/project/validation-helpers";
+import { createDocumentStore } from "../document-store";
+import { connectServerProjectSession } from "./server-project-session";
+import { validateServerSaveRecovery } from "./server-save-recovery";
+import type { ServerDraftRequest, ServerDraftResult } from "./server-draft-write";
 
+afterEach(() => vi.useRealTimers());
+
+// Small IndexedDB stand-in for revision checks and account separation
+// Real browser transaction behaviour is checked separately in the browser recovery flow
 class FakeDraftDatabase implements IDraftDatabase {
   readonly projectIds: string[] = [];
   readonly records = new Map<string, unknown>();
@@ -58,6 +65,7 @@ class FakeDraftDatabase implements IDraftDatabase {
             }
             const key = (value: IDBValidKey) => `${name}:${JSON.stringify(value)}`;
             const request = (result: unknown) => {
+              // Delay delivery so the caller can attach onsuccess after creating the request
               const resultRequest = {
                 result,
                 onsuccess: null as ((event: Event) => void) | null,
@@ -575,6 +583,227 @@ describe("persisted server save identity", () => {
       ok: true,
       value: { document: { title: "Unsynced" } },
     });
+  });
+});
+
+describe("server project session lifecycle", () => {
+  function setup() {
+    // Use the real document store with controlled storage and server replies
+    // Events below stand in for browser reconnects and the account owner's logout signal
+    vi.useFakeTimers();
+    const store = createDocumentStore([]);
+    expect(store.loadProject(serializedFixture(), assets).ok).toBe(true);
+    const database = new FakeDraftDatabase();
+    const account = new AbortController();
+    const events = new EventTarget();
+    const write = vi
+      .fn<(request: ServerDraftRequest, signal: AbortSignal) => Promise<ServerDraftResult>>()
+      .mockImplementation(async (request) => {
+        const body = JSON.parse(request.body);
+        return {
+          kind: "saved",
+          receipt: {
+            projectId,
+            clientMutationId: body.clientMutationId,
+            revision: body.expectedRevision + 1,
+          },
+        };
+      });
+    const onStatus = vi.fn();
+    const session = connectServerProjectSession({
+      accountId: "alice",
+      store,
+      revision: 3,
+      storageRevision: 0,
+      assetKinds: assets,
+      signal: account.signal,
+      database,
+      events,
+      write,
+      onStatus,
+    });
+    return { store, database, account, events, write, onStatus, session };
+  }
+
+  it("keeps cancelled and failed export decisions open, then leaves after confirmed export", async () => {
+    const { store, session, write } = setup();
+    store.loadProject(serializedFixture({ ...fixture, title: "Unsent work" }), assets);
+    expect(await session.prepareToLeave("cancel")).toEqual({ ok: true, value: false });
+    expect(await session.prepareToLeave("export", async () => false)).toMatchObject({ ok: false });
+    // Export must receive the latest complete document before the session can stop
+    const exportFile = vi.fn(async (json: string) => JSON.parse(json).title === "Unsent work");
+    expect(await session.prepareToLeave("export", exportFile)).toEqual({ ok: true, value: true });
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(write).not.toHaveBeenCalled();
+  });
+
+  // An export cannot cover an edit made while the picker is open
+  it("refuses to leave when another edit arrives during export", async () => {
+    const { store, session } = setup();
+    store.loadProject(serializedFixture({ ...fixture, title: "Exported version" }), assets);
+    expect(
+      await session.prepareToLeave("export", async () => {
+        store.loadProject(serializedFixture({ ...fixture, title: "Newer version" }), assets);
+        return true;
+      }),
+    ).toMatchObject({ ok: false });
+    expect(session.getStatus()).toBe("unsaved");
+    expect(await session.prepareToLeave("save")).toEqual({ ok: true, value: true });
+  });
+
+  it("keeps the editor open when recovery storage fails and still permits export", async () => {
+    const { store, session, database, write } = setup();
+    vi.spyOn(database, "getIndexedDB").mockRejectedValue(new Error("Quota exceeded"));
+    store.loadProject(serializedFixture({ ...fixture, title: "Unstored work" }), assets);
+    expect(await session.prepareToLeave("recovery")).toMatchObject({ ok: false });
+    expect(await session.prepareToLeave("save")).toMatchObject({ ok: false });
+    expect(write).not.toHaveBeenCalled();
+    // A real completed export remains an escape path when browser storage is unavailable
+    expect(await session.prepareToLeave("export", async () => true)).toEqual({
+      ok: true,
+      value: true,
+    });
+  });
+
+  // A stale revision remains available as a separate local recovery copy
+  it("requires an explicit recovery choice after a server conflict", async () => {
+    const { store, session, database, write } = setup();
+    write.mockResolvedValue({ kind: "conflict" });
+    store.loadProject(serializedFixture({ ...fixture, title: "Conflicting work" }), assets);
+    expect(await session.prepareToLeave("save")).toMatchObject({ ok: false });
+    expect(session.getStatus()).toBe("conflict");
+    expect(await session.prepareToLeave("recovery")).toEqual({ ok: true, value: true });
+    expect(
+      await getRecoverySession(assets, database, { accountId: "alice", projectId }),
+    ).toMatchObject({
+      ok: true,
+      value: { document: { title: "Conflicting work" } },
+    });
+    expect(write).toHaveBeenCalledTimes(1);
+  });
+
+  // Reconnection retries the same pending request for server deduplication
+  it("backs up committed store edits and retries on reconnect", async () => {
+    const { store, database, events, write, session } = setup();
+    write.mockResolvedValueOnce({ kind: "failed" });
+    store.loadProject(serializedFixture({ ...fixture, title: "Offline edit" }), assets);
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(session.getStatus()).toBe("failed");
+    expect(
+      await getRecoverySession(assets, database, { accountId: "alice", projectId }),
+    ).toMatchObject({
+      ok: true,
+      value: { document: { title: "Offline edit" }, serverSave: { revision: 3 } },
+    });
+    events.dispatchEvent(new Event("online"));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(write).toHaveBeenCalledTimes(2);
+    expect(write.mock.calls[1]![0].body).toBe(write.mock.calls[0]![0].body);
+    expect(session.getStatus()).toBe("saved");
+    session.dispose();
+  });
+
+  // Logout disconnects editor changes and network events from the old account
+  it("removes listeners on logout so the next account cannot retry old work", async () => {
+    const { store, account, events, write, onStatus } = setup();
+    store.loadProject(serializedFixture({ ...fixture, title: "Alice edit" }), assets);
+    account.abort();
+    const count = onStatus.mock.calls.length;
+    store.loadProject(serializedFixture({ ...fixture, title: "Bob edit" }), assets);
+    events.dispatchEvent(new Event("online"));
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(write).not.toHaveBeenCalled();
+    expect(onStatus).toHaveBeenCalledTimes(count);
+  });
+
+  // Reopened history must belong to the recovered document
+  it("saves undo changes and keeps their history with the recovery snapshot", async () => {
+    const { store, database, write, session } = setup();
+    const object = store.getSnapshot().objects[0];
+    if (!object) throw new Error("Fixture needs an object");
+    expect(store.deleteObject(object.id).ok).toBe(true);
+    await session.flush();
+    store.undo();
+    await session.flush();
+    expect(write).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(write.mock.calls[1]![0].body).document.scenes[0].objects).toHaveLength(
+      fixture.scenes[0]!.objects.length,
+    );
+    const recovered = await getRecoverySession(assets, database, { accountId: "alice", projectId });
+    expect(recovered.ok).toBe(true);
+    if (!recovered.ok || !recovered.value) throw new Error("Missing recovery");
+    expect(recovered.value.history).toBeDefined();
+    const reopened = createDocumentStore([]);
+    // Restore into another store so the check cannot reuse history still held in memory
+    expect(
+      reopened.loadProject(
+        JSON.stringify(recovered.value.document),
+        assets,
+        recovered.value.history,
+      ).ok,
+    ).toBe(true);
+    expect(reopened.getSnapshot().canRedo).toBe(true);
+    await session.dispose();
+  });
+
+  // Switching projects preserves the previous draft without sending the new project
+  it("stops saving when the store switches to a different project", async () => {
+    const { store, database, events, write, session } = setup();
+    store.loadProject(serializedFixture({ ...fixture, title: "Old project edit" }), assets);
+    const object = store.getSnapshot().objects[0];
+    if (!object) throw new Error("Fixture needs an object");
+    store.deleteObject(object.id);
+    store.loadProject(serializedFixture({ ...fixture, projectId: crypto.randomUUID() }), assets);
+    events.dispatchEvent(new Event("online"));
+    await session.flush();
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(write).not.toHaveBeenCalled();
+    await session.dispose();
+    const recovered = await getRecoverySession(assets, database, { accountId: "alice", projectId });
+    if (!recovered.ok || !recovered.value) throw new Error("Missing previous project backup");
+    const reopened = createDocumentStore([]);
+    expect(
+      reopened.loadProject(
+        JSON.stringify(recovered.value.document),
+        assets,
+        recovered.value.history,
+      ).ok,
+    ).toBe(true);
+    expect(reopened.getSnapshot().canUndo).toBe(true);
+  });
+
+  // Closing before the timer fires still preserves unsent edits locally
+  it("backs up unsynced edits when closing inside the debounce window", async () => {
+    const { store, database, write, session } = setup();
+    store.loadProject(serializedFixture({ ...fixture, title: "Last edit before closing" }), assets);
+    expect(await session.dispose()).toMatchObject({ ok: true, value: false });
+    expect(write).not.toHaveBeenCalled();
+    expect(
+      await getRecoverySession(assets, database, { accountId: "alice", projectId }),
+    ).toMatchObject({
+      ok: true,
+      value: {
+        document: { title: "Last edit before closing" },
+        serverSave: { pending: null, revision: 3 },
+      },
+    });
+  });
+
+  // Cleanup must not remove another account’s recovery copy
+  it("clears the closed session's confirmed cache without touching another account", async () => {
+    const { database, session } = setup();
+    await applySaveRecoverySession(recoverySession(), 0, assets, database, undefined, {
+      accountId: "bob",
+      projectId,
+    });
+    expect(await session.dispose()).toMatchObject({ ok: true, value: true });
+    expect(await getRecoverySession(assets, database, { accountId: "alice", projectId })).toEqual({
+      ok: true,
+      value: null,
+    });
+    expect(
+      await getRecoverySession(assets, database, { accountId: "bob", projectId }),
+    ).toMatchObject({ ok: true, value: { revision: 1 } });
   });
 });
 

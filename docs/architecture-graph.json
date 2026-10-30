@@ -108,6 +108,7 @@
       ],
       "public": [
         "editor/persistence/use-project-session.ts",
+        "editor/persistence/server-project-session.ts",
         "editor/persistence/server-project-read.ts"
       ]
     },
@@ -197,7 +198,7 @@
   },
   "files": {
     "architecture.check.mjs": "ed2d036e255cf85a5c589e639d60ad270a89cd49b8a363a5af4ff0afd3b8eb5a",
-    "architecture.mjs": "43d0e0462f05ec59e6d7d3189cb68bf856159377eef2479a04dd1f1ff9dffcbe",
+    "architecture.mjs": "43d972d7eabdbd28c467c6854a4339af5ae1b5507962fa77feffee8cfe7417bc",
     "asset-catalogue-plugin.ts": "17bec6aa65dd50167fe6c055fb38af453a647f3648a2bf296f9927ed32f7a158",
     "editor/App.tsx": "1959ecf211967dd57842a5e47147360cb2a8e15c047302c6b4896edd24eecea7",
     "editor/ProjectConfirmation.tsx": "07a0fedf8fbf88865b3b8232c8665c139348fc64ebce478ea01e55eb7fd14eff",
@@ -221,7 +222,7 @@
     "editor/object-copy.test.ts": "4266a7ac699c9ad5bec8962b7b1dd52bae9e6874d571235184aa304d0d6c8088",
     "editor/persistence/draft-db.ts": "9c1aece3becbd9db33c2164533cfc86d9cf7b4bef9306678d9c9aaca9b800c5a",
     "editor/persistence/idb-database-connection.ts": "d07c765187e280e825a3d73665837a55b12cf203ab93a22c18634849ec6b6347",
-    "editor/persistence/local-drafts.test.ts": "33b45127ff1ab9decbe7dd558a23a2d8a46cf0c18bea3b7f31d4fea5babc857b",
+    "editor/persistence/local-drafts.test.ts": "c05c70bd20704c770476b817cf58f20e775dc897122678c97d49a9574aebb7b3",
     "editor/persistence/local-drafts.ts": "371a9116510bb3b283d491487200a35b12b9e1ef4972e548025d54b6a27a8e77",
     "editor/persistence/project-files.ts": "20e7466377e31ea388fe527abc4c33e465538b8b06709a5d78c78bc116c6b273",
     "editor/persistence/server-autosave.test.ts": "ee19969b8159cd5d030296db4cffe44acce9534e4bd969fc0d524d3e3f6d2900",
@@ -230,6 +231,7 @@
     "editor/persistence/server-draft-write.ts": "3e9bd5d5b2cbfa6af8f2de7fc502c0cc1fe8fc6b5acc3ee12007286d0e62d3bc",
     "editor/persistence/server-project-read.test.ts": "da38d6ada4f8c65c365d400d30396d90cb01b3fb03be6831edaecc81737ec2ba",
     "editor/persistence/server-project-read.ts": "4771b7aef815dcf01b9f2c907224ae9bbe96209da4b1bb3350d81589dfad410a",
+    "editor/persistence/server-project-session.ts": "a11efa7d344c2c145b7de075a638b87febcbd845ad0f9c31f42ab4e4e712819c",
     "editor/persistence/server-save-progress.test.ts": "4eb3091bc78c665e7c9ccdfc2dd5fed6f77ec57dde1625b3ec5a5652ede7cf76",
     "editor/persistence/server-save-progress.ts": "a67877d00c616ccc9e1956ca4f5bc7373fe22002fa9b4b079700618db3a55e75",
     "editor/persistence/server-save-recovery.test.ts": "4f29c6adc1b909927a70f1281c14012cb0e8791ecd3e78e4e6d166884539cd21",
@@ -1276,15 +1278,6 @@
       "file": "editor/persistence/local-drafts.test.ts",
       "line": 5,
       "kind": "static",
-      "specifier": "./server-save-recovery",
-      "target": "editor/persistence/server-save-recovery.ts",
-      "from": "checks",
-      "to": "persistence"
-    },
-    {
-      "file": "editor/persistence/local-drafts.test.ts",
-      "line": 6,
-      "kind": "static",
       "specifier": "../../shared/project/project-serialization",
       "target": "shared/project/project-serialization.ts",
       "from": "checks",
@@ -1292,7 +1285,7 @@
     },
     {
       "file": "editor/persistence/local-drafts.test.ts",
-      "line": 7,
+      "line": 6,
       "kind": "type",
       "specifier": "../../shared/project/project-types",
       "target": "shared/project/project-types.ts",
@@ -1301,7 +1294,7 @@
     },
     {
       "file": "editor/persistence/local-drafts.test.ts",
-      "line": 8,
+      "line": 7,
       "kind": "static",
       "specifier": "./local-drafts",
       "target": "editor/persistence/local-drafts.ts",
@@ -1310,7 +1303,7 @@
     },
     {
       "file": "editor/persistence/local-drafts.test.ts",
-      "line": 17,
+      "line": 16,
       "kind": "type",
       "specifier": "./draft-db",
       "target": "editor/persistence/draft-db.ts",
@@ -1319,12 +1312,48 @@
     },
     {
       "file": "editor/persistence/local-drafts.test.ts",
-      "line": 18,
+      "line": 17,
       "kind": "type",
       "specifier": "../../shared/project/validation-helpers",
       "target": "shared/project/validation-helpers.ts",
       "from": "checks",
       "to": "project"
+    },
+    {
+      "file": "editor/persistence/local-drafts.test.ts",
+      "line": 18,
+      "kind": "static",
+      "specifier": "../document-store",
+      "target": "editor/document-store.ts",
+      "from": "checks",
+      "to": "document"
+    },
+    {
+      "file": "editor/persistence/local-drafts.test.ts",
+      "line": 19,
+      "kind": "static",
+      "specifier": "./server-project-session",
+      "target": "editor/persistence/server-project-session.ts",
+      "from": "checks",
+      "to": "persistence"
+    },
+    {
+      "file": "editor/persistence/local-drafts.test.ts",
+      "line": 20,
+      "kind": "static",
+      "specifier": "./server-save-recovery",
+      "target": "editor/persistence/server-save-recovery.ts",
+      "from": "checks",
+      "to": "persistence"
+    },
+    {
+      "file": "editor/persistence/local-drafts.test.ts",
+      "line": 21,
+      "kind": "type",
+      "specifier": "./server-draft-write",
+      "target": "editor/persistence/server-draft-write.ts",
+      "from": "checks",
+      "to": "persistence"
     },
     {
       "file": "editor/persistence/local-drafts.ts",
@@ -1607,6 +1636,78 @@
       "target": "shared/project/project-types.ts",
       "from": "persistence",
       "to": "project"
+    },
+    {
+      "file": "editor/persistence/server-project-session.ts",
+      "line": 1,
+      "kind": "type",
+      "specifier": "../document-store",
+      "target": "editor/document-store.ts",
+      "from": "persistence",
+      "to": "document"
+    },
+    {
+      "file": "editor/persistence/server-project-session.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "../../shared/project/project-deserialization",
+      "target": "shared/project/project-deserialization.ts",
+      "from": "persistence",
+      "to": "project"
+    },
+    {
+      "file": "editor/persistence/server-project-session.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "../../shared/project/project-serialization",
+      "target": "shared/project/project-serialization.ts",
+      "from": "persistence",
+      "to": "project"
+    },
+    {
+      "file": "editor/persistence/server-project-session.ts",
+      "line": 4,
+      "kind": "static",
+      "specifier": "../../shared/project/validation-helpers",
+      "target": "shared/project/validation-helpers.ts",
+      "from": "persistence",
+      "to": "project"
+    },
+    {
+      "file": "editor/persistence/server-project-session.ts",
+      "line": 5,
+      "kind": "static",
+      "specifier": "./draft-db",
+      "target": "editor/persistence/draft-db.ts",
+      "from": "persistence",
+      "to": "persistence"
+    },
+    {
+      "file": "editor/persistence/server-project-session.ts",
+      "line": 6,
+      "kind": "static",
+      "specifier": "./local-drafts",
+      "target": "editor/persistence/local-drafts.ts",
+      "from": "persistence",
+      "to": "persistence"
+    },
+    {
+      "file": "editor/persistence/server-project-session.ts",
+      "line": 11,
+      "kind": "static",
+      "specifier": "./server-autosave",
+      "target": "editor/persistence/server-autosave.ts",
+      "from": "persistence",
+      "to": "persistence"
+    },
+    {
+      "file": "editor/persistence/server-project-session.ts",
+      "line": 12,
+      "kind": "type",
+      "specifier": "./server-draft-write",
+      "target": "editor/persistence/server-draft-write.ts",
+      "from": "persistence",
+      "to": "persistence"
     },
     {
       "file": "editor/persistence/server-save-progress.test.ts",
