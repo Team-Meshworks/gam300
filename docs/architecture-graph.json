@@ -200,6 +200,7 @@
     "asset-catalogue-plugin.ts": "17bec6aa65dd50167fe6c055fb38af453a647f3648a2bf296f9927ed32f7a158",
     "editor/App.tsx": "1959ecf211967dd57842a5e47147360cb2a8e15c047302c6b4896edd24eecea7",
     "editor/ProjectConfirmation.tsx": "07a0fedf8fbf88865b3b8232c8665c139348fc64ebce478ea01e55eb7fd14eff",
+    "editor/asset-administration/asset-administration.ts": "4e93dff7cd44dab19805132bc72c4f965dfe6eff6c82be45feff3455ce9660d0",
     "editor/command-history.test.ts": "783c026523513ea5520cde04e61502aba13ca3a612b509a904c2a50e50be2d1f",
     "editor/command-history.ts": "e243335582ab03da9d131bd80edef7b908e3eb0a751d6ebfa7deb77750fc54ad",
     "editor/controls/fpsControls.ts": "9cd1c65c92bd832dda2003f6a79e5b5e5b54a49360d47bf4b6841c83ca4693e6",
@@ -643,6 +644,15 @@
         "package": "react"
       },
       "from": "editor"
+    },
+    {
+      "file": "editor/asset-administration/asset-administration.ts",
+      "line": 1,
+      "kind": "type",
+      "specifier": "../../shared/asset-runtime/catalogue",
+      "target": "shared/asset-runtime/catalogue.ts",
+      "from": "editor",
+      "to": "catalogue"
     },
     {
       "file": "editor/command-history.test.ts",
