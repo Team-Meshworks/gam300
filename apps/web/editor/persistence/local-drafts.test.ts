@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import fixture from "../../shared/project/fixtures/m1-project.json";
 import contentFixture from "../../shared/project/fixtures/m2-project.json";
 import contentCases from "../../shared/project/fixtures/project-format-cases.json";
+import { validateServerSaveRecovery } from "./server-save-recovery";
 import { serializeProject } from "../../shared/project/project-serialization";
 import type { ProjectDocument } from "../../shared/project/project-types";
 import {
@@ -465,5 +466,68 @@ describe("account-scoped recovery", () => {
       await applySaveRecoverySession(recoverySession(), 0, assets, database, undefined, scope),
     ).toMatchObject({ ok: false });
     expect(database.records.size).toBe(0);
+  });
+});
+
+describe("persisted server save identity", () => {
+  // Keep the original mutation with the backup so reopening can retry an uncertain save
+  const scope = { accountId: "alice", projectId };
+  const serverSave = {
+    revision: 3,
+    confirmedJson: serializedFixture(),
+    pending: { clientMutationId: crypto.randomUUID(), documentJson: serializedFixture() },
+  };
+
+  it("stores and restores pending save bytes with the edited document", async () => {
+    const database = new FakeDraftDatabase();
+    // Keep the exact pending request with its document before a retry can occur
+    const session = { ...recoverySession(), serverSave };
+    expect(await applySaveRecoverySession(session, 0, assets, database, undefined, scope)).toEqual({
+      ok: true,
+      value: 1,
+    });
+    expect(await getRecoverySession(assets, database, scope)).toMatchObject({
+      ok: true,
+      value: { serverSave },
+    });
+    expect(await applySaveRecoverySession(session, 0, assets, database)).toMatchObject({
+      ok: false,
+    });
+  });
+
+  it.each([
+    { ...serverSave, revision: -1 },
+    { ...serverSave, pending: { ...serverSave.pending, clientMutationId: "invalid" } },
+    { ...serverSave, pending: { ...serverSave.pending, documentJson: "{}" } },
+    {
+      ...serverSave,
+      confirmedJson: serializedFixture({ ...fixture, projectId: crypto.randomUUID() }),
+    },
+  ])("rejects damaged server metadata without replacing the existing backup", async (damaged) => {
+    // Invalid retry metadata must not overwrite the previous valid recovery copy
+    const database = new FakeDraftDatabase();
+    await applySaveRecoverySession(
+      { ...recoverySession(), serverSave },
+      0,
+      assets,
+      database,
+      undefined,
+      scope,
+    );
+    expect(validateServerSaveRecovery(damaged, projectId, assets).ok).toBe(false);
+    expect(
+      await applySaveRecoverySession(
+        { ...recoverySession(), serverSave: damaged },
+        1,
+        assets,
+        database,
+        undefined,
+        scope,
+      ),
+    ).toMatchObject({ ok: false });
+    expect(await getRecoverySession(assets, database, scope)).toMatchObject({
+      ok: true,
+      value: { revision: 1, serverSave },
+    });
   });
 });

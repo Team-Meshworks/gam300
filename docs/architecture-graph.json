@@ -221,7 +221,7 @@
     "editor/object-copy.test.ts": "4266a7ac699c9ad5bec8962b7b1dd52bae9e6874d571235184aa304d0d6c8088",
     "editor/persistence/draft-db.ts": "9c1aece3becbd9db33c2164533cfc86d9cf7b4bef9306678d9c9aaca9b800c5a",
     "editor/persistence/idb-database-connection.ts": "d07c765187e280e825a3d73665837a55b12cf203ab93a22c18634849ec6b6347",
-    "editor/persistence/local-drafts.test.ts": "dd5182040b6fa91218fedee7aaf68c554279a7ed2309cd7017cc5311b78923cb",
+    "editor/persistence/local-drafts.test.ts": "3c7b922f9080a9696c5c3067672d5500356cff327f22f76332be80fbcc962f28",
     "editor/persistence/local-drafts.ts": "0a55616b1fa1155a64681d14d8aae3baa2c4dfb812e7c7d978b265c0546d5ea6",
     "editor/persistence/project-files.ts": "20e7466377e31ea388fe527abc4c33e465538b8b06709a5d78c78bc116c6b273",
     "editor/persistence/server-draft-write.test.ts": "f1cd956a9f9e6cc3a888429cff600048e37d218a3e9c2175eb7631166e3f3e60",
@@ -1274,6 +1274,15 @@
       "file": "editor/persistence/local-drafts.test.ts",
       "line": 5,
       "kind": "static",
+      "specifier": "./server-save-recovery",
+      "target": "editor/persistence/server-save-recovery.ts",
+      "from": "checks",
+      "to": "persistence"
+    },
+    {
+      "file": "editor/persistence/local-drafts.test.ts",
+      "line": 6,
+      "kind": "static",
       "specifier": "../../shared/project/project-serialization",
       "target": "shared/project/project-serialization.ts",
       "from": "checks",
@@ -1281,7 +1290,7 @@
     },
     {
       "file": "editor/persistence/local-drafts.test.ts",
-      "line": 6,
+      "line": 7,
       "kind": "type",
       "specifier": "../../shared/project/project-types",
       "target": "shared/project/project-types.ts",
@@ -1290,7 +1299,7 @@
     },
     {
       "file": "editor/persistence/local-drafts.test.ts",
-      "line": 7,
+      "line": 8,
       "kind": "static",
       "specifier": "./local-drafts",
       "target": "editor/persistence/local-drafts.ts",
@@ -1299,7 +1308,7 @@
     },
     {
       "file": "editor/persistence/local-drafts.test.ts",
-      "line": 15,
+      "line": 16,
       "kind": "type",
       "specifier": "./draft-db",
       "target": "editor/persistence/draft-db.ts",
@@ -1308,7 +1317,7 @@
     },
     {
       "file": "editor/persistence/local-drafts.test.ts",
-      "line": 16,
+      "line": 17,
       "kind": "type",
       "specifier": "../../shared/project/validation-helpers",
       "target": "shared/project/validation-helpers.ts",
