@@ -109,6 +109,110 @@ public sealed class PublicationReadFilterTests
         }
     }
 
+    [Test]
+    [Arguments("revoked")]
+    [Arguments("missing")]
+    [Arguments("unknown-mode")]
+    [Arguments("default-mode")]
+    // Missing, unknown and revoked records must fail before either handler runs
+    public async Task PublicationRead_InvalidOrRevokedPolicyDoesNotReachEitherHandler(string scenario)
+    {
+        foreach (var kind in Enum.GetValues<PublicationReadKind>())
+        {
+            var reader = new Reader
+            {
+                Policy = scenario switch
+                {
+                    "missing" => null,
+                    "unknown-mode" => new((PublicationAudience)99, false, true),
+                    "default-mode" => new(default, false, true),
+                    _ => new(PublicationAudience.Public, true, true),
+                },
+            };
+            using var provider = Services(reader);
+            var context = Context(provider, kind);
+            Authenticate(context, administrator: true);
+            var reached = false;
+            var result = await InvokeAsync(context, kind, () => reached = true);
+            await Assert.That(reached).IsFalse();
+            await Assert.That(result is IStatusCodeHttpResult { StatusCode: 404 }).IsTrue();
+        }
+    }
+
+    [Test]
+    [Arguments("claims-only")]
+    [Arguments("no-session")]
+    [Arguments("wrong-user")]
+    [Arguments("expired")]
+    [Arguments("forced-password")]
+    [Arguments("unauthenticated")]
+    // Claims, expired sessions and restricted accounts cannot become authenticated viewers
+    public async Task PublicationRead_UntrustedOrRestrictedIdentityCannotUseAudienceMembership(string scenario)
+    {
+        var reader = new Reader { Policy = new(PublicationAudience.Authenticated, false, true) };
+        using var provider = Services(reader);
+        var context = Context(provider, PublicationReadKind.Snapshot);
+        var clock = Authenticate(context);
+
+        // Remove or alter one part of the otherwise valid session for each scenario
+        if (scenario is "claims-only")
+        {
+            context.Features.Set<CurrentAccount>(null);
+        }
+        if (scenario is "claims-only" or "no-session")
+        {
+            context.Features.Set<ValidatedAccountSession>(null);
+        }
+        if (scenario == "wrong-user")
+        {
+            context.Features.Set(context.Features.Get<CurrentAccount>()! with { UserId = Guid.NewGuid() });
+        }
+        if (scenario == "expired")
+        {
+            clock.Advance(TimeSpan.FromHours(1));
+        }
+        if (scenario == "forced-password")
+        {
+            context.Features.Set(context.Features.Get<CurrentAccount>()! with { MustChangePassword = true });
+        }
+        if (scenario == "unauthenticated")
+        {
+            context.User = new ClaimsPrincipal(new ClaimsIdentity());
+        }
+        // Even a reader that reports membership must not receive an untrusted account
+        var reached = false;
+        var result = await InvokeAsync(context, PublicationReadKind.Snapshot, () => reached = true);
+        await Assert.That(reached).IsFalse();
+        await Assert.That(result is IStatusCodeHttpResult { StatusCode: 404 }).IsTrue();
+        await Assert.That(reader.Account).IsNull();
+    }
+
+    [Test]
+    // Recheck session expiry after storage access and respect cancellation
+    public async Task PublicationRead_ExpiryOrCancellationDuringLookupNeverReadsProtectedBytes()
+    {
+        var reader = new Reader { Policy = new(PublicationAudience.Authenticated, false, true) };
+        using var provider = Services(reader);
+        var context = Context(provider, PublicationReadKind.Asset);
+        var clock = Authenticate(context);
+        // Expire the session while the lookup is in progress, before the filter resumes
+        reader.BeforeReturn = () => clock.Advance(TimeSpan.FromHours(1));
+        var reached = false;
+        var result = await InvokeAsync(context, PublicationReadKind.Asset, () => reached = true);
+        await Assert.That(result is IStatusCodeHttpResult { StatusCode: 404 }).IsTrue();
+        await Assert.That(reached).IsFalse();
+
+        // Cancel another lookup and make sure the handler never reads the asset
+        using var cancellation = new CancellationTokenSource();
+        context.RequestAborted = cancellation.Token;
+        reader.Policy = new(PublicationAudience.Public, false, false);
+        reader.BeforeReturn = cancellation.Cancel;
+        await Assert.ThrowsAsync<OperationCanceledException>(async () =>
+            await InvokeAsync(context, PublicationReadKind.Asset, () => reached = true));
+        await Assert.That(reader.Token).IsEqualTo(cancellation.Token);
+        await Assert.That(reached).IsFalse();
+    }
+
     private static ServiceProvider Services(Reader reader) => new ServiceCollection()
         .AddSingleton<IPublicationAccessReader>(reader).BuildServiceProvider();
 
@@ -147,6 +251,7 @@ public sealed class PublicationReadFilterTests
     private sealed class Reader : IPublicationAccessReader
     {
         internal PublicationReadPolicy? Policy = new(PublicationAudience.Public, false, false);
+        internal Action? BeforeReturn;
         internal CurrentAccount? Account;
         internal string? AssetId;
         internal int Calls;
@@ -159,6 +264,7 @@ public sealed class PublicationReadFilterTests
             Account = account;
             AssetId = assetId;
             Token = cancellationToken;
+            BeforeReturn?.Invoke();
             return ValueTask.FromResult(publicationId == EditionId && (assetId is null or "image-v1") ? Policy : null);
         }
     }
