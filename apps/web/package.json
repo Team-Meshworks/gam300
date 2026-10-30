@@ -30,6 +30,7 @@
     "format:check": "prettier --check .",
     "test:ui": "node tests/ui-foundation.check.mjs",
     "test:entry": "node tests/entry.check.mjs",
+    "test:home": "node tests/home.check.mjs",
     "test:entry-config": "node tests/account-dev-server.check.mjs",
     "test:new-project": "node tests/new-project.check.mjs",
     "test:classes": "node tests/class-assignment.check.mjs",

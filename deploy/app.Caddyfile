@@ -17,7 +17,7 @@
 	header @immutable Cache-Control "public, max-age=31536000, immutable"
 	respond /healthz "ok" 200
 	respond /version.txt "{$APP_REVISION:local}" 200
-	@entry path /landing /landing/ /login /login/
+	@entry path /landing /landing/ /login /login/ /home /home/
 	rewrite @entry /entry.html
 	file_server
 }

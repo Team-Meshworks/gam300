@@ -22,14 +22,14 @@ export default defineConfig(({ command, mode }) => {
         name: "entry-page-routes",
         configureServer(server) {
           server.middlewares.use((request, _response, next) => {
-            if (request.url && /^\/(landing|login)\/?(?:\?|$)/.test(request.url))
+            if (request.url && /^\/(landing|login|home)\/?(?:\?|$)/.test(request.url))
               request.url = "/entry.html";
             next();
           });
         },
         configurePreviewServer(server) {
           server.middlewares.use((request, _response, next) => {
-            if (request.url && /^\/(landing|login)\/?(?:\?|$)/.test(request.url))
+            if (request.url && /^\/(landing|login|home)\/?(?:\?|$)/.test(request.url))
               request.url = "/entry.html";
             next();
           });

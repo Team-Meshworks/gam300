@@ -5,10 +5,18 @@ import "../../shared/ui/foundation.css";
 import "./entry.css";
 import { LandingPage } from "./LandingPage";
 import { LoginPage } from "./LoginPage";
+import { HomePage } from "../home/HomePage";
 
 config.autoAddCss = false;
 const root = document.getElementById("root");
 if (!root) throw new Error("The entry page root is missing");
 const login = /^\/login\/?$/.test(location.pathname);
-document.title = login ? "Log in · Spatia" : "Spatia · Interactive learning";
-createRoot(root).render(<StrictMode>{login ? <LoginPage /> : <LandingPage />}</StrictMode>);
+const home = /^\/home\/?$/.test(location.pathname);
+document.title = home
+  ? "Projects · Spatia"
+  : login
+    ? "Log in · Spatia"
+    : "Spatia · Interactive learning";
+createRoot(root).render(
+  <StrictMode>{home ? <HomePage /> : login ? <LoginPage /> : <LandingPage />}</StrictMode>,
+);

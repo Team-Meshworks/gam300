@@ -149,10 +149,9 @@ export function LoginPage() {
                 <p role="status">
                   Signed in as {session.displayName} · {session.role}
                 </p>
-                <p>
-                  Your session is verified. The signed-in project workspace is not connected to this
-                  entry screen yet.
-                </p>
+                <a className="sp-button sp-button--primary" href="/home">
+                  Go to projects
+                </a>
                 <Button disabled={pending} onClick={() => void signOut()}>
                   {pending ? "Signing out…" : "Log out"}
                 </Button>
