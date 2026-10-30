@@ -214,9 +214,7 @@ export function initScene(
   // Scroll that is shown but not yet saved.
   let wheelEdit:
     { id: string; transform: Transform; current: Transform; timer: number } | undefined;
-  let visitorClick:
-    | { pointerId: number; x: number; y: number; dragged: boolean }
-    | undefined;
+  let visitorClick: { pointerId: number; x: number; y: number; dragged: boolean } | undefined;
 
   function render() {
     if (!disposed) {
@@ -695,8 +693,7 @@ export function initScene(
       if (
         click !== undefined &&
         click.pointerId === event.pointerId &&
-        Math.hypot(event.clientX - click.x, event.clientY - click.y) >
-          VISITOR_CLICK_TOLERANCE
+        Math.hypot(event.clientX - click.x, event.clientY - click.y) > VISITOR_CLICK_TOLERANCE
       ) {
         click.dragged = true;
       }

@@ -76,7 +76,11 @@ describe("interaction handler", () => {
       when: { type: "visitor-clicks-hotspot", targetHotspotId: "crate-hotspot" },
       do: { type: "open-link", url: "https://example.com/second" },
     };
-    const handler = createInteractionHandler([first, clickInteraction, second], hotspots, runAction);
+    const handler = createInteractionHandler(
+      [first, clickInteraction, second],
+      hotspots,
+      runAction,
+    );
 
     handler.objectClicked("CRATE");
 

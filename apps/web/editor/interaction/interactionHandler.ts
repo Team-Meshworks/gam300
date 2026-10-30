@@ -1,9 +1,5 @@
 import type { EntityId, Interaction, ProjectHotspot } from "../../shared/project/project-types";
-import {
-  runAction as runBrowserAction,
-  stopActiveAudio,
-  type Action,
-} from "./actionHandler";
+import { runAction as runBrowserAction, stopActiveAudio, type Action } from "./actionHandler";
 import { triggerMatches, triggerSeconds, type TriggerEvent } from "./triggerHandler";
 
 export type { Interaction } from "../../shared/project/project-types";
