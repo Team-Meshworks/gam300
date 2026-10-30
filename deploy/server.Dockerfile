@@ -2,6 +2,8 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0.401@sha256:e70cdb7f80b0348f5cb85f19a8f670fca061f033d57eed12fa003d58b0e06317 AS build
 WORKDIR /src/apps/server
 COPY apps/server/ ./
+# The server embeds the reviewed catalogue at compile time
+COPY assets/manifest.json /src/assets/manifest.json
 RUN dotnet restore tests/Spatia.Server.Tests.csproj --locked-mode \
     && dotnet tool restore \
     && dotnet build tests/Spatia.Server.Tests.csproj -c Release --no-restore \
