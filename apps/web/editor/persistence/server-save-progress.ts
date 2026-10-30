@@ -38,12 +38,13 @@ export function createServerSaveProgress(projectId: string, initialRevision: num
     },
 
     acknowledge(receipt: SaveAcknowledgement): boolean {
+      // UUID casing can differ between the authored JSON and the server receipt
       // Ignore replies from another project or a previous request
       // Retrying an accepted write returns the same revision as its first receipt
       if (
         !pending ||
-        receipt.projectId !== projectId ||
-        receipt.clientMutationId !== pending.clientMutationId ||
+        receipt.projectId.toLowerCase() !== projectId.toLowerCase() ||
+        receipt.clientMutationId.toLowerCase() !== pending.clientMutationId.toLowerCase() ||
         receipt.revision !== pending.expectedRevision + 1
       )
         return false;

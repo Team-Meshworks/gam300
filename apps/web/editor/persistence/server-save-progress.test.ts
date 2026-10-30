@@ -86,3 +86,20 @@ describe("server save confirmations", () => {
     },
   );
 });
+
+// The API emits lowercase UUIDs even when imported project JSON used uppercase
+it("matches save identities independently of UUID casing", () => {
+  // Capture an edit and mutation using the exact spelling from the opened document
+  const progress = createServerSaveProgress("ABCDEFAB-1234-4000-8000-123456789ABC", 7);
+  progress.edited();
+  progress.begin("ABCDEFAB-1234-4000-8000-123456789DEF");
+  // The same IDs returned in lowercase must confirm the pending revision
+  expect(
+    progress.acknowledge({
+      projectId: "abcdefab-1234-4000-8000-123456789abc",
+      clientMutationId: "abcdefab-1234-4000-8000-123456789def",
+      revision: 8,
+    }),
+  ).toBe(true);
+  expect(progress.getSnapshot().dirty).toBe(false);
+});
