@@ -107,7 +107,8 @@
         "react"
       ],
       "public": [
-        "editor/persistence/use-project-session.ts"
+        "editor/persistence/use-project-session.ts",
+        "editor/persistence/server-project-read.ts"
       ]
     },
     "editor": {
@@ -196,7 +197,7 @@
   },
   "files": {
     "architecture.check.mjs": "ed2d036e255cf85a5c589e639d60ad270a89cd49b8a363a5af4ff0afd3b8eb5a",
-    "architecture.mjs": "d7cc3e90fb9cbcb5e94b855ca2020be47e8eb1ac07ed240f61a5aa7d8c80c816",
+    "architecture.mjs": "df00510ac133a44b1fa3599cb13cec0b3e2b852b3400c9b6eadcf3326b13c963",
     "asset-catalogue-plugin.ts": "17bec6aa65dd50167fe6c055fb38af453a647f3648a2bf296f9927ed32f7a158",
     "editor/App.tsx": "1959ecf211967dd57842a5e47147360cb2a8e15c047302c6b4896edd24eecea7",
     "editor/ProjectConfirmation.tsx": "07a0fedf8fbf88865b3b8232c8665c139348fc64ebce478ea01e55eb7fd14eff",
@@ -225,6 +226,7 @@
     "editor/persistence/project-files.ts": "20e7466377e31ea388fe527abc4c33e465538b8b06709a5d78c78bc116c6b273",
     "editor/persistence/server-draft-write.test.ts": "f1cd956a9f9e6cc3a888429cff600048e37d218a3e9c2175eb7631166e3f3e60",
     "editor/persistence/server-draft-write.ts": "3e9bd5d5b2cbfa6af8f2de7fc502c0cc1fe8fc6b5acc3ee12007286d0e62d3bc",
+    "editor/persistence/server-project-read.ts": "4771b7aef815dcf01b9f2c907224ae9bbe96209da4b1bb3350d81589dfad410a",
     "editor/persistence/server-save-progress.test.ts": "4eb3091bc78c665e7c9ccdfc2dd5fed6f77ec57dde1625b3ec5a5652ede7cf76",
     "editor/persistence/server-save-progress.ts": "a67877d00c616ccc9e1956ca4f5bc7373fe22002fa9b4b079700618db3a55e75",
     "editor/persistence/server-save-recovery.test.ts": "4f29c6adc1b909927a70f1281c14012cb0e8791ecd3e78e4e6d166884539cd21",
@@ -1409,6 +1411,42 @@
       "kind": "static",
       "specifier": "../../shared/project/validation-helpers",
       "target": "shared/project/validation-helpers.ts",
+      "from": "persistence",
+      "to": "project"
+    },
+    {
+      "file": "editor/persistence/server-project-read.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "../../shared/project/project-deserialization",
+      "target": "shared/project/project-deserialization.ts",
+      "from": "persistence",
+      "to": "project"
+    },
+    {
+      "file": "editor/persistence/server-project-read.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "../../shared/project/project-limits",
+      "target": "shared/project/project-limits.ts",
+      "from": "persistence",
+      "to": "project"
+    },
+    {
+      "file": "editor/persistence/server-project-read.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "../../shared/project/validation-helpers",
+      "target": "shared/project/validation-helpers.ts",
+      "from": "persistence",
+      "to": "project"
+    },
+    {
+      "file": "editor/persistence/server-project-read.ts",
+      "line": 4,
+      "kind": "type",
+      "specifier": "../../shared/project/project-types",
+      "target": "shared/project/project-types.ts",
       "from": "persistence",
       "to": "project"
     },

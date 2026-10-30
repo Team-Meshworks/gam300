@@ -66,7 +66,10 @@ export const modules = {
     paths: ["editor/persistence/"],
     uses: ["project", "catalogue", "document"],
     packages: ["react"],
-    public: ["editor/persistence/use-project-session.ts"],
+    public: [
+      "editor/persistence/use-project-session.ts",
+      "editor/persistence/server-project-read.ts",
+    ],
   },
   editor: {
     paths: ["editor/"],
