@@ -90,6 +90,56 @@ result and test reports are local ignored artifacts under `.artifacts/`; they ar
 part of the repository. This is backend verification, not client autosave integration,
 deployed migration or parent acceptance.
 
+### Bounded review and legacy retry decision — 31 October 2026
+
+**What this change does:** [PR #28](https://github.com/Team-Meshworks/gam300/pull/28)
+stores a receipt for each accepted save so a matching retry can return the original
+acknowledgement after later revisions. Current authorization still controls replay;
+the receipt, revision and document commit together.
+
+The review compared head `6efd9f0c1804f6f34ea4465493eec2e3bf023a85` with
+`29e81ff763243a048fc73dd340a2cb7dbd1d34ce` and found **no confirmed actionable
+defect** in this backend slice. The [bounded endpoint](Spatia.Server/Projects/ProjectSaveEndpoints.cs)
+passes the parsed request to the [save service](Spatia.Server/Projects/ProjectSaveService.cs),
+which locks and reauthorizes before looking up a receipt. The [policy](Spatia.Server/Projects/ProjectSavePolicy.cs)
+compares actor, expected revision and request digest; the [writer](Spatia.Server/Projects/ProjectSaveWriter.cs)
+stages the document and receipt in the caller's transaction. The
+[migration](Spatia.Server/Persistence/Migrations/20261029122111_AddProjectSaveReceipts.cs),
+model constraints, lifecycle callers and rollback paths were also reviewed.
+
+[CI run 76](https://github.com/Team-Meshworks/gam300/actions/runs/40886048672)
+passed its server job on PostgreSQL 18.6 with 557 tests, none failed or skipped.
+The [endpoint tests](tests/ProjectSaveEndpointTests.cs) cover historical retries,
+access denial, concurrent saves and receipt/commit failures. The [persistence tests](tests/ProjectPersistenceTests.cs)
+verify fresh migration, backfilled fields and invalid legacy-row rollback. They do
+not establish a single old-server save → migration → HTTP retry run. The cold restart
+and fresh-browser API result above is a separate earlier local record; no tests were
+rerun for this review. The assumed load is a classroom pilot with concurrent editors;
+no numerical capacity target or throughput measurement was available. Receipt metadata
+grows with every accepted save and has no automatic expiry.
+
+**Decision required before relying on the upgrade:** the SCRUM-66 owner and the
+data/rollout owner must decide whether the documented legacy boundary is acceptable
+for any real pre-upgrade data. The migration recovers only the latest populated
+legacy slot. For a forgotten older ID, an authorized retry at its old revision
+cannot be reconciled: it conflicts if the document is still valid, or can fail
+validation first. Reuse with the current revision can be treated as a new valid
+mutation. None of these outcomes proves whether the original save committed.
+
+- If no required historical retry depends on missing records, explicitly accept the
+  project-lifetime receipt guarantee from the receipt-enabled server and the limited
+  backfill for earlier saves. Confirm the treatment of any uncertain legacy saves.
+- If earlier receipts must be recoverable, the existing latest-only fields cannot
+  reconstruct them. Keep that acceptance open and identify an authoritative source
+  or agreed reconciliation path; do not fabricate missing acknowledgements.
+
+The rollout owner must also define a coordinated write boundary that prevents old
+and new writers from overlapping, and a rollback/restore approach that accounts for
+older binaries bypassing receipts and schema downgrade dropping receipt history.
+These are open decisions, not evidence that a rollout or legacy-data assessment has
+occurred. The backend slice is ready for review; SCRUM-50 format and SCRUM-67/126
+client integration remain separate from it and from parent-story acceptance.
+
 ## Toolchain and checks
 
 Install .NET SDK **10.0.401**. `global.json` disables SDK roll-forward and selects
