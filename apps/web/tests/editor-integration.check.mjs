@@ -109,20 +109,23 @@ try {
   const point = new THREE.Vector3(...scene.objects[0].transform.position)
     .add(new THREE.Vector3(0, 0.5, 0))
     .project(camera);
-  await page.evaluate(
+  await page.waitForFunction(
     ({ x, y }) => {
-      document.querySelector("canvas").dispatchEvent(
-        new WheelEvent("wheel", {
-          deltaY: -120,
-          clientX: x,
-          clientY: y,
-          bubbles: true,
-          cancelable: true,
-        }),
+      const newButton = [...document.querySelectorAll(".draft-menu button")].find(
+        (button) => button.textContent === "New",
       );
-      [...document.querySelectorAll(".draft-menu button")]
-        .find((button) => button.textContent === "New")
-        .click();
+      if (newButton.disabled) return false;
+      const wheel = new WheelEvent("wheel", {
+        deltaY: -120,
+        clientX: x,
+        clientY: y,
+        bubbles: true,
+        cancelable: true,
+      });
+      document.querySelector("canvas").dispatchEvent(wheel);
+      if (!wheel.defaultPrevented) throw new Error("Wheel fixture missed the selected object");
+      newButton.click();
+      return true;
     },
     { x: box.x + ((point.x + 1) * box.width) / 2, y: box.y + ((1 - point.y) * box.height) / 2 },
   );
