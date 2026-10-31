@@ -1802,9 +1802,10 @@ The two focused request-validation and retry-digest cases passed on 29 October 2
 An internal coordinator locks and reauthorizes the class and source project,
 checks the current roster and source revision, then creates at most twenty
 independent student drafts, their assignment mappings and server-known class
-origins in one transaction. Any failure rolls the entire batch back. Retrying an
-identical request ID returns the original draft IDs; reusing it with changed
-details returns a conflict. Assignment metadata remains outside project JSON.
+origins in one transaction. A failure before commit rolls the entire batch back.
+If the commit succeeds but its response is lost, retrying the identical request ID
+returns the original draft IDs; reusing it with changed details returns a conflict.
+Assignment metadata remains outside project JSON.
 
 `POST /api/classes/{id}/assignments` exposes this coordinator to an authorized
 class manager or administrator. It accepts `requestId`, `sourceProjectId`,
@@ -1920,6 +1921,79 @@ SCRUM-67 navigation coordination before they are reachable in production.
 SCRUM-126 project-home UI, SCRUM-67 autosave/recovery integration, publication/asset
 delivery, hosted CI and deployment remain separate. Production still has no approved
 asset catalogue. These backend checks do not complete parent Story/Epic acceptance.
+
+### SCRUM-161 backend review, 30 October 2026
+
+The live Jira criteria were refreshed and still specify backend class/roster access,
+server-owned assignment metadata, independent drafts, bounded retry/failure behavior,
+restart persistence and preservation of each draft's original student. Device-local UI,
+submission/review behavior and deferred file-origin policy remain with SCRUM-162,
+SCRUM-164 and SCRUM-173 respectively.
+
+The GitHub comparison confirmed `dev` is still `29e81ff763243a048fc73dd340a2cb7dbd1d34ce`.
+Publication PR #27 remains an open draft at `5acec3242446f35e57a8169c1b5a01c5eeca1b8b`.
+Local Git fetch could not authenticate, so these read-only GitHub checks established
+remote freshness without changing the feature branch or publishing anything.
+
+Two backend acceptance tests now verify a full 20-student batch, rejection of a
+21-student request before any write, and replay after an exception following the
+actual database commit. The latter checks the durable draft IDs before retrying;
+both cases prove that replay preserves the original independent drafts and grants.
+All nine assignment coordinator cases passed, with no failures or skips. Locked
+restore, the Release build and test formatting checks passed. Application behavior
+was unchanged; the review added regression evidence rather than another feature.
+
+The acceptance review maps the current Jira requirements to these existing checks:
+
+| SCRUM-161 requirement | Verification |
+| --- | --- |
+| Authorized classes, rosters and eligible students | `ClassroomEndpointTests`: current roles, same-organization selection, pagination, removal history and authorization after waiting for a class lock. |
+| Required assignment metadata and exact Unix-second deadline | `ClassAssignmentIntentTests`, `ClassAssignmentPersistenceTests` and `AssignmentReads_UnixSecondsPreserveInstantsAcrossOffsetsAndAdjacentSeconds`: request/database bounds, required fields and unchanged instants. |
+| Independent editable drafts and bounded failure/retry behavior | `AssignmentCoordinator_*`: distinct projects and grants, all-or-nothing rollback, concurrent retries, stale source rejection, 20-student boundary and lost commit acknowledgement. |
+| Current student ownership without losing existing work | `AssignmentAccess_*`: cross-student transfer rejection, grant removal/restoration, roster races and preservation of content, revision and mappings. |
+| Persistence after server restart | `AssignmentPersistence_ServerRestartRetainsRosterMetadataAndIndependentDrafts`: a fresh application instance reads the saved class, assignment and independent drafts. |
+| Server-owned metadata outside project JSON; ordinary creation unchanged | `ClassAssignmentDatabase_MetadataAndClassOriginPersistOutsideProjectJson`, `ProjectDraftStagingTests` and `ProjectLifecycleTests`. |
+
+Blockers were checked before the scope review, backend tests and migration review.
+The refreshed issue has no blocking issue links or comments. Its required Identity,
+project lifecycle/revision services and locks are available on the verified `dev`
+base; .NET 10, pinned dependencies and the guarded disposable PostgreSQL fixture
+are available locally. No additional SCRUM-161 feature was identified.
+
+The new disposable worktree `.artifacts/scrum161-review-publication` combines
+`072d191` with publication PR #27's exact head for compatibility checks only.
+The application code merged without conflicts. The README and EF snapshot require
+resolution when these branches are integrated. The snapshot was regenerated from
+the combined model; the temporary scaffold migration was removed because the
+publication migration already creates that schema. Both standalone and combined
+models report no pending changes. Neither this test merge nor its publication code
+was added to the SCRUM-161 feature branch.
+
+All four compatibility cases passed: a fresh database, publication-first upgrade
+preserving an existing edition, class-first upgrade preserving its draft/mapping,
+and rejection of a known class draft when publication approval is unavailable.
+The upgrade tests use real migrations and isolated schemas in the disposable test
+database. Their harness and resolved snapshot remain in the disposable worktree.
+Future integration must preserve the organization constraints installed by
+`PreserveProjectOrganizationUpdates`, including the composite foreign keys that
+are deliberately maintained outside EF's alternate-key model.
+
+The combined class and assignment regression run also passed all 39 cases, with
+no failures or skips. Local TRX/HTML evidence is under
+`.artifacts/scrum161-test-results/review-20261030-compatibility` and
+`.artifacts/scrum161-test-results/review-20261030-combined-class`.
+
+The final standalone server run passed all 573 tests with no failures or skips,
+including both browser boundary checks. Its TRX/HTML evidence is under
+`.artifacts/scrum161-test-results/review-20261030-full`. The changed-test formatting
+check, locked restore, Release builds and scoped Git whitespace checks passed.
+
+SCRUM-161's backend criteria are implemented and verified locally, with no known
+remaining in-scope feature or unresolved development blocker. The verified `dev`
+commit is already an ancestor, so no new `dev` merge is needed for this review.
+The remaining step for this branch is code review and eventual integration, which
+has not been published. Hosted CI, deployment, frontend work and other Jira tasks
+were not part of this pass; no Jira status, PR or remote branch was changed.
 
 ## SCRUM-164: private review evidence foundation
 

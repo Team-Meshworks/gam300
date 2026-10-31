@@ -115,6 +115,98 @@ public sealed class ClassAssignmentCoordinatorTests
     }
 
     [Test]
+    public async Task AssignmentCoordinator_MaximumBatchReplaysWithoutDuplicatingStudentDrafts()
+    {
+        await using var fixture = await CreateFixtureAsync();
+        var data = await SeedAsync(fixture);
+        var students = new List<Guid> { data.FirstStudent, data.SecondStudent };
+        await using (var scope = fixture.Database.Services.CreateAsyncScope())
+        {
+            var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var organization = await database.Classrooms.Where(row => row.Id == data.ClassroomId)
+                .Select(row => row.OrganizationId).SingleAsync();
+            while (students.Count < 20)
+            {
+                var student = await fixture.CreateAccountAsync();
+                await database.OrganizationMemberships.Where(row => row.UserId == student)
+                    .ExecuteUpdateAsync(set => set.SetProperty(row => row.OrganizationId, organization));
+                database.ClassroomMembers.Add(new ClassroomMember
+                {
+                    ClassroomId = data.ClassroomId,
+                    OrganizationId = organization,
+                    UserId = student,
+                    RoleId = ApplicationRoles.CreatorId,
+                });
+                students.Add(student);
+            }
+            await database.SaveChangesAsync();
+        }
+        var request = Request(data) with { StudentIds = students.ToArray() };
+        using (var oversized = await SendAsync(fixture, data.ClassroomId,
+            request with { StudentIds = [.. students, data.NotEnrolled] }))
+        { await Assert.That(oversized.StatusCode).IsEqualTo(HttpStatusCode.BadRequest); }
+        await using (var scope = fixture.Database.Services.CreateAsyncScope())
+        {
+            var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            await Assert.That(await database.ClassAssignments.AnyAsync()).IsFalse();
+            await Assert.That(await database.Projects.CountAsync()).IsEqualTo(1);
+        }
+        using var created = await SendAsync(fixture, data.ClassroomId, request);
+        await Assert.That(created.StatusCode).IsEqualTo(HttpStatusCode.Created);
+        var original = await created.Content.ReadFromJsonAsync<JsonElement>();
+        var projects = original.GetProperty("projects").EnumerateArray().ToDictionary(
+            row => row.GetProperty("studentId").GetGuid(), row => row.GetProperty("projectId").GetGuid());
+        await Assert.That(projects.Keys.ToHashSet().SetEquals(students)).IsTrue();
+        await Assert.That(projects.Values.Distinct().Count()).IsEqualTo(20);
+        using var replay = await SendAsync(fixture, data.ClassroomId,
+            request with { StudentIds = students.AsEnumerable().Reverse().ToArray() });
+        await Assert.That(replay.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        await Assert.That(JsonElement.DeepEquals(original, await replay.Content.ReadFromJsonAsync<JsonElement>())).IsTrue();
+        await using var verification = fixture.Database.Services.CreateAsyncScope();
+        var reopened = verification.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await Assert.That(await reopened.ClassAssignments.CountAsync()).IsEqualTo(1);
+        await Assert.That(await reopened.ClassAssignmentStudents.CountAsync()).IsEqualTo(20);
+        await Assert.That(await reopened.ProjectProvenances.CountAsync()).IsEqualTo(20);
+        await Assert.That(await reopened.Projects.CountAsync()).IsEqualTo(21);
+        foreach (var (student, projectId) in projects)
+        {
+            await Assert.That(await reopened.ProjectAssignments.AnyAsync(row => row.ProjectId == projectId
+                && row.UserId == student && row.CanEdit && !row.CanManage && !row.CanPublish)).IsTrue();
+        }
+    }
+
+    [Test]
+    public async Task AssignmentCoordinator_LostCommitAcknowledgementReplaysTheDurableBatch()
+    {
+        var failure = new CommitAcknowledgementFailure();
+        await using var fixture = await CreateFixtureAsync(builder =>
+            builder.Services.AddDbContext<ApplicationDbContext>(options => options.AddInterceptors(failure)));
+        var data = await SeedAsync(fixture);
+        var request = Request(data);
+        failure.Arm();
+        using (var uncertain = await SendAsync(fixture, data.ClassroomId, request))
+        { await Assert.That(uncertain.StatusCode).IsEqualTo(HttpStatusCode.ServiceUnavailable); }
+        Dictionary<Guid, Guid> committed;
+        await using (var scope = fixture.Database.Services.CreateAsyncScope())
+        {
+            var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            await Assert.That(await database.ClassAssignments.CountAsync()).IsEqualTo(1);
+            committed = await database.ClassAssignmentStudents.ToDictionaryAsync(row => row.StudentId, row => row.ProjectId);
+            await Assert.That(committed.Count).IsEqualTo(2);
+        }
+        using var replay = await SendAsync(fixture, data.ClassroomId, request);
+        await Assert.That(replay.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        var projects = (await replay.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("projects").EnumerateArray()
+            .ToDictionary(row => row.GetProperty("studentId").GetGuid(), row => row.GetProperty("projectId").GetGuid());
+        await Assert.That(projects.Count == committed.Count && committed.All(row => projects[row.Key] == row.Value)).IsTrue();
+        await using var verification = fixture.Database.Services.CreateAsyncScope();
+        var reopened = verification.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await Assert.That(await reopened.Projects.CountAsync()).IsEqualTo(3);
+        await Assert.That(await reopened.ClassAssignmentStudents.CountAsync()).IsEqualTo(2);
+        await Assert.That(await reopened.ProjectProvenances.CountAsync()).IsEqualTo(2);
+    }
+
+    [Test]
     public async Task AssignmentCoordinator_RejectsIneligibleStudentsAndStaleSourceWithoutPartialWrites()
     {
         await using var fixture = await CreateFixtureAsync();
@@ -889,6 +981,19 @@ public sealed class ClassAssignmentCoordinatorTests
                 await Release.Task.WaitAsync(TimeSpan.FromSeconds(10), cancellationToken);
             }
             return result;
+        }
+    }
+
+    private sealed class CommitAcknowledgementFailure : DbTransactionInterceptor
+    {
+        private int _armed;
+        public void Arm() => Interlocked.Exchange(ref _armed, 1);
+        public override Task TransactionCommittedAsync(DbTransaction transaction, TransactionEndEventData eventData,
+            CancellationToken cancellationToken = default)
+        {
+            if (Interlocked.Exchange(ref _armed, 0) == 1)
+            { throw new NpgsqlException("Synthetic loss after assignment commit"); }
+            return Task.CompletedTask;
         }
     }
 
