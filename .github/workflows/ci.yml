@@ -15,7 +15,7 @@ concurrency:
 jobs:
   # Exercise the C# reader against the same contract cases used by the browser suite
   project-format:
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' || github.event_name == 'workflow_dispatch'
     name: Shared project-format checks
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -42,7 +42,7 @@ jobs:
         run: node apps/web/tests/project-format-cross.check.mjs
 
   compatibility:
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' || github.event_name == 'workflow_dispatch'
     name: Native checks (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
@@ -88,7 +88,7 @@ jobs:
           overwrite: true
 
   select-architecture:
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' || github.event_name == 'workflow_dispatch'
     name: Select architecture proof coverage
     runs-on: ubuntu-24.04
     outputs:
@@ -159,7 +159,7 @@ jobs:
           overwrite: true
 
   fixtures:
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' || github.event_name == 'workflow_dispatch'
     name: Fixture check (${{ matrix.name }})
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -227,7 +227,7 @@ jobs:
           overwrite: true
 
   check:
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' || github.event_name == 'workflow_dispatch'
     name: Build and test
     runs-on: ubuntu-24.04
     timeout-minutes: 25
@@ -364,7 +364,7 @@ jobs:
           rm -f ../../.env
 
   server:
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' || github.event_name == 'workflow_dispatch'
     name: Server build and tests
     runs-on: ubuntu-24.04
     # Leave room for slow package mirrors before the full PostgreSQL/browser suite.

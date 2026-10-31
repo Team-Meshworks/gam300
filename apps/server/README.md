@@ -2045,8 +2045,8 @@ used a regenerated snapshot and had no pending model changes. A fresh database,
 an upgrade from publication-first with an existing edition, and an upgrade from
 class-first with existing mappings all passed. The combined class and publication
 regressions passed 171 cases. The unavailable publication integration rejected a
-known class draft and created no edition. SCRUM-164 review and the production
-publication adapter are not implemented, so this does not verify approval or
+known class draft and created no edition. At that point SCRUM-164 review and the production
+publication adapter were not implemented, so that run did not verify approval or
 publication of a reviewed assignment.
 
 A separate SCRUM-162 local integration connected the creation, assignment-list
@@ -2132,3 +2132,60 @@ commit is already an ancestor, so no new `dev` merge is needed for this review.
 The remaining step for this branch is code review and eventual integration, which
 has not been published. Hosted CI, deployment, frontend work and other Jira tasks
 were not part of this pass; no Jira status, PR or remote branch was changed.
+
+## SCRUM-164: private review evidence foundation
+
+Review submissions retain a document snapshot, the exact source revision, the
+student-to-project mapping, immutable asset identities and the due instant that
+applied at submission. A submission exactly at that instant is on time; later
+submissions are late, not rejected. Educator decisions are append-only, and the
+database rejects changes to stored evidence. Migration rollback refuses to discard
+existing review records. Writers must validate the document and resolve trusted
+asset identities before insertion. The storage foundation does not itself approve
+publication.
+
+`ReviewApproval.CheckLockedAsync` is the review handoff for a publisher that has
+already reauthorized the actor and acquired the project lock. It also confirms
+the current project revision under that lock. Known class drafts require an
+approval on the latest submission of that exact revision; a later submission,
+return, revocation or project revision removes eligibility for a new publication.
+An unmapped project returns unverified origin rather than an ordinary-project
+exemption. Existing published editions are not changed by this check.
+
+`POST /api/projects/{id}/submissions` accepts a student-confirmed saved revision
+and a unique submission ID. It stores the saved document and its deadline under
+the project lock. An identical retry returns the original submission; changed
+intent or a stale revision is rejected. The response includes the recorded due
+instant and whether the server recorded the submission after it. Only the mapped
+student with current access can submit. The default asset resolver rejects the
+request until the asset owner can supply approved, retained immutable bytes and
+their identities. Publication integration remains separate.
+
+Authorized students and educators can list private submissions and retrieve the
+saved document, asset identities and decision history through the corresponding
+GET routes. Lists use an exclusive UUID cursor and a maximum page size of 20.
+The detail response reports the latest decision and whether the submission is
+the latest one for the current project revision; old approvals are history only.
+An educator with current class membership and project management authority can
+approve or return the current submission. An approval can also be revoked or
+returned; after either, the student must submit again before another decision.
+Identical decision retries return the stored result. The project lock serializes
+submission, decision, draft edits and membership or grant changes. Changes to
+the draft or a later submission remove review approval for a future publication,
+without modifying existing published editions. Administrators gain no separate
+review authority. New writes recheck account authority before commit. The
+publisher must still enforce its own authorization and consume the review check;
+it is not connected by these routes.
+
+A disposable integration with draft publication PR #27 at `5acec324` regenerated
+the combined EF snapshot and found no pending model changes. Fresh databases and
+both upgrade orders passed, preserving an existing edition or review evidence.
+A test-only adapter denied unverified and unapproved work, published a currently
+approved revision and left its edition unchanged after later review changes.
+This does not enable production publication or supply its audience or asset policy.
+The database context, EF snapshot and this guide need conflict resolution when
+the feature branches are actually integrated.
+
+The complete local server suite passed 612 tests with no failures or skips,
+including the browser checks. The Release build, both formatting checks and the
+review branch's EF pending-model check also passed.

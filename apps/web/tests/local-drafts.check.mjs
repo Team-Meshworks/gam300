@@ -10,6 +10,20 @@ const browser = await chromium.launch({
   ...(process.env.PLAYWRIGHT_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHANNEL } : {}),
 });
 let fileContext;
+// Asset library is a pop up now. Only open it when closed, since the button toggles it
+async function openLibrary(page) {
+  if ((await page.locator(".asset-picker").count()) === 0) {
+    await page.getByRole("button", { name: "Asset library", exact: true }).click();
+  }
+}
+
+// Clicking a card only picks it, Add is what places it
+async function addAsset(page, name) {
+  await openLibrary(page);
+  await page.locator(".asset-picker").getByRole("button", { name, exact: true }).click();
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+}
+
 try {
   const errors = [];
   // Fresh browser context keeps these writes away from the author's saved drafts
@@ -525,8 +539,8 @@ try {
         .getByText("Add a room from the asset library to start.", { exact: true })
         .isVisible()
     )
-      await editor.getByRole("button", { name: "Add test-room", exact: true }).click();
-    await editor.getByRole("button", { name: "Add test-crate", exact: true }).click();
+      await addAsset(editor, "test-room");
+    await addAsset(editor, "test-crate");
   };
   const writeFile = (name, text) =>
     editor.evaluate(
@@ -750,7 +764,7 @@ try {
   await second.getByText("Reopened your last project", { exact: true }).waitFor();
   await add();
   await waitBackup(3);
-  await second.getByRole("button", { name: "Add test-crate", exact: true }).click();
+  await addAsset(second, "test-crate");
   await second.getByRole("alert").filter({ hasText: "Recovery changed in another tab" }).waitFor();
   assert.equal(await second.locator(".object-row").count(), 3);
   await second.close();
@@ -821,7 +835,7 @@ try {
   await fallback.evaluate(() => {
     window.failRecovery = true;
   });
-  await fallback.getByRole("button", { name: "Add test-crate", exact: true }).click();
+  await addAsset(fallback, "test-crate");
   await fallback.getByRole("alert").filter({ hasText: "Recovery backup failed" }).waitFor();
   await fallback.evaluate(() => {
     window.failRecovery = false;
@@ -834,7 +848,7 @@ try {
   // The download can finish before the recovery write and its UI update
   await status("Not saved", fallback);
   await waitBackup(3, fallback);
-  await fallback.getByRole("button", { name: "Add test-crate", exact: true }).click();
+  await addAsset(fallback, "test-crate");
   await waitBackup(4, fallback);
   await fallback.reload();
   await fallback.getByText("Reopened your last project", { exact: true }).waitFor();

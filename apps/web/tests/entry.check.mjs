@@ -256,7 +256,8 @@ try {
   await racePage.close();
   await page.goto(origin + "/");
   await page.getByRole("heading", { name: "Spatia", exact: true }).waitFor();
-  await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
+  // Allow the same renderer/model startup time as the editor browser suites.
+  await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor({ timeout: 30000 });
   assert.deepEqual(errors, []);
   console.log(
     "Entry routes, responsive layout, navigation and rejected/unavailable sign-in checks passed.",
