@@ -54,9 +54,9 @@ try {
   await page.goto(url);
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   await addAsset(page, "test-room");
+  await page.waitForFunction(() => typeof window.finishBackup === "function");
   await addAsset(page, "test-crate");
   const position = await page.getByLabel("Selected position").textContent();
-  await page.waitForFunction(() => typeof window.finishBackup === "function");
   assert.equal(
     await page.getByRole("button", { name: "Preview", exact: true }).isEnabled(),
     true,
@@ -92,30 +92,28 @@ try {
   assert.equal(await page.locator(".object-row").count(), 2);
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   await page.evaluate(() => window.finishBackup());
-  await page.waitForFunction(async () => {
-    const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
-    const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
-    const saved = await loadRecoverySession(new Map(assets.map((asset) => [asset.id, asset.kind])));
-    return (
-      saved.ok &&
-      saved.value?.document.scenes[0].objects.length === 1 &&
-      saved.value.history?.future.length === 1
-    );
-  });
+  let scene;
+  const deadline = Date.now() + 10000;
+  while (Date.now() < deadline && !scene) {
+    scene = await page.evaluate(async () => {
+      const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
+      const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
+      const saved = await loadRecoverySession(
+        new Map(assets.map((asset) => [asset.id, asset.kind])),
+      );
+      return saved.ok &&
+        saved.value?.document.scenes[0].objects.length === 1 &&
+        saved.value.history?.future.length === 1
+        ? saved.value.document.scenes[0]
+        : null;
+    });
+    if (!scene) await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  assert.ok(scene, "Recovery history did not reach the expected edit");
   // A deferred wheel commit must not edit the document behind a project decision
   await page.locator(".object-row").first().click();
   const box = await page.locator("canvas").boundingBox();
   // Use the completed backup's camera and object pose instead of editor startup constants
-  const scene = await page.evaluate(async () => {
-    const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
-    const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
-    const result = await loadRecoverySession(
-      new Map(assets.map((asset) => [asset.id, asset.kind])),
-    );
-    if (!result.ok || !result.value?.document)
-      throw new Error("Missing backed-up interaction fixture");
-    return result.value.document.scenes[0];
-  });
   const camera = new THREE.PerspectiveCamera(
     scene.startCamera.fovDegrees,
     box.width / box.height,
