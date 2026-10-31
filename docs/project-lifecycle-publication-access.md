@@ -29,6 +29,10 @@ SCRUM-69 acceptance remains open.
   mapping through the existing project foundation. **SCRUM-164:** private exact
   submitted revision evidence and the approval contract. These are not duplicate
   project or publishing systems.
+- **[SCRUM-173](https://meshworkss.atlassian.net/browse/SCRUM-173) /
+  [SCRUM-175](https://meshworkss.atlassian.net/browse/SCRUM-175):** deferred M3
+  file-origin implementation and contract, including copies, imports and full-document
+  saves. SCRUM-161 may complete its independent M2 class work without this policy.
 - **SCRUM-70/85:** immutable publication creation; consume current authority,
   SCRUM-71 access policy, SCRUM-73 immutable assets and SCRUM-164 approval.
 - **SCRUM-67/126:** client recovery and the home/account/project workflow, including
@@ -182,9 +186,9 @@ protected asset bytes, including direct URLs and cache paths.
 
 | Event | Draft / new publication | Existing public or unlisted edition | Existing authenticated edition | Basis / unresolved work |
 | --- | --- | --- | --- | --- |
-| Create or duplicate an ordinary project | Implemented independent draft and fresh authority; no publication is created or copied. New publication must separately check `CanPublish`. | No new edition or link is created; source editions are unchanged. | Same; copied draft authority is not visitor authority. | Existing API; publisher implementation belongs to SCRUM-70/85. Class-origin copy/import rules are Open D6. |
-| Save a newer draft revision | Implemented revision advance. Required: a class-assigned project needs submission/approval for that exact new revision. | Existing edition stays immutable; a later draft/review change alone does not replace or revoke it. | Same content invariant; current SCRUM-71 access policy still applies. | SCRUM-164 and SCRUM-70/85 integration required. |
-| Replace direct assignments or change a class roster | Implemented direct assignment replacement advances revision and rechecks current authority. Required: a roster change must participate in the shared locking/revision contract; neither event may turn class work into unrestricted work or reuse approval for an older revision. | Agreed in discussion: the publication and its publisher identity do not transfer to a newly assigned student. Public/unlisted link continuity remains a proposal, Open D1. | Agreed in discussion: loss of project permission removes permission-derived visitor access; an eligible named viewer may retain access. See the agreed scope below. | D1 continuity remains open; D2 scope agreed in discussion. SCRUM-161/164 mapping and approval contracts remain necessary. |
+| Create or duplicate an ordinary project | Implemented independent draft and fresh authority; no publication is created or copied. New publication must separately check `CanPublish`. | No new edition or link is created; source editions are unchanged. | Same; copied draft authority is not visitor authority. | Existing API; publisher implementation belongs to SCRUM-70/85. Copy/import and full-document-save origin rules are Open D6. |
+| Save a newer draft revision | Implemented revision advance. Required: a class-assigned project needs submission/approval for that exact new revision; full-document origin handling is Open D6, including saves to ordinary drafts. | Existing edition stays immutable; a later draft/review change alone does not replace or revoke it. | Same content invariant; current SCRUM-71 access policy still applies. | SCRUM-164 and SCRUM-70/85 integration required. |
+| Replace direct assignments or change a class roster | Implemented direct assignment replacement advances revision and rechecks current authority. Required: ordinary reassignment retains its existing behavior. A class-created draft stays with its original student: reject assignment to another student, and preserve the draft and server-owned mapping when the original student's grant or membership is removed or restored. Roster changes must participate in the shared locking/revision contract; neither event may bypass class review or reuse older approval. | Agreed in discussion: the publication and its publisher identity do not transfer to a newly assigned student. Public/unlisted link continuity remains a proposal, Open D1. | Agreed in discussion: loss of project permission removes permission-derived visitor access; an eligible named viewer may retain access. See the agreed scope below. | D1 continuity remains open; D2 scope agreed in discussion. SCRUM-161/164 mapping and approval contracts remain necessary. |
 | Archive | Implemented: retain authorized draft reads and management; deny saves, duplicate, assignment changes and effective publishing permission. Metadata revision advances. | Owner-confirmed: deny retrieval, retain snapshot. | Owner-confirmed: deny retrieval, retain snapshot, including for administrators on the visitor delivery path. | Archive rule confirmed in Foo's review; request cutoff and JSON/assets/cache enforcement remain Open D3. Private management access is not visitor access. |
 | Reopen | Implemented: advance revision and derive current permissions. Required: reopening does not resurrect approval for an older revision. | Owner-confirmed: remove only the archive restriction; independent revocation and audience policy still apply. | Same, with current authenticated audience checks. Reopening does not restore removed membership. | Rule confirmed in Foo's review; enforcement evidence remains outstanding. No unconditional link reactivation. |
 | Return, reject or revoke private review approval | Required: SCRUM-164 controls the current approval result; its return/revocation semantics are unresolved. Existing `CanPublish` never becomes an approval grant. | Existing editions are unchanged; any publication revocation is a separate SCRUM-71 action. Foo supports this existing requirement. | Same; private review evidence does not become publication data. | SCRUM-164 still defines review-state transitions and races; current-revision approval remains required for a new class edition, Open D4. |
@@ -236,7 +240,7 @@ implement the contract. This document does not disable existing direct-project A
 | D3 | The archive-denies/reopen-removes-only-archive rule is confirmed by SCRUM-71. Foo proposes allowing delivery already underway to finish and blocking new requests after the change. Define the authorization/delivery cutoff relative to commit, including direct assets and cache responses, and verify the race. | SCRUM-69 + SCRUM-71 | Archive/reopen rule owner-confirmed; in-flight cutoff remains a proposal and enforcement unverified |
 | D4 | Foo supports keeping existing editions unchanged after return/revoked approval, with separate hide/revocation and current-revision approval for a new class edition. Define private review transitions, decision/publication races and the approval result consumed under the project lock. | SCRUM-164; SCRUM-70/85 and SCRUM-69/71 consume it | Existing publication invariants supported; review-state contract and implementation remain open |
 | D5 | Current project-manager authority and hide/restore/delete access effects are agreed above. Define retention, the deletion and backup-restore mechanism that preserves permanent link denial, cache invalidation and propagation. Foo's suggested 30-day backup period requires agreement; already downloaded bytes cannot be recalled. | SCRUM-71, SCRUM-73 and partner input; SCRUM-94 verifies restore/retention; SCRUM-69 supplies events | Management/access scope agreed in discussion; retention, mechanism and propagation remain open |
-| D6 | Foo proposes keeping class copies/imports subject to educator approval; ordinary independent projects need no educator approval but still require existing publishing permission. Define trusted server provenance through roster removal, reassignment, duplication/import and any allowed reclassification. Specify supported import paths and unverifiable-origin handling; client JSON alone cannot prove origin. | SCRUM-161 + SCRUM-164 with SCRUM-69/71 and SCRUM-70/85 | Proposal awaiting class/review owner input; provenance contract remains open |
+| D6 | Foo proposes keeping class copies/imports subject to educator approval; ordinary independent projects need no educator approval but still require existing publishing permission. Define origin handling for server-side copies, imports and full-document replacement via the existing save PUT, including replacement of an already ordinary draft. Specify supported import paths, unknown or unverifiable origin and any allowed reclassification; client JSON alone cannot prove origin. The draft publisher defaults to unavailable while trusted classification or required approval integration is absent. | SCRUM-173/175 (M3), with SCRUM-161/164, SCRUM-69/71 and SCRUM-70/85 | Proposal awaiting class/review owner input; deferred origin contract remains open |
 
 Foo cites Figma Hide/Delete controls as context; this record does not verify those
 screens or add their implementation to SCRUM-69. SCRUM-94 must verify the chosen
@@ -269,9 +273,13 @@ Future class contracts must preserve these requirements:
    the same project lock. Where an operation affects multiple independent drafts,
    SCRUM-161 must define its transaction, lock ordering and bounded retry/partial
    failure contract; this document does not invent batch atomicity.
-3. Preserve class provenance when a student/educator is removed or reassigned, and
-   apply D6 copy/import rules once agreed. A zero-member roster, a new editor, a
-   changed role or a `CanPublish` grant must not erase the class review requirement.
+3. Keep each class-created draft with its original student; reject assigning it to
+   another student. Removing or restoring that student's grant or class membership
+   preserves the draft and server-owned mapping. Ordinary reassignment keeps its
+   existing behavior. Preserve class provenance when an educator is removed or
+   reassigned, and apply D6 copy/import/full-save rules once agreed. A zero-member
+   roster, a changed role or a `CanPublish` grant must not erase the class review
+   requirement.
 4. Recheck current authority, archive state, confirmed revision and the SCRUM-164
    approval result while retaining the shared transaction through publication
    commit. Approval for revision N is not authority for N+1, including revisioned
@@ -304,9 +312,9 @@ local restart artifact was not independently opened during this handoff review.
 
 | SCRUM-69 acceptance criterion | Existing evidence | Remaining acceptance |
 | --- | --- | --- |
-| 1. Two students; direct IDs/lifecycle cannot bypass authority | [ProjectReadEndpointTests](../apps/server/tests/ProjectReadEndpointTests.cs): `ProjectReads_TwoStudentsSeeOnlyTheirAssignmentsDespiteForgedClaimsAndCrossOrganizationAssignment`; [ProjectLifecycleTests](../apps/server/tests/ProjectLifecycleTests.cs): `ProjectLifecycle_InvalidAssignmentsAndUnauthorizedIdsCannotChangeOrRevealProjects` | Class/roster integration must preserve this boundary when SCRUM-161 exists. |
+| 1. Two students; direct IDs/lifecycle cannot bypass authority | [ProjectReadEndpointTests](../apps/server/tests/ProjectReadEndpointTests.cs): `ProjectReads_TwoStudentsSeeOnlyTheirAssignmentsDespiteForgedClaimsAndCrossOrganizationAssignment`; [ProjectLifecycleTests](../apps/server/tests/ProjectLifecycleTests.cs): `ProjectLifecycle_InvalidAssignmentsAndUnauthorizedIdsCannotChangeOrRevealProjects` | Class/roster integration must reject assignment of a class-created draft to another student and preserve its draft and mapping across original-student grant or membership removal and restoration. |
 | 2. Admin provisions and assigns/reassigns | `ProjectLifecycle_AdministratorProvisionsAndReassignsStudentsWithoutExposingOtherWork` uses real account and project routes | Link the SCRUM-126 home/admin workflow evidence. |
-| 3. Independent copy, correct internal references | `ProjectLifecycle_ImportAndDuplicatePreserveReferencesButNeverCopyAuthorityOrMutableDrafts`, for both supported document versions | Class-origin duplication/import must follow D6 once agreed. |
+| 3. Independent copy, correct internal references | `ProjectLifecycle_ImportAndDuplicatePreserveReferencesButNeverCopyAuthorityOrMutableDrafts`, for both supported document versions | Copy/import origin handling remains deferred to SCRUM-173/175 under D6. |
 | 4. Archive/reopen and concurrent reassignment/save | `ProjectLifecycle_ArchiveReopenAndAssignmentsPreserveSavedContentAndInvalidateOldRetry`; `ProjectLifecycle_SaveAndMetadataRacesUseOneLockAndPreserveTheWinner`, both commit orders for assignment and archive; [ProjectAccessTests](../apps/server/tests/ProjectAccessTests.cs) recheck authority after lock waits | Joint publication-effects decisions and class/review/publish race evidence. |
 | 5. Safe errors, no unauthorized changes, unsaved-work preservation | Lifecycle rollback/expiry/CSRF tests; [ProjectHttpResults](../apps/server/Spatia.Server/Projects/ProjectHttpResults.cs); `Browser_ProjectListOpenAndAccountSwitchUseCurrentSession` | SCRUM-67/126 browser evidence with an actual unsaved editor, including save/export/cancel and late responses. API-only browser checks do not establish this guarantee. |
 
@@ -320,15 +328,24 @@ and this record:
   public/unlisted/authenticated editions, JSON, direct assets and cache paths.
   Exercise archive/reopen, reassignment, roster removal, hide/restore/delete and
   explicit revocation, including in-flight requests.
-- **SCRUM-161/164/70/85 with SCRUM-69:** class mapping survives restart and
-  reassignment; neither direct assignment changes nor roster/copy/import operations
-  bypass approval. Test metadata versus approval/publication in both lock orders,
+- **SCRUM-161/164/70/85 with SCRUM-69:** verify ordinary reassignment still works;
+  reject assigning a class-created draft to a different student, and preserve the
+  original draft and mapping through grant and membership removal/restoration and
+  restart. Neither direct assignment nor roster changes may bypass approval. Test
+  metadata versus approval/publication in both lock orders,
   old approved revisions, removed educators/students and archived projects, with no
   partial decisions/publications or rewritten history. Record actual service/API
   contracts once implemented rather than citing this handoff as implementation.
 - **SCRUM-67/126:** browser evidence that unsaved work remains associated with its
   original account/project through authentication loss, reassignment, archive,
   conflict and explicit switch/logout, including save/export/cancel outcomes.
+
+Separately, **SCRUM-173/175 with SCRUM-164/85** own the deferred M3 origin
+contract and its implementation and evidence for copies, imports and full-document
+PUT replacement, including an ordinary draft receiving unverified content. Verify
+that the agreed review/publication policy cannot be bypassed. Keep the draft
+publisher unavailable while trusted classification or required approval integration
+is absent; the deferred M3 policy does not block SCRUM-161's independent M2 work.
 
 The existing direct-project backend has no additional identified implementation gap
 from this review. The story's full acceptance remains open on owner agreement and
