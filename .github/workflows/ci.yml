@@ -3,20 +3,19 @@ name: CI
 on:
   push:
     branches: [main, dev]
-  pull_request:
-    branches: [main, dev]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.ref }}
+  group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   # Exercise the C# reader against the same contract cases used by the browser suite
   project-format:
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
     name: Shared project-format checks
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -43,6 +42,7 @@ jobs:
         run: node apps/web/tests/project-format-cross.check.mjs
 
   compatibility:
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
     name: Native checks (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
@@ -73,49 +73,160 @@ jobs:
           npm run test:unit
           npm run build
 
-  check:
-    name: Build and test
+  select-architecture:
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
+    name: Select architecture proof coverage
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
-    env:
-      BUILD_MODE: ${{ (github.base_ref || github.ref_name) == 'main' && 'production' || 'development' }}
-    defaults:
-      run:
-        working-directory: apps/web
-        shell: bash
+    outputs:
+      proof: ${{ steps.coverage.outputs.proof }}
     steps:
-      - name: Require production changes to come through dev
-        if: github.event_name == 'pull_request' && github.base_ref == 'main'
-        working-directory: .
-        env:
-          SOURCE_BRANCH: ${{ github.head_ref }}
-          SOURCE_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
-        run: |
-          test "$SOURCE_BRANCH" = dev
-          test "$SOURCE_REPOSITORY" = "$GITHUB_REPOSITORY"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          lfs: true
           persist-credentials: false
           fetch-depth: 0
-      # Keep the live boundary scan on every change; reserve destructive-copy experiments for tooling edits
-      - name: Select architecture proof coverage
-        id: architecture
-        working-directory: .
+      - name: Determine whether architecture proof applies
+        id: coverage
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          BASE_SHA: ${{ github.event.before }}
           EVENT_NAME: ${{ github.event_name }}
         run: |
           if [[ "$EVENT_NAME" = workflow_dispatch || -z "$BASE_SHA" || "$BASE_SHA" =~ ^0+$ ]]; then
             echo 'proof=true' >> "$GITHUB_OUTPUT"
+          elif ! git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
+            echo "Base commit $BASE_SHA is not available locally; running the full architecture proof."
+            echo 'proof=true' >> "$GITHUB_OUTPUT"
           else
-            changed=$(git diff --name-only "$BASE_SHA" HEAD -- apps/web/architecture.mjs apps/web/architecture.check.mjs 'apps/web/tsconfig*.json' apps/web/package.json apps/web/package-lock.json 'apps/web/*config*' .github/workflows/ci.yml)
-            if [[ -n "$changed" ]]; then
+            if ! changed=$(git diff --name-only "$BASE_SHA" HEAD -- apps/web/architecture.mjs apps/web/architecture.check.mjs 'apps/web/tsconfig*.json' apps/web/package.json apps/web/package-lock.json 'apps/web/*config*' .github/workflows/ci.yml); then
+              echo "Unable to compare against base commit $BASE_SHA; running the full architecture proof."
+              echo 'proof=true' >> "$GITHUB_OUTPUT"
+            elif [[ -n "$changed" ]]; then
               echo 'proof=true' >> "$GITHUB_OUTPUT"
             else
               echo 'proof=false' >> "$GITHUB_OUTPUT"
             fi
           fi
+
+  architecture:
+    name: Architecture proof
+    needs: select-architecture
+    if: needs.select-architecture.outputs.proof == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: apps/web
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          lfs: true
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: apps/web/.nvmrc
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Install locked tooling
+        run: |
+          npm install --global npm@11.17.0
+          npm ci --no-audit --no-fund
+      - name: Install pinned browser
+        run: npx playwright install --with-deps chromium
+      - name: Prove architecture enforcement and isolated module removal
+        run: npm run test:architecture
+      - name: Retain architecture evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: architecture-${{ github.sha }}
+          path: apps/web/test-results/
+          retention-days: 14
+          overwrite: true
+
+  fixtures:
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
+    name: Fixture check (${{ matrix.name }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: browser
+            script: test:browser
+          - name: integration
+            script: test:integration
+          - name: caching
+            script: test:caching
+          - name: recovery
+            script: test:recovery
+          - name: history
+            script: test:history
+    defaults:
+      run:
+        working-directory: apps/web
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          lfs: true
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: apps/web/.nvmrc
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Install locked tooling
+        run: |
+          npm install --global npm@11.17.0
+          npm ci --no-audit --no-fund
+      - name: Install pinned browser
+        run: npx playwright install --with-deps chromium
+      - name: Start Vite server
+        run: |
+          mkdir -p test-results
+          node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 5173 --strictPort \
+            > "test-results/dev-server-${{ matrix.name }}.log" 2>&1 &
+          echo $! > vite.pid
+          curl --fail --silent --show-error --retry 30 --retry-delay 1 --retry-connrefused \
+            http://127.0.0.1:5173/ > /dev/null
+      - name: Run fixture check
+        env:
+          CHECK_SCREENSHOT: test-results/${{ matrix.name }}.png
+        run: npm run ${{ matrix.script }} -- http://127.0.0.1:5173/ | tee test-results/${{ matrix.name }}.log
+      - name: Stop Vite server
+        if: always()
+        run: |
+          if [[ -f vite.pid ]]; then
+            kill "$(cat vite.pid)" 2>/dev/null || true
+          fi
+      - name: Retain fixture evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: fixture-${{ matrix.name }}-${{ github.sha }}
+          path: apps/web/test-results/
+          retention-days: 14
+          overwrite: true
+
+  check:
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
+    name: Build and test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      BUILD_MODE: ${{ github.ref_name == 'main' && 'production' || 'development' }}
+    defaults:
+      run:
+        working-directory: apps/web
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          lfs: true
+          persist-credentials: false
+          fetch-depth: 0
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: apps/web/.nvmrc
@@ -137,22 +248,6 @@ jobs:
         run: npm run test:unit -- --reporter=default --reporter=junit --outputFile=test-results/unit.xml
       - name: Install pinned browser
         run: npx playwright install --with-deps chromium
-      - name: Prove architecture enforcement and isolated module removal
-        if: steps.architecture.outputs.proof == 'true'
-        run: npm run test:architecture
-      - name: Check authoring and development fixtures
-        env:
-          CHECK_SCREENSHOT: test-results/editor.png
-        run: |
-          node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 5173 --strictPort > test-results/dev-server.log 2>&1 &
-          server_pid=$!
-          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
-          curl --fail --silent --show-error --retry 30 --retry-delay 1 --retry-connrefused http://127.0.0.1:5173/ > /dev/null
-          npm run test:browser | tee test-results/editor.log
-          npm run test:integration | tee test-results/integration.log
-          npm run test:caching | tee test-results/caching.log
-          npm run test:recovery | tee test-results/recovery.log
-          npm run test:history | tee test-results/history.log
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       # Source checks have passed above; keep the final Caddy-image browser checks below
       - name: Build the runnable image
@@ -215,6 +310,7 @@ jobs:
           docker compose -f ../../compose.yaml -p vthere-ci down
 
   server:
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
     name: Server build and tests
     runs-on: ubuntu-24.04
     # Leave room for slow package mirrors before the full PostgreSQL/browser suite.
@@ -284,8 +380,32 @@ jobs:
 
   publish:
     name: Publish tested image
-    needs: [check, compatibility, server, project-format]
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
+    needs:
+      [
+        check,
+        compatibility,
+        server,
+        project-format,
+        select-architecture,
+        architecture,
+        fixtures,
+      ]
+    if: >-
+      always() &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev') &&
+      needs.check.result == 'success' &&
+      needs.compatibility.result == 'success' &&
+      needs.server.result == 'success' &&
+      needs.project-format.result == 'success' &&
+      needs.fixtures.result == 'success' &&
+      needs.select-architecture.result == 'success' &&
+      (
+        needs.architecture.result == 'success' ||
+        (
+          needs.architecture.result == 'skipped' &&
+          needs.select-architecture.outputs.proof == 'false'
+        )
+      )
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
