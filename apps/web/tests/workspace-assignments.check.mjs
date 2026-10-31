@@ -190,6 +190,13 @@ try {
     await page.getByRole("textbox", { name: "Project title", exact: true }).inputValue(),
     "Silk Road assignment",
   );
+  await page.getByRole("link", { name: "Spatia home" }).click();
+  await page.getByRole("dialog", { name: "Leave this assignment?" }).waitFor();
+  await page.getByRole("button", { name: "Keep editing", exact: true }).click();
+  assert.equal(
+    await page.getByRole("textbox", { name: "Project title", exact: true }).inputValue(),
+    "Silk Road assignment",
+  );
   await page.getByRole("button", { name: "Log Out", exact: true }).click();
   await page.getByRole("button", { name: "Keep editing", exact: true }).click();
   await page.getByRole("combobox", { name: "Class", exact: true }).selectOption(classId);
@@ -208,9 +215,26 @@ try {
   heldCreation = new Promise((resolve) => {
     releaseCreation = resolve;
   });
+  await page.evaluate(() => {
+    window.pendingNavigationGuard = new Promise((resolve) => {
+      const observer = new MutationObserver(() => {
+        if (!document.querySelector('form[aria-busy="true"]')) return;
+        observer.disconnect();
+        const classes = [...document.querySelectorAll('nav[aria-label="Workspace"] button')].find(
+          (button) => button.textContent.trim() === "Classes",
+        );
+        document.querySelector('a[aria-label="Spatia home"]').click();
+        resolve(classes.disabled);
+      });
+      observer.observe(document.body, { attributes: true, childList: true, subtree: true });
+    });
+  });
   await page.getByRole("button", { name: "Create project", exact: true }).click();
+  assert.equal(await page.evaluate(() => window.pendingNavigationGuard), true);
   await page.getByText("Creating project… Keep this page open.", { exact: true }).waitFor();
   assert.equal(await page.getByRole("button", { name: "Classes", exact: true }).isDisabled(), true);
+  await page.getByRole("link", { name: "Spatia home" }).click();
+  await page.getByText("Creating project… Keep this page open.", { exact: true }).waitFor();
   releaseCreation();
   heldCreation = null;
   await page.getByRole("button", { name: "Retry same assignment", exact: true }).waitFor();

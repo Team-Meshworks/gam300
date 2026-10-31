@@ -29,10 +29,10 @@ The shared shell supplies the existing Figma landmark and ambient SVGs. Project 
 review state and published editions are not fabricated from the design's example data.
 The API does not currently supply those fields. No Figma connector calls were used.
 
-At the 31 October 2026 audit, GitHub reported `dev` at `29e81ff` and
-`admin/student-screens` at `ce205e5`, 26 commits and 123 files ahead of `dev`. This branch
-starts from `d186723` on `feature/scrum-162-assignment-api-integration`; both feature
-branches remain local and unpublished. SCRUM-161 is a separate backend
+At the 31 October 2026 integration, GitHub reported `dev` at `29e81ff` and
+`admin/student-screens` at `b216cfa`, 31 commits and 131 files ahead of `dev`. This branch
+incorporates `feature/scrum-162-assignment-api-integration` and the shared frontend base;
+both feature branches were local and unpublished at that check. SCRUM-161 is a separate backend
 [draft PR](https://github.com/Team-Meshworks/gam300/pull/30). The frontend owner has been
 asked to agree a review and landing plan for the shared prerequisites.
 
@@ -46,7 +46,7 @@ directory operations are To Do. SCRUM-171 owns the separate directory screens.
 | Area                                          | Implemented here                                                                                                                                                                            | Remaining dependency                                                                                                                                                     |
 | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | SCRUM-126 authenticated home                  | Verified login entry, session revalidation, account-context remounting, authorised lists, search, loading/error/empty states and logout                                                     | Non-empty production project lists require an approved server catalogue (SCRUM-73)                                                                                       |
-| SCRUM-126 project lifecycle                   | Duplicate, archive and reopen using current revisions and verified acknowledgements                                                                                                         | Blank creation needs an approved environment selection; production duplication needs an approved server catalogue (SCRUM-73)                                            |
+| SCRUM-126 project lifecycle                   | Duplicate, archive and reopen using current revisions and verified acknowledgements                                                                                                         | Blank creation needs an approved environment selection; production duplication needs an approved server catalogue (SCRUM-73)                                             |
 | SCRUM-126 project opening/account transitions | Unsent assignment details are guarded; pending sends block navigation; uncertain assignment requests remain recoverable                                                                     | SCRUM-67 must supply authenticated server-project loading and the shared save/export/cancel recovery coordinator before editor links can be enabled                      |
 | SCRUM-126 minimal administration/access       | Teacher class creation, authorised roster reads, student enrolment and member removal                                                                                                       | Account provisioning selectors need authorised organisation/account reads; safe project-access editing also needs the current grant set and project organisation context |
 | SCRUM-162 assignment creation                 | Existing source/revision, class, enrolled students, title, description, instructions and device-local due time; Unix-second transport; one draft per student; durable exact-request retries | Requires SCRUM-161; production creation also needs the approved server catalogue (SCRUM-73); opening drafts still needs SCRUM-67                                         |

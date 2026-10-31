@@ -134,8 +134,13 @@ set the private database passwords and start the combined Compose stack. Open
 [https://localhost:8444/login](https://localhost:8444/login). Caddy uses a local CA, so
 the browser must trust its certificate. Sign-in requires a provisioned username; public
 signup is unavailable. See the [private administrator bootstrap](apps/server/README.md#private-bootstrap-and-administrator-operations-part-4)
-and provisioning instructions in the server guide. A verified session currently shows
-that the project workspace is not yet connected.
+and provisioning instructions in the server guide. A verified session links to `/home`,
+which loads authorised project and class workflows when their backend contracts are available.
+Server-project opening and blank creation await recovery and an approved asset catalogue.
+The separate `/new-project`, `/classes`, `/review`, and `/accounts` routes provide
+session-gated screen shells; these shells contain no real records and do not connect project
+and class lists, creation, assignments, submissions or the account directory. Role checks
+in these shells are user-interface gates; future data access must also be authorized by the server.
 
 In the editor, add **test-room**, add **test-crate**, move it and try **Undo**.
 Use the project menu's **Save** to save a JSON file. After editing, allow two seconds for
@@ -149,25 +154,25 @@ The same Dockerfile is used by CI and deployment. See the
 
 ## Controls
 
-| Mode    | Input                                             | Action                             |
-| ------- | ------------------------------------------------- | ---------------------------------- |
-| Editor  | Drag an asset / click or press Enter on its tile  | Place an object                    |
-| Editor  | Select tool and click an object, or click its list entry | Select an object          |
-| Editor  | Drag a selected object's axis handle              | Move along that axis               |
-| Editor  | Right-drag an axis / selected object              | Rotate on an axis / freely         |
-| Editor  | Shift while rotating an axis                      | Snap rotation                      |
-| Editor  | Scroll over a selected object                     | Scale it                           |
-| Editor  | Position panel                                    | Edit position, rotation and scale  |
-| Editor  | Ctrl/Cmd+C, V or D                                | Copy, paste or duplicate selection |
-| Editor  | Delete / Backspace                                | Delete selection                   |
-| Editor  | Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z or Ctrl/Cmd+Y        | Undo / redo                        |
-| Editor  | Ctrl/Cmd+S / Ctrl/Cmd+Shift+S                     | Save / Save As                     |
-| Editor  | Escape during placement or movement               | Cancel the change                  |
-| Editor  | Left-drag with Orbit / Pan / Zoom tool            | Orbit / pan / zoom camera          |
-| Editor  | Right-drag / scroll on background                 | Pan / zoom camera                  |
-| Visitor | W / A / S / D                                     | Move forward / left / back / right |
-| Visitor | Left mouse drag                                   | Look around                        |
-| Visitor | Shift / Space / Ctrl                              | Sprint / fly up / fly down         |
+| Mode    | Input                                                    | Action                             |
+| ------- | -------------------------------------------------------- | ---------------------------------- |
+| Editor  | Drag an asset / click or press Enter on its tile         | Place an object                    |
+| Editor  | Select tool and click an object, or click its list entry | Select an object                   |
+| Editor  | Drag a selected object's axis handle                     | Move along that axis               |
+| Editor  | Right-drag an axis / selected object                     | Rotate on an axis / freely         |
+| Editor  | Shift while rotating an axis                             | Snap rotation                      |
+| Editor  | Scroll over a selected object                            | Scale it                           |
+| Editor  | Position panel                                           | Edit position, rotation and scale  |
+| Editor  | Ctrl/Cmd+C, V or D                                       | Copy, paste or duplicate selection |
+| Editor  | Delete / Backspace                                       | Delete selection                   |
+| Editor  | Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z or Ctrl/Cmd+Y               | Undo / redo                        |
+| Editor  | Ctrl/Cmd+S / Ctrl/Cmd+Shift+S                            | Save / Save As                     |
+| Editor  | Escape during placement or movement                      | Cancel the change                  |
+| Editor  | Left-drag with Orbit / Pan / Zoom tool                   | Orbit / pan / zoom camera          |
+| Editor  | Right-drag / scroll on background                        | Pan / zoom camera                  |
+| Visitor | W / A / S / D                                            | Move forward / left / back / right |
+| Visitor | Left mouse drag                                          | Look around                        |
+| Visitor | Shift / Space / Ctrl                                     | Sprint / fly up / fly down         |
 
 Viewport object picking and transforms require the Select tool. Choose Select, Orbit, Pan
 or Zoom in the camera toolbar. Drag its grip to an edge, or
@@ -176,14 +181,14 @@ save shortcuts are inactive while visiting; movement stops when the window loses
 
 ## Tech stack
 
-| Area                  | Technology                                  |
-| --------------------- | ------------------------------------------- |
-| Interface             | React 19, TypeScript 6, native HTML and CSS |
-| 3D rendering          | Three.js with custom translation controls   |
+| Area                  | Technology                                            |
+| --------------------- | ----------------------------------------------------- |
+| Interface             | React 19, TypeScript 6, native HTML and CSS           |
+| 3D rendering          | Three.js with custom translation controls             |
 | Server                | ASP.NET Core 10, Identity, EF Core/Npgsql, PostgreSQL |
-| Development and build | Vite 8, Node.js 24, npm                     |
-| Quality checks        | ESLint, Prettier, Vitest, Playwright, TUnit |
-| Delivery              | Docker, Caddy, GitHub Actions, Git LFS      |
+| Development and build | Vite 8, Node.js 24, npm                               |
+| Quality checks        | ESLint, Prettier, Vitest, Playwright, TUnit           |
+| Delivery              | Docker, Caddy, GitHub Actions, Git LFS                |
 
 The server is developed and tested separately; it is not required to run the current editor.
 
@@ -193,7 +198,9 @@ For hot reload, install the pinned Node/npm versions in `apps/web/.nvmrc` and
 `apps/web/package.json`, then run `npm --prefix apps/web ci` and `npm --prefix apps/web run dev`
 from the root. The submission launcher above needs no host Node installation.
 Vite development and preview serve `/landing` and `/login` through the separate entry
-bundle; the packaged Caddy configuration serves the same routes. For account integration
+bundle and the four workspace routes through their own bundle; packaged Caddy is configured
+to serve the same routes. Run `npm run test:workspace -- <origin>` from `apps/web/` against
+a running development server or built preview to check the workspace routes. For account integration
 with hot reload, start the combined API stack above and configure `apps/web/.env.local`
 using [the example](apps/web/.env.example). Set `SPATIA_API_ORIGIN` to
 `https://localhost:8444`, `SPATIA_DEV_TLS_CERT` and `SPATIA_DEV_TLS_KEY` to a valid
@@ -209,10 +216,10 @@ Individual maintenance commands below run from `apps/web/`:
 | Command                                             | Purpose                                                               |
 | --------------------------------------------------- | --------------------------------------------------------------------- |
 | `npm run dev`                                       | Start the development server with hot reload                          |
-| `npm run build`                                     | Typecheck and build the editor into `apps/web/dist/editor/`                |
+| `npm run build`                                     | Typecheck and build the editor into `apps/web/dist/editor/`           |
 | `npm run preview`                                   | Serve the latest local build                                          |
-| `npm run check:architecture`                        | Check source dependency boundaries                                  |
-| `npm run test:architecture`                         | Test architecture enforcement                                        |
+| `npm run check:architecture`                        | Check source dependency boundaries                                    |
+| `npm run test:architecture`                         | Test architecture enforcement                                         |
 | `npm run typecheck`                                 | Check TypeScript types                                                |
 | `npm run lint`                                      | Run ESLint with zero warnings allowed                                 |
 | `npm run format:check`                              | Check formatting                                                      |
@@ -252,12 +259,12 @@ Use the pinned Node/npm versions above; if necessary install the matching npm wi
 `npm install --global npm@11.17.0`. On Windows, use `npm.cmd` / `npx.cmd` when PowerShell
 blocks the `.ps1` launchers.
 
-| Environment                | Setup and evidence                                                                                                                                                           |
-| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Windows 11                 | Fresh-clone native build and all browser checks passed on build 26200; launcher failure/startup checks also passed. Host Node was preinstalled for that native test.         |
-| Ubuntu 24.04               | Clean GitHub Actions build/test/container checks; [baseline CI](https://github.com/Team-Meshworks/gam300/actions/runs/36964933555). The current PR must pass its own checks. |
-| macOS Tahoe                | The workflow runs native setup, architecture, unit and build checks on `macos-26`; lint and formatting run on Ubuntu. Refer to the current PR for its actual result; no physical Mac test is claimed.        |
-| Local Ubuntu 26.04 / WSL 2 | Root launcher passed with no native Node/npm, a fresh checkout and an empty isolated Docker build cache. Git LFS was configured in the test directory.                       |
+| Environment                | Setup and evidence                                                                                                                                                                                    |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Windows 11                 | Fresh-clone native build and all browser checks passed on build 26200; launcher failure/startup checks also passed. Host Node was preinstalled for that native test.                                  |
+| Ubuntu 24.04               | Clean GitHub Actions build/test/container checks; [baseline CI](https://github.com/Team-Meshworks/gam300/actions/runs/36964933555). The current PR must pass its own checks.                          |
+| macOS Tahoe                | The workflow runs native setup, architecture, unit and build checks on `macos-26`; lint and formatting run on Ubuntu. Refer to the current PR for its actual result; no physical Mac test is claimed. |
+| Local Ubuntu 26.04 / WSL 2 | Root launcher passed with no native Node/npm, a fresh checkout and an empty isolated Docker build cache. Git LFS was configured in the test directory.                                                |
 
 For a clean reproduction, clone into a new directory and run the root launcher.
 Record the commit, OS, Node/npm/browser versions and actual results when reporting a
@@ -357,22 +364,23 @@ provenance and follow the [asset pipeline](assets/README.md).
 
 ## Troubleshooting
 
-| Problem                                          | What to check                                                                                           |
-| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------- |
-| Missing or unreadable 3D models                  | Run `git lfs pull` from the repository root.                                                            |
+| Problem                                          | What to check                                                                                                |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| Missing or unreadable 3D models                  | Run `git lfs pull` from the repository root.                                                                 |
 | Node or native-binding errors                    | Check `node --version` and `npm --version` against the pinned toolchain, then rerun `npm ci` in `apps/web/`. |
-| PowerShell blocks `npm.ps1`                      | Use `npm.cmd` instead of `npm`, and `npx.cmd` instead of `npx`.                                         |
+| PowerShell blocks `npm.ps1`                      | Use `npm.cmd` instead of `npm`, and `npx.cmd` instead of `npx`.                                              |
 | Playwright cannot find Chromium                  | Run `npx playwright install chromium` from `apps/web/`.                                                      |
-| The viewport reports that WebGL 2 is unavailable | Check browser graphics support and hardware acceleration.                                               |
+| The viewport reports that WebGL 2 is unavailable | Check browser graphics support and hardware acceleration.                                                    |
 
 ## Performance check (T02)
 
 Tested **2 October 2026** on an **X870 AORUS ELITE WIFI7 desktop** with specs:
-* CPU: Ryzen 7 7800X3D
-* GPU: RTX 5070
-* Memory: 32 GB RAM
-* OS: Windows 11
-* Browser: Edge 154.0.4258.48
+
+- CPU: Ryzen 7 7800X3D
+- GPU: RTX 5070
+- Memory: 32 GB RAM
+- OS: Windows 11
+- Browser: Edge 154.0.4258.48
 
 Local production build at
 1366 × 768, using the sample room and two crates.

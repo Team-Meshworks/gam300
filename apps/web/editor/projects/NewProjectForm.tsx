@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faCircleInfo, faImage } from "@fortawesome/free-solid-svg-icons";
 import { Button } from "../../shared/ui/Button";
@@ -76,7 +76,7 @@ export function NewProjectForm({
     (JSON.stringify(form) !== JSON.stringify(emptyForm) ||
       selected.length > 0 ||
       coverImage !== null);
-  useEffect(() => {
+  useLayoutEffect(() => {
     onNavigationStateChange?.({ dirty, locked: phase === "pending" });
   }, [dirty, phase, onNavigationStateChange]);
   useEffect(

@@ -10,12 +10,14 @@ export function WorkspaceShell({
   initials,
   onSignOut,
   onHome,
+  homeHref = "#new-project",
   children,
 }: {
   name: string;
   initials: string;
   onSignOut?: () => void;
   onHome?: () => void;
+  homeHref?: string;
   children: ReactNode;
 }) {
   return (
@@ -25,7 +27,7 @@ export function WorkspaceShell({
       <header className="sp-navigation">
         <a
           className="sp-brand"
-          href={onHome ? "/home" : "#new-project"}
+          href={onHome ? "/home" : homeHref}
           aria-label="Spatia home"
           onClick={
             onHome

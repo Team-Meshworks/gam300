@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Button } from "../../shared/ui/Button";
 import { Field } from "../../shared/ui/Field";
 import { NewProjectForm, type FormNavigationState } from "./NewProjectForm";
@@ -120,7 +120,7 @@ export function AssignmentCreationScreen({
       rosterController.current?.abort();
     };
   }, [expectedUserId]);
-  useEffect(() => {
+  useLayoutEffect(() => {
     onNavigationStateChange?.({
       dirty: !confirmed && !pending && (formNavigation.dirty || !!sourceId),
       locked: busy || formNavigation.locked,
