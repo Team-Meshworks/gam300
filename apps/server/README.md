@@ -1849,3 +1849,28 @@ timeout. An isolated rerun passed **1/1** in 9.481 seconds without changing sour
 or timeouts; the original full run is retained as a failure, not reported as clean.
 TRX/HTML evidence is under `test-results/scrum85-part1-focused-corrected/`,
 `test-results/scrum85-part1-full/` and `test-results/scrum85-part1-browser-retry/`.
+
+### 31 October 2026: SCRUM-85 bounded code review
+
+**What this change does:** Stores immutable publication snapshots and coordinates
+permission, revision and retry checks under the shared project lock. The
+integration remains fail-closed and exposes no production publication route.
+
+**Findings:** No actionable defects were found in the reviewed storage and
+coordinator foundation. The review covered the publication migration and
+constraints, manifest and digest handling, authorization and transaction flow,
+shared project-read and duplicate callers, and the existing rollback,
+concurrency and saved-document tests. The expected load is a classroom pilot
+using the server's 64-request global concurrency limit.
+
+[CI run 83](https://github.com/Team-Meshworks/gam300/actions/runs/41089029015)
+now reports success for head `467397934277337916821e43e03aa7e6a3e2548d`.
+The formerly cancelled macOS job passed on the 31 October rerun (job
+`124480059707`); server, web, Windows and shared-format jobs had already
+passed on the same head. The server log reports 734 passed, 0 failed and 0
+skipped. No tests were run locally during this review.
+
+**Verdict:** The reviewed foundation is ready for integration; the PR remains
+draft. Production approval/classification, immutable asset resolution,
+audience/revocation and protected routes are still absent, as are real
+publish/retrieval restart and browser/device acceptance.
