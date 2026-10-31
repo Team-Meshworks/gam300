@@ -146,6 +146,8 @@ jobs:
           mkdir -p test-results
           server_pids=()
           test_pids=()
+          test_names=()
+          step_started=$(date +%s)
           check_names=(browser integration caching recovery history)
           check_commands=(
             "npm run test:browser -- http://127.0.0.1:5173/"
@@ -156,54 +158,114 @@ jobs:
           )
           status=0
 
+          now() {
+            date -u '+%Y-%m-%dT%H:%M:%SZ'
+          }
+
+          elapsed() {
+            echo "$(( $(date +%s) - $1 ))s"
+          }
+
+          echo "[$(now)] CI parallel checks started; architecture proof=$ARCHITECTURE_PROOF"
+
           cleanup() {
+            echo "[$(now)] Cleaning up background processes"
             for pid in "${server_pids[@]}" "${test_pids[@]}"; do
-              if [[ -n "$pid" ]]; then kill "$pid" 2>/dev/null || true; fi
+              if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+                kill "$pid" 2>/dev/null || true
+              fi
             done
           }
           trap cleanup EXIT
 
           architecture_pid=
           if [[ "$ARCHITECTURE_PROOF" == true ]]; then
-            npm run test:architecture > test-results/architecture.log 2>&1 &
+            architecture_started=$(date +%s)
+            {
+              echo "[$(now)] architecture proof started"
+              npm run test:architecture
+              architecture_status=$?
+              echo "[$(now)] architecture proof exited with status $architecture_status after $(elapsed "$architecture_started")"
+              exit "$architecture_status"
+            } > test-results/architecture.log 2>&1 &
             architecture_pid=$!
+            echo "[$(now)] architecture proof launched with pid $architecture_pid"
           fi
 
           for index in "${!check_names[@]}"; do
             name="${check_names[$index]}"
             port=$((5173 + index))
-            node node_modules/vite/bin/vite.js --host 127.0.0.1 --port "$port" --strictPort \
-              > "test-results/dev-server-$name.log" 2>&1 &
+            server_started=$(date +%s)
+            {
+              echo "[$(now)] Vite server $name starting on port $port"
+              node node_modules/vite/bin/vite.js --host 127.0.0.1 --port "$port" --strictPort
+              server_status=$?
+              echo "[$(now)] Vite server $name exited with status $server_status after $(elapsed "$server_started")"
+              exit "$server_status"
+            } > "test-results/dev-server-$name.log" 2>&1 &
             server_pids+=("$!")
+            echo "[$(now)] Vite server $name launched with pid ${server_pids[-1]} on port $port"
           done
 
           for index in "${!check_names[@]}"; do
             name="${check_names[$index]}"
             port=$((5173 + index))
+            ready_started=$(date +%s)
+            echo "[$(now)] Waiting for Vite server $name on port $port"
             curl --fail --silent --show-error --retry 30 --retry-delay 1 --retry-connrefused \
               "http://127.0.0.1:$port/" > /dev/null
             if [[ $? -ne 0 ]]; then
-              echo "Vite server for $name failed to become ready" >&2
+              echo "[$(now)] Vite server for $name failed to become ready after $(elapsed "$ready_started")" >&2
+              echo "----- test-results/dev-server-$name.log -----" >&2
+              cat "test-results/dev-server-$name.log" >&2
+              echo "----- process status for pid ${server_pids[$index]} -----" >&2
+              ps -p "${server_pids[$index]}" -o pid=,stat=,etime=,cmd= >&2
               status=1
               continue
             fi
+            echo "[$(now)] Vite server $name ready after $(elapsed "$ready_started")"
+            test_started=$(date +%s)
             if [[ "$name" == browser ]]; then
-              CHECK_SCREENSHOT=test-results/editor.png \
-                bash -c "${check_commands[$index]}" > "test-results/editor.log" 2>&1 &
+              test_log=test-results/editor.log
+              test_env="CHECK_SCREENSHOT=test-results/editor.png"
             else
-              bash -c "${check_commands[$index]}" > "test-results/$name.log" 2>&1 &
+              test_log="test-results/$name.log"
+              test_env=
             fi
+            {
+              echo "[$(now)] fixture $name started on port $port"
+              if [[ -n "$test_env" ]]; then
+                env "$test_env" bash -c "${check_commands[$index]}"
+              else
+                bash -c "${check_commands[$index]}"
+              fi
+              test_status=$?
+              echo "[$(now)] fixture $name exited with status $test_status after $(elapsed "$test_started")"
+              exit "$test_status"
+            } > "$test_log" 2>&1 &
             test_pids+=("$!")
+            test_names+=("$name")
+            echo "[$(now)] fixture $name launched with pid ${test_pids[-1]}"
           done
 
           for index in "${!test_pids[@]}"; do
-            if ! wait "${test_pids[$index]}"; then
+            name="${test_names[$index]}"
+            wait "${test_pids[$index]}"
+            test_status=$?
+            echo "[$(now)] fixture $name wait completed with status $test_status"
+            if [[ $test_status -ne 0 ]]; then
               status=1
             fi
           done
-          if [[ -n "$architecture_pid" ]] && ! wait "$architecture_pid"; then
-            status=1
+          if [[ -n "$architecture_pid" ]]; then
+            wait "$architecture_pid"
+            architecture_status=$?
+            echo "[$(now)] architecture proof wait completed with status $architecture_status"
+            if [[ $architecture_status -ne 0 ]]; then
+              status=1
+            fi
           fi
+          echo "[$(now)] CI parallel checks finished with status $status after $(elapsed "$step_started")"
           exit "$status"
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       # Source checks have passed above; keep the final Caddy-image browser checks below
