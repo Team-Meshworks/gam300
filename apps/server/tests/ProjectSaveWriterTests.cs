@@ -38,6 +38,10 @@ public sealed class ProjectSaveWriterTests
         var pending = await database.Projects.AsNoTracking().SingleAsync();
         await Assert.That(pending.Revision).IsEqualTo(original.Revision + 1);
         await AssertSameAsync(await ReadAsync(fixture), original);
+        await Assert.That(await database.ProjectSaveReceipts.CountAsync()).IsEqualTo(1);
+        await using var observerScope = fixture.Services.CreateAsyncScope();
+        var observer = observerScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await Assert.That(await observer.ProjectSaveReceipts.AnyAsync()).IsFalse();
         await transaction.CommitAsync();
 
         var stored = await ReadAsync(fixture);
@@ -52,6 +56,14 @@ public sealed class ProjectSaveWriterTests
         await Assert.That(stored.LastMutationActorId).IsEqualTo((Guid?)ActorId);
         await Assert.That(stored.LastMutationId).IsEqualTo((Guid?)MutationId);
         await Assert.That(stored.LastMutationDigest!.SequenceEqual(Digest)).IsTrue();
+        var receipt = await observer.ProjectSaveReceipts.SingleAsync();
+        await Assert.That(receipt.ProjectId).IsEqualTo(ProjectId);
+        await Assert.That(receipt.ClientMutationId).IsEqualTo(MutationId);
+        await Assert.That(receipt.ActorId).IsEqualTo(ActorId);
+        await Assert.That(receipt.ExpectedRevision).IsEqualTo(original.Revision);
+        await Assert.That(receipt.Revision).IsEqualTo(stored.Revision);
+        await Assert.That(receipt.SavedAt).IsEqualTo(stored.UpdatedAt);
+        await Assert.That(receipt.RequestDigest.SequenceEqual(Digest)).IsTrue();
         await Assert.That(JsonNode.DeepEquals(JsonNode.Parse(stored.DocumentJson), JsonNode.Parse(document))).IsTrue();
         var assignment = await database.ProjectAssignments.AsNoTracking().SingleAsync();
         await Assert.That(assignment.CanEdit).IsTrue();
@@ -98,6 +110,31 @@ public sealed class ProjectSaveWriterTests
         await using var reopened = fixture.Services.CreateAsyncScope();
         var stored = reopened.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         await Assert.That((await stored.ProjectAssignments.SingleAsync()).CanPublish).IsFalse();
+        await Assert.That(await stored.ProjectSaveReceipts.AnyAsync()).IsFalse();
+    }
+
+    [Test]
+    public async Task SaveWriter_ReceiptPreventsChangedReuseAtTheCurrentRevision()
+    {
+        await using var fixture = await PostgresAccountFixture.CreateAsync();
+        var original = await SeedAsync(fixture);
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await using (var first = await database.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted))
+        {
+            await LockRowAsync(database);
+            await Assert.That(await new ProjectSaveWriter(database).TryStageAsync(
+                Snapshot(original), original.Revision, MutationId, 2, Document(2, "Saved"), Digest)).IsTrue();
+            await first.CommitAsync();
+        }
+        var saved = await ReadAsync(fixture);
+        await using var retry = await database.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted);
+        await LockRowAsync(database);
+        await Assert.That(await new ProjectSaveWriter(database).TryStageAsync(
+            Snapshot(saved), saved.Revision, MutationId, 2, Document(2, "Changed"), Digest)).IsFalse();
+        await retry.CommitAsync();
+        await AssertSameAsync(await ReadAsync(fixture), saved);
+        await Assert.That((await database.ProjectSaveReceipts.SingleAsync()).Revision).IsEqualTo(saved.Revision);
     }
 
     [Test]
