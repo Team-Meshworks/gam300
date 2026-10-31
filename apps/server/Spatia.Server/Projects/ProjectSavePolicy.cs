@@ -6,7 +6,7 @@ namespace Spatia.Server.Projects;
 public static class ProjectSavePolicy
 {
     /// <summary>
-    /// Compares revision and latest-mutation metadata without validating or saving a document
+    /// Compares the current revision and durable receipt without validating or saving a document
     /// </summary>
     /// <param name="project">The editable snapshot obtained while holding an EditDraft lock</param>
     /// <param name="expectedRevision">
@@ -16,16 +16,17 @@ public static class ProjectSavePolicy
     /// <param name="requestDigest">
     /// The 32-byte server-derived digest bound to the document, project, actor and revision
     /// </param>
+    /// <param name="receipt">The receipt for this project and mutation, or null for an unknown mutation</param>
     /// <returns>The write, replay, conflict or revision exhaustion decision</returns>
     /// <remarks>
     /// Use an EditDraft-locked snapshot and retain the transaction through the eventual save
-    /// Only the latest mutation is remembered when recognizing retries
+    /// A known receipt remains authoritative after later content or metadata revisions
     /// </remarks>
     /// <exception cref="ArgumentNullException"><paramref name="project"/> is null</exception>
     /// <exception cref="ArgumentOutOfRangeException">The expected revision is outside the supported range</exception>
     /// <exception cref="ArgumentException">The digest or editable snapshot metadata is invalid</exception>
     public static ProjectSaveDecision Decide(ProjectAccessSnapshot project, long expectedRevision,
-        Guid clientMutationId, ReadOnlySpan<byte> requestDigest)
+        Guid clientMutationId, ReadOnlySpan<byte> requestDigest, ProjectSaveReceipt? receipt)
     {
         ArgumentNullException.ThrowIfNull(project);
         if (expectedRevision < 0 || expectedRevision > Project.MaxRevision)
@@ -41,20 +42,16 @@ public static class ProjectSavePolicy
             throw new ArgumentException("An editable snapshot with a bounded revision is required.", nameof(project));
         }
 
-        var lastDigest = project.LastMutationDigest;
-        if (project.LastMutationId.HasValue != project.LastMutationActorId.HasValue
-            || project.LastMutationId.HasValue != lastDigest.HasValue
-            || (lastDigest is { } storedDigest && (storedDigest.IsDefault || storedDigest.Length != 32)))
+        if (receipt is not null)
         {
-            throw new ArgumentException("The latest mutation metadata must be absent or complete.", nameof(project));
-        }
-
-        // shortcut: Only the latest mutation is remembered, add a ledger if historical ID reuse must be rejected
-        if (project.LastMutationId == clientMutationId)
-        {
-            return project.LastMutationActorId == project.ActorId
-                && expectedRevision == project.Revision - 1
-                && lastDigest!.Value.AsSpan().SequenceEqual(requestDigest)
+            if (receipt.ProjectId != project.ProjectId || receipt.ClientMutationId != clientMutationId
+                || receipt.RequestDigest is not { Length: 32 })
+            {
+                throw new ArgumentException("A complete receipt for this project and mutation is required.", nameof(receipt));
+            }
+            return receipt.ActorId == project.ActorId
+                && expectedRevision == receipt.ExpectedRevision
+                && receipt.RequestDigest.AsSpan().SequenceEqual(requestDigest)
                 ? ProjectSaveDecision.Replay : ProjectSaveDecision.Conflict;
         }
         if (expectedRevision != project.Revision)

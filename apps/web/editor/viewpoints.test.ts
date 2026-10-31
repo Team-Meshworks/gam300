@@ -26,6 +26,33 @@ function views(store: ReturnType<typeof setup>) {
 }
 
 describe("named viewpoints", () => {
+  it.each(["rename", "delete", "move", "add"])(
+    "allows %s with unchanged format-valid imported names",
+    (operation) => {
+      const store = setup();
+      store.addViewpoint("First", camera);
+      store.addViewpoint("Second", camera);
+      const imported = JSON.parse(JSON.stringify(store.getSnapshot().project));
+      imported.scenes[0].viewpoints.forEach((view: { name: string }) => {
+        view.name = "x".repeat(121);
+      });
+      expect(store.loadProject(JSON.stringify(imported), kinds).ok).toBe(true);
+      const id = views(store)[0]!.id;
+      const result =
+        operation === "rename"
+          ? store.renameViewpoint(id, "Short")
+          : operation === "delete"
+            ? store.deleteViewpoint(id)
+            : operation === "move"
+              ? store.moveViewpoint(id, 1)
+              : store.addViewpoint("Added", camera);
+      expect(result.ok).toBe(true);
+      expect(views(store).some((view) => view.name.length === 121)).toBe(true);
+      expect(serializeProject(store.getSnapshot().project, kinds).ok).toBe(true);
+      expect(store.addViewpoint("y".repeat(121), camera).ok).toBe(false);
+      expect(store.renameViewpoint(views(store)[0]!.id, "y".repeat(121)).ok).toBe(false);
+    },
+  );
   it("shares chronological history with object edits and restores original IDs and order", () => {
     const store = setup();
     expect(store.addViewpoint("Entrance", camera).ok).toBe(true);

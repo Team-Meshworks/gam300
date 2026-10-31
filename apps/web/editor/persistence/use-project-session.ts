@@ -9,6 +9,7 @@ import type { RecoveryHistory } from "../recovery-history";
 import {
   loadLatestLocalDraft,
   loadRecoverySession,
+  getOlderRecoveryFiles,
   saveRecoverySession,
   type RecoverySession,
 } from "./local-drafts";
@@ -46,7 +47,7 @@ export function useProjectSession(
 ) {
   const kinds = useMemo(() => new Map(assets.map((asset) => [asset.id, asset.kind])), [assets]);
   const [operation, setOperation] = useState<Operation>("recover");
-  const [olderSceneFile, setOlderSceneFile] = useState<{ text: string; name: string } | null>(null);
+  const [olderSceneFiles, setOlderSceneFiles] = useState<{ text: string; name: string }[]>([]);
   const [fileName, setFileName] = useState("");
   const [savedJson, setSavedJson] = useState<string | null>(null);
   const [pristineProject, setPristineProject] = useState<ProjectDocument | null>(null);
@@ -242,6 +243,12 @@ export function useProjectSession(
           }
         }
 
+        const archives = await getOlderRecoveryFiles(kinds).catch(() => {
+          if (!cancelled) setError("Could not list older browser backups; stored copies were kept");
+          return [];
+        });
+        if (!cancelled) setOlderSceneFiles(archives);
+
         // Storage can finish after the student has already started another project
         // Leave that newer scene alone
         if (cancelled || recovered === null || store.getSnapshot() !== before) {
@@ -252,7 +259,7 @@ export function useProjectSession(
         if (recovered.document === null) {
           local.revision = recovered.revision;
           if (recovered.olderSceneFile) {
-            setOlderSceneFile(recovered.olderSceneFile);
+            setOlderSceneFiles([recovered.olderSceneFile, ...archives]);
             setNotice(
               "An older scene backup is available. Use Import older browser backup to convert it.",
             );
@@ -621,7 +628,7 @@ export function useProjectSession(
 
   return {
     operation,
-    olderSceneFile,
+    olderSceneFiles,
     fileName,
     dirty,
     fileFailed,

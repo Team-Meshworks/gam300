@@ -135,18 +135,20 @@ export function TopBar({
             >
               Import older scene file
             </button>
-            {session.olderSceneFile && (
+            {session.olderSceneFiles.map((file, index) => (
               <button
+                key={index}
                 type="button"
                 disabled={!ready || busy}
                 onClick={() => {
                   closeMenu();
-                  document.getElementById("older-recovery-import")?.click();
+                  document.getElementById(`older-recovery-import-${index}`)?.click();
                 }}
               >
                 Import older browser backup
+                {session.olderSceneFiles.length > 1 ? ` ${index + 1}: ${file.name}` : ""}
               </button>
-            )}
+            ))}
             {/* Ctrl+S clicks these two by id, so dont change the ids */}
             <button
               id="project-save"

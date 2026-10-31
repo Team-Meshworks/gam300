@@ -20,6 +20,7 @@ type ViewportProps = {
   assets: readonly CatalogueAsset[];
   objects: readonly SceneObject[];
   projectScene: ProjectScene | null;
+  loadGeneration: number;
   selectedId: string | null;
   dragging: boolean;
   editingEnabled: boolean;
@@ -42,6 +43,7 @@ export function Viewport({
   assets,
   objects,
   projectScene,
+  loadGeneration,
   selectedId,
   dragging,
   editingEnabled,
@@ -60,7 +62,14 @@ export function Viewport({
 }: ViewportProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<ReturnType<typeof initScene>>(undefined);
-  const snapshotRef = useRef({ objects, selectedId, projectScene, editingEnabled, navigationTool });
+  const snapshotRef = useRef({
+    objects,
+    selectedId,
+    projectScene,
+    loadGeneration,
+    editingEnabled,
+    navigationTool,
+  });
 
   useEffect(() => {
     const host = hostRef.current;
@@ -75,7 +84,12 @@ export function Viewport({
         const scene = initScene(host, assets, { onStatus, onThumbnail, onSelect, onTransform });
         sceneRef.current = scene;
         const current = snapshotRef.current;
-        scene?.update(current.objects, current.selectedId, current.projectScene);
+        scene?.update(
+          current.objects,
+          current.selectedId,
+          current.projectScene,
+          current.loadGeneration,
+        );
         scene?.setEditingEnabled(current.editingEnabled);
         scene?.setNavigationTool(current.navigationTool);
         if (scene !== undefined) {
@@ -98,11 +112,27 @@ export function Viewport({
   }, [assets, attempt, onStatus, onThumbnail, onSelect, onTransform, onManager, onCamera]);
 
   useEffect(() => {
-    snapshotRef.current = { objects, selectedId, projectScene, editingEnabled, navigationTool };
-    sceneRef.current?.update(objects, selectedId, projectScene);
+    snapshotRef.current = {
+      objects,
+      selectedId,
+      projectScene,
+      loadGeneration,
+      editingEnabled,
+      navigationTool,
+    };
+    sceneRef.current?.update(objects, selectedId, projectScene, loadGeneration);
     sceneRef.current?.setEditingEnabled(editingEnabled);
     sceneRef.current?.setNavigationTool(navigationTool);
-  }, [objects, selectedId, projectScene, editingEnabled, navigationTool, assets, attempt]);
+  }, [
+    objects,
+    selectedId,
+    projectScene,
+    loadGeneration,
+    editingEnabled,
+    navigationTool,
+    assets,
+    attempt,
+  ]);
 
   useEffect(() => {
     if (!dragging) {

@@ -374,6 +374,44 @@ export async function loadRecoverySession(
   return await getRecoverySession(assetKinds, new IndexedDBDraftDatabase());
 }
 
+export async function getOlderRecoveryFiles(
+  assetKinds: ReadonlyMap<string, string>,
+  database: IDraftDatabase = new IndexedDBDraftDatabase(),
+): Promise<{ text: string; name: string }[]> {
+  const connection = await database.getIndexedDB();
+  try {
+    return await new Promise((resolve, reject) => {
+      const files: { text: string; name: string }[] = [];
+      const tx = connection.transaction("session", "readonly");
+      const read = tx.objectStore("session").openCursor();
+      read.onsuccess = () => {
+        const cursor = read.result;
+        if (!cursor) return;
+        const raw: unknown = cursor.value;
+        if (
+          typeof cursor.primaryKey === "string" &&
+          cursor.primaryKey.startsWith("older-scene-backup:") &&
+          isRecord(raw) &&
+          typeof raw.document === "string" &&
+          readOlderSceneFile(raw.document, assetKinds).ok
+        ) {
+          files.push({
+            text: raw.document,
+            name:
+              typeof raw.fileName === "string" && raw.fileName ? raw.fileName : "older-scene.json",
+          });
+        }
+        cursor.continue();
+      };
+      tx.oncomplete = () => resolve(files);
+      tx.onabort = () => reject(tx.error);
+      tx.onerror = () => reject(tx.error);
+    });
+  } finally {
+    connection.close();
+  }
+}
+
 export async function getRecoverySession(
   assetKinds: ReadonlyMap<string, string>,
   database: IDraftDatabase,

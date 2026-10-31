@@ -10,12 +10,12 @@ type Pending = {
 };
 export function OlderSceneImport({
   assets,
-  olderSceneFile,
+  olderSceneFiles,
   onImport,
   onError,
 }: {
   assets: readonly CatalogueAsset[];
-  olderSceneFile?: { text: string; name: string } | null;
+  olderSceneFiles: readonly { text: string; name: string }[];
   onImport: (file: File) => Promise<void>;
   onError: (message: string) => void;
 }) {
@@ -29,9 +29,10 @@ export function OlderSceneImport({
   const kinds = new Map(assets.map((a) => [a.id, a.kind]));
   return (
     <>
-      {olderSceneFile && (
+      {olderSceneFiles.map((olderSceneFile, index) => (
         <button
-          id="older-recovery-import"
+          key={index}
+          id={`older-recovery-import-${index}`}
           hidden
           type="button"
           onClick={() => {
@@ -47,7 +48,7 @@ export function OlderSceneImport({
         >
           Import older browser backup
         </button>
-      )}
+      ))}
       <input
         id="older-scene-import"
         type="file"

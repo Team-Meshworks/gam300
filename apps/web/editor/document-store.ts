@@ -129,13 +129,22 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
   function notifyEdit() {
     editListeners.forEach((listener) => listener());
   }
+  let loadGeneration = 0;
   let snapshot: Readonly<{
+    loadGeneration: number;
     objects: readonly SceneObject[];
     project: ProjectDocument | null;
     activeSceneId: string | null;
     canUndo: boolean;
     canRedo: boolean;
-  }> = Object.freeze({ objects, project, activeSceneId: null, canUndo: false, canRedo: false });
+  }> = Object.freeze({
+    loadGeneration,
+    objects,
+    project,
+    activeSceneId: null,
+    canUndo: false,
+    canRedo: false,
+  });
 
   function replaceObjects(nextObjects: readonly SceneObject[]) {
     objects = nextObjects;
@@ -162,6 +171,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
 
   function publish() {
     snapshot = Object.freeze({
+      loadGeneration,
       objects,
       project,
       activeSceneId: state.activeSceneId,
@@ -196,8 +206,14 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
 
   function insertCopy(source: SceneObject, offset: number): ValidationResult<SceneObject> {
     // Attached components need their own stable ID and reference remapping
-    if (project?.schemaVersion === 2 && (source as ContentObject).components?.length) {
+    if ((source as ContentObject).components?.length) {
       return invalid("objectId", "This object's attached content cannot be copied safely");
+    }
+    if (
+      project?.schemaVersion !== 2 &&
+      ((source as ContentObject).parentId != null || (source as ContentObject).visible === false)
+    ) {
+      return invalid("objectId", "This object's hierarchy or visibility requires a v2 project");
     }
     const asset = assets.find((entry) => entry.id === source.assetId);
     if (
@@ -228,7 +244,6 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
 
     // Content-free copies retain their authored visibility and parent membership
     const object: SceneObject = Object.freeze({
-      ...source,
       id: crypto.randomUUID(),
       name: source.name,
       assetId: source.assetId,
@@ -261,8 +276,6 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
   function editViews(next: readonly NamedViewpoint[]): ValidationResult<true> {
     if (!project) return invalid("project", "Create a scene first");
     const scene = project.scenes.find((s) => s.id === state.activeSceneId)!;
-    if (next.some((v) => !v.name.trim() || v.name.length > 120))
-      return invalid("name", "Enter a viewpoint name between 1 and 120 characters");
     const content = toContentProject(project);
     const updated = { ...content.scenes.find((s) => s.id === scene.id)!, viewpoints: next };
     // The first capture supplies an initial camera; later ordering never changes it.
@@ -334,11 +347,13 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       if (!project) projectAssets = new Map(assets.map((a) => [a.id, a.kind]));
       if (!project) {
         // The first scene starts a document; there must always be at least one scene.
+        const upgradeObjects = (entries: readonly SceneObject[]): readonly ContentObject[] =>
+          entries.map((entry) => ({ ...entry, parentId: null, visible: true, components: [] }));
         const document: ProjectDocument = {
           schemaVersion: 2,
           projectId: createProjectId(),
           title: "Untitled project",
-          scenes: [scene],
+          scenes: [{ ...scene, objects: upgradeObjects(state.objects) }],
         };
         const checked = deserializeProject(JSON.stringify(document), projectAssets);
         if (!checked.ok) return checked;
@@ -349,7 +364,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
           fromProject(
             freezeProject({
               ...toContentProject(project!),
-              scenes: [{ ...scene, objects: entry.objects as readonly ContentObject[] }],
+              scenes: [{ ...scene, objects: upgradeObjects(entry.objects) }],
             }),
             scene.id,
           );
@@ -442,6 +457,8 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       );
     },
     addViewpoint(name: string, camera: CameraPose): ValidationResult<true> {
+      if (!name.trim() || name.trim().length > 120)
+        return invalid("name", "Enter a viewpoint name between 1 and 120 characters");
       const checked = validateCameraPose(camera, "camera");
       if (!checked.ok) return checked;
       return editViews([
@@ -450,6 +467,8 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       ]);
     },
     renameViewpoint(id: string, name: string): ValidationResult<true> {
+      if (!name.trim() || name.trim().length > 120)
+        return invalid("name", "Enter a viewpoint name between 1 and 120 characters");
       if (!state.viewpoints?.some((v) => v.id === id))
         return invalid("viewpoint", "This viewpoint no longer exists");
       return editViews(
@@ -693,6 +712,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       }
 
       // Publish only after both the document and optional recovery history have passed
+      loadGeneration++;
       project = loaded;
       clipboard = null;
       pasteCount = 0;

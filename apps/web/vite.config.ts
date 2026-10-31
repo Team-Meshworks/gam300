@@ -58,7 +58,10 @@ export default defineConfig(({ command, mode }) => {
         },
         output: {
           codeSplitting: {
-            groups: [{ name: "three-core", test: /[\\/]three[\\/]build[\\/]three\.core\.js$/ }],
+            groups: [
+              { name: "three-core", test: /[\\/]three[\\/]build[\\/]three\.core\.js$/ },
+              { name: "react", test: /[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/ },
+            ],
           },
         },
       },

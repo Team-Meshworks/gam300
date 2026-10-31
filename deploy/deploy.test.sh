@@ -33,7 +33,7 @@ case "$operation" in
     ;;
   down) rm -f -- "$FAKE_STATE/$APP_PORT" ;;
   logs) echo 'Simulated failed health check' ;;
-  stop) : ;;
+  stop) [[ "${FAKE_FAIL_STOP:-0}" == 0 ]] ;;
   exec)
     [[ "${FAKE_FAIL_BACKUP:-0}" == 0 ]]
     echo 'Simulated database backup'
@@ -92,12 +92,13 @@ if "${deploy[@]}" dev "$image" "$first" "$api" 'untrusted:latest'; then exit 1; 
 if "${deploy[@]}" dev "$image" "$first" "$api" "$migration"; then exit 1; fi
 
 export APP_URL=https://127.0.0.1:8082
-# Failed first server rollout restores the existing editor and keeps its release
+# Failed server rollout preserves the release record but never starts older binaries
 if FAKE_FAIL_API=1 "${deploy[@]}" dev "$image" "$first" "$api" "$migration"; then exit 1; fi
 grep -qx "REVISION=$third" "$DEPLOY_ROOT/development/current/.env"
-[[ "$(cat "$FAKE_STATE/8082")" == "$third" ]]
+[[ -f "$DEPLOY_ROOT/development/server-recovery-required" ]]
 
 "${deploy[@]}" dev "$image" "$first" "$api" "$migration"
+[[ ! -e "$DEPLOY_ROOT/development/server-recovery-required" ]]
 configuration="$DEPLOY_ROOT/development/current"
 grep -qx "API_IMAGE=$api" "$configuration/.env"
 grep -qx "MIGRATION_IMAGE=$migration" "$configuration/.env"
@@ -111,12 +112,38 @@ cp "$DEPLOY_ROOT/development/server.env" "$temporary/saved-server.env"
 # Failed backups leave the running release alone
 if FAKE_FAIL_BACKUP=1 "${deploy[@]}" dev "$image" "$second" "$api" "$migration"; then exit 1; fi
 [[ "$(cat "$FAKE_STATE/8082")" == "$first" ]]
+call_count=$(wc -l < "$FAKE_STATE/calls")
 if FAKE_SESSION_STATUS=200 "${deploy[@]}" dev "$image" "$second" "$api" "$migration"; then exit 1; fi
-[[ "$(cat "$FAKE_STATE/8082")" == "$first" ]]
-grep -q -- '--no-deps --wait --wait-timeout 90 web api gateway' "$FAKE_STATE/calls"
+if tail -n "+$((call_count + 1))" "$FAKE_STATE/calls" | grep -q -- '--no-deps --wait --wait-timeout 90 web api gateway'; then
+  echo 'FAIL: a failed server rollout restarted the old API against retained database state' >&2
+  exit 1
+fi
+[[ -f "$DEPLOY_ROOT/development/server-recovery-required" ]]
+call_count=$(wc -l < "$FAKE_STATE/calls")
+if "${deploy[@]}" dev "$image" "$first" "$api" "$migration"; then exit 1; fi
+[[ "$(wc -l < "$FAKE_STATE/calls")" == "$call_count" ]]
+# Recovery identity includes every image, not just its advertised commit
+different_api="ghcr.io/team-meshworks/gam300@sha256:$(printf 'd%.0s' {1..64})"
+if "${deploy[@]}" dev "$image" "$second" "$different_api" "$migration"; then exit 1; fi
+if "${deploy[@]}" dev "$image" "$second"; then exit 1; fi
+[[ "$(wc -l < "$FAKE_STATE/calls")" == "$call_count" ]]
+cp "$DEPLOY_ROOT/development/server-recovery-required" "$temporary/guard"
+printf 'damaged guard\n' > "$DEPLOY_ROOT/development/server-recovery-required"
+if "${deploy[@]}" dev "$image" "$second" "$api" "$migration"; then exit 1; fi
+[[ "$(wc -l < "$FAKE_STATE/calls")" == "$call_count" ]]
+cp "$temporary/guard" "$DEPLOY_ROOT/development/server-recovery-required"
+if FAKE_FAIL_PULL=1 "${deploy[@]}" dev "$image" "$second" "$api" "$migration"; then exit 1; fi
+cmp "$temporary/guard" "$DEPLOY_ROOT/development/server-recovery-required"
+# A Docker shutdown failure must report uncertainty and keep the recovery restriction
+if FAKE_FAIL_REVISION="$second" FAKE_FAIL_STOP=1 "${deploy[@]}" dev "$image" "$second" "$api" "$migration" > "$temporary/stop-failure.log" 2>&1; then exit 1; fi
+grep -q 'Could not confirm API/gateway shutdown' "$temporary/stop-failure.log"
+cmp "$temporary/guard" "$DEPLOY_ROOT/development/server-recovery-required"
+! grep -q -- '--no-deps --wait --wait-timeout 90 web api gateway' "$FAKE_STATE/calls"
+grep -q 'stop api gateway' "$FAKE_STATE/calls"
 grep -q 'Simulated database backup' "$DEPLOY_ROOT"/development/backups/*.dump
 
 "${deploy[@]}" dev "$image" "$second" "$api" "$migration"
+[[ ! -e "$DEPLOY_ROOT/development/server-recovery-required" ]]
 cmp "$temporary/saved-server.env" "$DEPLOY_ROOT/development/server.env"
 [[ "$(cat "$FAKE_STATE/8081")" == "$second" ]]
 export APP_URL=https://127.0.0.1:8081
@@ -127,4 +154,4 @@ if cmp -s "$DEPLOY_ROOT/development/server.env" "$DEPLOY_ROOT/production/server.
 [[ "$(cat "$FAKE_STATE/8082")" == "$second" ]]
 if "${deploy[@]}" main "$image" "$first"; then exit 1; fi
 [[ "$(cat "$FAKE_STATE/8081")" == "$third" ]]
-echo 'PASS: server image validation, private settings, API health, backups and runtime rollback without schema reversal'
+echo 'PASS: server validation, private settings, API health, backups and fail-closed guarded recovery'

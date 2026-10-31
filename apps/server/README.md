@@ -7,8 +7,9 @@ logout and current-password change to the existing CSRF bootstrap and three admi
 POSTs. [Accounts Part 7](#scrum-45-part-7-authorized-project-list-and-open) adds protected
 project list/open routes. The [backend follow-on](#scrum-6645-protected-save-and-project-lifecycle)
 adds PUT, create/duplicate, assignment and archive/reopen, for fifteen production routes.
-A parsed envelope remains untrusted until `ProjectSaveService` accepts it through
-the shared project validator, the packaged catalogue and current authorization.
+A parsed envelope remains untrusted: the service requires current authorization and
+the bounded envelope checks. New mutations also pass the shared project validator and
+packaged catalogue; a known exact retry is reconciled before mutable content validation.
 The [Part 5d boundary](#scrum-66-part-5d-validated-document-and-storage-boundary)
 is registered in the application and used by the read, save and creation routes.
 
@@ -34,6 +35,111 @@ Expected failures return fixed status/code/path/message data without authored
 content. Cancellation and stream I/O failures propagate, and the reader leaves the
 request body open. It does not emit an HTTP response or grant access.
 
+## Draft save retry contract
+
+Each save committed by the receipt-enabled server has a receipt keyed by project and
+`clientMutationId`, retained for the project's lifetime. It records the actor, original
+expected revision, request digest, committed revision and saved time. Document, revision
+and receipt commit in one transaction under the project-row lock used by assignment and
+archive writes.
+Current edit authorization and session checks apply before any replay or conflict is
+disclosed. Archive denies saves; a later reopen can replay if the actor has edit access.
+Receipts contain metadata and a digest, not another document; storage grows with each
+successful save and there is no automatic expiry.
+
+An exact retry returns its original `{projectId,revision,clientMutationId,savedAt}`
+acknowledgement without writing another revision, even after newer saves or metadata
+changes. That acknowledgement confirms the original commit; it does not assert that
+its revision is still current. Reusing an accepted project mutation ID with a different
+actor, original expected revision or original document representation returns an
+authorized 409. A known exact receipt is checked before mutable document/catalogue
+validation, after bounded envelope parsing and current authorization. Unknown IDs
+still undergo full validation and require the current revision. Keep the exact pending
+JSON and ID after an uncertain outcome; whitespace, key order, escapes and numeric
+spelling are part of the server-derived [retry digest](#scrum-66-part-5d-validated-document-and-storage-boundary).
+
+Migration `20261029122111_AddProjectSaveReceipts` backfills only the latest populated
+legacy mutation slot, deriving its expected revision as the stored revision minus one.
+It cannot reconstruct older or cleared slots. A populated slot at revision zero violates
+the receipt constraint and rolls back the migration instead of being silently skipped;
+investigate such data before retrying. Receipts are authoritative for replay; the legacy
+latest fields remain, and metadata changes may clear them without deleting receipts.
+Do not allow older server binaries to write during or after migration: mixed-version
+writers can bypass the receipt table. Downgrading the schema drops receipts and loses
+their retry history. Review a coordinated write boundary and data provenance before any
+rollout; this implementation does not establish a deployed migration or erase old data.
+
+### Receipt verification — 29 October 2026
+
+On the receipt working tree based on `29e81ff`, the real PostgreSQL 18.6 full repeat
+passed **557/557**, zero skipped, in **3m10.498s**. Earlier targeted tests failed against
+the latest-only implementation, then 12 historical route/lifecycle cases and 14 receipt
+cases passed after the change. Both full runs passed all 51 persistence cases after
+correcting two test expectations from foreign-key violation to restrict violation.
+The first full run passed 556/557; a test-only cookie-minting failure occurred before
+the save, with cause undetermined. A sandboxed rerun executed zero tests because named
+pipe IPC was denied; the unchanged five-case normal rerun passed 5/5. No code changed
+between the full runs.
+
+The guarded cold API and PostgreSQL restart passed in **21.964s**. Save A committed
+revision 2 and B committed revision 3 with different content. After restart an exact A
+retry returned its original acknowledgement without changing B. Changed reuse of A
+returned 409; a fresh authorized Creator reopened B with its revision, content and saved time.
+Existing session, storage and account lifecycle checks also passed. The nonsecret
+result and test reports are local ignored artifacts under `.artifacts/`; they are not
+part of the repository. This is backend verification, not client autosave integration,
+deployed migration or parent acceptance.
+
+### Bounded review and legacy retry decision — 31 October 2026
+
+**What this change does:** [PR #28](https://github.com/Team-Meshworks/gam300/pull/28)
+stores a receipt for each accepted save so a matching retry can return the original
+acknowledgement after later revisions. Current authorization still controls replay;
+the receipt, revision and document commit together.
+
+The review compared head `6efd9f0c1804f6f34ea4465493eec2e3bf023a85` with
+`29e81ff763243a048fc73dd340a2cb7dbd1d34ce` and found **no confirmed actionable
+defect** in this backend slice. The [bounded endpoint](Spatia.Server/Projects/ProjectSaveEndpoints.cs)
+passes the parsed request to the [save service](Spatia.Server/Projects/ProjectSaveService.cs),
+which locks and reauthorizes before looking up a receipt. The [policy](Spatia.Server/Projects/ProjectSavePolicy.cs)
+compares actor, expected revision and request digest; the [writer](Spatia.Server/Projects/ProjectSaveWriter.cs)
+stages the document and receipt in the caller's transaction. The
+[migration](Spatia.Server/Persistence/Migrations/20261029122111_AddProjectSaveReceipts.cs),
+model constraints, lifecycle callers and rollback paths were also reviewed.
+
+[CI run 76](https://github.com/Team-Meshworks/gam300/actions/runs/40886048672)
+passed its server job on PostgreSQL 18.6 with 557 tests, none failed or skipped.
+The [endpoint tests](tests/ProjectSaveEndpointTests.cs) cover historical retries,
+access denial, concurrent saves and receipt/commit failures. The [persistence tests](tests/ProjectPersistenceTests.cs)
+verify fresh migration, backfilled fields and invalid legacy-row rollback. They do
+not establish a single old-server save → migration → HTTP retry run. The cold restart
+and fresh-browser API result above is a separate earlier local record; no tests were
+rerun for this review. The assumed load is a classroom pilot with concurrent editors;
+no numerical capacity target or throughput measurement was available. Receipt metadata
+grows with every accepted save and has no automatic expiry.
+
+**Decision required before relying on the upgrade:** the SCRUM-66 owner and the
+data/rollout owner must decide whether the documented legacy boundary is acceptable
+for any real pre-upgrade data. The migration recovers only the latest populated
+legacy slot. For a forgotten older ID, an authorized retry at its old revision
+cannot be reconciled: it conflicts if the document is still valid, or can fail
+validation first. Reuse with the current revision can be treated as a new valid
+mutation. None of these outcomes proves whether the original save committed.
+
+- If no required historical retry depends on missing records, explicitly accept the
+  project-lifetime receipt guarantee from the receipt-enabled server and the limited
+  backfill for earlier saves. Confirm the treatment of any uncertain legacy saves.
+- If earlier receipts must be recoverable, the existing latest-only fields cannot
+  reconstruct them. Keep that acceptance open and identify an authoritative source
+  or agreed reconciliation path; do not fabricate missing acknowledgements.
+
+The rollout owner must also define a coordinated write boundary that prevents old
+and new writers from overlapping, and a rollback/restore approach that accounts for
+older binaries bypassing receipts and schema downgrade dropping receipt history.
+These are open decisions, not evidence that a rollout or legacy-data assessment has
+occurred. The backend slice is ready for review; SCRUM-50 format and SCRUM-67/126
+client integration remain separate from it and from parent-story acceptance.
+
 ## Toolchain and checks
 
 Install .NET SDK **10.0.401**. `global.json` disables SDK roll-forward and selects
@@ -50,6 +156,19 @@ reports are retained as `server-checks-<commit>`. The bootstrap process tests us
 server assembly referenced by the running test build, including Debug builds. The
 standalone cold-restart acceptance below still targets an explicitly prebuilt Release
 application and is not part of the CI job.
+
+The full suite includes `ProxyChainTests`, which starts two Caddy processes and a
+local ASP.NET test host. Provide the pinned Caddy **2.11.4** executable through
+`CADDY_BINARY` (or as `caddy` on `PATH`) and Node 24.19.0 on `PATH`;
+`SPATIA_TEST_NODE` may specify the Node executable instead. CI extracts Caddy from
+the pinned image. The filtered proxy test uses anonymous test-only endpoints and
+does not require PostgreSQL:
+
+```sh
+dotnet test --project tests/Spatia.Server.Tests.csproj -c Release --no-build -- --minimum-expected-tests 1 --treenode-filter '/*/*/ProxyChainTests/*'
+```
+
+This local loopback test does not establish Linux Docker bridge or VM behavior.
 
 The build checks both projects with nullable analysis, style enforcement and warnings
 as errors. The minimum-test option is passed to the test module after `--`, so skipped
@@ -1038,6 +1157,9 @@ parent acceptance criteria.
 
 ## SCRUM-66 Part 5a: revision and retry decisions
 
+The following Part 5a–5c sections are historical checkpoint notes. Their latest-only
+retry behavior and future-work descriptions are superseded by the [current contract](#draft-save-retry-contract).
+
 `ProjectSavePolicy.Decide` implements the document-independent revision and
 latest-mutation rules. It takes an existing `ProjectAccessSnapshot`, expected
 revision, mutation ID and an opaque 32-byte request digest. It returns
@@ -1432,6 +1554,9 @@ shared-format integration and saved-project restart/browser acceptance were stil
 
 ## SCRUM-66 Part 5d: validated document and storage boundary
 
+This section records the Part 5d checkpoint. Its validation-before-retry ordering is
+superseded by the [current contract](#draft-save-retry-contract); the digest framing remains in use.
+
 `ProjectSaveService.SaveAsync(context, projectId, envelope, cancellationToken)` now
 owns validation and digest creation. It accepts no caller-supplied schema version or
 digest. After obtaining the existing `EditDraft` lock and current account authority,
@@ -1600,6 +1725,15 @@ Protected asset delivery and the SCRUM-126/SCRUM-67 frontend work remain separat
 
 ## SCRUM-66/45: protected save and project lifecycle
 
+The current SCRUM-69/SCRUM-71
+[lifecycle and publication-access handoff](../../docs/project-lifecycle-publication-access.md)
+consolidates the implemented API/error contract, the publication-effects matrix,
+open policy decisions and acceptance evidence. It records SCRUM-71's archive/reopen
+confirmation and the discussion agreement on authenticated audiences and publication
+management, separately from remaining proposals. The historical checks below establish
+the direct-project backend, not completion of class, publication-access or
+unsaved-editor recovery integration.
+
 The production PUT now connects `SaveEnvelopeReader`, `ProjectSaveService` and
 `ProjectHttpResults` under FullAccount, CSRF and the 6 MiB request limit. It returns
 only committed save acknowledgements. Existing transport/security tests now exercise
@@ -1647,7 +1781,8 @@ accounts produce fixed `422 invalid_project_assignments`; foreign/inaccessible p
 IDs remain indistinguishable from missing ones.
 
 Each successful metadata request advances the common revision/time and clears all
-three remembered-save fields, even when the requested archive state is unchanged.
+three legacy remembered-save fields, even when the requested archive state is unchanged;
+durable save receipts remain.
 Stale requests return an authorized 409, and maximum revisions reject metadata changes.
 The source at maximum revision can still be duplicated into a new revision-0 project.
 Archived projects retain permitted reads/management, but saves, duplication, assignment
@@ -1656,15 +1791,18 @@ assignments. Metadata operations never replace or erase the document.
 
 Creation/duplication have no idempotency key; an uncertain response requires inspecting
 the project list before making another copy. Metadata uncertainty requires reopening
-before selecting a new revision. PUT retains its exact-latest retry protocol. Every
+before selecting a new revision. PUT uses the [durable retry contract](#draft-save-retry-contract). Every
 operation checks the original session cutoff before and after commit; a failure after
 commit can be durable without an acknowledgement.
 
-Publication storage/delivery is not implemented in this slice. Its defined policy is
-to deny archived-project publication/asset retrieval without erasing snapshots. Reopen
-removes only that restriction and does not undo independent revocation/audience policy.
-The future publication consumer must check the existing archive flag. This is a policy
-handoff, not evidence of publication integration.
+Publication storage/delivery is not implemented in this slice. The existing backend
+handoff is to deny archived-project publication/asset retrieval without erasing
+snapshots; reopening removes only that restriction and does not undo independent
+revocation/audience policy. The [shared effects matrix](../../docs/project-lifecycle-publication-access.md#shared-publication-access-effects-matrix)
+records SCRUM-71's confirmation of that rule and the agreed authenticated audience
+and project-scoped management rules. Public/unlisted link continuity, request cutoff,
+class provenance and retention still require owner decisions. The agreements are not
+evidence of publication integration.
 
 Focused verification on **26 October 2026** passed **8/8** PUT route cases, **13/13**
 production transport/security cases, **21/21** lifecycle cases and the **15-route**
@@ -1703,6 +1841,351 @@ and zero public tables), with no HTTPS/restart temporary directories. The exact 
 container was returned to its original stopped state, retaining its original volume;
 Docker Desktop stayed as found. The earlier 439-file evidence archive remained intact.
 
+## SCRUM-161 part 1: classes and rosters
+
+The class foundation stores classes and retained educator/student memberships in
+PostgreSQL, separate from authored project JSON. A classroom belongs to one active
+organization when created. Database foreign keys bind each member to that same
+organization and the member's existing Identity role. Removal marks a membership
+inactive rather than deleting its history.
+
+`POST /api/classes` creates a class with a bounded `name`, optional `orgId` and
+optional `managedByUserIds`. An educator's organization is derived from the current
+account and that educator becomes a manager. An administrator supplies an active
+organization and may select active educators in it. The response contains the new
+class ID, organization ID and name. Class creation is not idempotent; reconcile an
+uncertain response before retrying.
+
+`GET /api/classes` and `GET /api/classes/{id}` expose classes only to current
+managers, active enrolled students or an administrator. Only managers and
+administrators can read `/roster` and `/eligible-students`. The latter returns
+active creators in the class organization and whether each is enrolled. List routes
+use an exclusive UUID `cursor`, default `limit=10` and maximum `limit=20`.
+
+`PUT /api/classes/{id}/members/{userId}` adds or reactivates an active educator or
+creator from the class organization. `DELETE` on the same route deactivates the
+membership; both operations are idempotent. Writes lock the class row and recheck
+the caller's current authority after waiting. Unknown or unauthorized class IDs
+return `class_not_found`; invalid member choices return `invalid_class_members`.
+These routes require a full account, CSRF protection for writes and the existing
+account-write rate limit.
+
+This part does not create assignments or student drafts. Later SCRUM-161 work must
+keep roster changes and affected drafts consistent under the shared project lock.
+The selected deadline policy is an absolute Unix timestamp entered and displayed in
+each user's device time. Copy/import provenance and how an unknown origin affects
+publication are deferred until a dedicated project file format is defined. Those
+assignment, provenance, review and publication integrations are not provided by
+these roster routes.
+
+On 29 October 2026 the focused class suite passed 8/8 cases, the route inventory,
+migration-schema comparison and Identity-to-current upgrade checks each passed,
+and the Release build, EF model check and both project formatting checks passed.
+The complete server suite and restart acceptance remain for the final integration.
+
+## SCRUM-161 part 2: shared draft creation
+
+The existing project lifecycle now stages validated drafts and their initial
+assignments inside a caller-owned read-committed transaction. The caller retains
+commit and rollback control, so a later class batch can reuse the same document
+validation and insertion path. The ordinary create and duplicate routes retain
+their current authority and response behavior.
+
+On 29 October 2026 both staging cases passed for the two supported project
+formats, all 21 existing lifecycle cases passed, and the Release build and both
+formatting checks passed. Assignment batch integration remains to be implemented.
+
+## SCRUM-161 part 3: assignment and provenance storage
+
+Assignment metadata stores the title, description, instructions and an absolute
+deadline as integer Unix seconds. Clients enter and display that instant in their
+own device's local time; the server does not store a class time zone. The supported
+range matches `DateTimeOffset.FromUnixTimeSeconds`. The selected deadline is the
+chosen instant, rather than the end of a calendar day; SCRUM-164 owns submission
+behavior at or after that cutoff. Assignment and student-project mappings are
+server-owned and kept outside the authored project document.
+
+The database ties each mapping to the assignment's class and organization, an
+enrolled Creator-role account and a project in the same organization. A project
+origin can be recorded as ordinary or as class work tied to a retained student
+mapping. A missing origin record means unverified, including existing projects
+whose creation history cannot be established. The policy for copies, imports and
+other unverified content is deferred until a dedicated project file format is
+defined. The storage alone does not create assignments, classify existing projects
+or enforce the review/publication policy; SCRUM-164 and SCRUM-85 own those consumers.
+The project/organization composite foreign keys are declared in the migration
+alongside EF's single-project relationships, so tracked ordinary projects retain
+their existing update behavior. Future migrations must preserve those constraints.
+
+On 29 October 2026 seven focused PostgreSQL cases passed, including timestamp
+bounds and invalid mappings. The migration-schema comparison, Identity-to-current
+upgrade, Release build, EF model check and both formatting checks also passed.
+
+## SCRUM-161 part 4: assignment request validation
+
+An assignment creation request has a stable request UUID, source project and
+revision, Unix-second deadline, required title/description/instructions and one
+to twenty distinct student IDs. Text must be nonblank, contain no NUL or unpaired
+UTF-16 surrogate, and the title is limited to 256 characters. The host's request
+limit bounds the complete body.
+
+The server-derived SHA-256 retry digest binds the class, actor, request ID,
+source, metadata and student set. Reordering the same students does not change
+the digest; changing the actor or content does. This validation does not grant
+authority or create an assignment.
+The two focused request-validation and retry-digest cases passed on 29 October 2026.
+
+## SCRUM-161 part 5: assignment transaction
+
+An internal coordinator locks and reauthorizes the class and source project,
+checks the current roster and source revision, then creates at most twenty
+independent student drafts, their assignment mappings and server-known class
+origins in one transaction. A failure before commit rolls the entire batch back.
+If the commit succeeds but its response is lost, retrying the identical request ID
+returns the original draft IDs; reusing it with changed details returns a conflict.
+Assignment metadata remains outside project JSON.
+
+`POST /api/classes/{id}/assignments` exposes this coordinator to an authorized
+class manager or administrator. It accepts `requestId`, `sourceProjectId`,
+`sourceRevision`, `dueAtUnixSeconds`, `title`, `description`, `instructions` and
+`studentIds`. A source project in the same organization must be manageable by the
+caller. The request uses the host's 16 KiB limit and the normal full-account,
+CSRF and write-rate boundaries. A new batch returns 201; an identical committed
+retry returns 200 with the original mapping. Changed intent for a request ID
+returns 409. Invalid or ineligible input creates no partial assignment.
+For a new template, create a source with the existing project lifecycle first;
+an assignment failure never removes that source project.
+
+Copy/import origin policy remains deferred to M3's SCRUM-173. SCRUM-164 and
+SCRUM-85 own the review and publication integrations; this route does not claim
+to enforce either. The independent draft, retry and roster checks run against
+this production route. Fourteen focused assignment cases, the production-route
+inventory, the Release build and both formatting checks passed on 30 October 2026.
+
+`GET /api/classes/{id}/assignments` lists visible assignments using an exclusive
+UUID `cursor`, default `limit=10` and maximum `limit=20`. `GET` on
+`/api/classes/{id}/assignments/{assignmentId}` returns one visible assignment.
+Each result includes its title, description, instructions, Unix-second deadline
+and visible student/project mappings; source projects and request digests are not
+returned. Students see only their own mapped project when their edit grant and
+class membership are current. Educators see only projects for which they retain a
+manage grant and active class membership; administrators retain existing access.
+An inaccessible assignment returns `class_assignment_not_found`. Reads use one
+consistent database snapshot, the shared project-visibility query and
+`Cache-Control: no-store`.
+Three focused read cases covered grant and roster filtering, pagination and
+preservation of the same Unix instant across device offsets and adjacent seconds.
+The server-restart, eight roster, route-inventory, Release-build and formatting
+checks also passed on 30 October 2026. These checks do not implement or validate
+the editor's actual local-time conversion or the submission cutoff.
+
+## SCRUM-161 part 6: class membership and draft access
+
+For a server-created student draft with a retained assignment mapping, project
+reads and writes require both the existing project grant and current class
+membership. A student can access only their own mapped draft; an educator must
+still be a manager of its class. Administrators retain their existing access.
+Ordinary projects use their existing permission rules. Removing a member preserves
+the drafts and project grants; re-adding that member restores only grants that
+still exist. Adding a new class manager does not create project grants.
+The project assignment endpoint rejects attempts to give a class draft to a
+different student. Its original student's grant may be removed and restored
+without moving the draft or changing its class-origin mapping.
+
+Removal locks the class first, then the affected original student projects in
+project-ID order, and rechecks the caller after waiting. A project write already
+holding its lock finishes before removal; a write that waits behind removal
+rechecks membership and is denied. Removing an educator waits for every mapped
+project in that class, so the transaction grows with the number of drafts.
+This protects known original drafts only; copy/import policy remains deferred.
+Three focused access and concurrency cases passed on 29 October 2026, along with
+the Release build and both formatting checks. The original-student assignment
+rule and the 21 project-lifecycle regression cases passed on 30 October 2026.
+
+## SCRUM-161 part 7: restart and reassignment evidence
+
+The assignment storage and independent drafts were checked after stopping the
+server and starting a fresh instance against the same database. Two additional
+cases exercised project-assignment replacement racing with class removal in both
+orders. The original draft, revision and class mapping survived; re-adding a
+student did not restore a project grant that had separately been removed. All
+three cases passed on 29 October 2026. Client-side local-time conversion and
+copy/import policy remain pending.
+
+Before exposing the assignment creation route, the complete server run passed
+563 of 565 cases; the two browser cases could not find Playwright in this worktree.
+Both passed on a separate rerun using the local Playwright/Chromium cache and an
+existing browser-output directory. The rerun used Node 24.19.0 and Chromium
+153.0.8010.12. No application code changed between those two runs.
+
+## SCRUM-161 M2 acceptance check
+
+* Class and roster APIs authorize current accounts, limit results and student
+  selection to the class organization, and retain removed memberships.
+* Assignment creation validates required metadata, stores integer Unix seconds
+  and atomically creates independent drafts from a manageable source project.
+  Identical retries return the committed mappings; failures leave no partial batch.
+* Student and educator reads use current class membership and the shared project
+  grants. Tests cover cross-organization input, direct-ID denial, roster and
+  reassignment races, distinct drafts and a server restart.
+* Metadata and class mapping stay outside authored project JSON. Ordinary project
+  creation uses the existing lifecycle path and has not gained new requirements.
+* The backend preserves the selected instant without an end-of-day conversion.
+  SCRUM-162 owns device-local entry and display; SCRUM-164 owns submission cutoff
+  and review behavior. SCRUM-173 owns the deferred file-origin policy.
+
+On 30 October 2026 the complete server suite passed 570 tests with no failures or
+skips, including both browser checks. The Release build and server/test formatting
+checks passed.
+
+On 30 October 2026 the backend was also tested together with the exact draft
+publication PR #27 head `5acec3242446f35e57a8169c1b5a01c5eeca1b8b`. The two
+branches conflict in the EF model snapshot; the disposable combined workspace
+used a regenerated snapshot and had no pending model changes. A fresh database,
+an upgrade from publication-first with an existing edition, and an upgrade from
+class-first with existing mappings all passed. The combined class and publication
+regressions passed 171 cases. The unavailable publication integration rejected a
+known class draft and created no edition. At that point SCRUM-164 review and the production
+publication adapter were not implemented, so that run did not verify approval or
+publication of a reviewed assignment.
+
+A separate SCRUM-162 local integration connected the creation, assignment-list
+and detail screens to this backend in a disposable browser/server test. It
+verified two student drafts, direct access denial between students, a lost
+response retried across tabs with one committed assignment, and local deadline
+display in Singapore and New York. The screens still need the SCRUM-126 host and
+SCRUM-67 navigation coordination before they are reachable in production.
+
 SCRUM-126 project-home UI, SCRUM-67 autosave/recovery integration, publication/asset
 delivery, hosted CI and deployment remain separate. Production still has no approved
 asset catalogue. These backend checks do not complete parent Story/Epic acceptance.
+
+### SCRUM-161 backend review, 30 October 2026
+
+The live Jira criteria were refreshed and still specify backend class/roster access,
+server-owned assignment metadata, independent drafts, bounded retry/failure behavior,
+restart persistence and preservation of each draft's original student. Device-local UI,
+submission/review behavior and deferred file-origin policy remain with SCRUM-162,
+SCRUM-164 and SCRUM-173 respectively.
+
+The GitHub comparison confirmed `dev` is still `29e81ff763243a048fc73dd340a2cb7dbd1d34ce`.
+Publication PR #27 remains an open draft at `5acec3242446f35e57a8169c1b5a01c5eeca1b8b`.
+Local Git fetch could not authenticate, so these read-only GitHub checks established
+remote freshness without changing the feature branch or publishing anything.
+
+Two backend acceptance tests now verify a full 20-student batch, rejection of a
+21-student request before any write, and replay after an exception following the
+actual database commit. The latter checks the durable draft IDs before retrying;
+both cases prove that replay preserves the original independent drafts and grants.
+All nine assignment coordinator cases passed, with no failures or skips. Locked
+restore, the Release build and test formatting checks passed. Application behavior
+was unchanged; the review added regression evidence rather than another feature.
+
+The acceptance review maps the current Jira requirements to these existing checks:
+
+| SCRUM-161 requirement | Verification |
+| --- | --- |
+| Authorized classes, rosters and eligible students | `ClassroomEndpointTests`: current roles, same-organization selection, pagination, removal history and authorization after waiting for a class lock. |
+| Required assignment metadata and exact Unix-second deadline | `ClassAssignmentIntentTests`, `ClassAssignmentPersistenceTests` and `AssignmentReads_UnixSecondsPreserveInstantsAcrossOffsetsAndAdjacentSeconds`: request/database bounds, required fields and unchanged instants. |
+| Independent editable drafts and bounded failure/retry behavior | `AssignmentCoordinator_*`: distinct projects and grants, all-or-nothing rollback, concurrent retries, stale source rejection, 20-student boundary and lost commit acknowledgement. |
+| Current student ownership without losing existing work | `AssignmentAccess_*`: cross-student transfer rejection, grant removal/restoration, roster races and preservation of content, revision and mappings. |
+| Persistence after server restart | `AssignmentPersistence_ServerRestartRetainsRosterMetadataAndIndependentDrafts`: a fresh application instance reads the saved class, assignment and independent drafts. |
+| Server-owned metadata outside project JSON; ordinary creation unchanged | `ClassAssignmentDatabase_MetadataAndClassOriginPersistOutsideProjectJson`, `ProjectDraftStagingTests` and `ProjectLifecycleTests`. |
+
+Blockers were checked before the scope review, backend tests and migration review.
+The refreshed issue has no blocking issue links or comments. Its required Identity,
+project lifecycle/revision services and locks are available on the verified `dev`
+base; .NET 10, pinned dependencies and the guarded disposable PostgreSQL fixture
+are available locally. No additional SCRUM-161 feature was identified.
+
+The new disposable worktree `.artifacts/scrum161-review-publication` combines
+`072d191` with publication PR #27's exact head for compatibility checks only.
+The application code merged without conflicts. The README and EF snapshot require
+resolution when these branches are integrated. The snapshot was regenerated from
+the combined model; the temporary scaffold migration was removed because the
+publication migration already creates that schema. Both standalone and combined
+models report no pending changes. Neither this test merge nor its publication code
+was added to the SCRUM-161 feature branch.
+
+All four compatibility cases passed: a fresh database, publication-first upgrade
+preserving an existing edition, class-first upgrade preserving its draft/mapping,
+and rejection of a known class draft when publication approval is unavailable.
+The upgrade tests use real migrations and isolated schemas in the disposable test
+database. Their harness and resolved snapshot remain in the disposable worktree.
+Future integration must preserve the organization constraints installed by
+`PreserveProjectOrganizationUpdates`, including the composite foreign keys that
+are deliberately maintained outside EF's alternate-key model.
+
+The combined class and assignment regression run also passed all 39 cases, with
+no failures or skips. Local TRX/HTML evidence is under
+`.artifacts/scrum161-test-results/review-20261030-compatibility` and
+`.artifacts/scrum161-test-results/review-20261030-combined-class`.
+
+The final standalone server run passed all 573 tests with no failures or skips,
+including both browser boundary checks. Its TRX/HTML evidence is under
+`.artifacts/scrum161-test-results/review-20261030-full`. The changed-test formatting
+check, locked restore, Release builds and scoped Git whitespace checks passed.
+
+SCRUM-161's backend criteria are implemented and verified locally, with no known
+remaining in-scope feature or unresolved development blocker. The verified `dev`
+commit is already an ancestor, so no new `dev` merge is needed for this review.
+The remaining step for this branch is code review and eventual integration, which
+has not been published. Hosted CI, deployment, frontend work and other Jira tasks
+were not part of this pass; no Jira status, PR or remote branch was changed.
+
+## SCRUM-164: private review evidence foundation
+
+Review submissions retain a document snapshot, the exact source revision, the
+student-to-project mapping, immutable asset identities and the due instant that
+applied at submission. A submission exactly at that instant is on time; later
+submissions are late, not rejected. Educator decisions are append-only, and the
+database rejects changes to stored evidence. Migration rollback refuses to discard
+existing review records. Writers must validate the document and resolve trusted
+asset identities before insertion. The storage foundation does not itself approve
+publication.
+
+`ReviewApproval.CheckLockedAsync` is the review handoff for a publisher that has
+already reauthorized the actor and acquired the project lock. It also confirms
+the current project revision under that lock. Known class drafts require an
+approval on the latest submission of that exact revision; a later submission,
+return, revocation or project revision removes eligibility for a new publication.
+An unmapped project returns unverified origin rather than an ordinary-project
+exemption. Existing published editions are not changed by this check.
+
+`POST /api/projects/{id}/submissions` accepts a student-confirmed saved revision
+and a unique submission ID. It stores the saved document and its deadline under
+the project lock. An identical retry returns the original submission; changed
+intent or a stale revision is rejected. The response includes the recorded due
+instant and whether the server recorded the submission after it. Only the mapped
+student with current access can submit. The default asset resolver rejects the
+request until the asset owner can supply approved, retained immutable bytes and
+their identities. Publication integration remains separate.
+
+Authorized students and educators can list private submissions and retrieve the
+saved document, asset identities and decision history through the corresponding
+GET routes. Lists use an exclusive UUID cursor and a maximum page size of 20.
+The detail response reports the latest decision and whether the submission is
+the latest one for the current project revision; old approvals are history only.
+An educator with current class membership and project management authority can
+approve or return the current submission. An approval can also be revoked or
+returned; after either, the student must submit again before another decision.
+Identical decision retries return the stored result. The project lock serializes
+submission, decision, draft edits and membership or grant changes. Changes to
+the draft or a later submission remove review approval for a future publication,
+without modifying existing published editions. Administrators gain no separate
+review authority. New writes recheck account authority before commit. The
+publisher must still enforce its own authorization and consume the review check;
+it is not connected by these routes.
+
+A disposable integration with draft publication PR #27 at `5acec324` regenerated
+the combined EF snapshot and found no pending model changes. Fresh databases and
+both upgrade orders passed, preserving an existing edition or review evidence.
+A test-only adapter denied unverified and unapproved work, published a currently
+approved revision and left its edition unchanged after later review changes.
+This does not enable production publication or supply its audience or asset policy.
+The database context, EF snapshot and this guide need conflict resolution when
+the feature branches are actually integrated.
+
+The complete local server suite passed 612 tests with no failures or skips,
+including the browser checks. The Release build, both formatting checks and the
+review branch's EF pending-model check also passed.
