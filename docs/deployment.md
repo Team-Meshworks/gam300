@@ -122,8 +122,8 @@ Vite during the Docker build; they import source modules that Caddy must not ser
 ## What CI does
 
 `.github/workflows/ci.yml` runs automatically on pushes to `main` or `dev`.
-It also supports `workflow_dispatch` on those branches. PRs do not trigger runs
-and manual runs on other branches skip all jobs. It restores LFS and
+Manual `workflow_dispatch` also runs validation on other branches; PRs do not
+trigger runs. Only `main` and `dev` runs publish an image. CI restores LFS and
 locked dependencies; checks formatting, lint, asset
 integrity, deployment isolation/rollback and unit tests; builds the image; and runs the
 authoring and recovery/file checks against Vite's development server and deployment checks against the
