@@ -44,6 +44,14 @@ export function captureRecoveryHistory(
   states: { past: Objects[]; future: Objects[] },
   views?: { past: (readonly NamedViewpoint[])[]; future: (readonly NamedViewpoint[])[] },
 ): RecoveryHistory {
+  return trimRecoveryHistory(createRecoveryHistory(project, states, views));
+}
+
+function createRecoveryHistory(
+  project: ProjectDocument,
+  states: { past: Objects[]; future: Objects[] },
+  views?: { past: (readonly NamedViewpoint[])[]; future: (readonly NamedViewpoint[])[] },
+): RecoveryHistory {
   const scene = project.scenes[0]!;
   const result: RecoveryHistory = {
     version: 1,
@@ -63,20 +71,51 @@ export function captureRecoveryHistory(
     future: [...states.future],
   };
 
-  // Keep the closest edits when a large project exceeds the recovery budget
-  const past = result.past as Objects[];
-  const future = result.future as Objects[];
-  while (
-    new TextEncoder().encode(JSON.stringify(result)).byteLength > MAX_HISTORY_BYTES &&
-    past.length + future.length > 0
-  ) {
-    if (past.length >= future.length) {
-      past.pop();
-      (result.views?.past as unknown[] | undefined)?.pop();
-    } else {
-      future.pop();
-      (result.views?.future as unknown[] | undefined)?.pop();
+  return result;
+}
+
+function trimRecoveryHistory(result: RecoveryHistory): RecoveryHistory {
+  const encoder = new TextEncoder();
+  const sizes = new WeakMap<object, number>();
+  function size(value: object): number {
+    let bytes = sizes.get(value);
+    if (bytes === undefined) {
+      bytes = encoder.encode(JSON.stringify(value)).byteLength;
+      sizes.set(value, bytes);
     }
+    return bytes;
+  }
+  // Measure the fixed envelope and each immutable snapshot once, including UTF-8 bytes
+  // Each nonempty JSON array adds one comma between adjacent items
+  let bytes = size({
+    ...result,
+    past: [],
+    future: [],
+    ...(result.views ? { views: { ...result.views, past: [], future: [] } } : {}),
+    ...(result.documents ? { documents: { ...result.documents, past: [], future: [] } } : {}),
+  });
+  const groups = [
+    result,
+    ...(result.views ? [result.views] : []),
+    ...(result.documents ? [result.documents] : []),
+  ];
+  const costs = { past: [] as number[], future: [] as number[] };
+  for (const side of ["past", "future"] as const) {
+    for (const group of groups) {
+      bytes += Math.max(0, group[side].length - 1);
+      group[side].forEach((item, index) => {
+        const itemBytes = size(item);
+        bytes += itemBytes;
+        costs[side][index] = (costs[side][index] ?? 0) + itemBytes;
+      });
+    }
+  }
+  // Pop only copied lists, preserving the closest edits and synchronized compatibility data
+  while (bytes > MAX_HISTORY_BYTES && result.past.length + result.future.length > 0) {
+    const side = result.past.length >= result.future.length ? "past" : "future";
+    const length = result[side].length;
+    bytes -= costs[side].pop()! + (length > 1 ? groups.length : 0);
+    for (const group of groups) (group[side] as unknown[]).pop();
   }
   return result;
 }
@@ -351,32 +390,20 @@ export function captureProjectHistory(
 ): RecoveryHistory {
   const past = [...states.past],
     future = [...states.future];
-  function build(): RecoveryHistory {
-    // The compatibility snapshots describe the first scene at each point in history.
-    const first = (s: ProjectHistoryState) => s.project.scenes[0]!;
-    const legacy = captureRecoveryHistory(
-      project,
-      { past: past.map((s) => first(s).objects), future: future.map((s) => first(s).objects) },
-      project.schemaVersion === 2
-        ? {
-            past: past.map((s) => first(s).viewpoints ?? []),
-            future: future.map((s) => first(s).viewpoints ?? []),
-          }
-        : undefined,
-    );
-    return {
-      ...legacy,
-      documents: { current: project, activeSceneId, past: [...past], future: [...future] },
-    };
-  }
-  let result = build();
-  while (
-    new TextEncoder().encode(JSON.stringify(result)).byteLength > MAX_HISTORY_BYTES &&
-    past.length + future.length > 0
-  ) {
-    if (past.length >= future.length) past.pop();
-    else future.pop();
-    result = build();
-  }
-  return result;
+  // The compatibility snapshots describe the first scene at each point in history.
+  const first = (s: ProjectHistoryState) => s.project.scenes[0]!;
+  const legacy = createRecoveryHistory(
+    project,
+    { past: past.map((s) => first(s).objects), future: future.map((s) => first(s).objects) },
+    project.schemaVersion === 2
+      ? {
+          past: past.map((s) => first(s).viewpoints ?? []),
+          future: future.map((s) => first(s).viewpoints ?? []),
+        }
+      : undefined,
+  );
+  return trimRecoveryHistory({
+    ...legacy,
+    documents: { current: project, activeSceneId, past: [...past], future: [...future] },
+  });
 }

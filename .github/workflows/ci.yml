@@ -168,6 +168,7 @@ jobs:
           npm run test:caching | tee test-results/caching.log
           npm run test:recovery | tee test-results/recovery.log
           npm run test:history | tee test-results/history.log
+          npm run test:workspace -- http://127.0.0.1:5173 | tee test-results/workspace.log
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       # Source checks have passed above; keep the final Caddy-image browser checks below
       - name: Build the runnable image
@@ -192,6 +193,7 @@ jobs:
           docker compose -f ../../compose.yaml -p vthere-ci up -d --no-build --wait --wait-timeout 90
           test "$(curl --fail --silent http://127.0.0.1:4173/version.txt)" = "$GITHUB_SHA"
           npm run test:deployment -- http://127.0.0.1:4173/
+          npm run test:workspace -- http://127.0.0.1:4173
           if [[ -f tests/editor-build.check.mjs ]]; then
             node tests/editor-build.check.mjs http://127.0.0.1:4173/
           fi
@@ -211,7 +213,8 @@ jobs:
           "${stack[@]}" build api migrate
           "${stack[@]}" up -d --no-build --wait --wait-timeout 120
           docker cp "$("${stack[@]}" ps -q gateway):/data/caddy/pki/authorities/local/root.crt" test-results/server-root.crt
-          curl --fail --silent --show-error --cacert test-results/server-root.crt https://localhost:8444/healthz
+          # Compose waits for running containers; Caddy still needs to start TLS and issue its certificate.
+          curl --fail --silent --show-error --retry 12 --retry-delay 1 --retry-all-errors --max-time 5 --retry-max-time 60 --cacert test-results/server-root.crt https://localhost:8444/healthz
           curl --fail --silent --show-error --cacert test-results/server-root.crt --output /dev/null https://localhost:8444/
           curl --fail --silent --show-error --retry 12 --retry-delay 1 --retry-connrefused --max-time 5 --retry-max-time 60 --cacert test-results/server-root.crt --output /dev/null https://localhost:8444/api/auth/csrf
           test "$(curl --silent --show-error --cacert test-results/server-root.crt --output /dev/null --write-out '%{http_code}' https://localhost:8444/api/auth/session)" = 401
