@@ -11,6 +11,9 @@
     <InternalsVisibleTo Include="Spatia.Server.Tests" />
     <ProjectReference Include="../Spatia.ProjectFormat/Spatia.ProjectFormat.csproj" />
     <EmbeddedResource Include="../../../assets/manifest.json" LogicalName="Spatia.Assets.Manifest" />
+    <!-- Package the existing validator with the API; no uploaded bytes enter these paths -->
+    <Content Include="../../../tools/validate-intake.mjs;../../../tools/asset-content-validation.mjs" Link="tools/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="../../web/node_modules/gltf-validator/**/*" Link="apps/web/node_modules/gltf-validator/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.12" />
