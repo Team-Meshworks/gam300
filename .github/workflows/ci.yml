@@ -376,7 +376,15 @@ jobs:
   publish:
     name: Publish tested image
     needs:
-      [check, compatibility, server, project-format, architecture, fixtures]
+      [
+        check,
+        compatibility,
+        server,
+        project-format,
+        select-architecture,
+        architecture,
+        fixtures,
+      ]
     if: >-
       always() &&
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev') &&
@@ -385,7 +393,14 @@ jobs:
       needs.server.result == 'success' &&
       needs.project-format.result == 'success' &&
       needs.fixtures.result == 'success' &&
-      (needs.architecture.result == 'success' || needs.architecture.result == 'skipped')
+      needs.select-architecture.result == 'success' &&
+      (
+        needs.architecture.result == 'success' ||
+        (
+          needs.architecture.result == 'skipped' &&
+          needs.select-architecture.outputs.proof == 'false'
+        )
+      )
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
