@@ -858,6 +858,12 @@ a {
   padding: 2rem 1rem;
   text-align: center;
 }
+.asset-picker-selection {
+  align-self: center;
+  margin: 0.75rem 0 0;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
 .asset-picker-add {
   align-self: center;
   min-width: 6.5rem;

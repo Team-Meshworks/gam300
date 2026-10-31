@@ -99,6 +99,19 @@ try {
   await page.keyboard.press("Enter");
   assert.equal(await asset.getAttribute("aria-pressed"), "true", "Enter picks the card");
   assert.equal(await rows.count(), 0, "Picking a card alone places nothing");
+
+  // Filtering keeps the pick, and says so when the current results hide it
+  const filter = picker.getByRole("combobox", { name: "Filter assets", exact: true });
+  const selection = picker.locator(".asset-picker-selection");
+  assert.equal(await selection.textContent(), "Selected: test-crate");
+  await filter.selectOption("favourites");
+  assert.equal(await asset.count(), 0, "No favourites saved, so the crate is filtered out");
+  assert.equal(
+    await selection.textContent(),
+    "Selected: test-crate (not shown in the current results)",
+  );
+  await filter.selectOption("all");
+  assert.equal(await asset.getAttribute("aria-pressed"), "true", "The pick survives filtering");
   await add.focus();
   await page.keyboard.press("Enter");
   await page.getByRole("alert").filter({ hasText: "Choose a room first" }).waitFor();

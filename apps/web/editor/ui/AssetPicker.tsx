@@ -31,6 +31,9 @@ export function AssetPicker({
   const [filter, setFilter] = useState<AssetFilter>("all");
   const [favourites, setFavourites] = useState<string[]>(loadFavourites);
   const shown = filterAssets(assets, filter, favourites);
+  const chosenAsset = assets.find((asset) => asset.id === chosen);
+  // The pick survives filtering, so say so when the current results hide it
+  const chosenHidden = chosenAsset !== undefined && !shown.includes(chosenAsset);
 
   function favourite(id: string) {
     const next = toggleFavourite(favourites, id);
@@ -136,9 +139,17 @@ export function AssetPicker({
         </ul>
       )}
 
+      {chosenAsset !== undefined && (
+        <p id="asset-picker-selection" className="asset-picker-selection" aria-live="polite">
+          {chosenHidden
+            ? `Selected: ${chosenAsset.name} (not shown in the current results)`
+            : `Selected: ${chosenAsset.name}`}
+        </p>
+      )}
       <button
         className="ui-button pill-button asset-picker-add"
         type="button"
+        aria-describedby={chosenAsset !== undefined ? "asset-picker-selection" : undefined}
         disabled={chosen === null || !ready}
         onClick={() => {
           if (chosen === null) return;

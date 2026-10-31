@@ -98,13 +98,15 @@ try {
       .map((entry) => ({ file: new URL(entry.name).pathname, bytes: entry.decodedBodySize })),
   );
   assert.ok(chunks.length >= 3, "Renderer and core stay separate from the shell");
+  // Print every chunk's size on failure so the oversized file is obvious from the CI log
+  const sizes = JSON.stringify(chunks);
   assert.ok(
     chunks.every((chunk) => chunk.bytes > 0),
-    "there exist some empty chunk",
+    `there exist some empty chunk: ${sizes}`,
   );
   assert.ok(
     chunks.every((chunk) => chunk.bytes < 500_000),
-    "there exist a chunk larger than maximum allowed size",
+    `there exist a chunk larger than maximum allowed size: ${sizes}`,
   );
   await page.close();
 
