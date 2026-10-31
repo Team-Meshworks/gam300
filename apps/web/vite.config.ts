@@ -13,7 +13,11 @@ export default defineConfig({
     rolldownOptions: {
       output: {
         codeSplitting: {
-          groups: [{ name: "three-core", test: /[\\/]three[\\/]build[\\/]three\.core\.js$/ }],
+          groups: [
+            { name: "three-core", test: /[\\/]three[\\/]build[\\/]three\.core\.js$/ },
+            //seperated react for testing
+            { name: "react", test: /[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/ },
+          ],
         },
       },
     },
