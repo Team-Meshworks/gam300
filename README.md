@@ -258,12 +258,12 @@ Use the pinned Node/npm versions above; if necessary install the matching npm wi
 `npm install --global npm@11.17.0`. On Windows, use `npm.cmd` / `npx.cmd` when PowerShell
 blocks the `.ps1` launchers.
 
-| Environment                | Setup and evidence                                                                                                                                                                                    |
-| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Windows 11                 | Fresh-clone native build and all browser checks passed on build 26200; launcher failure/startup checks also passed. Host Node was preinstalled for that native test.                                  |
-| Ubuntu 24.04               | Clean GitHub Actions build/test/container checks; [baseline CI](https://github.com/Team-Meshworks/gam300/actions/runs/36964933555). The current PR must pass its own checks.                          |
-| macOS Tahoe                | The workflow runs native setup, architecture, unit and build checks on `macos-26`; lint and formatting run on Ubuntu. Refer to the current PR for its actual result; no physical Mac test is claimed. |
-| Local Ubuntu 26.04 / WSL 2 | Root launcher passed with no native Node/npm, a fresh checkout and an empty isolated Docker build cache. Git LFS was configured in the test directory.                                                |
+| Environment                | Setup and evidence                                                                                                                                                           |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Windows 11                 | Fresh-clone native build and all browser checks passed on build 26200; launcher failure/startup checks also passed. Host Node was preinstalled for that native test.         |
+| Ubuntu 24.04               | Clean GitHub Actions build/test/container checks; [baseline CI](https://github.com/Team-Meshworks/gam300/actions/runs/36964933555). Check the push run for the integrated commit on `dev` or `main`. |
+| macOS Tahoe                | The workflow runs native setup, architecture, unit and build checks on `macos-26`; lint and formatting run on Ubuntu. Refer to the relevant `dev` or `main` push run for its actual result; no physical Mac test is claimed.        |
+| Local Ubuntu 26.04 / WSL 2 | Root launcher passed with no native Node/npm, a fresh checkout and an empty isolated Docker build cache. Git LFS was configured in the test directory.                       |
 
 For a clean reproduction, clone into a new directory and run the root launcher.
 Record the commit, OS, Node/npm/browser versions and actual results when reporting a
@@ -327,23 +327,27 @@ material under `docs/personal/` is also ignored and is separate from shared docs
 
 ## CI and deployment
 
-CI runs automatically on pushes to `dev`/`main` and pull requests targeting either branch.
-Pull requests into `main` must come from this repository's `dev` branch.
+CI runs automatically only on pushes to `dev` or `main`, including merge commits.
+Opening or updating a pull request does not start CI. Manual CI is supported only
+on `dev` or `main`; selecting another branch skips all jobs.
+Pull requests into `main` must still come from this repository's `dev` branch.
+Reviewers must verify that source before merging because CI no longer enforces it.
 Deployment remains a separate manual action.
 
-1. Open a pull request into `dev`; its CI checks start automatically. For an extra run,
-   open **Actions → CI → Run workflow** and select the branch.
+1. Run the relevant checks locally and obtain review before merging into `dev`. The
+   resulting push starts CI. For an extra run, open **Actions > CI > Run workflow**
+   and select `dev` or `main`.
 2. Wait for web lint, formatting, architecture and asset validation, unit and browser checks,
    native Windows/macOS checks, the Ubuntu container checks, shared project-format checks,
    and server build and tests against disposable PostgreSQL.
 3. Successful push/manual runs on `dev` or `main` publish the tested image and a release
-   descriptor. Pull request runs and manual runs on feature branches do not publish images.
-4. To deploy, open **Actions → Deploy → Run workflow**, select the same branch, and enter
+   descriptor. Feature branches receive no automatic CI runs or published images.
+4. To deploy, open **Actions > Deploy > Run workflow**, select the same branch, and enter
    the successful CI run ID. Deployment uses that exact tested web image; it does not deploy
    the server or database.
 
 `dev` deploys to **development**; `main` deploys to **production**. Promote releases through
-a `dev` → `main` pull request; the resulting push runs CI on the integrated `main` commit.
+a `dev` to `main` pull request; the resulting push runs CI on the integrated `main` commit.
 The CI badge shows the latest push run on `dev`.
 
 See the [deployment runbook](docs/deployment.md) for environment access, manual-run commands,
@@ -355,7 +359,8 @@ covers the Actions UI and required repository access.
 1. Branch from `dev` and keep changes focused on one feature or fix.
 2. Run type, lint, and formatting checks, plus the tests relevant to your change.
 3. Open a pull request into `dev` with a summary, verification results, and screenshots for UI changes.
-4. Obtain reviewer approval and wait for passing CI before merging.
+4. Obtain reviewer approval based on the local verification results, then merge into `dev`.
+5. Check the resulting `dev` CI run before promoting through a `dev` to `main` pull request.
 
 Report bugs through [GitHub Issues](https://github.com/Team-Meshworks/gam300/issues), including
 reproduction steps, expected behavior, and browser/OS details. For asset changes, include

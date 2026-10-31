@@ -1,0 +1,585 @@
+{
+  "formatVersion": 1,
+  "sourceWorktree": ".artifacts/scrum161-integration",
+  "head": "760f5fafc2296a2e178d3437cdedac7cf5d6b2e7",
+  "mergeHeads": [
+    "5acec3242446f35e57a8169c1b5a01c5eeca1b8b"
+  ],
+  "sourceIndexSha256": "1eb479f4de61c22e07834cd2d37e41fb62a9b48e8425ea205779937a93038386",
+  "status": [
+    {
+      "path": "apps/server/README.md",
+      "status": "M "
+    },
+    {
+      "path": "apps/server/Spatia.Server/Persistence/ApplicationDbContext.cs",
+      "status": "M "
+    },
+    {
+      "path": "apps/server/Spatia.Server/Persistence/Migrations/20261029094707_AddPublicationSnapshots.Designer.cs",
+      "status": "A "
+    },
+    {
+      "path": "apps/server/Spatia.Server/Persistence/Migrations/20261029094707_AddPublicationSnapshots.cs",
+      "status": "A "
+    },
+    {
+      "path": "apps/server/Spatia.Server/Persistence/Migrations/ApplicationDbContextModelSnapshot.cs",
+      "status": "UU"
+    },
+    {
+      "path": "apps/server/Spatia.Server/Persistence/PublicationConfiguration.cs",
+      "status": "A "
+    },
+    {
+      "path": "apps/server/Spatia.Server/Projects/ProjectAccessService.cs",
+      "status": "M "
+    },
+    {
+      "path": "apps/server/Spatia.Server/Projects/ProjectLifecycleEndpoints.cs",
+      "status": " M"
+    },
+    {
+      "path": "apps/server/Spatia.Server/Projects/ProjectLockPurpose.cs",
+      "status": "M "
+    },
+    {
+      "path": "apps/server/Spatia.Server/Publications/IPublicationIntegration.cs",
+      "status": "A "
+    },
+    {
+      "path": "apps/server/Spatia.Server/Publications/Publication.cs",
+      "status": "A "
+    },
+    {
+      "path": "apps/server/Spatia.Server/Publications/PublicationAssetManifest.cs",
+      "status": "A "
+    },
+    {
+      "path": "apps/server/Spatia.Server/Publications/PublicationAssetReference.cs",
+      "status": "A "
+    },
+    {
+      "path": "apps/server/Spatia.Server/Publications/PublicationCoordinator.cs",
+      "status": "A "
+    },
+    {
+      "path": "apps/server/Spatia.Server/Publications/PublicationDocumentAssets.cs",
+      "status": "A "
+    },
+    {
+      "path": "apps/server/Spatia.Server/Publications/PublicationRequest.cs",
+      "status": "A "
+    },
+    {
+      "path": "apps/server/Spatia.Server/Publications/PublicationResult.cs",
+      "status": "A "
+    },
+    {
+      "path": "apps/server/Spatia.Server/Publications/PublicationRetryDecision.cs",
+      "status": "A "
+    },
+    {
+      "path": "apps/server/Spatia.Server/Publications/PublicationRetryPolicy.cs",
+      "status": "A "
+    },
+    {
+      "path": "apps/server/tests/ClassAssignmentCoordinatorTests.cs",
+      "status": " M"
+    },
+    {
+      "path": "apps/server/tests/PostgresAccountFixture.cs",
+      "status": " M"
+    },
+    {
+      "path": "apps/server/tests/PublicationCoordinatorConcurrencyTests.cs",
+      "status": "A "
+    },
+    {
+      "path": "apps/server/tests/PublicationCoordinatorFailureTests.cs",
+      "status": "A "
+    },
+    {
+      "path": "apps/server/tests/PublicationCoordinatorFixture.cs",
+      "status": "A "
+    },
+    {
+      "path": "apps/server/tests/PublicationCoordinatorTests.cs",
+      "status": "A "
+    },
+    {
+      "path": "apps/server/tests/PublicationIdentityTests.cs",
+      "status": "A "
+    },
+    {
+      "path": "apps/server/tests/PublicationPersistenceTests.cs",
+      "status": "A "
+    },
+    {
+      "path": "apps/server/tests/PublicationRequestTests.cs",
+      "status": "A "
+    },
+    {
+      "path": "apps/server/tests/Scrum161PublicationIntegrationTests.cs",
+      "status": "??"
+    },
+    {
+      "path": "apps/server/tests/Scrum161UiIntegrationTests.cs",
+      "status": "??"
+    }
+  ],
+  "workingFiles": [
+    {
+      "path": "apps/server/README.md",
+      "archivePath": "worktree/apps/server/README.md",
+      "size": 138163,
+      "sha256": "dfd4f1905e16e114a3733f653950c2a096dcd3fd5fd7535d6cc705c69f3f7fac"
+    },
+    {
+      "path": "apps/server/Spatia.Server/Persistence/ApplicationDbContext.cs",
+      "archivePath": "worktree/apps/server/Spatia.Server/Persistence/ApplicationDbContext.cs",
+      "size": 19110,
+      "sha256": "1db465ee1f1b3f2317b8b004191ad374e5c0450ae6efabd4ace65a0804d78f26"
+    },
+    {
+      "path": "apps/server/Spatia.Server/Persistence/Migrations/20261029094707_AddPublicationSnapshots.Designer.cs",
+      "archivePath": "worktree/apps/server/Spatia.Server/Persistence/Migrations/20261029094707_AddPublicationSnapshots.Designer.cs",
+      "size": 23593,
+      "sha256": "df3f24391bbdff04a720c96f72df015baf1dbd54c79e0c792d4e044e8ee2c9ed"
+    },
+    {
+      "path": "apps/server/Spatia.Server/Persistence/Migrations/20261029094707_AddPublicationSnapshots.cs",
+      "archivePath": "worktree/apps/server/Spatia.Server/Persistence/Migrations/20261029094707_AddPublicationSnapshots.cs",
+      "size": 5975,
+      "sha256": "b34fcb13e615d5872959a44bc035e3ce8f59ed2c403150f3bc5103d4591052f0"
+    },
+    {
+      "path": "apps/server/Spatia.Server/Persistence/Migrations/ApplicationDbContextModelSnapshot.cs",
+      "archivePath": "worktree/apps/server/Spatia.Server/Persistence/Migrations/ApplicationDbContextModelSnapshot.cs",
+      "size": 37767,
+      "sha256": "758c748d9a5d404253f57794fed31ac3eda402ce47ed0d6e811ee2871436ff4f"
+    },
+    {
+      "path": "apps/server/Spatia.Server/Persistence/PublicationConfiguration.cs",
+      "archivePath": "worktree/apps/server/Spatia.Server/Persistence/PublicationConfiguration.cs",
+      "size": 3222,
+      "sha256": "015ae838bab37af4e7d0e0b6a2e2fc545aa97b27d7684448772320db92bddc88"
+    },
+    {
+      "path": "apps/server/Spatia.Server/Projects/ProjectAccessService.cs",
+      "archivePath": "worktree/apps/server/Spatia.Server/Projects/ProjectAccessService.cs",
+      "size": 16046,
+      "sha256": "b54e35cc0b5dc86d2fa22adcc274b6ee7503c8f3d60d902850989c2309bcb0ed"
+    },
+    {
+      "path": "apps/server/Spatia.Server/Projects/ProjectLifecycleEndpoints.cs",
+      "archivePath": "worktree/apps/server/Spatia.Server/Projects/ProjectLifecycleEndpoints.cs",
+      "size": 15992,
+      "sha256": "be891d361c03e48fc6851b8bff3a868d9262411caa0586d865df595314789d69"
+    },
+    {
+      "path": "apps/server/Spatia.Server/Projects/ProjectLockPurpose.cs",
+      "archivePath": "worktree/apps/server/Spatia.Server/Projects/ProjectLockPurpose.cs",
+      "size": 693,
+      "sha256": "44686ac8149a2842f810f0c62b2f7af1c616966cbe44136861d7bb12a51068a2"
+    },
+    {
+      "path": "apps/server/Spatia.Server/Publications/IPublicationIntegration.cs",
+      "archivePath": "worktree/apps/server/Spatia.Server/Publications/IPublicationIntegration.cs",
+      "size": 4151,
+      "sha256": "5b3b6c8d70ab42390e06889783870433655be6e24a6a6370df19144e474daa7d"
+    },
+    {
+      "path": "apps/server/Spatia.Server/Publications/Publication.cs",
+      "archivePath": "worktree/apps/server/Spatia.Server/Publications/Publication.cs",
+      "size": 1801,
+      "sha256": "647ec9db88ab68b9be00c22b176634be8efb545c5f48578a4f60988b8e3ebec9"
+    },
+    {
+      "path": "apps/server/Spatia.Server/Publications/PublicationAssetManifest.cs",
+      "archivePath": "worktree/apps/server/Spatia.Server/Publications/PublicationAssetManifest.cs",
+      "size": 1077,
+      "sha256": "ed9afacfbdb6221043ec693b50f8559dd124d15ab4af285ba640186cd10e3c33"
+    },
+    {
+      "path": "apps/server/Spatia.Server/Publications/PublicationAssetReference.cs",
+      "archivePath": "worktree/apps/server/Spatia.Server/Publications/PublicationAssetReference.cs",
+      "size": 1297,
+      "sha256": "c65b5fdabfde3044a307d99ceed61208e169327f980af7bd2079abfecf0a95b0"
+    },
+    {
+      "path": "apps/server/Spatia.Server/Publications/PublicationCoordinator.cs",
+      "archivePath": "worktree/apps/server/Spatia.Server/Publications/PublicationCoordinator.cs",
+      "size": 7530,
+      "sha256": "6a6f3e2540e4b819c24b3d7f450f23978da5a6b798198e6e93510b07439a37f9"
+    },
+    {
+      "path": "apps/server/Spatia.Server/Publications/PublicationDocumentAssets.cs",
+      "archivePath": "worktree/apps/server/Spatia.Server/Publications/PublicationDocumentAssets.cs",
+      "size": 1765,
+      "sha256": "3df6adc3da6a7580fc7d9700e00a158adf3e990db916e75c9883577053df3c0a"
+    },
+    {
+      "path": "apps/server/Spatia.Server/Publications/PublicationRequest.cs",
+      "archivePath": "worktree/apps/server/Spatia.Server/Publications/PublicationRequest.cs",
+      "size": 2565,
+      "sha256": "000570dd39dceb9c309bf29d4e0a02cf80f5236c82dec68d68bb17621dfaf2f6"
+    },
+    {
+      "path": "apps/server/Spatia.Server/Publications/PublicationResult.cs",
+      "archivePath": "worktree/apps/server/Spatia.Server/Publications/PublicationResult.cs",
+      "size": 1802,
+      "sha256": "15a0b32addfd12b3ad314424b1d787b9c59eb91509f3c87a0553c8530f930b2b"
+    },
+    {
+      "path": "apps/server/Spatia.Server/Publications/PublicationRetryDecision.cs",
+      "archivePath": "worktree/apps/server/Spatia.Server/Publications/PublicationRetryDecision.cs",
+      "size": 479,
+      "sha256": "d2954af7cd0e56cb028ee028a4c53d5210e86dafe33a3aa1fcc3bf605e484fc3"
+    },
+    {
+      "path": "apps/server/Spatia.Server/Publications/PublicationRetryPolicy.cs",
+      "archivePath": "worktree/apps/server/Spatia.Server/Publications/PublicationRetryPolicy.cs",
+      "size": 2062,
+      "sha256": "8298671b7043dfc6ce1a71b9620f0e37be76c2414e92cabdef2bad14f7138f51"
+    },
+    {
+      "path": "apps/server/tests/ClassAssignmentCoordinatorTests.cs",
+      "archivePath": "worktree/apps/server/tests/ClassAssignmentCoordinatorTests.cs",
+      "size": 58179,
+      "sha256": "b620e9cb1c19e87755c7cdb9615b3e27a567bb1189d7b4fe4e9fb5c8e2628893"
+    },
+    {
+      "path": "apps/server/tests/PostgresAccountFixture.cs",
+      "archivePath": "worktree/apps/server/tests/PostgresAccountFixture.cs",
+      "size": 6251,
+      "sha256": "aeca924e259b1bfe5c82b2d43451a9ec98f5ef6c1e4f50352a4c2d148bccc2af"
+    },
+    {
+      "path": "apps/server/tests/PublicationCoordinatorConcurrencyTests.cs",
+      "archivePath": "worktree/apps/server/tests/PublicationCoordinatorConcurrencyTests.cs",
+      "size": 13740,
+      "sha256": "e186edb84f648554a93cd54a68b52a585a040ac47dea1b980d905203d29c9048"
+    },
+    {
+      "path": "apps/server/tests/PublicationCoordinatorFailureTests.cs",
+      "archivePath": "worktree/apps/server/tests/PublicationCoordinatorFailureTests.cs",
+      "size": 9418,
+      "sha256": "c066b1cdaacd744ae794636044ca296a3b06de62144b270aaae62fd8a8c664a7"
+    },
+    {
+      "path": "apps/server/tests/PublicationCoordinatorFixture.cs",
+      "archivePath": "worktree/apps/server/tests/PublicationCoordinatorFixture.cs",
+      "size": 10454,
+      "sha256": "7bc6e99137b8f89ac270bf772d94f96dde5f4c679075235c8667d9eacd9841d7"
+    },
+    {
+      "path": "apps/server/tests/PublicationCoordinatorTests.cs",
+      "archivePath": "worktree/apps/server/tests/PublicationCoordinatorTests.cs",
+      "size": 16240,
+      "sha256": "eb9d69502d7ba083a77463948f99e8b514af94d8077ac950791965638ceae59f"
+    },
+    {
+      "path": "apps/server/tests/PublicationIdentityTests.cs",
+      "archivePath": "worktree/apps/server/tests/PublicationIdentityTests.cs",
+      "size": 6346,
+      "sha256": "53f7f30792d77b479d5ad791b88004c8c7371b535befcf0d2f04d5013ba1ad5a"
+    },
+    {
+      "path": "apps/server/tests/PublicationPersistenceTests.cs",
+      "archivePath": "worktree/apps/server/tests/PublicationPersistenceTests.cs",
+      "size": 29753,
+      "sha256": "1180f784ee2b9097c9254e495c495b3a40a96a2e028829df22d9a0f1f1d9b303"
+    },
+    {
+      "path": "apps/server/tests/PublicationRequestTests.cs",
+      "archivePath": "worktree/apps/server/tests/PublicationRequestTests.cs",
+      "size": 5162,
+      "sha256": "4801a53c92e2c416930e4a1cf903769be9798fad985822c4cefe77d18ddededd"
+    },
+    {
+      "path": "apps/server/tests/Scrum161PublicationIntegrationTests.cs",
+      "archivePath": "worktree/apps/server/tests/Scrum161PublicationIntegrationTests.cs",
+      "size": 8437,
+      "sha256": "00421a10a283f74c7ffa13d07a3a8b271bb89b5c19248c880755de856f0bc631"
+    },
+    {
+      "path": "apps/server/tests/Scrum161UiIntegrationTests.cs",
+      "archivePath": "worktree/apps/server/tests/Scrum161UiIntegrationTests.cs",
+      "size": 4696,
+      "sha256": "b17cc89238aa90812198c8311244d7620d270928a477e4592d3bd637c5b50ef1"
+    }
+  ],
+  "indexEntries": [
+    {
+      "mode": "100644",
+      "oid": "063ee16bda7c84563529713b381bc9218e90721a",
+      "stage": 0,
+      "path": "apps/server/README.md",
+      "archivePath": "index-blobs/063ee16bda7c84563529713b381bc9218e90721a.blob",
+      "size": 138163,
+      "sha256": "dfd4f1905e16e114a3733f653950c2a096dcd3fd5fd7535d6cc705c69f3f7fac"
+    },
+    {
+      "mode": "100644",
+      "oid": "31991a243b24727ee48f9a29f095d27ea54a7c55",
+      "stage": 0,
+      "path": "apps/server/Spatia.Server/Persistence/ApplicationDbContext.cs",
+      "archivePath": "index-blobs/31991a243b24727ee48f9a29f095d27ea54a7c55.blob",
+      "size": 19110,
+      "sha256": "1db465ee1f1b3f2317b8b004191ad374e5c0450ae6efabd4ace65a0804d78f26"
+    },
+    {
+      "mode": "100644",
+      "oid": "4fa97a84cd1a38528a43a1d21b6766b0297306ce",
+      "stage": 0,
+      "path": "apps/server/Spatia.Server/Persistence/Migrations/20261029094707_AddPublicationSnapshots.Designer.cs",
+      "archivePath": "index-blobs/4fa97a84cd1a38528a43a1d21b6766b0297306ce.blob",
+      "size": 23593,
+      "sha256": "df3f24391bbdff04a720c96f72df015baf1dbd54c79e0c792d4e044e8ee2c9ed"
+    },
+    {
+      "mode": "100644",
+      "oid": "98ed2c9d87f3fd5f566425455c2b78bcfcd48eda",
+      "stage": 0,
+      "path": "apps/server/Spatia.Server/Persistence/Migrations/20261029094707_AddPublicationSnapshots.cs",
+      "archivePath": "index-blobs/98ed2c9d87f3fd5f566425455c2b78bcfcd48eda.blob",
+      "size": 5975,
+      "sha256": "b34fcb13e615d5872959a44bc035e3ce8f59ed2c403150f3bc5103d4591052f0"
+    },
+    {
+      "mode": "100644",
+      "oid": "7750a73bd8e086211910ced28e6c635cbe855c7e",
+      "stage": 1,
+      "path": "apps/server/Spatia.Server/Persistence/Migrations/ApplicationDbContextModelSnapshot.cs",
+      "archivePath": "index-blobs/7750a73bd8e086211910ced28e6c635cbe855c7e.blob",
+      "size": 19584,
+      "sha256": "124ad3f9d410cdce7d3dd2543f322f5291810054f365d7c4b2026716ffc8f4ac"
+    },
+    {
+      "mode": "100644",
+      "oid": "ced22082be64fefbca7c5a0639a8eda13607a045",
+      "stage": 2,
+      "path": "apps/server/Spatia.Server/Persistence/Migrations/ApplicationDbContextModelSnapshot.cs",
+      "archivePath": "index-blobs/ced22082be64fefbca7c5a0639a8eda13607a045.blob",
+      "size": 32978,
+      "sha256": "273048fabd58d5b15f999e3262d2a1688614b8747c17c60a2962c2db2c75fd8c"
+    },
+    {
+      "mode": "100644",
+      "oid": "f914b04e41c0e3999f52fb89bfe28ba497e711db",
+      "stage": 3,
+      "path": "apps/server/Spatia.Server/Persistence/Migrations/ApplicationDbContextModelSnapshot.cs",
+      "archivePath": "index-blobs/f914b04e41c0e3999f52fb89bfe28ba497e711db.blob",
+      "size": 23480,
+      "sha256": "3b419505e0ea83a4548b77b64aa5aec40d244e8a2c3e14e690f3c455ad27c31e"
+    },
+    {
+      "mode": "100644",
+      "oid": "5ea74c71375c930f143cae7d841fb99bf902f423",
+      "stage": 0,
+      "path": "apps/server/Spatia.Server/Persistence/PublicationConfiguration.cs",
+      "archivePath": "index-blobs/5ea74c71375c930f143cae7d841fb99bf902f423.blob",
+      "size": 3222,
+      "sha256": "015ae838bab37af4e7d0e0b6a2e2fc545aa97b27d7684448772320db92bddc88"
+    },
+    {
+      "mode": "100644",
+      "oid": "aa84eea768a0617781b0becf0d73a7744718b4e2",
+      "stage": 0,
+      "path": "apps/server/Spatia.Server/Projects/ProjectAccessService.cs",
+      "archivePath": "index-blobs/aa84eea768a0617781b0becf0d73a7744718b4e2.blob",
+      "size": 16046,
+      "sha256": "b54e35cc0b5dc86d2fa22adcc274b6ee7503c8f3d60d902850989c2309bcb0ed"
+    },
+    {
+      "mode": "100644",
+      "oid": "4f33f643b265cb45af39e04c18bab4f0598db396",
+      "stage": 0,
+      "path": "apps/server/Spatia.Server/Projects/ProjectLifecycleEndpoints.cs",
+      "archivePath": "index-blobs/4f33f643b265cb45af39e04c18bab4f0598db396.blob",
+      "size": 15521,
+      "sha256": "edc36c2f5db77e3ed7a75e9dd1316a04000a8a44662073228a872756e6392883"
+    },
+    {
+      "mode": "100644",
+      "oid": "7e0cacc057000d8c6d9cef4afdd6e2b1111e937f",
+      "stage": 0,
+      "path": "apps/server/Spatia.Server/Projects/ProjectLockPurpose.cs",
+      "archivePath": "index-blobs/7e0cacc057000d8c6d9cef4afdd6e2b1111e937f.blob",
+      "size": 693,
+      "sha256": "44686ac8149a2842f810f0c62b2f7af1c616966cbe44136861d7bb12a51068a2"
+    },
+    {
+      "mode": "100644",
+      "oid": "c5dbe7971938df1e51f34169e9463a0673bb3589",
+      "stage": 0,
+      "path": "apps/server/Spatia.Server/Publications/IPublicationIntegration.cs",
+      "archivePath": "index-blobs/c5dbe7971938df1e51f34169e9463a0673bb3589.blob",
+      "size": 4151,
+      "sha256": "5b3b6c8d70ab42390e06889783870433655be6e24a6a6370df19144e474daa7d"
+    },
+    {
+      "mode": "100644",
+      "oid": "a1d16dfedfbda1548e9ecaa6af2904183ffe7190",
+      "stage": 0,
+      "path": "apps/server/Spatia.Server/Publications/Publication.cs",
+      "archivePath": "index-blobs/a1d16dfedfbda1548e9ecaa6af2904183ffe7190.blob",
+      "size": 1801,
+      "sha256": "647ec9db88ab68b9be00c22b176634be8efb545c5f48578a4f60988b8e3ebec9"
+    },
+    {
+      "mode": "100644",
+      "oid": "0699150605c0487f4073080a6ec8ba64780f39c4",
+      "stage": 0,
+      "path": "apps/server/Spatia.Server/Publications/PublicationAssetManifest.cs",
+      "archivePath": "index-blobs/0699150605c0487f4073080a6ec8ba64780f39c4.blob",
+      "size": 1077,
+      "sha256": "ed9afacfbdb6221043ec693b50f8559dd124d15ab4af285ba640186cd10e3c33"
+    },
+    {
+      "mode": "100644",
+      "oid": "15cfd67f6fd8733b8579e2ef6a12807804a03d61",
+      "stage": 0,
+      "path": "apps/server/Spatia.Server/Publications/PublicationAssetReference.cs",
+      "archivePath": "index-blobs/15cfd67f6fd8733b8579e2ef6a12807804a03d61.blob",
+      "size": 1297,
+      "sha256": "c65b5fdabfde3044a307d99ceed61208e169327f980af7bd2079abfecf0a95b0"
+    },
+    {
+      "mode": "100644",
+      "oid": "26f8b5c5d8ead39cc8b8077542d6d5f02f53539b",
+      "stage": 0,
+      "path": "apps/server/Spatia.Server/Publications/PublicationCoordinator.cs",
+      "archivePath": "index-blobs/26f8b5c5d8ead39cc8b8077542d6d5f02f53539b.blob",
+      "size": 7530,
+      "sha256": "6a6f3e2540e4b819c24b3d7f450f23978da5a6b798198e6e93510b07439a37f9"
+    },
+    {
+      "mode": "100644",
+      "oid": "1788f0a32ed7d865b1ebd485e1eed7038f77dc7d",
+      "stage": 0,
+      "path": "apps/server/Spatia.Server/Publications/PublicationDocumentAssets.cs",
+      "archivePath": "index-blobs/1788f0a32ed7d865b1ebd485e1eed7038f77dc7d.blob",
+      "size": 1765,
+      "sha256": "3df6adc3da6a7580fc7d9700e00a158adf3e990db916e75c9883577053df3c0a"
+    },
+    {
+      "mode": "100644",
+      "oid": "37e7613e04d509acb2896367eb188b4b0e9c4d1a",
+      "stage": 0,
+      "path": "apps/server/Spatia.Server/Publications/PublicationRequest.cs",
+      "archivePath": "index-blobs/37e7613e04d509acb2896367eb188b4b0e9c4d1a.blob",
+      "size": 2565,
+      "sha256": "000570dd39dceb9c309bf29d4e0a02cf80f5236c82dec68d68bb17621dfaf2f6"
+    },
+    {
+      "mode": "100644",
+      "oid": "d4e0e447e3de5903d4590133f1f1dc65625e05cc",
+      "stage": 0,
+      "path": "apps/server/Spatia.Server/Publications/PublicationResult.cs",
+      "archivePath": "index-blobs/d4e0e447e3de5903d4590133f1f1dc65625e05cc.blob",
+      "size": 1802,
+      "sha256": "15a0b32addfd12b3ad314424b1d787b9c59eb91509f3c87a0553c8530f930b2b"
+    },
+    {
+      "mode": "100644",
+      "oid": "963a47dfdd6b0f71dcf58eac919edb155f884982",
+      "stage": 0,
+      "path": "apps/server/Spatia.Server/Publications/PublicationRetryDecision.cs",
+      "archivePath": "index-blobs/963a47dfdd6b0f71dcf58eac919edb155f884982.blob",
+      "size": 479,
+      "sha256": "d2954af7cd0e56cb028ee028a4c53d5210e86dafe33a3aa1fcc3bf605e484fc3"
+    },
+    {
+      "mode": "100644",
+      "oid": "773812a96fa36b59482d10f85df04324f77a48aa",
+      "stage": 0,
+      "path": "apps/server/Spatia.Server/Publications/PublicationRetryPolicy.cs",
+      "archivePath": "index-blobs/773812a96fa36b59482d10f85df04324f77a48aa.blob",
+      "size": 2062,
+      "sha256": "8298671b7043dfc6ce1a71b9620f0e37be76c2414e92cabdef2bad14f7138f51"
+    },
+    {
+      "mode": "100644",
+      "oid": "966867395e49ab5907800278fe5a5059e545f42d",
+      "stage": 0,
+      "path": "apps/server/tests/ClassAssignmentCoordinatorTests.cs",
+      "archivePath": "index-blobs/966867395e49ab5907800278fe5a5059e545f42d.blob",
+      "size": 55333,
+      "sha256": "7685d43c96991a5073cd9d3876bb2fc3063e0d2cfe9522d7df93a1dd1c1b841e"
+    },
+    {
+      "mode": "100644",
+      "oid": "60da217b8dc6a086cf4e92bcab10d407e90db1e3",
+      "stage": 0,
+      "path": "apps/server/tests/PostgresAccountFixture.cs",
+      "archivePath": "index-blobs/60da217b8dc6a086cf4e92bcab10d407e90db1e3.blob",
+      "size": 5883,
+      "sha256": "8c49ccff1cede872f964b1ba9792677113e04acdd26e358534977c430a094090"
+    },
+    {
+      "mode": "100644",
+      "oid": "73d5a286091ddfaed51f71aca68721a5e0c7cba5",
+      "stage": 0,
+      "path": "apps/server/tests/PublicationCoordinatorConcurrencyTests.cs",
+      "archivePath": "index-blobs/73d5a286091ddfaed51f71aca68721a5e0c7cba5.blob",
+      "size": 13740,
+      "sha256": "e186edb84f648554a93cd54a68b52a585a040ac47dea1b980d905203d29c9048"
+    },
+    {
+      "mode": "100644",
+      "oid": "bb4abca48567fe4f872f909094cab6eb946025e8",
+      "stage": 0,
+      "path": "apps/server/tests/PublicationCoordinatorFailureTests.cs",
+      "archivePath": "index-blobs/bb4abca48567fe4f872f909094cab6eb946025e8.blob",
+      "size": 9418,
+      "sha256": "c066b1cdaacd744ae794636044ca296a3b06de62144b270aaae62fd8a8c664a7"
+    },
+    {
+      "mode": "100644",
+      "oid": "c141bf2a2b33da5a3253a407ff99c2f7b1643788",
+      "stage": 0,
+      "path": "apps/server/tests/PublicationCoordinatorFixture.cs",
+      "archivePath": "index-blobs/c141bf2a2b33da5a3253a407ff99c2f7b1643788.blob",
+      "size": 10454,
+      "sha256": "7bc6e99137b8f89ac270bf772d94f96dde5f4c679075235c8667d9eacd9841d7"
+    },
+    {
+      "mode": "100644",
+      "oid": "03ad0115d87db6abb9dc47c13978400e424bd2a4",
+      "stage": 0,
+      "path": "apps/server/tests/PublicationCoordinatorTests.cs",
+      "archivePath": "index-blobs/03ad0115d87db6abb9dc47c13978400e424bd2a4.blob",
+      "size": 16240,
+      "sha256": "eb9d69502d7ba083a77463948f99e8b514af94d8077ac950791965638ceae59f"
+    },
+    {
+      "mode": "100644",
+      "oid": "d207b8507d5b14b07a19324ea96f9c278478b9a5",
+      "stage": 0,
+      "path": "apps/server/tests/PublicationIdentityTests.cs",
+      "archivePath": "index-blobs/d207b8507d5b14b07a19324ea96f9c278478b9a5.blob",
+      "size": 6346,
+      "sha256": "53f7f30792d77b479d5ad791b88004c8c7371b535befcf0d2f04d5013ba1ad5a"
+    },
+    {
+      "mode": "100644",
+      "oid": "b8e643d23d8af2f05deb87693382152c6b473077",
+      "stage": 0,
+      "path": "apps/server/tests/PublicationPersistenceTests.cs",
+      "archivePath": "index-blobs/b8e643d23d8af2f05deb87693382152c6b473077.blob",
+      "size": 29753,
+      "sha256": "1180f784ee2b9097c9254e495c495b3a40a96a2e028829df22d9a0f1f1d9b303"
+    },
+    {
+      "mode": "100644",
+      "oid": "4e3880a282c99aa581dbb927917fd1958ca52e03",
+      "stage": 0,
+      "path": "apps/server/tests/PublicationRequestTests.cs",
+      "archivePath": "index-blobs/4e3880a282c99aa581dbb927917fd1958ca52e03.blob",
+      "size": 5162,
+      "sha256": "4801a53c92e2c416930e4a1cf903769be9798fad985822c4cefe77d18ddededd"
+    }
+  ]
+}

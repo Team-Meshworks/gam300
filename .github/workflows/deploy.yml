@@ -18,6 +18,8 @@ concurrency:
 
 jobs:
   release:
+    # Reject manual runs from other branches before allocating a runner
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
     name: Verify release and branch
     runs-on: ubuntu-24.04
     timeout-minutes: 5

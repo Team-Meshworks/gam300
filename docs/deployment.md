@@ -5,24 +5,34 @@
 | `dev`  | `development`      | https://51.79.242.181:8443 | `127.0.0.1:8082`         |
 | `main` | `production`       | https://51.79.242.181      | `127.0.0.1:8081`         |
 
-Integrate feature work into `dev`. Release through a `dev` → `main` pull request;
-CI checks pull requests and pushes to both branches automatically, and rejects a PR
-into `main` unless it comes from this repository's `dev` branch. Manual CI dispatch
-remains available. Deployment is a separate manual action and never rebuilds the image.
+Integrate feature work into `dev`. Release through a `dev` to `main` pull request.
+CI runs automatically only after pushes to `dev` or `main`, including merge commits.
+Pull requests do not start CI. Manual CI dispatch is supported only on those two
+branches; selecting another branch skips all jobs. Deployment is a separate manual
+action and never rebuilds the image.
+
+The promotion rule still requires a PR into `main` to come from this repository's
+`dev` branch. Removing PR-triggered CI also removes its automatic source-branch
+check, so reviewers must verify the source repository and branch before merging.
+This is a manual safeguard, not an equivalent automated enforcement mechanism.
 The GitHub environments allow only their matching branches.
 
 CI builds `dev` with `NODE_ENV=development` and Vite's `development` mode, including
 **Open sample project** and framework development diagnostics. `main` uses
-`NODE_ENV=production` and `production` mode. Pull requests use their target branch's
-mode; manual feature-branch builds use development mode. Both images contain built
-static files served by Caddy, with the same health checks and access gate.
+`NODE_ENV=production` and `production` mode. Manual runs use the selected supported
+branch's mode. Both images contain built static files served by Caddy, with the same
+health checks and access gate. Recovery depends on whether the release includes the
+server stack; see [Deploy and recover](#deploy-and-recover).
 Existing images keep their original build mode. After these workflow changes reach
 `dev` or `main`, deploy a new successful CI run to apply the branch's build mode.
 
 GitHub currently rejects branch protection for this private repository with an upgrade
 requirement. Automatic workflow checks and environment branch restrictions are configured, but
 GitHub does not prevent direct pushes or require passing checks before a merge. Keep the
-repository private. Reviewers must verify approval and a passing CI run before merging.
+repository private. Feature PR reviewers must verify approval and local check results
+before merging into `dev`. Before promoting to `main`, verify the `dev` source branch
+and a successful CI run for the exact `dev` commit being promoted. CI checks the
+integrated `main` commit after merging; deploy only after that run succeeds.
 Revisit enforced required checks when private-repository branch protection becomes available.
 
 Wiki.js is available at https://51.79.242.181:9443 with sign-in required. Its separate
@@ -153,8 +163,9 @@ Do not add `--volumes` when keeping project or account data.
 
 ## What CI does
 
-`.github/workflows/ci.yml` runs on pull requests and pushes to `main`/`dev`, plus
-`workflow_dispatch`. It restores LFS and
+`.github/workflows/ci.yml` runs automatically on pushes to `main` or `dev`.
+It also supports `workflow_dispatch` on those branches. PRs do not trigger runs
+and manual runs on other branches skip all jobs. It restores LFS and
 locked dependencies; checks formatting, lint, asset
 integrity, deployment isolation/rollback and unit tests; builds the image; and runs the
 authoring and recovery/file checks against Vite's development server and deployment checks against the
@@ -169,6 +180,11 @@ architecture tooling, package manifests, compiler/build configuration or CI chan
 and on manual runs. Every run still checks live imports for forbidden dependencies
 and cycles. CI generates the detailed architecture graph as a test artifact; comment
 and line-number changes do not require regenerating a tracked graph to pass.
+
+Browser, integration, caching, recovery, history and workspace checks run in separate
+fixture jobs against Vite. The workspace routes are also checked against the packaged
+Caddy application. Publishing waits for every fixture job and all required build/test
+jobs; the architecture proof may be skipped only when its selector reports it unnecessary.
 
 The recovery check includes place–move–undo–save–reload and JSON transfer into a fresh
 browser context. Its output and the editor check output are retained under `apps/web/test-results/`.
@@ -188,7 +204,8 @@ publishing job pushes the exact tested image to the private GHCR package
 branch and CI run ID. The short-lived image-transfer artifact is retained for two days;
 test/web artifacts for 14 days and the small release bundle for 90 days. Retain registry
 images and release bundles needed for reviewed recovery; old images may become unavailable.
-Pull request runs and manual runs on other branches run the same checks but skip publishing.
+Feature branches do not run these checks in Actions; run the relevant checks locally
+before requesting review.
 
 Superseded CI runs are cancelled. Deployments are serialized per environment, and a VM
 file lock also prevents concurrent changes to the same deployment.
@@ -202,19 +219,20 @@ digests as `image`, `apiImage` and `migrationImage`.
 
 ### Run CI on demand
 
-Open **Actions → CI → Run workflow**, select the branch, then choose **Run workflow**.
+Open **Actions > CI > Run workflow**, select `dev` or `main`, then choose **Run workflow**.
 With an authenticated GitHub CLI, the equivalent is:
 
 ```sh
 gh workflow run ci.yml --ref dev
 ```
 
-Choose a feature branch to check work before merging, `dev` for a development release,
-or `main` for a production release. Merging into either branch automatically runs CI
-on the resulting commit. Deployment requires the selected run to match the branch head.
+Choose `dev` for a development release or `main` for a production release.
+Feature-branch checks must be run locally. Merging into either supported branch
+automatically runs CI on the resulting commit. Deployment requires the selected
+run to match the current branch head and deploys that run's tested images.
 
 Manual dispatch requires repository write access, and the workflow must exist on the
-default branch. Workflow changes follow the same feature → dev → main promotion path.
+default branch. Workflow changes follow the same feature to dev to main promotion path.
 See GitHub's
 [manual workflow guide](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow).
 
@@ -222,7 +240,7 @@ See GitHub's
 
 1. Wait for the intended branch's push CI run or manually run **CI**. Copy its run ID from the summary
    or the number at the end of its GitHub URL.
-2. Open **Actions → Deploy → Run workflow**.
+2. Open **Actions > Deploy > Run workflow**.
 3. Select `dev` for development or `main` for production. Enter the CI run ID.
 4. The workflow verifies the run's workflow identity, branch, event, success and commit,
    then checks the branch head again after environment approval and before Docker login.
