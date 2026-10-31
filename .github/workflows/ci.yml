@@ -301,27 +301,10 @@ jobs:
           docker compose -f ../../compose.yaml -p vthere-ci down
 
   server:
-    name: Server checks (${{ matrix.name }})
+    name: Server build and tests
     runs-on: ubuntu-24.04
-    # Each shard gets its own database and process so TUnit's intentional
-    # NotInParallel boundaries remain intact while shards run concurrently.
+    # Leave room for slow package mirrors before the full PostgreSQL/browser suite.
     timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: core
-            filter: >-
-              /*/*/(AccountModelTests)|(ProjectDocumentServiceTests)|(ProjectHttpResultsTests)|(ProjectSavePolicyTests)|(ProjectSaveServiceTests)|(ProjectSaveWriterTests)|(SaveEnvelopeReaderTests)/*
-          - name: accounts
-            filter: >-
-              /*/*/(AccountPersistenceTests)|(AccountSessionTests)|(AdministrationEndpointTests)|(BootstrapAdministrationTests)|(CredentialOperationTests)|(RequestPrincipalTests)/*
-          - name: projects
-            filter: >-
-              /*/*/(ProjectAccessTests)|(ProjectLifecycleTests)|(ProjectPersistenceTests)|(ProjectReadEndpointTests)|(ProjectSaveEndpointTests)/*
-          - name: boundaries
-            filter: >-
-              /*/*/(HostBoundaryTests)|(PostgresAccountFixtureTests)|(ProjectRequestBoundaryTests)|(RequestSecurityTests)/*
     defaults:
       run:
         working-directory: apps/server
@@ -373,14 +356,14 @@ jobs:
           dotnet ef migrations list --no-connect --project Spatia.Server --startup-project tests --configuration Release --no-build
           dotnet ef migrations has-pending-model-changes --project Spatia.Server --startup-project tests --configuration Release --no-build
           dotnet ef migrations script --idempotent --project Spatia.Server --startup-project tests --configuration Release --no-build --output .artifacts/identity-migration.sql
-          dotnet test --project tests/Spatia.Server.Tests.csproj -c Release --no-build --results-directory "test-results/ci/${{ matrix.name }}" -- --report-trx --minimum-expected-tests 1 --treenode-filter '${{ matrix.filter }}'
+          dotnet test --project tests/Spatia.Server.Tests.csproj -c Release --no-build --results-directory test-results/ci -- --report-trx --minimum-expected-tests 1
       - name: Retain server test evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: server-checks-${{ matrix.name }}-${{ github.sha }}
+          name: server-checks-${{ github.sha }}
           path: |
-            apps/server/test-results/ci/${{ matrix.name }}/
+            apps/server/test-results/ci/
             apps/server/.artifacts/scrum45-browser-version.txt
           retention-days: 14
           overwrite: true
