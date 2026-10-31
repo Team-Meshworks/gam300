@@ -31,6 +31,16 @@ umask 077
 mkdir -p -- "$directory"
 exec 9>"$directory/deploy.lock"
 flock -w 300 9
+recovery_guard="$directory/server-recovery-required"
+release_identity=$(printf '%s\n' "$revision" "$image" "$api_image" "$migration_image")
+recovering=false
+if [[ -e "$recovery_guard" ]]; then
+  recovering=true
+  if ! $server || [[ "$(cat "$recovery_guard")" != "$release_identity" ]]; then
+    echo "Server recovery is pending. Retry the exact candidate release or obtain an operator compatibility review before deploying a different release." >&2
+    exit 1
+  fi
+fi
 if ! $server && [[ -f "$directory/current/compose.server.yaml" ]]; then
   echo "Choose a release with API and migration images; an editor-only release cannot replace this server stack" >&2
   exit 1
@@ -78,7 +88,7 @@ fi
 if $server; then run_release "$candidate" pull; else run_release "$candidate" pull web; fi
 
 # A runtime rollback never reverses schema changes, so keep a private database backup
-if $server && [[ -f "$directory/current/compose.server.yaml" ]]; then
+if $server && ! $recovering && [[ -f "$directory/current/compose.server.yaml" ]]; then
   mkdir -p -- "$directory/backups"
   backup=$(mktemp "$directory/backups/before-$revision.XXXXXX.dump")
   run_release "$directory/current" stop api
@@ -88,6 +98,14 @@ if $server && [[ -f "$directory/current/compose.server.yaml" ]]; then
     echo "Database backup failed; the existing API was restarted without applying migrations" >&2
     exit 1
   fi
+fi
+
+# Persist before migrations or candidate requests can change authorization state
+# After an interruption, only this exact release may retry without an operator review
+if $server; then
+  guard_candidate=$(mktemp "$directory/.server-recovery.XXXXXX")
+  printf '%s\n' "$release_identity" > "$guard_candidate"
+  mv -- "$guard_candidate" "$recovery_guard"
 fi
 
 healthy() {
@@ -105,18 +123,22 @@ if run_release "$candidate" up -d --no-build --wait --wait-timeout 120 && health
     mv -- "$directory/current" "$directory/previous"
   fi
   mv -- "$candidate" "$directory/current"
+  if $server; then rm -- "$recovery_guard"; fi
   printf 'Deployed %s: %s (%s)\n' "$environment" "$revision" "$image"
 else
   run_release "$candidate" logs --tail 50 || true
-  if $server; then run_release "$candidate" stop api gateway || true; fi
+  if $server; then
+    if ! run_release "$candidate" stop api gateway; then
+      echo "Could not confirm API/gateway shutdown. Recovery guard retained; inspect the running services before proceeding." >&2
+      exit 1
+    fi
+    echo "Server deployment failed; API and gateway remain stopped. Older binaries must not serve the retained database. Retry this exact release or follow the reviewed recovery procedure." >&2
+    if [[ -n "${backup:-}" ]]; then echo "Database backup retained at $backup; schema changes were not reversed" >&2; fi
+    exit 1
+  fi
   if [[ -f "$directory/current/.env" ]]; then
     echo "Deployment failed; restoring the last working $environment runtime" >&2
-    if [[ -f "$directory/current/compose.server.yaml" ]]; then
-      # Do not rerun old migrations against a newer database
-      run_release "$directory/current" up -d --no-build --no-deps --wait --wait-timeout 90 web api gateway
-    else
-      run_release "$directory/current" up -d --no-build --wait --wait-timeout 90 web
-    fi
+    run_release "$directory/current" up -d --no-build --wait --wait-timeout 90 web
     previous_revision=$(sed -n 's/^REVISION=//p' "$directory/current/.env")
     [[ "$(curl --fail --silent --show-error --max-time 10 "http://127.0.0.1:$port/version.txt")" == "$previous_revision" ]]
   else

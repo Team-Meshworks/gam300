@@ -124,7 +124,7 @@ public sealed class ProjectLifecycleTests
     }
 
     [Test]
-    public async Task ProjectLifecycle_ArchiveReopenAndAssignmentsPreserveSavedContentAndInvalidateOldRetry()
+    public async Task ProjectLifecycle_ArchiveReopenAndAssignmentsPreserveSavedContentAndHistoricalRetry()
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
         var actor = await fixture.CreateAccountAsync(ApplicationRoles.Educator);
@@ -157,10 +157,16 @@ public sealed class ProjectLifecycleTests
         using var reopened = await SendAsync(fixture, HttpMethod.Patch, Path(id, "/archive"), new { expectedRevision = 2, archived = false });
         await MetadataAsync(reopened, HttpStatusCode.OK, 3);
         using var oldRetry = await SendAsync(fixture, HttpMethod.Put, Path(id), save);
-        await ProblemAsync(fixture, oldRetry, HttpStatusCode.Conflict, "revision_conflict", 3);
+        await Assert.That(oldRetry.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        await Assert.That(await oldRetry.Content.ReadAsStringAsync()).IsEqualTo(await saved.Content.ReadAsStringAsync());
+        await Assert.That((await ReadAsync(fixture, id)).Revision).IsEqualTo(3L);
         using var assigned = await SendAsync(fixture, HttpMethod.Patch, Path(id, "/assignments"), Assignments(3, [], [actor]));
         await MetadataAsync(assigned, HttpStatusCode.OK, 4);
         await Assert.That((await ReadAsync(fixture, id)).DocumentJson).IsEqualTo(before.DocumentJson);
+        using var assignedRetry = await SendAsync(fixture, HttpMethod.Put, Path(id), save);
+        await Assert.That(assignedRetry.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        await Assert.That(await assignedRetry.Content.ReadAsStringAsync()).IsEqualTo(await saved.Content.ReadAsStringAsync());
+        await Assert.That((await ReadAsync(fixture, id)).Revision).IsEqualTo(4L);
         using var resumed = await SendAsync(fixture, HttpMethod.Put, Path(id), Save(id, "After reopen", 4));
         await Assert.That(resumed.StatusCode).IsEqualTo(HttpStatusCode.OK);
         using var replace = await SendAsync(fixture, HttpMethod.Patch, Path(id, "/assignments"), Assignments(5, [], [actor]));

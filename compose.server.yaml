@@ -96,6 +96,9 @@ services:
   gateway:
     restart: unless-stopped
     image: caddy:2.11.4-alpine@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b
+    environment:
+      # Host loopback publishing enters through this explicit bridge gateway only
+      SPATIA_OUTER_PROXY_IP: ${SERVER_NETWORK_PREFIX:-172.30.90}.1/32
     ports:
       - "127.0.0.1:${APP_PORT:-8081}:8080"
       - "127.0.0.1:${SERVER_PORT:-8444}:8443"
@@ -119,6 +122,7 @@ networks:
     ipam:
       config:
         - subnet: ${SERVER_NETWORK_PREFIX:-172.30.90}.0/24
+          gateway: ${SERVER_NETWORK_PREFIX:-172.30.90}.1
           # Keep automatic service addresses away from the trusted proxy's fixed address
           ip_range: ${SERVER_NETWORK_PREFIX:-172.30.90}.128/25
   database:
