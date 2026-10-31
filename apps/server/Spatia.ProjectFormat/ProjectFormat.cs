@@ -6,7 +6,7 @@ namespace Spatia.ProjectFormat;
 
 public static partial class ProjectFormat
 {
-    // The entry points below share one pipeline: parse, check structure, resolve references and normalize
+    // The entry points share validation; only imports and writes normalize rotations.
     // Keep these limits and variant checks aligned with the browser's shared project module
     public const int MaxProjectBytes = 5 * 1024 * 1024;
     public const int MaxJsonDepth = 32;
@@ -61,13 +61,23 @@ public static partial class ProjectFormat
     }
 
     /// <summary>
-    /// Reconstructs parsed data with the same content and serialized-byte limits as imports
+    /// Validates and normalizes parsed data with the same content and serialized-byte limits as imports
     /// </summary>
     /// <remarks>
     /// Uploads must use Deserialize to bound original bytes before parsing
-    /// Stored jsonb can expand numbers and whitespace without changing the authored document
     /// </remarks>
-    public static FormatResult<IAuthoredProject> Validate(JsonElement root, IReadOnlyDictionary<string, string> assets)
+    public static FormatResult<IAuthoredProject> Validate(JsonElement root, IReadOnlyDictionary<string, string> assets) =>
+        Validate(root, assets, normalize: true);
+
+    /// <summary>Checks stored content and its serialized-byte limit without changing saved numeric values</summary>
+    /// <remarks>
+    /// Stored jsonb can expand numbers and whitespace without changing the authored document.
+    /// Uploads must use Deserialize to bound original bytes and normalize authored rotations.
+    /// </remarks>
+    public static FormatResult<IAuthoredProject> ValidateStored(JsonElement root, IReadOnlyDictionary<string, string> assets) =>
+        Validate(root, assets, normalize: false);
+
+    private static FormatResult<IAuthoredProject> Validate(JsonElement root, IReadOnlyDictionary<string, string> assets, bool normalize)
     {
         try
         {
@@ -104,8 +114,8 @@ public static partial class ProjectFormat
                 ? new ContentProject(2, String(root, "projectId"), String(root, "title"), JsonSerializer.Deserialize<ContentScene[]>(scenes, JsonOptions)!)
                 : new LegacyProject(1, String(root, "projectId"), String(root, "title"), JsonSerializer.Deserialize<LegacyScene[]>(scenes, JsonOptions)!);
 
-            // Normalize only the newly constructed copy, then check its actual saved byte budget
-            Normalize(value);
+            // Stored rotations already passed the writer; normalizing again can change values and exceed the byte limit.
+            if (normalize) { Normalize(value); }
             if (Encoding.UTF8.GetByteCount(Encode(value)) > MaxProjectBytes)
             {
                 Fail("project", "Project exceeds the 5 MiB document limit");
