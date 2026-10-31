@@ -28,10 +28,8 @@ const assetKinds = new Map(assets.map((asset) => [asset.id, asset.kind]));
 
 export function App() {
   const [store] = useState(() => createDocumentStore(assets));
-  const { objects, project, activeSceneId, canUndo, canRedo } = useSyncExternalStore(
-    store.subscribe,
-    store.getSnapshot,
-  );
+  const { objects, project, activeSceneId, loadGeneration, canUndo, canRedo } =
+    useSyncExternalStore(store.subscribe, store.getSnapshot);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [generatedThumbnails, setGeneratedThumbnails] = useState<Record<string, string>>({});
   const onThumbnail = useCallback((id: string, url: string) => {
@@ -305,7 +303,7 @@ export function App() {
       />
 
       <OlderSceneImport
-        olderSceneFile={session.olderSceneFile}
+        olderSceneFiles={session.olderSceneFiles}
         assets={assets}
         onImport={session.importConvertedFile}
         onError={setError}
@@ -314,7 +312,7 @@ export function App() {
         <SidePanels
           scenes={
             <Scenes
-              key={`${project?.projectId ?? "new"}:${activeSceneId}:${projectScene?.name}`}
+              key={`${loadGeneration}:${project?.projectId ?? "new"}:${activeSceneId}:${projectScene?.name}`}
               scenes={project?.scenes ?? []}
               activeSceneId={activeSceneId}
               assets={assets}
@@ -330,7 +328,7 @@ export function App() {
           savedViews={
             projectScene ? (
               <Viewpoints
-                key={projectScene.id}
+                key={`${loadGeneration}:${projectScene.id}`}
                 views={projectScene.viewpoints ?? []}
                 startCamera={projectScene.startCamera}
                 camera={viewCamera}
@@ -365,6 +363,7 @@ export function App() {
           assets={assets}
           objects={objects}
           projectScene={projectScene ?? null}
+          loadGeneration={loadGeneration}
           selectedId={roomSelected ? projectScene.id : selection}
           dragging={dragging}
           editingEnabled={!switching}

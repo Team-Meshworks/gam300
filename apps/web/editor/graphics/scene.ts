@@ -61,6 +61,7 @@ export interface InitSceneHandle {
     nextObjects: readonly SceneObject[],
     nextSelectedId: string | null,
     nextScene?: ProjectScene | null,
+    loadGeneration?: number,
   ) => void;
   getDropPosition: (clientX: number, clientY: number) => Vector3Tuple | undefined;
   showDropPosition: (position: Vector3Tuple | undefined) => void;
@@ -173,6 +174,7 @@ export function initScene(
   let selectedId: string | null = null;
   let projectScene: ProjectScene | null = null;
   let appliedCamera: CameraPose | null = null;
+  let appliedLoadGeneration: number | undefined;
   let environment: THREE.Group | undefined;
   let environmentId: string | undefined;
   const environmentBounds = new THREE.Box3();
@@ -342,6 +344,7 @@ export function initScene(
     nextObjects: readonly SceneObject[],
     nextSelectedId: string | null,
     nextScene: ProjectScene | null = projectScene,
+    loadGeneration = 0,
   ) {
     if (
       drag !== undefined &&
@@ -366,10 +369,12 @@ export function initScene(
     // Renaming a view can produce a fresh object with the same pose. Keep the live camera still.
     if (
       startingCamera !== null &&
-      JSON.stringify(appliedCamera) !== JSON.stringify(startingCamera)
+      (appliedLoadGeneration !== loadGeneration ||
+        JSON.stringify(appliedCamera) !== JSON.stringify(startingCamera))
     ) {
       modeManager.setMode("editor");
       appliedCamera = startingCamera;
+      appliedLoadGeneration = loadGeneration;
       showCamera(appliedCamera);
     }
 

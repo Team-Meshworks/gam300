@@ -90,6 +90,12 @@ try {
     await oldPage.reload();
     await oldPage.getByText("old-converted.json", { exact: true }).waitFor();
     await oldPage.getByText("Not saved", { exact: true }).waitFor();
+    await oldPage.getByText("old-converted.json", { exact: true }).click();
+    await oldPage
+      .getByRole("button", { name: "Import older browser backup", exact: true })
+      .waitFor();
+    await oldPage.getByRole("button", { name: "Import older browser backup", exact: true }).click();
+    await oldPage.getByRole("heading", { name: "Import older scene file" }).waitFor();
   } finally {
     await oldContext.close();
   }

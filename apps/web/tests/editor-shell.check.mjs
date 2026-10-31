@@ -96,6 +96,26 @@ try {
     buffer: Buffer.from(JSON.stringify(emptyFixture)),
   });
   await page.getByText("Project opened", { exact: true }).waitFor();
+  // Reopening the same document must discard uncommitted scene-form drafts.
+  await page.getByRole("button", { name: "Scenes", exact: true }).click();
+  await page.getByLabel("Scene name").fill("Uncommitted scene draft");
+  await page.locator("#project-import").setInputFiles({
+    name: "pointer-fixture-reopened.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(emptyFixture)),
+  });
+  await page.getByText("pointer-fixture-reopened.json", { exact: true }).waitFor();
+  assert.equal(await page.getByLabel("Scene name").inputValue(), emptyFixture.scenes[0].name);
+  await page.getByRole("button", { name: "Saved views", exact: true }).click();
+  await page.getByLabel("View name").fill("Uncommitted view draft");
+  await page.locator("#project-import").setInputFiles({
+    name: "pointer-fixture-views.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(emptyFixture)),
+  });
+  await page.getByText("pointer-fixture-views.json", { exact: true }).waitFor();
+  assert.equal(await page.getByLabel("View name").inputValue(), "");
+  await page.getByRole("button", { name: "Scene tree", exact: true }).click();
   await asset.click();
   assert.equal(await rows.count(), 1);
   const firstId = await rows.first().getAttribute("data-object-id");

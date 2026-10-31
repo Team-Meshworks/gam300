@@ -211,6 +211,28 @@ try {
         cameraErrors.push(camera.quaternion.angleTo(new THREE.Quaternion().fromArray(rotation)));
         positionErrors.push(camera.position.distanceTo(new THREE.Vector3(10, 10, 10)));
       }
+      const savedPose = fixture.scenes[0].startCamera;
+      const savedScene = { ...fixture.scenes[0], startCamera: savedPose };
+      handle.update([object], object.id, savedScene, 1);
+      await frame();
+      manager.orbit.enableDamping = false;
+      manager.orbit.rotateLeft(0.4);
+      manager.update(0);
+      const navigatedPosition = camera.position.clone();
+      handle.update([object], null, savedScene, 1);
+      await frame();
+      const selectionCameraDrift = camera.position.distanceTo(navigatedPosition);
+      handle.update([{ ...object, name: "Edited" }], object.id, savedScene, 1);
+      await frame();
+      const editCameraDrift = camera.position.distanceTo(navigatedPosition);
+      handle.update([object], object.id, savedScene, 2);
+      await frame();
+      const reopenedPositionError = camera.position.distanceTo(
+        new THREE.Vector3().fromArray(savedPose.position),
+      );
+      const reopenedRotationError = camera.quaternion.angleTo(
+        new THREE.Quaternion().fromArray(savedPose.rotation),
+      );
       install({ ...fixture.scenes[0].startCamera });
       await frame();
       const height = camera.position.y;
@@ -285,6 +307,10 @@ try {
       return {
         cameraErrors,
         positionErrors,
+        selectionCameraDrift,
+        editCameraDrift,
+        reopenedPositionError,
+        reopenedRotationError,
         orbitHeightError,
         beforeZoom,
         afterZoom,
@@ -308,6 +334,10 @@ try {
     JSON.stringify(measured),
   );
   assert.ok(measured.orbitHeightError < 1e-6, "An upright view still orbits around world up");
+  assert.ok(measured.selectionCameraDrift < 1e-6, "Selection preserves the live camera");
+  assert.ok(measured.editCameraDrift < 1e-6, "Edits preserve the live camera");
+  assert.ok(measured.reopenedPositionError < 1e-6, "Reopening restores the saved camera position");
+  assert.ok(measured.reopenedRotationError < 1e-6, "Reopening restores the saved camera rotation");
   assert.equal(measured.hiddenInVisitor, true);
   assert.equal(measured.visibleOnReturn, true);
   assert.equal(measured.unexpectedCommits, 0, "Entering Visitor cancels a pending wheel edit");

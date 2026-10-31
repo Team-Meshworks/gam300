@@ -22,6 +22,32 @@ const assets: CatalogueAsset[] = [
   },
 ];
 const kinds = new Map(assets.map((a) => [a.id, a.kind]));
+it("keeps pasted objects saveable after undoing a schema upgrade", () => {
+  const store = createDocumentStore(assets);
+  assert.isTrue(store.createProject("room").ok);
+  store.addObject("crate", [1, 0, 0]);
+  const id = store.getSnapshot().objects[0]!.id;
+  store.addViewpoint("Entrance", store.getSnapshot().project!.scenes[0]!.startCamera);
+  assert.equal(store.getSnapshot().project!.schemaVersion, 2);
+  assert.isTrue(store.copyObject(id).ok);
+  store.undo();
+  assert.equal(store.getSnapshot().project!.schemaVersion, 1);
+  assert.isTrue(store.pasteObject().ok);
+  assert.lengthOf(store.getSnapshot().objects, 2);
+  assert.isTrue(serializeProject(store.getSnapshot().project, kinds).ok);
+  store.undo();
+  store.redo();
+  assert.isTrue(serializeProject(store.getSnapshot().project, kinds).ok);
+  const restored = createDocumentStore(assets);
+  assert.isTrue(
+    restored.loadProject(
+      JSON.stringify(store.getSnapshot().project),
+      kinds,
+      JSON.parse(JSON.stringify(store.getRecoveryHistory())),
+    ).ok,
+  );
+  assert.lengthOf(restored.getSnapshot().objects, 2);
+});
 it("preserves grid content and converts both history stacks when creating the first scene", () => {
   const store = createDocumentStore(assets);
   store.addObject("crate", [1, 0, 0]);

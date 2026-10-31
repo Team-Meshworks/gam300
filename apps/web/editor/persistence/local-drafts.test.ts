@@ -10,6 +10,7 @@ import {
   getLatestLocalDraft,
   getLocalDraft,
   getRecoverySession,
+  getOlderRecoveryFiles,
   type RecoverySession,
 } from "./local-drafts";
 import type { IDraftDatabase } from "./draft-db";
@@ -322,10 +323,24 @@ describe("getRecoverySession", () => {
     expect(database.records.has('session:"older-scene-backup:4"')).toBe(false);
     expect((await applySaveRecoverySession(recoverySession(), 4, assets, database)).ok).toBe(true);
     expect(database.records.get('session:"older-scene-backup:4"')).toEqual(original);
+    expect(await getOlderRecoveryFiles(assets, database)).toEqual([
+      { text: original.document, name: original.fileName || "older-scene.json" },
+    ]);
     expect(await getRecoverySession(assets, database)).toMatchObject({
       ok: true,
       value: { revision: 5, document: fixture },
     });
+    database.records.set('session:"older-scene-backup:8"', {
+      ...original,
+      fileName: "another.json",
+    });
+    database.records.set('session:"older-scene-backup:9"', { document: "damaged" });
+    const before = [...database.records.entries()];
+    expect(await getOlderRecoveryFiles(assets, database)).toEqual([
+      { text: original.document, name: original.fileName || "older-scene.json" },
+      { text: original.document, name: "another.json" },
+    ]);
+    expect([...database.records.entries()]).toEqual(before);
   });
   it("preserves a richer document as authored work even when its first scene is empty", async () => {
     const database = new FakeDraftDatabase();
