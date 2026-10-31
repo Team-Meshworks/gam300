@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
+import { validateGlbPolicy } from "./asset-content-validation.mjs";
 
 const assetsRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../assets");
 // Resolve the validator from the existing web package
@@ -65,19 +66,7 @@ if (report.issues.numErrors > 0) {
       if (!Number.isSafeInteger(asset.byteSize) || asset.byteSize !== bytes.length) throw new Error("byteSize differs from file");
       const hash = createHash("sha256").update(bytes).digest("hex");
       if (asset.sha256 !== hash) throw new Error("SHA-256 differs; review changed bytes and assign a new asset ID for a new delivery version");
-      if (bytes.length < 20 || bytes.readUInt32LE(0) !== 0x46546c67 || bytes.readUInt32LE(4) !== 2 || bytes.readUInt32LE(8) !== bytes.length) throw new Error("invalid GLB 2 header or length");
-      const jsonLength = bytes.readUInt32LE(12);
-      if (bytes.readUInt32LE(16) !== 0x4e4f534a || jsonLength % 4 || 20 + jsonLength > bytes.length) throw new Error("invalid GLB JSON chunk");
-      const gltf = JSON.parse(bytes.subarray(20, 20 + jsonLength).toString("utf8"));
-      if (gltf.asset?.version !== "2.0") throw new Error("expected glTF 2.0");
-      if ((gltf.extensionsRequired ?? []).length) throw new Error("required extensions need explicit loader review");
-      if (asset.animationPolicy !== undefined && asset.animationPolicy !== "static-only") throw new Error("unsupported animation policy");
-      if ((gltf.skins ?? []).length) throw new Error("baseline does not support skinned assets");
-      if ((gltf.animations ?? []).length && asset.animationPolicy !== "static-only") throw new Error("animated assets require explicit static-only policy or loader review");
-      if (asset.placement !== undefined && asset.placement !== "bottom-center") throw new Error("unsupported placement convention");
-      for (const resource of [...(gltf.buffers ?? []), ...(gltf.images ?? [])]) {
-        if (resource.uri && !resource.uri.startsWith("data:")) throw new Error("external resource found; export a self-contained GLB");
-      }
+      validateGlbPolicy(bytes, asset);
       if (asset.thumbnail === null) {
         if (asset.thumbnailMode !== "generated") warn(`${label}: thumbnail still needed`);
       }
