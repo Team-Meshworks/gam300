@@ -73,32 +73,20 @@ jobs:
           npm run test:unit
           npm run build
 
-  check:
-    name: Build and test
+  architecture:
+    name: Architecture proof
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
-    env:
-      BUILD_MODE: ${{ (github.base_ref || github.ref_name) == 'main' && 'production' || 'development' }}
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: apps/web
         shell: bash
     steps:
-      - name: Require production changes to come through dev
-        if: github.event_name == 'pull_request' && github.base_ref == 'main'
-        working-directory: .
-        env:
-          SOURCE_BRANCH: ${{ github.head_ref }}
-          SOURCE_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
-        run: |
-          test "$SOURCE_BRANCH" = dev
-          test "$SOURCE_REPOSITORY" = "$GITHUB_REPOSITORY"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           lfs: true
           persist-credentials: false
           fetch-depth: 0
-      # Keep the live boundary scan on every change; reserve destructive-copy experiments for tooling edits
       - name: Select architecture proof coverage
         id: architecture
         working-directory: .
@@ -125,6 +113,120 @@ jobs:
         run: |
           npm install --global npm@11.17.0
           npm ci --no-audit --no-fund
+      - name: Install pinned browser
+        if: steps.architecture.outputs.proof == 'true'
+        run: npx playwright install --with-deps chromium
+      - name: Prove architecture enforcement and isolated module removal
+        if: steps.architecture.outputs.proof == 'true'
+        run: npm run test:architecture
+      - name: Retain architecture evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: architecture-${{ github.sha }}
+          path: apps/web/test-results/
+          retention-days: 14
+          overwrite: true
+
+  fixtures:
+    name: Fixture check (${{ matrix.name }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: browser
+            script: test:browser
+          - name: integration
+            script: test:integration
+          - name: caching
+            script: test:caching
+          - name: recovery
+            script: test:recovery
+          - name: history
+            script: test:history
+    defaults:
+      run:
+        working-directory: apps/web
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          lfs: true
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: apps/web/.nvmrc
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Install locked tooling
+        run: |
+          npm install --global npm@11.17.0
+          npm ci --no-audit --no-fund
+      - name: Install pinned browser
+        run: npx playwright install --with-deps chromium
+      - name: Start Vite server
+        run: |
+          mkdir -p test-results
+          node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 5173 --strictPort \
+            > "test-results/dev-server-${{ matrix.name }}.log" 2>&1 &
+          echo $! > vite.pid
+          curl --fail --silent --show-error --retry 30 --retry-delay 1 --retry-connrefused \
+            http://127.0.0.1:5173/ > /dev/null
+      - name: Run fixture check
+        env:
+          CHECK_SCREENSHOT: test-results/${{ matrix.name }}.png
+        run: npm run ${{ matrix.script }} -- http://127.0.0.1:5173/ | tee test-results/${{ matrix.name }}.log
+      - name: Stop Vite server
+        if: always()
+        run: |
+          if [[ -f vite.pid ]]; then
+            kill "$(cat vite.pid)" 2>/dev/null || true
+          fi
+      - name: Retain fixture evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: fixture-${{ matrix.name }}-${{ github.sha }}
+          path: apps/web/test-results/
+          retention-days: 14
+          overwrite: true
+
+  check:
+    name: Build and test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      BUILD_MODE: ${{ (github.base_ref || github.ref_name) == 'main' && 'production' || 'development' }}
+    defaults:
+      run:
+        working-directory: apps/web
+        shell: bash
+    steps:
+      - name: Require production changes to come through dev
+        if: github.event_name == 'pull_request' && github.base_ref == 'main'
+        working-directory: .
+        env:
+          SOURCE_BRANCH: ${{ github.head_ref }}
+          SOURCE_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+        run: |
+          test "$SOURCE_BRANCH" = dev
+          test "$SOURCE_REPOSITORY" = "$GITHUB_REPOSITORY"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          lfs: true
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: apps/web/.nvmrc
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Install locked tooling
+        run: |
+          npm install --global npm@11.17.0
+          npm ci --no-audit --no-fund
       - name: Check source and assets
         run: |
           npm run graph:architecture
@@ -137,136 +239,6 @@ jobs:
         run: npm run test:unit -- --reporter=default --reporter=junit --outputFile=test-results/unit.xml
       - name: Install pinned browser
         run: npx playwright install --with-deps chromium
-      - name: Check architecture, authoring and development fixtures
-        env:
-          ARCHITECTURE_PROOF: ${{ steps.architecture.outputs.proof }}
-          CHECK_SCREENSHOT: test-results/editor.png
-        run: |
-          set +e
-          mkdir -p test-results
-          server_pids=()
-          test_pids=()
-          test_names=()
-          step_started=$(date +%s)
-          check_names=(browser integration caching recovery history)
-          check_commands=(
-            "npm run test:browser -- http://127.0.0.1:5173/"
-            "npm run test:integration -- http://127.0.0.1:5174/"
-            "npm run test:caching -- http://127.0.0.1:5175/"
-            "npm run test:recovery -- http://127.0.0.1:5176/"
-            "npm run test:history -- http://127.0.0.1:5177/"
-          )
-          status=0
-
-          now() {
-            date -u '+%Y-%m-%dT%H:%M:%SZ'
-          }
-
-          elapsed() {
-            echo "$(( $(date +%s) - $1 ))s"
-          }
-
-          echo "[$(now)] CI parallel checks started; architecture proof=$ARCHITECTURE_PROOF"
-
-          cleanup() {
-            echo "[$(now)] Cleaning up background processes"
-            for pid in "${server_pids[@]}" "${test_pids[@]}"; do
-              if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
-                kill "$pid" 2>/dev/null || true
-              fi
-            done
-          }
-          trap cleanup EXIT
-
-          architecture_pid=
-          if [[ "$ARCHITECTURE_PROOF" == true ]]; then
-            architecture_started=$(date +%s)
-            {
-              echo "[$(now)] architecture proof started"
-              npm run test:architecture
-              architecture_status=$?
-              echo "[$(now)] architecture proof exited with status $architecture_status after $(elapsed "$architecture_started")"
-              exit "$architecture_status"
-            } > test-results/architecture.log 2>&1 &
-            architecture_pid=$!
-            echo "[$(now)] architecture proof launched with pid $architecture_pid"
-          fi
-
-          for index in "${!check_names[@]}"; do
-            name="${check_names[$index]}"
-            port=$((5173 + index))
-            server_started=$(date +%s)
-            {
-              echo "[$(now)] Vite server $name starting on port $port"
-              node node_modules/vite/bin/vite.js --host 127.0.0.1 --port "$port" --strictPort
-              server_status=$?
-              echo "[$(now)] Vite server $name exited with status $server_status after $(elapsed "$server_started")"
-              exit "$server_status"
-            } > "test-results/dev-server-$name.log" 2>&1 &
-            server_pids+=("$!")
-            echo "[$(now)] Vite server $name launched with pid ${server_pids[-1]} on port $port"
-          done
-
-          for index in "${!check_names[@]}"; do
-            name="${check_names[$index]}"
-            port=$((5173 + index))
-            ready_started=$(date +%s)
-            echo "[$(now)] Waiting for Vite server $name on port $port"
-            curl --fail --silent --show-error --retry 30 --retry-delay 1 --retry-connrefused \
-              "http://127.0.0.1:$port/" > /dev/null
-            if [[ $? -ne 0 ]]; then
-              echo "[$(now)] Vite server for $name failed to become ready after $(elapsed "$ready_started")" >&2
-              echo "----- test-results/dev-server-$name.log -----" >&2
-              cat "test-results/dev-server-$name.log" >&2
-              echo "----- process status for pid ${server_pids[$index]} -----" >&2
-              ps -p "${server_pids[$index]}" -o pid=,stat=,etime=,cmd= >&2
-              status=1
-              continue
-            fi
-            echo "[$(now)] Vite server $name ready after $(elapsed "$ready_started")"
-            test_started=$(date +%s)
-            if [[ "$name" == browser ]]; then
-              test_log=test-results/editor.log
-              test_env="CHECK_SCREENSHOT=test-results/editor.png"
-            else
-              test_log="test-results/$name.log"
-              test_env=
-            fi
-            {
-              echo "[$(now)] fixture $name started on port $port"
-              if [[ -n "$test_env" ]]; then
-                env "$test_env" bash -c "${check_commands[$index]}"
-              else
-                bash -c "${check_commands[$index]}"
-              fi
-              test_status=$?
-              echo "[$(now)] fixture $name exited with status $test_status after $(elapsed "$test_started")"
-              exit "$test_status"
-            } > "$test_log" 2>&1 &
-            test_pids+=("$!")
-            test_names+=("$name")
-            echo "[$(now)] fixture $name launched with pid ${test_pids[-1]}"
-          done
-
-          for index in "${!test_pids[@]}"; do
-            name="${test_names[$index]}"
-            wait "${test_pids[$index]}"
-            test_status=$?
-            echo "[$(now)] fixture $name wait completed with status $test_status"
-            if [[ $test_status -ne 0 ]]; then
-              status=1
-            fi
-          done
-          if [[ -n "$architecture_pid" ]]; then
-            wait "$architecture_pid"
-            architecture_status=$?
-            echo "[$(now)] architecture proof wait completed with status $architecture_status"
-            if [[ $architecture_status -ne 0 ]]; then
-              status=1
-            fi
-          fi
-          echo "[$(now)] CI parallel checks finished with status $status after $(elapsed "$step_started")"
-          exit "$status"
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       # Source checks have passed above; keep the final Caddy-image browser checks below
       - name: Build the runnable image
@@ -398,7 +370,7 @@ jobs:
 
   publish:
     name: Publish tested image
-    needs: [check, compatibility, server, project-format]
+    needs: [check, compatibility, server, project-format, architecture, fixtures]
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
