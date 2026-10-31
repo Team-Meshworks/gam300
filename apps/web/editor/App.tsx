@@ -259,7 +259,7 @@ export function App() {
         canRedo={canRedo}
         onUndo={store.undo}
         onRedo={store.redo}
-        canPreview={manager !== null && !session.busy}
+        canPreview={manager !== null && (!session.busy || storageOperation === "backup")}
         onPreview={() => {
           const current = store.getSnapshot().project;
           const unavailable =
