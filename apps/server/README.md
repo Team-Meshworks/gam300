@@ -1828,6 +1828,294 @@ and zero public tables), with no HTTPS/restart temporary directories. The exact 
 container was returned to its original stopped state, retaining its original volume;
 Docker Desktop stayed as found. The earlier 439-file evidence archive remained intact.
 
+## SCRUM-161 part 1: classes and rosters
+
+The class foundation stores classes and retained educator/student memberships in
+PostgreSQL, separate from authored project JSON. A classroom belongs to one active
+organization when created. Database foreign keys bind each member to that same
+organization and the member's existing Identity role. Removal marks a membership
+inactive rather than deleting its history.
+
+`POST /api/classes` creates a class with a bounded `name`, optional `orgId` and
+optional `managedByUserIds`. An educator's organization is derived from the current
+account and that educator becomes a manager. An administrator supplies an active
+organization and may select active educators in it. The response contains the new
+class ID, organization ID and name. Class creation is not idempotent; reconcile an
+uncertain response before retrying.
+
+`GET /api/classes` and `GET /api/classes/{id}` expose classes only to current
+managers, active enrolled students or an administrator. Only managers and
+administrators can read `/roster` and `/eligible-students`. The latter returns
+active creators in the class organization and whether each is enrolled. List routes
+use an exclusive UUID `cursor`, default `limit=10` and maximum `limit=20`.
+
+`PUT /api/classes/{id}/members/{userId}` adds or reactivates an active educator or
+creator from the class organization. `DELETE` on the same route deactivates the
+membership; both operations are idempotent. Writes lock the class row and recheck
+the caller's current authority after waiting. Unknown or unauthorized class IDs
+return `class_not_found`; invalid member choices return `invalid_class_members`.
+These routes require a full account, CSRF protection for writes and the existing
+account-write rate limit.
+
+This part does not create assignments or student drafts. Later SCRUM-161 work must
+keep roster changes and affected drafts consistent under the shared project lock.
+The selected deadline policy is an absolute Unix timestamp entered and displayed in
+each user's device time. Copy/import provenance and how an unknown origin affects
+publication are deferred until a dedicated project file format is defined. Those
+assignment, provenance, review and publication integrations are not provided by
+these roster routes.
+
+On 29 October 2026 the focused class suite passed 8/8 cases, the route inventory,
+migration-schema comparison and Identity-to-current upgrade checks each passed,
+and the Release build, EF model check and both project formatting checks passed.
+The complete server suite and restart acceptance remain for the final integration.
+
+## SCRUM-161 part 2: shared draft creation
+
+The existing project lifecycle now stages validated drafts and their initial
+assignments inside a caller-owned read-committed transaction. The caller retains
+commit and rollback control, so a later class batch can reuse the same document
+validation and insertion path. The ordinary create and duplicate routes retain
+their current authority and response behavior.
+
+On 29 October 2026 both staging cases passed for the two supported project
+formats, all 21 existing lifecycle cases passed, and the Release build and both
+formatting checks passed. Assignment batch integration remains to be implemented.
+
+## SCRUM-161 part 3: assignment and provenance storage
+
+Assignment metadata stores the title, description, instructions and an absolute
+deadline as integer Unix seconds. Clients enter and display that instant in their
+own device's local time; the server does not store a class time zone. The supported
+range matches `DateTimeOffset.FromUnixTimeSeconds`. The selected deadline is the
+chosen instant, rather than the end of a calendar day; SCRUM-164 owns submission
+behavior at or after that cutoff. Assignment and student-project mappings are
+server-owned and kept outside the authored project document.
+
+The database ties each mapping to the assignment's class and organization, an
+enrolled Creator-role account and a project in the same organization. A project
+origin can be recorded as ordinary or as class work tied to a retained student
+mapping. A missing origin record means unverified, including existing projects
+whose creation history cannot be established. The policy for copies, imports and
+other unverified content is deferred until a dedicated project file format is
+defined. The storage alone does not create assignments, classify existing projects
+or enforce the review/publication policy; SCRUM-164 and SCRUM-85 own those consumers.
+The project/organization composite foreign keys are declared in the migration
+alongside EF's single-project relationships, so tracked ordinary projects retain
+their existing update behavior. Future migrations must preserve those constraints.
+
+On 29 October 2026 seven focused PostgreSQL cases passed, including timestamp
+bounds and invalid mappings. The migration-schema comparison, Identity-to-current
+upgrade, Release build, EF model check and both formatting checks also passed.
+
+## SCRUM-161 part 4: assignment request validation
+
+An assignment creation request has a stable request UUID, source project and
+revision, Unix-second deadline, required title/description/instructions and one
+to twenty distinct student IDs. Text must be nonblank, contain no NUL or unpaired
+UTF-16 surrogate, and the title is limited to 256 characters. The host's request
+limit bounds the complete body.
+
+The server-derived SHA-256 retry digest binds the class, actor, request ID,
+source, metadata and student set. Reordering the same students does not change
+the digest; changing the actor or content does. This validation does not grant
+authority or create an assignment.
+The two focused request-validation and retry-digest cases passed on 29 October 2026.
+
+## SCRUM-161 part 5: assignment transaction
+
+An internal coordinator locks and reauthorizes the class and source project,
+checks the current roster and source revision, then creates at most twenty
+independent student drafts, their assignment mappings and server-known class
+origins in one transaction. A failure before commit rolls the entire batch back.
+If the commit succeeds but its response is lost, retrying the identical request ID
+returns the original draft IDs; reusing it with changed details returns a conflict.
+Assignment metadata remains outside project JSON.
+
+`POST /api/classes/{id}/assignments` exposes this coordinator to an authorized
+class manager or administrator. It accepts `requestId`, `sourceProjectId`,
+`sourceRevision`, `dueAtUnixSeconds`, `title`, `description`, `instructions` and
+`studentIds`. A source project in the same organization must be manageable by the
+caller. The request uses the host's 16 KiB limit and the normal full-account,
+CSRF and write-rate boundaries. A new batch returns 201; an identical committed
+retry returns 200 with the original mapping. Changed intent for a request ID
+returns 409. Invalid or ineligible input creates no partial assignment.
+For a new template, create a source with the existing project lifecycle first;
+an assignment failure never removes that source project.
+
+Copy/import origin policy remains deferred to M3's SCRUM-173. SCRUM-164 and
+SCRUM-85 own the review and publication integrations; this route does not claim
+to enforce either. The independent draft, retry and roster checks run against
+this production route. Fourteen focused assignment cases, the production-route
+inventory, the Release build and both formatting checks passed on 30 October 2026.
+
+`GET /api/classes/{id}/assignments` lists visible assignments using an exclusive
+UUID `cursor`, default `limit=10` and maximum `limit=20`. `GET` on
+`/api/classes/{id}/assignments/{assignmentId}` returns one visible assignment.
+Each result includes its title, description, instructions, Unix-second deadline
+and visible student/project mappings; source projects and request digests are not
+returned. Students see only their own mapped project when their edit grant and
+class membership are current. Educators see only projects for which they retain a
+manage grant and active class membership; administrators retain existing access.
+An inaccessible assignment returns `class_assignment_not_found`. Reads use one
+consistent database snapshot, the shared project-visibility query and
+`Cache-Control: no-store`.
+Three focused read cases covered grant and roster filtering, pagination and
+preservation of the same Unix instant across device offsets and adjacent seconds.
+The server-restart, eight roster, route-inventory, Release-build and formatting
+checks also passed on 30 October 2026. These checks do not implement or validate
+the editor's actual local-time conversion or the submission cutoff.
+
+## SCRUM-161 part 6: class membership and draft access
+
+For a server-created student draft with a retained assignment mapping, project
+reads and writes require both the existing project grant and current class
+membership. A student can access only their own mapped draft; an educator must
+still be a manager of its class. Administrators retain their existing access.
+Ordinary projects use their existing permission rules. Removing a member preserves
+the drafts and project grants; re-adding that member restores only grants that
+still exist. Adding a new class manager does not create project grants.
+The project assignment endpoint rejects attempts to give a class draft to a
+different student. Its original student's grant may be removed and restored
+without moving the draft or changing its class-origin mapping.
+
+Removal locks the class first, then the affected original student projects in
+project-ID order, and rechecks the caller after waiting. A project write already
+holding its lock finishes before removal; a write that waits behind removal
+rechecks membership and is denied. Removing an educator waits for every mapped
+project in that class, so the transaction grows with the number of drafts.
+This protects known original drafts only; copy/import policy remains deferred.
+Three focused access and concurrency cases passed on 29 October 2026, along with
+the Release build and both formatting checks. The original-student assignment
+rule and the 21 project-lifecycle regression cases passed on 30 October 2026.
+
+## SCRUM-161 part 7: restart and reassignment evidence
+
+The assignment storage and independent drafts were checked after stopping the
+server and starting a fresh instance against the same database. Two additional
+cases exercised project-assignment replacement racing with class removal in both
+orders. The original draft, revision and class mapping survived; re-adding a
+student did not restore a project grant that had separately been removed. All
+three cases passed on 29 October 2026. Client-side local-time conversion and
+copy/import policy remain pending.
+
+Before exposing the assignment creation route, the complete server run passed
+563 of 565 cases; the two browser cases could not find Playwright in this worktree.
+Both passed on a separate rerun using the local Playwright/Chromium cache and an
+existing browser-output directory. The rerun used Node 24.19.0 and Chromium
+153.0.8010.12. No application code changed between those two runs.
+
+## SCRUM-161 M2 acceptance check
+
+* Class and roster APIs authorize current accounts, limit results and student
+  selection to the class organization, and retain removed memberships.
+* Assignment creation validates required metadata, stores integer Unix seconds
+  and atomically creates independent drafts from a manageable source project.
+  Identical retries return the committed mappings; failures leave no partial batch.
+* Student and educator reads use current class membership and the shared project
+  grants. Tests cover cross-organization input, direct-ID denial, roster and
+  reassignment races, distinct drafts and a server restart.
+* Metadata and class mapping stay outside authored project JSON. Ordinary project
+  creation uses the existing lifecycle path and has not gained new requirements.
+* The backend preserves the selected instant without an end-of-day conversion.
+  SCRUM-162 owns device-local entry and display; SCRUM-164 owns submission cutoff
+  and review behavior. SCRUM-173 owns the deferred file-origin policy.
+
+On 30 October 2026 the complete server suite passed 570 tests with no failures or
+skips, including both browser checks. The Release build and server/test formatting
+checks passed.
+
+On 30 October 2026 the backend was also tested together with the exact draft
+publication PR #27 head `5acec3242446f35e57a8169c1b5a01c5eeca1b8b`. The two
+branches conflict in the EF model snapshot; the disposable combined workspace
+used a regenerated snapshot and had no pending model changes. A fresh database,
+an upgrade from publication-first with an existing edition, and an upgrade from
+class-first with existing mappings all passed. The combined class and publication
+regressions passed 171 cases. The unavailable publication integration rejected a
+known class draft and created no edition. SCRUM-164 review and the production
+publication adapter are not implemented, so this does not verify approval or
+publication of a reviewed assignment.
+
+A separate SCRUM-162 local integration connected the creation, assignment-list
+and detail screens to this backend in a disposable browser/server test. It
+verified two student drafts, direct access denial between students, a lost
+response retried across tabs with one committed assignment, and local deadline
+display in Singapore and New York. The screens still need the SCRUM-126 host and
+SCRUM-67 navigation coordination before they are reachable in production.
+
 SCRUM-126 project-home UI, SCRUM-67 autosave/recovery integration, publication/asset
 delivery, hosted CI and deployment remain separate. Production still has no approved
 asset catalogue. These backend checks do not complete parent Story/Epic acceptance.
+
+### SCRUM-161 backend review, 30 October 2026
+
+The live Jira criteria were refreshed and still specify backend class/roster access,
+server-owned assignment metadata, independent drafts, bounded retry/failure behavior,
+restart persistence and preservation of each draft's original student. Device-local UI,
+submission/review behavior and deferred file-origin policy remain with SCRUM-162,
+SCRUM-164 and SCRUM-173 respectively.
+
+The GitHub comparison confirmed `dev` is still `29e81ff763243a048fc73dd340a2cb7dbd1d34ce`.
+Publication PR #27 remains an open draft at `5acec3242446f35e57a8169c1b5a01c5eeca1b8b`.
+Local Git fetch could not authenticate, so these read-only GitHub checks established
+remote freshness without changing the feature branch or publishing anything.
+
+Two backend acceptance tests now verify a full 20-student batch, rejection of a
+21-student request before any write, and replay after an exception following the
+actual database commit. The latter checks the durable draft IDs before retrying;
+both cases prove that replay preserves the original independent drafts and grants.
+All nine assignment coordinator cases passed, with no failures or skips. Locked
+restore, the Release build and test formatting checks passed. Application behavior
+was unchanged; the review added regression evidence rather than another feature.
+
+The acceptance review maps the current Jira requirements to these existing checks:
+
+| SCRUM-161 requirement | Verification |
+| --- | --- |
+| Authorized classes, rosters and eligible students | `ClassroomEndpointTests`: current roles, same-organization selection, pagination, removal history and authorization after waiting for a class lock. |
+| Required assignment metadata and exact Unix-second deadline | `ClassAssignmentIntentTests`, `ClassAssignmentPersistenceTests` and `AssignmentReads_UnixSecondsPreserveInstantsAcrossOffsetsAndAdjacentSeconds`: request/database bounds, required fields and unchanged instants. |
+| Independent editable drafts and bounded failure/retry behavior | `AssignmentCoordinator_*`: distinct projects and grants, all-or-nothing rollback, concurrent retries, stale source rejection, 20-student boundary and lost commit acknowledgement. |
+| Current student ownership without losing existing work | `AssignmentAccess_*`: cross-student transfer rejection, grant removal/restoration, roster races and preservation of content, revision and mappings. |
+| Persistence after server restart | `AssignmentPersistence_ServerRestartRetainsRosterMetadataAndIndependentDrafts`: a fresh application instance reads the saved class, assignment and independent drafts. |
+| Server-owned metadata outside project JSON; ordinary creation unchanged | `ClassAssignmentDatabase_MetadataAndClassOriginPersistOutsideProjectJson`, `ProjectDraftStagingTests` and `ProjectLifecycleTests`. |
+
+Blockers were checked before the scope review, backend tests and migration review.
+The refreshed issue has no blocking issue links or comments. Its required Identity,
+project lifecycle/revision services and locks are available on the verified `dev`
+base; .NET 10, pinned dependencies and the guarded disposable PostgreSQL fixture
+are available locally. No additional SCRUM-161 feature was identified.
+
+The new disposable worktree `.artifacts/scrum161-review-publication` combines
+`072d191` with publication PR #27's exact head for compatibility checks only.
+The application code merged without conflicts. The README and EF snapshot require
+resolution when these branches are integrated. The snapshot was regenerated from
+the combined model; the temporary scaffold migration was removed because the
+publication migration already creates that schema. Both standalone and combined
+models report no pending changes. Neither this test merge nor its publication code
+was added to the SCRUM-161 feature branch.
+
+All four compatibility cases passed: a fresh database, publication-first upgrade
+preserving an existing edition, class-first upgrade preserving its draft/mapping,
+and rejection of a known class draft when publication approval is unavailable.
+The upgrade tests use real migrations and isolated schemas in the disposable test
+database. Their harness and resolved snapshot remain in the disposable worktree.
+Future integration must preserve the organization constraints installed by
+`PreserveProjectOrganizationUpdates`, including the composite foreign keys that
+are deliberately maintained outside EF's alternate-key model.
+
+The combined class and assignment regression run also passed all 39 cases, with
+no failures or skips. Local TRX/HTML evidence is under
+`.artifacts/scrum161-test-results/review-20261030-compatibility` and
+`.artifacts/scrum161-test-results/review-20261030-combined-class`.
+
+The final standalone server run passed all 573 tests with no failures or skips,
+including both browser boundary checks. Its TRX/HTML evidence is under
+`.artifacts/scrum161-test-results/review-20261030-full`. The changed-test formatting
+check, locked restore, Release builds and scoped Git whitespace checks passed.
+
+SCRUM-161's backend criteria are implemented and verified locally, with no known
+remaining in-scope feature or unresolved development blocker. The verified `dev`
+commit is already an ancestor, so no new `dev` merge is needed for this review.
+The remaining step for this branch is code review and eventual integration, which
+has not been published. Hosted CI, deployment, frontend work and other Jira tasks
+were not part of this pass; no Jira status, PR or remote branch was changed.
