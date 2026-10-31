@@ -137,22 +137,74 @@ jobs:
         run: npm run test:unit -- --reporter=default --reporter=junit --outputFile=test-results/unit.xml
       - name: Install pinned browser
         run: npx playwright install --with-deps chromium
-      - name: Prove architecture enforcement and isolated module removal
-        if: steps.architecture.outputs.proof == 'true'
-        run: npm run test:architecture
-      - name: Check authoring and development fixtures
+      - name: Check architecture, authoring and development fixtures
         env:
+          ARCHITECTURE_PROOF: ${{ steps.architecture.outputs.proof }}
           CHECK_SCREENSHOT: test-results/editor.png
         run: |
-          node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 5173 --strictPort > test-results/dev-server.log 2>&1 &
-          server_pid=$!
-          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
-          curl --fail --silent --show-error --retry 30 --retry-delay 1 --retry-connrefused http://127.0.0.1:5173/ > /dev/null
-          npm run test:browser | tee test-results/editor.log
-          npm run test:integration | tee test-results/integration.log
-          npm run test:caching | tee test-results/caching.log
-          npm run test:recovery | tee test-results/recovery.log
-          npm run test:history | tee test-results/history.log
+          set +e
+          mkdir -p test-results
+          server_pids=()
+          test_pids=()
+          check_names=(browser integration caching recovery history)
+          check_commands=(
+            "npm run test:browser -- http://127.0.0.1:5173/"
+            "npm run test:integration -- http://127.0.0.1:5174/"
+            "npm run test:caching -- http://127.0.0.1:5175/"
+            "npm run test:recovery -- http://127.0.0.1:5176/"
+            "npm run test:history -- http://127.0.0.1:5177/"
+          )
+          status=0
+
+          cleanup() {
+            for pid in "${server_pids[@]}" "${test_pids[@]}"; do
+              if [[ -n "$pid" ]]; then kill "$pid" 2>/dev/null || true; fi
+            done
+          }
+          trap cleanup EXIT
+
+          architecture_pid=
+          if [[ "$ARCHITECTURE_PROOF" == true ]]; then
+            npm run test:architecture > test-results/architecture.log 2>&1 &
+            architecture_pid=$!
+          fi
+
+          for index in "${!check_names[@]}"; do
+            name="${check_names[$index]}"
+            port=$((5173 + index))
+            node node_modules/vite/bin/vite.js --host 127.0.0.1 --port "$port" --strictPort \
+              > "test-results/dev-server-$name.log" 2>&1 &
+            server_pids+=("$!")
+          done
+
+          for index in "${!check_names[@]}"; do
+            name="${check_names[$index]}"
+            port=$((5173 + index))
+            curl --fail --silent --show-error --retry 30 --retry-delay 1 --retry-connrefused \
+              "http://127.0.0.1:$port/" > /dev/null
+            if [[ $? -ne 0 ]]; then
+              echo "Vite server for $name failed to become ready" >&2
+              status=1
+              continue
+            fi
+            if [[ "$name" == browser ]]; then
+              CHECK_SCREENSHOT=test-results/editor.png \
+                bash -c "${check_commands[$index]}" > "test-results/editor.log" 2>&1 &
+            else
+              bash -c "${check_commands[$index]}" > "test-results/$name.log" 2>&1 &
+            fi
+            test_pids+=("$!")
+          done
+
+          for index in "${!test_pids[@]}"; do
+            if ! wait "${test_pids[$index]}"; then
+              status=1
+            fi
+          done
+          if [[ -n "$architecture_pid" ]] && ! wait "$architecture_pid"; then
+            status=1
+          fi
+          exit "$status"
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       # Source checks have passed above; keep the final Caddy-image browser checks below
       - name: Build the runnable image
