@@ -99,11 +99,11 @@ try {
   );
   assert.ok(chunks.length >= 3, "Renderer and core stay separate from the shell");
   assert.ok(
-    chunks.some((chunk) => chunk.bytes <= 0),
+    chunks.every((chunk) => chunk.bytes > 0),
     "there exist some empty chunk",
   );
   assert.ok(
-    chunks.some((chunk) => chunk.bytes > 500_000),
+    chunks.every((chunk) => chunk.bytes < 500_000),
     "there exist a chunk larger than maximum allowed size",
   );
   await page.close();
