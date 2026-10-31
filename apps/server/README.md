@@ -7,8 +7,9 @@ logout and current-password change to the existing CSRF bootstrap and three admi
 POSTs. [Accounts Part 7](#scrum-45-part-7-authorized-project-list-and-open) adds protected
 project list/open routes. The [backend follow-on](#scrum-6645-protected-save-and-project-lifecycle)
 adds PUT, create/duplicate, assignment and archive/reopen, for fifteen production routes.
-A parsed envelope remains untrusted until `ProjectSaveService` accepts it through
-the shared project validator, the packaged catalogue and current authorization.
+A parsed envelope remains untrusted: the service requires current authorization and
+the bounded envelope checks. New mutations also pass the shared project validator and
+packaged catalogue; a known exact retry is reconciled before mutable content validation.
 The [Part 5d boundary](#scrum-66-part-5d-validated-document-and-storage-boundary)
 is registered in the application and used by the read, save and creation routes.
 
@@ -33,6 +34,111 @@ Kestrel limit; deployment must also preserve this contract at its reverse proxy.
 Expected failures return fixed status/code/path/message data without authored
 content. Cancellation and stream I/O failures propagate, and the reader leaves the
 request body open. It does not emit an HTTP response or grant access.
+
+## Draft save retry contract
+
+Each save committed by the receipt-enabled server has a receipt keyed by project and
+`clientMutationId`, retained for the project's lifetime. It records the actor, original
+expected revision, request digest, committed revision and saved time. Document, revision
+and receipt commit in one transaction under the project-row lock used by assignment and
+archive writes.
+Current edit authorization and session checks apply before any replay or conflict is
+disclosed. Archive denies saves; a later reopen can replay if the actor has edit access.
+Receipts contain metadata and a digest, not another document; storage grows with each
+successful save and there is no automatic expiry.
+
+An exact retry returns its original `{projectId,revision,clientMutationId,savedAt}`
+acknowledgement without writing another revision, even after newer saves or metadata
+changes. That acknowledgement confirms the original commit; it does not assert that
+its revision is still current. Reusing an accepted project mutation ID with a different
+actor, original expected revision or original document representation returns an
+authorized 409. A known exact receipt is checked before mutable document/catalogue
+validation, after bounded envelope parsing and current authorization. Unknown IDs
+still undergo full validation and require the current revision. Keep the exact pending
+JSON and ID after an uncertain outcome; whitespace, key order, escapes and numeric
+spelling are part of the server-derived [retry digest](#scrum-66-part-5d-validated-document-and-storage-boundary).
+
+Migration `20261029122111_AddProjectSaveReceipts` backfills only the latest populated
+legacy mutation slot, deriving its expected revision as the stored revision minus one.
+It cannot reconstruct older or cleared slots. A populated slot at revision zero violates
+the receipt constraint and rolls back the migration instead of being silently skipped;
+investigate such data before retrying. Receipts are authoritative for replay; the legacy
+latest fields remain, and metadata changes may clear them without deleting receipts.
+Do not allow older server binaries to write during or after migration: mixed-version
+writers can bypass the receipt table. Downgrading the schema drops receipts and loses
+their retry history. Review a coordinated write boundary and data provenance before any
+rollout; this implementation does not establish a deployed migration or erase old data.
+
+### Receipt verification — 29 October 2026
+
+On the receipt working tree based on `29e81ff`, the real PostgreSQL 18.6 full repeat
+passed **557/557**, zero skipped, in **3m10.498s**. Earlier targeted tests failed against
+the latest-only implementation, then 12 historical route/lifecycle cases and 14 receipt
+cases passed after the change. Both full runs passed all 51 persistence cases after
+correcting two test expectations from foreign-key violation to restrict violation.
+The first full run passed 556/557; a test-only cookie-minting failure occurred before
+the save, with cause undetermined. A sandboxed rerun executed zero tests because named
+pipe IPC was denied; the unchanged five-case normal rerun passed 5/5. No code changed
+between the full runs.
+
+The guarded cold API and PostgreSQL restart passed in **21.964s**. Save A committed
+revision 2 and B committed revision 3 with different content. After restart an exact A
+retry returned its original acknowledgement without changing B. Changed reuse of A
+returned 409; a fresh authorized Creator reopened B with its revision, content and saved time.
+Existing session, storage and account lifecycle checks also passed. The nonsecret
+result and test reports are local ignored artifacts under `.artifacts/`; they are not
+part of the repository. This is backend verification, not client autosave integration,
+deployed migration or parent acceptance.
+
+### Bounded review and legacy retry decision — 31 October 2026
+
+**What this change does:** [PR #28](https://github.com/Team-Meshworks/gam300/pull/28)
+stores a receipt for each accepted save so a matching retry can return the original
+acknowledgement after later revisions. Current authorization still controls replay;
+the receipt, revision and document commit together.
+
+The review compared head `6efd9f0c1804f6f34ea4465493eec2e3bf023a85` with
+`29e81ff763243a048fc73dd340a2cb7dbd1d34ce` and found **no confirmed actionable
+defect** in this backend slice. The [bounded endpoint](Spatia.Server/Projects/ProjectSaveEndpoints.cs)
+passes the parsed request to the [save service](Spatia.Server/Projects/ProjectSaveService.cs),
+which locks and reauthorizes before looking up a receipt. The [policy](Spatia.Server/Projects/ProjectSavePolicy.cs)
+compares actor, expected revision and request digest; the [writer](Spatia.Server/Projects/ProjectSaveWriter.cs)
+stages the document and receipt in the caller's transaction. The
+[migration](Spatia.Server/Persistence/Migrations/20261029122111_AddProjectSaveReceipts.cs),
+model constraints, lifecycle callers and rollback paths were also reviewed.
+
+[CI run 76](https://github.com/Team-Meshworks/gam300/actions/runs/40886048672)
+passed its server job on PostgreSQL 18.6 with 557 tests, none failed or skipped.
+The [endpoint tests](tests/ProjectSaveEndpointTests.cs) cover historical retries,
+access denial, concurrent saves and receipt/commit failures. The [persistence tests](tests/ProjectPersistenceTests.cs)
+verify fresh migration, backfilled fields and invalid legacy-row rollback. They do
+not establish a single old-server save → migration → HTTP retry run. The cold restart
+and fresh-browser API result above is a separate earlier local record; no tests were
+rerun for this review. The assumed load is a classroom pilot with concurrent editors;
+no numerical capacity target or throughput measurement was available. Receipt metadata
+grows with every accepted save and has no automatic expiry.
+
+**Decision required before relying on the upgrade:** the SCRUM-66 owner and the
+data/rollout owner must decide whether the documented legacy boundary is acceptable
+for any real pre-upgrade data. The migration recovers only the latest populated
+legacy slot. For a forgotten older ID, an authorized retry at its old revision
+cannot be reconciled: it conflicts if the document is still valid, or can fail
+validation first. Reuse with the current revision can be treated as a new valid
+mutation. None of these outcomes proves whether the original save committed.
+
+- If no required historical retry depends on missing records, explicitly accept the
+  project-lifetime receipt guarantee from the receipt-enabled server and the limited
+  backfill for earlier saves. Confirm the treatment of any uncertain legacy saves.
+- If earlier receipts must be recoverable, the existing latest-only fields cannot
+  reconstruct them. Keep that acceptance open and identify an authoritative source
+  or agreed reconciliation path; do not fabricate missing acknowledgements.
+
+The rollout owner must also define a coordinated write boundary that prevents old
+and new writers from overlapping, and a rollback/restore approach that accounts for
+older binaries bypassing receipts and schema downgrade dropping receipt history.
+These are open decisions, not evidence that a rollout or legacy-data assessment has
+occurred. The backend slice is ready for review; SCRUM-50 format and SCRUM-67/126
+client integration remain separate from it and from parent-story acceptance.
 
 ## Toolchain and checks
 
@@ -1038,6 +1144,9 @@ parent acceptance criteria.
 
 ## SCRUM-66 Part 5a: revision and retry decisions
 
+The following Part 5a–5c sections are historical checkpoint notes. Their latest-only
+retry behavior and future-work descriptions are superseded by the [current contract](#draft-save-retry-contract).
+
 `ProjectSavePolicy.Decide` implements the document-independent revision and
 latest-mutation rules. It takes an existing `ProjectAccessSnapshot`, expected
 revision, mutation ID and an opaque 32-byte request digest. It returns
@@ -1432,6 +1541,9 @@ shared-format integration and saved-project restart/browser acceptance were stil
 
 ## SCRUM-66 Part 5d: validated document and storage boundary
 
+This section records the Part 5d checkpoint. Its validation-before-retry ordering is
+superseded by the [current contract](#draft-save-retry-contract); the digest framing remains in use.
+
 `ProjectSaveService.SaveAsync(context, projectId, envelope, cancellationToken)` now
 owns validation and digest creation. It accepts no caller-supplied schema version or
 digest. After obtaining the existing `EditDraft` lock and current account authority,
@@ -1600,6 +1712,15 @@ Protected asset delivery and the SCRUM-126/SCRUM-67 frontend work remain separat
 
 ## SCRUM-66/45: protected save and project lifecycle
 
+The current SCRUM-69/SCRUM-71
+[lifecycle and publication-access handoff](../../docs/project-lifecycle-publication-access.md)
+consolidates the implemented API/error contract, the publication-effects matrix,
+open policy decisions and acceptance evidence. It records SCRUM-71's archive/reopen
+confirmation and the discussion agreement on authenticated audiences and publication
+management, separately from remaining proposals. The historical checks below establish
+the direct-project backend, not completion of class, publication-access or
+unsaved-editor recovery integration.
+
 The production PUT now connects `SaveEnvelopeReader`, `ProjectSaveService` and
 `ProjectHttpResults` under FullAccount, CSRF and the 6 MiB request limit. It returns
 only committed save acknowledgements. Existing transport/security tests now exercise
@@ -1647,7 +1768,8 @@ accounts produce fixed `422 invalid_project_assignments`; foreign/inaccessible p
 IDs remain indistinguishable from missing ones.
 
 Each successful metadata request advances the common revision/time and clears all
-three remembered-save fields, even when the requested archive state is unchanged.
+three legacy remembered-save fields, even when the requested archive state is unchanged;
+durable save receipts remain.
 Stale requests return an authorized 409, and maximum revisions reject metadata changes.
 The source at maximum revision can still be duplicated into a new revision-0 project.
 Archived projects retain permitted reads/management, but saves, duplication, assignment
@@ -1656,15 +1778,18 @@ assignments. Metadata operations never replace or erase the document.
 
 Creation/duplication have no idempotency key; an uncertain response requires inspecting
 the project list before making another copy. Metadata uncertainty requires reopening
-before selecting a new revision. PUT retains its exact-latest retry protocol. Every
+before selecting a new revision. PUT uses the [durable retry contract](#draft-save-retry-contract). Every
 operation checks the original session cutoff before and after commit; a failure after
 commit can be durable without an acknowledgement.
 
-Publication storage/delivery is not implemented in this slice. Its defined policy is
-to deny archived-project publication/asset retrieval without erasing snapshots. Reopen
-removes only that restriction and does not undo independent revocation/audience policy.
-The future publication consumer must check the existing archive flag. This is a policy
-handoff, not evidence of publication integration.
+Publication storage/delivery is not implemented in this slice. The existing backend
+handoff is to deny archived-project publication/asset retrieval without erasing
+snapshots; reopening removes only that restriction and does not undo independent
+revocation/audience policy. The [shared effects matrix](../../docs/project-lifecycle-publication-access.md#shared-publication-access-effects-matrix)
+records SCRUM-71's confirmation of that rule and the agreed authenticated audience
+and project-scoped management rules. Public/unlisted link continuity, request cutoff,
+class provenance and retention still require owner decisions. The agreements are not
+evidence of publication integration.
 
 Focused verification on **26 October 2026** passed **8/8** PUT route cases, **13/13**
 production transport/security cases, **21/21** lifecycle cases and the **15-route**

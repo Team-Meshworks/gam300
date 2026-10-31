@@ -617,6 +617,54 @@ namespace Spatia.Server.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Spatia.Server.Projects.ProjectSaveReceipt", b =>
+                {
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
+                    b.Property<Guid>("ClientMutationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_mutation_id");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_id");
+
+                    b.Property<long>("ExpectedRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("expected_revision");
+
+                    b.Property<byte[]>("RequestDigest")
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("request_digest");
+
+                    b.Property<long>("Revision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("revision");
+
+                    b.Property<DateTimeOffset>("SavedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("saved_at");
+
+                    b.HasKey("ProjectId", "ClientMutationId");
+
+                    b.HasIndex("ActorId");
+
+                    b.HasIndex("ProjectId", "Revision")
+                        .IsUnique();
+
+                    b.ToTable("project_save_receipts", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_project_save_receipts_digest", "octet_length(request_digest) = 32");
+
+                            t.HasCheckConstraint("CK_project_save_receipts_revision", "expected_revision BETWEEN 0 AND 9007199254740990 AND revision = expected_revision + 1");
+
+                            t.HasCheckConstraint("CK_project_save_receipts_saved_at", "isfinite(saved_at)");
+                        });
+                });
+
             modelBuilder.Entity("Spatia.Server.Reviews.ReviewDecision", b =>
                 {
                     b.Property<Guid>("Id")
@@ -698,14 +746,14 @@ namespace Spatia.Server.Persistence.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("completion_confirmed");
 
-                    b.Property<long>("DueAtUnixSeconds")
-                        .HasColumnType("bigint")
-                        .HasColumnName("due_at_unix_seconds");
-
                     b.Property<string>("DocumentJson")
                         .IsRequired()
                         .HasColumnType("jsonb")
                         .HasColumnName("document");
+
+                    b.Property<long>("DueAtUnixSeconds")
+                        .HasColumnType("bigint")
+                        .HasColumnName("due_at_unix_seconds");
 
                     b.Property<Guid>("ProjectId")
                         .HasColumnType("uuid")
@@ -753,9 +801,9 @@ namespace Spatia.Server.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_review_submissions_digest", "octet_length(request_digest) = 32");
 
-                            t.HasCheckConstraint("CK_review_submissions_due", "due_at_unix_seconds BETWEEN -62135596800 AND 253402300799");
-
                             t.HasCheckConstraint("CK_review_submissions_document", "(jsonb_typeof(document) = 'object' AND jsonb_typeof(document -> 'projectId') = 'string'\nAND lower(document ->> 'projectId') = project_id::text\nAND jsonb_typeof(document -> 'schemaVersion') = 'number'\nAND document -> 'schemaVersion' = to_jsonb(schema_version)) IS TRUE");
+
+                            t.HasCheckConstraint("CK_review_submissions_due", "due_at_unix_seconds BETWEEN -62135596800 AND 253402300799");
 
                             t.HasCheckConstraint("CK_review_submissions_id", "id <> '00000000-0000-0000-0000-000000000000'::uuid");
 
@@ -954,6 +1002,21 @@ namespace Spatia.Server.Persistence.Migrations
                         .HasForeignKey("ClassAssignmentId", "StudentId", "OrganizationId")
                         .HasPrincipalKey("AssignmentId", "StudentId", "OrganizationId")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("Spatia.Server.Projects.ProjectSaveReceipt", b =>
+                {
+                    b.HasOne("Spatia.Server.Accounts.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("ActorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Spatia.Server.Projects.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Spatia.Server.Reviews.ReviewDecision", b =>
