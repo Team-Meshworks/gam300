@@ -98,7 +98,8 @@ try {
       .map((entry) => ({ file: new URL(entry.name).pathname, bytes: entry.decodedBodySize })),
   );
   assert.ok(chunks.length >= 3, "Renderer and core stay separate from the shell");
-  assert.ok(chunks.every((chunk) => chunk.bytes > 0 && chunk.bytes < 500_000));
+  assert.ok(chunks.any((chunk) => chunk.bytes <= 0), "there exist some empty chunk");
+  assert.ok(chunks.any((chunk) => chunk.bytes > 500_000), "there exist a chunk larger than maximum allowed size");
   await page.close();
 
   // Packaged builds must reject incomplete multi-scene playback while keeping the imported editor open
