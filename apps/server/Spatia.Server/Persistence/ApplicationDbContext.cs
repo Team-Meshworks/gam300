@@ -29,6 +29,11 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<Project> Projects => Set<Project>();
 
     /// <summary>
+    /// Gets the durable acknowledgements of accepted project save mutations
+    /// </summary>
+    public DbSet<ProjectSaveReceipt> ProjectSaveReceipts => Set<ProjectSaveReceipt>();
+
+    /// <summary>
     /// Gets the account permissions assigned to individual projects
     /// </summary>
     public DbSet<ProjectAssignment> ProjectAssignments => Set<ProjectAssignment>();
@@ -140,6 +145,28 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             project.HasOne<ApplicationUser>().WithMany()
                 .HasForeignKey(record => record.LastMutationActorId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<ProjectSaveReceipt>(receipt =>
+        {
+            receipt.ToTable("project_save_receipts", table =>
+            {
+                table.HasCheckConstraint("CK_project_save_receipts_revision",
+                    "expected_revision BETWEEN 0 AND 9007199254740990 AND revision = expected_revision + 1");
+                table.HasCheckConstraint("CK_project_save_receipts_digest", "octet_length(request_digest) = 32");
+                table.HasCheckConstraint("CK_project_save_receipts_saved_at", "isfinite(saved_at)");
+            });
+            receipt.HasKey(record => new { record.ProjectId, record.ClientMutationId });
+            receipt.Property(record => record.ProjectId).HasColumnName("project_id");
+            receipt.Property(record => record.ClientMutationId).HasColumnName("client_mutation_id");
+            receipt.Property(record => record.ActorId).HasColumnName("actor_id");
+            receipt.Property(record => record.ExpectedRevision).HasColumnName("expected_revision");
+            receipt.Property(record => record.Revision).HasColumnName("revision");
+            receipt.Property(record => record.RequestDigest).HasColumnName("request_digest").IsRequired();
+            receipt.Property(record => record.SavedAt).HasColumnName("saved_at").HasColumnType("timestamp with time zone");
+            receipt.HasIndex(record => new { record.ProjectId, record.Revision }).IsUnique();
+            receipt.HasOne<Project>().WithMany().HasForeignKey(record => record.ProjectId).OnDelete(DeleteBehavior.Restrict);
+            receipt.HasOne<ApplicationUser>().WithMany().HasForeignKey(record => record.ActorId).OnDelete(DeleteBehavior.Restrict);
         });
 
         builder.Entity<ProjectAssignment>(assignment =>

@@ -146,7 +146,7 @@ try {
   const creatorSession = { userId: created.body.userId, displayName: creatorName,
     role: "Creator", orgId: organization.body.id, mustChangePassword: true };
 
-  stage = "project creation assignment and committed save";
+  stage = "project creation assignment and committed saves";
   const project = await write(administrator.page, "/api/projects", {
     title: "Restart project", environmentAssetId: "test-room-v1", orgId: organization.body.id,
   });
@@ -171,6 +171,22 @@ try {
   assert.equal(saved.body.projectId, project.body.projectId);
   assert.equal(saved.body.clientMutationId, envelope.clientMutationId);
   assert.deepEqual((await get(administrator.page, projectPath)).body.document, document);
+  const newerDocument = structuredClone(document);
+  newerDocument.title = "private-restart-project-body-not-for-logs-newer";
+  newerDocument.scenes[0].objects[0].transform.position = [-2.5, 1, 4];
+  const newerEnvelope = { expectedRevision: 2, clientMutationId: randomUUID(), document: newerDocument };
+  const newerSave = await write(administrator.page, projectPath, newerEnvelope, "PUT");
+  assert.equal(newerSave.status, 200);
+  assert.equal(newerSave.noStore, true);
+  assert.equal(newerSave.body.revision, 3);
+  assert.equal(newerSave.body.projectId, project.body.projectId);
+  assert.equal(newerSave.body.clientMutationId, newerEnvelope.clientMutationId);
+  const beforeRestart = await get(administrator.page, projectPath);
+  assert.equal(beforeRestart.status, 200);
+  assert.equal(beforeRestart.noStore, true);
+  assert.equal(beforeRestart.body.revision, 3);
+  assert.equal(beforeRestart.body.updatedAt, newerSave.body.savedAt);
+  assert.deepEqual(beforeRestart.body.document, newerDocument);
   await session(administrator.page, administratorSession);
   await checkCookies(administrator.context);
   await storageIsEmpty(administrator.page);
@@ -195,11 +211,25 @@ try {
   await storageIsEmpty(administrator.page);
   process.stdout.write("restart retained session passed\n");
 
-  stage = "saved project exact retry after restart";
+  stage = "historical save retry after restart";
   const replay = await write(administrator.page, projectPath, envelope, "PUT");
   assert.equal(replay.status, 200);
   assert.equal(replay.noStore, true);
   assert.deepEqual(replay.body, saved.body);
+  const afterReplay = await get(administrator.page, projectPath);
+  assert.equal(afterReplay.status, 200);
+  assert.equal(afterReplay.noStore, true);
+  assert.deepEqual(afterReplay.body, beforeRestart.body);
+  const inconsistentReuse = await write(administrator.page, projectPath,
+    { ...envelope, expectedRevision: 3, document: newerDocument }, "PUT");
+  assert.equal(inconsistentReuse.status, 409);
+  assert.equal(inconsistentReuse.noStore, true);
+  assert.equal(inconsistentReuse.body.code, "revision_conflict");
+  assert.equal(inconsistentReuse.body.currentRevision, 3);
+  const afterConflict = await get(administrator.page, projectPath);
+  assert.equal(afterConflict.status, 200);
+  assert.equal(afterConflict.noStore, true);
+  assert.deepEqual(afterConflict.body, beforeRestart.body);
   process.stdout.write("restart committed save retry passed\n");
 
   stage = "fresh creator password lifecycle";
@@ -222,12 +252,13 @@ try {
   assert.equal(list.noStore, true);
   assert.equal(list.body.items.length, 1);
   assert.equal(list.body.items[0].projectId, project.body.projectId);
-  assert.equal(list.body.items[0].revision, 2);
+  assert.equal(list.body.items[0].revision, 3);
   const opened = await get(creator.page, projectPath);
   assert.equal(opened.status, 200);
   assert.equal(opened.noStore, true);
-  assert.deepEqual(opened.body, { projectId: project.body.projectId, revision: 2,
-    updatedAt: saved.body.savedAt, document, permissions: { canEdit: true, canManage: false, canPublish: false } });
+  assert.deepEqual(opened.body, { projectId: project.body.projectId, revision: 3,
+    updatedAt: newerSave.body.savedAt, document: newerDocument,
+    permissions: { canEdit: true, canManage: false, canPublish: false } });
   await storageIsEmpty(creator.page);
   process.stdout.write("restart fresh browser project reopen passed\n");
   assert.equal((await write(creator.page, "/api/auth/logout")).status, 204);
