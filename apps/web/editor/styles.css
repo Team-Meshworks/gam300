@@ -340,7 +340,7 @@ a {
   position: absolute;
   left: 4.25rem;
   width: min(18.5rem, calc(100vw - 7rem));
-  max-height: calc(100% - var(--panel-offset, 0rem));
+  max-height: calc(100% - var(--panel-offset, 0rem) - 3.25rem);
   display: flex;
 }
 /* Each panel open beside its own rail button */
@@ -351,9 +351,17 @@ a {
   --panel-offset: 3.5rem;
   top: 3.5rem;
 }
-.panel-slot.is-interaction {
+.panel-slot.is-scenes {
   --panel-offset: 7rem;
   top: 7rem;
+}
+.panel-slot.is-views {
+  --panel-offset: 10.5rem;
+  top: 10.5rem;
+}
+.panel-slot.is-interaction {
+  --panel-offset: 14rem;
+  top: 14rem;
 }
 .editor-panel {
   width: 100%;
@@ -1383,6 +1391,200 @@ a {
     font-size: 0.9375rem;
   }
 }
+
+.viewpoints {
+  padding: 16px;
+  border-top: 1px solid #ddd;
+}
+.viewpoints h2 {
+  font-size: 1rem;
+}
+.viewpoints p {
+  font-size: 0.8rem;
+}
+.viewpoints fieldset {
+  border: 0;
+  padding: 0;
+  min-width: 0;
+}
+.viewpoints label {
+  display: grid;
+  gap: 4px;
+  margin: 10px 0;
+}
+.viewpoints input,
+.viewpoints select {
+  width: 100%;
+  min-width: 0;
+  padding: 6px;
+  box-sizing: border-box;
+}
+.viewpoint-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.viewpoint-cycle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 10px 0;
+}
+.viewpoint-cycle button {
+  min-width: 40px;
+  min-height: 32px;
+  font-size: 1.1rem;
+}
+.viewpoint-cycle span {
+  font-size: 0.85rem;
+}
+
+.saved-view-picker {
+  margin-top: 12px;
+}
+.saved-view-toggle {
+  width: 100%;
+  text-align: left;
+  padding: 8px;
+  overflow-wrap: anywhere;
+}
+.saved-view-menu {
+  padding: 8px;
+  border: 1px solid #bbb;
+  border-radius: 4px;
+}
+.saved-view-menu ol {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0;
+  max-height: 240px;
+  overflow-y: auto;
+}
+.saved-view-menu li {
+  display: flex;
+  align-items: center;
+  border-top: 2px solid transparent;
+  border-bottom: 2px solid transparent;
+}
+.saved-view-menu li.drop-before {
+  border-top-color: #366bc4;
+}
+.saved-view-menu li.drop-after {
+  border-bottom-color: #366bc4;
+}
+.saved-view-menu li button {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  padding: 6px;
+  overflow-wrap: anywhere;
+}
+.saved-view-menu li button[aria-pressed="true"] {
+  background: #dce8f8;
+  color: #18385c;
+}
+.view-drag-handle {
+  cursor: grab;
+  padding: 8px;
+  user-select: none;
+}
+.view-drag-handle:active {
+  cursor: grabbing;
+}
+
+.scenes-panel {
+  padding: 16px;
+  border-bottom: 1px solid #ccc;
+}
+.scenes-panel h2 {
+  font-size: 1rem;
+}
+.scenes-panel p {
+  font-size: 0.8rem;
+}
+.scenes-panel fieldset {
+  border: 0;
+  padding: 0;
+  min-width: 0;
+}
+.scenes-panel label {
+  display: grid;
+  gap: 4px;
+  margin: 10px 0;
+}
+.scenes-panel input,
+.scenes-panel select {
+  width: 100%;
+  min-width: 0;
+  padding: 6px;
+  box-sizing: border-box;
+}
+.scenes-panel ol {
+  padding: 0;
+  list-style: none;
+  max-height: 200px;
+  overflow: auto;
+}
+.scenes-panel li {
+  display: flex;
+  align-items: center;
+  border-top: 2px solid transparent;
+  border-bottom: 2px solid transparent;
+}
+.scenes-panel li button {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  overflow-wrap: anywhere;
+  padding: 6px;
+}
+.scenes-panel li button[aria-pressed="true"] {
+  background: #dce8f8;
+  color: #18385c;
+}
+.scenes-panel li.drop-before {
+  border-top-color: #366bc4;
+}
+.scenes-panel li.drop-after {
+  border-bottom-color: #366bc4;
+}
+.scenes-panel button,
+.scenes-panel input,
+.scenes-panel select {
+  border: 1px solid #d2d3cf;
+  border-radius: 5px;
+  background: #fafaf8;
+  color: inherit;
+  padding: 7px 8px;
+  font: inherit;
+  font-size: 0.8rem;
+}
+.scenes-panel button:not(:disabled):hover {
+  background: #eef0eb;
+}
+.scenes-panel button:disabled {
+  opacity: 0.45;
+}
+.scenes-panel .viewpoint-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+.scenes-panel button:focus-visible,
+.scenes-panel input:focus-visible,
+.scenes-panel select:focus-visible {
+  outline: 2px solid #366bc4;
+  outline-offset: 2px;
+}
+
+/* These controls now live inside the floating editor panel. */
+.editor-panel .viewpoints,
+.editor-panel .scenes-panel {
+  padding: 0;
+  border: 0;
+}
+
 /* Sideways phones are too short to fit it between header and bar, so it go over the header.
    Last in the file so it wins over the width rules above */
 @media (max-height: 30rem) {

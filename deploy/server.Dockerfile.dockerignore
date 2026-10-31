@@ -1,0 +1,16 @@
+# This build needs only backend sources and locked dependencies
+**
+!apps/
+!apps/server/
+!apps/server/**
+# Include metadata required by the server without bundling delivery or source assets
+!assets/
+!assets/manifest.json
+**/bin/
+**/obj/
+**/test-results/
+**/.artifacts/
+**/.env
+**/.env.*
+**/*.pfx
+**/*.pem
