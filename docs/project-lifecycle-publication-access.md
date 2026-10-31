@@ -74,10 +74,10 @@ not confer class classification or approval. See
 for title, array, document and request-size bounds.
 
 Every successful assignment/archive request increments the common revision and
-timestamp and clears the latest-save retry metadata, including a repeated request
-for the same archive state. It preserves the authored document. A maximum-revision
-project cannot accept another metadata revision but can be duplicated into a new
-revision-0 project. Reopen computes permissions from current assignments; it does
+timestamp and clears the legacy latest-save retry slot, including a repeated request
+for the same archive state. It preserves the authored document and durable save
+receipts. A maximum-revision project cannot accept another metadata revision but
+can be duplicated into a new revision-0 project. Reopen computes permissions from current assignments; it does
 not restore an old grant set.
 
 Creation/duplication are not idempotent. After an uncertain response, refresh the
@@ -85,8 +85,13 @@ authorized list before offering another attempt; do not promise that this can
 uniquely identify a prior request. After an uncertain metadata response, reopen
 before deciding on another revisioned operation. A lost acknowledgement, session
 cutoff or cancellation after commit can leave a durable change. PUT keeps its
-separate latest-mutation retry contract. Never resolve uncertainty by blindly
-overwriting the current revision.
+separate [durable retry contract](../apps/server/README.md#draft-save-retry-contract).
+With current edit authority, an exact receipt-backed retry returns its original
+acknowledgement without another write, even after later saves or metadata changes;
+that acknowledgement does not assert the revision is current. Migration cannot
+recover older or cleared legacy slots, and rollout/downgrade limits apply as described
+in that contract. Never resolve uncertainty by blindly overwriting the current
+revision.
 
 ### Error and recovery handoff
 
@@ -315,14 +320,14 @@ local restart artifact was not independently opened during this handoff review.
 | 1. Two students; direct IDs/lifecycle cannot bypass authority | [ProjectReadEndpointTests](../apps/server/tests/ProjectReadEndpointTests.cs): `ProjectReads_TwoStudentsSeeOnlyTheirAssignmentsDespiteForgedClaimsAndCrossOrganizationAssignment`; [ProjectLifecycleTests](../apps/server/tests/ProjectLifecycleTests.cs): `ProjectLifecycle_InvalidAssignmentsAndUnauthorizedIdsCannotChangeOrRevealProjects` | Class/roster integration must reject assignment of a class-created draft to another student and preserve its draft and mapping across original-student grant or membership removal and restoration. |
 | 2. Admin provisions and assigns/reassigns | `ProjectLifecycle_AdministratorProvisionsAndReassignsStudentsWithoutExposingOtherWork` uses real account and project routes | Link the SCRUM-126 home/admin workflow evidence. |
 | 3. Independent copy, correct internal references | `ProjectLifecycle_ImportAndDuplicatePreserveReferencesButNeverCopyAuthorityOrMutableDrafts`, for both supported document versions | Copy/import origin handling remains deferred to SCRUM-173/175 under D6. |
-| 4. Archive/reopen and concurrent reassignment/save | `ProjectLifecycle_ArchiveReopenAndAssignmentsPreserveSavedContentAndInvalidateOldRetry`; `ProjectLifecycle_SaveAndMetadataRacesUseOneLockAndPreserveTheWinner`, both commit orders for assignment and archive; [ProjectAccessTests](../apps/server/tests/ProjectAccessTests.cs) recheck authority after lock waits | Joint publication-effects decisions and class/review/publish race evidence. |
+| 4. Archive/reopen and concurrent reassignment/save | `ProjectLifecycle_ArchiveReopenAndAssignmentsPreserveSavedContentAndHistoricalRetry`; `ProjectLifecycle_SaveAndMetadataRacesUseOneLockAndPreserveTheWinner`, both commit orders for assignment and archive; [ProjectAccessTests](../apps/server/tests/ProjectAccessTests.cs) recheck authority after lock waits | Joint publication-effects decisions and class/review/publish race evidence. |
 | 5. Safe errors, no unauthorized changes, unsaved-work preservation | Lifecycle rollback/expiry/CSRF tests; [ProjectHttpResults](../apps/server/Spatia.Server/Projects/ProjectHttpResults.cs); `Browser_ProjectListOpenAndAccountSwitchUseCurrentSession` | SCRUM-67/126 browser evidence with an actual unsaved editor, including save/export/cancel and late responses. API-only browser checks do not establish this guarantee. |
 
 Before closing the story, attach these integration results to the relevant issues
 and this record:
 
 - **SCRUM-69/71:** joint decisions on D1 public/unlisted link continuity, the D3
-  request cutoff and remaining D5/D6 questions, alongside the recorded archive,
+  request cutoff and remaining D5 questions, alongside the recorded archive,
   audience and management agreements; real PostgreSQL/API/browser coverage for
   anonymous, permitted, unrelated-student and administrator sessions across
   public/unlisted/authenticated editions, JSON, direct assets and cache paths.
@@ -348,7 +353,7 @@ publisher unavailable while trusted classification or required approval integrat
 is absent; the deferred M3 policy does not block SCRUM-161's independent M2 work.
 
 The existing direct-project backend has no additional identified implementation gap
-from this review. The story's full acceptance remains open on owner agreement and
-the integrations above. A later concrete gap in SCRUM-69 authority/lifecycle must
-be fixed here; missing class, review, publication-access or recovery systems remain
+from this review. The story's full acceptance remains open on the SCRUM-69
+acceptance results listed before the separate M3 paragraph and their required owner
+agreements. A later concrete gap in SCRUM-69 authority/lifecycle must be fixed here; missing class, review, publication-access or recovery systems remain
 with their named owners. Do not close SCRUM-69 merely because this document merges.
