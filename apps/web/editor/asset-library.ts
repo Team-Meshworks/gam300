@@ -1,4 +1,8 @@
-import { assetCategories, searchAssets, type CatalogueAsset } from "../shared/assets/catalogue";
+import {
+  assetCategories,
+  searchAssets,
+  type CatalogueAsset,
+} from "../shared/asset-runtime/catalogue";
 import type { SceneObject, Vector3Tuple } from "../shared/project/scene-object";
 import type { ProjectDocument } from "../shared/project/project-types";
 import type { createDocumentStore } from "./document-store";

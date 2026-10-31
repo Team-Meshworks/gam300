@@ -3,7 +3,7 @@ import { createAssetLibrary } from "./asset-library";
 import { createDocumentStore } from "./document-store";
 import type { ContentObject } from "../shared/project/project-content";
 import { serializeProject } from "../shared/project/project-serialization";
-import type { CatalogueAsset } from "../shared/assets/catalogue";
+import type { CatalogueAsset } from "../shared/asset-runtime/catalogue";
 
 // Small catalogue fixtures exercise behavior without loading models or the popup
 const assets: CatalogueAsset[] = [

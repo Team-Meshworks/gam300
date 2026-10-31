@@ -15,11 +15,18 @@ import {
   isHierarchyState,
   type HistoryState,
 } from "./recovery-history";
-import type { CatalogueAsset } from "../shared/assets/catalogue.ts";
+import type { CatalogueAsset } from "../shared/asset-runtime/catalogue.ts";
 import type { SceneObject, Vector3Tuple } from "../shared/project/scene-object.ts";
 import { deserializeProject } from "../shared/project/project-deserialization";
 import type { ProjectDocument } from "../shared/project/project-types";
 import type { ValidationResult } from "../shared/project/validation-helpers";
+
+function createProjectId(): string {
+  const timestamp = Date.now().toString(16).padStart(12, "0");
+  const random = crypto.randomUUID();
+  // RFC 9562 v7 keeps the native UUID's variant and 74 random suffix bits
+  return `${timestamp.slice(0, 8)}-${timestamp.slice(8)}-7${random.slice(15)}`;
+}
 
 function freezeProject(project: ProjectDocument): ProjectDocument {
   // Freeze the reader's separate copy before exposing it to panels or commands
@@ -672,7 +679,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       // Fresh IDs keep this scene separate from earlier projects and their browser backups
       const candidate: ProjectDocument = {
         schemaVersion: 1,
-        projectId: crypto.randomUUID(),
+        projectId: createProjectId(),
         title: "Untitled project",
         scenes: [
           {

@@ -12,7 +12,29 @@ const browser = await chromium.launch({
 const url = process.argv[2] ?? "http://127.0.0.1:4173/";
 const isDevelopment = process.env.BUILD_MODE === "development";
 
+// Asset library is a pop up now. Only open it when closed, since the button toggles it
+async function openLibrary(page) {
+  if ((await page.locator(".asset-picker").count()) === 0) {
+    await page.getByRole("button", { name: "Asset library", exact: true }).click();
+  }
+}
+
+// Clicking a card only picks it, Add is what places it
+async function addAsset(page, name) {
+  await openLibrary(page);
+  await page.locator(".asset-picker").getByRole("button", { name, exact: true }).click();
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+}
+
 try {
+  const legacyModel = await fetch(new URL("models/snowglobe.glb", url));
+  assert.notEqual(
+    Buffer.from(await legacyModel.arrayBuffer())
+      .subarray(0, 4)
+      .toString("utf8"),
+    "glTF",
+    "The build must not ship a duplicate public model alongside the catalogue asset",
+  );
   const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
@@ -26,19 +48,30 @@ try {
   const modelRequest = page.waitForRequest((request) =>
     new URL(request.url()).pathname.endsWith(".glb"),
   );
+  const snowglobeResponse = page.waitForResponse((response) =>
+    /\/assets\/snowglobe-[^/]+\.glb$/.test(new URL(response.url()).pathname),
+  );
   await page.goto(url);
   await page.getByRole("heading", { name: "Spatia", exact: true }).waitFor();
   await coreRequest;
   await modelRequest;
   assert.equal(await page.locator("canvas").count(), 0, "Shell renders before Three.js arrives");
-  const asset = page.getByRole("button", { name: "Add test-crate", exact: true });
+  const asset = page
+    .locator(".asset-picker")
+    .getByRole("button", { name: "test-crate", exact: true });
+  await openLibrary(page);
   assert.equal(await asset.isDisabled(), true);
   releaseCore();
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
+  assert.ok((await snowglobeResponse).ok(), "The manifest snowglobe still loads");
   assert.equal(await page.locator("canvas").count(), 1);
   // Packaged builds follow the same room-first authoring flow as the local editor
-  await page.getByRole("button", { name: "Add test-room", exact: true }).click();
-  await asset.click();
+  await addAsset(page, "test-room");
+  await addAsset(page, "test-crate");
+  assert.equal(await page.locator(".object-row").count(), 1);
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  assert.equal(await page.locator(".object-row").count(), 0);
+  await addAsset(page, "Snow globe");
   assert.equal(await page.locator(".object-row").count(), 1);
   // A collapsed tree must restore the same selected object when reopened
   const placedObjectId = await page.locator(".object-row").getAttribute("data-object-id");
@@ -74,7 +107,16 @@ try {
       .map((entry) => ({ file: new URL(entry.name).pathname, bytes: entry.decodedBodySize })),
   );
   assert.ok(chunks.length >= 3, "Renderer and core stay separate from the shell");
-  assert.ok(chunks.every((chunk) => chunk.bytes > 0 && chunk.bytes < 500_000));
+  // Print every chunk's size on failure so the oversized file is obvious from the CI log
+  const sizes = JSON.stringify(chunks);
+  assert.ok(
+    chunks.every((chunk) => chunk.bytes > 0),
+    `there exist some empty chunk: ${sizes}`,
+  );
+  assert.ok(
+    chunks.every((chunk) => chunk.bytes < 500_000),
+    `there exist a chunk larger than maximum allowed size: ${sizes}`,
+  );
   await page.close();
 
   // Packaged builds must reject incomplete multi-scene playback while keeping the imported editor open

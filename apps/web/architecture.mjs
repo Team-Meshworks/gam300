@@ -29,16 +29,16 @@ export const modules = {
     ],
   },
   catalogue: {
-    paths: ["shared/assets/"],
+    paths: ["shared/asset-runtime/"],
     uses: [],
     packages: [],
-    public: ["shared/assets/catalogue.ts", "shared/assets/sample-asset.ts"],
+    public: ["shared/asset-runtime/catalogue.ts"],
   },
   "asset-loading": {
-    paths: ["shared/assets/ModelCache.ts"],
+    paths: ["shared/asset-runtime/ModelCache.ts"],
     uses: ["catalogue"],
     packages: ["three"],
-    public: ["shared/assets/ModelCache.ts"],
+    public: ["shared/asset-runtime/ModelCache.ts"],
   },
   input: {
     paths: ["editor/history-shortcuts.ts"],
@@ -103,7 +103,7 @@ export function moduleOf(file) {
     file.startsWith("tests/")
   )
     return "checks";
-  if (file === "shared/assets/ModelCache.ts") return "asset-loading";
+  if (file === "shared/asset-runtime/ModelCache.ts") return "asset-loading";
   for (const [name, rule] of Object.entries(modules)) {
     if (rule.paths.some((path) => (path.endsWith("/") ? file.startsWith(path) : file === path))) {
       return name;
@@ -152,7 +152,7 @@ export function scan(root = webRoot) {
       };
     }
     if (["virtual:asset-catalogue", "/@id/__x00__virtual:asset-catalogue"].includes(specifier)) {
-      return "shared/assets/catalogue.ts";
+      return "shared/asset-runtime/catalogue.ts";
     }
     const clean = specifier.replace(/(?<=[^?#])[?#].*$/, "");
     const request = clean.startsWith("/") ? resolve(root, "editor", clean.slice(1)) : clean;
@@ -286,7 +286,7 @@ export function scan(root = webRoot) {
               record(playwright ? "playwright" : "three", file, source, node, "test-environment");
             else if (cacheThree || cacheModule)
               record(
-                cacheModule ? "../shared/assets/ModelCache.ts" : "three",
+                cacheModule ? "../shared/asset-runtime/ModelCache.ts" : "three",
                 file,
                 source,
                 node,

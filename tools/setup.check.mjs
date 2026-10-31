@@ -79,7 +79,7 @@ try {
       assert.match(output, /Spatia is ready at http:\/\/localhost:8091\//);
       assert.match(
         calls,
-        /git lfs pull --include=["']?assets\/delivery\/\*\*,apps\/web\/editor\/public\/models\/\*\*/,
+        /git lfs pull --include=["']?assets\/delivery\/\*\*["']? --exclude=/,
       );
       assert.ok(
         calls.includes(

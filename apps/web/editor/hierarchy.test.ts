@@ -6,7 +6,7 @@ import m1 from "../shared/project/fixtures/m1-project.json";
 import m2 from "../shared/project/fixtures/m2-project.json";
 import manifest from "../shared/project/fixtures/project-format-cases.json";
 import type { ContentProject } from "../shared/project/project-content";
-import type { CatalogueAsset } from "../shared/assets/catalogue";
+import type { CatalogueAsset } from "../shared/asset-runtime/catalogue";
 
 const kinds = new Map(Object.entries(manifest.assets));
 const assets = ["test-room-v1", "test-crate-v1"].map((id) => ({

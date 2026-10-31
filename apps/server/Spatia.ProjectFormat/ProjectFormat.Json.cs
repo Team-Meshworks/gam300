@@ -8,8 +8,12 @@ namespace Spatia.ProjectFormat;
 // Keep duplicate-field handling and browser-compatible JSON output together
 public static partial class ProjectFormat
 {
-    private static void DuplicateFields(JsonElement value)
+    private static void DuplicateFields(JsonElement value, int depth = 0)
     {
+        if (depth >= MaxJsonDepth && value.ValueKind is JsonValueKind.Object or JsonValueKind.Array)
+        {
+            Fail("project", "Project JSON exceeds the nesting limit");
+        }
         // Compare decoded names so escaped spellings cannot hide duplicate JSON fields
         if (value.ValueKind == JsonValueKind.Object)
         {
@@ -21,14 +25,14 @@ public static partial class ProjectFormat
                     Fail("project", "Project JSON contains duplicate fields");
                 }
 
-                DuplicateFields(property.Value);
+                DuplicateFields(property.Value, depth + 1);
             }
         }
         else if (value.ValueKind == JsonValueKind.Array)
         {
             foreach (var item in value.EnumerateArray())
             {
-                DuplicateFields(item);
+                DuplicateFields(item, depth + 1);
             }
         }
         else if (value.ValueKind == JsonValueKind.String)

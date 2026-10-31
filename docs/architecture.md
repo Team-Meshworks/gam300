@@ -50,6 +50,16 @@ has no complete project until a room is chosen or a valid file is opened.
 See [project types](../apps/web/shared/project/project-types.ts) and the
 [representative fixture](../apps/web/shared/project/fixtures/m1-project.json).
 
+New project IDs use UUIDv7 because they become PostgreSQL keys, where the timestamp
+prefix improves index locality. Scene and object IDs remain UUIDv4 from the browser's
+`crypto.randomUUID()`; they are references inside the JSON document, without separate
+database key indexes. The project generator uses the RFC 9562 millisecond prefix and
+retains the native UUID's variant and 74 random suffix bits, without a new dependency.
+Both versions remain valid on import. Opening, saving, recovery and undo preserve
+existing IDs; this generation policy requires no schema version bump or ID migration.
+UUID timestamps are not authoritative save or edit ordering; revisions and authored
+array order remain separate.
+
 ## Hosting and planned product boundary
 
 ```mermaid
@@ -151,8 +161,8 @@ group existing files by responsibility; they do not introduce packages or empty 
 | Module | Implemented responsibility and public contract | Permitted module imports |
 | --- | --- | --- |
 | project | `shared/project/`: v1 plain data, validation, JSON reader/writer, spatial validation, limits and the representative JSON fixture. Internal structure validation stays private. | None |
-| catalogue | `shared/assets/` metadata and virtual-module declaration, excluding `ModelCache.ts`. `CatalogueAsset`, drag MIME type and legacy sample descriptor. No asset loading or rendering. | None |
-| asset-loading | `shared/assets/ModelCache.ts`: acquire/release model leases, invalidate cached versions and reclaim owned Three.js resources. | catalogue |
+| catalogue | `shared/asset-runtime/` metadata and virtual-module declaration, excluding `ModelCache.ts`. `CatalogueAsset` and drag MIME type. No asset loading or rendering. | None |
+| asset-loading | `shared/asset-runtime/ModelCache.ts`: acquire/release model leases, invalidate cached versions and reclaim owned Three.js resources. | catalogue |
 | input | `editor/history-shortcuts.ts`: keyboard/text-focus guards and callbacks. It owns no document or renderer. | None |
 | document | `document-store.ts`, `command-history.ts`, `transform-command.ts`, `recovery-history.ts`: immutable authored snapshots, reversible commands, transform sessions and validated recovery history. Consumers use the store and recovery-history contracts. | project, catalogue |
 | rendering | `editor/graphics/` and `editor/controls/`: scene projection, picking, navigation, custom gizmos and drag overlays. Public entry points are `scene.ts` and `modeManager.ts`. | project, catalogue, input, asset-loading |

@@ -7,8 +7,9 @@ import {
   type MouseEvent,
   type PointerEvent,
 } from "react";
-import { assetDragType, type CatalogueAsset } from "../../shared/assets/catalogue";
+import type { CatalogueAsset } from "../../shared/asset-runtime/catalogue";
 import type { NavigationTool } from "../graphics/scene";
+import { AssetPicker } from "./AssetPicker";
 import { dockEdges, loadDockEdge, nearestEdge, saveDockEdge, type DockEdge } from "./dock-edge";
 import { Icon, type IconName } from "./Icon";
 
@@ -70,8 +71,8 @@ export function BottomBar({
   tool: NavigationTool;
   onToolChange: (tool: NavigationTool) => void;
 }) {
-  // Only one tool selected at a time, library start open so can add stuff straight away
-  const [selected, setSelected] = useState<SceneTool | null>("library");
+  // Only one tool selected at a time. Library start closed now since its a big pop up
+  const [selected, setSelected] = useState<SceneTool | null>(null);
   const libraryOpen = selected === "library";
   const [picked, setPicked] = useState<Record<Category, number>>({
     furniture: 0,
@@ -83,6 +84,7 @@ export function BottomBar({
   const [edge, setEdge] = useState<DockEdge>(loadDockEdge);
   const [dragOffset, setDragOffset] = useState<{ x: number; y: number } | null>(null);
   const dock = useRef<HTMLDivElement>(null);
+  const picker = useRef<HTMLDivElement>(null);
   const gripButton = useRef<HTMLButtonElement>(null);
   const drag = useRef<{ x: number; y: number; moved: boolean } | null>(null);
   const justDragged = useRef(false);
@@ -106,6 +108,26 @@ export function BottomBar({
       document.removeEventListener("keydown", closeOnEscape);
     };
   }, [popup]);
+
+  useEffect(() => {
+    if (!libraryOpen) return;
+    // Same for the asset library, clicks on the bar itself are left for its own buttons
+    function closeOutside(event: globalThis.PointerEvent) {
+      const inside = [picker.current, dock.current].some(
+        (element) => event.target instanceof Node && element?.contains(event.target),
+      );
+      if (!inside) setSelected(null);
+    }
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setSelected(null);
+    }
+    document.addEventListener("pointerdown", closeOutside);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOutside);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [libraryOpen]);
 
   function select(tool: SceneTool | null) {
     setSelected(tool);
@@ -181,167 +203,146 @@ export function BottomBar({
   const open = categories.find((category) => category.id === popup?.id);
 
   return (
-    <div
-      className={`bottom-dock${dragOffset === null ? "" : " is-moving"}`}
-      ref={dock}
-      data-edge={edge}
-      style={dragOffset === null ? undefined : { translate: `${dragOffset.x}px ${dragOffset.y}px` }}
-    >
+    <>
       {libraryOpen && (
-        <section className="asset-panel" id="asset-panel" aria-labelledby="assets-heading">
-          <h2 id="assets-heading">Asset library</h2>
-          <ul className="asset-shelf" role="list">
-            {/* The room tile chooses environment or model placement; hide its internal duplicate */}
-            {assets
-              .filter((asset) => asset.id !== "test-room-module-v1")
-              .map((asset) => (
-                <li key={asset.id}>
-                  <button
-                    className="asset-tile"
-                    type="button"
-                    draggable={ready}
-                    disabled={!ready}
-                    aria-label={`Add ${asset.name}`}
-                    title="Drag into the scene, or click to add"
-                    onClick={() => onAdd(asset.id)}
-                    onDragStart={(event) => {
-                      event.dataTransfer.setData(assetDragType, asset.id);
-                      event.dataTransfer.effectAllowed = "copy";
-                      onDragChange(true);
-                    }}
-                    onDragEnd={() => onDragChange(false)}
-                  >
-                    <span className="asset-art">
-                      <img src={thumbnailFor(asset.id)} alt="" draggable={false} />
-                      <span className="asset-add" aria-hidden="true">
-                        +
-                      </span>
-                    </span>
-                    <span className="asset-name">{asset.name}</span>
-                  </button>
-                </li>
-              ))}
-          </ul>
-        </section>
+        // Outside the dock so it can be big and centred in the scene, not squeezed into the bar
+        <div className="asset-picker-layer" ref={picker}>
+          <AssetPicker
+            assets={assets.filter((asset) => asset.id !== "test-room-module-v1")}
+            ready={ready}
+            thumbnailFor={thumbnailFor}
+            onAdd={onAdd}
+            onDragChange={onDragChange}
+            onClose={() => select(null)}
+          />
+        </div>
       )}
-
-      <div className="tool-tip-anchor">
-        {cameraTip.bubble}
-        <div className="mode-bar" role="group" aria-label="Camera tools">
-          {cameraTools.map((cameraTool) => (
-            <button
-              key={cameraTool.id}
-              className="ui-button"
-              type="button"
-              aria-label={cameraTool.label}
-              aria-pressed={cameraTool.id === tool}
-              onClick={() => onToolChange(cameraTool.id)}
-              {...cameraTip.handlers(cameraTool.hint)}
-            >
-              <Icon name={cameraTool.icon} />
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="tool-tip-anchor">
-        {popup === null && toolTip.bubble}
-        {popup !== null && (
-          // Outside the toolbar so its scroll wont cut the pop up off
-          <div className="tool-popup-anchor" style={place(popup, "popup")}>
-            <div className="tool-tip-anchor">
-              {popupTip.bubble}
-              {open === undefined ? (
-                <div className="dock-menu" role="group" aria-label="Dock toolbar">
-                  {dockEdges.map((option) => (
-                    <button
-                      key={option}
-                      className="ui-button"
-                      type="button"
-                      aria-pressed={edge === option}
-                      onClick={() => {
-                        dockTo(option);
-                        gripButton.current?.focus();
-                      }}
-                    >
-                      {edgeLabels[option]}
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <div className="tool-popup" role="group" aria-label={`${open.label} options`}>
-                  {open.items.map((item, index) => (
-                    <button
-                      key={item.label}
-                      className="ui-button"
-                      type="button"
-                      aria-label={item.label}
-                      aria-pressed={picked[open.id] === index}
-                      onClick={() => {
-                        setPicked((previous) => ({ ...previous, [open.id]: index }));
-                        setPopup(null);
-                      }}
-                      {...popupTip.handlers(item.label)}
-                    >
-                      <Icon name={item.icon} />
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+      <div
+        className={`bottom-dock${dragOffset === null ? "" : " is-moving"}`}
+        ref={dock}
+        data-edge={edge}
+        style={
+          dragOffset === null ? undefined : { translate: `${dragOffset.x}px ${dragOffset.y}px` }
+        }
+      >
+        <div className="tool-tip-anchor">
+          {cameraTip.bubble}
+          <div className="mode-bar" role="group" aria-label="Camera tools">
+            {cameraTools.map((cameraTool) => (
+              <button
+                key={cameraTool.id}
+                className="ui-button"
+                type="button"
+                aria-label={cameraTool.label}
+                aria-pressed={cameraTool.id === tool}
+                onClick={() => onToolChange(cameraTool.id)}
+                {...cameraTip.handlers(cameraTool.hint)}
+              >
+                <Icon name={cameraTool.icon} />
+              </button>
+            ))}
           </div>
-        )}
-        <div className="scene-toolbar" role="group" aria-label="Add to scene">
-          <button
-            ref={gripButton}
-            className="ui-button dock-grip"
-            type="button"
-            aria-label="Move toolbar"
-            aria-expanded={popup?.id === "dock"}
-            {...gripHandlers}
-            {...toolTip.handlers("Drag to move · click to pick a side")}
-          >
-            <Icon name="grip" />
-          </button>
-          <button
-            className="ui-button"
-            type="button"
-            aria-label="Asset library"
-            aria-pressed={libraryOpen}
-            aria-controls="asset-panel"
-            onClick={() => select(libraryOpen ? null : "library")}
-            {...toolTip.handlers(libraryOpen ? "Hide asset library" : "Asset library")}
-          >
-            <Icon name="library" />
-          </button>
-          <button
-            className="ui-button"
-            type="button"
-            aria-label="Hotspot"
-            aria-pressed={selected === "hotspot"}
-            onClick={() => select("hotspot")}
-            {...toolTip.handlers("Hotspot")}
-          >
-            <Icon name="hotspot" />
-          </button>
-          <span className="toolbar-divider" aria-hidden="true" />
-          {categories.map((category) => (
+        </div>
+
+        <div className="tool-tip-anchor">
+          {popup === null && toolTip.bubble}
+          {popup !== null && (
+            // Outside the toolbar so its scroll wont cut the pop up off
+            <div className="tool-popup-anchor" style={place(popup, "popup")}>
+              <div className="tool-tip-anchor">
+                {popupTip.bubble}
+                {open === undefined ? (
+                  <div className="dock-menu" role="group" aria-label="Dock toolbar">
+                    {dockEdges.map((option) => (
+                      <button
+                        key={option}
+                        className="ui-button"
+                        type="button"
+                        aria-pressed={edge === option}
+                        onClick={() => {
+                          dockTo(option);
+                          gripButton.current?.focus();
+                        }}
+                      >
+                        {edgeLabels[option]}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="tool-popup" role="group" aria-label={`${open.label} options`}>
+                    {open.items.map((item, index) => (
+                      <button
+                        key={item.label}
+                        className="ui-button"
+                        type="button"
+                        aria-label={item.label}
+                        aria-pressed={picked[open.id] === index}
+                        onClick={() => {
+                          setPicked((previous) => ({ ...previous, [open.id]: index }));
+                          setPopup(null);
+                        }}
+                        {...popupTip.handlers(item.label)}
+                      >
+                        <Icon name={item.icon} />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          <div className="scene-toolbar" role="group" aria-label="Add to scene">
             <button
-              key={category.id}
+              ref={gripButton}
+              className="ui-button dock-grip"
+              type="button"
+              aria-label="Move toolbar"
+              aria-expanded={popup?.id === "dock"}
+              {...gripHandlers}
+              {...toolTip.handlers("Drag to move · click to pick a side")}
+            >
+              <Icon name="grip" />
+            </button>
+            <button
               className="ui-button"
               type="button"
-              aria-label={category.label}
-              aria-pressed={selected === category.id}
-              aria-expanded={popup?.id === category.id}
-              onClick={(event) => chooseCategory(event, category.id)}
-              {...toolTip.handlers(category.label)}
+              aria-label="Asset library"
+              aria-pressed={libraryOpen}
+              aria-controls="asset-panel"
+              onClick={() => select(libraryOpen ? null : "library")}
+              {...toolTip.handlers(libraryOpen ? "Hide asset library" : "Asset library")}
             >
-              <Icon name={(category.items[picked[category.id]] ?? category.items[0]).icon} />
+              <Icon name="library" />
             </button>
-          ))}
+            <button
+              className="ui-button"
+              type="button"
+              aria-label="Hotspot"
+              aria-pressed={selected === "hotspot"}
+              onClick={() => select("hotspot")}
+              {...toolTip.handlers("Hotspot")}
+            >
+              <Icon name="hotspot" />
+            </button>
+            <span className="toolbar-divider" aria-hidden="true" />
+            {categories.map((category) => (
+              <button
+                key={category.id}
+                className="ui-button"
+                type="button"
+                aria-label={category.label}
+                aria-pressed={selected === category.id}
+                aria-expanded={popup?.id === category.id}
+                onClick={(event) => chooseCategory(event, category.id)}
+                {...toolTip.handlers(category.label)}
+              >
+                <Icon name={(category.items[picked[category.id]] ?? category.items[0]).icon} />
+              </button>
+            ))}
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
 
