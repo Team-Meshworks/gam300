@@ -78,6 +78,7 @@ public static class SpatiaApplication
         var forwardedHeaders = new ForwardedHeadersOptions
         {
             ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
+            // The isolated Caddy peer normalizes the trusted outer chain to one client address
             ForwardLimit = 1,
         };
         forwardedHeaders.KnownProxies.Clear();

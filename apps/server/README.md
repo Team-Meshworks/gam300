@@ -51,6 +51,19 @@ server assembly referenced by the running test build, including Debug builds. Th
 standalone cold-restart acceptance below still targets an explicitly prebuilt Release
 application and is not part of the CI job.
 
+The full suite includes `ProxyChainTests`, which starts two Caddy processes and a
+local ASP.NET test host. Provide the pinned Caddy **2.11.4** executable through
+`CADDY_BINARY` (or as `caddy` on `PATH`) and Node 24.19.0 on `PATH`;
+`SPATIA_TEST_NODE` may specify the Node executable instead. CI extracts Caddy from
+the pinned image. The filtered proxy test uses anonymous test-only endpoints and
+does not require PostgreSQL:
+
+```sh
+dotnet test --project tests/Spatia.Server.Tests.csproj -c Release --no-build -- --minimum-expected-tests 1 --treenode-filter '/*/*/ProxyChainTests/*'
+```
+
+This local loopback test does not establish Linux Docker bridge or VM behavior.
+
 The build checks both projects with nullable analysis, style enforcement and warnings
 as errors. The minimum-test option is passed to the test module after `--`, so skipped
 tests do not satisfy it. The test runner uses local named pipes; Codex's restricted

@@ -15,7 +15,7 @@ CI builds `dev` with `NODE_ENV=development` and Vite's `development` mode, inclu
 **Open sample project** and framework development diagnostics. `main` uses
 `NODE_ENV=production` and `production` mode. Pull requests use their target branch's
 mode; manual feature-branch builds use development mode. Both images contain built
-static files served by Caddy, with the same health checks, access gate and rollback.
+static files served by Caddy, with the same health checks and access gate.
 Existing images keep their original build mode. After these workflow changes reach
 `dev` or `main`, deploy a new successful CI run to apply the branch's build mode.
 
@@ -187,7 +187,7 @@ publishing job pushes the exact tested image to the private GHCR package
 `ghcr.io/team-meshworks/gam300`. Each release records its immutable digest, source commit,
 branch and CI run ID. The short-lived image-transfer artifact is retained for two days;
 test/web artifacts for 14 days and the small release bundle for 90 days. Retain registry
-images needed for rollback; deleting their tags can make old releases unavailable.
+images and release bundles needed for reviewed recovery; old images may become unavailable.
 Pull request runs and manual runs on other branches run the same checks but skip publishing.
 
 Superseded CI runs are cancelled. Deployments are serialized per environment, and a VM
@@ -211,39 +211,64 @@ gh workflow run ci.yml --ref dev
 
 Choose a feature branch to check work before merging, `dev` for a development release,
 or `main` for a production release. Merging into either branch automatically runs CI
-on the resulting commit; deployment consumes the selected run's commit, not the latest branch contents.
+on the resulting commit. Deployment requires the selected run to match the branch head.
 
 Manual dispatch requires repository write access, and the workflow must exist on the
 default branch. Workflow changes follow the same feature → dev → main promotion path.
 See GitHub's
 [manual workflow guide](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow).
 
-## Deploy or roll back
+## Deploy and recover
 
-1. Wait for the intended branch's push CI run, manually run **CI**, or choose an existing
-   successful run for rollback. Copy its run ID from the summary
+1. Wait for the intended branch's push CI run or manually run **CI**. Copy its run ID from the summary
    or the number at the end of its GitHub URL.
 2. Open **Actions → Deploy → Run workflow**.
 3. Select `dev` for development or `main` for production. Enter the CI run ID.
-4. The workflow verifies the run's workflow identity, branch, event, success and commit
-   before sending a job to the VM. A development image cannot be selected for production.
+4. The workflow verifies the run's workflow identity, branch, event, success and commit,
+   then checks the branch head again after environment approval and before Docker login.
+   Older runs and development images for production are rejected.
 5. Check the deployment result and open the environment's URL.
 
-Rollback uses the same workflow with an older successful CI run **from the same branch**.
-Failed startup or health checks restore the previous application. A failed image pull
-leaves it running. Server deployments require a release containing all three images.
-Releases may briefly interrupt service.
+Server deployments require a release containing all three images. The supported workflow
+does not deploy older runs, including as a rollback. A failed image pull leaves the existing
+release running. Releases may briefly interrupt service.
 
 Development and production use separate databases and credentials. Before updating,
 the deployment backs up the database to `backups/`; a failed backup stops the update.
 Database volumes are preserved after failures.
 
-Application rollback does not undo database migrations. Check schema compatibility
-before deployment; database recovery requires a manual restore during downtime.
-Keep backups outside the VM as well.
+Before candidate startup, the deploy script records the revision and all three image
+digests in `server-recovery-required` under the environment directory. A failed or
+interrupted attempt leaves that guard in place; after a reported startup or health
+failure, the API and application gateway are stopped. The same release can be retried;
+the guarded retry skips a new backup and does not restart the old API. A successful
+retry promotes the release and clears the guard. If backup fails before candidate startup,
+the unchanged API is restarted. Editor-only releases retain their prior runtime rollback.
+An interrupted process may leave candidate services running; inspect their state and stop
+the API and application gateway before a reviewed recovery if they are still running.
+
+For a server recovery, keep the guard and use the current deploy procedure to retry the
+exact recorded revision and image digests while that revision remains the branch head;
+do not clear the guard manually for an exact retry. If a different release is needed,
+an operator must first review its schema and authorization compatibility with the actual
+retained database, including data written after the backup, and prepare a safe recovery
+plan. Keep the API and gateway unavailable through that review. Once the plan is approved,
+archive the guard as part of the recovery record, then deploy a successful CI release for
+the new current branch commit. Do not invoke an older deploy script, rewind the branch to
+bypass these controls, or blindly restore a backup: migrations are not reversed and
+restoring a backup can discard later writes. Database restoration requires a reviewed
+procedure during downtime. Keep backups outside the VM as well.
 
 The existing HTTPS gateway and team login remain in place. API and database services
 are not exposed directly.
+
+The application Caddy HTTP listener accepts forwarded headers only from the explicit
+application bridge gateway address (`SERVER_NETWORK_PREFIX`.1/32); it resolves the
+client IP using strict proxy parsing and forwards one normalized address to the API.
+The API trusts the inner Caddy's fixed address and consumes one forwarded hop. The local
+HTTPS listener does not trust forwarded client headers. Preserve the outer gateway's
+header sanitization and the loopback-only port binding; verify the observed bridge peer
+and forwarding behavior in the target Linux Docker environment before deployment.
 
 `/healthz` and `/version.txt` expose only liveness and the deployed commit. The rest of both
 sites initially requires a team login because the current asset catalogue is explicitly

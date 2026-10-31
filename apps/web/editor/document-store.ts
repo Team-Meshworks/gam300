@@ -334,11 +334,13 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       if (!project) projectAssets = new Map(assets.map((a) => [a.id, a.kind]));
       if (!project) {
         // The first scene starts a document; there must always be at least one scene.
+        const upgradeObjects = (entries: readonly SceneObject[]): readonly ContentObject[] =>
+          entries.map((entry) => ({ ...entry, parentId: null, visible: true, components: [] }));
         const document: ProjectDocument = {
           schemaVersion: 2,
           projectId: createProjectId(),
           title: "Untitled project",
-          scenes: [scene],
+          scenes: [{ ...scene, objects: upgradeObjects(state.objects) }],
         };
         const checked = deserializeProject(JSON.stringify(document), projectAssets);
         if (!checked.ok) return checked;
@@ -349,7 +351,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
           fromProject(
             freezeProject({
               ...toContentProject(project!),
-              scenes: [{ ...scene, objects: entry.objects as readonly ContentObject[] }],
+              scenes: [{ ...scene, objects: upgradeObjects(entry.objects) }],
             }),
             scene.id,
           );

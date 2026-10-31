@@ -2,6 +2,7 @@ import { getStartingView } from "../shared/project/starting-view";
 import { assert, it } from "vitest";
 import { createDocumentStore } from "./document-store";
 import type { CatalogueAsset } from "../shared/asset-runtime/catalogue";
+import { serializeProject } from "../shared/project/project-serialization";
 const assets: CatalogueAsset[] = [
   {
     id: "room",
@@ -21,6 +22,44 @@ const assets: CatalogueAsset[] = [
   },
 ];
 const kinds = new Map(assets.map((a) => [a.id, a.kind]));
+it("preserves grid content and converts both history stacks when creating the first scene", () => {
+  const store = createDocumentStore(assets);
+  store.addObject("crate", [1, 0, 0]);
+  store.addObject("crate", [2, 0, 0]);
+  store.addObject("crate", [3, 0, 0]);
+  store.undo();
+  const ids = store.getSnapshot().objects.map((object) => object.id);
+  assert.isTrue(store.createScene("First room", "room").ok);
+  assert.deepEqual(
+    store.getSnapshot().objects.map((object) => object.id),
+    ids,
+  );
+  const saved = serializeProject(store.getSnapshot().project, kinds);
+  assert.isTrue(saved.ok);
+  if (!saved.ok) throw new Error("Project must remain serializable");
+  const restored = createDocumentStore(assets);
+  assert.isTrue(
+    restored.loadProject(saved.value, kinds, JSON.parse(JSON.stringify(store.getRecoveryHistory())))
+      .ok,
+  );
+  for (const count of [1, 0]) {
+    restored.undo();
+    assert.lengthOf(restored.getSnapshot().objects, count);
+    assert.isTrue(serializeProject(restored.getSnapshot().project, kinds).ok);
+  }
+  for (const count of [1, 2, 3]) {
+    restored.redo();
+    assert.lengthOf(restored.getSnapshot().objects, count);
+    assert.isTrue(serializeProject(restored.getSnapshot().project, kinds).ok);
+  }
+  assert.deepEqual(
+    restored
+      .getSnapshot()
+      .objects.slice(0, 2)
+      .map((object) => object.id),
+    ids,
+  );
+});
 function setup() {
   const store = createDocumentStore(assets);
   assert.isTrue(store.createScene("World A").ok);
