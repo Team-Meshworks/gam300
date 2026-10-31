@@ -1,5 +1,6 @@
 using System.Data;
 using System.Globalization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Spatia.Server.Hosting;
@@ -14,7 +15,7 @@ namespace Spatia.Server.Accounts;
 public static class AccountDirectoryEndpoints
 {
     /// <summary>
-    /// Maps bounded directory reads under the full administrator policy
+    /// Maps bounded directory reads and lifecycle writes under the full administrator policy
     /// </summary>
     public static IEndpointRouteBuilder MapAccountDirectory(this IEndpointRouteBuilder endpoints)
     {
@@ -23,7 +24,46 @@ public static class AccountDirectoryEndpoints
         group.MapGet("/users/{id:guid}", GetUserAsync);
         group.MapGet("/organizations", ListOrganizationsAsync);
         group.MapGet("/organizations/{id:guid}", GetOrganizationAsync);
+        group.MapPatch("/users/{id:guid}/active", SetUserActiveAsync).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
         return endpoints;
+    }
+
+    private static async Task<IResult> SetUserActiveAsync(Guid id, SetActiveRequest request, HttpContext context,
+        ApplicationDbContext database, UserManager<ApplicationUser> users, CurrentAccountResolver accounts,
+        CancellationToken cancellationToken)
+    {
+        await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
+        // Share bootstrap's lock so the last-administrator check also serializes with provisioning
+        await database.Database.ExecuteSqlRawAsync("LOCK TABLE \"AspNetUserRoles\" IN SHARE ROW EXCLUSIVE MODE", cancellationToken);
+        if (await AuthorizeAsync(context, accounts, cancellationToken) is { } failure) { return failure; }
+        var user = await users.FindByIdAsync(id.ToString("D"));
+        if (user is null) { return ApiProblems.Create(context, 404, "account_not_found", "The account was not found."); }
+        // Cookie renewal may already have tracked this user before waiting for the lifecycle lock
+        await database.Entry(user).ReloadAsync(cancellationToken);
+        if (user.IsActive != request.IsActive)
+        {
+            if (!request.IsActive)
+            {
+                var administrators = await database.Users.Where(row => row.IsActive
+                    && database.UserRoles.Any(role => role.UserId == row.Id && role.RoleId == ApplicationRoles.AdministratorId)
+                    && !database.OrganizationMemberships.Any(member => member.UserId == row.Id))
+                    .Select(row => row.Id).Take(2).ToListAsync(cancellationToken);
+                if (administrators.Count == 1 && administrators[0] == id)
+                {
+                    return ApiProblems.Create(context, 409, "last_administrator", "Keep at least one active administrator.");
+                }
+            }
+            user.IsActive = request.IsActive;
+            cancellationToken.ThrowIfCancellationRequested();
+            var result = request.IsActive ? await users.UpdateAsync(user) : await users.UpdateSecurityStampAsync(user);
+            if (!result.Succeeded)
+            {
+                return result.Errors.Any(error => error.Code == "ConcurrencyFailure")
+                    ? ApiProblems.Create(context, 409, "account_conflict", "The account changed; reload before retrying.")
+                    : ApiProblems.Create(context, 400, "invalid_account_input", "The account state could not be changed.");
+            }
+        }
+        return await CompleteAsync(context, transaction, Results.NoContent(), cancellationToken);
     }
 
     private static async Task<IResult> ListUsersAsync(HttpContext context, ApplicationDbContext database,
