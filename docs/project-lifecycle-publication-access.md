@@ -107,10 +107,12 @@ It does not test switching with an unsaved editor. SCRUM-67/126 must demonstrate
 save/export/cancel, stale or out-of-order responses, and account/project partitioning
 without relabeling one user's unsaved content as another's.
 
-### Criterion 5: decision preparation
+### Criterion 5: recovery response
 
-**Proposed, 31 October 2026:** the SCRUM-69 and SCRUM-67 owners have not
-agreed on this choice. This section does not change the API contract above.
+**Option A confirmed for recovery, 31 October 2026:** The user reports that Foo
+replied, "Project unavailable is sufficient option A works for me", to one of
+their PR comments. This confirms the generic unavailable response for SCRUM-67
+recovery. The GitHub connector did not return the specific comment or permalink.
 
 When an account that previously opened a project later receives
 `project_not_found`, it can infer only that the project is missing or no longer
@@ -120,40 +122,33 @@ or earlier open is not server-verified authority. Authentication and request
 validation can reject a request before project access is checked; archive and
 revision results do not override current project-access checks.
 
-- **A — retain generic unavailability (recommended for consideration):** keep
-  the existing indistinguishable 404 for missing and inaccessible projects. The
-  recovery owner can treat an open draft as unavailable and preserve or export
-  unsaved work without asserting why access was lost. This requires no new
-  endpoint response, but it does not identify reassignment. Criterion 5 remains
-  unresolved unless the SCRUM-69 and SCRUM-67 owners agree that this outcome
-  meets their recovery need and the Jira requirement is clarified accordingly.
-- **B — expose a specific access-change reason:** only consider a distinct
-  result for a previously authorized account when the server can verify the
-  required prior authority and the actual cause. A remembered ID, imported
-  field or client assertion alone is insufficient. The decision must define
-  what server-held evidence exists, who may receive the reason, its lifetime,
-  and the fallback when evidence is absent or ambiguous. It must not restore
-  read/write authority or reveal content, revision or existence to unrelated
-  accounts. No such reason or proof mechanism is implemented by this handoff.
+- **A — retain generic unavailability (confirmed for recovery):** keep the
+  existing indistinguishable 404 for missing and inaccessible projects. SCRUM-67
+  can treat an open draft as unavailable and preserve or export unsaved work
+  without asserting why access was lost. No new response is required for this
+  choice. Jira criterion 5 lists reassignment, but this generic result does not
+  establish it as the cause.
+- **B — expose a specific access-change reason (not selected):** this would
+  require server-verifiable prior authority and cause, with defined disclosure
+  and expiry boundaries. A remembered ID, imported field or client assertion
+  alone would be insufficient. This recovery choice does not require such a
+  reason or grant read/write authority.
 
-**Owner decision required:** the SCRUM-69 owner and SCRUM-67 recovery owner
-must choose whether generic unavailability is sufficient or an explicit
-reassignment reason is necessary, and agree the corresponding Jira acceptance
-and recovery behavior. For option B they must also agree the proof, disclosure
-and expiry boundaries before an API change is designed. No acceptance or
-external agreement is inferred here.
+**Remaining acceptance:** the recovery choice does not establish the
+end-to-end unsaved-work guarantee or complete SCRUM-69. SCRUM-66 remains a
+formal blocker, and SCRUM-67/126 must supply linked browser evidence. The
+separate publication-access and retention decisions are unaffected.
 
-**Verification after a decision:**
+**Verification of the agreed response:**
 
 1. Keep responses for an unrelated account's inaccessible and nonexistent
    projects indistinguishable, with no document or revision disclosure. Check
    forged IDs and unrelated accounts. Expired sessions must receive no project
    existence information; a prior account's locally remembered ID must not
    grant a different account information or access.
-2. Cover a previously authorized editor whose assignment is removed. Under
-   option A, it receives generic unavailability; under option B, test the
-   approved proof and fallback, including wrong-account, expired or absent
-   evidence. Reinstating access must still use current server authorization.
+2. Cover a previously authorized editor whose assignment is removed: the
+   response is generic unavailability, without content or revision disclosure.
+   Reinstating access must still use current server authorization.
 3. Preserve the existing authenticated archive, stale revision and session-loss
    distinctions. Exercise save versus reassignment/archive in both lock orders:
    a committed winner is preserved and a waiting save rechecks authority without
@@ -166,8 +161,7 @@ The existing [lifecycle tests](../apps/server/tests/ProjectLifecycleTests.cs)
 cover reassignment and both save/metadata lock orders; the
 [read tests](../apps/server/tests/ProjectReadEndpointTests.cs) compare inaccessible and
 missing project responses. Reuse that evidence rather than duplicating it.
-If option B is chosen, first write a failing endpoint test for the agreed
-contract and its privacy boundary before changing production code.
+No reassignment-specific response is required by the confirmed recovery choice.
 
 ## Shared publication-access effects matrix
 
