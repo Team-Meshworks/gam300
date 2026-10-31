@@ -310,15 +310,18 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: account-sessions-core
+          - name: core
             filter: >-
-              /*/*/(AccountPersistenceTests)|(AccountSessionTests)|(CredentialOperationTests)|(RequestPrincipalTests)|(AccountModelTests)|(ProjectDocumentServiceTests)|(ProjectHttpResultsTests)|(ProjectSavePolicyTests)|(ProjectSaveServiceTests)|(ProjectSaveWriterTests)|(SaveEnvelopeReaderTests)/*
-          - name: account-administration-boundaries
+              /*/*/(AccountModelTests)|(ProjectDocumentServiceTests)|(ProjectHttpResultsTests)|(ProjectSavePolicyTests)|(ProjectSaveServiceTests)|(ProjectSaveWriterTests)|(SaveEnvelopeReaderTests)/*
+          - name: accounts
             filter: >-
-              /*/*/(AdministrationEndpointTests)|(BootstrapAdministrationTests)|(HostBoundaryTests)|(PostgresAccountFixtureTests)|(ProjectRequestBoundaryTests)|(RequestSecurityTests)/*
+              /*/*/(AccountPersistenceTests)|(AccountSessionTests)|(AdministrationEndpointTests)|(BootstrapAdministrationTests)|(CredentialOperationTests)|(RequestPrincipalTests)/*
           - name: projects
             filter: >-
               /*/*/(ProjectAccessTests)|(ProjectLifecycleTests)|(ProjectPersistenceTests)|(ProjectReadEndpointTests)|(ProjectSaveEndpointTests)/*
+          - name: boundaries
+            filter: >-
+              /*/*/(HostBoundaryTests)|(PostgresAccountFixtureTests)|(ProjectRequestBoundaryTests)|(RequestSecurityTests)/*
     defaults:
       run:
         working-directory: apps/server
