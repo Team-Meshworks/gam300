@@ -1,6 +1,6 @@
 # Account and organization directory
 
-This is the SCRUM-170 implementation policy. Directory reads and account lifecycle operations are implemented; organization lifecycle operations remain planned until implemented and verified. It does not record prior owner approval.
+This describes the administrator account and organization directory and lifecycle API.
 
 All routes require a fully authorized administrator. Responses are not cacheable. Mutations use the existing CSRF and account security protections. No response exposes credentials, password hashes or security stamps.
 
@@ -12,9 +12,9 @@ All routes require a fully authorized administrator. Responses are not cacheable
 
 ## Lifecycle policy
 
-`PATCH /api/admin/users/{id}/active` requires a JSON Boolean `isActive`. The planned organization operation, `PATCH /api/admin/organizations/{id}/active`, uses the same body. Success, including a repeated current state, returns 204. Missing records return 404 with `account_not_found` or `organization_not_found`; the last-administrator safeguard returns 409 `last_administrator`, and an account concurrency conflict returns 409 `account_conflict`. These operations preserve role, membership, password, lockout and forced-password-change state.
+`PATCH /api/admin/users/{id}/active` and `PATCH /api/admin/organizations/{id}/active` require a JSON Boolean `isActive`. Success, including a repeated current state, returns 204. Missing records return 404 with `account_not_found` or `organization_not_found`; the last-administrator safeguard returns 409 `last_administrator`, and an account concurrency conflict returns 409 `account_conflict`. These operations preserve role, membership, password, lockout and forced-password-change state.
 
-An active-to-inactive account transition rotates its Identity security stamp in the same transaction as the state change. Enabling it does not restore the old stamp; old cookies remain invalid. A same-state request does not rotate the stamp. The last active administrator cannot be disabled. For this safeguard, an active administrator has `IsActive` set, the fixed administrator role and no organization membership; lockout and forced-password-change restrictions remain separate. Lifecycle operations serialize their check and update with the same PostgreSQL `AspNetUserRoles` table lock used by bootstrap, so concurrent disables cannot remove the last active administrator.
+An active-to-inactive account transition rotates its Identity security stamp in the same transaction as the state change. Enabling it does not restore the old stamp; old cookies remain invalid. A same-state request does not rotate the stamp. The last active administrator cannot be disabled. For this safeguard, an active administrator has `IsActive` set, the fixed administrator role and no organization membership; lockout and forced-password-change restrictions remain separate. Account lifecycle operations serialize their check and update with the same PostgreSQL `AspNetUserRoles` table lock used by bootstrap, so concurrent disables cannot remove the last active administrator.
 
 Organization changes lock the organization row and change only its `IsActive` state. Members of an inactive organization cannot authenticate or access protected operations under the current account resolver. An otherwise valid cookie can become usable again after re-enabling if it was not rejected and cleared while the organization was inactive. Global administrators retain their existing management permissions. Existing authorization checks and project access rules continue to apply; these changes do not cancel already authorized in-flight work.
 

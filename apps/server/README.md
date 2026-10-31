@@ -1,5 +1,9 @@
 # Server persistence, accounts and security
 
+Administrator account and organization directory reads and reversible lifecycle
+operations are described in the [directory API contract](../../docs/account-directory.md),
+including authorization, fields, pagination, safeguards and session effects.
+
 This .NET 10 ASP.NET Core host contains a bounded draft-save reader, the Identity/
 PostgreSQL account persistence foundation, project draft schema/access service, request-security boundary and private
 administrator provisioning/reset operations. Accounts Part 5 adds explicit login, current-session,

@@ -25,7 +25,28 @@ public static class AccountDirectoryEndpoints
         group.MapGet("/organizations", ListOrganizationsAsync);
         group.MapGet("/organizations/{id:guid}", GetOrganizationAsync);
         group.MapPatch("/users/{id:guid}/active", SetUserActiveAsync).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
+        group.MapPatch("/organizations/{id:guid}/active", SetOrganizationActiveAsync).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
         return endpoints;
+    }
+
+    private static async Task<IResult> SetOrganizationActiveAsync(Guid id, SetActiveRequest request, HttpContext context,
+        ApplicationDbContext database, CurrentAccountResolver accounts, CancellationToken cancellationToken)
+    {
+        await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
+        var organization = await database.Organizations
+            .FromSqlInterpolated($"SELECT * FROM organizations WHERE id = {id} FOR UPDATE")
+            .SingleOrDefaultAsync(cancellationToken);
+        if (await AuthorizeAsync(context, accounts, cancellationToken) is { } failure) { return failure; }
+        if (organization is null)
+        {
+            return ApiProblems.Create(context, 404, "organization_not_found", "The organization was not found.");
+        }
+        if (organization.IsActive != request.IsActive)
+        {
+            organization.IsActive = request.IsActive;
+            await database.SaveChangesAsync(cancellationToken);
+        }
+        return await CompleteAsync(context, transaction, Results.NoContent(), cancellationToken);
     }
 
     private static async Task<IResult> SetUserActiveAsync(Guid id, SetActiveRequest request, HttpContext context,
