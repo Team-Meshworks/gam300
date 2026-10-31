@@ -33,7 +33,7 @@ case "$operation" in
     ;;
   down) rm -f -- "$FAKE_STATE/$APP_PORT" ;;
   logs) echo 'Simulated failed health check' ;;
-  stop) : ;;
+  stop) [[ "${FAKE_FAIL_STOP:-0}" == 0 ]] ;;
   exec)
     [[ "${FAKE_FAIL_BACKUP:-0}" == 0 ]]
     echo 'Simulated database backup'
@@ -122,6 +122,22 @@ fi
 call_count=$(wc -l < "$FAKE_STATE/calls")
 if "${deploy[@]}" dev "$image" "$first" "$api" "$migration"; then exit 1; fi
 [[ "$(wc -l < "$FAKE_STATE/calls")" == "$call_count" ]]
+# Recovery identity includes every image, not just its advertised commit
+different_api="ghcr.io/team-meshworks/gam300@sha256:$(printf 'd%.0s' {1..64})"
+if "${deploy[@]}" dev "$image" "$second" "$different_api" "$migration"; then exit 1; fi
+if "${deploy[@]}" dev "$image" "$second"; then exit 1; fi
+[[ "$(wc -l < "$FAKE_STATE/calls")" == "$call_count" ]]
+cp "$DEPLOY_ROOT/development/server-recovery-required" "$temporary/guard"
+printf 'damaged guard\n' > "$DEPLOY_ROOT/development/server-recovery-required"
+if "${deploy[@]}" dev "$image" "$second" "$api" "$migration"; then exit 1; fi
+[[ "$(wc -l < "$FAKE_STATE/calls")" == "$call_count" ]]
+cp "$temporary/guard" "$DEPLOY_ROOT/development/server-recovery-required"
+if FAKE_FAIL_PULL=1 "${deploy[@]}" dev "$image" "$second" "$api" "$migration"; then exit 1; fi
+cmp "$temporary/guard" "$DEPLOY_ROOT/development/server-recovery-required"
+# A Docker shutdown failure must report uncertainty and keep the recovery restriction
+if FAKE_FAIL_REVISION="$second" FAKE_FAIL_STOP=1 "${deploy[@]}" dev "$image" "$second" "$api" "$migration" > "$temporary/stop-failure.log" 2>&1; then exit 1; fi
+grep -q 'Could not confirm API/gateway shutdown' "$temporary/stop-failure.log"
+cmp "$temporary/guard" "$DEPLOY_ROOT/development/server-recovery-required"
 ! grep -q -- '--no-deps --wait --wait-timeout 90 web api gateway' "$FAKE_STATE/calls"
 grep -q 'stop api gateway' "$FAKE_STATE/calls"
 grep -q 'Simulated database backup' "$DEPLOY_ROOT"/development/backups/*.dump
