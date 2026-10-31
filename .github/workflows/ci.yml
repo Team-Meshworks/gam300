@@ -92,9 +92,14 @@ jobs:
         run: |
           if [[ "$EVENT_NAME" = workflow_dispatch || -z "$BASE_SHA" || "$BASE_SHA" =~ ^0+$ ]]; then
             echo 'proof=true' >> "$GITHUB_OUTPUT"
+          elif ! git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
+            echo "Base commit $BASE_SHA is not available locally; running the full architecture proof."
+            echo 'proof=true' >> "$GITHUB_OUTPUT"
           else
-            changed=$(git diff --name-only "$BASE_SHA" HEAD -- apps/web/architecture.mjs apps/web/architecture.check.mjs 'apps/web/tsconfig*.json' apps/web/package.json apps/web/package-lock.json 'apps/web/*config*' .github/workflows/ci.yml)
-            if [[ -n "$changed" ]]; then
+            if ! changed=$(git diff --name-only "$BASE_SHA" HEAD -- apps/web/architecture.mjs apps/web/architecture.check.mjs 'apps/web/tsconfig*.json' apps/web/package.json apps/web/package-lock.json 'apps/web/*config*' .github/workflows/ci.yml); then
+              echo "Unable to compare against base commit $BASE_SHA; running the full architecture proof."
+              echo 'proof=true' >> "$GITHUB_OUTPUT"
+            elif [[ -n "$changed" ]]; then
               echo 'proof=true' >> "$GITHUB_OUTPUT"
             else
               echo 'proof=false' >> "$GITHUB_OUTPUT"
