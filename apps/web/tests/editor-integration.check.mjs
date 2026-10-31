@@ -56,8 +56,13 @@ try {
   await addAsset(page, "test-room");
   await addAsset(page, "test-crate");
   const position = await page.getByLabel("Selected position").textContent();
-  await page.getByRole("button", { name: "Preview", exact: true }).click();
   await page.waitForFunction(() => typeof window.finishBackup === "function");
+  assert.equal(
+    await page.getByRole("button", { name: "Preview", exact: true }).isEnabled(),
+    true,
+    "Preview remains available during backup",
+  );
+  await page.getByRole("button", { name: "Preview", exact: true }).click();
   for (const key of [
     "Control+d",
     "Control+s",
