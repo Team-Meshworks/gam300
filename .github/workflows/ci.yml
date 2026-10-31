@@ -73,23 +73,18 @@ jobs:
           npm run test:unit
           npm run build
 
-  architecture:
-    name: Architecture proof
+  select-architecture:
+    name: Select architecture proof coverage
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    defaults:
-      run:
-        working-directory: apps/web
-        shell: bash
+    outputs:
+      proof: ${{ steps.coverage.outputs.proof }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          lfs: true
           persist-credentials: false
           fetch-depth: 0
-      - name: Select architecture proof coverage
-        id: architecture
-        working-directory: .
+      - name: Determine whether architecture proof applies
+        id: coverage
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
           EVENT_NAME: ${{ github.event_name }}
@@ -104,6 +99,23 @@ jobs:
               echo 'proof=false' >> "$GITHUB_OUTPUT"
             fi
           fi
+
+  architecture:
+    name: Architecture proof
+    needs: select-architecture
+    if: needs.select-architecture.outputs.proof == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: apps/web
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          lfs: true
+          persist-credentials: false
+          fetch-depth: 0
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: apps/web/.nvmrc
@@ -114,10 +126,8 @@ jobs:
           npm install --global npm@11.17.0
           npm ci --no-audit --no-fund
       - name: Install pinned browser
-        if: steps.architecture.outputs.proof == 'true'
         run: npx playwright install --with-deps chromium
       - name: Prove architecture enforcement and isolated module removal
-        if: steps.architecture.outputs.proof == 'true'
         run: npm run test:architecture
       - name: Retain architecture evidence
         if: always()
@@ -370,8 +380,17 @@ jobs:
 
   publish:
     name: Publish tested image
-    needs: [check, compatibility, server, project-format, architecture, fixtures]
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
+    needs:
+      [check, compatibility, server, project-format, architecture, fixtures]
+    if: >-
+      always() &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev') &&
+      needs.check.result == 'success' &&
+      needs.compatibility.result == 'success' &&
+      needs.server.result == 'success' &&
+      needs.project-format.result == 'success' &&
+      needs.fixtures.result == 'success' &&
+      (needs.architecture.result == 'success' || needs.architecture.result == 'skipped')
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
