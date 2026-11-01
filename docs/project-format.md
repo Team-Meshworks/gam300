@@ -138,3 +138,7 @@ dotnet run --project apps/server/project-format-checks/Spatia.ProjectFormat.Chec
 The C# library and checks use the .NET framework libraries without extra packages.
 The browser recovery checks also exercise version-2 IndexedDB round trips, recovered
 undo/redo and rejection of preview features absent from the current player
+
+## Earlier scene-authoring files
+
+The browser's explicit **Import older scene file** action converts the former extended version-1 scene format to canonical version 2. Normal Open and server validation remain strict. Missing environment assets require an author choice; unsupported limits are rejected, never truncated. The original file is not overwritten, and old undo history is not imported. See [scene authoring](scene-authoring.md) for starting-camera and browser-backup compatibility behavior.

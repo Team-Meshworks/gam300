@@ -1,0 +1,21 @@
+.sp-submission {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.sp-submission h2 {
+  font-size: 18px;
+}
+.sp-submission textarea {
+  background: var(--sp-soft);
+  border-radius: 8px;
+  padding: 12px;
+}
+.sp-submission .sp-badge {
+  justify-self: start;
+}
+.sp-requirements {
+  padding-left: 20px;
+  font-size: 13px;
+  line-height: 2;
+}

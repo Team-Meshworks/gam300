@@ -68,11 +68,23 @@ internal sealed class HttpsApplicationFixture : IAsyncDisposable
     public TaskCompletionSource HoldsEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     public TaskCompletionSource ReleaseHolds { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
+    public (string Certificate, string Key) WritePemFiles()
+    {
+        var certificate = Path.Combine(KeyDirectory, "browser-cert.pem");
+        var key = Path.Combine(KeyDirectory, "browser-key.pem");
+        File.WriteAllText(certificate, _certificate.ExportCertificatePem());
+        using var privateKey = _certificate.GetECDsaPrivateKey()
+            ?? throw new InvalidOperationException("Expected the fixture's ECDSA private key.");
+        File.WriteAllText(key, privateKey.ExportPkcs8PrivateKeyPem());
+        return (certificate, key);
+    }
+
     public static async Task<HttpsApplicationFixture> CreateAsync(Action<WebApplicationBuilder>? configure = null,
         Action<WebApplication>? map = null, string environmentName = "Testing")
     {
         var database = await PostgresAccountFixture.CreateForApplicationAsync();
-        var artifactsRoot = Path.GetFullPath(".artifacts");
+        // Disposable keys must not inherit a checkout's delete restrictions or sync policies.
+        var artifactsRoot = Path.Combine(Path.GetTempPath(), "spatia-test-keys");
         string? directory = null;
         X509Certificate2? certificate = null;
         HttpsApplicationFixture? fixture = null;
@@ -89,7 +101,8 @@ internal sealed class HttpsApplicationFixture : IAsyncDisposable
             request.CertificateExtensions.Add(names.Build());
             using var created = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddMinutes(-1), DateTimeOffset.UtcNow.AddHours(1));
             // Schannel needs the temporary PFX-backed key rather than the creation-time key
-            certificate = X509CertificateLoader.LoadPkcs12(created.Export(X509ContentType.Pkcs12), password: null);
+            certificate = X509CertificateLoader.LoadPkcs12(created.Export(X509ContentType.Pkcs12), password: null,
+                X509KeyStorageFlags.Exportable);
             fixture = new HttpsApplicationFixture(database, certificate, directory, new TestTimeProvider(), true, configure, environmentName);
             await fixture.StartAsync(map);
             return fixture;

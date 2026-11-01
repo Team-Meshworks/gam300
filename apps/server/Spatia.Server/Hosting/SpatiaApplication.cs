@@ -9,11 +9,14 @@ using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Npgsql;
 using Spatia.Server.Accounts;
 using Spatia.Server.Assets;
+using Spatia.Server.Classes;
 using Spatia.Server.Persistence;
 using Spatia.Server.Projects;
+using Spatia.Server.Reviews;
 using Spatia.Server.Security;
 
 namespace Spatia.Server.Hosting;
@@ -79,6 +82,7 @@ public static class SpatiaApplication
         var forwardedHeaders = new ForwardedHeadersOptions
         {
             ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
+            // The isolated Caddy peer normalizes the trusted outer chain to one client address
             ForwardLimit = 1,
         };
         forwardedHeaders.KnownProxies.Clear();
@@ -131,6 +135,7 @@ public static class SpatiaApplication
         builder.Services.AddScoped<ProjectAccessService>();
         builder.Services.AddScoped<ProjectDocumentService>();
         builder.Services.AddScoped<ProjectSaveService>();
+        builder.Services.TryAddScoped<IReviewAssetResolver, UnavailableReviewAssetResolver>();
         builder.Services.AddSpatiaAccounts(connectionString);
         builder.Services.AddSpatiaRequestSecurity();
         builder.Services.AddDataProtection()
@@ -212,10 +217,13 @@ public static class SpatiaApplication
         app.MapAssetAdministration();
         app.MapAssetDelivery();
         app.MapAccountAdministration();
+        app.MapAccountDirectory();
         app.MapAccountSessions();
         app.MapProjectReads();
         app.MapProjectSaves();
         app.MapProjectLifecycle();
+        app.MapClassrooms();
+        app.MapReviewSubmissions();
         return app;
     }
 

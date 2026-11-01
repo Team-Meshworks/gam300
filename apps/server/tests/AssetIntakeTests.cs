@@ -94,6 +94,18 @@ public sealed class AssetIntakeTests
             });
             await seedDatabase.SaveChangesAsync();
         }
+        // Save through the real endpoint before retirement so the durable receipt can be replayed later
+        async Task<HttpResponseMessage> SaveAsync(string document, long revision, Guid mutation)
+        {
+            using var parsed = JsonDocument.Parse(document);
+            using var request = new HttpRequestMessage(HttpMethod.Put, $"/api/projects/{projectId}");
+            request.Headers.Add("X-CSRF-TOKEN", token);
+            request.Content = JsonContent.Create(new { expectedRevision = revision, clientMutationId = mutation, document = parsed.RootElement });
+            return await fixture.Client.SendAsync(request);
+        }
+        var originalMutation = Guid.NewGuid();
+        using var originalSave = await SaveAsync(json, 0, originalMutation);
+        await Assert.That(originalSave.StatusCode).IsEqualTo(HttpStatusCode.OK);
         // Ordinary deletion changes discovery while preserving the immutable row and audit metadata
         using var deletion = new HttpRequestMessage(HttpMethod.Post, $"/api/admin/assets/{candidate.Id}/availability");
         deletion.Headers.Add("X-CSRF-TOKEN", token);
@@ -119,6 +131,21 @@ public sealed class AssetIntakeTests
         await Assert.That((await retained.Content.ReadAsByteArrayAsync()).SequenceEqual(bytes)).IsTrue();
         using var unrelated = await fixture.Client.GetAsync($"/api/projects/{Guid.NewGuid()}/assets/{candidate.Id}/bytes");
         await Assert.That(unrelated.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+        // Existing references remain saveable after retirement while an old retry acknowledges only its original commit
+        using var retainedSave = await SaveAsync(json, 1, Guid.NewGuid());
+        await Assert.That(retainedSave.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        var withoutRetired = ProjectTestDocuments.Create(projectId, "Newer draft without retired asset");
+        using var newerSave = await SaveAsync(withoutRetired, 2, Guid.NewGuid());
+        await Assert.That(newerSave.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        using var historicalRetry = await SaveAsync(json, 0, originalMutation);
+        await Assert.That(historicalRetry.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        var replay = await historicalRetry.Content.ReadFromJsonAsync<JsonElement>();
+        await Assert.That(replay.GetProperty("revision").GetInt64()).IsEqualTo(1L);
+        using var reintroduced = await SaveAsync(json, 3, Guid.NewGuid());
+        await Assert.That(reintroduced.StatusCode).IsEqualTo(HttpStatusCode.UnprocessableEntity);
+        var currentProject = await database.Projects.AsNoTracking().SingleAsync();
+        await Assert.That(currentProject.Revision).IsEqualTo(3L);
+        await Assert.That(AssetDocumentReferences.Read(currentProject.DocumentJson).Contains(candidate.Id.ToString())).IsFalse();
         await Assert.That(await database.Database.GetPendingMigrationsAsync()).IsEmpty();
         // No publication integration means a global removal must deny without changing the retained row
         using var removal = new HttpRequestMessage(HttpMethod.Post, $"/api/admin/assets/{candidate.Id}/availability");

@@ -58,11 +58,16 @@ public sealed class ProjectSaveServiceTests
         await Assert.That(replay.GetProperty("acknowledgement").GetRawText()).IsEqualTo(acknowledgement.GetRawText());
         await AssertSameAsync(await ReadAsync(fixture, seeded.ProjectId), stored);
 
-        var next = request with { ExpectedRevision = 1, ClientMutationId = Guid.NewGuid() };
+        var next = request with
+        {
+            ExpectedRevision = 1,
+            ClientMutationId = Guid.NewGuid(),
+            DocumentJson = ProjectTestDocuments.Create(seeded.ProjectId, "Newer draft", version)
+        };
         await AssertCommittedAsync(await SaveAsync(fixture, seeded.ProjectId, next), seeded.ProjectId, next.ClientMutationId, 2);
         var latest = await ReadAsync(fixture, seeded.ProjectId);
-        await Assert.That(latest.DocumentJson).IsEqualTo(stored.DocumentJson);
-        await AssertRejectedAsync(await SaveAsync(fixture, seeded.ProjectId, request), ProjectSaveDecision.Conflict, 2);
+        var historical = await SaveAsync(fixture, seeded.ProjectId, request);
+        await Assert.That(historical.GetProperty("acknowledgement").GetRawText()).IsEqualTo(acknowledgement.GetRawText());
         await AssertSameAsync(await ReadAsync(fixture, seeded.ProjectId), latest);
     }
 
@@ -160,6 +165,8 @@ public sealed class ProjectSaveServiceTests
         await fixture.SignInAsync(seeded.ActorId);
         var request = CreateRequest(seeded.ProjectId);
         await SaveAsync(fixture, seeded.ProjectId, request);
+        var newer = request with { ExpectedRevision = 1, ClientMutationId = Guid.NewGuid() };
+        await AssertCommittedAsync(await SaveAsync(fixture, seeded.ProjectId, newer), seeded.ProjectId, newer.ClientMutationId, 2);
         var stored = await ReadAsync(fixture, seeded.ProjectId);
         var token = await fixture.GetCsrfAsync();
         await using var scope = fixture.Database.Services.CreateAsyncScope();
@@ -257,6 +264,10 @@ public sealed class ProjectSaveServiceTests
             }
         }
         await Assert.That((await ReadAsync(fixture, seeded.ProjectId)).Revision).IsEqualTo(1L);
+        await using var receiptScope = fixture.Database.Services.CreateAsyncScope();
+        var receipt = await receiptScope.ServiceProvider.GetRequiredService<ApplicationDbContext>().ProjectSaveReceipts.SingleAsync();
+        await Assert.That(receipt.ClientMutationId).IsEqualTo(request.ClientMutationId);
+        await Assert.That(receipt.Revision).IsEqualTo(1L);
     }
 
     [Test]
@@ -299,11 +310,27 @@ public sealed class ProjectSaveServiceTests
         }
 
         useCancellation = false;
-        await AssertCommittedAsync(await SaveAsync(fixture, seeded.ProjectId, request), seeded.ProjectId, request.ClientMutationId, 1);
+        Project? latest = null;
         if (stage != "before-commit")
         {
-            await AssertSameAsync(await ReadAsync(fixture, seeded.ProjectId), afterFailure);
+            var next = request with
+            {
+                ExpectedRevision = 1,
+                ClientMutationId = Guid.NewGuid(),
+                DocumentJson = ProjectTestDocuments.Create(seeded.ProjectId, "Newer confirmed draft")
+            };
+            await AssertCommittedAsync(await SaveAsync(fixture, seeded.ProjectId, next), seeded.ProjectId, next.ClientMutationId, 2);
+            latest = await ReadAsync(fixture, seeded.ProjectId);
         }
+        var recovered = await AssertCommittedAsync(await SaveAsync(fixture, seeded.ProjectId, request), seeded.ProjectId, request.ClientMutationId, 1);
+        if (stage != "before-commit")
+        {
+            await Assert.That(recovered.GetProperty("savedAt").GetDateTimeOffset()).IsEqualTo(afterFailure.UpdatedAt);
+            await AssertSameAsync(await ReadAsync(fixture, seeded.ProjectId), latest!);
+        }
+        await using var receipts = fixture.Database.Services.CreateAsyncScope();
+        await Assert.That(await receipts.ServiceProvider.GetRequiredService<ApplicationDbContext>().ProjectSaveReceipts.CountAsync())
+            .IsEqualTo(stage == "before-commit" ? 1 : 2);
     }
 
     [Test]

@@ -3,20 +3,19 @@ name: CI
 on:
   push:
     branches: [main, dev]
-  pull_request:
-    branches: [main, dev]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.ref }}
+  group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   # Exercise the C# reader against the same contract cases used by the browser suite
   project-format:
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' || github.event_name == 'workflow_dispatch'
     name: Shared project-format checks
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -43,6 +42,7 @@ jobs:
         run: node apps/web/tests/project-format-cross.check.mjs
 
   compatibility:
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' || github.event_name == 'workflow_dispatch'
     name: Native checks (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
@@ -64,58 +64,187 @@ jobs:
           node-version-file: apps/web/.nvmrc
           cache: npm
           cache-dependency-path: apps/web/package-lock.json
-      - name: Install, check and build the native toolchain
+      - name: Install and check the native toolchain
         run: |
           npm install --global npm@11.17.0
           npm ci --no-audit --no-fund
           node ../../tools/setup.check.mjs
           npm run check:architecture
-          npm run test:unit
-          npm run build
+      - name: Run native unit tests
+        # Keep the console output and a report we can download after a failure
+        run: npm run test:unit -- --reporter=default --reporter=junit --outputFile=test-results/unit.xml
+      - name: Build on the native platform
+        run: npm run build
+      - name: Retain native test reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          # Each matrix runner needs its own artifact name
+          name: native-checks-${{ matrix.os }}-${{ github.sha }}
+          path: apps/web/test-results/unit.xml
+          # Installation or source checks can fail before tests produce a report
+          if-no-files-found: warn
+          retention-days: 14
+          overwrite: true
 
-  check:
-    name: Build and test
+  select-architecture:
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' || github.event_name == 'workflow_dispatch'
+    name: Select architecture proof coverage
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
-    env:
-      BUILD_MODE: ${{ (github.base_ref || github.ref_name) == 'main' && 'production' || 'development' }}
-    defaults:
-      run:
-        working-directory: apps/web
-        shell: bash
+    outputs:
+      proof: ${{ steps.coverage.outputs.proof }}
     steps:
-      - name: Require production changes to come through dev
-        if: github.event_name == 'pull_request' && github.base_ref == 'main'
-        working-directory: .
-        env:
-          SOURCE_BRANCH: ${{ github.head_ref }}
-          SOURCE_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
-        run: |
-          test "$SOURCE_BRANCH" = dev
-          test "$SOURCE_REPOSITORY" = "$GITHUB_REPOSITORY"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          lfs: true
           persist-credentials: false
           fetch-depth: 0
-      # Keep the live boundary scan on every change; reserve destructive-copy experiments for tooling edits
-      - name: Select architecture proof coverage
-        id: architecture
-        working-directory: .
+      - name: Determine whether architecture proof applies
+        id: coverage
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          BASE_SHA: ${{ github.event.before }}
           EVENT_NAME: ${{ github.event_name }}
         run: |
           if [[ "$EVENT_NAME" = workflow_dispatch || -z "$BASE_SHA" || "$BASE_SHA" =~ ^0+$ ]]; then
             echo 'proof=true' >> "$GITHUB_OUTPUT"
+          elif ! git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
+            echo "Base commit $BASE_SHA is not available locally; running the full architecture proof."
+            echo 'proof=true' >> "$GITHUB_OUTPUT"
           else
-            changed=$(git diff --name-only "$BASE_SHA" HEAD -- apps/web/architecture.mjs apps/web/architecture.check.mjs 'apps/web/tsconfig*.json' apps/web/package.json apps/web/package-lock.json 'apps/web/*config*' .github/workflows/ci.yml)
-            if [[ -n "$changed" ]]; then
+            if ! changed=$(git diff --name-only "$BASE_SHA" HEAD -- apps/web/architecture.mjs apps/web/architecture.check.mjs 'apps/web/tsconfig*.json' apps/web/package.json apps/web/package-lock.json 'apps/web/*config*' .github/workflows/ci.yml); then
+              echo "Unable to compare against base commit $BASE_SHA; running the full architecture proof."
+              echo 'proof=true' >> "$GITHUB_OUTPUT"
+            elif [[ -n "$changed" ]]; then
               echo 'proof=true' >> "$GITHUB_OUTPUT"
             else
               echo 'proof=false' >> "$GITHUB_OUTPUT"
             fi
           fi
+
+  architecture:
+    name: Architecture proof
+    needs: select-architecture
+    if: needs.select-architecture.outputs.proof == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: apps/web
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          lfs: true
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: apps/web/.nvmrc
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Install locked tooling
+        run: |
+          npm install --global npm@11.17.0
+          npm ci --no-audit --no-fund
+      - name: Install pinned browser
+        run: npx playwright install --with-deps chromium
+      - name: Prove architecture enforcement and isolated module removal
+        run: npm run test:architecture
+      - name: Retain architecture evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: architecture-${{ github.sha }}
+          path: apps/web/test-results/
+          retention-days: 14
+          overwrite: true
+
+  fixtures:
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' || github.event_name == 'workflow_dispatch'
+    name: Fixture check (${{ matrix.name }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: browser
+            script: test:browser
+          - name: asset-admin
+            script: test:asset-admin
+          - name: integration
+            script: test:integration
+          - name: caching
+            script: test:caching
+          - name: recovery
+            script: test:recovery
+          - name: history
+            script: test:history
+          - name: workspace
+            script: test:workspace
+    defaults:
+      run:
+        working-directory: apps/web
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          lfs: true
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: apps/web/.nvmrc
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Install locked tooling
+        run: |
+          npm install --global npm@11.17.0
+          npm ci --no-audit --no-fund
+      - name: Install pinned browser
+        run: npx playwright install --with-deps chromium
+      - name: Start Vite server
+        run: |
+          mkdir -p test-results
+          node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 5173 --strictPort \
+            > "test-results/dev-server-${{ matrix.name }}.log" 2>&1 &
+          echo $! > vite.pid
+          curl --fail --silent --show-error --retry 30 --retry-delay 1 --retry-connrefused \
+            http://127.0.0.1:5173/ > /dev/null
+      - name: Run fixture check
+        env:
+          CHECK_SCREENSHOT: test-results/${{ matrix.name }}.png
+        run: npm run ${{ matrix.script }} -- http://127.0.0.1:5173 | tee test-results/${{ matrix.name }}.log
+      - name: Stop Vite server
+        if: always()
+        run: |
+          if [[ -f vite.pid ]]; then
+            kill "$(cat vite.pid)" 2>/dev/null || true
+          fi
+      - name: Retain fixture evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: fixture-${{ matrix.name }}-${{ github.sha }}
+          path: apps/web/test-results/
+          retention-days: 14
+          overwrite: true
+
+  check:
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' || github.event_name == 'workflow_dispatch'
+    name: Build and test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      BUILD_MODE: ${{ github.ref_name == 'main' && 'production' || 'development' }}
+    defaults:
+      run:
+        working-directory: apps/web
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          lfs: true
+          persist-credentials: false
+          fetch-depth: 0
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: apps/web/.nvmrc
@@ -130,30 +259,15 @@ jobs:
           npm run graph:architecture
           npm run lint
           npm run format:check
+          npm run test:entry-config
           node ../../tools/validate-assets.check.mjs
           node ../../tools/setup.check.mjs
           bash ../../deploy/deploy.test.sh
+          node --test ../../deploy/verify-release.test.mjs
       - name: Run unit tests
         run: npm run test:unit -- --reporter=default --reporter=junit --outputFile=test-results/unit.xml
       - name: Install pinned browser
         run: npx playwright install --with-deps chromium
-      - name: Prove architecture enforcement and isolated module removal
-        if: steps.architecture.outputs.proof == 'true'
-        run: npm run test:architecture
-      - name: Check authoring and development fixtures
-        env:
-          CHECK_SCREENSHOT: test-results/editor.png
-        run: |
-          node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 5173 --strictPort > test-results/dev-server.log 2>&1 &
-          server_pid=$!
-          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
-          curl --fail --silent --show-error --retry 30 --retry-delay 1 --retry-connrefused http://127.0.0.1:5173/ > /dev/null
-          npm run test:browser | tee test-results/editor.log
-          npm run test:asset-admin | tee test-results/asset-administration.log
-          npm run test:integration | tee test-results/integration.log
-          npm run test:caching | tee test-results/caching.log
-          npm run test:recovery | tee test-results/recovery.log
-          npm run test:history | tee test-results/history.log
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       # Source checks have passed above; keep the final Caddy-image browser checks below
       - name: Build the runnable image
@@ -178,11 +292,42 @@ jobs:
           docker compose -f ../../compose.yaml -p vthere-ci up -d --no-build --wait --wait-timeout 90
           test "$(curl --fail --silent http://127.0.0.1:4173/version.txt)" = "$GITHUB_SHA"
           npm run test:deployment -- http://127.0.0.1:4173/
+          npm run test:workspace -- http://127.0.0.1:4173
           if [[ -f tests/editor-build.check.mjs ]]; then
             node tests/editor-build.check.mjs http://127.0.0.1:4173/
           fi
           mkdir -p dist/editor
           docker cp "$(docker compose -f ../../compose.yaml -p vthere-ci ps -q web):/srv/." dist/editor/
+      - name: Check the editor API and database together
+        env:
+          APP_IMAGE: vthere-ci:${{ github.sha }}
+          API_IMAGE: vthere-api-ci:${{ github.sha }}
+          MIGRATION_IMAGE: vthere-migrations-ci:${{ github.sha }}
+          APP_PORT: "4173"
+          SERVER_PORT: "8444"
+        run: |
+          umask 077
+          printf 'SPATIA_DATABASE_PASSWORD=%s\nSPATIA_API_PASSWORD=%s\n' "$(openssl rand -hex 32)" "$(openssl rand -hex 32)" > ../../.env
+          stack=(docker compose --env-file ../../.env -f ../../compose.yaml -f ../../compose.server.yaml -p vthere-ci)
+          "${stack[@]}" build api migrate
+          "${stack[@]}" up -d --no-build --wait --wait-timeout 120
+          docker cp "$("${stack[@]}" ps -q gateway):/data/caddy/pki/authorities/local/root.crt" test-results/server-root.crt
+          # Compose waits for running containers; Caddy still needs to start TLS and issue its certificate.
+          curl --fail --silent --show-error --retry 12 --retry-delay 1 --retry-all-errors --max-time 5 --retry-max-time 60 --cacert test-results/server-root.crt https://localhost:8444/healthz
+          curl --fail --silent --show-error --cacert test-results/server-root.crt --output /dev/null https://localhost:8444/
+          curl --fail --silent --show-error --retry 12 --retry-delay 1 --retry-connrefused --max-time 5 --retry-max-time 60 --cacert test-results/server-root.crt --output /dev/null https://localhost:8444/api/auth/csrf
+          test "$(curl --silent --show-error --cacert test-results/server-root.crt --output /dev/null --write-out '%{http_code}' https://localhost:8444/api/auth/session)" = 401
+          test "$("${stack[@]}" exec -T postgres psql -U spatia -d spatia -tAc 'SELECT count(*) FROM public."__EFMigrationsHistory"')" -ge 2
+          test "$("${stack[@]}" exec -T postgres psql -U spatia -d spatia -tAc "SELECT rolsuper, rolcreatedb, rolcreaterole FROM pg_roles WHERE rolname = 'spatia_api'")" = 'f|f|f'
+      - name: Capture container diagnostics
+        if: always()
+        # Collect before uploading so failed deployment checks leave downloadable logs
+        # The stack may not exist if an earlier build step failed
+        run: |
+          mkdir -p test-results
+          extra=()
+          if [[ -f ../../.env ]]; then extra=(--env-file ../../.env -f ../../compose.server.yaml); fi
+          docker compose -f ../../compose.yaml "${extra[@]}" -p vthere-ci logs --no-color --tail 100 > test-results/containers.log 2>&1 || true
       - name: Retain test evidence and runnable web files
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -199,8 +344,11 @@ jobs:
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
         run: |
           mkdir -p ../../ci-artifacts/release
-          docker save "vthere-ci:$GITHUB_SHA" -o ../../ci-artifacts/image.tar
+          docker save "vthere-ci:$GITHUB_SHA" "vthere-api-ci:$GITHUB_SHA" "vthere-migrations-ci:$GITHUB_SHA" -o ../../ci-artifacts/image.tar
           cp ../../compose.yaml ../../deploy/deploy.sh ../../ci-artifacts/release/
+          cp ../../compose.server.yaml ../../ci-artifacts/release/
+          mkdir -p ../../ci-artifacts/release/deploy
+          cp ../../deploy/server.Caddyfile ../../ci-artifacts/release/deploy/
       - name: Transfer the tested image to the publishing job
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -209,13 +357,16 @@ jobs:
           path: ci-artifacts/
           retention-days: 2
           overwrite: true
-      - name: Container diagnostics and cleanup
+      - name: Container cleanup
         if: always()
         run: |
-          docker compose -f ../../compose.yaml -p vthere-ci logs --tail 50
-          docker compose -f ../../compose.yaml -p vthere-ci down
+          extra=()
+          if [[ -f ../../.env ]]; then extra=(--env-file ../../.env -f ../../compose.server.yaml); fi
+          docker compose -f ../../compose.yaml "${extra[@]}" -p vthere-ci down --volumes
+          rm -f ../../.env
 
   server:
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' || github.event_name == 'workflow_dispatch'
     name: Server build and tests
     runs-on: ubuntu-24.04
     # Leave room for slow package mirrors before the full PostgreSQL/browser suite.
@@ -242,6 +393,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          # The login browser check starts the real Vite app and validates its asset catalogue.
+          lfs: true
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           global-json-file: apps/server/global.json
@@ -262,6 +415,10 @@ jobs:
           SPATIA_TEST_DATABASE_CONNECTION: Host=127.0.0.1;Port=${{ job.services.postgres.ports['5432'] }};Database=spatia_scrum45_test;Username=spatia_test;Password=spatia_ci_only
           ConnectionStrings__Spatia: Host=127.0.0.1;Port=${{ job.services.postgres.ports['5432'] }};Database=spatia_scrum45_test;Username=spatia_test;Password=spatia_ci_only
         run: |
+          # Exercise the actual pinned proxy binary with the production ASP.NET middleware
+          docker run --rm --entrypoint /bin/cat caddy:2.11.4-alpine@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b /usr/bin/caddy > "$RUNNER_TEMP/spatia-caddy"
+          chmod +x "$RUNNER_TEMP/spatia-caddy"
+          export CADDY_BINARY="$RUNNER_TEMP/spatia-caddy"
           dotnet restore tests/Spatia.Server.Tests.csproj --locked-mode
           dotnet tool restore
           dotnet build tests/Spatia.Server.Tests.csproj -c Release --no-restore
@@ -285,8 +442,32 @@ jobs:
 
   publish:
     name: Publish tested image
-    needs: [check, compatibility, server, project-format]
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
+    needs:
+      [
+        check,
+        compatibility,
+        server,
+        project-format,
+        select-architecture,
+        architecture,
+        fixtures,
+      ]
+    if: >-
+      always() &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev') &&
+      needs.check.result == 'success' &&
+      needs.compatibility.result == 'success' &&
+      needs.server.result == 'success' &&
+      needs.project-format.result == 'success' &&
+      needs.fixtures.result == 'success' &&
+      needs.select-architecture.result == 'success' &&
+      (
+        needs.architecture.result == 'success' ||
+        (
+          needs.architecture.result == 'skipped' &&
+          needs.select-architecture.outputs.proof == 'false'
+        )
+      )
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -310,8 +491,15 @@ jobs:
           docker tag "vthere-ci:$GITHUB_SHA" "$tag"
           docker push "$tag"
           image=$(docker inspect --format '{{index .RepoDigests 0}}' "$tag")
-          jq -n --arg image "$image" --arg commit "$GITHUB_SHA" --arg branch "$GITHUB_REF_NAME" \
-            --arg run "$GITHUB_RUN_ID" '{image: $image, commit: $commit, branch: $branch, run: $run}' \
+          for component in api migrations; do
+            docker tag "vthere-$component-ci:$GITHUB_SHA" "$tag-$component"
+            docker push "$tag-$component"
+          done
+          api_image=$(docker inspect --format '{{index .RepoDigests 0}}' "$tag-api")
+          migration_image=$(docker inspect --format '{{index .RepoDigests 0}}' "$tag-migrations")
+          jq -n --arg image "$image" --arg apiImage "$api_image" --arg migrationImage "$migration_image" \
+            --arg commit "$GITHUB_SHA" --arg branch "$GITHUB_REF_NAME" --arg run "$GITHUB_RUN_ID" \
+            '{image: $image, apiImage: $apiImage, migrationImage: $migrationImage, commit: $commit, branch: $branch, run: $run}' \
             > ci-artifacts/release/release.json
           printf 'Image: `%s`\n\nCommit: `%s`\n\nDeploy workflow CI run ID: `%s`\n' \
             "$image" "$GITHUB_SHA" "$GITHUB_RUN_ID" >> "$GITHUB_STEP_SUMMARY"
