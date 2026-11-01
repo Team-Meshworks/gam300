@@ -135,7 +135,7 @@ public static class SpatiaApplication
         builder.Services.AddScoped<ProjectAccessService>();
         builder.Services.AddScoped<ProjectDocumentService>();
         builder.Services.AddScoped<ProjectSaveService>();
-        builder.Services.TryAddScoped<IReviewAssetResolver, UnavailableReviewAssetResolver>();
+        builder.Services.TryAddScoped<IReviewAssetResolver, ApprovedReviewAssetResolver>();
         builder.Services.AddSpatiaAccounts(connectionString);
         builder.Services.AddSpatiaRequestSecurity();
         builder.Services.AddDataProtection()

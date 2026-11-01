@@ -15,13 +15,6 @@ internal interface IReviewAssetResolver
         IReadOnlySet<string> assetIds, CancellationToken cancellationToken);
 }
 
-internal sealed class UnavailableReviewAssetResolver : IReviewAssetResolver
-{
-    public Task<IReadOnlyCollection<ReviewAssetReference>?> ResolveAsync(ApplicationDbContext database, ProjectAccessSnapshot project,
-        IReadOnlySet<string> assetIds, CancellationToken cancellationToken) =>
-        Task.FromResult<IReadOnlyCollection<ReviewAssetReference>?>(null);
-}
-
 internal static class ReviewAssetManifest
 {
     private static readonly JsonSerializerOptions Options = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
