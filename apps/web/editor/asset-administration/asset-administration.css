@@ -870,3 +870,17 @@ html.asset-admin-preview-page,
   outline: 2px solid var(--aa-focus);
   outline-offset: 3px;
 }
+
+/* Fixed metadata uses the same disabled treatment as an unavailable category selector */
+.asset-admin-select > input:disabled {
+  opacity: 1;
+  background: var(--aa-surface);
+  color: var(--aa-muted);
+  -webkit-text-fill-color: var(--aa-muted);
+  border-color: var(--aa-border);
+  cursor: not-allowed;
+}
+.asset-admin-fields-upload {
+  grid-template-columns: minmax(0, 1fr);
+  margin-top: 20px;
+}

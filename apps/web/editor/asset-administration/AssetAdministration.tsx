@@ -122,7 +122,8 @@ function AssetAdministrationScreen({ service, kind, onClose }: Props) {
   const title = kind === "environment" ? "All 3D Spaces" : "All Assets";
   const noun = kind === "environment" ? "3D spaces" : "assets";
   const filtered = query.trim().length > 0 || tab !== "all";
-  const categoryChoices = data?.policy.categories[kind] ?? null;
+  // Spaces use the small fixed catalogue without category filtering
+  const categoryChoices = kind === "environment" ? null : (data?.policy.categories[kind] ?? null);
 
   // Start each upload with fresh fields while keeping the loaded catalogue intact
   function openUpload() {
@@ -504,12 +505,11 @@ function AssetAdministrationScreen({ service, kind, onClose }: Props) {
                   <path d="M27 37V7m-11 11L27 7l11 11M9 34v12c0 3 2 4 5 4h26c3 0 5-1 5-4V34" />
                 </svg>
               </span>
-              <span>
-                {file?.name ??
-                  `Upload ${data?.policy.extensions.join(" / ") ?? "supported"} 3D files`}
-              </span>
+              <span>{file?.name ?? "Choose a file"}</span>
               <span className="asset-admin-help">
-                {data ? `Maximum ${Math.floor(data.policy.maxBytes / 1024 / 1024)} MB` : ""}
+                {data
+                  ? `${data.policy.extensions.join(" / ")} files, up to ${Math.floor(data.policy.maxBytes / 1024 / 1024)} MB`
+                  : ""}
               </span>
               <input
                 aria-label="Choose asset file"
@@ -528,26 +528,43 @@ function AssetAdministrationScreen({ service, kind, onClose }: Props) {
           ) : (
             selected && <div className="asset-admin-detail-preview">{thumbnail(selected)}</div>
           )}
-          <h3>
-            {(selected?.kind ?? kind) === "environment" ? "3D Space Details" : "Asset Details"}
-          </h3>
-          <div className="asset-admin-fields">
-            {/* Keep intake tied to the current library so submissions cannot move into another list */}
-            <label className="asset-admin-select">
-              <span>Asset Type</span>
-              <input readOnly value={kind === "environment" ? "3D Space" : "3D Model"} />
-            </label>
-            <AssetSelect
-              label="Filter Category"
-              disabled={busy || selection?.kind !== "upload" || categoryChoices === null}
-              value={selected ? (selected.category ?? "") : category}
-              options={(selected?.category ? [selected.category] : (categoryChoices ?? [])).map(
-                (value) => ({ value, label: value }),
+          {selection?.kind === "detail" && <h3>Details</h3>}
+          {(selection?.kind === "detail" || kind === "model") && (
+            <div
+              className={`asset-admin-fields${selection?.kind === "upload" ? " asset-admin-fields-upload" : ""}`}
+            >
+              {/* Keep intake tied to the current library so submissions cannot move into another list */}
+              {selection?.kind === "detail" && (
+                <label className="asset-admin-select">
+                  <span>Asset Type</span>
+                  <input
+                    readOnly
+                    disabled
+                    value={kind === "environment" ? "3D Space" : "3D Model"}
+                  />
+                </label>
               )}
-              placeholder="Not configured"
-              onChange={setCategory}
-            />
-          </div>
+              {/* Spaces have no categories; show that explicitly without offering an editable filter */}
+              {kind === "environment" && selection?.kind === "detail" && (
+                <label className="asset-admin-select">
+                  <span>Filter Category</span>
+                  <input readOnly disabled value="Not applicable" />
+                </label>
+              )}
+              {kind === "model" && (
+                <AssetSelect
+                  label="Filter Category"
+                  disabled={busy || selection?.kind !== "upload" || categoryChoices === null}
+                  value={selected ? (selected.category ?? "") : category}
+                  options={(selected?.category ? [selected.category] : (categoryChoices ?? [])).map(
+                    (value) => ({ value, label: value }),
+                  )}
+                  placeholder="Not configured"
+                  onChange={setCategory}
+                />
+              )}
+            </div>
+          )}
           {selected?.status === "approved" && selected.source && (
             <dl className="asset-admin-review">
               <div>
