@@ -1,5 +1,14 @@
+using System.Net;
+using System.Net.Http.Json;
+using System.Text.Json;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Spatia.Server.Accounts;
 using Spatia.Server.Assets;
+using Spatia.Server.Persistence;
+using Spatia.Server.Projects;
 
 namespace Spatia.Server.Tests;
 
@@ -34,6 +43,38 @@ public sealed class AssetIntakeTests
 
     }
 
+    [Test]
+    public async Task Intake_RequiresCurrentAdministratorAndCsrfAndRejectsMalformedMetadata()
+    {
+        // Reject anonymous and creator sessions before proving an administrator still needs a current CSRF token
+        await using var fixture = await HttpsApplicationFixture.CreateAsync();
+        using var anonymous = await fixture.Client.GetAsync("/api/admin/assets");
+        await Assert.That(anonymous.StatusCode).IsEqualTo(HttpStatusCode.Unauthorized);
+        await fixture.SignInAsync(await fixture.CreateAccountAsync());
+        using var creator = await fixture.Client.GetAsync("/api/admin/assets");
+        await Assert.That(creator.StatusCode).IsEqualTo(HttpStatusCode.Forbidden);
+        using var deniedInspection = await fixture.Client.GetAsync($"/api/admin/assets/{Guid.NewGuid()}/bytes");
+        await Assert.That(deniedInspection.StatusCode).IsEqualTo(HttpStatusCode.Forbidden);
+        await fixture.SignInAsync(await fixture.CreateAccountAsync(ApplicationRoles.Administrator));
+        using var noCsrf = await fixture.Client.PostAsJsonAsync($"/api/admin/assets/{Guid.NewGuid()}/availability", new AssetAvailabilityRequest("delete"));
+        await Assert.That(noCsrf.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
+        using var malformed = new HttpRequestMessage(HttpMethod.Post, "/api/admin/assets?name=..%2Froom.glb&kind=environment");
+        malformed.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync());
+        malformed.Content = new ByteArrayContent([0]);
+        malformed.Content.Headers.ContentType = new("model/gltf-binary");
+        using var rejected = await fixture.Client.SendAsync(malformed);
+        await Assert.That(rejected.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
+        // Reject an oversized body before validation or persistence, even with a valid administrator token
+        using var oversized = new HttpRequestMessage(HttpMethod.Post, "/api/admin/assets?name=room.glb&kind=environment");
+        oversized.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync());
+        oversized.Headers.ExpectContinue = true;
+        oversized.Content = new ByteArrayContent(new byte[AssetIntakePolicy.MaxBytes + 1]);
+        oversized.Content.Headers.ContentType = new("model/gltf-binary");
+        using var tooLarge = await fixture.Client.SendAsync(oversized);
+        await Assert.That(tooLarge.StatusCode).IsEqualTo(HttpStatusCode.RequestEntityTooLarge);
+        await using var scope = fixture.Database.Services.CreateAsyncScope();
+        await Assert.That(await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().AssetCandidates.CountAsync()).IsEqualTo(0);
+    }
     // Keep API tests independent of Git LFS while exercising the real GLB validator
     private static byte[] CreateMinimalGlb()
     {

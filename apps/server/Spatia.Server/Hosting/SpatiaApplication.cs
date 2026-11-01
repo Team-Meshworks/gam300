@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.WebUtilities;
 using Npgsql;
 using Spatia.Server.Accounts;
+using Spatia.Server.Assets;
 using Spatia.Server.Persistence;
 using Spatia.Server.Projects;
 using Spatia.Server.Security;
@@ -123,6 +124,8 @@ public static class SpatiaApplication
             options.SerializerOptions.AllowDuplicateProperties = false;
             options.SerializerOptions.UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow;
         });
+        builder.Services.AddScoped<AssetUploadValidator>();
+        builder.Services.AddScoped<AssetAdministrationService>();
         builder.Services.AddScoped<AccountAdministrationService>();
         builder.Services.AddScoped<AccountSessionService>();
         builder.Services.AddScoped<ProjectAccessService>();
@@ -206,6 +209,7 @@ public static class SpatiaApplication
             var tokens = antiforgery.GetAndStoreTokens(context);
             return Results.Ok(new { requestToken = tokens.RequestToken });
         }).AllowAnonymous();
+        app.MapAssetAdministration();
         app.MapAccountAdministration();
         app.MapAccountSessions();
         app.MapProjectReads();
