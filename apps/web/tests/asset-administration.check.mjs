@@ -272,15 +272,66 @@ try {
 
   // Ordinary deletion retains an admin-only record and leaves the destructive option off by default
   await page.getByRole("button", { name: /^Deleted \(/ }).click();
+  // Expanding the preview must not clone a deleted record into the Deleted tab
+  await page.locator(".asset-admin-preview-controls").evaluate((details) => {
+    details.open = true;
+  });
+  await page.getByLabel("More sample assets", { exact: true }).check();
+  await page.getByRole("button", { name: /^Deleted \(1\)/ }).click();
+  assert.equal(await page.locator(".asset-admin-card").count(), 1);
+  // Extra samples expose the same actions and retain changes without affecting their siblings
+  await page.getByRole("button", { name: /^All Spaces \(/ }).click();
+  const sampleCard = page.locator(".asset-admin-card").filter({
+    has: page.getByRole("heading", { name: "test-room 1", exact: true }),
+  });
+  await sampleCard.getByRole("button").click();
+  await dialog.getByRole("button", { name: "Hide", exact: true }).click();
+  await sampleCard.getByRole("button").click();
+  await dialog.getByRole("button", { name: "Show", exact: true }).click();
+  await sampleCard.getByRole("button").click();
+  await dialog.getByRole("button", { name: "Delete", exact: true }).click();
+  await dialog.getByRole("button", { name: "Confirm Delete", exact: true }).click();
+  assert.equal(await sampleCard.count(), 0);
+  await page.getByRole("button", { name: /^Deleted \(2\)/ }).click();
+  assert.equal(await sampleCard.count(), 1);
+  await page.getByLabel("More sample assets", { exact: true }).uncheck();
+  await page.getByRole("button", { name: /^Deleted \(1\)/ }).click();
   await page
     .locator(".asset-admin-card")
     .filter({ has: page.getByRole("heading", { name: "new-room.glb", exact: true }) })
     .getByRole("button")
     .click();
+  // Retained-use status must sit below the fixed field with a visible breathing gap
+  const typeBounds = await dialog.getByRole("textbox", { name: "Asset Type" }).boundingBox();
+  const statusBounds = await dialog.locator(".asset-admin-retired-status").first().boundingBox();
+  assert.ok(statusBounds.y - (typeBounds.y + typeBounds.height) >= 11);
+  const spaceCategory = dialog.getByRole("textbox", { name: "Filter Category", exact: true });
+  assert.equal(await spaceCategory.inputValue(), "Not applicable");
+  assert.equal(await spaceCategory.isDisabled(), true);
+  const fieldRow = await dialog.locator(".asset-admin-fields").boundingBox();
+  assert.ok(Math.abs((fieldRow.width - 16) / 2 - typeBounds.width) < 1);
+  await page.screenshot({ path: "test-results/scrum168/deleted-details.png", fullPage: true });
   await dialog
     .getByRole("button", { name: "Remove from all projects and exhibitions", exact: true })
     .click();
   await dialog.getByRole("button", { name: "Confirm Removal", exact: true }).waitFor();
+  // Use equal spacing around the irreversible warning instead of offsetting individual elements
+  const explanation = await dialog
+    .locator(".asset-admin-confirmation-content > p")
+    .first()
+    .boundingBox();
+  const warning = await dialog.locator(".asset-admin-confirmation-warning").boundingBox();
+  const actions = await dialog.locator(".asset-admin-actions").boundingBox();
+  assert.ok(Math.abs(warning.y - (explanation.y + explanation.height) - 16) < 1);
+  assert.ok(Math.abs(actions.y - (warning.y + warning.height) - 16) < 1);
+  await page.screenshot({ path: "test-results/scrum168/removal-confirmation.png", fullPage: true });
+  const desktopViewport = page.viewportSize();
+  await page.setViewportSize({ width: 390, height: 844 });
+  const mobileRemoval = await dialog.boundingBox();
+  assert.ok(mobileRemoval.x >= 0 && mobileRemoval.x + mobileRemoval.width <= 390);
+  assert.ok(mobileRemoval.y >= 0 && mobileRemoval.y + mobileRemoval.height <= 844);
+  await page.screenshot({ path: "test-results/scrum168/mobile-removal.png", fullPage: true });
+  await page.setViewportSize(desktopViewport);
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
   // Cancelling removal retains the same details and its available follow-up action
   await dialog.getByRole("heading", { name: "new-room.glb", exact: true }).waitFor();
@@ -364,6 +415,17 @@ try {
     "3D Model",
   );
   await checkDialogTypography();
+  const fixedType = dialog.getByRole("textbox", { name: "Asset Type" });
+  const fixedCategory = dialog.getByRole("combobox", { name: "Filter Category" });
+  assert.equal(await fixedType.isDisabled(), true);
+  assert.equal(await fixedCategory.isDisabled(), true);
+  const appearance = (locator) =>
+    locator.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return [style.color, style.backgroundColor, style.borderColor, style.opacity];
+    });
+  assert.deepEqual(await appearance(fixedType), await appearance(fixedCategory));
+
   await page.screenshot({ path: "test-results/scrum168/asset-details.png", fullPage: true });
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
   await page.getByRole("button", { name: "+ Add Assets", exact: true }).click();
@@ -401,10 +463,26 @@ try {
   await dialog.getByRole("heading", { name: "Upload 3D Model", exact: true }).waitFor();
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
 
+  const editableModelName = await page
+    .locator(".asset-admin-card")
+    .first()
+    .getByRole("heading")
+    .innerText();
   // Overflow belongs to the catalogue region, with no outer-page scrollbar
   await page.getByText("Local preview controls", { exact: true }).click();
   await page.getByLabel("More sample assets", { exact: true }).check();
   await page.locator(".asset-admin-card").nth(10).waitFor({ state: "attached" });
+  // Sample records keep their own lifecycle even when their original asset was deleted
+  assert.equal(
+    (await page.locator(".asset-admin-card").filter({ hasText: "Snow globe 1" }).count()) > 0,
+    true,
+  );
+  await page.getByRole("button", { name: /^Deleted \(/ }).click();
+  assert.equal(
+    await page.locator(".asset-admin-card").filter({ hasText: "Snow globe 1" }).count(),
+    0,
+  );
+  await page.getByRole("button", { name: /^All Assets \(/ }).click();
   await page.locator(".asset-admin-preview-controls").evaluate((details) => {
     details.open = false;
   });
@@ -434,6 +512,45 @@ try {
   await page.screenshot({ path: "test-results/scrum168/mobile-upload.png", fullPage: true });
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
 
+  // Keep the mobile opt-in explicit and retain the confirmed administrative record
+  // Return to the original preview records before checking combined deletion and removal
+  await page.getByText("Local preview controls", { exact: true }).click();
+  await page.getByLabel("More sample assets", { exact: true }).uncheck();
+  await page.locator(".asset-admin-preview-controls").evaluate((details) => {
+    details.open = false;
+  });
+  await page.getByRole("heading", { name: editableModelName, exact: true }).waitFor();
+
+  await page.locator(".asset-admin-card").first().getByRole("button").click();
+  const removedName = await dialog.locator("h2").textContent();
+  await dialog.getByRole("button", { name: "Delete", exact: true }).click();
+  const force = dialog.getByRole("checkbox", { name: "Remove from all projects and exhibitions" });
+  assert.equal(await force.isChecked(), false);
+  const checkboxBefore = await force.boundingBox();
+  await force.check();
+  const checkboxAfter = await force.boundingBox();
+  assert.ok(Math.abs(checkboxBefore.x - checkboxAfter.x) < 1);
+  assert.ok(Math.abs(checkboxBefore.y - checkboxAfter.y) < 1);
+  const removalBounds = await dialog.boundingBox();
+  assert.ok(removalBounds.x >= 0 && removalBounds.x + removalBounds.width <= 390);
+  assert.ok(removalBounds.y >= 0 && removalBounds.y + removalBounds.height <= 844);
+  await page.screenshot({ path: "test-results/scrum168/mobile-delete.png", fullPage: true });
+  await dialog.getByRole("button", { name: "Confirm Delete", exact: true }).click();
+  await page.getByRole("button", { name: /^Deleted \(/ }).click();
+  await page
+    .locator(".asset-admin-card")
+    .filter({ has: page.getByRole("heading", { name: removedName, exact: true }) })
+    .getByRole("button")
+    .click();
+  await dialog.getByText("Removed from all projects and exhibitions.", { exact: true }).waitFor();
+  assert.equal(
+    await dialog
+      .getByRole("button", { name: "Remove from all projects and exhibitions", exact: true })
+      .count(),
+    0,
+  );
+  await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+
   // Account labels come from the preview identity and logout removes the active screen
   await page.getByText("Local preview controls", { exact: true }).click();
   await page.getByLabel("Display name", { exact: true }).fill("Alex Tan");
@@ -451,6 +568,15 @@ try {
   );
   await page.getByRole("button", { name: "Log Out", exact: true }).click();
   await page.getByRole("heading", { name: "Signed out", exact: true }).waitFor();
+  const signedOut = page.locator(".asset-admin-denied");
+  assert.equal(await signedOut.count(), 1);
+  const alignment = await signedOut.evaluate((panel) => {
+    const style = getComputedStyle(panel);
+    return [style.alignItems, style.justifyContent, style.textAlign];
+  });
+  assert.deepEqual(alignment, ["center", "center", "center"]);
+  await page.screenshot({ path: "test-results/scrum168/signed-out.png", fullPage: true });
+
   assert.equal(await page.locator(".asset-admin-grid").count(), 0);
 
   assert.deepEqual(errors, []);
