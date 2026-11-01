@@ -237,7 +237,7 @@
     "editor/ui/AssetFilterSelect.tsx": "d5449ccfb82270fb1baae4503d61014a3d42f87b07272b85f8a0f6d3feb55450",
     "editor/ui/AssetPicker.tsx": "4646b30a6d1fdc7bdf68858dd45be8d51db1d20a344eeb9bf3abb7c74d838ae1",
     "editor/ui/BottomBar.tsx": "625123c41538d0bb3528c37bd5076e9de0d1fa8c7a5e2c11d72e1bd9805d051e",
-    "editor/ui/Icon.tsx": "29aa51a0bd5f0e66820c8af35eff1f0fba977c47069a10e0dff305621f12bd4c",
+    "editor/ui/Icon.tsx": "cd5870e937d132d8c480d6dcb55dde714233c33b3718651e714fba103abf1876",
     "editor/ui/SceneTreePanel.tsx": "78155774b0d739ba5b9be986904203fc3f496c9228aaf60c89c76782955f93da",
     "editor/ui/SidePanels.tsx": "3033756f848cc5616a996c294a8f2b377f33c7ad50b7992849f14e03e70aac9a",
     "editor/ui/TopBar.tsx": "f7122b3c7bd93b7257bbb74392b996acbf3397650fecea4e69bd3d6c2c0fef21",
@@ -288,7 +288,7 @@
     "shared/project/fixtures/m1-project.json": "3aeeee4397fd9ad18fc06eba32815ef5032ecf8184200aaa38a2076b882a4947",
     "shared/project/fixtures/m2-project.json": "ccafa7cfce33d73c5ffc77672ebe30101a059d30d1c9a9855c0f3e65c1b9fe78",
     "shared/project/fixtures/project-format-cases.json": "58ee71c8634afd15d715ee53712b3f92cb7f3735326ba9c349973bbbe4792a2b",
-    "editor/styles.css": "52ebee70e714f46d4a503b1ccc2e742d4087e68d71783848755060dc28fff502"
+    "editor/styles.css": "7adc75ad5d949121bce351389da791255764a9f498e1064e7ed51caca3260654"
   },
   "imports": [
     {
