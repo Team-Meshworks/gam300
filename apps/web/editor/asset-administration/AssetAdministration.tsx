@@ -489,152 +489,158 @@ function AssetAdministrationScreen({ service, kind, onClose }: Props) {
               </svg>
             </button>
           </div>
-          {selection?.kind === "upload" ? (
-            <label className="asset-admin-upload">
-              <span className="asset-admin-upload-symbol" aria-hidden="true">
-                <svg
-                  width="54"
-                  height="54"
-                  viewBox="0 0 54 54"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
+          {!confirmation && (
+            <>
+              {selection?.kind === "upload" ? (
+                <label className="asset-admin-upload">
+                  <span className="asset-admin-upload-symbol" aria-hidden="true">
+                    <svg
+                      width="54"
+                      height="54"
+                      viewBox="0 0 54 54"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M27 37V7m-11 11L27 7l11 11M9 34v12c0 3 2 4 5 4h26c3 0 5-1 5-4V34" />
+                    </svg>
+                  </span>
+                  <span>{file?.name ?? "Choose a file"}</span>
+                  <span className="asset-admin-help">
+                    {data
+                      ? `${data.policy.extensions.join(" / ")} files, up to ${Math.floor(data.policy.maxBytes / 1024 / 1024)} MB`
+                      : ""}
+                  </span>
+                  <input
+                    aria-label="Choose asset file"
+                    type="file"
+                    accept={data?.policy.extensions.join(",")}
+                    disabled={busy}
+                    onChange={(e) => {
+                      // Keep the last selection when closing the file chooser without choosing a new file
+                      const chosen = e.target.files?.[0];
+                      if (chosen) {
+                        setFile(chosen);
+                      }
+                    }}
+                  />
+                </label>
+              ) : (
+                selected && <div className="asset-admin-detail-preview">{thumbnail(selected)}</div>
+              )}
+              {selection?.kind === "detail" && <h3>Details</h3>}
+              {(selection?.kind === "detail" || kind === "model") && (
+                <div
+                  className={`asset-admin-fields${selection?.kind === "upload" ? " asset-admin-fields-upload" : ""}`}
                 >
-                  <path d="M27 37V7m-11 11L27 7l11 11M9 34v12c0 3 2 4 5 4h26c3 0 5-1 5-4V34" />
-                </svg>
-              </span>
-              <span>{file?.name ?? "Choose a file"}</span>
-              <span className="asset-admin-help">
-                {data
-                  ? `${data.policy.extensions.join(" / ")} files, up to ${Math.floor(data.policy.maxBytes / 1024 / 1024)} MB`
-                  : ""}
-              </span>
-              <input
-                aria-label="Choose asset file"
-                type="file"
-                accept={data?.policy.extensions.join(",")}
-                disabled={busy}
-                onChange={(e) => {
-                  // Keep the last selection when closing the file chooser without choosing a new file
-                  const chosen = e.target.files?.[0];
-                  if (chosen) {
-                    setFile(chosen);
-                  }
-                }}
-              />
-            </label>
-          ) : (
-            selected && <div className="asset-admin-detail-preview">{thumbnail(selected)}</div>
-          )}
-          {selection?.kind === "detail" && <h3>Details</h3>}
-          {(selection?.kind === "detail" || kind === "model") && (
-            <div
-              className={`asset-admin-fields${selection?.kind === "upload" ? " asset-admin-fields-upload" : ""}`}
-            >
-              {/* Keep intake tied to the current library so submissions cannot move into another list */}
-              {selection?.kind === "detail" && (
-                <label className="asset-admin-select">
-                  <span>Asset Type</span>
-                  <input
-                    readOnly
-                    disabled
-                    value={kind === "environment" ? "3D Space" : "3D Model"}
-                  />
-                </label>
-              )}
-              {/* Spaces have no categories; show that explicitly without offering an editable filter */}
-              {kind === "environment" && selection?.kind === "detail" && (
-                <label className="asset-admin-select">
-                  <span>Filter Category</span>
-                  <input readOnly disabled value="Not applicable" />
-                </label>
-              )}
-              {kind === "model" && (
-                <AssetSelect
-                  label="Filter Category"
-                  disabled={busy || selection?.kind !== "upload" || categoryChoices === null}
-                  value={selected ? (selected.category ?? "") : category}
-                  options={(selected?.category ? [selected.category] : (categoryChoices ?? [])).map(
-                    (value) => ({ value, label: value }),
+                  {/* Keep intake tied to the current library so submissions cannot move into another list */}
+                  {selection?.kind === "detail" && (
+                    <label className="asset-admin-select">
+                      <span>Asset Type</span>
+                      <input
+                        readOnly
+                        disabled
+                        value={kind === "environment" ? "3D Space" : "3D Model"}
+                      />
+                    </label>
                   )}
-                  placeholder="Not configured"
-                  onChange={setCategory}
-                />
+                  {/* Spaces have no categories; show that explicitly without offering an editable filter */}
+                  {kind === "environment" && selection?.kind === "detail" && (
+                    <label className="asset-admin-select">
+                      <span>Filter Category</span>
+                      <input readOnly disabled value="Not applicable" />
+                    </label>
+                  )}
+                  {kind === "model" && (
+                    <AssetSelect
+                      label="Filter Category"
+                      disabled={busy || selection?.kind !== "upload" || categoryChoices === null}
+                      value={selected ? (selected.category ?? "") : category}
+                      options={(selected?.category
+                        ? [selected.category]
+                        : (categoryChoices ?? [])
+                      ).map((value) => ({ value, label: value }))}
+                      placeholder="Not configured"
+                      onChange={setCategory}
+                    />
+                  )}
+                </div>
               )}
-            </div>
-          )}
-          {selected?.status === "approved" && selected.source && (
-            <dl className="asset-admin-review">
-              <div>
-                <dt>Source or provenance</dt>
-                <dd>{selected.source}</dd>
-              </div>
-              <div>
-                <dt>Redistribution licence</dt>
-                <dd>{selected.license}</dd>
-              </div>
-              <div>
-                <dt>Content review notes</dt>
-                <dd>{selected.reviewNotes}</dd>
-              </div>
-            </dl>
-          )}
-          {/* Keep review statements separate from technical validation and retain them after a failed request */}
-          {selected && !selected.deleted && selected.status === "pending" && !confirmation && (
-            <fieldset className="asset-admin-review" disabled={busy}>
-              <legend>Approval review</legend>
-              <p>Confirm content quality and redistribution rights before approval</p>
-              {(
-                [
-                  ["source", "Source or provenance"],
-                  ["license", "Redistribution licence"],
-                  ["reviewNotes", "Content review notes"],
-                ] as const
-              ).map(([field, label]) => (
-                <label className="asset-admin-select" key={field}>
-                  <span>{label}</span>
-                  <input
-                    value={review[field]}
-                    maxLength={2000}
-                    onChange={(event) =>
-                      setReview((current) => ({ ...current, [field]: event.target.value }))
-                    }
-                  />
-                </label>
-              ))}
-              <button
-                type="button"
-                className="asset-admin-primary"
-                onClick={() => {
-                  if (Object.values(review).some((value) => !value.trim())) {
-                    setNotice({
-                      kind: "invalid",
-                      message: "Complete the source, licence and content review before approval",
-                    });
-                    return;
-                  }
-                  void mutate((signal) => service.review(selected.id, review, signal));
-                }}
-              >
-                Approve
-              </button>
-            </fieldset>
-          )}
-          {selected && (selected.status !== "approved" || selected.validation.length > 0) && (
-            <div className="asset-admin-validation">
-              <p>
-                Status: <strong>{selected.status}</strong>
-              </p>
-              {selected.validation.length > 0 && (
-                <ul aria-label="Validation results">
-                  {selected.validation.map((message, i) => (
-                    <li key={i}>{message}</li>
+              {selected?.status === "approved" && selected.source && (
+                <dl className="asset-admin-review">
+                  <div>
+                    <dt>Source or provenance</dt>
+                    <dd>{selected.source}</dd>
+                  </div>
+                  <div>
+                    <dt>Redistribution licence</dt>
+                    <dd>{selected.license}</dd>
+                  </div>
+                  <div>
+                    <dt>Content review notes</dt>
+                    <dd>{selected.reviewNotes}</dd>
+                  </div>
+                </dl>
+              )}
+              {/* Keep review statements separate from technical validation and retain them after a failed request */}
+              {selected && !selected.deleted && selected.status === "pending" && !confirmation && (
+                <fieldset className="asset-admin-review" disabled={busy}>
+                  <legend>Approval review</legend>
+                  <p>Confirm content quality and redistribution rights before approval</p>
+                  {(
+                    [
+                      ["source", "Source or provenance"],
+                      ["license", "Redistribution licence"],
+                      ["reviewNotes", "Content review notes"],
+                    ] as const
+                  ).map(([field, label]) => (
+                    <label className="asset-admin-select" key={field}>
+                      <span>{label}</span>
+                      <input
+                        value={review[field]}
+                        maxLength={2000}
+                        onChange={(event) =>
+                          setReview((current) => ({ ...current, [field]: event.target.value }))
+                        }
+                      />
+                    </label>
                   ))}
-                </ul>
+                  <button
+                    type="button"
+                    className="asset-admin-primary"
+                    onClick={() => {
+                      if (Object.values(review).some((value) => !value.trim())) {
+                        setNotice({
+                          kind: "invalid",
+                          message:
+                            "Complete the source, licence and content review before approval",
+                        });
+                        return;
+                      }
+                      void mutate((signal) => service.review(selected.id, review, signal));
+                    }}
+                  >
+                    Approve
+                  </button>
+                </fieldset>
               )}
-            </div>
+              {selected && (selected.status !== "approved" || selected.validation.length > 0) && (
+                <div className="asset-admin-validation">
+                  <p>
+                    Status: <strong>{selected.status}</strong>
+                  </p>
+                  {selected.validation.length > 0 && (
+                    <ul aria-label="Validation results">
+                      {selected.validation.map((message, i) => (
+                        <li key={i}>{message}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+            </>
           )}
           {notice && (
             <p className="asset-admin-message" role="alert">
