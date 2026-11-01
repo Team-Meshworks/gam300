@@ -13,7 +13,7 @@ RUN if [ "$RUN_BUILD_CHECKS" = true ]; then npx --no-install playwright install 
 COPY apps/web/ ./
 COPY assets/manifest.json /app/assets/manifest.json
 COPY assets/delivery/ /app/assets/delivery/
-COPY tools/validate-assets.mjs /app/tools/validate-assets.mjs
+COPY tools/validate-assets.mjs tools/asset-content-validation.mjs /app/tools/
 RUN node /app/tools/validate-assets.mjs --delivery-only
 RUN if [ "$RUN_BUILD_CHECKS" = true ]; then npm run lint && npm run format:check && npm run test:unit; fi
 RUN NODE_ENV="$BUILD_MODE" npm run build:editor -- --mode "$BUILD_MODE"
