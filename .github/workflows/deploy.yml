@@ -87,11 +87,7 @@ jobs:
         run: |
           # Recheck after environment approval so an old artifact cannot run its old deploy script
           [[ "$EXPECTED_COMMIT" == "$GITHUB_SHA" ]]
-          # The VM runner has curl and jq, but does not require the GitHub CLI.
-          branch_commit=$(curl --fail --silent --show-error --connect-timeout 10 --max-time 30 \
-            -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
-            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/git/ref/heads/$GITHUB_REF_NAME" | jq -er '.object.sha')
-          [[ "$branch_commit" == "$EXPECTED_COMMIT" ]]
+          [[ "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$GITHUB_REF_NAME" --jq .object.sha)" == "$EXPECTED_COMMIT" ]]
           jq -e --arg branch "$GITHUB_REF_NAME" --arg commit "$EXPECTED_COMMIT" --arg run "$CI_RUN_ID" \
             '.branch == $branch and .commit == $commit and .run == $run' "$RELEASE_DIR/release.json"
           if [[ -f "${DEPLOY_ROOT:-$HOME/vthere}/$DEPLOY_ENVIRONMENT/current/compose.server.yaml" ]]; then
