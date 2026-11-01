@@ -50,6 +50,7 @@ function AssetAdministrationScreen({ service, kind, onClose }: Props) {
   const [busy, setBusy] = useState(false);
   const [outcome, setOutcome] = useState("");
   const [confirmation, setConfirmation] = useState(false);
+  const [review, setReview] = useState({ source: "", license: "", reviewNotes: "" });
   const dialog = useRef<HTMLDialogElement>(null);
   const operation = useRef<AbortController | null>(null);
 
@@ -126,6 +127,8 @@ function AssetAdministrationScreen({ service, kind, onClose }: Props) {
       return;
     }
     setSelection(null);
+    // Clear review statements only after closing or confirming the current record
+    setReview({ source: "", license: "", reviewNotes: "" });
     setNotice(null);
     setConfirmation(false);
   }
@@ -208,6 +211,8 @@ function AssetAdministrationScreen({ service, kind, onClose }: Props) {
           },
       );
       setSelection(null);
+      // Clear review statements only after closing or confirming the current record
+      setReview({ source: "", license: "", reviewNotes: "" });
       setFile(null);
       setConfirmation(false);
       // Announce the confirmed state after closing the form; uploaded candidates can still be pending
@@ -531,6 +536,63 @@ function AssetAdministrationScreen({ service, kind, onClose }: Props) {
               onChange={setCategory}
             />
           </div>
+          {selected?.status === "approved" && selected.source && (
+            <dl className="asset-admin-review">
+              <div>
+                <dt>Source or provenance</dt>
+                <dd>{selected.source}</dd>
+              </div>
+              <div>
+                <dt>Redistribution licence</dt>
+                <dd>{selected.license}</dd>
+              </div>
+              <div>
+                <dt>Content review notes</dt>
+                <dd>{selected.reviewNotes}</dd>
+              </div>
+            </dl>
+          )}
+          {/* Keep review statements separate from technical validation and retain them after a failed request */}
+          {selected && !selected.deleted && selected.status === "pending" && !confirmation && (
+            <fieldset className="asset-admin-review" disabled={busy}>
+              <legend>Approval review</legend>
+              <p>Confirm content quality and redistribution rights before approval</p>
+              {(
+                [
+                  ["source", "Source or provenance"],
+                  ["license", "Redistribution licence"],
+                  ["reviewNotes", "Content review notes"],
+                ] as const
+              ).map(([field, label]) => (
+                <label className="asset-admin-select" key={field}>
+                  <span>{label}</span>
+                  <input
+                    value={review[field]}
+                    maxLength={2000}
+                    onChange={(event) =>
+                      setReview((current) => ({ ...current, [field]: event.target.value }))
+                    }
+                  />
+                </label>
+              ))}
+              <button
+                type="button"
+                className="asset-admin-primary"
+                onClick={() => {
+                  if (Object.values(review).some((value) => !value.trim())) {
+                    setNotice({
+                      kind: "invalid",
+                      message: "Complete the source, licence and content review before approval",
+                    });
+                    return;
+                  }
+                  void mutate((signal) => service.review(selected.id, review, signal));
+                }}
+              >
+                Approve
+              </button>
+            </fieldset>
+          )}
           {selected && (selected.status !== "approved" || selected.validation.length > 0) && (
             <div className="asset-admin-validation">
               <p>

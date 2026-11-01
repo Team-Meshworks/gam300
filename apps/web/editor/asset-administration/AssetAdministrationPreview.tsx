@@ -104,6 +104,25 @@ export function AssetAdministrationPreview() {
         records.current = { ...records.current, assets: [...records.current.assets, value] };
         return { ok: true, value };
       },
+      async review(id, input) {
+        const previous = records.current.assets.find((asset) => asset.id === id);
+        if (!previous || previous.deleted || failure === "save") {
+          return { ok: false, kind: "unavailable", message: "Review could not be confirmed" };
+        }
+        const value: AssetCandidate = {
+          ...previous,
+          ...input,
+          status: "approved",
+          hidden: false,
+          validation: [],
+          actions: ["hide", "delete"],
+        };
+        records.current = {
+          ...records.current,
+          assets: records.current.assets.map((asset) => (asset.id === id ? value : asset)),
+        };
+        return { ok: true, value };
+      },
       // Mirror confirmed hide/show/delete results in memory so failures leave the old record intact
       async changeAvailability(id, action) {
         if (failure === "save") {

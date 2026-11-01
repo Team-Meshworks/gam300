@@ -834,3 +834,39 @@ html.asset-admin-preview-page,
     bottom: 4px;
   }
 }
+
+.asset-admin-review {
+  display: grid;
+  gap: 12px;
+  margin: 20px 0;
+  padding: 0;
+  border: 0;
+}
+.asset-admin-review legend {
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.asset-admin-review dd {
+  margin: 4px 0 0;
+  color: var(--aa-muted);
+  overflow-wrap: anywhere;
+}
+.asset-admin-review dt {
+  font-weight: 600;
+}
+/* Keep field boundaries visible while preserving the reference's neutral inset surfaces */
+.asset-admin-preview-controls input,
+.asset-admin-select input {
+  border-color: var(--aa-scroll-thumb);
+}
+
+.asset-admin-text-link {
+  color: var(--aa-ink);
+  font-size: var(--aa-text-body);
+  text-underline-offset: 3px;
+}
+.asset-admin-text-link:focus-visible {
+  outline: 2px solid var(--aa-focus);
+  outline-offset: 3px;
+}

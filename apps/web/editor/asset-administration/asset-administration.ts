@@ -47,7 +47,7 @@ export interface AssetAdministrationService {
     input: { file: File; kind: CatalogueAsset["kind"]; category: string | null },
     signal: AbortSignal,
   ): Promise<AssetAdministrationResult<AssetCandidate>>;
-  review?(
+  review(
     id: string,
     input: { source: string; license: string; reviewNotes: string },
     signal: AbortSignal,
