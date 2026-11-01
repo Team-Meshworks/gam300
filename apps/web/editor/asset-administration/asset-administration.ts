@@ -13,8 +13,8 @@ export type AssetCandidate = Readonly<{
   status: "pending" | "approved" | "invalid" | "unavailable";
   hidden: boolean;
   // Retain deleted records for later administrative removal from existing uses
-  deleted?: boolean;
-  removedFromProjects?: boolean;
+  deleted: boolean;
+  removedFromProjects: boolean;
   thumbnail: CatalogueAsset["thumbnail"];
   validation: readonly string[];
   actions: readonly ("hide" | "show" | "delete" | "remove")[];
@@ -30,7 +30,7 @@ export type AssetAdministrationData = Readonly<{
     // Null leaves a kind unconfigured; All belongs to browsing and is never saved as a category
     categories: Readonly<Record<CatalogueAsset["kind"], readonly string[] | null>>;
     canSubmit: boolean;
-    canForceRemove?: boolean;
+    canForceRemove: boolean;
   }>;
 }>;
 
@@ -57,5 +57,5 @@ export interface AssetAdministrationService {
     action: "hide" | "show" | "delete" | "remove",
     signal: AbortSignal,
     removeFromProjects?: boolean,
-  ): Promise<AssetAdministrationResult<AssetCandidate | null>>;
+  ): Promise<AssetAdministrationResult<AssetCandidate>>;
 }

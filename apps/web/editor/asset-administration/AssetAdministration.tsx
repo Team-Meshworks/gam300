@@ -50,6 +50,7 @@ function AssetAdministrationScreen({ service, kind, onClose }: Props) {
   const [busy, setBusy] = useState(false);
   const [outcome, setOutcome] = useState("");
   const [confirmation, setConfirmation] = useState(false);
+  const [removeFromProjects, setRemoveFromProjects] = useState(false);
   const [review, setReview] = useState({ source: "", license: "", reviewNotes: "" });
   const dialog = useRef<HTMLDialogElement>(null);
   const operation = useRef<AbortController | null>(null);
@@ -97,16 +98,27 @@ function AssetAdministrationScreen({ service, kind, onClose }: Props) {
     }
   }, [selection]);
 
+  // Default to the safe action when details become a destructive confirmation
+  useEffect(() => {
+    if (confirmation) {
+      dialog.current?.querySelector<HTMLButtonElement>(".asset-admin-actions > button")?.focus();
+    }
+  }, [confirmation]);
+
   // Keep search and visibility filters outside the returned records
   // Opening a detail view still resolves its stable ID from the full list
   const items = data?.assets.filter((asset) => asset.kind === kind) ?? [];
   const visible = items.filter(
     (asset) =>
       asset.name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()) &&
-      (tab === "all" || (tab === "hidden" ? asset.hidden : !asset.hidden)),
+      (tab === "deleted"
+        ? asset.deleted
+        : !asset.deleted && (tab === "all" || (tab === "hidden" ? asset.hidden : !asset.hidden))),
   );
   const selected =
     selection?.kind === "detail" ? items.find((asset) => asset.id === selection.id) : null;
+  // Keep force-removal controls out of the regular visibility actions
+  const detailActions = selected?.actions.filter((action) => action !== "remove");
   const title = kind === "environment" ? "All 3D Spaces" : "All Assets";
   const noun = kind === "environment" ? "3D spaces" : "assets";
   const filtered = query.trim().length > 0 || tab !== "all";
@@ -118,6 +130,7 @@ function AssetAdministrationScreen({ service, kind, onClose }: Props) {
     setCategory(data?.policy.categories[kind]?.[0] ?? "");
     setNotice(null);
     setConfirmation(false);
+    setRemoveFromProjects(false);
     setSelection({ kind: "upload" });
   }
 
@@ -126,11 +139,19 @@ function AssetAdministrationScreen({ service, kind, onClose }: Props) {
     if (busy) {
       return;
     }
+    // Cancel the destructive step first so the same asset details remain open
+    if (confirmation) {
+      setConfirmation(false);
+      setRemoveFromProjects(false);
+      setNotice(null);
+      return;
+    }
     setSelection(null);
-    // Clear review statements only after closing or confirming the current record
+    // Discard only this dialog's review fields after an explicit close
     setReview({ source: "", license: "", reviewNotes: "" });
     setNotice(null);
     setConfirmation(false);
+    setRemoveFromProjects(false);
   }
 
   async function submit(event: FormEvent) {
@@ -166,11 +187,18 @@ function AssetAdministrationScreen({ service, kind, onClose }: Props) {
     if (!selected?.actions.includes(action) || busy) {
       return;
     }
-    if (action === "delete" && !confirmation) {
+    if ((action === "delete" || action === "remove") && !confirmation) {
       setConfirmation(true);
       return;
     }
-    await mutate((signal) => service.changeAvailability(selected.id, action, signal));
+    await mutate((signal) =>
+      service.changeAvailability(
+        selected.id,
+        action,
+        signal,
+        action === "remove" || (action === "delete" && removeFromProjects),
+      ),
+    );
   }
 
   async function mutate(
@@ -192,34 +220,34 @@ function AssetAdministrationScreen({ service, kind, onClose }: Props) {
         return;
       }
       // Replace only the confirmed record; failed mutations leave the list and form unchanged
-      const previousId = selected?.id;
       const confirmed = result.value;
       setData(
         (current) =>
           current && {
             ...current,
-            assets:
-              confirmed && !current.assets.some((asset) => asset.id === confirmed.id)
-                ? [...current.assets, confirmed]
-                : current.assets.flatMap((asset) =>
-                    asset.id === (confirmed?.id ?? previousId)
-                      ? confirmed
-                        ? [confirmed]
-                        : []
-                      : [asset],
-                  ),
+            assets: current.assets.some((asset) => asset.id === confirmed.id)
+              ? current.assets.map((asset) => (asset.id === confirmed.id ? confirmed : asset))
+              : [...current.assets, confirmed],
           },
       );
       setSelection(null);
-      // Clear review statements only after closing or confirming the current record
       setReview({ source: "", license: "", reviewNotes: "" });
       setFile(null);
       setConfirmation(false);
+      setRemoveFromProjects(false);
       // Announce the confirmed state after closing the form; uploaded candidates can still be pending
       setOutcome(
-        confirmed
-          ? `${confirmed.name}: ${confirmed.status === "approved" ? (confirmed.hidden ? "hidden" : "available") : confirmed.status}`
-          : "Asset deleted",
+        `${confirmed.name}: ${
+          confirmed.deleted
+            ? confirmed.removedFromProjects
+              ? "removed from all projects and exhibitions"
+              : "deleted from library"
+            : confirmed.status === "approved"
+              ? confirmed.hidden
+                ? "hidden"
+                : "available"
+              : confirmed.status
+        }`,
       );
     } catch {
       if (!controller.signal.aborted) {
@@ -305,9 +333,14 @@ function AssetAdministrationScreen({ service, kind, onClose }: Props) {
         <div className="asset-admin-tabs" aria-label="Asset visibility">
           {(
             [
-              ["all", kind === "environment" ? "All Spaces" : "All Assets", items.length],
-              ["visible", "Public", items.filter((a) => !a.hidden).length],
-              ["hidden", "Private", items.filter((a) => a.hidden).length],
+              [
+                "all",
+                kind === "environment" ? "All Spaces" : "All Assets",
+                items.filter((a) => !a.deleted).length,
+              ],
+              ["visible", "Public", items.filter((a) => !a.deleted && !a.hidden).length],
+              ["hidden", "Private", items.filter((a) => !a.deleted && a.hidden).length],
+              ["deleted", "Deleted", items.filter((a) => a.deleted).length],
             ] as const
           ).map(([value, label, count]) => (
             <button key={value} aria-pressed={tab === value} onClick={() => setTab(value)}>
@@ -323,7 +356,7 @@ function AssetAdministrationScreen({ service, kind, onClose }: Props) {
           + Add {kind === "environment" ? "3D Space" : "Assets"}
         </button>
       </div>
-      <p className="asset-admin-outcome" role="status">
+      <p className="asset-admin-sr" role="status">
         {outcome}
       </p>
       <div className="asset-admin-scroll" tabIndex={0} role="region" aria-label={`${noun} list`}>
@@ -361,35 +394,13 @@ function AssetAdministrationScreen({ service, kind, onClose }: Props) {
                   <div>
                     <h2>{asset.name}</h2>
                     <span className="asset-admin-visibility">
-                      {asset.status === "approved" && (
-                        <svg
-                          aria-hidden="true"
-                          width="13"
-                          height="13"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="1.5"
-                        >
-                          {asset.hidden ? (
-                            <>
-                              <path d="m3 3 18 18M10 5a12 12 0 0 1 11 7 15 15 0 0 1-4 5M7 7a15 15 0 0 0-4 5c3 6 9 9 15 5" />
-                              <path d="M10 10a3 3 0 0 0 4 4" />
-                            </>
-                          ) : (
-                            <>
-                              <circle cx="12" cy="12" r="9" />
-                              <ellipse cx="12" cy="12" rx="4" ry="9" />
-                              <path d="M3 12h18" />
-                            </>
-                          )}
-                        </svg>
-                      )}
-                      {asset.status === "approved"
-                        ? asset.hidden
-                          ? "Hidden"
-                          : "Public"
-                        : asset.status}
+                      {asset.deleted
+                        ? "Deleted"
+                        : asset.status === "approved"
+                          ? asset.hidden
+                            ? "Hidden"
+                            : "Public"
+                          : asset.status}
                     </span>
                   </div>
                   <button
@@ -397,6 +408,7 @@ function AssetAdministrationScreen({ service, kind, onClose }: Props) {
                     onClick={() => {
                       setNotice(null);
                       setConfirmation(false);
+                      setRemoveFromProjects(false);
                       setSelection({ kind: "detail", id: asset.id });
                     }}
                   >
@@ -437,7 +449,7 @@ function AssetAdministrationScreen({ service, kind, onClose }: Props) {
         className={`asset-admin-dialog${selection?.kind === "detail" ? " asset-admin-dialog-detail" : ""}`}
         aria-labelledby="asset-dialog-heading"
         onCancel={(event) => {
-          // File chooser cancellation also bubbles here; only close for the dialog’s own Escape event
+          // File chooser cancellation also bubbles here; only close for the dialogâ€™s own Escape event
           if (event.target !== event.currentTarget) {
             return;
           }
@@ -623,10 +635,10 @@ function AssetAdministrationScreen({ service, kind, onClose }: Props) {
             </button>
             {selection?.kind === "upload" ? (
               <button className="asset-admin-primary" disabled={busy || !file} type="submit">
-                {busy ? "Submitting…" : "Save Changes"}
+                {busy ? "Submittingâ€¦" : "Save Changes"}
               </button>
             ) : (
-              selected?.actions.map((action) => (
+              detailActions?.map((action) => (
                 <button
                   key={action}
                   type="button"
@@ -664,7 +676,7 @@ function AssetAdministrationScreen({ service, kind, onClose }: Props) {
                     )}
                   </svg>
                   {busy
-                    ? "Saving…"
+                    ? "Savingâ€¦"
                     : action === "delete"
                       ? confirmation
                         ? "Confirm Delete"

@@ -101,6 +101,8 @@ export function AssetAdministrationPreview() {
           category: input.category,
           status: "pending",
           hidden: true,
+          deleted: false,
+          removedFromProjects: false,
           thumbnail: null,
           validation: ["Pending validation"],
           actions: ["delete"],
@@ -128,7 +130,7 @@ export function AssetAdministrationPreview() {
         return { ok: true, value };
       },
       // Mirror confirmed hide/show/delete results in memory so failures leave the old record intact
-      async changeAvailability(id, action) {
+      async changeAvailability(id, action, _signal, removeFromProjects = false) {
         if (failure === "save") {
           return { ok: false, kind: "unavailable", message: "The change could not be confirmed." };
         }
@@ -136,19 +138,24 @@ export function AssetAdministrationPreview() {
         if (!previous) {
           return { ok: false, kind: "unavailable", message: "Asset is unavailable." };
         }
-        const value: AssetCandidate | null =
-          action === "delete"
-            ? null
-            : {
-                ...previous,
-                hidden: action === "hide",
-                actions: [action === "hide" ? "show" : "hide", "delete"],
-              };
+        // Keep a tombstone so deletion does not remove the admin's route to later force removal
+        // Simulate the outcome locally without changing stored projects or publications
+        const deleted = previous.deleted || action === "delete";
+        const removed = previous.removedFromProjects || action === "remove" || removeFromProjects;
+        const value: AssetCandidate = {
+          ...previous,
+          hidden: deleted || action === "hide",
+          deleted,
+          removedFromProjects: removed,
+          actions: deleted
+            ? removed
+              ? []
+              : ["remove"]
+            : [action === "hide" ? "show" : "hide", "delete"],
+        };
         records.current = {
           ...records.current,
-          assets: records.current.assets.flatMap((asset) =>
-            asset.id === id ? (value ? [value] : []) : [asset],
-          ),
+          assets: records.current.assets.map((asset) => (asset.id === id ? value : asset)),
         };
         return { ok: true, value };
       },
