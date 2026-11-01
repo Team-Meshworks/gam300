@@ -1,6 +1,10 @@
+using System.Data;
 using System.Globalization;
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
+using Spatia.Server.Accounts;
 using Spatia.Server.Hosting;
+using Spatia.Server.Persistence;
 using Spatia.Server.Security;
 
 namespace Spatia.Server.Projects;
@@ -11,11 +15,12 @@ namespace Spatia.Server.Projects;
 public static class ProjectReadEndpoints
 {
     /// <summary>
-    /// Maps bounded list and open routes under the full-account policy
+    /// Maps project list, open and management grant reads under the full-account policy
     /// </summary>
     public static IEndpointRouteBuilder MapProjectReads(this IEndpointRouteBuilder endpoints)
     {
         var group = endpoints.MapGroup("/api/projects").RequireAuthorization(SecurityPolicies.FullAccount);
+        group.MapGet("/{id:guid}/assignments", ReadAssignmentsAsync);
         group.MapGet("", async (HttpContext context, ProjectAccessService access, ProjectDocumentService documents,
             CancellationToken cancellationToken) =>
         {
@@ -99,6 +104,32 @@ public static class ProjectReadEndpoints
             });
         });
         return endpoints;
+    }
+
+    private static async Task<IResult> ReadAssignmentsAsync(Guid id, HttpContext context, ApplicationDbContext database,
+        ProjectAccessService access, CancellationToken cancellationToken)
+    {
+        if (context.Request.Query.Count != 0) { return InvalidQuery(context); }
+        await using var transaction = await database.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, cancellationToken);
+        var account = await access.ResolveCurrentAccountAsync(context, cancellationToken);
+        if (account is null) { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired); }
+        if (account.MustChangePassword) { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.PasswordChangeRequired); }
+        var project = await access.VisibleProjects(account).Where(row => row.Id == id)
+            .Select(row => new { row.Id, row.OrganizationId, row.Revision, row.IsArchived }).SingleOrDefaultAsync(cancellationToken);
+        if (HasExpired(context)) { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired); }
+        if (project is null) { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.NotFound); }
+        if (account.Role == ApplicationRoles.Creator)
+        {
+            return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.OperationForbidden);
+        }
+        // Keep stored grants intact, including inactive accounts and flags the replacement API cannot represent
+        var assignments = await database.ProjectAssignments.AsNoTracking().Where(row => row.ProjectId == id).OrderBy(row => row.UserId)
+            .Select(row => new { row.UserId, row.CanEdit, row.CanManage, row.CanPublish }).ToArrayAsync(cancellationToken);
+        if (HasExpired(context)) { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired); }
+        await transaction.CommitAsync(cancellationToken);
+        return HasExpired(context)
+            ? ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired)
+            : Results.Ok(new { projectId = project.Id, project.OrganizationId, project.Revision, archived = project.IsArchived, assignments });
     }
 
     private static ProjectPermissions Permissions(ProjectAccessSnapshot project) =>

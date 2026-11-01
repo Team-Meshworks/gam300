@@ -61,6 +61,7 @@ missing ID have the same public result.
 | --- | --- |
 | `GET /api/projects` | Current authorized summaries; default limit 10, maximum 20; exclusive UUID cursor grants no authority. `archived=false` is the default; `true` selects archived projects. |
 | `GET /api/projects/{id}` | `projectId`, validated current `document`, `revision`, `updatedAt` and effective `permissions`. This response has no `archived` field; list summaries include it. Authorized archived drafts remain readable. |
+| `GET /api/projects/{id}/assignments` | Manager/admin read of `{projectId,organizationId,revision,archived,assignments}`; each stored grant has `userId`, `canEdit`, `canManage`, `canPublish`. Includes disabled accounts and noncanonical flags; archived projects remain readable. Visible Creators get 403; inaccessible IDs get generic 404. No query parameters, directory details or document content. |
 | `POST /api/projects` | Required title and exactly one approved `environmentAssetId` or validated `document`. Derives organization from current membership; an Administrator selects an active `orgId`. Commits a new ID, revision 0 and initial authority together; returns 201 metadata. |
 | `POST /api/projects/{id}/duplicate` | Requires `expectedRevision`, title and edit authority on a nonarchived source. Produces an independent revision-0 document with a new project ID and preserved internal references. Does not change the source or copy its grants/retry metadata. Returns 201 metadata. |
 | `PATCH /api/projects/{id}/assignments` | Requires `expectedRevision` and all three arrays: `managedByUserIds`, `assignedCreatorIds`, `canPublishUserIds`. Replaces the entire direct assignment set, including possible removal of the caller. Active same-organization Educators are managers; Creators are editors; creator publishers must be a subset of those editors. Requires management authority and a nonarchived project. Returns 200 metadata. |
@@ -72,6 +73,14 @@ authority. Source assignments are not copied on duplication. Creation/import do
 not confer class classification or approval. See
 [the server request contract](../apps/server/README.md#scrum-6645-protected-save-and-project-lifecycle)
 for title, array, document and request-size bounds.
+
+Grant reads take one repeatable-read snapshot and are `no-store`. The snapshot can
+become stale immediately: PATCH reauthorizes, compares the revision and validates
+every retained account. Its three arrays cannot represent every stored flag
+combination, and inactive grants can fail its eligibility checks. Clients must
+surface unresolved, unsupported or ineligible entries rather than silently omit or
+normalize them. SCRUM-170 directory reads are administrator-only; a manager-facing
+selection and display solution remains separate.
 
 Every successful assignment/archive request increments the common revision and
 timestamp and clears the legacy latest-save retry slot, including a repeated request
@@ -268,7 +277,10 @@ The current lock purposes are `EditDraft`, `ManageAssignments` and
 must not treat choosing a lock purpose, having `CanManage`, or acquiring the SQL row
 lock alone as authorization to publish or review.
 
-Future class contracts must preserve these requirements:
+The class and review foundations on `dev` implement server-owned draft mapping,
+original-student protection, shared locking and exact-revision review. Publication
+integration and its end-to-end evidence remain open. The combined contracts must
+preserve these requirements:
 
 1. Obtain classification from authoritative server-owned class/assignment data,
    outside exported project JSON. SCRUM-161 owns that mapping; SCRUM-69 supplies the
@@ -307,7 +319,7 @@ outcomes when both requests start at the same revision:
 
 ## Acceptance evidence and remaining integration
 
-Baseline: `dev` at
+Historical handoff baseline: `dev` at
 [`29e81ff`](https://github.com/Team-Meshworks/gam300/commit/29e81ff763243a048fc73dd340a2cb7dbd1d34ce).
 The [CI run for that commit](https://github.com/Team-Meshworks/gam300/actions/runs/40548270428)
 passed 532 server tests, zero failed/skipped. This is historical evidence, not a new
@@ -317,7 +329,7 @@ local restart artifact was not independently opened during this handoff review.
 
 | SCRUM-69 acceptance criterion | Existing evidence | Remaining acceptance |
 | --- | --- | --- |
-| 1. Two students; direct IDs/lifecycle cannot bypass authority | [ProjectReadEndpointTests](../apps/server/tests/ProjectReadEndpointTests.cs): `ProjectReads_TwoStudentsSeeOnlyTheirAssignmentsDespiteForgedClaimsAndCrossOrganizationAssignment`; [ProjectLifecycleTests](../apps/server/tests/ProjectLifecycleTests.cs): `ProjectLifecycle_InvalidAssignmentsAndUnauthorizedIdsCannotChangeOrRevealProjects` | Class/roster integration must reject assignment of a class-created draft to another student and preserve its draft and mapping across original-student grant or membership removal and restoration. |
+| 1. Two students; direct IDs/lifecycle cannot bypass authority | [ProjectReadEndpointTests](../apps/server/tests/ProjectReadEndpointTests.cs): `ProjectReads_TwoStudentsSeeOnlyTheirAssignmentsDespiteForgedClaimsAndCrossOrganizationAssignment`; [ProjectLifecycleTests](../apps/server/tests/ProjectLifecycleTests.cs): `ProjectLifecycle_InvalidAssignmentsAndUnauthorizedIdsCannotChangeOrRevealProjects`; [class tests](../apps/server/tests/ClassAssignmentCoordinatorTests.cs) cover original ownership and grant/roster removal and restoration. | Verify the integrated class/review/publication path, including lifecycle races and the review gate. |
 | 2. Admin provisions and assigns/reassigns | `ProjectLifecycle_AdministratorProvisionsAndReassignsStudentsWithoutExposingOtherWork` uses real account and project routes | Link the SCRUM-126 home/admin workflow evidence. |
 | 3. Independent copy, correct internal references | `ProjectLifecycle_ImportAndDuplicatePreserveReferencesButNeverCopyAuthorityOrMutableDrafts`, for both supported document versions | Copy/import origin handling remains deferred to SCRUM-173/175 under D6. |
 | 4. Archive/reopen and concurrent reassignment/save | `ProjectLifecycle_ArchiveReopenAndAssignmentsPreserveSavedContentAndHistoricalRetry`; `ProjectLifecycle_SaveAndMetadataRacesUseOneLockAndPreserveTheWinner`, both commit orders for assignment and archive; [ProjectAccessTests](../apps/server/tests/ProjectAccessTests.cs) recheck authority after lock waits | Joint publication-effects decisions and class/review/publish race evidence. |
@@ -352,8 +364,7 @@ that the agreed review/publication policy cannot be bypassed. Keep the draft
 publisher unavailable while trusted classification or required approval integration
 is absent; the deferred M3 policy does not block SCRUM-161's independent M2 work.
 
-The existing direct-project backend has no additional identified implementation gap
-from this review. The story's full acceptance remains open on the SCRUM-69
-acceptance results listed before the separate M3 paragraph and their required owner
-agreements. A later concrete gap in SCRUM-69 authority/lifecycle must be fixed here; missing class, review, publication-access or recovery systems remain
-with their named owners. Do not close SCRUM-69 merely because this document merges.
+The grant read is a bounded backend addition; its consumer and full story acceptance
+remain open on the integration results and owner agreements above. Class, review,
+publication-access and recovery work remains with its named owners. Do not close
+SCRUM-69 merely because this document merges.
