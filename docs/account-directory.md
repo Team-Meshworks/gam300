@@ -4,6 +4,8 @@ This describes the administrator account and organization directory and lifecycl
 
 All routes require a fully authorized administrator. Responses are not cacheable. Mutations use the existing CSRF and account security protections. No response exposes credentials, password hashes or security stamps.
 
+If the session reaches its absolute expiry during transaction commit, the response is 401. A lifecycle change already committed remains durable despite that response; after authenticating again, read the current state before deciding whether to retry.
+
 ## Directory reads
 
 `GET /api/admin/users` and `GET /api/admin/organizations` return `{ items, nextCursor }`. `nextCursor` is the last returned UUID when another page exists, otherwise null. Results are ordered by ascending UUID. `cursor` resumes after that UUID; `limit` defaults to 20 and is between 1 and 100. Optional `q` is a literal case-insensitive substring of username or organization name respectively, with at most 256 characters; NUL is invalid. User lists additionally accept exact `role`, `orgId`, and `isActive` filters; organization lists accept `isActive`. Unknown, repeated or invalid query parameters are rejected.

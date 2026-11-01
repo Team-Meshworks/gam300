@@ -211,6 +211,7 @@ public static class AccountDirectoryEndpoints
     {
         if (HasExpired(context)) { return AuthenticationRequired(context); }
         await transaction.CommitAsync(cancellationToken);
+        if (HasExpired(context)) { return AuthenticationRequired(context); }
         return result;
     }
 
