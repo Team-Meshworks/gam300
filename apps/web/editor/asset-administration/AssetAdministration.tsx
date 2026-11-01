@@ -393,6 +393,30 @@ function AssetAdministrationScreen({ service, kind, onClose }: Props) {
                   <div>
                     <h2>{asset.name}</h2>
                     <span className="asset-admin-visibility">
+                      {asset.status === "approved" && (
+                        <svg
+                          aria-hidden="true"
+                          width="13"
+                          height="13"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                        >
+                          {asset.hidden ? (
+                            <>
+                              <path d="m3 3 18 18M10 5a12 12 0 0 1 11 7 15 15 0 0 1-4 5M7 7a15 15 0 0 0-4 5c3 6 9 9 15 5" />
+                              <path d="M10 10a3 3 0 0 0 4 4" />
+                            </>
+                          ) : (
+                            <>
+                              <circle cx="12" cy="12" r="9" />
+                              <ellipse cx="12" cy="12" rx="4" ry="9" />
+                              <path d="M3 12h18" />
+                            </>
+                          )}
+                        </svg>
+                      )}
                       {asset.deleted
                         ? "Deleted"
                         : asset.status === "approved"
@@ -445,10 +469,10 @@ function AssetAdministrationScreen({ service, kind, onClose }: Props) {
       </div>
       <dialog
         ref={dialog}
-        className={`asset-admin-dialog${selection?.kind === "detail" ? " asset-admin-dialog-detail" : ""}`}
+        className={`asset-admin-dialog${selection?.kind === "detail" ? " asset-admin-dialog-detail" : ""}${confirmation ? " asset-admin-dialog-confirmation" : ""}`}
         aria-labelledby="asset-dialog-heading"
         onCancel={(event) => {
-          // File chooser cancellation also bubbles here; only close for the dialogâ€™s own Escape event
+          // File chooser cancellation also bubbles here; only close for the dialog’s own Escape event
           if (event.target !== event.currentTarget) {
             return;
           }
@@ -464,7 +488,12 @@ function AssetAdministrationScreen({ service, kind, onClose }: Props) {
         >
           <div className="asset-admin-dialog-heading">
             <h2 id="asset-dialog-heading">
-              {selected?.name ?? (kind === "environment" ? "Upload 3D Space" : "Upload 3D Model")}
+              {confirmation
+                ? selected?.deleted
+                  ? "Remove asset?"
+                  : "Delete asset?"
+                : (selected?.name ??
+                  (kind === "environment" ? "Upload 3D Space" : "Upload 3D Model"))}
             </h2>
             <button
               type="button"
@@ -624,6 +653,20 @@ function AssetAdministrationScreen({ service, kind, onClose }: Props) {
                   </button>
                 </fieldset>
               )}
+              {selected?.deleted && (
+                <p className="asset-admin-retired-status">
+                  {selected.removedFromProjects
+                    ? "Removed from all projects and exhibitions."
+                    : "Deleted from library; still kept in existing projects and exhibitions."}
+                </p>
+              )}
+              {selected?.deleted &&
+                !selected.removedFromProjects &&
+                !data?.policy.canForceRemove && (
+                  <p className="asset-admin-retired-status">
+                    Removal from existing projects and exhibitions is currently unavailable
+                  </p>
+                )}
               {selected && (selected.status !== "approved" || selected.validation.length > 0) && (
                 <div className="asset-admin-validation">
                   <p>
@@ -646,9 +689,46 @@ function AssetAdministrationScreen({ service, kind, onClose }: Props) {
             </p>
           )}
           {confirmation && (
-            <p className="asset-admin-message" role="alert">
-              Delete {selected?.name} from the asset library?
-            </p>
+            <div className="asset-admin-confirmation-content">
+              <p role="alert">
+                <strong>{selected?.name}</strong>
+                {selected?.deleted
+                  ? " will be removed from every project and exhibition that uses it."
+                  : " will move to Deleted and disappear from the student library."}
+              </p>
+              {/* Keep both outcomes in the same text slot so toggling never moves the checkbox */}
+              {!selected?.deleted && (
+                <p
+                  className={`asset-admin-confirmation-outcome ${removeFromProjects ? "asset-admin-confirmation-warning" : "asset-admin-confirmation-hint"}`}
+                  role={removeFromProjects ? "alert" : undefined}
+                >
+                  {removeFromProjects
+                    ? "Existing uses will be removed. This cannot be undone."
+                    : "Existing projects and exhibitions keep this asset."}
+                </p>
+              )}
+              {!selected?.deleted && (
+                <label className="asset-admin-force-removal">
+                  <input
+                    type="checkbox"
+                    checked={removeFromProjects}
+                    disabled={busy || !data?.policy.canForceRemove}
+                    onChange={(event) => setRemoveFromProjects(event.target.checked)}
+                  />
+                  <span>Remove from all projects and exhibitions</span>
+                </label>
+              )}
+              {selected?.deleted && (
+                <p className="asset-admin-confirmation-warning" role="alert">
+                  This cannot be undone.
+                </p>
+              )}
+              {!data?.policy.canForceRemove && (
+                <p className="asset-admin-confirmation-hint">
+                  Removal from existing projects and exhibitions is currently unavailable.
+                </p>
+              )}
+            </div>
           )}
           <div className="asset-admin-actions">
             <button type="button" disabled={busy} onClick={closeDialog}>

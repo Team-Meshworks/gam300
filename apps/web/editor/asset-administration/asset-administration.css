@@ -884,3 +884,57 @@ html.asset-admin-preview-page,
   grid-template-columns: minmax(0, 1fr);
   margin-top: 20px;
 }
+
+/* Keep the destructive opt-in readable without inheriting full-width text-input sizing */
+.asset-admin-force-removal {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.asset-admin-force-removal input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  accent-color: var(--aa-focus);
+}
+
+/* Replace the details with one focused decision instead of appending warnings to the form */
+.asset-admin-dialog-confirmation {
+  width: min(440px, calc(100% - 48px));
+  padding: 28px;
+}
+.asset-admin-confirmation-content {
+  font-size: var(--aa-text-body);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.asset-admin-confirmation-content > p {
+  margin: 0;
+}
+.asset-admin-confirmation-content > p + p {
+  margin-top: 16px;
+}
+.asset-admin-confirmation-hint {
+  color: var(--aa-muted);
+}
+.asset-admin-confirmation-content .asset-admin-force-removal {
+  align-items: flex-start;
+  margin: 16px 0 0;
+}
+.asset-admin-confirmation-content input[type="checkbox"] {
+  margin: 4px 0 0;
+}
+.asset-admin-confirmation-warning {
+  color: var(--aa-danger);
+}
+.asset-admin-dialog-confirmation .asset-admin-actions {
+  margin-top: 20px;
+}
+.asset-admin-dialog-confirmation .asset-admin-actions svg {
+  display: none;
+}
+.asset-admin-dialog-confirmation .asset-admin-danger {
+  background: var(--aa-danger);
+  border-color: var(--aa-danger);
+  color: var(--aa-paper);
+}
