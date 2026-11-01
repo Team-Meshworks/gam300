@@ -128,6 +128,28 @@ try {
   const filter = picker.getByRole("combobox", { name: "Filter assets", exact: true });
   const selection = picker.locator(".asset-picker-selection");
   assert.equal(await selection.textContent(), "Selected: test-crate");
+  // Search and category filtering keep the selected ID and popup dimensions without editing the draft
+  const search = picker.getByRole("searchbox", { name: "Search assets", exact: true });
+  const resetFilters = picker.getByRole("button", { name: "Reset asset filters", exact: true });
+  const pickerBeforeSearch = await picker.boundingBox();
+  await search.fill("  CRATE  ");
+  assert.equal(await picker.locator(".asset-card-pick").count(), 1);
+  await filter.selectOption("category:Architecture");
+  assert.equal(await picker.locator(".asset-card-pick").count(), 0);
+  await picker.getByText("No assets match this search and filter.", { exact: true }).waitFor();
+  assert.match(await selection.textContent(), /test-crate \(not shown/);
+  assert.ok(
+    Math.abs((await picker.boundingBox()).height - pickerBeforeSearch.height) < 1,
+    "Empty results keep the library height stable",
+  );
+  await search.fill("<script>");
+  assert.equal(await picker.locator("script").count(), 0);
+  await resetFilters.click();
+  assert.equal(await search.inputValue(), "");
+  assert.equal(await filter.inputValue(), "all");
+  assert.equal(await asset.getAttribute("aria-pressed"), "true");
+  assert.equal(await rows.count(), 0);
+  assert.equal(await undo.isDisabled(), true);
   await filter.selectOption("favourites");
   assert.equal(await asset.count(), 0, "No favourites saved, so the crate is filtered out");
   assert.equal(

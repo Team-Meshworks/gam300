@@ -1499,3 +1499,31 @@ a {
     inset: 0.75rem 1.5rem 5.5rem;
   }
 }
+
+/* Keep search/reset within the existing picker rather than adding another control row */
+.asset-picker-reset {
+  flex-shrink: 0;
+  padding: 0.25rem;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.875rem;
+}
+.asset-search input::-webkit-search-cancel-button {
+  filter: grayscale(1);
+}
+.asset-search input:focus-visible {
+  outline: none;
+}
+.asset-search:focus-within {
+  outline: 2px solid var(--muted);
+  outline-offset: 2px;
+}
+
+.asset-picker-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+}

@@ -234,7 +234,7 @@
     "editor/recovery-history.ts": "07688f5f1d372c7c18b35b5cb2157e6decb135267cab10085296dfba631c892c",
     "editor/transform-command.test.ts": "7708bd68c3ebffe37e9569f9c6db2238b36c9cc97927830263ce0083af5ab6b3",
     "editor/transform-command.ts": "338ad5ff277ed1bfa0b9bb9164a441be0fb5fb125a392e35e3ba632e9a179d13",
-    "editor/ui/AssetPicker.tsx": "71db5e569c69a555296306bf4192674bef72a01aa5f46838b155a9b770984f31",
+    "editor/ui/AssetPicker.tsx": "479caf8b1c9c54c0c509c8fd0118effab48f3593f8aa8a4cbc7cc6a57ffe5865",
     "editor/ui/BottomBar.tsx": "625123c41538d0bb3528c37bd5076e9de0d1fa8c7a5e2c11d72e1bd9805d051e",
     "editor/ui/Icon.tsx": "29aa51a0bd5f0e66820c8af35eff1f0fba977c47069a10e0dff305621f12bd4c",
     "editor/ui/SceneTreePanel.tsx": "78155774b0d739ba5b9be986904203fc3f496c9228aaf60c89c76782955f93da",
@@ -277,7 +277,7 @@
     "tests/deployment.check.mjs": "2c76bbb2d229a623d0d48014618e51b8d1e3d364f855f71418b9a50fe16c1eda",
     "tests/editor-build.check.mjs": "d94a6814cace56e147dad126bd6ccf74251fb5397f55cffd1eb08efe69976203",
     "tests/editor-integration.check.mjs": "024d4e153449ed7bdd24fc0fda6e0f401834b60be14fa75f152fea50eaaf8e99",
-    "tests/editor-shell.check.mjs": "89515287b3c88183c9d2e5c7756365522585ccdd90fbcae1ea5a2600a9045af9",
+    "tests/editor-shell.check.mjs": "42e10adaf12c8f210d60bc5c2527d958b9e6d85cfc8153b6ccf4215b5b48d82a",
     "tests/history-recovery.check.mjs": "474ef9c6a74a81ef82b83a162319593a9c1b237c3deb5e6e6d32482fc725b173",
     "tests/local-drafts.check.mjs": "879d62fabbb5e1c78f8e7ee9a7653b3dec453090af31baacb95575ec13d7651f",
     "tests/project-format-cross.check.mjs": "8b3fb6b1ec19c993746cd8ae5ce12c2f4b9d26f3643b320349c62b18d7386a95",
@@ -287,7 +287,7 @@
     "shared/project/fixtures/m1-project.json": "3aeeee4397fd9ad18fc06eba32815ef5032ecf8184200aaa38a2076b882a4947",
     "shared/project/fixtures/m2-project.json": "ccafa7cfce33d73c5ffc77672ebe30101a059d30d1c9a9855c0f3e65c1b9fe78",
     "shared/project/fixtures/project-format-cases.json": "58ee71c8634afd15d715ee53712b3f92cb7f3735326ba9c349973bbbe4792a2b",
-    "editor/styles.css": "94b84d19dff30e8075cbdabec57a194be3e9d74592758a4754b14ff64c28eae6"
+    "editor/styles.css": "67141eb684bc1a30bee7e9122036f97332255d977f7cb91e4dd44ab26b50aa1f"
   },
   "imports": [
     {
@@ -2017,7 +2017,7 @@
     },
     {
       "file": "editor/ui/AssetPicker.tsx",
-      "line": 45,
+      "line": 48,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -3576,7 +3576,7 @@
     },
     {
       "file": "tests/editor-shell.check.mjs",
-      "line": 538,
+      "line": 560,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -3585,7 +3585,7 @@
     },
     {
       "file": "tests/editor-shell.check.mjs",
-      "line": 573,
+      "line": 595,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",

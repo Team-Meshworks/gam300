@@ -28,13 +28,16 @@ export function AssetPicker({
   onClose: () => void;
 }) {
   const [chosen, setChosen] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<AssetFilter>("all");
   const [favourites, setFavourites] = useState<string[]>(loadFavourites);
-  const shown = filterAssets(assets, filter, favourites);
+  // Browsing changes only local controls; the chosen stable ID and placement history stay intact
+  const shown = filterAssets(assets, filter, favourites, query);
   const chosenAsset = assets.find((asset) => asset.id === chosen);
-  // The pick survives filtering, so say so when the current results hide it
+  // Keep the chosen ID visible in the status text when browsing hides its card
   const chosenHidden = chosenAsset !== undefined && !shown.includes(chosenAsset);
 
+  // Update the current view immediately and retain favourites independently of the project draft
   function favourite(id: string) {
     const next = toggleFavourite(favourites, id);
     setFavourites(next);
@@ -50,12 +53,12 @@ export function AssetPicker({
         </h2>
         <div className="asset-search">
           <Icon name="search" />
-          {/* Search is being done separately, the box is here ready for it */}
           <input
             type="search"
             placeholder="Search for something…"
             aria-label="Search assets"
-            disabled
+            value={query}
+            onChange={(event) => setQuery(event.currentTarget.value)}
           />
           <span className="asset-filter">
             <select
@@ -64,7 +67,7 @@ export function AssetPicker({
               onChange={(event) => setFilter(event.currentTarget.value)}
             >
               {filterOptions(assets).map((option) => (
-                <option key={option.value} value={option.value}>
+                <option key={option.value} value={option.value} disabled={option.disabled}>
                   {option.label}
                 </option>
               ))}
@@ -72,6 +75,19 @@ export function AssetPicker({
             <Icon name="caretSolid" />
           </span>
         </div>
+        <button
+          className="ui-button asset-picker-reset"
+          type="button"
+          aria-label="Reset asset filters"
+          disabled={query === "" && filter === "all"}
+          onClick={() => {
+            // Clear browsing restrictions without losing the selected card or changing the scene
+            setQuery("");
+            setFilter("all");
+          }}
+        >
+          Reset
+        </button>
         <button
           className="ui-button asset-picker-close"
           type="button"
@@ -85,9 +101,11 @@ export function AssetPicker({
 
       {shown.length === 0 ? (
         <p className="panel-empty asset-picker-empty">
-          {filter === "favourites"
-            ? "No favourites yet. Tap the heart on an asset to keep it here."
-            : "Nothing in this category yet."}
+          {query.trim()
+            ? "No assets match this search and filter."
+            : filter === "favourites"
+              ? "No favourites yet. Tap the heart on an asset to keep it here."
+              : "Nothing in this category yet."}
         </p>
       ) : (
         <ul className="asset-grid" role="list">
