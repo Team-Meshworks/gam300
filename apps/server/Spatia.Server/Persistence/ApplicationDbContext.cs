@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Spatia.Server.Accounts;
+using Spatia.Server.Assets;
 using Spatia.Server.Projects;
 
 namespace Spatia.Server.Persistence;
@@ -33,13 +34,17 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     /// </summary>
     public DbSet<ProjectAssignment> ProjectAssignments => Set<ProjectAssignment>();
 
+    /// <summary>Gets private candidates and retained approved asset versions</summary>
+    public DbSet<AssetCandidate> AssetCandidates => Set<AssetCandidate>();
+
     /// <summary>
-    /// Configures account, organization and project mappings, constraints and fixed role seeds
+    /// Configures account, organization, project and asset mappings, constraints and fixed role seeds
     /// </summary>
     /// <param name="builder">The model builder receiving the database mappings</param>
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+        builder.ApplyConfiguration(new AssetCandidateConfiguration());
 
         builder.Entity<ApplicationUser>(user =>
         {

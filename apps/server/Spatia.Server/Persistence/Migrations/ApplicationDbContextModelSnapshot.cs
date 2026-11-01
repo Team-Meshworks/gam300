@@ -300,6 +300,113 @@ namespace Spatia.Server.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Spatia.Server.Assets.AssetCandidate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<byte[]>("Bytes")
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("bytes");
+
+                    b.Property<string>("Category")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("category");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<bool>("Deleted")
+                        .HasColumnType("boolean")
+                        .HasColumnName("deleted");
+
+                    b.Property<bool>("Hidden")
+                        .HasColumnType("boolean")
+                        .HasColumnName("hidden");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("kind");
+
+                    b.Property<string>("License")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("license");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("name");
+
+                    b.Property<bool>("RemovedFromProjects")
+                        .HasColumnType("boolean")
+                        .HasColumnName("removed_from_projects");
+
+                    b.Property<string>("ReviewNotes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("review_notes");
+
+                    b.Property<Guid?>("ReviewedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reviewed_by");
+
+                    b.Property<string>("Sha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("sha256");
+
+                    b.Property<string>("Source")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("source");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid>("SubmittedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("submitted_by");
+
+                    b.Property<string>("ValidationJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("validation");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReviewedBy");
+
+                    b.HasIndex("SubmittedBy");
+
+                    b.HasIndex("Kind", "Deleted", "Hidden");
+
+                    b.ToTable("asset_candidates", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_asset_candidate_approval", "status <> 'approved' OR (reviewed_by IS NOT NULL AND source IS NOT NULL AND license IS NOT NULL AND review_notes IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_asset_candidate_kind", "kind IN ('model', 'environment')");
+
+                            t.HasCheckConstraint("CK_asset_candidate_retirement", "(NOT deleted OR hidden) AND (NOT removed_from_projects OR deleted)");
+
+                            t.HasCheckConstraint("CK_asset_candidate_size", "octet_length(bytes) BETWEEN 1 AND 20971520");
+
+                            t.HasCheckConstraint("CK_asset_candidate_status", "status IN ('pending', 'approved', 'invalid')");
+                        });
+                });
+
             modelBuilder.Entity("Spatia.Server.Projects.Project", b =>
                 {
                     b.Property<Guid>("Id")
@@ -456,6 +563,20 @@ namespace Spatia.Server.Persistence.Migrations
                     b.HasOne("Microsoft.AspNetCore.Identity.IdentityUserRole<System.Guid>", null)
                         .WithMany()
                         .HasForeignKey("UserId", "RoleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Spatia.Server.Assets.AssetCandidate", b =>
+                {
+                    b.HasOne("Spatia.Server.Accounts.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("ReviewedBy")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Spatia.Server.Accounts.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("SubmittedBy")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
