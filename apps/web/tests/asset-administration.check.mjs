@@ -14,14 +14,17 @@ async function checkDialogTypography() {
     return {
       page: font(document.querySelector(".asset-admin h1")),
       title: font(dialog.querySelector("h2")),
-      section: font(dialog.querySelector("h3")),
+      section: dialog.querySelector("h3") ? font(dialog.querySelector("h3")) : null,
       controls: [
         ...dialog.querySelectorAll("input:not([type=file]), button:not(.asset-admin-close)"),
       ].map(font),
     };
   });
   assert.ok(sizes.title <= sizes.page, "Popup titles must not overpower the library heading");
-  assert.ok(sizes.section < sizes.title, "Section headings stay subordinate to the popup title");
+  assert.ok(
+    sizes.section === null || sizes.section < sizes.title,
+    "Section headings stay subordinate to the popup title",
+  );
   assert.ok(
     sizes.controls.every((size) => size === 14),
     "Form and action text use one body size",
@@ -86,11 +89,9 @@ try {
   await page.getByRole("button", { name: "+ Add 3D Space", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await dialog.waitFor();
-  assert.equal(await dialog.getByRole("textbox", { name: "Asset Type" }).inputValue(), "3D Space");
-  assert.equal(
-    await dialog.getByRole("textbox", { name: "Asset Type" }).getAttribute("readonly"),
-    "",
-  );
+  // Keep the type in the upload title without repeating it as a field or heading
+  assert.equal(await dialog.getByRole("textbox", { name: "Asset Type" }).count(), 0);
+  assert.equal(await dialog.locator("h3").count(), 0);
   await dialog.getByRole("heading", { name: "Upload 3D Space", exact: true }).waitFor();
   await checkDialogTypography();
   await page.screenshot({ path: "test-results/scrum168/upload.png", fullPage: true });
@@ -110,7 +111,7 @@ try {
     mimeType: "model/gltf-binary",
     buffer: Buffer.from("local preview only"),
   });
-  assert.equal(await dialog.getByRole("combobox", { name: "Filter Category" }).isDisabled(), true);
+  assert.equal(await dialog.getByRole("combobox", { name: "Filter Category" }).count(), 0);
   await dialog
     .getByLabel("Choose asset file")
     .evaluate((input) => input.dispatchEvent(new Event("cancel", { bubbles: true })));
@@ -119,10 +120,8 @@ try {
     await dialog.getByLabel("Choose asset file").evaluate((input) => input.files[0].name),
     "retained-room.glb",
   );
-  assert.equal(
-    (await dialog.getByRole("combobox", { name: "Filter Category" }).textContent()).trim(),
-    "Not configured",
-  );
+  // Space upload and detail dialogs have no category control
+  assert.equal(await dialog.getByRole("combobox", { name: "Filter Category" }).count(), 0);
   assert.equal(
     await dialog
       .locator(".asset-admin-upload")
@@ -172,17 +171,15 @@ try {
     mimeType: "model/gltf-binary",
     buffer: Buffer.from("local preview only"),
   });
-  assert.equal(await dialog.getByRole("combobox", { name: "Filter Category" }).isDisabled(), true);
+  assert.equal(await dialog.getByRole("combobox", { name: "Filter Category" }).count(), 0);
   await dialog.getByRole("button", { name: "Save Changes", exact: true }).click();
   await dialog.getByRole("alert").waitFor();
   assert.equal(
     await dialog.getByLabel("Choose asset file").evaluate((input) => input.files[0].name),
     "test-room.glb",
   );
-  assert.equal(
-    (await dialog.getByRole("combobox", { name: "Filter Category" }).textContent()).trim(),
-    "Not configured",
-  );
+  // Space upload and detail dialogs have no category control
+  assert.equal(await dialog.getByRole("combobox", { name: "Filter Category" }).count(), 0);
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
 
   // Only the adapter's confirmed pending result enters the list after successful submission
@@ -193,7 +190,7 @@ try {
     mimeType: "model/gltf-binary",
     buffer: Buffer.from("local preview only"),
   });
-  assert.equal(await dialog.getByRole("combobox", { name: "Filter Category" }).isDisabled(), true);
+  assert.equal(await dialog.getByRole("combobox", { name: "Filter Category" }).count(), 0);
   await dialog.getByRole("button", { name: "Save Changes", exact: true }).click();
   await page.getByRole("heading", { name: "new-room.glb", exact: true }).waitFor();
   await page
@@ -202,20 +199,100 @@ try {
     .getByRole("button")
     .click();
   await dialog.getByText("Pending validation", { exact: true }).waitFor();
-  await dialog.getByRole("button", { name: "Delete", exact: true }).click();
-  await dialog.getByRole("button", { name: "Confirm Delete", exact: true }).waitFor();
-  await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
-  await page.getByRole("heading", { name: "new-room.glb", exact: true }).waitFor();
-
-  // Confirming deletion removes only the record returned as deleted by the adapter
+  // Approval needs explicit source, rights and content statements and applies only after confirmation
+  await dialog.getByRole("button", { name: "Approve", exact: true }).click();
+  await dialog
+    .getByText("Complete the source, licence and content review before approval")
+    .waitFor();
+  await dialog
+    .getByRole("textbox", { name: "Source or provenance" })
+    .fill("Synthetic local preview");
+  await dialog
+    .getByRole("textbox", { name: "Redistribution licence" })
+    .fill("Synthetic fixture only");
+  await dialog
+    .getByRole("textbox", { name: "Content review notes" })
+    .fill("Preview review flow checked");
+  await page.screenshot({ path: "test-results/scrum168/review.png", fullPage: true });
+  // Long approval forms keep their footer reachable within the modal's own scroll area
+  const reviewFooter = dialog.locator(".asset-admin-actions");
+  await reviewFooter.scrollIntoViewIfNeeded();
+  const footerBounds = await reviewFooter.boundingBox();
+  const reviewBounds = await dialog.boundingBox();
+  assert.ok(footerBounds.y + footerBounds.height <= reviewBounds.y + reviewBounds.height);
+  await page.screenshot({ path: "test-results/scrum168/review-footer.png", fullPage: true });
+  await dialog.getByRole("button", { name: "Approve", exact: true }).click();
   await page
     .locator(".asset-admin-card")
     .filter({ has: page.getByRole("heading", { name: "new-room.glb", exact: true }) })
     .getByRole("button")
     .click();
+
   await dialog.getByRole("button", { name: "Delete", exact: true }).click();
+  await dialog.getByRole("button", { name: "Confirm Delete", exact: true }).waitFor();
+  assert.equal(
+    await dialog
+      .getByRole("button", { name: "Cancel", exact: true })
+      .evaluate((button) => button === document.activeElement),
+    true,
+  );
+  assert.equal(await dialog.locator(".asset-admin-detail-preview").count(), 0);
+  assert.equal(await dialog.getByRole("textbox", { name: "Asset Type" }).count(), 0);
+  assert.ok((await dialog.boundingBox()).width <= 440);
+
+  await page.screenshot({ path: "test-results/scrum168/delete-confirmation.png", fullPage: true });
+  await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  // Cancel, close and Escape return to the same details instead of dismissing both steps
+  await dialog.getByRole("heading", { name: "new-room.glb", exact: true }).waitFor();
+  await dialog.getByRole("button", { name: "Delete", exact: true }).click();
+  await dialog.getByRole("button", { name: "Close asset details", exact: true }).click();
+  await dialog.getByRole("heading", { name: "new-room.glb", exact: true }).waitFor();
+  await dialog.getByRole("button", { name: "Delete", exact: true }).click();
+  await page.keyboard.press("Escape");
+  await dialog.getByRole("heading", { name: "new-room.glb", exact: true }).waitFor();
+
+  // Delete hides the record from the active list while retaining its administrative tombstone
+  await dialog.getByRole("button", { name: "Delete", exact: true }).click();
+  assert.equal(
+    await dialog
+      .getByRole("checkbox", { name: "Remove from all projects and exhibitions" })
+      .isChecked(),
+    false,
+  );
   await dialog.getByRole("button", { name: "Confirm Delete", exact: true }).click();
   assert.equal(await page.getByRole("heading", { name: "new-room.glb", exact: true }).count(), 0);
+
+  // Ordinary deletion retains an admin-only record and leaves the destructive option off by default
+  await page.getByRole("button", { name: /^Deleted \(/ }).click();
+  await page
+    .locator(".asset-admin-card")
+    .filter({ has: page.getByRole("heading", { name: "new-room.glb", exact: true }) })
+    .getByRole("button")
+    .click();
+  await dialog
+    .getByRole("button", { name: "Remove from all projects and exhibitions", exact: true })
+    .click();
+  await dialog.getByRole("button", { name: "Confirm Removal", exact: true }).waitFor();
+  await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  // Cancelling removal retains the same details and its available follow-up action
+  await dialog.getByRole("heading", { name: "new-room.glb", exact: true }).waitFor();
+  await dialog
+    .getByRole("button", { name: "Remove from all projects and exhibitions", exact: true })
+    .click();
+  await dialog.getByRole("button", { name: "Confirm Removal", exact: true }).click();
+  await page
+    .locator(".asset-admin-card")
+    .filter({ has: page.getByRole("heading", { name: "new-room.glb", exact: true }) })
+    .getByRole("button")
+    .click();
+  assert.equal(
+    await dialog
+      .getByRole("button", { name: "Remove from all projects and exhibitions", exact: true })
+      .count(),
+    0,
+  );
+  await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.getByRole("button", { name: /^All Spaces \(/ }).click();
 
   // Availability changes follow returned records and still require confirmation for deletion
   await page
@@ -282,10 +359,8 @@ try {
   await page.screenshot({ path: "test-results/scrum168/asset-details.png", fullPage: true });
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
   await page.getByRole("button", { name: "+ Add Assets", exact: true }).click();
-  assert.equal(
-    (await dialog.getByRole("textbox", { name: "Asset Type" }).inputValue()).trim(),
-    "3D Model",
-  );
+  assert.equal(await dialog.getByRole("textbox", { name: "Asset Type" }).count(), 0);
+  await dialog.getByRole("heading", { name: "Upload 3D Model", exact: true }).waitFor();
   await checkDialogTypography();
   await page.screenshot({ path: "test-results/scrum168/add-asset.png", fullPage: true });
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
@@ -312,10 +387,8 @@ try {
     (await dialog.getByRole("combobox", { name: "Filter Category" }).textContent()).trim(),
     "Furniture",
   );
-  // Model intake keeps its type fixed while categories remain editable
-  const typeField = dialog.getByRole("textbox", { name: "Asset Type" });
-  assert.equal(await typeField.getAttribute("readonly"), "");
-  assert.equal(await typeField.inputValue(), "3D Model");
+  // Model intake asks only for the editable category; the current page already determines its type
+  assert.equal(await dialog.getByRole("textbox", { name: "Asset Type" }).count(), 0);
   assert.equal(await dialog.getByRole("combobox", { name: "Asset Type" }).count(), 0);
   await dialog.getByRole("heading", { name: "Upload 3D Model", exact: true }).waitFor();
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();

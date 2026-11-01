@@ -268,7 +268,7 @@
     "shared/project/spatial-validation.test.ts": "1451aa2673f445e8dbdff9e3628dd474ec1f9aa1238b4867c67913bb682e3c0d",
     "shared/project/spatial-validation.ts": "fc07ebececfd00d3a8fd3da72bdce5aa7c8f78acc96a4be564081e456d7e8c69",
     "shared/project/validation-helpers.ts": "655a118952cf702e91ac211e18f48478541fe95f4ceeee3806e314badbfb60fe",
-    "tests/asset-administration.check.mjs": "ef078ddf26d8e80a35653f41c1533c0c77f46f8f0fe844f6483dcf17dd5ff21f",
+    "tests/asset-administration.check.mjs": "b9cc4d8f9f365bceba0db2b12ad49a4f32cdd0cca5e10c4b0db0dfd7d3e769dd",
     "tests/caching.check.mjs": "3ff36ae487a43e4585556b9482e25008526b6282f448572c956b27f1e2f17aac",
     "tests/caching.measure.mjs": "aadf27638c20f8a79d5fe302ec7a3f0ad9bab52661bc5be39df65fb89b53e727",
     "tests/deployment.check.mjs": "c4cedc5151c1b043b6eee66ae1dcf144c97cc2645d8f1956f99f70942c07ab9e",
