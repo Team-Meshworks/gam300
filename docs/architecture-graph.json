@@ -201,7 +201,7 @@
     "editor/App.tsx": "1959ecf211967dd57842a5e47147360cb2a8e15c047302c6b4896edd24eecea7",
     "editor/ProjectConfirmation.tsx": "07a0fedf8fbf88865b3b8232c8665c139348fc64ebce478ea01e55eb7fd14eff",
     "editor/asset-administration/AssetAdministration.tsx": "ebc422cecfc6256ed6fcafdbddffc2a8fd227b9a19635581ad70ca65efda6b5b",
-    "editor/asset-administration/AssetAdministrationPreview.tsx": "aae7a11f334938147a41aed33c8e0ac2450617f9d05ae773b8fd8a952e3e629b",
+    "editor/asset-administration/AssetAdministrationPreview.tsx": "431d52d6d5e9fac94628512877b007a11a819f96a3a40520068d485b857a40be",
     "editor/asset-administration/AssetSelect.tsx": "7d2f837e8bb3c02ebef20a749b46b5dd7601f6b33a6f084421eed0ce5d8fef3b",
     "editor/asset-administration/asset-administration-service.test.ts": "6ff1bc2bea6529dc53b31e4bead48007411b72da18c3c0377eade559fea86acd",
     "editor/asset-administration/asset-administration-service.ts": "65b5e4dade862aac21d1434a29e40a1797aed18dc98e743630f96438ce9c70fa",
@@ -757,7 +757,7 @@
     },
     {
       "file": "editor/asset-administration/AssetAdministrationPreview.tsx",
-      "line": 156,
+      "line": 160,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {

@@ -8,7 +8,7 @@ import type {
   AssetCandidate,
 } from "./asset-administration";
 
-// Exercise these screens locally while the intake endpoint is being implemented
+// Exercise administrative states locally without sending writes to the intake endpoint
 // Records disappear on reload and never enter the approved delivery catalogue
 const initial: AssetAdministrationData = {
   assets: assets.map((asset) => ({
@@ -18,20 +18,33 @@ const initial: AssetAdministrationData = {
     category: asset.kind === "environment" ? null : "Objects",
     status: "approved",
     hidden: false,
+    deleted: false,
+    removedFromProjects: false,
     thumbnail: asset.thumbnail,
     validation: [],
     actions: ["hide", "delete"],
   })),
   policy: {
-    extensions: [".glb", ".gltf"],
+    extensions: [".glb"],
     maxBytes: 20 * 1024 * 1024,
     categories: {
       environment: null,
       model: ["Objects", "Furniture", "Architecture", "Clothing", "Tools & Equipment"],
     },
     canSubmit: true,
+    canForceRemove: true,
   },
 };
+
+// Give each extra preview asset its own record so actions persist independently across scenario changes
+const samples: AssetCandidate[] = initial.assets.flatMap((asset) =>
+  Array.from({ length: 11 }, (_, index) => ({
+    ...asset,
+    id: `${asset.id}-sample-${index}`,
+    name: `${asset.name} ${index + 1}`,
+  })),
+);
+const sampleIds = new Set(samples.map((asset) => asset.id));
 
 export function AssetAdministrationPreview() {
   const [kind, setKind] = useState<AssetCandidate["kind"]>("environment");
@@ -49,7 +62,7 @@ export function AssetAdministrationPreview() {
     .toUpperCase();
 
   // Keep one adapter per scenario so changing controls cancels the previous screen session
-  const records = useRef(initial);
+  const records = useRef({ ...initial, assets: [...initial.assets, ...samples] });
   const service = useMemo<AssetAdministrationService>(
     () => ({
       async load() {
@@ -65,20 +78,11 @@ export function AssetAdministrationPreview() {
         }
         return {
           ok: true,
-          // Generate read-only duplicates only for checking scrolling and responsive catalogue layouts
-          value: overflow
-            ? {
-                ...records.current,
-                assets: records.current.assets.flatMap((asset) =>
-                  Array.from({ length: 12 }, (_, index) => ({
-                    ...asset,
-                    id: `${asset.id}-sample-${index}`,
-                    name: `${asset.name} ${index + 1}`,
-                    actions: [],
-                  })),
-                ),
-              }
-            : records.current,
+          // Hide extra records when overflow testing is off without discarding their lifecycle state
+          value: {
+            ...records.current,
+            assets: records.current.assets.filter((asset) => overflow || !sampleIds.has(asset.id)),
+          },
         };
       },
       // Simulate intake without reading or storing file bytes; approval remains a backend decision
@@ -188,13 +192,15 @@ export function AssetAdministrationPreview() {
       </header>
 
       {role === "Signed out" && (
-        <section className="asset-admin asset-admin-state">
+        <section className="asset-admin asset-admin-denied">
           <h1>Signed out</h1>
           <p>You have signed out of the local preview.</p>
-          <a href="/">Back to editor</a>
+          <a className="asset-admin-text-link" href="/">
+            Back to editor
+          </a>
         </section>
       )}
-      {!closed && (
+      {!closed && role !== "Signed out" && (
         <AssetAdministration
           key={`${kind}:${role}:${failure}:${overflow}`}
           session={{ userId: "preview-admin", role, mustChangePassword: false }}
@@ -230,7 +236,10 @@ export function AssetAdministrationPreview() {
               value,
               label: value,
             }))}
-            onChange={setRole}
+            onChange={(value) => {
+              setRole(value);
+              setClosed(false);
+            }}
           />
           <AssetSelect
             label="Test response"
