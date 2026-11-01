@@ -164,7 +164,11 @@ export function Viewport({
             return;
           }
           event.preventDefault();
-          const position = sceneRef.current?.getDropPosition(event.clientX, event.clientY);
+          const position = sceneRef.current?.getDropPosition(
+            event.clientX,
+            event.clientY,
+            event.ctrlKey || event.metaKey,
+          );
           event.dataTransfer.dropEffect = position === undefined ? "none" : "copy";
           sceneRef.current?.showDropPosition(position);
         }}
@@ -180,7 +184,11 @@ export function Viewport({
           event.preventDefault();
           const assetId = event.dataTransfer.getData(assetDragType);
           if (accepts(event) && assets.some((asset) => asset.id === assetId)) {
-            const position = sceneRef.current?.getDropPosition(event.clientX, event.clientY);
+            const position = sceneRef.current?.getDropPosition(
+              event.clientX,
+              event.clientY,
+              event.ctrlKey || event.metaKey,
+            );
             if (position !== undefined) {
               onPlace(assetId, position);
             }

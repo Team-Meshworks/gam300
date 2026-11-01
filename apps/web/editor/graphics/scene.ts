@@ -21,7 +21,7 @@ import {
   type FreeRotation,
 } from "./rotation";
 import { scaleBy, wheelScaleFactor } from "./scaling";
-import { axisDragPosition, beginAxisDrag } from "./translation";
+import { axisDragPosition, beginAxisDrag, snapAlongAxis, snapToGrid } from "./translation";
 
 //because of the mouse drag delay
 const WHEEL_COMMIT_DELAY_MS = 250;
@@ -63,7 +63,7 @@ export interface InitSceneHandle {
     nextScene?: ProjectScene | null,
     loadGeneration?: number,
   ) => void;
-  getDropPosition: (clientX: number, clientY: number) => Vector3Tuple | undefined;
+  getDropPosition: (clientX: number, clientY: number, snap?: boolean) => Vector3Tuple | undefined;
   showDropPosition: (position: Vector3Tuple | undefined) => void;
   setEditingEnabled: (enabled: boolean) => void;
   captureCamera: () => CameraPose;
@@ -453,7 +453,11 @@ export function initScene(
     return new THREE.Ray(camera.position, point.unproject(camera).sub(camera.position).normalize());
   }
 
-  function getDropPosition(clientX: number, clientY: number): Vector3Tuple | undefined {
+  function getDropPosition(
+    clientX: number,
+    clientY: number,
+    snap = false,
+  ): Vector3Tuple | undefined {
     if (!ready || !editingEnabled || modeManager.getState().mode !== "editor") {
       return;
     }
@@ -463,6 +467,10 @@ export function initScene(
       !point.toArray().every((value) => Number.isFinite(value) && Math.abs(value) <= 20)
     ) {
       return;
+    }
+    if (snap) {
+      point.x = snapToGrid(point.x);
+      point.z = snapToGrid(point.z);
     }
     return [point.x, 0, point.z];
   }
@@ -612,6 +620,9 @@ export function initScene(
     if (drag.currentMode === "move") {
       const position = axisDragPosition(drag.geometry, ray);
       if (position === undefined) return;
+      if (event.ctrlKey || event.metaKey) {
+        snapAlongAxis(position, drag.geometry.axis);
+      }
       drag.current = { ...drag.current, position: position.toArray() as Vector3Tuple };
     } else {
       const rotation =

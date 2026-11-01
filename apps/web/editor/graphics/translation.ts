@@ -1,5 +1,24 @@
 import * as THREE from "three";
 
+// The viewport grid is 40 units across 40 cells.
+export const GRID_CELL_SIZE = 1;
+export const HALF_GRID_SNAP = GRID_CELL_SIZE / 2;
+
+export function snapToGrid(value: number, increment = HALF_GRID_SNAP) {
+  return Math.round(value / increment) * increment;
+}
+
+export function snapAlongAxis(
+  position: THREE.Vector3,
+  axis: THREE.Vector3,
+  increment = HALF_GRID_SNAP,
+) {
+  if (axis.x !== 0) position.x = snapToGrid(position.x, increment);
+  if (axis.y !== 0) position.y = snapToGrid(position.y, increment);
+  if (axis.z !== 0) position.z = snapToGrid(position.z, increment);
+  return position;
+}
+
 export function beginAxisDrag(
   ray: THREE.Ray,
   cameraPosition: THREE.Vector3,
