@@ -1,5 +1,4 @@
-/* Hallmark · shape: app screen · theme: supplied admin PDF · scope: app · surface: absolute · signature: asset catalogue · v2.0.0 */
-/* Critique · balance the frame, keep long lists inside it and size dialogs for the task */
+/* Match the approved administrative surfaces, typography and compact task dialogs */
 @import "@fontsource/inter/latin-400.css";
 @import "@fontsource/inter/latin-500.css";
 @import "@fontsource/inter/latin-600.css";
@@ -11,6 +10,7 @@
   --aa-text-small: 12px;
   --aa-text-body: 14px;
   --aa-text-section: 16px;
+  --aa-text-card: 18px;
   --aa-text-title: 20px;
   --aa-text-page: 22px;
   --aa-paper: #ffffff;
@@ -38,7 +38,7 @@
   --aa-avatar: #eee5d8;
   --aa-avatar-ink: #755c45;
   --aa-panel: linear-gradient(112deg, #f0f0ef 0%, #ffffff 55%, #efeeeb 100%);
-  --aa-page: linear-gradient(110deg, #f3f0ed 0%, #ffffff 45%, #ffffff 76%, #f3f0ed 100%);
+  --aa-page: linear-gradient(135deg, #efedeb 0%, #ffffff 34%, #ffffff 65%, #efedeb 100%);
 }
 
 html.asset-admin-preview-page,
@@ -213,7 +213,7 @@ html.asset-admin-preview-page,
   text-wrap: balance;
 }
 .asset-admin h2 {
-  font-size: 18px;
+  font-size: var(--aa-text-card);
 }
 .asset-admin h3 {
   margin: 20px 0 12px;
@@ -340,9 +340,6 @@ html.asset-admin-preview-page,
 .asset-admin-tabs button[aria-pressed="true"] {
   color: var(--aa-ink);
   font-weight: 700;
-}
-.asset-admin-outcome:not(:empty) {
-  margin-bottom: 12px;
 }
 
 /* Keep the toolbar fixed while the catalogue alone grows and scrolls */
@@ -835,6 +832,19 @@ html.asset-admin-preview-page,
   }
 }
 
+/* Keep the destructive opt-in readable without inheriting full-width text-input sizing */
+.asset-admin-force-removal {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.asset-admin-force-removal input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  accent-color: var(--aa-focus);
+}
+
 .asset-admin-review {
   display: grid;
   gap: 12px;
@@ -884,20 +894,6 @@ html.asset-admin-preview-page,
   grid-template-columns: minmax(0, 1fr);
   margin-top: 20px;
 }
-
-/* Keep the destructive opt-in readable without inheriting full-width text-input sizing */
-.asset-admin-force-removal {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.asset-admin-force-removal input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
-  flex: 0 0 16px;
-  accent-color: var(--aa-focus);
-}
-
 /* Replace the details with one focused decision instead of appending warnings to the form */
 .asset-admin-dialog-confirmation {
   width: min(440px, calc(100% - 48px));
@@ -937,4 +933,98 @@ html.asset-admin-preview-page,
   background: var(--aa-danger);
   border-color: var(--aa-danger);
   color: var(--aa-paper);
+}
+
+/* Supporting text avoids a third control-like block between the fixed type and removal action */
+.asset-admin .asset-admin-retired-status {
+  margin: 16px 0 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--aa-danger);
+  font-size: var(--aa-text-body);
+  line-height: 1.5;
+}
+/* Keep the title separate from the decision content */
+.asset-admin-dialog-confirmation .asset-admin-dialog-heading {
+  margin-bottom: 16px;
+}
+.asset-admin-dialog-confirmation .asset-admin-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  margin-top: 16px;
+}
+.asset-admin-dialog-confirmation .asset-admin-actions button {
+  width: 100%;
+}
+
+/* Reserve only the wrapped text height needed at this dialog width */
+.asset-admin-confirmation-outcome {
+  min-height: 1.6em;
+}
+@media (max-width: 600px) {
+  .asset-admin-confirmation-outcome {
+    min-height: 3.2em;
+  }
+}
+
+/* Separate preview, metadata and lifecycle actions without a stranded half-width field */
+.asset-admin-dialog-detail h3 {
+  margin-top: 24px;
+}
+.asset-admin-dialog-detail .asset-admin-retired-status {
+  margin-top: 20px;
+}
+.asset-admin-dialog-detail:not(.asset-admin-dialog-confirmation) .asset-admin-actions {
+  margin-top: 20px;
+}
+
+@media (max-width: 520px) {
+  /* Keep a long retained-use action from stranding Cancel on a separate right-aligned row */
+  .asset-admin-dialog-detail:has(.asset-admin-retired-status):not(.asset-admin-dialog-confirmation)
+    .asset-admin-actions {
+    display: flex;
+    flex-direction: column-reverse;
+  }
+  .asset-admin-dialog-detail:has(.asset-admin-retired-status):not(.asset-admin-dialog-confirmation)
+    .asset-admin-actions
+    > button {
+    width: 100%;
+  }
+}
+
+/* Keep retired details compact while preserving the regular view and confirmation spacing */
+.asset-admin-dialog-detail:has(.asset-admin-retired-status):not(.asset-admin-dialog-confirmation)
+  h3 {
+  margin-top: 16px;
+  margin-bottom: 8px;
+}
+.asset-admin-dialog-detail:has(.asset-admin-retired-status):not(.asset-admin-dialog-confirmation)
+  .asset-admin-retired-status {
+  margin-top: 12px;
+}
+.asset-admin-dialog-detail:has(.asset-admin-retired-status):not(.asset-admin-dialog-confirmation)
+  .asset-admin-actions {
+  margin-top: 12px;
+}
+
+/* Center empty and unavailable states within the remaining catalogue area, not the whole page */
+.asset-admin-scroll:has(.asset-admin-state) {
+  display: grid;
+  padding: 0;
+  scrollbar-gutter: stable both-edges;
+  place-items: center;
+}
+.asset-admin-scroll > .asset-admin-grid:has(> .asset-admin-state) {
+  display: grid;
+  width: 100%;
+  min-height: 100%;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: center;
+  place-items: center;
+}
+.asset-admin-scroll .asset-admin-state {
+  width: 100%;
+  padding: 24px;
 }

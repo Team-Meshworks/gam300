@@ -81,6 +81,14 @@ try {
   const initialCount = await page.locator(".asset-admin-card").count();
   await page.getByRole("searchbox", { name: "Search 3D spaces" }).fill("no such sample asset");
   await page.getByRole("heading", { name: "No matching 3D spaces" }).waitFor();
+  const emptyBounds = await page.locator(".asset-admin-state").boundingBox();
+  const listBounds = await page.locator(".asset-admin-scroll").boundingBox();
+  assert.ok(
+    Math.abs(emptyBounds.y + emptyBounds.height / 2 - listBounds.y - listBounds.height / 2) <= 1,
+  );
+  assert.ok(
+    Math.abs(emptyBounds.x + emptyBounds.width / 2 - listBounds.x - listBounds.width / 2) <= 1,
+  );
   await page.screenshot({ path: "test-results/scrum168/empty.png" });
   await page.getByRole("button", { name: "Reset search" }).click();
   assert.equal(await page.locator(".asset-admin-card").count(), initialCount);
