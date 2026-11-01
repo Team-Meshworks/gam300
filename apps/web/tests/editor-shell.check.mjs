@@ -92,8 +92,13 @@ try {
   await openLibrary(page);
   assert.equal(await asset.isEnabled(), true);
   assert.equal(await add.isDisabled(), true, "Add waits until a card is picked");
+  // The thumbnail sits on the card beside the name button, not inside it
   assert.ok(
-    await asset.locator("img").evaluate((image) => image.complete && image.naturalWidth > 0),
+    await picker
+      .locator(".asset-card")
+      .filter({ has: page.getByRole("button", { name: "test-crate", exact: true }) })
+      .locator("img")
+      .evaluate((image) => image.complete && image.naturalWidth > 0),
   );
   await asset.focus();
   await page.keyboard.press("Enter");
@@ -167,6 +172,17 @@ try {
   assert.equal(await rows.count(), 1);
   assert.equal(await picker.count(), 0, "Add closes the library");
   const firstId = await rows.first().getAttribute("data-object-id");
+  // Editor start in first person, the view button switch to the orbit camera and its tools
+  const viewToggle = page.getByRole("button", { name: "Third person", exact: true });
+  const cameraTools = page.getByRole("group", { name: "Camera tools" });
+  const locked = () => page.evaluate(() => document.pointerLockElement?.tagName ?? null);
+  assert.equal(await viewToggle.getAttribute("aria-pressed"), "false");
+  assert.equal(await cameraTools.count(), 0, "No camera tools while walking");
+  assert.match(await page.locator(".walk-hint").textContent(), /Click the scene to look around/);
+  await viewToggle.click();
+  assert.equal(await viewToggle.getAttribute("aria-pressed"), "true");
+  assert.equal(await cameraTools.count(), 1);
+  assert.equal(await page.locator(".walk-hint").count(), 0);
   const stageBox = await stage.boundingBox();
   assert.ok(stageBox);
   const dropPoint = await dropPointBesideLibrary();
@@ -253,6 +269,48 @@ try {
   assert.notEqual(movedPosition, initialPosition, "Pointer drag commits movement");
   await undo.click();
   assert.equal(await position.textContent(), initialPosition, "One Undo reverses the whole drag");
+
+  // First person stand where the orbit camera looked, so back off the crate then aim at it
+  await rows.nth(1).click();
+  await viewToggle.click();
+  assert.equal(await cameraTools.count(), 0);
+  await stage.click({ position: { x: stageBox.width / 2, y: stageBox.height / 2 } });
+  assert.equal(await locked(), "CANVAS", "A click on the scene grabs the mouse");
+  assert.equal(await page.locator(".crosshair").count(), 1);
+  assert.equal(await rows.nth(1).getAttribute("aria-pressed"), "true", "Grabbing picks nothing");
+  await page.keyboard.down("s");
+  await page.waitForTimeout(600);
+  await page.keyboard.up("s");
+  await page.mouse.down();
+  await page.mouse.up();
+  assert.equal(await rows.first().getAttribute("aria-pressed"), "true", "Crosshair picks");
+  assert.equal(await position.textContent(), initialPosition, "A plain click carries nothing");
+  // Holding the click carries it while walking. Backing up keeps it under the crosshair
+  await page.mouse.down();
+  await page.keyboard.down("s");
+  await page.waitForTimeout(300);
+  await page.keyboard.up("s");
+  await page.mouse.up();
+  assert.notEqual(await position.textContent(), initialPosition, "Holding the click carries it");
+  await page.keyboard.press("Control+z");
+  assert.equal(await position.textContent(), initialPosition, "One Undo puts the carry back");
+  // Freeing the mouse mid-carry puts the object back where it was
+  await page.mouse.down();
+  await page.keyboard.down("s");
+  await page.waitForTimeout(300);
+  await page.keyboard.up("s");
+  await page.keyboard.down("Alt");
+  assert.equal(await locked(), null, "Holding Alt gives the mouse back");
+  await page.mouse.up();
+  assert.equal(await position.textContent(), initialPosition, "Alt cancels the carry");
+  await page.keyboard.up("Alt");
+  assert.equal(await locked(), "CANVAS", "Letting go of Alt takes it again");
+  // Alt clicking a button moves focus to it, so the mouse stays free for the UI
+  await page.keyboard.down("Alt");
+  await viewToggle.click();
+  await page.keyboard.up("Alt");
+  assert.equal(await locked(), null);
+  assert.equal(await cameraTools.count(), 1, "Back to third person");
 
   // A second finger must neither replace nor cancel the first finger's transaction
   const touchSession = await page.context().newCDPSession(page);

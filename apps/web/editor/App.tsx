@@ -11,7 +11,7 @@ import {
   isTextEditingTarget,
 } from "./history-shortcuts";
 import type { NavigationTool, ViewportStatus } from "./graphics/scene";
-import type { ModeManager, ModeManagerState } from "./graphics/modeManager";
+import type { CameraView, ModeManager, ModeManagerState } from "./graphics/modeManager";
 import { BottomBar } from "./ui/BottomBar";
 import { SidePanels } from "./ui/SidePanels";
 import { TopBar } from "./ui/TopBar";
@@ -68,6 +68,11 @@ export function App() {
   const hasChanges = project !== null || objects.length > 0 || hasDeleted;
   const visitor = modeState?.mode === "visitor";
   const [navigationTool, setNavigationTool] = useState<NavigationTool>("select");
+  // Start inside the scene, the overview button switch to the orbit camera
+  const [view, setView] = useState<CameraView>("first");
+  const walking = visitor || view === "first";
+  const captured = modeState?.captured ?? false;
+  const canCapture = modeState?.canCapture ?? true;
 
   const onManager = useCallback((next: ModeManager) => {
     setManager(next);
@@ -286,6 +291,8 @@ export function App() {
           document.getElementById("viewport")?.focus();
         }}
         onExitPreview={() => manager?.setMode("editor")}
+        view={view}
+        onToggleView={() => setView((previous) => (previous === "first" ? "third" : "first"))}
       />
       {/* Reset the input so choosing the same file again still fires a change */}
       <input
@@ -368,6 +375,7 @@ export function App() {
           dragging={dragging}
           editingEnabled={!switching}
           navigationTool={navigationTool}
+          view={view}
           status={status}
           attempt={attempt}
           onStatus={setStatus}
@@ -391,7 +399,18 @@ export function App() {
               onDragChange={setDragging}
               tool={navigationTool}
               onToolChange={setNavigationTool}
+              showCameraTools={view === "third"}
             />
+          )}
+          {walking && status === "ready" && (
+            <>
+              {captured && <span className="crosshair" aria-hidden="true" />}
+              <p className="walk-hint">
+                {captured
+                  ? `${visitor ? "" : "Click selects what's under the + · Hold the click to carry it · "}Hold Alt for the mouse · Esc to stop`
+                  : `${canCapture ? "Click the scene" : "Drag"} to look around · WASD to walk · Space to jump, double tap to fly`}
+              </p>
+            </>
           )}
         </Viewport>
       </main>

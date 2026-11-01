@@ -3,7 +3,7 @@ import { assetDragType, type CatalogueAsset } from "../../shared/asset-runtime/c
 import type { SceneObject, Vector3Tuple } from "../../shared/project/scene-object";
 import type { ProjectScene, Transform, CameraPose } from "../../shared/project/project-types";
 import type { initScene, NavigationTool, ViewportStatus } from "../graphics/scene";
-import type { ModeManager } from "../graphics/modeManager";
+import type { CameraView, ModeManager } from "../graphics/modeManager";
 
 const statusMessages = {
   loading: "Loading assets…",
@@ -25,6 +25,7 @@ type ViewportProps = {
   dragging: boolean;
   editingEnabled: boolean;
   navigationTool: NavigationTool;
+  view: CameraView;
   status: ViewportStatus;
   attempt: number;
   onStatus: (status: ViewportStatus) => void;
@@ -48,6 +49,7 @@ export function Viewport({
   dragging,
   editingEnabled,
   navigationTool,
+  view,
   status,
   attempt,
   onStatus,
@@ -69,6 +71,7 @@ export function Viewport({
     loadGeneration,
     editingEnabled,
     navigationTool,
+    view,
   });
 
   useEffect(() => {
@@ -92,6 +95,7 @@ export function Viewport({
         );
         scene?.setEditingEnabled(current.editingEnabled);
         scene?.setNavigationTool(current.navigationTool);
+        scene?.modeManager.setView(current.view);
         if (scene !== undefined) {
           onManager(scene.modeManager);
           onCamera({ capture: scene.captureCamera, show: scene.showCamera });
@@ -119,10 +123,12 @@ export function Viewport({
       loadGeneration,
       editingEnabled,
       navigationTool,
+      view,
     };
     sceneRef.current?.update(objects, selectedId, projectScene, loadGeneration);
     sceneRef.current?.setEditingEnabled(editingEnabled);
     sceneRef.current?.setNavigationTool(navigationTool);
+    sceneRef.current?.modeManager.setView(view);
   }, [
     objects,
     selectedId,
@@ -130,6 +136,7 @@ export function Viewport({
     loadGeneration,
     editingEnabled,
     navigationTool,
+    view,
     assets,
     attempt,
   ]);
