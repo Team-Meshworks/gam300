@@ -164,7 +164,9 @@ try {
   await page.keyboard.press("Enter");
   assert.equal(await filter.textContent(), "Architecture");
   await picker.getByRole("button", { name: "Reset asset filters", exact: true }).click();
-  const selection = picker.locator(".asset-picker-selection");
+  // Announce selection without adding a visible footer or changing the library layout
+  const selection = picker.locator("#asset-picker-selection");
+  assert.equal(await selection.getAttribute("class"), "sr-only");
   assert.equal(await selection.textContent(), "Selected: test-crate");
   // Search and category filtering keep the selected ID and popup dimensions without editing the draft
   const search = picker.getByRole("searchbox", { name: "Search assets", exact: true });

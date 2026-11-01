@@ -16,7 +16,6 @@
   --picker-backdrop: rgb(31 29 26 / 0.2);
   --picker-shadow: 0 18px 56px rgb(31 29 26 / 0.25);
   --asset-preview: #d5d7d3;
-  --asset-preview-hover: #cbd0c8;
   --asset-card: #fff;
   --asset-tag: #d9d9d9;
   --asset-scroll-thumb: #8f8981;
@@ -849,8 +848,15 @@ a {
   break-inside: avoid;
   container-type: inline-size;
 }
+/* Match the panel buttons' proportional hover darkening across both card surfaces */
+.asset-card:has(.asset-card-pick:hover:not(:disabled)),
 .asset-card:has(.asset-card-pick[aria-pressed="true"]) {
-  box-shadow: 0 0 0 2px #3d3133;
+  filter: brightness(0.9294);
+}
+/* Keep the picked outline inside the card so scrolling cannot clip its edges */
+.asset-card:has(.asset-card-pick[aria-pressed="true"]) {
+  outline: 2px solid var(--muted);
+  outline-offset: -2px;
 }
 .asset-card-pick {
   display: block;
@@ -866,7 +872,8 @@ a {
   opacity: 0.6;
 }
 .asset-card-pick:focus-visible {
-  outline: 2px solid #1f1d1a;
+  border-radius: inherit;
+  outline: 2px solid var(--muted);
   outline-offset: -2px;
 }
 /* Curve the preview over the white card surface while keeping the image clipped inside it */
@@ -876,7 +883,6 @@ a {
   overflow: hidden;
   border-radius: 0 0 1rem 1rem;
   background: var(--asset-preview);
-  transition: background 150ms ease;
 }
 .asset-art img {
   display: block;
@@ -884,9 +890,6 @@ a {
   height: 100%;
   object-fit: contain;
   pointer-events: none;
-}
-.asset-card-pick:hover:not(:disabled) .asset-art {
-  background: var(--asset-preview-hover);
 }
 .asset-card-info {
   display: grid;
@@ -934,12 +937,7 @@ a {
   padding: 2rem 1rem;
   text-align: center;
 }
-.asset-picker-selection {
-  align-self: center;
-  margin: 0.75rem 0 0;
-  color: var(--muted);
-  font-size: 0.8125rem;
-}
+
 .asset-picker-add {
   align-self: center;
   min-width: 6.5rem;
@@ -949,11 +947,6 @@ a {
 @media (orientation: portrait) {
   .asset-picker {
     --picker-width: 92vw;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .asset-art {
-    transition: none;
   }
 }
 

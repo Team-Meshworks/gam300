@@ -35,7 +35,7 @@ export function AssetPicker({
   // Browsing changes only local controls; the chosen stable ID and placement history stay intact
   const shown = filterAssets(assets, filter, favourites, query);
   const chosenAsset = assets.find((asset) => asset.id === chosen);
-  // Keep the chosen ID visible in the status text when browsing hides its card
+  // Keep the chosen ID available to assistive technology when browsing hides its card
   const chosenHidden = chosenAsset !== undefined && !shown.includes(chosenAsset);
 
   // Update the current view immediately and retain favourites independently of the project draft
@@ -149,7 +149,7 @@ export function AssetPicker({
       )}
 
       {chosenAsset !== undefined && (
-        <p id="asset-picker-selection" className="asset-picker-selection" aria-live="polite">
+        <p id="asset-picker-selection" className="sr-only" aria-live="polite">
           {chosenHidden
             ? `Selected: ${chosenAsset.name} (not shown in the current results)`
             : `Selected: ${chosenAsset.name}`}
