@@ -1,5 +1,6 @@
 import { moveAttachedObjects } from "../../shared/project/attached-transforms";
 import type { ContentScene } from "../../shared/project/project-content";
+import { getStartingCamera } from "../../shared/project/starting-view";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { ModelCache, disposeModels, type ModelLease } from "../../shared/asset-runtime/ModelCache";
@@ -62,10 +63,13 @@ export interface InitSceneHandle {
     nextObjects: readonly SceneObject[],
     nextSelectedId: string | null,
     nextScene?: ProjectScene | null,
+    loadGeneration?: number,
   ) => void;
   getDropPosition: (clientX: number, clientY: number) => Vector3Tuple | undefined;
   showDropPosition: (position: Vector3Tuple | undefined) => void;
   setEditingEnabled: (enabled: boolean) => void;
+  captureCamera: () => CameraPose;
+  showCamera: (pose: CameraPose) => void;
   setNavigationTool: (tool: NavigationTool) => void;
   modeManager: ModeManager;
   dispose: () => void;
@@ -172,6 +176,7 @@ export function initScene(
   let selectedId: string | null = null;
   let projectScene: ProjectScene | null = null;
   let appliedCamera: CameraPose | null = null;
+  let appliedLoadGeneration: number | undefined;
   let environment: THREE.Group | undefined;
   let environmentId: string | undefined;
   const environmentBounds = new THREE.Box3();
@@ -302,10 +307,46 @@ export function initScene(
   };
   requestAnimationFrame(animate);
 
+  function showCamera(pose: import("../../shared/project/project-types").CameraPose) {
+    if (modeManager.getState().mode !== "editor") return;
+    camera.position.fromArray(pose.position);
+    camera.quaternion.fromArray(pose.rotation);
+    // Keep upright views orbiting around world Y, while preserving authored roll
+    const authoredUp = new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion);
+    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion).normalize();
+    camera.up.set(0, 1, 0).projectOnPlane(right).normalize();
+    const alignment = camera.up.dot(authoredUp);
+    if (Math.abs(alignment) < 1e-6) camera.up.copy(authoredUp);
+    else if (alignment < 0) camera.up.negate();
+    // OrbitControls captures its up axis at construction; replace it for rolled or vertical poses
+    // This also drops the old view's pointer state and damping
+    orbit.removeEventListener("change", updateGizmo);
+    orbit.dispose();
+    orbit = new OrbitControls(camera, renderer.domElement);
+    orbit.enableDamping = true;
+    orbit.enabled = editingEnabled;
+    applyNavigationTool();
+    // The constructor looks at its default target, so reinstall the authored pose afterward
+    camera.position.fromArray(pose.position);
+    camera.quaternion.fromArray(pose.rotation);
+    orbit.target
+      .copy(camera.position)
+      .addScaledVector(
+        camera.getWorldDirection(new THREE.Vector3()),
+        Math.max(camera.position.length(), 1),
+      );
+    modeManager.setOrbitControls(orbit);
+    orbit.addEventListener("change", updateGizmo);
+    camera.fov = pose.fovDegrees;
+    camera.updateProjectionMatrix();
+    camera.updateMatrixWorld(true);
+  }
+
   function update(
     nextObjects: readonly SceneObject[],
     nextSelectedId: string | null,
     nextScene: ProjectScene | null = projectScene,
+    loadGeneration = 0,
   ) {
     if (
       drag !== undefined &&
@@ -326,47 +367,24 @@ export function initScene(
     projectScene = nextScene;
     // A loaded camera resets the view once
     // Selection and placement keep the same camera-pose reference
-    if (projectScene !== null && appliedCamera !== projectScene.startCamera) {
+    const startingCamera = projectScene ? getStartingCamera(projectScene) : null;
+    // Renaming a view can produce a fresh object with the same pose. Keep the live camera still.
+    if (
+      startingCamera !== null &&
+      (appliedLoadGeneration !== loadGeneration ||
+        JSON.stringify(appliedCamera) !== JSON.stringify(startingCamera))
+    ) {
       modeManager.setMode("editor");
-      appliedCamera = projectScene.startCamera;
-      camera.position.fromArray(appliedCamera.position);
-      camera.quaternion.fromArray(appliedCamera.rotation);
-      // Keep upright views orbiting around world Y, while preserving authored roll
-      const authoredUp = new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion);
-      const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion).normalize();
-      camera.up.set(0, 1, 0).projectOnPlane(right).normalize();
-      const alignment = camera.up.dot(authoredUp);
-      if (Math.abs(alignment) < 1e-6) camera.up.copy(authoredUp);
-      else if (alignment < 0) camera.up.negate();
-      // OrbitControls captures its up axis at construction; replace it for rolled or vertical poses
-      // This also drops the old view's pointer state and damping
-      orbit.removeEventListener("change", updateGizmo);
-      orbit.dispose();
-      orbit = new OrbitControls(camera, renderer.domElement);
-      orbit.enableDamping = true;
-      orbit.enabled = editingEnabled;
-      applyNavigationTool();
-      // The constructor looks at its default target, so reinstall the authored pose afterward
-      camera.position.fromArray(appliedCamera.position);
-      camera.quaternion.fromArray(appliedCamera.rotation);
-      orbit.target
-        .copy(camera.position)
-        .addScaledVector(
-          camera.getWorldDirection(new THREE.Vector3()),
-          Math.max(camera.position.length(), 1),
-        );
-      modeManager.setOrbitControls(orbit);
-      orbit.addEventListener("change", updateGizmo);
-      camera.fov = appliedCamera.fovDegrees;
-      camera.updateProjectionMatrix();
-      camera.updateMatrixWorld(true);
+      appliedCamera = startingCamera;
+      appliedLoadGeneration = loadGeneration;
+      showCamera(appliedCamera);
     }
 
-    if (ready && environmentId !== projectScene?.environmentAssetId) {
+    if (ready && environmentId !== (projectScene?.environmentAssetId ?? undefined)) {
       // Environment stays at its exported origin, outside the placed-object list
       // Removed instances borrow resources from this viewport's cache leases
       if (environment !== undefined) scene.remove(environment);
-      environmentId = projectScene?.environmentAssetId;
+      environmentId = projectScene?.environmentAssetId ?? undefined;
       environment =
         environmentId === undefined ? undefined : models.get(environmentId)?.clone(true);
       environmentBounds.makeEmpty();
@@ -768,6 +786,12 @@ export function initScene(
       }
       orbit.enabled = enabled && modeManager.getState().mode === "editor";
     },
+    captureCamera: () => ({
+      position: camera.position.toArray() as [number, number, number],
+      rotation: camera.quaternion.toArray() as [number, number, number, number],
+      fovDegrees: camera.fov,
+    }),
+    showCamera,
     setNavigationTool(tool) {
       if (tool === navigationTool) return;
       navigationTool = tool;

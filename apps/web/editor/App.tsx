@@ -15,7 +15,10 @@ import type { ModeManager, ModeManagerState } from "./graphics/modeManager";
 import { BottomBar } from "./ui/BottomBar";
 import { SidePanels } from "./ui/SidePanels";
 import { TopBar } from "./ui/TopBar";
-import { Viewport } from "./viewport/Viewport";
+import { OlderSceneImport } from "./OlderSceneImport";
+import { Scenes } from "./Scenes";
+import { Viewpoints } from "./Viewpoints";
+import { Viewport, type ViewpointCamera } from "./viewport/Viewport";
 
 import { ProjectConfirmation } from "./ProjectConfirmation";
 import { useProjectSession } from "./persistence/use-project-session";
@@ -25,10 +28,8 @@ const assetKinds = new Map(assets.map((asset) => [asset.id, asset.kind]));
 
 export function App() {
   const [store] = useState(() => createDocumentStore(assets));
-  const { objects, project, canUndo, canRedo } = useSyncExternalStore(
-    store.subscribe,
-    store.getSnapshot,
-  );
+  const { objects, project, activeSceneId, loadGeneration, canUndo, canRedo } =
+    useSyncExternalStore(store.subscribe, store.getSnapshot);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [generatedThumbnails, setGeneratedThumbnails] = useState<Record<string, string>>({});
   const onThumbnail = useCallback((id: string, url: string) => {
@@ -52,11 +53,15 @@ export function App() {
     }, 3500);
     return () => clearTimeout(timer);
   }, [feedback.sequence]);
+  const [viewCamera, setViewCamera] = useState<ViewpointCamera | null>(null);
   const [manager, setManager] = useState<ModeManager | null>(null);
   const [modeState, setModeState] = useState<ModeManagerState | null>(null);
   const selection = objects.some((object) => object.id === selectedId) ? selectedId : null;
-  const projectScene = project?.scenes[0];
-  const groups = project?.schemaVersion === 2 ? project.scenes[0]!.groups : [];
+  const projectScene = project?.scenes.find((scene) => scene.id === activeSceneId);
+  const groups =
+    project?.schemaVersion === 2
+      ? (project.scenes.find((scene) => scene.id === activeSceneId)?.groups ?? [])
+      : [];
   const groupSelected = groups.some((group) => group.id === selectedId);
 
   // Room selection uses the scene ID because its asset lives in the environment field
@@ -209,13 +214,23 @@ export function App() {
 
       // The same room tile creates the environment first and independent room instances afterward
       // Keep the model reference used by saved room instances behind this one catalogue choice
-      if (store.getSnapshot().project?.scenes[0]?.environmentAssetId === assetId) {
+      if (projectScene?.environmentAssetId === assetId) {
         const added = store.addObject("test-room-module-v1", position);
         if (added.ok) {
           setSelectedId(added.object.id);
           setNotice(`Added ${added.object.name}`);
         } else {
           setError(added.error);
+        }
+        setDragging(false);
+        return;
+      }
+      if (project !== null) {
+        const changed = store.setEnvironment(assetId);
+        if (!changed.ok) setError(changed.error.message);
+        else {
+          setError("");
+          setNotice("Scene environment updated. Undo is available.");
         }
         setDragging(false);
         return;
@@ -302,11 +317,46 @@ export function App() {
         }}
       />
 
+      <OlderSceneImport
+        olderSceneFiles={session.olderSceneFiles}
+        assets={assets}
+        onImport={session.importConvertedFile}
+        onError={setError}
+      />
       <main className="workspace" inert={switching}>
         <SidePanels
+          scenes={
+            <Scenes
+              key={`${loadGeneration}:${project?.projectId ?? "new"}:${activeSceneId}:${projectScene?.name}`}
+              scenes={project?.scenes ?? []}
+              activeSceneId={activeSceneId}
+              assets={assets}
+              store={store}
+              disabled={visitor || switching || status !== "ready"}
+              onSwitch={() => {
+                setSelectedId(null);
+                setDragging(false);
+                setError("");
+              }}
+            />
+          }
+          savedViews={
+            projectScene ? (
+              <Viewpoints
+                key={`${loadGeneration}:${projectScene.id}`}
+                views={projectScene.viewpoints ?? []}
+                startCamera={projectScene.startCamera}
+                camera={viewCamera}
+                disabled={visitor || switching || status !== "ready"}
+                store={store}
+              />
+            ) : (
+              <p>Create a scene in the Scenes panel to start saving views.</p>
+            )
+          }
           visitor={visitor}
           room={
-            projectScene === undefined
+            !projectScene?.environmentAssetId
               ? undefined
               : {
                   id: projectScene.id,
@@ -342,9 +392,12 @@ export function App() {
         />
 
         <Viewport
+          key={activeSceneId ?? "grid"}
+          onCamera={setViewCamera}
           assets={assets}
           objects={objects}
-          projectScene={project?.scenes[0] ?? null}
+          projectScene={projectScene ?? null}
+          loadGeneration={loadGeneration}
           selectedId={roomSelected ? projectScene.id : selection}
           dragging={dragging}
           editingEnabled={!switching}

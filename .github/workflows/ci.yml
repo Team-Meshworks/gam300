@@ -64,14 +64,28 @@ jobs:
           node-version-file: apps/web/.nvmrc
           cache: npm
           cache-dependency-path: apps/web/package-lock.json
-      - name: Install, check and build the native toolchain
+      - name: Install and check the native toolchain
         run: |
           npm install --global npm@11.17.0
           npm ci --no-audit --no-fund
           node ../../tools/setup.check.mjs
           npm run check:architecture
-          npm run test:unit
-          npm run build
+      - name: Run native unit tests
+        # Keep the console output and a report we can download after a failure
+        run: npm run test:unit -- --reporter=default --reporter=junit --outputFile=test-results/unit.xml
+      - name: Build on the native platform
+        run: npm run build
+      - name: Retain native test reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          # Each matrix runner needs its own artifact name
+          name: native-checks-${{ matrix.os }}-${{ github.sha }}
+          path: apps/web/test-results/unit.xml
+          # Installation or source checks can fail before tests produce a report
+          if-no-files-found: warn
+          retention-days: 14
+          overwrite: true
 
   select-architecture:
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' || github.event_name == 'workflow_dispatch'
@@ -163,6 +177,8 @@ jobs:
             script: test:recovery
           - name: history
             script: test:history
+          - name: workspace
+            script: test:workspace
     defaults:
       run:
         working-directory: apps/web
@@ -194,7 +210,7 @@ jobs:
       - name: Run fixture check
         env:
           CHECK_SCREENSHOT: test-results/${{ matrix.name }}.png
-        run: npm run ${{ matrix.script }} -- http://127.0.0.1:5173/ | tee test-results/${{ matrix.name }}.log
+        run: npm run ${{ matrix.script }} -- http://127.0.0.1:5173 | tee test-results/${{ matrix.name }}.log
       - name: Stop Vite server
         if: always()
         run: |
@@ -241,9 +257,11 @@ jobs:
           npm run graph:architecture
           npm run lint
           npm run format:check
+          npm run test:entry-config
           node ../../tools/validate-assets.check.mjs
           node ../../tools/setup.check.mjs
           bash ../../deploy/deploy.test.sh
+          node --test ../../deploy/verify-release.test.mjs
       - name: Run unit tests
         run: npm run test:unit -- --reporter=default --reporter=junit --outputFile=test-results/unit.xml
       - name: Install pinned browser
@@ -272,11 +290,42 @@ jobs:
           docker compose -f ../../compose.yaml -p vthere-ci up -d --no-build --wait --wait-timeout 90
           test "$(curl --fail --silent http://127.0.0.1:4173/version.txt)" = "$GITHUB_SHA"
           npm run test:deployment -- http://127.0.0.1:4173/
+          npm run test:workspace -- http://127.0.0.1:4173
           if [[ -f tests/editor-build.check.mjs ]]; then
             node tests/editor-build.check.mjs http://127.0.0.1:4173/
           fi
           mkdir -p dist/editor
           docker cp "$(docker compose -f ../../compose.yaml -p vthere-ci ps -q web):/srv/." dist/editor/
+      - name: Check the editor API and database together
+        env:
+          APP_IMAGE: vthere-ci:${{ github.sha }}
+          API_IMAGE: vthere-api-ci:${{ github.sha }}
+          MIGRATION_IMAGE: vthere-migrations-ci:${{ github.sha }}
+          APP_PORT: "4173"
+          SERVER_PORT: "8444"
+        run: |
+          umask 077
+          printf 'SPATIA_DATABASE_PASSWORD=%s\nSPATIA_API_PASSWORD=%s\n' "$(openssl rand -hex 32)" "$(openssl rand -hex 32)" > ../../.env
+          stack=(docker compose --env-file ../../.env -f ../../compose.yaml -f ../../compose.server.yaml -p vthere-ci)
+          "${stack[@]}" build api migrate
+          "${stack[@]}" up -d --no-build --wait --wait-timeout 120
+          docker cp "$("${stack[@]}" ps -q gateway):/data/caddy/pki/authorities/local/root.crt" test-results/server-root.crt
+          # Compose waits for running containers; Caddy still needs to start TLS and issue its certificate.
+          curl --fail --silent --show-error --retry 12 --retry-delay 1 --retry-all-errors --max-time 5 --retry-max-time 60 --cacert test-results/server-root.crt https://localhost:8444/healthz
+          curl --fail --silent --show-error --cacert test-results/server-root.crt --output /dev/null https://localhost:8444/
+          curl --fail --silent --show-error --retry 12 --retry-delay 1 --retry-connrefused --max-time 5 --retry-max-time 60 --cacert test-results/server-root.crt --output /dev/null https://localhost:8444/api/auth/csrf
+          test "$(curl --silent --show-error --cacert test-results/server-root.crt --output /dev/null --write-out '%{http_code}' https://localhost:8444/api/auth/session)" = 401
+          test "$("${stack[@]}" exec -T postgres psql -U spatia -d spatia -tAc 'SELECT count(*) FROM public."__EFMigrationsHistory"')" -ge 2
+          test "$("${stack[@]}" exec -T postgres psql -U spatia -d spatia -tAc "SELECT rolsuper, rolcreatedb, rolcreaterole FROM pg_roles WHERE rolname = 'spatia_api'")" = 'f|f|f'
+      - name: Capture container diagnostics
+        if: always()
+        # Collect before uploading so failed deployment checks leave downloadable logs
+        # The stack may not exist if an earlier build step failed
+        run: |
+          mkdir -p test-results
+          extra=()
+          if [[ -f ../../.env ]]; then extra=(--env-file ../../.env -f ../../compose.server.yaml); fi
+          docker compose -f ../../compose.yaml "${extra[@]}" -p vthere-ci logs --no-color --tail 100 > test-results/containers.log 2>&1 || true
       - name: Retain test evidence and runnable web files
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -293,8 +342,11 @@ jobs:
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
         run: |
           mkdir -p ../../ci-artifacts/release
-          docker save "vthere-ci:$GITHUB_SHA" -o ../../ci-artifacts/image.tar
+          docker save "vthere-ci:$GITHUB_SHA" "vthere-api-ci:$GITHUB_SHA" "vthere-migrations-ci:$GITHUB_SHA" -o ../../ci-artifacts/image.tar
           cp ../../compose.yaml ../../deploy/deploy.sh ../../ci-artifacts/release/
+          cp ../../compose.server.yaml ../../ci-artifacts/release/
+          mkdir -p ../../ci-artifacts/release/deploy
+          cp ../../deploy/server.Caddyfile ../../ci-artifacts/release/deploy/
       - name: Transfer the tested image to the publishing job
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -303,11 +355,13 @@ jobs:
           path: ci-artifacts/
           retention-days: 2
           overwrite: true
-      - name: Container diagnostics and cleanup
+      - name: Container cleanup
         if: always()
         run: |
-          docker compose -f ../../compose.yaml -p vthere-ci logs --tail 50
-          docker compose -f ../../compose.yaml -p vthere-ci down
+          extra=()
+          if [[ -f ../../.env ]]; then extra=(--env-file ../../.env -f ../../compose.server.yaml); fi
+          docker compose -f ../../compose.yaml "${extra[@]}" -p vthere-ci down --volumes
+          rm -f ../../.env
 
   server:
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' || github.event_name == 'workflow_dispatch'
@@ -337,6 +391,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          # The login browser check starts the real Vite app and validates its asset catalogue.
+          lfs: true
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           global-json-file: apps/server/global.json
@@ -357,6 +413,10 @@ jobs:
           SPATIA_TEST_DATABASE_CONNECTION: Host=127.0.0.1;Port=${{ job.services.postgres.ports['5432'] }};Database=spatia_scrum45_test;Username=spatia_test;Password=spatia_ci_only
           ConnectionStrings__Spatia: Host=127.0.0.1;Port=${{ job.services.postgres.ports['5432'] }};Database=spatia_scrum45_test;Username=spatia_test;Password=spatia_ci_only
         run: |
+          # Exercise the actual pinned proxy binary with the production ASP.NET middleware
+          docker run --rm --entrypoint /bin/cat caddy:2.11.4-alpine@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b /usr/bin/caddy > "$RUNNER_TEMP/spatia-caddy"
+          chmod +x "$RUNNER_TEMP/spatia-caddy"
+          export CADDY_BINARY="$RUNNER_TEMP/spatia-caddy"
           dotnet restore tests/Spatia.Server.Tests.csproj --locked-mode
           dotnet tool restore
           dotnet build tests/Spatia.Server.Tests.csproj -c Release --no-restore
@@ -429,8 +489,15 @@ jobs:
           docker tag "vthere-ci:$GITHUB_SHA" "$tag"
           docker push "$tag"
           image=$(docker inspect --format '{{index .RepoDigests 0}}' "$tag")
-          jq -n --arg image "$image" --arg commit "$GITHUB_SHA" --arg branch "$GITHUB_REF_NAME" \
-            --arg run "$GITHUB_RUN_ID" '{image: $image, commit: $commit, branch: $branch, run: $run}' \
+          for component in api migrations; do
+            docker tag "vthere-$component-ci:$GITHUB_SHA" "$tag-$component"
+            docker push "$tag-$component"
+          done
+          api_image=$(docker inspect --format '{{index .RepoDigests 0}}' "$tag-api")
+          migration_image=$(docker inspect --format '{{index .RepoDigests 0}}' "$tag-migrations")
+          jq -n --arg image "$image" --arg apiImage "$api_image" --arg migrationImage "$migration_image" \
+            --arg commit "$GITHUB_SHA" --arg branch "$GITHUB_REF_NAME" --arg run "$GITHUB_RUN_ID" \
+            '{image: $image, apiImage: $apiImage, migrationImage: $migrationImage, commit: $commit, branch: $branch, run: $run}' \
             > ci-artifacts/release/release.json
           printf 'Image: `%s`\n\nCommit: `%s`\n\nDeploy workflow CI run ID: `%s`\n' \
             "$image" "$GITHUB_SHA" "$GITHUB_RUN_ID" >> "$GITHUB_STEP_SUMMARY"

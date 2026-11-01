@@ -20,8 +20,9 @@ The GitHub environments allow only their matching branches.
 CI builds `dev` with `NODE_ENV=development` and Vite's `development` mode, including
 **Open sample project** and framework development diagnostics. `main` uses
 `NODE_ENV=production` and `production` mode. Manual runs use the selected supported
-branch's mode. Both images contain built
-static files served by Caddy, with the same health checks, access gate and rollback.
+branch's mode. Both images contain built static files served by Caddy, with the same
+health checks and access gate. Recovery depends on whether the release includes the
+server stack; see [Deploy and recover](#deploy-and-recover).
 Existing images keep their original build mode. After these workflow changes reach
 `dev` or `main`, deploy a new successful CI run to apply the branch's build mode.
 
@@ -37,8 +38,8 @@ Revisit enforced required checks when private-repository branch protection becom
 Wiki.js is available at https://51.79.242.181:9443 with sign-in required. Its separate
 Compose project binds to `127.0.0.1:8083`; the gateway redirects legacy HTTP port 8080
 to HTTPS. See [wiki operations](wiki.md) for accounts and backups.
-This M1 deployment contains the editor only. PostgreSQL and the application API remain M2
-work; Wiki.js's database is not the application database. Browser storage belongs to each
+Earlier M1 releases contain the editor only. Server-inclusive releases add the API and
+PostgreSQL; Wiki.js's database is not the application database. Browser storage belongs to each
 origin, so development and production drafts are separate.
 
 ## Local development
@@ -61,8 +62,9 @@ The launchers restore Git LFS delivery assets and check prerequisites. The conta
 build runs lint, formatting, unit tests, TypeScript, all four authoring browser suites
 and the packaged-build browser checks before the web service starts. CI sets
 `RUN_BUILD_CHECKS=false` after its source checks pass, then tests the final Caddy image;
-standalone builds retain all checks by default. Host Node/npm
-and Playwright are unnecessary. API/PostgreSQL services remain M2 implementation work.
+standalone builds retain all checks by default. Host Node/npm and Playwright are
+unnecessary. This launcher starts the editor only; use the API Compose configuration
+below to include PostgreSQL and the API.
 Only delivery assets enter the build; editable source files and local secrets are excluded.
 The existing asset validator runs with `--delivery-only` inside the build: it checks
 GLB contents and manifest hashes without needing Blender sources. A remaining LFS
@@ -119,6 +121,46 @@ The deployment check exercises place/move/undo, JSON Save/Open, reload and recov
 undo through the packaged UI. The four source-level authoring suites still run against
 Vite during the Docker build; they import source modules that Caddy must not serve.
 
+## Local API and PostgreSQL integration
+
+For optional full-stack testing, `compose.server.yaml` adds the API and PostgreSQL
+to the editor. It requires a running Docker Linux engine. Standard editor development
+uses the setup above; shared environment addresses are listed at the top of this guide.
+
+Set `SPATIA_DATABASE_PASSWORD` and `SPATIA_API_PASSWORD` privately in your environment
+or an ignored root `.env` file. Use different randomly generated hexadecimal passwords
+of at least 32 characters. Keep them stable when restarting an existing database;
+changing `POSTGRES_PASSWORD` does not rotate an already initialised PostgreSQL account.
+Do not print resolved Compose configuration or commit credentials.
+
+`API_IMAGE` and `MIGRATION_IMAGE` select prebuilt API and migration images; local builds
+default to `spatia-api:local` and `spatia-migrations:local`.
+
+From the repository root:
+
+```sh
+docker compose -f compose.yaml -f compose.server.yaml -p spatia-server config --quiet
+docker compose -f compose.yaml -f compose.server.yaml -p spatia-server up -d --build --wait
+```
+
+The editor and API share `https://localhost:8444`; `SERVER_PORT` changes the host port.
+Caddy issues a local certificate. Its CA certificate is stored in the gateway data
+volume at `/data/caddy/pki/authorities/local/root.crt`; use that certificate with your
+test client's CA option without installing it in the operating system trust store.
+Browsers show a certificate warning for this local CA by default.
+Keep TLS verification enabled in integration checks. Check the editor, `/healthz` and
+`/api/auth/session`; an anonymous session request must return 401.
+
+Startup applies migrations before granting the API restricted database access. The
+database has no host port; the running API receives its own password and persists
+cookie-encryption keys separately. Stop the stack while retaining its database and keys:
+
+```sh
+docker compose -f compose.yaml -f compose.server.yaml -p spatia-server down
+```
+
+Do not add `--volumes` when keeping project or account data.
+
 ## What CI does
 
 `.github/workflows/ci.yml` runs automatically on pushes to `main` or `dev`.
@@ -139,6 +181,11 @@ and on manual runs. Every run still checks live imports for forbidden dependenci
 and cycles. CI generates the detailed architecture graph as a test artifact; comment
 and line-number changes do not require regenerating a tracked graph to pass.
 
+Browser, integration, caching, recovery, history and workspace checks run in separate
+fixture jobs against Vite. The workspace routes are also checked against the packaged
+Caddy application. Publishing waits for every fixture job and all required build/test
+jobs; the architecture proof may be skipped only when its selector reports it unnecessary.
+
 The recovery check includes place–move–undo–save–reload and JSON transfer into a fresh
 browser context. Its output and the editor check output are retained under `apps/web/test-results/`.
 
@@ -156,12 +203,19 @@ publishing job pushes the exact tested image to the private GHCR package
 `ghcr.io/team-meshworks/gam300`. Each release records its immutable digest, source commit,
 branch and CI run ID. The short-lived image-transfer artifact is retained for two days;
 test/web artifacts for 14 days and the small release bundle for 90 days. Retain registry
-images needed for rollback; deleting their tags can make old releases unavailable.
+images and release bundles needed for reviewed recovery; old images may become unavailable.
 Feature branches do not run these checks in Actions; run the relevant checks locally
 before requesting review.
 
 Superseded CI runs are cancelled. Deployments are serialized per environment, and a VM
 file lock also prevents concurrent changes to the same deployment.
+
+The web check also starts the editor/API/PostgreSQL stack and verifies HTTPS,
+CSRF bootstrap, anonymous access denial, migrations and the restricted database role.
+Failure logs are retained; disposable CI volumes are removed after the check.
+Releases include the tested editor, API and migration images, both Compose
+configurations and the gateway configuration. `release.json` records the image
+digests as `image`, `apiImage` and `migrationImage`.
 
 ### Run CI on demand
 
@@ -173,30 +227,66 @@ gh workflow run ci.yml --ref dev
 ```
 
 Choose `dev` for a development release or `main` for a production release.
-Feature-branch checks must be run locally. Merging into either supported branch automatically runs CI
-on the resulting commit; deployment consumes the selected run's commit, not the latest branch contents.
+Feature-branch checks must be run locally. Merging into either supported branch
+automatically runs CI on the resulting commit. Deployment requires the selected
+run to match the current branch head and deploys that run's tested images.
 
 Manual dispatch requires repository write access, and the workflow must exist on the
 default branch. Workflow changes follow the same feature to dev to main promotion path.
 See GitHub's
 [manual workflow guide](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow).
 
-## Deploy or roll back
+## Deploy and recover
 
-1. Wait for the intended branch's push CI run, manually run **CI**, or choose an existing
-   successful run for rollback. Copy its run ID from the summary
+1. Wait for the intended branch's push CI run or manually run **CI**. Copy its run ID from the summary
    or the number at the end of its GitHub URL.
 2. Open **Actions > Deploy > Run workflow**.
 3. Select `dev` for development or `main` for production. Enter the CI run ID.
-4. The workflow verifies the run's workflow identity, branch, event, success and commit
-   before sending a job to the VM. A development image cannot be selected for production.
+4. The workflow verifies the run's workflow identity, branch, event, success and commit,
+   then checks the branch head again after environment approval and before Docker login.
+   Older runs and development images for production are rejected.
 5. Check the deployment result and open the environment's URL.
 
-Rollback uses the same workflow with an older successful CI run **from the same branch**.
-The deployment script also restores the last working release when container health or
-the external version check fails. A failed pull leaves the old application untouched.
-The first unsuccessful deployment removes only its own newly created Compose project.
-This is a single-container replacement; a brief interruption during releases is expected.
+Server deployments require a release containing all three images. The supported workflow
+does not deploy older runs, including as a rollback. A failed image pull leaves the existing
+release running. Releases may briefly interrupt service.
+
+Development and production use separate databases and credentials. Before updating,
+the deployment backs up the database to `backups/`; a failed backup stops the update.
+Database volumes are preserved after failures.
+
+Before candidate startup, the deploy script records the revision and all three image
+digests in `server-recovery-required` under the environment directory. A failed or
+interrupted attempt leaves that guard in place; after a reported startup or health
+failure, the API and application gateway are stopped. The same release can be retried;
+the guarded retry skips a new backup and does not restart the old API. A successful
+retry promotes the release and clears the guard. If backup fails before candidate startup,
+the unchanged API is restarted. Editor-only releases retain their prior runtime rollback.
+An interrupted process may leave candidate services running; inspect their state and stop
+the API and application gateway before a reviewed recovery if they are still running.
+
+For a server recovery, keep the guard and use the current deploy procedure to retry the
+exact recorded revision and image digests while that revision remains the branch head;
+do not clear the guard manually for an exact retry. If a different release is needed,
+an operator must first review its schema and authorization compatibility with the actual
+retained database, including data written after the backup, and prepare a safe recovery
+plan. Keep the API and gateway unavailable through that review. Once the plan is approved,
+archive the guard as part of the recovery record, then deploy a successful CI release for
+the new current branch commit. Do not invoke an older deploy script, rewind the branch to
+bypass these controls, or blindly restore a backup: migrations are not reversed and
+restoring a backup can discard later writes. Database restoration requires a reviewed
+procedure during downtime. Keep backups outside the VM as well.
+
+The existing HTTPS gateway and team login remain in place. API and database services
+are not exposed directly.
+
+The application Caddy HTTP listener accepts forwarded headers only from the explicit
+application bridge gateway address (`SERVER_NETWORK_PREFIX`.1/32); it resolves the
+client IP using strict proxy parsing and forwards one normalized address to the API.
+The API trusts the inner Caddy's fixed address and consumes one forwarded hop. The local
+HTTPS listener does not trust forwarded client headers. Preserve the outer gateway's
+header sanitization and the loopback-only port binding; verify the observed bridge peer
+and forwarding behavior in the target Linux Docker environment before deployment.
 
 `/healthz` and `/version.txt` expose only liveness and the deployed commit. The rest of both
 sites initially requires a team login because the current asset catalogue is explicitly
@@ -260,6 +350,8 @@ sudo -u vthere-runner docker compose -p vthere-production \
 
 Replace `ps` with `logs --tail 100` or `restart web` as needed; replace `production` with
 `development` for the other environment. A restart uses the currently deployed image.
+For a server-inclusive release, also pass `-f current/compose.server.yaml` using its
+absolute path before the command to include API, database and gateway services.
 Use the deployment workflow to change versions. Do not run global Docker prune or
 volume-removal commands on this VM: Wiki.js and its database share the Docker daemon.
 

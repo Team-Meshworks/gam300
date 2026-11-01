@@ -210,4 +210,39 @@ describe("authored hierarchy", () => {
     if (result.ok)
       expect(validateRecoveryHistory(result.value, content(store), kinds).ok).toBe(true);
   });
+  it("edits and recovers hierarchy in the active second scene without changing the first", () => {
+    const store = setup(m2);
+    const original = content(store);
+    const second = original.scenes[1]!;
+    expect(store.switchScene(second.id).ok).toBe(true);
+
+    // Grouping, child placement and room renaming share dev's scene-aware history
+    const parent = group(store, "Second gallery");
+    const placed = store.addObject("test-crate-v1", [1, 0, 1], parent.id);
+    expect(placed.ok).toBe(true);
+    expect(store.renameObject(second.id, "Renamed gallery").ok).toBe(true);
+    expect(content(store).scenes[0]).toBe(original.scenes[0]);
+    if (!placed.ok) throw new Error(placed.error);
+    expect(
+      content(store).scenes[1]!.objects.find((object) => object.id === placed.object.id)!.parentId,
+    ).toBe(parent.id);
+
+    // Reopening must restore both the active scene and the complete reversible hierarchy
+    const reopened = setup(m2);
+    expect(
+      reopened.loadProject(JSON.stringify(content(store)), kinds, store.getRecoveryHistory()).ok,
+    ).toBe(true);
+    expect(reopened.getSnapshot().activeSceneId).toBe(second.id);
+    reopened.undo();
+    expect(content(reopened).scenes[1]!.name).toBe(second.name);
+    reopened.undo();
+    expect(content(reopened).scenes[1]!.objects).toEqual(second.objects);
+    reopened.undo();
+    expect(content(reopened).scenes[1]!.groups).toEqual(second.groups);
+    expect(content(reopened).scenes[0]).toEqual(original.scenes[0]);
+    reopened.redo();
+    reopened.redo();
+    reopened.redo();
+    expect(content(reopened)).toEqual(content(store));
+  });
 });

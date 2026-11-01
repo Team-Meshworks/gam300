@@ -27,6 +27,29 @@ it.each([
   assert.equal(created.value.projectId, expected);
 });
 
+it("uses UUIDv7 when the Scenes panel creates the first project, retaining UUIDv4 scene IDs", () => {
+  vi.spyOn(Date, "now").mockReturnValue(1645557742000);
+  const store = createDocumentStore([
+    {
+      id: "room",
+      name: "Room",
+      kind: "environment",
+      url: "room.glb",
+      sha256: "0".repeat(64),
+      thumbnail: null,
+    },
+  ]);
+  assert.equal(store.createScene("First scene", "room").ok, true);
+  const project = store.getSnapshot().project!;
+  assert.match(project.projectId, /^017f22e2-79b0-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  assert.equal(project.scenes[0]!.id[14], "4");
+  assert.equal(store.createScene("Second scene", "room").ok, true);
+  store.undo();
+  assert.equal(store.getSnapshot().project!.projectId, project.projectId);
+  store.redo();
+  assert.equal(store.getSnapshot().project!.projectId, project.projectId);
+});
+
 it("preserves mixed-asset placement, history branching and earlier snapshots", () => {
   const assets: CatalogueAsset[] = [
     {

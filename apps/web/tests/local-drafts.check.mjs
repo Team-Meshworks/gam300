@@ -37,6 +37,82 @@ try {
   const fixture = JSON.parse(
     readFileSync(new URL("../shared/project/fixtures/m1-project.json", import.meta.url), "utf8"),
   );
+  // An old browser backup must stay intact until the author explicitly converts it.
+  const oldContext = await browser.newContext();
+  try {
+    const oldPage = await oldContext.newPage();
+    oldPage.on("pageerror", (error) => errors.push(error.message));
+    oldPage.on("dialog", (dialog) => dialog.accept());
+    await oldPage.goto(process.argv[2] ?? "http://127.0.0.1:5173/");
+    await oldPage.waitForFunction(
+      () => document.querySelector(".draft-feedback")?.textContent !== "Reopening saved work…",
+    );
+    const oldDocument = {
+      ...fixture,
+      scenes: fixture.scenes.map((scene) => ({
+        ...scene,
+        environmentAssetId: null,
+        viewpoints: [],
+      })),
+    };
+    const original = {
+      revision: 4,
+      document: JSON.stringify(oldDocument),
+      fileName: "old.json",
+      savedJson: null,
+      pristine: false,
+    };
+    await oldPage.evaluate(async (original) => {
+      const { IndexedDBDraftDatabase } = await import("/persistence/draft-db.ts");
+      const db = await new IndexedDBDraftDatabase().getIndexedDB();
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction("session", "readwrite");
+        tx.objectStore("session").put(original, "active");
+        tx.oncomplete = resolve;
+        tx.onabort = reject;
+      });
+      db.close();
+    }, original);
+    await oldPage.reload();
+    await oldPage.getByText("Untitled project", { exact: true }).click();
+    await oldPage.getByRole("button", { name: "Import older browser backup", exact: true }).click();
+    await oldPage.getByRole("button", { name: "Convert and open", exact: true }).click();
+    assert.match(await oldPage.getByRole("alert").innerText(), /environment/i);
+    await oldPage.getByLabel("Environment for Room", { exact: false }).selectOption("test-room-v1");
+    await oldPage.getByRole("button", { name: "Convert and open", exact: true }).click();
+    await oldPage.getByText("old-converted.json", { exact: true }).waitFor();
+    await oldPage.getByText("Not saved", { exact: true }).waitFor();
+    const records = await oldPage.evaluate(async () => {
+      const { IndexedDBDraftDatabase } = await import("/persistence/draft-db.ts");
+      const db = await new IndexedDBDraftDatabase().getIndexedDB();
+      const records = await new Promise((resolve, reject) => {
+        const tx = db.transaction("session", "readonly");
+        const active = tx.objectStore("session").get("active");
+        const original = tx.objectStore("session").get("older-scene-backup:4");
+        tx.oncomplete = () => resolve({ active: active.result, original: original.result });
+        tx.onabort = reject;
+      });
+      db.close();
+      return records;
+    });
+    assert.deepEqual(records.original, original);
+    const converted = JSON.parse(records.active.document);
+    assert.equal(converted.schemaVersion, 2);
+    assert.equal(converted.scenes[0].environmentAssetId, "test-room-v1");
+    assert.equal(converted.scenes[0].objects.length, fixture.scenes[0].objects.length);
+    assert.equal(records.active.savedJson, null, "Conversion needs an explicit save");
+    await oldPage.reload();
+    await oldPage.getByText("old-converted.json", { exact: true }).waitFor();
+    await oldPage.getByText("Not saved", { exact: true }).waitFor();
+    await oldPage.getByText("old-converted.json", { exact: true }).click();
+    await oldPage
+      .getByRole("button", { name: "Import older browser backup", exact: true })
+      .waitFor();
+    await oldPage.getByRole("button", { name: "Import older browser backup", exact: true }).click();
+    await oldPage.getByRole("heading", { name: "Import older scene file" }).waitFor();
+  } finally {
+    await oldContext.close();
+  }
   const contentFixture = JSON.parse(
     readFileSync(new URL("../shared/project/fixtures/m2-project.json", import.meta.url), "utf8"),
   );

@@ -1,5 +1,9 @@
 # Server persistence, accounts and security
 
+Administrator account and organization directory reads and reversible lifecycle
+operations are described in the [directory API contract](../../docs/account-directory.md),
+including authorization, fields, pagination, safeguards and session effects.
+
 This .NET 10 ASP.NET Core host contains a bounded draft-save reader, the Identity/
 PostgreSQL account persistence foundation, project draft schema/access service, request-security boundary and private
 administrator provisioning/reset operations. Accounts Part 5 adds explicit login, current-session,
@@ -156,6 +160,19 @@ reports are retained as `server-checks-<commit>`. The bootstrap process tests us
 server assembly referenced by the running test build, including Debug builds. The
 standalone cold-restart acceptance below still targets an explicitly prebuilt Release
 application and is not part of the CI job.
+
+The full suite includes `ProxyChainTests`, which starts two Caddy processes and a
+local ASP.NET test host. Provide the pinned Caddy **2.11.4** executable through
+`CADDY_BINARY` (or as `caddy` on `PATH`) and Node 24.19.0 on `PATH`;
+`SPATIA_TEST_NODE` may specify the Node executable instead. CI extracts Caddy from
+the pinned image. The filtered proxy test uses anonymous test-only endpoints and
+does not require PostgreSQL:
+
+```sh
+dotnet test --project tests/Spatia.Server.Tests.csproj -c Release --no-build -- --minimum-expected-tests 1 --treenode-filter '/*/*/ProxyChainTests/*'
+```
+
+This local loopback test does not establish Linux Docker bridge or VM behavior.
 
 The build checks both projects with nullable analysis, style enforcement and warnings
 as errors. The minimum-test option is passed to the test module after `--`, so skipped

@@ -21,6 +21,19 @@ const placementAssets: CatalogueAsset[] = [...assets.keys()].map((id) => ({
 const text = JSON.stringify(fixture);
 
 describe("loading a project into the editor store", () => {
+  it("signals each successful open independently of ordinary edits and rejected imports", () => {
+    const store = createDocumentStore(placementAssets);
+    expect(store.loadProject(text, assets).ok).toBe(true);
+    const first = store.getSnapshot().loadGeneration;
+    expect(store.loadProject(text, assets).ok).toBe(true);
+    const second = store.getSnapshot().loadGeneration;
+    expect(second).not.toBe(first);
+    store.addObject("test-crate-v1", [0, 0, 0]);
+    store.undo();
+    expect(store.getSnapshot().loadGeneration).toBe(second);
+    expect(store.loadProject("invalid", assets).ok).toBe(false);
+    expect(store.getSnapshot().loadGeneration).toBe(second);
+  });
   it("places catalog models in loaded projects without accepting environments as objects", () => {
     const store = createDocumentStore(placementAssets);
     store.loadProject(text, assets);
