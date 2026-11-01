@@ -159,7 +159,7 @@ function AssetAdministrationScreen({ service, kind, onClose }: Props) {
   }
 
   // Offer only actions permitted for this record and require a second step for deletion
-  async function changeAvailability(action: "hide" | "show" | "delete") {
+  async function changeAvailability(action: "hide" | "show" | "delete" | "remove") {
     if (!selected?.actions.includes(action) || busy) {
       return;
     }

@@ -6,15 +6,22 @@ export type AssetCandidate = Readonly<{
   name: string;
   kind: CatalogueAsset["kind"];
   category: string | null;
+  inspectionUrl?: string | null;
+  source?: string | null;
+  license?: string | null;
+  reviewNotes?: string | null;
   status: "pending" | "approved" | "invalid" | "unavailable";
   hidden: boolean;
+  // Retain deleted records for later administrative removal from existing uses
+  deleted?: boolean;
+  removedFromProjects?: boolean;
   thumbnail: CatalogueAsset["thumbnail"];
   validation: readonly string[];
-  actions: readonly ("hide" | "show" | "delete")[];
+  actions: readonly ("hide" | "show" | "delete" | "remove")[];
 }>;
 
 // Fetch limits and choices with the list so the form follows the deployed intake policy
-// Supply the service adapter after agreeing its HTTP and retirement contracts
+// Keep the HTTP adapter and local preview on the same confirmed-record contract
 export type AssetAdministrationData = Readonly<{
   assets: readonly AssetCandidate[];
   policy: Readonly<{
@@ -23,6 +30,7 @@ export type AssetAdministrationData = Readonly<{
     // Null leaves a kind unconfigured; All belongs to browsing and is never saved as a category
     categories: Readonly<Record<CatalogueAsset["kind"], readonly string[] | null>>;
     canSubmit: boolean;
+    canForceRemove?: boolean;
   }>;
 }>;
 
@@ -39,9 +47,15 @@ export interface AssetAdministrationService {
     input: { file: File; kind: CatalogueAsset["kind"]; category: string | null },
     signal: AbortSignal,
   ): Promise<AssetAdministrationResult<AssetCandidate>>;
+  review?(
+    id: string,
+    input: { source: string; license: string; reviewNotes: string },
+    signal: AbortSignal,
+  ): Promise<AssetAdministrationResult<AssetCandidate>>;
   changeAvailability(
     id: string,
-    action: "hide" | "show" | "delete",
+    action: "hide" | "show" | "delete" | "remove",
     signal: AbortSignal,
+    removeFromProjects?: boolean,
   ): Promise<AssetAdministrationResult<AssetCandidate | null>>;
 }
