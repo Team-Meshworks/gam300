@@ -13,6 +13,9 @@
   --button: #efebe1;
   --button-strong: #e8e0ca;
   --shadow: 0 4px 18px rgb(64 52 32 / 0.1);
+  --asset-scroll-thumb: #8f8981;
+  --asset-scroll-hover: #6f6961;
+  --asset-scroll-track: #efede9;
 }
 
 * {
@@ -808,12 +811,16 @@ a {
 }
 
 /* Columns instead of grid so cards of different heights pack like the Figma */
-.asset-grid {
+/* Keep masonry columns at their natural height inside a separate vertical scroll viewport */
+.asset-grid-scroll {
   flex: 1;
   min-height: 0;
-  margin: 0;
-  padding: 0 0.35rem 0 0;
+  padding-right: 0.35rem;
   overflow-y: auto;
+}
+.asset-grid {
+  margin: 0;
+  padding: 0;
   columns: 10.5rem;
   column-gap: 0.9rem;
   list-style: none;
@@ -1533,4 +1540,33 @@ a {
   inset: auto;
   margin: 0;
   overflow-y: auto;
+}
+/* Match the administrative scrollbar treatment; auto overflow keeps it absent for short lists */
+.asset-grid-scroll,
+.asset-filter-menu {
+  scrollbar-width: thin;
+  scrollbar-color: var(--asset-scroll-thumb) var(--asset-scroll-track);
+}
+.asset-grid-scroll::-webkit-scrollbar,
+.asset-filter-menu::-webkit-scrollbar {
+  width: 8px;
+}
+.asset-grid-scroll::-webkit-scrollbar-track,
+.asset-filter-menu::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: var(--asset-scroll-track);
+}
+.asset-grid-scroll::-webkit-scrollbar-thumb,
+.asset-filter-menu::-webkit-scrollbar-thumb {
+  border: 2px solid var(--asset-scroll-track);
+  border-radius: 999px;
+  background: var(--asset-scroll-thumb);
+}
+.asset-grid-scroll::-webkit-scrollbar-thumb:hover,
+.asset-filter-menu::-webkit-scrollbar-thumb:hover {
+  background: var(--asset-scroll-hover);
+}
+.asset-grid-scroll::-webkit-scrollbar-button,
+.asset-filter-menu::-webkit-scrollbar-button {
+  display: none;
 }

@@ -235,7 +235,7 @@
     "editor/transform-command.test.ts": "7708bd68c3ebffe37e9569f9c6db2238b36c9cc97927830263ce0083af5ab6b3",
     "editor/transform-command.ts": "338ad5ff277ed1bfa0b9bb9164a441be0fb5fb125a392e35e3ba632e9a179d13",
     "editor/ui/AssetFilterSelect.tsx": "d5449ccfb82270fb1baae4503d61014a3d42f87b07272b85f8a0f6d3feb55450",
-    "editor/ui/AssetPicker.tsx": "ac0886b1453b11d5214658c8cc5b3ab171b0be1afc09ea81632f831bf09c67b8",
+    "editor/ui/AssetPicker.tsx": "4646b30a6d1fdc7bdf68858dd45be8d51db1d20a344eeb9bf3abb7c74d838ae1",
     "editor/ui/BottomBar.tsx": "625123c41538d0bb3528c37bd5076e9de0d1fa8c7a5e2c11d72e1bd9805d051e",
     "editor/ui/Icon.tsx": "29aa51a0bd5f0e66820c8af35eff1f0fba977c47069a10e0dff305621f12bd4c",
     "editor/ui/SceneTreePanel.tsx": "78155774b0d739ba5b9be986904203fc3f496c9228aaf60c89c76782955f93da",
@@ -278,7 +278,7 @@
     "tests/deployment.check.mjs": "2c76bbb2d229a623d0d48014618e51b8d1e3d364f855f71418b9a50fe16c1eda",
     "tests/editor-build.check.mjs": "d94a6814cace56e147dad126bd6ccf74251fb5397f55cffd1eb08efe69976203",
     "tests/editor-integration.check.mjs": "024d4e153449ed7bdd24fc0fda6e0f401834b60be14fa75f152fea50eaaf8e99",
-    "tests/editor-shell.check.mjs": "cb1dce88ac8d987af5a23ccb5c9c98824faadc09fe9a64845b4fe21dcb4f0e54",
+    "tests/editor-shell.check.mjs": "bd0ab4cca1c2efbe34230b2859e5b76d611d3179a54d8c7cdf9ad64b3293ddc0",
     "tests/history-recovery.check.mjs": "474ef9c6a74a81ef82b83a162319593a9c1b237c3deb5e6e6d32482fc725b173",
     "tests/local-drafts.check.mjs": "879d62fabbb5e1c78f8e7ee9a7653b3dec453090af31baacb95575ec13d7651f",
     "tests/project-format-cross.check.mjs": "8b3fb6b1ec19c993746cd8ae5ce12c2f4b9d26f3643b320349c62b18d7386a95",
@@ -288,7 +288,7 @@
     "shared/project/fixtures/m1-project.json": "3aeeee4397fd9ad18fc06eba32815ef5032ecf8184200aaa38a2076b882a4947",
     "shared/project/fixtures/m2-project.json": "ccafa7cfce33d73c5ffc77672ebe30101a059d30d1c9a9855c0f3e65c1b9fe78",
     "shared/project/fixtures/project-format-cases.json": "58ee71c8634afd15d715ee53712b3f92cb7f3735326ba9c349973bbbe4792a2b",
-    "editor/styles.css": "a5fcb613ffa44956df7f9fd1e16e8e75d921a6a56cbd725e54d09779fb37fc21"
+    "editor/styles.css": "52ebee70e714f46d4a503b1ccc2e742d4087e68d71783848755060dc28fff502"
   },
   "imports": [
     {
@@ -3625,7 +3625,7 @@
     },
     {
       "file": "tests/editor-shell.check.mjs",
-      "line": 578,
+      "line": 598,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -3634,7 +3634,7 @@
     },
     {
       "file": "tests/editor-shell.check.mjs",
-      "line": 613,
+      "line": 633,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",

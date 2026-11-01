@@ -124,6 +124,26 @@ try {
   assert.equal(await asset.getAttribute("aria-pressed"), "true", "Enter picks the card");
   assert.equal(await rows.count(), 0, "Picking a card alone places nothing");
 
+  // Exercise catalogue growth without inventing production assets or changing authored project data
+  const scrollLayout = await picker.locator(".asset-grid-scroll").evaluate((viewport) => {
+    const grid = viewport.querySelector(".asset-grid");
+    const shortListScrolls = viewport.scrollHeight > viewport.clientHeight;
+    const extraCards = Array.from({ length: 45 }, () => grid.firstElementChild.cloneNode(true));
+    grid.append(...extraCards);
+    const result = {
+      shortListScrolls,
+      longListScrolls: viewport.scrollHeight > viewport.clientHeight,
+      horizontalOverflow: viewport.scrollWidth > viewport.clientWidth,
+    };
+    extraCards.forEach((card) => card.remove());
+    return result;
+  });
+  assert.deepEqual(scrollLayout, {
+    shortListScrolls: false,
+    longListScrolls: true,
+    horizontalOverflow: false,
+  });
+
   // Filtering keeps the pick, and says so when the current results hide it
   const filter = picker.getByRole("combobox", { name: "Filter assets", exact: true });
   // Fast keyboard navigation must use the open menu immediately rather than waiting for its toggle event

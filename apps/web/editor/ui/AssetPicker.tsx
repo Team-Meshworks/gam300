@@ -96,53 +96,56 @@ export function AssetPicker({
               : "Nothing in this category yet."}
         </p>
       ) : (
-        <ul className="asset-grid" role="list">
-          {shown.map((asset) => {
-            const category = categoryOf(asset);
-            const isFavourite = favourites.includes(asset.id);
-            return (
-              <li key={asset.id} className="asset-card">
-                <button
-                  className="asset-card-pick"
-                  type="button"
-                  draggable={ready}
-                  disabled={!ready}
-                  aria-label={asset.name}
-                  aria-pressed={chosen === asset.id}
-                  title="Pick it then press Add, or drag it into the scene"
-                  onClick={() => setChosen(asset.id)}
-                  onDragStart={(event) => {
-                    event.dataTransfer.setData(assetDragType, asset.id);
-                    event.dataTransfer.effectAllowed = "copy";
-                    onDragChange(true);
-                  }}
-                  onDragEnd={(event) => {
-                    onDragChange(false);
-                    // Only close when it really landed in the scene, a cancelled drag keep it open
-                    if (event.dataTransfer.dropEffect !== "none") onClose();
-                  }}
-                >
-                  <span className="asset-art">
-                    <img src={thumbnailFor(asset.id)} alt="" draggable={false} />
-                  </span>
-                  <span className="asset-card-info">
-                    {category !== undefined && <span className="asset-tag">{category}</span>}
-                    <span className="asset-name">{asset.name}</span>
-                  </span>
-                </button>
-                <button
-                  className="ui-button asset-favourite"
-                  type="button"
-                  aria-label={`Favourite ${asset.name}`}
-                  aria-pressed={isFavourite}
-                  onClick={() => favourite(asset.id)}
-                >
-                  <Icon name={isFavourite ? "heartFilled" : "heart"} />
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+        // Keep the scrolling viewport separate so masonry columns grow down instead of sideways
+        <div className="asset-grid-scroll">
+          <ul className="asset-grid" role="list">
+            {shown.map((asset) => {
+              const category = categoryOf(asset);
+              const isFavourite = favourites.includes(asset.id);
+              return (
+                <li key={asset.id} className="asset-card">
+                  <button
+                    className="asset-card-pick"
+                    type="button"
+                    draggable={ready}
+                    disabled={!ready}
+                    aria-label={asset.name}
+                    aria-pressed={chosen === asset.id}
+                    title="Pick it then press Add, or drag it into the scene"
+                    onClick={() => setChosen(asset.id)}
+                    onDragStart={(event) => {
+                      event.dataTransfer.setData(assetDragType, asset.id);
+                      event.dataTransfer.effectAllowed = "copy";
+                      onDragChange(true);
+                    }}
+                    onDragEnd={(event) => {
+                      onDragChange(false);
+                      // Only close when it really landed in the scene, a cancelled drag keep it open
+                      if (event.dataTransfer.dropEffect !== "none") onClose();
+                    }}
+                  >
+                    <span className="asset-art">
+                      <img src={thumbnailFor(asset.id)} alt="" draggable={false} />
+                    </span>
+                    <span className="asset-card-info">
+                      {category !== undefined && <span className="asset-tag">{category}</span>}
+                      <span className="asset-name">{asset.name}</span>
+                    </span>
+                  </button>
+                  <button
+                    className="ui-button asset-favourite"
+                    type="button"
+                    aria-label={`Favourite ${asset.name}`}
+                    aria-pressed={isFavourite}
+                    onClick={() => favourite(asset.id)}
+                  >
+                    <Icon name={isFavourite ? "heartFilled" : "heart"} />
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
       )}
 
       {chosenAsset !== undefined && (
