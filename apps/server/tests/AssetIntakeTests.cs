@@ -44,6 +44,94 @@ public sealed class AssetIntakeTests
     }
 
     [Test]
+    public async Task Intake_PrivateCandidatePersistsAcrossScopesAndDeletionRetainsExactReviewedBytes()
+    {
+        // Follow one upload through private validation, explicit approval and retained project delivery
+        var bytes = CreateMinimalGlb();
+        // Exercise the validator packaged with the API, not a developer-only script override
+        await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
+        var admin = await fixture.CreateAccountAsync(ApplicationRoles.Administrator);
+        await fixture.SignInAsync(admin);
+        var token = await fixture.GetCsrfAsync();
+        using var upload = new HttpRequestMessage(HttpMethod.Post, "/api/admin/assets?name=room.glb&kind=environment");
+        upload.Headers.Add("X-CSRF-TOKEN", token);
+        upload.Content = new ByteArrayContent(bytes);
+        upload.Content.Headers.ContentType = new("model/gltf-binary");
+        using var submitted = await fixture.Client.SendAsync(upload);
+        await Assert.That(submitted.StatusCode).IsEqualTo(HttpStatusCode.Created);
+        var candidate = await submitted.Content.ReadFromJsonAsync<AssetAdministrationRecord>();
+        await Assert.That(candidate!.Status).IsEqualTo("pending");
+        using var inspection = await fixture.Client.GetAsync(candidate.InspectionUrl);
+        await Assert.That(inspection.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        await Assert.That(inspection.Content.Headers.ContentDisposition!.DispositionType).IsEqualTo("attachment");
+        await Assert.That((await inspection.Content.ReadAsByteArrayAsync()).SequenceEqual(bytes)).IsTrue();
+        // Pending bytes never enter the student catalogue even for an unrestricted account
+        using var pending = await fixture.Client.GetAsync($"/api/assets/{candidate.Id}/bytes");
+        await Assert.That(pending.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+        using var review = new HttpRequestMessage(HttpMethod.Post, $"/api/admin/assets/{candidate.Id}/approve");
+        review.Headers.Add("X-CSRF-TOKEN", token);
+        // Escaped Unicode can exceed the default small-request budget while every field is still valid
+        var reviewText = new string((char)0x754c, 2000);
+        review.Content = JsonContent.Create(new AssetReviewRequest(reviewText, reviewText, reviewText));
+        using var approved = await fixture.Client.SendAsync(review);
+        await Assert.That(approved.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        using var available = await fixture.Client.GetAsync($"/api/assets/{candidate.Id}/bytes");
+        await Assert.That((await available.Content.ReadAsByteArrayAsync()).SequenceEqual(bytes)).IsTrue();
+        var projectId = Guid.NewGuid();
+        var json = ProjectTestDocuments.Create(projectId, "Retained asset").Replace("test-room-v1", candidate.Id.ToString(), StringComparison.Ordinal);
+        await using (var seed = fixture.Database.Services.CreateAsyncScope())
+        {
+            var seedDatabase = seed.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var organization = new Organization { Id = Guid.NewGuid(), Name = "Synthetic asset project" };
+            seedDatabase.Organizations.Add(organization);
+            seedDatabase.Projects.Add(new Project
+            {
+                Id = projectId,
+                OrganizationId = organization.Id,
+                DocumentJson = json,
+                SchemaVersion = 1,
+                UpdatedAt = DateTimeOffset.UtcNow
+            });
+            await seedDatabase.SaveChangesAsync();
+        }
+        // Ordinary deletion changes discovery while preserving the immutable row and audit metadata
+        using var deletion = new HttpRequestMessage(HttpMethod.Post, $"/api/admin/assets/{candidate.Id}/availability");
+        deletion.Headers.Add("X-CSRF-TOKEN", token);
+        deletion.Content = JsonContent.Create(new AssetAvailabilityRequest("delete"));
+        using var deleted = await fixture.Client.SendAsync(deletion);
+        await Assert.That(deleted.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        using var hiddenBytes = await fixture.Client.GetAsync($"/api/assets/{candidate.Id}/bytes");
+        await Assert.That(hiddenBytes.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+        await using var scope = fixture.Database.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var stored = await database.AssetCandidates.AsNoTracking().SingleAsync();
+        await Assert.That(stored.Deleted && stored.Hidden).IsTrue();
+        await Assert.That(stored.Bytes.SequenceEqual(bytes)).IsTrue();
+        await Assert.That(stored.ReviewedBy).IsEqualTo((Guid?)admin);
+        await Assert.That(stored.Source).IsEqualTo(reviewText);
+        // Stored documents keep their exact reference while new imports cannot select a retired version
+        var documents = new ProjectDocumentService(fixture.App.Environment, database);
+        await Assert.That(documents.ReadStored(projectId, 1, json).Ok).IsTrue();
+        await Assert.That(documents.Read(projectId, json, json).Ok).IsTrue();
+        await Assert.That(documents.Read(json).Ok).IsFalse();
+        using var retained = await fixture.Client.GetAsync($"/api/projects/{projectId}/assets/{candidate.Id}/bytes");
+        await Assert.That(retained.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        await Assert.That((await retained.Content.ReadAsByteArrayAsync()).SequenceEqual(bytes)).IsTrue();
+        using var unrelated = await fixture.Client.GetAsync($"/api/projects/{Guid.NewGuid()}/assets/{candidate.Id}/bytes");
+        await Assert.That(unrelated.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+        await Assert.That(await database.Database.GetPendingMigrationsAsync()).IsEmpty();
+        // No publication integration means a global removal must deny without changing the retained row
+        using var removal = new HttpRequestMessage(HttpMethod.Post, $"/api/admin/assets/{candidate.Id}/availability");
+        removal.Headers.Add("X-CSRF-TOKEN", token);
+        removal.Content = JsonContent.Create(new AssetAvailabilityRequest("remove", true));
+        using var unavailable = await fixture.Client.SendAsync(removal);
+        await Assert.That(unavailable.StatusCode).IsEqualTo(HttpStatusCode.ServiceUnavailable);
+        await Assert.That((await database.AssetCandidates.AsNoTracking().SingleAsync()).RemovedFromProjects).IsFalse();
+        // Database enforcement prevents later writers from replacing a reviewed version's bytes
+        await Assert.ThrowsAsync<Npgsql.PostgresException>(async () => await database.Database.ExecuteSqlRawAsync("UPDATE asset_candidates SET bytes = decode('00', 'hex')"));
+    }
+
+    [Test]
     public async Task Intake_RequiresCurrentAdministratorAndCsrfAndRejectsMalformedMetadata()
     {
         // Reject anonymous and creator sessions before proving an administrator still needs a current CSRF token
