@@ -28,6 +28,8 @@ const bundle = await build({
         if (id === "\0recovery-check")
           return `
       export { readServerProject } from "${webRoot}editor/persistence/server-project-read.ts";
+      export { writeServerDraft } from "${webRoot}editor/persistence/server-draft-write.ts";
+      export { loadRecoverySession } from "${webRoot}editor/persistence/local-drafts.ts";
       export { connectServerProjectSession } from "${webRoot}editor/persistence/server-project-session.ts";
       export { createDocumentStore } from "${webRoot}editor/document-store.ts";
     `;
@@ -240,6 +242,83 @@ try {
   assert.equal(conflict.status, "conflict");
   assert.deepEqual(conflict.recovery, { ok: true, value: true });
   assert.equal(conflict.title, "Other writer");
+  // Exercise offline backup and a lost acknowledgement against durable server receipts
+  // Keep this fixture on the shared coordinator rather than adding recovery state to a teammate's screen
+  const retryPage = await openPage();
+  await retryPage.evaluate(async (account) => {
+    const token = (await (await fetch("/api/auth/csrf")).json()).requestToken;
+    await fetch("/api/auth/login", { method: "POST", headers: {
+      "Content-Type": "application/json", "X-CSRF-TOKEN": token,
+    }, body: JSON.stringify({ userName: account.userName, password: "Synthetic-long-password1!" }) });
+    const identity = await (await fetch("/api/auth/session")).json();
+    const assets = new Map([["test-room-v1", "environment"], ["test-crate-v1", "model"]]);
+    const controller = new AbortController();
+    const opened = await serverRecoveryTest.readServerProject(account.projectId, identity.userId, assets, controller.signal);
+    if (!opened.ok) throw new Error("Retry fixture could not open its project");
+    const store = serverRecoveryTest.createDocumentStore([]);
+    store.loadProject(JSON.stringify(opened.value.document), assets);
+    const requests = [];
+    let loseReceipt = true;
+    const session = serverRecoveryTest.connectServerProjectSession({
+      accountId: identity.userId, store, revision: opened.value.revision,
+      storageRevision: 0, assetKinds: assets, signal: controller.signal, onStatus() {},
+      // Drive reconnect explicitly so browser network events cannot race the lost-receipt step
+      events: new EventTarget(),
+      write: async (request, signal) => {
+        requests.push(request.body);
+        const result = await serverRecoveryTest.writeServerDraft(request, signal);
+        // Hide one real committed receipt from the coordinator to reproduce an uncertain network outcome
+        if (loseReceipt && result.kind === "saved") {
+          loseReceipt = false;
+          return { kind: "failed" };
+        }
+        return result;
+      },
+    });
+    store.loadProject(JSON.stringify({ ...opened.value.document, title: "Offline pending draft" }), assets);
+    globalThis.retryScenario = { session, assets, requests, opened: opened.value };
+  }, accounts[1]);
+  await retryPage.context().setOffline(true);
+  const offline = await retryPage.evaluate(async () => {
+    const { session, assets, opened } = retryScenario;
+    await session.flush();
+    const recovery = await serverRecoveryTest.loadRecoverySession(assets, {
+      accountId: opened.accountId, projectId: opened.document.projectId,
+    });
+    return { status: session.getStatus(), recovery };
+  });
+  assert.equal(offline.status, "failed");
+  assert.equal(offline.recovery.ok, true);
+  assert.equal(offline.recovery.value.document.title, "Offline pending draft");
+  assert.ok(offline.recovery.value.serverSave.pending);
+  await retryPage.context().setOffline(false);
+  const reconciled = await retryPage.evaluate(async () => {
+    const { session, requests, opened } = retryScenario;
+    // Reconnect commits the pending request, then loses only its acknowledgement
+    await session.flush();
+    const uncertain = session.getStatus();
+    const path = "/api/projects/" + opened.document.projectId;
+    const committed = await (await fetch(path)).json();
+    const token = (await (await fetch("/api/auth/csrf")).json()).requestToken;
+    const newer = await fetch(path, { method: "PUT", headers: {
+      "Content-Type": "application/json", "X-CSRF-TOKEN": token,
+    }, body: JSON.stringify({ expectedRevision: committed.revision, clientMutationId: crypto.randomUUID(),
+      document: { ...committed.document, title: "Newer independently saved draft" } }) });
+    // Retry identical bytes after another revision exists; acknowledgement must never overwrite that newer draft
+    await session.flush();
+    const status = session.getStatus();
+    const current = await (await fetch(path)).json();
+    await session.dispose();
+    return { uncertain, newer: newer.status, status, current, requests, initialRevision: opened.revision };
+  });
+  assert.equal(reconciled.uncertain, "failed");
+  assert.equal(reconciled.newer, 200);
+  assert.equal(reconciled.status, "saved");
+  assert.equal(reconciled.current.revision, reconciled.initialRevision + 2);
+  assert.equal(reconciled.current.document.title, "Newer independently saved draft");
+  assert.equal(reconciled.requests.length, 3);
+  assert.ok(reconciled.requests.every((body) => body === reconciled.requests[0]));
+  process.stdout.write("browser offline backup and durable historical retry passed\n");
   process.stdout.write("browser project list/open/session switch passed\n");
 } finally {
   await browser.close();

@@ -1,7 +1,7 @@
 namespace Spatia.Server.Accounts;
 
 /// <summary>
-/// Describes a newly provisioned account without exposing its credentials
+/// Describes a provisioned account without exposing its credentials
 /// </summary>
 /// <param name="UserId">The account's persistent identifier</param>
 /// <param name="UserName">The account's sign-in username</param>

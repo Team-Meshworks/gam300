@@ -11,6 +11,20 @@ const browser = await chromium.launch({
   ...(process.env.PLAYWRIGHT_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHANNEL } : {}),
 });
 const url = process.argv[2] ?? "http://127.0.0.1:5173/";
+// Asset library is a pop up now. Only open it when closed, since the button toggles it
+async function openLibrary(page) {
+  if ((await page.locator(".asset-picker").count()) === 0) {
+    await page.getByRole("button", { name: "Asset library", exact: true }).click();
+  }
+}
+
+// Clicking a card only picks it, Add is what places it
+async function addAsset(page, name) {
+  await openLibrary(page);
+  await page.locator(".asset-picker").getByRole("button", { name, exact: true }).click();
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+}
+
 try {
   const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
   const errors = [];
@@ -39,11 +53,16 @@ try {
   });
   await page.goto(url);
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
-  await page.getByRole("button", { name: "Add test-room", exact: true }).click();
-  await page.getByRole("button", { name: "Add test-crate", exact: true }).click();
-  const position = await page.getByLabel("Selected position").textContent();
-  await page.getByRole("button", { name: "Preview", exact: true }).click();
+  await addAsset(page, "test-room");
   await page.waitForFunction(() => typeof window.finishBackup === "function");
+  await addAsset(page, "test-crate");
+  const position = await page.getByLabel("Selected position").textContent();
+  assert.equal(
+    await page.getByRole("button", { name: "Preview", exact: true }).isEnabled(),
+    true,
+    "Preview remains available during backup",
+  );
+  await page.getByRole("button", { name: "Preview", exact: true }).click();
   for (const key of [
     "Control+d",
     "Control+s",
@@ -73,30 +92,28 @@ try {
   assert.equal(await page.locator(".object-row").count(), 2);
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   await page.evaluate(() => window.finishBackup());
-  await page.waitForFunction(async () => {
-    const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
-    const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
-    const saved = await loadRecoverySession(new Map(assets.map((asset) => [asset.id, asset.kind])));
-    return (
-      saved.ok &&
-      saved.value?.document.scenes[0].objects.length === 1 &&
-      saved.value.history?.future.length === 1
-    );
-  });
+  let scene;
+  const deadline = Date.now() + 10000;
+  while (Date.now() < deadline && !scene) {
+    scene = await page.evaluate(async () => {
+      const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
+      const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
+      const saved = await loadRecoverySession(
+        new Map(assets.map((asset) => [asset.id, asset.kind])),
+      );
+      return saved.ok &&
+        saved.value?.document.scenes[0].objects.length === 1 &&
+        saved.value.history?.future.length === 1
+        ? saved.value.document.scenes[0]
+        : null;
+    });
+    if (!scene) await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  assert.ok(scene, "Recovery history did not reach the expected edit");
   // A deferred wheel commit must not edit the document behind a project decision
   await page.locator(".object-row").first().click();
   const box = await page.locator("canvas").boundingBox();
   // Use the completed backup's camera and object pose instead of editor startup constants
-  const scene = await page.evaluate(async () => {
-    const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
-    const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
-    const result = await loadRecoverySession(
-      new Map(assets.map((asset) => [asset.id, asset.kind])),
-    );
-    if (!result.ok || !result.value?.document)
-      throw new Error("Missing backed-up interaction fixture");
-    return result.value.document.scenes[0];
-  });
   const camera = new THREE.PerspectiveCamera(
     scene.startCamera.fovDegrees,
     box.width / box.height,
@@ -109,20 +126,23 @@ try {
   const point = new THREE.Vector3(...scene.objects[0].transform.position)
     .add(new THREE.Vector3(0, 0.5, 0))
     .project(camera);
-  await page.evaluate(
+  await page.waitForFunction(
     ({ x, y }) => {
-      document.querySelector("canvas").dispatchEvent(
-        new WheelEvent("wheel", {
-          deltaY: -120,
-          clientX: x,
-          clientY: y,
-          bubbles: true,
-          cancelable: true,
-        }),
+      const newButton = [...document.querySelectorAll(".draft-menu button")].find(
+        (button) => button.textContent === "New",
       );
-      [...document.querySelectorAll(".draft-menu button")]
-        .find((button) => button.textContent === "New")
-        .click();
+      if (newButton.disabled) return false;
+      const wheel = new WheelEvent("wheel", {
+        deltaY: -120,
+        clientX: x,
+        clientY: y,
+        bubbles: true,
+        cancelable: true,
+      });
+      document.querySelector("canvas").dispatchEvent(wheel);
+      if (!wheel.defaultPrevented) throw new Error("Wheel fixture missed the selected object");
+      newButton.click();
+      return true;
     },
     { x: box.x + ((point.x + 1) * box.width) / 2, y: box.y + ((1 - point.y) * box.height) / 2 },
   );
@@ -211,6 +231,28 @@ try {
         cameraErrors.push(camera.quaternion.angleTo(new THREE.Quaternion().fromArray(rotation)));
         positionErrors.push(camera.position.distanceTo(new THREE.Vector3(10, 10, 10)));
       }
+      const savedPose = fixture.scenes[0].startCamera;
+      const savedScene = { ...fixture.scenes[0], startCamera: savedPose };
+      handle.update([object], object.id, savedScene, 1);
+      await frame();
+      manager.orbit.enableDamping = false;
+      manager.orbit.rotateLeft(0.4);
+      manager.update(0);
+      const navigatedPosition = camera.position.clone();
+      handle.update([object], null, savedScene, 1);
+      await frame();
+      const selectionCameraDrift = camera.position.distanceTo(navigatedPosition);
+      handle.update([{ ...object, name: "Edited" }], object.id, savedScene, 1);
+      await frame();
+      const editCameraDrift = camera.position.distanceTo(navigatedPosition);
+      handle.update([object], object.id, savedScene, 2);
+      await frame();
+      const reopenedPositionError = camera.position.distanceTo(
+        new THREE.Vector3().fromArray(savedPose.position),
+      );
+      const reopenedRotationError = camera.quaternion.angleTo(
+        new THREE.Quaternion().fromArray(savedPose.rotation),
+      );
       install({ ...fixture.scenes[0].startCamera });
       await frame();
       const height = camera.position.y;
@@ -285,6 +327,10 @@ try {
       return {
         cameraErrors,
         positionErrors,
+        selectionCameraDrift,
+        editCameraDrift,
+        reopenedPositionError,
+        reopenedRotationError,
         orbitHeightError,
         beforeZoom,
         afterZoom,
@@ -308,6 +354,10 @@ try {
     JSON.stringify(measured),
   );
   assert.ok(measured.orbitHeightError < 1e-6, "An upright view still orbits around world up");
+  assert.ok(measured.selectionCameraDrift < 1e-6, "Selection preserves the live camera");
+  assert.ok(measured.editCameraDrift < 1e-6, "Edits preserve the live camera");
+  assert.ok(measured.reopenedPositionError < 1e-6, "Reopening restores the saved camera position");
+  assert.ok(measured.reopenedRotationError < 1e-6, "Reopening restores the saved camera rotation");
   assert.equal(measured.hiddenInVisitor, true);
   assert.equal(measured.visibleOnReturn, true);
   assert.equal(measured.unexpectedCommits, 0, "Entering Visitor cancels a pending wheel edit");
