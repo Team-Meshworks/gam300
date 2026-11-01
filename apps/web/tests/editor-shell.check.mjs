@@ -146,6 +146,18 @@ try {
 
   // Filtering keeps the pick, and says so when the current results hide it
   const filter = picker.getByRole("combobox", { name: "Filter assets", exact: true });
+  // Modal browsing leaves the asset hotbar available while camera and hotspot controls stay inactive
+  assert.equal(await page.locator(".mode-bar").evaluate((bar) => bar.inert), true);
+  assert.equal(await page.getByRole("button", { name: "Hotspot", exact: true }).isDisabled(), true);
+  await filter.click();
+  const filterMenu = page.getByRole("listbox", { name: "Filter assets" });
+  assert.equal(
+    await filterMenu.getByRole("option", { name: "Furniture", exact: true }).isDisabled(),
+    true,
+  );
+  await page.keyboard.press("Escape");
+  assert.equal(await filterMenu.isVisible(), false);
+  assert.equal(await picker.isVisible(), true, "First Escape closes only the filter menu");
   // Fast keyboard navigation must use the open menu immediately rather than waiting for its toggle event
   await filter.press("ArrowDown");
   await page.keyboard.press("End");
@@ -387,6 +399,10 @@ try {
   assert.equal(await rows.count(), 2, "External or unknown asset payloads cannot add objects");
   await externalPayload.dispose();
 
+  // Cancelled drags can leave the library open; dismiss it before using blocked background controls
+  if (await picker.isVisible()) {
+    await picker.getByRole("button", { name: "Close asset library" }).click();
+  }
   await undo.click();
   assert.equal(await rows.count(), 1);
   assert.equal(await rows.first().getAttribute("data-object-id"), firstId);
@@ -803,6 +819,8 @@ try {
   await openLibrary(page);
   assert.equal(await asset.isDisabled(), true);
   await page.unroute(samplePath);
+  // Close browsing before retrying the background viewport
+  await picker.getByRole("button", { name: "Close asset library" }).click();
   const retry = page.getByRole("button", { name: "Retry", exact: true });
   await retry.focus();
   await page.keyboard.press("Enter");

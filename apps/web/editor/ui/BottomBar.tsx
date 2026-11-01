@@ -111,20 +111,25 @@ export function BottomBar({
 
   useEffect(() => {
     if (!libraryOpen) return;
-    // Same for the asset library, clicks on the bar itself are left for its own buttons
-    function closeOutside(event: globalThis.PointerEvent) {
+    // Keep background controls inactive without blocking the existing drag-and-drop placement path
+    function blockOutside(event: Event) {
       const inside = [picker.current, dock.current].some(
         (element) => event.target instanceof Node && element?.contains(event.target),
       );
-      if (!inside) setSelected(null);
+      if (!inside) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
     }
     function closeOnEscape(event: KeyboardEvent) {
       if (event.key === "Escape") setSelected(null);
     }
-    document.addEventListener("pointerdown", closeOutside);
+    document.addEventListener("pointerdown", blockOutside, true);
+    document.addEventListener("click", blockOutside, true);
     document.addEventListener("keydown", closeOnEscape);
     return () => {
-      document.removeEventListener("pointerdown", closeOutside);
+      document.removeEventListener("pointerdown", blockOutside, true);
+      document.removeEventListener("click", blockOutside, true);
       document.removeEventListener("keydown", closeOnEscape);
     };
   }, [libraryOpen]);
@@ -227,7 +232,7 @@ export function BottomBar({
       >
         <div className="tool-tip-anchor">
           {cameraTip.bubble}
-          <div className="mode-bar" role="group" aria-label="Camera tools">
+          <div className="mode-bar" role="group" aria-label="Camera tools" inert={libraryOpen}>
             {cameraTools.map((cameraTool) => (
               <button
                 key={cameraTool.id}
@@ -318,6 +323,7 @@ export function BottomBar({
               className="ui-button"
               type="button"
               aria-label="Hotspot"
+              disabled={libraryOpen}
               aria-pressed={selected === "hotspot"}
               onClick={() => select("hotspot")}
               {...toolTip.handlers("Hotspot")}
