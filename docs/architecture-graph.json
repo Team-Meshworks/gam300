@@ -200,7 +200,7 @@
     "asset-catalogue-plugin.ts": "17bec6aa65dd50167fe6c055fb38af453a647f3648a2bf296f9927ed32f7a158",
     "editor/App.tsx": "1959ecf211967dd57842a5e47147360cb2a8e15c047302c6b4896edd24eecea7",
     "editor/ProjectConfirmation.tsx": "07a0fedf8fbf88865b3b8232c8665c139348fc64ebce478ea01e55eb7fd14eff",
-    "editor/asset-administration/AssetAdministration.tsx": "9602f4e2c882a9d023deb82b22e6b5becf7b577c9df62f377b0613b2b60a4010",
+    "editor/asset-administration/AssetAdministration.tsx": "88fa1bfa7c1f06a1148223719b6e144b7d0a08efa6f8a9191a5c7c99bb2c1d44",
     "editor/asset-administration/AssetAdministrationPreview.tsx": "20876af7c9c00fe45d4a8a7ca9a0ce8144c78df22145917495c18d8fc22b2d76",
     "editor/asset-administration/AssetSelect.tsx": "7d2f837e8bb3c02ebef20a749b46b5dd7601f6b33a6f084421eed0ce5d8fef3b",
     "editor/asset-administration/asset-administration-service.test.ts": "6ff1bc2bea6529dc53b31e4bead48007411b72da18c3c0377eade559fea86acd",

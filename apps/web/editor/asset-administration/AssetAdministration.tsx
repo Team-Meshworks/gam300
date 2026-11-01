@@ -117,8 +117,6 @@ function AssetAdministrationScreen({ service, kind, onClose }: Props) {
   );
   const selected =
     selection?.kind === "detail" ? items.find((asset) => asset.id === selection.id) : null;
-  // Keep force-removal controls out of the regular visibility actions
-  const detailActions = selected?.actions.filter((action) => action !== "remove");
   const title = kind === "environment" ? "All 3D Spaces" : "All Assets";
   const noun = kind === "environment" ? "3D spaces" : "assets";
   const filtered = query.trim().length > 0 || tab !== "all";
@@ -656,59 +654,72 @@ function AssetAdministrationScreen({ service, kind, onClose }: Props) {
             <button type="button" disabled={busy} onClick={closeDialog}>
               Cancel
             </button>
+            {selected?.inspectionUrl && !confirmation && (
+              <a className="asset-admin-text-link" href={selected.inspectionUrl} download>
+                Download file
+              </a>
+            )}
             {selection?.kind === "upload" ? (
               <button className="asset-admin-primary" disabled={busy || !file} type="submit">
-                {busy ? "Submittingâ€¦" : "Save Changes"}
+                {busy ? "Submitting…" : "Save Changes"}
               </button>
             ) : (
-              detailActions?.map((action) => (
-                <button
-                  key={action}
-                  type="button"
-                  className={action === "delete" ? "asset-admin-danger" : ""}
-                  disabled={busy}
-                  onClick={() => {
-                    void changeAvailability(action);
-                  }}
-                >
-                  <svg
-                    aria-hidden="true"
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.7"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
+              selected?.actions
+                .filter((action) => !confirmation || action === "delete" || action === "remove")
+                .map((action) => (
+                  <button
+                    key={action}
+                    type="button"
+                    className={
+                      action === "delete" || action === "remove" ? "asset-admin-danger" : ""
+                    }
+                    disabled={busy || (action === "remove" && !data?.policy.canForceRemove)}
+                    onClick={() => {
+                      void changeAvailability(action);
+                    }}
                   >
-                    {action === "delete" ? (
-                      <>
-                        <path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14M10 10v7m4-7v7" />
-                      </>
-                    ) : action === "show" ? (
-                      <>
-                        <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7Z" />
-                        <circle cx="12" cy="12" r="3" />
-                      </>
-                    ) : (
-                      <>
-                        <path d="m3 3 18 18M10 5a12 12 0 0 1 11 7 15 15 0 0 1-4 5M7 7a15 15 0 0 0-4 5c3 6 9 9 15 5" />
-                        <path d="M10 10a3 3 0 0 0 4 4" />
-                      </>
-                    )}
-                  </svg>
-                  {busy
-                    ? "Savingâ€¦"
-                    : action === "delete"
-                      ? confirmation
-                        ? "Confirm Delete"
-                        : "Delete"
-                      : action === "hide"
-                        ? "Hide"
-                        : "Show"}
-                </button>
-              ))
+                    <svg
+                      aria-hidden="true"
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.7"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      {action === "delete" || action === "remove" ? (
+                        <>
+                          <path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14M10 10v7m4-7v7" />
+                        </>
+                      ) : action === "show" ? (
+                        <>
+                          <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7Z" />
+                          <circle cx="12" cy="12" r="3" />
+                        </>
+                      ) : (
+                        <>
+                          <path d="m3 3 18 18M10 5a12 12 0 0 1 11 7 15 15 0 0 1-4 5M7 7a15 15 0 0 0-4 5c3 6 9 9 15 5" />
+                          <path d="M10 10a3 3 0 0 0 4 4" />
+                        </>
+                      )}
+                    </svg>
+                    {busy
+                      ? "Saving…"
+                      : action === "remove"
+                        ? confirmation
+                          ? "Confirm Removal"
+                          : "Remove from all projects and exhibitions"
+                        : action === "delete"
+                          ? confirmation
+                            ? "Confirm Delete"
+                            : "Delete"
+                          : action === "hide"
+                            ? "Hide"
+                            : "Show"}
+                  </button>
+                ))
             )}
           </div>
         </form>
