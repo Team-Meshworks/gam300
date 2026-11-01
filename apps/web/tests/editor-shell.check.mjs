@@ -294,6 +294,32 @@ try {
   assert.notEqual(await position.textContent(), initialPosition, "Holding the click carries it");
   await page.keyboard.press("Control+z");
   assert.equal(await position.textContent(), initialPosition, "One Undo puts the carry back");
+  // Looking up while carrying lifts it off the floor, then look back down at it
+  const centre = { x: stageBox.x + stageBox.width / 2, y: stageBox.y + stageBox.height / 2 };
+  const height = async () => Number((await position.textContent()).match(/Y (-?[\d.]+)/)[1]);
+  await page.mouse.down();
+  await page.mouse.move(centre.x, centre.y - 150, { steps: 5 });
+  await page.mouse.up();
+  assert.ok((await height()) > 0.1, "Looking up lifts what is carried");
+  await page.keyboard.press("Control+z");
+  await page.mouse.move(centre.x, centre.y, { steps: 5 });
+  assert.equal(await position.textContent(), initialPosition);
+  // Scrolling while carrying pushes it away
+  await page.mouse.down();
+  await page.mouse.wheel(0, -400);
+  await page.mouse.up();
+  assert.notEqual(await position.textContent(), initialPosition, "Scrolling pushes it away");
+  await page.keyboard.press("Control+z");
+  assert.equal(await position.textContent(), initialPosition);
+  // Holding right click turns it in place, a new edit clears Redo
+  assert.ok(await redo.isEnabled());
+  await page.mouse.down({ button: "right" });
+  await page.mouse.move(centre.x + 120, centre.y, { steps: 4 });
+  await page.mouse.up({ button: "right" });
+  assert.equal(await position.textContent(), initialPosition, "Turning leaves it in place");
+  assert.ok(await redo.isDisabled(), "Holding right click turns it");
+  await page.keyboard.press("Control+z");
+  assert.ok(await redo.isEnabled(), "One Undo puts the turn back");
   // Freeing the mouse mid-carry puts the object back where it was
   await page.mouse.down();
   await page.keyboard.down("s");

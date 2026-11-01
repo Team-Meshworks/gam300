@@ -36,6 +36,8 @@ export class FpsControls {
   private lockable: boolean;
   // Alt let go of the mouse, so letting go of Alt should take it back
   private altFreed = false;
+  // Turning a held object uses the mouse, so the camera doesnt look around meanwhile
+  private lookHeld = false;
   private readonly _euler = new THREE.Euler(0, 0, 0, "YXZ");
   private readonly physicsPosition = new THREE.Vector3();
   private readonly previousPhysics = new THREE.Vector3();
@@ -104,6 +106,10 @@ export class FpsControls {
 
   canCapture(): boolean {
     return this.lockable;
+  }
+
+  holdLook(held: boolean): void {
+    this.lookHeld = held;
   }
 
   disengage(): void {
@@ -212,7 +218,7 @@ export class FpsControls {
   };
 
   private readonly onPointerMove = (event: MouseEvent) => {
-    if (!this.engaged || (!this.captured && !this.dragging)) return;
+    if (!this.engaged || this.lookHeld || (!this.captured && !this.dragging)) return;
     this.yaw -= event.movementX * LOOK_SPEED;
     this.pitch -= event.movementY * LOOK_SPEED;
     this.pitch = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, this.pitch));
