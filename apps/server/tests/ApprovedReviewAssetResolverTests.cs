@@ -1,4 +1,7 @@
+using System.Net;
+using System.Net.Http.Json;
 using System.Security.Cryptography;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Spatia.Server.Assets;
@@ -11,6 +14,64 @@ namespace Spatia.Server.Tests;
 [NotInParallel]
 public sealed class ApprovedReviewAssetResolverTests
 {
+    [Test]
+    [Arguments(1, "active")]
+    [Arguments(2, "hidden")]
+    [Arguments(2, "deleted")]
+    public async Task Submission_RecordsRealApprovedVersionsAndPreservesRetiredEvidence(int version, string lifecycle)
+    {
+        // Use the production registration and existing class fixture without substituting an asset resolver
+        await using var fixture = await HttpsApplicationFixture.CreateAsync();
+        var student = await ReviewSubmissionEndpointTests.SeedAsync(fixture, false);
+        var room = Candidate("environment", student.Educator);
+        var model = Candidate("model", student.Educator);
+        model.Hidden = lifecycle != "active";
+        model.Deleted = lifecycle == "deleted";
+        var original = ProjectTestDocuments.Create(student.ProjectId, "Submitted exhibit", version)
+            .Replace("test-room-v1", room.Id.ToString(), StringComparison.Ordinal)
+            .Replace("test-crate-v1", model.Id.ToString(), StringComparison.Ordinal);
+
+        // Seed reviewed versions directly; intake tests already cover validation and the human approval endpoint
+        await using (var scope = fixture.App.Services.CreateAsyncScope())
+        {
+            var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            database.AssetCandidates.AddRange(room, model);
+            var project = await database.Projects.SingleAsync(row => row.Id == student.ProjectId);
+            project.DocumentJson = original;
+            project.SchemaVersion = version;
+            await database.SaveChangesAsync();
+        }
+
+        // Submit the confirmed saved revision through the real authenticated route
+        var submissionId = Guid.NewGuid();
+        using var submitted = await ReviewSubmissionEndpointTests.SubmitAsync(fixture, student.ProjectId, submissionId, 0, true);
+        await Assert.That(submitted.StatusCode).IsEqualTo(HttpStatusCode.Created);
+        await using (var scope = fixture.App.Services.CreateAsyncScope())
+        {
+            var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var evidence = await database.ReviewSubmissions.AsNoTracking().SingleAsync();
+            using var manifest = JsonDocument.Parse(evidence.AssetReferencesJson);
+            var actual = manifest.RootElement.EnumerateArray().ToDictionary(
+                row => row.GetProperty("assetId").GetString()!, row => row.GetProperty("sha256").GetString());
+            await Assert.That(actual.Count).IsEqualTo(2);
+            await Assert.That(actual[room.Id.ToString()]).IsEqualTo(room.Sha256);
+            await Assert.That(actual[model.Id.ToString()]).IsEqualTo(model.Sha256);
+        }
+
+        // Later edits and retries retain the original review evidence rather than resolving a replacement version
+        using var edited = await ReviewSubmissionEndpointTests.SaveAsync(fixture, student.ProjectId, 0,
+            original.Replace("Submitted exhibit", "Edited exhibit", StringComparison.Ordinal));
+        await Assert.That(edited.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        using var replay = await ReviewSubmissionEndpointTests.SubmitAsync(fixture, student.ProjectId, submissionId, 0, true);
+        await Assert.That(replay.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        await fixture.SignInAsync(student.Educator);
+        using var detail = await fixture.Client.GetAsync($"/api/projects/{student.ProjectId}/submissions/{submissionId}");
+        await Assert.That(detail.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        var response = await detail.Content.ReadFromJsonAsync<JsonElement>();
+        using var expected = JsonDocument.Parse(original);
+        await Assert.That(JsonElement.DeepEquals(response.GetProperty("document"), expected.RootElement)).IsTrue();
+    }
+
     [Test]
     [Arguments("pending")]
     [Arguments("invalid")]
