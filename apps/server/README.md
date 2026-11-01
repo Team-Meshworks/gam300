@@ -2181,6 +2181,97 @@ review authority. New writes recheck account authority before commit. The
 publisher must still enforce its own authorization and consume the review check;
 it is not connected by these routes.
 
+### Review request and response contract
+
+All four routes require a current full account and return `no-store` responses.
+Writes require `X-CSRF-TOKEN` and use the account-write rate limit. The mapped
+student needs current edit and class membership to submit; decisions require a
+current Educator manager with class membership. Authorized students and educators
+can read archived history, but archived projects reject new submissions and
+decisions. Administrator directory powers do not grant review access.
+
+| Route | Request | Successful response |
+| --- | --- | --- |
+| `POST /api/projects/{id}/submissions` | `{submissionId, expectedRevision, completionConfirmed: true}` | 201 for a new submission, 200 for an identical retry: `{submissionId, projectId, revision, submittedAt, dueAtUnixSeconds, isLate}`. |
+| `GET /api/projects/{id}/submissions` | Optional `limit` (default 10, maximum 20) and exclusive UUID `cursor` | `{items, nextCursor}`; each item has `submissionId`, `revision`, `sequence`, `submittedAt`, `dueAtUnixSeconds`, `isLate`, `isCurrentSubmission`. |
+| `GET /api/projects/{id}/submissions/{submissionId}` | Same pagination parameters, applied to decision history | Submission detail described below, including the saved document and latest decision. |
+| `POST /api/projects/{id}/submissions/{submissionId}/decisions` | `{decisionId, expectedRevision, outcome, feedback}` | 201 for a new decision, 200 for an identical retry: `{decisionId, submissionId, sequence, outcome, feedback, decidedAt}`. |
+
+Write IDs must be nonempty UUIDs, and `expectedRevision` is an integer JSON number
+in `0..9007199254740991`. `outcome` is `approved`, `returned` or `revoked`;
+`feedback` is required, may be empty, and permits at most 4000 UTF-16 units with
+no NUL. A revocation requires an existing approval. A return or revocation ends
+decisions on that submission; a new submission can use the same saved revision
+if the student has not edited it. Submitting or deciding does not advance the
+project revision. A submission's sequence and a decision's sequence order their
+respective histories; they are not project revisions.
+
+Detail includes `submissionId`, `projectId`, `studentId`, `revision`, `sequence`,
+`submittedAt`, `dueAtUnixSeconds`, `isLate`, `isCurrentSubmission`, `document`,
+`assetReferences`, `latestDecision`, `decisions` and `nextCursor`. Asset references
+are `{assetId, sha256}`. Each decision in a read response uses
+`{id, educatorId, sequence, outcome, feedback, decidedAt}`; the write acknowledgement
+calls its identifier `decisionId`. `latestDecision` can be null and is independent
+of the requested history page. Pages are ordered by UUID; use the sequence fields
+for chronological order. Every read has its own coherent database snapshot, so a
+cursor does not freeze later pages or grant access.
+
+`isCurrentSubmission` means the latest submission still matches the current
+project revision. It does not mean approved, editable or publishable. The server
+records `submittedAt` at insertion and preserves the applicable due instant;
+`submittedAt > dueAtUnixSeconds` is late, with the Unix seconds converted to an
+instant. An equal instant is on time. Clients must not convert this to an end-of-day
+deadline or replace it with a device clock.
+
+| Rejection | Consumer behavior |
+| --- | --- |
+| 400 `invalid_submission_input`, `invalid_review_decision` or `invalid_review_query` | Correct the input; no new review evidence was accepted. Binding and CSRF checks can also reject malformed requests before these handlers. |
+| 401 authentication failure; 403 account, operation or `project_read_only` restriction | Preserve pending intent and recover the original account/access; never replay as another user. |
+| 404 `project_not_found` or `review_not_found` | Treat the requested work as unavailable; these codes disclose no other student's content or existence. |
+| 409 `revision_conflict`, `submission_conflict` or `review_decision_conflict` | Refresh authorized project and review state. An older submission or decision cannot authorize a newer revision. Do not silently substitute a new ID or overwrite newer work. |
+| 503 `review_assets_unavailable` or `project_unavailable` | No new evidence was accepted by this attempt. Approved retained assets or valid saved content must become available before a new submission can succeed. |
+| 503 `storage_unavailable`, transport failure or an otherwise unconfirmed write | The transaction might already have committed. Reconcile using the same ID, actor and original request fields before offering another write. |
+
+An identical authorized retry returns its original acknowledgement even after
+later edits, resubmissions or review decisions; it does not restore the old state.
+In particular, replaying an earlier approval cannot undo a later revocation.
+Retries resolve stored evidence before asset validation, so an unavailable asset
+provider does not prevent reconciliation of a committed submission. Current
+authorization and archive restrictions still apply before replay. A response can
+be lost after commit, including when a session expires, so absence of a successful
+acknowledgement is not proof of rollback.
+
+### Asset and publisher handoffs
+
+`IReviewAssetResolver.ResolveAsync` runs inside the submission's existing
+read-committed transaction and project lock. It must resolve exactly one approved,
+retained immutable identity for every required environment, object and media asset,
+without committing or replacing the transaction. The returned SHA-256 strings must
+be 64 lowercase hexadecimal characters. Manifest validation rejects missing,
+duplicate, unexpected or malformed references; a well-formed hash alone does not
+prove byte retention or approval. SCRUM-73 owns that trusted supply and retention
+contract. The unavailable default stays in place until that implementation exists.
+
+The publisher must reauthorize its actor and keep the same project lock and
+transaction from `ReviewApproval.CheckLockedAsync` through publication commit.
+Only `Approved` satisfies review for known class work. `ApprovalRequired` denies
+the current review gate; `StaleProject` requires a fresh authorized snapshot;
+`UnverifiedOrigin` grants no ordinary-origin exemption. The helper neither grants
+`CanPublish` nor checks publication audience, asset rights or visitor delivery.
+SCRUM-70/85 consume it alongside those separate checks. A revocation that commits
+first is observed by the waiting check; a revocation waiting behind an approval
+check cannot proceed until that caller ends its transaction.
+
+`ReviewCommitTests` exercises failed commits and lost acknowledgements for both
+submissions and decisions, including restart with the default unavailable asset
+resolver, newer draft content and later revocation. The controlled
+`ReviewApproval_AndRevocationRespectTheCallerTransaction` cases verify both lock
+orders through the actual decision route. These checks use fixture asset identities
+and establish the review transaction contract, not production asset retention or
+publication delivery.
+
+### Historical standalone integration evidence
+
 A disposable integration with draft publication PR #27 at `5acec324` regenerated
 the combined EF snapshot and found no pending model changes. Fresh databases and
 both upgrade orders passed, preserving an existing edition or review evidence.
