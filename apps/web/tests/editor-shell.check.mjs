@@ -787,6 +787,8 @@ try {
   try {
     const contentPage = await contentContext.newPage();
     await contentPage.goto(process.argv[2] ?? "http://127.0.0.1:5173/");
+    // Wait for startup recovery before bypassing the Open menu through its hidden file input
+    await contentPage.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
     const contentProject = structuredClone(fixture);
     contentProject.schemaVersion = 2;
     const scene = contentProject.scenes[0];

@@ -370,7 +370,7 @@
     "tests/deployment.check.mjs": "2c76bbb2d229a623d0d48014618e51b8d1e3d364f855f71418b9a50fe16c1eda",
     "tests/editor-build.check.mjs": "49639c3451adb6bfc6998d45499f8485a14952e676f094d6b9b11952ffeb08f2",
     "tests/editor-integration.check.mjs": "58e0d2d7860d3b9173b75bd9f69b37662d6c834065fd32460ce507f4c730729f",
-    "tests/editor-shell.check.mjs": "b0760b94d8a5617e869abb8ab9074d0771d27d044940fe60670c23c40983aab0",
+    "tests/editor-shell.check.mjs": "3abed3c994ec3c7975d1b860d28cbb416ae1d37dba0d2cbd04bbb479381db497",
     "tests/entry.check.mjs": "a9a1adae8bb1d4df98fe3df184ed02ff83880fa84cd2cf07bbf9bf32a3ec4592",
     "tests/history-recovery.check.mjs": "474ef9c6a74a81ef82b83a162319593a9c1b237c3deb5e6e6d32482fc725b173",
     "tests/local-drafts.check.mjs": "09d21d098506ad5f04b5c5cd8badc36b11f5d524e03e84c16039f4abb3ec9c9a",
