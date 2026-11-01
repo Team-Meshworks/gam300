@@ -623,6 +623,66 @@ a {
   font-size: 0.875rem;
   transform: translateX(-50%);
 }
+
+.mobile-controls {
+  position: absolute;
+  inset: auto 0 0;
+  z-index: 3;
+  display: none;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding: 1rem max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom))
+    max(1rem, env(safe-area-inset-left));
+  pointer-events: none;
+}
+.mobile-joystick {
+  width: 7rem;
+  height: 7rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  touch-action: none;
+  pointer-events: auto;
+}
+.mobile-joystick-base {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  border: 2px solid rgb(255 255 255 / 45%);
+  border-radius: 50%;
+  background: rgb(41 46 41 / 24%);
+  box-shadow: inset 0 0 0 1rem rgb(41 46 41 / 8%);
+}
+.mobile-joystick-thumb {
+  width: 3.25rem;
+  height: 3.25rem;
+  border: 2px solid rgb(255 255 255 / 70%);
+  border-radius: 50%;
+  background: rgb(41 46 41 / 62%);
+  transition: transform 80ms ease-out;
+}
+.mobile-fly-toggle {
+  min-width: 4.5rem;
+  min-height: 2.75rem;
+  padding: 0.4rem 1rem;
+  border: 0;
+  border-radius: 999px;
+  background: rgb(233 229 219 / 88%);
+  box-shadow: var(--shadow);
+  font-weight: 650;
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+.mobile-fly-toggle[aria-pressed="true"] {
+  background: var(--button-strong);
+}
+@media (hover: none) and (pointer: coarse) and (orientation: landscape) {
+  .is-previewing .mobile-controls {
+    display: flex;
+  }
+}
 .retry-button {
   min-height: 2.75rem;
   padding: 0.5rem 1rem;

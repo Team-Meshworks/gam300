@@ -10,7 +10,8 @@ import type {
   QuaternionTuple,
   Transform,
 } from "../../shared/project/project-types";
-import { FpsControls } from "../controls/fpsControls";
+import { FpsControls, type FpsMobileControls } from "../controls/fpsControls";
+export type { FpsMobileControls } from "../controls/fpsControls";
 import { ModeManager } from "./modeManager";
 import {
   axisRotation,
@@ -69,6 +70,7 @@ export interface InitSceneHandle {
   captureCamera: () => CameraPose;
   showCamera: (pose: CameraPose) => void;
   setNavigationTool: (tool: NavigationTool) => void;
+  mobileControls: FpsMobileControls;
   modeManager: ModeManager;
   dispose: () => void;
 }
@@ -783,6 +785,7 @@ export function initScene(
       cancelWheelEdit();
       applyNavigationTool();
     },
+    mobileControls: fpsControls.mobileControls,
     modeManager,
     dispose() {
       if (disposed) {

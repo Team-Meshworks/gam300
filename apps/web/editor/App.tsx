@@ -19,6 +19,9 @@ import { OlderSceneImport } from "./OlderSceneImport";
 import { Scenes } from "./Scenes";
 import { Viewpoints } from "./Viewpoints";
 import { Viewport, type ViewpointCamera } from "./viewport/Viewport";
+import { MobileControls } from "./viewport/MobileControls";
+import { isMobileTouchDevice } from "./viewport/mobile-device";
+import type { FpsMobileControls } from "./graphics/scene";
 
 import { ProjectConfirmation } from "./ProjectConfirmation";
 import { useProjectSession } from "./persistence/use-project-session";
@@ -55,6 +58,7 @@ export function App() {
   }, [feedback.sequence]);
   const [viewCamera, setViewCamera] = useState<ViewpointCamera | null>(null);
   const [manager, setManager] = useState<ModeManager | null>(null);
+  const [mobileControls, setMobileControls] = useState<FpsMobileControls | null>(null);
   const [modeState, setModeState] = useState<ModeManagerState | null>(null);
   const selection = objects.some((object) => object.id === selectedId) ? selectedId : null;
   const projectScene = project?.scenes.find((scene) => scene.id === activeSceneId);
@@ -67,6 +71,7 @@ export function App() {
   const selectedObject = objects.find((object) => object.id === selection);
   const hasChanges = project !== null || objects.length > 0 || hasDeleted;
   const visitor = modeState?.mode === "visitor";
+  const mobileDevice = isMobileTouchDevice();
   const [navigationTool, setNavigationTool] = useState<NavigationTool>("select");
 
   const onManager = useCallback((next: ModeManager) => {
@@ -381,8 +386,9 @@ export function App() {
             setAttempt((previous) => previous + 1);
           }}
           onManager={onManager}
+          onMobileControls={setMobileControls}
         >
-          {!visitor && (
+          {!visitor ? (
             <BottomBar
               assets={assets}
               ready={status === "ready"}
@@ -392,6 +398,9 @@ export function App() {
               tool={navigationTool}
               onToolChange={setNavigationTool}
             />
+          ) : (
+            mobileDevice &&
+            mobileControls !== null && <MobileControls controls={mobileControls} />
           )}
         </Viewport>
       </main>

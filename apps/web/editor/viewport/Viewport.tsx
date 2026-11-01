@@ -4,6 +4,7 @@ import type { SceneObject, Vector3Tuple } from "../../shared/project/scene-objec
 import type { ProjectScene, Transform, CameraPose } from "../../shared/project/project-types";
 import type { initScene, NavigationTool, ViewportStatus } from "../graphics/scene";
 import type { ModeManager } from "../graphics/modeManager";
+import type { FpsMobileControls } from "../graphics/scene";
 
 const statusMessages = {
   loading: "Loading assets…",
@@ -35,6 +36,7 @@ type ViewportProps = {
   onDragFinish: () => void;
   onRetry: () => void;
   onManager: (manager: ModeManager) => void;
+  onMobileControls: (controls: FpsMobileControls | null) => void;
   children?: ReactNode;
 };
 
@@ -58,6 +60,7 @@ export function Viewport({
   onDragFinish,
   onRetry,
   onManager,
+  onMobileControls,
   children,
 }: ViewportProps) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -94,6 +97,7 @@ export function Viewport({
         scene?.setNavigationTool(current.navigationTool);
         if (scene !== undefined) {
           onManager(scene.modeManager);
+          onMobileControls(scene.mobileControls);
           onCamera({ capture: scene.captureCamera, show: scene.showCamera });
         }
       })
@@ -106,10 +110,21 @@ export function Viewport({
     return () => {
       disposed = true;
       onCamera(null);
+      onMobileControls(null);
       sceneRef.current?.dispose();
       sceneRef.current = undefined;
     };
-  }, [assets, attempt, onStatus, onThumbnail, onSelect, onTransform, onManager, onCamera]);
+  }, [
+    assets,
+    attempt,
+    onStatus,
+    onThumbnail,
+    onSelect,
+    onTransform,
+    onManager,
+    onCamera,
+    onMobileControls,
+  ]);
 
   useEffect(() => {
     snapshotRef.current = {

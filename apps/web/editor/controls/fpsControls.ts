@@ -25,6 +25,12 @@ const _forward = new THREE.Vector3();
 const _right = new THREE.Vector3();
 const _wish = new THREE.Vector3();
 
+export interface FpsMobileControls {
+  setMove(x: number, z: number): void;
+  setLook(x: number, y: number): void;
+  setFlyEnabled(enabled: boolean): void;
+}
+
 export class FpsControls {
   private readonly camera: THREE.Camera;
   private readonly domElement: HTMLElement;
@@ -38,6 +44,24 @@ export class FpsControls {
   private readonly physicsPosition = new THREE.Vector3();
   private readonly previousPhysics = new THREE.Vector3();
   private accumulated = 0;
+  private mobileMoveX = 0;
+  private mobileMoveZ = 0;
+  private mobileLookX = 0;
+  private mobileLookY = 0;
+  private flyEnabled = false;
+  readonly mobileControls: FpsMobileControls = {
+    setMove: (x, z) => {
+      this.mobileMoveX = THREE.MathUtils.clamp(x, -1, 1);
+      this.mobileMoveZ = THREE.MathUtils.clamp(z, -1, 1);
+    },
+    setLook: (x, y) => {
+      this.mobileLookX += x;
+      this.mobileLookY += y;
+    },
+    setFlyEnabled: (enabled) => {
+      this.flyEnabled = enabled;
+    },
+  };
 
   constructor(camera: THREE.Camera, domElement: HTMLElement) {
     this.camera = camera;
@@ -58,6 +82,7 @@ export class FpsControls {
     this.yaw = 0;
     this.pitch = 0;
     this.dragging = false;
+    this.resetMobileInput();
     this.applyRotation();
     addEventListener("keydown", this.onKeyDown);
     addEventListener("keyup", this.onKeyUp);
@@ -80,6 +105,7 @@ export class FpsControls {
     this.dragging = false;
     this.keys.clear();
     this.velocity.set(0, 0, 0);
+    this.resetMobileInput();
     removeEventListener("keydown", this.onKeyDown);
     removeEventListener("keyup", this.onKeyUp);
     removeEventListener("blur", this.clearInput);
@@ -104,6 +130,7 @@ export class FpsControls {
       this.step(PHYSICS_DT);
       this.accumulated -= PHYSICS_DT;
     }
+
     this.camera.position
       .copy(this.previousPhysics)
       .lerp(this.physicsPosition, this.accumulated / PHYSICS_DT);
@@ -113,14 +140,20 @@ export class FpsControls {
     const sprint = this.keys.has("ShiftLeft") || this.keys.has("ShiftRight");
     const maxSpeed = sprint ? SPRINT_SPEED : WALK_SPEED;
 
-    const inputZ = (this.keys.has("KeyW") ? 1 : 0) - (this.keys.has("KeyS") ? 1 : 0);
-    const inputX = (this.keys.has("KeyD") ? 1 : 0) - (this.keys.has("KeyA") ? 1 : 0);
+    const inputZ =
+      (this.keys.has("KeyW") ? 1 : 0) -
+      (this.keys.has("KeyS") ? 1 : 0) +
+      this.mobileMoveZ;
+    const inputX =
+      (this.keys.has("KeyD") ? 1 : 0) -
+      (this.keys.has("KeyA") ? 1 : 0) +
+      this.mobileMoveX;
     const inputY =
       (this.keys.has("Space") ? 1 : 0) -
       (this.keys.has("ControlLeft") || this.keys.has("ControlRight") ? 1 : 0);
 
     _forward.set(0, 0, -1).applyQuaternion(this.camera.quaternion);
-    _forward.y = 0;
+    if (!this.flyEnabled) _forward.y = 0;
     if (_forward.lengthSq() < 1e-8) {
       _forward.set(0, 0, -1);
     } else {
@@ -131,7 +164,10 @@ export class FpsControls {
     _right.y = 0;
     _right.normalize();
 
-    _wish.set(0, inputY, 0).addScaledVector(_forward, inputZ).addScaledVector(_right, inputX);
+    _wish
+      .set(0, this.flyEnabled ? 0 : inputY, 0)
+      .addScaledVector(_forward, inputZ)
+      .addScaledVector(_right, inputX);
     if (_wish.lengthSq() > 0) _wish.normalize().multiplyScalar(maxSpeed);
 
     const smoothing = 1 - Math.exp(-ACCELERATION * delta);
@@ -180,6 +216,7 @@ export class FpsControls {
     this.keys.clear();
     this.velocity.set(0, 0, 0);
     this.dragging = false;
+    this.resetMobileInput();
     this.physicsPosition.copy(this.camera.position);
     this.previousPhysics.copy(this.camera.position);
     this.accumulated = 0;
@@ -190,6 +227,19 @@ export class FpsControls {
   };
 
   private applyRotation(): void {
+    this.yaw -= this.mobileLookX * LOOK_SPEED;
+    this.pitch -= this.mobileLookY * LOOK_SPEED;
+    this.pitch = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, this.pitch));
+    this.mobileLookX = 0;
+    this.mobileLookY = 0;
     this.camera.rotation.set(this.pitch, this.yaw, 0, "YXZ");
+  }
+
+  private resetMobileInput(): void {
+    this.mobileMoveX = 0;
+    this.mobileMoveZ = 0;
+    this.mobileLookX = 0;
+    this.mobileLookY = 0;
+    this.flyEnabled = false;
   }
 }
