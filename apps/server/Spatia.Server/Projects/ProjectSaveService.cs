@@ -67,7 +67,7 @@ public sealed class ProjectSaveService(ApplicationDbContext database, ProjectAcc
         }
 
         var project = authorization.Snapshot!;
-        var document = documents.Read(projectId, envelope.UnvalidatedDocumentJson);
+        var document = documents.Read(projectId, envelope.UnvalidatedDocumentJson, project.UnvalidatedDocumentJson);
         if (!document.Ok)
         {
             return ProjectSaveResult.Invalid();

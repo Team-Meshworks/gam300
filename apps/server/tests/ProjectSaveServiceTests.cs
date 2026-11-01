@@ -46,7 +46,8 @@ public sealed class ProjectSaveServiceTests
         var expectedDigest = SHA256.HashData(Encoding.UTF8.GetBytes(
             "spatia-save-v1\n" + seeded.ProjectId.ToString("D") + "\n" + seeded.ActorId.ToString("D") + "\n0\n" + request.DocumentJson));
         await Assert.That(stored.LastMutationDigest!.SequenceEqual(expectedDigest)).IsTrue();
-        var documents = fixture.App.Services.GetRequiredService<ProjectDocumentService>();
+        await using var documentScope = fixture.App.Services.CreateAsyncScope();
+        var documents = documentScope.ServiceProvider.GetRequiredService<ProjectDocumentService>();
         var reopened = documents.ReadStored(seeded.ProjectId, stored.SchemaVersion, stored.DocumentJson);
         await Assert.That(reopened.Ok).IsTrue();
         await Assert.That(reopened.Value!.SchemaVersion).IsEqualTo(version);
@@ -456,7 +457,8 @@ public sealed class ProjectSaveServiceTests
         await using var fixture = await CreateFixtureAsync();
         var seeded = await SeedAsync(fixture);
         await fixture.SignInAsync(seeded.ActorId);
-        var documents = fixture.App.Services.GetRequiredService<ProjectDocumentService>();
+        await using var documentScope = fixture.App.Services.CreateAsyncScope();
+        var documents = documentScope.ServiceProvider.GetRequiredService<ProjectDocumentService>();
         var node = JsonNode.Parse(ProjectTestDocuments.Create(seeded.ProjectId, ""))!;
         node["scenes"]![0]!["objects"]![0]!["transform"]!["scale"] = new JsonArray(double.MaxValue, double.Epsilon, 1);
         var baseline = documents.Serialize(documents.Read(seeded.ProjectId, node.ToJsonString()).Value!).Value!;

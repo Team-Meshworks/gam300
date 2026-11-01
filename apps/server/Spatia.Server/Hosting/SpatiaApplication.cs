@@ -129,7 +129,7 @@ public static class SpatiaApplication
         builder.Services.AddScoped<AccountAdministrationService>();
         builder.Services.AddScoped<AccountSessionService>();
         builder.Services.AddScoped<ProjectAccessService>();
-        builder.Services.AddSingleton<ProjectDocumentService>();
+        builder.Services.AddScoped<ProjectDocumentService>();
         builder.Services.AddScoped<ProjectSaveService>();
         builder.Services.AddSpatiaAccounts(connectionString);
         builder.Services.AddSpatiaRequestSecurity();

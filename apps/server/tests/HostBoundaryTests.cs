@@ -85,15 +85,18 @@ public sealed class HostBoundaryTests
     }
 
     [Test]
-    public async Task ProductionRouteInventory_ContainsOnlyReviewedAccountAndProjectRoutes()
+    public async Task ProductionRouteInventory_ContainsOnlyRegisteredAccountProjectAndAssetRoutes()
     {
         await using var app = SpatiaApplication.Build(CreateConfigurationBuilder());
         var endpoints = ((IEndpointRouteBuilder)app).DataSources.SelectMany(source => source.Endpoints).OfType<RouteEndpoint>().ToArray();
-        await Assert.That(endpoints.Length).IsEqualTo(15);
+        await Assert.That(endpoints.Length).IsEqualTo(23);
         var expected = new[] { "GET /api/auth/csrf", "POST /api/auth/login", "GET /api/auth/session", "POST /api/auth/logout", "POST /api/auth/password",
             "POST /api/admin/organizations", "POST /api/admin/users", "POST /api/admin/users/{id:guid}/password",
             "GET /api/projects/", "GET /api/projects/{id:guid}", "PUT /api/projects/{id:guid}",
-            "POST /api/projects/", "POST /api/projects/{id:guid}/duplicate", "PATCH /api/projects/{id:guid}/assignments", "PATCH /api/projects/{id:guid}/archive" };
+            "POST /api/projects/", "POST /api/projects/{id:guid}/duplicate", "PATCH /api/projects/{id:guid}/assignments", "PATCH /api/projects/{id:guid}/archive",
+            "GET /api/admin/assets/", "GET /api/admin/assets/{id:guid}/bytes", "POST /api/admin/assets/", "POST /api/admin/assets/{id:guid}/approve",
+            "POST /api/admin/assets/{id:guid}/availability", "GET /api/assets", "GET /api/assets/{id:guid}/bytes",
+            "GET /api/projects/{projectId:guid}/assets/{id:guid}/bytes" };
         await Assert.That(string.Join(";", endpoints.Select(endpoint =>
             endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Single() + " " + endpoint.RoutePattern.RawText).Order()))
             .IsEqualTo(string.Join(";", expected.Order()));
@@ -103,7 +106,10 @@ public sealed class HostBoundaryTests
             var csrf = path == "/api/auth/csrf";
             var login = path == "/api/auth/login";
             var session = path == "/api/auth/session";
-            var project = path.StartsWith("/api/projects", StringComparison.Ordinal);
+            var project = path.StartsWith("/api/projects", StringComparison.Ordinal)
+                || path.StartsWith("/api/assets", StringComparison.Ordinal);
+            var assetBytes = path.EndsWith("/bytes", StringComparison.Ordinal);
+            var upload = path == "/api/admin/assets/" && endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Single() == "POST";
             await Assert.That(endpoint.Metadata.GetMetadata<IAllowAnonymous>() is not null).IsEqualTo(csrf || login);
             if (!csrf && !login)
             {
@@ -111,10 +117,10 @@ public sealed class HostBoundaryTests
                     data.Policy == (path.StartsWith("/api/admin/", StringComparison.Ordinal)
                         ? SecurityPolicies.Administrator : project ? SecurityPolicies.FullAccount : SecurityPolicies.CurrentAccount))).IsTrue();
             }
-            if (!csrf && !session && (!project || endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Single() is "POST" or "PATCH"))
+            if (!csrf && !session && (assetBytes || !project || endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Single() is "POST" or "PATCH"))
             {
                 await Assert.That(endpoint.Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName)
-                    .IsEqualTo(login ? SecurityPolicies.AuthenticationRateLimit : SecurityPolicies.AccountWriteRateLimit);
+                    .IsEqualTo(login ? SecurityPolicies.AuthenticationRateLimit : assetBytes ? "AssetBytes" : upload ? "AssetIntake" : SecurityPolicies.AccountWriteRateLimit);
             }
         }
     }
