@@ -212,6 +212,7 @@ public static class SpatiaApplication
             return Results.Ok(new { requestToken = tokens.RequestToken });
         }).AllowAnonymous();
         app.MapAccountAdministration();
+        app.MapAccountDirectory();
         app.MapAccountSessions();
         app.MapProjectReads();
         app.MapProjectSaves();
