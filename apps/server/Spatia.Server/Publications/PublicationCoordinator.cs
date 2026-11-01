@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Spatia.ProjectFormat;
 using Spatia.Server.Persistence;
 using Spatia.Server.Projects;
+using Spatia.Server.Reviews;
 using Spatia.Server.Security;
 
 namespace Spatia.Server.Publications;
@@ -46,11 +47,24 @@ internal sealed class PublicationCoordinator(ApplicationDbContext database, Proj
             {
                 return PublicationResult.Rejected(PublicationRejection.RevisionConflict, project.Revision);
             }
+            var approval = await ReviewApproval.CheckLockedAsync(database, project, cancellationToken);
+            if (approval == ReviewApprovalState.ApprovalRequired)
+            {
+                return PublicationResult.Rejected(PublicationRejection.ApprovalRequired);
+            }
+            if (approval == ReviewApprovalState.StaleProject)
+            {
+                return PublicationResult.Rejected(PublicationRejection.DependencyUnavailable);
+            }
             var parsed = documents.ReadStored(projectId, project.SchemaVersion, project.UnvalidatedDocumentJson);
             if (!parsed.Ok) { return PublicationResult.Rejected(PublicationRejection.InvalidDocument); }
             var requiredAssets = PublicationDocumentAssets.Required(parsed.Value!);
             var prepared = await _integration.PrepareAsync(database, project, request, parsed.Value!, cancellationToken);
             if (prepared.Failure is { } preparationFailure) { return PublicationResult.Rejected(preparationFailure); }
+            if (approval == ReviewApprovalState.UnverifiedOrigin && !prepared.OrdinaryOriginVerified)
+            {
+                return PublicationResult.Rejected(PublicationRejection.DependencyUnavailable);
+            }
             if (ProjectCapabilities.Missing(parsed.Value!, prepared.SupportedCapabilities).Count != 0)
             {
                 return PublicationResult.Rejected(PublicationRejection.UnsupportedRuntime);

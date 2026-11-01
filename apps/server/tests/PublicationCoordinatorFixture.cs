@@ -167,6 +167,7 @@ internal sealed class FixturePublicationIntegration : IPublicationIntegration
     public PublicationRejection? ReplayFailure;
     public PublicationRejection? StageFailure;
     public string[] RuntimeCapabilities = Capabilities;
+    public bool OrdinaryOriginVerified = true;
     public Func<PublicationAssetReference[], PublicationAssetReference[]>? ChangeReferences;
     public Func<ApplicationDbContext, Task>? BeforePrepare;
     public Func<ApplicationDbContext, Task>? OnStage;
@@ -184,7 +185,7 @@ internal sealed class FixturePublicationIntegration : IPublicationIntegration
         if (PreparationFailure is { } failure) { return PublicationPreparation.Denied(failure); }
         var references = PublicationDocumentAssets.Required(document)
             .Select(id => new PublicationAssetReference(id, new string('a', 64))).ToArray();
-        return PublicationPreparation.Ready(ChangeReferences?.Invoke(references) ?? references, RuntimeCapabilities);
+        return PublicationPreparation.Ready(ChangeReferences?.Invoke(references) ?? references, RuntimeCapabilities, OrdinaryOriginVerified);
     }
 
     public Task<PublicationRejection?> AuthorizeReplayAsync(ApplicationDbContext database, ProjectAccessSnapshot project,

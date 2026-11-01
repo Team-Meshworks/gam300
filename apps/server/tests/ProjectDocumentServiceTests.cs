@@ -1,7 +1,9 @@
+using System.Text;
 using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Builder;
 using Spatia.ProjectFormat;
 using Spatia.Server.Projects;
+using Format = Spatia.ProjectFormat.ProjectFormat;
 
 namespace Spatia.Server.Tests;
 
@@ -58,6 +60,25 @@ public sealed class ProjectDocumentServiceTests
         var actual = stored.Value is LegacyProject legacy
             ? legacy.Scenes[0].StartCamera.Rotation : ((ContentProject)stored.Value!).Scenes[0].StartCamera.Rotation;
         await Assert.That(actual.SequenceEqual(expected)).IsTrue();
+    }
+
+    [Test]
+    public async Task Documents_StoredValidationAllowsSavedContentAtTheSizeLimit()
+    {
+        var documents = Create("Development");
+        var id = Guid.NewGuid();
+        var input = JsonNode.Parse(ProjectTestDocuments.Create(id, "Saved snapshot"))!;
+        input["scenes"]![0]!["startCamera"]!["rotation"] =
+            new JsonArray(0.47490965438830257, -0.6980326014100272, -0.1736294030169948, -0.5070149287205405);
+        var baseline = documents.Serialize(documents.Read(id, input.ToJsonString()).Value!).Value!;
+        input["title"] = input["title"]!.GetValue<string>()
+            + new string('x', Format.MaxProjectBytes - Encoding.UTF8.GetByteCount(baseline));
+        var accepted = documents.Read(id, input.ToJsonString());
+        await Assert.That(accepted.Ok).IsTrue();
+        var saved = documents.Serialize(accepted.Value!);
+        await Assert.That(saved.Ok).IsTrue();
+        await Assert.That(Encoding.UTF8.GetByteCount(saved.Value!)).IsEqualTo(Format.MaxProjectBytes);
+        await Assert.That(documents.ReadStored(id, 1, saved.Value!).Ok).IsTrue();
     }
 
     private static ProjectDocumentService Create(string environment) =>

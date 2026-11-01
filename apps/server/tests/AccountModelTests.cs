@@ -28,6 +28,7 @@ public sealed class AccountModelTests
 
             await Assert.That(runtimeContext.Model.ToDebugString(MetadataDebugStringOptions.LongDefault))
                 .IsEqualTo(designContext.Model.ToDebugString(MetadataDebugStringOptions.LongDefault));
+            await Assert.That(runtimeContext.Database.HasPendingModelChanges()).IsFalse();
             await Assert.That(runtimeContext.Model.FindEntityType(typeof(IdentityUserClaim<Guid>))!
                 .FindProperty(nameof(IdentityUserClaim<Guid>.Id))!.ClrType).IsEqualTo(typeof(int));
             await Assert.That(runtimeContext.Model.FindEntityType(typeof(IdentityRoleClaim<Guid>))!

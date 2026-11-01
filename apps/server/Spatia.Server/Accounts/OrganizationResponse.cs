@@ -1,7 +1,7 @@
 namespace Spatia.Server.Accounts;
 
 /// <summary>
-/// Describes an organization returned after successful creation
+/// Describes an organization returned by administration operations
 /// </summary>
 /// <param name="Id">The organization's persistent identifier</param>
 /// <param name="Name">The organization's display name</param>

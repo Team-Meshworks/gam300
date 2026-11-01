@@ -1,0 +1,48 @@
+{
+	admin off
+	persist_config off
+	auto_https disable_redirects
+	# Only the HTTP ingress accepts the host gateway's forwarding headers
+	servers :8080 {
+		trusted_proxies static {$SPATIA_OUTER_PROXY_IP}
+		trusted_proxies_strict
+		client_ip_headers X-Forwarded-For
+	}
+}
+
+(application) {
+	@api path /api /api/*
+	handle @api {
+		# Caddy supplies the HTTPS forwarding header to the explicitly trusted API peer
+		reverse_proxy api:8080 {
+			header_up X-Forwarded-Proto https
+			# Normalize to one verified address; the API deliberately consumes one hop
+			header_up X-Forwarded-For {client_ip}
+		}
+	}
+	handle {
+		reverse_proxy web:8080
+	}
+}
+
+# Local HTTPS checks use this stack's own CA
+https://localhost:8443 {
+	tls internal
+	import application
+}
+
+# The existing host gateway terminates public TLS and forwards only over loopback
+:8080 {
+	@status path /healthz /version.txt
+	handle @status {
+		reverse_proxy web:8080
+	}
+	@https {
+		remote_ip {$SPATIA_OUTER_PROXY_IP}
+		header X-Forwarded-Proto https
+	}
+	handle @https {
+		import application
+	}
+	respond "HTTPS is required" 400
+}

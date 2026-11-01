@@ -6,7 +6,7 @@ using Spatia.Server.Projects;
 
 namespace Spatia.Server.Publications;
 
-/// <summary>Private transaction seam for the approval, asset and audience owners; not their public contract</summary>
+/// <summary>Private transaction seam for origin, asset and audience owners; not their public contract</summary>
 /// <remarks>
 /// Every call uses the coordinator's context, read-committed transaction and retained project lock.
 /// Implementations must not commit, mutate the draft, acquire project locks out of order, or emit
@@ -16,8 +16,10 @@ namespace Spatia.Server.Publications;
 internal interface IPublicationIntegration
 {
     /// <summary>
-    /// Validate the whole intent, trusted class classification/exact-revision approval and new-edition
-    /// policy; resolve approved immutable assets and the actual target player capabilities.
+    /// Validate the whole intent and new-edition policy; resolve approved immutable assets and the
+    /// actual target player capabilities. Only an authoritative ordinary-origin contract may set
+    /// OrdinaryOriginVerified. Missing class mapping or client content is not such evidence.
+    /// The coordinator independently enforces approval for known class drafts.
     /// </summary>
     Task<PublicationPreparation> PrepareAsync(ApplicationDbContext database, ProjectAccessSnapshot project,
         PublicationRequest request, IAuthoredProject document, CancellationToken cancellationToken);
@@ -40,19 +42,22 @@ internal interface IPublicationIntegration
 internal sealed class PublicationPreparation
 {
     private PublicationPreparation(PublicationRejection? failure, IEnumerable<PublicationAssetReference> references,
-        IEnumerable<string> capabilities)
+        IEnumerable<string> capabilities, bool ordinaryOriginVerified = false)
     {
         Failure = failure;
         References = references.ToImmutableArray();
         SupportedCapabilities = capabilities.ToFrozenSet(StringComparer.Ordinal);
+        OrdinaryOriginVerified = ordinaryOriginVerified;
     }
 
     public PublicationRejection? Failure { get; }
     public ImmutableArray<PublicationAssetReference> References { get; }
     public IReadOnlySet<string> SupportedCapabilities { get; }
+    public bool OrdinaryOriginVerified { get; }
 
     public static PublicationPreparation Ready(IEnumerable<PublicationAssetReference> references,
-        IEnumerable<string> supportedCapabilities) => new(null, references, supportedCapabilities);
+        IEnumerable<string> supportedCapabilities, bool ordinaryOriginVerified = false) =>
+        new(null, references, supportedCapabilities, ordinaryOriginVerified);
     public static PublicationPreparation Denied(PublicationRejection failure) => new(failure, [], []);
 }
 
