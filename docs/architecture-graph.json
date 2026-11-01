@@ -203,6 +203,7 @@
     "editor/asset-administration/AssetAdministration.tsx": "1af0c59bf03b68025aad7388a8895c500f3e51ac795633a5b0c207c18289478b",
     "editor/asset-administration/AssetAdministrationPreview.tsx": "840638b61efdd9d3c14c7191473e5d42fb32c2618d062cec88cab78484a7c18b",
     "editor/asset-administration/AssetSelect.tsx": "7d2f837e8bb3c02ebef20a749b46b5dd7601f6b33a6f084421eed0ce5d8fef3b",
+    "editor/asset-administration/asset-administration-service.test.ts": "6ff1bc2bea6529dc53b31e4bead48007411b72da18c3c0377eade559fea86acd",
     "editor/asset-administration/asset-administration-service.ts": "65b5e4dade862aac21d1434a29e40a1797aed18dc98e743630f96438ce9c70fa",
     "editor/asset-administration/asset-administration.ts": "bd91bf5ea3c5f3e067b37b0ceb0b45865cb7dbf9dd44156ac44ae575eeb4431b",
     "editor/command-history.test.ts": "783c026523513ea5520cde04e61502aba13ca3a612b509a904c2a50e50be2d1f",
@@ -793,6 +794,25 @@
         "package": "react"
       },
       "from": "editor"
+    },
+    {
+      "file": "editor/asset-administration/asset-administration-service.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/asset-administration/asset-administration-service.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "./asset-administration-service",
+      "target": "editor/asset-administration/asset-administration-service.ts",
+      "from": "checks",
+      "to": "editor"
     },
     {
       "file": "editor/asset-administration/asset-administration-service.ts",
