@@ -10,6 +10,7 @@ import {
   type AssetFilter,
 } from "./asset-filters";
 import { Icon } from "./Icon";
+import { AssetFilterSelect } from "./AssetFilterSelect";
 
 // Pick a card then press Add. Dragging a card straight into the scene still works too
 export function AssetPicker({
@@ -60,20 +61,7 @@ export function AssetPicker({
             value={query}
             onChange={(event) => setQuery(event.currentTarget.value)}
           />
-          <span className="asset-filter">
-            <select
-              aria-label="Filter assets"
-              value={filter}
-              onChange={(event) => setFilter(event.currentTarget.value)}
-            >
-              {filterOptions(assets).map((option) => (
-                <option key={option.value} value={option.value} disabled={option.disabled}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            <Icon name="caretSolid" />
-          </span>
+          <AssetFilterSelect value={filter} options={filterOptions(assets)} onChange={setFilter} />
         </div>
         <button
           className="ui-button asset-picker-reset"

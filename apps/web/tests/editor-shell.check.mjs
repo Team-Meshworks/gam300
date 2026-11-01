@@ -126,6 +126,12 @@ try {
 
   // Filtering keeps the pick, and says so when the current results hide it
   const filter = picker.getByRole("combobox", { name: "Filter assets", exact: true });
+  // Fast keyboard navigation must use the open menu immediately rather than waiting for its toggle event
+  await filter.press("ArrowDown");
+  await page.keyboard.press("End");
+  await page.keyboard.press("Enter");
+  assert.equal(await filter.textContent(), "Architecture");
+  await picker.getByRole("button", { name: "Reset asset filters", exact: true }).click();
   const selection = picker.locator(".asset-picker-selection");
   assert.equal(await selection.textContent(), "Selected: test-crate");
   // Search and category filtering keep the selected ID and popup dimensions without editing the draft
@@ -134,7 +140,11 @@ try {
   const pickerBeforeSearch = await picker.boundingBox();
   await search.fill("  CRATE  ");
   assert.equal(await picker.locator(".asset-card-pick").count(), 1);
-  await filter.selectOption("category:Architecture");
+  await filter.click();
+  await page
+    .getByRole("listbox", { name: "Filter assets" })
+    .getByRole("option", { name: "Architecture", exact: true })
+    .click();
   assert.equal(await picker.locator(".asset-card-pick").count(), 0);
   await picker.getByText("No assets match this search and filter.", { exact: true }).waitFor();
   assert.match(await selection.textContent(), /test-crate \(not shown/);
@@ -146,17 +156,25 @@ try {
   assert.equal(await picker.locator("script").count(), 0);
   await resetFilters.click();
   assert.equal(await search.inputValue(), "");
-  assert.equal(await filter.inputValue(), "all");
+  assert.equal(await filter.textContent(), "All assets");
   assert.equal(await asset.getAttribute("aria-pressed"), "true");
   assert.equal(await rows.count(), 0);
   assert.equal(await undo.isDisabled(), true);
-  await filter.selectOption("favourites");
+  await filter.click();
+  await page
+    .getByRole("listbox", { name: "Filter assets" })
+    .getByRole("option", { name: "Favourites", exact: true })
+    .click();
   assert.equal(await asset.count(), 0, "No favourites saved, so the crate is filtered out");
   assert.equal(
     await selection.textContent(),
     "Selected: test-crate (not shown in the current results)",
   );
-  await filter.selectOption("all");
+  await filter.click();
+  await page
+    .getByRole("listbox", { name: "Filter assets" })
+    .getByRole("option", { name: "All assets", exact: true })
+    .click();
   assert.equal(await asset.getAttribute("aria-pressed"), "true", "The pick survives filtering");
   await add.focus();
   await page.keyboard.press("Enter");
