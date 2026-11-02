@@ -700,6 +700,26 @@ try {
   assert.deepEqual(tapped.position, atOrigin);
   await reset(null);
 
+  // One finger moves the object freely, not along a single gizmo axis
+  await touch("touchStart", onCrate);
+  await touch("touchMove", { ...onCrate, x: crate.x + 120, y: crate.y - 60 });
+  const followed = await read();
+  assert.ok(followed.position[0] > 0.1, "The object follows the finger sideways");
+  assert.ok(followed.position[1] > 0.1, "The object follows the finger upwards");
+  await touch("touchMove", { ...onCrate, x: crate.x + 200, y: crate.y - 60 });
+  assert.ok((await read()).position[0] > followed.position[0], "It keeps following the finger");
+  await touch("touchEnd");
+  assert.equal((await read()).commits, 1, "One finger drag is one edit");
+  await reset(objectId);
+  // The selected object's gizmo runs through it, the object still wins over the arrows
+  await touch("touchStart", onCrate);
+  await touch("touchMove", { ...onCrate, x: crate.x + 120 });
+  const overGizmo = await read();
+  assert.ok(overGizmo.position[0] > 0.1, "A finger on a selected object moves it freely");
+  await touch("touchCancel");
+  assert.deepEqual((await read()).position, atOrigin);
+  await reset(null);
+
   // Holding the Move stick makes it the primary touch, the object still has to pick up
   const stickBox = await touchPage.locator("#stick").boundingBox();
   const stick = { x: stickBox.x + 40, y: stickBox.y + 40, id: 5 };

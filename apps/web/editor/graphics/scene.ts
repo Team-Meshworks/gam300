@@ -207,7 +207,13 @@ export function initScene(
         | { currentMode: "freeRotate"; geometry: FreeRotation }
         | {
             currentMode: "carry";
-            geometry: { distance: number; offset: THREE.Vector3; moving: boolean };
+            geometry: {
+              distance: number;
+              offset: THREE.Vector3;
+              moving: boolean;
+              // Touch carries under the finger, the mouse under the crosshair
+              finger: { x: number; y: number } | undefined;
+            };
           }
       ))
     | undefined;
@@ -647,9 +653,12 @@ export function initScene(
   }
 
   // The point straight ahead of the crosshair, this far from the eye
-  function carryAim(distance: number) {
-    const forward = camera.getWorldDirection(new THREE.Vector3());
-    return camera.position.clone().addScaledVector(forward, distance);
+  function carryAim(distance: number, finger?: { x: number; y: number }) {
+    const direction =
+      finger === undefined
+        ? camera.getWorldDirection(new THREE.Vector3())
+        : screenRay(finger.x, finger.y).direction;
+    return camera.position.clone().addScaledVector(direction, distance);
   }
 
   // First person: holding the click on an object picks it up, letting go puts it down
@@ -661,6 +670,7 @@ export function initScene(
     const ray = screenRay(aim.x, aim.y);
     const hit = new THREE.Raycaster(ray.origin, ray.direction).intersectObject(instance, true)[0];
     if (hit === undefined) return;
+    const finger = event.pointerType === "touch" ? aim : undefined;
     beginDrag(event, {
       id: object.id,
       pointerId: event.pointerId,
@@ -672,8 +682,9 @@ export function initScene(
         distance: hit.distance,
         offset: new THREE.Vector3()
           .fromArray(object.transform.position)
-          .sub(carryAim(hit.distance)),
+          .sub(carryAim(hit.distance, finger)),
         moving: false,
+        finger,
       },
     });
   }
@@ -697,7 +708,9 @@ export function initScene(
   function carry() {
     const held = drag;
     if (held?.currentMode !== "carry") return;
-    const position = carryAim(held.geometry.distance).add(held.geometry.offset);
+    const position = carryAim(held.geometry.distance, held.geometry.finger).add(
+      held.geometry.offset,
+    );
     // Objects stand on the floor, so looking down lowers it only that far
     position.y = Math.max(position.y, 0);
     // Clicking while still gliding to a stop stay a plain select, not an undo step
@@ -780,6 +793,16 @@ export function initScene(
       else startTurn(event, id);
       return;
     }
+    // Touch never locks the pointer. In first person a finger on an object moves it freely,
+    // so the gizmo only answers presses that miss the object
+    if (event.pointerType === "touch" && fpsControls.isEngaged()) {
+      const id = pickObject(event.clientX, event.clientY);
+      if (objects.some((object) => object.id === id)) {
+        callbacks.onSelect(id);
+        startCarry(event, id);
+        return;
+      }
+    }
     const handle = pickHandle(
       event.clientX,
       event.clientY,
@@ -809,10 +832,7 @@ export function initScene(
       });
       return;
     }
-    const id = pickObject(event.clientX, event.clientY);
-    callbacks.onSelect(id);
-    // Touch never locks the pointer, so first person holds to carry from here
-    if (event.pointerType === "touch" && fpsControls.isEngaged()) startCarry(event, id);
+    callbacks.onSelect(pickObject(event.clientX, event.clientY));
   }
 
   function pickObject(clientX: number, clientY: number) {
@@ -922,6 +942,9 @@ export function initScene(
     }
     if (drag === undefined || event.pointerId !== drag.pointerId) return;
     if (drag.currentMode === "carry") {
+      if (drag.geometry.finger !== undefined) {
+        drag.geometry.finger = { x: event.clientX, y: event.clientY };
+      }
       carry();
       return;
     }
