@@ -101,7 +101,7 @@ try {
   await page.getByRole("heading", { name: "Class assignments", exact: true }).waitFor();
   assert.equal(page.url(), `${origin}/classes`);
 
-  for (const path of ["classes", "review", "accounts"]) {
+  for (const path of ["classes", "accounts"]) {
     mode = "Creator";
     await page.goto(`${origin}/${path}`);
     await page

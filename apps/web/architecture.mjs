@@ -20,6 +20,7 @@ export const modules = {
       "shared/project/scene-object.ts",
       "shared/project/spatial-validation.ts",
       "shared/project/project-validation.ts",
+      "shared/project/project-structure-validation.ts",
       "shared/project/project-serialization.ts",
       "shared/project/project-deserialization.ts",
       "shared/project/project-limits.ts",
