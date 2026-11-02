@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { Button } from "../../shared/ui/Button";
 import { Field } from "../../shared/ui/Field";
+import { playUiSound } from "../audio/ui-sounds";
 import {
   canAct,
   confirmsAction,
@@ -81,6 +82,7 @@ export function SubmissionPanel({
     } else if (result.kind === "confirmed" && confirmsAction(draft, result.submission)) {
       setCurrent(result.submission);
       setPhase("ready");
+      if (action === "save-review") playUiSound("save");
       setMessage(
         action === "save-review"
           ? "Review saved."
