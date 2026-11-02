@@ -364,7 +364,7 @@
     "tests/deployment.check.mjs": "770b434b8eba2d0de3dfbff8de41934757f3b21a2daa976ea40d4dbad5b4a3f4",
     "tests/editor-build.check.mjs": "d264a2d88ecda2e029b1eaea4bfa8bc52d46d5fcf16471a85a66b8bcba6c9a40",
     "tests/editor-integration.check.mjs": "58e0d2d7860d3b9173b75bd9f69b37662d6c834065fd32460ce507f4c730729f",
-    "tests/editor-shell.check.mjs": "7365c7e2ddfae4812e16fbbd9e2f6f029a74d2a114f78584578da89be3a10a9c",
+    "tests/editor-shell.check.mjs": "873e49d7a2a0d815633bf366002ebf6de4aa273443b87a64baf1405a0140c0d6",
     "tests/entry.check.mjs": "a9a1adae8bb1d4df98fe3df184ed02ff83880fa84cd2cf07bbf9bf32a3ec4592",
     "tests/history-recovery.check.mjs": "474ef9c6a74a81ef82b83a162319593a9c1b237c3deb5e6e6d32482fc725b173",
     "tests/local-drafts.check.mjs": "09d21d098506ad5f04b5c5cd8badc36b11f5d524e03e84c16039f4abb3ec9c9a",
@@ -5885,7 +5885,7 @@
     },
     {
       "file": "tests/editor-shell.check.mjs",
-      "line": 602,
+      "line": 601,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -5894,7 +5894,7 @@
     },
     {
       "file": "tests/editor-shell.check.mjs",
-      "line": 637,
+      "line": 636,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",

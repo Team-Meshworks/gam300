@@ -297,17 +297,16 @@ try {
   // Looking up while carrying lifts it off the floor, then look back down at it
   const centre = { x: stageBox.x + stageBox.width / 2, y: stageBox.y + stageBox.height / 2 };
   const height = async () => Number((await position.textContent()).match(/Y (-?[\d.]+)/)[1]);
+  //send mouse movement directly to the page to have a more consistent testing
+  const look = (movementY) =>
+    page.evaluate((y) => {
+      for (let step = 0; step < 20; step += 1) {
+        document.dispatchEvent(new MouseEvent("mousemove", { movementY: y }));
+      }
+    }, movementY);
   await page.mouse.down();
   await page.waitForTimeout(100);
-  // TEMP: record the movement of playwright that the page got to check
-  await page.evaluate(() => {
-    window.lookLog = [];
-    document.addEventListener("mousemove", (e) => window.lookLog.push([e.movementX, e.movementY]));
-  });
-  for (let step = 1; step <= 20; step += 1) {
-    await page.mouse.move(centre.x, centre.y - (step * 150) / 20);
-    await page.waitForTimeout(20);
-  }
+  await look(-8);
   await page.mouse.up();
   console.log("movement seen:", JSON.stringify(await page.evaluate(() => window.lookLog)));
   await page.waitForFunction(
@@ -321,7 +320,7 @@ try {
   );
   assert.ok((await height()) > 0.1, "Looking up lifts what is carried");
   await page.keyboard.press("Control+z");
-  await page.mouse.move(centre.x, centre.y, { steps: 5 });
+  await look(8);
   assert.equal(await position.textContent(), initialPosition);
   // Scrolling while carrying pushes it away
   await page.mouse.down();
