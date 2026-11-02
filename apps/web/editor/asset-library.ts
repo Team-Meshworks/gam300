@@ -72,10 +72,14 @@ export function createAssetLibrary(
       }
       document = current.project;
       target = { id, position: [...position] };
+      // Resolve the slot in the active scene, matching the case selection and removal command
       const displayed =
         current.project.schemaVersion === 2
-          ? current.project.scenes[0]!.objects.filter(
-              (object) => object.parentId?.toLowerCase() === id.toLowerCase(),
+          ? current.objects.filter(
+              (object) =>
+                "parentId" in object &&
+                typeof object.parentId === "string" &&
+                object.parentId.toLowerCase() === id.toLowerCase(),
             )
           : [];
       publish({ ...snapshot, mode: "browsing", assetId: null, canRemove: displayed.length === 1 });

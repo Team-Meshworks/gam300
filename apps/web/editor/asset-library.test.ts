@@ -227,6 +227,30 @@ describe("asset library behavior without a popup implementation", () => {
     expect(library.remove().ok).toBe(false);
     expect(store.getSnapshot()).toBe(referenced);
   });
+  it("removes displayed content from the active second scene and restores it with Undo", () => {
+    const { store, library } = setup();
+    const firstSceneId = store.getSnapshot().activeSceneId!;
+    expect(store.createScene("Second scene", "room").ok).toBe(true);
+    const secondSceneId = store.getSnapshot().activeSceneId!;
+    const placed = store.addObject("vase", [0, 0, 0]);
+    if (!placed.ok) throw new Error(placed.error);
+
+    // Populate a case outside scene zero so occupancy follows the same scene as placement
+    expect(library.openOnCase(placed.object.id, [0, 1, 0]).ok).toBe(true);
+    expect(library.choose("vase").ok).toBe(true);
+    const displayed = store.getSnapshot().objects[1]!;
+    expect(library.openOnCase(placed.object.id, [0, 1, 0]).ok).toBe(true);
+    expect(library.getSnapshot().canRemove).toBe(true);
+    expect(library.remove().ok).toBe(true);
+    expect(store.getSnapshot().objects.map((object) => object.id)).toEqual([placed.object.id]);
+
+    // Undo restores the same attachment while the first scene remains untouched
+    store.undo();
+    expect(store.getSnapshot().activeSceneId).toBe(secondSceneId);
+    expect(store.getSnapshot().objects[1]).toEqual(displayed);
+    expect(store.switchScene(firstSceneId).ok).toBe(true);
+    expect(store.getSnapshot().objects).toHaveLength(0);
+  });
   it("places multiple room modules in one scene and retains them across serialization and undo", () => {
     // These generic room fixtures check repeated placement independently of test-room snapping
     const module = { ...assets[1]!, id: "room-module", name: "test-room" };
