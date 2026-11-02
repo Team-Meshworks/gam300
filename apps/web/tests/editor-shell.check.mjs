@@ -299,7 +299,10 @@ try {
   const height = async () => Number((await position.textContent()).match(/Y (-?[\d.]+)/)[1]);
   await page.mouse.down();
   await page.waitForTimeout(100);
-  await page.mouse.move(centre.x, centre.y - 150, { steps: 20 });
+  for (let step = 1; step <= 20; step += 1) {
+    await page.mouse.move(centre.x, centre.y - (step * 150) / 20);
+    await page.waitForTimeout(20);
+  }
   await page.mouse.up();
   await page.waitForFunction(
     () => {
