@@ -365,8 +365,437 @@ try {
   assert.deepEqual(measured.stoppedDistances, [0, 0]);
   assert.equal(await renderer.locator("canvas").count(), 0, "Disposal removes the renderer");
   assert.deepEqual(errors, []);
+  await renderer.close();
+
+  // Real touch input against the real handlers. Nothing here needs a production debug hook
+  const touchContext = await browser.newContext({
+    viewport: { width: 800, height: 600 },
+    hasTouch: true,
+  });
+  const touchPage = await touchContext.newPage();
+  touchPage.on("pageerror", (error) => errors.push(error.message));
+  await touchPage.route("**/audit-touch-harness.html", (route) =>
+    route.fulfill({
+      contentType: "text/html",
+      body: `<!doctype html><body style="margin:0">
+        <div id="host" style="width:800px;height:600px"></div>
+        <button id="stick" style="position:fixed;right:0;bottom:0;width:80px;height:80px">Move</button>`,
+    }),
+  );
+  await touchPage.goto(new URL("audit-touch-harness.html", url).href);
+  await touchPage.evaluate(async (fixture) => {
+    const source = await (await fetch("/graphics/scene.ts")).text();
+    const threePath = source.match(/import \* as THREE from "([^"]+)"/)[1];
+    const THREE = await import(threePath);
+    const { initScene } = await import("/graphics/scene.ts");
+    const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
+    const host = document.getElementById("host");
+    const originalAdd = THREE.Object3D.prototype.add;
+    let scene;
+    THREE.Object3D.prototype.add = function (...objects) {
+      if (this.isScene) scene = this;
+      return originalAdd.apply(this, objects);
+    };
+    const { promise: ready, resolve: finish } = Promise.withResolvers();
+    const object = {
+      ...fixture.scenes[0].objects[0],
+      transform: { position: [0, 0, 0], rotation: [0, 0, 0, 1], scale: [1, 1, 1] },
+    };
+    const state = { commits: 0, followSelection: false, selected: object.id };
+    let handle;
+    try {
+      handle = initScene(
+        host,
+        assets.filter((asset) => asset.id === "test-crate-v1"),
+        {
+          onStatus: (status) => {
+            if (status === "ready") finish();
+          },
+          onThumbnail() {},
+          // Pinches start away from the crate here, so only the carry checks follow the app
+          onSelect(id) {
+            if (!state.followSelection) return;
+            state.selected = id;
+            handle.update([object], id);
+          },
+          onTransform: () => {
+            state.commits += 1;
+          },
+        },
+      );
+    } finally {
+      THREE.Object3D.prototype.add = originalAdd;
+    }
+    await ready;
+    const manager = handle.modeManager;
+    const camera = manager.camera;
+    manager.initializeView("third");
+    manager.orbit.enableDamping = false;
+    handle.setEditingEnabled(true);
+    handle.update([object], object.id);
+    const gizmo = scene.children.find((child) => child.isGroup && child.children.length === 6);
+    const instance = scene.children.find((child) => child.isGroup && child !== gizmo);
+    const toScreen = (point) => {
+      camera.updateMatrixWorld(true);
+      const projected = new THREE.Vector3(...point).project(camera);
+      return { x: ((projected.x + 1) * 800) / 2, y: ((1 - projected.y) * 600) / 2 };
+    };
+    window.harness = {
+      state,
+      handle,
+      manager,
+      object,
+      toScreen,
+      reset(selected = object.id) {
+        state.commits = 0;
+        state.selected = selected;
+        handle.update([object], selected);
+      },
+      // The camera tools really do move the camera, so put it back before aiming at the gizmo
+      homeCamera() {
+        camera.position.set(12, 16, 18);
+        camera.lookAt(0, 0, 0);
+        handle.showCamera({
+          position: camera.position.toArray(),
+          rotation: camera.quaternion.toArray(),
+          fovDegrees: 40,
+        });
+        manager.orbit.enableDamping = false;
+      },
+      // Somewhere along the first gizmo arm, where a touch picks that handle
+      armPoint(pixels) {
+        const pivot = toScreen(gizmo.getWorldPosition(new THREE.Vector3()).toArray());
+        const end = toScreen(gizmo.children[1].getWorldPosition(new THREE.Vector3()).toArray());
+        const length = Math.hypot(end.x - pivot.x, end.y - pivot.y);
+        return {
+          x: pivot.x + ((end.x - pivot.x) * pixels) / length,
+          y: pivot.y + ((end.y - pivot.y) * pixels) / length,
+        };
+      },
+      read: () => ({
+        commits: state.commits,
+        selected: state.selected,
+        scale: instance.scale.x,
+        position: instance.position.toArray(),
+        camera: camera.position.toArray(),
+        gizmoTip: gizmo.children[1].scale.x,
+      }),
+    };
+  }, fixture);
+
+  const cdp = await touchContext.newCDPSession(touchPage);
+  const touch = (type, ...touchPoints) =>
+    cdp.send("Input.dispatchTouchEvent", { type, touchPoints });
+  const settle = () =>
+    touchPage.evaluate(
+      () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+    );
+  const read = async () => {
+    await settle();
+    return touchPage.evaluate(() => window.harness.read());
+  };
+  const reset = (selected) => touchPage.evaluate((id) => window.harness.reset(id), selected);
+  const armPoint = (pixels, id) =>
+    touchPage.evaluate(
+      ([distance, pointId]) => ({ ...window.harness.armPoint(distance), id: pointId }),
+      [pixels, id],
+    );
+  // Well away from the crate, the fingers spread apart vertically
+  const pinchA = { x: 60, y: 60, id: 1 };
+  const pinchB = (y) => ({ x: 60, y, id: 2 });
+  async function pinchOpen() {
+    await touch("touchStart", pinchA);
+    await touch("touchStart", pinchA, pinchB(160));
+    await touch("touchMove", pinchA, pinchB(220));
+    await touch("touchMove", pinchA, pinchB(300));
+  }
+  const atOrigin = [0, 0, 0];
+  // Check capture loss for a pointer no edit depends on, the browser only reports its own
+  const foreignCaptureLoss = () =>
+    touchPage
+      .locator("canvas")
+      .evaluate((canvas) =>
+        canvas.dispatchEvent(
+          new PointerEvent("lostpointercapture", { pointerId: 999, pointerType: "touch" }),
+        ),
+      );
+
+  await pinchOpen();
+  const pinching = await read();
+  assert.ok(pinching.scale > 1, "A two-finger pinch previews a scale");
+  assert.equal(pinching.commits, 0, "A pinch only commits once it ends");
+  await touch("touchEnd");
+  assert.equal((await read()).commits, 1, "Lifting the fingers commits one edit");
+  await reset();
+
+  await touchPage.evaluate(() => window.harness.manager.setMode("visitor"));
+  await pinchOpen();
+  await touch("touchEnd");
+  const inPreview = await read();
+  assert.equal(inPreview.scale, 1, "Preview ignores two-finger transforms");
+  assert.equal(inPreview.commits, 0, "Preview creates no edit");
+  await touchPage.evaluate(() => window.harness.manager.setMode("editor"));
+
+  for (const tool of ["pan", "orbit"]) {
+    await touchPage.evaluate((name) => window.harness.handle.setNavigationTool(name), tool);
+    await pinchOpen();
+    await touch("touchEnd");
+    const withTool = await read();
+    assert.equal(withTool.scale, 1, `The ${tool} tool keeps two fingers for the camera`);
+    assert.equal(withTool.commits, 0, `The ${tool} tool creates no edit`);
+    await touchPage.evaluate(() => window.harness.handle.setNavigationTool("select"));
+  }
+
+  await pinchOpen();
+  await foreignCaptureLoss();
+  assert.ok((await read()).scale > 1, "Another pointer's loss keeps the pinch");
+  await touch("touchCancel");
+  const cancelledPinch = await read();
+  assert.equal(cancelledPinch.scale, 1, "A cancelled pinch restores the object");
+  assert.equal(cancelledPinch.commits, 0, "A cancelled pinch creates no edit");
+
+  await pinchOpen();
+  assert.ok((await read()).scale > 1);
+  await touchPage.evaluate(() => window.harness.manager.setMode("visitor"));
+  await touch("touchEnd");
+  const leftEditor = await read();
+  assert.equal(leftEditor.scale, 1, "Entering Preview mid-pinch restores the object");
+  assert.equal(leftEditor.commits, 0, "Entering Preview mid-pinch creates no edit");
+  await touchPage.evaluate(() => window.harness.manager.setMode("editor"));
+
+  await pinchOpen();
+  assert.ok((await read()).scale > 1);
+  await touchPage.evaluate(() => window.harness.handle.setNavigationTool("pan"));
+  await touch("touchEnd");
+  const switchedTool = await read();
+  assert.equal(switchedTool.scale, 1, "Picking a camera tool mid-pinch restores the object");
+  assert.equal(switchedTool.commits, 0, "Picking a camera tool mid-pinch creates no edit");
+  await touchPage.evaluate(() => window.harness.handle.setNavigationTool("select"));
+
+  // An undo or another edit replaced the object, the old pinch mustnt write over it
+  await pinchOpen();
+  assert.ok((await read()).scale > 1);
+  await touchPage.evaluate(() => {
+    const { handle, object } = window.harness;
+    handle.update([{ ...object, transform: { ...object.transform } }], object.id);
+  });
+  await touch("touchEnd");
+  assert.equal((await read()).commits, 0, "A replaced object ends the pinch without an edit");
+  await reset();
+
+  // Once a pinch owns the fingers the camera holds still
+  await touch("touchStart", pinchA);
+  await touch("touchStart", pinchA, pinchB(160));
+  await touch("touchMove", pinchA, pinchB(220));
+  const claimed = await read();
+  await touch("touchMove", { ...pinchA, x: 160, y: 140 }, pinchB(400));
+  await touch("touchMove", { ...pinchA, x: 260, y: 200 }, pinchB(500));
+  assert.deepEqual((await read()).camera, claimed.camera, "A pinch doesnt also move the camera");
+  await touch("touchEnd");
+  await reset();
+
+  // A third finger is not part of the pinch, the object mustnt jump when the pair changes
+  await pinchOpen();
+  await touch("touchStart", pinchA, pinchB(300), { x: 400, y: 60, id: 3 });
+  await touch("touchEnd", pinchA);
+  const liftedOne = await read();
+  assert.equal(liftedOne.commits, 1, "Lifting a pinching finger ends the pinch");
+  await touch("touchMove", pinchB(120), { x: 500, y: 500, id: 3 });
+  assert.equal((await read()).scale, liftedOne.scale, "The remaining fingers no longer scale");
+  await touch("touchEnd");
+  await reset();
+
+  await touchPage.evaluate(() => window.harness.homeCamera());
+  await reset();
+  await settle();
+  await touch("touchStart", await armPoint(40, 1));
+  await touch("touchMove", await armPoint(75, 1));
+  assert.notDeepEqual((await read()).position, atOrigin, "One finger on a handle drags");
+  await touch("touchCancel");
+  const cancelledDrag = await read();
+  assert.deepEqual(cancelledDrag.position, atOrigin, "A cancelled drag restores the object");
+  assert.equal(cancelledDrag.commits, 0, "A cancelled drag creates no edit");
+  // The camera has to have its input back too, or the cancelled drag is still holding it
+  await touch("touchStart", await armPoint(40, 1));
+  const start = await armPoint(40, 1);
+  await touch("touchMove", { ...start, x: start.x + 30 });
+  await touch("touchEnd");
+  assert.equal((await read()).commits, 1, "A new drag works after a cancelled one");
+  await reset();
+
+  // A lift also reports lost capture, and it mustnt cancel the other finger's drag
+  const dragging = await armPoint(75, 1);
+  await touch("touchStart", await armPoint(40, 1));
+  await touch("touchMove", dragging);
+  await touch("touchStart", dragging, { x: 60, y: 60, id: 2 });
+  // touchEnd lifts the fingers it names
+  await touch("touchEnd", { x: 60, y: 60, id: 2 });
+  assert.notDeepEqual((await read()).position, atOrigin, "Lifting a second finger keeps the drag");
+  await foreignCaptureLoss();
+  assert.notDeepEqual((await read()).position, atOrigin, "Another pointer's loss keeps the drag");
+  await touch("touchEnd");
+  assert.equal((await read()).commits, 1, "The first finger's drag still commits");
+  await reset();
+
+  // A drag handed to a pinch has only moved the preview, so cancelling goes back past it
+  const moved = await armPoint(75, 1);
+  await touch("touchStart", await armPoint(40, 1));
+  await touch("touchMove", moved);
+  await touch("touchStart", moved, { x: moved.x, y: moved.y + 100, id: 2 });
+  await touch("touchMove", moved, { x: moved.x, y: moved.y + 160, id: 2 });
+  await touch("touchMove", moved, { x: moved.x, y: moved.y + 260, id: 2 });
+  // Losing the capture is only reported on that finger's next event, so move it again
+  await touch("touchMove", { ...moved, x: moved.x + 2 }, { x: moved.x, y: moved.y + 280, id: 2 });
+  const handedOver = await read();
+  assert.ok(handedOver.scale > 1, "The drag hands over to a pinch that keeps running");
+  assert.notDeepEqual(handedOver.position, atOrigin, "The pinch carries on from the moved preview");
+  await touch("touchCancel");
+  const cancelledHandover = await read();
+  assert.deepEqual(cancelledHandover.position, atOrigin, "Cancelling restores the authored pose");
+  assert.equal(cancelledHandover.scale, 1);
+  assert.equal(cancelledHandover.commits, 0, "Cancelling a handed-over pinch creates no edit");
+
+  // A saved camera keeps its pose in first person, walking starts from there
+  await touchPage.evaluate(() => {
+    const { handle, manager } = window.harness;
+    manager.setView("first");
+    handle.showCamera({ position: [0, 2, 10], rotation: [0, 0, 0, 1], fovDegrees: 40 });
+  });
+  assert.deepEqual((await read()).camera, [0, 2, 10], "First person keeps a restored pose");
+  await touchPage.evaluate(() => {
+    window.harness.handle.showCamera({
+      position: [0, 0.9, 6],
+      rotation: [0, 0, 0, 1],
+      fovDegrees: 40,
+    });
+  });
+  assert.deepEqual((await read()).camera, [0, 0.9, 6]);
+
+  // The gizmo keeps a steady size on screen, so walking has to refresh it
+  const walk = (x, z) =>
+    touchPage.evaluate(
+      ([moveX, moveZ]) => window.harness.handle.mobileControls.setMove(moveX, moveZ),
+      [x, z],
+    );
+  const tipBefore = (await read()).gizmoTip;
+  await walk(0, -1);
+  await touchPage.waitForTimeout(300);
+  await walk(0, 0);
+  assert.notEqual((await read()).gizmoTip, tipBefore, "Walking refreshes the gizmo");
+  await touchPage.evaluate(() => {
+    const { state, handle } = window.harness;
+    state.followSelection = true;
+    handle.showCamera({ position: [0, 0.9, 6], rotation: [0, 0, 0, 1], fovDegrees: 40 });
+  });
+  await reset(null);
+  const crate = await touchPage.evaluate(() => window.harness.toScreen([0, 0.5, 0]));
+  const onCrate = { ...crate, id: 1 };
+  const objectId = await touchPage.evaluate(() => window.harness.object.id);
+
+  await touch("touchStart", onCrate);
+  await touch("touchEnd");
+  const tapped = await read();
+  assert.equal(tapped.selected, objectId, "A tap in first person selects without pointer lock");
+  assert.equal(tapped.commits, 0, "A tap carries nothing");
+  assert.deepEqual(tapped.position, atOrigin);
+  await reset(null);
+
+  // Holding the Move stick makes it the primary touch, the object still has to pick up
+  const stickBox = await touchPage.locator("#stick").boundingBox();
+  const stick = { x: stickBox.x + 40, y: stickBox.y + 40, id: 5 };
+  await touch("touchStart", stick);
+  await touch("touchStart", stick, onCrate);
+  assert.equal((await read()).selected, objectId, "A press while walking still reaches the scene");
+  await walk(0, -1);
+  await touchPage.waitForTimeout(300);
+  await walk(0, 0);
+  assert.notDeepEqual(
+    (await read()).position,
+    atOrigin,
+    "Holding carries the object while walking",
+  );
+  await touch("touchEnd", stick);
+  await touch("touchEnd");
+  assert.equal((await read()).commits, 1, "Letting go puts it down as one edit");
+  await touchPage.evaluate(() => {
+    window.harness.handle.showCamera({
+      position: [0, 0.9, 6],
+      rotation: [0, 0, 0, 1],
+      fovDegrees: 40,
+    });
+  });
+  await reset(null);
+
+  await touch("touchStart", onCrate);
+  await walk(0, -1);
+  await touchPage.waitForTimeout(300);
+  await walk(0, 0);
+  assert.notDeepEqual((await read()).position, atOrigin);
+  await touch("touchCancel");
+  const cancelledCarry = await read();
+  assert.deepEqual(cancelledCarry.position, atOrigin, "A cancelled carry puts the object back");
+  assert.equal(cancelledCarry.commits, 0, "A cancelled carry creates no edit");
+  await touchPage.evaluate(() => {
+    window.harness.handle.showCamera({
+      position: [0, 0.9, 6],
+      rotation: [0, 0, 0, 1],
+      fovDegrees: 40,
+    });
+  });
+  await reset(null);
+
+  // A second finger takes the object over from a carry
+  const second = (above) => ({ x: crate.x, y: crate.y - above, id: 2 });
+  await touch("touchStart", onCrate);
+  await touch("touchStart", onCrate, second(100));
+  await touch("touchMove", onCrate, second(160));
+  await touch("touchMove", onCrate, second(260));
+  const tookOver = await read();
+  assert.ok(tookOver.scale > 1, "A second finger starts a transform during a carry");
+  await touch("touchEnd");
+  assert.equal((await read()).commits, 1, "The takeover is one edit");
+  await cdp.detach();
+  await touchContext.close();
+
+  // The sticks have to fit and show whichever way up the device is held
+  const phone = await browser.newContext({
+    viewport: { width: 375, height: 812 },
+    hasTouch: true,
+    isMobile: true,
+    userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Mobile/15E148 Safari/604.1",
+  });
+  const phonePage = await phone.newPage();
+  phonePage.on("pageerror", (error) => errors.push(error.message));
+  await phonePage.goto(url);
+  await phonePage.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
+  for (const viewport of [
+    { width: 320, height: 568 },
+    { width: 375, height: 812 },
+    { width: 812, height: 375 },
+  ]) {
+    await phonePage.setViewportSize(viewport);
+    const sticks = phonePage.locator(".mobile-joystick");
+    assert.equal(await sticks.count(), 2);
+    for (const name of ["Move", "Look"]) {
+      const box = await phonePage.getByRole("button", { name, exact: true }).boundingBox();
+      assert.ok(box !== null, `${name} shows at ${viewport.width}x${viewport.height}`);
+      assert.ok(
+        box.x >= 0 && box.x + box.width <= viewport.width,
+        `${name} fits at ${viewport.width}x${viewport.height}`,
+      );
+    }
+    const left = await phonePage.getByRole("button", { name: "Move", exact: true }).boundingBox();
+    const right = await phonePage.getByRole("button", { name: "Look", exact: true }).boundingBox();
+    const jump = await phonePage.locator(".mobile-jump-button").boundingBox();
+    assert.equal(left.width, left.height, "Move stays round");
+    assert.equal(right.width, right.height, "Look stays round");
+    assert.ok(left.x + left.width <= jump.x, "Move and Jump dont overlap");
+    assert.ok(jump.x + jump.width <= right.x, "Jump and Look dont overlap");
+  }
+  await phone.close();
+  assert.deepEqual(errors, []);
   console.log(
-    "PASS: visitor authoring isolation, camera restoration, zoomed gizmos, mode cancellation and focus cleanup",
+    "PASS: visitor authoring isolation, camera restoration, zoomed gizmos, mode cancellation, focus cleanup and touch gestures",
   );
 } finally {
   await browser.close();
