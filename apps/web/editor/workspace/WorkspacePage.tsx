@@ -5,8 +5,15 @@ import { Button } from "../../shared/ui/Button";
 import { NewProjectForm } from "../projects/NewProjectForm";
 import { ClassAssignmentForm } from "../projects/ClassAssignmentForm";
 
+import { AssetAdministration } from "../asset-administration/AssetAdministration";
+import { createAssetAdministrationService } from "../asset-administration/asset-administration-service";
+
 const client = createAccountClient();
+// Reuse the authenticated intake adapter; the screen cancels its requests when leaving or switching accounts
+const assetService = createAssetAdministrationService();
 const screens = [
+  { id: "assets", title: "3D Assets", roles: ["Administrator"] },
+  { id: "spaces", title: "3D Spaces", roles: ["Administrator"] },
   { id: "new-project", title: "New Project", roles: ["Administrator", "Educator", "Creator"] },
   { id: "classes", title: "Class assignments", roles: ["Administrator", "Educator"] },
   { id: "review", title: "Submission review", roles: ["Administrator", "Educator"] },
@@ -125,7 +132,17 @@ export function WorkspacePage() {
         <h1>Access denied</h1>
       ) : (
         <>
-          <h1 className="sp-page-heading">{screen.title}</h1>
+          {/* Keep the existing asset screen heading and layout inside this authenticated shell */}
+          {screen.id === "assets" || screen.id === "spaces" ? (
+            <AssetAdministration
+              session={session}
+              service={assetService}
+              kind={screen.id === "spaces" ? "environment" : "model"}
+              onClose={() => location.assign(fallback)}
+            />
+          ) : (
+            <h1 className="sp-page-heading">{screen.title}</h1>
+          )}
           {screen.id === "new-project" && (
             <>
               <p role="status">

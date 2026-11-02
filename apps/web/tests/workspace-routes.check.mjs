@@ -56,6 +56,38 @@ try {
     await page.getByRole("heading", { name: heading, exact: true }).waitFor();
   }
 
+  // Use the actual intake adapter and mounted screen rather than the local preview fixture
+  mode = "Administrator";
+  let assetReads = 0;
+  await page.route("**/api/admin/assets", (route) => {
+    assetReads++;
+    return route.fulfill({
+      json: {
+        assets: [],
+        policy: {
+          extensions: [".glb"],
+          maxBytes: 20 * 1024 * 1024,
+          categories: { environment: null, model: ["Objects"] },
+          canSubmit: true,
+          canForceRemove: false,
+        },
+      },
+    });
+  });
+  await screen("assets", "All Assets");
+  await page.getByText("No assets yet", { exact: true }).waitFor();
+  await screen("spaces", "All 3D Spaces");
+  assert.ok(assetReads >= 2, "Both admin libraries load the real service route");
+
+  // Hiding navigation alone is insufficient; direct creator/educator routes must not load intake data
+  for (const role of ["Creator", "Educator"]) {
+    mode = role;
+    const before = assetReads;
+    await screen("assets", "Access denied");
+    await screen("spaces", "Access denied");
+    assert.equal(assetReads, before);
+  }
+
   mode = "Educator";
   await screen("new-project", "New Project");
   const title = page.getByLabel("Project title");
