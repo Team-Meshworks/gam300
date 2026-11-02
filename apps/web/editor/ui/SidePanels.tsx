@@ -23,8 +23,10 @@ export function SidePanels({
   objects,
   selectedId,
   selectedObject,
+  mobileDevice,
   thumbnailFor,
   onSelect,
+  onDelete,
   onTransform,
 }: {
   visitor: boolean;
@@ -34,8 +36,10 @@ export function SidePanels({
   objects: readonly SceneObject[];
   selectedId: string | null;
   selectedObject: SceneObject | undefined;
+  mobileDevice: boolean;
   thumbnailFor: (assetId: string) => string | undefined;
   onSelect: (id: string) => void;
+  onDelete: () => void;
   onTransform: (id: string, transform: Transform) => void;
 }) {
   // Open the tree first so new project can see whats inside
@@ -75,6 +79,8 @@ export function SidePanels({
               objects={objects}
               selectedId={selectedId}
               onSelect={onSelect}
+              onDelete={onDelete}
+              mobileDevice={mobileDevice}
               thumbnailFor={thumbnailFor}
             />
           )}
@@ -248,12 +254,16 @@ function SceneTreePanel({
   objects,
   selectedId,
   onSelect,
+  onDelete,
+  mobileDevice,
   thumbnailFor,
 }: {
   room: Room | undefined;
   objects: readonly SceneObject[];
   selectedId: string | null;
   onSelect: (id: string) => void;
+  onDelete: () => void;
+  mobileDevice: boolean;
   thumbnailFor: (assetId: string) => string | undefined;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -283,16 +293,29 @@ function SceneTreePanel({
             )}
             {objects.map((object) => (
               <li key={object.id}>
-                <button
-                  className="object-row"
-                  type="button"
-                  aria-pressed={selectedId === object.id}
-                  data-object-id={object.id}
-                  onClick={() => onSelect(object.id)}
-                >
-                  <img src={thumbnailFor(object.assetId)} alt="" draggable={false} />
-                  <span>{object.name}</span>
-                </button>
+                <div className="scene-tree-object">
+                  <button
+                    className="object-row"
+                    type="button"
+                    aria-pressed={selectedId === object.id}
+                    data-object-id={object.id}
+                    onClick={() => onSelect(object.id)}
+                  >
+                    <img src={thumbnailFor(object.assetId)} alt="" draggable={false} />
+                    <span>{object.name}</span>
+                  </button>
+                  {mobileDevice && selectedId === object.id && (
+                    <button
+                      className="scene-tree-delete"
+                      type="button"
+                      aria-label={`Delete ${object.name}`}
+                      title={`Delete ${object.name}`}
+                      onClick={onDelete}
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
               </li>
             ))}
           </ul>

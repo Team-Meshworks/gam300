@@ -491,6 +491,34 @@ a {
 .environment-row[aria-pressed="true"] {
   background: #e2dccb;
 }
+.scene-tree-object {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.scene-tree-object .object-row {
+  flex: 1;
+  min-width: 0;
+}
+.scene-tree-delete {
+  display: none;
+  flex: 0 0 auto;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: #d65b4b;
+  color: #fff;
+  font-size: 1.25rem;
+  line-height: 1;
+}
+@media (pointer: coarse) {
+  .scene-tree-delete {
+    display: grid;
+    place-items: center;
+  }
+}
 
 .interaction-form {
   padding: 0.9rem;
@@ -727,18 +755,6 @@ a {
   font-weight: 650;
   pointer-events: auto;
   touch-action: manipulation;
-}
-.build-version {
-  position: absolute;
-  right: 0.75rem;
-  top: 0.75rem;
-  z-index: 4;
-  padding: 0.2rem 0.4rem;
-  border-radius: 0.25rem;
-  color: rgb(255 255 255 / 82%);
-  background: rgb(20 25 22 / 65%);
-  font: 500 0.65rem/1.2 ui-monospace, SFMono-Regular, Consolas, monospace;
-  pointer-events: none;
 }
 @media (hover: none) and (pointer: coarse) and (orientation: landscape) {
   .is-walking .mobile-controls {

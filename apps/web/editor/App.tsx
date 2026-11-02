@@ -366,8 +366,10 @@ export function App() {
           objects={objects}
           selectedId={roomSelected ? projectScene.id : selection}
           selectedObject={selectedObject}
+          mobileDevice={mobileDevice}
           thumbnailFor={thumbnailFor}
           onSelect={setSelectedId}
+          onDelete={deleteSelection}
           onTransform={onTransform}
         />
 
@@ -423,9 +425,6 @@ export function App() {
               </p>
             </>
           )}
-          <span className="build-version" aria-label="Build version">
-            v2026.11.02-mobile-fps-20
-          </span>
         </Viewport>
       </main>
       <p
