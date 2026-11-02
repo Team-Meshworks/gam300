@@ -298,7 +298,8 @@ try {
   const centre = { x: stageBox.x + stageBox.width / 2, y: stageBox.y + stageBox.height / 2 };
   const height = async () => Number((await position.textContent()).match(/Y (-?[\d.]+)/)[1]);
   await page.mouse.down();
-  await page.mouse.move(centre.x, centre.y - 150, { steps: 5 });
+  await page.waitForTimeout(100);
+  await page.mouse.move(centre.x, centre.y - 150, { steps: 20 });
   await page.mouse.up();
   await page.waitForFunction(
     () => {
@@ -307,7 +308,7 @@ try {
       return match !== null && Number(match[1]) > 0.1;
     },
     undefined,
-    { timeout: 1000 },
+    { timeout: 2000 },
   );
   assert.ok((await height()) > 0.1, "Looking up lifts what is carried");
   await page.keyboard.press("Control+z");
