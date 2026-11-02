@@ -833,11 +833,16 @@ export function initScene(
             const scaleStrength =
               Math.abs(verticalDistance - touchPair.startVerticalDistance) / 12;
             const rotationStrength = (Math.abs(rotationDelta) * distance) / 18;
+            const diagonalStart = Math.abs(Math.sin(touchPair.startAngle * 2)) >= 0.5;
+            const scaleWins =
+              scaleIntent &&
+              (!rotationIntent &&
+                (!diagonalStart || scaleStrength >= rotationStrength));
             touchGesture = {
               id: object.id,
               transform: base,
               current: base,
-              mode: scaleStrength >= rotationStrength ? "scale" : "rotate",
+              mode: scaleWins ? "scale" : "rotate",
               startVerticalDistance: Math.max(verticalDistance, 1),
               startAngle: angle,
               rotationAxis: camera.getWorldDirection(new THREE.Vector3()).normalize(),
