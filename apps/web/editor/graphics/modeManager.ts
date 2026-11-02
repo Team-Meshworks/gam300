@@ -83,11 +83,7 @@ export class ModeManager {
 
   // A project's start camera just replaced the pose, so first person begins from it again
   resetView(): void {
-    if (
-      this.state.view === "first" &&
-      this.state.mode === "editor" &&
-      this.fps.isEngaged()
-    ) {
+    if (this.state.view === "first" && this.state.mode === "editor" && this.fps.isEngaged()) {
       this.fps.disengage();
       this.startWalking(true);
     }

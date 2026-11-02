@@ -221,8 +221,7 @@ export function initScene(
   let pendingPreview: { id: string; transform: Transform } | undefined;
   const touchPoints = new Map<number, { x: number; y: number }>();
   let touchPair:
-    | { startDistance: number; startVerticalDistance: number; startAngle: number }
-    | undefined;
+    { startDistance: number; startVerticalDistance: number; startAngle: number } | undefined;
   let touchGesture:
     | {
         id: string;
@@ -411,10 +410,10 @@ export function initScene(
     // Renaming a view can produce a fresh object with the same pose. Keep the live camera still.
     const cameraChanged =
       startingCamera !== null &&
-        (appliedCamera === null ||
-          appliedSceneId !== projectScene?.id ||
-          JSON.stringify(appliedCamera) !== JSON.stringify(startingCamera) ||
-          (previousLoadGeneration !== loadGeneration && previousSelectedId === nextSelectedId));
+      (appliedCamera === null ||
+        appliedSceneId !== projectScene?.id ||
+        JSON.stringify(appliedCamera) !== JSON.stringify(startingCamera) ||
+        (previousLoadGeneration !== loadGeneration && previousSelectedId === nextSelectedId));
     if (cameraChanged) {
       modeManager.setMode("editor");
       appliedCamera = startingCamera;
@@ -830,14 +829,13 @@ export function initScene(
             const activeDrag = drag;
             const base = activeDrag?.id === object.id ? activeDrag.current : object.transform;
             if (activeDrag !== undefined) cancelDrag();
-            const scaleStrength =
-              Math.abs(verticalDistance - touchPair.startVerticalDistance) / 12;
+            const scaleStrength = Math.abs(verticalDistance - touchPair.startVerticalDistance) / 12;
             const rotationStrength = (Math.abs(rotationDelta) * distance) / 18;
             const diagonalStart = Math.abs(Math.sin(touchPair.startAngle * 2)) >= 0.5;
             const scaleWins =
               scaleIntent &&
-              (!rotationIntent &&
-                (!diagonalStart || scaleStrength >= rotationStrength));
+              !rotationIntent &&
+              (!diagonalStart || scaleStrength >= rotationStrength);
             touchGesture = {
               id: object.id,
               transform: base,

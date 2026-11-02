@@ -268,7 +268,9 @@ export function App() {
   }
 
   return (
-    <div className={`editor-shell${visitor ? " is-previewing" : ""}${walking ? " is-walking" : ""}`}>
+    <div
+      className={`editor-shell${visitor ? " is-previewing" : ""}${walking ? " is-walking" : ""}`}
+    >
       <a className="skip-link" href="#viewport">
         Skip to scene
       </a>

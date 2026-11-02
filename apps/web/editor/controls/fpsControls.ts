@@ -200,13 +200,9 @@ export class FpsControls {
     const maxSpeed = shift && !this.flying ? SPRINT_SPEED : WALK_SPEED;
 
     const inputZ =
-      (this.keys.has("KeyW") ? 1 : 0) -
-      (this.keys.has("KeyS") ? 1 : 0) +
-      this.mobileMoveZ;
+      (this.keys.has("KeyW") ? 1 : 0) - (this.keys.has("KeyS") ? 1 : 0) + this.mobileMoveZ;
     const inputX =
-      (this.keys.has("KeyD") ? 1 : 0) -
-      (this.keys.has("KeyA") ? 1 : 0) +
-      this.mobileMoveX;
+      (this.keys.has("KeyD") ? 1 : 0) - (this.keys.has("KeyA") ? 1 : 0) + this.mobileMoveX;
     _forward.set(0, 0, -1).applyQuaternion(this.camera.quaternion);
     if (!this.flying) _forward.y = 0;
     if (_forward.lengthSq() < 1e-8) {
@@ -219,10 +215,7 @@ export class FpsControls {
     _right.y = 0;
     _right.normalize();
 
-    _wish
-      .set(0, 0, 0)
-      .addScaledVector(_forward, inputZ)
-      .addScaledVector(_right, inputX);
+    _wish.set(0, 0, 0).addScaledVector(_forward, inputZ).addScaledVector(_right, inputX);
     if (_wish.lengthSq() > 0) _wish.normalize().multiplyScalar(maxSpeed);
 
     const smoothing = 1 - Math.exp(-ACCELERATION * delta);
