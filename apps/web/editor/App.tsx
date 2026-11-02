@@ -408,7 +408,7 @@ export function App() {
               <p className="walk-hint">
                 {captured
                   ? `${visitor ? "" : "Click selects what's under the + · Hold the click to carry it, scroll to push or pull · Hold right click to turn it · "}Hold Alt for the mouse · Esc to stop`
-                  : `${canCapture ? "Click the scene" : "Drag"} to look around · WASD to walk · Space to jump, double tap to fly`}
+                  : `${canCapture ? "Click the scene" : "Drag"} to look around · WASD to walk · Space to jump, double tap to fly · C to go down`}
               </p>
             </>
           )}

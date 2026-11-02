@@ -13,8 +13,17 @@ const LOOK_SPEED = 0.002;
 const MAX_PITCH = Math.PI / 2 - 0.01;
 const PHYSICS_DT = 1 / 240;
 
-// Ctrl is left out on purpose, Ctrl+W closes the tab and Ctrl+D/Z are editor shortcuts
-const HANDLED_KEYS = new Set(["KeyW", "KeyA", "KeyS", "KeyD", "Space", "ShiftLeft", "ShiftRight"]);
+// C goes down instead of Ctrl, Ctrl+W closes the tab and Ctrl is kept for snapping
+const HANDLED_KEYS = new Set([
+  "KeyW",
+  "KeyA",
+  "KeyS",
+  "KeyD",
+  "KeyC",
+  "Space",
+  "ShiftLeft",
+  "ShiftRight",
+]);
 
 const _forward = new THREE.Vector3();
 const _right = new THREE.Vector3();
@@ -151,10 +160,9 @@ export class FpsControls {
   }
 
   private step(delta: number): void {
-    const shift = this.keys.has("ShiftLeft") || this.keys.has("ShiftRight");
+    const sprint = this.keys.has("ShiftLeft") || this.keys.has("ShiftRight");
     const space = this.keys.has("Space");
-    // Shift is sprint on the ground and going down while flying
-    const maxSpeed = shift && !this.flying ? SPRINT_SPEED : WALK_SPEED;
+    const maxSpeed = sprint ? SPRINT_SPEED : WALK_SPEED;
 
     const inputZ = (this.keys.has("KeyW") ? 1 : 0) - (this.keys.has("KeyS") ? 1 : 0);
     const inputX = (this.keys.has("KeyD") ? 1 : 0) - (this.keys.has("KeyA") ? 1 : 0);
@@ -177,7 +185,8 @@ export class FpsControls {
     const smoothing = 1 - Math.exp(-ACCELERATION * delta);
     const previous = this.velocity.clone();
     if (this.flying) {
-      _wish.y = ((space ? 1 : 0) - (shift ? 1 : 0)) * WALK_SPEED;
+      // Space goes up and C goes down while flying
+      _wish.y = ((space ? 1 : 0) - (this.keys.has("KeyC") ? 1 : 0)) * WALK_SPEED;
       this.velocity.lerp(_wish, smoothing);
     } else {
       // Only the sideways part eases in, up and down is jumping and gravity
