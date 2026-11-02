@@ -44,6 +44,40 @@ public sealed class AssetIntakeTests
     }
 
     [Test]
+    public async Task Intake_WarningSaturationCannotProduceAnApprovableCandidate()
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
+        await fixture.SignInAsync(await fixture.CreateAccountAsync(ApplicationRoles.Administrator));
+        var token = await fixture.GetCsrfAsync();
+
+        // Saturate the validator with warnings before its unresolved scene reference can be reported
+        var document = JsonSerializer.Serialize(new
+        {
+            asset = new { version = "2.0" },
+            nodes = Enumerable.Range(0, 110).Select(_ => new { unexpectedProperty = true }).ToArray(),
+            scenes = new[] { new { nodes = new[] { 999 } } },
+            scene = 0
+        });
+        using var upload = new HttpRequestMessage(HttpMethod.Post, "/api/admin/assets?name=invalid.glb&kind=model&category=Objects");
+        upload.Headers.Add("X-CSRF-TOKEN", token);
+        upload.Content = new ByteArrayContent(CreateMinimalGlb(document));
+        upload.Content.Headers.ContentType = new("model/gltf-binary");
+        using var submitted = await fixture.Client.SendAsync(upload);
+        await Assert.That(submitted.StatusCode).IsEqualTo(HttpStatusCode.Created);
+        var candidate = (await submitted.Content.ReadFromJsonAsync<AssetAdministrationRecord>())!;
+        await Assert.That(candidate.Status).IsEqualTo("invalid");
+
+        // Retain private diagnostics for inspection while preventing review from approving incomplete validation
+        using var review = new HttpRequestMessage(HttpMethod.Post, $"/api/admin/assets/{candidate.Id}/approve");
+        review.Headers.Add("X-CSRF-TOKEN", token);
+        review.Content = JsonContent.Create(new AssetReviewRequest("Synthetic source", "Synthetic rights", "Synthetic review"));
+        using var rejected = await fixture.Client.SendAsync(review);
+        await Assert.That(rejected.StatusCode).IsEqualTo(HttpStatusCode.Conflict);
+        using var bytes = await fixture.Client.GetAsync($"/api/assets/{candidate.Id}/bytes");
+        await Assert.That(bytes.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+    }
+
+    [Test]
     public async Task Intake_PrivateCandidatePersistsAcrossScopesAndDeletionRetainsExactReviewedBytes()
     {
         // Follow one upload through private validation, explicit approval and retained project delivery
@@ -191,10 +225,10 @@ public sealed class AssetIntakeTests
         await Assert.That(await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().AssetCandidates.CountAsync()).IsEqualTo(0);
     }
     // Keep API tests independent of Git LFS while exercising the real GLB validator
-    private static byte[] CreateMinimalGlb()
+    private static byte[] CreateMinimalGlb(string? document = null)
     {
         // Cross the default small JSON-request budget so this also proves the upload route's larger limit applies
-        var json = System.Text.Encoding.UTF8.GetBytes("{\"asset\":{\"version\":\"2.0\"},\"scene\":0,\"scenes\":[{\"nodes\":[0]}],\"nodes\":[{}],\"extras\":{\"padding\":\"" + new string('x', 32 * 1024) + "\"}}");
+        var json = System.Text.Encoding.UTF8.GetBytes(document ?? "{\"asset\":{\"version\":\"2.0\"},\"scene\":0,\"scenes\":[{\"nodes\":[0]}],\"nodes\":[{}],\"extras\":{\"padding\":\"" + new string('x', 32 * 1024) + "\"}}");
         var padded = (json.Length + 3) & ~3;
         var bytes = new byte[20 + padded];
         using var stream = new MemoryStream(bytes);

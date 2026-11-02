@@ -8,11 +8,15 @@ const { validateBytes } = requireFromWeb("gltf-validator");
 // No external resource resolver is supplied, so validation never fetches remote URLs
 export async function validateGlb(bytes, policy = {}) {
   // Run the standard format validator first, then apply the application's narrower delivery policy
-  // Return warning diagnostics for review while rejecting actual structural errors
+  // Reject incomplete reports too; warnings can exhaust the cap before structural errors are reached
   const report = await validateBytes(new Uint8Array(bytes), {
     uri: "candidate.glb",
     maxIssues: 100,
   });
+  if (report.issues.truncated)
+    throw new Error(
+      "GLB validation did not complete within the diagnostic limit",
+    );
   if (report.issues.numErrors > 0)
     throw new Error(
       "GLB validation failed: " +
