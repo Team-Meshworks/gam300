@@ -81,11 +81,14 @@ export class ModeManager {
     this.setState({ view });
   }
 
-  // A project's start camera just replaced the pose, so first person begins from it again
+  // A saved camera just replaced the pose, so first person carries on from exactly there.
+  // Standing on the floor is only for switching views. Third person returns to this pose too
   resetView(): void {
     if (this.state.view === "first" && this.state.mode === "editor" && this.fps.isEngaged()) {
-      this.fps.disengage();
-      this.startWalking(true);
+      this.savedPosition.copy(this.camera.position);
+      this.savedQuaternion.copy(this.camera.quaternion);
+      this.savedTarget.copy(this.orbit.target);
+      this.fps.sync();
     }
   }
 
