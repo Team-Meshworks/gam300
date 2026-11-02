@@ -13,6 +13,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Npgsql;
 using Spatia.Server.Accounts;
 using Spatia.Server.Assets;
+using Spatia.Server.Publications;
 using Spatia.Server.Classes;
 using Spatia.Server.Persistence;
 using Spatia.Server.Projects;
@@ -128,6 +129,8 @@ public static class SpatiaApplication
             options.SerializerOptions.AllowDuplicateProperties = false;
             options.SerializerOptions.UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow;
         });
+        builder.Services.AddHttpContextAccessor();
+        builder.Services.AddScoped<IPublicationAccessReader, StoredPublicationAccessReader>();
         builder.Services.AddScoped<AssetUploadValidator>();
         builder.Services.AddScoped<AssetAdministrationService>();
         builder.Services.AddScoped<AccountAdministrationService>();
@@ -216,6 +219,7 @@ public static class SpatiaApplication
         }).AllowAnonymous();
         app.MapAssetAdministration();
         app.MapAssetDelivery();
+        app.MapPublicationDelivery();
         app.MapAccountAdministration();
         app.MapAccountDirectory();
         app.MapAccountSessions();
