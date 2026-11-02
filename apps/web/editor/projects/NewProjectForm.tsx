@@ -3,6 +3,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faCircleInfo, faImage } from "@fortawesome/free-solid-svg-icons";
 import { Button } from "../../shared/ui/Button";
 import { Field } from "../../shared/ui/Field";
+import { playUiSound } from "../audio/ui-sounds";
 import { StudentSelector } from "./StudentSelector";
 import { ClassSelect } from "./ClassSelect";
 import { CoverImagePicker } from "./CoverImagePicker";
@@ -110,6 +111,7 @@ export function NewProjectForm({
       setError(result.message);
     } else if (result.kind === "created" && result.projectId) {
       setPhase("created");
+      playUiSound("save");
       try {
         onCreated?.(result.projectId);
       } catch {

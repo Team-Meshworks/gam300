@@ -44,6 +44,7 @@ export function useProjectSession(
   objectCount: number,
   onReplace: () => void,
   onNotice: (message: string) => void,
+  onSaved?: () => void,
 ) {
   const kinds = useMemo(() => new Map(assets.map((asset) => [asset.id, asset.kind])), [assets]);
   const [operation, setOperation] = useState<Operation>("recover");
@@ -393,6 +394,7 @@ export function useProjectSession(
       setSavedJson(encoded.value);
       setFileFailed(false);
       setNotice(`Saved ${handle.name}`);
+      onSaved?.();
 
       // Store the manual-save baseline alongside this snapshot for the next visit
       await persist(current, undefined, recoveryHistory);

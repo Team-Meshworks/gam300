@@ -8,6 +8,7 @@ import {
   type PointerEvent,
 } from "react";
 import type { CatalogueAsset } from "../../shared/asset-runtime/catalogue";
+import { playUiSound } from "../audio/ui-sounds";
 import type { NavigationTool } from "../graphics/scene";
 import { AssetPicker } from "./AssetPicker";
 import { dockEdges, loadDockEdge, nearestEdge, saveDockEdge, type DockEdge } from "./dock-edge";
@@ -280,6 +281,7 @@ export function BottomBar({
                         onClick={() => {
                           setPicked((previous) => ({ ...previous, [open.id]: index }));
                           setPopup(null);
+                          playUiSound("assetSelect");
                         }}
                         {...popupTip.handlers(item.label)}
                       >

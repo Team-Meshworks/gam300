@@ -5,6 +5,7 @@ const target = new URL(process.argv[2]);
 assert.equal(target.protocol, "https:");
 assert.equal(target.hostname, "127.0.0.1");
 const accounts = JSON.parse(process.argv[3]);
+const manager = JSON.parse(process.argv[4]);
 const origin = target.origin;
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE
   ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : "../../web/node_modules/playwright/index.mjs");
@@ -64,7 +65,7 @@ try {
     return page;
   };
   const page = await openPage();
-  const flow = await page.evaluate(async (accounts) => {
+  const flow = await page.evaluate(async ({ accounts, manager }) => {
     const get = async (path) => {
       const response = await fetch(path);
       return { status: response.status, body: await response.json(), cache: response.headers.get("cache-control") };
@@ -81,11 +82,16 @@ try {
       const account = accounts[index];
       const login = await post("/api/auth/login", { userName: account.userName, password: "Synthetic-long-password1!" });
       sessions.push({ login, list: await get("/api/projects"), open: await get("/api/projects/" + account.projectId),
-        denied: await get("/api/projects/" + accounts[1 - index].projectId) });
+        denied: await get("/api/projects/" + accounts[1 - index].projectId),
+        grants: await get("/api/projects/" + account.projectId + "/assignments") });
     }
+    const managerLogin = await post("/api/auth/login", { userName: manager.userName, password: "Synthetic-long-password1!" });
+    const grants = await get("/api/projects/" + accounts[0].projectId + "/assignments");
     const logout = await post("/api/auth/logout");
-    return { anonymous, sessions, logout, afterLogout: await get("/api/projects/" + accounts[1].projectId) };
-  }, accounts);
+    return { anonymous, sessions, managerLogin, grants, logout,
+      afterLogout: await get("/api/projects/" + accounts[1].projectId),
+      grantsAfterLogout: await get("/api/projects/" + accounts[0].projectId + "/assignments") };
+  }, { accounts, manager });
   assert.equal(flow.anonymous.status, 401);
   for (const [index, session] of flow.sessions.entries()) {
     assert.equal(session.login, 204);
@@ -105,9 +111,26 @@ try {
     assert.equal(session.denied.status, 404);
     assert.equal(session.denied.body.code, "project_not_found");
     assert.equal(Object.hasOwn(session.denied.body, "document"), false);
+    assert.equal(session.grants.status, 403);
+    assert.equal(session.grants.body.code, "access_denied");
+    assert.equal(Object.hasOwn(session.grants.body, "assignments"), false);
   }
+  assert.equal(flow.managerLogin, 204);
+  assert.equal(flow.grants.status, 200);
+  assert.equal(flow.grants.cache, "no-store");
+  assert.deepEqual(flow.grants.body, {
+    projectId: accounts[0].projectId,
+    organizationId: manager.organizationId,
+    revision: 7,
+    archived: false,
+    assignments: [
+      { userId: accounts[0].userId, canEdit: true, canManage: false, canPublish: false },
+      { userId: manager.userId, canEdit: true, canManage: true, canPublish: true },
+    ].sort((left, right) => left.userId.localeCompare(right.userId)),
+  });
   assert.equal(flow.logout, 204);
   assert.equal(flow.afterLogout.status, 401);
+  assert.equal(flow.grantsAfterLogout.status, 401);
 
   const fresh = await openPage();
   const reopened = await fresh.evaluate(async (account) => {

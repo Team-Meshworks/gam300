@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { WorkspaceShell } from "../../shared/ui/WorkspaceShell";
 import { Dialog } from "../../shared/ui/Dialog";
 import { PageState } from "../../shared/ui/PageState";
+import { playUiSound } from "../audio/ui-sounds";
 import { NewProjectExample } from "./NewProjectExample";
 import { ReviewExample } from "./ReviewExample";
 import { AccountsExample } from "./AccountsExample";
@@ -141,6 +142,7 @@ export function FoundationPreview() {
             <NewProjectExample
               onPreview={openPreview}
               onCancel={() => {
+                playUiSound("goingBack");
                 location.hash = newProjectOrigin.current;
               }}
             />
