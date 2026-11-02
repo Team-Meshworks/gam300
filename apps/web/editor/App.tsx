@@ -213,7 +213,9 @@ export function App() {
     // Choosing the first room turns the grid scene into a saveable project
     // Room placement uses the environment slot so it survives JSON reconstruction
     if (assetKinds.get(assetId) === "environment") {
-      if (session.busy) {
+      const creatingDuringInitialRecovery =
+        session.busy && session.operation === "recover" && project === null;
+      if (session.busy && !creatingDuringInitialRecovery) {
         setNotice("Wait for the project to finish opening, then choose a room");
         return;
       }
@@ -266,7 +268,7 @@ export function App() {
   }
 
   return (
-    <div className={`editor-shell${visitor ? " is-previewing" : ""}`}>
+    <div className={`editor-shell${visitor ? " is-previewing" : ""}${walking ? " is-walking" : ""}`}>
       <a className="skip-link" href="#viewport">
         Skip to scene
       </a>
@@ -407,9 +409,9 @@ export function App() {
               onToolChange={setNavigationTool}
               showCameraTools={view === "third"}
             />
-          ) : (
-            mobileDevice &&
-            mobileControls !== null && <MobileControls controls={mobileControls} />
+          ) : null}
+          {mobileDevice && walking && mobileControls !== null && (
+            <MobileControls controls={mobileControls} />
           )}
           {walking && status === "ready" && (
             <>
@@ -421,6 +423,9 @@ export function App() {
               </p>
             </>
           )}
+          <span className="build-version" aria-label="Build version">
+            v2026.11.02-mobile-fps-15
+          </span>
         </Viewport>
       </main>
       <p

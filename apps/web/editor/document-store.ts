@@ -39,9 +39,28 @@ function toContentProject(project: ProjectDocument): ContentProject {
 
 function createProjectId(): string {
   const timestamp = Date.now().toString(16).padStart(12, "0");
-  const random = crypto.randomUUID();
+  const random = createId();
   // RFC 9562 v7 keeps the native UUID's variant and 74 random suffix bits
   return `${timestamp.slice(0, 8)}-${timestamp.slice(8)}-7${random.slice(15)}`;
+}
+
+function createId(): string {
+  if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  if (typeof crypto.getRandomValues === "function") {
+    const bytes = crypto.getRandomValues(new Uint8Array(16));
+    bytes[6] = (bytes[6]! & 0x0f) | 0x40;
+    bytes[8] = (bytes[8]! & 0x3f) | 0x80;
+    return [...bytes]
+      .map((byte, index) => {
+        const value = byte.toString(16).padStart(2, "0");
+        return [4, 6, 8, 10].includes(index) ? `-${value}` : value;
+      })
+      .join("");
+  }
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (character) => {
+    const value = Math.floor(Math.random() * 16);
+    return (character === "x" ? value : (value & 0x3) | 0x8).toString(16);
+  });
 }
 
 function freezeProject(project: ProjectDocument): ProjectDocument {
@@ -244,7 +263,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
 
     // Content-free copies retain their authored visibility and parent membership
     const object: SceneObject = Object.freeze({
-      id: crypto.randomUUID(),
+      id: createId(),
       name: source.name,
       assetId: source.assetId,
       transform: Object.freeze(transform),
@@ -328,7 +347,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       if (!name.trim() || name.trim().length > 120)
         return invalid("name", "Enter a scene name between 1 and 120 characters");
       const scene: ContentScene = {
-        id: crypto.randomUUID(),
+        id: createId(),
         name: name.trim(),
         environmentAssetId,
         startCamera: {
@@ -463,7 +482,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       if (!checked.ok) return checked;
       return editViews([
         ...(state.viewpoints ?? []),
-        { id: crypto.randomUUID(), name: name.trim(), camera: checked.value },
+        { id: createId(), name: name.trim(), camera: checked.value },
       ]);
     },
     renameViewpoint(id: string, name: string): ValidationResult<true> {
@@ -536,7 +555,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
 
       // A fresh token prevents late events from an older drag changing this one.
       edit = Object.freeze({
-        token: crypto.randomUUID(),
+        token: createId(),
         objectId,
         before: object.transform,
         after: object.transform,
@@ -637,7 +656,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
         title: "Untitled project",
         scenes: [
           {
-            id: crypto.randomUUID(),
+            id: createId(),
             name: environment.name,
             environmentAssetId,
 
@@ -787,7 +806,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
         return { ok: false, error: "This scene has reached its 200-object limit." } as const;
       }
       const object: SceneObject = Object.freeze({
-        id: crypto.randomUUID(),
+        id: createId(),
         name: `${asset.name} ${objects.length + 1}`,
         assetId: asset.id,
         transform: Object.freeze({

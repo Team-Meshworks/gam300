@@ -31,7 +31,7 @@ export class ModeManager {
     this.camera = camera;
     this.orbit = orbit;
     this.fps = fps;
-    this.state = { mode: "editor", view: "third", captured: false, canCapture: fps.canCapture() };
+    this.state = { mode: "editor", view: "first", captured: false, canCapture: fps.canCapture() };
     fps.onCaptureChange = () =>
       this.setState({ captured: fps.isCaptured(), canCapture: fps.canCapture() });
   }
@@ -74,9 +74,20 @@ export class ModeManager {
     this.setState({ view });
   }
 
+  initializeView(view: CameraView): void {
+    if (view === "first" && this.state.mode === "editor") {
+      this.startWalking(true);
+    }
+    this.setState({ view });
+  }
+
   // A project's start camera just replaced the pose, so first person begins from it again
   resetView(): void {
-    if (!this.usesOrbit() && this.state.mode === "editor") {
+    if (
+      this.state.view === "first" &&
+      this.state.mode === "editor" &&
+      this.fps.isEngaged()
+    ) {
       this.fps.disengage();
       this.startWalking(true);
     }

@@ -34,6 +34,7 @@ const CARRY_REACH = 6;
 const CARRY_NEAR = 1;
 // Metres the aim must travel before a held click starts carrying, like a drag threshold
 const CARRY_DEAD_ZONE = 0.05;
+const MOBILE_GIZMO_HIT_RADIUS = 32;
 
 // One lazy renderer-module owner per editor page, shared across viewport retries/remounts
 export const editorModelCache = new ModelCache();
@@ -184,7 +185,9 @@ export function initScene(
   let selectedId: string | null = null;
   let projectScene: ProjectScene | null = null;
   let appliedCamera: CameraPose | null = null;
-  let appliedLoadGeneration: number | undefined;
+  let previousLoadGeneration: number | undefined;
+  let previousSelectedId: string | null = null;
+  let appliedSceneId: string | undefined;
   let environment: THREE.Group | undefined;
   let environmentId: string | undefined;
   const environmentBounds = new THREE.Box3();
@@ -214,6 +217,8 @@ export function initScene(
   // Scroll that is shown but not yet saved.
   let wheelEdit:
     { id: string; transform: Transform; current: Transform; timer: number } | undefined;
+  let previewFrame: number | undefined;
+  let pendingPreview: { id: string; transform: Transform } | undefined;
 
   function render() {
     if (!disposed) {
@@ -256,15 +261,18 @@ export function initScene(
     gizmo.position.copy(instance.position);
     camera.updateMatrixWorld(true);
     const pivot = instance.position;
-    const distance = camera.position.distanceTo(pivot);
+    const distance = THREE.MathUtils.clamp(camera.position.distanceTo(pivot), 0.25, 1000);
     const forward = camera.getWorldDirection(new THREE.Vector3());
     if (pivot.clone().sub(camera.position).dot(forward) <= camera.near) {
       gizmo.visible = false;
       return;
     }
-    const pixelScale =
+    const pixelScale = THREE.MathUtils.clamp(
       (2 * distance * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2))) /
-      Math.max(renderer.domElement.clientHeight, 1);
+        Math.max(renderer.domElement.clientHeight, 1),
+      0.0001,
+      100,
+    );
     const start = projectedPoint(pivot);
     for (const handle of handles) {
       const trial = projectedPoint(pivot.clone().addScaledVector(handle.axis, 80 * pixelScale));
@@ -280,10 +288,10 @@ export function initScene(
     }
   }
 
-  function pickHandle(clientX: number, clientY: number) {
+  function pickHandle(clientX: number, clientY: number, hitRadius = 10) {
     if (!gizmo.visible) return;
     const pivot = projectedPoint(gizmo.position);
-    let nearest = 10;
+    let nearest = hitRadius;
     let picked: (typeof handles)[number] | undefined;
     for (const handle of handles) {
       if (!handle.visible) continue;
@@ -386,16 +394,20 @@ export function initScene(
     // Selection and placement keep the same camera-pose reference
     const startingCamera = projectScene ? getStartingCamera(projectScene) : null;
     // Renaming a view can produce a fresh object with the same pose. Keep the live camera still.
-    if (
+    const cameraChanged =
       startingCamera !== null &&
-      (appliedLoadGeneration !== loadGeneration ||
-        JSON.stringify(appliedCamera) !== JSON.stringify(startingCamera))
-    ) {
+        (appliedCamera === null ||
+          appliedSceneId !== projectScene?.id ||
+          JSON.stringify(appliedCamera) !== JSON.stringify(startingCamera) ||
+          (previousLoadGeneration !== loadGeneration && previousSelectedId === nextSelectedId));
+    if (cameraChanged) {
       modeManager.setMode("editor");
       appliedCamera = startingCamera;
-      appliedLoadGeneration = loadGeneration;
+      appliedSceneId = projectScene?.id;
       showCamera(appliedCamera);
     }
+    previousLoadGeneration = loadGeneration;
+    previousSelectedId = nextSelectedId;
 
     if (ready && environmentId !== (projectScene?.environmentAssetId ?? undefined)) {
       // Environment stays at its exported origin, outside the placed-object list
@@ -501,7 +513,7 @@ export function initScene(
     render();
   }
 
-  function previewTransform(id: string, transform: Transform) {
+  function applyPreviewTransform(id: string, transform: Transform) {
     const instance = instances.get(id);
     if (instance === undefined) return;
     applyTransform(instance, transform);
@@ -512,13 +524,32 @@ export function initScene(
     render();
   }
 
+  function previewTransform(id: string, transform: Transform, immediate = false) {
+    pendingPreview = { id, transform };
+    if (immediate) {
+      if (previewFrame !== undefined) cancelAnimationFrame(previewFrame);
+      previewFrame = undefined;
+      const next = pendingPreview;
+      pendingPreview = undefined;
+      applyPreviewTransform(next.id, next.transform);
+      return;
+    }
+    if (previewFrame !== undefined) return;
+    previewFrame = requestAnimationFrame(() => {
+      previewFrame = undefined;
+      const next = pendingPreview;
+      pendingPreview = undefined;
+      if (next !== undefined) applyPreviewTransform(next.id, next.transform);
+    });
+  }
+
   function cancelDrag() {
     if (drag === undefined) return;
     const previous = drag;
     drag = undefined;
     orbit.enabled = orbitEnabledBeforeDrag;
     fpsControls.holdLook(false);
-    previewTransform(previous.id, previous.transform);
+    previewTransform(previous.id, previous.transform, true);
     if (renderer.domElement.hasPointerCapture(previous.pointerId)) {
       renderer.domElement.releasePointerCapture(previous.pointerId);
     }
@@ -537,6 +568,7 @@ export function initScene(
     const completed = wheelEdit;
     wheelEdit = undefined;
     clearTimeout(completed.timer);
+    previewTransform(completed.id, completed.current, true);
     callbacks.onTransform(completed.id, completed.current);
   }
 
@@ -657,8 +689,9 @@ export function initScene(
       event.preventDefault();
       return;
     }
-    // With the mouse locked, clicking pick what the crosshair is on. Holding the left button
-    // carry it and holding the right one turn it. Hold Alt to drag the gizmo instead
+    // First-person touch uses the same hold-to-carry path without pointer lock.
+    // With the mouse locked, clicking picks what the crosshair is on.
+    // Holding the left button carries the object; holding right turns it.
     if (fpsControls.isCaptured()) {
       const aim = aimPoint(event);
       const id = pickObject(aim.x, aim.y);
@@ -667,7 +700,11 @@ export function initScene(
       else startTurn(event, id);
       return;
     }
-    const handle = pickHandle(event.clientX, event.clientY);
+    const handle = pickHandle(
+      event.clientX,
+      event.clientY,
+      event.pointerType === "touch" ? MOBILE_GIZMO_HIT_RADIUS : 10,
+    );
     if (event.button === 2) {
       startRotation(event, handle);
       return;
@@ -756,10 +793,9 @@ export function initScene(
     if (renderer.domElement.hasPointerCapture(event.pointerId)) {
       renderer.domElement.releasePointerCapture(event.pointerId);
     }
+    previewTransform(completed.id, completed.current, true);
     if (completed.current !== completed.transform) {
       callbacks.onTransform(completed.id, completed.current);
-    } else {
-      previewTransform(completed.id, completed.transform);
     }
   }
 
@@ -808,7 +844,7 @@ export function initScene(
     edit.current = { ...edit.current, scale: scaleBy(edit.current.scale, factor) };
     edit.timer = window.setTimeout(commitWheelEdit, WHEEL_COMMIT_DELAY_MS);
     wheelEdit = edit;
-    previewTransform(edit.id, edit.current);
+    previewTransform(edit.id, edit.current, true);
   }
 
   function keyDown(event: KeyboardEvent) {
@@ -932,6 +968,9 @@ export function initScene(
       if (disposed) {
         return;
       }
+      if (previewFrame !== undefined) cancelAnimationFrame(previewFrame);
+      previewFrame = undefined;
+      pendingPreview = undefined;
       cancelDrag();
       cancelWheelEdit();
       disposed = true;

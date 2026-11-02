@@ -10,6 +10,7 @@ const JUMP_SPEED = 6;
 // Two Space presses this close together turn flying on or off, like Minecraft creative
 const DOUBLE_TAP_MS = 300;
 const LOOK_SPEED = 0.002;
+const MAX_LOOK_STEP = 100;
 const MAX_PITCH = Math.PI / 2 - 0.01;
 const PHYSICS_DT = 1 / 240;
 
@@ -23,7 +24,7 @@ const _wish = new THREE.Vector3();
 export interface FpsMobileControls {
   setMove(x: number, z: number): void;
   setLook(x: number, y: number): void;
-  setFlyEnabled(enabled: boolean): void;
+  jump(): void;
 }
 
 export class FpsControls {
@@ -38,6 +39,7 @@ export class FpsControls {
   private flying = false;
   private lastSpace = -Infinity;
   private captured = false;
+  private ignoreNextCapturedMove = false;
   // Embedded browsers can refuse the lock for good, then dragging is how you look around
   private lockable: boolean;
   // Alt let go of the mouse, so letting go of Alt should take it back
@@ -52,7 +54,8 @@ export class FpsControls {
   private mobileMoveZ = 0;
   private mobileLookX = 0;
   private mobileLookY = 0;
-  private flyEnabled = false;
+  private mobileJump = false;
+  private lastMobileJump = -Infinity;
   readonly mobileControls: FpsMobileControls = {
     setMove: (x, z) => {
       this.mobileMoveX = THREE.MathUtils.clamp(x, -1, 1);
@@ -62,8 +65,16 @@ export class FpsControls {
       this.mobileLookX += x;
       this.mobileLookY += y;
     },
-    setFlyEnabled: (enabled) => {
-      this.flyEnabled = enabled;
+    jump: () => {
+      const now = performance.now();
+      if (now - this.lastMobileJump < DOUBLE_TAP_MS) {
+        this.flying = !this.flying;
+        this.velocity.y = 0;
+        this.lastMobileJump = -Infinity;
+      } else {
+        this.lastMobileJump = now;
+        this.mobileJump = true;
+      }
     },
   };
   onCaptureChange: () => void = () => {};
@@ -84,7 +95,6 @@ export class FpsControls {
     this.keys.clear();
     this.dragging = false;
     this.resetMobileInput();
-    this.applyRotation();
     this.sync();
     addEventListener("keydown", this.onKeyDown);
     addEventListener("keyup", this.onKeyUp);
@@ -130,6 +140,10 @@ export class FpsControls {
     return this.captured;
   }
 
+  isEngaged(): boolean {
+    return this.engaged;
+  }
+
   canCapture(): boolean {
     return this.lockable;
   }
@@ -172,6 +186,7 @@ export class FpsControls {
       this.step(PHYSICS_DT);
       this.accumulated -= PHYSICS_DT;
     }
+    this.mobileJump = false;
 
     this.camera.position
       .copy(this.previousPhysics)
@@ -180,7 +195,7 @@ export class FpsControls {
 
   private step(delta: number): void {
     const shift = this.keys.has("ShiftLeft") || this.keys.has("ShiftRight");
-    const space = this.keys.has("Space");
+    const space = this.keys.has("Space") || this.mobileJump;
     // Shift is sprint on the ground and going down while flying
     const maxSpeed = shift && !this.flying ? SPRINT_SPEED : WALK_SPEED;
 
@@ -192,14 +207,8 @@ export class FpsControls {
       (this.keys.has("KeyD") ? 1 : 0) -
       (this.keys.has("KeyA") ? 1 : 0) +
       this.mobileMoveX;
-    const inputY =
-      (this.keys.has("Space") ? 1 : 0) -
-      (this.keys.has("ControlLeft") || this.keys.has("ControlRight") ? 1 : 0);
-    const inputZ = (this.keys.has("KeyW") ? 1 : 0) - (this.keys.has("KeyS") ? 1 : 0);
-    const inputX = (this.keys.has("KeyD") ? 1 : 0) - (this.keys.has("KeyA") ? 1 : 0);
-
     _forward.set(0, 0, -1).applyQuaternion(this.camera.quaternion);
-    if (!this.flyEnabled) _forward.y = 0;
+    if (!this.flying) _forward.y = 0;
     if (_forward.lengthSq() < 1e-8) {
       _forward.set(0, 0, -1);
     } else {
@@ -211,16 +220,17 @@ export class FpsControls {
     _right.normalize();
 
     _wish
-      .set(0, this.flyEnabled ? 0 : inputY, 0)
+      .set(0, 0, 0)
       .addScaledVector(_forward, inputZ)
       .addScaledVector(_right, inputX);
-    _wish.set(0, 0, 0).addScaledVector(_forward, inputZ).addScaledVector(_right, inputX);
     if (_wish.lengthSq() > 0) _wish.normalize().multiplyScalar(maxSpeed);
 
     const smoothing = 1 - Math.exp(-ACCELERATION * delta);
     const previous = this.velocity.clone();
     if (this.flying) {
-      _wish.y = ((space ? 1 : 0) - (shift ? 1 : 0)) * WALK_SPEED;
+      // In flight, the mobile forward stick follows the camera pitch. Keyboard
+      // vertical input remains available without overriding that direction.
+      _wish.y += ((space ? 1 : 0) - (shift ? 1 : 0)) * WALK_SPEED;
       this.velocity.lerp(_wish, smoothing);
     } else {
       // Only the sideways part eases in, up and down is jumping and gravity
@@ -243,9 +253,10 @@ export class FpsControls {
   }
 
   private capture(): void {
-    // Some browsers return nothing, others a promise that rejects when the lock is refused
+    // Keep the legacy request for browsers that silently fail the options form.
+    // Delta validation below provides the safety against bogus movement events.
     Promise.resolve(this.domElement.requestPointerLock()).catch((error: unknown) => {
-      // Chrome refuses for a moment after Esc, any other refusal mean this page can never lock
+      // Chrome refuses for a moment after Esc; other refusals mean this page cannot lock.
       if (error instanceof DOMException && error.name !== "SecurityError") {
         this.lockable = false;
         this.onCaptureChange();
@@ -262,8 +273,23 @@ export class FpsControls {
 
   private readonly onPointerMove = (event: MouseEvent) => {
     if (!this.engaged || this.lookHeld || (!this.captured && !this.dragging)) return;
-    this.yaw -= event.movementX * LOOK_SPEED;
-    this.pitch -= event.movementY * LOOK_SPEED;
+    if (this.captured && this.ignoreNextCapturedMove) {
+      this.ignoreNextCapturedMove = false;
+      return;
+    }
+    // Browsers can report stale, very large, or non-finite deltas when pointer
+    // lock is acquired or restored. Ignore those events instead of teleporting.
+    if (
+      !Number.isFinite(event.movementX) ||
+      !Number.isFinite(event.movementY) ||
+      Math.abs(event.movementX) > MAX_LOOK_STEP ||
+      Math.abs(event.movementY) > MAX_LOOK_STEP
+    )
+      return;
+    const movementX = event.movementX;
+    const movementY = event.movementY;
+    this.yaw -= movementX * LOOK_SPEED;
+    this.pitch -= movementY * LOOK_SPEED;
     this.pitch = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, this.pitch));
   };
 
@@ -276,6 +302,7 @@ export class FpsControls {
     if (captured === this.captured) return;
     this.captured = captured;
     this.dragging = false;
+    this.ignoreNextCapturedMove = captured;
     this.onCaptureChange();
   };
 
@@ -358,6 +385,7 @@ export class FpsControls {
     this.mobileMoveZ = 0;
     this.mobileLookX = 0;
     this.mobileLookY = 0;
-    this.flyEnabled = false;
+    this.mobileJump = false;
+    this.lastMobileJump = -Infinity;
   }
 }

@@ -74,28 +74,26 @@ function Joystick({ label, side, onMove, onRelease }: JoystickProps) {
 }
 
 export function MobileControls({ controls }: { controls: FpsMobileControls }) {
-  const [flyEnabled, setFlyEnabled] = useState(false);
-
   return (
     <div className="mobile-controls" aria-label="Mobile first-person controls">
-      <Joystick
-        label="Move"
-        side="left"
-        onMove={(x, y) => controls.setMove(x, y)}
-        onRelease={() => controls.setMove(0, 0)}
-      />
-      <button
-        className="mobile-fly-toggle"
-        type="button"
-        aria-pressed={flyEnabled}
-        onClick={() => {
-          const next = !flyEnabled;
-          setFlyEnabled(next);
-          controls.setFlyEnabled(next);
-        }}
-      >
-        Fly
-      </button>
+      <div className="mobile-controls-left">
+        <Joystick
+          label="Move"
+          side="left"
+          onMove={(x, y) => controls.setMove(x, y)}
+          onRelease={() => controls.setMove(0, 0)}
+        />
+        <button
+          className="mobile-jump-button"
+          type="button"
+          aria-label="Jump. Press twice quickly to toggle flying."
+          onClick={() => {
+            controls.jump();
+          }}
+        >
+          Jump
+        </button>
+      </div>
       <Joystick
         label="Look"
         side="right"

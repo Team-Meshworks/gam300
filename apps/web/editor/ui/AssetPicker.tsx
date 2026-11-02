@@ -155,8 +155,11 @@ export function AssetPicker({
         disabled={chosen === null || !ready}
         onClick={() => {
           if (chosen === null) return;
-          onAdd(chosen);
-          onClose();
+          try {
+            onAdd(chosen);
+          } finally {
+            onClose();
+          }
         }}
       >
         Add

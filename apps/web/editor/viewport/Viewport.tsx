@@ -3,7 +3,6 @@ import { assetDragType, type CatalogueAsset } from "../../shared/asset-runtime/c
 import type { SceneObject, Vector3Tuple } from "../../shared/project/scene-object";
 import type { ProjectScene, Transform, CameraPose } from "../../shared/project/project-types";
 import type { initScene, NavigationTool, ViewportStatus } from "../graphics/scene";
-import type { ModeManager } from "../graphics/modeManager";
 import type { FpsMobileControls } from "../graphics/scene";
 import type { CameraView, ModeManager } from "../graphics/modeManager";
 
@@ -91,6 +90,10 @@ export function Viewport({
         const scene = initScene(host, assets, { onStatus, onThumbnail, onSelect, onTransform });
         sceneRef.current = scene;
         const current = snapshotRef.current;
+        // Establish the requested navigation mode before applying the authored camera.
+        // Otherwise first-person initialization can replace the authored pose with the
+        // orbit controller's default target before the first selection update.
+        scene?.modeManager.initializeView(current.view);
         scene?.update(
           current.objects,
           current.selectedId,
@@ -99,7 +102,6 @@ export function Viewport({
         );
         scene?.setEditingEnabled(current.editingEnabled);
         scene?.setNavigationTool(current.navigationTool);
-        scene?.modeManager.setView(current.view);
         if (scene !== undefined) {
           onManager(scene.modeManager);
           onMobileControls(scene.mobileControls);
