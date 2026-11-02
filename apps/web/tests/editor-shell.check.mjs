@@ -300,6 +300,15 @@ try {
   await page.mouse.down();
   await page.mouse.move(centre.x, centre.y - 150, { steps: 5 });
   await page.mouse.up();
+  await page.waitForFunction(
+    () => {
+      const text = document.querySelector('output[aria-label="Selected position"]')?.textContent;
+      const match = text?.match(/Y (-?[\d.]+)/);
+      return match !== null && Number(match[1]) > 0.1;
+    },
+    undefined,
+    { timeout: 1000 },
+  );
   assert.ok((await height()) > 0.1, "Looking up lifts what is carried");
   await page.keyboard.press("Control+z");
   await page.mouse.move(centre.x, centre.y, { steps: 5 });
