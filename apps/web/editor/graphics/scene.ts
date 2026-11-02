@@ -221,10 +221,19 @@ export function initScene(
   let pendingPreview: { id: string; transform: Transform } | undefined;
   const touchPoints = new Map<number, { x: number; y: number }>();
   let touchPair:
-    { startDistance: number; startVerticalDistance: number; startAngle: number } | undefined;
+    | {
+        pointerIds: readonly number[];
+        startDistance: number;
+        startVerticalDistance: number;
+        startAngle: number;
+      }
+    | undefined;
   let touchGesture:
     | {
         id: string;
+        pointerIds: readonly number[];
+        // The document's transform, a drag handed over to the gesture may have moved past it
+        original: Transform;
         transform: Transform;
         current: Transform;
         mode: "scale" | "rotate";
@@ -329,6 +338,21 @@ export function initScene(
     return picked;
   }
 
+  const gizmoCameraPosition = new THREE.Vector3();
+  const gizmoCameraQuaternion = new THREE.Quaternion();
+  // Orbit reports its own changes, walking and looking around dont
+  function refreshGizmoForWalking() {
+    if (modeManager.usesOrbit()) return;
+    if (
+      gizmoCameraPosition.equals(camera.position) &&
+      gizmoCameraQuaternion.equals(camera.quaternion)
+    )
+      return;
+    gizmoCameraPosition.copy(camera.position);
+    gizmoCameraQuaternion.copy(camera.quaternion);
+    updateGizmo();
+  }
+
   let lastFrameTime = performance.now();
   const animate = (now: number) => {
     if (disposed) {
@@ -340,6 +364,7 @@ export function initScene(
     modeManager.update(delta);
     // Walking moves a carried object too, not only the mouse
     carry();
+    refreshGizmoForWalking();
     fpsMeter.tick(now);
     render();
   };
@@ -393,6 +418,14 @@ export function initScene(
         nextObjects.find((object) => object.id === drag?.id)?.transform !== drag.transform)
     ) {
       cancelDrag();
+    }
+    if (
+      touchGesture !== undefined &&
+      (nextSelectedId !== touchGesture.id ||
+        nextObjects.find((object) => object.id === touchGesture?.id)?.transform !==
+          touchGesture.original)
+    ) {
+      cancelTouchGesture();
     }
     if (
       wheelEdit !== undefined &&
@@ -557,16 +590,32 @@ export function initScene(
     });
   }
 
-  function cancelDrag() {
+  // A drag handing over to a two-finger gesture keeps the capture. Releasing it would report
+  // that finger as lost, and that ends the gesture it is now part of
+  function cancelDrag(keepCapture = false) {
     if (drag === undefined) return;
     const previous = drag;
     drag = undefined;
     orbit.enabled = orbitEnabledBeforeDrag;
     fpsControls.holdLook(false);
     previewTransform(previous.id, previous.transform, true);
-    if (renderer.domElement.hasPointerCapture(previous.pointerId)) {
+    if (!keepCapture && renderer.domElement.hasPointerCapture(previous.pointerId)) {
       renderer.domElement.releasePointerCapture(previous.pointerId);
     }
+  }
+
+  // Two-finger transforms belong to authoring, not to Preview or the camera tools
+  function touchEditingAllowed() {
+    return modeManager.getState().mode === "editor" && !cameraToolActive();
+  }
+
+  function cancelTouchGesture() {
+    touchPair = undefined;
+    if (touchGesture === undefined) return;
+    const previous = touchGesture;
+    touchGesture = undefined;
+    orbit.enabled = orbitEnabledBeforeDrag;
+    previewTransform(previous.id, previous.original, true);
   }
 
   function cancelWheelEdit() {
@@ -695,10 +744,12 @@ export function initScene(
     if (event.pointerType === "touch") {
       touchPoints.set(event.pointerId, { x: event.clientX, y: event.clientY });
       if (touchPoints.size === 2) {
+        if (!touchEditingAllowed()) return;
         const points = [...touchPoints.values()];
         const dx = points[1]!.x - points[0]!.x;
         const dy = points[1]!.y - points[0]!.y;
         touchPair = {
+          pointerIds: [...touchPoints.keys()],
           startDistance: Math.max(Math.hypot(dx, dy), 1),
           startVerticalDistance: Math.max(Math.abs(dy), 1),
           startAngle: Math.atan2(dy, dx),
@@ -706,7 +757,9 @@ export function initScene(
         return;
       }
     }
-    if (!event.isPrimary || drag !== undefined || touchGesture !== undefined) return;
+    // A finger already on a joystick is the primary touch, so count the ones on the scene instead
+    const firstContact = event.pointerType === "touch" ? touchPoints.size === 1 : event.isPrimary;
+    if (!firstContact || drag !== undefined || touchGesture !== undefined) return;
     if (modeManager.getState().mode !== "editor") return;
     // Camera tools never pick or move objects
     if (cameraToolActive()) return;
@@ -717,7 +770,6 @@ export function initScene(
       event.preventDefault();
       return;
     }
-    // First-person touch uses the same hold-to-carry path without pointer lock.
     // With the mouse locked, clicking picks what the crosshair is on.
     // Holding the left button carries the object; holding right turns it.
     if (fpsControls.isCaptured()) {
@@ -757,7 +809,10 @@ export function initScene(
       });
       return;
     }
-    callbacks.onSelect(pickObject(event.clientX, event.clientY));
+    const id = pickObject(event.clientX, event.clientY);
+    callbacks.onSelect(id);
+    // Touch never locks the pointer, so first person holds to carry from here
+    if (event.pointerType === "touch" && fpsControls.isEngaged()) startCarry(event, id);
   }
 
   function pickObject(clientX: number, clientY: number) {
@@ -782,10 +837,16 @@ export function initScene(
   function pointerMove(event: PointerEvent) {
     if (event.pointerType === "touch" && touchPoints.has(event.pointerId)) {
       touchPoints.set(event.pointerId, { x: event.clientX, y: event.clientY });
-      if (touchGesture !== undefined && touchPoints.size >= 2) {
-        const points = [...touchPoints.values()];
-        const dx = points[1]!.x - points[0]!.x;
-        const dy = points[1]!.y - points[0]!.y;
+      if (!touchEditingAllowed()) {
+        cancelTouchGesture();
+        return;
+      }
+      if (touchGesture !== undefined) {
+        const first = touchPoints.get(touchGesture.pointerIds[0]!);
+        const second = touchPoints.get(touchGesture.pointerIds[1]!);
+        if (first === undefined || second === undefined) return;
+        const dx = second.x - first.x;
+        const dy = second.y - first.y;
         const verticalDistance = Math.max(Math.abs(dy), 1);
         const angle = Math.atan2(dy, dx);
         let rotationDelta = angle - touchGesture.startAngle;
@@ -811,10 +872,11 @@ export function initScene(
         previewTransform(touchGesture.id, touchGesture.current);
         return;
       }
-      if (touchPair !== undefined && touchPoints.size >= 2) {
-        const points = [...touchPoints.values()];
-        const dx = points[1]!.x - points[0]!.x;
-        const dy = points[1]!.y - points[0]!.y;
+      const pairFirst = touchPair && touchPoints.get(touchPair.pointerIds[0]!);
+      const pairSecond = touchPair && touchPoints.get(touchPair.pointerIds[1]!);
+      if (touchPair !== undefined && pairFirst !== undefined && pairSecond !== undefined) {
+        const dx = pairSecond.x - pairFirst.x;
+        const dy = pairSecond.y - pairFirst.y;
         const distance = Math.max(Math.hypot(dx, dy), 1);
         const verticalDistance = Math.abs(dy);
         const angle = Math.atan2(dy, dx);
@@ -828,7 +890,10 @@ export function initScene(
           if (object !== undefined) {
             const activeDrag = drag;
             const base = activeDrag?.id === object.id ? activeDrag.current : object.transform;
-            if (activeDrag !== undefined) cancelDrag();
+            if (activeDrag !== undefined) cancelDrag(true);
+            // The gesture owns both fingers now, the camera shouldnt pinch along with it
+            orbitEnabledBeforeDrag = orbit.enabled;
+            orbit.enabled = false;
             const scaleStrength = Math.abs(verticalDistance - touchPair.startVerticalDistance) / 12;
             const rotationStrength = (Math.abs(rotationDelta) * distance) / 18;
             const diagonalStart = Math.abs(Math.sin(touchPair.startAngle * 2)) >= 0.5;
@@ -838,6 +903,8 @@ export function initScene(
               (!diagonalStart || scaleStrength >= rotationStrength);
             touchGesture = {
               id: object.id,
+              pointerIds: touchPair.pointerIds,
+              original: object.transform,
               transform: base,
               current: base,
               mode: scaleWins ? "scale" : "rotate",
@@ -887,16 +954,17 @@ export function initScene(
   function pointerUp(event: PointerEvent) {
     if (event.pointerType === "touch") {
       touchPoints.delete(event.pointerId);
-      if (touchGesture !== undefined && touchPoints.size < 2) {
+      if (touchGesture?.pointerIds.includes(event.pointerId)) {
         const completed = touchGesture;
         touchGesture = undefined;
+        orbit.enabled = orbitEnabledBeforeDrag;
         previewTransform(completed.id, completed.current, true);
-        if (completed.current !== completed.transform) {
+        if (completed.current !== completed.original) {
           callbacks.onTransform(completed.id, completed.current);
         }
         return;
       }
-      if (touchPoints.size < 2) touchPair = undefined;
+      if (touchPair?.pointerIds.includes(event.pointerId)) touchPair = undefined;
     }
     if (drag === undefined || event.pointerId !== drag.pointerId) return;
     pointerMove(event);
@@ -962,25 +1030,24 @@ export function initScene(
   }
 
   function keyDown(event: KeyboardEvent) {
-    if (event.key !== "Escape" || (drag === undefined && wheelEdit === undefined)) return;
+    if (
+      event.key !== "Escape" ||
+      (drag === undefined && wheelEdit === undefined && touchGesture === undefined)
+    )
+      return;
     event.preventDefault();
     cancelDrag();
+    cancelTouchGesture();
     cancelWheelEdit();
   }
 
+  // Also runs after every normal lift, touch pointers lose their implicit capture then. So only
+  // the fingers an edit actually depends on can cancel it
   function pointerCancel(event: PointerEvent) {
     if (event.pointerType === "touch") {
       touchPoints.delete(event.pointerId);
-      if (touchGesture !== undefined && touchPoints.size < 2) {
-        const completed = touchGesture;
-        touchGesture = undefined;
-        previewTransform(completed.id, completed.current, true);
-        if (completed.current !== completed.transform) {
-          callbacks.onTransform(completed.id, completed.current);
-        }
-      }
-      if (touchPoints.size < 2) touchPair = undefined;
-      return;
+      if (touchGesture?.pointerIds.includes(event.pointerId)) cancelTouchGesture();
+      else if (touchPair?.pointerIds.includes(event.pointerId)) touchPair = undefined;
     }
     if (event.pointerId === drag?.pointerId) cancelDrag();
   }
@@ -1006,6 +1073,7 @@ export function initScene(
     if (shownCamera === `${mode} ${view}`) return;
     shownCamera = `${mode} ${view}`;
     cancelDrag();
+    cancelTouchGesture();
     cancelWheelEdit();
     // Cancellation must not re-enable orbit controls while visiting or walking
     orbit.enabled = modeManager.usesOrbit() && editingEnabled;
@@ -1071,10 +1139,11 @@ export function initScene(
       editingEnabled = enabled;
       if (!enabled) {
         cancelDrag();
+        cancelTouchGesture();
         cancelWheelEdit();
         showDropPosition(undefined);
       }
-      orbit.enabled = enabled && modeManager.usesOrbit();
+      orbit.enabled = enabled && modeManager.usesOrbit() && touchGesture === undefined;
     },
     captureCamera: () => ({
       position: camera.position.toArray() as [number, number, number],
@@ -1086,6 +1155,7 @@ export function initScene(
       if (tool === navigationTool) return;
       navigationTool = tool;
       cancelDrag();
+      cancelTouchGesture();
       cancelWheelEdit();
       applyNavigationTool();
     },
@@ -1099,6 +1169,7 @@ export function initScene(
       previewFrame = undefined;
       pendingPreview = undefined;
       cancelDrag();
+      cancelTouchGesture();
       cancelWheelEdit();
       disposed = true;
       controller.abort();
