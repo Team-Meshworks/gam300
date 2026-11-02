@@ -229,13 +229,21 @@ public sealed class AssetIntakeTests
         using var restoredPublication = await visitor.GetAsync(assetPath);
         await Assert.That(restoredPublication.StatusCode).IsEqualTo(HttpStatusCode.OK);
 
-        // Global removal stays unavailable until the shared retirement action is enabled
+        // Explicit global removal blocks existing editions and projects while preserving immutable history
         using var removal = new HttpRequestMessage(HttpMethod.Post, $"/api/admin/assets/{candidate.Id}/availability");
         removal.Headers.Add("X-CSRF-TOKEN", token);
         removal.Content = JsonContent.Create(new AssetAvailabilityRequest("remove", true));
-        using var unavailable = await fixture.Client.SendAsync(removal);
-        await Assert.That(unavailable.StatusCode).IsEqualTo(HttpStatusCode.ServiceUnavailable);
-        await Assert.That((await database.AssetCandidates.AsNoTracking().SingleAsync()).RemovedFromProjects).IsFalse();
+        using var removed = await fixture.Client.SendAsync(removal);
+        await Assert.That(removed.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        await Assert.That((await database.AssetCandidates.AsNoTracking().SingleAsync()).RemovedFromProjects).IsTrue();
+        using var removedPublication = await visitor.GetAsync(assetPath);
+        using var removedProject = await fixture.Client.GetAsync($"/api/projects/{projectId}/assets/{candidate.Id}/bytes");
+        await Assert.That(removedPublication.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+        await Assert.That(removedProject.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+        var immutableEdition = await database.Publications.AsNoTracking().SingleAsync();
+        using var expectedDocument = JsonDocument.Parse(json);
+        using var savedEdition = JsonDocument.Parse(immutableEdition.DocumentJson);
+        await Assert.That(JsonElement.DeepEquals(expectedDocument.RootElement, savedEdition.RootElement)).IsTrue();
         // Database enforcement prevents later writers from replacing a reviewed version's bytes
         await Assert.ThrowsAsync<Npgsql.PostgresException>(async () => await database.Database.ExecuteSqlRawAsync("UPDATE asset_candidates SET bytes = decode('00', 'hex')"));
     }

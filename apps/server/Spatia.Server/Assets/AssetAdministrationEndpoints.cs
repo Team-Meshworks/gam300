@@ -26,7 +26,7 @@ public static class AssetAdministrationEndpoints
                 maxBytes = AssetIntakePolicy.MaxBytes,
                 categories = new { environment = (string[]?)null, model = AssetIntakePolicy.ModelCategories },
                 canSubmit = validator.IsAvailable,
-                canForceRemove = false
+                canForceRemove = true
             },
         }));
 
@@ -68,12 +68,8 @@ public static class AssetAdministrationEndpoints
                 return Invalid(context);
             }
 
-            // Publication delivery is not integrated on this branch, so never acknowledge a partial global removal
-            if (request.RemoveFromProjects || request.Action == "remove")
-            {
-                return ApiProblems.Create(context, 503, "asset_removal_unavailable", "Removal from existing projects and exhibitions is unavailable");
-            }
-            var record = await service.ChangeAsync(id, request.Action, token);
+            // Both project and publication delivery enforce the same retained-version removal flag
+            var record = await service.ChangeAsync(id, request.RemoveFromProjects ? "remove" : request.Action, token);
             return record is null ? ApiProblems.Create(context, 409, "asset_conflict", "Reload the asset before changing it") : Results.Ok(record);
         });
         return endpoints;

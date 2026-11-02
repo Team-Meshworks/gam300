@@ -98,6 +98,16 @@ public sealed class AssetAdministrationService(ApplicationDbContext database, As
     public async Task<AssetAdministrationRecord?> ChangeAsync(Guid id, string action, CancellationToken token)
     {
 
+        // Global removal revokes delivery through every project and edition without rewriting immutable snapshots
+        // Preserve bytes for administrator inspection and keep the action irreversible through ordinary Show
+        if (action == "remove")
+        {
+            var removed = await database.AssetCandidates.Where(asset => asset.Id == id && !asset.RemovedFromProjects)
+                .ExecuteUpdateAsync(update => update.SetProperty(asset => asset.RemovedFromProjects, true)
+                    .SetProperty(asset => asset.Deleted, true).SetProperty(asset => asset.Hidden, true), token);
+            return removed == 1 ? Record(await database.AssetCandidates.AsNoTracking().SingleAsync(asset => asset.Id == id, token)) : null;
+        }
+
         // Ordinary retirement changes discoverability only and keeps exact bytes for existing references
         var query = database.AssetCandidates.Where(asset => asset.Id == id && !asset.Deleted);
         var changed = action == "delete"
