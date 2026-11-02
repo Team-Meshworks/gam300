@@ -756,9 +756,20 @@ a {
   pointer-events: auto;
   touch-action: manipulation;
 }
-@media (hover: none) and (pointer: coarse) and (orientation: landscape) {
+@media (hover: none) and (pointer: coarse) {
   .is-walking .mobile-controls {
     display: flex;
+  }
+}
+@media (hover: none) and (pointer: coarse) and (orientation: portrait) {
+  /* Two full-size sticks and Jump are wider than a phone held upright */
+  .mobile-joystick {
+    width: min(7rem, 28vw);
+    height: min(7rem, 28vw);
+  }
+  .mobile-joystick-thumb {
+    width: 3.25rem;
+    height: 3.25rem;
   }
 }
 .retry-button {
