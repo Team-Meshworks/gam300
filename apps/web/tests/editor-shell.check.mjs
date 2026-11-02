@@ -299,11 +299,17 @@ try {
   const height = async () => Number((await position.textContent()).match(/Y (-?[\d.]+)/)[1]);
   await page.mouse.down();
   await page.waitForTimeout(100);
+  // TEMP: record the movement of playwright that the page got to check
+  await page.evaluate(() => {
+    window.lookLog = [];
+    document.addEventListener("mousemove", (e) => window.lookLog.push([e.movementX, e.movementY]));
+  });
   for (let step = 1; step <= 20; step += 1) {
     await page.mouse.move(centre.x, centre.y - (step * 150) / 20);
     await page.waitForTimeout(20);
   }
   await page.mouse.up();
+  console.log("movement seen:", JSON.stringify(await page.evaluate(() => window.lookLog)));
   await page.waitForFunction(
     () => {
       const text = document.querySelector('output[aria-label="Selected position"]')?.textContent;
