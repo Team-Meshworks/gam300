@@ -19,6 +19,231 @@ public sealed class ProjectReadEndpointTests
     private const string BodyMarker = "private-read-document-sentinel";
 
     [Test]
+    [Arguments(ApplicationRoles.Educator, false)]
+    [Arguments(ApplicationRoles.Educator, true)]
+    [Arguments(ApplicationRoles.Administrator, true)]
+    public async Task ProjectGrants_ManagersReadCompleteStoredFlagsWithoutDraftOrAccountData(string role, bool archived)
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync();
+        var manager = await fixture.CreateAccountAsync(ApplicationRoles.Educator);
+        var student = await fixture.CreateAccountAsync();
+        var additional = Enumerable.Range(0, 21).Select(_ => Guid.NewGuid()).ToArray();
+        var project = await SeedAsync(fixture, manager, manage: true, publish: true, archived: archived);
+        await using (var scope = fixture.Database.Services.CreateAsyncScope())
+        {
+            var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            await database.Users.Where(row => row.Id == student).ExecuteUpdateAsync(set => set.SetProperty(row => row.IsActive, false));
+            // An inactive, foreign account with noncanonical flags must not disappear from the stored grant set
+            database.ProjectAssignments.Add(new ProjectAssignment { ProjectId = project.Id, UserId = student, CanPublish = true });
+            database.Users.AddRange(additional.Select(id => new ApplicationUser
+            { Id = id, UserName = "retained-" + id, NormalizedUserName = ("retained-" + id).ToUpperInvariant() }));
+            database.ProjectAssignments.AddRange(additional.Select(id => new ProjectAssignment { ProjectId = project.Id, UserId = id }));
+            var invalid = JsonSerializer.Serialize(new { projectId = project.Id, schemaVersion = 1, title = BodyMarker });
+            await database.Projects.Where(row => row.Id == project.Id)
+                .ExecuteUpdateAsync(set => set.SetProperty(row => row.DocumentJson, invalid));
+            await database.SaveChangesAsync();
+            if (role == ApplicationRoles.Administrator)
+            {
+                await database.Organizations.Where(row => row.Id == project.OrganizationId)
+                    .ExecuteUpdateAsync(set => set.SetProperty(row => row.IsActive, false));
+            }
+        }
+        await fixture.SignInAsync(role == ApplicationRoles.Administrator
+            ? await fixture.CreateAccountAsync(ApplicationRoles.Administrator) : manager);
+        var body = await GetAsync(fixture.Client, Path(project.Id) + "/assignments");
+        await AssertFieldsAsync(body, "projectId", "organizationId", "revision", "archived", "assignments");
+        await Assert.That(body.GetProperty("projectId").GetGuid()).IsEqualTo(project.Id);
+        await Assert.That(body.GetProperty("organizationId").GetGuid()).IsEqualTo(project.OrganizationId);
+        await Assert.That(body.GetProperty("revision").GetInt64()).IsEqualTo(project.Revision);
+        await Assert.That(body.GetProperty("archived").GetBoolean()).IsEqualTo(archived);
+        var grants = body.GetProperty("assignments").EnumerateArray().ToArray();
+        await Assert.That(grants.Select(row => row.GetProperty("userId").GetGuid())
+            .SequenceEqual(new[] { manager, student }.Concat(additional).Order())).IsTrue();
+        foreach (var grant in grants)
+        {
+            await AssertFieldsAsync(grant, "userId", "canEdit", "canManage", "canPublish");
+            var isManager = grant.GetProperty("userId").GetGuid() == manager;
+            await Assert.That(grant.GetProperty("canEdit").GetBoolean()).IsEqualTo(isManager);
+            await Assert.That(grant.GetProperty("canManage").GetBoolean()).IsEqualTo(isManager);
+            await Assert.That(grant.GetProperty("canPublish").GetBoolean())
+                .IsEqualTo(isManager || grant.GetProperty("userId").GetGuid() == student);
+        }
+        await Assert.That(body.GetRawText().Contains(BodyMarker, StringComparison.Ordinal)).IsFalse();
+        await using var verify = fixture.Database.Services.CreateAsyncScope();
+        await Assert.That(await verify.ServiceProvider.GetRequiredService<ApplicationDbContext>().Projects
+            .Where(row => row.Id == project.Id).Select(row => row.Revision).SingleAsync()).IsEqualTo(project.Revision);
+    }
+
+    [Test]
+    public async Task ProjectGrants_OnlyCurrentManagersCanReadEvenWithForgedRoleOrKnownIds()
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync();
+        var manager = await fixture.CreateAccountAsync(ApplicationRoles.Educator);
+        var creator = await fixture.CreateAccountAsync();
+        var outsider = await fixture.CreateAccountAsync(ApplicationRoles.Educator);
+        var project = await SeedAsync(fixture, manager, manage: true);
+        await using var scope = fixture.Database.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await database.OrganizationMemberships.Where(row => row.UserId == creator)
+            .ExecuteUpdateAsync(set => set.SetProperty(row => row.OrganizationId, project.OrganizationId));
+        database.ProjectAssignments.AddRange(
+            new ProjectAssignment { ProjectId = project.Id, UserId = creator, CanEdit = true, CanManage = true, CanPublish = true },
+            new ProjectAssignment { ProjectId = project.Id, UserId = outsider, CanManage = true });
+        await database.SaveChangesAsync();
+        var path = Path(project.Id) + "/assignments";
+        using (var anonymous = await fixture.Client.GetAsync(path))
+        { await ProblemAsync(anonymous, HttpStatusCode.Unauthorized, "authentication_required"); }
+        await fixture.SignInAsync(creator, forgedRole: ApplicationRoles.Administrator);
+        using (var forbidden = await fixture.Client.GetAsync(path))
+        { await ProblemAsync(forbidden, HttpStatusCode.Forbidden, "access_denied"); }
+        await fixture.SignInAsync(outsider);
+        using (var foreign = await fixture.Client.GetAsync(path))
+        { await ProblemAsync(foreign, HttpStatusCode.NotFound, "project_not_found"); }
+        await database.OrganizationMemberships.Where(row => row.UserId == outsider)
+            .ExecuteUpdateAsync(set => set.SetProperty(row => row.OrganizationId, project.OrganizationId));
+        await database.ProjectAssignments.Where(row => row.UserId == outsider).ExecuteDeleteAsync();
+        using (var unassigned = await fixture.Client.GetAsync(path))
+        { await ProblemAsync(unassigned, HttpStatusCode.NotFound, "project_not_found"); }
+        await fixture.SignInAsync(manager);
+        using (var missing = await fixture.Client.GetAsync(Path(Guid.NewGuid()) + "/assignments"))
+        { await ProblemAsync(missing, HttpStatusCode.NotFound, "project_not_found"); }
+        await database.Users.Where(row => row.Id == manager).ExecuteUpdateAsync(set => set.SetProperty(row => row.MustChangePassword, true));
+        using (var forced = await fixture.Client.GetAsync(path))
+        { await ProblemAsync(forced, HttpStatusCode.Forbidden, "access_denied"); }
+        await database.Users.Where(row => row.Id == manager).ExecuteUpdateAsync(set => set.SetProperty(row => row.IsActive, false));
+        using var disabled = await fixture.Client.GetAsync(path);
+        await ProblemAsync(disabled, HttpStatusCode.Unauthorized, "authentication_required");
+    }
+
+    [Test]
+    public async Task ProjectGrants_ClassManagersNeedCurrentMembershipAndRetainedProjectGrant()
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync();
+        var data = await ReviewSubmissionEndpointTests.SeedAsync(fixture, false);
+        await fixture.SignInAsync(data.Educator);
+        var path = Path(data.ProjectId) + "/assignments";
+        await Assert.That((await GetAsync(fixture.Client, path)).GetProperty("assignments").GetArrayLength()).IsEqualTo(2);
+        await using var scope = fixture.Database.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await database.ClassroomMembers.Where(row => row.ClassroomId == data.ClassroomId && row.UserId == data.Educator)
+            .ExecuteUpdateAsync(set => set.SetProperty(row => row.IsActive, false));
+        using (var removed = await fixture.Client.GetAsync(path))
+        { await ProblemAsync(removed, HttpStatusCode.NotFound, "project_not_found"); }
+        await database.ClassroomMembers.Where(row => row.ClassroomId == data.ClassroomId && row.UserId == data.Educator)
+            .ExecuteUpdateAsync(set => set.SetProperty(row => row.IsActive, true));
+        await database.ProjectAssignments.Where(row => row.ProjectId == data.ProjectId && row.UserId == data.Educator).ExecuteDeleteAsync();
+        using var noGrant = await fixture.Client.GetAsync(path);
+        await ProblemAsync(noGrant, HttpStatusCode.NotFound, "project_not_found");
+    }
+
+    [Test]
+    public async Task ProjectGrants_ReadRevisionDrivesReplacementAndRejectsStaleChanges()
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync();
+        var manager = await fixture.CreateAccountAsync(ApplicationRoles.Educator);
+        var project = await SeedAsync(fixture, manager, manage: true, publish: true);
+        await fixture.SignInAsync(await fixture.CreateAccountAsync(ApplicationRoles.Administrator));
+        var path = Path(project.Id) + "/assignments";
+        var before = await GetAsync(fixture.Client, path);
+        using var request = new HttpRequestMessage(HttpMethod.Patch, path)
+        {
+            Content = JsonContent.Create(new
+            {
+                expectedRevision = before.GetProperty("revision").GetInt64(),
+                managedByUserIds = Array.Empty<Guid>(),
+                assignedCreatorIds = Array.Empty<Guid>(),
+                canPublishUserIds = Array.Empty<Guid>()
+            }),
+        };
+        request.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync());
+        using var updated = await fixture.Client.SendAsync(request);
+        await Assert.That(updated.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        var after = await GetAsync(fixture.Client, path);
+        await Assert.That(after.GetProperty("revision").GetInt64()).IsEqualTo(project.Revision + 1);
+        await Assert.That(after.GetProperty("assignments").GetArrayLength()).IsEqualTo(0);
+        using var stale = new HttpRequestMessage(HttpMethod.Patch, path)
+        {
+            Content = JsonContent.Create(new
+            {
+                expectedRevision = project.Revision,
+                managedByUserIds = new[] { manager },
+                assignedCreatorIds = Array.Empty<Guid>(),
+                canPublishUserIds = Array.Empty<Guid>()
+            }),
+        };
+        stale.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync());
+        using var conflict = await fixture.Client.SendAsync(stale);
+        await AuthTestRequests.AssertProblemAsync(conflict, HttpStatusCode.Conflict, "revision_conflict");
+        await Assert.That(JsonElement.DeepEquals(after, await GetAsync(fixture.Client, path))).IsTrue();
+        using var query = await fixture.Client.GetAsync(path + "?limit=1");
+        await ProblemAsync(query, HttpStatusCode.BadRequest, "invalid_project_query");
+        await using var scope = fixture.Database.Services.CreateAsyncScope();
+        using var stored = JsonDocument.Parse(await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().Projects
+            .Where(row => row.Id == project.Id).Select(row => row.DocumentJson).SingleAsync());
+        using var original = JsonDocument.Parse(project.DocumentJson);
+        await Assert.That(JsonElement.DeepEquals(stored.RootElement, original.RootElement)).IsTrue();
+    }
+
+    [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task ProjectGrants_RevisionAndGrantsShareAuthorizationSnapshot(bool revokeManager)
+    {
+        var gate = new GrantQueryPause();
+        await using var fixture = await HttpsApplicationFixture.CreateAsync(builder =>
+            builder.Services.AddDbContext<ApplicationDbContext>(options => options.AddInterceptors(gate)));
+        var manager = await fixture.CreateAccountAsync(ApplicationRoles.Educator);
+        var project = await SeedAsync(fixture, manager, manage: true, publish: true);
+        await fixture.SignInAsync(manager);
+        var path = Path(project.Id) + "/assignments";
+        gate.Armed = true;
+        var pending = fixture.Client.GetAsync(path);
+        try
+        {
+            await gate.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            await using var scope = fixture.Database.Services.CreateAsyncScope();
+            var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            await using var transaction = await database.Database.BeginTransactionAsync();
+            await database.ProjectAssignments.Where(row => row.ProjectId == project.Id)
+                .ExecuteUpdateAsync(set => set.SetProperty(row => row.CanManage, !revokeManager).SetProperty(row => row.CanPublish, false));
+            await database.Projects.Where(row => row.Id == project.Id).ExecuteUpdateAsync(set => set.SetProperty(row => row.Revision, row => row.Revision + 1));
+            await transaction.CommitAsync();
+        }
+        finally { gate.Release.TrySetResult(); }
+        using var response = await pending;
+        await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        var before = await response.Content.ReadFromJsonAsync<JsonElement>();
+        await Assert.That(before.GetProperty("revision").GetInt64()).IsEqualTo(project.Revision);
+        await Assert.That(before.GetProperty("assignments")[0].GetProperty("canPublish").GetBoolean()).IsTrue();
+        using var next = await fixture.Client.GetAsync(path);
+        if (revokeManager) { await ProblemAsync(next, HttpStatusCode.NotFound, "project_not_found"); }
+        else
+        {
+            await Assert.That(next.StatusCode).IsEqualTo(HttpStatusCode.OK);
+            var after = await next.Content.ReadFromJsonAsync<JsonElement>();
+            await Assert.That(after.GetProperty("revision").GetInt64()).IsEqualTo(project.Revision + 1);
+            await Assert.That(after.GetProperty("assignments")[0].GetProperty("canPublish").GetBoolean()).IsFalse();
+        }
+    }
+
+    [Test]
+    public async Task ProjectGrants_SessionExpiringDuringCommitReturnsNoGrantData()
+    {
+        var commit = new GrantCommitProbe();
+        await using var fixture = await HttpsApplicationFixture.CreateAsync(builder =>
+            builder.Services.AddDbContext<ApplicationDbContext>(options => options.AddInterceptors(commit)));
+        var manager = await fixture.CreateAccountAsync(ApplicationRoles.Educator);
+        var project = await SeedAsync(fixture, manager, manage: true);
+        await fixture.SignInAsync(manager);
+        var cutoff = new DateTimeOffset(long.Parse(fixture.ReadTicket().Properties.Items[HttpsApplicationFixture.AbsoluteExpiryKey]!,
+            CultureInfo.InvariantCulture), TimeSpan.Zero);
+        commit.After = () => fixture.Clock.Set(cutoff);
+        using var response = await fixture.Client.GetAsync(Path(project.Id) + "/assignments");
+        await Assert.That(fixture.Clock.GetUtcNow()).IsEqualTo(cutoff);
+        await ProblemAsync(response, HttpStatusCode.Unauthorized, "authentication_required");
+    }
+
+    [Test]
     public async Task Browser_ProjectListOpenAndAccountSwitchUseCurrentSession()
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
@@ -32,6 +257,16 @@ public sealed class ProjectReadEndpointTests
         }
         var secondProject = await SeedAsync(fixture, second);
         var serverDirectory = System.IO.Path.GetFullPath("../../../../", AppContext.BaseDirectory);
+        var manager = await fixture.CreateAccountAsync(ApplicationRoles.Educator);
+        await using (var scope = fixture.Database.Services.CreateAsyncScope())
+        {
+            var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            await database.OrganizationMemberships.Where(row => row.UserId == manager)
+                .ExecuteUpdateAsync(set => set.SetProperty(row => row.OrganizationId, firstProject.OrganizationId));
+            database.ProjectAssignments.Add(new ProjectAssignment
+            { ProjectId = firstProject.Id, UserId = manager, CanEdit = true, CanManage = true, CanPublish = true });
+            await database.SaveChangesAsync();
+        }
         var start = new ProcessStartInfo("node")
         {
             RedirectStandardOutput = true,
@@ -46,9 +281,11 @@ public sealed class ProjectReadEndpointTests
         start.ArgumentList.Add(fixture.Address.ToString());
         start.ArgumentList.Add(JsonSerializer.Serialize(new[]
         {
-            new { userName = await AuthTestRequests.UserNameAsync(fixture, first), projectId = firstProject.Id },
-            new { userName = await AuthTestRequests.UserNameAsync(fixture, second), projectId = secondProject.Id },
+            new { userName = await AuthTestRequests.UserNameAsync(fixture, first), userId = first, projectId = firstProject.Id },
+            new { userName = await AuthTestRequests.UserNameAsync(fixture, second), userId = second, projectId = secondProject.Id },
         }));
+        start.ArgumentList.Add(JsonSerializer.Serialize(new
+        { userName = await AuthTestRequests.UserNameAsync(fixture, manager), userId = manager, organizationId = firstProject.OrganizationId }));
         using var process = Process.Start(start) ?? throw new InvalidOperationException("Could not start the project browser check.");
         var output = process.StandardOutput.ReadToEndAsync();
         var error = process.StandardError.ReadToEndAsync();
@@ -448,6 +685,36 @@ public sealed class ProjectReadEndpointTests
         await Assert.That(permissions.GetProperty("canEdit").GetBoolean()).IsEqualTo(edit);
         await Assert.That(permissions.GetProperty("canManage").GetBoolean()).IsEqualTo(manage);
         await Assert.That(permissions.GetProperty("canPublish").GetBoolean()).IsEqualTo(publish);
+    }
+
+    private sealed class GrantQueryPause : DbCommandInterceptor
+    {
+        public bool Armed;
+        public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public override async ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(DbCommand command,
+            CommandEventData eventData, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
+        {
+            if (Armed && command.CommandText.Contains("FROM project_assignments", StringComparison.Ordinal)
+                && !command.CommandText.Contains("FROM projects", StringComparison.Ordinal))
+            {
+                Armed = false;
+                Entered.TrySetResult();
+                await Release.Task.WaitAsync(TimeSpan.FromSeconds(10), cancellationToken);
+            }
+            return result;
+        }
+    }
+
+    private sealed class GrantCommitProbe : DbTransactionInterceptor
+    {
+        public Action? After;
+        public override Task TransactionCommittedAsync(DbTransaction transaction, TransactionEndEventData eventData,
+            CancellationToken cancellationToken = default)
+        {
+            Interlocked.Exchange(ref After, null)?.Invoke();
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class ProjectQueryPause : DbCommandInterceptor
