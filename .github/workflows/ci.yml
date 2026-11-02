@@ -179,6 +179,8 @@ jobs:
             script: test:history
           - name: workspace
             script: test:workspace
+          - name: sounds
+            script: test:sounds
     defaults:
       run:
         working-directory: apps/web
