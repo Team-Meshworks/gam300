@@ -219,6 +219,21 @@ export function initScene(
     { id: string; transform: Transform; current: Transform; timer: number } | undefined;
   let previewFrame: number | undefined;
   let pendingPreview: { id: string; transform: Transform } | undefined;
+  const touchPoints = new Map<number, { x: number; y: number }>();
+  let touchPair:
+    | { startDistance: number; startVerticalDistance: number; startAngle: number }
+    | undefined;
+  let touchGesture:
+    | {
+        id: string;
+        transform: Transform;
+        current: Transform;
+        mode: "scale" | "rotate";
+        startVerticalDistance: number;
+        startAngle: number;
+        rotationAxis: THREE.Vector3;
+      }
+    | undefined;
 
   function render() {
     if (!disposed) {
@@ -678,7 +693,21 @@ export function initScene(
 
   function pointerDown(event: PointerEvent) {
     if (!ready || !editingEnabled || (event.button !== 0 && event.button !== 2)) return;
-    if (!event.isPrimary || drag !== undefined) return;
+    if (event.pointerType === "touch") {
+      touchPoints.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (touchPoints.size === 2) {
+        const points = [...touchPoints.values()];
+        const dx = points[1]!.x - points[0]!.x;
+        const dy = points[1]!.y - points[0]!.y;
+        touchPair = {
+          startDistance: Math.max(Math.hypot(dx, dy), 1),
+          startVerticalDistance: Math.max(Math.abs(dy), 1),
+          startAngle: Math.atan2(dy, dx),
+        };
+        return;
+      }
+    }
+    if (!event.isPrimary || drag !== undefined || touchGesture !== undefined) return;
     if (modeManager.getState().mode !== "editor") return;
     // Camera tools never pick or move objects
     if (cameraToolActive()) return;
@@ -752,6 +781,75 @@ export function initScene(
   }
 
   function pointerMove(event: PointerEvent) {
+    if (event.pointerType === "touch" && touchPoints.has(event.pointerId)) {
+      touchPoints.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (touchGesture !== undefined && touchPoints.size >= 2) {
+        const points = [...touchPoints.values()];
+        const dx = points[1]!.x - points[0]!.x;
+        const dy = points[1]!.y - points[0]!.y;
+        const verticalDistance = Math.max(Math.abs(dy), 1);
+        const angle = Math.atan2(dy, dx);
+        let rotationDelta = angle - touchGesture.startAngle;
+        rotationDelta -= Math.round(rotationDelta / (2 * Math.PI)) * 2 * Math.PI;
+        if (touchGesture.mode === "scale") {
+          touchGesture.current = {
+            ...touchGesture.current,
+            scale: scaleBy(
+              touchGesture.transform.scale,
+              verticalDistance / touchGesture.startVerticalDistance,
+            ),
+          };
+        } else {
+          const rotation = new THREE.Quaternion()
+            .setFromAxisAngle(touchGesture.rotationAxis, rotationDelta)
+            .multiply(new THREE.Quaternion().fromArray(touchGesture.transform.rotation))
+            .normalize();
+          touchGesture.current = {
+            ...touchGesture.current,
+            rotation: rotation.toArray() as QuaternionTuple,
+          };
+        }
+        previewTransform(touchGesture.id, touchGesture.current);
+        return;
+      }
+      if (touchPair !== undefined && touchPoints.size >= 2) {
+        const points = [...touchPoints.values()];
+        const dx = points[1]!.x - points[0]!.x;
+        const dy = points[1]!.y - points[0]!.y;
+        const distance = Math.max(Math.hypot(dx, dy), 1);
+        const verticalDistance = Math.abs(dy);
+        const angle = Math.atan2(dy, dx);
+        let rotationDelta = angle - touchPair.startAngle;
+        rotationDelta -= Math.round(rotationDelta / (2 * Math.PI)) * 2 * Math.PI;
+        const scaleIntent = Math.abs(verticalDistance - touchPair.startVerticalDistance) >= 12;
+        const rotationIntent =
+          Math.abs(rotationDelta) >= 0.16 && Math.abs(rotationDelta) * distance >= 18;
+        if (scaleIntent || rotationIntent) {
+          const object = objects.find((entry) => entry.id === selectedId);
+          if (object !== undefined) {
+            const activeDrag = drag;
+            const base = activeDrag?.id === object.id ? activeDrag.current : object.transform;
+            if (activeDrag !== undefined) cancelDrag();
+            const scaleStrength =
+              Math.abs(verticalDistance - touchPair.startVerticalDistance) / 12;
+            const rotationStrength = (Math.abs(rotationDelta) * distance) / 18;
+            touchGesture = {
+              id: object.id,
+              transform: base,
+              current: base,
+              mode: scaleStrength >= rotationStrength ? "scale" : "rotate",
+              startVerticalDistance: Math.max(verticalDistance, 1),
+              startAngle: angle,
+              rotationAxis: camera.getWorldDirection(new THREE.Vector3()).normalize(),
+            };
+            touchPair = undefined;
+            event.preventDefault();
+          }
+        }
+      }
+      if (touchGesture !== undefined) return;
+      if (touchPair !== undefined && event.pointerId !== drag?.pointerId) return;
+    }
     if (drag === undefined || event.pointerId !== drag.pointerId) return;
     if (drag.currentMode === "carry") {
       carry();
@@ -784,6 +882,19 @@ export function initScene(
   }
 
   function pointerUp(event: PointerEvent) {
+    if (event.pointerType === "touch") {
+      touchPoints.delete(event.pointerId);
+      if (touchGesture !== undefined && touchPoints.size < 2) {
+        const completed = touchGesture;
+        touchGesture = undefined;
+        previewTransform(completed.id, completed.current, true);
+        if (completed.current !== completed.transform) {
+          callbacks.onTransform(completed.id, completed.current);
+        }
+        return;
+      }
+      if (touchPoints.size < 2) touchPair = undefined;
+    }
     if (drag === undefined || event.pointerId !== drag.pointerId) return;
     pointerMove(event);
     const completed = drag;
@@ -855,6 +966,19 @@ export function initScene(
   }
 
   function pointerCancel(event: PointerEvent) {
+    if (event.pointerType === "touch") {
+      touchPoints.delete(event.pointerId);
+      if (touchGesture !== undefined && touchPoints.size < 2) {
+        const completed = touchGesture;
+        touchGesture = undefined;
+        previewTransform(completed.id, completed.current, true);
+        if (completed.current !== completed.transform) {
+          callbacks.onTransform(completed.id, completed.current);
+        }
+      }
+      if (touchPoints.size < 2) touchPair = undefined;
+      return;
+    }
     if (event.pointerId === drag?.pointerId) cancelDrag();
   }
 

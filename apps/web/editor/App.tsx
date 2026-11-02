@@ -424,7 +424,7 @@ export function App() {
             </>
           )}
           <span className="build-version" aria-label="Build version">
-            v2026.11.02-mobile-fps-15
+            v2026.11.02-mobile-fps-18
           </span>
         </Viewport>
       </main>
