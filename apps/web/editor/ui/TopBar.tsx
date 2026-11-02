@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import sampleProject from "../../shared/project/fixtures/m1-project.json";
+import type { CameraView } from "../graphics/modeManager";
 import type { useProjectSession } from "../persistence/use-project-session";
 import { Icon } from "./Icon";
 
@@ -26,6 +27,8 @@ export function TopBar({
   canPreview,
   onPreview,
   onExitPreview,
+  view,
+  onToggleView,
 }: {
   session: ReturnType<typeof useProjectSession>;
   hasProject: boolean;
@@ -40,6 +43,8 @@ export function TopBar({
   canPreview: boolean;
   onPreview: () => void;
   onExitPreview: () => void;
+  view: CameraView;
+  onToggleView: () => void;
 }) {
   const menu = useRef<HTMLDetailsElement>(null);
   useEffect(() => {
@@ -245,11 +250,12 @@ export function TopBar({
         )}
         {!visitor && (
           <button
-            className="ui-button icon-button"
+            className="ui-button icon-button view-toggle"
             type="button"
-            aria-label="Overview (coming soon)"
-            aria-disabled="true"
-            title="Overview · coming soon"
+            aria-label="Third person"
+            aria-pressed={view === "third"}
+            title={view === "third" ? "Back to first person" : "Third person · see the whole scene"}
+            onClick={onToggleView}
           >
             <Icon name="overview" />
           </button>

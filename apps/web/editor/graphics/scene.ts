@@ -29,6 +29,12 @@ const WHEEL_COMMIT_DELAY_MS = 250;
 
 const ROTATION_SNAP = THREE.MathUtils.degToRad(15);
 
+// How far scrolling can push a carried object away, and how close it can pull it in
+const CARRY_REACH = 6;
+const CARRY_NEAR = 1;
+// Metres the aim must travel before a held click starts carrying, like a drag threshold
+const CARRY_DEAD_ZONE = 0.05;
+
 // One lazy renderer-module owner per editor page, shared across viewport retries/remounts
 export const editorModelCache = new ModelCache();
 if (import.meta.hot) {
@@ -115,11 +121,13 @@ export function initScene(
   orbit.enableDamping = true;
   orbit.target.set(0, 0, 0);
   let navigationTool: NavigationTool = "select";
-  // Select still orbit when you drag empty space
+  // Select still orbit when you drag empty space. First person has no camera tools
   function applyNavigationTool() {
     orbit.mouseButtons.LEFT = leftDrag[navigationTool];
-    renderer.domElement.style.cursor =
-      modeManager.getState().mode === "editor" ? cursors[navigationTool] : "";
+    renderer.domElement.style.cursor = modeManager.usesOrbit() ? cursors[navigationTool] : "";
+  }
+  function cameraToolActive() {
+    return modeManager.usesOrbit() && navigationTool !== "select";
   }
 
   const fpsControls = new FpsControls(camera, renderer.domElement);
@@ -194,9 +202,15 @@ export function initScene(
         | { currentMode: "move"; geometry: NonNullable<ReturnType<typeof beginAxisDrag>> }
         | { currentMode: "rotate"; geometry: AxisRotation }
         | { currentMode: "freeRotate"; geometry: FreeRotation }
+        | {
+            currentMode: "carry";
+            geometry: { distance: number; offset: THREE.Vector3; moving: boolean };
+          }
       ))
     | undefined;
   let orbitEnabledBeforeDrag = true;
+  // Drags begun with the mouse locked stop when it is freed, the pointer would jump otherwise
+  let dragLocked = false;
   // Scroll that is shown but not yet saved.
   let wheelEdit:
     { id: string; transform: Transform; current: Transform; timer: number } | undefined;
@@ -302,6 +316,8 @@ export function initScene(
     const delta = Math.min((now - lastFrameTime) / 1000, 0.1);
     lastFrameTime = now;
     modeManager.update(delta);
+    // Walking moves a carried object too, not only the mouse
+    carry();
     fpsMeter.tick(now);
     render();
   };
@@ -324,7 +340,7 @@ export function initScene(
     orbit.dispose();
     orbit = new OrbitControls(camera, renderer.domElement);
     orbit.enableDamping = true;
-    orbit.enabled = editingEnabled;
+    orbit.enabled = editingEnabled && modeManager.usesOrbit();
     applyNavigationTool();
     // The constructor looks at its default target, so reinstall the authored pose afterward
     camera.position.fromArray(pose.position);
@@ -339,6 +355,7 @@ export function initScene(
     orbit.addEventListener("change", updateGizmo);
     camera.fov = pose.fovDegrees;
     camera.updateProjectionMatrix();
+    modeManager.resetView();
     camera.updateMatrixWorld(true);
   }
 
@@ -445,6 +462,13 @@ export function initScene(
     return selectedId === null ? undefined : bounds.get(selectedId);
   }
 
+  // A locked mouse doesnt move on screen, so it aims with the crosshair in the middle
+  function aimPoint(event: MouseEvent) {
+    if (!fpsControls.isCaptured()) return { x: event.clientX, y: event.clientY };
+    const rect = renderer.domElement.getBoundingClientRect();
+    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+  }
+
   function screenRay(clientX: number, clientY: number) {
     const rect = renderer.domElement.getBoundingClientRect();
     const point = new THREE.Vector3(
@@ -493,6 +517,7 @@ export function initScene(
     const previous = drag;
     drag = undefined;
     orbit.enabled = orbitEnabledBeforeDrag;
+    fpsControls.holdLook(false);
     previewTransform(previous.id, previous.transform);
     if (renderer.domElement.hasPointerCapture(previous.pointerId)) {
       renderer.domElement.releasePointerCapture(previous.pointerId);
@@ -520,8 +545,73 @@ export function initScene(
     orbitEnabledBeforeDrag = orbit.enabled;
     orbit.enabled = false;
     drag = next;
-    renderer.domElement.setPointerCapture(event.pointerId);
+    dragLocked = fpsControls.isCaptured();
+    // A locked mouse already sends every event to the canvas, and capturing it then throws
+    if (!dragLocked) renderer.domElement.setPointerCapture(event.pointerId);
     event.preventDefault();
+  }
+
+  // The point straight ahead of the crosshair, this far from the eye
+  function carryAim(distance: number) {
+    const forward = camera.getWorldDirection(new THREE.Vector3());
+    return camera.position.clone().addScaledVector(forward, distance);
+  }
+
+  // First person: holding the click on an object picks it up, letting go puts it down
+  function startCarry(event: PointerEvent, id: string | null) {
+    const object = objects.find((entry) => entry.id === id);
+    const instance = id === null ? undefined : instances.get(id);
+    if (object === undefined || instance === undefined) return;
+    const aim = aimPoint(event);
+    const ray = screenRay(aim.x, aim.y);
+    const hit = new THREE.Raycaster(ray.origin, ray.direction).intersectObject(instance, true)[0];
+    if (hit === undefined) return;
+    beginDrag(event, {
+      id: object.id,
+      pointerId: event.pointerId,
+      transform: object.transform,
+      current: object.transform,
+      currentMode: "carry",
+      // Keep the grab point under the crosshair so the object doesnt jump on pick up
+      geometry: {
+        distance: hit.distance,
+        offset: new THREE.Vector3()
+          .fromArray(object.transform.position)
+          .sub(carryAim(hit.distance)),
+        moving: false,
+      },
+    });
+  }
+
+  // First person: holding right click on an object turns it, the camera stays still meanwhile
+  function startTurn(event: PointerEvent, id: string | null) {
+    const object = objects.find((entry) => entry.id === id);
+    if (object === undefined) return;
+    const rotation = new THREE.Quaternion().fromArray(object.transform.rotation);
+    beginDrag(event, {
+      id: object.id,
+      pointerId: event.pointerId,
+      transform: object.transform,
+      current: object.transform,
+      currentMode: "freeRotate",
+      geometry: beginFreeRotation(rotation, 0, 0),
+    });
+    fpsControls.holdLook(true);
+  }
+
+  function carry() {
+    const held = drag;
+    if (held?.currentMode !== "carry") return;
+    const position = carryAim(held.geometry.distance).add(held.geometry.offset);
+    // Objects stand on the floor, so looking down lowers it only that far
+    position.y = Math.max(position.y, 0);
+    // Clicking while still gliding to a stop stay a plain select, not an undo step
+    const start = new THREE.Vector3().fromArray(held.transform.position);
+    if (!held.geometry.moving && position.distanceTo(start) < CARRY_DEAD_ZONE) return;
+    held.geometry.moving = true;
+    if (position.toArray().every((value, index) => value === held.current.position[index])) return;
+    held.current = { ...held.current, position: position.toArray() as Vector3Tuple };
+    previewTransform(held.id, held.current);
   }
 
   function startRotation(event: PointerEvent, handle: (typeof handles)[number] | undefined) {
@@ -559,10 +649,22 @@ export function initScene(
     if (!event.isPrimary || drag !== undefined) return;
     if (modeManager.getState().mode !== "editor") return;
     // Camera tools never pick or move objects
-    if (navigationTool !== "select") return;
+    if (cameraToolActive()) return;
+    // First person: a plain click only grab the mouse, FpsControls does that
+    if (fpsControls.wantsCapture(event)) return;
     if (wheelEdit !== undefined) {
       commitWheelEdit();
       event.preventDefault();
+      return;
+    }
+    // With the mouse locked, clicking pick what the crosshair is on. Holding the left button
+    // carry it and holding the right one turn it. Hold Alt to drag the gizmo instead
+    if (fpsControls.isCaptured()) {
+      const aim = aimPoint(event);
+      const id = pickObject(aim.x, aim.y);
+      callbacks.onSelect(id);
+      if (event.button === 0) startCarry(event, id);
+      else startTurn(event, id);
       return;
     }
     const handle = pickHandle(event.clientX, event.clientY);
@@ -590,7 +692,11 @@ export function initScene(
       });
       return;
     }
-    const ray = screenRay(event.clientX, event.clientY);
+    callbacks.onSelect(pickObject(event.clientX, event.clientY));
+  }
+
+  function pickObject(clientX: number, clientY: number) {
+    const ray = screenRay(clientX, clientY);
     const raycaster = new THREE.Raycaster(ray.origin, ray.direction);
     let nearest =
       environment === undefined
@@ -605,16 +711,30 @@ export function initScene(
         id = objectId;
       }
     }
-    callbacks.onSelect(id);
+    return id;
   }
 
   function pointerMove(event: PointerEvent) {
     if (drag === undefined || event.pointerId !== drag.pointerId) return;
+    if (drag.currentMode === "carry") {
+      carry();
+      return;
+    }
     const ray = screenRay(event.clientX, event.clientY);
     if (drag.currentMode === "move") {
       const position = axisDragPosition(drag.geometry, ray);
       if (position === undefined) return;
       drag.current = { ...drag.current, position: position.toArray() as Vector3Tuple };
+    } else if (drag.currentMode === "freeRotate" && dragLocked) {
+      // A locked mouse stays put on screen, so add up how far it moved instead
+      const { lastX, lastY } = drag.geometry;
+      const rotation = freeRotation(
+        drag.geometry,
+        lastX + event.movementX,
+        lastY + event.movementY,
+        camera.quaternion,
+      );
+      drag.current = { ...drag.current, rotation: rotation.toArray() as QuaternionTuple };
     } else {
       const rotation =
         drag.currentMode === "rotate"
@@ -632,6 +752,7 @@ export function initScene(
     const completed = drag;
     drag = undefined;
     orbit.enabled = orbitEnabledBeforeDrag;
+    fpsControls.holdLook(false);
     if (renderer.domElement.hasPointerCapture(event.pointerId)) {
       renderer.domElement.releasePointerCapture(event.pointerId);
     }
@@ -643,10 +764,23 @@ export function initScene(
   }
 
   function wheel(event: WheelEvent) {
+    if (drag?.currentMode === "carry" && event.deltaY !== 0) {
+      event.preventDefault();
+      event.stopPropagation();
+      // Scrolling while carrying pushes the object away or pulls it closer
+      const { distance } = drag.geometry;
+      drag.geometry.distance = THREE.MathUtils.clamp(
+        distance * wheelScaleFactor(event.deltaY, event.deltaMode),
+        Math.min(CARRY_NEAR, distance),
+        Math.max(CARRY_REACH, distance),
+      );
+      carry();
+      return;
+    }
     if (
       !ready ||
       !editingEnabled ||
-      navigationTool !== "select" ||
+      cameraToolActive() ||
       drag !== undefined ||
       selectedId === null ||
       event.deltaY === 0
@@ -656,7 +790,8 @@ export function initScene(
     const object = objects.find((entry) => entry.id === selectedId);
     const instance = instances.get(selectedId);
     if (object === undefined || instance === undefined) return;
-    const ray = screenRay(event.clientX, event.clientY);
+    const aim = aimPoint(event);
+    const ray = screenRay(aim.x, aim.y);
     const raycaster = new THREE.Raycaster(ray.origin, ray.direction);
     if (raycaster.intersectObject(instance, true).length === 0) return;
     event.preventDefault();
@@ -700,11 +835,17 @@ export function initScene(
   host.addEventListener("wheel", wheel, { capture: true, passive: false });
   window.addEventListener("keydown", keyDown);
   orbit.addEventListener("change", updateGizmo);
-  const unsubscribeMode = modeManager.subscribe(({ mode }) => {
+  let shownCamera = "";
+  const unsubscribeMode = modeManager.subscribe(({ mode, view, captured }) => {
+    // Esc or Alt let go of the mouse, which also puts back whatever was being carried or turned
+    if (!captured && drag !== undefined && dragLocked) cancelDrag();
+    // Grabbing or freeing the mouse alone shouldnt cancel an edit
+    if (shownCamera === `${mode} ${view}`) return;
+    shownCamera = `${mode} ${view}`;
     cancelDrag();
     cancelWheelEdit();
-    // Cancellation must not re-enable orbit controls while visiting
-    orbit.enabled = mode === "editor" && editingEnabled;
+    // Cancellation must not re-enable orbit controls while visiting or walking
+    orbit.enabled = modeManager.usesOrbit() && editingEnabled;
     applyNavigationTool();
     selection.visible = mode === "editor" && getSelectionBounds() !== undefined;
     updateGizmo();
@@ -770,7 +911,7 @@ export function initScene(
         cancelWheelEdit();
         showDropPosition(undefined);
       }
-      orbit.enabled = enabled && modeManager.getState().mode === "editor";
+      orbit.enabled = enabled && modeManager.usesOrbit();
     },
     captureCamera: () => ({
       position: camera.position.toArray() as [number, number, number],

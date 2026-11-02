@@ -37,12 +37,14 @@ try {
   assert.ok(response.headers()["content-security-policy"], "The real server applies its policy");
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   assert.equal(await page.locator("canvas").count(), 1);
-  const asset = page
-    .locator(".asset-picker")
-    .getByRole("button", { name: "test-crate", exact: true });
   await openLibrary(page);
   assert.ok(
-    await asset.locator("img").evaluate((image) => image.complete && image.naturalWidth > 0),
+    await page
+      .locator(".asset-card", {
+        has: page.getByRole("button", { name: "test-crate", exact: true }),
+      })
+      .locator("img")
+      .evaluate((image) => image.complete && image.naturalWidth > 0),
   );
   // Fresh projects require an environment before model placement can change the document
   await addAsset(page, "test-crate");
