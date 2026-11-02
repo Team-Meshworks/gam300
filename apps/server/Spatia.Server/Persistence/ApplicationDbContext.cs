@@ -5,12 +5,13 @@ using Spatia.Server.Accounts;
 using Spatia.Server.Assets;
 using Spatia.Server.Classes;
 using Spatia.Server.Projects;
+using Spatia.Server.Publications;
 using Spatia.Server.Reviews;
 
 namespace Spatia.Server.Persistence;
 
 /// <summary>
-/// Stores Identity accounts, organization memberships and project drafts with their access assignments
+/// Stores accounts, organizations, project drafts with access assignments and immutable publication editions
 /// </summary>
 /// <param name="options">The database provider and context configuration</param>
 public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
@@ -65,13 +66,19 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<ReviewDecision> ReviewDecisions => Set<ReviewDecision>();
 
     /// <summary>
-    /// Configures account, organization, project and asset mappings, constraints and fixed role seeds
+    /// Gets immutable publication editions; current audience and lifecycle authorization are checked separately
+    /// </summary>
+    public DbSet<Publication> Publications => Set<Publication>();
+
+    /// <summary>
+    /// Configures account, project, asset and publication mappings with their independent retention constraints
     /// </summary>
     /// <param name="builder">The model builder receiving the database mappings</param>
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
         builder.ApplyConfiguration(new AssetCandidateConfiguration());
+        builder.ApplyConfiguration(new PublicationConfiguration());
 
         builder.Entity<ApplicationUser>(user =>
         {

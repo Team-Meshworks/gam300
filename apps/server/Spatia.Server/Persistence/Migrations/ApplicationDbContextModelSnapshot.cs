@@ -772,6 +772,75 @@ namespace Spatia.Server.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Spatia.Server.Publications.Publication", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AssetReferencesJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("asset_references");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("statement_timestamp()");
+
+                    b.Property<string>("DocumentJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("document");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
+                    b.Property<Guid>("PublishedById")
+                        .HasColumnType("uuid")
+                        .HasColumnName("published_by_id");
+
+                    b.Property<byte[]>("RequestDigest")
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("request_digest");
+
+                    b.Property<int>("SchemaVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("schema_version");
+
+                    b.Property<long>("SourceRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("source_revision");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PublishedById");
+
+                    b.HasIndex("ProjectId", "SourceRevision");
+
+                    b.ToTable("publications", null, t =>
+                        {
+                            t.HasTrigger("TR_publications_immutable");
+
+                            t.HasCheckConstraint("CK_publications_asset_references", "publication_asset_references_valid(asset_references) IS TRUE");
+
+                            t.HasCheckConstraint("CK_publications_created_at", "isfinite(created_at)");
+
+                            t.HasCheckConstraint("CK_publications_document", "(\n    jsonb_typeof(document) = 'object'\n    AND jsonb_typeof(document -> 'projectId') = 'string'\n    AND lower(document ->> 'projectId') = project_id::text\n    AND jsonb_typeof(document -> 'schemaVersion') = 'number'\n    AND document -> 'schemaVersion' = to_jsonb(schema_version)\n) IS TRUE");
+
+                            t.HasCheckConstraint("CK_publications_id", "id <> '00000000-0000-0000-0000-000000000000'::uuid");
+
+                            t.HasCheckConstraint("CK_publications_request_digest", "octet_length(request_digest) = 32");
+
+                            t.HasCheckConstraint("CK_publications_schema_version", "schema_version > 0");
+
+                            t.HasCheckConstraint("CK_publications_source_revision", "source_revision BETWEEN 0 AND 9007199254740991");
+                        });
+                });
+
             modelBuilder.Entity("Spatia.Server.Reviews.ReviewDecision", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1136,6 +1205,21 @@ namespace Spatia.Server.Persistence.Migrations
                     b.HasOne("Spatia.Server.Projects.Project", null)
                         .WithMany()
                         .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Spatia.Server.Publications.Publication", b =>
+                {
+                    b.HasOne("Spatia.Server.Projects.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Spatia.Server.Accounts.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("PublishedById")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
