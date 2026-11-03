@@ -5,9 +5,12 @@ import { WorkspaceShell } from "../../shared/ui/WorkspaceShell";
 import { Button } from "../../shared/ui/Button";
 import { NewProjectForm } from "../projects/NewProjectForm";
 import { ClassAssignmentForm } from "../projects/ClassAssignmentForm";
+import { AccountDirectoryPage } from "../directory/AccountDirectoryPage";
+import { AdminDashboard } from "../admin/AdminDashboard";
 
 const client = createAccountClient();
 const screens = [
+  { id: "admin/dashboard", title: "Dashboard", roles: ["Administrator"] },
   { id: "new-project", title: "New Project", roles: ["Administrator", "Educator", "Creator"] },
   { id: "classes", title: "Class assignments", roles: ["Administrator", "Educator"] },
   { id: "review", title: "Submission review", roles: ["Administrator", "Educator"] },
@@ -18,7 +21,7 @@ type Access =
   | { kind: "error"; message: string }
   | { kind: "ready"; session: AccountSession | null };
 
-// This shell contains no private records; future data adapters must enforce grants on the server
+// Route visibility follows the session; each screen's API enforces access to its records.
 export function WorkspacePage() {
   const [access, setAccess] = useState<Access>({ kind: "loading" });
   const [attempt, setAttempt] = useState(0);
@@ -87,7 +90,13 @@ export function WorkspacePage() {
     );
   const screen = screens.find((item) => `/${item.id}` === location.pathname.replace(/\/$/, ""));
   const permitted = screens.filter((item) => item.roles.includes(session.role));
-  const fallback = session.role === "Creator" ? "/landing" : "/classes";
+  const fallback =
+    session.role === "Administrator"
+      ? "/admin/dashboard"
+      : session.role === "Creator"
+        ? "/landing"
+        : "/classes";
+  const dashboard = screen?.id === "admin/dashboard" && session.role === "Administrator";
   const from = new URLSearchParams(location.search).get("from");
   const cancelTarget = permitted.find((item) => item.id === from && item.id !== "new-project");
   async function signOut() {
@@ -95,7 +104,7 @@ export function WorkspacePage() {
     signingOut.current = true;
     setLogoutError("");
     try {
-      await client.signOut();
+      await client.signOut(session!.userId);
       location.assign("/login");
     } catch (error) {
       setLogoutError(error instanceof Error ? error.message : "Sign-out failed. Please try again.");
@@ -108,25 +117,29 @@ export function WorkspacePage() {
       name={session.displayName}
       initials={session.displayName.slice(0, 2).toUpperCase()}
       homeHref={fallback}
+      variant={dashboard ? "dashboard" : undefined}
       onSignOut={() => void signOut()}
     >
-      <nav className="sp-workspace-links" aria-label="Workspace screens">
-        {permitted.map((item) => (
-          <a
-            key={item.id}
-            aria-current={screen === item ? "page" : undefined}
-            href={`/${item.id}${item.id === "new-project" && screen && screen.id !== "new-project" ? `?from=${screen.id}` : ""}`}
-          >
-            {item.title}
-          </a>
-        ))}
-      </nav>
+      {!dashboard && (
+        <nav className="sp-workspace-links" aria-label="Workspace screens">
+          {permitted.map((item) => (
+            <a
+              key={item.id}
+              aria-current={screen === item ? "page" : undefined}
+              href={`/${item.id}${item.id === "new-project" && screen && screen.id !== "new-project" ? `?from=${screen.id}` : ""}`}
+            >
+              {item.title}
+            </a>
+          ))}
+        </nav>
+      )}
       {logoutError && <p role="alert">{logoutError}</p>}
       {!screen || !permitted.includes(screen) ? (
         <h1>Access denied</h1>
       ) : (
         <>
-          <h1 className="sp-page-heading">{screen.title}</h1>
+          {!dashboard && <h1 className="sp-page-heading">{screen.title}</h1>}
+          {dashboard && <AdminDashboard key={session.userId} session={session} />}
           {screen.id === "new-project" && (
             <>
               <p role="status">
@@ -159,11 +172,7 @@ export function WorkspacePage() {
               submissions can be loaded.
             </p>
           )}
-          {screen.id === "accounts" && (
-            <p role="status">
-              The account directory is currently unavailable. No account records have been loaded.
-            </p>
-          )}
+          {screen.id === "accounts" && <AccountDirectoryPage key={session.userId} />}
         </>
       )}
     </WorkspaceShell>

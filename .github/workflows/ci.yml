@@ -181,6 +181,8 @@ jobs:
             script: test:interactions
           - name: workspace
             script: test:workspace
+          - name: admin-dashboard
+            script: test:admin-dashboard
           - name: sounds
             script: test:sounds
     defaults:
@@ -295,6 +297,7 @@ jobs:
           test "$(curl --fail --silent http://127.0.0.1:4173/version.txt)" = "$GITHUB_SHA"
           npm run test:deployment -- http://127.0.0.1:4173/
           npm run test:workspace -- http://127.0.0.1:4173
+          CHECK_SCREENSHOT=test-results/admin-dashboard.png npm run test:admin-dashboard -- http://127.0.0.1:4173
           if [[ -f tests/editor-build.check.mjs ]]; then
             node tests/editor-build.check.mjs http://127.0.0.1:4173/
           fi

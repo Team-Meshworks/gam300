@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { OrganizationDirectory } from "../directory/OrganizationDirectory";
 import { accounts } from "./fixtures";
 import cover from "./museum-cover.png";
@@ -34,5 +34,13 @@ export function AccountsExample({
 }: {
   onPreview: (title: string, body: ReactNode) => void;
 }) {
-  return <OrganizationDirectory organizations={organizations} onPreview={onPreview} />;
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  return (
+    <OrganizationDirectory
+      organizations={organizations}
+      selectedId={selectedId}
+      onSelect={setSelectedId}
+      onPreview={onPreview}
+    />
+  );
 }

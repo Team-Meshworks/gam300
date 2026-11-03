@@ -60,7 +60,9 @@ export function LoginPage() {
     if (error) errorRef.current?.focus();
   }, [error]);
   useEffect(() => {
-    if (session) statusRef.current?.focus();
+    if (session?.role === "Administrator" && !session.mustChangePassword) {
+      location.replace("/admin/dashboard");
+    } else if (session) statusRef.current?.focus();
   }, [session]);
   async function submit() {
     if (busy.current) return;
@@ -133,7 +135,9 @@ export function LoginPage() {
                 {session
                   ? session.mustChangePassword
                     ? "Change your password."
-                    : "You’re signed in."
+                    : session.role === "Administrator"
+                      ? "Opening your dashboard…"
+                      : "You’re signed in."
                   : "Welcome back."}
               </h1>
               <p>
@@ -154,10 +158,14 @@ export function LoginPage() {
                 <p role="status">
                   Signed in as {session.displayName} · {session.role}
                 </p>
-                <p>
-                  Your session is verified. The signed-in project workspace is not connected to this
-                  entry screen yet.
-                </p>
+                {session.role === "Administrator" ? (
+                  <a href="/admin/dashboard">Open admin dashboard</a>
+                ) : (
+                  <p>
+                    Your session is verified. The signed-in project workspace is not connected to
+                    this entry screen yet.
+                  </p>
+                )}
                 <Button disabled={pending} onClick={() => void signOut()}>
                   {pending ? "Signing out…" : "Log out"}
                 </Button>
