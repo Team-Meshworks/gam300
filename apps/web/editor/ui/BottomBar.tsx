@@ -23,7 +23,7 @@ const cameraTools: { id: NavigationTool; label: string; hint: string; icon: Icon
 
 type Category = "furniture" | "panels" | "cases" | "audio";
 type SceneTool = "library" | Category;
-type Item = { label: string; icon: IconName };
+type Item = { label: string; icon: IconName; assetId?: string };
 type PopupId = Category | "dock";
 
 const edgeLabels: Record<DockEdge, string> = {
@@ -45,13 +45,41 @@ const categories: { id: Category; label: string; items: [Item, ...Item[]] }[] = 
     id: "panels",
     label: "Display panels",
     items: [
-      { label: "Panel with stand", icon: "panelStanding" },
-      { label: "Small panel with stand", icon: "panelSmall" },
-      { label: "Vertical panel", icon: "panelPortrait" },
-      { label: "Horizontal panel", icon: "panelLandscape" },
+      {
+        label: "Landscape media stand",
+        icon: "panelStanding",
+        assetId: "display-rectangle-stand-v1",
+      },
+      { label: "Square media stand", icon: "panelSmall", assetId: "display-square-stand-v1" },
+      {
+        label: "Landscape media panel",
+        icon: "panelLandscape",
+        assetId: "display-rectangle-panel-v1",
+      },
     ],
   },
-  { id: "cases", label: "Display cases", items: [{ label: "Display case", icon: "caseClosed" }] },
+  {
+    id: "cases",
+    label: "Display cases",
+    items: [
+      { label: "Display plinth", icon: "case", assetId: "display-cube-v1" },
+      {
+        label: "Half glass display case",
+        icon: "caseClosed",
+        assetId: "display-half-glass-case-v1",
+      },
+      {
+        label: "Full glass display case",
+        icon: "caseTallClosed",
+        assetId: "display-full-glass-case-v1",
+      },
+      {
+        label: "One-sided glass display case",
+        icon: "caseTall",
+        assetId: "display-one-sided-glass-case-v1",
+      },
+    ],
+  },
   { id: "audio", label: "Audio", items: [{ label: "Background music", icon: "music" }] },
 ];
 
@@ -149,10 +177,10 @@ export function BottomBar({
     if (anchor !== undefined) setPopup({ id, x: box.left - anchor.left, y: box.top - anchor.top });
   }
 
-  // First click select the category, click it again to open or close its pop up
+  // Display tools open their concrete choices immediately; selecting one uses normal placement.
   function chooseCategory(event: MouseEvent<HTMLButtonElement>, id: Category) {
-    if (selected !== id) return select(id);
-    if (popup !== null) return setPopup(null);
+    if (popup?.id === id) return setPopup(null);
+    setSelected(id);
     openPopup(event.currentTarget, id);
   }
 
@@ -285,10 +313,30 @@ export function BottomBar({
                         type="button"
                         aria-label={item.label}
                         aria-pressed={picked[open.id] === index}
+                        disabled={
+                          item.assetId !== undefined &&
+                          (!ready || !assets.some((asset) => asset.id === item.assetId))
+                        }
+                        draggable={
+                          item.assetId !== undefined &&
+                          ready &&
+                          assets.some((asset) => asset.id === item.assetId)
+                        }
+                        onDragStart={(event) => {
+                          if (!item.assetId) return;
+                          event.dataTransfer.setData(assetDragType, item.assetId);
+                          event.dataTransfer.effectAllowed = "copy";
+                          onDragChange(true);
+                        }}
+                        onDragEnd={() => {
+                          onDragChange(false);
+                          setPopup(null);
+                        }}
                         onClick={() => {
                           setPicked((previous) => ({ ...previous, [open.id]: index }));
                           setPopup(null);
                           playUiSound("assetSelect");
+                          if (item.assetId) onAdd(item.assetId);
                         }}
                         {...popupTip.handlers(item.label)}
                       >

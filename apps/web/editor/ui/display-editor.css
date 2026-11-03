@@ -1,0 +1,39 @@
+.display-editor {
+  display: grid;
+  gap: 1rem;
+  max-width: 44rem;
+}
+.display-editor label {
+  display: grid;
+  gap: 0.4rem;
+}
+.display-editor input,
+.display-editor textarea {
+  padding: 0.75rem;
+  border: 1px solid #b8afa2;
+  border-radius: 0.6rem;
+  font: inherit;
+  background: #fffdf8;
+  color: #302b26;
+}
+.display-editor textarea {
+  min-height: 7rem;
+  resize: vertical;
+}
+.display-kind,
+.display-actions,
+.display-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.display-editor [aria-pressed="true"] {
+  outline: 2px solid #62523d;
+  background: #e8dcc6;
+}
+.display-content-launcher {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  z-index: 3;
+}

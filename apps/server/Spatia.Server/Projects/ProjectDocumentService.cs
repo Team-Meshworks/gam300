@@ -35,7 +35,10 @@ public sealed class ProjectDocumentService
         {
             var id = entry.GetProperty("assetId").GetString()!;
             // Repeated rooms reuse the room bytes as model instances; keep their manifest identity saveable
-            if (id is not ("test-room-v1" or "test-room-module-v1" or "test-crate-v1" or "sample-snowglobe-v1"))
+            if (id is not ("test-room-v1" or "test-room-module-v1" or "test-crate-v1" or "sample-snowglobe-v1"
+                or "display-cube-v1" or "display-full-glass-case-v1" or "display-half-glass-case-v1"
+                or "display-one-sided-glass-case-v1" or "display-rectangle-stand-v1"
+                or "display-rectangle-panel-v1" or "display-square-stand-v1"))
             {
                 continue;
             }
@@ -46,7 +49,7 @@ public sealed class ProjectDocumentService
                 throw new InvalidOperationException("Invalid packaged development asset catalogue.");
             }
         }
-        if (assets.Count != 4)
+        if (assets.Count != 11)
         {
             throw new InvalidOperationException("The packaged development asset catalogue is incomplete.");
         }

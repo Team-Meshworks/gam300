@@ -12,16 +12,31 @@ const allowedIds = new Set([
   "test-crate-v1",
   "sample-snowglobe-v1",
   "test-room-module-v1",
+  "display-cube-v1",
+  "display-full-glass-case-v1",
+  "display-half-glass-case-v1",
+  "display-one-sided-glass-case-v1",
+  "display-rectangle-stand-v1",
+  "display-rectangle-panel-v1",
+  "display-square-stand-v1",
 ]);
 type Entry = {
   assetId: string;
   name: string;
-  kind: "environment" | "model";
+  kind: "environment" | "model" | "image" | "video";
   file: string;
   sha256: string;
   thumbnail: string | null;
   thumbnailMode?: "generated";
   placement?: "bottom-center";
+  displayRole?: "physical" | "digital";
+  displayTop?: number;
+  displaySurface?: {
+    position: readonly [number, number, number];
+    rotation: readonly [number, number, number, number];
+    width: number;
+    height: number;
+  };
   access: string;
   category: string;
 };
@@ -50,7 +65,7 @@ export function assetCataloguePlugin(): Plugin {
       seen.has(entry.assetId) ||
       typeof entry.name !== "string" ||
       !entry.name.trim() ||
-      !["environment", "model"].includes(entry.kind) ||
+      !["environment", "model", "image", "video"].includes(entry.kind) ||
       entry.access !== "development-only" ||
       typeof entry.category !== "string" ||
       !entry.category.trim() ||
@@ -59,8 +74,42 @@ export function assetCataloguePlugin(): Plugin {
     ) {
       throw new Error("Invalid or non-development catalogue entry: " + entry.assetId);
     }
+    if (entry.displayRole !== undefined) {
+      if (entry.kind !== "model" || !["physical", "digital"].includes(entry.displayRole)) {
+        throw new Error("Invalid display role: " + entry.assetId);
+      }
+      if (
+        entry.displayRole === "physical" &&
+        (!Number.isFinite(entry.displayTop) || entry.displayTop! < 0)
+      ) {
+        throw new Error("Invalid display support height: " + entry.assetId);
+      }
+      if (entry.displayRole === "digital") {
+        const surface = entry.displaySurface;
+        if (
+          !surface ||
+          surface.position?.length !== 3 ||
+          !surface.position.every(Number.isFinite) ||
+          surface.rotation?.length !== 4 ||
+          !surface.rotation.every(Number.isFinite) ||
+          Math.abs(Math.hypot(...surface.rotation) - 1) > 0.0001 ||
+          !Number.isFinite(surface.width) ||
+          surface.width <= 0 ||
+          !Number.isFinite(surface.height) ||
+          surface.height <= 0
+        ) {
+          throw new Error("Invalid digital display surface: " + entry.assetId);
+        }
+      }
+    }
     seen.add(entry.assetId);
-    const model = deliveryPath(entry.file, /\.glb$/i);
+    const extension =
+      entry.kind === "image"
+        ? /\.(png|jpe?g|webp)$/i
+        : entry.kind === "video"
+          ? /\.(mp4|webm)$/i
+          : /\.glb$/i;
+    const model = deliveryPath(entry.file, extension);
     if (
       !/^[a-f0-9]{64}$/.test(entry.sha256) ||
       createHash("sha256").update(readFileSync(model)).digest("hex") !== entry.sha256
@@ -144,6 +193,12 @@ export function assetCataloguePlugin(): Plugin {
             index +
             ",thumbnail:thumbnail" +
             index +
+            ",displayRole:" +
+            JSON.stringify(entry.displayRole) +
+            ",displayTop:" +
+            JSON.stringify(entry.displayTop) +
+            ",displaySurface:" +
+            JSON.stringify(entry.displaySurface) +
             ",placement:" +
             JSON.stringify(entry.placement ?? null) +
             "}",
