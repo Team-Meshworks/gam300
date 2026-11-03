@@ -181,6 +181,7 @@ export function AccountDirectoryPage() {
               : [],
           projects: row.id === selected ? projects.map((item) => ({ ...item, creator: "" })) : [],
         }))}
+        selectedId={selected}
         onSelect={select}
         loading={detailLoading}
         detailError={detailError}

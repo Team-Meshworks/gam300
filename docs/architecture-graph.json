@@ -256,9 +256,9 @@
     "editor/controls/fpsControls.test.ts": "cbd1846abe8e90e5c4d0c703ed07297f89153bc6901a757d46231ac80e28b831",
     "editor/controls/fpsControls.ts": "e902d1355fb1be962656a793d96805990a5637161355118e9dd8bd1c0a7d4052",
     "editor/directory/AccountDialog.tsx": "252a33524213bea4422d6924091af632d7a21bbee2cc788fd096287cad63cb75",
-    "editor/directory/AccountDirectoryPage.tsx": "8d973cc1c9dc0dd971c4f4e76f60c7e14391eb4092e8ba70803d354be70a5c22",
+    "editor/directory/AccountDirectoryPage.tsx": "8da9a3ff026ca8fb2cac9e9bad78052a0a28ec67ee36a910ba828747ee77447a",
     "editor/directory/AccountList.tsx": "a13ebd1917e4de800d12db5a7cdcd6e4864c0192de8890fd12298b534e87c5f0",
-    "editor/directory/OrganizationDirectory.tsx": "3117917c49f99856a82d224949d7c318062cb1864f4de1b4488cc55128585f0f",
+    "editor/directory/OrganizationDirectory.tsx": "ea727344053bf346b5dc06cd6ba4090d1959a462ae70097f9e1504a5297da568",
     "editor/directory/directory-client.test.ts": "28c5a0a38207a4d759215dd1180c5042b1ccfd2a66c3078b5cc137c505973f27",
     "editor/directory/directory-client.ts": "cc2514d06eb56b603a9a69c39b977d4436bb65e905e68bda1a71b924fac06442",
     "editor/directory/directory.ts": "ec5cf37c67e953850b1115ba316cec367527baa0c4fbc3f5aca289a171ba477a",
@@ -340,7 +340,7 @@
     "editor/scenes.test.ts": "ba9e8675e8dfdbd69c6469d32f4cfba67fb590b9f74b405c64d2106f147bb9c8",
     "editor/transform-command.test.ts": "7708bd68c3ebffe37e9569f9c6db2238b36c9cc97927830263ce0083af5ab6b3",
     "editor/transform-command.ts": "338ad5ff277ed1bfa0b9bb9164a441be0fb5fb125a392e35e3ba632e9a179d13",
-    "editor/ui-preview/AccountsExample.tsx": "c65ec3c55be1a61a87b04a4fbd54c93aeae3a18af03b1dcc151a15f4c9673f27",
+    "editor/ui-preview/AccountsExample.tsx": "ca2f769cb11e99114cfb759fe17c1487b2257a6921414837da64d30bb1b5e146",
     "editor/ui-preview/ClassAssignmentExample.tsx": "37ec043caaeddbafab2fe300ae7435b33fe6e7ea1c80e9f36c3e99a3b0078f67",
     "editor/ui-preview/FoundationPreview.tsx": "5288a60943e51cb68335c6c1f03083f8bbddbd2041cb02b0579b351e54039fbb",
     "editor/ui-preview/NewProjectExample.tsx": "1e4bf0a30c817f5a2a964e365675fc07ec14aa830563728e5313010fe08373cb",
@@ -412,8 +412,8 @@
     "shared/ui/Tabs.tsx": "aedf8b2e76163368b062ac30387b67b9922a5e27b51c54adcf89d2603cfac281",
     "shared/ui/WorkspaceShell.tsx": "aae2c7bcbec129635a95de63aa3a7df9507362b3de5d05dbde0adfb21a29058f",
     "tests/account-dev-server.check.mjs": "e8eeb4518a694890660ffaca4cd8e5d99c6e5017328c597e2f2141f667ecf456",
-    "tests/account-directory-real-api.check.mjs": "4b94a48987eac8ed20d3c063c961bffbb424e7a85d8fa785c3bcde7f917ff90e",
-    "tests/account-directory.check.mjs": "22f4df8a427196d619d263075d4f2b5bb8ab4445e6a68cd507d20e1eee427565",
+    "tests/account-directory-real-api.check.mjs": "04143bc5d2fce9af6c1d0a63e779a0aefaefa7343d89f29348b6206c591d8222",
+    "tests/account-directory.check.mjs": "361329b91acaff8d5b11971aef6d76ff37a332a835bea7a4907af611b2516066",
     "tests/caching.check.mjs": "3ff36ae487a43e4585556b9482e25008526b6282f448572c956b27f1e2f17aac",
     "tests/caching.measure.mjs": "aadf27638c20f8a79d5fe302ec7a3f0ad9bab52661bc5be39df65fb89b53e727",
     "tests/class-assignment.check.mjs": "232d5231b7304b2297ef4e19fff8c7c721b5b67afe6d3e55cb46fa3e7a893bcf",
@@ -1772,7 +1772,7 @@
     },
     {
       "file": "editor/directory/OrganizationDirectory.tsx",
-      "line": 37,
+      "line": 38,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -4974,7 +4974,7 @@
     {
       "file": "editor/ui-preview/AccountsExample.tsx",
       "line": 1,
-      "kind": "type",
+      "kind": "static",
       "specifier": "react",
       "target": {
         "package": "react"
@@ -5010,7 +5010,7 @@
     },
     {
       "file": "editor/ui-preview/AccountsExample.tsx",
-      "line": 37,
+      "line": 39,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {

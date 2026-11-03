@@ -16,6 +16,9 @@ const userId = "7ea0882b-9365-4b9c-b8b8-e5ee113ad07e";
 const rows = [];
 const writes = [];
 let duplicate = false;
+let failOrganizations = false;
+let projectTitle = "The Silk Road: A Journey Through History";
+const reads = { accounts: 0, projects: 0 };
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
   page.setDefaultTimeout(10000);
@@ -61,6 +64,8 @@ try {
       }
       return route.fulfill({ status: req.method() === "POST" ? 201 : 200, json: rows[0] });
     }
+    if (path === "/api/admin/organizations" && failOrganizations)
+      return route.fulfill({ status: 503, json: { code: "directory_unavailable" } });
     if (path === "/api/admin/organizations")
       return route.fulfill({
         json: {
@@ -68,17 +73,19 @@ try {
           nextCursor: null,
         },
       });
-    if (path.endsWith("/projects"))
+    if (path.endsWith("/projects")) {
+      reads.projects++;
       return route.fulfill({
         json: {
-          items: [
-            { id: userId, title: "The Silk Road: A Journey Through History", status: "Draft" },
-          ],
+          items: [{ id: userId, title: projectTitle, status: "Draft" }],
           nextCursor: null,
         },
       });
-    if (path === "/api/admin/users")
+    }
+    if (path === "/api/admin/users") {
+      reads.accounts++;
       return route.fulfill({ json: { items: rows, nextCursor: null } });
+    }
     if (path === `/api/admin/users/${userId}`) return route.fulfill({ json: rows[0] });
     return route.fulfill({ status: 404 });
   });
@@ -188,13 +195,47 @@ try {
   rows[0].displayName = "Aisyah Refreshed";
   await page.getByRole("button", { name: "Open Ridgeview Secondary School" }).click();
   await page.getByRole("button", { name: "View account for Aisyah Refreshed" }).waitFor();
+  // A failed directory refresh unmounts the child. Retry must retain the selected
+  // organisation and reload both panes, including when opening that same ID again.
+  failOrganizations = true;
+  await page.getByRole("button", { name: "Refresh directory", exact: true }).click();
+  await page.getByRole("alert").filter({ hasText: "directory request failed" }).waitFor();
+  const beforeRecovery = { ...reads };
+  rows[0].displayName = "Aisyah Recovered";
+  projectTitle = "Recovered project";
+  failOrganizations = false;
+  await page.getByRole("button", { name: "Retry", exact: true }).click();
+  await page.getByRole("button", { name: "View account for Aisyah Recovered" }).waitFor();
+  await page.getByRole("heading", { name: projectTitle, exact: true }).waitFor();
+  assert.equal(
+    await page.getByRole("button", { name: "Refresh directory", exact: true }).isEnabled(),
+    true,
+  );
+  assert.equal(
+    await page
+      .getByRole("status")
+      .filter({ hasText: /Loading/ })
+      .count(),
+    0,
+  );
+  assert.ok(reads.accounts > beforeRecovery.accounts && reads.projects > beforeRecovery.projects);
+  const beforeReopen = { ...reads };
+  await page.getByRole("button", { name: "All organisations", exact: true }).click();
+  await page.getByRole("button", { name: "Open Ridgeview Secondary School" }).click();
+  await page.getByRole("button", { name: "View account for Aisyah Recovered" }).waitFor();
+  await page.getByRole("heading", { name: projectTitle, exact: true }).waitFor();
+  assert.ok(reads.accounts > beforeReopen.accounts && reads.projects > beforeReopen.projects);
+  assert.equal(
+    await page.getByRole("button", { name: "Refresh directory", exact: true }).isEnabled(),
+    true,
+  );
   const storage = await page.evaluate(() =>
     JSON.stringify({ local: { ...localStorage }, session: { ...sessionStorage } }),
   );
   assert.ok(!storage.includes("password1") && !storage.includes("password2"));
   assert.deepEqual(errors, []);
   console.log(
-    "Account directory browser checks passed: create, override, errors, reload, filters, lifecycle, mobile, return navigation and sound.",
+    "Account directory browser checks passed: create, override, errors, reload, filters, lifecycle, mobile, return navigation, failed-refresh recovery and sound.",
   );
 } finally {
   await browser.close();

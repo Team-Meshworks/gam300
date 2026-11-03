@@ -15,6 +15,7 @@ function countLabel(count: number, noun: string) {
 export function OrganizationDirectory({
   organizations,
   onPreview,
+  selectedId,
   onSelect,
   accountActions,
   loading,
@@ -23,23 +24,22 @@ export function OrganizationDirectory({
 }: {
   organizations: readonly DirectoryOrganization[];
   onPreview: (title: string, body: ReactNode) => void;
-  onSelect?: (id: string | null) => void;
+  selectedId: string | null;
+  onSelect: (id: string | null) => void;
   accountActions?: AccountActions;
   loading?: boolean;
   detailError?: string;
   projectError?: string;
 }) {
   const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState<string | null>(null);
-  const organization = organizations.find((item) => item.id === selected);
+  const organization = organizations.find((item) => item.id === selectedId);
   if (organization)
     return (
       <div className="sp-directory">
         <div>
           <Button
             onClick={() => {
-              setSelected(null);
-              onSelect?.(null);
+              onSelect(null);
               playUiSound("goingBack");
             }}
           >
@@ -53,7 +53,7 @@ export function OrganizationDirectory({
               <h2>{organization.name}</h2>
             </div>
             <p>{organization.description}</p>
-            {!onSelect && (
+            {!accountActions && (
               <dl className="sp-summary">
                 <dt>Projects</dt>
                 <dd>{organization.projects.length}</dd>
@@ -132,7 +132,7 @@ export function OrganizationDirectory({
               <Avatar name={item.name} />
               <h3>{item.name}</h3>
             </div>
-            {onSelect ? (
+            {accountActions ? (
               <p className="sp-hint">{item.description}</p>
             ) : (
               <p className="sp-hint">
@@ -148,13 +148,7 @@ export function OrganizationDirectory({
                 )}
               </p>
             )}
-            <Button
-              aria-label={`Open ${item.name}`}
-              onClick={() => {
-                setSelected(item.id);
-                onSelect?.(item.id);
-              }}
-            >
+            <Button aria-label={`Open ${item.name}`} onClick={() => onSelect(item.id)}>
               View Organisation
             </Button>
           </article>

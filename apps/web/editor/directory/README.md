@@ -1,6 +1,6 @@
 # Organisation directory integration
 
-`OrganizationDirectory` receives only organisations, projects and accounts the current user is authorized to inspect. Its data types are UI adapters, not an API contract; the host and server own access control and authoritative data. Key the directory by identity or authorization context when mounting it. Organisation search persists on return to the list, while the keyed account list resets its query and role filter on a switch.
+`OrganizationDirectory` receives only organisations, projects and accounts the current user is authorized to inspect. Its data types are UI adapters, not an API contract; the host and server own access control and authoritative data. Key the directory by identity or authorization context when mounting it. Selection is controlled by the host through `selectedId` and `onSelect`, so directory recovery cannot reset it independently of the data fetch. Organisation search persists on return to the list, while the keyed account list resets its query and role filter on a switch.
 
 `AccountDirectoryPage` connects the administrator `/accounts` route to live directory, provisioning, profile override and lifecycle APIs. It loads cursor pages for the selected organisation and refetches an account before opening its details. `AccountDialog` reuses the shared native modal for creation and field-by-field overrides. Facilitator is the display label for the server's Educator role. Passwords exist only in the mounted form; they are never read from the API or stored in browser storage.
 
