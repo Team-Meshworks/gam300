@@ -9,6 +9,7 @@ import type { RecoveryHistory } from "../recovery-history";
 import {
   loadLatestLocalDraft,
   loadRecoverySession,
+  getOlderRecoveryFiles,
   saveRecoverySession,
   type RecoverySession,
 } from "./local-drafts";
@@ -43,9 +44,11 @@ export function useProjectSession(
   objectCount: number,
   onReplace: () => void,
   onNotice: (message: string) => void,
+  onSaved?: () => void,
 ) {
   const kinds = useMemo(() => new Map(assets.map((asset) => [asset.id, asset.kind])), [assets]);
   const [operation, setOperation] = useState<Operation>("recover");
+  const [olderSceneFiles, setOlderSceneFiles] = useState<{ text: string; name: string }[]>([]);
   const [fileName, setFileName] = useState("");
   const [savedJson, setSavedJson] = useState<string | null>(null);
   const [pristineProject, setPristineProject] = useState<ProjectDocument | null>(null);
@@ -87,8 +90,7 @@ export function useProjectSession(
     return encoded.ok ? encoded.value : null;
   }, [project, kinds]);
   const dirty = project === null ? objectCount > 0 : currentJson !== savedJson;
-
-  // An untouched room has nothing to lose when starting over
+  // An untouched scene has nothing to lose when starting over
   // The first object edit replaces this snapshot and enables the save question
   const needsDecision = dirty && (project === null || project !== pristineProject);
 
@@ -231,7 +233,9 @@ export function useProjectSession(
               pristine:
                 !link &&
                 legacy.value.document.schemaVersion === 1 &&
-                legacy.value.document.scenes[0]?.objects.length === 0,
+                legacy.value.document.scenes.length === 1 &&
+                legacy.value.document.scenes[0]?.objects.length === 0 &&
+                !legacy.value.document.scenes[0]?.viewpoints?.length,
               ...(legacy.value.history ? { history: legacy.value.history } : {}),
               ...(legacy.value.historyWarning
                 ? { historyWarning: legacy.value.historyWarning }
@@ -239,6 +243,12 @@ export function useProjectSession(
             };
           }
         }
+
+        const archives = await getOlderRecoveryFiles(kinds).catch(() => {
+          if (!cancelled) setError("Could not list older browser backups; stored copies were kept");
+          return [];
+        });
+        if (!cancelled) setOlderSceneFiles(archives);
 
         // Storage can finish after the student has already started another project
         // Leave that newer scene alone
@@ -249,6 +259,12 @@ export function useProjectSession(
         // New deliberately leaves no scene; keep its revision without reviving an older draft
         if (recovered.document === null) {
           local.revision = recovered.revision;
+          if (recovered.olderSceneFile) {
+            setOlderSceneFiles([recovered.olderSceneFile, ...archives]);
+            setNotice(
+              "An older scene backup is available. Use Import older browser backup to convert it.",
+            );
+          }
           return;
         }
         const loaded = store.loadProject(
@@ -307,7 +323,7 @@ export function useProjectSession(
       return false;
     }
     if (current === null) {
-      setError("Choose a room before saving this project");
+      setError("Create a scene before saving this project");
       return false;
     }
     const encoded = serializeProject(current, kinds);
@@ -378,6 +394,7 @@ export function useProjectSession(
       setSavedJson(encoded.value);
       setFileFailed(false);
       setNotice(`Saved ${handle.name}`);
+      onSaved?.();
 
       // Store the manual-save baseline alongside this snapshot for the next visit
       await persist(current, undefined, recoveryHistory);
@@ -485,7 +502,11 @@ export function useProjectSession(
     }
   }
 
-  async function importFile(file: File, handle: ProjectFileHandle | null = null) {
+  async function importFile(
+    file: File,
+    handle: ProjectFileHandle | null = null,
+    converted = false,
+  ) {
     const local = state.current;
     if (local.busy || local.switching) {
       return;
@@ -515,8 +536,8 @@ export function useProjectSession(
       candidate = {
         document: checked.value,
         fileName: file.name,
-        savedJson: JSON.stringify(checked.value),
-        fileText: text,
+        savedJson: converted ? null : JSON.stringify(checked.value),
+        fileText: converted ? "" : text,
         handle,
         pristine: false,
       };
@@ -609,6 +630,7 @@ export function useProjectSession(
 
   return {
     operation,
+    olderSceneFiles,
     fileName,
     dirty,
     fileFailed,
@@ -619,6 +641,7 @@ export function useProjectSession(
     save,
     open,
     importFile,
+    importConvertedFile: (file: File) => importFile(file, null, true),
     createNew,
     openSample,
     markPristine,

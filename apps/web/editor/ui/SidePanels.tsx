@@ -6,17 +6,21 @@ import type { Interaction } from "../interaction/interactionHandler";
 import { InteractionPanel } from "./InteractionPanel";
 import { degreesToQuaternion, quaternionToDegrees } from "./rotation-angles";
 
-type PanelId = "position" | "tree" | "interaction";
+type PanelId = "scenes" | "position" | "tree" | "interaction" | "views";
 type Room = { id: string; name: string; thumbnail: string | undefined };
 
 const railButtons: { id: PanelId; label: string; icon: IconName }[] = [
   { id: "position", label: "Position", icon: "axes" },
   { id: "tree", label: "Scene tree", icon: "tree" },
+  { id: "scenes", label: "Scenes", icon: "library" },
+  { id: "views", label: "Saved views", icon: "tree" },
   { id: "interaction", label: "Interaction", icon: "touch" },
 ];
 
 export function SidePanels({
   visitor,
+  savedViews,
+  scenes,
   room,
   objects,
   selectedId,
@@ -29,6 +33,8 @@ export function SidePanels({
   onInteractionsChange,
 }: {
   visitor: boolean;
+  savedViews: ReactNode;
+  scenes: ReactNode;
   room: Room | undefined;
   objects: readonly SceneObject[];
   selectedId: string | null;
@@ -81,6 +87,8 @@ export function SidePanels({
               thumbnailFor={thumbnailFor}
             />
           )}
+          {panel === "scenes" && <div className="editor-panel">{scenes}</div>}
+          {panel === "views" && <div className="editor-panel">{savedViews}</div>}
           {panel === "interaction" && (
             <InteractionPanel
               interactions={interactions}

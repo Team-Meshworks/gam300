@@ -10,6 +10,7 @@ import {
   getLatestLocalDraft,
   getLocalDraft,
   getRecoverySession,
+  getOlderRecoveryFiles,
   type RecoverySession,
 } from "./local-drafts";
 import type { IDraftDatabase } from "./draft-db";
@@ -299,6 +300,53 @@ describe("applySaveToLocalDraft", () => {
 });
 
 describe("getRecoverySession", () => {
+  it("offers old scenes for explicit conversion and archives their original recovery before replacement", async () => {
+    const database = new FakeDraftDatabase();
+    const older = {
+      ...fixture,
+      scenes: fixture.scenes.map((scene) => ({
+        ...scene,
+        hotspots: undefined,
+        interactions: undefined,
+        viewpoints: [],
+      })),
+    };
+    const original = {
+      ...recoverySession(),
+      revision: 4,
+      document: JSON.stringify(older),
+      history: { old: "retained" },
+    };
+    database.records.set('session:"active"', original);
+    const recovered = await getRecoverySession(assets, database);
+    expect(recovered).toMatchObject({
+      ok: true,
+      value: { revision: 4, document: null, olderSceneFile: { text: original.document } },
+    });
+    expect(database.records.get('session:"active"')).toEqual(original);
+    expect((await applySaveRecoverySession(recoverySession(), 3, assets, database)).ok).toBe(false);
+    expect(database.records.has('session:"older-scene-backup:4"')).toBe(false);
+    expect((await applySaveRecoverySession(recoverySession(), 4, assets, database)).ok).toBe(true);
+    expect(database.records.get('session:"older-scene-backup:4"')).toEqual(original);
+    expect(await getOlderRecoveryFiles(assets, database)).toEqual([
+      { text: original.document, name: original.fileName || "older-scene.json" },
+    ]);
+    expect(await getRecoverySession(assets, database)).toMatchObject({
+      ok: true,
+      value: { revision: 5, document: fixture },
+    });
+    database.records.set('session:"older-scene-backup:8"', {
+      ...original,
+      fileName: "another.json",
+    });
+    database.records.set('session:"older-scene-backup:9"', { document: "damaged" });
+    const before = [...database.records.entries()];
+    expect(await getOlderRecoveryFiles(assets, database)).toEqual([
+      { text: original.document, name: original.fileName || "older-scene.json" },
+      { text: original.document, name: "another.json" },
+    ]);
+    expect([...database.records.entries()]).toEqual(before);
+  });
   it("preserves a richer document as authored work even when its first scene is empty", async () => {
     const database = new FakeDraftDatabase();
     const document = structuredClone(contentFixture);

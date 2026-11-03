@@ -14,6 +14,7 @@ graph TD
   document["document"]
   rendering["rendering"]
   persistence["persistence"]
+  ui-foundation["ui-foundation"]
   editor["editor"]
   build["build"]
   checks["checks"]
@@ -33,6 +34,7 @@ graph TD
   editor --> persistence
   editor --> project
   editor --> rendering
+  editor --> ui-foundation
   checks --> asset-loading
   checks --> build
   checks --> catalogue

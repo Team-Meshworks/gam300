@@ -71,6 +71,8 @@ export type Interaction = Readonly<{
   do: InteractionAction;
 }>;
 
+export type NamedViewpoint = Readonly<{ id: EntityId; name: string; camera: CameraPose }>;
+
 export type ProjectScene = Readonly<{
   id: EntityId;
   name: string;
@@ -79,6 +81,9 @@ export type ProjectScene = Readonly<{
   // TODO: multiple environment assets per scene if necessary
   environmentAssetId: AssetId;
   startCamera: CameraPose;
+
+  // V2 scenes carry viewpoints; the v1 validator still rejects this field.
+  viewpoints?: readonly NamedViewpoint[];
 
   // Keep the scene list order when saving
   objects: readonly ProjectObject[];

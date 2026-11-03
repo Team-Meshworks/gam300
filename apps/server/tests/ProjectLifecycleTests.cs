@@ -1,3 +1,4 @@
+using System.Data;
 using System.Data.Common;
 using System.Net;
 using System.Net.Http.Json;
@@ -10,6 +11,7 @@ using Npgsql;
 using Spatia.Server.Accounts;
 using Spatia.Server.Persistence;
 using Spatia.Server.Projects;
+using Spatia.Server.Reviews;
 
 namespace Spatia.Server.Tests;
 
@@ -124,7 +126,7 @@ public sealed class ProjectLifecycleTests
     }
 
     [Test]
-    public async Task ProjectLifecycle_ArchiveReopenAndAssignmentsPreserveSavedContentAndInvalidateOldRetry()
+    public async Task ProjectLifecycle_ArchiveReopenAndAssignmentsPreserveSavedContentAndHistoricalRetry()
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
         var actor = await fixture.CreateAccountAsync(ApplicationRoles.Educator);
@@ -157,15 +159,87 @@ public sealed class ProjectLifecycleTests
         using var reopened = await SendAsync(fixture, HttpMethod.Patch, Path(id, "/archive"), new { expectedRevision = 2, archived = false });
         await MetadataAsync(reopened, HttpStatusCode.OK, 3);
         using var oldRetry = await SendAsync(fixture, HttpMethod.Put, Path(id), save);
-        await ProblemAsync(fixture, oldRetry, HttpStatusCode.Conflict, "revision_conflict", 3);
+        await Assert.That(oldRetry.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        await Assert.That(await oldRetry.Content.ReadAsStringAsync()).IsEqualTo(await saved.Content.ReadAsStringAsync());
+        await Assert.That((await ReadAsync(fixture, id)).Revision).IsEqualTo(3L);
         using var assigned = await SendAsync(fixture, HttpMethod.Patch, Path(id, "/assignments"), Assignments(3, [], [actor]));
         await MetadataAsync(assigned, HttpStatusCode.OK, 4);
         await Assert.That((await ReadAsync(fixture, id)).DocumentJson).IsEqualTo(before.DocumentJson);
+        using var assignedRetry = await SendAsync(fixture, HttpMethod.Put, Path(id), save);
+        await Assert.That(assignedRetry.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        await Assert.That(await assignedRetry.Content.ReadAsStringAsync()).IsEqualTo(await saved.Content.ReadAsStringAsync());
+        await Assert.That((await ReadAsync(fixture, id)).Revision).IsEqualTo(4L);
         using var resumed = await SendAsync(fixture, HttpMethod.Put, Path(id), Save(id, "After reopen", 4));
         await Assert.That(resumed.StatusCode).IsEqualTo(HttpStatusCode.OK);
         using var replace = await SendAsync(fixture, HttpMethod.Patch, Path(id, "/assignments"), Assignments(5, [], [actor]));
         await MetadataAsync(replace, HttpStatusCode.OK, 6);
         await Assert.That((await ReadAsync(fixture, id)).LastMutationId is null).IsTrue();
+    }
+
+    [Test]
+    [Arguments("archive")]
+    [Arguments("assignments")]
+    public async Task ProjectLifecycle_ClassMetadataChangesInvalidateApprovalWithoutRewritingEvidence(string operation)
+    {
+        await using var fixture = await ReviewSubmissionEndpointTests.CreateFixtureAsync(new ReviewSubmissionEndpointTests.FixtureAssets());
+        var data = await ReviewSubmissionEndpointTests.SeedAsync(fixture, false);
+        var submissionId = Guid.NewGuid();
+        using (var submitted = await ReviewSubmissionEndpointTests.SubmitAsync(fixture, data.ProjectId, submissionId, 0, true))
+        { await Assert.That(submitted.StatusCode).IsEqualTo(HttpStatusCode.Created); }
+        await fixture.SignInAsync(data.Educator);
+        var detailPath = Path(data.ProjectId, $"/submissions/{submissionId:D}");
+        using (var approved = await SendAsync(fixture, HttpMethod.Post, detailPath + "/decisions",
+            new { decisionId = Guid.NewGuid(), expectedRevision = 0, outcome = "approved", feedback = "Retain this review" }))
+        { await Assert.That(approved.StatusCode).IsEqualTo(HttpStatusCode.Created); }
+        using var beforeResponse = await fixture.Client.GetAsync(detailPath);
+        await Assert.That(beforeResponse.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        var before = await beforeResponse.Content.ReadFromJsonAsync<JsonElement>();
+        await Assert.That(before.GetProperty("isCurrentSubmission").GetBoolean()).IsTrue();
+        await Assert.That(await ApprovalAsync()).IsEqualTo(ReviewApprovalState.Approved);
+
+        using (var changed = await SendAsync(fixture, HttpMethod.Patch, Path(data.ProjectId, "/" + operation),
+            operation == "archive" ? new { expectedRevision = 0, archived = true } : Assignments(0, [], [data.Educator])))
+        { await MetadataAsync(changed, HttpStatusCode.OK, 1); }
+        await Assert.That(await ApprovalAsync()).IsEqualTo(operation == "archive"
+            ? ReviewApprovalState.StaleProject : ReviewApprovalState.ApprovalRequired);
+        using (var restored = await SendAsync(fixture, HttpMethod.Patch, Path(data.ProjectId, "/" + operation),
+            operation == "archive" ? new { expectedRevision = 1, archived = false } : Assignments(1, [data.Student], [data.Educator])))
+        { await MetadataAsync(restored, HttpStatusCode.OK, 2); }
+        await Assert.That(await ApprovalAsync()).IsEqualTo(ReviewApprovalState.ApprovalRequired);
+
+        using var afterResponse = await fixture.Client.GetAsync(detailPath);
+        await Assert.That(afterResponse.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        var after = await afterResponse.Content.ReadFromJsonAsync<JsonElement>();
+        await Assert.That(after.GetProperty("isCurrentSubmission").GetBoolean()).IsFalse();
+        foreach (var field in before.EnumerateObject().Where(field => field.Name != "isCurrentSubmission"))
+        {
+            await Assert.That(JsonElement.DeepEquals(field.Value, after.GetProperty(field.Name))).IsTrue();
+        }
+        await fixture.SignInAsync(data.Student);
+        var reopened = await OpenAsync(fixture, data.ProjectId);
+        await Assert.That(reopened.GetProperty("revision").GetInt64()).IsEqualTo(2L);
+        await Assert.That(JsonElement.DeepEquals(before.GetProperty("document"), reopened.GetProperty("document"))).IsTrue();
+        await using var verify = fixture.Database.Services.CreateAsyncScope();
+        var stored = verify.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await Assert.That(await stored.ReviewSubmissions.CountAsync()).IsEqualTo(1);
+        await Assert.That(await stored.ReviewDecisions.CountAsync()).IsEqualTo(1);
+        await Assert.That((await stored.ClassAssignmentStudents.SingleAsync(row => row.ProjectId == data.ProjectId)).StudentId)
+            .IsEqualTo(data.Student);
+        var provenance = await stored.ProjectProvenances.SingleAsync(row => row.ProjectId == data.ProjectId);
+        await Assert.That(provenance.Kind).IsEqualTo(ProjectProvenance.Class);
+        await Assert.That(provenance.StudentId).IsEqualTo(data.Student);
+
+        async Task<ReviewApprovalState> ApprovalAsync()
+        {
+            await using var scope = fixture.Database.Services.CreateAsyncScope();
+            var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            await using var transaction = await database.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted);
+            var project = await database.Projects.AsNoTracking().SingleAsync(row => row.Id == data.ProjectId);
+            var snapshot = new ProjectAccessSnapshot(data.Educator, project.Id, project.OrganizationId, project.IsArchived,
+                project.Revision, project.SchemaVersion, project.DocumentJson, project.UpdatedAt,
+                null, null, null, !project.IsArchived, true, !project.IsArchived);
+            return await ReviewApproval.CheckLockedAsync(database, snapshot);
+        }
     }
 
     [Test]

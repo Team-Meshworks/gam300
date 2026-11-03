@@ -1,8 +1,23 @@
-import { validatePosition, validateTransform } from "../shared/project/spatial-validation";
+import {
+  validateCameraPose,
+  validatePosition,
+  validateTransform,
+} from "../shared/project/spatial-validation";
 import { freezeValidatedData, invalid } from "../shared/project/validation-helpers";
 import { validateProject } from "../shared/project/project-validation";
-import type { ContentObject, ProjectViewpoint } from "../shared/project/project-content";
-import type { ProjectHotspot, ProjectScene, Transform } from "../shared/project/project-types";
+import type {
+  ContentObject,
+  ContentProject,
+  ContentScene,
+  ProjectViewpoint,
+} from "../shared/project/project-content";
+import type {
+  ProjectHotspot,
+  ProjectScene,
+  Transform,
+  NamedViewpoint,
+  CameraPose,
+} from "../shared/project/project-types";
 import { prepareTransformCommand } from "./transform-command";
 import { createCommandHistory, type EditCommand } from "./command-history";
 import {
@@ -36,6 +51,27 @@ function freezeHotspots(hotspots: readonly ProjectHotspot[]): readonly ProjectHo
       }),
     ),
   );
+}
+
+function toContentProject(project: ProjectDocument): ContentProject {
+  if (project.schemaVersion === 2) return project;
+  return {
+    ...project,
+    schemaVersion: 2,
+    scenes: project.scenes.map((scene) => ({
+      ...scene,
+      groups: [],
+      zones: [],
+      viewpoints: [],
+      rules: [],
+      objects: scene.objects.map((object) => ({
+        ...object,
+        parentId: null,
+        visible: true,
+        components: [],
+      })),
+    })),
+  };
 }
 
 function createProjectId(): string {
@@ -104,13 +140,22 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
   function notifyEdit() {
     editListeners.forEach((listener) => listener());
   }
+  let loadGeneration = 0;
   let snapshot: Readonly<{
+    loadGeneration: number;
     objects: readonly SceneObject[];
     project: ProjectDocument | null;
     activeSceneId: string | null;
     canUndo: boolean;
     canRedo: boolean;
-  }> = Object.freeze({ objects, project, activeSceneId: null, canUndo: false, canRedo: false });
+  }> = Object.freeze({
+    loadGeneration,
+    objects,
+    project,
+    activeSceneId: null,
+    canUndo: false,
+    canRedo: false,
+  });
 
   function replaceState(next: State) {
     state = next;
@@ -170,6 +215,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
 
   function publish() {
     snapshot = Object.freeze({
+      loadGeneration,
       objects,
       project,
       activeSceneId: state.activeSceneId,
@@ -204,8 +250,14 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
 
   function insertCopy(source: SceneObject, offset: number): ValidationResult<SceneObject> {
     // Attached components need their own stable ID and reference remapping
-    if (project?.schemaVersion === 2 && (source as ContentObject).components?.length) {
+    if ((source as ContentObject).components?.length) {
       return invalid("objectId", "This object's attached content cannot be copied safely");
+    }
+    if (
+      project?.schemaVersion !== 2 &&
+      ((source as ContentObject).parentId != null || (source as ContentObject).visible === false)
+    ) {
+      return invalid("objectId", "This object's hierarchy or visibility requires a v2 project");
     }
     const asset = assets.find((entry) => entry.id === source.assetId);
     if (
@@ -236,7 +288,6 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
 
     // Content-free copies retain their authored visibility and parent membership
     const object: SceneObject = Object.freeze({
-      ...source,
       id: crypto.randomUUID(),
       name: source.name,
       assetId: source.assetId,
@@ -264,15 +315,226 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
     return { ok: true, value: object };
   }
 
+  function editViews(next: readonly NamedViewpoint[]): ValidationResult<true> {
+    if (!project) return invalid("project", "Create a scene first");
+    const scene = project.scenes.find((s) => s.id === state.activeSceneId)!;
+    const content = toContentProject(project);
+    const updated = { ...content.scenes.find((s) => s.id === scene.id)!, viewpoints: next };
+    // The first capture supplies an initial camera; later ordering never changes it.
+    if (!scene.viewpoints?.length && next.length) updated.startCamera = next[0]!.camera;
+    return commitProject(
+      { ...content, scenes: content.scenes.map((s) => (s.id === scene.id ? updated : s)) },
+      scene.id,
+      "Edit viewpoints",
+    );
+  }
+
+  function commitProject(next: unknown, active: string, label: string): ValidationResult<true> {
+    const checked = validateProject(next, projectAssets, { allowDraftLinks: true });
+    if (!checked.ok) return checked;
+    if (JSON.stringify(project) === JSON.stringify(checked.value)) return { ok: true, value: true };
+    // Keep unchanged scene references so renaming/reordering does not reset the live camera.
+    const frozen = freezeProject(checked.value);
+    const shared = Object.freeze({
+      ...frozen,
+      scenes: Object.freeze(
+        frozen.scenes.map((scene) => {
+          const old = project?.scenes.find((s) => s.id === scene.id);
+          return old && JSON.stringify(old) === JSON.stringify(scene)
+            ? old
+            : Object.freeze({
+                ...scene,
+                startCamera:
+                  old && JSON.stringify(old.startCamera) === JSON.stringify(scene.startCamera)
+                    ? old.startCamera
+                    : scene.startCamera,
+              });
+        }),
+      ),
+    });
+    executeState(fromProject(shared as ProjectDocument, active), label);
+    clearEdit();
+    publish();
+    return { ok: true, value: true };
+  }
+
   return {
+    createScene(
+      name: string,
+      environmentAssetId = project?.scenes.find((s) => s.id === state.activeSceneId)
+        ?.environmentAssetId ??
+        assets.find((a) => a.kind === "environment")?.id ??
+        "",
+    ): ValidationResult<true> {
+      if (!name.trim() || name.trim().length > 120)
+        return invalid("name", "Enter a scene name between 1 and 120 characters");
+      const scene: ContentScene = {
+        id: crypto.randomUUID(),
+        name: name.trim(),
+        environmentAssetId,
+        startCamera: {
+          position: [12, 16, 18],
+          rotation: [
+            -0.29962059992658957, 0.2752183320355054, 0.09071781822041597, 0.9089844021041025,
+          ],
+          fovDegrees: 40,
+        },
+        objects: [],
+        hotspots: [],
+        interactions: [],
+        groups: [],
+        zones: [],
+        viewpoints: [],
+        rules: [],
+      };
+      if (!project) projectAssets = new Map(assets.map((a) => [a.id, a.kind]));
+      if (!project) {
+        // The first scene starts a document; there must always be at least one scene.
+        const upgradeObjects = (entries: readonly SceneObject[]): readonly ContentObject[] =>
+          entries.map((entry) => ({ ...entry, parentId: null, visible: true, components: [] }));
+        const document: ProjectDocument = {
+          schemaVersion: 2,
+          projectId: createProjectId(),
+          title: "Untitled project",
+          scenes: [{ ...scene, objects: upgradeObjects(state.objects) }],
+        };
+        const checked = deserializeProject(JSON.stringify(document), projectAssets);
+        if (!checked.ok) return checked;
+        const previous = history.getStates();
+        project = freezeProject(checked.value);
+        replaceState(fromProject(project, scene.id));
+        const upgrade = (entry: State) =>
+          fromProject(
+            freezeProject({
+              ...toContentProject(project!),
+              scenes: [{ ...scene, objects: upgradeObjects(entry.objects) }],
+            }),
+            scene.id,
+          );
+        history.restoreStates(state, previous.past.map(upgrade), previous.future.map(upgrade));
+        clearEdit();
+        publish();
+        return { ok: true, value: true };
+      }
+      return commitProject(
+        { ...toContentProject(project), scenes: [...toContentProject(project).scenes, scene] },
+        scene.id,
+        "Create scene",
+      );
+    },
+    setStartingViewpoint(id: string): ValidationResult<true> {
+      const scene = project?.scenes.find((s) => s.id === state.activeSceneId);
+      const view = scene?.viewpoints?.find((v) => v.id === id);
+      if (!project || !scene || !view)
+        return invalid("viewpoint", "Choose a saved view in this scene");
+      return commitProject(
+        {
+          ...project,
+          scenes: project.scenes.map((s) =>
+            s.id === scene.id ? { ...s, startCamera: view.camera } : s,
+          ),
+        },
+        scene.id,
+        "Set starting view",
+      );
+    },
+    deleteScene(id: string): ValidationResult<true> {
+      const index = project?.scenes.findIndex((s) => s.id === id) ?? -1;
+      if (!project || index < 0) return invalid("scene", "This scene no longer exists");
+      if (project.scenes.length === 1)
+        return invalid("scene", "Keep at least one scene in the project");
+      const remaining = project.scenes.filter((s) => s.id !== id);
+      const active =
+        state.activeSceneId === id
+          ? remaining[Math.min(index, remaining.length - 1)]!.id
+          : state.activeSceneId!;
+      // The full snapshot restores IDs, ordering, objects and views together.
+      return commitProject({ ...project, scenes: remaining }, active, "Delete scene");
+    },
     switchScene(id: string): ValidationResult<true> {
-      if (!project?.scenes.some((scene) => scene.id === id))
+      if (!project?.scenes.some((s) => s.id === id))
         return invalid("scene", "This scene no longer exists");
       if (id === state.activeSceneId) return { ok: true, value: true };
       clearEdit();
       replaceState(fromProject(project, id));
       publish();
       return { ok: true, value: true };
+    },
+    renameScene(id: string, name: string): ValidationResult<true> {
+      if (!project?.scenes.some((s) => s.id === id))
+        return invalid("scene", "This scene no longer exists");
+      if (!name.trim() || name.trim().length > 120)
+        return invalid("name", "Enter a scene name between 1 and 120 characters");
+      return commitProject(
+        {
+          ...project,
+          scenes: project.scenes.map((s) => (s.id === id ? { ...s, name: name.trim() } : s)),
+        },
+        id,
+        "Rename scene",
+      );
+    },
+    moveScene(id: string, index: number): ValidationResult<true> {
+      if (!project) return invalid("scene", "Create a scene first");
+      const from = project.scenes.findIndex((s) => s.id === id);
+      if (from < 0 || !Number.isInteger(index) || index < 0 || index >= project.scenes.length)
+        return invalid("scene", "Choose a valid scene position");
+      const next = [...project.scenes];
+      const [scene] = next.splice(from, 1);
+      next.splice(index, 0, scene!);
+      return commitProject({ ...project, scenes: next }, state.activeSceneId!, "Reorder scenes");
+    },
+    setEnvironment(assetId: string | null): ValidationResult<true> {
+      if (!project) return invalid("scene", "Create a scene first");
+      return commitProject(
+        {
+          ...project,
+          scenes: project.scenes.map((s) =>
+            s.id === state.activeSceneId ? { ...s, environmentAssetId: assetId } : s,
+          ),
+        },
+        state.activeSceneId!,
+        "Change environment",
+      );
+    },
+    addViewpoint(name: string, camera: CameraPose): ValidationResult<true> {
+      if (!name.trim() || name.trim().length > 120)
+        return invalid("name", "Enter a viewpoint name between 1 and 120 characters");
+      const checked = validateCameraPose(camera, "camera");
+      if (!checked.ok) return checked;
+      return editViews([
+        ...(activeScene()?.viewpoints ?? []),
+        { id: crypto.randomUUID(), name: name.trim(), camera: checked.value },
+      ]);
+    },
+    renameViewpoint(id: string, name: string): ValidationResult<true> {
+      if (!name.trim() || name.trim().length > 120)
+        return invalid("name", "Enter a viewpoint name between 1 and 120 characters");
+      if (!activeScene()?.viewpoints?.some((v) => v.id === id))
+        return invalid("viewpoint", "This viewpoint no longer exists");
+      return editViews(
+        (activeScene()?.viewpoints ?? []).map((v) =>
+          v.id === id ? { ...v, name: name.trim() } : v,
+        ),
+      );
+    },
+    moveViewpoint(id: string, targetIndex: number): ValidationResult<true> {
+      const current = activeScene()?.viewpoints ?? [];
+      const from = current.findIndex((v) => v.id === id);
+      if (from < 0) return invalid("viewpoint", "This viewpoint no longer exists");
+      if (!Number.isInteger(targetIndex) || targetIndex < 0 || targetIndex >= current.length)
+        return invalid("viewpoint", "Choose a position within the saved views");
+      if (from === targetIndex) return { ok: true, value: true };
+      const next = [...current];
+      const [view] = next.splice(from, 1);
+      next.splice(targetIndex, 0, view!);
+      // Commit only the final order. Hovering or cancelling a drag never enters history.
+      return editViews(next);
+    },
+    deleteViewpoint(id: string): ValidationResult<true> {
+      if (!activeScene()?.viewpoints?.some((v) => v.id === id))
+        return invalid("viewpoint", "This viewpoint no longer exists");
+      return editViews((activeScene()?.viewpoints ?? []).filter((v) => v.id !== id));
     },
     copyObject(objectId: string): ValidationResult<SceneObject> {
       const object = objects.find((entry) => entry.id === objectId);
@@ -494,6 +756,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       }
 
       // Publish only after both the document and optional recovery history have passed
+      loadGeneration++;
       project = loaded;
       clipboard = null;
       pasteCount = 0;

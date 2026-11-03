@@ -319,15 +319,28 @@ function interactionTrigger(raw: unknown, path: string): Interaction["when"] {
   }
 }
 
-function interactionAction(raw: unknown, path: string): Interaction["do"] {
+function interactionAction(
+  raw: unknown,
+  path: string,
+  allowDraftLinks: boolean,
+): Interaction["do"] {
   if (!isRecord(raw)) {
     fail(path, "Action must be an object");
   }
   switch (raw.type) {
     case "open-link":
-    case "play-audio":
+    case "play-audio": {
       record(raw, ["type", "url"], path);
-      return { type: raw.type, url: text(raw.url, `${path}.url`) };
+      const url = text(
+        raw.url,
+        `${path}.url`,
+        allowDraftLinks ? MAX_PROJECT_BYTES : MAX_PORTABLE_URL_LENGTH,
+      );
+      if (!allowDraftLinks && raw.type === "open-link" && !isPortableHttpsUrl(url)) {
+        fail(`${path}.url`, PORTABLE_HTTPS_URL_ERROR);
+      }
+      return { type: raw.type, url };
+    }
     case "print-hi":
       record(raw, ["type"], path);
       return { type: "print-hi" };
@@ -336,15 +349,18 @@ function interactionAction(raw: unknown, path: string): Interaction["do"] {
   }
 }
 
-function interaction(raw: unknown, path: string): Interaction {
+function interaction(raw: unknown, path: string, allowDraftLinks: boolean): Interaction {
   const value = record(raw, ["when", "do"], path);
   return {
     when: interactionTrigger(value.when, `${path}.when`),
-    do: interactionAction(value.do, `${path}.do`),
+    do: interactionAction(value.do, `${path}.do`, allowDraftLinks),
   };
 }
 
-export function validateContentStructure(raw: unknown): ValidationResult<ContentProject> {
+export function validateContentStructure(
+  raw: unknown,
+  allowDraftLinks = false,
+): ValidationResult<ContentProject> {
   // Rebuild checked values so imported arrays cannot mutate the live document afterward
   try {
     const root = record(raw, ["schemaVersion", "projectId", "title", "scenes"], "project");
@@ -384,7 +400,9 @@ export function validateContentStructure(raw: unknown): ValidationResult<Content
         interactions:
           scene.interactions === undefined
             ? []
-            : list(scene.interactions, `${path}.interactions`, 200, interaction),
+            : list(scene.interactions, `${path}.interactions`, 200, (value, path) =>
+                interaction(value, path, allowDraftLinks),
+              ),
         objects: list(scene.objects, `${path}.objects`, 200, (input, path) => {
           const object = record(
             input,

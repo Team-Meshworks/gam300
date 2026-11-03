@@ -9,6 +9,20 @@ const browser = await chromium.launch({
   args: ["--enable-unsafe-swiftshader"],
   ...(process.env.PLAYWRIGHT_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHANNEL } : {}),
 });
+// Asset library is a pop up now. Only open it when closed, since the button toggles it
+async function openLibrary(page) {
+  if ((await page.locator(".asset-picker").count()) === 0) {
+    await page.getByRole("button", { name: "Asset library", exact: true }).click();
+  }
+}
+
+// Clicking a card only picks it, Add is what places it
+async function addAsset(page, name) {
+  await openLibrary(page);
+  await page.locator(".asset-picker").getByRole("button", { name, exact: true }).click();
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+}
+
 try {
   // An isolated context keeps the author's real browser drafts untouched.
   const page = await browser.newPage();
@@ -16,8 +30,8 @@ try {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(process.argv[2] ?? "http://127.0.0.1:5173/");
-  await page.getByRole("button", { name: "Add test-room", exact: true }).click();
-  await page.getByRole("button", { name: "Add test-crate", exact: true }).click();
+  await addAsset(page, "test-room");
+  await addAsset(page, "test-crate");
   const rows = page.locator(".object-row");
   async function waitForRecovery(count, futureCount, hotspots = 0, interactions = 0) {
     const deadline = Date.now() + 10000;
@@ -79,7 +93,7 @@ try {
   );
   await page.getByRole("button", { name: "Redo", exact: true }).click();
   assert.equal(await rows.count(), 1);
-  await page.getByRole("button", { name: "Add test-crate", exact: true }).click();
+  await addAsset(page, "test-crate");
   assert.equal(await page.getByRole("button", { name: "Redo", exact: true }).isDisabled(), true);
   await waitForRecovery(2, 0);
 
@@ -226,7 +240,7 @@ try {
   const compatibilityPage = await browser.newPage();
   compatibilityPage.on("pageerror", (error) => errors.push(error.message));
   await compatibilityPage.goto(process.argv[2] ?? "http://127.0.0.1:5173/");
-  await compatibilityPage.getByRole("button", { name: "Add test-room", exact: true }).waitFor();
+  await compatibilityPage.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   await compatibilityPage.evaluate(async (fixture) => {
     const { saveRecoverySession } = await import("/persistence/local-drafts.ts");
     const { createDocumentStore } = await import("/document-store.ts");

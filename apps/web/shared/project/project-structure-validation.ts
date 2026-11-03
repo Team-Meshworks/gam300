@@ -351,7 +351,7 @@ export function validateProjectStructure(
   }
   // Dispatch v2 before the legacy exact-field checks so each released shape keeps its own rules
   if (raw.schemaVersion === 2) {
-    return validateContentStructure(raw);
+    return validateContentStructure(raw, options.allowDraftLinks === true);
   }
   if (raw.schemaVersion !== 1) {
     return invalid(

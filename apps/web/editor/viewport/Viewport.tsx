@@ -2,6 +2,7 @@ import { useEffect, useRef, type DragEvent, type ReactNode } from "react";
 import { assetDragType, type CatalogueAsset } from "../../shared/asset-runtime/catalogue";
 import type { SceneObject, Vector3Tuple } from "../../shared/project/scene-object";
 import type {
+  CameraPose,
   HotspotDropTarget,
   ProjectScene,
   Transform,
@@ -17,10 +18,14 @@ const statusMessages = {
   unsupported: "The 3D view needs WebGL 2. Check your browser's graphics settings and retry.",
 };
 
+export type ViewpointCamera = { capture: () => CameraPose; show: (pose: CameraPose) => void };
+
 type ViewportProps = {
+  onCamera: (camera: ViewpointCamera | null) => void;
   assets: readonly CatalogueAsset[];
   objects: readonly SceneObject[];
   projectScene: ProjectScene | null;
+  loadGeneration: number;
   selectedId: string | null;
   dragging: boolean;
   editingEnabled: boolean;
@@ -41,9 +46,11 @@ type ViewportProps = {
 };
 
 export function Viewport({
+  onCamera,
   assets,
   objects,
   projectScene,
+  loadGeneration,
   selectedId,
   dragging,
   editingEnabled,
@@ -64,7 +71,14 @@ export function Viewport({
 }: ViewportProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<ReturnType<typeof initScene>>(undefined);
-  const snapshotRef = useRef({ objects, selectedId, projectScene, editingEnabled, navigationTool });
+  const snapshotRef = useRef({
+    objects,
+    selectedId,
+    projectScene,
+    loadGeneration,
+    editingEnabled,
+    navigationTool,
+  });
 
   useEffect(() => {
     const host = hostRef.current;
@@ -86,11 +100,17 @@ export function Viewport({
         });
         sceneRef.current = scene;
         const current = snapshotRef.current;
-        scene?.update(current.objects, current.selectedId, current.projectScene);
+        scene?.update(
+          current.objects,
+          current.selectedId,
+          current.projectScene,
+          current.loadGeneration,
+        );
         scene?.setEditingEnabled(current.editingEnabled);
         scene?.setNavigationTool(current.navigationTool);
         if (scene !== undefined) {
           onManager(scene.modeManager);
+          onCamera({ capture: scene.captureCamera, show: scene.showCamera });
         }
       })
       .catch((error: unknown) => {
@@ -101,6 +121,7 @@ export function Viewport({
       });
     return () => {
       disposed = true;
+      onCamera(null);
       sceneRef.current?.dispose();
       sceneRef.current = undefined;
     };
@@ -114,14 +135,31 @@ export function Viewport({
     onObjectClick,
     onSceneUpdate,
     onManager,
+    onCamera,
   ]);
 
   useEffect(() => {
-    snapshotRef.current = { objects, selectedId, projectScene, editingEnabled, navigationTool };
-    sceneRef.current?.update(objects, selectedId, projectScene);
+    snapshotRef.current = {
+      objects,
+      selectedId,
+      projectScene,
+      loadGeneration,
+      editingEnabled,
+      navigationTool,
+    };
+    sceneRef.current?.update(objects, selectedId, projectScene, loadGeneration);
     sceneRef.current?.setEditingEnabled(editingEnabled);
     sceneRef.current?.setNavigationTool(navigationTool);
-  }, [objects, selectedId, projectScene, editingEnabled, navigationTool, assets, attempt]);
+  }, [
+    objects,
+    selectedId,
+    projectScene,
+    loadGeneration,
+    editingEnabled,
+    navigationTool,
+    assets,
+    attempt,
+  ]);
 
   useEffect(() => {
     if (!dragging) {

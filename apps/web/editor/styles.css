@@ -340,7 +340,7 @@ a {
   position: absolute;
   left: 4.25rem;
   width: min(18.5rem, calc(100vw - 7rem));
-  max-height: calc(100% - var(--panel-offset, 0rem));
+  max-height: calc(100% - var(--panel-offset, 0rem) - 3.25rem);
   display: flex;
 }
 /* Each panel open beside its own rail button */
@@ -351,9 +351,17 @@ a {
   --panel-offset: 3.5rem;
   top: 3.5rem;
 }
-.panel-slot.is-interaction {
+.panel-slot.is-scenes {
   --panel-offset: 7rem;
   top: 7rem;
+}
+.panel-slot.is-views {
+  --panel-offset: 10.5rem;
+  top: 10.5rem;
+}
+.panel-slot.is-interaction {
+  --panel-offset: 14rem;
+  top: 14rem;
 }
 .editor-panel {
   width: 100%;
@@ -733,86 +741,242 @@ a {
   pointer-events: auto;
 }
 
-.asset-panel {
-  width: min(38rem, 100%);
-  padding: 0.85rem 1rem 1rem;
-  border-radius: 1.25rem;
-  background: var(--card);
-  box-shadow: var(--shadow);
+/* Asset library is a big pop up over the scene, between the header and the bar */
+.asset-picker-layer {
+  position: absolute;
+  inset: 6rem 1.5rem 7rem;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
 }
-.asset-panel h2 {
-  margin-bottom: 0.65rem;
-  font-size: 0.9375rem;
+.asset-picker {
+  /* Size as a share of the screen, change these two to resize the library */
+  --picker-width: 70vw;
+  --picker-height: 70dvh;
+  display: flex;
+  flex-direction: column;
+  /* min() so it never goes under the header or the bar on short screens */
+  width: min(100%, var(--picker-width));
+  height: min(100%, var(--picker-height));
+  padding: 1rem 1.25rem 1.1rem;
+  border-radius: 1.5rem;
+  background: rgb(233 229 219 / 0.95);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(10px);
+  pointer-events: auto;
+}
+.asset-picker-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+.asset-picker-title {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.55rem;
+  min-height: 2.6rem;
+  padding: 0 1.1rem;
+  border-radius: 999px;
+  background: var(--card-raised);
+  font-size: 1rem;
   font-weight: 650;
 }
-.asset-shelf {
-  display: grid;
-  grid-auto-columns: 7rem;
-  grid-auto-flow: column;
-  gap: 0.75rem;
-  overflow-x: auto;
-  padding-bottom: 0.25rem;
+.asset-picker-title .icon {
+  width: 1.1rem;
+  height: 1.1rem;
 }
-.asset-tile {
+.asset-search {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  min-height: 2.6rem;
+  padding: 0 0.3rem 0 0.9rem;
+  border-radius: 999px;
+  background: var(--card-raised);
+  box-shadow: inset 0 1px 2px rgb(64 52 32 / 0.08);
+}
+.asset-search > .icon {
+  flex-shrink: 0;
+  width: 1.2rem;
+  height: 1.2rem;
+}
+.asset-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+.asset-filter {
+  position: relative;
+  flex-shrink: 0;
+}
+.asset-filter select {
+  min-height: 2rem;
+  padding: 0 2rem 0 1rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--button);
+  color: inherit;
+  font: inherit;
+  font-weight: 650;
+  appearance: none;
+  cursor: pointer;
+}
+.asset-filter .icon {
+  position: absolute;
+  top: 50%;
+  right: 0.8rem;
+  width: 0.6rem;
+  height: 0.6rem;
+  pointer-events: none;
+  translate: 0 -50%;
+}
+.asset-picker-close {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 2.6rem;
+  height: 2.6rem;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--card-raised);
+}
+.asset-picker-close .icon {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+/* Columns instead of grid so cards of different heights pack like the Figma */
+.asset-grid {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 0 0.35rem 0 0;
+  overflow-y: auto;
+  columns: 10.5rem;
+  column-gap: 0.9rem;
+  list-style: none;
+}
+.asset-card {
+  position: relative;
+  margin-bottom: 0.9rem;
+  overflow: hidden;
+  border-radius: 1rem;
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(64 52 32 / 0.1);
+  break-inside: avoid;
+  container-type: inline-size;
+}
+.asset-card:has(.asset-card-pick[aria-pressed="true"]) {
+  box-shadow: 0 0 0 2px #3d3133;
+}
+.asset-card-pick {
   display: block;
   width: 100%;
   padding: 0;
-  text-align: left;
   border: 0;
   background: transparent;
-  cursor: grab;
+  text-align: left;
+  cursor: pointer;
 }
-.asset-tile:active {
-  cursor: grabbing;
+.asset-card-pick:disabled {
+  cursor: default;
+  opacity: 0.6;
 }
+.asset-card-pick:focus-visible {
+  outline: 2px solid #1f1d1a;
+  outline-offset: -2px;
+}
+/* Hidden overflow so a tall picture cant stretch the box past 4:3, the heart position count on it */
 .asset-art {
-  position: relative;
-  display: grid;
-  place-items: center;
-  aspect-ratio: 1.1;
-  border-radius: 0.9rem;
+  display: block;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
   background: #e5e1d5;
-  transition:
-    background 150ms ease,
-    transform 150ms ease;
+  transition: background 150ms ease;
 }
 .asset-art img {
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: contain;
   pointer-events: none;
 }
-.asset-tile:hover:not(:disabled) .asset-art,
-.asset-tile:focus-visible .asset-art {
+.asset-card-pick:hover:not(:disabled) .asset-art {
   background: #dcd6c6;
-  transform: translateY(-3px);
 }
-.asset-add {
-  position: absolute;
-  right: 0.45rem;
-  bottom: 0.45rem;
+.asset-card-info {
   display: grid;
-  place-items: center;
-  width: 1.5rem;
-  height: 1.5rem;
-  border-radius: 0.4rem;
-  background: var(--card-raised);
-  font-size: 1.1rem;
-  line-height: 1;
+  gap: 0.4rem;
+  padding: 0.55rem 2.4rem 0.8rem 0.85rem;
+}
+.asset-tag {
+  justify-self: start;
+  padding: 0.05rem 0.6rem;
+  border-radius: 999px;
+  background: #dedad0;
+  font-size: 0.75rem;
 }
 .asset-name {
-  display: block;
-  padding: 0.4rem 0.15rem 0;
+  font-size: 0.875rem;
+}
+/* Heart sit on the first info row, just under the picture (picture is 3/4 of the card width) */
+.asset-favourite {
+  position: absolute;
+  top: calc(75cqw + 0.35rem);
+  right: 0.45rem;
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #3d3133;
+}
+.asset-favourite:hover {
+  background: var(--pill);
+}
+.asset-favourite[aria-pressed="true"] {
+  color: var(--accent);
+}
+.asset-favourite .icon {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+.asset-picker-empty {
+  flex: 1;
+  padding: 2rem 1rem;
+  text-align: center;
+}
+.asset-picker-selection {
+  align-self: center;
+  margin: 0.75rem 0 0;
+  color: var(--muted);
   font-size: 0.8125rem;
-  font-weight: 550;
+}
+.asset-picker-add {
+  align-self: center;
+  min-width: 6.5rem;
+  margin-top: 0.75rem;
+}
+/* Upright phones and tablets are narrow, 70% wide would only fit one column */
+@media (orientation: portrait) {
+  .asset-picker {
+    --picker-width: 92vw;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .asset-art {
     transition: none;
-  }
-  .asset-tile:hover:not(:disabled) .asset-art,
-  .asset-tile:focus-visible .asset-art {
-    transform: none;
   }
 }
 
@@ -1107,7 +1271,7 @@ a {
 }
 
 .editor-panel,
-.asset-panel {
+.asset-picker {
   animation: panel-in 140ms ease-out;
 }
 @keyframes panel-in {
@@ -1124,7 +1288,7 @@ a {
   .tool-popup,
   .dock-menu,
   .editor-panel,
-  .asset-panel {
+  .asset-picker {
     animation: none;
   }
 }
@@ -1296,8 +1460,31 @@ a {
   .filter-button {
     left: 3.5rem;
   }
+  .asset-picker-layer {
+    inset: 10.5rem 0.75rem 7rem;
+  }
 }
 @media (max-width: 30rem) {
+  /* Search take its own row on phones so the filter and close still fit */
+  .asset-picker-layer {
+    inset: 13.5rem 0.75rem 7rem;
+  }
+  .asset-picker {
+    padding: 0.75rem;
+  }
+  .asset-picker-head {
+    flex-wrap: wrap;
+  }
+  .asset-picker-title {
+    margin-right: auto;
+  }
+  .asset-search {
+    flex-basis: 100%;
+    order: 3;
+  }
+  .asset-grid {
+    columns: 8rem;
+  }
   /* Hide the dev sample button and Filters on phones, else they overlap the dock */
   .dev-action,
   .filter-button {
@@ -1316,5 +1503,206 @@ a {
   }
   .project-name {
     font-size: 0.9375rem;
+  }
+}
+
+.viewpoints {
+  padding: 16px;
+  border-top: 1px solid #ddd;
+}
+.viewpoints h2 {
+  font-size: 1rem;
+}
+.viewpoints p {
+  font-size: 0.8rem;
+}
+.viewpoints fieldset {
+  border: 0;
+  padding: 0;
+  min-width: 0;
+}
+.viewpoints label {
+  display: grid;
+  gap: 4px;
+  margin: 10px 0;
+}
+.viewpoints input,
+.viewpoints select {
+  width: 100%;
+  min-width: 0;
+  padding: 6px;
+  box-sizing: border-box;
+}
+.viewpoint-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.viewpoint-cycle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 10px 0;
+}
+.viewpoint-cycle button {
+  min-width: 40px;
+  min-height: 32px;
+  font-size: 1.1rem;
+}
+.viewpoint-cycle span {
+  font-size: 0.85rem;
+}
+
+.saved-view-picker {
+  margin-top: 12px;
+}
+.saved-view-toggle {
+  width: 100%;
+  text-align: left;
+  padding: 8px;
+  overflow-wrap: anywhere;
+}
+.saved-view-menu {
+  padding: 8px;
+  border: 1px solid #bbb;
+  border-radius: 4px;
+}
+.saved-view-menu ol {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0;
+  max-height: 240px;
+  overflow-y: auto;
+}
+.saved-view-menu li {
+  display: flex;
+  align-items: center;
+  border-top: 2px solid transparent;
+  border-bottom: 2px solid transparent;
+}
+.saved-view-menu li.drop-before {
+  border-top-color: #366bc4;
+}
+.saved-view-menu li.drop-after {
+  border-bottom-color: #366bc4;
+}
+.saved-view-menu li button {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  padding: 6px;
+  overflow-wrap: anywhere;
+}
+.saved-view-menu li button[aria-pressed="true"] {
+  background: #dce8f8;
+  color: #18385c;
+}
+.view-drag-handle {
+  cursor: grab;
+  padding: 8px;
+  user-select: none;
+}
+.view-drag-handle:active {
+  cursor: grabbing;
+}
+
+.scenes-panel {
+  padding: 16px;
+  border-bottom: 1px solid #ccc;
+}
+.scenes-panel h2 {
+  font-size: 1rem;
+}
+.scenes-panel p {
+  font-size: 0.8rem;
+}
+.scenes-panel fieldset {
+  border: 0;
+  padding: 0;
+  min-width: 0;
+}
+.scenes-panel label {
+  display: grid;
+  gap: 4px;
+  margin: 10px 0;
+}
+.scenes-panel input,
+.scenes-panel select {
+  width: 100%;
+  min-width: 0;
+  padding: 6px;
+  box-sizing: border-box;
+}
+.scenes-panel ol {
+  padding: 0;
+  list-style: none;
+  max-height: 200px;
+  overflow: auto;
+}
+.scenes-panel li {
+  display: flex;
+  align-items: center;
+  border-top: 2px solid transparent;
+  border-bottom: 2px solid transparent;
+}
+.scenes-panel li button {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  overflow-wrap: anywhere;
+  padding: 6px;
+}
+.scenes-panel li button[aria-pressed="true"] {
+  background: #dce8f8;
+  color: #18385c;
+}
+.scenes-panel li.drop-before {
+  border-top-color: #366bc4;
+}
+.scenes-panel li.drop-after {
+  border-bottom-color: #366bc4;
+}
+.scenes-panel button,
+.scenes-panel input,
+.scenes-panel select {
+  border: 1px solid #d2d3cf;
+  border-radius: 5px;
+  background: #fafaf8;
+  color: inherit;
+  padding: 7px 8px;
+  font: inherit;
+  font-size: 0.8rem;
+}
+.scenes-panel button:not(:disabled):hover {
+  background: #eef0eb;
+}
+.scenes-panel button:disabled {
+  opacity: 0.45;
+}
+.scenes-panel .viewpoint-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+.scenes-panel button:focus-visible,
+.scenes-panel input:focus-visible,
+.scenes-panel select:focus-visible {
+  outline: 2px solid #366bc4;
+  outline-offset: 2px;
+}
+
+/* These controls now live inside the floating editor panel. */
+.editor-panel .viewpoints,
+.editor-panel .scenes-panel {
+  padding: 0;
+  border: 0;
+}
+
+/* Sideways phones are too short to fit it between header and bar, so it go over the header.
+   Last in the file so it wins over the width rules above */
+@media (max-height: 30rem) {
+  .asset-picker-layer {
+    inset: 0.75rem 1.5rem 5.5rem;
   }
 }

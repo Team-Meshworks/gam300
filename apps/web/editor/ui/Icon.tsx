@@ -188,6 +188,23 @@ const icons = {
       <path d="m15.5 15.5 5 5M10.5 7.5v6m-3-3h6" />
     </>,
   ),
+  // No Figma ones for the asset library icons yet, swap them in when got
+  search: drawn(
+    <>
+      <circle cx="11" cy="11" r="6.5" />
+      <path d="m16 16 4.5 4.5" />
+    </>,
+  ),
+  close: drawn(<path d="M6 6l12 12M18 6 6 18" />),
+  heart: drawn(
+    <path d="M12 19.5s-7-4.3-7-9.6A3.9 3.9 0 0 1 12 7.6a3.9 3.9 0 0 1 7 2.3c0 5.3-7 9.6-7 9.6Z" />,
+  ),
+  heartFilled: drawn(
+    <path
+      className="fill"
+      d="M12 19.5s-7-4.3-7-9.6A3.9 3.9 0 0 1 12 7.6a3.9 3.9 0 0 1 7 2.3c0 5.3-7 9.6-7 9.6Z"
+    />,
+  ),
   // No Figma one for this, swap it in if they make one
   grip: {
     viewBox: "0 0 25 25",

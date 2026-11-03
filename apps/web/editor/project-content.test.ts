@@ -130,3 +130,36 @@ describe("content document preservation in the existing editor", () => {
     expect(store.getSnapshot()).toBe(before);
   });
 });
+
+it("edits the active second scene without overwriting the first or losing media validation", () => {
+  const store = setup();
+  const original = store.getSnapshot().project as ContentProject;
+  const second = original.scenes[1]!;
+  expect(store.switchScene(second.id).ok).toBe(true);
+  const added = store.addObject("test-crate-v1", [1, 2, 3]);
+  expect(added.ok).toBe(true);
+  expect(store.getSnapshot().project!.scenes[0]).toBe(original.scenes[0]);
+  expect(store.createScene("Third", "test-room-v1").ok).toBe(true);
+  const target = createDocumentStore(assets);
+  expect(
+    target.loadProject(
+      JSON.stringify(store.getSnapshot().project),
+      kinds,
+      store.getRecoveryHistory(),
+    ).ok,
+  ).toBe(true);
+  target.undo();
+  target.undo();
+  expect(target.getSnapshot().project).toEqual(original);
+  expect(target.getSnapshot().activeSceneId).toBe(second.id);
+});
+it("rejects deleting referenced scenes and viewpoints without changing document or history", () => {
+  const store = setup();
+  const before = store.getSnapshot();
+  const project = before.project as ContentProject;
+  expect(store.deleteScene(project.scenes[1]!.id).ok).toBe(false);
+  expect(store.getSnapshot()).toBe(before);
+  const referenced = project.scenes[0]!.viewpoints[0]!;
+  expect(store.deleteViewpoint(referenced.id).ok).toBe(false);
+  expect(store.getSnapshot()).toBe(before);
+});

@@ -96,6 +96,12 @@ public static class ProjectLifecycleEndpoints
         {
             return RevisionProblem(context, project.Revision, request.ExpectedRevision == project.Revision);
         }
+        var originalStudent = await database.ClassAssignmentStudents.Where(row => row.ProjectId == id)
+            .Select(row => (Guid?)row.StudentId).SingleOrDefaultAsync(cancellationToken);
+        if (originalStudent is { } studentId && request.AssignedCreatorIds.Any(userId => userId != studentId))
+        {
+            return ApiProblems.Create(context, 422, "invalid_project_assignments", "A class draft can only be assigned to its original student.");
+        }
         var ids = request.ManagedByUserIds.Concat(request.AssignedCreatorIds).ToArray();
         var eligible = await (from membership in database.OrganizationMemberships
                               join user in database.Users on membership.UserId equals user.Id
@@ -143,9 +149,35 @@ public static class ProjectLifecycleEndpoints
     private static async Task<IResult> InsertAsync(HttpContext context, ApplicationDbContext database, ProjectDocumentService documents,
         IDbContextTransaction transaction, CurrentAccount account, Guid organizationId, IAuthoredProject document, CancellationToken cancellationToken)
     {
-        var serialized = documents.Serialize(document);
-        if (!serialized.Ok) { return InvalidDocument(context); }
         var id = Guid.Parse(document.ProjectId);
+        var assignments = account.Role == ApplicationRoles.Administrator ? Array.Empty<ProjectAssignment>() :
+            [new ProjectAssignment
+            {
+                ProjectId = id,
+                UserId = account.UserId,
+                CanEdit = true,
+                CanManage = account.Role == ApplicationRoles.Educator,
+                CanPublish = account.Role == ApplicationRoles.Educator,
+            }];
+        if (!StageDraft(database, documents, organizationId, document, assignments)) { return InvalidDocument(context); }
+        await database.SaveChangesAsync(cancellationToken);
+        return await CommitAsync(context, database, transaction, id, true, cancellationToken);
+    }
+
+    internal static bool StageDraft(ApplicationDbContext database, ProjectDocumentService documents, Guid organizationId,
+        IAuthoredProject document, IReadOnlyCollection<ProjectAssignment> assignments)
+    {
+        if (database.Database.CurrentTransaction?.GetDbTransaction().IsolationLevel != IsolationLevel.ReadCommitted)
+        {
+            throw new InvalidOperationException("Project creation requires a caller-owned read-committed transaction.");
+        }
+        var serialized = documents.Serialize(document);
+        if (!serialized.Ok) { return false; }
+        var id = Guid.Parse(document.ProjectId);
+        if (assignments.Any(assignment => assignment.ProjectId != id || assignment.UserId == Guid.Empty))
+        {
+            throw new ArgumentException("Project assignments must refer to this draft and an account.", nameof(assignments));
+        }
         database.Projects.Add(new Project
         {
             Id = id,
@@ -154,19 +186,8 @@ public static class ProjectLifecycleEndpoints
             DocumentJson = serialized.Value!,
             UpdatedAt = DateTimeOffset.UtcNow
         });
-        if (account.Role != ApplicationRoles.Administrator)
-        {
-            database.ProjectAssignments.Add(new ProjectAssignment
-            {
-                ProjectId = id,
-                UserId = account.UserId,
-                CanEdit = true,
-                CanManage = account.Role == ApplicationRoles.Educator,
-                CanPublish = account.Role == ApplicationRoles.Educator
-            });
-        }
-        await database.SaveChangesAsync(cancellationToken);
-        return await CommitAsync(context, database, transaction, id, true, cancellationToken);
+        database.ProjectAssignments.AddRange(assignments);
+        return true;
     }
 
     private static async Task AdvanceAsync(ApplicationDbContext database, ProjectAccessSnapshot project, bool archived, CancellationToken cancellationToken)
@@ -192,7 +213,7 @@ public static class ProjectLifecycleEndpoints
         return Results.Json(metadata, statusCode: created ? 201 : 200);
     }
 
-    private static IAuthoredProject Copy(IAuthoredProject document, Guid id, string title) => document switch
+    internal static IAuthoredProject Copy(IAuthoredProject document, Guid id, string title) => document switch
     {
         LegacyProject legacy => legacy with { ProjectId = id.ToString("D"), Title = title },
         ContentProject content => content with { ProjectId = id.ToString("D"), Title = title },

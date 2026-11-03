@@ -6,7 +6,7 @@ namespace Spatia.Server.Projects;
 public enum ProjectSaveDecision
 {
     /// <summary>
-    /// The expected revision or latest mutation metadata conflicts with the request
+    /// The expected revision or accepted mutation identity conflicts with the request
     /// </summary>
     Conflict,
 
@@ -16,7 +16,7 @@ public enum ProjectSaveDecision
     WriteRequired,
 
     /// <summary>
-    /// The request matches the latest committed mutation and can reuse its acknowledgement
+    /// The request matches a committed mutation and can reuse its original acknowledgement
     /// </summary>
     Replay,
 

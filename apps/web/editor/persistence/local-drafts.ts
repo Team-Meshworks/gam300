@@ -1,3 +1,4 @@
+import { readOlderSceneFile } from "../../shared/project/legacy-scene-import";
 import { serializeProject } from "../../shared/project/project-serialization";
 import { deserializeProject } from "../../shared/project/project-deserialization";
 import type { ProjectDocument } from "../../shared/project/project-types";
@@ -364,12 +365,51 @@ export type RecoverySession = Readonly<{
   fileText?: string;
   history?: RecoveryHistory;
   historyWarning?: string;
+  olderSceneFile?: { text: string; name: string };
 }>;
 
 export async function loadRecoverySession(
   assetKinds: ReadonlyMap<string, string>,
 ): Promise<ValidationResult<RecoverySession | null>> {
   return await getRecoverySession(assetKinds, new IndexedDBDraftDatabase());
+}
+
+export async function getOlderRecoveryFiles(
+  assetKinds: ReadonlyMap<string, string>,
+  database: IDraftDatabase = new IndexedDBDraftDatabase(),
+): Promise<{ text: string; name: string }[]> {
+  const connection = await database.getIndexedDB();
+  try {
+    return await new Promise((resolve, reject) => {
+      const files: { text: string; name: string }[] = [];
+      const tx = connection.transaction("session", "readonly");
+      const read = tx.objectStore("session").openCursor();
+      read.onsuccess = () => {
+        const cursor = read.result;
+        if (!cursor) return;
+        const raw: unknown = cursor.value;
+        if (
+          typeof cursor.primaryKey === "string" &&
+          cursor.primaryKey.startsWith("older-scene-backup:") &&
+          isRecord(raw) &&
+          typeof raw.document === "string" &&
+          readOlderSceneFile(raw.document, assetKinds).ok
+        ) {
+          files.push({
+            text: raw.document,
+            name:
+              typeof raw.fileName === "string" && raw.fileName ? raw.fileName : "older-scene.json",
+          });
+        }
+        cursor.continue();
+      };
+      tx.oncomplete = () => resolve(files);
+      tx.onabort = () => reject(tx.error);
+      tx.onerror = () => reject(tx.error);
+    });
+  } finally {
+    connection.close();
+  }
 }
 
 export async function getRecoverySession(
@@ -444,7 +484,24 @@ export async function getRecoverySession(
     }
     const document = deserializeProject(raw.document, assetKinds);
     if (!document.ok) {
-      return document;
+      const older =
+        typeof raw.document === "string" ? readOlderSceneFile(raw.document, assetKinds) : null;
+      if (!older?.ok) return document;
+      // Offer conversion explicitly. Nothing is rewritten during recovery.
+      return {
+        ok: true,
+        value: {
+          revision: raw.revision,
+          document: null,
+          fileName: "",
+          savedJson: null,
+          pristine: true,
+          olderSceneFile: {
+            text: raw.document as string,
+            name: raw.fileName || "older-scene.json",
+          },
+        },
+      };
     }
 
     // Keep the valid scene available even if an older history record cannot be restored
@@ -492,11 +549,12 @@ export async function getRecoverySession(
         document: document.value,
         fileName: raw.fileName,
         savedJson,
-        // Only a fresh v1 room qualifies; empty model lists can still hide authored v2 content
         pristine:
           raw.pristine &&
           document.value.schemaVersion === 1 &&
-          document.value.scenes[0]?.objects.length === 0,
+          document.value.scenes.length === 1 &&
+          document.value.scenes[0]?.objects.length === 0 &&
+          !document.value.scenes[0]?.viewpoints?.length,
         fileHandle,
         fileText,
         ...(history?.ok ? { history: history.value } : {}),
@@ -512,7 +570,7 @@ export async function getRecoverySession(
   }
 }
 export async function saveRecoverySession(
-  session: Omit<RecoverySession, "revision" | "historyWarning">,
+  session: Omit<RecoverySession, "revision" | "historyWarning" | "olderSceneFile">,
   expectedRevision: number,
   assetKinds: ReadonlyMap<string, string>,
   previousProjectId?: string,
@@ -527,7 +585,7 @@ export async function saveRecoverySession(
 }
 
 export async function applySaveRecoverySession(
-  session: Omit<RecoverySession, "revision" | "historyWarning">,
+  session: Omit<RecoverySession, "revision" | "historyWarning" | "olderSceneFile">,
   expectedRevision: number,
   assetKinds: ReadonlyMap<string, string>,
   database: IDraftDatabase,
@@ -615,6 +673,16 @@ export async function applySaveRecoverySession(
         // Keep the scene and manual-save baseline together in one atomic write
         // Don't Save switches to a new record without leaving the discarded edits behind
         try {
+          // Keep the original older-format backup, including its old history, before replacement.
+          // The revision check above prevents archiving or overwriting another tab's newer work.
+          if (
+            isRecord(previous) &&
+            typeof previous.document === "string" &&
+            !deserializeProject(previous.document, assetKinds).ok &&
+            readOlderSceneFile(previous.document, assetKinds).ok
+          ) {
+            store.put(previous, `older-scene-backup:${expectedRevision}`);
+          }
           store.put(
             { ...session, document: encoded.value, revision: expectedRevision + 1 },
             "active",
