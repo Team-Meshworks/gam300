@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import { Avatar } from "../../shared/ui/Avatar";
 import { Button } from "../../shared/ui/Button";
 import { SearchField } from "../../shared/ui/SearchField";
+import { playUiSound } from "../audio/ui-sounds";
 import { AccountList } from "./AccountList";
 import type { DirectoryOrganization } from "./directory";
 import "./directory.css";
@@ -25,7 +26,14 @@ export function OrganizationDirectory({
     return (
       <div className="sp-directory">
         <div>
-          <Button onClick={() => setSelected(null)}>All organisations</Button>
+          <Button
+            onClick={() => {
+              setSelected(null);
+              playUiSound("goingBack");
+            }}
+          >
+            All organisations
+          </Button>
         </div>
         <div className="sp-organization-detail">
           <section className="sp-card sp-directory">
