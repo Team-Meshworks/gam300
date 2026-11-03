@@ -326,7 +326,7 @@ export function ServerProjectEditor({ projectId }: { projectId: string }) {
       if (departure === "logout") {
         // Recheck before changing cookies so a different account is never signed out here.
         const identity = await accounts.getSession();
-        if (identity?.userId === active.accountId) await accounts.signOut();
+        if (identity?.userId === active.accountId) await accounts.signOut(active.accountId);
       }
       location.assign(departure === "logout" ? "/login" : "/landing");
     });
