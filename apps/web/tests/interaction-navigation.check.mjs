@@ -68,13 +68,11 @@ try {
   });
   await page.goto(url);
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
-  await page
-    .locator("#project-import")
-    .setInputFiles({
-      name: "navigation.json",
-      mimeType: "application/json",
-      buffer: Buffer.from(JSON.stringify(project)),
-    });
+  await page.locator("#project-import").setInputFiles({
+    name: "navigation.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
   await page.getByText("Project opened", { exact: true }).waitFor();
   await page.getByRole("button", { name: "Interaction", exact: true }).click();
   await page.getByLabel("Interaction 1 do", { exact: true }).selectOption("navigate-scene");
@@ -208,13 +206,11 @@ try {
     ];
     await chainPage.goto(url);
     await chainPage.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
-    await chainPage
-      .locator("#project-import")
-      .setInputFiles({
-        name: "chain.json",
-        mimeType: "application/json",
-        buffer: Buffer.from(JSON.stringify(chain)),
-      });
+    await chainPage.locator("#project-import").setInputFiles({
+      name: "chain.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify(chain)),
+    });
     await chainPage.getByText("Project opened", { exact: true }).waitFor();
     await chainPage.getByRole("button", { name: "Preview", exact: true }).click();
     await chainPage

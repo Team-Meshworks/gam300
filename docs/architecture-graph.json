@@ -289,7 +289,7 @@
     "editor/persistence/local-drafts.test.ts": "772b9f40f8fcff6e3675680f88365c41adf5ad69eb824bce8d7f52a96453a6df",
     "editor/persistence/local-drafts.ts": "d4121660c299c68f49139997e3b4d537d36294a95225ba3ef0bced05caee3c51",
     "editor/persistence/project-files.ts": "20e7466377e31ea388fe527abc4c33e465538b8b06709a5d78c78bc116c6b273",
-    "editor/persistence/use-project-session.ts": "1794d7858e569a6a85b1e185d943197d3c2f420bf53d8fb0359a16cebe271d97",
+    "editor/persistence/use-project-session.ts": "9100b793d5bcaabfb279cba9271b6bf5c1fdfcd913cc8d4a219926726b3d96fa",
     "editor/project-content.test.ts": "86e172e6079655ba02d289b5fc6d658353ee25bf0d0457b4e1626dac9cbb2ddc",
     "editor/project-history-store.test.ts": "2fb7b201869fef4ab2420929d5d9a65dd5c0f72e9253803d94ee50a66fe61a05",
     "editor/project-history.test.ts": "bb7ea657b49d92c47ae31c728471418b4ec76f9ff046e1c14519c2abaa584952",
@@ -398,7 +398,7 @@
     "tests/editor-shell.check.mjs": "84a9c4ba0437223cfa62fa197a75056327636ab9903e7e290f86f757fffee861",
     "tests/entry.check.mjs": "7c55cdf2e8af2bb4092d551492613d9c97eb3b150bf6e506c873d5a5a92e4e32",
     "tests/history-recovery.check.mjs": "0bead99f2028a0d9543f7292e3d7d35ad59161d5d20260a1c6f93adbb7c79d6e",
-    "tests/interaction-navigation.check.mjs": "6e8159a33053438324c0ced11110d29d5f07fc126ba6196751947681a5ce8688",
+    "tests/interaction-navigation.check.mjs": "6ed0d7dcbc6a28d3e5978486979f5f5f39645a2341224f83c0440fdaecd0dfa5",
     "tests/interaction-review.check.mjs": "a2777e18dd4ae7b973c2b40fe49f1c7dad4e8a4fbb154e6e975ded69370d0552",
     "tests/local-drafts.check.mjs": "bb8f64e260836dcc0f2621a881764d9f93042ba6dc5d8670d8282c7c5f1479e9",
     "tests/login-real-api.check.mjs": "69335016faab5abd72edb44ca9c115461661d07a1c9f318f56c2dfcc6b5c8211",
@@ -7491,7 +7491,7 @@
     },
     {
       "file": "tests/interaction-navigation.check.mjs",
-      "line": 108,
+      "line": 106,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -7500,7 +7500,7 @@
     },
     {
       "file": "tests/interaction-navigation.check.mjs",
-      "line": 109,
+      "line": 107,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -7509,7 +7509,7 @@
     },
     {
       "file": "tests/interaction-navigation.check.mjs",
-      "line": 132,
+      "line": 130,
       "kind": "test-environment",
       "specifier": "three",
       "target": {
@@ -8089,7 +8089,7 @@
     },
     {
       "file": "tests/interaction-navigation.check.mjs",
-      "line": 132,
+      "line": 130,
       "expression": "threePath"
     },
     {
