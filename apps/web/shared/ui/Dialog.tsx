@@ -31,6 +31,8 @@ export function Dialog({
       aria-labelledby={titleId}
       onCancel={(event) => {
         event.preventDefault();
+        // React propagates cancel through nested dialogs even though the native event does not bubble.
+        event.stopPropagation();
         onClose();
       }}
     >

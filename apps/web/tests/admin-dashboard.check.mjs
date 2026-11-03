@@ -86,7 +86,9 @@ try {
       assert.equal(request.headers()["x-spatia-account"], userId);
       if (projectError) return route.fulfill({ status: 503 });
       if (url.searchParams.get("archived") === "true")
-        return route.fulfill({ json: { items: [], nextCursor: null } });
+        return route.fulfill({
+          json: { items: [{ ...projects[1], archived: true }], nextCursor: null },
+        });
       const cursor = url.searchParams.get("cursor");
       const items = cursor
         ? projects.slice(2)
@@ -152,9 +154,41 @@ try {
     .waitFor();
   await dialog.getByLabel("Search loaded projects").fill("Rome");
   assert.equal(await dialog.locator(".admin-project-card").count(), 1);
+  async function escapeProjectDetails(archived) {
+    const trigger = dialog.getByRole("button", {
+      name: "View details for Life in Ancient Rome",
+      exact: true,
+    });
+    const readsBefore = projectReads;
+    await trigger.click();
+    const details = page.getByRole("dialog", { name: "Project details", exact: true });
+    await details.waitFor();
+    assert.equal(
+      await details.locator("dd").first().textContent(),
+      archived ? "Archived" : "Draft",
+    );
+    await page.keyboard.press("Escape");
+    await details.waitFor({ state: "detached" });
+    assert.equal(await dialog.isVisible(), true, "Escape closes only the nested details dialog");
+    assert.equal(await dialog.getByLabel("Search loaded projects").inputValue(), "Rome");
+    assert.equal(await dialog.getByLabel("Project status").inputValue(), String(archived));
+    assert.equal(await trigger.evaluate((node) => node === document.activeElement), true);
+    assert.equal(projectReads, readsBefore, "Returning to the list does not reload its pages");
+  }
+  await escapeProjectDetails(false);
+  await dialog.getByLabel("Search loaded projects").fill("");
+  assert.equal(await dialog.locator(".admin-project-card").count(), 4, "Loaded pages are retained");
+  assert.equal(await dialog.getByRole("button", { name: "Load more projects" }).count(), 0);
   await dialog.getByLabel("Project status").selectOption("true");
-  await dialog.getByRole("status").filter({ hasText: "No projects to show." }).waitFor();
+  await dialog.getByRole("button", { name: "View details for Life in Ancient Rome" }).waitFor();
+  await dialog.getByLabel("Search loaded projects").fill("Rome");
+  await escapeProjectDetails(true);
+  await dialog.getByLabel("Search loaded projects").fill("no matching project");
+  await dialog.getByRole("status").filter({ hasText: "No matching projects" }).waitFor();
+  // A focused search input consumes Escape to clear its value; test the dialog itself.
+  await dialog.getByRole("button", { name: "Close", exact: true }).focus();
   await page.keyboard.press("Escape");
+  await dialog.waitFor({ state: "detached" });
   await page.getByRole("button", { name: "+ Add Organisations", exact: true }).click();
   dialog = page.getByRole("dialog", { name: "Add organisation", exact: true });
   await dialog.getByLabel("Organisation name").fill(" New School ");
@@ -237,7 +271,7 @@ try {
   assert.equal(new URL(page.url()).pathname, "/landing");
   assert.deepEqual(errors, []);
   console.log(
-    "Admin dashboard checks passed: login routing, forced password change, sessions, access control, organisation creation, project pagination, assets, account navigation, error recovery and responsive layout.",
+    "Admin dashboard checks passed: login routing, forced password change, sessions, access control, organisation creation, project pagination, nested-dialog Escape, assets, account navigation, error recovery and responsive layout.",
   );
 } finally {
   await browser.close();
