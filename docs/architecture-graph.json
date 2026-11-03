@@ -10,6 +10,7 @@
       ],
       "public": [
         "shared/project/project-types.ts",
+        "shared/project/attached-transforms.ts",
         "shared/project/starting-view.ts",
         "shared/project/legacy-scene-import.ts",
         "shared/project/project-content.ts",
@@ -232,15 +233,17 @@
   "files": {
     "account-dev-server.ts": "e117343d2dda5bf2d1a2636bfffdb6d2559da9410db4a42fdc336a837259c6fd",
     "architecture.check.mjs": "45c2cad2ba19bb129e02f5eba71005bf05647f2ddf2b68bd16c7130f584cc8c1",
-    "architecture.mjs": "0e7b62ba6217b5c9a4ac08785a9f0a670b127587540e0c86f47d16b5d8749a91",
-    "asset-catalogue-plugin.ts": "17bec6aa65dd50167fe6c055fb38af453a647f3648a2bf296f9927ed32f7a158",
-    "editor/App.tsx": "b825e90e93ccea3cc572fcb658bcf6d939d3a841fd61c8277a16476914a4eba8",
+    "architecture.mjs": "6dde06c8800dca83824c8745559fede11c6ba4399f39d7b22de23b421762508f",
+    "asset-catalogue-plugin.ts": "fdbfbf69501e6d772ea43c7a4575549f68985bc4e94bed0cfc5c7dc70ba3cbe2",
+    "editor/App.tsx": "d8ccc0c8ab6558f203232c2a8e3fdcd2d6d9a50fed5f55fc829efa6fc6236217",
     "editor/OlderSceneImport.tsx": "9ab5f31f2ac60a12bfb5931592c54ed566140baac1bb38f3358fa0bd0ca93397",
     "editor/ProjectConfirmation.tsx": "07a0fedf8fbf88865b3b8232c8665c139348fc64ebce478ea01e55eb7fd14eff",
     "editor/Scenes.tsx": "fbd0b23955e14e7f41db3b7d28dfd2d9c3650614d8bfa5601a434f45b096c0cd",
     "editor/Viewpoints.tsx": "aa66b98b65a5187e386c0ac367ae134fda711988e8a89fe0618cfde385662d26",
     "editor/accounts/account-client.test.ts": "fdffd77d0ce73391a8e22c34baa913b8529ce3ae42368055d38fa9975ad3201b",
     "editor/accounts/account-client.ts": "7acfab4663142075b48128b18317d156ccc8b2f145c94b062fa57ac1c603d3c9",
+    "editor/asset-library.test.ts": "796e1bad8e13165b8dd1a38b1bcbe003c0fea5c8e2438c4dedbd2f85d2a7725b",
+    "editor/asset-library.ts": "241937b9c14465a98b5a711efc748b3b7fcd92de6cbca7efa32de26206d73a64",
     "editor/audio/ui-sounds.ts": "4cc6288694e652328a4794949cbdc88ebf555322ce4bdba215afd4ebd93bb494",
     "editor/command-history.test.ts": "783c026523513ea5520cde04e61502aba13ca3a612b509a904c2a50e50be2d1f",
     "editor/command-history.ts": "e243335582ab03da9d131bd80edef7b908e3eb0a751d6ebfa7deb77750fc54ad",
@@ -248,21 +251,24 @@
     "editor/directory/AccountList.tsx": "c729aa00228f05b0cb6ed2525678d887da2193374c95acd5c8305dc9f88842a0",
     "editor/directory/OrganizationDirectory.tsx": "48447d46cb3fbe342b0ce86c38c9635ee1f4ae3434b437dfe783b83976fed10c",
     "editor/directory/directory.ts": "ec5cf37c67e953850b1115ba316cec367527baa0c4fbc3f5aca289a171ba477a",
-    "editor/document-store.test.ts": "55cc04e166f6fdf0244dfdccbc4d336a422874062ed9e6a251af102496921a26",
-    "editor/document-store.ts": "94799ce5ed3c8d178a7020d94c308037157b0704d2267ad5da18b9f25f4b2fe9",
+    "editor/document-store.test.ts": "caa268822fa0d253276080a63cba13ab892858ff9f105335622d0f29a15874ca",
+    "editor/document-store.ts": "f29ddc6de9d30310e01843d19553b7cee4c35ea99e0045ad10af99c49a58d42e",
     "editor/edit-session.test.ts": "fd971338990e32158eb0355508fb39a7c3284db62421501024da029a82dc784a",
     "editor/entry/EntryBrand.tsx": "21be448d7b3232fe2fb0906ad4386e4a854c6a4369d75b851b1446e9af849b06",
     "editor/entry/LandingPage.tsx": "00176c689fdc4a8657c3ea48c912ad03ede1388d698888b01308462955d2b5af",
     "editor/entry/LoginPage.tsx": "e52ba528cfda58601981056dfd9e1e624d343a135fe45ae2e2c207928fcde044",
     "editor/entry/main.tsx": "c94eb8216c552696432a0c8e0cdb5f15ff97682d4d910d103ca3a0286059a558",
+    "editor/graphics/active-clock.test.ts": "29145e0a9e58264cd0e192d607be8e7fee69ae18b0aef52e6c5e4c5a2670aa4d",
+    "editor/graphics/active-clock.ts": "9dfb0530c27712140610a6269d64b41e9f88e2622593696f73d5295162b271a0",
     "editor/graphics/modeManager.ts": "192911ee28b8329ec2ed0dddb5f8854abf6faf5dfce3165b2694a1bfcf192f24",
     "editor/graphics/rotation.test.ts": "58844092035329772ba8c941b1b93737d142d7c597f015900041721d0018bb69",
     "editor/graphics/rotation.ts": "d847162644716d2b36e8b3e4f1ad190360527a46351cb2969d411dbe76ea96d3",
     "editor/graphics/scaling.test.ts": "346b243798597de2a5b00384904bdf04f9f3826a8753bcde3282e5356b0ceb0a",
     "editor/graphics/scaling.ts": "0277d21b28d246ddb2f94216fe29afb24ebbc8e257dd3510eca91bb176867da1",
-    "editor/graphics/scene.ts": "949b4c15eeeba6fb48c7c9ec66cbe9950e448db8947c8abbeda6e27c4ab889c1",
+    "editor/graphics/scene.ts": "be80a40e5095d4ea1ef67f8972c58cd18a1f054be7c79a646a22f254be8c1304",
     "editor/graphics/translation.test.ts": "b4a888b963437ca3508c04cc3e933ab215d301908384ea9af37ee8aabd6fae2c",
     "editor/graphics/translation.ts": "a4ea05b137e4dee436848693a57273c54025856bdf943eb1e9413de5509bb2d4",
+    "editor/hierarchy.test.ts": "9183c999766d2e2779b8e2cc6d22d1f041709781771a0d303b639b2ef7e027a7",
     "editor/history-shortcuts.test.ts": "fc33404f4da0e7c9fd27d2da50d63eb3367c790cda0f985dd98b398b651e3a3b",
     "editor/history-shortcuts.ts": "e9d147c651ba15b45484207f805fbb648beb13c7393e4538d249c159c4b4e583",
     "editor/interaction-history.test.ts": "178fb9f576d890f84302c0e5d804eab6698989b8ea0c9ca128c3e4bb75a4cc6f",
@@ -277,13 +283,13 @@
     "editor/object-copy.test.ts": "4266a7ac699c9ad5bec8962b7b1dd52bae9e6874d571235184aa304d0d6c8088",
     "editor/persistence/draft-db.ts": "9c1aece3becbd9db33c2164533cfc86d9cf7b4bef9306678d9c9aaca9b800c5a",
     "editor/persistence/idb-database-connection.ts": "d07c765187e280e825a3d73665837a55b12cf203ab93a22c18634849ec6b6347",
-    "editor/persistence/local-drafts.test.ts": "ef1ab484d90ad8cfea6e26913dba2a534660a0cadceb77b0466aa0168499fdc9",
-    "editor/persistence/local-drafts.ts": "251797c112b3aacff8480f306f489d702fe77063131608e7c46e1671bd8346a0",
+    "editor/persistence/local-drafts.test.ts": "772b9f40f8fcff6e3675680f88365c41adf5ad69eb824bce8d7f52a96453a6df",
+    "editor/persistence/local-drafts.ts": "d4121660c299c68f49139997e3b4d537d36294a95225ba3ef0bced05caee3c51",
     "editor/persistence/project-files.ts": "20e7466377e31ea388fe527abc4c33e465538b8b06709a5d78c78bc116c6b273",
-    "editor/persistence/use-project-session.ts": "d69a9085a5412e5755fa9127f013ebb42bd4bab3b967c5b7b41f96998c02d90e",
+    "editor/persistence/use-project-session.ts": "9100b793d5bcaabfb279cba9271b6bf5c1fdfcd913cc8d4a219926726b3d96fa",
     "editor/project-content.test.ts": "86e172e6079655ba02d289b5fc6d658353ee25bf0d0457b4e1626dac9cbb2ddc",
     "editor/project-history-store.test.ts": "2fb7b201869fef4ab2420929d5d9a65dd5c0f72e9253803d94ee50a66fe61a05",
-    "editor/project-history.test.ts": "c1a39ae78bd49b1ef16049ce1b4bae19d55bc55779e660db332f43c675e416e4",
+    "editor/project-history.test.ts": "bb7ea657b49d92c47ae31c728471418b4ec76f9ff046e1c14519c2abaa584952",
     "editor/project-loading.test.ts": "8f381e454783f1597a129932ac789280a5ce3bb42ee3cbb51327201d866e41cc",
     "editor/projects/ClassAssignmentForm.tsx": "dfb460c38f644caa4388d8e1fe8f3730951ee5e35fa5cea3d02add2dc782dbd2",
     "editor/projects/ClassSelect.tsx": "d348bc5b38ff8678f60e605f6139931e3310c4bafd04763f8d63f8d615c16c5b",
@@ -302,12 +308,12 @@
     "editor/projects/submission.test.ts": "da0d5a8c5eeecfba0e573ff3838972f637eb570673409c5c5d5946fd51c2a582",
     "editor/projects/submission.ts": "e4071c1d1e3c641c38379f605e592b099fca578702c5d8e8aa8edebed2aaa855",
     "editor/recovery-history-budget.test.ts": "c5682347fba756f3ec018384dbd5f648b0660e3311d8276b9458b2b3d0de7703",
-    "editor/recovery-history.test.ts": "2548daa2d3962c31128bdc08b0819eff197633292147b0af0a27a24f510eabce",
-    "editor/recovery-history.ts": "65853d020614c055a526d9efbdf9298b6c0c120f433e11db19e2894f5ed9e8ca",
+    "editor/recovery-history.test.ts": "b4138c2ae886483495ddfdddf3f51cbdc594ace7e4ff88f3681c23094080b6f1",
+    "editor/recovery-history.ts": "a6b408c94f644cc6a6c3dfa181709a098ba2a797d4c9e4e0d9f70825efba260e",
     "editor/scene-interactions.test.ts": "30eee0eb4e295bb4a458c5c1360855b32f0770b8c6198feb4f947a18060a1a39",
     "editor/scenes.test.ts": "ba9e8675e8dfdbd69c6469d32f4cfba67fb590b9f74b405c64d2106f147bb9c8",
-    "editor/transform-command.test.ts": "ddf486effa25dda032e79d4c8e10abfa72b3c21e9856fe9c9fea55a1a9d80bb4",
-    "editor/transform-command.ts": "bcd7036db3877f5f24e5984287af8a878b10ec6289a51987e76f62db8f3cb178",
+    "editor/transform-command.test.ts": "7708bd68c3ebffe37e9569f9c6db2238b36c9cc97927830263ce0083af5ab6b3",
+    "editor/transform-command.ts": "338ad5ff277ed1bfa0b9bb9164a441be0fb5fb125a392e35e3ba632e9a179d13",
     "editor/ui-preview/AccountsExample.tsx": "c65ec3c55be1a61a87b04a4fbd54c93aeae3a18af03b1dcc151a15f4c9673f27",
     "editor/ui-preview/ClassAssignmentExample.tsx": "37ec043caaeddbafab2fe300ae7435b33fe6e7ea1c80e9f36c3e99a3b0078f67",
     "editor/ui-preview/FoundationPreview.tsx": "5288a60943e51cb68335c6c1f03083f8bbddbd2041cb02b0579b351e54039fbb",
@@ -315,29 +321,33 @@
     "editor/ui-preview/ReviewExample.tsx": "541b6efaf3e2b18bc095739b4180a2f44f5209111f289b62e8096dab16d30d95",
     "editor/ui-preview/fixtures.ts": "7bff292876860adb3e059fdaae85a77acafc74586fadb832043a51275d49e04a",
     "editor/ui-preview/main.tsx": "10d494ed224f1fda3fc0fa3f6d1ef68527e859d62a1ef6bbd3854561dde10f64",
-    "editor/ui/AssetPicker.tsx": "9050a403568bd671d26e3295acce4bfb40e0c58c9c6150974d6c26d1639f958a",
-    "editor/ui/BottomBar.tsx": "145f4ddb343d81ba940ff8b66428f5348e4a4c04bf32f787c87c79b1155cee86",
-    "editor/ui/Icon.tsx": "4cfc7f4797f7737de559cb7ac69dbfeaf9892a7f2fe81a1018883ba4b4e0a341",
-    "editor/ui/InteractionPanel.tsx": "24c278c4f91a662ee06788efc9c862b34f0cc6becd39297307f840333fbff9f1",
+    "editor/ui/AssetFilterSelect.tsx": "d5449ccfb82270fb1baae4503d61014a3d42f87b07272b85f8a0f6d3feb55450",
+    "editor/ui/AssetPicker.tsx": "b49b053f5d08c1b20ec5e35f65d5c0865f5ed6b8f4bd1454b139a82977c7646e",
+    "editor/ui/BottomBar.tsx": "03256cd1aabe6a412be04ab3526826c94625178b5f4bb331d47261cea51b8690",
+    "editor/ui/Icon.tsx": "9541d7b9446bdc777fa17a0276232859ea688aed6b7d2ab1af25dbd0cea58323",
+    "editor/ui/InteractionPanel.tsx": "018bbf8813834fedb1172d750cf75575a8541049d6719f152f58ca626e4e2326",
     "editor/ui/PreviewTargets.tsx": "d49499d2e889781f42239cfe9cdd17a174691baed6dc86815a2d3e577af00884",
-    "editor/ui/SidePanels.tsx": "f7aa1b2a756dcff1da649de9fa5b77920354492ce63aba499e41f7807d1af50b",
+    "editor/ui/SceneTreePanel.tsx": "b5f514cfe2094f9be97c03d4b02703a0836702276286982e3701e94ab0ac0fe9",
+    "editor/ui/SidePanels.tsx": "7bf3f83ac128891f3f8e86d99466a4625961686a833e68f56570cc58f898bf83",
     "editor/ui/TopBar.tsx": "28847be72828b5149d7d33a821173b19ba73bad53b027075b3d78d1702e41da9",
-    "editor/ui/asset-filters.test.ts": "0354d847a14ce19c9b962a56956cff3c546f9c98b1589983315bc4778145613b",
-    "editor/ui/asset-filters.ts": "fe84b540e58c3a5fd50a62ad4ce088f3382e9eb278c65dc88e92526adce676af",
+    "editor/ui/asset-filters.test.ts": "0b88a68d514d283e155ceb0838d4951c1b4fd5867459df2e8c6ab8780c65f858",
+    "editor/ui/asset-filters.ts": "5e08299dbfc2543f41017306fdff78d7ba3161e2242186877a315e3ea75fa8cc",
     "editor/ui/dock-edge.test.ts": "5f23848e403e898efc84d2c34ae327b5d5313a066c6391a79cec336e73759ead",
     "editor/ui/dock-edge.ts": "16fbf3250e0c840d7d6d0add10b5fb4ee008afafcbbebe1b860c15171d7196af",
     "editor/ui/rotation-angles.test.ts": "768d7e7fcfe8d5a5fc0a11f3bc70fa734e5e84ce161fd9aa5b1807b850f4438d",
     "editor/ui/rotation-angles.ts": "16a42a83ee7bb2435c4ee7b640fa6ca3c65a7564fd68981084ce57f5e9687f3b",
     "editor/viewpoints.test.ts": "383d49fc0c57b158b739781160ada8bef63d23e5b6fa03a7a5a605032a812da9",
-    "editor/viewport/Viewport.tsx": "6ccbd6e9064df2f8ef4d03588b0c43e7b366238a63076ad74ee20bfc38af5353",
+    "editor/viewport/Viewport.tsx": "7f43e60501edf610ed4d641b920cb5c23e34e2eff2b9f52a7cc2b6fbab8a5f90",
     "editor/workspace/WorkspacePage.tsx": "d05a889243bf7fcfdb2019f3e1f141170d3e8f41c5a6c06173d64e8f8402d71a",
     "editor/workspace/main.tsx": "ba13928e8e371d8dcf218adb28f93eaab5e47d2ef5c020a4ee823190ac47d2dd",
-    "eslint.config.js": "225bdc9730cf344922618cfb5414be8eb1e53a57aeac497df6f0d1464eef9c8b",
+    "eslint.config.js": "cbab291dfcf10a7c58563e96b2c29cc213c402ebaf35f89789663d96bdb12135",
     "shared/asset-runtime/ModelCache.test.ts": "6e5cf28591eb858c981923550fe49fb330535b085db0d99d7ce209736fefc2d3",
     "shared/asset-runtime/ModelCache.ts": "7ba493c76290a999db38013457dea39e5b08492416487338b05e1be6490dde2e",
-    "shared/asset-runtime/catalogue.ts": "5be1b1fb1dc335fc7ed3e7204bcba9ff7485deaa12ceb46a945048f5937c7800",
+    "shared/asset-runtime/catalogue.test.ts": "93f76097551fcf8adaa581777554edfa38c4defb12d9711c3f2c7f3332a77fac",
+    "shared/asset-runtime/catalogue.ts": "625f7b3da8e71f88dc752788838a69e6d18c3a16aa8092eb82664cae36c42979",
     "shared/asset-runtime/hotspot.ts": "1981f66fb7e803218b2cbf88b6e64c649a8dd4f2298b70882003495b631e16aa",
     "shared/asset-runtime/manifest-module.d.ts": "ff7add6e7e483a4cc6a0dd48c9ead7b2f4cd0b0a5ccc7fb06181e1a5d2d1326e",
+    "shared/project/attached-transforms.ts": "73599346cb723db417b11d02eb9bf92f80f038ff070f605d11b62d77083f543a",
     "shared/project/legacy-scene-import.test.ts": "4574e69926012dfa25a362fcd5d4b14bd67169f3aef1235bebf6ca5479d597ca",
     "shared/project/legacy-scene-import.ts": "37fd657a29e0e6094b7a951ee0592c465f866c9e330f1571e46faff8a66094f3",
     "shared/project/legacy-scene-structure.ts": "1e1811a33ebedd730bc376feb6c866818c465994b7ebb3738fcefe557644c129",
@@ -345,19 +355,21 @@
     "shared/project/legacy-scene-validation.ts": "1624a10526146da0eb0bf1b0e1e3a1ac795c3f77c2e8b2f65c7b0fcd8ec0b650",
     "shared/project/portable-url.ts": "b6d6fc16ca16de2378f700669074296a96bef4374f28725cbc2abe0dc007f3a0",
     "shared/project/project-capabilities.ts": "b3e43a4a88bebd86fd0a35ccf6260d32fec6045ffb9fc40da80c783e3e65abf3",
-    "shared/project/project-content-validation.ts": "db29abb1ddfcc91ef357aabad11fffcf18f43ab0e61144604b95d3af287fff22",
+    "shared/project/project-content-validation.ts": "92225ffb99a9f00c0c9e2a274ed02b38e5f66850035d84622b6e1a3234a036e3",
     "shared/project/project-content.test.ts": "348f9d8fd26a3273e1e4bc701565345607c6eba773ceef342702b08a004a9bc0",
     "shared/project/project-content.ts": "eaaa6d461b14bc6a0b103c1754945ddcda3c274231796077e19d2df756baad92",
     "shared/project/project-deserialization.test.ts": "a4159c5ffc88b8d3f22ed9fcca5b7b37cb7a90d1766dc46080264ca3b552ffb1",
-    "shared/project/project-deserialization.ts": "a9824913a88ccd806abac94b37352214198482b30d1ebf29d7d5b4ed2d4c424d",
+    "shared/project/project-deserialization.ts": "380048b4c4f18537670171023b49d5e95f80be7981975c9edd44b4584391df1b",
     "shared/project/project-limits.ts": "6d4db8b98f0a4d9d90b9b7d8935a8d9c2d77037f92654c6aaf0397fc57f387dc",
-    "shared/project/project-serialization.test.ts": "c42a5760ac8e31b55ddc107c36c5b7d10c4d678b1da649d86aa1cd8783a55641",
-    "shared/project/project-serialization.ts": "57ecf9585608f2703da3410955f8dc2a9a62f8c494b29b5b310361ebdf8c2f73",
-    "shared/project/project-structure-validation.test.ts": "a3d0235653d76c96186bf94b3b0bda626a0ba3d8d5da15d5000040a77607825a",
-    "shared/project/project-structure-validation.ts": "4bce4258f7ee9ee00e03dccc0061518f6418842ba64efe3274a38c067f02e104",
-    "shared/project/project-types.ts": "bb7bc0df4a7699dce8b6f2cfb394a6f477b79037fb16e4d6f059055acf196d98",
+    "shared/project/project-serialization.test.ts": "1dc04fc74b67610f32494e2d98b9b1488132d7aae45f2bdaefd3018d37ecc438",
+    "shared/project/project-serialization.ts": "ed89d30126f5d2b67afed66895bcfc47546911a20993974a5a2d633ca2868698",
+    "shared/project/project-structure-validation.test.ts": "c67d2e9beaf71cf5d1c576a313be56c18639078602b1405a1fe4c28d398e2054",
+    "shared/project/project-structure-validation.ts": "9cdd1564244ff6e98d68159b989de8b0fdb2234143577557b54a586de0abfa51",
+    "shared/project/project-types.ts": "8b29e8e57d5ae0ad19795156c2ec6037fac526e8847d488f9f2be9a4960dde61",
     "shared/project/project-validation.test.ts": "3c76118f85391181ccc59c47dd21bbde4c849666e0aa191a93702f31e7ceced3",
     "shared/project/project-validation.ts": "bf9257e60b5a25ae1eeb4d582e2b56c10c2c8da0ad2d4cf1cfb7ad8255398652",
+    "shared/project/project-wire.test.ts": "c91c12dbf83e3bb45e8213da0fb2f6511b838450b5c0c42f1297a24c4754ad46",
+    "shared/project/project-wire.ts": "b7f494c9672fb688a4a882883cf3bece67dfdd46633a14e4e95aecd68139654d",
     "shared/project/scene-object.ts": "eb0421d014733ee53241324fbf7f110bf3415cc6c737080a4416eafaac4748d1",
     "shared/project/spatial-validation.test.ts": "1451aa2673f445e8dbdff9e3628dd474ec1f9aa1238b4867c67913bb682e3c0d",
     "shared/project/spatial-validation.ts": "793f30ede0c1d12d1e0cf57bf0f219b3bbc57752fd465801499699283e480d12",
@@ -378,15 +390,16 @@
     "tests/caching.measure.mjs": "aadf27638c20f8a79d5fe302ec7a3f0ad9bab52661bc5be39df65fb89b53e727",
     "tests/class-assignment.check.mjs": "232d5231b7304b2297ef4e19fff8c7c721b5b67afe6d3e55cb46fa3e7a893bcf",
     "tests/deployment.check.mjs": "2c76bbb2d229a623d0d48014618e51b8d1e3d364f855f71418b9a50fe16c1eda",
-    "tests/editor-build.check.mjs": "d3ed216cd2b82d403a660570eae984a863cccb6c39823c8ec83adc32f5507524",
+    "tests/editor-build.check.mjs": "babf1e4af3d51463a624dd700b4c253f6e50ea8cf9f8b1020bed56ca22ce2bd1",
     "tests/editor-integration.check.mjs": "58e0d2d7860d3b9173b75bd9f69b37662d6c834065fd32460ce507f4c730729f",
-    "tests/editor-shell.check.mjs": "f387f75fb918e2b0f8ac65b8f558886fae0d2640d4f9b4f8b81d19c2410b1bf1",
+    "tests/editor-shell.check.mjs": "84a9c4ba0437223cfa62fa197a75056327636ab9903e7e290f86f757fffee861",
     "tests/entry.check.mjs": "7c55cdf2e8af2bb4092d551492613d9c97eb3b150bf6e506c873d5a5a92e4e32",
     "tests/history-recovery.check.mjs": "0bead99f2028a0d9543f7292e3d7d35ad59161d5d20260a1c6f93adbb7c79d6e",
-    "tests/local-drafts.check.mjs": "09d21d098506ad5f04b5c5cd8badc36b11f5d524e03e84c16039f4abb3ec9c9a",
+    "tests/interaction-review.check.mjs": "a2777e18dd4ae7b973c2b40fe49f1c7dad4e8a4fbb154e6e975ded69370d0552",
+    "tests/local-drafts.check.mjs": "e6c3cde3011f930c75ebb82367ea2f6db07c0e61c4016a81f68b2ab26cf29028",
     "tests/login-real-api.check.mjs": "69335016faab5abd72edb44ca9c115461661d07a1c9f318f56c2dfcc6b5c8211",
     "tests/new-project.check.mjs": "17741aa13571068365ea6e1db51b9c4a55d9ce446c3c56341be59509d66b575d",
-    "tests/project-format-cross.check.mjs": "7c4dec164803e43fe4388b0e4f2368f19ff9722b6d344c074856cb79204ea11a",
+    "tests/project-format-cross.check.mjs": "aee9b8319b2d4c97cb74a3b0540207a6e3e36cf924a7ea8034c237cff911382e",
     "tests/review-directory.check.mjs": "e750516eb3a7ffccd0f72eece04c115fe53f772ddfb2cedfd4b921b330dba29b",
     "tests/ui-foundation.check.mjs": "451f62a3dce958551321897ea3b9668b1315b3c286275d9b290fcc4666774ecc",
     "tests/ui-sounds.check.mjs": "97e33d174504b9da0548d8892be141bf5115074ab9a73c706fd6e8289b531c16",
@@ -412,9 +425,9 @@
     "editor/entry/assets/login-exhibit.png": "3fa4893d11ede2c25482975d0fb22e16fdadd25ee19abc88698c1133e8184284",
     "shared/ui/foundation.css": "98a051c00415cfb9bc98f9e921d3f66685766a10a837d5737c76ba4f7bc54ffc",
     "editor/entry/entry.css": "fe7cbc59e81658828c79a8d61a5025b090b2ad23533bb1f26830518138d74dbd",
-    "editor/styles.css": "9ad50b07805440f398e039ea8e09517aeb37231e9bac8b98b6f940fd24e58767",
     "shared/project/fixtures/m2-project.json": "d0b01cf012c8418b3d5e0acef2053b936fdce5333603666dd1e757a3b5e5565b",
-    "shared/project/fixtures/project-format-cases.json": "5933372547fdfc877142cadd0458876b2d90175670c04a1251af806eac2a846e",
+    "shared/project/fixtures/project-format-cases.json": "8e3e293f5d924630e6faf5580c5dde3ffba0db830a46bd6f67bc89c7c0d35a21",
+    "editor/styles.css": "a8d3cab851ec8c135cfbecc94af084eb959c1f04ebdada0668715092c9a91322",
     "editor/fixtures/asset-pipeline-document-history.json": "4fe51cba770226d856f37cbbc2afbe0b3fe393e5990b8f761b794b7b5bf5380d",
     "editor/fixtures/asset-pipeline-view-history.json": "d33e208ca99c5fb1e816a9e0b79aebb987c79ef354179d8c06e430b382cf4f59",
     "editor/projects/class-assignment.css": "fb9bdc1b367853c792e1ba88513872fd0d410cef67e5c144ad0ccce8c0194c64",
@@ -858,7 +871,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 337,
+      "line": 352,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -1090,6 +1103,97 @@
       "target": "editor/accounts/account-client.ts",
       "from": "checks",
       "to": "editor"
+    },
+    {
+      "file": "editor/asset-library.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/asset-library.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "./asset-library",
+      "target": "editor/asset-library.ts",
+      "from": "checks",
+      "to": "editor"
+    },
+    {
+      "file": "editor/asset-library.test.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./document-store",
+      "target": "editor/document-store.ts",
+      "from": "checks",
+      "to": "document"
+    },
+    {
+      "file": "editor/asset-library.test.ts",
+      "line": 4,
+      "kind": "type",
+      "specifier": "../shared/project/project-content",
+      "target": "shared/project/project-content.ts",
+      "from": "checks",
+      "to": "project"
+    },
+    {
+      "file": "editor/asset-library.test.ts",
+      "line": 5,
+      "kind": "static",
+      "specifier": "../shared/project/project-serialization",
+      "target": "shared/project/project-serialization.ts",
+      "from": "checks",
+      "to": "project"
+    },
+    {
+      "file": "editor/asset-library.test.ts",
+      "line": 6,
+      "kind": "type",
+      "specifier": "../shared/asset-runtime/catalogue",
+      "target": "shared/asset-runtime/catalogue.ts",
+      "from": "checks",
+      "to": "catalogue"
+    },
+    {
+      "file": "editor/asset-library.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "../shared/asset-runtime/catalogue",
+      "target": "shared/asset-runtime/catalogue.ts",
+      "from": "editor",
+      "to": "catalogue"
+    },
+    {
+      "file": "editor/asset-library.ts",
+      "line": 6,
+      "kind": "type",
+      "specifier": "../shared/project/scene-object",
+      "target": "shared/project/scene-object.ts",
+      "from": "editor",
+      "to": "project"
+    },
+    {
+      "file": "editor/asset-library.ts",
+      "line": 7,
+      "kind": "type",
+      "specifier": "../shared/project/project-types",
+      "target": "shared/project/project-types.ts",
+      "from": "editor",
+      "to": "project"
+    },
+    {
+      "file": "editor/asset-library.ts",
+      "line": 8,
+      "kind": "type",
+      "specifier": "./document-store",
+      "target": "editor/document-store.ts",
+      "from": "editor",
+      "to": "document"
     },
     {
       "file": "editor/audio/ui-sounds.ts",
@@ -1470,7 +1574,7 @@
     },
     {
       "file": "editor/document-store.ts",
-      "line": 28,
+      "line": 30,
       "kind": "type",
       "specifier": "../shared/asset-runtime/catalogue.ts",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -1479,7 +1583,7 @@
     },
     {
       "file": "editor/document-store.ts",
-      "line": 29,
+      "line": 31,
       "kind": "type",
       "specifier": "../shared/project/scene-object.ts",
       "target": "shared/project/scene-object.ts",
@@ -1488,7 +1592,7 @@
     },
     {
       "file": "editor/document-store.ts",
-      "line": 30,
+      "line": 32,
       "kind": "static",
       "specifier": "../shared/project/project-deserialization",
       "target": "shared/project/project-deserialization.ts",
@@ -1497,7 +1601,7 @@
     },
     {
       "file": "editor/document-store.ts",
-      "line": 31,
+      "line": 33,
       "kind": "type",
       "specifier": "../shared/project/project-types",
       "target": "shared/project/project-types.ts",
@@ -1506,7 +1610,7 @@
     },
     {
       "file": "editor/document-store.ts",
-      "line": 32,
+      "line": 34,
       "kind": "type",
       "specifier": "../shared/project/validation-helpers",
       "target": "shared/project/validation-helpers.ts",
@@ -1861,6 +1965,34 @@
       "from": "editor"
     },
     {
+      "file": "editor/graphics/active-clock.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/graphics/active-clock.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "./active-clock",
+      "target": "editor/graphics/active-clock.ts",
+      "from": "checks",
+      "to": "rendering"
+    },
+    {
+      "file": "editor/graphics/active-clock.test.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "../interaction/interactionHandler",
+      "target": "editor/interaction/interactionHandler.ts",
+      "from": "checks",
+      "to": "editor"
+    },
+    {
       "file": "editor/graphics/modeManager.ts",
       "line": 1,
       "kind": "static",
@@ -1960,6 +2092,33 @@
       "file": "editor/graphics/scene.ts",
       "line": 1,
       "kind": "static",
+      "specifier": "./active-clock",
+      "target": "editor/graphics/active-clock.ts",
+      "from": "rendering",
+      "to": "rendering"
+    },
+    {
+      "file": "editor/graphics/scene.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "../../shared/project/attached-transforms",
+      "target": "shared/project/attached-transforms.ts",
+      "from": "rendering",
+      "to": "project"
+    },
+    {
+      "file": "editor/graphics/scene.ts",
+      "line": 3,
+      "kind": "type",
+      "specifier": "../../shared/project/project-content",
+      "target": "shared/project/project-content.ts",
+      "from": "rendering",
+      "to": "project"
+    },
+    {
+      "file": "editor/graphics/scene.ts",
+      "line": 4,
+      "kind": "static",
       "specifier": "../../shared/project/starting-view",
       "target": "shared/project/starting-view.ts",
       "from": "rendering",
@@ -1967,7 +2126,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 2,
+      "line": 5,
       "kind": "static",
       "specifier": "three",
       "target": {
@@ -1977,7 +2136,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 3,
+      "line": 6,
       "kind": "static",
       "specifier": "three/examples/jsm/controls/OrbitControls.js",
       "target": {
@@ -1987,7 +2146,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 4,
+      "line": 7,
       "kind": "static",
       "specifier": "../../shared/asset-runtime/ModelCache",
       "target": "shared/asset-runtime/ModelCache.ts",
@@ -1996,7 +2155,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 5,
+      "line": 8,
       "kind": "type",
       "specifier": "../../shared/asset-runtime/catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -2005,7 +2164,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 6,
+      "line": 9,
       "kind": "static",
       "specifier": "../../shared/asset-runtime/hotspot",
       "target": "shared/asset-runtime/hotspot.ts",
@@ -2014,7 +2173,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 7,
+      "line": 10,
       "kind": "type",
       "specifier": "../../shared/project/scene-object",
       "target": "shared/project/scene-object.ts",
@@ -2023,7 +2182,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 8,
+      "line": 11,
       "kind": "type",
       "specifier": "../../shared/project/project-types",
       "target": "shared/project/project-types.ts",
@@ -2032,7 +2191,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 14,
+      "line": 17,
       "kind": "static",
       "specifier": "../controls/fpsControls",
       "target": "editor/controls/fpsControls.ts",
@@ -2041,7 +2200,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 15,
+      "line": 18,
       "kind": "static",
       "specifier": "./modeManager",
       "target": "editor/graphics/modeManager.ts",
@@ -2050,7 +2209,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 16,
+      "line": 19,
       "kind": "static",
       "specifier": "./rotation",
       "target": "editor/graphics/rotation.ts",
@@ -2059,7 +2218,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 24,
+      "line": 27,
       "kind": "static",
       "specifier": "./scaling",
       "target": "editor/graphics/scaling.ts",
@@ -2068,7 +2227,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 25,
+      "line": 28,
       "kind": "static",
       "specifier": "./translation",
       "target": "editor/graphics/translation.ts",
@@ -2077,7 +2236,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 361,
+      "line": 373,
       "kind": "type-query",
       "specifier": "../../shared/project/project-types",
       "target": "shared/project/project-types.ts",
@@ -2122,6 +2281,88 @@
         "package": "three"
       },
       "from": "rendering"
+    },
+    {
+      "file": "editor/hierarchy.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/hierarchy.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "./document-store",
+      "target": "editor/document-store.ts",
+      "from": "checks",
+      "to": "document"
+    },
+    {
+      "file": "editor/hierarchy.test.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./recovery-history",
+      "target": "editor/recovery-history.ts",
+      "from": "checks",
+      "to": "document"
+    },
+    {
+      "file": "editor/hierarchy.test.ts",
+      "line": 4,
+      "kind": "static",
+      "specifier": "../shared/project/project-serialization",
+      "target": "shared/project/project-serialization.ts",
+      "from": "checks",
+      "to": "project"
+    },
+    {
+      "file": "editor/hierarchy.test.ts",
+      "line": 5,
+      "kind": "static",
+      "specifier": "../shared/project/fixtures/m1-project.json",
+      "target": "shared/project/fixtures/m1-project.json",
+      "from": "checks",
+      "to": "project"
+    },
+    {
+      "file": "editor/hierarchy.test.ts",
+      "line": 6,
+      "kind": "static",
+      "specifier": "../shared/project/fixtures/m2-project.json",
+      "target": "shared/project/fixtures/m2-project.json",
+      "from": "checks",
+      "to": "project"
+    },
+    {
+      "file": "editor/hierarchy.test.ts",
+      "line": 7,
+      "kind": "static",
+      "specifier": "../shared/project/fixtures/project-format-cases.json",
+      "target": "shared/project/fixtures/project-format-cases.json",
+      "from": "checks",
+      "to": "project"
+    },
+    {
+      "file": "editor/hierarchy.test.ts",
+      "line": 8,
+      "kind": "type",
+      "specifier": "../shared/project/project-content",
+      "target": "shared/project/project-content.ts",
+      "from": "checks",
+      "to": "project"
+    },
+    {
+      "file": "editor/hierarchy.test.ts",
+      "line": 9,
+      "kind": "type",
+      "specifier": "../shared/asset-runtime/catalogue",
+      "target": "shared/asset-runtime/catalogue.ts",
+      "from": "checks",
+      "to": "catalogue"
     },
     {
       "file": "editor/history-shortcuts.test.ts",
@@ -3692,6 +3933,15 @@
       "to": "project"
     },
     {
+      "file": "editor/recovery-history.ts",
+      "line": 24,
+      "kind": "type-query",
+      "specifier": "../shared/project/project-content",
+      "target": "shared/project/project-content.ts",
+      "from": "document",
+      "to": "project"
+    },
+    {
       "file": "editor/scene-interactions.test.ts",
       "line": 1,
       "kind": "static",
@@ -3787,6 +4037,15 @@
       "file": "editor/transform-command.test.ts",
       "line": 1,
       "kind": "static",
+      "specifier": "./transform-command",
+      "target": "editor/transform-command.ts",
+      "from": "checks",
+      "to": "document"
+    },
+    {
+      "file": "editor/transform-command.test.ts",
+      "line": 2,
+      "kind": "static",
       "specifier": "vitest",
       "target": {
         "package": "vitest"
@@ -3795,7 +4054,7 @@
     },
     {
       "file": "editor/transform-command.test.ts",
-      "line": 2,
+      "line": 3,
       "kind": "static",
       "specifier": "./document-store",
       "target": "editor/document-store.ts",
@@ -3804,7 +4063,7 @@
     },
     {
       "file": "editor/transform-command.test.ts",
-      "line": 3,
+      "line": 4,
       "kind": "type",
       "specifier": "../shared/asset-runtime/catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -3813,7 +4072,7 @@
     },
     {
       "file": "editor/transform-command.test.ts",
-      "line": 4,
+      "line": 5,
       "kind": "type",
       "specifier": "../shared/project/project-types",
       "target": "shared/project/project-types.ts",
@@ -3822,7 +4081,7 @@
     },
     {
       "file": "editor/transform-command.test.ts",
-      "line": 5,
+      "line": 6,
       "kind": "static",
       "specifier": "../shared/project/fixtures/m1-project.json",
       "target": "shared/project/fixtures/m1-project.json",
@@ -3831,7 +4090,7 @@
     },
     {
       "file": "editor/transform-command.test.ts",
-      "line": 6,
+      "line": 7,
       "kind": "static",
       "specifier": "../shared/project/project-serialization",
       "target": "shared/project/project-serialization.ts",
@@ -3841,6 +4100,24 @@
     {
       "file": "editor/transform-command.ts",
       "line": 1,
+      "kind": "static",
+      "specifier": "../shared/project/attached-transforms",
+      "target": "shared/project/attached-transforms.ts",
+      "from": "document",
+      "to": "project"
+    },
+    {
+      "file": "editor/transform-command.ts",
+      "line": 2,
+      "kind": "type",
+      "specifier": "../shared/project/project-content",
+      "target": "shared/project/project-content.ts",
+      "from": "document",
+      "to": "project"
+    },
+    {
+      "file": "editor/transform-command.ts",
+      "line": 3,
       "kind": "type",
       "specifier": "./command-history",
       "target": "editor/command-history.ts",
@@ -3849,7 +4126,7 @@
     },
     {
       "file": "editor/transform-command.ts",
-      "line": 2,
+      "line": 4,
       "kind": "type",
       "specifier": "../shared/project/project-types",
       "target": "shared/project/project-types.ts",
@@ -3858,7 +4135,7 @@
     },
     {
       "file": "editor/transform-command.ts",
-      "line": 3,
+      "line": 5,
       "kind": "static",
       "specifier": "../shared/project/spatial-validation",
       "target": "shared/project/spatial-validation.ts",
@@ -3867,7 +4144,7 @@
     },
     {
       "file": "editor/transform-command.ts",
-      "line": 4,
+      "line": 6,
       "kind": "static",
       "specifier": "../shared/project/validation-helpers",
       "target": "shared/project/validation-helpers.ts",
@@ -4249,6 +4526,45 @@
       "from": "editor"
     },
     {
+      "file": "editor/ui/AssetFilterSelect.tsx",
+      "line": 1,
+      "kind": "static",
+      "specifier": "react",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/ui/AssetFilterSelect.tsx",
+      "line": 2,
+      "kind": "type",
+      "specifier": "react",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/ui/AssetFilterSelect.tsx",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./Icon",
+      "target": "editor/ui/Icon.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/AssetFilterSelect.tsx",
+      "line": 103,
+      "kind": "implicit-jsx",
+      "specifier": "react/jsx-runtime",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
       "file": "editor/ui/AssetPicker.tsx",
       "line": 1,
       "kind": "static",
@@ -4296,7 +4612,16 @@
     },
     {
       "file": "editor/ui/AssetPicker.tsx",
-      "line": 46,
+      "line": 14,
+      "kind": "static",
+      "specifier": "./AssetFilterSelect",
+      "target": "editor/ui/AssetFilterSelect.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/AssetPicker.tsx",
+      "line": 50,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -4370,7 +4695,7 @@
     },
     {
       "file": "editor/ui/BottomBar.tsx",
-      "line": 209,
+      "line": 214,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -4463,7 +4788,7 @@
     },
     {
       "file": "editor/ui/InteractionPanel.tsx",
-      "line": 109,
+      "line": 111,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -4492,6 +4817,62 @@
     {
       "file": "editor/ui/PreviewTargets.tsx",
       "line": 29,
+      "kind": "implicit-jsx",
+      "specifier": "react/jsx-runtime",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/ui/SceneTreePanel.tsx",
+      "line": 1,
+      "kind": "static",
+      "specifier": "react",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/ui/SceneTreePanel.tsx",
+      "line": 2,
+      "kind": "type",
+      "specifier": "../../shared/project/project-content",
+      "target": "shared/project/project-content.ts",
+      "from": "editor",
+      "to": "project"
+    },
+    {
+      "file": "editor/ui/SceneTreePanel.tsx",
+      "line": 3,
+      "kind": "type",
+      "specifier": "../../shared/project/scene-object",
+      "target": "shared/project/scene-object.ts",
+      "from": "editor",
+      "to": "project"
+    },
+    {
+      "file": "editor/ui/SceneTreePanel.tsx",
+      "line": 4,
+      "kind": "static",
+      "specifier": "./Icon",
+      "target": "editor/ui/Icon.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/SceneTreePanel.tsx",
+      "line": 27,
+      "kind": "type-query",
+      "specifier": "../../shared/project/project-types",
+      "target": "shared/project/project-types.ts",
+      "from": "editor",
+      "to": "project"
+    },
+    {
+      "file": "editor/ui/SceneTreePanel.tsx",
+      "line": 91,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -4565,7 +4946,25 @@
     },
     {
       "file": "editor/ui/SidePanels.tsx",
-      "line": 53,
+      "line": 9,
+      "kind": "static",
+      "specifier": "./SceneTreePanel",
+      "target": "editor/ui/SceneTreePanel.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/SidePanels.tsx",
+      "line": 10,
+      "kind": "type",
+      "specifier": "../../shared/project/project-content",
+      "target": "shared/project/project-content.ts",
+      "from": "editor",
+      "to": "project"
+    },
+    {
+      "file": "editor/ui/SidePanels.tsx",
+      "line": 61,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -4651,7 +5050,7 @@
     {
       "file": "editor/ui/asset-filters.ts",
       "line": 1,
-      "kind": "type",
+      "kind": "static",
       "specifier": "../../shared/asset-runtime/catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
       "from": "editor",
@@ -4835,7 +5234,7 @@
     },
     {
       "file": "editor/viewport/Viewport.tsx",
-      "line": 90,
+      "line": 96,
       "kind": "dynamic",
       "specifier": "../graphics/scene",
       "target": "editor/graphics/scene.ts",
@@ -4844,7 +5243,7 @@
     },
     {
       "file": "editor/viewport/Viewport.tsx",
-      "line": 181,
+      "line": 191,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -5150,6 +5549,34 @@
       "to": "catalogue"
     },
     {
+      "file": "shared/asset-runtime/catalogue.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "shared/asset-runtime/catalogue.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "./catalogue",
+      "target": "shared/asset-runtime/catalogue.ts",
+      "from": "checks",
+      "to": "catalogue"
+    },
+    {
+      "file": "shared/asset-runtime/catalogue.test.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "../../editor/document-store",
+      "target": "editor/document-store.ts",
+      "from": "checks",
+      "to": "document"
+    },
+    {
       "file": "shared/asset-runtime/hotspot.ts",
       "line": 1,
       "kind": "type",
@@ -5166,6 +5593,42 @@
       "target": "shared/asset-runtime/catalogue.ts",
       "from": "catalogue",
       "to": "catalogue"
+    },
+    {
+      "file": "shared/project/attached-transforms.ts",
+      "line": 1,
+      "kind": "type",
+      "specifier": "./project-types",
+      "target": "shared/project/project-types.ts",
+      "from": "project",
+      "to": "project"
+    },
+    {
+      "file": "shared/project/attached-transforms.ts",
+      "line": 2,
+      "kind": "type",
+      "specifier": "./project-content",
+      "target": "shared/project/project-content.ts",
+      "from": "project",
+      "to": "project"
+    },
+    {
+      "file": "shared/project/attached-transforms.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./spatial-validation",
+      "target": "shared/project/spatial-validation.ts",
+      "from": "project",
+      "to": "project"
+    },
+    {
+      "file": "shared/project/attached-transforms.ts",
+      "line": 4,
+      "kind": "static",
+      "specifier": "./validation-helpers",
+      "target": "shared/project/validation-helpers.ts",
+      "from": "project",
+      "to": "project"
     },
     {
       "file": "shared/project/legacy-scene-import.test.ts",
@@ -5370,6 +5833,15 @@
     {
       "file": "shared/project/project-content-validation.ts",
       "line": 1,
+      "kind": "static",
+      "specifier": "./project-wire",
+      "target": "shared/project/project-wire.ts",
+      "from": "project",
+      "to": "project"
+    },
+    {
+      "file": "shared/project/project-content-validation.ts",
+      "line": 2,
       "kind": "type",
       "specifier": "./project-content",
       "target": "shared/project/project-content.ts",
@@ -5378,7 +5850,7 @@
     },
     {
       "file": "shared/project/project-content-validation.ts",
-      "line": 8,
+      "line": 9,
       "kind": "static",
       "specifier": "./project-limits",
       "target": "shared/project/project-limits.ts",
@@ -5387,7 +5859,7 @@
     },
     {
       "file": "shared/project/project-content-validation.ts",
-      "line": 9,
+      "line": 10,
       "kind": "static",
       "specifier": "./portable-url",
       "target": "shared/project/portable-url.ts",
@@ -5396,7 +5868,7 @@
     },
     {
       "file": "shared/project/project-content-validation.ts",
-      "line": 14,
+      "line": 15,
       "kind": "type",
       "specifier": "./project-types",
       "target": "shared/project/project-types.ts",
@@ -5405,7 +5877,7 @@
     },
     {
       "file": "shared/project/project-content-validation.ts",
-      "line": 15,
+      "line": 16,
       "kind": "static",
       "specifier": "./spatial-validation",
       "target": "shared/project/spatial-validation.ts",
@@ -5414,7 +5886,7 @@
     },
     {
       "file": "shared/project/project-content-validation.ts",
-      "line": 16,
+      "line": 17,
       "kind": "static",
       "specifier": "./validation-helpers",
       "target": "shared/project/validation-helpers.ts",
@@ -5617,6 +6089,15 @@
       "file": "shared/project/project-serialization.ts",
       "line": 1,
       "kind": "static",
+      "specifier": "./project-wire",
+      "target": "shared/project/project-wire.ts",
+      "from": "project",
+      "to": "project"
+    },
+    {
+      "file": "shared/project/project-serialization.ts",
+      "line": 2,
+      "kind": "static",
       "specifier": "./project-validation",
       "target": "shared/project/project-validation.ts",
       "from": "project",
@@ -5624,7 +6105,7 @@
     },
     {
       "file": "shared/project/project-serialization.ts",
-      "line": 2,
+      "line": 3,
       "kind": "type",
       "specifier": "./validation-helpers",
       "target": "shared/project/validation-helpers.ts",
@@ -5653,6 +6134,15 @@
     {
       "file": "shared/project/project-structure-validation.ts",
       "line": 1,
+      "kind": "static",
+      "specifier": "./project-wire",
+      "target": "shared/project/project-wire.ts",
+      "from": "project",
+      "to": "project"
+    },
+    {
+      "file": "shared/project/project-structure-validation.ts",
+      "line": 2,
       "kind": "type",
       "specifier": "./project-types",
       "target": "shared/project/project-types.ts",
@@ -5661,7 +6151,7 @@
     },
     {
       "file": "shared/project/project-structure-validation.ts",
-      "line": 8,
+      "line": 9,
       "kind": "static",
       "specifier": "./spatial-validation",
       "target": "shared/project/spatial-validation.ts",
@@ -5670,17 +6160,8 @@
     },
     {
       "file": "shared/project/project-structure-validation.ts",
-      "line": 9,
-      "kind": "static",
-      "specifier": "./validation-helpers",
-      "target": "shared/project/validation-helpers.ts",
-      "from": "project",
-      "to": "project"
-    },
-    {
-      "file": "shared/project/project-structure-validation.ts",
       "line": 10,
-      "kind": "type",
+      "kind": "static",
       "specifier": "./validation-helpers",
       "target": "shared/project/validation-helpers.ts",
       "from": "project",
@@ -5689,6 +6170,15 @@
     {
       "file": "shared/project/project-structure-validation.ts",
       "line": 11,
+      "kind": "type",
+      "specifier": "./validation-helpers",
+      "target": "shared/project/validation-helpers.ts",
+      "from": "project",
+      "to": "project"
+    },
+    {
+      "file": "shared/project/project-structure-validation.ts",
+      "line": 12,
       "kind": "static",
       "specifier": "./project-limits",
       "target": "shared/project/project-limits.ts",
@@ -5697,7 +6187,7 @@
     },
     {
       "file": "shared/project/project-structure-validation.ts",
-      "line": 12,
+      "line": 13,
       "kind": "static",
       "specifier": "./project-content-validation",
       "target": "shared/project/project-content-validation.ts",
@@ -5706,7 +6196,7 @@
     },
     {
       "file": "shared/project/project-structure-validation.ts",
-      "line": 13,
+      "line": 14,
       "kind": "static",
       "specifier": "./portable-url",
       "target": "shared/project/portable-url.ts",
@@ -5783,6 +6273,79 @@
       "kind": "static",
       "specifier": "./project-content-validation",
       "target": "shared/project/project-content-validation.ts",
+      "from": "project",
+      "to": "project"
+    },
+    {
+      "file": "shared/project/project-wire.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "shared/project/project-wire.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "./fixtures/m1-project.json",
+      "target": "shared/project/fixtures/m1-project.json",
+      "from": "checks",
+      "to": "project"
+    },
+    {
+      "file": "shared/project/project-wire.test.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./fixtures/m2-project.json",
+      "target": "shared/project/fixtures/m2-project.json",
+      "from": "checks",
+      "to": "project"
+    },
+    {
+      "file": "shared/project/project-wire.test.ts",
+      "line": 4,
+      "kind": "static",
+      "specifier": "./fixtures/project-format-cases.json",
+      "target": "shared/project/fixtures/project-format-cases.json",
+      "from": "checks",
+      "to": "project"
+    },
+    {
+      "file": "shared/project/project-wire.test.ts",
+      "line": 5,
+      "kind": "static",
+      "specifier": "./project-serialization",
+      "target": "shared/project/project-serialization.ts",
+      "from": "checks",
+      "to": "project"
+    },
+    {
+      "file": "shared/project/project-wire.test.ts",
+      "line": 6,
+      "kind": "static",
+      "specifier": "./project-deserialization",
+      "target": "shared/project/project-deserialization.ts",
+      "from": "checks",
+      "to": "project"
+    },
+    {
+      "file": "shared/project/project-wire.test.ts",
+      "line": 7,
+      "kind": "static",
+      "specifier": "./project-limits",
+      "target": "shared/project/project-limits.ts",
+      "from": "checks",
+      "to": "project"
+    },
+    {
+      "file": "shared/project/project-wire.ts",
+      "line": 1,
+      "kind": "type",
+      "specifier": "./project-types",
+      "target": "shared/project/project-types.ts",
       "from": "project",
       "to": "project"
     },
@@ -6604,7 +7167,7 @@
     },
     {
       "file": "tests/editor-shell.check.mjs",
-      "line": 499,
+      "line": 639,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -6613,7 +7176,7 @@
     },
     {
       "file": "tests/editor-shell.check.mjs",
-      "line": 534,
+      "line": 674,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -6772,6 +7335,100 @@
       "to": "catalogue"
     },
     {
+      "file": "tests/interaction-review.check.mjs",
+      "line": 1,
+      "kind": "static",
+      "specifier": "node:assert/strict",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/interaction-review.check.mjs",
+      "line": 2,
+      "kind": "static",
+      "specifier": "node:fs",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/interaction-review.check.mjs",
+      "line": 3,
+      "kind": "static",
+      "specifier": "node:url",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/interaction-review.check.mjs",
+      "line": 4,
+      "kind": "test-environment",
+      "specifier": "playwright",
+      "target": {
+        "package": "playwright"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/interaction-review.check.mjs",
+      "line": 24,
+      "kind": "dynamic",
+      "specifier": "/persistence/local-drafts.ts",
+      "target": "editor/persistence/local-drafts.ts",
+      "from": "checks",
+      "to": "persistence"
+    },
+    {
+      "file": "tests/interaction-review.check.mjs",
+      "line": 25,
+      "kind": "dynamic",
+      "specifier": "/@id/__x00__virtual:asset-catalogue",
+      "target": "shared/asset-runtime/catalogue.ts",
+      "from": "checks",
+      "to": "catalogue"
+    },
+    {
+      "file": "tests/interaction-review.check.mjs",
+      "line": 92,
+      "kind": "dynamic",
+      "specifier": "/persistence/local-drafts.ts",
+      "target": "editor/persistence/local-drafts.ts",
+      "from": "checks",
+      "to": "persistence"
+    },
+    {
+      "file": "tests/interaction-review.check.mjs",
+      "line": 93,
+      "kind": "dynamic",
+      "specifier": "/@id/__x00__virtual:asset-catalogue",
+      "target": "shared/asset-runtime/catalogue.ts",
+      "from": "checks",
+      "to": "catalogue"
+    },
+    {
+      "file": "tests/interaction-review.check.mjs",
+      "line": 128,
+      "kind": "dynamic",
+      "specifier": "/persistence/local-drafts.ts",
+      "target": "editor/persistence/local-drafts.ts",
+      "from": "checks",
+      "to": "persistence"
+    },
+    {
+      "file": "tests/interaction-review.check.mjs",
+      "line": 129,
+      "kind": "dynamic",
+      "specifier": "/@id/__x00__virtual:asset-catalogue",
+      "target": "shared/asset-runtime/catalogue.ts",
+      "from": "checks",
+      "to": "catalogue"
+    },
+    {
       "file": "tests/local-drafts.check.mjs",
       "line": 1,
       "kind": "static",
@@ -6813,7 +7470,7 @@
     },
     {
       "file": "tests/local-drafts.check.mjs",
-      "line": 66,
+      "line": 76,
       "kind": "dynamic",
       "specifier": "/persistence/draft-db.ts",
       "target": "editor/persistence/draft-db.ts",
@@ -6822,7 +7479,7 @@
     },
     {
       "file": "tests/local-drafts.check.mjs",
-      "line": 86,
+      "line": 96,
       "kind": "dynamic",
       "specifier": "/persistence/draft-db.ts",
       "target": "editor/persistence/draft-db.ts",
@@ -6831,7 +7488,7 @@
     },
     {
       "file": "tests/local-drafts.check.mjs",
-      "line": 136,
+      "line": 146,
       "kind": "dynamic",
       "specifier": "/document-store.ts",
       "target": "editor/document-store.ts",
@@ -6840,7 +7497,7 @@
     },
     {
       "file": "tests/local-drafts.check.mjs",
-      "line": 138,
+      "line": 148,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -6849,7 +7506,7 @@
     },
     {
       "file": "tests/local-drafts.check.mjs",
-      "line": 217,
+      "line": 227,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -6858,7 +7515,7 @@
     },
     {
       "file": "tests/local-drafts.check.mjs",
-      "line": 362,
+      "line": 372,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -6867,7 +7524,7 @@
     },
     {
       "file": "tests/local-drafts.check.mjs",
-      "line": 402,
+      "line": 414,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -6876,7 +7533,7 @@
     },
     {
       "file": "tests/local-drafts.check.mjs",
-      "line": 403,
+      "line": 415,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -6885,7 +7542,7 @@
     },
     {
       "file": "tests/local-drafts.check.mjs",
-      "line": 569,
+      "line": 583,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -7240,6 +7897,11 @@
     {
       "file": "tests/history-recovery.check.mjs",
       "line": 5,
+      "expression": "process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : \"playwright\""
+    },
+    {
+      "file": "tests/interaction-review.check.mjs",
+      "line": 4,
       "expression": "process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : \"playwright\""
     },
     {

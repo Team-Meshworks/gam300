@@ -6,8 +6,10 @@ import type { Interaction } from "../interaction/interactionHandler";
 import { InteractionPanel } from "./InteractionPanel";
 import { degreesToQuaternion, quaternionToDegrees } from "./rotation-angles";
 
+import { SceneTreePanel, type Room, type HierarchyActions } from "./SceneTreePanel";
+import type { ProjectGroup } from "../../shared/project/project-content";
+
 type PanelId = "scenes" | "position" | "tree" | "interaction" | "views";
-type Room = { id: string; name: string; thumbnail: string | undefined };
 
 const railButtons: { id: PanelId; label: string; icon: IconName }[] = [
   { id: "position", label: "Position", icon: "axes" },
@@ -31,7 +33,12 @@ export function SidePanels({
   onSelect,
   onTransform,
   onInteractionsChange,
+  onLocate,
+  groups,
+  hierarchy,
 }: {
+  groups: readonly ProjectGroup[];
+  hierarchy: HierarchyActions;
   visitor: boolean;
   savedViews: ReactNode;
   scenes: ReactNode;
@@ -44,6 +51,7 @@ export function SidePanels({
   thumbnailFor: (assetId: string) => string | undefined;
   onSelect: (id: string) => void;
   onTransform: (id: string, transform: Transform) => void;
+  onLocate: (id: string) => void;
   onInteractionsChange: (next: Interaction[]) => void;
 }) {
   // Open the tree first so new project can see whats inside
@@ -79,7 +87,10 @@ export function SidePanels({
           )}
           {panel === "tree" && (
             <SceneTreePanel
+              key={room?.id ?? "draft"}
               room={room}
+              groups={groups}
+              hierarchy={hierarchy}
               objects={objects}
               hotspots={hotspots}
               selectedId={selectedId}
@@ -95,6 +106,7 @@ export function SidePanels({
               hotspots={hotspots}
               objects={objects}
               onChange={onInteractionsChange}
+              onLocate={onLocate}
             />
           )}
         </div>
@@ -253,86 +265,5 @@ function NumberField({
         }
       }}
     />
-  );
-}
-
-function SceneTreePanel({
-  room,
-  objects,
-  hotspots,
-  selectedId,
-  onSelect,
-  thumbnailFor,
-}: {
-  room: Room | undefined;
-  objects: readonly SceneObject[];
-  hotspots: readonly ProjectHotspot[];
-  selectedId: string | null;
-  onSelect: (id: string) => void;
-  thumbnailFor: (assetId: string) => string | undefined;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const count = objects.length + (room === undefined ? 0 : 1);
-  const hotspotObjects = new Set(hotspots.map((hotspot) => hotspot.objectId.toLowerCase()));
-  return (
-    <section className="editor-panel" aria-labelledby="objects-heading">
-      <PanelHeading id="objects-heading">
-        Scene Tree <span className="panel-count">{count}</span>
-      </PanelHeading>
-      {count === 0 ? (
-        <p className="panel-empty">Add a room from the asset library to start.</p>
-      ) : (
-        <>
-          <ul role="list" className={`scene-tree${expanded ? " is-expanded" : ""}`}>
-            {room !== undefined && (
-              <li>
-                <button
-                  className="environment-row"
-                  type="button"
-                  aria-pressed={selectedId === room.id}
-                  onClick={() => onSelect(room.id)}
-                >
-                  <img src={room.thumbnail} alt="" draggable={false} />
-                  <span>{room.name}</span>
-                </button>
-              </li>
-            )}
-            {objects.map((object) => {
-              const hasHotspot = hotspotObjects.has(object.id.toLowerCase());
-              return (
-                <li key={object.id}>
-                  <button
-                    className="object-row"
-                    type="button"
-                    aria-pressed={selectedId === object.id}
-                    data-object-id={object.id}
-                    onClick={() => onSelect(object.id)}
-                  >
-                    <img src={thumbnailFor(object.assetId)} alt="" draggable={false} />
-                    <span>{object.name}</span>
-                    {hasHotspot && (
-                      <span className="hotspot-indicator" title="Has hotspot">
-                        <Icon name="hotspot" />
-                        <span className="sr-only">Has hotspot</span>
-                      </span>
-                    )}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-          {count > 6 && (
-            <button
-              className="ui-button panel-pill"
-              type="button"
-              aria-expanded={expanded}
-              onClick={() => setExpanded((previous) => !previous)}
-            >
-              {expanded ? "Show less" : "View all"}
-            </button>
-          )}
-        </>
-      )}
-    </section>
   );
 }

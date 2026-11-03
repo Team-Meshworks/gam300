@@ -1839,10 +1839,9 @@
       ]
     },
     {
-      "name": "v2 rejects a second hotspot component on one object",
+      "name": "v2 preserves multiple uniquely identified hotspot components on one object",
       "base": "m2",
-      "valid": false,
-      "path": "project.scenes[0].objects[1].components[1].type",
+      "valid": true,
       "patches": [
         {
           "path": ["scenes", 0, "objects", 1, "components"],
@@ -1862,10 +1861,9 @@
       ]
     },
     {
-      "name": "v2 rejects a scene hotspot when the object has a hotspot component",
+      "name": "v2 preserves hotspot components alongside scene markers",
       "base": "m2",
-      "valid": false,
-      "path": "project.scenes[0].hotspots[0].objectId",
+      "valid": true,
       "patches": [
         {
           "path": ["scenes", 0, "hotspots"],

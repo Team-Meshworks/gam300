@@ -1,3 +1,4 @@
+import { encodeProjectJson } from "./project-wire";
 import type {
   ContentComponent,
   ContentProject,
@@ -467,7 +468,7 @@ export function validateContentStructure(
 
     // Check the complete rebuilt document's byte budget before handing it to reference validation
     const value: ContentProject = { schemaVersion: 2, projectId, title, scenes };
-    if (new TextEncoder().encode(JSON.stringify(value)).byteLength > MAX_PROJECT_BYTES) {
+    if (new TextEncoder().encode(encodeProjectJson(value)).byteLength > MAX_PROJECT_BYTES) {
       fail("project", "Project exceeds the 5 MiB document limit");
     }
     return { ok: true, value };
@@ -594,13 +595,6 @@ export function validateContentReferences(
           const componentPath = `${objectPath}.components[${index}]`;
           if ("assetId" in component) {
             asset(component.assetId, component.type, `${componentPath}.assetId`);
-          }
-          if (component.type === "hotspot") {
-            const objectKey = object.id.toLowerCase();
-            if (hotspotObjects.has(objectKey)) {
-              fail(`${componentPath}.type`, "Each object can have at most one hotspot");
-            }
-            hotspotObjects.add(objectKey);
           }
           if (component.type === "navigationPoint") {
             destination(component.sceneId, component.viewpointId, componentPath);

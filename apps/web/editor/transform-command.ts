@@ -1,3 +1,5 @@
+import { moveAttachedObjects } from "../shared/project/attached-transforms";
+import type { ProjectGroup } from "../shared/project/project-content";
 import type { EditCommand } from "./command-history";
 import type { ProjectObject, Transform } from "../shared/project/project-types";
 import { validateTransform } from "../shared/project/spatial-validation";
@@ -32,6 +34,7 @@ function freezeTransform(transform: Transform): Transform {
 export function prepareTransformCommand(
   objects: readonly ProjectObject[],
   input: unknown,
+  groups: readonly ProjectGroup[] = [],
 ): ValidationResult<{
   object: ProjectObject;
   command: EditCommand<readonly ProjectObject[]> | null;
@@ -56,16 +59,17 @@ export function prepareTransformCommand(
     return { ok: true, value: { object: original, command: null } };
   // Validation made fresh arrays, so later gizmo movement cannot change history.
   const updated = Object.freeze({ ...original, transform: freezeTransform(after.value) });
-  const replace = (state: readonly ProjectObject[], object: ProjectObject) =>
-    Object.freeze(state.map((entry) => (entry.id === original.id ? object : entry)));
+  // Commit the parent and its attached descendants as one reversible operation
+  const moved = moveAttachedObjects(objects, groups, original.id, updated.transform);
+  if (!moved.ok) return moved;
   return {
     ok: true,
     value: {
       object: updated,
       command: {
         label: "Transform object",
-        apply: (state) => replace(state, updated),
-        revert: (state) => replace(state, original),
+        apply: () => moved.value,
+        revert: () => objects,
       },
     },
   };

@@ -1,3 +1,6 @@
+import { createActiveClock } from "./active-clock";
+import { moveAttachedObjects } from "../../shared/project/attached-transforms";
+import type { ContentScene } from "../../shared/project/project-content";
 import { getStartingCamera } from "../../shared/project/starting-view";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
@@ -76,6 +79,7 @@ export interface InitSceneHandle {
   setEditingEnabled: (enabled: boolean) => void;
   captureCamera: () => CameraPose;
   showCamera: (pose: CameraPose) => void;
+  locateObject: (id: string) => void;
   setNavigationTool: (tool: NavigationTool) => void;
   modeManager: ModeManager;
   dispose: () => void;
@@ -344,15 +348,23 @@ export function initScene(
   }
 
   let lastFrameTime = performance.now();
+  const interactionClock = createActiveClock(lastFrameTime, false);
+  const visibilityChanged = () => {
+    const now = performance.now();
+    interactionClock.setActive(now, !document.hidden && modeManager.getState().mode === "visitor");
+    lastFrameTime = now;
+  };
+  document.addEventListener("visibilitychange", visibilityChanged);
   const animate = (now: number) => {
     if (disposed) {
       return;
     }
     requestAnimationFrame(animate);
-    const delta = Math.min((now - lastFrameTime) / 1000, 0.1);
+    const delta = document.hidden ? 0 : Math.min(Math.max(0, now - lastFrameTime) / 1000, 0.1);
+    const elapsed = interactionClock.tick(now);
     lastFrameTime = now;
     modeManager.update(delta);
-    if (modeManager.getState().mode === "visitor") callbacks.onUpdate(delta);
+    if (modeManager.getState().mode === "visitor") callbacks.onUpdate(elapsed);
     fpsMeter.tick(now);
     render();
   };
@@ -539,7 +551,21 @@ export function initScene(
   function previewTransform(id: string, transform: Transform) {
     const instance = instances.get(id);
     if (instance === undefined) return;
-    applyTransform(instance, transform);
+    // Preview uses the same attachment delta as commit so cancel restores every child too
+    const moved = moveAttachedObjects(
+      objects,
+      (projectScene as ContentScene | null)?.groups ?? [],
+      id,
+      transform,
+    );
+    if (!moved.ok) return;
+    for (const object of moved.value) {
+      const child = instances.get(object.id);
+      if (child) {
+        applyTransform(child, object.transform);
+        bounds.set(object.id, new THREE.Box3().setFromObject(child));
+      }
+    }
     const box = new THREE.Box3().setFromObject(instance);
     bounds.set(id, box);
     selection.box.copy(box);
@@ -828,7 +854,12 @@ export function initScene(
   host.addEventListener("wheel", wheel, { capture: true, passive: false });
   window.addEventListener("keydown", keyDown);
   orbit.addEventListener("change", updateGizmo);
+  let previousMode = modeManager.getState().mode;
   const unsubscribeMode = modeManager.subscribe(({ mode }) => {
+    if (mode !== previousMode) {
+      interactionClock.reset(performance.now(), mode === "visitor" && !document.hidden);
+      previousMode = mode;
+    }
     visitorClick = undefined;
     cancelDrag();
     cancelWheelEdit();
@@ -932,6 +963,25 @@ export function initScene(
       fovDegrees: camera.fov,
     }),
     showCamera,
+    locateObject(id) {
+      if (modeManager.getState().mode !== "editor") return;
+      const instance = instanceFor(id);
+      if (!instance) return;
+      const bounds = new THREE.Box3().setFromObject(instance);
+      if (bounds.isEmpty()) return;
+      const centre = bounds.getCenter(new THREE.Vector3());
+      const radius = Math.max(bounds.getSize(new THREE.Vector3()).length() / 2, 0.5);
+      const direction = camera.position.clone().sub(orbit.target).normalize();
+      if (direction.lengthSq() === 0) direction.set(1, 1, 1).normalize();
+      const halfFov = Math.atan(
+        Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * Math.min(1, camera.aspect),
+      );
+      camera.position.copy(centre).addScaledVector(direction, (radius / Math.sin(halfFov)) * 1.2);
+      orbit.target.copy(centre);
+      camera.lookAt(centre);
+      orbit.update();
+      updateGizmo();
+    },
     setNavigationTool(tool) {
       if (tool === navigationTool) return;
       navigationTool = tool;
@@ -952,6 +1002,7 @@ export function initScene(
       fpsMeter.dispose();
       fpsControls.dispose();
       unsubscribeMode();
+      document.removeEventListener("visibilitychange", visibilityChanged);
       orbit.removeEventListener("change", updateGizmo);
       orbit.dispose();
       renderer.domElement.removeEventListener("pointerdown", pointerDown);

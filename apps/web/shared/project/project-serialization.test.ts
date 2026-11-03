@@ -59,13 +59,14 @@ describe("project JSON serialization", () => {
     expect(deserializeProject(saved.value, assets)).toEqual({ ok: true, value: input });
   });
 
-  it("adds an empty interaction list when an older file has none", () => {
+  it("omits empty extensions when exporting a released document", () => {
     const scene = structuredClone(fixture.scenes[0]) as Record<string, unknown>;
     delete scene.interactions;
     const saved = serializeProject({ ...fixture, scenes: [scene] }, assets);
     expect(saved.ok).toBe(true);
     if (!saved.ok) throw new Error(saved.error.message);
-    expect(JSON.parse(saved.value).scenes[0].interactions).toEqual([]);
+    expect(JSON.parse(saved.value).scenes[0]).not.toHaveProperty("interactions");
+    expect(JSON.parse(saved.value).scenes[0]).not.toHaveProperty("hotspots");
   });
 
   it("preserves names with quotes, line breaks and Unicode text", () => {
@@ -73,7 +74,7 @@ describe("project JSON serialization", () => {
     const result = serializeProject(input, assets);
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error(result.error.message);
-    expect(JSON.parse(result.value)).toEqual(input);
+    expect(deserializeProject(result.value, assets)).toEqual({ ok: true, value: input });
   });
 
   it("rejects invalid project data with its original field error", () => {
@@ -108,7 +109,7 @@ describe("project JSON serialization", () => {
     const savedObject = expected.scenes[0]?.objects[0];
     if (!savedObject) throw new Error("Fixture needs a placed object");
     savedObject.transform.rotation = [0, 0, 0, 1];
-    expect(JSON.parse(result.value)).toEqual(expected);
+    expect(deserializeProject(result.value, assets)).toEqual({ ok: true, value: expected });
     expect(input).toEqual(before);
   });
 });

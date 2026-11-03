@@ -18,7 +18,11 @@ const statusMessages = {
   unsupported: "The 3D view needs WebGL 2. Check your browser's graphics settings and retry.",
 };
 
-export type ViewpointCamera = { capture: () => CameraPose; show: (pose: CameraPose) => void };
+export type ViewpointCamera = {
+  capture: () => CameraPose;
+  show: (pose: CameraPose) => void;
+  locate: (id: string) => void;
+};
 
 type ViewportProps = {
   onCamera: (camera: ViewpointCamera | null) => void;
@@ -28,6 +32,7 @@ type ViewportProps = {
   loadGeneration: number;
   selectedId: string | null;
   dragging: boolean;
+  placingAssetId?: string | null;
   editingEnabled: boolean;
   navigationTool: NavigationTool;
   status: ViewportStatus;
@@ -53,6 +58,7 @@ export function Viewport({
   loadGeneration,
   selectedId,
   dragging,
+  placingAssetId,
   editingEnabled,
   navigationTool,
   status,
@@ -110,7 +116,11 @@ export function Viewport({
         scene?.setNavigationTool(current.navigationTool);
         if (scene !== undefined) {
           onManager(scene.modeManager);
-          onCamera({ capture: scene.captureCamera, show: scene.showCamera });
+          onCamera({
+            capture: scene.captureCamera,
+            show: scene.showCamera,
+            locate: scene.locateObject,
+          });
         }
       })
       .catch((error: unknown) => {
@@ -186,6 +196,20 @@ export function Viewport({
         className={`viewport-stage${dragging ? " is-dragging" : ""}`}
         ref={hostRef}
         aria-busy={status === "loading"}
+        onPointerDownCapture={(event) => {
+          // A library pick owns the next scene click; cancel remains with the caller
+          if (
+            !placingAssetId ||
+            !editingEnabled ||
+            status !== "ready" ||
+            sceneRef.current?.modeManager.getState().mode !== "editor"
+          )
+            return;
+          event.preventDefault();
+          event.stopPropagation();
+          const position = sceneRef.current.getDropPosition(event.clientX, event.clientY);
+          if (position) onPlace(placingAssetId, position);
+        }}
         onDragOver={(event) => {
           if (!accepts(event)) {
             return;

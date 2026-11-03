@@ -450,3 +450,64 @@ it("deleting a hotspot keeps unrelated interactions", () => {
   assert.deepEqual(store.getSnapshot().project?.scenes[0]?.interactions, [sceneStart]);
   assert.equal(store.deleteHotspot(hotspot.value.id).ok, false);
 });
+
+it("snaps rooms to vacant adjoining sides while preserving undo and saved positions", () => {
+  const assets: CatalogueAsset[] = ["test-room-v1", "test-room-module-v1", "test-crate-v1"].map(
+    (id) => ({
+      id,
+      name: id,
+      kind: id === "test-room-v1" ? "environment" : "model",
+      url: `${id}.glb`,
+      sha256: "0".repeat(64),
+      thumbnail: null,
+    }),
+  );
+  const store = createDocumentStore(assets);
+  assert.equal(store.createProject("test-room-v1").ok, true);
+  const add = (position: readonly [number, number, number]) => {
+    const result = store.addObject("test-room-module-v1", position);
+    assert.equal(result.ok, true);
+    if (!result.ok) throw new Error(result.error);
+    return result.object;
+  };
+  // Proximity chooses all four sides while occupied sides extend the layout outward
+  assert.deepEqual(add([8, 9, 1]).transform.position, [10, 0, 0]);
+  assert.deepEqual(add([-8, 0, 1]).transform.position, [-10, 0, 0]);
+  assert.deepEqual(add([1, 0, 8]).transform.position, [0, 0, 10]);
+  assert.deepEqual(add([1, 0, -8]).transform.position, [0, 0, -10]);
+  const next = add([19, 0, 0]);
+  assert.deepEqual(next.transform.position, [20, 0, 0]);
+  store.undo();
+  assert.equal(
+    store.getSnapshot().objects.some((object) => object.id === next.id),
+    false,
+  );
+  store.redo();
+  assert.deepEqual(store.getSnapshot().objects.at(-1), next);
+  // Reopening uses the saved snapped transform without a runtime-only correction
+  const reopened = createDocumentStore(assets);
+  assert.equal(
+    reopened.loadProject(
+      JSON.stringify(store.getSnapshot().project),
+      new Map(assets.map((asset) => [asset.id, asset.kind])),
+    ).ok,
+    true,
+  );
+  assert.deepEqual(reopened.getSnapshot().objects, store.getSnapshot().objects);
+  const crate = store.addObject("test-crate-v1", [2, 3, 4]);
+  assert.equal(crate.ok, true);
+  if (crate.ok) assert.deepEqual(crate.object.transform.position, [2, 3, 4]);
+  const before = store.getSnapshot();
+  assert.equal(store.addObject("test-room-module-v1", [NaN, 0, 0]).ok, false);
+  assert.equal(store.getSnapshot(), before);
+  // A moved and resized room supplies its actual footprint
+  assert.equal(
+    store.setTransform(next.id, {
+      ...next.transform,
+      position: [50, 0, 0],
+      scale: [2, 1, 1],
+    }).ok,
+    true,
+  );
+  assert.deepEqual(add([65, 0, 0]).transform.position, [65, 0, 0]);
+});

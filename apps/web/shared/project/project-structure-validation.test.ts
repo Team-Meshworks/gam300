@@ -317,7 +317,11 @@ describe("M1 project structure", () => {
   it("accepts exactly 5 MiB of compact JSON and rejects one extra byte", () => {
     const { project } = sampleProject();
     project.title = "";
-    const overhead = new TextEncoder().encode(JSON.stringify(project)).byteLength;
+    const wire = {
+      ...project,
+      scenes: project.scenes.map((scene) => ({ ...scene, interactions: undefined })),
+    };
+    const overhead = new TextEncoder().encode(JSON.stringify(wire)).byteLength;
 
     // ASCII makes each added character exactly one byte here
     project.title = "a".repeat(5 * 1024 * 1024 - overhead);

@@ -1,3 +1,4 @@
+import { encodeProjectJson } from "./project-wire";
 import type {
   Interaction,
   ProjectDocument,
@@ -396,7 +397,7 @@ export function validateProjectStructure(
 
   // Count UTF-8 bytes with JSON punctuation and escaping included
   // Only serialize the checked copy so extra input fields can't enter the output
-  if (new TextEncoder().encode(JSON.stringify(document)).byteLength > MAX_PROJECT_BYTES) {
+  if (new TextEncoder().encode(encodeProjectJson(document)).byteLength > MAX_PROJECT_BYTES) {
     return invalid("project", "Project exceeds the 5 MiB document limit");
   }
   return { ok: true, value: document };

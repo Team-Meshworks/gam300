@@ -13,6 +13,14 @@
   --button: #efebe1;
   --button-strong: #e8e0ca;
   --shadow: 0 4px 18px rgb(64 52 32 / 0.1);
+  --picker-backdrop: rgb(31 29 26 / 0.2);
+  --picker-shadow: 0 18px 56px rgb(31 29 26 / 0.25);
+  --asset-preview: #d5d7d3;
+  --asset-card: #fff;
+  --asset-tag: #d9d9d9;
+  --asset-scroll-thumb: #8f8981;
+  --asset-scroll-hover: #6f6961;
+  --asset-scroll-track: #efede9;
 }
 
 * {
@@ -350,6 +358,8 @@ a {
 .panel-slot.is-tree {
   --panel-offset: 3.5rem;
   top: 3.5rem;
+  /* Expanded content scrolls above the fixed Filters control instead of passing behind it */
+  max-height: calc(100% - var(--panel-offset) - 3.25rem);
 }
 .panel-slot.is-scenes {
   --panel-offset: 7rem;
@@ -458,12 +468,60 @@ a {
 
 .scene-tree {
   max-height: 15rem;
-  overflow-y: auto;
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #b0aba1 transparent;
+}
+/* Keep long names and deep nesting readable without widening the surrounding panel */
+.scene-tree > li {
+  width: max-content;
+  min-width: 100%;
+}
+.scene-tree .scene-root > button span {
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+.scene-tree::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.scene-tree::-webkit-scrollbar-thumb {
+  background: #b0aba1;
+  border-radius: 999px;
+}
+.scene-tree::-webkit-scrollbar-thumb:hover {
+  background: #8b867d;
+}
+.scene-tree::-webkit-scrollbar-corner {
+  background: transparent;
 }
 .scene-tree.is-expanded {
   max-height: none;
 }
+.scene-root {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.scene-disclosure {
+  flex-shrink: 0;
+  width: 1.5rem;
+  height: 2.5rem;
+  padding: 0;
+  border: 0;
+  border-radius: 0.5rem;
+  background: transparent;
+}
+.scene-disclosure .icon {
+  width: 1rem;
+  height: 1rem;
+}
+.scene-objects {
+  padding-left: 1.75rem;
+}
 .object-row,
+.group-row,
 .environment-row {
   display: flex;
   gap: 0.6rem;
@@ -483,10 +541,12 @@ a {
   height: 1.75rem;
   object-fit: contain;
 }
+.group-row:hover,
 .object-row:hover,
 .environment-row:hover {
   background: #ebe7dc;
 }
+.group-row[aria-pressed="true"],
 .object-row[aria-pressed="true"],
 .environment-row[aria-pressed="true"] {
   background: #e2dccb;
@@ -744,7 +804,7 @@ a {
 /* Asset library is a big pop up over the scene, between the header and the bar */
 .asset-picker-layer {
   position: absolute;
-  inset: 6rem 1.5rem 7rem;
+  inset: 0 1.5rem;
   z-index: 5;
   display: flex;
   align-items: center;
@@ -818,7 +878,7 @@ a {
   position: relative;
   flex-shrink: 0;
 }
-.asset-filter select {
+.asset-filter-trigger {
   min-height: 2rem;
   padding: 0 2rem 0 1rem;
   border: 0;
@@ -855,12 +915,16 @@ a {
 }
 
 /* Columns instead of grid so cards of different heights pack like the Figma */
-.asset-grid {
+/* Keep masonry columns at their natural height inside a separate vertical scroll viewport */
+.asset-grid-scroll {
   flex: 1;
   min-height: 0;
-  margin: 0;
-  padding: 0 0.35rem 0 0;
+  padding-right: 0.35rem;
   overflow-y: auto;
+}
+.asset-grid {
+  margin: 0;
+  padding: 0;
   columns: 10.5rem;
   column-gap: 0.9rem;
   list-style: none;
@@ -870,13 +934,20 @@ a {
   margin-bottom: 0.9rem;
   overflow: hidden;
   border-radius: 1rem;
-  background: #fff;
+  background: var(--asset-card);
   box-shadow: 0 1px 3px rgb(64 52 32 / 0.1);
   break-inside: avoid;
   container-type: inline-size;
 }
+/* Match the panel buttons' proportional hover darkening across both card surfaces */
+.asset-card:has(.asset-card-pick:hover:not(:disabled)),
 .asset-card:has(.asset-card-pick[aria-pressed="true"]) {
-  box-shadow: 0 0 0 2px #3d3133;
+  filter: brightness(0.9294);
+}
+/* Keep the picked outline inside the card so scrolling cannot clip its edges */
+.asset-card:has(.asset-card-pick[aria-pressed="true"]) {
+  outline: 2px solid var(--muted);
+  outline-offset: -2px;
 }
 .asset-card-pick {
   display: block;
@@ -892,16 +963,17 @@ a {
   opacity: 0.6;
 }
 .asset-card-pick:focus-visible {
-  outline: 2px solid #1f1d1a;
+  border-radius: inherit;
+  outline: 2px solid var(--muted);
   outline-offset: -2px;
 }
-/* Hidden overflow so a tall picture cant stretch the box past 4:3, the heart position count on it */
+/* Curve the preview over the white card surface while keeping the image clipped inside it */
 .asset-art {
   display: block;
   aspect-ratio: 4 / 3;
   overflow: hidden;
-  background: #e5e1d5;
-  transition: background 150ms ease;
+  border-radius: 0 0 1rem 1rem;
+  background: var(--asset-preview);
 }
 .asset-art img {
   display: block;
@@ -910,11 +982,9 @@ a {
   object-fit: contain;
   pointer-events: none;
 }
-.asset-card-pick:hover:not(:disabled) .asset-art {
-  background: #dcd6c6;
-}
 .asset-card-info {
   display: grid;
+  background: var(--asset-card);
   gap: 0.4rem;
   padding: 0.55rem 2.4rem 0.8rem 0.85rem;
 }
@@ -922,7 +992,7 @@ a {
   justify-self: start;
   padding: 0.05rem 0.6rem;
   border-radius: 999px;
-  background: #dedad0;
+  background: var(--asset-tag);
   font-size: 0.75rem;
 }
 .asset-name {
@@ -937,6 +1007,7 @@ a {
   place-items: center;
   width: 1.75rem;
   height: 1.75rem;
+  padding: 0;
   border: 0;
   border-radius: 50%;
   background: transparent;
@@ -949,20 +1020,15 @@ a {
   color: var(--accent);
 }
 .asset-favourite .icon {
-  width: 1.1rem;
-  height: 1.1rem;
+  width: 0.95rem;
+  height: 0.95rem;
 }
 .asset-picker-empty {
   flex: 1;
   padding: 2rem 1rem;
   text-align: center;
 }
-.asset-picker-selection {
-  align-self: center;
-  margin: 0.75rem 0 0;
-  color: var(--muted);
-  font-size: 0.8125rem;
-}
+
 .asset-picker-add {
   align-self: center;
   min-width: 6.5rem;
@@ -972,11 +1038,6 @@ a {
 @media (orientation: portrait) {
   .asset-picker {
     --picker-width: 92vw;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .asset-art {
-    transition: none;
   }
 }
 
@@ -1461,13 +1522,13 @@ a {
     left: 3.5rem;
   }
   .asset-picker-layer {
-    inset: 10.5rem 0.75rem 7rem;
+    inset: 0 0.75rem;
   }
 }
 @media (max-width: 30rem) {
   /* Search take its own row on phones so the filter and close still fit */
   .asset-picker-layer {
-    inset: 13.5rem 0.75rem 7rem;
+    inset: 0 0.75rem;
   }
   .asset-picker {
     padding: 0.75rem;
@@ -1506,6 +1567,62 @@ a {
   }
 }
 
+/* Keep nested groups within the tree while the container handles scrolling */
+.group-row {
+  min-width: 0;
+}
+.scene-tree .object-row img,
+.scene-tree .environment-row img {
+  width: 1rem;
+  height: 1rem;
+  object-fit: contain;
+}
+/* Parent and child labels share the same type size and a stable disclosure column */
+.scene-tree .object-row,
+.scene-tree .group-row,
+.scene-tree .environment-row {
+  font-size: 0.875rem;
+}
+.scene-disclosure-space {
+  width: 1.5rem;
+  flex-shrink: 0;
+}
+.group-row .icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex-shrink: 0;
+}
+
+.scene-root[data-drop-target] {
+  outline: 2px solid #777;
+  outline-offset: -2px;
+  border-radius: 0.6rem;
+  background: #e2dccb;
+}
+.scene-root[data-dragging] {
+  opacity: 0.5;
+}
+
+.tree-rename {
+  position: absolute;
+  left: 1.75rem;
+  width: auto;
+  max-width: calc(100% - 1.75rem);
+  height: 2.25rem;
+  min-width: 0;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: 0.875rem;
+  color: inherit;
+  background: var(--card);
+  border: 1px solid transparent;
+  border-radius: 0.3rem;
+  padding: 0.3rem 0.5rem;
+}
+.tree-rename:focus-visible {
+  outline: 2px solid #777;
+  outline-offset: -2px;
+}
 .viewpoints {
   padding: 16px;
   border-top: 1px solid #ddd;
@@ -1703,6 +1820,116 @@ a {
    Last in the file so it wins over the width rules above */
 @media (max-height: 30rem) {
   .asset-picker-layer {
-    inset: 0.75rem 1.5rem 5.5rem;
+    inset: 0 1.5rem;
   }
+}
+
+/* Keep search/reset within the existing picker rather than adding another control row */
+.asset-picker-reset {
+  flex-shrink: 0;
+  padding: 0.25rem;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.875rem;
+}
+.asset-search input::-webkit-search-cancel-button {
+  filter: grayscale(1);
+}
+.asset-search input:focus-visible {
+  outline: none;
+}
+.asset-search:focus-within {
+  outline: 2px solid var(--muted);
+  outline-offset: 2px;
+}
+
+/* Separate the library visually without changing the hotbar stacking order */
+.asset-picker-layer::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: var(--picker-backdrop);
+  pointer-events: none;
+}
+.asset-picker {
+  border: 1px solid var(--line);
+  box-shadow: var(--picker-shadow);
+}
+.asset-filter-trigger {
+  position: relative;
+  padding-right: 2rem;
+}
+.asset-filter-menu {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  padding: 0.375rem;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  background: var(--card-raised);
+  color: inherit;
+  box-shadow: var(--shadow);
+}
+.asset-filter-menu button {
+  display: block;
+  width: 100%;
+  min-height: 2.5rem;
+  padding: 0.5rem 0.75rem;
+  border: 0;
+  border-radius: 0.65rem;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+}
+.asset-filter-menu button:hover:not(:disabled),
+.asset-filter-menu button[aria-selected="true"] {
+  background: var(--button);
+}
+.asset-filter-menu button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.asset-filter-menu button:focus-visible,
+.asset-filter-trigger:focus-visible {
+  outline: 2px solid var(--muted);
+  outline-offset: -2px;
+}
+/* Match the administrative scrollbar treatment; auto overflow keeps it absent for short lists */
+.asset-grid-scroll,
+.asset-filter-menu {
+  scrollbar-width: thin;
+  scrollbar-color: var(--asset-scroll-thumb) var(--asset-scroll-track);
+}
+.asset-grid-scroll::-webkit-scrollbar,
+.asset-filter-menu::-webkit-scrollbar {
+  width: 8px;
+}
+.asset-grid-scroll::-webkit-scrollbar-track,
+.asset-filter-menu::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: var(--asset-scroll-track);
+}
+.asset-grid-scroll::-webkit-scrollbar-thumb,
+.asset-filter-menu::-webkit-scrollbar-thumb {
+  border: 2px solid var(--asset-scroll-track);
+  border-radius: 999px;
+  background: var(--asset-scroll-thumb);
+}
+.asset-grid-scroll::-webkit-scrollbar-thumb:hover,
+.asset-filter-menu::-webkit-scrollbar-thumb:hover {
+  background: var(--asset-scroll-hover);
+}
+.asset-grid-scroll::-webkit-scrollbar-button,
+.asset-filter-menu::-webkit-scrollbar-button {
+  display: none;
+}
+.asset-picker-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
 }

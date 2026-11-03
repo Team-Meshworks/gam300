@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,6 +18,38 @@ namespace Spatia.Server.Tests;
 public sealed class ProjectSaveEndpointTests
 {
     private const string BodyMarker = "private-put-document-not-for-errors-or-logs";
+
+    [Test]
+    public async Task ProjectPut_RepeatedRoomsSaveAndReopenThroughTheDevelopmentCatalogue()
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
+        var project = await SeedAsync(fixture);
+        var document = JsonNode.Parse(ProjectTestDocuments.Create(project.Id, BodyMarker, 2))!;
+        var objects = document["scenes"]![0]!["objects"]!.AsArray();
+
+        // Use the editor's real model identity for two independent instances of the same room
+        var room = objects[0]!.DeepClone();
+        room["id"] = Guid.NewGuid().ToString();
+        room["assetId"] = "test-room-module-v1";
+        room["parentId"] = null;
+        room["components"] = new JsonArray();
+        objects.Add(room);
+        var second = room.DeepClone();
+        second["id"] = Guid.NewGuid().ToString();
+        objects.Add(second);
+        using var saved = await PutAsync(fixture, project.Id, Envelope(document.ToJsonString(), Guid.NewGuid()));
+        await Assert.That(saved.StatusCode).IsEqualTo(HttpStatusCode.OK);
+
+        // Read through the authenticated endpoint and validate the persisted document again
+        using var reopened = await fixture.Client.GetAsync(Path(project.Id));
+        await Assert.That(reopened.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        var response = await reopened.Content.ReadFromJsonAsync<JsonElement>();
+        var documents = fixture.App.Services.GetRequiredService<ProjectDocumentService>();
+        var accepted = documents.Read(project.Id, response.GetProperty("document").GetRawText());
+        await Assert.That(accepted.Ok).IsTrue();
+        var content = (Spatia.ProjectFormat.ContentProject)accepted.Value!;
+        await Assert.That(content.Scenes[0].Objects.Count(item => item.AssetId == "test-room-module-v1")).IsEqualTo(2);
+    }
 
     [Test]
     [Arguments(1)]

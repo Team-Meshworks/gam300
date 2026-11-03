@@ -23,7 +23,7 @@ function hotspotChoices(
   const names = new Map(objects.map((object) => [object.id.toLowerCase(), object.name]));
   return hotspots.map((hotspot) => ({
     value: hotspot.id,
-    label: names.get(hotspot.objectId.toLowerCase()) ?? "Object",
+    label: `${names.get(hotspot.objectId.toLowerCase()) ?? "Object"} (${hotspot.id})`,
   }));
 }
 
@@ -93,11 +93,13 @@ export function InteractionPanel({
   hotspots,
   objects,
   onChange,
+  onLocate,
 }: {
   interactions: readonly Interaction[];
   hotspots: readonly ProjectHotspot[];
   objects: readonly SceneObject[];
   onChange: (next: Interaction[]) => void;
+  onLocate: (objectId: string) => void;
 }) {
   const targets = hotspotChoices(hotspots, objects);
 
@@ -127,6 +129,13 @@ export function InteractionPanel({
         <ol className="interaction-list" role="list">
           {interactions.map((interaction, index) => {
             const name = `Interaction ${index + 1}`;
+            const trigger = interaction.when;
+            const target =
+              trigger.type === "visitor-clicks-hotspot"
+                ? hotspots.find(
+                    (hotspot) => hotspot.id.toLowerCase() === trigger.targetHotspotId.toLowerCase(),
+                  )
+                : undefined;
             return (
               <li key={index} className="interaction-card" aria-label={name}>
                 <div className="interaction-card-head">
@@ -165,6 +174,16 @@ export function InteractionPanel({
                         onChange={(value) => update(index, withTriggerTarget(interaction, value))}
                         target
                       />
+                    )}
+                    {target && (
+                      <button
+                        className="ui-button panel-pill"
+                        type="button"
+                        aria-label={`Locate ${name} target`}
+                        onClick={() => onLocate(target.objectId)}
+                      >
+                        Locate
+                      </button>
                     )}
                     {interaction.when.type === "time-elapsed" && (
                       <Dropdown

@@ -9,7 +9,7 @@ import type {
   ContentObject,
   ContentProject,
   ContentScene,
-  ProjectViewpoint,
+  ProjectGroup,
 } from "../shared/project/project-content";
 import type {
   ProjectHotspot,
@@ -24,6 +24,8 @@ import {
   captureProjectHistory,
   validateRecoveryHistory,
   type ProjectHistoryState,
+  isHierarchyState,
+  type HistoryState,
 } from "./recovery-history";
 import type { CatalogueAsset } from "../shared/asset-runtime/catalogue.ts";
 import type { SceneObject, Vector3Tuple } from "../shared/project/scene-object.ts";
@@ -100,6 +102,62 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
   // Choosing a room creates the project; imports can supply one directly
   let project: ProjectDocument | null = null;
   let projectAssets: ReadonlyMap<string, string> = new Map();
+
+  function snapRoom(position: Vector3Tuple): Vector3Tuple | null {
+    // The approved test-room GLB spans -5 to 5 on floor axes and -0.2 to 3 in height
+    // Keep this asset-specific until production rooms supply approved connection points
+    const rooms = objects.filter((object) => object.assetId === "test-room-module-v1");
+    const footprints = rooms.map(({ transform }) => {
+      const [x, y, z, w] = transform.rotation;
+      const [sx, sy, sz] = transform.scale;
+      // Project the transformed room bounds onto the floor, including tilted rooms
+      // Conservative bounds prevent a new room from cutting through existing geometry
+      const xx = 1 - 2 * (y * y + z * z);
+      const xy = 2 * (x * y - z * w);
+      const xz = 2 * (x * z + y * w);
+      const zx = 2 * (x * z - y * w);
+      const zy = 2 * (y * z + x * w);
+      const zz = 1 - 2 * (x * x + y * y);
+      return {
+        x: transform.position[0] + xy * 1.4 * sy,
+        z: transform.position[2] + zy * 1.4 * sy,
+        halfX: Math.abs(xx * sx * 5) + Math.abs(xy * sy * 1.6) + Math.abs(xz * sz * 5),
+        halfZ: Math.abs(zx * sx * 5) + Math.abs(zy * sy * 1.6) + Math.abs(zz * sz * 5),
+      };
+    });
+    // The initial environment has no object transform and always occupies the origin
+    if (activeScene()?.environmentAssetId === "test-room-v1") {
+      footprints.unshift({ x: 0, z: 0, halfX: 5, halfZ: 5 });
+    }
+    if (footprints.length === 0) {
+      return position;
+    }
+
+    // Compare the four adjoining positions on every room, skipping occupied sides
+    // Pointer proximity chooses the side; stable ordering resolves exact ties
+    const candidates: Vector3Tuple[] = footprints.flatMap((room) => [
+      [room.x + room.halfX + 5, 0, room.z],
+      [room.x - room.halfX - 5, 0, room.z],
+      [room.x, 0, room.z + room.halfZ + 5],
+      [room.x, 0, room.z - room.halfZ - 5],
+    ]);
+    const available = candidates.filter(
+      ([x, , z]) =>
+        Math.abs(x) <= 10_000 &&
+        Math.abs(z) <= 10_000 &&
+        footprints.every(
+          (room) =>
+            Math.abs(x - room.x) >= room.halfX + 5 - 1e-8 ||
+            Math.abs(z - room.z) >= room.halfZ + 5 - 1e-8,
+        ),
+    );
+    available.sort(
+      (a, b) =>
+        Math.hypot(a[0] - position[0], a[2] - position[2]) -
+        Math.hypot(b[0] - position[0], b[2] - position[2]),
+    );
+    return available[0] ?? null;
+  }
 
   // Keep history here so the buttons and future edit controls share one undo order.
   type State = Readonly<{ objects: readonly SceneObject[] }> &
@@ -228,7 +286,9 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
   function commitTransform(
     input: unknown,
   ): ValidationResult<{ changed: boolean; object: SceneObject }> {
-    const result = prepareTransformCommand(objects, input);
+    // Carry descendants in the active scene through the same immutable transform command
+    const groups = project?.schemaVersion === 2 ? activeGroups() : [];
+    const result = prepareTransformCommand(objects, input, groups);
     if (!result.ok) {
       return result;
     }
@@ -315,6 +375,47 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
     return { ok: true, value: object };
   }
 
+  function activeGroups() {
+    return project?.schemaVersion === 2
+      ? (project.scenes.find((scene) => scene.id === state.activeSceneId)?.groups ?? [])
+      : [];
+  }
+
+  function editHierarchy(
+    label: string,
+    change: (scene: ContentScene) => ContentScene,
+  ): ValidationResult<true> {
+    if (!project || !state.activeSceneId) return invalid("project", "Choose a room first");
+    const content = toContentProject(project);
+    const scene = content.scenes.find((entry) => entry.id === state.activeSceneId)!;
+    const nextScene = change(scene);
+    if (JSON.stringify(nextScene) === JSON.stringify(scene)) return { ok: true, value: true };
+
+    // Validate the whole candidate before upgrading any retained undo states or publishing the edit
+    const checked = validateProject(
+      {
+        ...content,
+        scenes: content.scenes.map((entry) => (entry.id === scene.id ? nextScene : entry)),
+      },
+      projectAssets,
+      { allowDraftLinks: true },
+    );
+    if (!checked.ok) return checked;
+
+    // Keep earlier placement steps compatible when hierarchy editing first upgrades a released project
+    if (project.schemaVersion === 1) {
+      const previous = history.getStates();
+      const upgrade = (entry: State): State =>
+        fromProject(
+          freezeProject(toContentProject(entry.project ?? project!)),
+          entry.activeSceneId ?? scene.id,
+        );
+      replaceState(upgrade(state));
+      history.restoreStates(state, previous.past.map(upgrade), previous.future.map(upgrade));
+    }
+    return commitProject(checked.value, scene.id, label);
+  }
+
   function editViews(next: readonly NamedViewpoint[]): ValidationResult<true> {
     if (!project) return invalid("project", "Create a scene first");
     const scene = project.scenes.find((s) => s.id === state.activeSceneId)!;
@@ -340,15 +441,17 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       scenes: Object.freeze(
         frozen.scenes.map((scene) => {
           const old = project?.scenes.find((s) => s.id === scene.id);
-          return old && JSON.stringify(old) === JSON.stringify(scene)
-            ? old
-            : Object.freeze({
-                ...scene,
-                startCamera:
-                  old && JSON.stringify(old.startCamera) === JSON.stringify(scene.startCamera)
-                    ? old.startCamera
-                    : scene.startCamera,
-              });
+          if (!old) return scene;
+          if (JSON.stringify(old) === JSON.stringify(scene)) return old;
+          // Retain unchanged authored collections as well as the camera when a different field changes
+          return Object.freeze(
+            Object.fromEntries(
+              Object.entries(scene).map(([key, value]) => {
+                const previous = old[key as keyof typeof old];
+                return [key, JSON.stringify(previous) === JSON.stringify(value) ? previous : value];
+              }),
+            ),
+          ) as ProjectScene;
         }),
       ),
     });
@@ -359,6 +462,169 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
   }
 
   return {
+    addAttachedObject(assetId: string, parentId: string, position: Vector3Tuple) {
+      // A placed case is identified by its object ID, never its asset name or list position
+      // The caller supplies the model's display surface in world coordinates
+      if (!objects.some((object) => object.id === parentId)) {
+        return { ok: false, error: "This display case is no longer in the scene" } as const;
+      }
+      const asset = assets.find((entry) => entry.id === assetId && entry.kind === "model");
+      if (!asset || projectAssets.get(assetId) !== "model") {
+        return { ok: false, error: "Choose a model from this project's catalog" } as const;
+      }
+      const transform = validateTransform(
+        { position, rotation: [0, 0, 0, 1], scale: [1, 1, 1] },
+        "transform",
+      );
+      if (!transform.ok) return { ok: false, error: transform.error.message } as const;
+      // A case owns one displayed object; replacement keeps its identity and authored content
+      // Reject ambiguous older layouts rather than silently deleting overlapping objects
+      const displayed = objects.filter(
+        (entry) => (entry as ContentObject).parentId?.toLowerCase() === parentId.toLowerCase(),
+      );
+      if (displayed.length > 1) {
+        return {
+          ok: false,
+          error: "Remove extra attached objects before replacing this display",
+        } as const;
+      }
+      const previous = displayed[0] as ContentObject | undefined;
+      const object: ContentObject = {
+        id: previous?.id ?? crypto.randomUUID(),
+        name: asset.name,
+        assetId,
+        transform: previous?.transform ?? transform.value,
+        parentId,
+        visible: previous?.visible ?? true,
+        components: previous?.components ?? [],
+      };
+      // Placement and attachment enter history together after full document validation
+      // This also upgrades older projects without losing their earlier undo steps
+      const result = editHierarchy(
+        previous ? "Replace displayed asset" : "Place asset on display case",
+        (scene) => ({
+          ...scene,
+          objects: previous
+            ? scene.objects.map((entry) => (entry.id === previous.id ? object : entry))
+            : [...scene.objects, object],
+        }),
+      );
+      return result.ok
+        ? ({ ok: true, object } as const)
+        : ({ ok: false, error: result.error.message } as const);
+    },
+    removeDisplayedAsset(parentId: string) {
+      if (!objects.some((object) => object.id === parentId)) {
+        return invalid("parentId", "This display case is no longer in the scene");
+      }
+      const displayed = objects.filter(
+        (entry) => (entry as ContentObject).parentId?.toLowerCase() === parentId.toLowerCase(),
+      );
+      if (displayed.length !== 1) {
+        return invalid("parentId", "Choose a case containing exactly one displayed asset");
+      }
+      // Reuse deletion validation so dependent children or interaction references stay protected
+      // The case remains in place and Undo restores the displayed object with its original ID
+      return this.deleteObject(displayed[0]!.id);
+    },
+    createGroup(name: string, parentId: string | null = null): ValidationResult<ProjectGroup> {
+      // The file format permits unfinished labels, but a newly named folder must be identifiable
+      if (!name.trim()) return invalid("name", "Enter a group name");
+      // Stable group IDs use the same namespace as objects and survive save, undo and redo
+      const group: ProjectGroup = { id: crypto.randomUUID(), name: name.trim(), parentId };
+      const result = editHierarchy("Create group", (scene) => ({
+        ...scene,
+        groups: [...scene.groups, group],
+      }));
+      return result.ok ? { ok: true, value: group } : result;
+    },
+    renameGroup(id: string, name: string): ValidationResult<true> {
+      if (!name.trim()) return invalid("name", "Enter a group name");
+      if (project?.schemaVersion !== 2 || !activeGroups().some((group) => group.id === id)) {
+        return invalid("groupId", "Choose a group in this scene");
+      }
+      return editHierarchy("Rename group", (scene) => ({
+        ...scene,
+        groups: scene.groups.map((group) =>
+          group.id === id ? { ...group, name: name.trim() } : group,
+        ),
+      }));
+    },
+    ungroup(id: string): ValidationResult<true> {
+      const group =
+        project?.schemaVersion === 2 ? activeGroups().find((entry) => entry.id === id) : undefined;
+      if (!group) return invalid("groupId", "Choose a group in this scene");
+
+      // Removing a folder releases its direct children to its parent without deleting content
+      // Deeper descendants keep their parents and all transforms stay in world coordinates
+      return editHierarchy("Ungroup", (scene) => ({
+        ...scene,
+        groups: scene.groups
+          .filter((entry) => entry.id !== id)
+          .map((entry) =>
+            entry.parentId?.toLowerCase() === id.toLowerCase()
+              ? { ...entry, parentId: group.parentId }
+              : entry,
+          ),
+        objects: scene.objects.map((object) =>
+          object.parentId?.toLowerCase() === id.toLowerCase()
+            ? { ...object, parentId: group.parentId }
+            : object,
+        ),
+      }));
+    },
+    reparent(id: string, parentId: string | null): ValidationResult<true> {
+      // Rooms are independent spaces; reject nesting at the command boundary for every caller
+      if (
+        parentId !== null &&
+        objects.some((object) => object.id === id && object.assetId === "test-room-module-v1")
+      ) {
+        return invalid("parentId", "Rooms must remain at the scene root");
+      }
+      const groups = project?.schemaVersion === 2 ? activeGroups() : [];
+      if (!objects.some((object) => object.id === id) && !groups.some((group) => group.id === id)) {
+        return invalid("id", "Choose an object or group in this scene");
+      }
+
+      // The shared validator rejects missing parents, self-parenting and descendant cycles
+      // Reparenting retains world transforms; later object movement carries its descendants
+      return editHierarchy("Move in hierarchy", (scene) => ({
+        ...scene,
+        objects: scene.objects.map((object) =>
+          object.id === id ? { ...object, parentId } : object,
+        ),
+        groups: scene.groups.map((group) => (group.id === id ? { ...group, parentId } : group)),
+      }));
+    },
+    renameObject(id: string, name: string): ValidationResult<true> {
+      // The environment row uses the scene's existing name field, with the same undo order
+      if (id === activeScene()?.id) {
+        if (!name.trim()) return invalid("name", "Enter a room name");
+        return editHierarchy("Rename room", (scene) => ({ ...scene, name: name.trim() }));
+      }
+      const object = objects.find((entry) => entry.id === id);
+      if (!object) return invalid("objectId", "Choose an object in this scene");
+      const trimmed = name.trim();
+      if (!trimmed) return invalid("name", "Enter an object name");
+      if (trimmed === object.name) return { ok: true, value: true };
+
+      // Rename only this placed instance; retain its asset reference, identity and attachments
+      const renamed = Object.freeze({ ...object, name: trimmed });
+      const checked = checkContentObjects(
+        objects.map((entry) => (entry.id === id ? renamed : entry)),
+      );
+      if (!checked.ok) return checked;
+      executeObjects({
+        label: "Rename object",
+        apply: (current) =>
+          Object.freeze(current.map((entry) => (entry.id === id ? renamed : entry))),
+        revert: (current) =>
+          Object.freeze(current.map((entry) => (entry.id === id ? object : entry))),
+      });
+      clearEdit();
+      publish();
+      return { ok: true, value: true };
+    },
     createScene(
       name: string,
       environmentAssetId = project?.scenes.find((s) => s.id === state.activeSceneId)
@@ -735,9 +1001,10 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       text: unknown,
       assetKinds: ReadonlyMap<string, string>,
       recoveryHistory?: unknown,
+      options: { allowDraftLinks?: boolean } = {},
     ): ValidationResult<ProjectDocument> {
       // Finish all checks before touching the open project or its undo history
-      const result = deserializeProject(text, assetKinds);
+      const result = deserializeProject(text, assetKinds, options);
       if (!result.ok) {
         return result;
       }
@@ -777,21 +1044,23 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
             fromProject(freezeProject(entry.project), entry.activeSceneId);
           history.restoreStates(state, documents.past.map(restore), documents.future.map(restore));
         } else {
-          // Older history edits the first scene; retain every other scene and its references.
-          const legacy = (
-            objects: readonly SceneObject[],
-            viewpoints?: readonly ProjectViewpoint[],
-          ) =>
-            fromProject(
+          const legacy = (entry: HistoryState, views: readonly NamedViewpoint[] | undefined) => {
+            const updated = {
+              ...scene,
+              objects: isHierarchyState(entry) ? entry.objects : entry,
+              ...(isHierarchyState(entry)
+                ? { groups: entry.groups, name: entry.sceneName ?? scene.name }
+                : {}),
+              ...(views ? { viewpoints: views } : {}),
+            };
+            return fromProject(
               freezeProject({
                 ...loaded,
-                scenes: [
-                  { ...scene, objects, ...(viewpoints ? { viewpoints } : {}) },
-                  ...loaded.scenes.slice(1),
-                ],
+                scenes: [updated, ...loaded.scenes.slice(1)],
               } as ProjectDocument),
               scene.id,
             );
+          };
           history.restoreStates(
             state,
             recovered.value.past.map((objects, i) =>
@@ -813,7 +1082,11 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
         listeners.delete(listener);
       };
     },
-    addObject(assetId: string, position: Vector3Tuple) {
+    addObject(assetId: string, position: Vector3Tuple, parentId: string | null = null) {
+      if (assetId === "test-room-module-v1" && parentId !== null) {
+        return { ok: false, error: "Rooms must remain at the scene root" } as const;
+      }
+
       const asset = assets.find((entry) => entry.id === assetId);
       if (asset === undefined) {
         return { ok: false, error: "Choose an asset from the library." } as const;
@@ -824,11 +1097,26 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       if (project !== null && (asset.kind !== "model" || projectAssets.get(asset.id) !== "model")) {
         return { ok: false, error: "Choose a model from this project's catalog." } as const;
       }
-      if (!position.every((value) => Number.isFinite(value) && Math.abs(value) <= 10_000)) {
+      if (
+        position.length !== 3 ||
+        !position.every((value) => Number.isFinite(value) && Math.abs(value) <= 10_000)
+      ) {
         return { ok: false, error: "Choose a position inside the scene." } as const;
       }
       if (objects.length >= 200) {
         return { ok: false, error: "This scene has reached its 200-object limit." } as const;
+      }
+      // Snap before creating the command so saved data, rendering and Redo share one position
+      // Other assets keep their chosen coordinates and parent-selection behavior
+      if (assetId === "test-room-module-v1" && project !== null) {
+        const snapped = snapRoom(position);
+        if (snapped === null) {
+          return {
+            ok: false,
+            error: "No adjoining room position is available inside the scene",
+          } as const;
+        }
+        position = snapped;
       }
       const object: SceneObject = Object.freeze({
         id: crypto.randomUUID(),
@@ -843,6 +1131,18 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
           ? { parentId: null, visible: true, components: Object.freeze([]) }
           : {}),
       });
+      // Placement and membership enter history together so Undo never leaves a half-placed child
+      // The first room is the scene environment; its children use the existing root representation
+      if (parentId !== null && parentId !== activeScene()?.id) {
+        const child = { ...object, parentId, visible: true, components: [] };
+        const result = editHierarchy("Add object", (scene) => ({
+          ...scene,
+          objects: [...scene.objects, child],
+        }));
+        return result.ok
+          ? ({ ok: true, object: child } as const)
+          : ({ ok: false, error: result.error.message } as const);
+      }
       // V2 defaults belong to the authored object so saving and undo retain the same shape
       const validPlacement = checkContentObjects([...objects, object]);
       if (!validPlacement.ok) {

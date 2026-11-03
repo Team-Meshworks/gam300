@@ -137,10 +137,6 @@ public static partial class ProjectFormat
                         Asset(String(component, "assetId"), type, $"{path}.assetId");
                     }
 
-                    if (type == "hotspot" && !hotspotObjects.Add(String(item, "id")))
-                    {
-                        Fail($"{path}.type", "Each object can have at most one hotspot");
-                    }
 
                     if (type == "navigationPoint")
                     {

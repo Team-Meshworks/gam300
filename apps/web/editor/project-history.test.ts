@@ -44,7 +44,9 @@ describe("asset-pipeline recovery compatibility", () => {
       past: [...result.value.documents!.past],
       future: [...future],
     });
-    expect(recaptured).toEqual(result.value);
+    expect(recaptured.version).toBe(2);
+    expect(recaptured.documents).toEqual(result.value.documents);
+    expect(recaptured.views).toEqual(result.value.views);
     expect(validateRecoveryHistory(recaptured, project, kinds).ok).toBe(true);
   });
 
@@ -59,7 +61,7 @@ describe("asset-pipeline recovery compatibility", () => {
     expect(result.value.past).toHaveLength(viewpointFixture.history.past.length);
   });
 
-  it("still reads dev's object-only envelope", () => {
+  it("reads dev's hierarchy envelope", () => {
     const project = load(viewpointFixture.document);
     const history = captureRecoveryHistory(project, { past: [[]], future: [] });
     const result = validateRecoveryHistory(history, project, kinds);
@@ -67,7 +69,9 @@ describe("asset-pipeline recovery compatibility", () => {
     if (!result.ok) return;
     expect(result.value.documents).toBeUndefined();
     expect(result.value.views).toBeUndefined();
-    expect(result.value.past).toEqual([[]]);
+    expect(result.value.past).toEqual([
+      { objects: [], groups: [], sceneName: project.scenes[0]!.name },
+    ]);
   });
 
   it.each([

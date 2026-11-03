@@ -78,7 +78,7 @@ export type ProjectScene = Readonly<{
   name: string;
 
   // One environment can model several connected rooms for uninterrupted walking
-  // TODO: multiple environment assets per scene if necessary
+  // Additional room modules use placed model objects with their own transforms
   environmentAssetId: AssetId;
   startCamera: CameraPose;
 
