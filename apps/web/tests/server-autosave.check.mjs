@@ -228,6 +228,27 @@ try {
   await saved();
   assert.equal(document.scenes[0].name, "Only live draft after expiry");
 
+  // Download fallback produces the current portable file, without treating it as a receipt.
+  await page.evaluate(() => {
+    window.showSaveFilePicker = undefined;
+  });
+  const [download] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByRole("button", { name: "Export a copy", exact: true }).click(),
+  ]);
+  assert.equal(
+    JSON.parse(readFileSync(await download.path(), "utf8")).scenes[0].name,
+    "Only live draft after expiry",
+  );
+  await page.getByRole("button", { name: "Log out", exact: true }).click();
+  await Promise.all([
+    page.waitForEvent("download"),
+    page.getByRole("button", { name: "Export and continue", exact: true }).click(),
+  ]);
+  await page.getByRole("dialog").getByRole("alert").waitFor();
+  assert.equal(account, alice);
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+
   // Changing cookies must hide the old editor and keep recovery in its original account.
   mode = "failed";
   await edit("Alice private edit");

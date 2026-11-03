@@ -259,6 +259,18 @@ export function ServerProjectEditor({ projectId }: { projectId: string }) {
 
   async function exportJson(json: string): Promise<boolean> {
     const title = store.getSnapshot().project?.title ?? "project";
+    if (!("showSaveFilePicker" in window) || typeof window.showSaveFilePicker !== "function") {
+      const url = URL.createObjectURL(new Blob([json], { type: "application/json" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = projectFilename(title);
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      setError(
+        "Project download started. Verify the file; downloading does not confirm it was saved, so this tab stays open.",
+      );
+      return false;
+    }
     const handle = await pickProjectDestination(projectFilename(title));
     if (!handle)
       throw new Error(
