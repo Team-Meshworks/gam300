@@ -70,7 +70,14 @@ export const modules = {
     paths: ["editor/persistence/"],
     uses: ["project", "catalogue", "document"],
     packages: ["react"],
-    public: ["editor/persistence/use-project-session.ts"],
+    public: [
+      "editor/persistence/use-project-session.ts",
+      "editor/persistence/server-project-session.ts",
+      "editor/persistence/server-project-read.ts",
+      "editor/persistence/local-drafts.ts",
+      "editor/persistence/project-files.ts",
+      "editor/persistence/server-autosave.ts",
+    ],
   },
   "ui-foundation": {
     paths: ["shared/ui/"],
