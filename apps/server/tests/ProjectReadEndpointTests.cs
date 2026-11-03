@@ -323,7 +323,7 @@ public sealed class ProjectReadEndpointTests
         var error = process.StandardError.ReadToEndAsync();
         try
         {
-            await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(30));
+            await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(90));
         }
         catch
         {

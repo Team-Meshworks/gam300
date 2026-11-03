@@ -46,7 +46,7 @@ const bundle = await build({
     },
   },
 });
-const browser = await chromium.launch();
+const browser = await chromium.launch({ args: ["--enable-unsafe-swiftshader"] });
 process.stdout.write(`node ${process.version}; chromium ${browser.version()}\n`);
 try {
   const openPage = async () => {
@@ -343,6 +343,8 @@ try {
   assert.ok(reconciled.requests.every((body) => body === reconciled.requests[0]));
   process.stdout.write("browser offline backup and durable historical retry passed\n");
   process.stdout.write("browser project list/open/session switch passed\n");
+  const { checkServerEditor } = await import("./server-editor-browser.check.mjs");
+  await checkServerEditor(browser, origin, accounts, build, webRoot);
 } finally {
   await browser.close();
 }
