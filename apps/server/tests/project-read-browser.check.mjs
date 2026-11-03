@@ -1,5 +1,6 @@
+import { launchBrowser } from "../../web/tests/browser-security.mjs";
 import assert from "node:assert/strict";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 
 const target = new URL(process.argv[2]);
 assert.equal(target.protocol, "https:");
@@ -7,8 +8,6 @@ assert.equal(target.hostname, "127.0.0.1");
 const accounts = JSON.parse(process.argv[3]);
 const manager = JSON.parse(process.argv[4]);
 const origin = target.origin;
-const { chromium } = await import(process.env.PLAYWRIGHT_MODULE
-  ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : "../../web/node_modules/playwright/index.mjs");
 // Bundle the actual editor coordinator into the existing authenticated browser fixture
 // No alternate saver or mock API is involved in this cross-browser recovery check
 const { build } =
@@ -46,7 +45,7 @@ const bundle = await build({
     },
   },
 });
-const browser = await chromium.launch({ args: ["--enable-unsafe-swiftshader"] });
+const browser = await launchBrowser({ target: origin, args: ["--enable-unsafe-swiftshader"] });
 process.stdout.write(`node ${process.version}; chromium ${browser.version()}\n`);
 try {
   const openPage = async () => {

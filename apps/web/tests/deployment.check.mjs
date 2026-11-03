@@ -1,13 +1,13 @@
+import { launchBrowser } from "./browser-security.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { chromium } from "playwright";
 
 const url = process.argv[2] ?? "http://127.0.0.1:8081/";
 const useFileTransfer = () => {
   window.showOpenFilePicker = undefined;
   window.showSaveFilePicker = undefined;
 };
-const browser = await chromium.launch({ args: ["--enable-unsafe-swiftshader"] });
+const browser = await launchBrowser({ target: url, args: ["--enable-unsafe-swiftshader"] });
 // Asset library is a pop up now. Only open it when closed, since the button toggles it
 async function openLibrary(page) {
   if ((await page.locator(".asset-picker").count()) === 0) {

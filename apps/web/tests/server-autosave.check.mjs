@@ -1,6 +1,6 @@
+import { launchBrowser } from "./browser-security.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { chromium } from "playwright";
 
 const base = process.argv[2] ?? "http://127.0.0.1:5173";
 const fixture = JSON.parse(
@@ -8,7 +8,7 @@ const fixture = JSON.parse(
 );
 const alice = "00000000-0000-4000-8000-000000000001";
 const bob = "00000000-0000-4000-8000-000000000002";
-const browser = await chromium.launch({ args: ["--enable-unsafe-swiftshader"] });
+const browser = await launchBrowser({ target: base, args: ["--enable-unsafe-swiftshader"] });
 const context = await browser.newContext();
 let account = alice,
   document = structuredClone(fixture),

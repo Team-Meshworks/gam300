@@ -1,9 +1,10 @@
+import { launchBrowser } from "./browser-security.mjs";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFile, mkdir, writeFile } from "node:fs/promises";
 import os from "node:os";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 import { createServer, normalizePath } from "vite";
 
 // The pinned revision predates apps/web; keep its historical Git path
@@ -45,16 +46,13 @@ const server = await createServer({
     },
   ],
 });
-const { chromium } = await import(
-  process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : "playwright"
-);
 let browser;
 const samples = [];
 try {
   await server.listen();
-  browser = await chromium.launch({
+  browser = await launchBrowser({
+    target: "http://127.0.0.1:5190/",
     args: ["--enable-unsafe-swiftshader"],
-    ...(process.env.PLAYWRIGHT_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHANNEL } : {}),
   });
   let browserDetails;
   for (const httpCache of [false, true]) {
@@ -66,6 +64,14 @@ try {
     await cdp.send("Network.enable");
     await cdp.send("Network.setCacheDisabled", { cacheDisabled: !httpCache });
     let responses = [];
+    let validatedCacheHits = 0;
+    const modelRequests = new Set();
+    cdp.on("Network.requestWillBeSent", ({ requestId, request }) => {
+      if (new URL(request.url).pathname.endsWith(".glb")) modelRequests.add(requestId);
+    });
+    cdp.on("Network.responseReceivedExtraInfo", ({ requestId, statusCode }) => {
+      if (modelRequests.has(requestId) && statusCode === 304) validatedCacheHits++;
+    });
     cdp.on("Network.responseReceived", ({ response }) => {
       if (new URL(response.url).pathname.endsWith(".glb"))
         responses.push({
@@ -221,6 +227,15 @@ try {
       }
     }
     assert.deepEqual(errors, []);
+    if (httpCache) {
+      assert.ok(
+        validatedCacheHits > 0 ||
+          samples.some(
+            (sample) => sample.httpCache && sample.responses.some((response) => response.diskCache),
+          ),
+        "HTTP-cache-enabled measurement must show cached or successfully revalidated GLB bytes",
+      );
+    }
     await context.close();
     console.log(
       `Measured ${runs} runs per version, HTTP cache ${httpCache ? "enabled" : "disabled"}`,

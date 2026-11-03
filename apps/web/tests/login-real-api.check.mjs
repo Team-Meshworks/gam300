@@ -1,5 +1,5 @@
+import { launchBrowser } from "./browser-security.mjs";
 import assert from "node:assert/strict";
-import { chromium } from "playwright";
 import { createServer } from "vite";
 
 const oldPassword = "Synthetic-long-password1!";
@@ -14,9 +14,7 @@ try {
   const address = server.httpServer.address();
   assert.ok(address && typeof address !== "string");
   const origin = `https://127.0.0.1:${address.port}`;
-  browser = await chromium.launch({
-    executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
-  });
+  browser = await launchBrowser({ target: origin });
   async function context() {
     const result = await browser.newContext({ ignoreHTTPSErrors: true });
     await result.route("**/*", (route) => {

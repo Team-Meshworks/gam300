@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { chromium } from "playwright";
+import { launchBrowser } from "./browser-security.mjs";
 import { createServer } from "vite";
 
 const server = process.argv[2]
@@ -9,7 +9,7 @@ const server = process.argv[2]
   : await createServer({ server: { host: "127.0.0.1", port: 0 }, logLevel: "error" });
 await server?.listen();
 const origin = process.argv[2] ?? `http://127.0.0.1:${server.httpServer.address().port}`;
-const browser = await chromium.launch();
+const browser = await launchBrowser({ target: origin });
 const screenshot = process.env.CHECK_SCREENSHOT ?? "../../.artifacts/admin-dashboard/desktop.png";
 const userId = "7ea0882b-9365-4b9c-b8b8-e5ee113ad07e";
 const orgId = "ef580108-e406-4c8e-ac76-75cd41e9d2dc";

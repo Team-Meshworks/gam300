@@ -1,11 +1,8 @@
+import { launchBrowser } from "./browser-security.mjs";
 import assert from "node:assert/strict";
-import { chromium } from "playwright";
 
 const origin = process.argv[2] ?? "http://127.0.0.1:5173";
-const browser = await chromium.launch({
-  executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
-  args: ["--enable-unsafe-swiftshader"],
-});
+const browser = await launchBrowser({ target: origin, args: ["--enable-unsafe-swiftshader"] });
 const session = {
   userId: "7ea0882b-9365-4b9c-b8b8-e5ee113ad07e",
   displayName: "Test Teacher",

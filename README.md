@@ -109,17 +109,18 @@ run.bat
 ```
 
 The launcher checks Git/Git LFS, Docker's Linux engine and Compose, restores delivery
-assets, installs **Node 24.19.0/npm 11.17.0** inside the pinned container, runs `npm ci`,
-lint, formatting, unit tests, TypeScript/build checks,
-all four authoring browser suites and a browser check of the selected build mode.
-Only a successful build and tests start the application. Failures print their stage
-and return a nonzero exit code. Node, npm, Chromium and an application database do not
-need to be installed on the host. This launcher starts only the web service. It does not
+assets, installs **Node 24.22.2/npm 11.21.1** inside the pinned container, runs `npm ci`,
+lint, formatting, browser-policy and unit tests, and TypeScript/build checks.
+Browser proof runs separately on a non-root sandbox-capable host and in CI,
+including checks against the actual packaged application.
+Only a successful build and its checks start the application. Failures print their stage
+and return a nonzero exit code. Node, npm, Chrome and an application database do not
+need to be installed on the host just to run the container. This launcher starts only the web service. It does not
 start the API or PostgreSQL; server development and checks have separate prerequisites in the [server guide](apps/server/README.md).
 
 Open [localhost:8081](http://localhost:8081). Stop with
 `docker compose --project-name spatia-local down`. The first run downloads the locked
-toolchain, packages and browser. Later builds reuse Docker's cache. To force fresh
+toolchain and packages. Later builds reuse Docker's cache. To force fresh
 verification, use `docker compose --project-name spatia-local build --no-cache`, then
 run the launcher. `APP_PORT` selects another local port; `COMPOSE_PROJECT_NAME`
 selects an isolated local project. The launchers default to the M1 development build
@@ -230,14 +231,41 @@ Individual maintenance commands below run from `apps/web/`:
 | `npm run test:history`                              | Check recovered undo/redo and damaged-history handling                |
 | `npm run test:deployment -- http://localhost:8081/` | Check the running container build                                     |
 
-For browser checks, install Chromium once with `npx playwright install chromium`.
-Keep `npm run dev` running in one terminal, then run `test:browser`, `test:integration`,
-`test:recovery` and `test:history` with `npm run` in another. All accept a different server URL, for example
-`npm run test:recovery -- http://127.0.0.1:5186/`.
-Playwright is included in the locked development dependencies.
+Browser checks require a non-root user and official Google Chrome (or Chrome for
+Testing) at least **156.0.8078.73**, the 27 October 2026 security-release floor.
+From `apps/web/`, run `npm run browser:install` to install current official stable
+Chrome and its system libraries, then `npm run browser:verify`. Installation may
+keep an already-installed local Chrome. For updates, use Chrome's normal updater
+or explicitly run `npm run browser:update` (this replaces the installed Chrome),
+then repeat verification and the browser regression suite. The minimum floor is
+not a promise of protection from future vulnerabilities. Release reference:
+[Chrome stable security update](https://chromereleases.googleblog.com/2026/10/stable-channel-update-for-desktop_0562499947.html).
 
-On Ubuntu, use `npx playwright install --with-deps chromium` to install Chromium's
-system libraries as well. See [Playwright's CI instructions](https://playwright.dev/docs/ci).
+A custom official Chrome for Testing binary can be selected with `CHROME_PATH`.
+An explicitly selected missing, stale or unrecognized binary fails closed; bundled
+Playwright Chromium and old `PLAYWRIGHT_*` browser overrides are not fallbacks.
+The shared launcher verifies the installed version and Linux sandbox before loading
+application content. On Linux, Chrome must report both process isolation and seccomp.
+If the host cannot support that sandbox, use a sandbox-capable non-root host. Do not
+add `--no-sandbox`, privileged containers, or weaken host security settings.
+
+Keep `npm run dev` running in one terminal, then run `test:browser`, `test:integration`,
+`test:recovery` and `test:history` with `npm run` in another. All accept a loopback
+server URL, for example `npm run test:recovery -- http://127.0.0.1:5186/`.
+Each browser is restricted to its explicitly selected local test origin through a
+forwarding proxy, including redirects, popups and WebSockets; service workers are
+blocked. Existing disposable HTTPS fixtures retain their local-only TLS exception.
+The proxy does not use Playwright routing or disable HTTP caching, so the cache
+benchmark remains meaningful. Persistent checks use temporary isolated profiles.
+
+Run `npm run test:browser-policy` for policy/proxy/static-launch checks and
+`npm run test:browser-security` for the real-browser sandbox, network and cache
+regression. New test scripts must use `apps/web/tests/browser-security.mjs`.
+After building, `node tools/check-browser.mjs` from the repository root exercises
+the dev and built-preview suites. Browser proof runs outside Docker image builds:
+the Docker build retains lint, formatting, policy, unit and compilation checks;
+CI's non-root host checks the browser fixtures and the actual packaged application.
+A successful image build alone is not browser evidence.
 
 Validate asset metadata and GLBs from the repository root with
 `node tools/validate-assets.mjs`. Run `node tools/validate-assets.check.mjs` to check
@@ -255,7 +283,7 @@ The web npm workflow needs no application database, `.env` file, private local f
 Docker installation. Server integration checks have separate database and configuration
 requirements. Access to this private repository and its Git LFS objects is required.
 Use the pinned Node/npm versions above; if necessary install the matching npm with
-`npm install --global npm@11.17.0`. On Windows, use `npm.cmd` / `npx.cmd` when PowerShell
+`npm install --global npm@11.21.1`. On Windows, use `npm.cmd` / `npx.cmd` when PowerShell
 blocks the `.ps1` launchers.
 
 | Environment                | Setup and evidence                                                                                                                                                           |
@@ -373,7 +401,7 @@ provenance and follow the [asset pipeline](assets/README.md).
 | Missing or unreadable 3D models                  | Run `git lfs pull` from the repository root.                                                                 |
 | Node or native-binding errors                    | Check `node --version` and `npm --version` against the pinned toolchain, then rerun `npm ci` in `apps/web/`. |
 | PowerShell blocks `npm.ps1`                      | Use `npm.cmd` instead of `npm`, and `npx.cmd` instead of `npx`.                                              |
-| Playwright cannot find Chromium                  | Run `npx playwright install chromium` from `apps/web/`.                                                      |
+| Chrome browser preflight fails                  | Run `npm run browser:install` and `npm run browser:verify` from `apps/web/` on a non-root sandbox-capable host. |
 | The viewport reports that WebGL 2 is unavailable | Check browser graphics support and hardware acceleration.                                                    |
 
 ## Performance check (T02)
