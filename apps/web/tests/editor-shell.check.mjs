@@ -148,7 +148,10 @@ try {
   const filter = picker.getByRole("combobox", { name: "Filter assets", exact: true });
   // Modal browsing leaves the asset hotbar available while camera and hotspot controls stay inactive
   assert.equal(await page.locator(".mode-bar").evaluate((bar) => bar.inert), true);
-  assert.equal(await page.getByRole("button", { name: "Hotspot", exact: true }).isDisabled(), true);
+  assert.equal(
+    await page.getByRole("button", { name: "Add Hotspot", exact: true }).isDisabled(),
+    true,
+  );
   await filter.click();
   const filterMenu = page.getByRole("listbox", { name: "Filter assets" });
   assert.equal(
@@ -830,6 +833,71 @@ try {
     await contentContext.close();
   }
 
+  // Library browsing disables placement controls; close it before exercising hotspots.
+  if (await page.locator(".asset-picker").count()) {
+    await page.getByRole("button", { name: "Asset library", exact: true }).click();
+  }
+  const hotspot = page.getByRole("button", { name: "Add Hotspot", exact: true });
+  assert.equal(await hotspot.isEnabled(), true);
+  await hotspot.click();
+  await page.getByText("Select an object to attach the hotspot to", { exact: true }).waitFor();
+  assert.equal(await rows.count(), 0, "Hotspots need an object to attach to");
+
+  await addAsset(page, "test-crate");
+  assert.equal(await rows.count(), 1);
+  await hotspot.click();
+  await page.getByText("Hotspot attached to the selected object", { exact: true }).waitFor();
+  assert.equal(await rows.count(), 1, "Attaching a hotspot does not create a scene row");
+  const hotspotIndicator = rows.first().locator(".hotspot-indicator");
+  await hotspotIndicator.waitFor();
+  assert.equal(await hotspotIndicator.getAttribute("title"), "Has hotspot");
+
+  await page.getByRole("button", { name: "Interaction", exact: true }).click();
+  const interactionPanel = page.locator(".editor-panel").filter({ hasText: "Interactions" });
+  await interactionPanel.getByRole("button", { name: "+ Add Interaction", exact: true }).click();
+  const hotspotTarget = interactionPanel.getByLabel("Interaction 1 hotspot", { exact: true });
+  assert.match(
+    await hotspotTarget.locator("option").first().textContent(),
+    /^test-crate 1 \([a-f0-9-]+\)$/i,
+  );
+  await page.getByRole("button", { name: "Scene tree", exact: true }).click();
+
+  // Preview offers each click target as a keyboard control that runs the same rule
+  const alerts = [];
+  const recordAlert = (dialog) => alerts.push(dialog.message());
+  page.on("dialog", recordAlert);
+  await page.getByRole("button", { name: "Preview", exact: true }).click();
+  const previewTargets = page.getByRole("navigation", { name: "Interactive objects" });
+  const crateTarget = previewTargets.getByRole("button", { name: "test-crate 1", exact: true });
+  await crateTarget.waitFor();
+  await crateTarget.focus();
+  await page.keyboard.press("Enter");
+  for (let attempt = 0; attempt < 40 && alerts.length === 0; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  assert.deepEqual(alerts, ["hi"], "Keyboard activation runs the click interaction");
+  await page.getByRole("button", { name: "Exit preview", exact: true }).click();
+  assert.equal(await previewTargets.count(), 0, "Editing hides the preview targets");
+  page.off("dialog", recordAlert);
+
+  const hotspotStage = await stage.boundingBox();
+  const hotspotDock = await page.locator(".bottom-dock").boundingBox();
+  assert.ok(hotspotStage);
+  assert.ok(hotspotDock);
+  const crateCentre = new THREE.Vector3(0, 0, 0).project(camera);
+  await hotspot.dragTo(stage, {
+    targetPosition: {
+      x: ((crateCentre.x + 1) * hotspotStage.width) / 2,
+      y: ((1 - crateCentre.y) * hotspotStage.height) / 2,
+    },
+  });
+  await page
+    .getByRole("alert")
+    .filter({ hasText: "Each object can have at most one hotspot" })
+    .waitFor();
+  assert.equal(await rows.count(), 1, "Dropping a second hotspot does not add a row");
+  assert.equal(await hotspotIndicator.getAttribute("title"), "Has hotspot");
+
   const samplePath = "**/*test-crate*.glb*";
   await page.route(samplePath, (route) => {
     // Vite also serves a JavaScript URL module for each model
@@ -870,7 +938,7 @@ try {
   assert.equal(await asset.isDisabled(), true);
   assert.deepEqual(pageErrors, [], "No uncaught page errors in any flow");
   console.log(
-    "PASS: placement, movement, cancellation, hierarchy expansion, saved JSON preservation, room occlusion, project loading, undo/redo, keyboard, resizing, retry and WebGL fallback",
+    "PASS: placement, hotspot, preview keyboard activation, single-pointer movement, cancellation, hierarchy, room occlusion, project loading, undo/redo, keyboard, resizing, retry and WebGL fallback",
   );
 } finally {
   await browser.close();

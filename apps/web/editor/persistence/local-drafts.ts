@@ -482,7 +482,7 @@ export async function getRecoverySession(
         },
       };
     }
-    const document = deserializeProject(raw.document, assetKinds);
+    const document = deserializeProject(raw.document, assetKinds, { allowDraftLinks: true });
     if (!document.ok) {
       const older =
         typeof raw.document === "string" ? readOlderSceneFile(raw.document, assetKinds) : null;
@@ -519,7 +519,9 @@ export async function getRecoverySession(
       if (saved.value.projectId !== document.value.projectId) {
         return invalid("storage", "Recovery file belongs to a different project");
       }
-      savedJson = JSON.stringify(saved.value);
+      const encoded = serializeProject(saved.value, assetKinds);
+      if (!encoded.ok) return encoded;
+      savedJson = encoded.value;
     }
 
     // File contents can include whitespace; keep the exact text for overwrite checks
@@ -537,7 +539,8 @@ export async function getRecoverySession(
       // Match the stored connection to the saved version before reusing it
       // A stale or incomplete connection can be ignored without losing the scene
       const baseline = deserializeProject(raw.fileText, assetKinds);
-      if (baseline.ok && JSON.stringify(baseline.value) === savedJson) {
+      const canonical = baseline.ok ? serializeProject(baseline.value, assetKinds) : baseline;
+      if (canonical.ok && canonical.value === savedJson) {
         fileHandle = raw.fileHandle as unknown as ProjectFileHandle;
         fileText = raw.fileText;
       }
@@ -599,7 +602,7 @@ export async function applySaveRecoverySession(
   const encoded =
     session.document === null
       ? { ok: true as const, value: null }
-      : serializeProject(session.document, assetKinds);
+      : serializeProject(session.document, assetKinds, { allowDraftLinks: true });
   if (!encoded.ok) {
     return encoded;
   }

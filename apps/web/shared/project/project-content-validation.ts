@@ -1,4 +1,4 @@
-import punycode from "punycode/";
+import { encodeProjectJson } from "./project-wire";
 import type {
   ContentComponent,
   ContentProject,
@@ -7,7 +7,13 @@ import type {
   TextMark,
 } from "./project-content";
 import { MAX_PROJECT_BYTES } from "./project-limits";
-import { validateCameraPose, validateTransform } from "./spatial-validation";
+import {
+  isPortableHttpsUrl,
+  MAX_PORTABLE_URL_LENGTH,
+  PORTABLE_HTTPS_URL_ERROR,
+} from "./portable-url";
+import type { Interaction, ProjectHotspot } from "./project-types";
+import { validateCameraPose, validatePosition, validateTransform } from "./spatial-validation";
 import { checkFields, invalid, isRecord, type ValidationResult } from "./validation-helpers";
 
 // Stop at the first bad field while preserving its path for import feedback
@@ -29,13 +35,18 @@ function checked<T>(result: ValidationResult<T>): T {
   }
   return result.value;
 }
-function record(raw: unknown, fields: readonly string[], path: string): Record<string, unknown> {
+function record(
+  raw: unknown,
+  fields: readonly string[],
+  path: string,
+  optional: readonly string[] = [],
+): Record<string, unknown> {
   if (!isRecord(raw)) {
     fail(path, "Expected an object");
   }
 
   // Reject extra fields too, including server authority accidentally embedded in a file
-  checked(checkFields(raw, fields, path));
+  checked(checkFields(raw, fields, path, optional));
   return raw;
 }
 
@@ -262,80 +273,95 @@ function action(raw: unknown, path: string): ProjectAction {
         viewpointId: text(raw.viewpointId, `${path}.viewpointId`),
       };
     default: {
-      const url = text(raw.url, `${path}.url`, 2048);
-
-      // Match the raw authority before URL can repair missing hosts or reinterpret credentials
-      const authority =
-        /^https:\/\/(\[[0-9a-fA-F:.]+\]|[^:/?#@]+)(?::([0-9]{1,5}))?(?=[/?#]|$)/.exec(url);
-      let valid = false;
-      try {
-        if (authority) {
-          // Decode only for validation; keep the original authored spelling in the returned document
-          const host = decodeURIComponent(authority[1]!);
-          const parsed = new URL(url);
-
-          // Native URL parsing handles IPv6 and port range; DNS labels need the shared restrictions below
-          const ipv6 = host.startsWith("[");
-          const domain = parsed.hostname.replace(/\.$/, "");
-
-          // Some URL runtimes accept fake xn-- labels without checking the encoded characters
-          // Decode and parse the Unicode host too, matching the server IDNA check before acceptance
-          // Require the same canonical host so decoded delimiters cannot change the authority
-          const validIdn =
-            ipv6 || new URL(`https://${punycode.toUnicode(domain)}`).hostname === domain;
-
-          // Reject raw cleanup characters before accepting the parsed host
-          // IPv6 bypasses DNS label checks while decoded DNS hosts must also exclude escaped delimiters
-          valid =
-            validIdn &&
-            !Array.from(url).some(
-              (character) =>
-                character.charCodeAt(0) <= 32 ||
-                character.charCodeAt(0) === 127 ||
-                character === "\\",
-            ) &&
-            !parsed.username &&
-            !parsed.password &&
-            (ipv6 ||
-              (!Array.from(host).some(
-                (character) =>
-                  character.charCodeAt(0) <= 32 ||
-                  character.charCodeAt(0) === 127 ||
-                  "%/\\?#@[]:<>^|".includes(character),
-              ) &&
-                domain.length <= 253 &&
-                domain
-                  .split(".")
-                  .every((label) =>
-                    /^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$/.test(label),
-                  )));
-
-          // Browsers treat numeric suffixes as IPv4; forbid fallback DNS and legacy short or octal forms
-          if (
-            !ipv6 &&
-            [host, domain].some((value) => /(?:^|\.)(?:[0-9]+|0[xX][0-9a-fA-F]*)\.?$/.test(value))
-          ) {
-            // Inspect authored octets because URL has already normalized legacy IPv4 spellings
-            const parts = host.replace(/\.$/, "").split(".");
-            valid &&=
-              parts.length === 4 &&
-              parts.every((part) => /^(?:0|[1-9][0-9]{0,2})$/.test(part) && Number(part) <= 255);
-          }
-        }
-      } catch {
-        // Malformed percent escapes, IDN hosts and native parsing failures share the same field feedback
-      }
+      const url = text(raw.url, `${path}.url`, MAX_PORTABLE_URL_LENGTH);
 
       // All rejection paths point to the authored URL field; successful reads keep its spelling unchanged
-      if (!valid) {
-        fail(`${path}.url`, "Expected an absolute HTTPS URL without credentials");
+      if (!isPortableHttpsUrl(url)) {
+        fail(`${path}.url`, PORTABLE_HTTPS_URL_ERROR);
       }
       return { type: "openLink", url };
     }
   }
 }
 
-export function validateContentStructure(raw: unknown): ValidationResult<ContentProject> {
+// Scene-level hotspot markers and interactions predate the content component model
+// They remain part of every scene so the editor can keep authored click rules
+function hotspot(raw: unknown, path: string): ProjectHotspot {
+  const value = record(raw, ["id", "objectId", "position"], path);
+  return {
+    id: text(value.id, `${path}.id`),
+    objectId: text(value.objectId, `${path}.objectId`),
+    position: checked(validatePosition(value.position, `${path}.position`)),
+  };
+}
+
+function interactionTrigger(raw: unknown, path: string): Interaction["when"] {
+  if (!isRecord(raw)) {
+    fail(path, "Trigger must be an object");
+  }
+  switch (raw.type) {
+    case "visitor-clicks-hotspot":
+      record(raw, ["type", "targetHotspotId"], path);
+      return {
+        type: "visitor-clicks-hotspot",
+        targetHotspotId: text(raw.targetHotspotId, `${path}.targetHotspotId`),
+      };
+    case "scene-starts":
+      record(raw, ["type"], path);
+      return { type: "scene-starts" };
+    case "time-elapsed":
+      record(raw, ["type", "seconds"], path);
+      return {
+        type: "time-elapsed",
+        seconds: number(raw.seconds, `${path}.seconds`, Number.MIN_VALUE, 86_400),
+      };
+    default:
+      return fail(`${path}.type`, "Unsupported trigger type");
+  }
+}
+
+function interactionAction(
+  raw: unknown,
+  path: string,
+  allowDraftLinks: boolean,
+): Interaction["do"] {
+  if (!isRecord(raw)) {
+    fail(path, "Action must be an object");
+  }
+  switch (raw.type) {
+    case "open-link":
+    case "play-audio": {
+      record(raw, ["type", "url"], path);
+      const url = text(
+        raw.url,
+        `${path}.url`,
+        allowDraftLinks ? MAX_PROJECT_BYTES : MAX_PORTABLE_URL_LENGTH,
+      );
+      if (!allowDraftLinks && raw.type === "open-link" && !isPortableHttpsUrl(url)) {
+        fail(`${path}.url`, PORTABLE_HTTPS_URL_ERROR);
+      }
+      return { type: raw.type, url };
+    }
+    case "print-hi":
+      record(raw, ["type"], path);
+      return { type: "print-hi" };
+    default:
+      return fail(`${path}.type`, "Unsupported action type");
+  }
+}
+
+function interaction(raw: unknown, path: string, allowDraftLinks: boolean): Interaction {
+  const value = record(raw, ["when", "do"], path);
+  return {
+    when: interactionTrigger(value.when, `${path}.when`),
+    do: interactionAction(value.do, `${path}.do`, allowDraftLinks),
+  };
+}
+
+export function validateContentStructure(
+  raw: unknown,
+  allowDraftLinks = false,
+): ValidationResult<ContentProject> {
   // Rebuild checked values so imported arrays cannot mutate the live document afterward
   try {
     const root = record(raw, ["schemaVersion", "projectId", "title", "scenes"], "project");
@@ -361,12 +387,23 @@ export function validateContentStructure(raw: unknown): ValidationResult<Content
           "rules",
         ],
         path,
+        ["hotspots", "interactions"],
       );
       return {
         id: text(scene.id, `${path}.id`),
         name: text(scene.name, `${path}.name`),
         environmentAssetId: text(scene.environmentAssetId, `${path}.environmentAssetId`),
         startCamera: checked(validateCameraPose(scene.startCamera, `${path}.startCamera`)),
+        hotspots:
+          scene.hotspots === undefined
+            ? []
+            : list(scene.hotspots, `${path}.hotspots`, 200, hotspot),
+        interactions:
+          scene.interactions === undefined
+            ? []
+            : list(scene.interactions, `${path}.interactions`, 200, (value, path) =>
+                interaction(value, path, allowDraftLinks),
+              ),
         objects: list(scene.objects, `${path}.objects`, 200, (input, path) => {
           const object = record(
             input,
@@ -431,7 +468,7 @@ export function validateContentStructure(raw: unknown): ValidationResult<Content
 
     // Check the complete rebuilt document's byte budget before handing it to reference validation
     const value: ContentProject = { schemaVersion: 2, projectId, title, scenes };
-    if (new TextEncoder().encode(JSON.stringify(value)).byteLength > MAX_PROJECT_BYTES) {
+    if (new TextEncoder().encode(encodeProjectJson(value)).byteLength > MAX_PROJECT_BYTES) {
       fail("project", "Project exceeds the 5 MiB document limit");
     }
     return { ok: true, value };
@@ -483,6 +520,9 @@ export function validateContentReferences(
           entity(component.id, component.type, scene.id, `${objectPath}.components[${index}]`),
         );
       });
+      scene.hotspots.forEach((value, index) =>
+        entity(value.id, "hotspot", scene.id, `${path}.hotspots[${index}]`),
+      );
       for (const collection of ["groups", "zones", "viewpoints", "rules"] as const) {
         scene[collection].forEach((value, index) =>
           entity(value.id, collection.slice(0, -1), scene.id, `${path}.${collection}[${index}]`),
@@ -547,6 +587,7 @@ export function validateContentReferences(
       }
 
       // Model approval does not imply approval of attached media or navigation destinations
+      const hotspotObjects = new Set<string>();
       scene.objects.forEach((object, index) => {
         const objectPath = `${path}.objects[${index}]`;
         asset(object.assetId, "model", `${objectPath}.assetId`);
@@ -559,6 +600,26 @@ export function validateContentReferences(
             destination(component.sceneId, component.viewpointId, componentPath);
           }
         });
+      });
+
+      // Scene-level hotspots attach to objects and drive the authored click interactions
+      scene.hotspots.forEach((hotspot, index) => {
+        const objectKey = hotspot.objectId.toLowerCase();
+        reference(hotspot.objectId, ["object"], scene.id, `${path}.hotspots[${index}].objectId`);
+        if (hotspotObjects.has(objectKey)) {
+          fail(`${path}.hotspots[${index}].objectId`, "Each object can have at most one hotspot");
+        }
+        hotspotObjects.add(objectKey);
+      });
+      scene.interactions.forEach((value, index) => {
+        if (value.when.type === "visitor-clicks-hotspot") {
+          reference(
+            value.when.targetHotspotId,
+            ["hotspot"],
+            scene.id,
+            `${path}.interactions[${index}].when.targetHotspotId`,
+          );
+        }
       });
 
       // Disabled rules still need intact references so enabling them cannot revive broken data

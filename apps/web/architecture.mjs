@@ -24,6 +24,7 @@ export const modules = {
       "shared/project/project-serialization.ts",
       "shared/project/project-deserialization.ts",
       "shared/project/project-limits.ts",
+      "shared/project/portable-url.ts",
       "shared/project/validation-helpers.ts",
       "shared/project/fixtures/m1-project.json",
       "shared/project/fixtures/m2-project.json",
@@ -34,7 +35,7 @@ export const modules = {
     paths: ["shared/asset-runtime/"],
     uses: [],
     packages: [],
-    public: ["shared/asset-runtime/catalogue.ts"],
+    public: ["shared/asset-runtime/catalogue.ts", "shared/asset-runtime/hotspot.ts"],
   },
   "asset-loading": {
     paths: ["shared/asset-runtime/ModelCache.ts"],

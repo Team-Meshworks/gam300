@@ -15,6 +15,14 @@ function sampleProject() {
     environmentAssetId: "room-v1",
     startCamera: { position: [0, 1.6, 5], rotation: [0, 0, 0, 1], fovDegrees: 60 },
     objects: [object],
+    hotspots: [
+      {
+        id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        objectId: object.id,
+        position: [0, 0, 0] as [number, number, number],
+      },
+    ],
+    interactions: [] as { when: unknown; do: unknown }[],
   };
   const project = {
     schemaVersion: 1,
@@ -90,6 +98,167 @@ describe("M1 project structure", () => {
     });
   });
 
+  it("accepts legacy scenes without interactions and validates saved rules", () => {
+    const { project, scene } = sampleProject();
+    const legacyScene = structuredClone(scene) as Record<string, unknown>;
+    delete legacyScene.interactions;
+    delete legacyScene.hotspots;
+    expect(validateProjectStructure({ ...project, scenes: [legacyScene] })).toEqual({
+      ok: true,
+      value: { ...project, scenes: [{ ...legacyScene, hotspots: [], interactions: [] }] },
+    });
+
+    scene.interactions = [
+      { when: { type: "scene-starts" }, do: { type: "print-hi" } },
+      {
+        when: {
+          type: "visitor-clicks-hotspot",
+          targetHotspotId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        },
+        do: { type: "open-link", url: "https://example.com" },
+      },
+      {
+        when: { type: "time-elapsed", seconds: 5 },
+        do: { type: "play-audio", url: "/audio/ding.wav" },
+      },
+    ];
+    expect(validateProjectStructure(project)).toEqual({ ok: true, value: project });
+  });
+
+  it("validates v1 link URLs and interaction URL lengths", () => {
+    const { project, scene } = sampleProject();
+    const validateLink = (url: string) => {
+      scene.interactions = [{ when: { type: "scene-starts" }, do: { type: "open-link", url } }];
+      return validateProjectStructure(project);
+    };
+
+    for (const url of ["https://[", "http://example.com", "https://user:pass@example.com"]) {
+      expect(validateLink(url)).toMatchObject({
+        ok: false,
+        error: {
+          path: "project.scenes[0].interactions[0].do.url",
+          message: "Expected an absolute HTTPS URL without credentials",
+        },
+      });
+    }
+
+    expect(validateLink(`https://example.com/${"a".repeat(300)}`).ok).toBe(true);
+
+    const oversized = `https://example.com/${"a".repeat(2048)}`;
+    expect(validateLink(oversized)).toMatchObject({
+      ok: false,
+      error: {
+        path: "project.scenes[0].interactions[0].do.url",
+        message: "Text exceeds 2048 characters",
+      },
+    });
+
+    scene.interactions = [
+      { when: { type: "scene-starts" }, do: { type: "play-audio", url: "/audio/ding.wav" } },
+    ];
+    expect(validateProjectStructure(project).ok).toBe(true);
+
+    scene.interactions = [
+      { when: { type: "scene-starts" }, do: { type: "play-audio", url: `/${"a".repeat(2048)}` } },
+    ];
+    expect(validateProjectStructure(project)).toMatchObject({
+      ok: false,
+      error: {
+        path: "project.scenes[0].interactions[0].do.url",
+        message: "Text exceeds 2048 characters",
+      },
+    });
+  });
+
+  it("rejects malformed interactions with their full paths", () => {
+    const { project, scene } = sampleProject();
+    scene.interactions = [{ when: { type: "unknown" }, do: { type: "print-hi" } }];
+    expect(validateProjectStructure(project)).toMatchObject({
+      ok: false,
+      error: { path: "project.scenes[0].interactions[0].when.type" },
+    });
+
+    scene.interactions = [{ when: { type: "visitor-clicks-hotspot" }, do: { type: "print-hi" } }];
+    expect(validateProjectStructure(project)).toMatchObject({
+      ok: false,
+      error: { path: "project.scenes[0].interactions[0].when.targetHotspotId" },
+    });
+
+    scene.interactions = [{ when: { type: "time-elapsed", seconds: 0 }, do: { type: "print-hi" } }];
+    expect(validateProjectStructure(project)).toMatchObject({
+      ok: false,
+      error: { path: "project.scenes[0].interactions[0].when.seconds" },
+    });
+
+    scene.interactions = [{ when: { type: "scene-starts" }, do: { type: "open-link", url: 42 } }];
+    expect(validateProjectStructure(project)).toMatchObject({
+      ok: false,
+      error: { path: "project.scenes[0].interactions[0].do.url" },
+    });
+
+    scene.interactions = [
+      { when: { type: "scene-starts" }, do: { type: "print-hi" }, extra: 1 },
+    ] as unknown as { when: unknown; do: unknown }[];
+    expect(validateProjectStructure(project)).toMatchObject({
+      ok: false,
+      error: { path: "project.scenes[0].interactions[0].extra" },
+    });
+  });
+
+  it("keeps invalid interaction URLs as editable drafts", () => {
+    const { project, scene } = sampleProject();
+    scene.interactions = [
+      { when: { type: "scene-starts" }, do: { type: "open-link", url: "https://[" } },
+      { when: { type: "scene-starts" }, do: { type: "play-audio", url: `/${"a".repeat(2048)}` } },
+    ];
+
+    expect(validateProjectStructure(project, { allowDraftLinks: true }).ok).toBe(true);
+    expect(validateProjectStructure(project).ok).toBe(false);
+  });
+
+  it("rejects more than 200 interactions", () => {
+    const { project, scene } = sampleProject();
+    scene.interactions = Array.from({ length: 201 }, () => ({
+      when: { type: "scene-starts" },
+      do: { type: "print-hi" },
+    }));
+    expect(validateProjectStructure(project)).toMatchObject({
+      ok: false,
+      error: { path: "project.scenes[0].interactions" },
+    });
+  });
+
+  it("validates hotspot fields and limits", () => {
+    const { project, scene } = sampleProject();
+    const hotspot = scene.hotspots[0];
+    if (hotspot === undefined) throw new Error("Sample project needs a hotspot");
+
+    hotspot.position[0] = Infinity;
+    expect(validateProjectStructure(project)).toMatchObject({
+      ok: false,
+      error: { path: "project.scenes[0].hotspots[0].position" },
+    });
+
+    hotspot.position[0] = 0;
+    scene.hotspots = [
+      { id: hotspot.id, objectId: 42, position: [0, 0, 0] },
+    ] as unknown as typeof scene.hotspots;
+    expect(validateProjectStructure(project)).toMatchObject({
+      ok: false,
+      error: { path: "project.scenes[0].hotspots[0].objectId" },
+    });
+
+    scene.hotspots = Array.from({ length: 201 }, (_, index) => ({
+      id: `aaaaaaaa-aaaa-4aaa-8aaa-${index.toString(16).padStart(12, "0")}`,
+      objectId: hotspot.objectId,
+      position: [0, 0, 0],
+    }));
+    expect(validateProjectStructure(project)).toMatchObject({
+      ok: false,
+      error: { path: "project.scenes[0].hotspots" },
+    });
+  });
+
   it("rejects malformed nested records and string fields with their full paths", () => {
     const { project, scene, object } = sampleProject();
     expect(validateProjectStructure({ ...project, scenes: [null] })).toMatchObject({
@@ -148,7 +317,11 @@ describe("M1 project structure", () => {
   it("accepts exactly 5 MiB of compact JSON and rejects one extra byte", () => {
     const { project } = sampleProject();
     project.title = "";
-    const overhead = new TextEncoder().encode(JSON.stringify(project)).byteLength;
+    const wire = {
+      ...project,
+      scenes: project.scenes.map((scene) => ({ ...scene, interactions: undefined })),
+    };
+    const overhead = new TextEncoder().encode(JSON.stringify(wire)).byteLength;
 
     // ASCII makes each added character exactly one byte here
     project.title = "a".repeat(5 * 1024 * 1024 - overhead);

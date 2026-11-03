@@ -66,6 +66,10 @@ public static partial class ProjectFormat
                     Array(Get(item, "components"), $"{path}.components", 16, (component, path) => Entity(String(component, "id"), String(component, "type"), sceneId, $"{path}.id"));
                 }
             });
+            if (scene.TryGetProperty("hotspots", out var hotspots))
+            {
+                Array(hotspots, $"{path}.hotspots", 200, (item, path) => Entity(String(item, "id"), "hotspot", sceneId, $"{path}.id"));
+            }
             if (content)
             {
                 foreach (var collection in new[] { "groups", "zones", "viewpoints", "rules" })
@@ -116,6 +120,9 @@ public static partial class ProjectFormat
                 }
             }
 
+            // One interactive marker per object keeps click dispatch unambiguous
+            var hotspotObjects = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
             // Resolve model and media assets separately so an approved asset of the wrong kind is rejected
             Array(Get(scene, "objects"), $"{path}.objects", 200, (item, path) =>
             {
@@ -130,6 +137,7 @@ public static partial class ProjectFormat
                         Asset(String(component, "assetId"), type, $"{path}.assetId");
                     }
 
+
                     if (type == "navigationPoint")
                     {
                         Destination(component, path);
@@ -137,6 +145,31 @@ public static partial class ProjectFormat
                 });
                 }
             });
+
+            // Scene hotspots must attach to an object in the same scene; click rules must target one
+            if (scene.TryGetProperty("hotspots", out var hotspots))
+            {
+                Array(hotspots, $"{path}.hotspots", 200, (item, path) =>
+                {
+                    var objectId = String(item, "objectId");
+                    Ref(objectId, ["object"], sceneId, $"{path}.objectId");
+                    if (!hotspotObjects.Add(objectId))
+                    {
+                        Fail($"{path}.objectId", "Each object can have at most one hotspot");
+                    }
+                });
+            }
+            if (scene.TryGetProperty("interactions", out var interactions))
+            {
+                Array(interactions, $"{path}.interactions", 200, (item, path) =>
+                {
+                    var trigger = Get(item, "when");
+                    if (String(trigger, "type") == "visitor-clicks-hotspot")
+                    {
+                        Ref(String(trigger, "targetHotspotId"), ["hotspot"], sceneId, $"{path}.when.targetHotspotId");
+                    }
+                });
+            }
             if (!content)
             {
                 return;

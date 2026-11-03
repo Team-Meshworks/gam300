@@ -15,6 +15,7 @@ export function SceneTreePanel({
   room,
   objects,
   groups,
+  hotspots,
   selectedId,
   onSelect,
   thumbnailFor,
@@ -23,6 +24,7 @@ export function SceneTreePanel({
   room: Room | undefined;
   objects: readonly SceneObject[];
   groups: readonly ProjectGroup[];
+  hotspots: readonly import("../../shared/project/project-types").ProjectHotspot[];
   selectedId: string | null;
   onSelect: (id: string) => void;
   thumbnailFor: (assetId: string) => string | undefined;
@@ -237,6 +239,14 @@ export function SceneTreePanel({
                 <Icon name="tree" />
               )}
               <span>{node.name}</span>
+              {hotspots.some(
+                (hotspot) => hotspot.objectId.toLowerCase() === node.id.toLowerCase(),
+              ) && (
+                <span className="hotspot-indicator" title="Has hotspot">
+                  <Icon name="hotspot" />
+                  <span className="sr-only">Has hotspot</span>
+                </span>
+              )}
             </button>
           </div>
           {expandable && (

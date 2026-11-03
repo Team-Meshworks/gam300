@@ -1,7 +1,12 @@
 import { useEffect, useRef, type DragEvent, type ReactNode } from "react";
 import { assetDragType, type CatalogueAsset } from "../../shared/asset-runtime/catalogue";
 import type { SceneObject, Vector3Tuple } from "../../shared/project/scene-object";
-import type { ProjectScene, Transform, CameraPose } from "../../shared/project/project-types";
+import type {
+  CameraPose,
+  HotspotDropTarget,
+  ProjectScene,
+  Transform,
+} from "../../shared/project/project-types";
 import type { initScene, NavigationTool, ViewportStatus } from "../graphics/scene";
 import type { ModeManager } from "../graphics/modeManager";
 
@@ -13,7 +18,11 @@ const statusMessages = {
   unsupported: "The 3D view needs WebGL 2. Check your browser's graphics settings and retry.",
 };
 
-export type ViewpointCamera = { capture: () => CameraPose; show: (pose: CameraPose) => void };
+export type ViewpointCamera = {
+  capture: () => CameraPose;
+  show: (pose: CameraPose) => void;
+  locate: (id: string) => void;
+};
 
 type ViewportProps = {
   onCamera: (camera: ViewpointCamera | null) => void;
@@ -32,7 +41,9 @@ type ViewportProps = {
   onThumbnail: (id: string, url: string) => void;
   onSelect: (id: string | null) => void;
   onTransform: (id: string, transform: Transform) => void;
-  onPlace: (assetId: string, position: Vector3Tuple) => void;
+  onObjectClick: (id: string) => void;
+  onSceneUpdate: (deltaSeconds: number) => void;
+  onPlace: (assetId: string, position: Vector3Tuple, hotspotTarget?: HotspotDropTarget) => void;
   onDragFinish: () => void;
   onRetry: () => void;
   onManager: (manager: ModeManager) => void;
@@ -56,6 +67,8 @@ export function Viewport({
   onThumbnail,
   onSelect,
   onTransform,
+  onObjectClick,
+  onSceneUpdate,
   onPlace,
   onDragFinish,
   onRetry,
@@ -83,7 +96,14 @@ export function Viewport({
     import("../graphics/scene")
       .then(({ initScene }) => {
         if (disposed) return;
-        const scene = initScene(host, assets, { onStatus, onThumbnail, onSelect, onTransform });
+        const scene = initScene(host, assets, {
+          onStatus,
+          onThumbnail,
+          onSelect,
+          onTransform,
+          onObjectClick,
+          onUpdate: onSceneUpdate,
+        });
         sceneRef.current = scene;
         const current = snapshotRef.current;
         scene?.update(
@@ -96,7 +116,11 @@ export function Viewport({
         scene?.setNavigationTool(current.navigationTool);
         if (scene !== undefined) {
           onManager(scene.modeManager);
-          onCamera({ capture: scene.captureCamera, show: scene.showCamera });
+          onCamera({
+            capture: scene.captureCamera,
+            show: scene.showCamera,
+            locate: scene.locateObject,
+          });
         }
       })
       .catch((error: unknown) => {
@@ -111,7 +135,18 @@ export function Viewport({
       sceneRef.current?.dispose();
       sceneRef.current = undefined;
     };
-  }, [assets, attempt, onStatus, onThumbnail, onSelect, onTransform, onManager, onCamera]);
+  }, [
+    assets,
+    attempt,
+    onStatus,
+    onThumbnail,
+    onSelect,
+    onTransform,
+    onObjectClick,
+    onSceneUpdate,
+    onManager,
+    onCamera,
+  ]);
 
   useEffect(() => {
     snapshotRef.current = {
@@ -196,9 +231,19 @@ export function Viewport({
           event.preventDefault();
           const assetId = event.dataTransfer.getData(assetDragType);
           if (accepts(event) && assets.some((asset) => asset.id === assetId)) {
-            const position = sceneRef.current?.getDropPosition(event.clientX, event.clientY);
+            const scene = sceneRef.current;
+            const position = scene?.getDropPosition(event.clientX, event.clientY);
             if (position !== undefined) {
-              onPlace(assetId, position);
+              const objectId = scene?.pickObjectAt(event.clientX, event.clientY);
+              const localPosition =
+                objectId === undefined ? undefined : scene?.worldToLocal(objectId, position);
+              onPlace(
+                assetId,
+                position,
+                objectId === undefined || localPosition === undefined
+                  ? undefined
+                  : { objectId, localPosition },
+              );
             }
           }
           sceneRef.current?.showDropPosition(undefined);

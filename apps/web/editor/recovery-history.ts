@@ -1,8 +1,5 @@
-import type {
-  ProjectDocument,
-  ProjectObject,
-  NamedViewpoint,
-} from "../shared/project/project-types";
+import type { ProjectDocument, ProjectObject } from "../shared/project/project-types";
+import type { ProjectViewpoint as NamedViewpoint } from "../shared/project/project-content";
 import { validateProject } from "../shared/project/project-validation";
 import {
   checkFields,
@@ -12,7 +9,13 @@ import {
   type ValidationResult,
 } from "../shared/project/validation-helpers";
 
-export type ProjectHistoryState = { project: ProjectDocument; activeSceneId: string };
+const DRAFT_PROJECT = { allowDraftLinks: true } as const;
+
+export type ProjectHistoryState = Readonly<{ project: ProjectDocument; activeSceneId: string }>;
+
+function firstViews(project: ProjectDocument): readonly NamedViewpoint[] {
+  return project.schemaVersion === 2 ? project.scenes[0]!.viewpoints : [];
+}
 
 type Objects = readonly ProjectObject[];
 export type HierarchyState = Readonly<{
@@ -219,7 +222,7 @@ export function validateRecoveryHistory(
       if (!isRecord(value)) return invalid("history.documents", "Invalid saved edit");
       const fields = checkFields(value, ["project", "activeSceneId"], "history.documents");
       if (!fields.ok) return fields;
-      const checked = validateProject(value.project, assetKinds);
+      const checked = validateProject(value.project, assetKinds, DRAFT_PROJECT);
       if (!checked.ok) return checked;
       if (
         checked.value.projectId !== project.projectId ||
@@ -261,7 +264,7 @@ export function validateRecoveryHistory(
         !Array.isArray(viewCopies.future) ||
         viewCopies.past.length !== past.length ||
         viewCopies.future.length !== future.length ||
-        !same(viewCopies.current, project.scenes[0]!.viewpoints ?? []))
+        !same(viewCopies.current, firstViews(project)))
     )
       return invalid("history.views", "Viewpoint history does not match the saved scene");
     if (isRecord(viewCopies)) {
@@ -276,7 +279,7 @@ export function validateRecoveryHistory(
         entries.some(
           (entry, i) =>
             !same(sceneState(entry.project, raw.version as 1 | 2), copies[i]) ||
-            (Array.isArray(views) && !same(entry.project.scenes[0]!.viewpoints ?? [], views[i])),
+            (Array.isArray(views) && !same(firstViews(entry.project), views[i])),
         )
       )
         return invalid("history.documents", "Saved history copies do not match");
@@ -328,12 +331,11 @@ export function validateRecoveryHistory(
           ],
         },
         assetKinds,
+        DRAFT_PROJECT,
       );
     const current = read(data.current, raw.current);
     if (!current.ok) return current;
-    if (
-      JSON.stringify(current.value.scenes[0]!.viewpoints) !== JSON.stringify(scene.viewpoints ?? [])
-    )
+    if (JSON.stringify(firstViews(current.value)) !== JSON.stringify(firstViews(project)))
       return invalid("history.views", "Viewpoints do not match the saved scene");
     const past: (readonly NamedViewpoint[])[] = [],
       future: (readonly NamedViewpoint[])[] = [];
@@ -344,7 +346,7 @@ export function validateRecoveryHistory(
       for (const [i, value] of input.entries()) {
         const checked = read(value, objects[i]);
         if (!checked.ok) return checked;
-        output.push(checked.value.scenes[0]!.viewpoints!);
+        output.push(firstViews(checked.value));
       }
     }
     function freezeViews(list: readonly NamedViewpoint[]) {
@@ -357,13 +359,16 @@ export function validateRecoveryHistory(
       return Object.freeze(list);
     }
     views = Object.freeze({
-      current: freezeViews(current.value.scenes[0]!.viewpoints!),
+      current: freezeViews(firstViews(current.value)),
       past: Object.freeze(past.map(freezeViews)),
       future: Object.freeze(future.map(freezeViews)),
     });
   }
   const version = raw.version;
-  function readObjects(input: unknown): ValidationResult<HistoryState> {
+  function readObjects(
+    input: unknown,
+    viewpoints?: readonly NamedViewpoint[],
+  ): ValidationResult<HistoryState> {
     // Old histories only replaced objects; retain their existing document groups
     // New histories validate both collections together, including every parent reference
     let objects = input;
@@ -388,11 +393,18 @@ export function validateRecoveryHistory(
       {
         ...project,
         scenes: [
-          { ...scene, name: sceneName, objects, ...(groups === undefined ? {} : { groups }) },
+          {
+            ...scene,
+            name: sceneName,
+            objects,
+            ...(groups === undefined ? {} : { groups }),
+            ...(viewpoints ? { viewpoints } : {}),
+          },
           ...project.scenes.slice(1),
         ],
       },
       assetKinds,
+      DRAFT_PROJECT,
     );
     if (!checked.ok) {
       return checked;
@@ -410,8 +422,8 @@ export function validateRecoveryHistory(
 
   // The history's current snapshot must describe the same normalized data as the saved scene
   // Reject mismatches before restoring either stack so undo cannot introduce unrelated state
-  const current = readObjects(raw.current);
-  const expected = readObjects(sceneState(project, raw.version));
+  const current = readObjects(raw.current, views?.current);
+  const expected = readObjects(sceneState(project, raw.version), views?.current);
   if (!current.ok) {
     return current;
   }
@@ -425,12 +437,12 @@ export function validateRecoveryHistory(
   // Rebuild both stacks in saved order and reject the whole history if any entry is invalid
   const past: HistoryState[] = [];
   const future: HistoryState[] = [];
-  for (const [input, output] of [
-    [raw.past, past],
-    [raw.future, future],
+  for (const [input, output, viewpoints] of [
+    [raw.past, past, views?.past],
+    [raw.future, future, views?.future],
   ] as const) {
-    for (const state of input) {
-      const checked = readObjects(state);
+    for (const [i, state] of input.entries()) {
+      const checked = readObjects(state, viewpoints?.[i]);
       if (!checked.ok) {
         return checked;
       }
