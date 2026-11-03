@@ -215,3 +215,63 @@ test("WebSocket upgrades enforce exact local origins and clean up open sockets",
   await proxy.close();
   await closed;
 });
+
+test("resetting denied and incomplete proxy connections does not terminate the runner", async (t) => {
+  const originServer = http.createServer((_, res) => res.end("still available"));
+  const origin = await listen(originServer);
+  t.after(() => new Promise((resolve) => originServer.close(resolve)));
+  const proxy = await createLoopbackProxy([origin]);
+  t.after(() => proxy.close());
+  const messages = [
+    "CONNECT example.invalid:443 HTTP/1.1\r\nHost: example.invalid:443\r\n\r\n",
+    "GET ws://example.invalid/socket HTTP/1.1\r\nHost: example.invalid\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n",
+    "CONNECT incomplete",
+  ];
+  for (const message of messages) {
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const socket = net.connect({ host: "127.0.0.1", port: Number(new URL(proxy.url).port) });
+      socket.on("error", () => {});
+      await once(socket, "connect");
+      await new Promise((resolve, reject) =>
+        socket.write(message, (error) => (error ? reject(error) : resolve())),
+      );
+      socket.resetAndDestroy();
+    }
+  }
+  assert.equal((await request(proxy.url, origin)).body, "still available");
+});
+
+test(
+  "truncated upstream responses close the browser response promptly",
+  { timeout: 2000 },
+  async (t) => {
+    const originServer = http.createServer((req, res) => {
+      if (req.url !== "/truncate") {
+        res.end("still available");
+        return;
+      }
+      res.writeHead(200, { "Content-Length": "1000" });
+      res.write("partial");
+      setTimeout(() => res.destroy(), 20);
+    });
+    const origin = await listen(originServer);
+    t.after(() => new Promise((resolve) => originServer.close(resolve)));
+    const proxy = await createLoopbackProxy([origin]);
+    t.after(() => proxy.close());
+    const result = await new Promise((resolve, reject) => {
+      const req = http.get(
+        proxy.url,
+        { path: `${origin}/truncate`, headers: { host: new URL(origin).host } },
+        (res) => {
+          res.on("error", () => resolve("closed"));
+          res.on("aborted", () => resolve("closed"));
+          res.on("end", () => reject(new Error("Truncated response must not finish normally")));
+          res.resume();
+        },
+      );
+      req.on("error", reject);
+    });
+    assert.equal(result, "closed");
+    assert.equal((await request(proxy.url, origin)).body, "still available");
+  },
+);

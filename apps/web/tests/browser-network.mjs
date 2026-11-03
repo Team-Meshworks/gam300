@@ -56,6 +56,10 @@ export async function createLoopbackProxy(origins) {
   const track = (socket) => {
     if (closed) socket.destroy();
     sockets.add(socket);
+    // Browsers can reset speculative or denied connections during startup and
+    // profile shutdown. Handle errors before parsing/denying any request, not
+    // only after a CONNECT/upgrade has been accepted.
+    socket.on("error", () => socket.destroy());
     socket.once("close", () => sockets.delete(socket));
     return socket;
   };
@@ -105,6 +109,9 @@ export async function createLoopbackProxy(origins) {
         agent: false,
       },
       (response) => {
+        // pipe() does not forward source stream errors. A restarted fixture or
+        // truncated response must close the browser response instead of hanging.
+        response.on("error", () => res.destroy());
         if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
           try {
             check(new URL(response.headers.location, target).href, ["http:", "https:"]);
