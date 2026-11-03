@@ -1101,6 +1101,7 @@ a {
   flex-shrink: 0;
   width: 2.75rem;
   height: 2.75rem;
+  padding: 0;
   border: 0;
   border-radius: 0.75rem;
   background: transparent;
@@ -1137,6 +1138,7 @@ a {
   flex-shrink: 0;
   width: 2.75rem;
   height: 2.75rem;
+  padding: 0;
   border: 0;
   border-radius: 0.75rem;
   background: transparent;

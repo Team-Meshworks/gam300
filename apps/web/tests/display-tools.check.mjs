@@ -32,7 +32,13 @@ try {
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(process.argv[2] ?? "http://127.0.0.1:5173/");
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
-  await page.getByRole("button", { name: "Scene tree", exact: true }).click();
+  await page.getByRole("button", { name: "Asset library", exact: true }).click();
+  await page
+    .locator(".asset-picker")
+    .getByRole("button", { name: "test-room", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+  await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   await mkdir(screenshots, { recursive: true });
   let placed = 0;
   for (const tray of trays) {
@@ -82,6 +88,19 @@ try {
       assert.equal(await options.count(), 0);
       const selectedSource = await trigger.locator("img").getAttribute("src");
       assert.ok(new URL(selectedSource, page.url()).pathname.endsWith(filename));
+      assert.equal(
+        await trigger.locator("img").evaluate((image) => {
+          const bounds = image.getBoundingClientRect();
+          const button = image.parentElement.getBoundingClientRect();
+          return (
+            bounds.left >= button.left &&
+            bounds.top >= button.top &&
+            bounds.right <= button.right &&
+            bounds.bottom <= button.bottom
+          );
+        }),
+        true,
+      );
       placed += 1;
       await page.waitForFunction(
         (count) => document.querySelectorAll(".object-row").length === count,
