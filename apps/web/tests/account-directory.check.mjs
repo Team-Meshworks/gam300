@@ -160,13 +160,41 @@ try {
     await page.keyboard.press("Escape");
     await dialog.waitFor({ state: "detached" });
   }
+  // Returning to the list must clear the selected organisation so reopening it fetches fresh data.
+  await page.evaluate(() => {
+    window.heardSounds = [];
+    HTMLMediaElement.prototype.play = function () {
+      window.heardSounds.push(new URL(this.src).pathname);
+      return Promise.resolve();
+    };
+  });
+  await page.getByRole("button", { name: "All organisations", exact: true }).click();
+  assert.equal(
+    await page.getByRole("heading", { name: "Organisations", exact: true }).isVisible(),
+    true,
+  );
+  assert.deepEqual(
+    await page.evaluate(() =>
+      window.heardSounds.map((path) =>
+        path
+          .split("/")
+          .pop()
+          .replace(/-[\w-]{8}\.wav$/, ".wav"),
+      ),
+    ),
+    ["going-back.wav"],
+    "Returning to the organisation list keeps the navigation sound",
+  );
+  rows[0].displayName = "Aisyah Refreshed";
+  await page.getByRole("button", { name: "Open Ridgeview Secondary School" }).click();
+  await page.getByRole("button", { name: "View account for Aisyah Refreshed" }).waitFor();
   const storage = await page.evaluate(() =>
     JSON.stringify({ local: { ...localStorage }, session: { ...sessionStorage } }),
   );
   assert.ok(!storage.includes("password1") && !storage.includes("password2"));
   assert.deepEqual(errors, []);
   console.log(
-    "Account directory browser checks passed: create, override, errors, reload, filters, lifecycle, mobile.",
+    "Account directory browser checks passed: create, override, errors, reload, filters, lifecycle, mobile, return navigation and sound.",
   );
 } finally {
   await browser.close();

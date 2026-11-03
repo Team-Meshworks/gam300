@@ -44,6 +44,7 @@ export function useProjectSession(
   objectCount: number,
   onReplace: () => void,
   onNotice: (message: string) => void,
+  onSaved?: () => void,
 ) {
   const kinds = useMemo(() => new Map(assets.map((asset) => [asset.id, asset.kind])), [assets]);
   const [operation, setOperation] = useState<Operation>("recover");
@@ -85,10 +86,11 @@ export function useProjectSession(
     if (project === null) {
       return null;
     }
-    const encoded = serializeProject(project, kinds);
+    const encoded = serializeProject(project, kinds, { allowDraftLinks: true });
     return encoded.ok ? encoded.value : null;
   }, [project, kinds]);
-  const dirty = project === null ? objectCount > 0 : currentJson !== savedJson;
+  const dirty =
+    project === null ? objectCount > 0 : currentJson === null || currentJson !== savedJson;
   // An untouched scene has nothing to lose when starting over
   // The first object edit replaces this snapshot and enables the save question
   const needsDecision = dirty && (project === null || project !== pristineProject);
@@ -118,8 +120,9 @@ export function useProjectSession(
       );
       if (!result.ok) {
         // Stop retrying a stale session over and over while the student is editing
+        // Content errors can be corrected by the next edit; storage failures stay paused.
         // Manual Save can still preserve the project in its JSON file
-        local.paused = true;
+        local.paused = result.error.path === "storage";
         setError(result.error.message);
         return false;
       }
@@ -221,7 +224,8 @@ export function useProjectSession(
             if (link) {
               const checked = deserializeProject(link.text, kinds);
               if (checked.ok && checked.value.projectId === legacy.value.document.projectId) {
-                baseline = JSON.stringify(checked.value);
+                const encoded = serializeProject(checked.value, kinds);
+                if (encoded.ok) baseline = encoded.value;
               }
             }
             recovered = {
@@ -266,11 +270,14 @@ export function useProjectSession(
           }
           return;
         }
-        const loaded = store.loadProject(
-          JSON.stringify(recovered.document),
-          kinds,
-          recovered.history,
-        );
+        const encoded = serializeProject(recovered.document, kinds, { allowDraftLinks: true });
+        if (!encoded.ok) {
+          setError(encoded.error.message);
+          return;
+        }
+        const loaded = store.loadProject(encoded.value, kinds, recovered.history, {
+          allowDraftLinks: true,
+        });
         if (!loaded.ok) {
           setError(loaded.error.message);
           return;
@@ -393,6 +400,7 @@ export function useProjectSession(
       setSavedJson(encoded.value);
       setFileFailed(false);
       setNotice(`Saved ${handle.name}`);
+      onSaved?.();
 
       // Store the manual-save baseline alongside this snapshot for the next visit
       await persist(current, undefined, recoveryHistory);
@@ -457,6 +465,16 @@ export function useProjectSession(
       }
       local.busy = true;
 
+      // Use wire bytes for internal handoff too: normalized defaults can exceed the raw file limit.
+      const encoded =
+        candidate.document === null
+          ? { ok: true as const, value: null }
+          : serializeProject(candidate.document, kinds);
+      if (!encoded.ok) {
+        setError(encoded.error.message);
+        return;
+      }
+
       // Commit the next recovery record before replacing the visible scene
       // A storage failure must leave the current project available to save
       if (!(await persist(candidate.document, candidate))) {
@@ -467,7 +485,7 @@ export function useProjectSession(
       const loaded =
         candidate.document === null
           ? { ok: true as const, value: null }
-          : store.loadProject(JSON.stringify(candidate.document), kinds);
+          : store.loadProject(encoded.value, kinds);
       if (!loaded.ok) {
         setError(loaded.error.message);
         return;
@@ -531,10 +549,15 @@ export function useProjectSession(
         setError("The scene changed while reading the file; try Open again");
         return;
       }
+      const baseline = serializeProject(checked.value, kinds);
+      if (!baseline.ok) {
+        setError(baseline.error.message);
+        return;
+      }
       candidate = {
         document: checked.value,
         fileName: file.name,
-        savedJson: converted ? null : JSON.stringify(checked.value),
+        savedJson: converted ? null : baseline.value,
         fileText: converted ? "" : text,
         handle,
         pristine: false,
@@ -588,7 +611,8 @@ export function useProjectSession(
   }
 
   async function openSample(document: unknown) {
-    const result = deserializeProject(JSON.stringify(document), kinds);
+    const encoded = serializeProject(document, kinds);
+    const result = encoded.ok ? deserializeProject(encoded.value, kinds) : encoded;
     if (!result.ok) {
       setError(result.error.message);
       return;

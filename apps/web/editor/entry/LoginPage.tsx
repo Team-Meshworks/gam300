@@ -12,6 +12,7 @@ import { Button } from "../../shared/ui/Button";
 import { Field } from "../../shared/ui/Field";
 import { Dialog } from "../../shared/ui/Dialog";
 import { createAccountClient, type AccountSession } from "../accounts/account-client";
+import { leaveLinkWithUiSound } from "../audio/ui-sounds";
 import { EntryBrand } from "./EntryBrand";
 import exhibit from "./assets/login-exhibit.png";
 
@@ -114,7 +115,11 @@ export function LoginPage() {
       </a>
       <header className="entry-header">
         <EntryBrand />
-        <a className="entry-back" href="/landing">
+        <a
+          className="entry-back"
+          href="/landing"
+          onClick={(event) => leaveLinkWithUiSound("goingBack", event)}
+        >
           <FontAwesomeIcon icon={faArrowLeft} aria-hidden="true" />
           Back to home
         </a>

@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import { Avatar } from "../../shared/ui/Avatar";
 import { Button } from "../../shared/ui/Button";
 import { SearchField } from "../../shared/ui/SearchField";
+import { playUiSound } from "../audio/ui-sounds";
 import { AccountList, type AccountActions } from "./AccountList";
 import type { DirectoryOrganization } from "./directory";
 import "./directory.css";
@@ -39,6 +40,7 @@ export function OrganizationDirectory({
             onClick={() => {
               setSelected(null);
               onSelect?.(null);
+              playUiSound("goingBack");
             }}
           >
             All organisations

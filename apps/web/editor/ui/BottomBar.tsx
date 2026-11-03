@@ -7,7 +7,8 @@ import {
   type MouseEvent,
   type PointerEvent,
 } from "react";
-import type { CatalogueAsset } from "../../shared/asset-runtime/catalogue";
+import { assetDragType, type CatalogueAsset } from "../../shared/asset-runtime/catalogue";
+import { playUiSound } from "../audio/ui-sounds";
 import type { NavigationTool } from "../graphics/scene";
 import { AssetPicker } from "./AssetPicker";
 import { dockEdges, loadDockEdge, nearestEdge, saveDockEdge, type DockEdge } from "./dock-edge";
@@ -21,7 +22,7 @@ const cameraTools: { id: NavigationTool; label: string; hint: string; icon: Icon
 ];
 
 type Category = "furniture" | "panels" | "cases" | "audio";
-type SceneTool = "library" | "hotspot" | Category;
+type SceneTool = "library" | Category;
 type Item = { label: string; icon: IconName };
 type PopupId = Category | "dock";
 
@@ -56,6 +57,7 @@ const categories: { id: Category; label: string; items: [Item, ...Item[]] }[] = 
 
 export function BottomBar({
   assets,
+  hotspot,
   ready,
   thumbnailFor,
   onAdd,
@@ -64,6 +66,7 @@ export function BottomBar({
   onToolChange,
 }: {
   assets: readonly CatalogueAsset[];
+  hotspot: CatalogueAsset;
   ready: boolean;
   thumbnailFor: (assetId: string) => string | undefined;
   onAdd: (assetId: string) => void;
@@ -111,20 +114,25 @@ export function BottomBar({
 
   useEffect(() => {
     if (!libraryOpen) return;
-    // Same for the asset library, clicks on the bar itself are left for its own buttons
-    function closeOutside(event: globalThis.PointerEvent) {
+    // Keep background controls inactive without blocking the existing drag-and-drop placement path
+    function blockOutside(event: Event) {
       const inside = [picker.current, dock.current].some(
         (element) => event.target instanceof Node && element?.contains(event.target),
       );
-      if (!inside) setSelected(null);
+      if (!inside) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
     }
     function closeOnEscape(event: KeyboardEvent) {
       if (event.key === "Escape") setSelected(null);
     }
-    document.addEventListener("pointerdown", closeOutside);
+    document.addEventListener("pointerdown", blockOutside, true);
+    document.addEventListener("click", blockOutside, true);
     document.addEventListener("keydown", closeOnEscape);
     return () => {
-      document.removeEventListener("pointerdown", closeOutside);
+      document.removeEventListener("pointerdown", blockOutside, true);
+      document.removeEventListener("click", blockOutside, true);
       document.removeEventListener("keydown", closeOnEscape);
     };
   }, [libraryOpen]);
@@ -208,7 +216,7 @@ export function BottomBar({
         // Outside the dock so it can be big and centred in the scene, not squeezed into the bar
         <div className="asset-picker-layer" ref={picker}>
           <AssetPicker
-            assets={assets}
+            assets={assets.filter((asset) => asset.id !== "test-room-module-v1")}
             ready={ready}
             thumbnailFor={thumbnailFor}
             onAdd={onAdd}
@@ -227,7 +235,7 @@ export function BottomBar({
       >
         <div className="tool-tip-anchor">
           {cameraTip.bubble}
-          <div className="mode-bar" role="group" aria-label="Camera tools">
+          <div className="mode-bar" role="group" aria-label="Camera tools" inert={libraryOpen}>
             {cameraTools.map((cameraTool) => (
               <button
                 key={cameraTool.id}
@@ -280,6 +288,7 @@ export function BottomBar({
                         onClick={() => {
                           setPicked((previous) => ({ ...previous, [open.id]: index }));
                           setPopup(null);
+                          playUiSound("assetSelect");
                         }}
                         {...popupTip.handlers(item.label)}
                       >
@@ -317,10 +326,18 @@ export function BottomBar({
             <button
               className="ui-button"
               type="button"
-              aria-label="Hotspot"
-              aria-pressed={selected === "hotspot"}
-              onClick={() => select("hotspot")}
-              {...toolTip.handlers("Hotspot")}
+              draggable={ready && !libraryOpen}
+              disabled={!ready || libraryOpen}
+              aria-label={`Add ${hotspot.name}`}
+              title="Drag into the scene, or click to add"
+              onClick={() => onAdd(hotspot.id)}
+              onDragStart={(event) => {
+                event.dataTransfer.setData(assetDragType, hotspot.id);
+                event.dataTransfer.effectAllowed = "copy";
+                onDragChange(true);
+              }}
+              onDragEnd={() => onDragChange(false)}
+              {...toolTip.handlers(hotspot.name)}
             >
               <Icon name="hotspot" />
             </button>

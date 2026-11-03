@@ -59,6 +59,7 @@ export default defineConfig(({ command, mode }) => {
         output: {
           codeSplitting: {
             groups: [
+              { name: "project-format", test: /[\\/]shared[\\/]project[\\/]/ },
               { name: "three-core", test: /[\\/]three[\\/]build[\\/]three\.core\.js$/ },
               { name: "react", test: /[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/ },
             ],

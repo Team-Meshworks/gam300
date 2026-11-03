@@ -5,5 +5,7 @@ public sealed record LegacyScene(
     string Name,
     string EnvironmentAssetId,
     CameraPose StartCamera,
-    LegacyObject[] Objects
+    LegacyObject[] Objects,
+    ProjectHotspot[] Hotspots,
+    Interaction[] Interactions
 );

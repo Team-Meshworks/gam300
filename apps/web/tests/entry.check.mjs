@@ -143,6 +143,8 @@ try {
   await page.keyboard.press("Enter");
   await page.getByRole("heading", { name: "Welcome back.", exact: true }).waitFor();
   await page.getByRole("link", { name: /back to home/i }).click();
+  // The link waits a moment so its sound can start before the page changes
+  await page.waitForURL("**/landing");
   assert.equal(new URL(page.url()).pathname, "/landing");
   await page
     .getByRole("link", { name: /start a classroom/i })

@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { assets } from "virtual:asset-catalogue";
+import { HOTSPOT_ASSET, HOTSPOT_ASSET_ID } from "../shared/asset-runtime/hotspot";
 import type { Vector3Tuple } from "../shared/project/scene-object";
-import type { Transform } from "../shared/project/project-types";
+import type { HotspotDropTarget, ProjectHotspot, Transform } from "../shared/project/project-types";
 import { missingProjectCapabilities } from "../shared/project/project-capabilities";
+import { playUiSound } from "./audio/ui-sounds";
 import { createDocumentStore } from "./document-store";
 import {
   handleDeleteShortcut,
@@ -12,7 +14,9 @@ import {
 } from "./history-shortcuts";
 import type { NavigationTool, ViewportStatus } from "./graphics/scene";
 import type { ModeManager, ModeManagerState } from "./graphics/modeManager";
+import { createInteractionHandler, type Interaction } from "./interaction/interactionHandler";
 import { BottomBar } from "./ui/BottomBar";
+import { PreviewTargets } from "./ui/PreviewTargets";
 import { SidePanels } from "./ui/SidePanels";
 import { TopBar } from "./ui/TopBar";
 import { OlderSceneImport } from "./OlderSceneImport";
@@ -24,10 +28,13 @@ import { ProjectConfirmation } from "./ProjectConfirmation";
 import { useProjectSession } from "./persistence/use-project-session";
 
 // Same catalog used by the viewport; saved references need to resolve here too
-const assetKinds = new Map(assets.map((asset) => [asset.id, asset.kind]));
+const editorAssets = [...assets, HOTSPOT_ASSET];
+const assetKinds = new Map(editorAssets.map((asset) => [asset.id, asset.kind]));
+const EMPTY_INTERACTIONS: readonly Interaction[] = Object.freeze([]);
+const EMPTY_HOTSPOTS: readonly ProjectHotspot[] = Object.freeze([]);
 
 export function App() {
-  const [store] = useState(() => createDocumentStore(assets));
+  const [store] = useState(() => createDocumentStore(editorAssets));
   const { objects, project, activeSceneId, loadGeneration, canUndo, canRedo } =
     useSyncExternalStore(store.subscribe, store.getSnapshot);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -36,7 +43,7 @@ export function App() {
     setGeneratedThumbnails((previous) => ({ ...previous, [id]: url }));
   }, []);
   const thumbnailFor = (id: string) =>
-    assets.find((asset) => asset.id === id)?.thumbnail ?? generatedThumbnails[id];
+    editorAssets.find((asset) => asset.id === id)?.thumbnail ?? generatedThumbnails[id];
   const [status, setStatus] = useState<ViewportStatus>("loading");
   const [attempt, setAttempt] = useState(0);
   const [dragging, setDragging] = useState(false);
@@ -57,8 +64,15 @@ export function App() {
   const [manager, setManager] = useState<ModeManager | null>(null);
   const [modeState, setModeState] = useState<ModeManagerState | null>(null);
   const selection = objects.some((object) => object.id === selectedId) ? selectedId : null;
-  const projectScene = project?.scenes.find((scene) => scene.id === activeSceneId);
-  const roomAsset = assets.find((asset) => asset.id === projectScene?.environmentAssetId);
+  const projectScene = useMemo(
+    () => project?.scenes.find((scene) => scene.id === activeSceneId),
+    [project, activeSceneId],
+  );
+  const groups =
+    project?.schemaVersion === 2
+      ? (project.scenes.find((scene) => scene.id === activeSceneId)?.groups ?? [])
+      : [];
+  const groupSelected = groups.some((group) => group.id === selectedId);
 
   // Room selection uses the scene ID because its asset lives in the environment field
   // Object commands still receive only placed-object IDs
@@ -68,6 +82,36 @@ export function App() {
   const hasChanges = project !== null || objects.length > 0 || hasDeleted;
   const visitor = modeState?.mode === "visitor";
   const [navigationTool, setNavigationTool] = useState<NavigationTool>("select");
+  const interactions = projectScene?.interactions ?? EMPTY_INTERACTIONS;
+  const hotspots = projectScene?.hotspots ?? EMPTY_HOTSPOTS;
+
+  const interactionHandler = useMemo(
+    () => createInteractionHandler(interactions, hotspots),
+    [interactions, hotspots],
+  );
+  const interactionHandlerRef = useRef(interactionHandler);
+  useEffect(() => {
+    interactionHandlerRef.current = interactionHandler;
+  }, [interactionHandler]);
+  // Leaving Preview, replacing the handler or unmounting ends that preview session
+  useEffect(() => {
+    if (!visitor) return;
+    interactionHandler.sceneStarted();
+    return () => interactionHandler.reset();
+  }, [visitor, interactionHandler]);
+  const onObjectClick = useCallback((id: string) => {
+    interactionHandlerRef.current.objectClicked(id);
+  }, []);
+  const onSceneUpdate = useCallback((deltaSeconds: number) => {
+    interactionHandlerRef.current.update(deltaSeconds);
+  }, []);
+  const onInteractionsChange = useCallback(
+    (next: Interaction[]) => {
+      const result = store.setInteractions(next);
+      if (!result.ok) setNotice(result.error.message);
+    },
+    [store, setNotice],
+  );
 
   const onManager = useCallback((next: ModeManager) => {
     setManager(next);
@@ -82,7 +126,19 @@ export function App() {
     setError("");
     setHasDeleted(false);
   }, []);
-  const session = useProjectSession(store, assets, project, objects.length, onReplace, setNotice);
+  const session = useProjectSession(
+    store,
+    editorAssets,
+    project,
+    objects.length,
+    onReplace,
+    setNotice,
+    () => playUiSound("save"),
+  );
+  // Here rather than in the dialog, whose mount effect run twice in development
+  useEffect(() => {
+    if (session.confirmation) playUiSound("warning");
+  }, [session.confirmation]);
   const storageOperation = session.operation;
   const switching =
     storageOperation === "switch" ||
@@ -102,6 +158,7 @@ export function App() {
     setHasDeleted(true);
     setSelectedId(null);
     setNotice(`Deleted ${result.value.name}. Undo restores it.`);
+    playUiSound("delete");
   }, [store, selection, visitor, setNotice]);
 
   useEffect(() => {
@@ -194,11 +251,33 @@ export function App() {
     [store, setNotice],
   );
 
-  function place(assetId: string, position: Vector3Tuple) {
+  function place(assetId: string, position: Vector3Tuple, hotspotTarget?: HotspotDropTarget) {
     if (visitor) {
       return;
     }
     session.clearError();
+    if (assetId === HOTSPOT_ASSET_ID) {
+      if (projectScene === undefined) {
+        setNotice("Choose a room before adding hotspots");
+        return;
+      }
+      const objectId = hotspotTarget?.objectId ?? selection;
+      if (objectId === null) {
+        setNotice("Select an object to attach the hotspot to");
+        return;
+      }
+      const result = store.addHotspot(
+        objectId,
+        hotspotTarget?.objectId === objectId ? hotspotTarget.localPosition : [0, 0, 0],
+      );
+      if (!result.ok) {
+        setError(result.error.message);
+        return;
+      }
+      setError("");
+      setNotice("Hotspot attached to the selected object");
+      return;
+    }
 
     // Choosing the first room turns the grid scene into a saveable project
     // Room placement uses the environment slot so it survives JSON reconstruction
@@ -208,11 +287,17 @@ export function App() {
         return;
       }
 
-      // The library keeps the room available after placement
-      // Dropping the current room again leaves the scene and undo history alone
+      // The same room tile creates the environment first and independent room instances afterward
+      // Keep the model reference used by saved room instances behind this one catalogue choice
       if (projectScene?.environmentAssetId === assetId) {
+        const added = store.addObject("test-room-module-v1", position);
+        if (added.ok) {
+          setSelectedId(added.object.id);
+          setNotice(`Added ${added.object.name}`);
+        } else {
+          setError(added.error);
+        }
         setDragging(false);
-        setNotice("This room is already in the scene");
         return;
       }
       if (project !== null) {
@@ -221,6 +306,7 @@ export function App() {
         else {
           setError("");
           setNotice("Scene environment updated. Undo is available.");
+          playUiSound("assetPlace");
         }
         setDragging(false);
         return;
@@ -231,11 +317,13 @@ export function App() {
         return;
       }
       setError("");
+      setSelectedId(created.value.scenes[0]!.id);
       setDragging(false);
       if (created.value.scenes[0]?.objects.length === 0) {
         session.markPristine(created.value);
       }
       setNotice("Project created; choose Save to name its file");
+      playUiSound("assetPlace");
       return;
     }
     // Clicks and drops share this path; room selection starts the project before furnishing it
@@ -245,7 +333,11 @@ export function App() {
       return;
     }
 
-    const result = store.addObject(assetId, position);
+    const result = store.addObject(
+      assetId,
+      position,
+      roomSelected || groupSelected ? selectedId : selection,
+    );
     if (!result.ok) {
       setError(result.error);
       return;
@@ -253,6 +345,7 @@ export function App() {
     setError("");
     setSelectedId(result.object.id);
     setNotice(`Added ${result.object.name}`);
+    playUiSound("assetPlace");
   }
 
   return (
@@ -283,9 +376,13 @@ export function App() {
             return;
           }
           manager?.setMode("visitor");
+          playUiSound("enterPreview");
           document.getElementById("viewport")?.focus();
         }}
-        onExitPreview={() => manager?.setMode("editor")}
+        onExitPreview={() => {
+          manager?.setMode("editor");
+          playUiSound("goingBack");
+        }}
       />
       {/* Reset the input so choosing the same file again still fires a change */}
       <input
@@ -345,25 +442,53 @@ export function App() {
               ? undefined
               : {
                   id: projectScene.id,
-                  name: roomAsset?.name ?? projectScene.name,
+                  name: projectScene.name,
                   thumbnail: thumbnailFor(projectScene.environmentAssetId),
                 }
           }
+          groups={groups}
+          hierarchy={{
+            // Route room and object renames through the same validation and undo history
+            rename(id, name) {
+              const result = store.renameObject(id, name);
+              if (!result.ok) setError(result.error.message);
+              return result.ok;
+            },
+            // The store owns validation and undo; panels only choose the requested operation
+            move(id, parentId) {
+              const result = store.reparent(id, parentId);
+              if (!result.ok) {
+                setError(result.error.message);
+                return;
+              }
+              setError("");
+              setNotice("Hierarchy updated. Undo is available.");
+            },
+          }}
           objects={objects}
-          selectedId={roomSelected ? projectScene.id : selection}
+          selectedId={roomSelected ? projectScene.id : groupSelected ? selectedId : selection}
           selectedObject={selectedObject}
+          hotspots={hotspots}
+          interactions={interactions}
           thumbnailFor={thumbnailFor}
           onSelect={setSelectedId}
           onTransform={onTransform}
+          onInteractionsChange={onInteractionsChange}
+          onLocate={(id) => {
+            const object = objects.find((entry) => entry.id.toLowerCase() === id.toLowerCase());
+            if (!object) return;
+            setSelectedId(object.id);
+            viewCamera?.locate(object.id);
+          }}
         />
 
         <Viewport
           key={activeSceneId ?? "grid"}
           onCamera={setViewCamera}
-          assets={assets}
+          loadGeneration={loadGeneration}
+          assets={editorAssets}
           objects={objects}
           projectScene={projectScene ?? null}
-          loadGeneration={loadGeneration}
           selectedId={roomSelected ? projectScene.id : selection}
           dragging={dragging}
           editingEnabled={!switching}
@@ -374,6 +499,8 @@ export function App() {
           onThumbnail={onThumbnail}
           onSelect={setSelectedId}
           onTransform={onTransform}
+          onObjectClick={onObjectClick}
+          onSceneUpdate={onSceneUpdate}
           onPlace={place}
           onDragFinish={() => setDragging(false)}
           onRetry={() => {
@@ -382,9 +509,18 @@ export function App() {
           }}
           onManager={onManager}
         >
+          {visitor && (
+            <PreviewTargets
+              objects={objects}
+              hotspots={hotspots}
+              interactions={interactions}
+              onActivate={onObjectClick}
+            />
+          )}
           {!visitor && (
             <BottomBar
               assets={assets}
+              hotspot={HOTSPOT_ASSET}
               ready={status === "ready"}
               thumbnailFor={thumbnailFor}
               onAdd={(assetId) => place(assetId, [0, 0, 0])}

@@ -1,11 +1,15 @@
 import { useState, type ReactNode } from "react";
 import type { SceneObject } from "../../shared/project/scene-object";
-import type { Transform, Vector3Tuple } from "../../shared/project/project-types";
+import type { ProjectHotspot, Transform, Vector3Tuple } from "../../shared/project/project-types";
 import { Icon, type IconName } from "./Icon";
+import type { Interaction } from "../interaction/interactionHandler";
+import { InteractionPanel } from "./InteractionPanel";
 import { degreesToQuaternion, quaternionToDegrees } from "./rotation-angles";
 
+import { SceneTreePanel, type Room, type HierarchyActions } from "./SceneTreePanel";
+import type { ProjectGroup } from "../../shared/project/project-content";
+
 type PanelId = "scenes" | "position" | "tree" | "interaction" | "views";
-type Room = { id: string; name: string; thumbnail: string | undefined };
 
 const railButtons: { id: PanelId; label: string; icon: IconName }[] = [
   { id: "position", label: "Position", icon: "axes" },
@@ -23,10 +27,18 @@ export function SidePanels({
   objects,
   selectedId,
   selectedObject,
+  hotspots,
+  interactions,
   thumbnailFor,
   onSelect,
   onTransform,
+  onInteractionsChange,
+  onLocate,
+  groups,
+  hierarchy,
 }: {
+  groups: readonly ProjectGroup[];
+  hierarchy: HierarchyActions;
   visitor: boolean;
   savedViews: ReactNode;
   scenes: ReactNode;
@@ -34,9 +46,13 @@ export function SidePanels({
   objects: readonly SceneObject[];
   selectedId: string | null;
   selectedObject: SceneObject | undefined;
+  hotspots: readonly ProjectHotspot[];
+  interactions: readonly Interaction[];
   thumbnailFor: (assetId: string) => string | undefined;
   onSelect: (id: string) => void;
   onTransform: (id: string, transform: Transform) => void;
+  onLocate: (id: string) => void;
+  onInteractionsChange: (next: Interaction[]) => void;
 }) {
   // Open the tree first so new project can see whats inside
   const [panel, setPanel] = useState<PanelId | null>("tree");
@@ -71,8 +87,12 @@ export function SidePanels({
           )}
           {panel === "tree" && (
             <SceneTreePanel
+              key={room?.id ?? "draft"}
               room={room}
+              groups={groups}
+              hierarchy={hierarchy}
               objects={objects}
+              hotspots={hotspots}
               selectedId={selectedId}
               onSelect={onSelect}
               thumbnailFor={thumbnailFor}
@@ -81,8 +101,13 @@ export function SidePanels({
           {panel === "scenes" && <div className="editor-panel">{scenes}</div>}
           {panel === "views" && <div className="editor-panel">{savedViews}</div>}
           {panel === "interaction" && (
-            // No hotspots in the project format yet, so nothing selected is one
-            <InteractionPanel hotspotName={undefined} />
+            <InteractionPanel
+              interactions={interactions}
+              hotspots={hotspots}
+              objects={objects}
+              onChange={onInteractionsChange}
+              onLocate={onLocate}
+            />
           )}
         </div>
       )}
@@ -240,132 +265,5 @@ function NumberField({
         }
       }}
     />
-  );
-}
-
-function SceneTreePanel({
-  room,
-  objects,
-  selectedId,
-  onSelect,
-  thumbnailFor,
-}: {
-  room: Room | undefined;
-  objects: readonly SceneObject[];
-  selectedId: string | null;
-  onSelect: (id: string) => void;
-  thumbnailFor: (assetId: string) => string | undefined;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const count = objects.length + (room === undefined ? 0 : 1);
-  return (
-    <section className="editor-panel" aria-labelledby="objects-heading">
-      <PanelHeading id="objects-heading">
-        Scene Tree <span className="panel-count">{count}</span>
-      </PanelHeading>
-      {count === 0 ? (
-        <p className="panel-empty">Add a room from the asset library to start.</p>
-      ) : (
-        <>
-          <ul role="list" className={`scene-tree${expanded ? " is-expanded" : ""}`}>
-            {room !== undefined && (
-              <li>
-                <button
-                  className="environment-row"
-                  type="button"
-                  aria-pressed={selectedId === room.id}
-                  onClick={() => onSelect(room.id)}
-                >
-                  <img src={room.thumbnail} alt="" draggable={false} />
-                  <span>{room.name}</span>
-                </button>
-              </li>
-            )}
-            {objects.map((object) => (
-              <li key={object.id}>
-                <button
-                  className="object-row"
-                  type="button"
-                  aria-pressed={selectedId === object.id}
-                  data-object-id={object.id}
-                  onClick={() => onSelect(object.id)}
-                >
-                  <img src={thumbnailFor(object.assetId)} alt="" draggable={false} />
-                  <span>{object.name}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-          {count > 6 && (
-            <button
-              className="ui-button panel-pill"
-              type="button"
-              aria-expanded={expanded}
-              onClick={() => setExpanded((previous) => !previous)}
-            >
-              {expanded ? "Show less" : "View all"}
-            </button>
-          )}
-        </>
-      )}
-    </section>
-  );
-}
-
-const interactionSteps = [
-  { label: "Do", value: "Content type" },
-  { label: "Target", value: "Content" },
-];
-
-function InteractionPanel({ hotspotName }: { hotspotName: string | undefined }) {
-  return (
-    <section className="editor-panel" aria-labelledby="interaction-heading">
-      <PanelHeading id="interaction-heading">Interaction</PanelHeading>
-      {hotspotName === undefined ? (
-        // Only hotspots got interactions, other objects dont show the form
-        <div className="panel-placeholder">
-          <span className="panel-placeholder-icon" aria-hidden="true">
-            <Icon name="touch" />
-          </span>
-          <p>
-            <strong>Select a hotspot first</strong>
-          </p>
-          <p className="panel-empty">
-            Place a hotspot in the scene and select it to choose what happens when visitors interact
-            with it.
-          </p>
-        </div>
-      ) : (
-        <>
-          <div className="interaction-form" role="group" aria-label="New interaction">
-            <div className="interaction-step">
-              <span className="interaction-label">When</span>
-              <span className="panel-select is-fixed">{hotspotName}</span>
-            </div>
-            {interactionSteps.map((step) => (
-              <div key={step.label} className="interaction-step">
-                <span className="interaction-arrow">
-                  <Icon name="arrowDown" />
-                </span>
-                <span className="interaction-label">{step.label}</span>
-                <button
-                  className="ui-button panel-select"
-                  type="button"
-                  aria-label={`${step.label}: ${step.value} (coming soon)`}
-                  aria-disabled="true"
-                >
-                  {step.value}
-                  <Icon name="chevronRight" />
-                </button>
-              </div>
-            ))}
-            <button className="ui-button panel-pill" type="button" aria-disabled="true">
-              Add
-            </button>
-          </div>
-          <p className="panel-empty">Interactions you add will be listed here.</p>
-        </>
-      )}
-    </section>
   );
 }

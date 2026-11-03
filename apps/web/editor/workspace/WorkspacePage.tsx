@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createAccountClient, type AccountSession } from "../accounts/account-client";
+import { leaveWithUiSound } from "../audio/ui-sounds";
 import { WorkspaceShell } from "../../shared/ui/WorkspaceShell";
 import { Button } from "../../shared/ui/Button";
 import { NewProjectForm } from "../projects/NewProjectForm";
@@ -138,7 +139,9 @@ export function WorkspacePage() {
                 creatorName={session.displayName}
                 classes={[]}
                 students={[]}
-                onCancel={() => location.assign(cancelTarget ? `/${cancelTarget.id}` : fallback)}
+                onCancel={() =>
+                  leaveWithUiSound("goingBack", cancelTarget ? `/${cancelTarget.id}` : fallback)
+                }
               />
             </>
           )}

@@ -213,6 +213,75 @@ it("shares one undo order across incoming gizmo moves, edit sessions and deletio
   assert.equal(store.getSnapshot().objects.length, 0);
 });
 
+it("stores interactions in the project and reloads them with the scene", () => {
+  const assets: CatalogueAsset[] = [
+    {
+      id: "test-room-v1",
+      name: "Room",
+      kind: "environment",
+      url: "room.glb",
+      sha256: "0".repeat(64),
+      thumbnail: null,
+    },
+    {
+      id: "test-crate-v1",
+      name: "Crate",
+      kind: "model",
+      url: "crate.glb",
+      sha256: "0".repeat(64),
+      thumbnail: null,
+    },
+  ];
+  const store = createDocumentStore(assets);
+  assert.equal(store.setInteractions([]).ok, false);
+  const placed = store.addObject("test-crate-v1", [1, 0, 0]);
+  if (!placed.ok) throw new Error(placed.error);
+  assert.equal(store.createProject("test-room-v1").ok, true);
+  const hotspot = store.addHotspot(placed.object.id);
+  if (!hotspot.ok) throw new Error(hotspot.error.message);
+
+  const interactions = [
+    { when: { type: "scene-starts" as const }, do: { type: "print-hi" as const } },
+    {
+      when: { type: "visitor-clicks-hotspot" as const, targetHotspotId: hotspot.value.id },
+      do: { type: "open-link" as const, url: "https://example.com" },
+    },
+  ];
+  const saved = store.setInteractions(interactions);
+  assert.equal(saved.ok, true);
+  const scene = store.getSnapshot().project?.scenes[0];
+  assert.deepEqual(scene?.interactions, interactions);
+  assert.equal(Object.isFrozen(scene?.interactions), true);
+  assert.equal(Object.isFrozen(scene?.interactions[0]), true);
+  assert.equal(Object.isFrozen(scene?.interactions[0]?.when), true);
+
+  const reopened = createDocumentStore(assets);
+  const loaded = reopened.loadProject(
+    JSON.stringify(store.getSnapshot().project),
+    new Map(assets.map((asset) => [asset.id, asset.kind])),
+  );
+  assert.equal(loaded.ok, true);
+  assert.deepEqual(reopened.getSnapshot().objects, store.getSnapshot().objects);
+  assert.deepEqual(reopened.getSnapshot().project?.scenes[0]?.interactions, interactions);
+
+  assert.equal(
+    store.setInteractions([
+      {
+        when: { type: "visitor-clicks-hotspot", targetHotspotId: hotspot.value.id },
+        do: { type: "open-link", url: "https://[" },
+      },
+    ]).ok,
+    true,
+  );
+  assert.equal(
+    reopened.loadProject(
+      JSON.stringify(store.getSnapshot().project),
+      new Map(assets.map((asset) => [asset.id, asset.kind])),
+    ).ok,
+    false,
+  );
+});
+
 it("creates a saveable room project while preserving model IDs, transforms and history", () => {
   vi.spyOn(Date, "now").mockReturnValue(1645557742000);
   const assets: CatalogueAsset[] = [
@@ -268,4 +337,177 @@ it("creates a saveable room project while preserving model IDs, transforms and h
   if (!empty.ok) throw new Error(empty.error.message);
   assert.equal(empty.value.scenes[0]?.objects.length, 0);
   assert.notEqual(empty.value.projectId, created.value.projectId);
+});
+
+it("attaches hotspots to objects and removes their rules with the object", () => {
+  const assets: CatalogueAsset[] = [
+    {
+      id: "test-room-v1",
+      name: "Room",
+      kind: "environment",
+      url: "room.glb",
+      sha256: "0".repeat(64),
+      thumbnail: null,
+    },
+    {
+      id: "test-crate-v1",
+      name: "Crate",
+      kind: "model",
+      url: "crate.glb",
+      sha256: "0".repeat(64),
+      thumbnail: null,
+    },
+  ];
+  const store = createDocumentStore(assets);
+  const object = store.addObject("test-crate-v1", [1, 0, 0]);
+  if (!object.ok) throw new Error(object.error);
+  assert.equal(store.addHotspot(object.object.id).ok, false);
+  assert.equal(store.createProject("test-room-v1").ok, true);
+
+  assert.equal(store.addHotspot(object.object.id, [NaN, 0, 0]).ok, false);
+  const added = store.addHotspot(object.object.id, [0.25, 0, -0.5]);
+  if (!added.ok) throw new Error(added.error.message);
+  assert.deepEqual(added.value.position, [0.25, 0, -0.5]);
+  assert.deepEqual(store.getSnapshot().project?.scenes[0]?.hotspots, [added.value]);
+
+  const duplicate = store.addHotspot(object.object.id.toUpperCase(), [0, 0, 0]);
+  assert.equal(duplicate.ok, false);
+  if (!duplicate.ok) {
+    assert.equal(duplicate.error.message, "Each object can have at most one hotspot");
+  }
+
+  const unrelated = {
+    when: { type: "scene-starts" as const },
+    do: { type: "print-hi" as const },
+  };
+  assert.equal(
+    store.setInteractions([
+      unrelated,
+      {
+        when: { type: "visitor-clicks-hotspot", targetHotspotId: "missing" },
+        do: { type: "print-hi" },
+      },
+    ]).ok,
+    false,
+  );
+  const click = {
+    when: { type: "visitor-clicks-hotspot" as const, targetHotspotId: added.value.id },
+    do: { type: "print-hi" as const },
+  };
+  assert.equal(store.setInteractions([unrelated, click]).ok, true);
+
+  assert.equal(store.deleteObject(object.object.id).ok, true);
+  assert.deepEqual(store.getSnapshot().project?.scenes[0]?.hotspots, []);
+  assert.deepEqual(store.getSnapshot().project?.scenes[0]?.interactions, [unrelated]);
+  store.undo();
+  assert.equal(store.getSnapshot().objects.length, 1);
+  assert.deepEqual(store.getSnapshot().project?.scenes[0]?.hotspots, [added.value]);
+  assert.deepEqual(store.getSnapshot().project?.scenes[0]?.interactions, [unrelated, click]);
+});
+
+it("deleting a hotspot keeps unrelated interactions", () => {
+  const assets: CatalogueAsset[] = [
+    {
+      id: "test-room-v1",
+      name: "Room",
+      kind: "environment",
+      url: "room.glb",
+      sha256: "0".repeat(64),
+      thumbnail: null,
+    },
+    {
+      id: "test-crate-v1",
+      name: "Crate",
+      kind: "model",
+      url: "crate.glb",
+      sha256: "0".repeat(64),
+      thumbnail: null,
+    },
+  ];
+  const store = createDocumentStore(assets);
+  const object = store.addObject("test-crate-v1", [0, 0, 0]);
+  if (!object.ok) throw new Error(object.error);
+  assert.equal(store.createProject("test-room-v1").ok, true);
+  const hotspot = store.addHotspot(object.object.id);
+  if (!hotspot.ok) throw new Error(hotspot.error.message);
+  const sceneStart = {
+    when: { type: "scene-starts" as const },
+    do: { type: "print-hi" as const },
+  };
+  assert.equal(
+    store.setInteractions([
+      sceneStart,
+      {
+        when: { type: "visitor-clicks-hotspot", targetHotspotId: hotspot.value.id },
+        do: { type: "print-hi" },
+      },
+    ]).ok,
+    true,
+  );
+
+  assert.equal(store.deleteHotspot(hotspot.value.id).ok, true);
+  assert.deepEqual(store.getSnapshot().project?.scenes[0]?.hotspots, []);
+  assert.deepEqual(store.getSnapshot().project?.scenes[0]?.interactions, [sceneStart]);
+  assert.equal(store.deleteHotspot(hotspot.value.id).ok, false);
+});
+
+it("snaps rooms to vacant adjoining sides while preserving undo and saved positions", () => {
+  const assets: CatalogueAsset[] = ["test-room-v1", "test-room-module-v1", "test-crate-v1"].map(
+    (id) => ({
+      id,
+      name: id,
+      kind: id === "test-room-v1" ? "environment" : "model",
+      url: `${id}.glb`,
+      sha256: "0".repeat(64),
+      thumbnail: null,
+    }),
+  );
+  const store = createDocumentStore(assets);
+  assert.equal(store.createProject("test-room-v1").ok, true);
+  const add = (position: readonly [number, number, number]) => {
+    const result = store.addObject("test-room-module-v1", position);
+    assert.equal(result.ok, true);
+    if (!result.ok) throw new Error(result.error);
+    return result.object;
+  };
+  // Proximity chooses all four sides while occupied sides extend the layout outward
+  assert.deepEqual(add([8, 9, 1]).transform.position, [10, 0, 0]);
+  assert.deepEqual(add([-8, 0, 1]).transform.position, [-10, 0, 0]);
+  assert.deepEqual(add([1, 0, 8]).transform.position, [0, 0, 10]);
+  assert.deepEqual(add([1, 0, -8]).transform.position, [0, 0, -10]);
+  const next = add([19, 0, 0]);
+  assert.deepEqual(next.transform.position, [20, 0, 0]);
+  store.undo();
+  assert.equal(
+    store.getSnapshot().objects.some((object) => object.id === next.id),
+    false,
+  );
+  store.redo();
+  assert.deepEqual(store.getSnapshot().objects.at(-1), next);
+  // Reopening uses the saved snapped transform without a runtime-only correction
+  const reopened = createDocumentStore(assets);
+  assert.equal(
+    reopened.loadProject(
+      JSON.stringify(store.getSnapshot().project),
+      new Map(assets.map((asset) => [asset.id, asset.kind])),
+    ).ok,
+    true,
+  );
+  assert.deepEqual(reopened.getSnapshot().objects, store.getSnapshot().objects);
+  const crate = store.addObject("test-crate-v1", [2, 3, 4]);
+  assert.equal(crate.ok, true);
+  if (crate.ok) assert.deepEqual(crate.object.transform.position, [2, 3, 4]);
+  const before = store.getSnapshot();
+  assert.equal(store.addObject("test-room-module-v1", [NaN, 0, 0]).ok, false);
+  assert.equal(store.getSnapshot(), before);
+  // A moved and resized room supplies its actual footprint
+  assert.equal(
+    store.setTransform(next.id, {
+      ...next.transform,
+      position: [50, 0, 0],
+      scale: [2, 1, 1],
+    }).ok,
+    true,
+  );
+  assert.deepEqual(add([65, 0, 0]).transform.position, [65, 0, 0]);
 });
