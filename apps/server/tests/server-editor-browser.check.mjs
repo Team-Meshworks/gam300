@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readdir, readFile } from "node:fs/promises";
+import { join, relative } from "node:path";
 
 // Called inside the existing disposable HTTPS/PostgreSQL fixture. Only static editor
 // files are supplied by this test; login, reads, saves and conflicts use the real API.
@@ -21,6 +23,19 @@ export async function checkServerEditor(
       file.type === "chunk" ? file.code : file.source,
     ]),
   );
+  // Vite copies public files separately; write:false omits them from the bundle.
+  const publicDirectory = webRoot + "editor/public";
+  for (const entry of await readdir(publicDirectory, {
+    recursive: true,
+    withFileTypes: true,
+  })) {
+    if (!entry.isFile()) continue;
+    const path = join(entry.parentPath, entry.name);
+    files.set(
+      "/" + relative(publicDirectory, path).replaceAll("\\", "/"),
+      await readFile(path),
+    );
+  }
   const contexts = [];
   const open = async (account) => {
     const context = await browser.newContext({ ignoreHTTPSErrors: true });
@@ -63,6 +78,7 @@ export async function checkServerEditor(
     }, account.userName);
     assert.equal(login, 204);
     await page.goto(origin + "/_test/editor?projectId=" + account.projectId);
+    await page.getByText("Scene ready", { exact: true }).waitFor();
     await page.getByRole("button", { name: "Scenes", exact: true }).click();
     return page;
   };
