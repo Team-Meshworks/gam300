@@ -7,4 +7,6 @@ namespace Spatia.ProjectFormat;
 [JsonDerivedType(typeof(OpenLinkInteractionAction), "open-link")]
 [JsonDerivedType(typeof(PlayAudioInteractionAction), "play-audio")]
 [JsonDerivedType(typeof(PrintHiInteractionAction), "print-hi")]
+[JsonDerivedType(typeof(NavigateSceneInteractionAction), "navigate-scene")]
+[JsonDerivedType(typeof(MoveToViewpointInteractionAction), "move-to-viewpoint")]
 public abstract record InteractionAction;

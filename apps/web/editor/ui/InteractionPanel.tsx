@@ -1,12 +1,12 @@
 import type { SceneObject } from "../../shared/project/scene-object";
-import type { ProjectHotspot } from "../../shared/project/project-types";
+import type { ProjectHotspot, ProjectScene } from "../../shared/project/project-types";
 import { ACTIONS, type ActionType } from "../interaction/actionHandler";
 import { AUDIO_TRACKS } from "../interaction/audio";
 import type { Interaction } from "../interaction/interactionHandler";
 import { DEFAULT_ELAPSED_SECONDS, TRIGGERS, type TriggerType } from "../interaction/triggerHandler";
 import { Icon } from "./Icon";
 
-type Choice = { value: string; label: string };
+type Choice = { value: string; label: string; disabled?: boolean };
 
 const triggerChoices: Choice[] = TRIGGERS.map(({ type, label }) => ({ value: type, label }));
 const actionChoices: Choice[] = ACTIONS.map(({ type, label }) => ({ value: type, label }));
@@ -70,7 +70,13 @@ function withTriggerTarget(interaction: Interaction, targetHotspotId: string): I
   return { ...interaction, when: { type: "visitor-clicks-hotspot", targetHotspotId } };
 }
 
-function withActionType(interaction: Interaction, type: ActionType): Interaction {
+function withActionType(
+  interaction: Interaction,
+  type: ActionType,
+  scenes: readonly ProjectScene[],
+  activeSceneId: string | null,
+): Interaction {
+  const scene = scenes.find((entry) => entry.id === activeSceneId);
   switch (type) {
     case "open-link": {
       const url = interaction.do.type === "open-link" ? (interaction.do.url ?? "") : "";
@@ -83,6 +89,14 @@ function withActionType(interaction: Interaction, type: ActionType): Interaction
           : (AUDIO_TRACKS[0]?.url ?? "");
       return { ...interaction, do: { type, url } };
     }
+    case "navigate-scene": {
+      const destination = scenes.find((entry) => entry.id !== activeSceneId);
+      return destination ? { ...interaction, do: { type, sceneId: destination.id } } : interaction;
+    }
+    case "move-to-viewpoint": {
+      const view = scene?.viewpoints?.[0];
+      return view ? { ...interaction, do: { type, viewpointId: view.id } } : interaction;
+    }
     case "print-hi":
       return { ...interaction, do: { type } };
   }
@@ -92,16 +106,36 @@ export function InteractionPanel({
   interactions,
   hotspots,
   objects,
+  scenes = [],
+  activeSceneId = null,
   onChange,
   onLocate,
 }: {
   interactions: readonly Interaction[];
   hotspots: readonly ProjectHotspot[];
   objects: readonly SceneObject[];
+  scenes?: readonly ProjectScene[];
+  activeSceneId?: string | null;
   onChange: (next: Interaction[]) => void;
   onLocate: (objectId: string) => void;
 }) {
   const targets = hotspotChoices(hotspots, objects);
+  const sceneTargets = scenes.map((scene, index) => ({
+    value: scene.id,
+    label: `${index + 1}. ${scene.name}`,
+    disabled: scene.id === activeSceneId,
+  }));
+  const views = scenes.find((scene) => scene.id === activeSceneId)?.viewpoints ?? [];
+  const viewTargets = views.map((view, index) => ({
+    value: view.id,
+    label: `${index + 1}. ${view.name}`,
+  }));
+  const availableActions = actionChoices.map((choice) => ({
+    ...choice,
+    disabled:
+      (choice.value === "navigate-scene" && scenes.length < 2) ||
+      (choice.value === "move-to-viewpoint" && views.length === 0),
+  }));
 
   function update(index: number, next: Interaction) {
     onChange(interactions.map((rule, at) => (at === index ? next : rule)));
@@ -170,6 +204,7 @@ export function InteractionPanel({
                         label={`${name} hotspot`}
                         value={interaction.when.targetHotspotId}
                         choices={targets}
+                        entityId
                         emptyLabel="Attach a hotspot first"
                         onChange={(value) => update(index, withTriggerTarget(interaction, value))}
                         target
@@ -205,11 +240,42 @@ export function InteractionPanel({
                     <Dropdown
                       label={`${name} do`}
                       value={interaction.do.type}
-                      choices={actionChoices}
+                      choices={availableActions}
                       onChange={(value) =>
-                        update(index, withActionType(interaction, value as ActionType))
+                        update(
+                          index,
+                          withActionType(interaction, value as ActionType, scenes, activeSceneId),
+                        )
                       }
                     />
+                    {interaction.do.type === "navigate-scene" && (
+                      <Dropdown
+                        label={`${name} destination scene`}
+                        value={interaction.do.sceneId}
+                        choices={sceneTargets}
+                        entityId
+                        target
+                        onChange={(sceneId) =>
+                          update(index, { ...interaction, do: { type: "navigate-scene", sceneId } })
+                        }
+                      />
+                    )}
+                    {interaction.do.type === "move-to-viewpoint" && (
+                      <Dropdown
+                        label={`${name} destination viewpoint`}
+                        value={interaction.do.viewpointId}
+                        choices={viewTargets}
+                        entityId
+                        target
+                        emptyLabel="Capture a saved view first"
+                        onChange={(viewpointId) =>
+                          update(index, {
+                            ...interaction,
+                            do: { type: "move-to-viewpoint", viewpointId },
+                          })
+                        }
+                      />
+                    )}
                     {interaction.do.type === "open-link" && (
                       <UrlField
                         label={`${name} link`}
@@ -245,6 +311,13 @@ export function InteractionPanel({
       >
         + Add Interaction
       </button>
+      {(scenes.length < 2 || views.length === 0) && (
+        <p className="panel-empty">
+          {scenes.length < 2 && "Add another scene to enable Go to scene. "}
+          {views.length === 0 &&
+            "Capture a saved view in this scene to enable Go to saved viewpoint."}
+        </p>
+      )}
       {hotspots.length === 0 && (
         <p className="panel-empty">
           Select an object and add a hotspot to create a click interaction.
@@ -261,6 +334,7 @@ function Dropdown({
   choices,
   onChange,
   target = false,
+  entityId = false,
   emptyLabel = "None in scene yet",
 }: {
   label: string;
@@ -268,15 +342,19 @@ function Dropdown({
   choices: readonly Choice[];
   onChange: (value: string) => void;
   target?: boolean;
+  entityId?: boolean;
   emptyLabel?: string;
 }) {
   const empty = choices.length === 0;
-  const known = choices.some((choice) => choice.value === value);
+  const selected = choices.find((choice) =>
+    entityId ? choice.value.toLowerCase() === value.toLowerCase() : choice.value === value,
+  );
+  const known = selected !== undefined;
   return (
     <span className={`interaction-select${target ? " is-target" : ""}`}>
       <select
         aria-label={label}
-        value={empty || !known ? "" : value}
+        value={selected?.value ?? ""}
         disabled={empty}
         onChange={(event) => onChange(event.currentTarget.value)}
       >
@@ -287,7 +365,7 @@ function Dropdown({
           </option>
         )}
         {choices.map((choice) => (
-          <option key={choice.value} value={choice.value}>
+          <option key={choice.value} value={choice.value} disabled={choice.disabled}>
             {choice.label}
           </option>
         ))}

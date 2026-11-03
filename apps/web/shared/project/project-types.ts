@@ -64,7 +64,9 @@ export type InteractionTrigger =
 export type InteractionAction =
   | Readonly<{ type: "open-link"; url?: string }>
   | Readonly<{ type: "play-audio"; url?: string }>
-  | Readonly<{ type: "print-hi" }>;
+  | Readonly<{ type: "print-hi" }>
+  | Readonly<{ type: "navigate-scene"; sceneId: EntityId }>
+  | Readonly<{ type: "move-to-viewpoint"; viewpointId: EntityId }>;
 
 export type Interaction = Readonly<{
   when: InteractionTrigger;

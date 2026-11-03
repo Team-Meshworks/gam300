@@ -18,6 +18,7 @@ export class ModeManager {
   private readonly savedPosition = new THREE.Vector3();
   private readonly savedQuaternion = new THREE.Quaternion();
   private readonly savedTarget = new THREE.Vector3();
+  private savedFov: number | undefined;
   private state: ModeManagerState = { mode: "editor" };
 
   constructor(camera: THREE.Camera, orbit: OrbitControls, fps: FpsControls) {
@@ -58,6 +59,7 @@ export class ModeManager {
   }
 
   private enterVisitor(): void {
+    if (this.camera instanceof THREE.PerspectiveCamera) this.savedFov = this.camera.fov;
     this.savedPosition.copy(this.camera.position);
     this.savedQuaternion.copy(this.camera.quaternion);
     this.savedTarget.copy(this.orbit.target);
@@ -74,6 +76,10 @@ export class ModeManager {
   private exitVisitor(): void {
     if (this.state.mode !== "visitor") return;
     this.fps.disengage();
+    if (this.camera instanceof THREE.PerspectiveCamera && this.savedFov !== undefined) {
+      this.camera.fov = this.savedFov;
+      this.camera.updateProjectionMatrix();
+    }
     this.camera.position.copy(this.savedPosition);
     this.camera.quaternion.copy(this.savedQuaternion);
     this.orbit.target.copy(this.savedTarget);

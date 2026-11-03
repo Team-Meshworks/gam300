@@ -95,6 +95,20 @@ public static class ProjectCapabilities
                 }
             }
 
+            for (var j = 0; j < scene.Interactions.Length; j++)
+            {
+                var kind = scene.Interactions[j].Do switch
+                {
+                    NavigateSceneInteractionAction => "navigate-scene",
+                    MoveToViewpointInteractionAction => "move-to-viewpoint",
+                    _ => null,
+                };
+                if (kind is not null)
+                {
+                    Need($"interaction:{kind}", $"{path}.interactions[{j}].do");
+                }
+            }
+
             // Check execution requirements only for enabled rules after collecting content requirements
             for (var j = 0; j < scene.Rules.Length; j++)
             {
