@@ -35,7 +35,7 @@ public sealed class AdministrationEndpointTests
         await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.Created);
         var json = await response.Content.ReadFromJsonAsync<JsonElement>();
         await Assert.That(json.EnumerateObject().Select(property => property.Name).Order().SequenceEqual(
-            new[] { "isActive", "mustChangePassword", "orgId", "role", "userId", "userName" })).IsTrue();
+            new[] { "displayName", "isActive", "mustChangePassword", "orgId", "role", "userId", "userName" })).IsTrue();
         await Assert.That(json.GetProperty("userName").GetString()).IsEqualTo(userName);
         await Assert.That(json.GetProperty("role").GetString()).IsEqualTo(role);
         await Assert.That(json.GetProperty("isActive").GetBoolean()).IsTrue();

@@ -9,10 +9,12 @@ namespace Spatia.Server.Accounts;
 /// <param name="OrgId">The organization identifier, or null for an administrator</param>
 /// <param name="IsActive">Whether the account is enabled</param>
 /// <param name="MustChangePassword">Whether a password change is required before full account access</param>
+/// <param name="DisplayName">The person's name, falling back to the username for legacy accounts</param>
 public sealed record ProvisionedAccount(
     Guid UserId,
     string UserName,
     string Role,
     Guid? OrgId,
     bool IsActive,
-    bool MustChangePassword);
+    bool MustChangePassword,
+    string? DisplayName = null);

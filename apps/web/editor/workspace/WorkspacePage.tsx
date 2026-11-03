@@ -4,6 +4,7 @@ import { WorkspaceShell } from "../../shared/ui/WorkspaceShell";
 import { Button } from "../../shared/ui/Button";
 import { NewProjectForm } from "../projects/NewProjectForm";
 import { ClassAssignmentForm } from "../projects/ClassAssignmentForm";
+import { AccountDirectoryPage } from "../directory/AccountDirectoryPage";
 
 const client = createAccountClient();
 const screens = [
@@ -17,7 +18,7 @@ type Access =
   | { kind: "error"; message: string }
   | { kind: "ready"; session: AccountSession | null };
 
-// This shell contains no private records; future data adapters must enforce grants on the server
+// Route visibility follows the session; each screen's API enforces access to its records.
 export function WorkspacePage() {
   const [access, setAccess] = useState<Access>({ kind: "loading" });
   const [attempt, setAttempt] = useState(0);
@@ -156,11 +157,7 @@ export function WorkspacePage() {
               submissions can be loaded.
             </p>
           )}
-          {screen.id === "accounts" && (
-            <p role="status">
-              The account directory is currently unavailable. No account records have been loaded.
-            </p>
-          )}
+          {screen.id === "accounts" && <AccountDirectoryPage key={session.userId} />}
         </>
       )}
     </WorkspaceShell>

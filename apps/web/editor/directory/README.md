@@ -2,4 +2,8 @@
 
 `OrganizationDirectory` receives only organisations, projects and accounts the current user is authorized to inspect. Its data types are UI adapters, not an API contract; the host and server own access control and authoritative data. Key the directory by identity or authorization context when mounting it. Organisation search persists on return to the list, while the keyed account list resets its query and role filter on a switch.
 
-Project and account dialogs show read-only details through the host's `onPreview` callback. Organisation hide/delete and account changes remain unavailable. The preview uses fictional data and no backend. The directory uses the existing Inter font as a fallback for the Satoshi design; the preview project cover is the referenced Figma asset.
+`AccountDirectoryPage` connects the administrator `/accounts` route to live directory, provisioning, profile override and lifecycle APIs. It loads cursor pages for the selected organisation and refetches an account before opening its details. `AccountDialog` reuses the shared native modal for creation and field-by-field overrides. Facilitator is the display label for the server's Educator role. Passwords exist only in the mounted form; they are never read from the API or stored in browser storage.
+
+Project dialogs remain read-only through `onPreview`. The development preview uses fictional data and no backend. The directory retains the Inter font fallback for the Satoshi design. Destructive deletion and organisation transfers are not offered.
+
+`npm run test:accounts` checks browser interactions and responsive layout. The server's `AccountDirectoryBrowserTests` exercises creation, overrides, reload and sign-in through the real HTTPS API and disposable PostgreSQL database. Deploy the `AddAccountDisplayName` migration with the API.

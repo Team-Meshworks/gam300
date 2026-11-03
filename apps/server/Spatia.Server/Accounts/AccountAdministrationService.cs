@@ -198,7 +198,7 @@ public sealed class AccountAdministrationService(ApplicationDbContext database, 
         }
 
         cancellationToken.ThrowIfCancellationRequested();
-        var user = new ApplicationUser { UserName = request.UserName };
+        var user = new ApplicationUser { UserName = request.UserName, DisplayName = request.DisplayName?.Trim() ?? request.UserName };
         var created = await users.CreateAsync(user, request.InitialPassword);
         if (!created.Succeeded)
         {
@@ -225,11 +225,12 @@ public sealed class AccountAdministrationService(ApplicationDbContext database, 
         }
 
         return (IdentityResult.Success, new ProvisionedAccount(user.Id, request.UserName, request.Role,
-            request.OrgId, user.IsActive, user.MustChangePassword));
+            request.OrgId, user.IsActive, user.MustChangePassword, user.DisplayName));
     }
 
     private static bool IsValidAccount(ProvisionAccountRequest? request)
         => request is not null && IsValidName(request.UserName) && IsValidPassword(request.InitialPassword)
+            && (request.DisplayName is null || (IsValidName(request.DisplayName) && !request.DisplayName.Contains('\0')))
             && (request.Role == ApplicationRoles.Administrator
                 ? request.OrgId is null
                 : (request.Role == ApplicationRoles.Educator || request.Role == ApplicationRoles.Creator)

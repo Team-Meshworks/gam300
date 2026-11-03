@@ -2,7 +2,7 @@ import { useState, type ReactNode } from "react";
 import { Avatar } from "../../shared/ui/Avatar";
 import { Button } from "../../shared/ui/Button";
 import { SearchField } from "../../shared/ui/SearchField";
-import { AccountList } from "./AccountList";
+import { AccountList, type AccountActions } from "./AccountList";
 import type { DirectoryOrganization } from "./directory";
 import "./directory.css";
 
@@ -14,9 +14,19 @@ function countLabel(count: number, noun: string) {
 export function OrganizationDirectory({
   organizations,
   onPreview,
+  onSelect,
+  accountActions,
+  loading,
+  detailError,
+  projectError,
 }: {
   organizations: readonly DirectoryOrganization[];
   onPreview: (title: string, body: ReactNode) => void;
+  onSelect?: (id: string | null) => void;
+  accountActions?: AccountActions;
+  loading?: boolean;
+  detailError?: string;
+  projectError?: string;
 }) {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
@@ -25,7 +35,14 @@ export function OrganizationDirectory({
     return (
       <div className="sp-directory">
         <div>
-          <Button onClick={() => setSelected(null)}>All organisations</Button>
+          <Button
+            onClick={() => {
+              setSelected(null);
+              onSelect?.(null);
+            }}
+          >
+            All organisations
+          </Button>
         </div>
         <div className="sp-organization-detail">
           <section className="sp-card sp-directory">
@@ -34,26 +51,27 @@ export function OrganizationDirectory({
               <h2>{organization.name}</h2>
             </div>
             <p>{organization.description}</p>
-            <dl className="sp-summary">
-              <dt>Projects</dt>
-              <dd>{organization.projects.length}</dd>
-              <dt>Teachers</dt>
-              <dd>{organization.accounts.filter((item) => item.role === "Teachers").length}</dd>
-              <dt>Students</dt>
-              <dd>{organization.accounts.filter((item) => item.role === "Students").length}</dd>
-            </dl>
-            <div className="sp-actions">
-              <Button disabled>Hide organisation</Button>
-              <Button disabled>Delete organisation</Button>
-            </div>
+            {!onSelect && (
+              <dl className="sp-summary">
+                <dt>Projects</dt>
+                <dd>{organization.projects.length}</dd>
+                <dt>Teachers</dt>
+                <dd>{organization.accounts.filter((item) => item.role === "Teachers").length}</dd>
+                <dt>Students</dt>
+                <dd>{organization.accounts.filter((item) => item.role === "Students").length}</dd>
+              </dl>
+            )}
             <h3>Projects</h3>
+            {loading && <p role="status">Loading organisation…</p>}
+            {projectError && <p role="alert">{projectError}</p>}
             {organization.projects.map((project) => (
               <article className="sp-directory-project" key={project.id}>
                 {project.cover && <img src={project.cover} alt="" />}
                 <div>
                   <h4>{project.title}</h4>
                   <p className="sp-hint">
-                    {project.creator} · {project.status}
+                    {project.creator ? `${project.creator} · ` : ""}
+                    {project.status}
                   </p>
                   <Button
                     onClick={() =>
@@ -61,7 +79,7 @@ export function OrganizationDirectory({
                         "Project details",
                         <>
                           <h3>{project.title}</h3>
-                          <p>Creator: {project.creator}</p>
+                          {project.creator && <p>Creator: {project.creator}</p>}
                           <p>Status: {project.status}</p>
                           <p className="sp-hint">
                             Read-only directory details. Project editing and publication are
@@ -76,7 +94,7 @@ export function OrganizationDirectory({
                 </div>
               </article>
             ))}
-            {!organization.projects.length && (
+            {!loading && !projectError && !organization.projects.length && (
               <p role="status">No projects in this organisation.</p>
             )}
           </section>
@@ -85,6 +103,9 @@ export function OrganizationDirectory({
             accounts={organization.accounts}
             organizationName={organization.name}
             onPreview={onPreview}
+            actions={accountActions}
+            loading={Boolean(loading)}
+            error={detailError}
           />
         </div>
       </div>
@@ -109,19 +130,29 @@ export function OrganizationDirectory({
               <Avatar name={item.name} />
               <h3>{item.name}</h3>
             </div>
-            <p className="sp-hint">
-              {countLabel(item.projects.length, "project")} ·{" "}
-              {countLabel(
-                item.accounts.filter((account) => account.role === "Teachers").length,
-                "teacher",
-              )}{" "}
-              ·{" "}
-              {countLabel(
-                item.accounts.filter((account) => account.role === "Students").length,
-                "student",
-              )}
-            </p>
-            <Button aria-label={`Open ${item.name}`} onClick={() => setSelected(item.id)}>
+            {onSelect ? (
+              <p className="sp-hint">{item.description}</p>
+            ) : (
+              <p className="sp-hint">
+                {countLabel(item.projects.length, "project")} ·{" "}
+                {countLabel(
+                  item.accounts.filter((account) => account.role === "Teachers").length,
+                  "teacher",
+                )}{" "}
+                ·{" "}
+                {countLabel(
+                  item.accounts.filter((account) => account.role === "Students").length,
+                  "student",
+                )}
+              </p>
+            )}
+            <Button
+              aria-label={`Open ${item.name}`}
+              onClick={() => {
+                setSelected(item.id);
+                onSelect?.(item.id);
+              }}
+            >
               View Organisation
             </Button>
           </article>
