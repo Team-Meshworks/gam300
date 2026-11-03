@@ -30,6 +30,7 @@
     "lint": "eslint . --max-warnings 0",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "test:display-tools": "node tests/display-tools.check.mjs",
     "test:ui": "node tests/ui-foundation.check.mjs",
     "test:entry": "node tests/entry.check.mjs",
     "test:entry-config": "node tests/account-dev-server.check.mjs",

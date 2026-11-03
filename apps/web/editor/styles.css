@@ -89,6 +89,11 @@ a {
   width: 1.25rem;
   height: 1.25rem;
 }
+/* Source toolbar SVGs include their own 40px slot and must keep their intrinsic size. */
+.figma-tool-icon {
+  display: block;
+  flex-shrink: 0;
+}
 /* Toolbars can change the grey inside the placeholder icons */
 .icon .fill {
   fill: var(--icon-fill, currentColor);
