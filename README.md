@@ -244,6 +244,8 @@ not a promise of protection from future vulnerabilities. Release reference:
 A custom official Chrome for Testing binary can be selected with `CHROME_PATH`.
 An explicitly selected missing, stale or unrecognized binary fails closed; bundled
 Playwright Chromium and old `PLAYWRIGHT_*` browser overrides are not fallbacks.
+Remote Selenium overrides (`SELENIUM_REMOTE_*`) and context client certificates
+are rejected because they can replace the verified browser or its local-only proxy.
 The shared launcher verifies the installed version and Linux sandbox before loading
 application content. On Linux, Chrome must report both process isolation and seccomp.
 If the host cannot support that sandbox, use a sandbox-capable non-root host. Do not
@@ -255,6 +257,8 @@ server URL, for example `npm run test:recovery -- http://127.0.0.1:5186/`.
 Each browser is restricted to its explicitly selected local test origin through a
 forwarding proxy, including redirects, popups and WebSockets; service workers are
 blocked. Existing disposable HTTPS fixtures retain their local-only TLS exception.
+`localhost` supports both IPv4 and IPv6 loopback without consulting DNS. CONNECT
+tunnels enforce the exact approved host and port because tunnels do not expose a URL scheme.
 The proxy does not use Playwright routing or disable HTTP caching, so the cache
 benchmark remains meaningful. Persistent checks use temporary isolated profiles.
 

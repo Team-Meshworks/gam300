@@ -39,7 +39,26 @@ export function normalizeLoopbackOrigin(value) {
 }
 
 function literalHost(url) {
-  return url.hostname === "[::1]" ? "::1" : "127.0.0.1";
+  return url.hostname === "[::1]" ? "::1" : url.hostname;
+}
+
+function lookupLoopback(hostname, options, callback) {
+  // Never ask DNS (or the hosts file) where localhost points. Let Node's
+  // connection fallback try both loopback families so IPv6-only Vite servers
+  // and IPv4-only fixtures remain reachable through the same approved origin.
+  if (hostname !== "localhost") {
+    callback(new Error("Only localhost may use loopback lookup"));
+    return;
+  }
+  const addresses = [
+    { address: "::1", family: 6 },
+    { address: "127.0.0.1", family: 4 },
+  ];
+  if (options.all) callback(null, addresses);
+  else {
+    const selected = addresses.find(({ family }) => family === options.family) || addresses[0];
+    callback(null, selected.address, selected.family);
+  }
 }
 
 function headersFor(req, target) {
@@ -101,6 +120,8 @@ export async function createLoopbackProxy(origins) {
       {
         protocol: target.protocol,
         hostname: literalHost(target),
+        lookup: lookupLoopback,
+        autoSelectFamily: true,
         servername: target.hostname === "localhost" ? "localhost" : undefined,
         port: target.port || (target.protocol === "https:" ? 443 : 80),
         path: target.pathname + target.search,
@@ -163,6 +184,8 @@ export async function createLoopbackProxy(origins) {
     const upstream = track(
       net.connect({
         host: literalHost(target),
+        lookup: lookupLoopback,
+        autoSelectFamily: true,
         port: Number(target.port || (target.protocol === "https:" ? 443 : 80)),
       }),
     );
@@ -185,7 +208,12 @@ export async function createLoopbackProxy(origins) {
       return;
     }
     const upstream = track(
-      net.connect({ host: literalHost(target), port: Number(target.port || 80) }),
+      net.connect({
+        host: literalHost(target),
+        lookup: lookupLoopback,
+        autoSelectFamily: true,
+        port: Number(target.port || 80),
+      }),
     );
     upstream.once("connect", () => {
       const headers = headersFor(req, target);

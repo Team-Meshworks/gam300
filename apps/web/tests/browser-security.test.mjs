@@ -51,6 +51,9 @@ test("require non-root, no legacy overrides, and no unsafe launch/context overri
     "PLAYWRIGHT_CHANNEL",
     "PLAYWRIGHT_MODULE",
     "PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH",
+    "SELENIUM_REMOTE_URL",
+    "SELENIUM_REMOTE_CAPABILITIES",
+    "SELENIUM_REMOTE_HEADERS",
   ]) {
     assert.throws(
       () => validateBrowserEnvironment({ [key]: "override" }, 1000),
@@ -68,20 +71,36 @@ test("require non-root, no legacy overrides, and no unsafe launch/context overri
     assert.throws(() => validateBrowserArguments([flag]));
   }
   assert.throws(() => safeContextOptions({ proxy: { server: "direct://" } }));
+  assert.throws(() => safeContextOptions({ proxyOverride: { server: "direct://" } }));
+  assert.throws(() => safeContextOptions({ clientCertificates: [] }));
+  assert.throws(() =>
+    safeContextOptions({
+      clientCertificates: [{ origin: "https://localhost", cert: Buffer.from("fixture") }],
+    }),
+  );
   assert.throws(() => safeContextOptions({ serviceWorkers: "allow" }));
   assert.equal(safeContextOptions({ ignoreHTTPSErrors: true }).serviceWorkers, "block");
 });
 
 test("Linux sandbox requires both process isolation and seccomp", () => {
   assertLinuxSandboxStatus("Namespace sandbox\tYes\nSeccomp-BPF sandbox\tYes");
-  assertLinuxSandboxStatus(
-    "Layer 1 Sandbox\tNamespace\nPID namespaces\tYes\nNetwork namespaces\tYes\nSeccomp-BPF sandbox\tYes",
-  );
+  assertLinuxSandboxStatus("SUID sandbox\tYes\nSeccomp-BPF sandbox\tYes");
+  for (const implementation of ["Namespace", "SUID"]) {
+    const status = `Layer 1 Sandbox\t${implementation}\nPID namespaces\tYes\nNetwork namespaces\tYes\nSeccomp-BPF sandbox\tYes`;
+    assertLinuxSandboxStatus(status);
+    for (const required of ["PID namespaces", "Network namespaces", "Seccomp-BPF sandbox"]) {
+      assert.throws(() =>
+        assertLinuxSandboxStatus(status.replace(`${required}\tYes`, `${required}\tNo`)),
+      );
+      assert.throws(() => assertLinuxSandboxStatus(status.replace(`${required}\tYes`, "")));
+    }
+  }
   for (const text of [
     "",
     "Namespace sandbox\tYes",
     "Seccomp-BPF sandbox\tYes",
     "Layer 1 Sandbox\tNamespace\nPID namespaces\tYes\nSeccomp-BPF sandbox\tYes",
+    "Layer 1 Sandbox\tNone\nPID namespaces\tYes\nNetwork namespaces\tYes\nSeccomp-BPF sandbox\tYes",
   ]) {
     assert.throws(() => assertLinuxSandboxStatus(text));
   }
@@ -103,7 +122,7 @@ test("all repository browser launches use the security helper", async () => {
         await scan(path);
         continue;
       }
-      if (!/\.(?:mjs|cjs|js|ts|tsx)$/.test(entry.name)) continue;
+      if (!/\.(?:mjs|cjs|js|jsx|ts|tsx|mts|cts)$/.test(entry.name)) continue;
       if (
         ["browser-security.mjs", "browser-security.test.mjs"].includes(entry.name) &&
         dirname(path) === dirname(fileURLToPath(import.meta.url))

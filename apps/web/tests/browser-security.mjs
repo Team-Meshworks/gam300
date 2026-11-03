@@ -104,11 +104,11 @@ export function assertLinuxSandboxStatus(status) {
   const hasLegacyProcessSandbox = /^(?:Namespace sandbox|SUID sandbox)[ \t]+Yes[ \t]*$/im.test(
     status,
   );
-  const hasNamespaceProcessSandbox =
-    /^Layer 1 Sandbox[ \t]+Namespace[ \t]*$/im.test(status) &&
+  const hasCurrentProcessSandbox =
+    /^Layer 1 Sandbox[ \t]+(?:Namespace|SUID)[ \t]*$/im.test(status) &&
     /^PID namespaces[ \t]+Yes[ \t]*$/im.test(status) &&
     /^Network namespaces[ \t]+Yes[ \t]*$/im.test(status);
-  if (!hasSeccomp || !(hasLegacyProcessSandbox || hasNamespaceProcessSandbox)) {
+  if (!hasSeccomp || !(hasLegacyProcessSandbox || hasCurrentProcessSandbox)) {
     throw new Error(
       `Chrome did not report an active Linux sandbox. Refusing to run browser checks.\n${status}`,
     );
@@ -122,6 +122,9 @@ export function validateBrowserEnvironment(env = process.env, uid = process.getu
     "PLAYWRIGHT_MODULE",
     "PLAYWRIGHT_CHANNEL",
     "PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH",
+    "SELENIUM_REMOTE_URL",
+    "SELENIUM_REMOTE_CAPABILITIES",
+    "SELENIUM_REMOTE_HEADERS",
   ]) {
     if (env[key])
       throw new Error(
@@ -142,9 +145,16 @@ export function validateBrowserArguments(args = []) {
 }
 
 export function safeContextOptions(options = {}) {
-  if (options.proxy || options.serviceWorkers === "allow") {
+  // Playwright implements client certificates with a replacement proxy. It
+  // does not inherit the browser-level allowlist proxy, so reject that route.
+  if (
+    options.proxy ||
+    options.proxyOverride ||
+    options.clientCertificates != null ||
+    options.serviceWorkers === "allow"
+  ) {
     throw new Error(
-      "Browser contexts cannot override the local-only proxy or enable service workers.",
+      "Browser contexts cannot override the local-only proxy, use client certificates, or enable service workers.",
     );
   }
   return { ...options, serviceWorkers: "block" };

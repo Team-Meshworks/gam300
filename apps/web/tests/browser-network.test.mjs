@@ -136,6 +136,83 @@ test("localhost is connected using a loopback literal and dynamic origins remain
   assert.equal((await request(proxy.url, origin)).status, 403);
 });
 
+for (const host of ["127.0.0.1", "::1"]) {
+  test(
+    `localhost supports an ${host === "::1" ? "IPv6" : "IPv4"}-only upstream`,
+    { timeout: 5000 },
+    async (t) => {
+      const upstreamSockets = new Set();
+      const upstream = http.createServer((_, res) => res.end("loopback response"));
+      upstream.on("connection", (socket) => {
+        upstreamSockets.add(socket);
+        socket.on("error", () => socket.destroy());
+        socket.on("close", () => upstreamSockets.delete(socket));
+      });
+      upstream.on("upgrade", (_, socket) => {
+        socket.write(
+          "HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n",
+        );
+        socket.on("data", (data) => socket.write(data));
+      });
+      upstream.listen(0, host);
+      try {
+        await once(upstream, "listening");
+      } catch (error) {
+        if (host === "::1" && ["EAFNOSUPPORT", "EADDRNOTAVAIL"].includes(error.code)) {
+          t.skip("IPv6 loopback is not enabled on this host");
+          return;
+        }
+        throw error;
+      }
+      t.after(() => {
+        for (const socket of upstreamSockets) socket.destroy();
+        return new Promise((resolve) => upstream.close(resolve));
+      });
+      const authority = `localhost:${upstream.address().port}`;
+      const origin = `http://${authority}`;
+      const proxy = await createLoopbackProxy([origin]);
+      t.after(() => proxy.close());
+
+      await t.test("HTTP reaches the approved localhost origin", async () => {
+        assert.equal((await request(proxy.url, origin)).body, "loopback response");
+        const literalOrigin = `http://${host === "::1" ? "[::1]" : host}:${upstream.address().port}`;
+        assert.equal((await request(proxy.url, literalOrigin)).status, 403);
+      });
+
+      await t.test("CONNECT reaches the approved localhost endpoint", async () => {
+        const tunnel = await handshake(
+          proxy.url,
+          `CONNECT ${authority} HTTP/1.1\r\nHost: ${authority}\r\n\r\n`,
+        );
+        assert.match(tunnel.text, /200 Connection Established/);
+        const response = new Promise((resolve, reject) => {
+          let text = "";
+          tunnel.socket.on("data", (data) => {
+            text += data;
+          });
+          tunnel.socket.on("end", () => resolve(text));
+          tunnel.socket.on("error", reject);
+        });
+        tunnel.socket.write(`GET / HTTP/1.1\r\nHost: ${authority}\r\nConnection: close\r\n\r\n`);
+        assert.match(await response, /loopback response/);
+        tunnel.socket.destroy();
+      });
+
+      await t.test("WebSocket upgrades reach the approved localhost origin", async () => {
+        const upgraded = await handshake(
+          proxy.url,
+          `GET ws://${authority}/socket HTTP/1.1\r\nHost: ${authority}\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n`,
+        );
+        assert.match(upgraded.text, /101 Switching Protocols/);
+        const echoed = once(upgraded.socket, "data");
+        upgraded.socket.write("loopback websocket");
+        assert.equal((await echoed)[0].toString(), "loopback websocket");
+        upgraded.socket.destroy();
+      });
+    },
+  );
+}
+
 test("CONNECT enforces exact approved endpoints for HTTPS and WebSockets", async (t) => {
   let connections = 0;
   const upstreamSockets = new Set();

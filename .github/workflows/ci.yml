@@ -72,7 +72,9 @@ jobs:
           npm run check:architecture
       - name: Run native unit tests
         # Keep the console output and a report we can download after a failure
-        run: npm run test:unit -- --reporter=default --reporter=junit --outputFile=test-results/unit.xml
+        run: |
+          npm run test:browser-policy
+          npm run test:unit -- --reporter=default --reporter=junit --outputFile=test-results/unit.xml
       - name: Build on the native platform
         run: npm run build
       - name: Retain native test reports
