@@ -125,6 +125,202 @@
         0
       ],
       "reviewNotes": "Bounds rounded from GLB metadata.Floor top corrected to 0m. Browser verification pending."
+    },
+    {
+      "assetId": "display-cube-v1",
+      "name": "Display plinth",
+      "kind": "model",
+      "mediaType": "model/gltf-binary",
+      "file": "delivery/stands-displays/display-cube-v1.glb",
+      "sourceFile": "source/stands-displays/display-cube-v1.glb",
+      "byteSize": 8832,
+      "sha256": "50c2f051b5fd07fbb0e02c6b4ab7100b623dddaddf2bda918ebb86774ad441b5",
+      "category": "Furniture",
+      "thumbnail": null,
+      "thumbnailMode": "generated",
+      "placement": "bottom-center",
+      "displayRole": "physical",
+      "access": "development-only",
+      "license": {
+        "status": "pending-team-confirmation",
+        "provenance": "User-supplied cube.glb, provided for Meshworks stands and displays on 2026-11-03. Original bytes preserved. Authorship and redistribution rights remain unconfirmed."
+      },
+      "reviewNotes": "GLB source contains exporter offsets; runtime bottom-center normalization preserves shape and puts its base at the placement origin. Display metadata measured from transformed GLB vertex positions in metres; media rectangles inset from panel edges. Browser verification required.",
+      "displayTop": 1.2
+    },
+    {
+      "assetId": "display-full-glass-case-v1",
+      "name": "Full glass display case",
+      "kind": "model",
+      "mediaType": "model/gltf-binary",
+      "file": "delivery/stands-displays/display-full-glass-case-v1.glb",
+      "sourceFile": "source/stands-displays/display-full-glass-case-v1.glb",
+      "byteSize": 6308,
+      "sha256": "c9c865cff3aad313f66f26c8a5cebbbadfaf8561175820731d149c2e90d94662",
+      "category": "Furniture",
+      "thumbnail": null,
+      "thumbnailMode": "generated",
+      "placement": "bottom-center",
+      "displayRole": "physical",
+      "access": "development-only",
+      "license": {
+        "status": "pending-team-confirmation",
+        "provenance": "User-supplied full glass display case.glb, provided for Meshworks stands and displays on 2026-11-03. Original bytes preserved. Authorship and redistribution rights remain unconfirmed."
+      },
+      "reviewNotes": "GLB source contains exporter offsets; runtime bottom-center normalization preserves shape and puts its base at the placement origin. Display metadata measured from transformed GLB vertex positions in metres; media rectangles inset from panel edges. Browser verification required.",
+      "displayTop": 0.2
+    },
+    {
+      "assetId": "display-half-glass-case-v1",
+      "name": "Half glass display case",
+      "kind": "model",
+      "mediaType": "model/gltf-binary",
+      "file": "delivery/stands-displays/display-half-glass-case-v1.glb",
+      "sourceFile": "source/stands-displays/display-half-glass-case-v1.glb",
+      "byteSize": 5296,
+      "sha256": "6e87a702862fbc3011e269ee12d090b1ec23039987367199fabf986b057c4adf",
+      "category": "Furniture",
+      "thumbnail": null,
+      "thumbnailMode": "generated",
+      "placement": "bottom-center",
+      "displayRole": "physical",
+      "access": "development-only",
+      "license": {
+        "status": "pending-team-confirmation",
+        "provenance": "User-supplied half glass dislay case.glb, provided for Meshworks stands and displays on 2026-11-03. Original bytes preserved. Authorship and redistribution rights remain unconfirmed."
+      },
+      "reviewNotes": "GLB source contains exporter offsets; runtime bottom-center normalization preserves shape and puts its base at the placement origin. Display metadata measured from transformed GLB vertex positions in metres; media rectangles inset from panel edges. Browser verification required.",
+      "displayTop": 1.2
+    },
+    {
+      "assetId": "display-one-sided-glass-case-v1",
+      "name": "One-sided glass display case",
+      "kind": "model",
+      "mediaType": "model/gltf-binary",
+      "file": "delivery/stands-displays/display-one-sided-glass-case-v1.glb",
+      "sourceFile": "source/stands-displays/display-one-sided-glass-case-v1.glb",
+      "byteSize": 13444,
+      "sha256": "c66419e457b38537f7440ef45540811e482d452842a98031a14d806b30eb527c",
+      "category": "Furniture",
+      "thumbnail": null,
+      "thumbnailMode": "generated",
+      "placement": "bottom-center",
+      "displayRole": "physical",
+      "access": "development-only",
+      "license": {
+        "status": "pending-team-confirmation",
+        "provenance": "User-supplied one sided  full glass display caseglb.glb, provided for Meshworks stands and displays on 2026-11-03. Original bytes preserved. Authorship and redistribution rights remain unconfirmed."
+      },
+      "reviewNotes": "GLB source contains exporter offsets; runtime bottom-center normalization preserves shape and puts its base at the placement origin. Display metadata measured from transformed GLB vertex positions in metres; media rectangles inset from panel edges. Browser verification required.",
+      "displayTop": 0.2
+    },
+    {
+      "assetId": "display-rectangle-stand-v1",
+      "name": "Landscape media stand",
+      "kind": "model",
+      "mediaType": "model/gltf-binary",
+      "file": "delivery/stands-displays/display-rectangle-stand-v1.glb",
+      "sourceFile": "source/stands-displays/display-rectangle-stand-v1.glb",
+      "byteSize": 21792,
+      "sha256": "74cdcb81fa381cf6bb7754c657a2bf1341d3db0934c732e893f79fd3d2939998",
+      "category": "Furniture",
+      "thumbnail": null,
+      "thumbnailMode": "generated",
+      "placement": "bottom-center",
+      "displayRole": "digital",
+      "access": "development-only",
+      "license": {
+        "status": "pending-team-confirmation",
+        "provenance": "User-supplied rectangle display stand.glb, provided for Meshworks stands and displays on 2026-11-03. Original bytes preserved. Authorship and redistribution rights remain unconfirmed."
+      },
+      "reviewNotes": "GLB source contains exporter offsets; runtime bottom-center normalization preserves shape and puts its base at the placement origin. Display metadata measured from transformed GLB vertex positions in metres; media rectangles inset from panel edges. Browser verification required.",
+      "displaySurface": {
+        "position": [
+          0,
+          1.425375,
+          0.05181
+        ],
+        "rotation": [
+          -0.3826834324,
+          0,
+          0,
+          0.9238795325
+        ],
+        "width": 1.1,
+        "height": 0.63
+      }
+    },
+    {
+      "assetId": "display-rectangle-panel-v1",
+      "name": "Landscape media panel",
+      "kind": "model",
+      "mediaType": "model/gltf-binary",
+      "file": "delivery/stands-displays/display-rectangle-panel-v1.glb",
+      "sourceFile": "source/stands-displays/display-rectangle-panel-v1.glb",
+      "byteSize": 7352,
+      "sha256": "a08937ad228596109f5e5e5670b06b95dcf923ba6dc09abc23c47dd2fcc8fc53",
+      "category": "Furniture",
+      "thumbnail": null,
+      "thumbnailMode": "generated",
+      "placement": "bottom-center",
+      "displayRole": "digital",
+      "access": "development-only",
+      "license": {
+        "status": "pending-team-confirmation",
+        "provenance": "User-supplied rectangle display.glb, provided for Meshworks stands and displays on 2026-11-03. Original bytes preserved. Authorship and redistribution rights remain unconfirmed."
+      },
+      "reviewNotes": "GLB source contains exporter offsets; runtime bottom-center normalization preserves shape and puts its base at the placement origin. Display metadata measured from transformed GLB vertex positions in metres; media rectangles inset from panel edges. Browser verification required.",
+      "displaySurface": {
+        "position": [
+          0,
+          0.5,
+          0.054
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "width": 1.92,
+        "height": 0.91
+      }
+    },
+    {
+      "assetId": "display-square-stand-v1",
+      "name": "Square media stand",
+      "kind": "model",
+      "mediaType": "model/gltf-binary",
+      "file": "delivery/stands-displays/display-square-stand-v1.glb",
+      "sourceFile": "source/stands-displays/display-square-stand-v1.glb",
+      "byteSize": 19816,
+      "sha256": "512419de40e96047255cd0f09aed367ce5d4ff549633d02fd607077d9ea9e2cd",
+      "category": "Furniture",
+      "thumbnail": null,
+      "thumbnailMode": "generated",
+      "placement": "bottom-center",
+      "displayRole": "digital",
+      "access": "development-only",
+      "license": {
+        "status": "pending-team-confirmation",
+        "provenance": "User-supplied square display stand.glb, provided for Meshworks stands and displays on 2026-11-03. Original bytes preserved. Authorship and redistribution rights remain unconfirmed."
+      },
+      "reviewNotes": "GLB source contains exporter offsets; runtime bottom-center normalization preserves shape and puts its base at the placement origin. Display metadata measured from transformed GLB vertex positions in metres; media rectangles inset from panel edges. Browser verification required.",
+      "displaySurface": {
+        "position": [
+          0,
+          1.404902,
+          0.064541
+        ],
+        "rotation": [
+          -0.3826834324,
+          0,
+          0,
+          0.9238795325
+        ],
+        "width": 0.61,
+        "height": 0.61
+      }
     }
   ],
   "coordinateSystem": "glTF Y-up, metres",

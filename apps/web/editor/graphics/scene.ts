@@ -1,3 +1,4 @@
+import { createDisplayContent } from "./display-content";
 import { createActiveClock } from "./active-clock";
 import { moveAttachedObjects } from "../../shared/project/attached-transforms";
 import type { ContentScene } from "../../shared/project/project-content";
@@ -81,6 +82,7 @@ export interface InitSceneHandle {
   showCamera: (pose: CameraPose) => void;
   locateObject: (id: string) => void;
   setNavigationTool: (tool: NavigationTool) => void;
+  toggleDisplayMedia: (id: string) => void;
   modeManager: ModeManager;
   dispose: () => void;
 }
@@ -197,6 +199,7 @@ export function initScene(
   let environmentId: string | undefined;
   const environmentBounds = new THREE.Box3();
   const instances = new Map<string, THREE.Group>();
+  const displays = createDisplayContent(assets, render);
   const instanceAssets = new Map<string, string>();
   function instanceFor(objectId: string): THREE.Group | undefined {
     const exact = instances.get(objectId);
@@ -356,6 +359,7 @@ export function initScene(
     const now = performance.now();
     interactionClock.setActive(now, !document.hidden && modeManager.getState().mode === "visitor");
     lastFrameTime = now;
+    if (document.hidden) displays.pause();
   };
   document.addEventListener("visibilitychange", visibilityChanged);
   const animate = (now: number) => {
@@ -524,6 +528,7 @@ export function initScene(
           new THREE.Box3().setFromObject(content === undefined ? instance : content),
         );
       }
+      displays.sync(objects, instances);
       syncHotspots();
     }
     const selectedBounds = getSelectionBounds();
@@ -803,6 +808,7 @@ export function initScene(
         click.target !== null &&
         pick(event.clientX, event.clientY) === click.target
       ) {
+        displays.toggle(click.target);
         callbacks.onObjectClick(click.target);
       }
       return;
@@ -896,6 +902,7 @@ export function initScene(
       interactionClock.reset(performance.now(), mode === "visitor" && !document.hidden);
       previousMode = mode;
     }
+    displays.setPreview(mode === "visitor");
     visitorClick = undefined;
     cancelDrag();
     cancelWheelEdit();
@@ -913,6 +920,7 @@ export function initScene(
   async function loadAssets() {
     try {
       for (const asset of assets) {
+        if (asset.kind !== "model" && asset.kind !== "environment") continue;
         if (asset.id === HOTSPOT_ASSET_ID) {
           const texture = await new THREE.TextureLoader().loadAsync(asset.url);
           if (disposed || controller.signal.aborted) {
@@ -1025,6 +1033,7 @@ export function initScene(
       cancelWheelEdit();
       applyNavigationTool();
     },
+    toggleDisplayMedia: (id) => displays.toggle(id),
     modeManager,
     dispose() {
       if (disposed) {
@@ -1033,6 +1042,7 @@ export function initScene(
       cancelDrag();
       cancelWheelEdit();
       disposed = true;
+      displays.dispose();
       controller.abort();
       observer.disconnect();
       fpsMeter.dispose();

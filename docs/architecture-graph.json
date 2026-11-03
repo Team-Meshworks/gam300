@@ -239,8 +239,8 @@
     "account-dev-server.ts": "e117343d2dda5bf2d1a2636bfffdb6d2559da9410db4a42fdc336a837259c6fd",
     "architecture.check.mjs": "45c2cad2ba19bb129e02f5eba71005bf05647f2ddf2b68bd16c7130f584cc8c1",
     "architecture.mjs": "a7524d4c9ed8f10574c61e6bb1af1b93f53cd3eda8fcf7c37d1aa217fee6aa8b",
-    "asset-catalogue-plugin.ts": "fdbfbf69501e6d772ea43c7a4575549f68985bc4e94bed0cfc5c7dc70ba3cbe2",
-    "editor/App.tsx": "d8efcc39283c6a3a74ade0cd9d8054296c7b366a31af7659f60a176aa63a4940",
+    "asset-catalogue-plugin.ts": "40dd5d22b460c601eb912796ea077d85c5e2e6464f4077400b8ba69cf4fd76d7",
+    "editor/App.tsx": "bdbb1d10f804da3783b0d1ae42c3c400fedaafb8762aac39220281cc73e011b5",
     "editor/OlderSceneImport.tsx": "9ab5f31f2ac60a12bfb5931592c54ed566140baac1bb38f3358fa0bd0ca93397",
     "editor/ProjectConfirmation.tsx": "07a0fedf8fbf88865b3b8232c8665c139348fc64ebce478ea01e55eb7fd14eff",
     "editor/Scenes.tsx": "fbd0b23955e14e7f41db3b7d28dfd2d9c3650614d8bfa5601a434f45b096c0cd",
@@ -265,8 +265,10 @@
     "editor/directory/directory-client.test.ts": "28c5a0a38207a4d759215dd1180c5042b1ccfd2a66c3078b5cc137c505973f27",
     "editor/directory/directory-client.ts": "cc2514d06eb56b603a9a69c39b977d4436bb65e905e68bda1a71b924fac06442",
     "editor/directory/directory.ts": "ec5cf37c67e953850b1115ba316cec367527baa0c4fbc3f5aca289a171ba477a",
+    "editor/display-content.test.ts": "ab6c58c76485718556b5d4915f18f7216008f4d4b68b8b59cb99f3b24319e85f",
+    "editor/display-position.ts": "0b17fa58f2032cf143efdeb0e1e424f712024222e389c41963bc5bfe4b04e625",
     "editor/document-store.test.ts": "caa268822fa0d253276080a63cba13ab892858ff9f105335622d0f29a15874ca",
-    "editor/document-store.ts": "85972b581b103426f9b9a6d27e3dcb216f282238fa6adb889d8c46d61b289c56",
+    "editor/document-store.ts": "21fc474aaa6a35e50d99f882b49fca2873da92c074869ba72e578ee80c677edf",
     "editor/edit-session.test.ts": "fd971338990e32158eb0355508fb39a7c3284db62421501024da029a82dc784a",
     "editor/entry/EntryBrand.tsx": "21be448d7b3232fe2fb0906ad4386e4a854c6a4369d75b851b1446e9af849b06",
     "editor/entry/LandingPage.tsx": "00176c689fdc4a8657c3ea48c912ad03ede1388d698888b01308462955d2b5af",
@@ -274,12 +276,16 @@
     "editor/entry/main.tsx": "c94eb8216c552696432a0c8e0cdb5f15ff97682d4d910d103ca3a0286059a558",
     "editor/graphics/active-clock.test.ts": "29145e0a9e58264cd0e192d607be8e7fee69ae18b0aef52e6c5e4c5a2670aa4d",
     "editor/graphics/active-clock.ts": "9dfb0530c27712140610a6269d64b41e9f88e2622593696f73d5295162b271a0",
+    "editor/graphics/display-content.test.ts": "0da777e158f2bd30e0b198152fe210c486ce6fd982f1d20eb98d35ef4af7b0c7",
+    "editor/graphics/display-content.ts": "1e5ba2eab91302e1f214eafff48754c861b92f479b201f31595d2f59b15fa361",
+    "editor/graphics/display-layout.test.ts": "cbc3f865141a23e6867be71ecc19403c504f4efadc1b5bac203e7363a702ad86",
+    "editor/graphics/display-layout.ts": "ab94fd2da2504bc55dd5db056b05682d9448d4ffddbe24d5f642ca371291dc18",
     "editor/graphics/modeManager.ts": "08617006856a4f3ac55c7fd9caed4875bddfa06305cbfd184dae0dc8fef3387e",
     "editor/graphics/rotation.test.ts": "58844092035329772ba8c941b1b93737d142d7c597f015900041721d0018bb69",
     "editor/graphics/rotation.ts": "d847162644716d2b36e8b3e4f1ad190360527a46351cb2969d411dbe76ea96d3",
     "editor/graphics/scaling.test.ts": "346b243798597de2a5b00384904bdf04f9f3826a8753bcde3282e5356b0ceb0a",
     "editor/graphics/scaling.ts": "0277d21b28d246ddb2f94216fe29afb24ebbc8e257dd3510eca91bb176867da1",
-    "editor/graphics/scene.ts": "5650ef6c3a88dedaca2940df816c9761e1963417badcddb696bd1d047596d5eb",
+    "editor/graphics/scene.ts": "e5e4e16e9556893eb6859c3f2e17291c7ed327f03827f38ad4a92ad48f6719b2",
     "editor/graphics/translation.test.ts": "b4a888b963437ca3508c04cc3e933ab215d301908384ea9af37ee8aabd6fae2c",
     "editor/graphics/translation.ts": "a4ea05b137e4dee436848693a57273c54025856bdf943eb1e9413de5509bb2d4",
     "editor/hierarchy.test.ts": "9183c999766d2e2779b8e2cc6d22d1f041709781771a0d303b639b2ef7e027a7",
@@ -352,7 +358,8 @@
     "editor/ui-preview/main.tsx": "10d494ed224f1fda3fc0fa3f6d1ef68527e859d62a1ef6bbd3854561dde10f64",
     "editor/ui/AssetFilterSelect.tsx": "d5449ccfb82270fb1baae4503d61014a3d42f87b07272b85f8a0f6d3feb55450",
     "editor/ui/AssetPicker.tsx": "b49b053f5d08c1b20ec5e35f65d5c0865f5ed6b8f4bd1454b139a82977c7646e",
-    "editor/ui/BottomBar.tsx": "03256cd1aabe6a412be04ab3526826c94625178b5f4bb331d47261cea51b8690",
+    "editor/ui/BottomBar.tsx": "e3ed0fd0f5e081d1d1a5d32849dc1bcf259f1fd91405824c886e5f2422bb4019",
+    "editor/ui/DisplayEditor.tsx": "5342a2be47ae78f794403a08985c6acc564e0dbd866f76fb60e1414248acaa7e",
     "editor/ui/Icon.tsx": "9541d7b9446bdc777fa17a0276232859ea688aed6b7d2ab1af25dbd0cea58323",
     "editor/ui/InteractionPanel.tsx": "bd06335bb72d214c8fe24093706b5c8ef7294ba47c6fbe9a1f53808216e5555f",
     "editor/ui/PreviewTargets.tsx": "d49499d2e889781f42239cfe9cdd17a174691baed6dc86815a2d3e577af00884",
@@ -366,14 +373,14 @@
     "editor/ui/rotation-angles.test.ts": "768d7e7fcfe8d5a5fc0a11f3bc70fa734e5e84ce161fd9aa5b1807b850f4438d",
     "editor/ui/rotation-angles.ts": "16a42a83ee7bb2435c4ee7b640fa6ca3c65a7564fd68981084ce57f5e9687f3b",
     "editor/viewpoints.test.ts": "383d49fc0c57b158b739781160ada8bef63d23e5b6fa03a7a5a605032a812da9",
-    "editor/viewport/Viewport.tsx": "7f43e60501edf610ed4d641b920cb5c23e34e2eff2b9f52a7cc2b6fbab8a5f90",
+    "editor/viewport/Viewport.tsx": "3d9d8a5e27ccf6f4d820241e33f8ac35d1a187de782b10695d773e012c62ad60",
     "editor/workspace/WorkspacePage.tsx": "1f9aac3a156bba603ff4c92d56a48deed74f6dfaee331e8f3cfcf7ec58ae0d8c",
     "editor/workspace/main.tsx": "ba13928e8e371d8dcf218adb28f93eaab5e47d2ef5c020a4ee823190ac47d2dd",
     "eslint.config.js": "cbab291dfcf10a7c58563e96b2c29cc213c402ebaf35f89789663d96bdb12135",
     "shared/asset-runtime/ModelCache.test.ts": "6e5cf28591eb858c981923550fe49fb330535b085db0d99d7ce209736fefc2d3",
     "shared/asset-runtime/ModelCache.ts": "7ba493c76290a999db38013457dea39e5b08492416487338b05e1be6490dde2e",
     "shared/asset-runtime/catalogue.test.ts": "93f76097551fcf8adaa581777554edfa38c4defb12d9711c3f2c7f3332a77fac",
-    "shared/asset-runtime/catalogue.ts": "625f7b3da8e71f88dc752788838a69e6d18c3a16aa8092eb82664cae36c42979",
+    "shared/asset-runtime/catalogue.ts": "d852eab7b93b9d427d1d14b4e25171288ca6586dc1592050969e0d040e28415f",
     "shared/asset-runtime/hotspot.ts": "1981f66fb7e803218b2cbf88b6e64c649a8dd4f2298b70882003495b631e16aa",
     "shared/asset-runtime/manifest-module.d.ts": "ff7add6e7e483a4cc6a0dd48c9ead7b2f4cd0b0a5ccc7fb06181e1a5d2d1326e",
     "shared/project/attached-transforms.ts": "73599346cb723db417b11d02eb9bf92f80f038ff070f605d11b62d77083f543a",
@@ -473,6 +480,7 @@
     "editor/projects/submission.css": "db57ed4f57cb5a7374fd2d6da08946f4adaa35b4d27dc68543489ad9e4dffd03",
     "editor/ui-preview/museum-cover.png": "d1cd189d664335f8eba41739047648d54e1418ff1a517907c45f352e419b2f9b",
     "editor/ui-preview/preview.css": "57cd262a9cf55849fd30423eef659354dc6fb59d024eb5c1b392fa0a0901672e",
+    "editor/ui/display-editor.css": "c84adf65c2d7a8db16d9ff957996d4f813987473af23bbc8109a5f7409a820c9",
     "editor/workspace/workspace.css": "db47caae28b45fcb41cfdfeb0d4a966d31b9ff0ba16c73e160f1c5053cf022dc",
     "shared/ui/assets/landmark.svg": "955e9305808f5a6ec562703feca8b81963f6ca198f9913aa8557cd2c0687b864",
     "shared/ui/assets/ambient-left.svg": "51054c252a837e4480db62f01f80d6cdd3c1ab8dd93910c57afc8540424cbe31",
@@ -742,6 +750,15 @@
       "file": "editor/App.tsx",
       "line": 4,
       "kind": "type",
+      "specifier": "../shared/project/project-content",
+      "target": "shared/project/project-content.ts",
+      "from": "editor",
+      "to": "project"
+    },
+    {
+      "file": "editor/App.tsx",
+      "line": 5,
+      "kind": "type",
       "specifier": "../shared/project/scene-object",
       "target": "shared/project/scene-object.ts",
       "from": "editor",
@@ -749,7 +766,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 5,
+      "line": 6,
       "kind": "type",
       "specifier": "../shared/project/project-types",
       "target": "shared/project/project-types.ts",
@@ -758,7 +775,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 6,
+      "line": 7,
       "kind": "static",
       "specifier": "../shared/project/project-capabilities",
       "target": "shared/project/project-capabilities.ts",
@@ -767,7 +784,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 7,
+      "line": 8,
       "kind": "static",
       "specifier": "./audio/ui-sounds",
       "target": "editor/audio/ui-sounds.ts",
@@ -776,7 +793,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 8,
+      "line": 9,
       "kind": "static",
       "specifier": "./document-store",
       "target": "editor/document-store.ts",
@@ -785,7 +802,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 9,
+      "line": 10,
       "kind": "static",
       "specifier": "./history-shortcuts",
       "target": "editor/history-shortcuts.ts",
@@ -794,7 +811,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 15,
+      "line": 16,
       "kind": "type",
       "specifier": "./graphics/scene",
       "target": "editor/graphics/scene.ts",
@@ -803,7 +820,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 16,
+      "line": 17,
       "kind": "type",
       "specifier": "./graphics/modeManager",
       "target": "editor/graphics/modeManager.ts",
@@ -812,7 +829,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 17,
+      "line": 18,
       "kind": "static",
       "specifier": "./interaction/actionHandler",
       "target": "editor/interaction/actionHandler.ts",
@@ -821,7 +838,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 18,
+      "line": 19,
       "kind": "static",
       "specifier": "./interaction/preview-navigation",
       "target": "editor/interaction/preview-navigation.ts",
@@ -830,7 +847,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 19,
+      "line": 20,
       "kind": "static",
       "specifier": "./interaction/interactionHandler",
       "target": "editor/interaction/interactionHandler.ts",
@@ -839,7 +856,25 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 20,
+      "line": 21,
+      "kind": "static",
+      "specifier": "./ui/DisplayEditor",
+      "target": "editor/ui/DisplayEditor.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/App.tsx",
+      "line": 22,
+      "kind": "static",
+      "specifier": "../shared/ui/Button",
+      "target": "shared/ui/Button.tsx",
+      "from": "editor",
+      "to": "ui-foundation"
+    },
+    {
+      "file": "editor/App.tsx",
+      "line": 23,
       "kind": "static",
       "specifier": "./ui/BottomBar",
       "target": "editor/ui/BottomBar.tsx",
@@ -848,7 +883,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 21,
+      "line": 24,
       "kind": "static",
       "specifier": "./ui/PreviewTargets",
       "target": "editor/ui/PreviewTargets.tsx",
@@ -857,7 +892,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 22,
+      "line": 25,
       "kind": "static",
       "specifier": "./ui/SidePanels",
       "target": "editor/ui/SidePanels.tsx",
@@ -866,7 +901,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 23,
+      "line": 26,
       "kind": "static",
       "specifier": "./ui/TopBar",
       "target": "editor/ui/TopBar.tsx",
@@ -875,7 +910,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 24,
+      "line": 27,
       "kind": "static",
       "specifier": "./OlderSceneImport",
       "target": "editor/OlderSceneImport.tsx",
@@ -884,7 +919,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 25,
+      "line": 28,
       "kind": "static",
       "specifier": "./Scenes",
       "target": "editor/Scenes.tsx",
@@ -893,7 +928,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 26,
+      "line": 29,
       "kind": "static",
       "specifier": "./Viewpoints",
       "target": "editor/Viewpoints.tsx",
@@ -902,7 +937,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 27,
+      "line": 30,
       "kind": "static",
       "specifier": "./viewport/Viewport",
       "target": "editor/viewport/Viewport.tsx",
@@ -911,7 +946,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 29,
+      "line": 32,
       "kind": "static",
       "specifier": "./ProjectConfirmation",
       "target": "editor/ProjectConfirmation.tsx",
@@ -920,7 +955,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 30,
+      "line": 33,
       "kind": "static",
       "specifier": "./persistence/use-project-session",
       "target": "editor/persistence/use-project-session.ts",
@@ -929,7 +964,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 393,
+      "line": 397,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -1968,6 +2003,61 @@
       "to": "editor"
     },
     {
+      "file": "editor/display-content.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/display-content.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "./document-store",
+      "target": "editor/document-store.ts",
+      "from": "checks",
+      "to": "document"
+    },
+    {
+      "file": "editor/display-content.test.ts",
+      "line": 3,
+      "kind": "type",
+      "specifier": "../shared/asset-runtime/catalogue",
+      "target": "shared/asset-runtime/catalogue.ts",
+      "from": "checks",
+      "to": "catalogue"
+    },
+    {
+      "file": "editor/display-content.test.ts",
+      "line": 4,
+      "kind": "static",
+      "specifier": "./display-position",
+      "target": "editor/display-position.ts",
+      "from": "checks",
+      "to": "editor"
+    },
+    {
+      "file": "editor/display-content.test.ts",
+      "line": 5,
+      "kind": "type",
+      "specifier": "../shared/project/project-content",
+      "target": "shared/project/project-content.ts",
+      "from": "checks",
+      "to": "project"
+    },
+    {
+      "file": "editor/display-position.ts",
+      "line": 1,
+      "kind": "type",
+      "specifier": "../shared/project/project-types",
+      "target": "shared/project/project-types.ts",
+      "from": "editor",
+      "to": "project"
+    },
+    {
       "file": "editor/document-store.test.ts",
       "line": 1,
       "kind": "static",
@@ -2033,7 +2123,7 @@
     },
     {
       "file": "editor/document-store.ts",
-      "line": 14,
+      "line": 15,
       "kind": "type",
       "specifier": "../shared/project/project-types",
       "target": "shared/project/project-types.ts",
@@ -2042,7 +2132,7 @@
     },
     {
       "file": "editor/document-store.ts",
-      "line": 21,
+      "line": 22,
       "kind": "static",
       "specifier": "./transform-command",
       "target": "editor/transform-command.ts",
@@ -2051,7 +2141,7 @@
     },
     {
       "file": "editor/document-store.ts",
-      "line": 22,
+      "line": 23,
       "kind": "static",
       "specifier": "./command-history",
       "target": "editor/command-history.ts",
@@ -2060,7 +2150,7 @@
     },
     {
       "file": "editor/document-store.ts",
-      "line": 23,
+      "line": 24,
       "kind": "static",
       "specifier": "./recovery-history",
       "target": "editor/recovery-history.ts",
@@ -2069,7 +2159,7 @@
     },
     {
       "file": "editor/document-store.ts",
-      "line": 30,
+      "line": 31,
       "kind": "type",
       "specifier": "../shared/asset-runtime/catalogue.ts",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -2078,7 +2168,7 @@
     },
     {
       "file": "editor/document-store.ts",
-      "line": 31,
+      "line": 32,
       "kind": "type",
       "specifier": "../shared/project/scene-object.ts",
       "target": "shared/project/scene-object.ts",
@@ -2087,7 +2177,7 @@
     },
     {
       "file": "editor/document-store.ts",
-      "line": 32,
+      "line": 33,
       "kind": "static",
       "specifier": "../shared/project/project-deserialization",
       "target": "shared/project/project-deserialization.ts",
@@ -2096,7 +2186,7 @@
     },
     {
       "file": "editor/document-store.ts",
-      "line": 33,
+      "line": 34,
       "kind": "type",
       "specifier": "../shared/project/project-types",
       "target": "shared/project/project-types.ts",
@@ -2105,7 +2195,7 @@
     },
     {
       "file": "editor/document-store.ts",
-      "line": 34,
+      "line": 35,
       "kind": "type",
       "specifier": "../shared/project/validation-helpers",
       "target": "shared/project/validation-helpers.ts",
@@ -2488,6 +2578,118 @@
       "to": "editor"
     },
     {
+      "file": "editor/graphics/display-content.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/graphics/display-content.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "three",
+      "target": {
+        "package": "three"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/graphics/display-content.test.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./display-content",
+      "target": "editor/graphics/display-content.ts",
+      "from": "checks",
+      "to": "rendering"
+    },
+    {
+      "file": "editor/graphics/display-content.test.ts",
+      "line": 4,
+      "kind": "type",
+      "specifier": "../../shared/asset-runtime/catalogue",
+      "target": "shared/asset-runtime/catalogue.ts",
+      "from": "checks",
+      "to": "catalogue"
+    },
+    {
+      "file": "editor/graphics/display-content.test.ts",
+      "line": 5,
+      "kind": "type",
+      "specifier": "../../shared/project/project-content",
+      "target": "shared/project/project-content.ts",
+      "from": "checks",
+      "to": "project"
+    },
+    {
+      "file": "editor/graphics/display-content.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "three",
+      "target": {
+        "package": "three"
+      },
+      "from": "rendering"
+    },
+    {
+      "file": "editor/graphics/display-content.ts",
+      "line": 2,
+      "kind": "type",
+      "specifier": "../../shared/asset-runtime/catalogue",
+      "target": "shared/asset-runtime/catalogue.ts",
+      "from": "rendering",
+      "to": "catalogue"
+    },
+    {
+      "file": "editor/graphics/display-content.ts",
+      "line": 3,
+      "kind": "type",
+      "specifier": "../../shared/project/project-content",
+      "target": "shared/project/project-content.ts",
+      "from": "rendering",
+      "to": "project"
+    },
+    {
+      "file": "editor/graphics/display-content.ts",
+      "line": 8,
+      "kind": "type",
+      "specifier": "../../shared/project/scene-object",
+      "target": "shared/project/scene-object.ts",
+      "from": "rendering",
+      "to": "project"
+    },
+    {
+      "file": "editor/graphics/display-content.ts",
+      "line": 9,
+      "kind": "static",
+      "specifier": "./display-layout",
+      "target": "editor/graphics/display-layout.ts",
+      "from": "rendering",
+      "to": "rendering"
+    },
+    {
+      "file": "editor/graphics/display-layout.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/graphics/display-layout.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "./display-layout",
+      "target": "editor/graphics/display-layout.ts",
+      "from": "checks",
+      "to": "rendering"
+    },
+    {
       "file": "editor/graphics/modeManager.ts",
       "line": 1,
       "kind": "static",
@@ -2587,6 +2789,15 @@
       "file": "editor/graphics/scene.ts",
       "line": 1,
       "kind": "static",
+      "specifier": "./display-content",
+      "target": "editor/graphics/display-content.ts",
+      "from": "rendering",
+      "to": "rendering"
+    },
+    {
+      "file": "editor/graphics/scene.ts",
+      "line": 2,
+      "kind": "static",
       "specifier": "./active-clock",
       "target": "editor/graphics/active-clock.ts",
       "from": "rendering",
@@ -2594,7 +2805,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 2,
+      "line": 3,
       "kind": "static",
       "specifier": "../../shared/project/attached-transforms",
       "target": "shared/project/attached-transforms.ts",
@@ -2603,7 +2814,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 3,
+      "line": 4,
       "kind": "type",
       "specifier": "../../shared/project/project-content",
       "target": "shared/project/project-content.ts",
@@ -2612,7 +2823,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 4,
+      "line": 5,
       "kind": "static",
       "specifier": "../../shared/project/starting-view",
       "target": "shared/project/starting-view.ts",
@@ -2621,7 +2832,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 5,
+      "line": 6,
       "kind": "static",
       "specifier": "three",
       "target": {
@@ -2631,7 +2842,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 6,
+      "line": 7,
       "kind": "static",
       "specifier": "three/examples/jsm/controls/OrbitControls.js",
       "target": {
@@ -2641,7 +2852,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 7,
+      "line": 8,
       "kind": "static",
       "specifier": "../../shared/asset-runtime/ModelCache",
       "target": "shared/asset-runtime/ModelCache.ts",
@@ -2650,7 +2861,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 8,
+      "line": 9,
       "kind": "type",
       "specifier": "../../shared/asset-runtime/catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -2659,7 +2870,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 9,
+      "line": 10,
       "kind": "static",
       "specifier": "../../shared/asset-runtime/hotspot",
       "target": "shared/asset-runtime/hotspot.ts",
@@ -2668,7 +2879,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 10,
+      "line": 11,
       "kind": "type",
       "specifier": "../../shared/project/scene-object",
       "target": "shared/project/scene-object.ts",
@@ -2677,7 +2888,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 11,
+      "line": 12,
       "kind": "type",
       "specifier": "../../shared/project/project-types",
       "target": "shared/project/project-types.ts",
@@ -2686,7 +2897,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 17,
+      "line": 18,
       "kind": "static",
       "specifier": "../controls/fpsControls",
       "target": "editor/controls/fpsControls.ts",
@@ -2695,7 +2906,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 18,
+      "line": 19,
       "kind": "static",
       "specifier": "./modeManager",
       "target": "editor/graphics/modeManager.ts",
@@ -2704,7 +2915,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 19,
+      "line": 20,
       "kind": "static",
       "specifier": "./rotation",
       "target": "editor/graphics/rotation.ts",
@@ -2713,7 +2924,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 27,
+      "line": 28,
       "kind": "static",
       "specifier": "./scaling",
       "target": "editor/graphics/scaling.ts",
@@ -2722,7 +2933,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 28,
+      "line": 29,
       "kind": "static",
       "specifier": "./translation",
       "target": "editor/graphics/translation.ts",
@@ -2731,7 +2942,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 376,
+      "line": 380,
       "kind": "type-query",
       "specifier": "../../shared/project/project-types",
       "target": "shared/project/project-types.ts",
@@ -5683,7 +5894,99 @@
     },
     {
       "file": "editor/ui/BottomBar.tsx",
-      "line": 214,
+      "line": 242,
+      "kind": "implicit-jsx",
+      "specifier": "react/jsx-runtime",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/ui/DisplayEditor.tsx",
+      "line": 1,
+      "kind": "static",
+      "specifier": "react",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/ui/DisplayEditor.tsx",
+      "line": 2,
+      "kind": "type",
+      "specifier": "../../shared/asset-runtime/catalogue",
+      "target": "shared/asset-runtime/catalogue.ts",
+      "from": "editor",
+      "to": "catalogue"
+    },
+    {
+      "file": "editor/ui/DisplayEditor.tsx",
+      "line": 3,
+      "kind": "type",
+      "specifier": "../../shared/project/project-content",
+      "target": "shared/project/project-content.ts",
+      "from": "editor",
+      "to": "project"
+    },
+    {
+      "file": "editor/ui/DisplayEditor.tsx",
+      "line": 8,
+      "kind": "type",
+      "specifier": "../../shared/project/project-types",
+      "target": "shared/project/project-types.ts",
+      "from": "editor",
+      "to": "project"
+    },
+    {
+      "file": "editor/ui/DisplayEditor.tsx",
+      "line": 9,
+      "kind": "static",
+      "specifier": "../../shared/ui/Dialog",
+      "target": "shared/ui/Dialog.tsx",
+      "from": "editor",
+      "to": "ui-foundation"
+    },
+    {
+      "file": "editor/ui/DisplayEditor.tsx",
+      "line": 10,
+      "kind": "static",
+      "specifier": "../../shared/ui/Button",
+      "target": "shared/ui/Button.tsx",
+      "from": "editor",
+      "to": "ui-foundation"
+    },
+    {
+      "file": "editor/ui/DisplayEditor.tsx",
+      "line": 11,
+      "kind": "type",
+      "specifier": "../document-store",
+      "target": "editor/document-store.ts",
+      "from": "editor",
+      "to": "document"
+    },
+    {
+      "file": "editor/ui/DisplayEditor.tsx",
+      "line": 12,
+      "kind": "static",
+      "specifier": "./display-editor.css",
+      "target": "editor/ui/display-editor.css",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/DisplayEditor.tsx",
+      "line": 13,
+      "kind": "static",
+      "specifier": "../display-position",
+      "target": "editor/display-position.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/DisplayEditor.tsx",
+      "line": 100,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -6222,7 +6525,7 @@
     },
     {
       "file": "editor/viewport/Viewport.tsx",
-      "line": 96,
+      "line": 97,
       "kind": "dynamic",
       "specifier": "../graphics/scene",
       "target": "editor/graphics/scene.ts",
@@ -6231,7 +6534,7 @@
     },
     {
       "file": "editor/viewport/Viewport.tsx",
-      "line": 191,
+      "line": 193,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {

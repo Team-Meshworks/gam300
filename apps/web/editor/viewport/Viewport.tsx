@@ -22,6 +22,7 @@ export type ViewpointCamera = {
   capture: () => CameraPose;
   show: (pose: CameraPose) => void;
   locate: (id: string) => void;
+  toggleDisplayMedia: (id: string) => void;
 };
 
 type ViewportProps = {
@@ -120,6 +121,7 @@ export function Viewport({
             capture: scene.captureCamera,
             show: scene.showCamera,
             locate: scene.locateObject,
+            toggleDisplayMedia: scene.toggleDisplayMedia,
           });
         }
       })
