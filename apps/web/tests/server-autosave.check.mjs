@@ -193,6 +193,41 @@ try {
   await saved();
   assert.equal(document.scenes[0].name, "Storage failure edit");
 
+  // Expiry plus a failed final backup must retain the only live draft behind its owner.
+  await page.evaluate(() => {
+    window.failRecovery = true;
+  });
+  await edit("Only live draft after expiry");
+  await status.filter({ hasText: "Save failed" }).waitFor();
+  account = bob;
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await page.getByRole("alert").filter({ hasText: "recovery storage failed" }).waitFor();
+  assert.equal(
+    await page.evaluate(() => {
+      const event = new Event("beforeunload", { cancelable: true });
+      window.dispatchEvent(event);
+      return event.defaultPrevented;
+    }),
+    true,
+  );
+
+  assert.equal(await page.locator(".editor-shell").count(), 0);
+  await page.getByRole("button", { name: "Retry opening" }).click();
+  await page.getByRole("alert").filter({ hasText: "original account" }).waitFor();
+  assert.equal(await page.locator(".editor-shell").count(), 0);
+  account = alice;
+  await page.evaluate(() => {
+    window.failRecovery = false;
+  });
+  await page.getByRole("button", { name: "Retry opening" }).click();
+  await ready();
+  assert.equal(
+    await page.getByLabel("Scene name", { exact: true }).inputValue(),
+    "Only live draft after expiry",
+  );
+  await saved();
+  assert.equal(document.scenes[0].name, "Only live draft after expiry");
+
   // Changing cookies must hide the old editor and keep recovery in its original account.
   mode = "failed";
   await edit("Alice private edit");
@@ -206,7 +241,7 @@ try {
   await ready();
   assert.equal(
     await page.getByLabel("Scene name", { exact: true }).inputValue(),
-    "Storage failure edit",
+    "Only live draft after expiry",
   );
   assert.equal(await page.getByRole("dialog").count(), 0);
   // A confirmed recovery choice permits logout, but never deletes another account's work.

@@ -77,6 +77,7 @@ export function ServerProjectEditor({ projectId }: { projectId: string }) {
   const [store] = useState(() => createDocumentStore(editorAssets));
   const [active, setActive] = useState<Active | null>(null);
   const current = useRef<Active | null>(null);
+  const retained = useRef<{ accountId: string; recovery: RecoverySession } | null>(null);
   const [candidate, setCandidate] = useState<Candidate | null>(null);
   const [status, setStatus] = useState<ServerSaveStatus>("saved");
   const [error, setError] = useState("");
@@ -85,6 +86,17 @@ export function ServerProjectEditor({ projectId }: { projectId: string }) {
   const busyRef = useRef(false);
   const [attempt, setAttempt] = useState(0);
   const [departure, setDeparture] = useState<"home" | "logout" | "reload" | null>(null);
+
+  useEffect(() => {
+    const warn = (event: BeforeUnloadEvent) => {
+      if (retained.current) {
+        event.preventDefault();
+        event.returnValue = "Unsaved draft retained in this tab";
+      }
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, []);
 
   async function install(next: Candidate, recover: boolean) {
     const { opened, controller } = next;
@@ -114,6 +126,7 @@ export function ServerProjectEditor({ projectId }: { projectId: string }) {
     current.current = owner;
     setActive(owner);
     setCandidate(null);
+    retained.current = null;
     setError(recovery?.historyWarning ?? "");
   }
 
@@ -128,6 +141,10 @@ export function ServerProjectEditor({ projectId }: { projectId: string }) {
         if (controller.signal.aborted) return;
         if (!identity || identity.mustChangePassword)
           throw new Error("Sign in before opening this project.");
+        if (retained.current && identity.userId !== retained.current.accountId)
+          throw new Error(
+            "Sign in with the original account to recover the draft still held in this tab.",
+          );
         const result = await readServerProject(
           projectId,
           identity.userId,
@@ -138,6 +155,14 @@ export function ServerProjectEditor({ projectId }: { projectId: string }) {
         if (!result.ok) throw new Error(result.error.message);
         if (!result.value.canEdit)
           throw new Error("This project is read-only. Your stored recovery copy was kept.");
+        if (retained.current) {
+          await install(
+            { opened: result.value, recovery: retained.current.recovery, controller },
+            true,
+          );
+          owner = current.current;
+          return;
+        }
         const recovery = await loadRecoverySession(kinds, {
           accountId: identity.userId,
           projectId,
@@ -179,14 +204,22 @@ export function ServerProjectEditor({ projectId }: { projectId: string }) {
         const identity = await accounts.getSession();
         if (owner.controller.signal.aborted) return;
         if (!identity || identity.mustChangePassword || identity.userId !== owner.accountId) {
+          // Lock the live draft before awaiting storage; a new account must never see it.
+          retained.current = { accountId: owner.accountId, recovery: owner.session.getRecovery() };
           owner.controller.abort();
-          await owner.session.dispose();
-          if (current.current !== owner) return;
           current.current = null;
           setActive(null);
           setDeparture(null);
+          setLoading(true);
+          const preserved = await owner.session.dispose();
+          retained.current = preserved?.ok
+            ? null
+            : { accountId: owner.accountId, recovery: owner.session.getRecovery() };
+          setLoading(false);
           setError(
-            "Your account changed or expired. Recovery was kept for the original account. Sign in with that account to reopen it.",
+            preserved?.ok
+              ? "Your account changed or expired. Sign in with the original account to reopen your retained draft."
+              : "Your account changed or expired and recovery storage failed. Your draft is held only in this tab. Keep it open, sign in with the original account, then retry.",
           );
         }
       } catch {
