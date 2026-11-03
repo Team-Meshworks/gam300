@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { assetDragType, type CatalogueAsset } from "../../shared/asset-runtime/catalogue";
+import { playUiSound } from "../audio/ui-sounds";
 import {
   categoryOf,
   filterAssets,
@@ -112,7 +113,10 @@ export function AssetPicker({
                     aria-label={asset.name}
                     aria-pressed={chosen === asset.id}
                     title="Pick it then press Add, or drag it into the scene"
-                    onClick={() => setChosen(asset.id)}
+                    onClick={() => {
+                      setChosen(asset.id);
+                      playUiSound("assetSelect");
+                    }}
                     onDragStart={(event) => {
                       event.dataTransfer.setData(assetDragType, asset.id);
                       event.dataTransfer.effectAllowed = "copy";

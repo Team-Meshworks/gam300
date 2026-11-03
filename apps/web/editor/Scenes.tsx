@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { ProjectScene } from "../shared/project/project-types";
 import type { CatalogueAsset } from "../shared/asset-runtime/catalogue";
+import { playUiSound } from "./audio/ui-sounds";
 import type { createDocumentStore } from "./document-store";
 
 export function Scenes({
@@ -183,6 +184,7 @@ export function Scenes({
                 const result = store.deleteScene(active.id);
                 if (result.ok) {
                   setConfirmDelete(false);
+                  playUiSound("delete");
                   onSwitch();
                 }
                 report(result, "Scene deleted. Undo restores it.");

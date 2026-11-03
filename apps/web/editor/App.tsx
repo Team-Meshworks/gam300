@@ -3,6 +3,7 @@ import { assets } from "virtual:asset-catalogue";
 import type { Vector3Tuple } from "../shared/project/scene-object";
 import type { Transform } from "../shared/project/project-types";
 import { missingProjectCapabilities } from "../shared/project/project-capabilities";
+import { playUiSound } from "./audio/ui-sounds";
 import { createDocumentStore } from "./document-store";
 import {
   handleDeleteShortcut,
@@ -86,7 +87,19 @@ export function App() {
     setError("");
     setHasDeleted(false);
   }, []);
-  const session = useProjectSession(store, assets, project, objects.length, onReplace, setNotice);
+  const session = useProjectSession(
+    store,
+    assets,
+    project,
+    objects.length,
+    onReplace,
+    setNotice,
+    () => playUiSound("save"),
+  );
+  // Here rather than in the dialog, whose mount effect run twice in development
+  useEffect(() => {
+    if (session.confirmation) playUiSound("warning");
+  }, [session.confirmation]);
   const storageOperation = session.operation;
   const switching =
     storageOperation === "switch" ||
@@ -106,6 +119,7 @@ export function App() {
     setHasDeleted(true);
     setSelectedId(null);
     setNotice(`Deleted ${result.value.name}. Undo restores it.`);
+    playUiSound("delete");
   }, [store, selection, visitor, setNotice]);
 
   useEffect(() => {
@@ -231,6 +245,7 @@ export function App() {
         else {
           setError("");
           setNotice("Scene environment updated. Undo is available.");
+          playUiSound("assetPlace");
         }
         setDragging(false);
         return;
@@ -247,6 +262,7 @@ export function App() {
         session.markPristine(created.value);
       }
       setNotice("Project created; choose Save to name its file");
+      playUiSound("assetPlace");
       return;
     }
     // Clicks and drops share this path; room selection starts the project before furnishing it
@@ -268,6 +284,7 @@ export function App() {
     setError("");
     setSelectedId(result.object.id);
     setNotice(`Added ${result.object.name}`);
+    playUiSound("assetPlace");
   }
 
   return (
@@ -298,9 +315,13 @@ export function App() {
             return;
           }
           manager?.setMode("visitor");
+          playUiSound("enterPreview");
           document.getElementById("viewport")?.focus();
         }}
-        onExitPreview={() => manager?.setMode("editor")}
+        onExitPreview={() => {
+          manager?.setMode("editor");
+          playUiSound("goingBack");
+        }}
       />
       {/* Reset the input so choosing the same file again still fires a change */}
       <input

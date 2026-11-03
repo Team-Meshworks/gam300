@@ -1638,7 +1638,7 @@ claimed by this part; those acceptance gates remain separate.
 
 ## SCRUM-45 Part 7: authorized project list and open
 
-The production host now maps `GET /api/projects` and `GET /api/projects/{id}` under
+The production host maps `GET /api/projects` and `GET /api/projects/{id}` under
 the existing `FullAccount` policy. Both recheck current Identity, organization and
 project assignment authority through `ProjectAccessService`. They use the Part 5d
 document boundary, with no schema, dependency or asset-approval change.
@@ -1726,6 +1726,36 @@ restart were not run for this slice.
 At the Part 7 checkpoint, PUT, lifecycle writers and saved-project restart evidence
 were still outstanding; the following section records their backend implementation.
 Protected asset delivery and the SCRUM-126/SCRUM-67 frontend work remain separate.
+
+## SCRUM-69: current project grants
+
+`GET /api/projects/{id}/assignments` returns a current grant snapshot to a global
+Administrator or an assigned same-organization Educator manager, including on an
+archived project. For a class draft the manager also needs active class membership.
+The response contains all stored rows and flags in user-ID order, including disabled
+accounts and combinations the replacement API cannot represent. It contains no
+names, roles or project document. For example:
+
+```json
+{"projectId":"11111111-1111-1111-1111-111111111111","organizationId":"22222222-2222-2222-2222-222222222222","revision":4,"archived":false,"assignments":[{"userId":"33333333-3333-3333-3333-333333333333","canEdit":true,"canManage":true,"canPublish":true}]}
+```
+
+There are no query parameters: any returns `400 invalid_project_query`. A visible
+Creator gets `403 access_denied`; a missing or inaccessible project gets generic
+`404 project_not_found`. Invalid or expired authentication gets 401. Results and
+errors are `no-store`. Account, authority, metadata and grants come from one
+repeatable-read snapshot; it can become stale immediately.
+
+For a deliberate PATCH replacement, use the GET `revision` as `expectedRevision`.
+Only canonical rows map to its three arrays: `canEdit`, `canManage`, `canPublish`
+all true maps the ID to `managedByUserIds`; `canEdit` true and `canManage` false
+maps it to `assignedCreatorIds`, also adding it to `canPublishUserIds` when publish
+is true. Do not echo GET metadata or raw rows as PATCH fields. The caller must
+surface unsupported flags, unresolved IDs and disabled or otherwise ineligible
+grants and block replacement or handle them deliberately; never silently drop or
+normalize them. PATCH reauthorizes and validates every account and the revision, so
+GET does not guarantee a replacement will succeed. Directory reads are admin-only;
+Educator selection and display need a separately authorized solution.
 
 ## SCRUM-66/45: protected save and project lifecycle
 
