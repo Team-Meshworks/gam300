@@ -73,6 +73,15 @@ try {
   assert.equal(await page.locator(".object-row").count(), 0);
   await addAsset(page, "Snow globe");
   assert.equal(await page.locator(".object-row").count(), 1);
+  // A collapsed tree must restore the same selected object when reopened
+  const placedObjectId = await page.locator(".object-row").getAttribute("data-object-id");
+  const disclosure = page.locator(".scene-disclosure");
+  await disclosure.press("ArrowLeft");
+  assert.equal(await page.locator(".object-row").isVisible(), false);
+  await disclosure.press("ArrowRight");
+  assert.equal(await page.locator(".object-row").isVisible(), true);
+  assert.equal(await page.locator(".object-row").getAttribute("data-object-id"), placedObjectId);
+  assert.equal(await page.locator(".object-row").getAttribute("aria-pressed"), "true");
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   assert.equal(await page.locator(".object-row").count(), 0);
 

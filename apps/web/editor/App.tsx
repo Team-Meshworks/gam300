@@ -59,7 +59,11 @@ export function App() {
   const [modeState, setModeState] = useState<ModeManagerState | null>(null);
   const selection = objects.some((object) => object.id === selectedId) ? selectedId : null;
   const projectScene = project?.scenes.find((scene) => scene.id === activeSceneId);
-  const roomAsset = assets.find((asset) => asset.id === projectScene?.environmentAssetId);
+  const groups =
+    project?.schemaVersion === 2
+      ? (project.scenes.find((scene) => scene.id === activeSceneId)?.groups ?? [])
+      : [];
+  const groupSelected = groups.some((group) => group.id === selectedId);
 
   // Room selection uses the scene ID because its asset lives in the environment field
   // Object commands still receive only placed-object IDs
@@ -222,11 +226,17 @@ export function App() {
         return;
       }
 
-      // The library keeps the room available after placement
-      // Dropping the current room again leaves the scene and undo history alone
+      // The same room tile creates the environment first and independent room instances afterward
+      // Keep the model reference used by saved room instances behind this one catalogue choice
       if (projectScene?.environmentAssetId === assetId) {
+        const added = store.addObject("test-room-module-v1", position);
+        if (added.ok) {
+          setSelectedId(added.object.id);
+          setNotice(`Added ${added.object.name}`);
+        } else {
+          setError(added.error);
+        }
         setDragging(false);
-        setNotice("This room is already in the scene");
         return;
       }
       if (project !== null) {
@@ -246,6 +256,7 @@ export function App() {
         return;
       }
       setError("");
+      setSelectedId(created.value.scenes[0]!.id);
       setDragging(false);
       if (created.value.scenes[0]?.objects.length === 0) {
         session.markPristine(created.value);
@@ -261,7 +272,11 @@ export function App() {
       return;
     }
 
-    const result = store.addObject(assetId, position);
+    const result = store.addObject(
+      assetId,
+      position,
+      roomSelected || groupSelected ? selectedId : selection,
+    );
     if (!result.ok) {
       setError(result.error);
       return;
@@ -366,12 +381,31 @@ export function App() {
               ? undefined
               : {
                   id: projectScene.id,
-                  name: roomAsset?.name ?? projectScene.name,
+                  name: projectScene.name,
                   thumbnail: thumbnailFor(projectScene.environmentAssetId),
                 }
           }
+          groups={groups}
+          hierarchy={{
+            // Route room and object renames through the same validation and undo history
+            rename(id, name) {
+              const result = store.renameObject(id, name);
+              if (!result.ok) setError(result.error.message);
+              return result.ok;
+            },
+            // The store owns validation and undo; panels only choose the requested operation
+            move(id, parentId) {
+              const result = store.reparent(id, parentId);
+              if (!result.ok) {
+                setError(result.error.message);
+                return;
+              }
+              setError("");
+              setNotice("Hierarchy updated. Undo is available.");
+            },
+          }}
           objects={objects}
-          selectedId={roomSelected ? projectScene.id : selection}
+          selectedId={roomSelected ? projectScene.id : groupSelected ? selectedId : selection}
           selectedObject={selectedObject}
           thumbnailFor={thumbnailFor}
           onSelect={setSelectedId}

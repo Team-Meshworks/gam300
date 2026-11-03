@@ -19,13 +19,15 @@ A new begin replaces the previous session. Tokens reject late pointer events aft
 
 ## Deletion
 
-Call store.deleteObject(objectId). A success returns the removed object in value; errors have the same path/message shape as transform errors. Undo restores the full object at its original list position, and redo removes it again. The editor's Delete selected button uses this method. This covers the current object schema; future attached content and cross-object rules will require compound deletion.
+Call store.deleteObject(objectId). A success returns the removed object in value; errors have the same path/message shape as transform errors. Undo restores the full object at its original list position, and redo removes it again. The editor's Delete selected button uses this method. Deletion is rejected if it would leave dangling parent or rule references.
 
 ## Undo after refresh
 
 Browser autosave captures `getSnapshot().project` and `getRecoveryHistory()` together before awaiting storage. IndexedDB writes both in one transaction with the existing revision checks. Recovery passes the checked history as the third argument to `loadProject`; ordinary file imports omit it and start with empty history. Exported JSON still contains only the project.
 
-Recovery version 1 stores immutable object-list states in undo/redo order, preserving IDs, transforms and list positions. It keeps at most 100 edits, with a 20 MiB serialized-history budget that drops the farthest states first. Commands restored from those states use the same command history as new edits. This matches the current single-scene object commands; commands that change scene metadata or future content/rules must extend this format before using it.
+Recovery version 1 stores object-list states. Version 2 stores objects and groups together so creating, moving, renaming and ungrouping share the same undo order as placement and transforms. Older object-only histories remain readable. Both versions keep at most 100 edits within a 20 MiB budget, dropping the farthest states first.
+
+The first hierarchy edit upgrades a v1 project to v2 and converts its existing undo states after validation. Undo restores the authored content while retaining v2. Reparenting preserves world-space transforms. Moving or rotating an object carries its descendants in the same undo step; group records only organize the hierarchy. Uniform resizing carries attached descendants; unequal axis resizing is rejected while descendants are attached because the saved format cannot represent shear. Ungrouping moves direct children to the removed group's parent and keeps their contents. Collapse state remains local to the panel.
 
 Each restored state goes through the project validator. Project/scene IDs and the current object list must match the saved scene. Missing history in older backups is supported. Invalid history is skipped with a warning while the valid scene is recovered. A mismatched scene/history pair is rejected before saving.
 

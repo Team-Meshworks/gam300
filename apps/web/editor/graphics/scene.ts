@@ -1,3 +1,5 @@
+import { moveAttachedObjects } from "../../shared/project/attached-transforms";
+import type { ContentScene } from "../../shared/project/project-content";
 import { getStartingCamera } from "../../shared/project/starting-view";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
@@ -478,7 +480,21 @@ export function initScene(
   function previewTransform(id: string, transform: Transform) {
     const instance = instances.get(id);
     if (instance === undefined) return;
-    applyTransform(instance, transform);
+    // Preview uses the same attachment delta as commit so cancel restores every child too
+    const moved = moveAttachedObjects(
+      objects,
+      (projectScene as ContentScene | null)?.groups ?? [],
+      id,
+      transform,
+    );
+    if (!moved.ok) return;
+    for (const object of moved.value) {
+      const child = instances.get(object.id);
+      if (child) {
+        applyTransform(child, object.transform);
+        bounds.set(object.id, new THREE.Box3().setFromObject(child));
+      }
+    }
     const box = new THREE.Box3().setFromObject(instance);
     bounds.set(id, box);
     selection.box.copy(box);

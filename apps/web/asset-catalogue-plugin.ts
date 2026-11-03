@@ -7,7 +7,12 @@ import { normalizePath, type Plugin } from "vite";
 const assetsRoot = fileURLToPath(new URL("../../assets", import.meta.url));
 const manifestPath = resolve(assetsRoot, "manifest.json");
 // Only these local development samples may enter the browser build
-const allowedIds = new Set(["test-room-v1", "test-crate-v1", "sample-snowglobe-v1"]);
+const allowedIds = new Set([
+  "test-room-v1",
+  "test-crate-v1",
+  "sample-snowglobe-v1",
+  "test-room-module-v1",
+]);
 type Entry = {
   assetId: string;
   name: string;
@@ -18,6 +23,7 @@ type Entry = {
   thumbnailMode?: "generated";
   placement?: "bottom-center";
   access: string;
+  category: string;
 };
 
 function deliveryPath(value: unknown, extension: RegExp): string {
@@ -46,6 +52,8 @@ export function assetCataloguePlugin(): Plugin {
       !entry.name.trim() ||
       !["environment", "model"].includes(entry.kind) ||
       entry.access !== "development-only" ||
+      typeof entry.category !== "string" ||
+      !entry.category.trim() ||
       (entry.placement !== undefined && entry.placement !== "bottom-center") ||
       (entry.thumbnail === null && entry.thumbnailMode !== "generated")
     ) {
@@ -66,7 +74,7 @@ export function assetCataloguePlugin(): Plugin {
     };
   });
   if (seen.size !== allowedIds.size) {
-    throw new Error("All three sample assets must exist in the manifest");
+    throw new Error("All approved sample assets must exist in the manifest");
   }
   return {
     name: "local-asset-catalogue",
@@ -128,6 +136,8 @@ export function assetCataloguePlugin(): Plugin {
             JSON.stringify(entry.name) +
             ",kind:" +
             JSON.stringify(entry.kind) +
+            ",category:" +
+            JSON.stringify(entry.category) +
             ",sha256:" +
             JSON.stringify(entry.sha256) +
             ",url:model" +
