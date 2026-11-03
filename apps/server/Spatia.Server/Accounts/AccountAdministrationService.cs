@@ -116,6 +116,10 @@ public sealed class AccountAdministrationService(ApplicationDbContext database, 
         await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
         try
         {
+            // Match profile overrides, lifecycle changes and bootstrap: roles first,
+            // then user writes. Otherwise a username collision can form a lock cycle.
+            await database.Database.ExecuteSqlRawAsync(
+                "LOCK TABLE \"AspNetUserRoles\" IN SHARE ROW EXCLUSIVE MODE", cancellationToken);
             var outcome = await ProvisionCoreAsync(request, cancellationToken);
             if (!outcome.Result.Succeeded)
             {

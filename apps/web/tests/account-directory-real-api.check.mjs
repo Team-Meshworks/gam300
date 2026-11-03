@@ -73,6 +73,33 @@ try {
   await page.reload();
   await page.getByRole("button", { name: "Open Synthetic organization" }).click();
   await page.getByRole("button", { name: "View account for Browser Updated" }).waitFor();
+  // Exercise recovery against the real API, failing only the organisation refresh.
+  let failOrganizations = true;
+  await page.route(/\/api\/admin\/organizations(?:\?|$)/, (route) =>
+    failOrganizations
+      ? route.fulfill({ status: 503, json: { code: "directory_unavailable" } })
+      : route.continue(),
+  );
+  await page.getByRole("button", { name: "Refresh directory", exact: true }).click();
+  await page.getByRole("alert").filter({ hasText: "directory request failed" }).waitFor();
+  failOrganizations = false;
+  await page.getByRole("button", { name: "Retry", exact: true }).click();
+  await page.getByRole("button", { name: "View account for Browser Updated" }).waitFor();
+  await page.getByText("Dashboard browser project", { exact: true }).waitFor();
+  assert.equal(
+    await page.getByRole("button", { name: "Refresh directory", exact: true }).isEnabled(),
+    true,
+  );
+  await page.getByRole("button", { name: "All organisations", exact: true }).click();
+  await page.getByRole("button", { name: "Open Synthetic organization" }).click();
+  await page.getByRole("button", { name: "View account for Browser Updated" }).waitFor();
+  assert.equal(
+    await page
+      .getByRole("status")
+      .filter({ hasText: /Loading/ })
+      .count(),
+    0,
+  );
   const owner = await browser.newContext({ ignoreHTTPSErrors: true });
   const login = await owner.newPage();
   await login.goto(origin + "/login");
@@ -86,7 +113,7 @@ try {
   assert.equal(session.mustChangePassword, true);
   await owner.close();
   console.log(
-    "Real API browser test passed: admin login, dashboard, organisation creation, accounts and overrides.",
+    "Real API browser test passed: admin login, dashboard, organisation creation, accounts, overrides and failed-refresh recovery.",
   );
 } finally {
   await browser.close();
