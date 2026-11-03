@@ -307,8 +307,11 @@ export function scan(root = webRoot) {
               argument?.getText(source) ===
                 'process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : "playwright"';
             const browserThree =
-              ["tests/editor-integration.check.mjs", "tests/caching.measure.mjs"].includes(file) &&
-              ["threePath", "loaderPath"].includes(argument?.getText(source));
+              [
+                "tests/editor-integration.check.mjs",
+                "tests/interaction-navigation.check.mjs",
+                "tests/caching.measure.mjs",
+              ].includes(file) && ["threePath", "loaderPath"].includes(argument?.getText(source));
             const cacheProbe = file === "tests/caching.check.mjs";
             const probeExpression = argument?.getText(source).replace(/\s+/g, " ");
             const cacheThree =

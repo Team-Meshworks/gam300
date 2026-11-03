@@ -1,6 +1,11 @@
 import { useState, type ReactNode } from "react";
 import type { SceneObject } from "../../shared/project/scene-object";
-import type { ProjectHotspot, Transform, Vector3Tuple } from "../../shared/project/project-types";
+import type {
+  ProjectHotspot,
+  ProjectScene,
+  Transform,
+  Vector3Tuple,
+} from "../../shared/project/project-types";
 import { Icon, type IconName } from "./Icon";
 import type { Interaction } from "../interaction/interactionHandler";
 import { InteractionPanel } from "./InteractionPanel";
@@ -29,6 +34,8 @@ export function SidePanels({
   selectedObject,
   hotspots,
   interactions,
+  projectScenes,
+  activeSceneId,
   thumbnailFor,
   onSelect,
   onTransform,
@@ -48,6 +55,8 @@ export function SidePanels({
   selectedObject: SceneObject | undefined;
   hotspots: readonly ProjectHotspot[];
   interactions: readonly Interaction[];
+  projectScenes: readonly ProjectScene[];
+  activeSceneId: string | null;
   thumbnailFor: (assetId: string) => string | undefined;
   onSelect: (id: string) => void;
   onTransform: (id: string, transform: Transform) => void;
@@ -103,6 +112,8 @@ export function SidePanels({
           {panel === "interaction" && (
             <InteractionPanel
               interactions={interactions}
+              scenes={projectScenes}
+              activeSceneId={activeSceneId}
               hotspots={hotspots}
               objects={objects}
               onChange={onInteractionsChange}

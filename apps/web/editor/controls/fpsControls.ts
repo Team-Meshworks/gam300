@@ -32,6 +32,8 @@ export class FpsControls {
   private readonly velocity = new THREE.Vector3();
   private yaw = 0;
   private pitch = 0;
+  private roll = 0;
+  private minimumHeight = EYE_HEIGHT;
   private dragging = false;
   private engaged = false;
   private readonly _euler = new THREE.Euler(0, 0, 0, "YXZ");
@@ -57,6 +59,8 @@ export class FpsControls {
     this.accumulated = 0;
     this.yaw = 0;
     this.pitch = 0;
+    this.roll = 0;
+    this.minimumHeight = EYE_HEIGHT;
     this.dragging = false;
     this.applyRotation();
     addEventListener("keydown", this.onKeyDown);
@@ -72,6 +76,16 @@ export class FpsControls {
     this.yaw = this._euler.y;
     this.pitch = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, this._euler.x));
     this.applyRotation();
+  }
+
+  syncFromCamera(): void {
+    this.clearInput();
+    // An authored low viewpoint must not jump upward on the next idle frame.
+    this.minimumHeight = Math.min(EYE_HEIGHT, this.camera.position.y);
+    this._euler.setFromQuaternion(this.camera.quaternion, "YXZ");
+    this.yaw = this._euler.y;
+    this.pitch = this._euler.x;
+    this.roll = this._euler.z;
   }
 
   disengage(): void {
@@ -138,7 +152,8 @@ export class FpsControls {
     const previous = this.velocity.clone();
     this.velocity.lerp(_wish, smoothing);
     this.physicsPosition.addScaledVector(previous.lerp(this.velocity, 0.5), delta);
-    this.physicsPosition.y = Math.max(this.physicsPosition.y, EYE_HEIGHT);
+    if (this.physicsPosition.y >= EYE_HEIGHT) this.minimumHeight = EYE_HEIGHT;
+    this.physicsPosition.y = Math.max(this.physicsPosition.y, this.minimumHeight);
   }
 
   private readonly onPointerDown = (event: MouseEvent) => {
@@ -190,6 +205,6 @@ export class FpsControls {
   };
 
   private applyRotation(): void {
-    this.camera.rotation.set(this.pitch, this.yaw, 0, "YXZ");
+    this.camera.rotation.set(this.pitch, this.yaw, this.roll, "YXZ");
   }
 }

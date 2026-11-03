@@ -124,6 +124,19 @@ export function validateProject(
     }
 
     for (const [interactionIndex, interaction] of scene.interactions.entries()) {
+      const actionPath = `${path}.interactions[${interactionIndex}].do`;
+      if (interaction.do.type === "move-to-viewpoint") {
+        return invalid(`${actionPath}.viewpointId`, "Saved viewpoints require a v2 project");
+      }
+      const action = interaction.do;
+      if (
+        action.type === "navigate-scene" &&
+        !result.value.scenes.some(
+          (target) => target.id.toLowerCase() === action.sceneId.toLowerCase(),
+        )
+      ) {
+        return invalid(`${actionPath}.sceneId`, "Choose a scene in this project");
+      }
       if (interaction.when.type !== "visitor-clicks-hotspot") continue;
       if (!hotspotIds.has(interaction.when.targetHotspotId.toLowerCase())) {
         return invalid(

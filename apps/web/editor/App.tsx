@@ -14,6 +14,8 @@ import {
 } from "./history-shortcuts";
 import type { NavigationTool, ViewportStatus } from "./graphics/scene";
 import type { ModeManager, ModeManagerState } from "./graphics/modeManager";
+import { createActionRunner } from "./interaction/actionHandler";
+import { createPreviewNavigation } from "./interaction/preview-navigation";
 import { createInteractionHandler, type Interaction } from "./interaction/interactionHandler";
 import { BottomBar } from "./ui/BottomBar";
 import { PreviewTargets } from "./ui/PreviewTargets";
@@ -85,9 +87,25 @@ export function App() {
   const interactions = projectScene?.interactions ?? EMPTY_INTERACTIONS;
   const hotspots = projectScene?.hotspots ?? EMPTY_HOTSPOTS;
 
+  const navigation = useMemo(
+    () =>
+      createPreviewNavigation({
+        snapshot: store.getSnapshot,
+        switchScene: store.switchScene,
+        showCamera: (pose) => viewCamera?.show(pose),
+        notice: setNotice,
+      }),
+    [store, viewCamera, setNotice],
+  );
   const interactionHandler = useMemo(
-    () => createInteractionHandler(interactions, hotspots),
-    [interactions, hotspots],
+    () =>
+      createInteractionHandler(
+        projectScene?.interactions ?? EMPTY_INTERACTIONS,
+        projectScene?.hotspots ?? EMPTY_HOTSPOTS,
+        createActionRunner(navigation),
+        navigation.beginEvent,
+      ),
+    [projectScene, navigation],
   );
   const interactionHandlerRef = useRef(interactionHandler);
   useEffect(() => {
@@ -368,19 +386,30 @@ export function App() {
         onPreview={() => {
           const current = store.getSnapshot().project;
           const unavailable =
-            current === null ? [] : missingProjectCapabilities(current, new Set());
+            current === null
+              ? []
+              : missingProjectCapabilities(
+                  current,
+                  new Set([
+                    "multipleScenes",
+                    "interaction:navigate-scene",
+                    "interaction:move-to-viewpoint",
+                  ]),
+                );
           if (unavailable.length > 0) {
             setNotice(
               "This preview does not support all the scenes and interactions in this project",
             );
             return;
           }
+          navigation.start();
           manager?.setMode("visitor");
           playUiSound("enterPreview");
           document.getElementById("viewport")?.focus();
         }}
         onExitPreview={() => {
           manager?.setMode("editor");
+          navigation.end();
           playUiSound("goingBack");
         }}
       />
@@ -470,6 +499,8 @@ export function App() {
           selectedObject={selectedObject}
           hotspots={hotspots}
           interactions={interactions}
+          projectScenes={project?.scenes ?? []}
+          activeSceneId={activeSceneId}
           thumbnailFor={thumbnailFor}
           onSelect={setSelectedId}
           onTransform={onTransform}
@@ -483,7 +514,6 @@ export function App() {
         />
 
         <Viewport
-          key={activeSceneId ?? "grid"}
           onCamera={setViewCamera}
           loadGeneration={loadGeneration}
           assets={editorAssets}

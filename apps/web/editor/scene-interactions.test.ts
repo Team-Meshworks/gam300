@@ -1,3 +1,4 @@
+import { missingProjectCapabilities } from "../shared/project/project-capabilities";
 import { expect, it } from "vitest";
 import type { CatalogueAsset } from "../shared/asset-runtime/catalogue";
 import { serializeProject } from "../shared/project/project-serialization";
@@ -112,4 +113,65 @@ it("allows scene and viewpoint edits while an interaction link is unfinished, bu
   expect(active(restored).interactions).toEqual([draft]);
   restored.redo();
   expect(serializeProject(restored.getSnapshot().project, kinds).ok).toBe(true);
+});
+
+it("retains navigation targets through rename, reorder, undo and recovery; protects referenced destinations", () => {
+  const { store, hotspot } = setup();
+  const firstId = active(store).id;
+  expect(store.addViewpoint("Gallery detail", active(store).startCamera).ok).toBe(true);
+  const viewId = active(store).viewpoints![0]!.id;
+  expect(store.createScene("Next gallery").ok).toBe(true);
+  const secondId = active(store).id;
+  expect(store.switchScene(firstId).ok).toBe(true);
+  const rules = [
+    {
+      when: { type: "visitor-clicks-hotspot" as const, targetHotspotId: hotspot.id },
+      do: { type: "navigate-scene" as const, sceneId: secondId.toUpperCase() },
+    },
+    {
+      when: { type: "scene-starts" as const },
+      do: { type: "move-to-viewpoint" as const, viewpointId: viewId.toUpperCase() },
+    },
+  ];
+  expect(store.setInteractions(rules).ok).toBe(true);
+  store.undo();
+  expect(active(store).interactions).not.toEqual(rules);
+  store.redo();
+  expect(active(store).interactions).toEqual(rules);
+  expect(
+    missingProjectCapabilities(store.getSnapshot().project!, new Set()).map(
+      (issue) => issue.capability,
+    ),
+  ).toEqual(["multipleScenes", "interaction:navigate-scene", "interaction:move-to-viewpoint"]);
+  expect(
+    missingProjectCapabilities(
+      store.getSnapshot().project!,
+      new Set(["multipleScenes", "interaction:navigate-scene", "interaction:move-to-viewpoint"]),
+    ),
+  ).toEqual([]);
+  expect(store.renameViewpoint(viewId, "Renamed detail").ok).toBe(true);
+  expect(store.renameScene(secondId, "Renamed gallery").ok).toBe(true);
+  expect(store.moveScene(secondId, 0).ok).toBe(true);
+  expect(store.switchScene(firstId).ok).toBe(true);
+  expect(store.deleteViewpoint(viewId).ok).toBe(false);
+  expect(store.deleteScene(secondId).ok).toBe(false);
+  expect(
+    store.setInteractions([
+      { ...rules[0]!, do: { type: "navigate-scene", sceneId: crypto.randomUUID() } },
+    ]).ok,
+  ).toBe(false);
+  const serialized = serializeProject(store.getSnapshot().project, kinds);
+  expect(serialized.ok).toBe(true);
+  const reopened = createDocumentStore(assets);
+  if (!serialized.ok) throw Error(serialized.error.message);
+  expect(reopened.loadProject(serialized.value, kinds, store.getRecoveryHistory()).ok).toBe(true);
+  expect(reopened.switchScene(firstId).ok).toBe(true);
+  expect(active(reopened).interactions).toEqual(rules);
+  expect(reopened.setInteractions([]).ok).toBe(true);
+  expect(reopened.deleteViewpoint(viewId).ok).toBe(true);
+  expect(reopened.deleteScene(secondId).ok).toBe(true);
+  reopened.undo();
+  reopened.undo();
+  reopened.undo();
+  expect(active(reopened).interactions).toEqual(rules);
 });

@@ -21,6 +21,7 @@ export function createInteractionHandler(
   interactions: readonly Interaction[],
   hotspots: readonly ProjectHotspot[],
   actions: ActionRunner = createActionRunner(),
+  beginEvent: () => void = () => {},
 ): InteractionHandler {
   let elapsedSeconds = 0;
   const fired = new Set<Interaction>();
@@ -42,17 +43,18 @@ export function createInteractionHandler(
     else attached.push(interaction);
   }
 
-  function execute(action: Action): void {
+  function execute(action: Action): boolean {
     try {
-      actions.run(action);
+      return actions.run(action) === true;
     } catch {
       // One failed action must not prevent later actions from running
+      return false;
     }
   }
 
   function run(event: TriggerEvent): void {
     for (const interaction of interactions) {
-      if (triggerMatches(interaction.when, event)) execute(interaction.do);
+      if (triggerMatches(interaction.when, event) && execute(interaction.do)) break;
     }
   }
 
@@ -61,18 +63,24 @@ export function createInteractionHandler(
       run({ type: "scene-starts" });
     },
     objectClicked(objectId) {
+      beginEvent();
       for (const interaction of interactionsByObject.get(objectId.toLowerCase()) ?? []) {
-        execute(interaction.do);
+        if (execute(interaction.do)) break;
       }
     },
     update(deltaSeconds) {
       if (!Number.isFinite(deltaSeconds) || deltaSeconds <= 0) return;
       elapsedSeconds += deltaSeconds;
+      let started = false;
       for (const interaction of interactions) {
         if (interaction.when.type !== "time-elapsed" || fired.has(interaction)) continue;
         if (elapsedSeconds < triggerSeconds(interaction.when)) continue;
+        if (!started) {
+          beginEvent();
+          started = true;
+        }
         fired.add(interaction);
-        execute(interaction.do);
+        if (execute(interaction.do)) break;
       }
     },
     reset() {

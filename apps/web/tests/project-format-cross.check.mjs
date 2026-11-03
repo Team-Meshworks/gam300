@@ -33,6 +33,7 @@ try {
       test.patches.length === 0 ||
       test.name.startsWith("storage NUL") ||
       test.name.startsWith("v2 preserves") ||
+      test.name.startsWith("v2 interaction navigation") ||
       /^v[12] interaction URL/.test(test.name) ||
       (test.patches.length === 1 && test.patches[0].path.at(-1) === "url"),
   );

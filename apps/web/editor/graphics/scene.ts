@@ -371,7 +371,15 @@ export function initScene(
   requestAnimationFrame(animate);
 
   function showCamera(pose: import("../../shared/project/project-types").CameraPose) {
-    if (modeManager.getState().mode !== "editor") return;
+    if (modeManager.getState().mode === "visitor") {
+      camera.position.fromArray(pose.position);
+      camera.quaternion.fromArray(pose.rotation);
+      camera.fov = pose.fovDegrees;
+      camera.updateProjectionMatrix();
+      camera.updateMatrixWorld(true);
+      fpsControls.syncFromCamera();
+      return;
+    }
     camera.position.fromArray(pose.position);
     camera.quaternion.fromArray(pose.rotation);
     // Keep upright views orbiting around world Y, while preserving authored roll
@@ -409,7 +417,7 @@ export function initScene(
     nextObjects: readonly SceneObject[],
     nextSelectedId: string | null,
     nextScene: ProjectScene | null = projectScene,
-    loadGeneration = 0,
+    loadGeneration = appliedLoadGeneration ?? 0,
   ) {
     if (
       drag !== undefined &&
@@ -425,6 +433,7 @@ export function initScene(
       // Undo or another edit replaced the object mid-scroll; drop the unsaved scale
       cancelWheelEdit();
     }
+    const sceneChanged = projectScene?.id !== nextScene?.id;
     objects = nextObjects;
     selectedId = nextSelectedId;
     projectScene = nextScene;
@@ -434,10 +443,17 @@ export function initScene(
     // Renaming a view can produce a fresh object with the same pose. Keep the live camera still.
     if (
       startingCamera !== null &&
-      (appliedLoadGeneration !== loadGeneration ||
+      (sceneChanged ||
+        appliedLoadGeneration !== loadGeneration ||
         JSON.stringify(appliedCamera) !== JSON.stringify(startingCamera))
     ) {
-      modeManager.setMode("editor");
+      // Scene navigation keeps the same visitor controls and asset cache alive.
+      if (appliedLoadGeneration !== loadGeneration) modeManager.setMode("editor");
+      if (sceneChanged)
+        interactionClock.reset(
+          performance.now(),
+          modeManager.getState().mode === "visitor" && !document.hidden,
+        );
       appliedCamera = startingCamera;
       appliedLoadGeneration = loadGeneration;
       showCamera(appliedCamera);

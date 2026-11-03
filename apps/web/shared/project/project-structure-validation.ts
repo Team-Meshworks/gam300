@@ -202,6 +202,21 @@ function validateAction(
       }
       return { ok: true, value: { type: "play-audio", url: url.value } };
     }
+    case "navigate-scene":
+    case "move-to-viewpoint": {
+      const key = raw.type === "navigate-scene" ? "sceneId" : "viewpointId";
+      const fields = checkFields(raw, ["type", key], path);
+      if (!fields.ok) return fields;
+      const id = readText(raw[key], `${path}.${key}`, budget);
+      if (!id.ok) return id;
+      return {
+        ok: true,
+        value:
+          raw.type === "navigate-scene"
+            ? { type: raw.type, sceneId: id.value }
+            : { type: raw.type, viewpointId: id.value },
+      };
+    }
     case "print-hi": {
       const fields = checkFields(raw, ["type"], path);
       if (!fields.ok) return fields;
