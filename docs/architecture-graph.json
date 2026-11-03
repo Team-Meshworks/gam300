@@ -358,7 +358,7 @@
     "editor/ui-preview/main.tsx": "10d494ed224f1fda3fc0fa3f6d1ef68527e859d62a1ef6bbd3854561dde10f64",
     "editor/ui/AssetFilterSelect.tsx": "d5449ccfb82270fb1baae4503d61014a3d42f87b07272b85f8a0f6d3feb55450",
     "editor/ui/AssetPicker.tsx": "b49b053f5d08c1b20ec5e35f65d5c0865f5ed6b8f4bd1454b139a82977c7646e",
-    "editor/ui/BottomBar.tsx": "e3ed0fd0f5e081d1d1a5d32849dc1bcf259f1fd91405824c886e5f2422bb4019",
+    "editor/ui/BottomBar.tsx": "df8926adee276ac26c876cd8fed559ac0ead3e0f3a9364a2f1850b64092cb961",
     "editor/ui/DisplayEditor.tsx": "5342a2be47ae78f794403a08985c6acc564e0dbd866f76fb60e1414248acaa7e",
     "editor/ui/Icon.tsx": "9541d7b9446bdc777fa17a0276232859ea688aed6b7d2ab1af25dbd0cea58323",
     "editor/ui/InteractionPanel.tsx": "bd06335bb72d214c8fe24093706b5c8ef7294ba47c6fbe9a1f53808216e5555f",
@@ -368,6 +368,8 @@
     "editor/ui/TopBar.tsx": "5992d5b27ce28074bfa529864be389a23a9e707877abf3928d83e65d80c1a95e",
     "editor/ui/asset-filters.test.ts": "0b88a68d514d283e155ceb0838d4951c1b4fd5867459df2e8c6ab8780c65f858",
     "editor/ui/asset-filters.ts": "5e08299dbfc2543f41017306fdff78d7ba3161e2242186877a315e3ea75fa8cc",
+    "editor/ui/display-tools.test.ts": "28747d38636a8ec791dabbee2881c227af3daafe06b68762c65a0816e9399aa0",
+    "editor/ui/display-tools.ts": "9c64aa1fc0de4464c338684cbfc638e69788c35289cefd26235dc9a1f7bc708c",
     "editor/ui/dock-edge.test.ts": "5f23848e403e898efc84d2c34ae327b5d5313a066c6391a79cec336e73759ead",
     "editor/ui/dock-edge.ts": "16fbf3250e0c840d7d6d0add10b5fb4ee008afafcbbebe1b860c15171d7196af",
     "editor/ui/rotation-angles.test.ts": "768d7e7fcfe8d5a5fc0a11f3bc70fa734e5e84ce161fd9aa5b1807b850f4438d",
@@ -5894,7 +5896,16 @@
     },
     {
       "file": "editor/ui/BottomBar.tsx",
-      "line": 242,
+      "line": 16,
+      "kind": "static",
+      "specifier": "./display-tools",
+      "target": "editor/ui/display-tools.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/BottomBar.tsx",
+      "line": 206,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -6346,6 +6357,63 @@
       "target": "shared/asset-runtime/catalogue.ts",
       "from": "editor",
       "to": "catalogue"
+    },
+    {
+      "file": "editor/ui/display-tools.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "react",
+      "target": {
+        "package": "react"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/ui/display-tools.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/ui/display-tools.test.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "react-dom/server",
+      "target": {
+        "package": "react-dom"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/ui/display-tools.test.ts",
+      "line": 4,
+      "kind": "static",
+      "specifier": "./display-tools",
+      "target": "editor/ui/display-tools.ts",
+      "from": "checks",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/display-tools.test.ts",
+      "line": 5,
+      "kind": "static",
+      "specifier": "./Icon",
+      "target": "editor/ui/Icon.tsx",
+      "from": "checks",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/display-tools.ts",
+      "line": 1,
+      "kind": "type",
+      "specifier": "./Icon",
+      "target": "editor/ui/Icon.tsx",
+      "from": "editor",
+      "to": "editor"
     },
     {
       "file": "editor/ui/dock-edge.test.ts",

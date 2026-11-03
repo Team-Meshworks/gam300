@@ -13,6 +13,7 @@ import type { NavigationTool } from "../graphics/scene";
 import { AssetPicker } from "./AssetPicker";
 import { dockEdges, loadDockEdge, nearestEdge, saveDockEdge, type DockEdge } from "./dock-edge";
 import { Icon, type IconName } from "./Icon";
+import { displayPanelTools, displayCaseTools } from "./display-tools";
 
 const cameraTools: { id: NavigationTool; label: string; hint: string; icon: IconName }[] = [
   { id: "select", label: "Select", hint: "Select · click objects to edit them", icon: "select" },
@@ -41,45 +42,8 @@ function place(point: { x: number; y: number }, name: "popup" | "tip") {
 // First item is what the bar show until something else is picked
 const categories: { id: Category; label: string; items: [Item, ...Item[]] }[] = [
   { id: "furniture", label: "Furniture", items: [{ label: "Chair", icon: "chair" }] },
-  {
-    id: "panels",
-    label: "Display panels",
-    items: [
-      {
-        label: "Landscape media stand",
-        icon: "panelStanding",
-        assetId: "display-rectangle-stand-v1",
-      },
-      { label: "Square media stand", icon: "panelSmall", assetId: "display-square-stand-v1" },
-      {
-        label: "Landscape media panel",
-        icon: "panelLandscape",
-        assetId: "display-rectangle-panel-v1",
-      },
-    ],
-  },
-  {
-    id: "cases",
-    label: "Display cases",
-    items: [
-      { label: "Display plinth", icon: "case", assetId: "display-cube-v1" },
-      {
-        label: "Half glass display case",
-        icon: "caseClosed",
-        assetId: "display-half-glass-case-v1",
-      },
-      {
-        label: "Full glass display case",
-        icon: "caseTallClosed",
-        assetId: "display-full-glass-case-v1",
-      },
-      {
-        label: "One-sided glass display case",
-        icon: "caseTall",
-        assetId: "display-one-sided-glass-case-v1",
-      },
-    ],
-  },
+  { id: "panels", label: "Display panels", items: displayPanelTools },
+  { id: "cases", label: "Display cases", items: displayCaseTools },
   { id: "audio", label: "Audio", items: [{ label: "Background music", icon: "music" }] },
 ];
 
