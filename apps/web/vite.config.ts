@@ -26,7 +26,9 @@ export default defineConfig(({ command, mode }) => {
               request.url = "/entry.html";
             else if (
               request.url &&
-              /^\/(new-project|classes|review|accounts)\/?(?:\?|$)/.test(request.url)
+              /^\/(admin\/dashboard|new-project|classes|review|accounts)\/?(?:\?|$)/.test(
+                request.url,
+              )
             )
               request.url = "/workspace.html";
             next();
@@ -38,7 +40,9 @@ export default defineConfig(({ command, mode }) => {
               request.url = "/entry.html";
             else if (
               request.url &&
-              /^\/(new-project|classes|review|accounts)\/?(?:\?|$)/.test(request.url)
+              /^\/(admin\/dashboard|new-project|classes|review|accounts)\/?(?:\?|$)/.test(
+                request.url,
+              )
             )
               request.url = "/workspace.html";
             next();

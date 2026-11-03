@@ -14,6 +14,7 @@ const session = {
   mustChangePassword: false,
 };
 const screens = [
+  ["admin/dashboard", "Welcome Back, Test Teacher"],
   ["new-project", "New Project"],
   ["classes", "Class assignments"],
   ["review", "Submission review"],
@@ -50,7 +51,7 @@ try {
     assert.equal(await page.getByText(/development preview|simulation|ms tan/i).count(), 0);
   }
   for (const [path, heading] of screens) {
-    mode = path === "accounts" ? "Administrator" : "Educator";
+    mode = path === "accounts" || path === "admin/dashboard" ? "Administrator" : "Educator";
     await screen(`${path}/?source=check`, heading);
     await page.reload();
     await page.getByRole("heading", { name: heading, exact: true }).waitFor();
@@ -101,7 +102,7 @@ try {
   await page.getByRole("heading", { name: "Class assignments", exact: true }).waitFor();
   assert.equal(page.url(), `${origin}/classes`);
 
-  for (const path of ["classes", "review", "accounts"]) {
+  for (const path of ["classes", "review", "accounts", "admin/dashboard"]) {
     mode = "Creator";
     await page.goto(`${origin}/${path}`);
     await page

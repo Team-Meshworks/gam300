@@ -85,10 +85,11 @@ try {
   await page.getByLabel("New password", { exact: true }).fill(newPassword);
   await page.getByLabel("Confirm new password").fill(newPassword);
   await page.getByRole("button", { name: "Change password" }).click();
-  await page.getByRole("heading", { name: /You.re signed in/ }).waitFor();
+  await page.waitForURL(origin + "/admin/dashboard");
+  await page.getByRole("heading", { name: /^Welcome Back,/ }).waitFor();
   assert.equal((await session(page)).body.mustChangePassword, false);
   await page.reload();
-  await page.getByRole("heading", { name: /You.re signed in/ }).waitFor();
+  await page.getByRole("heading", { name: /^Welcome Back,/ }).waitFor();
   const browserStorage = await page.evaluate(() =>
     JSON.stringify({
       local: { ...localStorage },
@@ -98,7 +99,7 @@ try {
   );
   assert.ok(!browserStorage.includes(oldPassword) && !browserStorage.includes(newPassword));
   assert.ok(!browserStorage.includes("__Host-Spatia.Application"));
-  await page.getByRole("button", { name: "Log out" }).click();
+  await page.getByRole("button", { name: "Log Out", exact: true }).click();
   await page.getByRole("heading", { name: "Welcome back." }).waitFor();
   assert.equal((await session(page)).status, 401);
   await page.reload();
@@ -112,7 +113,8 @@ try {
   await login(next, admin, oldPassword);
   await next.getByText(/username or password could not be accepted/i).waitFor();
   await login(next, admin, newPassword);
-  await next.getByRole("heading", { name: /You.re signed in/ }).waitFor();
+  await next.waitForURL(origin + "/admin/dashboard");
+  await next.getByRole("heading", { name: /^Welcome Back,/ }).waitFor();
   assert.equal((await session(next)).body.role, "Administrator");
   await fresh.close();
   const normalContext = await context();

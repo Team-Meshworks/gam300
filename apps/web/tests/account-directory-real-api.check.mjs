@@ -17,8 +17,38 @@ try {
   await page.getByLabel("Username", { exact: true }).fill(process.env.SPATIA_TEST_ADMIN);
   await page.getByLabel("Password", { exact: true }).fill("Synthetic-long-password1!");
   await page.getByRole("button", { name: "Log in", exact: true }).click();
-  await page.getByRole("heading", { name: /You.re signed in/ }).waitFor();
-  await page.goto(origin + "/accounts");
+  if (process.env.SPATIA_TEST_FORCED_ADMIN === "true") {
+    await page.getByRole("heading", { name: "Change your password." }).waitFor();
+    assert.equal(new URL(page.url()).pathname, "/login");
+    await page.getByLabel("Current password", { exact: true }).fill("Synthetic-long-password1!");
+    await page.getByLabel("New password", { exact: true }).fill("Admin-replacement2!");
+    await page.getByLabel("Confirm new password", { exact: true }).fill("Admin-replacement2!");
+    await page.getByRole("button", { name: "Change password", exact: true }).click();
+  }
+  await page.waitForURL(origin + "/admin/dashboard");
+  await page.getByRole("heading", { name: /Welcome Back,/ }).waitFor();
+  await page
+    .getByRole("button", { name: "View details for Dashboard browser project", exact: true })
+    .click();
+  const projectDetails = page.getByRole("dialog", { name: "Project details", exact: true });
+  assert.equal(await projectDetails.locator("dd").nth(1).textContent(), "0");
+  assert.match(
+    await projectDetails
+      .getByRole("link", { name: "Open project", exact: true })
+      .getAttribute("href"),
+    /^\/\?projectId=[0-9a-f-]{36}$/,
+  );
+  await projectDetails.getByRole("button", { name: "Close", exact: true }).click();
+  await page.getByRole("button", { name: "+ Add Organisations", exact: true }).click();
+  await page
+    .getByLabel("Organisation name", { exact: true })
+    .fill("Dashboard browser organisation");
+  await page.getByRole("button", { name: "Create organisation", exact: true }).click();
+  await page
+    .getByRole("status")
+    .filter({ hasText: "Dashboard browser organisation was created." })
+    .waitFor();
+  await page.getByRole("link", { name: "View Organisations", exact: true }).click();
   await page.getByRole("button", { name: "Open Synthetic organization" }).click();
   await page.getByRole("button", { name: "+ Add Accounts" }).click();
   let dialog = page.getByRole("dialog");
@@ -55,7 +85,9 @@ try {
   assert.equal(session.role, "Educator");
   assert.equal(session.mustChangePassword, true);
   await owner.close();
-  console.log("Account directory real API browser test passed.");
+  console.log(
+    "Real API browser test passed: admin login, dashboard, organisation creation, accounts and overrides.",
+  );
 } finally {
   await browser.close();
   await server.close();

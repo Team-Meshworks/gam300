@@ -11,7 +11,7 @@ export function Dialog({
   title: string;
   children: ReactNode;
   onClose: () => void;
-  variant?: "account";
+  variant?: "account" | "wide";
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -26,7 +26,7 @@ export function Dialog({
   }, []);
   return (
     <dialog
-      className={`sp-dialog${variant === "account" ? " sp-account-dialog" : ""}`}
+      className={`sp-dialog${variant === "account" ? " sp-account-dialog" : variant === "wide" ? " sp-dialog--wide" : ""}`}
       ref={ref}
       aria-labelledby={titleId}
       onCancel={(event) => {

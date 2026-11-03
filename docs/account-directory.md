@@ -16,6 +16,18 @@ If the session reaches its absolute expiry during transaction commit, the respon
 
 ## Account creation and overrides
 
+### Administrator entry flow
+
+Successful administrator sign-in at `/login` opens `/admin/dashboard`, matching the [Admin – Dashboard Figma frame](https://www.figma.com/design/QNpdfKb2Ge7vO8uG8HphxB/Meshworks?node-id=226-15002). A required password change completes first. An existing authorized administrator session visiting `/login` also opens the dashboard. Other roles retain their existing login flow and cannot open the administrator dashboard.
+
+The dashboard's **View Organisations** link opens the existing `/accounts` directory, where administrators select an organisation and create or view its accounts. **Add Organisations** uses the existing `POST /api/admin/organizations` endpoint. The workspace's Spatia home link returns administrators to their dashboard. Both Vite and the deployed Caddy app serve the nested dashboard URL directly, including on refresh.
+
+Project cards use `GET /api/projects`, with pagination and current/archived filters in **View All Projects**. Details expose the current project metadata and an editor link when permitted. This API does not provide cover images, publication visibility or approval status; the dashboard displays placeholders and actual Draft/Archived states. The environment and physical asset library dialogs browse the existing asset catalogue. Upload buttons are unavailable until upload APIs exist.
+
+`npm run test:admin-dashboard` checks the browser flow with API fixtures; `AccountDirectoryBrowserTests` checks both normal and forced-password-change administrator login, dashboard organisation creation, and account creation/overrides against the real API and PostgreSQL.
+
+### Account dialogs
+
 The administrator `/accounts` workspace reuses the organisation directory and opens Account Creation or View Account Details overlays. Facilitator maps to `Educator`; Creator maps to `Creator`.
 
 `POST /api/admin/users` accepts optional `displayName` alongside `userName`, `initialPassword`, `role`, and `orgId`. Apply migration `AddAccountDisplayName` before deploying the updated API. Names are limited to 256 characters and passwords retain the existing 12–128 character policy. New accounts require a password change on first sign-in.
