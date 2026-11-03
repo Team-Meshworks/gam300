@@ -96,7 +96,9 @@ export function ServerProjectEditor({ projectId }: { projectId: string }) {
       );
     const recovery = recover ? next.recovery : null;
     const document = recovery?.document ?? opened.document;
-    const loaded = store.loadProject(JSON.stringify(document), kinds, recovery?.history);
+    const loaded = store.loadProject(JSON.stringify(document), kinds, recovery?.history, {
+      allowDraftLinks: !!recovery,
+    });
     if (!loaded.ok) throw new Error(loaded.error.message);
     const session = connectServerProjectSession({
       accountId: opened.accountId,

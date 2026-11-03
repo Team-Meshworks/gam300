@@ -59,7 +59,7 @@ export function connectServerProjectSession(options: {
   // Hold onto the previous project's history when the store switches projects
   // Its final queued backup may run after the new scene has loaded
   let capturedHistory = options.store.getRecoveryHistory();
-  let historyDocument = serializeProject(document, options.assetKinds);
+  let historyDocument = serializeProject(document, options.assetKinds, { allowDraftLinks: true });
   // Connect server writes to account-scoped recovery before watching edits
   const autosave = createServerAutosave({
     document,
@@ -74,7 +74,9 @@ export function connectServerProjectSession(options: {
       options.write ??
       ((request, signal) => writeServerDraft(request, signal, fetch, scope.accountId)),
     backup: async (documentJson, serverSave) => {
-      const parsed = deserializeProject(documentJson, options.assetKinds);
+      const parsed = deserializeProject(documentJson, options.assetKinds, {
+        allowDraftLinks: true,
+      });
       if (!parsed.ok) return false;
       // History belongs to the captured scene, not whichever scene happens to be open later
       const history =
@@ -113,7 +115,7 @@ export function connectServerProjectSession(options: {
     // Document subscriptions fire for committed edits and undo/redo
     // Drag previews stay outside this path
     capturedHistory = options.store.getRecoveryHistory();
-    historyDocument = serializeProject(next, options.assetKinds);
+    historyDocument = serializeProject(next, options.assetKinds, { allowDraftLinks: true });
     autosave.changed(next);
   });
   // Online only means the browser has a connection again
@@ -165,7 +167,9 @@ export function connectServerProjectSession(options: {
           preserved = await autosave.checkpoint();
         } else {
           // A dismissed picker or failed write must never count as a successful export
-          preserved = (await exportFile?.(captured)) === true;
+          const exported = autosave.getExportJson();
+          if (!exported.ok) return exported;
+          preserved = (await exportFile?.(exported.value)) === true;
         }
       } catch {
         preserved = false;
@@ -183,6 +187,14 @@ export function connectServerProjectSession(options: {
       void dispose();
       return { ok: true, value: true };
     },
+    getRecovery: (): RecoverySession => ({
+      ...autosave.getRecovery(),
+      revision: storageRevision,
+      fileName: options.recovery?.fileName ?? "",
+      savedJson: null,
+      pristine: false,
+      ...(capturedHistory ? { history: capturedHistory } : {}),
+    }),
     flush: autosave.flush,
     getStatus: autosave.getStatus,
     dispose,

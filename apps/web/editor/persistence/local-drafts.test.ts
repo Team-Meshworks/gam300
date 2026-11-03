@@ -726,6 +726,37 @@ describe("server project session lifecycle", () => {
     return { store, database, account, events, write, onStatus, session };
   }
 
+  it.each(["save", "export", "recovery"] as const)(
+    "preserves unfinished links and subsequent edits during %s departure",
+    async (choice) => {
+      const { store, session, database, write } = setup();
+      const draft = structuredClone(store.getSnapshot().project!);
+      expect(
+        store.setInteractions([
+          { when: { type: "scene-starts" }, do: { type: "open-link", url: "" } },
+        ]).ok,
+      ).toBe(true);
+      expect(store.deleteObject(draft.scenes[0]!.objects[0]!.id).ok).toBe(true);
+      expect(session.getStatus()).not.toBe("saved");
+      const exportFile = vi.fn(async () => true);
+      const result = await session.prepareToLeave(choice, exportFile);
+      expect(result.ok).toBe(choice === "recovery");
+      expect(exportFile).not.toHaveBeenCalled();
+      expect(write).not.toHaveBeenCalled();
+      await session.dispose();
+      const recovered = await getRecoverySession(assets, database, {
+        accountId: "alice",
+        projectId,
+      });
+      expect(recovered.ok && recovered.value?.document?.scenes[0]?.objects).toHaveLength(
+        draft.scenes[0]!.objects.length - 1,
+      );
+      expect(
+        recovered.ok && recovered.value?.document?.scenes[0]?.interactions[0]?.do,
+      ).toMatchObject({ url: "" });
+    },
+  );
+
   it("keeps cancelled and failed export decisions open, then leaves after confirmed export", async () => {
     const { store, session, write } = setup();
     store.loadProject(serializedFixture({ ...fixture, title: "Unsent work" }), assets);

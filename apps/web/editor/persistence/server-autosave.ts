@@ -23,7 +23,7 @@ export function createServerAutosave(options: {
   // Resolve only after IndexedDB commits the scene and pending request together
   backup?: (documentJson: string, serverSave: ServerSaveRecovery) => Promise<boolean>;
 }) {
-  const initial = serializeProject(options.document, options.assetKinds);
+  const initial = serializeProject(options.document, options.assetKinds, { allowDraftLinks: true });
   if (!initial.ok) throw new Error(initial.error.message);
   const projectId = options.document.projectId;
   const progress = createServerSaveProgress(projectId, options.revision);
@@ -32,6 +32,8 @@ export function createServerAutosave(options: {
   // Confirmed JSON stays at the last server acknowledgement
   // Pending JSON holds the particular scene already queued for sending
   let latestJson = initial.value;
+  let latestDocument = options.document;
+  let invalidDraft = !serializeProject(latestDocument, options.assetKinds).ok;
   let confirmedJson = initial.value;
   let pending: ServerSaveRecovery["pending"] = null;
   let request: ServerDraftRequest | null = null;
@@ -124,6 +126,12 @@ export function createServerAutosave(options: {
     if (disposed || running || status === "conflict" || status === "rejected") return;
     saveTimer.cancel();
     running = true;
+    if (invalidDraft) {
+      await backup();
+      running = false;
+      if (!disposed) report("failed");
+      return;
+    }
     if (!request) {
       if (
         progress.getSnapshot().dirty &&
@@ -196,14 +204,18 @@ export function createServerAutosave(options: {
   return {
     changed(document: ProjectDocument): boolean {
       if (disposed || document.projectId !== projectId) return false;
-      const encoded = serializeProject(document, options.assetKinds);
+      const encoded = serializeProject(document, options.assetKinds, { allowDraftLinks: true });
       if (!encoded.ok) return false;
       // Store notifications can happen without changing the authored scene
       // Avoid starting another save timer for the same document
       if (encoded.value === latestJson) return true;
       latestJson = encoded.value;
+      latestDocument = document;
+      const wasInvalid = invalidDraft;
+      invalidDraft = !serializeProject(document, options.assetKinds).ok;
       progress.edited();
-      if (status === "saved") report("unsaved");
+      if (invalidDraft) report("failed");
+      else if (status === "saved" || (wasInvalid && status === "failed")) report("unsaved");
       schedule();
       return true;
     },
@@ -213,6 +225,15 @@ export function createServerAutosave(options: {
     getStatus: () => status,
     // A departure decision must confirm the exact bytes the user chose to preserve
     getDocumentJson: () => latestJson,
+    getExportJson: () => serializeProject(latestDocument, options.assetKinds),
+    getRecovery: () => ({
+      document: latestDocument,
+      serverSave: {
+        revision: progress.getSnapshot().revision,
+        confirmedJson,
+        pending,
+      },
+    }),
     checkpoint: () => backup(),
     // Recovery is restored paused; the owner resumes after checking the active account
     resume() {
