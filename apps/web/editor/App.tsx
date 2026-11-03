@@ -27,8 +27,18 @@ import { useProjectSession } from "./persistence/use-project-session";
 // Same catalog used by the viewport; saved references need to resolve here too
 const assetKinds = new Map(assets.map((asset) => [asset.id, asset.kind]));
 
-export function App() {
-  const [store] = useState(() => createDocumentStore(assets));
+export type ServerEditorSession = {
+  store: ReturnType<typeof createDocumentStore>;
+  title: string;
+  dirty: boolean;
+  failed: boolean;
+  saving: boolean;
+  save: (exportFile?: boolean) => Promise<boolean>;
+  leave: () => void;
+};
+
+export function App({ server }: { server?: ServerEditorSession }) {
+  const [store] = useState(() => server?.store ?? createDocumentStore(assets));
   const { objects, project, activeSceneId, loadGeneration, canUndo, canRedo } =
     useSyncExternalStore(store.subscribe, store.getSnapshot);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -83,7 +93,7 @@ export function App() {
     setError("");
     setHasDeleted(false);
   }, []);
-  const session = useProjectSession(
+  const localSession = useProjectSession(
     store,
     assets,
     project,
@@ -91,7 +101,19 @@ export function App() {
     onReplace,
     setNotice,
     () => playUiSound("save"),
+    !server,
   );
+  const session = server
+    ? {
+        ...localSession,
+        operation: null,
+        fileName: server.title,
+        dirty: server.dirty,
+        fileFailed: server.failed,
+        busy: false,
+        save: server.save,
+      }
+    : localSession;
   // Here rather than in the dialog, whose mount effect run twice in development
   useEffect(() => {
     if (session.confirmation) playUiSound("warning");
@@ -279,6 +301,9 @@ export function App() {
       </a>
       <TopBar
         session={session}
+        serverMode={!!server}
+        serverSaving={server?.saving ?? false}
+        onLeave={server?.leave}
         hasProject={project !== null}
         hasChanges={hasChanges}
         ready={status === "ready"}
@@ -309,26 +334,30 @@ export function App() {
         }}
       />
       {/* Reset the input so choosing the same file again still fires a change */}
-      <input
-        id="project-import"
-        type="file"
-        accept=".json,application/json"
-        hidden
-        onChange={(event) => {
-          const file = event.currentTarget.files?.[0];
-          event.currentTarget.value = "";
-          if (file !== undefined) {
-            void session.importFile(file);
-          }
-        }}
-      />
+      {!server && (
+        <input
+          id="project-import"
+          type="file"
+          accept=".json,application/json"
+          hidden
+          onChange={(event) => {
+            const file = event.currentTarget.files?.[0];
+            event.currentTarget.value = "";
+            if (file !== undefined) {
+              void session.importFile(file);
+            }
+          }}
+        />
+      )}
 
-      <OlderSceneImport
-        olderSceneFiles={session.olderSceneFiles}
-        assets={assets}
-        onImport={session.importConvertedFile}
-        onError={setError}
-      />
+      {!server && (
+        <OlderSceneImport
+          olderSceneFiles={session.olderSceneFiles}
+          assets={assets}
+          onImport={session.importConvertedFile}
+          onError={setError}
+        />
+      )}
       <main className="workspace" inert={switching}>
         <SidePanels
           scenes={

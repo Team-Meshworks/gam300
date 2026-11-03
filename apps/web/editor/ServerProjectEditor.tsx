@@ -1,0 +1,422 @@
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { assets } from "virtual:asset-catalogue";
+import { App } from "./App";
+import { createDocumentStore } from "./document-store";
+import { createAccountClient } from "./accounts/account-client";
+import { readServerProject, type OpenedServerProject } from "./persistence/server-project-read";
+import { connectServerProjectSession } from "./persistence/server-project-session";
+import { loadRecoverySession, type RecoverySession } from "./persistence/local-drafts";
+import {
+  pickProjectDestination,
+  projectFilename,
+  wasPickerCancelled,
+  writeProjectFile,
+} from "./persistence/project-files";
+import { serializeProject } from "../shared/project/project-serialization";
+import type { ServerSaveStatus } from "./persistence/server-autosave";
+
+const kinds = new Map(assets.map((asset) => [asset.id, asset.kind]));
+const accounts = createAccountClient();
+type Candidate = {
+  opened: OpenedServerProject;
+  recovery: RecoverySession | null;
+  controller: AbortController;
+};
+type Active = {
+  session: ReturnType<typeof connectServerProjectSession>;
+  accountId: string;
+  controller: AbortController;
+  title: string;
+};
+const labels: Record<ServerSaveStatus, string> = {
+  saved: "Saved to server",
+  unsaved: "Unsaved changes",
+  saving: "Saving to server...",
+  failed: "Save failed. Your edits are still here. Retry or export a copy.",
+  conflict:
+    "Another revision was saved. Export your edits or open the server version; nothing will be overwritten automatically.",
+  rejected:
+    "Saving is unavailable for this account or project. Keep a recovery copy or export your edits before leaving.",
+};
+
+function ChoiceDialog({
+  title,
+  children,
+  cancel,
+}: {
+  title: string;
+  children: ReactNode;
+  cancel: () => void;
+}) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const node = dialog.current;
+    node?.showModal();
+    return () => node?.close();
+  }, []);
+  return (
+    <dialog
+      ref={dialog}
+      className="project-confirmation"
+      aria-label={title}
+      onCancel={(event) => {
+        event.preventDefault();
+        cancel();
+      }}
+    >
+      <h2>{title}</h2>
+      {children}
+    </dialog>
+  );
+}
+
+// SCRUM-126 can open /?projectId=<id>; this boundary owns only the editor's save/recovery session.
+export function ServerProjectEditor({ projectId }: { projectId: string }) {
+  const [store] = useState(() => createDocumentStore(assets));
+  const [active, setActive] = useState<Active | null>(null);
+  const current = useRef<Active | null>(null);
+  const [candidate, setCandidate] = useState<Candidate | null>(null);
+  const [status, setStatus] = useState<ServerSaveStatus>("saved");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
+  const [attempt, setAttempt] = useState(0);
+  const [departure, setDeparture] = useState<"home" | "logout" | "reload" | null>(null);
+
+  async function install(next: Candidate, recover: boolean) {
+    const { opened, controller } = next;
+    const identity = await accounts.getSession();
+    if (controller.signal.aborted) return;
+    if (!identity || identity.mustChangePassword || identity.userId !== opened.accountId)
+      throw new Error(
+        "The account changed. Sign in with the original account and reopen this project.",
+      );
+    const recovery = recover ? next.recovery : null;
+    const document = recovery?.document ?? opened.document;
+    const loaded = store.loadProject(JSON.stringify(document), kinds, recovery?.history);
+    if (!loaded.ok) throw new Error(loaded.error.message);
+    const session = connectServerProjectSession({
+      accountId: opened.accountId,
+      store,
+      assetKinds: kinds,
+      revision: recovery?.serverSave?.revision ?? opened.revision,
+      storageRevision: next.recovery?.revision ?? 0,
+      signal: controller.signal,
+      onStatus: setStatus,
+      ...(recovery ? { recovery } : {}),
+    });
+    const owner = { session, accountId: opened.accountId, controller, title: document.title };
+    current.current = owner;
+    setActive(owner);
+    setCandidate(null);
+    setError(recovery?.historyWarning ?? "");
+  }
+
+  useEffect(() => {
+    const controller = new AbortController();
+    let owner: Active | null = null;
+    async function open() {
+      setLoading(true);
+      setError("");
+      try {
+        const identity = await accounts.getSession();
+        if (controller.signal.aborted) return;
+        if (!identity || identity.mustChangePassword)
+          throw new Error("Sign in before opening this project.");
+        const result = await readServerProject(
+          projectId,
+          identity.userId,
+          kinds,
+          controller.signal,
+        );
+        if (controller.signal.aborted) return;
+        if (!result.ok) throw new Error(result.error.message);
+        if (!result.value.canEdit)
+          throw new Error("This project is read-only. Your stored recovery copy was kept.");
+        const recovery = await loadRecoverySession(kinds, {
+          accountId: identity.userId,
+          projectId,
+        });
+        if (controller.signal.aborted) return;
+        if (!recovery.ok) throw new Error(recovery.error.message);
+        const next = { opened: result.value, recovery: recovery.value, controller };
+        if (recovery.value) setCandidate(next);
+        else {
+          await install(next, false);
+          owner = current.current;
+        }
+      } catch (cause) {
+        if (!controller.signal.aborted)
+          setError(cause instanceof Error ? cause.message : "Project could not be opened.");
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
+      }
+    }
+    void open();
+    return () => {
+      controller.abort();
+      // Includes a recovery choice made after open() finished.
+      const closing = current.current?.controller === controller ? current.current : owner;
+      if (closing) void closing.session.dispose();
+    };
+    // A fresh attempt owns its own cancellation boundary; install uses only that candidate and the stable store.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId, attempt, store]);
+
+  useEffect(() => {
+    if (!active) return;
+    const owner = active;
+    let checking = false;
+    async function checkAccount() {
+      if (checking || owner.controller.signal.aborted) return;
+      checking = true;
+      try {
+        const identity = await accounts.getSession();
+        if (owner.controller.signal.aborted) return;
+        if (!identity || identity.mustChangePassword || identity.userId !== owner.accountId) {
+          owner.controller.abort();
+          await owner.session.dispose();
+          if (current.current !== owner) return;
+          current.current = null;
+          setActive(null);
+          setDeparture(null);
+          setError(
+            "Your account changed or expired. Recovery was kept for the original account. Sign in with that account to reopen it.",
+          );
+        }
+      } catch {
+        // Offline editing retains the captured account; server writes also enforce that identity.
+      } finally {
+        checking = false;
+      }
+    }
+    const warn = (event: BeforeUnloadEvent) => {
+      if (owner.session.getStatus() !== "saved") {
+        event.preventDefault();
+        event.returnValue = "Unsaved changes";
+      }
+    };
+    const hide = () => {
+      owner.controller.abort();
+      void owner.session.dispose();
+    };
+    const show = (event: PageTransitionEvent) => {
+      if (event.persisted) location.reload();
+    };
+    window.addEventListener("focus", checkAccount);
+    window.addEventListener("online", checkAccount);
+    window.addEventListener("beforeunload", warn);
+    window.addEventListener("pagehide", hide);
+    window.addEventListener("pageshow", show);
+    const timer = setInterval(() => void checkAccount(), 15_000);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("focus", checkAccount);
+      window.removeEventListener("online", checkAccount);
+      window.removeEventListener("beforeunload", warn);
+      window.removeEventListener("pagehide", hide);
+      window.removeEventListener("pageshow", show);
+    };
+  }, [active]);
+
+  async function exportJson(json: string): Promise<boolean> {
+    const title = store.getSnapshot().project?.title ?? "project";
+    const handle = await pickProjectDestination(projectFilename(title));
+    if (!handle)
+      throw new Error(
+        "No file was saved. Choose a destination in a browser that supports saving files.",
+      );
+    await writeProjectFile(handle, json, await (await handle.getFile()).text());
+    return true;
+  }
+
+  async function run(action: () => Promise<void>) {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
+    setError("");
+    try {
+      await action();
+    } catch (cause) {
+      if (!wasPickerCancelled(cause))
+        setError(
+          cause instanceof Error ? cause.message : "The operation failed. Your draft was kept.",
+        );
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
+  }
+
+  async function save(exportFile = false): Promise<boolean> {
+    let saved = false;
+    await run(async () => {
+      if (!active || active.controller.signal.aborted) return;
+      if (exportFile) {
+        const document = store.getSnapshot().project;
+        if (!document) return;
+        const encoded = serializeProject(document, kinds);
+        if (!encoded.ok) throw new Error(encoded.error.message);
+        saved = await exportJson(encoded.value);
+      } else {
+        await active.session.flush();
+        saved = active.session.getStatus() === "saved";
+      }
+    });
+    return saved;
+  }
+
+  async function leave(choice: "save" | "recovery" | "export" | "cancel") {
+    if (choice === "cancel") {
+      setDeparture(null);
+      return;
+    }
+    await run(async () => {
+      if (!active || !departure) return;
+      const result = await active.session.prepareToLeave(choice, exportJson);
+      if (!result.ok) throw new Error(result.error.message);
+      if (!result.value) return;
+      active.controller.abort();
+      await active.session.dispose();
+      current.current = null;
+      setActive(null);
+      setDeparture(null);
+      if (departure === "reload") {
+        setAttempt((value) => value + 1);
+        return;
+      }
+      if (departure === "logout") {
+        // Recheck before changing cookies so a different account is never signed out here.
+        const identity = await accounts.getSession();
+        if (identity?.userId === active.accountId) await accounts.signOut();
+      }
+      location.assign(departure === "logout" ? "/login" : "/landing");
+    });
+  }
+
+  return (
+    <div className="server-editor-shell">
+      {active ? (
+        <App
+          server={{
+            store,
+            title: active.title,
+            dirty: status !== "saved",
+            failed: ["failed", "conflict", "rejected"].includes(status),
+            saving: status === "saving",
+            save,
+            leave: () => setDeparture("home"),
+          }}
+        />
+      ) : (
+        <main>
+          <h1>Open project</h1>
+          {loading && <p role="status">Opening your project...</p>}
+          {!loading && !candidate && (
+            <>
+              <button onClick={() => setAttempt((value) => value + 1)}>Retry opening</button>{" "}
+              <a href="/login">Log in</a>
+            </>
+          )}
+        </main>
+      )}
+      {active && (
+        <aside className="server-session" aria-label="Server project">
+          <span role="status">{labels[status]}</span>
+          {status === "failed" && (
+            <button disabled={busy} onClick={() => void save()}>
+              Retry save
+            </button>
+          )}
+          <button disabled={busy} onClick={() => void save(true)}>
+            Export a copy
+          </button>
+          <button disabled={busy} onClick={() => setDeparture("reload")}>
+            Open server version
+          </button>
+          <button disabled={busy} onClick={() => setDeparture("logout")}>
+            Log out
+          </button>
+        </aside>
+      )}
+      {candidate && (
+        <ChoiceDialog
+          title="A recovery copy is available"
+          cancel={() => {
+            candidate.controller.abort();
+            setCandidate(null);
+          }}
+        >
+          <p>
+            Choose which version to open. Recovering keeps the original save revision; a conflict
+            will never overwrite someone else's work.
+          </p>
+          <button
+            disabled={busy || !candidate.recovery?.serverSave}
+            onClick={() => void run(() => install(candidate, true))}
+          >
+            Recover my edits
+          </button>
+          <button
+            disabled={busy}
+            onClick={() =>
+              void run(async () => {
+                const document = candidate.recovery?.document;
+                if (!document) return;
+                const encoded = serializeProject(document, kinds);
+                if (!encoded.ok) throw new Error(encoded.error.message);
+                await exportJson(encoded.value);
+              })
+            }
+          >
+            Export recovery copy
+          </button>
+          <button disabled={busy} onClick={() => void run(() => install(candidate, false))}>
+            Use server version and discard recovery
+          </button>
+          <button
+            disabled={busy}
+            onClick={() => {
+              candidate.controller.abort();
+              setCandidate(null);
+            }}
+          >
+            Cancel
+          </button>
+          {error && <p role="alert">{error}</p>}
+        </ChoiceDialog>
+      )}
+      {departure && (
+        <ChoiceDialog
+          title="Preserve your work before leaving"
+          cancel={() => {
+            if (!busy) setDeparture(null);
+          }}
+        >
+          <p>
+            Continue after a confirmed save, a browser recovery copy, or a completed file export.
+          </p>
+          <button disabled={busy} onClick={() => void leave("save")}>
+            Save and continue
+          </button>
+          <button disabled={busy} onClick={() => void leave("recovery")}>
+            Keep recovery and continue
+          </button>
+          <button disabled={busy} onClick={() => void leave("export")}>
+            Export and continue
+          </button>
+          <button disabled={busy} onClick={() => void leave("cancel")}>
+            Cancel
+          </button>
+          {error && <p role="alert">{error}</p>}
+        </ChoiceDialog>
+      )}
+      {error && !candidate && !departure && (
+        <p className="server-session-error" role="alert">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}

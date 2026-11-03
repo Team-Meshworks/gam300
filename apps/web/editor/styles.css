@@ -1592,3 +1592,40 @@ a {
     inset: 0.75rem 1.5rem 5.5rem;
   }
 }
+
+.server-editor-shell {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+.server-editor-shell > .editor-shell {
+  height: auto;
+  min-height: 0;
+  flex: 1;
+}
+
+.server-session {
+  position: relative;
+  flex-shrink: 0;
+  z-index: 20;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  background: var(--card);
+  border-top: 1px solid var(--line);
+}
+.server-session > span {
+  flex: 1;
+}
+.server-session-error {
+  position: fixed;
+  bottom: 4rem;
+  left: 1rem;
+  z-index: 21;
+  max-width: 40rem;
+  padding: 1rem;
+  background: #fff;
+  color: #a02020;
+}

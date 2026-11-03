@@ -72,6 +72,9 @@ export const modules = {
       "editor/persistence/use-project-session.ts",
       "editor/persistence/server-project-session.ts",
       "editor/persistence/server-project-read.ts",
+      "editor/persistence/local-drafts.ts",
+      "editor/persistence/project-files.ts",
+      "editor/persistence/server-autosave.ts",
     ],
   },
   "ui-foundation": {
