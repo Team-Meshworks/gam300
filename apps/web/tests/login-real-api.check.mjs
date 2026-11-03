@@ -47,6 +47,8 @@ try {
   await page.getByRole("heading", { name: "Welcome back." }).waitFor();
   assert.equal(new URL(page.url()).pathname, "/login");
   await page.getByRole("link", { name: /back to home/i }).click();
+  // Back navigation waits briefly for its UI sound before leaving the page.
+  await page.waitForURL(origin + "/landing");
   assert.equal(new URL(page.url()).pathname, "/landing");
   await page
     .getByRole("link", { name: /get started/i })
