@@ -37,7 +37,11 @@ const first = {
   zones: [],
   rules: [],
   viewpoints: [
-    { id: id(20), name: "Detail", camera: pose(10) },
+    {
+      id: id(20),
+      name: "Detail",
+      camera: { ...pose(10), rotation: [0, 0.6, 0, 0.8] },
+    },
     { id: id(21), name: "Detail", camera: pose(-5) },
   ],
   hotspots: [hotspot(30, id(10)), hotspot(31, id(11))],
@@ -138,6 +142,31 @@ try {
       return update.apply(this, args);
     };
   });
+  // Frame A differently from its starting view before entering preview.
+  await page.getByRole("button", { name: "Saved views", exact: true }).click();
+  await page.getByRole("button", { name: "Next saved view", exact: true }).click();
+  await page.waitForFunction(
+    () => window.navigationCamera?.position[0] === 10 && window.navigationCamera?.fov === 45,
+  );
+  await page.waitForTimeout(350);
+  const editingCamera = await page.evaluate(() => window.navigationCamera);
+  assert.notDeepEqual(editingCamera.position, first.startCamera.position);
+  assert.notDeepEqual(editingCamera.rotation, first.startCamera.rotation);
+  assert.notEqual(editingCamera.fov, first.startCamera.fovDegrees);
+  const assertEditingCamera = async () => {
+    // Let the origin-scene React effect and subsequent controls/render frames finish.
+    await page.waitForTimeout(350);
+    const restored = await page.evaluate(() => window.navigationCamera);
+    for (const field of ["position", "rotation"]) {
+      restored[field].forEach((value, index) =>
+        assert.ok(
+          Math.abs(value - editingCamera[field][index]) < 1e-6,
+          `Editing camera ${field}[${index}]: expected ${editingCamera[field][index]}, got ${value}`,
+        ),
+      );
+    }
+    assert.equal(restored.fov, editingCamera.fov, "Restore the editing field of view");
+  };
   await page.getByRole("button", { name: "Preview", exact: true }).click();
   const targets = page.getByRole("navigation", { name: "Interactive objects" });
   await targets.getByRole("button", { name: "Detail view", exact: true }).click();
@@ -183,9 +212,25 @@ try {
   await page.getByRole("button", { name: "Scene tree", exact: true }).click();
   await page.locator(".object-row").filter({ hasText: "Detail view" }).waitFor();
   assert.equal(await page.locator(".editor-shell.is-previewing").count(), 0);
+  await assertEditingCamera();
+  // A second preview that stays in A also retains the editing camera.
+  await page.getByRole("button", { name: "Preview", exact: true }).click();
+  await targets.getByRole("button", { name: "Detail view", exact: true }).click();
+  await page.getByRole("button", { name: "Exit preview", exact: true }).click();
+  await assertEditingCamera();
+  // Restoration must not suppress the next ordinary editor scene change.
+  await page.getByRole("button", { name: "Scenes", exact: true }).click();
+  await page.getByRole("button", { name: "2. Gallery", exact: true }).click();
+  await page.waitForFunction(
+    () => window.navigationCamera?.position[0] === 20 && window.navigationCamera?.fov === 70,
+  );
+  await page.getByRole("button", { name: "1. Gallery", exact: true }).click();
+  await page.waitForFunction(
+    () => window.navigationCamera?.position[0] === 0 && window.navigationCamera?.fov === 60,
+  );
   assert.deepEqual(errors, []);
   console.log(
-    "PASS: destination controls, undo/redo, reload, rendered viewpoint persistence, scene-start, scene return and preview exit",
+    "PASS: destination controls, undo/redo, reload, rendered viewpoint persistence, scene-start, scene return, editing camera restoration and normal editor navigation",
   );
   await context.close();
 
