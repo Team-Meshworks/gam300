@@ -342,6 +342,12 @@ function interactionAction(
       }
       return { type: raw.type, url };
     }
+    case "navigate-scene":
+      record(raw, ["type", "sceneId"], path);
+      return { type: raw.type, sceneId: text(raw.sceneId, `${path}.sceneId`) };
+    case "move-to-viewpoint":
+      record(raw, ["type", "viewpointId"], path);
+      return { type: raw.type, viewpointId: text(raw.viewpointId, `${path}.viewpointId`) };
     case "print-hi":
       record(raw, ["type"], path);
       return { type: "print-hi" };
@@ -612,6 +618,12 @@ export function validateContentReferences(
         hotspotObjects.add(objectKey);
       });
       scene.interactions.forEach((value, index) => {
+        const actionPath = `${path}.interactions[${index}].do`;
+        if (value.do.type === "navigate-scene") {
+          reference(value.do.sceneId, ["scene"], null, `${actionPath}.sceneId`);
+        } else if (value.do.type === "move-to-viewpoint") {
+          reference(value.do.viewpointId, ["viewpoint"], scene.id, `${actionPath}.viewpointId`);
+        }
         if (value.when.type === "visitor-clicks-hotspot") {
           reference(
             value.when.targetHotspotId,

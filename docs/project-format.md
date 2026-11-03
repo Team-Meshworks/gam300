@@ -144,3 +144,29 @@ undo/redo and rejection of preview features absent from the current player
 ## Earlier scene-authoring files
 
 The browser's explicit **Import older scene file** action converts the former extended version-1 scene format to canonical version 2. Normal Open and server validation remain strict. Missing environment assets require an author choice; unsupported limits are rejected, never truncated. The original file is not overwritten, and old undo history is not imported. See [scene authoring](scene-authoring.md) for starting-camera and browser-backup compatibility behavior.
+
+## Scene interaction navigation
+
+The incremental WHEN/DO editor also supports `navigate-scene` with a `sceneId`
+and `move-to-viewpoint` with a `viewpointId`. Scene destinations must exist in the
+project; viewpoints must belong to the interaction's scene. References compare
+UUIDs case-insensitively and retain their authored spelling. These are separate
+from the v2 content-rule `navigateScene` and `moveCamera` variants.
+
+Scene navigation enters the destination's configured starting camera and runs its
+scene-start interactions. Moving to a viewpoint immediately applies its position,
+rotation and field of view. Preview stays active across scene changes; exiting
+returns to the scene where preview began. A successful scene change stops the
+remaining source-event actions. Cyclic scene-start navigation is stopped with a
+message; a new visitor click or elapsed trigger starts a new navigation chain.
+
+Destination edits use normal undo/recovery. Referenced scenes and viewpoints
+cannot be deleted until their incoming interactions are changed or removed.
+Navigation does not edit the project or add undo steps. Existing documents keep
+their representation; older readers reject the new action tags if authored.
+Updated readers and writers are required for documents using these actions.
+
+The editor preview supports `multipleScenes`, `interaction:navigate-scene` and
+`interaction:move-to-viewpoint`. Other players must declare those capabilities
+before executing/publishing documents that use them; format acceptance alone does
+not implement navigation in a publication player.

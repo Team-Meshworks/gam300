@@ -163,6 +163,12 @@ public static partial class ProjectFormat
             {
                 Array(interactions, $"{path}.interactions", 200, (item, path) =>
                 {
+                    var action = Get(item, "do");
+                    switch (String(action, "type"))
+                    {
+                        case "navigate-scene": Ref(String(action, "sceneId"), ["scene"], null, $"{path}.do.sceneId"); break;
+                        case "move-to-viewpoint": Ref(String(action, "viewpointId"), ["viewpoint"], sceneId, $"{path}.do.viewpointId"); break;
+                    }
                     var trigger = Get(item, "when");
                     if (String(trigger, "type") == "visitor-clicks-hotspot")
                     {

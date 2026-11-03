@@ -12,7 +12,13 @@
       "base": "m1",
       "valid": false,
       "path": "project.title",
-      "patches": [{ "path": ["title"], "value": "before\u0000after", "remove": false }]
+      "patches": [
+        {
+          "path": ["title"],
+          "value": "before\u0000after",
+          "remove": false
+        }
+      ]
     },
     {
       "name": "storage NUL in content caption",
@@ -32,7 +38,11 @@
       "base": "m1",
       "valid": true,
       "patches": [
-        { "path": ["title"], "value": "literal \\u0000 and controls\n\t\b\f\r", "remove": false }
+        {
+          "path": ["title"],
+          "value": "literal \\u0000 and controls\n\t\b\f\r",
+          "remove": false
+        }
       ]
     },
     {
@@ -1730,8 +1740,13 @@
           "path": ["scenes", 0, "interactions"],
           "value": [
             {
-              "when": { "type": "scene-starts" },
-              "do": { "type": "open-link", "url": "https://example.com/" }
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "open-link",
+                "url": "https://example.com/"
+              }
             }
           ]
         },
@@ -1752,8 +1767,13 @@
           "path": ["scenes", 0, "interactions"],
           "value": [
             {
-              "when": { "type": "scene-starts" },
-              "do": { "type": "open-link", "url": "http://example.com/" }
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "open-link",
+                "url": "http://example.com/"
+              }
             }
           ]
         }
@@ -1769,8 +1789,13 @@
           "path": ["scenes", 0, "interactions"],
           "value": [
             {
-              "when": { "type": "scene-starts" },
-              "do": { "type": "open-link", "url": "https://user:pass@example.com/" }
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "open-link",
+                "url": "https://user:pass@example.com/"
+              }
             }
           ]
         }
@@ -1786,8 +1811,13 @@
           "path": ["scenes", 0, "interactions"],
           "value": [
             {
-              "when": { "type": "scene-starts" },
-              "do": { "type": "open-link", "url": "https://[" }
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "open-link",
+                "url": "https://["
+              }
             }
           ]
         }
@@ -1803,8 +1833,13 @@
           "path": ["scenes", 0, "interactions"],
           "value": [
             {
-              "when": { "type": "scene-starts" },
-              "do": { "type": "open-link", "url": "https://example.com/" }
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "open-link",
+                "url": "https://example.com/"
+              }
             }
           ]
         },
@@ -2039,6 +2074,166 @@
           ]
         }
       ]
+    },
+    {
+      "name": "v2 interaction navigation scene forward reference",
+      "base": "m2",
+      "valid": true,
+      "patches": [
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "navigate-scene",
+                "sceneId": "00000002-0000-4000-8000-000000000000"
+              }
+            }
+          ],
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "v2 interaction navigation viewpoint uppercase reference",
+      "base": "m2",
+      "valid": true,
+      "patches": [
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "move-to-viewpoint",
+                "viewpointId": "00000014-0000-4000-8000-000000000000"
+              }
+            }
+          ],
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "v2 interaction navigation missing scene",
+      "base": "m2",
+      "valid": false,
+      "patches": [
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "navigate-scene",
+                "sceneId": "99999999-9999-4999-8999-999999999999"
+              }
+            }
+          ],
+          "remove": false
+        }
+      ],
+      "path": "project.scenes[0].interactions[0].do.sceneId"
+    },
+    {
+      "name": "v2 interaction navigation wrong target kind",
+      "base": "m2",
+      "valid": false,
+      "patches": [
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "navigate-scene",
+                "sceneId": "00000014-0000-4000-8000-000000000000"
+              }
+            }
+          ],
+          "remove": false
+        }
+      ],
+      "path": "project.scenes[0].interactions[0].do.sceneId"
+    },
+    {
+      "name": "v2 interaction navigation wrong scene viewpoint",
+      "base": "m2",
+      "valid": false,
+      "patches": [
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "move-to-viewpoint",
+                "viewpointId": "00000015-0000-4000-8000-000000000000"
+              }
+            }
+          ],
+          "remove": false
+        }
+      ],
+      "path": "project.scenes[0].interactions[0].do.viewpointId"
+    },
+    {
+      "name": "v2 interaction navigation missing viewpoint",
+      "base": "m2",
+      "valid": false,
+      "patches": [
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "move-to-viewpoint",
+                "viewpointId": ""
+              }
+            }
+          ],
+          "remove": false
+        }
+      ],
+      "path": "project.scenes[0].interactions[0].do.viewpointId"
+    },
+    {
+      "name": "v2 interaction navigation extra navigation field",
+      "base": "m2",
+      "valid": false,
+      "patches": [
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "navigate-scene",
+                "sceneId": "00000002-0000-4000-8000-000000000000",
+                "extra": true
+              }
+            }
+          ],
+          "remove": false
+        }
+      ],
+      "path": "project.scenes[0].interactions[0].do.extra"
     }
   ],
   "rawCases": [

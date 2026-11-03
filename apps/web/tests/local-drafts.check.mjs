@@ -196,7 +196,7 @@ try {
   } finally {
     await formatContext.close();
   }
-  // Remove media dependencies so this check isolates the unsupported multi-scene preview boundary
+  // Remove media dependencies; an unsupported content rule must still block preview
   const previewContext = await browser.newContext();
   try {
     const previewPage = await previewContext.newPage();
@@ -208,6 +208,20 @@ try {
       scene.rules = [];
       for (const object of scene.objects) object.components = [];
     }
+    modelOnly.scenes[0].rules = [
+      {
+        id: "20000000-0000-4000-8000-000000000001",
+        enabled: true,
+        trigger: { type: "sceneStart" },
+        actions: [
+          {
+            type: "moveCamera",
+            viewpointId: modelOnly.scenes[0].viewpoints[0].id,
+            durationSeconds: 1,
+          },
+        ],
+      },
+    ];
     await previewPage.locator("#project-import").setInputFiles({
       name: "two-scene.json",
       mimeType: "application/json",

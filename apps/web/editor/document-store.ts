@@ -709,6 +709,21 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       if (!project || index < 0) return invalid("scene", "This scene no longer exists");
       if (project.scenes.length === 1)
         return invalid("scene", "Keep at least one scene in the project");
+      if (
+        project.scenes.some(
+          (scene) =>
+            scene.id !== id &&
+            scene.interactions.some(
+              (rule) =>
+                rule.do.type === "navigate-scene" &&
+                rule.do.sceneId.toLowerCase() === id.toLowerCase(),
+            ),
+        )
+      )
+        return invalid(
+          "scene",
+          "Change or remove interactions targeting this scene before deleting it",
+        );
       const remaining = project.scenes.filter((s) => s.id !== id);
       const active =
         state.activeSceneId === id
@@ -800,6 +815,17 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
     deleteViewpoint(id: string): ValidationResult<true> {
       if (!activeScene()?.viewpoints?.some((v) => v.id === id))
         return invalid("viewpoint", "This viewpoint no longer exists");
+      if (
+        activeScene()?.interactions.some(
+          (rule) =>
+            rule.do.type === "move-to-viewpoint" &&
+            rule.do.viewpointId.toLowerCase() === id.toLowerCase(),
+        )
+      )
+        return invalid(
+          "viewpoint",
+          "Change or remove interactions targeting this viewpoint before deleting it",
+        );
       return editViews((activeScene()?.viewpoints ?? []).filter((v) => v.id !== id));
     },
     copyObject(objectId: string): ValidationResult<SceneObject> {

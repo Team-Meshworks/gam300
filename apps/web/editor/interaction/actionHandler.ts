@@ -5,6 +5,8 @@ export const ACTIONS = Object.freeze([
   { type: "open-link", label: "Open a link" },
   { type: "play-audio", label: "Play this audio" },
   { type: "print-hi", label: "Show an alert" },
+  { type: "navigate-scene", label: "Go to scene" },
+  { type: "move-to-viewpoint", label: "Go to saved viewpoint" },
 ] as const);
 
 export type ActionType = (typeof ACTIONS)[number]["type"];
@@ -14,11 +16,17 @@ export type Action = InteractionAction;
 
 // Each preview session owns its playback, so stopping one never touches another
 export type ActionRunner = Readonly<{
-  run(action: Action): void;
+  // True ends dispatch from the old scene after navigation.
+  run(action: Action): boolean | void;
   stop(): void;
 }>;
 
-export function createActionRunner(): ActionRunner {
+export type NavigationActions = Readonly<{
+  goToScene(sceneId: string): boolean;
+  goToViewpoint(viewpointId: string): void;
+}>;
+
+export function createActionRunner(navigation?: NavigationActions): ActionRunner {
   let activeAudio: HTMLAudioElement | undefined;
 
   function stop(): void {
@@ -43,6 +51,15 @@ export function createActionRunner(): ActionRunner {
           return;
         case "play-audio":
           if (action.url !== undefined) playAudio(action.url);
+          return;
+        case "navigate-scene":
+          if (navigation?.goToScene(action.sceneId)) {
+            stop();
+            return true;
+          }
+          return;
+        case "move-to-viewpoint":
+          navigation?.goToViewpoint(action.viewpointId);
           return;
         case "print-hi":
           window.alert("hi");

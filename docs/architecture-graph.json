@@ -112,7 +112,12 @@
         "react"
       ],
       "public": [
-        "editor/persistence/use-project-session.ts"
+        "editor/persistence/use-project-session.ts",
+        "editor/persistence/server-project-session.ts",
+        "editor/persistence/server-project-read.ts",
+        "editor/persistence/local-drafts.ts",
+        "editor/persistence/project-files.ts",
+        "editor/persistence/server-autosave.ts"
       ]
     },
     "ui-foundation": {
@@ -233,26 +238,32 @@
   "files": {
     "account-dev-server.ts": "e117343d2dda5bf2d1a2636bfffdb6d2559da9410db4a42fdc336a837259c6fd",
     "architecture.check.mjs": "45c2cad2ba19bb129e02f5eba71005bf05647f2ddf2b68bd16c7130f584cc8c1",
-    "architecture.mjs": "6dde06c8800dca83824c8745559fede11c6ba4399f39d7b22de23b421762508f",
+    "architecture.mjs": "a7524d4c9ed8f10574c61e6bb1af1b93f53cd3eda8fcf7c37d1aa217fee6aa8b",
     "asset-catalogue-plugin.ts": "fdbfbf69501e6d772ea43c7a4575549f68985bc4e94bed0cfc5c7dc70ba3cbe2",
-    "editor/App.tsx": "d8ccc0c8ab6558f203232c2a8e3fdcd2d6d9a50fed5f55fc829efa6fc6236217",
+    "editor/App.tsx": "d8efcc39283c6a3a74ade0cd9d8054296c7b366a31af7659f60a176aa63a4940",
     "editor/OlderSceneImport.tsx": "9ab5f31f2ac60a12bfb5931592c54ed566140baac1bb38f3358fa0bd0ca93397",
     "editor/ProjectConfirmation.tsx": "07a0fedf8fbf88865b3b8232c8665c139348fc64ebce478ea01e55eb7fd14eff",
     "editor/Scenes.tsx": "fbd0b23955e14e7f41db3b7d28dfd2d9c3650614d8bfa5601a434f45b096c0cd",
+    "editor/ServerProjectEditor.tsx": "76f597d3fbc9968be0ba94cfe402f3250789b90fdeb6d3ab31480146c51e5daf",
     "editor/Viewpoints.tsx": "aa66b98b65a5187e386c0ac367ae134fda711988e8a89fe0618cfde385662d26",
-    "editor/accounts/account-client.test.ts": "fdffd77d0ce73391a8e22c34baa913b8529ce3ae42368055d38fa9975ad3201b",
-    "editor/accounts/account-client.ts": "7acfab4663142075b48128b18317d156ccc8b2f145c94b062fa57ac1c603d3c9",
+    "editor/accounts/account-client.test.ts": "63ee51fbda7d94a082d0f906b56bf236545778e3519b1af94ffbc47c39a824a1",
+    "editor/accounts/account-client.ts": "c1db44f6e08c55994387133e1a73ce43dc2ccd170fd6295bba0cffadab03f51b",
     "editor/asset-library.test.ts": "796e1bad8e13165b8dd1a38b1bcbe003c0fea5c8e2438c4dedbd2f85d2a7725b",
     "editor/asset-library.ts": "241937b9c14465a98b5a711efc748b3b7fcd92de6cbca7efa32de26206d73a64",
     "editor/audio/ui-sounds.ts": "4cc6288694e652328a4794949cbdc88ebf555322ce4bdba215afd4ebd93bb494",
     "editor/command-history.test.ts": "783c026523513ea5520cde04e61502aba13ca3a612b509a904c2a50e50be2d1f",
     "editor/command-history.ts": "e243335582ab03da9d131bd80edef7b908e3eb0a751d6ebfa7deb77750fc54ad",
-    "editor/controls/fpsControls.ts": "9cd1c65c92bd832dda2003f6a79e5b5e5b54a49360d47bf4b6841c83ca4693e6",
-    "editor/directory/AccountList.tsx": "c729aa00228f05b0cb6ed2525678d887da2193374c95acd5c8305dc9f88842a0",
-    "editor/directory/OrganizationDirectory.tsx": "48447d46cb3fbe342b0ce86c38c9635ee1f4ae3434b437dfe783b83976fed10c",
+    "editor/controls/fpsControls.test.ts": "cbd1846abe8e90e5c4d0c703ed07297f89153bc6901a757d46231ac80e28b831",
+    "editor/controls/fpsControls.ts": "e902d1355fb1be962656a793d96805990a5637161355118e9dd8bd1c0a7d4052",
+    "editor/directory/AccountDialog.tsx": "252a33524213bea4422d6924091af632d7a21bbee2cc788fd096287cad63cb75",
+    "editor/directory/AccountDirectoryPage.tsx": "8d973cc1c9dc0dd971c4f4e76f60c7e14391eb4092e8ba70803d354be70a5c22",
+    "editor/directory/AccountList.tsx": "a13ebd1917e4de800d12db5a7cdcd6e4864c0192de8890fd12298b534e87c5f0",
+    "editor/directory/OrganizationDirectory.tsx": "3117917c49f99856a82d224949d7c318062cb1864f4de1b4488cc55128585f0f",
+    "editor/directory/directory-client.test.ts": "28c5a0a38207a4d759215dd1180c5042b1ccfd2a66c3078b5cc137c505973f27",
+    "editor/directory/directory-client.ts": "cc2514d06eb56b603a9a69c39b977d4436bb65e905e68bda1a71b924fac06442",
     "editor/directory/directory.ts": "ec5cf37c67e953850b1115ba316cec367527baa0c4fbc3f5aca289a171ba477a",
     "editor/document-store.test.ts": "caa268822fa0d253276080a63cba13ab892858ff9f105335622d0f29a15874ca",
-    "editor/document-store.ts": "f29ddc6de9d30310e01843d19553b7cee4c35ea99e0045ad10af99c49a58d42e",
+    "editor/document-store.ts": "85972b581b103426f9b9a6d27e3dcb216f282238fa6adb889d8c46d61b289c56",
     "editor/edit-session.test.ts": "fd971338990e32158eb0355508fb39a7c3284db62421501024da029a82dc784a",
     "editor/entry/EntryBrand.tsx": "21be448d7b3232fe2fb0906ad4386e4a854c6a4369d75b851b1446e9af849b06",
     "editor/entry/LandingPage.tsx": "00176c689fdc4a8657c3ea48c912ad03ede1388d698888b01308462955d2b5af",
@@ -260,12 +271,12 @@
     "editor/entry/main.tsx": "c94eb8216c552696432a0c8e0cdb5f15ff97682d4d910d103ca3a0286059a558",
     "editor/graphics/active-clock.test.ts": "29145e0a9e58264cd0e192d607be8e7fee69ae18b0aef52e6c5e4c5a2670aa4d",
     "editor/graphics/active-clock.ts": "9dfb0530c27712140610a6269d64b41e9f88e2622593696f73d5295162b271a0",
-    "editor/graphics/modeManager.ts": "192911ee28b8329ec2ed0dddb5f8854abf6faf5dfce3165b2694a1bfcf192f24",
+    "editor/graphics/modeManager.ts": "08617006856a4f3ac55c7fd9caed4875bddfa06305cbfd184dae0dc8fef3387e",
     "editor/graphics/rotation.test.ts": "58844092035329772ba8c941b1b93737d142d7c597f015900041721d0018bb69",
     "editor/graphics/rotation.ts": "d847162644716d2b36e8b3e4f1ad190360527a46351cb2969d411dbe76ea96d3",
     "editor/graphics/scaling.test.ts": "346b243798597de2a5b00384904bdf04f9f3826a8753bcde3282e5356b0ceb0a",
     "editor/graphics/scaling.ts": "0277d21b28d246ddb2f94216fe29afb24ebbc8e257dd3510eca91bb176867da1",
-    "editor/graphics/scene.ts": "be80a40e5095d4ea1ef67f8972c58cd18a1f054be7c79a646a22f254be8c1304",
+    "editor/graphics/scene.ts": "5650ef6c3a88dedaca2940df816c9761e1963417badcddb696bd1d047596d5eb",
     "editor/graphics/translation.test.ts": "b4a888b963437ca3508c04cc3e933ab215d301908384ea9af37ee8aabd6fae2c",
     "editor/graphics/translation.ts": "a4ea05b137e4dee436848693a57273c54025856bdf943eb1e9413de5509bb2d4",
     "editor/hierarchy.test.ts": "9183c999766d2e2779b8e2cc6d22d1f041709781771a0d303b639b2ef7e027a7",
@@ -273,20 +284,35 @@
     "editor/history-shortcuts.ts": "e9d147c651ba15b45484207f805fbb648beb13c7393e4538d249c159c4b4e583",
     "editor/interaction-history.test.ts": "178fb9f576d890f84302c0e5d804eab6698989b8ea0c9ca128c3e4bb75a4cc6f",
     "editor/interaction/actionHandler.test.ts": "2199a7cee89c87895d31c993eb9348aec24b02f52de5a0df064b160311198fab",
-    "editor/interaction/actionHandler.ts": "7ab38806aef8a579b9f2288011b05828593eaa15cdeffcaaaee6ffc4ce8a786f",
+    "editor/interaction/actionHandler.ts": "7b2bbbca2472870a0c672a12b7c462d9bfb9fe52809e75a0dff0519d0eff6058",
     "editor/interaction/audio.ts": "6700985d7e44bcd8d2ee89b1a2b590cef3fbc480a96760e40da5e9c947582a32",
     "editor/interaction/interactionHandler.test.ts": "fd183832b622635ca66da7960eb63e84b23cf956351e3fe043cbca4dfe1a39ce",
-    "editor/interaction/interactionHandler.ts": "9f8e138e5eddeec92433758bdb64d052927dc7369988a62222dbd844ae528705",
+    "editor/interaction/interactionHandler.ts": "f92d76f0a57f3edb4182c7e420c5ee55a35715d9b0dcea5091afc282a09a3db3",
+    "editor/interaction/preview-navigation.test.ts": "0204e5e93152affcbbeb2608c4a4715e89f5229bbd5eb0d001319c703f1856e0",
+    "editor/interaction/preview-navigation.ts": "057b19a7beb32d4102d1883adaced43bc17f04d5c44f7747f7f2c4e736b2dea8",
     "editor/interaction/triggerHandler.test.ts": "9c4e980c7c784bf9d285d82372993e918ec573c88b16df005f8d8986fbb649eb",
     "editor/interaction/triggerHandler.ts": "3228e032e7456c93ba66d34e488363da2ffc48674a67676609160c06a6592c97",
-    "editor/main.tsx": "31c79f201cdb202b13ce44e336ae621d519fa4022ff91628687ae04c68e84637",
+    "editor/main.tsx": "0806325066c0a7b5589731c97eec7fa0c108791cb5563f94e86aa734e99d3a28",
     "editor/object-copy.test.ts": "4266a7ac699c9ad5bec8962b7b1dd52bae9e6874d571235184aa304d0d6c8088",
     "editor/persistence/draft-db.ts": "9c1aece3becbd9db33c2164533cfc86d9cf7b4bef9306678d9c9aaca9b800c5a",
     "editor/persistence/idb-database-connection.ts": "d07c765187e280e825a3d73665837a55b12cf203ab93a22c18634849ec6b6347",
-    "editor/persistence/local-drafts.test.ts": "772b9f40f8fcff6e3675680f88365c41adf5ad69eb824bce8d7f52a96453a6df",
-    "editor/persistence/local-drafts.ts": "d4121660c299c68f49139997e3b4d537d36294a95225ba3ef0bced05caee3c51",
+    "editor/persistence/local-drafts.test.ts": "a25d0aa30084d1132e9dfc88083d78038e8c59815d994d4f9b7ca7fba1bd8fd3",
+    "editor/persistence/local-drafts.ts": "fc802e8e018b6db4a380b568c98debe6e49ef1fceb8a3bbb64ee5038c43bb50d",
     "editor/persistence/project-files.ts": "20e7466377e31ea388fe527abc4c33e465538b8b06709a5d78c78bc116c6b273",
-    "editor/persistence/use-project-session.ts": "9100b793d5bcaabfb279cba9271b6bf5c1fdfcd913cc8d4a219926726b3d96fa",
+    "editor/persistence/server-autosave.test.ts": "ee19969b8159cd5d030296db4cffe44acce9534e4bd969fc0d524d3e3f6d2900",
+    "editor/persistence/server-autosave.ts": "d72717f45309322006c30d0811a8d3b0b33914db106eb939231d6709c7b71a6e",
+    "editor/persistence/server-draft-write.test.ts": "429a40014f1347831354c841957b802976261c495d2abdd2aecb7b53f977cbaa",
+    "editor/persistence/server-draft-write.ts": "43a3193730e736e3dc0373fec8df37960bbebcc7d5cc9877a8a25ea1adc4c51f",
+    "editor/persistence/server-project-read.test.ts": "da38d6ada4f8c65c365d400d30396d90cb01b3fb03be6831edaecc81737ec2ba",
+    "editor/persistence/server-project-read.ts": "1c2bacb4430209877be6260eeef81fd1a3ecbf724d1eda94bccbe8c8b900ce52",
+    "editor/persistence/server-project-session.ts": "63a9cf16f92a9c832b35820c571332ed6e4d6997124a061d00d35f68ced9d8fa",
+    "editor/persistence/server-save-progress.test.ts": "4eb3091bc78c665e7c9ccdfc2dd5fed6f77ec57dde1625b3ec5a5652ede7cf76",
+    "editor/persistence/server-save-progress.ts": "a67877d00c616ccc9e1956ca4f5bc7373fe22002fa9b4b079700618db3a55e75",
+    "editor/persistence/server-save-recovery.test.ts": "4f29c6adc1b909927a70f1281c14012cb0e8791ecd3e78e4e6d166884539cd21",
+    "editor/persistence/server-save-recovery.ts": "12a82434949e6b61bd94396cbc5e0f62e1d376341a36edaecd6d682582dc5225",
+    "editor/persistence/server-save-timer.test.ts": "18df63843852b27255844ab646d0212d86b834273b2f2c4bc6c2d793e9db1b5d",
+    "editor/persistence/server-save-timer.ts": "d40f81edb36e1b09305b7d1f2a2e75c1e2b83b392c840fb107399c3b2407c1d0",
+    "editor/persistence/use-project-session.ts": "3f9e1f60c7f5cdc09542690275c39f017b1382deee0ff432b7195de3ece559e1",
     "editor/project-content.test.ts": "86e172e6079655ba02d289b5fc6d658353ee25bf0d0457b4e1626dac9cbb2ddc",
     "editor/project-history-store.test.ts": "2fb7b201869fef4ab2420929d5d9a65dd5c0f72e9253803d94ee50a66fe61a05",
     "editor/project-history.test.ts": "bb7ea657b49d92c47ae31c728471418b4ec76f9ff046e1c14519c2abaa584952",
@@ -310,7 +336,7 @@
     "editor/recovery-history-budget.test.ts": "c5682347fba756f3ec018384dbd5f648b0660e3311d8276b9458b2b3d0de7703",
     "editor/recovery-history.test.ts": "b4138c2ae886483495ddfdddf3f51cbdc594ace7e4ff88f3681c23094080b6f1",
     "editor/recovery-history.ts": "a6b408c94f644cc6a6c3dfa181709a098ba2a797d4c9e4e0d9f70825efba260e",
-    "editor/scene-interactions.test.ts": "30eee0eb4e295bb4a458c5c1360855b32f0770b8c6198feb4f947a18060a1a39",
+    "editor/scene-interactions.test.ts": "d8c1cef3005eb024c0e90bc23711f20d5f953ad3f37daf6049ba0ea6ba4d3060",
     "editor/scenes.test.ts": "ba9e8675e8dfdbd69c6469d32f4cfba67fb590b9f74b405c64d2106f147bb9c8",
     "editor/transform-command.test.ts": "7708bd68c3ebffe37e9569f9c6db2238b36c9cc97927830263ce0083af5ab6b3",
     "editor/transform-command.ts": "338ad5ff277ed1bfa0b9bb9164a441be0fb5fb125a392e35e3ba632e9a179d13",
@@ -325,11 +351,11 @@
     "editor/ui/AssetPicker.tsx": "b49b053f5d08c1b20ec5e35f65d5c0865f5ed6b8f4bd1454b139a82977c7646e",
     "editor/ui/BottomBar.tsx": "03256cd1aabe6a412be04ab3526826c94625178b5f4bb331d47261cea51b8690",
     "editor/ui/Icon.tsx": "9541d7b9446bdc777fa17a0276232859ea688aed6b7d2ab1af25dbd0cea58323",
-    "editor/ui/InteractionPanel.tsx": "018bbf8813834fedb1172d750cf75575a8541049d6719f152f58ca626e4e2326",
+    "editor/ui/InteractionPanel.tsx": "bd06335bb72d214c8fe24093706b5c8ef7294ba47c6fbe9a1f53808216e5555f",
     "editor/ui/PreviewTargets.tsx": "d49499d2e889781f42239cfe9cdd17a174691baed6dc86815a2d3e577af00884",
     "editor/ui/SceneTreePanel.tsx": "b5f514cfe2094f9be97c03d4b02703a0836702276286982e3701e94ab0ac0fe9",
-    "editor/ui/SidePanels.tsx": "7bf3f83ac128891f3f8e86d99466a4625961686a833e68f56570cc58f898bf83",
-    "editor/ui/TopBar.tsx": "28847be72828b5149d7d33a821173b19ba73bad53b027075b3d78d1702e41da9",
+    "editor/ui/SidePanels.tsx": "8af10e3103dde03df82e035f0d76d1ff3a805a0a444044a42e1e6a06c9cf4237",
+    "editor/ui/TopBar.tsx": "5992d5b27ce28074bfa529864be389a23a9e707877abf3928d83e65d80c1a95e",
     "editor/ui/asset-filters.test.ts": "0b88a68d514d283e155ceb0838d4951c1b4fd5867459df2e8c6ab8780c65f858",
     "editor/ui/asset-filters.ts": "5e08299dbfc2543f41017306fdff78d7ba3161e2242186877a315e3ea75fa8cc",
     "editor/ui/dock-edge.test.ts": "5f23848e403e898efc84d2c34ae327b5d5313a066c6391a79cec336e73759ead",
@@ -338,7 +364,7 @@
     "editor/ui/rotation-angles.ts": "16a42a83ee7bb2435c4ee7b640fa6ca3c65a7564fd68981084ce57f5e9687f3b",
     "editor/viewpoints.test.ts": "383d49fc0c57b158b739781160ada8bef63d23e5b6fa03a7a5a605032a812da9",
     "editor/viewport/Viewport.tsx": "7f43e60501edf610ed4d641b920cb5c23e34e2eff2b9f52a7cc2b6fbab8a5f90",
-    "editor/workspace/WorkspacePage.tsx": "d05a889243bf7fcfdb2019f3e1f141170d3e8f41c5a6c06173d64e8f8402d71a",
+    "editor/workspace/WorkspacePage.tsx": "b96b97f32c57fc3f38dcbfafcf2d0585c5ebae7781f03f0a5cbf3c27c02374d5",
     "editor/workspace/main.tsx": "ba13928e8e371d8dcf218adb28f93eaab5e47d2ef5c020a4ee823190ac47d2dd",
     "eslint.config.js": "cbab291dfcf10a7c58563e96b2c29cc213c402ebaf35f89789663d96bdb12135",
     "shared/asset-runtime/ModelCache.test.ts": "6e5cf28591eb858c981923550fe49fb330535b085db0d99d7ce209736fefc2d3",
@@ -354,8 +380,8 @@
     "shared/project/legacy-scene-types.ts": "15ef6d4fbecd1f5848c38cd763516a254725699d6f6ce5769efe52f0158fd516",
     "shared/project/legacy-scene-validation.ts": "1624a10526146da0eb0bf1b0e1e3a1ac795c3f77c2e8b2f65c7b0fcd8ec0b650",
     "shared/project/portable-url.ts": "b6d6fc16ca16de2378f700669074296a96bef4374f28725cbc2abe0dc007f3a0",
-    "shared/project/project-capabilities.ts": "b3e43a4a88bebd86fd0a35ccf6260d32fec6045ffb9fc40da80c783e3e65abf3",
-    "shared/project/project-content-validation.ts": "92225ffb99a9f00c0c9e2a274ed02b38e5f66850035d84622b6e1a3234a036e3",
+    "shared/project/project-capabilities.ts": "170f4a053a7897e0b36e9272c1db2ed39232d3681b8a53d3b9f3cbc0e686dc36",
+    "shared/project/project-content-validation.ts": "ddf889d0f258102084e8aabe03f9e56be188c7c2840e31b2d8cf425df15da945",
     "shared/project/project-content.test.ts": "348f9d8fd26a3273e1e4bc701565345607c6eba773ceef342702b08a004a9bc0",
     "shared/project/project-content.ts": "eaaa6d461b14bc6a0b103c1754945ddcda3c274231796077e19d2df756baad92",
     "shared/project/project-deserialization.test.ts": "a4159c5ffc88b8d3f22ed9fcca5b7b37cb7a90d1766dc46080264ca3b552ffb1",
@@ -364,10 +390,10 @@
     "shared/project/project-serialization.test.ts": "1dc04fc74b67610f32494e2d98b9b1488132d7aae45f2bdaefd3018d37ecc438",
     "shared/project/project-serialization.ts": "ed89d30126f5d2b67afed66895bcfc47546911a20993974a5a2d633ca2868698",
     "shared/project/project-structure-validation.test.ts": "c67d2e9beaf71cf5d1c576a313be56c18639078602b1405a1fe4c28d398e2054",
-    "shared/project/project-structure-validation.ts": "9cdd1564244ff6e98d68159b989de8b0fdb2234143577557b54a586de0abfa51",
-    "shared/project/project-types.ts": "8b29e8e57d5ae0ad19795156c2ec6037fac526e8847d488f9f2be9a4960dde61",
+    "shared/project/project-structure-validation.ts": "b11b21a2bc8f375d081e7f0108f40422102795e2608bb66f70a0f27543ff1d21",
+    "shared/project/project-types.ts": "023a8ec043aa9885fcc4b8b88b63182a66e67fab1089e87357561188a96a3240",
     "shared/project/project-validation.test.ts": "3c76118f85391181ccc59c47dd21bbde4c849666e0aa191a93702f31e7ceced3",
-    "shared/project/project-validation.ts": "bf9257e60b5a25ae1eeb4d582e2b56c10c2c8da0ad2d4cf1cfb7ad8255398652",
+    "shared/project/project-validation.ts": "c3871c73fd30a591677df1385c3c31844cf9a385a0082593ff6da126d0e52eea",
     "shared/project/project-wire.test.ts": "c91c12dbf83e3bb45e8213da0fb2f6511b838450b5c0c42f1297a24c4754ad46",
     "shared/project/project-wire.ts": "b7f494c9672fb688a4a882883cf3bece67dfdd46633a14e4e95aecd68139654d",
     "shared/project/scene-object.ts": "eb0421d014733ee53241324fbf7f110bf3415cc6c737080a4416eafaac4748d1",
@@ -378,7 +404,7 @@
     "shared/project/validation-helpers.ts": "140b377781d5c21b04099407ca92e2aae9b246b967fd5224e9282b7a2bfa74cf",
     "shared/ui/Avatar.tsx": "b364b06a7c331bb296e5be8b93a81887711247276d324a410b7eb7c6c3fde657",
     "shared/ui/Button.tsx": "5ad5e3309a44a98e39ae34b6b01e0ca070ef8340b693df480a2eed2f5eb309d0",
-    "shared/ui/Dialog.tsx": "1dc6c2f1400ab6630a9c7316fb89cf63a9b5c72ad2f2194685439c0930020426",
+    "shared/ui/Dialog.tsx": "67ae2eb786969b915c574d547163ca0fe9cd94082cb3e8ba72468ee778e398e7",
     "shared/ui/Field.tsx": "628deb0e8876db3d26d7f2b2a73a22f3b1bece53eb257e882af0627d3c833735",
     "shared/ui/PageState.tsx": "9ea607855ed8fd9780833c7cd84a545a43b834e6e2f24c910860e39f40d406ee",
     "shared/ui/SearchField.tsx": "4617dee24d90759e24c27cc6946f5c04b0f94262c6a14bba387f91b60aca0a53",
@@ -386,21 +412,25 @@
     "shared/ui/Tabs.tsx": "aedf8b2e76163368b062ac30387b67b9922a5e27b51c54adcf89d2603cfac281",
     "shared/ui/WorkspaceShell.tsx": "aae2c7bcbec129635a95de63aa3a7df9507362b3de5d05dbde0adfb21a29058f",
     "tests/account-dev-server.check.mjs": "e8eeb4518a694890660ffaca4cd8e5d99c6e5017328c597e2f2141f667ecf456",
+    "tests/account-directory-real-api.check.mjs": "4b94a48987eac8ed20d3c063c961bffbb424e7a85d8fa785c3bcde7f917ff90e",
+    "tests/account-directory.check.mjs": "22f4df8a427196d619d263075d4f2b5bb8ab4445e6a68cd507d20e1eee427565",
     "tests/caching.check.mjs": "3ff36ae487a43e4585556b9482e25008526b6282f448572c956b27f1e2f17aac",
     "tests/caching.measure.mjs": "aadf27638c20f8a79d5fe302ec7a3f0ad9bab52661bc5be39df65fb89b53e727",
     "tests/class-assignment.check.mjs": "232d5231b7304b2297ef4e19fff8c7c721b5b67afe6d3e55cb46fa3e7a893bcf",
     "tests/deployment.check.mjs": "2c76bbb2d229a623d0d48014618e51b8d1e3d364f855f71418b9a50fe16c1eda",
-    "tests/editor-build.check.mjs": "babf1e4af3d51463a624dd700b4c253f6e50ea8cf9f8b1020bed56ca22ce2bd1",
+    "tests/editor-build.check.mjs": "cf48a360fe94ab8a4f025daa5019c82901d8526e67f4e01c3c3a9b5f5f5e6bf5",
     "tests/editor-integration.check.mjs": "58e0d2d7860d3b9173b75bd9f69b37662d6c834065fd32460ce507f4c730729f",
     "tests/editor-shell.check.mjs": "84a9c4ba0437223cfa62fa197a75056327636ab9903e7e290f86f757fffee861",
     "tests/entry.check.mjs": "7c55cdf2e8af2bb4092d551492613d9c97eb3b150bf6e506c873d5a5a92e4e32",
     "tests/history-recovery.check.mjs": "0bead99f2028a0d9543f7292e3d7d35ad59161d5d20260a1c6f93adbb7c79d6e",
+    "tests/interaction-navigation.check.mjs": "d28960a1d3d67c3b7ec787d552a7abdedda688025236f31a38df6d4af0668906",
     "tests/interaction-review.check.mjs": "a2777e18dd4ae7b973c2b40fe49f1c7dad4e8a4fbb154e6e975ded69370d0552",
-    "tests/local-drafts.check.mjs": "e6c3cde3011f930c75ebb82367ea2f6db07c0e61c4016a81f68b2ab26cf29028",
-    "tests/login-real-api.check.mjs": "69335016faab5abd72edb44ca9c115461661d07a1c9f318f56c2dfcc6b5c8211",
+    "tests/local-drafts.check.mjs": "bb8f64e260836dcc0f2621a881764d9f93042ba6dc5d8670d8282c7c5f1479e9",
+    "tests/login-real-api.check.mjs": "27283ac8c9b0315e473d2c0a92cdf6387f479b18717a70bacb349df936b92b5d",
     "tests/new-project.check.mjs": "17741aa13571068365ea6e1db51b9c4a55d9ce446c3c56341be59509d66b575d",
-    "tests/project-format-cross.check.mjs": "aee9b8319b2d4c97cb74a3b0540207a6e3e36cf924a7ea8034c237cff911382e",
+    "tests/project-format-cross.check.mjs": "724420714179f7fa8a2bdb0d1aec185a8d3cc2bc7e2a5457e951cb7c76782353",
     "tests/review-directory.check.mjs": "e750516eb3a7ffccd0f72eece04c115fe53f772ddfb2cedfd4b921b330dba29b",
+    "tests/server-autosave.check.mjs": "689ca8837d6cdcdba7e5f015d894b0bf0effb337f814841496c3bc8efd77de94",
     "tests/ui-foundation.check.mjs": "451f62a3dce958551321897ea3b9668b1315b3c286275d9b290fcc4666774ecc",
     "tests/ui-sounds.check.mjs": "97e33d174504b9da0548d8892be141bf5115074ab9a73c706fd6e8289b531c16",
     "tests/workspace-routes.check.mjs": "8a42bf93561a867d320193258469c72c09f22a097a9a3f7e69ac83ef5c4a501b",
@@ -415,7 +445,7 @@
     "editor/audio/sounds/publish-success.wav": "c9726f01870498f1aed0755c709a19b7ddd84a2bc19289239bbaeea1024e464d",
     "editor/audio/sounds/save.wav": "0fce4209129166c5ed4bc7583d8b3e5ad5858f87e93cc0d1042b767067323464",
     "editor/audio/sounds/warning.wav": "8417ab27f9b759bff62168f026c3b7c6c16f3e47eec8cb34f59209875b30d6af",
-    "editor/directory/directory.css": "db877e615ec5d69f5062a5316ae9c77622a839cedad1d7033eac75b5a577c5d7",
+    "editor/directory/directory.css": "76cc03265446ff25d200284ddfdd3d216df8f6102b2dc3e0c0a5a143b8c176c8",
     "shared/project/fixtures/m1-project.json": "cb86cb1f7356cc7bd044fd7d22ef881c9cacf358561fef348454fcb90c750e5a",
     "editor/entry/assets/landmark.svg": "03091445b6deef48557b7b4b9a7c459a2f642854feebb4f61723279c8a754b66",
     "editor/entry/assets/hero.png": "3fa4893d11ede2c25482975d0fb22e16fdadd25ee19abc88698c1133e8184284",
@@ -426,8 +456,8 @@
     "shared/ui/foundation.css": "98a051c00415cfb9bc98f9e921d3f66685766a10a837d5737c76ba4f7bc54ffc",
     "editor/entry/entry.css": "fe7cbc59e81658828c79a8d61a5025b090b2ad23533bb1f26830518138d74dbd",
     "shared/project/fixtures/m2-project.json": "d0b01cf012c8418b3d5e0acef2053b936fdce5333603666dd1e757a3b5e5565b",
-    "shared/project/fixtures/project-format-cases.json": "8e3e293f5d924630e6faf5580c5dde3ffba0db830a46bd6f67bc89c7c0d35a21",
-    "editor/styles.css": "a8d3cab851ec8c135cfbecc94af084eb959c1f04ebdada0668715092c9a91322",
+    "shared/project/fixtures/project-format-cases.json": "7f97616a88dc3fc8fc228d04a573c1e0be51ced9a81495fe86d828a13500ec83",
+    "editor/styles.css": "e44630081a62dc9fc515bbb55d94fe365c1a02d67370c311f300e4275c0c0d5f",
     "editor/fixtures/asset-pipeline-document-history.json": "4fe51cba770226d856f37cbbc2afbe0b3fe393e5990b8f761b794b7b5bf5380d",
     "editor/fixtures/asset-pipeline-view-history.json": "d33e208ca99c5fb1e816a9e0b79aebb987c79ef354179d8c06e430b382cf4f59",
     "editor/projects/class-assignment.css": "fb9bdc1b367853c792e1ba88513872fd0d410cef67e5c144ad0ccce8c0194c64",
@@ -774,6 +804,24 @@
       "file": "editor/App.tsx",
       "line": 17,
       "kind": "static",
+      "specifier": "./interaction/actionHandler",
+      "target": "editor/interaction/actionHandler.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/App.tsx",
+      "line": 18,
+      "kind": "static",
+      "specifier": "./interaction/preview-navigation",
+      "target": "editor/interaction/preview-navigation.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/App.tsx",
+      "line": 19,
+      "kind": "static",
       "specifier": "./interaction/interactionHandler",
       "target": "editor/interaction/interactionHandler.ts",
       "from": "editor",
@@ -781,7 +829,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 18,
+      "line": 20,
       "kind": "static",
       "specifier": "./ui/BottomBar",
       "target": "editor/ui/BottomBar.tsx",
@@ -790,7 +838,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 19,
+      "line": 21,
       "kind": "static",
       "specifier": "./ui/PreviewTargets",
       "target": "editor/ui/PreviewTargets.tsx",
@@ -799,7 +847,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 20,
+      "line": 22,
       "kind": "static",
       "specifier": "./ui/SidePanels",
       "target": "editor/ui/SidePanels.tsx",
@@ -808,7 +856,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 21,
+      "line": 23,
       "kind": "static",
       "specifier": "./ui/TopBar",
       "target": "editor/ui/TopBar.tsx",
@@ -817,7 +865,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 22,
+      "line": 24,
       "kind": "static",
       "specifier": "./OlderSceneImport",
       "target": "editor/OlderSceneImport.tsx",
@@ -826,7 +874,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 23,
+      "line": 25,
       "kind": "static",
       "specifier": "./Scenes",
       "target": "editor/Scenes.tsx",
@@ -835,7 +883,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 24,
+      "line": 26,
       "kind": "static",
       "specifier": "./Viewpoints",
       "target": "editor/Viewpoints.tsx",
@@ -844,7 +892,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 25,
+      "line": 27,
       "kind": "static",
       "specifier": "./viewport/Viewport",
       "target": "editor/viewport/Viewport.tsx",
@@ -853,7 +901,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 27,
+      "line": 29,
       "kind": "static",
       "specifier": "./ProjectConfirmation",
       "target": "editor/ProjectConfirmation.tsx",
@@ -862,7 +910,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 28,
+      "line": 30,
       "kind": "static",
       "specifier": "./persistence/use-project-session",
       "target": "editor/persistence/use-project-session.ts",
@@ -871,7 +919,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 352,
+      "line": 393,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -1004,6 +1052,125 @@
     {
       "file": "editor/Scenes.tsx",
       "line": 38,
+      "kind": "implicit-jsx",
+      "specifier": "react/jsx-runtime",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/ServerProjectEditor.tsx",
+      "line": 1,
+      "kind": "static",
+      "specifier": "react",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/ServerProjectEditor.tsx",
+      "line": 2,
+      "kind": "static",
+      "specifier": "virtual:asset-catalogue",
+      "target": "shared/asset-runtime/catalogue.ts",
+      "from": "editor",
+      "to": "catalogue"
+    },
+    {
+      "file": "editor/ServerProjectEditor.tsx",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./App",
+      "target": "editor/App.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ServerProjectEditor.tsx",
+      "line": 4,
+      "kind": "static",
+      "specifier": "../shared/asset-runtime/hotspot",
+      "target": "shared/asset-runtime/hotspot.ts",
+      "from": "editor",
+      "to": "catalogue"
+    },
+    {
+      "file": "editor/ServerProjectEditor.tsx",
+      "line": 5,
+      "kind": "static",
+      "specifier": "./document-store",
+      "target": "editor/document-store.ts",
+      "from": "editor",
+      "to": "document"
+    },
+    {
+      "file": "editor/ServerProjectEditor.tsx",
+      "line": 6,
+      "kind": "static",
+      "specifier": "./accounts/account-client",
+      "target": "editor/accounts/account-client.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ServerProjectEditor.tsx",
+      "line": 7,
+      "kind": "static",
+      "specifier": "./persistence/server-project-read",
+      "target": "editor/persistence/server-project-read.ts",
+      "from": "editor",
+      "to": "persistence"
+    },
+    {
+      "file": "editor/ServerProjectEditor.tsx",
+      "line": 8,
+      "kind": "static",
+      "specifier": "./persistence/server-project-session",
+      "target": "editor/persistence/server-project-session.ts",
+      "from": "editor",
+      "to": "persistence"
+    },
+    {
+      "file": "editor/ServerProjectEditor.tsx",
+      "line": 9,
+      "kind": "static",
+      "specifier": "./persistence/local-drafts",
+      "target": "editor/persistence/local-drafts.ts",
+      "from": "editor",
+      "to": "persistence"
+    },
+    {
+      "file": "editor/ServerProjectEditor.tsx",
+      "line": 10,
+      "kind": "static",
+      "specifier": "./persistence/project-files",
+      "target": "editor/persistence/project-files.ts",
+      "from": "editor",
+      "to": "persistence"
+    },
+    {
+      "file": "editor/ServerProjectEditor.tsx",
+      "line": 16,
+      "kind": "static",
+      "specifier": "../shared/project/project-serialization",
+      "target": "shared/project/project-serialization.ts",
+      "from": "editor",
+      "to": "project"
+    },
+    {
+      "file": "editor/ServerProjectEditor.tsx",
+      "line": 17,
+      "kind": "type",
+      "specifier": "./persistence/server-autosave",
+      "target": "editor/persistence/server-autosave.ts",
+      "from": "editor",
+      "to": "persistence"
+    },
+    {
+      "file": "editor/ServerProjectEditor.tsx",
+      "line": 60,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -1297,6 +1464,35 @@
       "to": "document"
     },
     {
+      "file": "editor/controls/fpsControls.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/controls/fpsControls.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "three",
+      "target": {
+        "package": "three"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/controls/fpsControls.test.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./fpsControls",
+      "target": "editor/controls/fpsControls.ts",
+      "from": "checks",
+      "to": "rendering"
+    },
+    {
       "file": "editor/controls/fpsControls.ts",
       "line": 1,
       "kind": "static",
@@ -1314,6 +1510,127 @@
       "target": "editor/history-shortcuts.ts",
       "from": "rendering",
       "to": "input"
+    },
+    {
+      "file": "editor/directory/AccountDialog.tsx",
+      "line": 1,
+      "kind": "static",
+      "specifier": "react",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/directory/AccountDialog.tsx",
+      "line": 2,
+      "kind": "static",
+      "specifier": "../../shared/ui/Avatar",
+      "target": "shared/ui/Avatar.tsx",
+      "from": "editor",
+      "to": "ui-foundation"
+    },
+    {
+      "file": "editor/directory/AccountDialog.tsx",
+      "line": 3,
+      "kind": "static",
+      "specifier": "../../shared/ui/Button",
+      "target": "shared/ui/Button.tsx",
+      "from": "editor",
+      "to": "ui-foundation"
+    },
+    {
+      "file": "editor/directory/AccountDialog.tsx",
+      "line": 4,
+      "kind": "static",
+      "specifier": "../../shared/ui/Dialog",
+      "target": "shared/ui/Dialog.tsx",
+      "from": "editor",
+      "to": "ui-foundation"
+    },
+    {
+      "file": "editor/directory/AccountDialog.tsx",
+      "line": 5,
+      "kind": "type",
+      "specifier": "./directory-client",
+      "target": "editor/directory/directory-client.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/directory/AccountDialog.tsx",
+      "line": 73,
+      "kind": "implicit-jsx",
+      "specifier": "react/jsx-runtime",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/directory/AccountDirectoryPage.tsx",
+      "line": 1,
+      "kind": "static",
+      "specifier": "react",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/directory/AccountDirectoryPage.tsx",
+      "line": 2,
+      "kind": "static",
+      "specifier": "../../shared/ui/Button",
+      "target": "shared/ui/Button.tsx",
+      "from": "editor",
+      "to": "ui-foundation"
+    },
+    {
+      "file": "editor/directory/AccountDirectoryPage.tsx",
+      "line": 3,
+      "kind": "static",
+      "specifier": "../../shared/ui/Dialog",
+      "target": "shared/ui/Dialog.tsx",
+      "from": "editor",
+      "to": "ui-foundation"
+    },
+    {
+      "file": "editor/directory/AccountDirectoryPage.tsx",
+      "line": 4,
+      "kind": "static",
+      "specifier": "./AccountDialog",
+      "target": "editor/directory/AccountDialog.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/directory/AccountDirectoryPage.tsx",
+      "line": 5,
+      "kind": "static",
+      "specifier": "./OrganizationDirectory",
+      "target": "editor/directory/OrganizationDirectory.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/directory/AccountDirectoryPage.tsx",
+      "line": 6,
+      "kind": "static",
+      "specifier": "./directory-client",
+      "target": "editor/directory/directory-client.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/directory/AccountDirectoryPage.tsx",
+      "line": 150,
+      "kind": "implicit-jsx",
+      "specifier": "react/jsx-runtime",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
     },
     {
       "file": "editor/directory/AccountList.tsx",
@@ -1356,15 +1673,6 @@
       "file": "editor/directory/AccountList.tsx",
       "line": 5,
       "kind": "static",
-      "specifier": "../../shared/ui/Table",
-      "target": "shared/ui/Table.tsx",
-      "from": "editor",
-      "to": "ui-foundation"
-    },
-    {
-      "file": "editor/directory/AccountList.tsx",
-      "line": 6,
-      "kind": "static",
       "specifier": "../../shared/ui/Tabs",
       "target": "shared/ui/Tabs.tsx",
       "from": "editor",
@@ -1372,7 +1680,7 @@
     },
     {
       "file": "editor/directory/AccountList.tsx",
-      "line": 7,
+      "line": 6,
       "kind": "type",
       "specifier": "./directory",
       "target": "editor/directory/directory.ts",
@@ -1381,7 +1689,7 @@
     },
     {
       "file": "editor/directory/AccountList.tsx",
-      "line": 26,
+      "line": 38,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -1464,13 +1772,32 @@
     },
     {
       "file": "editor/directory/OrganizationDirectory.tsx",
-      "line": 27,
+      "line": 37,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
         "package": "react"
       },
       "from": "editor"
+    },
+    {
+      "file": "editor/directory/directory-client.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/directory/directory-client.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "./directory-client",
+      "target": "editor/directory/directory-client.ts",
+      "from": "checks",
+      "to": "editor"
     },
     {
       "file": "editor/document-store.test.ts",
@@ -2236,7 +2563,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 373,
+      "line": 376,
       "kind": "type-query",
       "specifier": "../../shared/project/project-types",
       "target": "shared/project/project-types.ts",
@@ -2558,6 +2885,61 @@
       "to": "project"
     },
     {
+      "file": "editor/interaction/preview-navigation.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/interaction/preview-navigation.test.ts",
+      "line": 2,
+      "kind": "type",
+      "specifier": "../../shared/project/project-types",
+      "target": "shared/project/project-types.ts",
+      "from": "checks",
+      "to": "project"
+    },
+    {
+      "file": "editor/interaction/preview-navigation.test.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./preview-navigation",
+      "target": "editor/interaction/preview-navigation.ts",
+      "from": "checks",
+      "to": "editor"
+    },
+    {
+      "file": "editor/interaction/preview-navigation.test.ts",
+      "line": 4,
+      "kind": "static",
+      "specifier": "./actionHandler",
+      "target": "editor/interaction/actionHandler.ts",
+      "from": "checks",
+      "to": "editor"
+    },
+    {
+      "file": "editor/interaction/preview-navigation.test.ts",
+      "line": 5,
+      "kind": "static",
+      "specifier": "./interactionHandler",
+      "target": "editor/interaction/interactionHandler.ts",
+      "from": "checks",
+      "to": "editor"
+    },
+    {
+      "file": "editor/interaction/preview-navigation.ts",
+      "line": 1,
+      "kind": "type",
+      "specifier": "../../shared/project/project-types",
+      "target": "shared/project/project-types.ts",
+      "from": "editor",
+      "to": "project"
+    },
+    {
       "file": "editor/interaction/triggerHandler.test.ts",
       "line": 1,
       "kind": "static",
@@ -2618,6 +3000,15 @@
       "file": "editor/main.tsx",
       "line": 4,
       "kind": "static",
+      "specifier": "./ServerProjectEditor",
+      "target": "editor/ServerProjectEditor.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/main.tsx",
+      "line": 5,
+      "kind": "static",
       "specifier": "./audio/ui-sounds",
       "target": "editor/audio/ui-sounds.ts",
       "from": "editor",
@@ -2625,7 +3016,7 @@
     },
     {
       "file": "editor/main.tsx",
-      "line": 5,
+      "line": 6,
       "kind": "static",
       "specifier": "./styles.css",
       "target": "editor/styles.css",
@@ -2634,7 +3025,7 @@
     },
     {
       "file": "editor/main.tsx",
-      "line": 24,
+      "line": 25,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -2754,7 +3145,7 @@
     },
     {
       "file": "editor/persistence/local-drafts.test.ts",
-      "line": 16,
+      "line": 17,
       "kind": "type",
       "specifier": "./draft-db",
       "target": "editor/persistence/draft-db.ts",
@@ -2763,12 +3154,48 @@
     },
     {
       "file": "editor/persistence/local-drafts.test.ts",
-      "line": 17,
+      "line": 18,
       "kind": "type",
       "specifier": "../../shared/project/validation-helpers",
       "target": "shared/project/validation-helpers.ts",
       "from": "checks",
       "to": "project"
+    },
+    {
+      "file": "editor/persistence/local-drafts.test.ts",
+      "line": 19,
+      "kind": "static",
+      "specifier": "../document-store",
+      "target": "editor/document-store.ts",
+      "from": "checks",
+      "to": "document"
+    },
+    {
+      "file": "editor/persistence/local-drafts.test.ts",
+      "line": 20,
+      "kind": "static",
+      "specifier": "./server-project-session",
+      "target": "editor/persistence/server-project-session.ts",
+      "from": "checks",
+      "to": "persistence"
+    },
+    {
+      "file": "editor/persistence/local-drafts.test.ts",
+      "line": 21,
+      "kind": "static",
+      "specifier": "./server-save-recovery",
+      "target": "editor/persistence/server-save-recovery.ts",
+      "from": "checks",
+      "to": "persistence"
+    },
+    {
+      "file": "editor/persistence/local-drafts.test.ts",
+      "line": 22,
+      "kind": "type",
+      "specifier": "./server-draft-write",
+      "target": "editor/persistence/server-draft-write.ts",
+      "from": "checks",
+      "to": "persistence"
     },
     {
       "file": "editor/persistence/local-drafts.ts",
@@ -2849,6 +3276,390 @@
       "specifier": "./draft-db",
       "target": "editor/persistence/draft-db.ts",
       "from": "persistence",
+      "to": "persistence"
+    },
+    {
+      "file": "editor/persistence/local-drafts.ts",
+      "line": 10,
+      "kind": "static",
+      "specifier": "./server-save-recovery",
+      "target": "editor/persistence/server-save-recovery.ts",
+      "from": "persistence",
+      "to": "persistence"
+    },
+    {
+      "file": "editor/persistence/server-autosave.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/persistence/server-autosave.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "../../shared/project/fixtures/m1-project.json",
+      "target": "shared/project/fixtures/m1-project.json",
+      "from": "checks",
+      "to": "project"
+    },
+    {
+      "file": "editor/persistence/server-autosave.test.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "../../shared/project/project-deserialization",
+      "target": "shared/project/project-deserialization.ts",
+      "from": "checks",
+      "to": "project"
+    },
+    {
+      "file": "editor/persistence/server-autosave.test.ts",
+      "line": 4,
+      "kind": "static",
+      "specifier": "./server-autosave",
+      "target": "editor/persistence/server-autosave.ts",
+      "from": "checks",
+      "to": "persistence"
+    },
+    {
+      "file": "editor/persistence/server-autosave.test.ts",
+      "line": 5,
+      "kind": "type",
+      "specifier": "./server-draft-write",
+      "target": "editor/persistence/server-draft-write.ts",
+      "from": "checks",
+      "to": "persistence"
+    },
+    {
+      "file": "editor/persistence/server-autosave.test.ts",
+      "line": 6,
+      "kind": "type",
+      "specifier": "./server-save-recovery",
+      "target": "editor/persistence/server-save-recovery.ts",
+      "from": "checks",
+      "to": "persistence"
+    },
+    {
+      "file": "editor/persistence/server-autosave.ts",
+      "line": 1,
+      "kind": "type",
+      "specifier": "../../shared/project/project-types",
+      "target": "shared/project/project-types.ts",
+      "from": "persistence",
+      "to": "project"
+    },
+    {
+      "file": "editor/persistence/server-autosave.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "../../shared/project/project-serialization",
+      "target": "shared/project/project-serialization.ts",
+      "from": "persistence",
+      "to": "project"
+    },
+    {
+      "file": "editor/persistence/server-autosave.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./server-save-progress",
+      "target": "editor/persistence/server-save-progress.ts",
+      "from": "persistence",
+      "to": "persistence"
+    },
+    {
+      "file": "editor/persistence/server-autosave.ts",
+      "line": 4,
+      "kind": "static",
+      "specifier": "./server-save-timer",
+      "target": "editor/persistence/server-save-timer.ts",
+      "from": "persistence",
+      "to": "persistence"
+    },
+    {
+      "file": "editor/persistence/server-autosave.ts",
+      "line": 5,
+      "kind": "static",
+      "specifier": "./server-save-recovery",
+      "target": "editor/persistence/server-save-recovery.ts",
+      "from": "persistence",
+      "to": "persistence"
+    },
+    {
+      "file": "editor/persistence/server-autosave.ts",
+      "line": 6,
+      "kind": "static",
+      "specifier": "./server-draft-write",
+      "target": "editor/persistence/server-draft-write.ts",
+      "from": "persistence",
+      "to": "persistence"
+    },
+    {
+      "file": "editor/persistence/server-draft-write.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/persistence/server-draft-write.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "./server-draft-write",
+      "target": "editor/persistence/server-draft-write.ts",
+      "from": "checks",
+      "to": "persistence"
+    },
+    {
+      "file": "editor/persistence/server-draft-write.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "../../shared/project/validation-helpers",
+      "target": "shared/project/validation-helpers.ts",
+      "from": "persistence",
+      "to": "project"
+    },
+    {
+      "file": "editor/persistence/server-project-read.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/persistence/server-project-read.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "../../shared/project/fixtures/m1-project.json",
+      "target": "shared/project/fixtures/m1-project.json",
+      "from": "checks",
+      "to": "project"
+    },
+    {
+      "file": "editor/persistence/server-project-read.test.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./server-project-read",
+      "target": "editor/persistence/server-project-read.ts",
+      "from": "checks",
+      "to": "persistence"
+    },
+    {
+      "file": "editor/persistence/server-project-read.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "../../shared/project/project-deserialization",
+      "target": "shared/project/project-deserialization.ts",
+      "from": "persistence",
+      "to": "project"
+    },
+    {
+      "file": "editor/persistence/server-project-read.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "../../shared/project/project-limits",
+      "target": "shared/project/project-limits.ts",
+      "from": "persistence",
+      "to": "project"
+    },
+    {
+      "file": "editor/persistence/server-project-read.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "../../shared/project/validation-helpers",
+      "target": "shared/project/validation-helpers.ts",
+      "from": "persistence",
+      "to": "project"
+    },
+    {
+      "file": "editor/persistence/server-project-read.ts",
+      "line": 4,
+      "kind": "type",
+      "specifier": "../../shared/project/project-types",
+      "target": "shared/project/project-types.ts",
+      "from": "persistence",
+      "to": "project"
+    },
+    {
+      "file": "editor/persistence/server-project-session.ts",
+      "line": 1,
+      "kind": "type",
+      "specifier": "../document-store",
+      "target": "editor/document-store.ts",
+      "from": "persistence",
+      "to": "document"
+    },
+    {
+      "file": "editor/persistence/server-project-session.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "../../shared/project/project-deserialization",
+      "target": "shared/project/project-deserialization.ts",
+      "from": "persistence",
+      "to": "project"
+    },
+    {
+      "file": "editor/persistence/server-project-session.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "../../shared/project/project-serialization",
+      "target": "shared/project/project-serialization.ts",
+      "from": "persistence",
+      "to": "project"
+    },
+    {
+      "file": "editor/persistence/server-project-session.ts",
+      "line": 4,
+      "kind": "static",
+      "specifier": "../../shared/project/validation-helpers",
+      "target": "shared/project/validation-helpers.ts",
+      "from": "persistence",
+      "to": "project"
+    },
+    {
+      "file": "editor/persistence/server-project-session.ts",
+      "line": 5,
+      "kind": "static",
+      "specifier": "./draft-db",
+      "target": "editor/persistence/draft-db.ts",
+      "from": "persistence",
+      "to": "persistence"
+    },
+    {
+      "file": "editor/persistence/server-project-session.ts",
+      "line": 6,
+      "kind": "static",
+      "specifier": "./local-drafts",
+      "target": "editor/persistence/local-drafts.ts",
+      "from": "persistence",
+      "to": "persistence"
+    },
+    {
+      "file": "editor/persistence/server-project-session.ts",
+      "line": 11,
+      "kind": "static",
+      "specifier": "./server-autosave",
+      "target": "editor/persistence/server-autosave.ts",
+      "from": "persistence",
+      "to": "persistence"
+    },
+    {
+      "file": "editor/persistence/server-project-session.ts",
+      "line": 12,
+      "kind": "static",
+      "specifier": "./server-draft-write",
+      "target": "editor/persistence/server-draft-write.ts",
+      "from": "persistence",
+      "to": "persistence"
+    },
+    {
+      "file": "editor/persistence/server-save-progress.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/persistence/server-save-progress.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "./server-save-progress",
+      "target": "editor/persistence/server-save-progress.ts",
+      "from": "checks",
+      "to": "persistence"
+    },
+    {
+      "file": "editor/persistence/server-save-recovery.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/persistence/server-save-recovery.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "../../shared/project/fixtures/m1-project.json",
+      "target": "shared/project/fixtures/m1-project.json",
+      "from": "checks",
+      "to": "project"
+    },
+    {
+      "file": "editor/persistence/server-save-recovery.test.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./server-save-recovery",
+      "target": "editor/persistence/server-save-recovery.ts",
+      "from": "checks",
+      "to": "persistence"
+    },
+    {
+      "file": "editor/persistence/server-save-recovery.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "../../shared/project/project-serialization",
+      "target": "shared/project/project-serialization.ts",
+      "from": "persistence",
+      "to": "project"
+    },
+    {
+      "file": "editor/persistence/server-save-recovery.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "../../shared/project/project-deserialization",
+      "target": "shared/project/project-deserialization.ts",
+      "from": "persistence",
+      "to": "project"
+    },
+    {
+      "file": "editor/persistence/server-save-recovery.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "../../shared/project/validation-helpers",
+      "target": "shared/project/validation-helpers.ts",
+      "from": "persistence",
+      "to": "project"
+    },
+    {
+      "file": "editor/persistence/server-save-recovery.ts",
+      "line": 4,
+      "kind": "type",
+      "specifier": "../../shared/project/validation-helpers",
+      "target": "shared/project/validation-helpers.ts",
+      "from": "persistence",
+      "to": "project"
+    },
+    {
+      "file": "editor/persistence/server-save-timer.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/persistence/server-save-timer.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "./server-save-timer",
+      "target": "editor/persistence/server-save-timer.ts",
+      "from": "checks",
       "to": "persistence"
     },
     {
@@ -3945,6 +4756,15 @@
       "file": "editor/scene-interactions.test.ts",
       "line": 1,
       "kind": "static",
+      "specifier": "../shared/project/project-capabilities",
+      "target": "shared/project/project-capabilities.ts",
+      "from": "checks",
+      "to": "project"
+    },
+    {
+      "file": "editor/scene-interactions.test.ts",
+      "line": 2,
+      "kind": "static",
       "specifier": "vitest",
       "target": {
         "package": "vitest"
@@ -3953,7 +4773,7 @@
     },
     {
       "file": "editor/scene-interactions.test.ts",
-      "line": 2,
+      "line": 3,
       "kind": "type",
       "specifier": "../shared/asset-runtime/catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -3962,7 +4782,7 @@
     },
     {
       "file": "editor/scene-interactions.test.ts",
-      "line": 3,
+      "line": 4,
       "kind": "static",
       "specifier": "../shared/project/project-serialization",
       "target": "shared/project/project-serialization.ts",
@@ -3971,7 +4791,7 @@
     },
     {
       "file": "editor/scene-interactions.test.ts",
-      "line": 4,
+      "line": 5,
       "kind": "static",
       "specifier": "./recovery-history",
       "target": "editor/recovery-history.ts",
@@ -3980,7 +4800,7 @@
     },
     {
       "file": "editor/scene-interactions.test.ts",
-      "line": 5,
+      "line": 6,
       "kind": "static",
       "specifier": "./document-store",
       "target": "editor/document-store.ts",
@@ -4788,7 +5608,7 @@
     },
     {
       "file": "editor/ui/InteractionPanel.tsx",
-      "line": 111,
+      "line": 145,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -4910,7 +5730,7 @@
     },
     {
       "file": "editor/ui/SidePanels.tsx",
-      "line": 4,
+      "line": 9,
       "kind": "static",
       "specifier": "./Icon",
       "target": "editor/ui/Icon.tsx",
@@ -4919,7 +5739,7 @@
     },
     {
       "file": "editor/ui/SidePanels.tsx",
-      "line": 5,
+      "line": 10,
       "kind": "type",
       "specifier": "../interaction/interactionHandler",
       "target": "editor/interaction/interactionHandler.ts",
@@ -4928,7 +5748,7 @@
     },
     {
       "file": "editor/ui/SidePanels.tsx",
-      "line": 6,
+      "line": 11,
       "kind": "static",
       "specifier": "./InteractionPanel",
       "target": "editor/ui/InteractionPanel.tsx",
@@ -4937,7 +5757,7 @@
     },
     {
       "file": "editor/ui/SidePanels.tsx",
-      "line": 7,
+      "line": 12,
       "kind": "static",
       "specifier": "./rotation-angles",
       "target": "editor/ui/rotation-angles.ts",
@@ -4946,7 +5766,7 @@
     },
     {
       "file": "editor/ui/SidePanels.tsx",
-      "line": 9,
+      "line": 14,
       "kind": "static",
       "specifier": "./SceneTreePanel",
       "target": "editor/ui/SceneTreePanel.tsx",
@@ -4955,7 +5775,7 @@
     },
     {
       "file": "editor/ui/SidePanels.tsx",
-      "line": 10,
+      "line": 15,
       "kind": "type",
       "specifier": "../../shared/project/project-content",
       "target": "shared/project/project-content.ts",
@@ -4964,7 +5784,7 @@
     },
     {
       "file": "editor/ui/SidePanels.tsx",
-      "line": 61,
+      "line": 70,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -5011,7 +5831,7 @@
     },
     {
       "file": "editor/ui/TopBar.tsx",
-      "line": 72,
+      "line": 78,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -5317,7 +6137,16 @@
     },
     {
       "file": "editor/workspace/WorkspacePage.tsx",
-      "line": 56,
+      "line": 8,
+      "kind": "static",
+      "specifier": "../directory/AccountDirectoryPage",
+      "target": "editor/directory/AccountDirectoryPage.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/workspace/WorkspacePage.tsx",
+      "line": 57,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -6501,7 +7330,7 @@
     },
     {
       "file": "shared/ui/Dialog.tsx",
-      "line": 26,
+      "line": 28,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -6701,6 +7530,76 @@
       "target": "account-dev-server.ts",
       "from": "checks",
       "to": "build"
+    },
+    {
+      "file": "tests/account-directory-real-api.check.mjs",
+      "line": 1,
+      "kind": "static",
+      "specifier": "node:assert/strict",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/account-directory-real-api.check.mjs",
+      "line": 2,
+      "kind": "static",
+      "specifier": "playwright",
+      "target": {
+        "package": "playwright"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/account-directory-real-api.check.mjs",
+      "line": 3,
+      "kind": "static",
+      "specifier": "vite",
+      "target": {
+        "package": "vite"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/account-directory.check.mjs",
+      "line": 1,
+      "kind": "static",
+      "specifier": "node:assert/strict",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/account-directory.check.mjs",
+      "line": 2,
+      "kind": "static",
+      "specifier": "node:fs/promises",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/account-directory.check.mjs",
+      "line": 3,
+      "kind": "static",
+      "specifier": "playwright",
+      "target": {
+        "package": "playwright"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/account-directory.check.mjs",
+      "line": 4,
+      "kind": "static",
+      "specifier": "vite",
+      "target": {
+        "package": "vite"
+      },
+      "from": "checks"
     },
     {
       "file": "tests/caching.check.mjs",
@@ -7335,6 +8234,74 @@
       "to": "catalogue"
     },
     {
+      "file": "tests/interaction-navigation.check.mjs",
+      "line": 1,
+      "kind": "static",
+      "specifier": "node:assert/strict",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/interaction-navigation.check.mjs",
+      "line": 2,
+      "kind": "static",
+      "specifier": "node:fs",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/interaction-navigation.check.mjs",
+      "line": 3,
+      "kind": "static",
+      "specifier": "node:url",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/interaction-navigation.check.mjs",
+      "line": 4,
+      "kind": "test-environment",
+      "specifier": "playwright",
+      "target": {
+        "package": "playwright"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/interaction-navigation.check.mjs",
+      "line": 110,
+      "kind": "dynamic",
+      "specifier": "/persistence/local-drafts.ts",
+      "target": "editor/persistence/local-drafts.ts",
+      "from": "checks",
+      "to": "persistence"
+    },
+    {
+      "file": "tests/interaction-navigation.check.mjs",
+      "line": 111,
+      "kind": "dynamic",
+      "specifier": "/@id/__x00__virtual:asset-catalogue",
+      "target": "shared/asset-runtime/catalogue.ts",
+      "from": "checks",
+      "to": "catalogue"
+    },
+    {
+      "file": "tests/interaction-navigation.check.mjs",
+      "line": 134,
+      "kind": "test-environment",
+      "specifier": "three",
+      "target": {
+        "package": "three"
+      },
+      "from": "checks"
+    },
+    {
       "file": "tests/interaction-review.check.mjs",
       "line": 1,
       "kind": "static",
@@ -7506,7 +8473,7 @@
     },
     {
       "file": "tests/local-drafts.check.mjs",
-      "line": 227,
+      "line": 241,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -7515,7 +8482,7 @@
     },
     {
       "file": "tests/local-drafts.check.mjs",
-      "line": 372,
+      "line": 386,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -7524,7 +8491,7 @@
     },
     {
       "file": "tests/local-drafts.check.mjs",
-      "line": 414,
+      "line": 428,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -7533,7 +8500,7 @@
     },
     {
       "file": "tests/local-drafts.check.mjs",
-      "line": 415,
+      "line": 429,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -7542,7 +8509,7 @@
     },
     {
       "file": "tests/local-drafts.check.mjs",
-      "line": 583,
+      "line": 597,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -7682,6 +8649,36 @@
     {
       "file": "tests/review-directory.check.mjs",
       "line": 4,
+      "kind": "static",
+      "specifier": "playwright",
+      "target": {
+        "package": "playwright"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/server-autosave.check.mjs",
+      "line": 1,
+      "kind": "static",
+      "specifier": "node:assert/strict",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/server-autosave.check.mjs",
+      "line": 2,
+      "kind": "static",
+      "specifier": "node:fs",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/server-autosave.check.mjs",
+      "line": 3,
       "kind": "static",
       "specifier": "playwright",
       "target": {
@@ -7898,6 +8895,16 @@
       "file": "tests/history-recovery.check.mjs",
       "line": 5,
       "expression": "process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : \"playwright\""
+    },
+    {
+      "file": "tests/interaction-navigation.check.mjs",
+      "line": 4,
+      "expression": "process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : \"playwright\""
+    },
+    {
+      "file": "tests/interaction-navigation.check.mjs",
+      "line": 134,
+      "expression": "threePath"
     },
     {
       "file": "tests/interaction-review.check.mjs",

@@ -461,6 +461,14 @@ public static partial class ProjectFormat
                 Fields(value, path, "type", "url");
                 Text(Get(value, "url"), $"{path}.url", 2048);
                 break;
+            case "navigate-scene":
+                Fields(value, path, "type", "sceneId");
+                Text(Get(value, "sceneId"), $"{path}.sceneId");
+                break;
+            case "move-to-viewpoint":
+                Fields(value, path, "type", "viewpointId");
+                Text(Get(value, "viewpointId"), $"{path}.viewpointId");
+                break;
             case "print-hi":
                 Fields(value, path, "type");
                 break;
