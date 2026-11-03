@@ -45,6 +45,7 @@ export function useProjectSession(
   onReplace: () => void,
   onNotice: (message: string) => void,
   onSaved?: () => void,
+  enabled = true,
 ) {
   const kinds = useMemo(() => new Map(assets.map((asset) => [asset.id, asset.kind])), [assets]);
   const [operation, setOperation] = useState<Operation>("recover");
@@ -162,6 +163,7 @@ export function useProjectSession(
   );
 
   useEffect(() => {
+    if (!enabled) return;
     const local = state.current;
     const unsubscribe = store.subscribe(() => {
       // Each completed edit restarts the delay so a burst of changes gets one backup
@@ -177,9 +179,10 @@ export function useProjectSession(
       decision.current?.("cancel");
       decision.current = null;
     };
-  }, [store, backup]);
+  }, [store, backup, enabled]);
 
   useEffect(() => {
+    if (!enabled) return;
     let cancelled = false;
     const before = store.getSnapshot();
     const local = state.current;
@@ -320,7 +323,7 @@ export function useProjectSession(
     return () => {
       cancelled = true;
     };
-  }, [store, kinds, backup, setNotice]);
+  }, [store, kinds, backup, setNotice, enabled]);
 
   async function save(saveAs = false, duringSwitch = false): Promise<boolean> {
     const local = state.current;
@@ -636,7 +639,7 @@ export function useProjectSession(
   }
 
   useEffect(() => {
-    if (!needsDecision) {
+    if (!enabled || !needsDecision) {
       return;
     }
 
@@ -648,7 +651,7 @@ export function useProjectSession(
     }
     addEventListener("beforeunload", warn);
     return () => removeEventListener("beforeunload", warn);
-  }, [needsDecision]);
+  }, [needsDecision, enabled]);
 
   return {
     operation,

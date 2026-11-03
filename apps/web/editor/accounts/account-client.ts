@@ -41,8 +41,10 @@ export function createAccountClient(request: typeof fetch = fetch) {
       throw new Error("The account service returned an invalid response.");
     }
   }
-  async function csrf() {
-    const value = await readJson(await send("/api/auth/csrf"));
+  async function csrf(accountId?: string) {
+    const value = await readJson(
+      await send("/api/auth/csrf", accountId ? { headers: { "X-Spatia-Account": accountId } } : {}),
+    );
     if (!isRecord(value) || typeof value.requestToken !== "string" || !value.requestToken)
       throw new Error("The account service is unavailable. Please reload and try again.");
     return value.requestToken;
@@ -92,11 +94,15 @@ export function createAccountClient(request: typeof fetch = fetch) {
     if (!session) throw new Error("The sign-in session could not be confirmed. Please try again.");
     return session;
   }
-  async function accountWrite(path: string, body?: object) {
-    const token = await csrf();
+  async function accountWrite(path: string, body?: object, accountId?: string) {
+    const token = await csrf(accountId);
     const response = await send(path, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": token },
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRF-TOKEN": token,
+        ...(accountId ? { "X-Spatia-Account": accountId } : {}),
+      },
       ...(body ? { body: JSON.stringify(body) } : {}),
     });
     if (response.status !== 204)
@@ -116,8 +122,8 @@ export function createAccountClient(request: typeof fetch = fetch) {
       throw new Error("The updated session could not be confirmed. Please sign in again.");
     return session;
   }
-  async function signOut() {
-    await accountWrite("/api/auth/logout");
+  async function signOut(accountId?: string) {
+    await accountWrite("/api/auth/logout", undefined, accountId);
     if (await getSession()) throw new Error("Sign-out could not be confirmed. Please try again.");
   }
   return { getSession, signIn, changePassword, signOut };
