@@ -265,9 +265,36 @@ try {
     "Only live draft after expiry",
   );
   assert.equal(await page.getByRole("dialog").count(), 0);
+  const departureName = await page.getByLabel("Scene name", { exact: true }).elementHandle();
+  // Hold the final backup completion after preservation, while App is still mounted.
+  mode = "saved";
+  await edit("Preserved departure edit");
+  await saved();
+  await page.evaluate(() => {
+    const put = IDBObjectStore.prototype.put;
+    let writes = 0;
+    IDBObjectStore.prototype.put = function (...args) {
+      if (this.name === "session" && ++writes === 2) {
+        const transaction = this.transaction;
+        transaction.addEventListener(
+          "complete",
+          (event) => {
+            event.stopImmediatePropagation();
+            window.releaseDeparture = () => transaction.oncomplete.call(transaction, event);
+          },
+          { once: true },
+        );
+      }
+      return put.apply(this, args);
+    };
+  });
   // A confirmed recovery choice permits logout, but never deletes another account's work.
   await page.getByRole("button", { name: "Log out", exact: true }).click();
   await page.getByRole("button", { name: "Keep recovery and continue", exact: true }).click();
+  await page.waitForFunction(() => typeof window.releaseDeparture === "function");
+  await page.keyboard.press("Control+z");
+  assert.equal(await departureName.evaluate((input) => input.value), "Preserved departure edit");
+  await page.evaluate(() => window.releaseDeparture());
   await page.waitForURL("**/login");
   assert.equal(account, null);
   assert.deepEqual(errors, []);

@@ -39,6 +39,7 @@ export type ServerEditorSession = {
   dirty: boolean;
   failed: boolean;
   saving: boolean;
+  departing: boolean;
   save: (exportFile?: boolean) => Promise<boolean>;
   leave: () => void;
 };
@@ -149,11 +150,11 @@ export function App({ server }: { server?: ServerEditorSession }) {
   const session = server
     ? {
         ...localSession,
-        operation: null,
+        operation: server.departing ? ("switch" as const) : null,
         fileName: server.title,
         dirty: server.dirty,
         fileFailed: server.failed,
-        busy: false,
+        busy: server.departing,
         save: server.save,
       }
     : localSession;

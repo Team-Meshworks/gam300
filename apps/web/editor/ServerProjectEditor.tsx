@@ -354,6 +354,7 @@ export function ServerProjectEditor({ projectId }: { projectId: string }) {
             dirty: status !== "saved",
             failed: ["failed", "conflict", "rejected"].includes(status),
             saving: status === "saving",
+            departing: departure !== null,
             save,
             leave: () => setDeparture("home"),
           }}
