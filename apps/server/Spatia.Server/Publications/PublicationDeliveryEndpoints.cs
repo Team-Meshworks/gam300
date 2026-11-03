@@ -11,15 +11,16 @@ internal static class PublicationDeliveryEndpoints
 {
     internal static void MapPublicationDelivery(this IEndpointRouteBuilder endpoints)
     {
-        // Read the captured edition only after the shared filter permits its current audience and lifecycle
-        endpoints.MapGet("/api/publications/{publicationId:guid}", async (Guid publicationId,
+        // Let the shared filter explain malformed IDs before reading the captured edition
+        endpoints.MapGet("/api/publications/{publicationId}", async (string publicationId,
             ApplicationDbContext database, CancellationToken token) =>
         {
-            var edition = await database.Publications.AsNoTracking().SingleAsync(row => row.Id == publicationId, token);
+            var id = Guid.Parse(publicationId);
+            var edition = await database.Publications.AsNoTracking().SingleAsync(row => row.Id == id, token);
             return Results.Content(edition.DocumentJson, "application/json");
         }).RequirePublicationRead(PublicationReadKind.Snapshot);
 
-        endpoints.MapGet("/api/publications/{publicationId:guid}/assets/{assetId}/bytes", async (string assetId,
+        endpoints.MapGet("/api/publications/{publicationId}/assets/{assetId}/bytes", async (string assetId,
             HttpContext context, ApplicationDbContext database, CancellationToken token) =>
         {
             // Recheck removal at byte loading too; never let a stale policy lookup bypass global removal
@@ -29,6 +30,40 @@ internal static class PublicationDeliveryEndpoints
             return asset is null ? ApiProblems.Create(context, 404, "asset_not_found", "Asset is unavailable")
                 : Results.Bytes(asset.Bytes, "model/gltf-binary");
         }).RequirePublicationRead(PublicationReadKind.Asset).RequireRateLimiting("AssetBytes");
+
+        // Management metadata explains the current audience without granting visitor or draft access
+        endpoints.MapGet("/api/publications/{publicationId:guid}/access", async (Guid publicationId,
+            HttpContext context, ApplicationDbContext database, ProjectAccessService access, CancellationToken token) =>
+        {
+            var edition = await database.Publications.AsNoTracking().SingleOrDefaultAsync(row => row.Id == publicationId, token);
+            if (edition is null) { return Unavailable(context); }
+            var grant = (await access.ReadAsync(context, edition.ProjectId, token)).Snapshot;
+            if (grant is null || (!grant.CanManage
+                && !(grant.ActorId == edition.PublishedById && grant.CanEdit && grant.CanPublish)))
+            { return Unavailable(context); }
+            var state = await database.PublicationAccess.AsNoTracking().SingleOrDefaultAsync(row => row.PublicationId == publicationId, token);
+            var audience = state is null ? (PublicationAudience)0 : (PublicationAudience)state.Audience;
+            context.Response.Headers.CacheControl = "private, no-store";
+            return Results.Ok(new
+            {
+                publicationId,
+                edition.ProjectId,
+                audience = Enum.IsDefined(audience) ? audience.ToString() : "Unavailable",
+                explanation = audience switch
+                {
+                    PublicationAudience.Public => "Anyone can open this publication without signing in",
+                    PublicationAudience.Unlisted => "Anyone with the link can open this publication without signing in",
+                    PublicationAudience.Authenticated => "Only permitted accounts can open this publication after signing in",
+                    _ => "Access has not been configured; this publication is unavailable",
+                },
+                viewerIds = state?.ViewerIds ?? [],
+                hidden = state?.Hidden ?? false,
+                revoked = state?.Revoked ?? false,
+                deleted = state?.Deleted ?? false,
+                archived = grant.IsArchived,
+                canManage = grant.CanManage,
+            });
+        }).RequireAuthorization(SecurityPolicies.FullAccount);
 
         endpoints.MapPost("/api/publications/{publicationId:guid}/access", async (Guid publicationId,
             PublicationAccessRequest request, HttpContext context, ApplicationDbContext database,
@@ -49,11 +84,7 @@ internal static class PublicationDeliveryEndpoints
             var publisher = grant is { CanEdit: true, CanPublish: true } && grant.ActorId == edition.PublishedById;
             if (grant is null || (!grant.CanManage && (!publisher || request.Action != "audience"))) { return Unavailable(context); }
 
-            // Validate named accounts in the publication's organization; visitor grants never create draft access
             var ids = request.ViewerIds.Distinct().ToArray();
-            var eligible = await database.OrganizationMemberships.Where(row => row.OrganizationId == grant.OrganizationId
-                && ids.Contains(row.UserId)).Select(row => row.UserId).ToArrayAsync(token);
-            if (eligible.Length != ids.Length) { return ApiProblems.Create(context, 400, "invalid_publication_audience", "Choose accounts in this organization"); }
 
             // Serialize policy changes under the same project lock used by archive and permission changes
             await using var transaction = await database.Database.BeginTransactionAsync(token);
@@ -61,6 +92,22 @@ internal static class PublicationDeliveryEndpoints
             if (locked.Snapshot is not { } current || (!current.CanManage
                 && !(request.Action == "audience" && current.ActorId == edition.PublishedById && current.CanEdit && current.CanPublish)))
             { return Unavailable(context); }
+
+            // Validate newly chosen viewers against the locked project's current organization
+            // Existing inactive viewers must never prevent managers from hiding or revoking an edition
+            if (request.Action == "audience")
+            {
+                var eligible = await database.OrganizationMemberships.Where(member => member.OrganizationId == current.OrganizationId
+                    && ids.Contains(member.UserId)
+                    && database.Organizations.Any(org => org.Id == member.OrganizationId && org.IsActive)
+                    && database.Users.Any(user => user.Id == member.UserId && user.IsActive && !user.MustChangePassword)
+                    && database.UserRoles.Any(role => role.UserId == member.UserId && role.RoleId == member.RoleId))
+                    .Select(member => member.UserId).ToArrayAsync(token);
+                if (eligible.Length != ids.Length)
+                {
+                    return ApiProblems.Create(context, 400, "invalid_publication_audience", "Choose active accounts in this organization");
+                }
+            }
 
             // Missing policy starts restricted; permanent deletion cannot be cleared by another action
             var state = await database.PublicationAccess.SingleOrDefaultAsync(row => row.PublicationId == publicationId, token);

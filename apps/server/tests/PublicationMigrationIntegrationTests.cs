@@ -24,8 +24,9 @@ public sealed class PublicationMigrationIntegrationTests
         foreach (var migration in database.GetService<IMigrationsAssembly>().Migrations.Keys
             .Where(id => string.CompareOrdinal(id, draftMigration) > 0).Order(StringComparer.Ordinal))
         {
-            // Reproduce dev before publication storage and its dependent access table were introduced
-            if (migration != publicationMigration && !migration.EndsWith("_AddPublicationAccess", StringComparison.Ordinal))
+            // Reproduce dev before publication storage and its dependent access and immutability guards were introduced
+            if (migration != publicationMigration && !migration.EndsWith("_AddPublicationAccess", StringComparison.Ordinal)
+                && !migration.EndsWith("_HardenPublicationAccess", StringComparison.Ordinal))
             {
                 await PostgresAccountFixture.ExecuteMigrationScriptAsync(database,
                     migrator.GenerateScript(previous, migration, MigrationsSqlGenerationOptions.Idempotent));
