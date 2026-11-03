@@ -7,9 +7,9 @@
 
 Integrate feature work into `dev`. Release through a `dev` to `main` pull request.
 CI runs automatically only after pushes to `dev` or `main`, including merge commits.
-Pull requests do not start CI. Manual CI dispatch is supported only on those two
-branches; selecting another branch skips all jobs. Deployment is a separate manual
-action and never rebuilds the image.
+Pull requests do not start CI. Manual CI dispatch runs test jobs on the selected
+branch, including feature and hardening branches. Publishing remains restricted to
+`dev` and `main`. Deployment is a separate manual action and never rebuilds the image.
 
 The promotion rule still requires a PR into `main` to come from this repository's
 `dev` branch. Removing PR-triggered CI also removes its automatic source-branch
@@ -59,11 +59,12 @@ On Windows, use `run.bat`. Open http://localhost:8081. Stop this local applicati
 `docker compose --project-name spatia-local down`.
 The Dockerfile builds with pinned Node/npm and serves the result through pinned Caddy.
 The launchers restore Git LFS delivery assets and check prerequisites. The container
-build runs lint, formatting, unit tests, TypeScript, all four authoring browser suites
-and the packaged-build browser checks before the web service starts. CI sets
-`RUN_BUILD_CHECKS=false` after its source checks pass, then tests the final Caddy image;
-standalone builds retain all checks by default. Host Node/npm and Playwright are
-unnecessary. This launcher starts the editor only; use the API Compose configuration
+build runs lint, formatting, browser-policy and unit tests, TypeScript and build
+checks before the web service starts. Real browser proof runs separately on a
+non-root sandbox-capable host. CI sets `RUN_BUILD_CHECKS=false` after its source
+checks pass, then tests the final Caddy image from that host. Host Node/npm and
+Chrome are unnecessary just to start the container. This launcher starts the editor
+only; use the API Compose configuration
 below to include PostgreSQL and the API.
 Only delivery assets enter the build; editable source files and local secrets are excluded.
 The existing asset validator runs with `--delivery-only` inside the build: it checks
@@ -94,7 +95,8 @@ To check the built controls locally, set `BUILD_MODE` to the matching mode and r
 Browser checks use the locked Playwright package. From `apps/web/`, run once:
 
 ```sh
-npx playwright install chromium
+npm run browser:install
+npm run browser:verify
 ```
 
 With the container running:
@@ -103,23 +105,23 @@ With the container running:
 npm run test:deployment -- http://localhost:8081/
 ```
 
-For these checks without host Node or Chromium, use the same Dockerfile's `build`
-stage. From the repository root in PowerShell, with the development container running:
+Run browser checks from a non-root sandbox-capable host with the pinned Node/npm
+and verified official Chrome. The Docker build image deliberately does not install
+or launch a browser; running it as root is not an alternative to sandbox proof.
+From `apps/web/`, with the development container running on its normal host port:
 
-```powershell
-docker build --load --target build --build-arg BUILD_MODE=development -t spatia-checks:local .
-$checkContainer = docker compose --project-name spatia-local ps -q web
-docker run --rm --network "container:$checkContainer" spatia-checks:local node tests/deployment.check.mjs http://127.0.0.1:8080/
-docker run --rm --network "container:$checkContainer" -e BUILD_MODE=development spatia-checks:local node tests/editor-build.check.mjs http://127.0.0.1:8080/
+```sh
+node tests/deployment.check.mjs http://127.0.0.1:8081/
+BUILD_MODE=development node tests/editor-build.check.mjs http://127.0.0.1:8081/
 ```
 
-In Bash, use `check_container=$(docker compose --project-name spatia-local ps -q web)`
-and `--network "container:$check_container"`. This connects the test browser to Caddy's
-network namespace, keeping the URL on loopback and file/recovery APIs available.
-For production, select `production` in both the build argument and test environment.
+In PowerShell, set `$env:BUILD_MODE = "development"` before the second command.
+For production, select `production` in both the image build and test environment.
 The deployment check exercises place/move/undo, JSON Save/Open, reload and recovered
-undo through the packaged UI. The four source-level authoring suites still run against
-Vite during the Docker build; they import source modules that Caddy must not serve.
+undo through the packaged UI. From the repository root, `node tools/check-browser.mjs`
+checks the four source-level authoring suites against Vite and the built preview.
+CI runs both source fixtures and packaged-application checks on its non-root host.
+Do not add `--no-sandbox`, privileged containers, or weakened host security settings.
 
 ## Local API and PostgreSQL integration
 
