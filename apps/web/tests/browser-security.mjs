@@ -76,7 +76,13 @@ export function resolveVerifiedChrome() {
       );
       output = `${metadata.name} ${metadata.version}`;
     } else {
-      output = execFileSync(executablePath, ["--version"], { encoding: "utf8", timeout: 10_000 });
+      output = execFileSync(executablePath, ["--version"], {
+        encoding: "utf8",
+        timeout: 10_000,
+        // Chrome may emit a harmless channel warning. Keep it captured so a
+        // successful version query does not pollute strict child-process stderr.
+        stdio: ["ignore", "pipe", "pipe"],
+      });
     }
   } catch (cause) {
     throw new Error(`Unable to verify Chrome at ${executablePath}. No browser check was started.`, {
@@ -197,7 +203,9 @@ function bindProxyLifetime(owner, proxy) {
   owner.allowLocalOrigin = (origin) => proxy.allowOrigin(origin);
 }
 
-export async function launchBrowser({ target, args = [] } = {}) {
+export async function launchBrowser({ target, args = [], verificationOutput = "stderr" } = {}) {
+  if (!["stdout", "stderr"].includes(verificationOutput))
+    throw new Error("Browser verification output must be stdout or stderr.");
   const { chrome, proxy, options } = await prepare(target, args);
   let browser;
   try {
@@ -213,9 +221,10 @@ export async function launchBrowser({ target, args = [] } = {}) {
     const newPage = browser.newPage.bind(browser);
     browser.newPage = (contextOptions) => newPage(safeContextOptions(contextOptions));
     bindProxyLifetime(browser, proxy);
-    // Server acceptance stdout is a strict machine-readable protocol.
-    console.error(
-      `Verified Chrome ${chrome.version}; sandbox required; network restricted to local test origins.`,
+    // Restart acceptance requires strict stdout; two older C# harnesses instead
+    // require empty stderr. Both retain the successful security proof in logs.
+    process[verificationOutput].write(
+      `Verified Chrome ${chrome.version}; sandbox required; network restricted to local test origins.\n`,
     );
     return browser;
   } catch (cause) {

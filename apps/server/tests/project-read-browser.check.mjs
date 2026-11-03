@@ -45,7 +45,7 @@ const bundle = await build({
     },
   },
 });
-const browser = await launchBrowser({ target: origin, args: ["--enable-unsafe-swiftshader"] });
+const browser = await launchBrowser({ target: origin, args: ["--enable-unsafe-swiftshader"], verificationOutput: "stdout" });
 process.stdout.write(`node ${process.version}; chromium ${browser.version()}\n`);
 try {
   const openPage = async () => {

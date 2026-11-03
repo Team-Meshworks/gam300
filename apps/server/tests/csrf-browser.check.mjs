@@ -6,7 +6,7 @@ assert.equal(target.protocol, "https:");
 assert.equal(target.hostname, "127.0.0.1");
 const origin = target.origin;
 const administratorName = process.argv[3];
-const browser = await launchBrowser({ target: origin });
+const browser = await launchBrowser({ target: origin, verificationOutput: "stdout" });
 process.stdout.write(`node ${process.version}; chromium ${browser.version()}\n`);
 try {
   const makeContext = async () => {

@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 import {
   MINIMUM_CHROME_VERSION,
+  launchBrowser,
   validateChromeVersion,
   chromeCandidates,
   assertLinuxSandboxStatus,
@@ -125,4 +126,8 @@ test("all repository browser launches use the security helper", async () => {
     [],
     "New browser runners must use browser-security.mjs, including integration branches.",
   );
+});
+
+test("reject unsupported verification output channels", async () => {
+  await assert.rejects(launchBrowser({ verificationOutput: "discard" }), /stdout or stderr/);
 });
