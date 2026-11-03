@@ -17,6 +17,7 @@ export async function writeServerDraft(
   request: ServerDraftRequest,
   signal: AbortSignal,
   fetcher: typeof fetch = fetch,
+  accountId?: string,
 ): Promise<ServerDraftResult> {
   if (signal.aborted) return { kind: "failed" };
   // Bound the whole token/save exchange so a stalled connection releases the save queue
@@ -33,6 +34,7 @@ export async function writeServerDraft(
       cache: "no-store",
       redirect: "error",
       signal: requestSignal,
+      ...(accountId ? { headers: { "X-Spatia-Account": accountId } } : {}),
     });
     if ([401, 403].includes(csrf.status)) return { kind: "rejected" };
     if (!csrf.ok) return { kind: "failed" };
@@ -46,7 +48,12 @@ export async function writeServerDraft(
       cache: "no-store",
       redirect: "error",
       signal: requestSignal,
-      headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": token.requestToken },
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRF-TOKEN": token.requestToken,
+        // The API compares this captured identity with the request's validated cookie account
+        ...(accountId ? { "X-Spatia-Account": accountId } : {}),
+      },
       body: request.body,
     });
     // Another save may have moved the revision forward

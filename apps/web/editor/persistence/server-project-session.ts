@@ -9,7 +9,11 @@ import {
   type RecoverySession,
 } from "./local-drafts";
 import { createServerAutosave, type ServerSaveStatus } from "./server-autosave";
-import type { ServerDraftRequest, ServerDraftResult } from "./server-draft-write";
+import {
+  writeServerDraft,
+  type ServerDraftRequest,
+  type ServerDraftResult,
+} from "./server-draft-write";
 
 // Attach after the owner loads a server document or explicitly chooses its recovery copy
 // The account signal must abort on logout, account change or closing the project
@@ -65,7 +69,10 @@ export function connectServerProjectSession(options: {
       if (!disposed) options.onStatus(status);
     },
     ...(options.recovery?.serverSave ? { recovery: options.recovery.serverSave } : {}),
-    ...(options.write ? { write: options.write } : {}),
+    // Bind every default write to this owner, including a retry after cookies change in another tab
+    write:
+      options.write ??
+      ((request, signal) => writeServerDraft(request, signal, fetch, scope.accountId)),
     backup: async (documentJson, serverSave) => {
       const parsed = deserializeProject(documentJson, options.assetKinds);
       if (!parsed.ok) return false;

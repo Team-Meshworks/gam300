@@ -30,6 +30,7 @@ export async function readServerProject(
   const deadline = AbortSignal.timeout(15_000);
   const cancelled = AbortSignal.any([signal, deadline]);
   const options = {
+    headers: { "X-Spatia-Account": accountId },
     credentials: "same-origin",
     cache: "no-store",
     redirect: "error",

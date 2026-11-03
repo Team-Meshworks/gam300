@@ -33,6 +33,15 @@ describe("server draft transport", () => {
     });
   });
 
+  it("binds token and save requests to the originating account even after cookies change", async () => {
+    const fetcher = responses(Response.json(receipt));
+    await writeServerDraft(request, signal, fetcher, "original-account");
+    // Both hops must reject a different cookie owner before draft bytes can be accepted
+    for (const [, init] of fetcher.mock.calls) {
+      expect(new Headers(init?.headers).get("X-Spatia-Account")).toBe("original-account");
+    }
+  });
+
   it.each([
     [409, "conflict"],
     [401, "rejected"],
