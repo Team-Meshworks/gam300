@@ -329,6 +329,7 @@ try {
         "node_modules/vitest/vitest.mjs",
         "run",
         ...unitFiles,
+        "--reporter=default",
         "--reporter=json",
         "--outputFile=test-results/removal-units.json",
       ]);

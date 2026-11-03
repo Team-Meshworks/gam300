@@ -68,6 +68,9 @@ public sealed class ProjectDocumentServiceTests
         var documents = Create("Development");
         var id = Guid.NewGuid();
         var input = JsonNode.Parse(ProjectTestDocuments.Create(id, "Saved snapshot"))!;
+        // Match the writer's omitted empty extensions before padding the input to its byte limit.
+        input["scenes"]![0]!.AsObject().Remove("hotspots");
+        input["scenes"]![0]!.AsObject().Remove("interactions");
         input["scenes"]![0]!["startCamera"]!["rotation"] =
             new JsonArray(0.47490965438830257, -0.6980326014100272, -0.1736294030169948, -0.5070149287205405);
         var baseline = documents.Serialize(documents.Read(id, input.ToJsonString()).Value!).Value!;

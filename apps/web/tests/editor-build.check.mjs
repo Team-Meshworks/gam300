@@ -73,6 +73,15 @@ try {
   assert.equal(await page.locator(".object-row").count(), 0);
   await addAsset(page, "Snow globe");
   assert.equal(await page.locator(".object-row").count(), 1);
+  // A collapsed tree must restore the same selected object when reopened
+  const placedObjectId = await page.locator(".object-row").getAttribute("data-object-id");
+  const disclosure = page.locator(".scene-disclosure");
+  await disclosure.press("ArrowLeft");
+  assert.equal(await page.locator(".object-row").isVisible(), false);
+  await disclosure.press("ArrowRight");
+  assert.equal(await page.locator(".object-row").isVisible(), true);
+  assert.equal(await page.locator(".object-row").getAttribute("data-object-id"), placedObjectId);
+  assert.equal(await page.locator(".object-row").getAttribute("aria-pressed"), "true");
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   assert.equal(await page.locator(".object-row").count(), 0);
 
@@ -83,11 +92,20 @@ try {
     "Sample control matches the build mode",
   );
   if (isDevelopment) {
-    // Undo above restores the pristine room; leave an authored edit to exercise the save decision.
-    await addAsset(page, "test-crate");
-    assert.equal(await page.locator(".object-row").count(), 1);
+    // Whole-project undo restores the untouched room, so there is no work to discard.
     await sample.click();
-    // Opening a sample uses the same save decision as replacing any room-based project
+    await page.locator(".object-row").filter({ hasText: "First crate" }).waitFor();
+    assert.equal(await page.locator(".object-row").count(), 2);
+    assert.equal(await page.getByRole("dialog").count(), 0);
+
+    // A remaining edit must still prompt; Cancel keeps it and Don't Save discards it.
+    await addAsset(page, "test-crate");
+    assert.equal(await page.locator(".object-row").count(), 3);
+    await sample.click();
+    await page.getByRole("dialog").getByRole("button", { name: "Cancel", exact: true }).click();
+    await page.getByRole("dialog").waitFor({ state: "hidden" });
+    assert.equal(await page.locator(".object-row").count(), 3);
+    await sample.click();
     await page.getByRole("dialog").getByRole("button", { name: "Don’t Save", exact: true }).click();
     await page.getByRole("dialog").waitFor({ state: "hidden" });
     await page.locator(".object-row").filter({ hasText: "First crate" }).waitFor();

@@ -29,6 +29,7 @@ export function checkFields(
   record: Record<string, unknown>,
   fields: readonly string[],
   path: string,
+  optional: readonly string[] = [],
 ): ValidationResult<true> {
   // Inherited properties shouldn't fill gaps in imported data
   for (const field of fields) {
@@ -39,7 +40,7 @@ export function checkFields(
 
   // Catch misspelled or unsupported fields before we discard anything
   for (const field of Object.keys(record)) {
-    if (!fields.includes(field)) {
+    if (!fields.includes(field) && !optional.includes(field)) {
       return invalid(`${path}.${field}`, "Unknown field");
     }
   }

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { assets } from "virtual:asset-catalogue";
 import { App } from "./App";
+import { HOTSPOT_ASSET } from "../shared/asset-runtime/hotspot";
 import { createDocumentStore } from "./document-store";
 import { createAccountClient } from "./accounts/account-client";
 import { readServerProject, type OpenedServerProject } from "./persistence/server-project-read";
@@ -15,7 +16,8 @@ import {
 import { serializeProject } from "../shared/project/project-serialization";
 import type { ServerSaveStatus } from "./persistence/server-autosave";
 
-const kinds = new Map(assets.map((asset) => [asset.id, asset.kind]));
+const editorAssets = [...assets, HOTSPOT_ASSET];
+const kinds = new Map(editorAssets.map((asset) => [asset.id, asset.kind]));
 const accounts = createAccountClient();
 type Candidate = {
   opened: OpenedServerProject;
@@ -72,7 +74,7 @@ function ChoiceDialog({
 
 // SCRUM-126 can open /?projectId=<id>; this boundary owns only the editor's save/recovery session.
 export function ServerProjectEditor({ projectId }: { projectId: string }) {
-  const [store] = useState(() => createDocumentStore(assets));
+  const [store] = useState(() => createDocumentStore(editorAssets));
   const [active, setActive] = useState<Active | null>(null);
   const current = useRef<Active | null>(null);
   const [candidate, setCandidate] = useState<Candidate | null>(null);

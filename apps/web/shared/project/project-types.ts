@@ -43,6 +43,34 @@ export type ProjectObject = Readonly<{
   transform: Transform;
 }>;
 
+// A hotspot is an interaction marker attached to one placed object.
+// Position is local to that object, so moving the object moves its hotspots.
+export type ProjectHotspot = Readonly<{
+  id: EntityId;
+  objectId: EntityId;
+  position: Vector3Tuple;
+}>;
+
+export type HotspotDropTarget = Readonly<{
+  objectId: EntityId;
+  localPosition: Vector3Tuple;
+}>;
+
+export type InteractionTrigger =
+  | Readonly<{ type: "visitor-clicks-hotspot"; targetHotspotId: EntityId }>
+  | Readonly<{ type: "scene-starts" }>
+  | Readonly<{ type: "time-elapsed"; seconds?: number }>;
+
+export type InteractionAction =
+  | Readonly<{ type: "open-link"; url?: string }>
+  | Readonly<{ type: "play-audio"; url?: string }>
+  | Readonly<{ type: "print-hi" }>;
+
+export type Interaction = Readonly<{
+  when: InteractionTrigger;
+  do: InteractionAction;
+}>;
+
 export type NamedViewpoint = Readonly<{ id: EntityId; name: string; camera: CameraPose }>;
 
 export type ProjectScene = Readonly<{
@@ -50,7 +78,7 @@ export type ProjectScene = Readonly<{
   name: string;
 
   // One environment can model several connected rooms for uninterrupted walking
-  // TODO: multiple environment assets per scene if necessary
+  // Additional room modules use placed model objects with their own transforms
   environmentAssetId: AssetId;
   startCamera: CameraPose;
 
@@ -59,6 +87,10 @@ export type ProjectScene = Readonly<{
 
   // Keep the scene list order when saving
   objects: readonly ProjectObject[];
+  // Click triggers can only target these object-bound hotspots
+  hotspots: readonly ProjectHotspot[];
+  // Authored WHEN -> DO rules run in preview
+  interactions: readonly Interaction[];
 }>;
 
 // Readonly is a compile-time check

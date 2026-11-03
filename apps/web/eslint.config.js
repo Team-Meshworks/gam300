@@ -7,7 +7,7 @@ import globals from "globals";
 import tseslint from "typescript-eslint";
 
 export default defineConfig([
-  // Generated evidence can contain old source snapshots and their own ESLint configs
+  // Generated test evidence can contain source snapshots and unresolved conflict backups
   globalIgnores(["dist", "test-results"]),
   {
     files: ["**/*.{ts,tsx}"],

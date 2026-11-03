@@ -316,7 +316,12 @@ describe("getRecoverySession", () => {
     const database = new FakeDraftDatabase();
     const older = {
       ...fixture,
-      scenes: fixture.scenes.map((scene) => ({ ...scene, viewpoints: [] })),
+      scenes: fixture.scenes.map((scene) => ({
+        ...scene,
+        hotspots: undefined,
+        interactions: undefined,
+        viewpoints: [],
+      })),
     };
     const original = {
       ...recoverySession(),
@@ -483,7 +488,12 @@ describe("account-scoped recovery", () => {
     const database = new FakeDraftDatabase();
     const older = {
       ...fixture,
-      scenes: fixture.scenes.map((scene) => ({ ...scene, viewpoints: [] })),
+      scenes: fixture.scenes.map((scene) => ({
+        ...scene,
+        hotspots: undefined,
+        interactions: undefined,
+        viewpoints: [],
+      })),
     };
     const original = { ...recoverySession(), revision: 4, document: JSON.stringify(older) };
     database.records.set('session:"active"', original);
@@ -508,7 +518,12 @@ describe("account-scoped recovery", () => {
     const database = new FakeDraftDatabase();
     const older = {
       ...fixture,
-      scenes: fixture.scenes.map((scene) => ({ ...scene, viewpoints: [] })),
+      scenes: fixture.scenes.map((scene) => ({
+        ...scene,
+        hotspots: undefined,
+        interactions: undefined,
+        viewpoints: [],
+      })),
     };
     const original = { ...recoverySession(), revision: 4, document: JSON.stringify(older) };
     const key = `session:${JSON.stringify(["account", alice.accountId, alice.projectId.toLowerCase()])}`;
@@ -911,3 +926,64 @@ it("rejects blank account-scoped recovery without replacing the previous backup"
   expect(await getRecoverySession(assets, database, scope)).toMatchObject({ ok: false });
   expect(database.records.size).toBe(1);
 });
+
+it.each([1, 2])(
+  "recovers incomplete v%s links, corrected edits, and preserves revision conflicts",
+  async (version) => {
+    const database = new FakeDraftDatabase();
+    const kinds = new Map(Object.entries(contentCases.assets));
+    const document = structuredClone(
+      version === 1 ? fixture : contentFixture,
+    ) as unknown as ProjectDocument;
+    const draft = {
+      ...document,
+      scenes: document.scenes.map((scene, index) =>
+        index
+          ? scene
+          : {
+              ...scene,
+              interactions: [
+                {
+                  when: { type: "scene-starts" as const },
+                  do: { type: "open-link" as const, url: "" },
+                },
+              ],
+            },
+      ),
+    } as ProjectDocument;
+    const session = { ...recoverySession(), document: draft };
+    expect(serializeProject(draft, kinds).ok).toBe(false);
+    expect(await applySaveRecoverySession(session, 0, kinds, database)).toEqual({
+      ok: true,
+      value: 1,
+    });
+    const restored = await getRecoverySession(kinds, database);
+    expect(restored.ok).toBe(true);
+    if (!restored.ok || !restored.value?.document) throw new Error("Missing draft");
+    expect(restored.value.document.scenes[0]!.interactions).toEqual(draft.scenes[0]!.interactions);
+    const corrected = {
+      ...draft,
+      title: "Continued editing",
+      scenes: draft.scenes.map((scene, index) =>
+        index
+          ? scene
+          : {
+              ...scene,
+              interactions: [
+                {
+                  when: { type: "scene-starts" as const },
+                  do: { type: "open-link" as const, url: "https://example.com/corrected" },
+                },
+              ],
+            },
+      ),
+    } as ProjectDocument;
+    expect(serializeProject(corrected, kinds).ok).toBe(true);
+    expect(
+      await applySaveRecoverySession({ ...session, document: corrected }, 1, kinds, database),
+    ).toEqual({ ok: true, value: 2 });
+    expect((await applySaveRecoverySession(session, 1, kinds, database)).ok).toBe(false);
+    const final = await getRecoverySession(kinds, database);
+    expect(final.ok && final.value?.document?.title).toBe("Continued editing");
+  },
+);

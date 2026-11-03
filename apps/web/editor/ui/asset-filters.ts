@@ -1,23 +1,33 @@
-import type { CatalogueAsset } from "../../shared/asset-runtime/catalogue";
+import {
+  assetCategories,
+  searchAssets,
+  type CatalogueAsset,
+} from "../../shared/asset-runtime/catalogue";
 
-// "all", "favourites", or "category:Pottery" for one category
+// Keep browsing keys separate from asset IDs and authored project data
 export type AssetFilter = string;
 
 const storageKey = "spatia-favourite-assets";
 
-// Catalogue dont pass the manifest category through yet, so read it only if its there
+// Use delivered catalogue tags without guessing a category from the asset name
 export function categoryOf(asset: CatalogueAsset): string | undefined {
   return "category" in asset && typeof asset.category === "string" ? asset.category : undefined;
 }
 
 export function filterOptions(
   assets: readonly CatalogueAsset[],
-): { value: string; label: string }[] {
-  const categories = [...new Set(assets.map(categoryOf).filter((name) => name !== undefined))];
+): { value: string; label: string; disabled?: boolean }[] {
+  // Keep the agreed order stable and disable empty categories instead of leading authors to a dead end
+  const categories = assetCategories.slice(1);
+  // Derive availability from the whole catalogue so typing a query never reshuffles the menu
   return [
     { value: "all", label: "All assets" },
     { value: "favourites", label: "Favourites" },
-    ...categories.sort().map((name) => ({ value: `category:${name}`, label: name })),
+    ...categories.map((name) => ({
+      value: `category:${name}`,
+      label: name,
+      disabled: !assets.some((asset) => categoryOf(asset) === name),
+    })),
   ];
 }
 
@@ -25,13 +35,16 @@ export function filterAssets(
   assets: readonly CatalogueAsset[],
   filter: AssetFilter,
   favourites: readonly string[],
+  query = "",
 ): CatalogueAsset[] {
-  if (filter === "favourites") return assets.filter((asset) => favourites.includes(asset.id));
-  if (filter.startsWith("category:")) {
-    const name = filter.slice("category:".length);
-    return assets.filter((asset) => categoryOf(asset) === name);
-  }
-  return [...assets];
+  // Share literal name/category matching with the existing library behavior and preserve catalogue order
+  const category = filter.startsWith("category:") ? filter.slice("category:".length) : "All";
+  const matches = searchAssets(assets, query, category);
+
+  // Favourites narrow the same results rather than bypassing the active search
+  return filter === "favourites"
+    ? matches.filter((asset) => favourites.includes(asset.id))
+    : matches;
 }
 
 export function toggleFavourite(favourites: readonly string[], id: string): string[] {

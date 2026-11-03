@@ -7,6 +7,8 @@ public sealed record ContentScene(
     string EnvironmentAssetId,
     CameraPose StartCamera,
     ContentObject[] Objects,
+    ProjectHotspot[] Hotspots,
+    Interaction[] Interactions,
     ProjectGroup[] Groups,
     ProjectZone[] Zones,
     ProjectViewpoint[] Viewpoints,

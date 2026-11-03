@@ -1,3 +1,4 @@
+import { serializeProject } from "../../shared/project/project-serialization";
 import { deserializeProject } from "../../shared/project/project-deserialization";
 import { checkFields, invalid, isRecord } from "../../shared/project/validation-helpers";
 import type { ValidationResult } from "../../shared/project/validation-helpers";
@@ -28,6 +29,8 @@ export function validateServerSaveRecovery(
   if (!confirmed.ok) return confirmed;
   if (confirmed.value.projectId !== projectId)
     return invalid("recovery.serverSave", "Server recovery belongs to a different project");
+  const baseline = serializeProject(confirmed.value, assetKinds);
+  if (!baseline.ok) return baseline;
   let pending: ServerSaveRecovery["pending"] = null;
   if (raw.pending !== null) {
     if (!isRecord(raw.pending))
@@ -64,7 +67,7 @@ export function validateServerSaveRecovery(
     ok: true,
     value: Object.freeze({
       revision: raw.revision,
-      confirmedJson: JSON.stringify(confirmed.value),
+      confirmedJson: baseline.value,
       pending,
     }),
   };

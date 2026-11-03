@@ -177,6 +177,8 @@ jobs:
             script: test:recovery
           - name: history
             script: test:history
+          - name: interactions
+            script: test:interactions
           - name: workspace
             script: test:workspace
           - name: sounds

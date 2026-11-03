@@ -5,6 +5,14 @@ import { pathToFileURL } from "node:url";
 const { chromium } = await import(
   process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : "playwright"
 );
+// Wire writers omit empty extensions; compare authored values using the reader's defaults.
+function withSceneDefaults(document) {
+  return {
+    ...document,
+    scenes: document.scenes.map((scene) => ({ hotspots: [], interactions: [], ...scene })),
+  };
+}
+
 const browser = await chromium.launch({
   args: ["--enable-unsafe-swiftshader"],
   ...(process.env.PLAYWRIGHT_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHANNEL } : {}),
@@ -49,11 +57,13 @@ try {
     );
     const oldDocument = {
       ...fixture,
-      scenes: fixture.scenes.map((scene) => ({
-        ...scene,
-        environmentAssetId: null,
-        viewpoints: [],
-      })),
+      scenes: fixture.scenes.map((scene) => {
+        const older = { ...scene, environmentAssetId: null, viewpoints: [] };
+        // This fixture predates the interaction extension; its reader rejects newer fields.
+        delete older.hotspots;
+        delete older.interactions;
+        return older;
+      }),
     };
     const original = {
       revision: 4,
@@ -374,7 +384,9 @@ try {
   assert.equal(results.first.ok, true);
   assert.equal(results.stored.localStorageRevision, 1);
   assert.equal(results.stored.localEditSequence, 1);
-  assert.deepEqual(JSON.parse(results.stored.document), fixture);
+  assert.equal(JSON.parse(results.stored.document).scenes[0].hotspots, undefined);
+  assert.equal(JSON.parse(results.stored.document).scenes[0].interactions, undefined);
+  assert.deepEqual(withSceneDefaults(JSON.parse(results.stored.document)), fixture);
   assert.equal(results.invalid.ok, false);
   assert.equal(results.stale.ok, false);
   assert.deepEqual(results.afterRejections, results.stored);
@@ -555,15 +567,17 @@ try {
       { name, text },
     );
   const readFile = (name) =>
-    editor.evaluate(
-      async (name) =>
-        JSON.parse(
-          await (
-            await (await (await navigator.storage.getDirectory()).getFileHandle(name)).getFile()
-          ).text(),
-        ),
-      name,
-    );
+    editor
+      .evaluate(
+        async (name) =>
+          JSON.parse(
+            await (
+              await (await (await navigator.storage.getDirectory()).getFileHandle(name)).getFile()
+            ).text(),
+          ),
+        name,
+      )
+      .then(withSceneDefaults);
   const session = (target = editor) =>
     target.evaluate(async () => {
       const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
