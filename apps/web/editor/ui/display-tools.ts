@@ -2,7 +2,7 @@ import type { IconName } from "./Icon";
 
 export type DisplayTool = { label: string; icon: IconName; assetId: string };
 
-// Keep each supplied model paired with its own existing toolbar silhouette.
+// Keep each supplied model paired with its exported Figma toolbar SVG.
 // The reference's fourth portrait panel has no supplied GLB and is not offered.
 export const displayPanelTools = [
   {
