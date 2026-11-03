@@ -9,7 +9,6 @@ using Spatia.Server.Accounts;
 using Spatia.Server.Assets;
 using Spatia.Server.Persistence;
 using Spatia.Server.Projects;
-using Spatia.Server.Publications;
 
 namespace Spatia.Server.Tests;
 
@@ -182,68 +181,13 @@ public sealed class AssetIntakeTests
         await Assert.That(currentProject.Revision).IsEqualTo(3L);
         await Assert.That(AssetDocumentReferences.Read(currentProject.DocumentJson).Contains(candidate.Id.ToString())).IsFalse();
         await Assert.That(await database.Database.GetPendingMigrationsAsync()).IsEmpty();
-        // Use the real immutable ledger and protected visitor routes for retained exhibition bytes
-        var publicationId = Guid.NewGuid();
-        database.Publications.Add(new Publication
-        {
-            Id = publicationId,
-            ProjectId = projectId,
-            PublishedById = admin,
-            SourceRevision = 1,
-            SchemaVersion = 1,
-            DocumentJson = json,
-            RequestDigest = new byte[32],
-            AssetReferencesJson = PublicationAssetManifest.Serialize([new(candidate.Id.ToString(), candidate.Sha256)])
-        });
-        await database.SaveChangesAsync();
-        async Task ChangeAccess(string audience, string action)
-        {
-            using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/publications/{publicationId}/access");
-            request.Headers.Add("X-CSRF-TOKEN", token);
-            request.Content = JsonContent.Create(new { audience, viewerIds = Array.Empty<Guid>(), action });
-            using var response = await fixture.Client.SendAsync(request);
-            await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
-        }
-        await ChangeAccess("Public", "audience");
-        using var visitor = fixture.CreateClient();
-        var editionPath = $"/api/publications/{publicationId}";
-        var assetPath = $"{editionPath}/assets/{candidate.Id}/bytes";
-        using var published = await visitor.GetAsync(assetPath);
-        await Assert.That(published.StatusCode).IsEqualTo(HttpStatusCode.OK);
-        await Assert.That((await published.Content.ReadAsByteArrayAsync()).SequenceEqual(bytes)).IsTrue();
-        await Assert.That(published.Headers.CacheControl!.NoStore).IsTrue();
-
-        // JSON and asset bytes share the same audience and lifecycle rules on direct requests
-        await ChangeAccess("Authenticated", "audience");
-        using var anonymousSnapshot = await visitor.GetAsync(editionPath);
-        using var anonymousBytes = await visitor.GetAsync(assetPath);
-        await Assert.That(anonymousSnapshot.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
-        await Assert.That(anonymousBytes.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
-        using var managerBytes = await fixture.Client.GetAsync(assetPath);
-        await Assert.That(managerBytes.StatusCode).IsEqualTo(HttpStatusCode.OK);
-        await ChangeAccess("Public", "audience");
-        await ChangeAccess("Public", "hide");
-        using var hiddenPublication = await visitor.GetAsync(assetPath);
-        await Assert.That(hiddenPublication.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
-        await ChangeAccess("Public", "show");
-        using var restoredPublication = await visitor.GetAsync(assetPath);
-        await Assert.That(restoredPublication.StatusCode).IsEqualTo(HttpStatusCode.OK);
-
-        // Explicit global removal blocks existing editions and projects while preserving immutable history
+        // No publication integration means a global removal must deny without changing the retained row
         using var removal = new HttpRequestMessage(HttpMethod.Post, $"/api/admin/assets/{candidate.Id}/availability");
         removal.Headers.Add("X-CSRF-TOKEN", token);
         removal.Content = JsonContent.Create(new AssetAvailabilityRequest("remove", true));
-        using var removed = await fixture.Client.SendAsync(removal);
-        await Assert.That(removed.StatusCode).IsEqualTo(HttpStatusCode.OK);
-        await Assert.That((await database.AssetCandidates.AsNoTracking().SingleAsync()).RemovedFromProjects).IsTrue();
-        using var removedPublication = await visitor.GetAsync(assetPath);
-        using var removedProject = await fixture.Client.GetAsync($"/api/projects/{projectId}/assets/{candidate.Id}/bytes");
-        await Assert.That(removedPublication.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
-        await Assert.That(removedProject.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
-        var immutableEdition = await database.Publications.AsNoTracking().SingleAsync();
-        using var expectedDocument = JsonDocument.Parse(json);
-        using var savedEdition = JsonDocument.Parse(immutableEdition.DocumentJson);
-        await Assert.That(JsonElement.DeepEquals(expectedDocument.RootElement, savedEdition.RootElement)).IsTrue();
+        using var unavailable = await fixture.Client.SendAsync(removal);
+        await Assert.That(unavailable.StatusCode).IsEqualTo(HttpStatusCode.ServiceUnavailable);
+        await Assert.That((await database.AssetCandidates.AsNoTracking().SingleAsync()).RemovedFromProjects).IsFalse();
         // Database enforcement prevents later writers from replacing a reviewed version's bytes
         await Assert.ThrowsAsync<Npgsql.PostgresException>(async () => await database.Database.ExecuteSqlRawAsync("UPDATE asset_candidates SET bytes = decode('00', 'hex')"));
     }

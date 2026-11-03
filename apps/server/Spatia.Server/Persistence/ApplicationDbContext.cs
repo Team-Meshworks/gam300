@@ -70,9 +70,6 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     /// </summary>
     public DbSet<Publication> Publications => Set<Publication>();
 
-    // Store access separately so hiding or revocation never rewrites a captured edition
-    public DbSet<PublicationAccessState> PublicationAccess => Set<PublicationAccessState>();
-
     /// <summary>
     /// Configures account, project, asset and publication mappings with their independent retention constraints
     /// </summary>
@@ -82,13 +79,6 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         base.OnModelCreating(builder);
         builder.ApplyConfiguration(new AssetCandidateConfiguration());
         builder.ApplyConfiguration(new PublicationConfiguration());
-        builder.Entity<PublicationAccessState>(policy =>
-        {
-            policy.ToTable("publication_access");
-            policy.HasKey(row => row.PublicationId);
-            policy.HasOne<Publication>().WithOne().HasForeignKey<PublicationAccessState>(row => row.PublicationId)
-                .OnDelete(DeleteBehavior.Restrict);
-        });
 
         builder.Entity<ApplicationUser>(user =>
         {
