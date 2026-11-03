@@ -4,10 +4,10 @@
   "version": "0.0.0",
   "type": "module",
   "engines": {
-    "node": "^24.19.0",
-    "npm": "^11.17.0"
+    "node": "^24.22.2",
+    "npm": "^11.21.1"
   },
-  "packageManager": "npm@11.17.0",
+  "packageManager": "npm@11.21.1",
   "scripts": {
     "dev": "vite",
     "build": "npm run build:editor",
@@ -39,7 +39,12 @@
     "test:review-directory": "node tests/review-directory.check.mjs",
     "test:accounts": "node tests/account-directory.check.mjs",
     "test:admin-dashboard": "node tests/admin-dashboard.check.mjs",
-    "test:sounds": "node tests/ui-sounds.check.mjs"
+    "test:sounds": "node tests/ui-sounds.check.mjs",
+    "browser:install": "playwright install --with-deps chrome",
+    "browser:verify": "node tests/verify-browser.mjs",
+    "test:browser-policy": "node --test tests/browser-security.test.mjs tests/browser-network.test.mjs",
+    "test:browser-security": "node tests/browser-security.check.mjs",
+    "browser:update": "playwright install --with-deps --force chrome"
   },
   "dependencies": {
     "@fontsource/inter": "5.3.0",

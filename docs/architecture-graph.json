@@ -237,7 +237,7 @@
   },
   "files": {
     "account-dev-server.ts": "e117343d2dda5bf2d1a2636bfffdb6d2559da9410db4a42fdc336a837259c6fd",
-    "architecture.check.mjs": "45c2cad2ba19bb129e02f5eba71005bf05647f2ddf2b68bd16c7130f584cc8c1",
+    "architecture.check.mjs": "7056958085076fb9a6f14992dded7faf21aedd9d78a48ae5484704020a25cfb7",
     "architecture.mjs": "a7524d4c9ed8f10574c61e6bb1af1b93f53cd3eda8fcf7c37d1aa217fee6aa8b",
     "asset-catalogue-plugin.ts": "fdbfbf69501e6d772ea43c7a4575549f68985bc4e94bed0cfc5c7dc70ba3cbe2",
     "editor/App.tsx": "d8efcc39283c6a3a74ade0cd9d8054296c7b366a31af7659f60a176aa63a4940",
@@ -415,29 +415,35 @@
     "shared/ui/Tabs.tsx": "aedf8b2e76163368b062ac30387b67b9922a5e27b51c54adcf89d2603cfac281",
     "shared/ui/WorkspaceShell.tsx": "632548c7c276f9d2fd5c069baca98347b09113902baa4d85f952f6bc0d7e77a4",
     "tests/account-dev-server.check.mjs": "e8eeb4518a694890660ffaca4cd8e5d99c6e5017328c597e2f2141f667ecf456",
-    "tests/account-directory-real-api.check.mjs": "9e467bcb280f9a5b46f064ef8f4e2e04182d3ab24bb1b4df90530fa1bcff04e1",
-    "tests/account-directory.check.mjs": "361329b91acaff8d5b11971aef6d76ff37a332a835bea7a4907af611b2516066",
-    "tests/admin-dashboard.check.mjs": "cb2ebedf9f8d0b2822e09b31abcab9bad8019780ddecde49877056e19670c4a1",
-    "tests/caching.check.mjs": "3ff36ae487a43e4585556b9482e25008526b6282f448572c956b27f1e2f17aac",
-    "tests/caching.measure.mjs": "aadf27638c20f8a79d5fe302ec7a3f0ad9bab52661bc5be39df65fb89b53e727",
-    "tests/class-assignment.check.mjs": "232d5231b7304b2297ef4e19fff8c7c721b5b67afe6d3e55cb46fa3e7a893bcf",
-    "tests/deployment.check.mjs": "2c76bbb2d229a623d0d48014618e51b8d1e3d364f855f71418b9a50fe16c1eda",
-    "tests/editor-build.check.mjs": "cf48a360fe94ab8a4f025daa5019c82901d8526e67f4e01c3c3a9b5f5f5e6bf5",
-    "tests/editor-integration.check.mjs": "58e0d2d7860d3b9173b75bd9f69b37662d6c834065fd32460ce507f4c730729f",
-    "tests/editor-shell.check.mjs": "84a9c4ba0437223cfa62fa197a75056327636ab9903e7e290f86f757fffee861",
-    "tests/entry.check.mjs": "7c55cdf2e8af2bb4092d551492613d9c97eb3b150bf6e506c873d5a5a92e4e32",
-    "tests/history-recovery.check.mjs": "0bead99f2028a0d9543f7292e3d7d35ad59161d5d20260a1c6f93adbb7c79d6e",
-    "tests/interaction-navigation.check.mjs": "d28960a1d3d67c3b7ec787d552a7abdedda688025236f31a38df6d4af0668906",
-    "tests/interaction-review.check.mjs": "a2777e18dd4ae7b973c2b40fe49f1c7dad4e8a4fbb154e6e975ded69370d0552",
-    "tests/local-drafts.check.mjs": "bb8f64e260836dcc0f2621a881764d9f93042ba6dc5d8670d8282c7c5f1479e9",
-    "tests/login-real-api.check.mjs": "fc544f9e91e5de22a73cfc743b26c5c7e687163f9c46becc486474bcd56cdc8e",
-    "tests/new-project.check.mjs": "17741aa13571068365ea6e1db51b9c4a55d9ce446c3c56341be59509d66b575d",
+    "tests/account-directory-real-api.check.mjs": "d991e67e295d098ad4ff91e0bbce93b75d907ea095b0093f6687a273459e14b3",
+    "tests/account-directory.check.mjs": "cc1753a40467d9ff76c838ff5cc4f80925cfa2eeb9113c56459f7b5ccdd4bbaa",
+    "tests/admin-dashboard.check.mjs": "3832e37d333ac8151773f0cc5f919de27950bf60afac3fc2e034677157fee0bc",
+    "tests/browser-network.mjs": "9e5c7999bd4e7c0fb613c4c60597dd92b070f5c5c9d5d453d57b7c6631439aee",
+    "tests/browser-network.test.mjs": "d214691fc7f09af3f163cc8ce378051ab57e04ca8b05dc5f954a9ed39f06d973",
+    "tests/browser-security.check.mjs": "4ebdb00d3dcffffe44861b82d254f58a1975862d191feb84061b6d78a69f09ae",
+    "tests/browser-security.mjs": "a5d2aad1b72f60d7badb4a36a32287ab2183ff183f62ee42cf6db5fd7ef8f16a",
+    "tests/browser-security.test.mjs": "c8e67a86a08fa889f902c3436e8afcbcd3a9c2dc8d5c00e33d7f0ca3a289c564",
+    "tests/caching.check.mjs": "e19339a9d576ebcab99466e33cfd0dc79f61ede12fa4bbf6541412a1b0a1667c",
+    "tests/caching.measure.mjs": "19dff9da0f727d891bdb7a6180a88837998d83a2eb139d4ed78ee697883c1f18",
+    "tests/class-assignment.check.mjs": "1a0475d08891bcf89a11b6441aa320707ccadcca388f01e0d6cf491a54b90ed4",
+    "tests/deployment.check.mjs": "6a0b976d2939c02ab29db80195baff699e004aefcb602871c6430bbbc85a9576",
+    "tests/editor-build.check.mjs": "c8459856ff2c2ba28c7f81a9accf488e5e6211eb0e432f58c70c7e01171d34c6",
+    "tests/editor-integration.check.mjs": "40bd0d47fb660fe483d79483eb2fc1d4e15fd34ec03d9b4c860256e9db25e7db",
+    "tests/editor-shell.check.mjs": "306d7cc0e60f9884b998344b610dc2bc426d1bfd89dc6717b3f3a30ace4f857d",
+    "tests/entry.check.mjs": "e63ff3adfaca3fde6a5da9f134ea7fda317b83b84ea4c9b16e1d438710c5f777",
+    "tests/history-recovery.check.mjs": "f5f2a9d710c3b403a099a163cbf65a8a22d7e53cd5263bfd150bddc90035f03f",
+    "tests/interaction-navigation.check.mjs": "ef080b60235cf85d8741e48f87516fb7271f610679e649fe6f16e6d88176b353",
+    "tests/interaction-review.check.mjs": "859d5bf45b3ba90edbf2a148ae336db9db4b4de8c00e3b4725f8e28b31088b92",
+    "tests/local-drafts.check.mjs": "b8925e83c230758a0d6b6d6d06ada95e512f674a0b4a972095c72299019ed0f8",
+    "tests/login-real-api.check.mjs": "fde802b13e8c954736d33d5101e0cf0596f667ddf8a625c85138e5d936273caf",
+    "tests/new-project.check.mjs": "7001c7bb51345dfe92b3bfd819223bf6eec70d6cee82a4d8ddaae4326d36311f",
     "tests/project-format-cross.check.mjs": "724420714179f7fa8a2bdb0d1aec185a8d3cc2bc7e2a5457e951cb7c76782353",
-    "tests/review-directory.check.mjs": "e750516eb3a7ffccd0f72eece04c115fe53f772ddfb2cedfd4b921b330dba29b",
-    "tests/server-autosave.check.mjs": "689ca8837d6cdcdba7e5f015d894b0bf0effb337f814841496c3bc8efd77de94",
-    "tests/ui-foundation.check.mjs": "451f62a3dce958551321897ea3b9668b1315b3c286275d9b290fcc4666774ecc",
-    "tests/ui-sounds.check.mjs": "97e33d174504b9da0548d8892be141bf5115074ab9a73c706fd6e8289b531c16",
-    "tests/workspace-routes.check.mjs": "8220d5cfff1bc1a10077275298846e5c1211c1efa1891ed46636e388aa6c75bb",
+    "tests/review-directory.check.mjs": "38c7c15bf9da45f16ae65de04b535a4f54cf22aab2a1119e126797dba593f7fb",
+    "tests/server-autosave.check.mjs": "eaca99e446854e846dcbc25512264df684f857bd67d0c6c89afc07b38321fa1b",
+    "tests/ui-foundation.check.mjs": "68aef400173d9b0beda8d7e70aac85e957b034a83fb60cfdd3b834785fcc7c20",
+    "tests/ui-sounds.check.mjs": "64f419a03ab04bbb28e8ffa05ff016068718dbea90112b9bf4d843c090532332",
+    "tests/verify-browser.mjs": "d976ca6aededfbe021dcfa16d2fed4384eba32e79df27149570f2bc7114178d2",
+    "tests/workspace-routes.check.mjs": "2d584d5fdc28fc960f9dc8a311d9b153440c21d8c38aecdde4e090ae4bbbaf18",
     "vite.config.ts": "7ab395c5523eac22c76dd9237ace595f776ebd723ca6b846a1f7924e15a1b90c",
     "vitest.config.ts": "6d56840bcf381e145f69828ff965fe1c8065e1610a38219c19dbb4e9d87d7dbf",
     "editor/index.html": "f14296264b1f8edda142de2fa8b8c58d1e98e50265637afe5f29924558900279",
@@ -585,11 +591,10 @@
       "file": "architecture.check.mjs",
       "line": 17,
       "kind": "static",
-      "specifier": "playwright",
-      "target": {
-        "package": "playwright"
-      },
-      "from": "checks"
+      "specifier": "./tests/browser-security.mjs",
+      "target": "tests/browser-security.mjs",
+      "from": "checks",
+      "to": "checks"
     },
     {
       "file": "architecture.check.mjs",
@@ -7740,11 +7745,10 @@
       "file": "tests/account-directory-real-api.check.mjs",
       "line": 2,
       "kind": "static",
-      "specifier": "playwright",
-      "target": {
-        "package": "playwright"
-      },
-      "from": "checks"
+      "specifier": "./browser-security.mjs",
+      "target": "tests/browser-security.mjs",
+      "from": "checks",
+      "to": "checks"
     },
     {
       "file": "tests/account-directory-real-api.check.mjs",
@@ -7780,11 +7784,10 @@
       "file": "tests/account-directory.check.mjs",
       "line": 3,
       "kind": "static",
-      "specifier": "playwright",
-      "target": {
-        "package": "playwright"
-      },
-      "from": "checks"
+      "specifier": "./browser-security.mjs",
+      "target": "tests/browser-security.mjs",
+      "from": "checks",
+      "to": "checks"
     },
     {
       "file": "tests/account-directory.check.mjs",
@@ -7830,11 +7833,10 @@
       "file": "tests/admin-dashboard.check.mjs",
       "line": 4,
       "kind": "static",
-      "specifier": "playwright",
-      "target": {
-        "package": "playwright"
-      },
-      "from": "checks"
+      "specifier": "./browser-security.mjs",
+      "target": "tests/browser-security.mjs",
+      "from": "checks",
+      "to": "checks"
     },
     {
       "file": "tests/admin-dashboard.check.mjs",
@@ -7847,7 +7849,37 @@
       "from": "checks"
     },
     {
-      "file": "tests/caching.check.mjs",
+      "file": "tests/browser-network.mjs",
+      "line": 1,
+      "kind": "static",
+      "specifier": "node:http",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/browser-network.mjs",
+      "line": 2,
+      "kind": "static",
+      "specifier": "node:https",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/browser-network.mjs",
+      "line": 3,
+      "kind": "static",
+      "specifier": "node:net",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/browser-network.test.mjs",
       "line": 1,
       "kind": "static",
       "specifier": "node:assert/strict",
@@ -7857,7 +7889,115 @@
       "from": "checks"
     },
     {
-      "file": "tests/caching.check.mjs",
+      "file": "tests/browser-network.test.mjs",
+      "line": 2,
+      "kind": "static",
+      "specifier": "node:http",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/browser-network.test.mjs",
+      "line": 3,
+      "kind": "static",
+      "specifier": "node:net",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/browser-network.test.mjs",
+      "line": 4,
+      "kind": "static",
+      "specifier": "node:events",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/browser-network.test.mjs",
+      "line": 5,
+      "kind": "static",
+      "specifier": "node:test",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/browser-network.test.mjs",
+      "line": 6,
+      "kind": "static",
+      "specifier": "./browser-network.mjs",
+      "target": "tests/browser-network.mjs",
+      "from": "checks",
+      "to": "checks"
+    },
+    {
+      "file": "tests/browser-security.check.mjs",
+      "line": 1,
+      "kind": "static",
+      "specifier": "node:assert/strict",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/browser-security.check.mjs",
+      "line": 2,
+      "kind": "static",
+      "specifier": "node:http",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/browser-security.check.mjs",
+      "line": 3,
+      "kind": "static",
+      "specifier": "node:crypto",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/browser-security.check.mjs",
+      "line": 4,
+      "kind": "static",
+      "specifier": "node:events",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/browser-security.check.mjs",
+      "line": 5,
+      "kind": "static",
+      "specifier": "./browser-security.mjs",
+      "target": "tests/browser-security.mjs",
+      "from": "checks",
+      "to": "checks"
+    },
+    {
+      "file": "tests/browser-security.mjs",
+      "line": 1,
+      "kind": "static",
+      "specifier": "node:child_process",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/browser-security.mjs",
       "line": 2,
       "kind": "static",
       "specifier": "node:fs",
@@ -7867,8 +8007,67 @@
       "from": "checks"
     },
     {
-      "file": "tests/caching.check.mjs",
+      "file": "tests/browser-security.mjs",
       "line": 3,
+      "kind": "static",
+      "specifier": "node:path",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/browser-security.mjs",
+      "line": 4,
+      "kind": "static",
+      "specifier": "playwright",
+      "target": {
+        "package": "playwright"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/browser-security.mjs",
+      "line": 5,
+      "kind": "static",
+      "specifier": "./browser-network.mjs",
+      "target": "tests/browser-network.mjs",
+      "from": "checks",
+      "to": "checks"
+    },
+    {
+      "file": "tests/browser-security.test.mjs",
+      "line": 1,
+      "kind": "static",
+      "specifier": "node:assert/strict",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/browser-security.test.mjs",
+      "line": 2,
+      "kind": "static",
+      "specifier": "node:fs/promises",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/browser-security.test.mjs",
+      "line": 3,
+      "kind": "static",
+      "specifier": "node:path",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/browser-security.test.mjs",
+      "line": 4,
       "kind": "static",
       "specifier": "node:url",
       "target": {
@@ -7877,18 +8076,56 @@
       "from": "checks"
     },
     {
-      "file": "tests/caching.check.mjs",
+      "file": "tests/browser-security.test.mjs",
       "line": 5,
-      "kind": "test-environment",
-      "specifier": "playwright",
+      "kind": "static",
+      "specifier": "node:test",
       "target": {
-        "package": "playwright"
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/browser-security.test.mjs",
+      "line": 6,
+      "kind": "static",
+      "specifier": "./browser-security.mjs",
+      "target": "tests/browser-security.mjs",
+      "from": "checks",
+      "to": "checks"
+    },
+    {
+      "file": "tests/caching.check.mjs",
+      "line": 1,
+      "kind": "static",
+      "specifier": "./browser-security.mjs",
+      "target": "tests/browser-security.mjs",
+      "from": "checks",
+      "to": "checks"
+    },
+    {
+      "file": "tests/caching.check.mjs",
+      "line": 2,
+      "kind": "static",
+      "specifier": "node:assert/strict",
+      "target": {
+        "package": "node:*"
       },
       "from": "checks"
     },
     {
       "file": "tests/caching.check.mjs",
-      "line": 29,
+      "line": 3,
+      "kind": "static",
+      "specifier": "node:fs",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/caching.check.mjs",
+      "line": 26,
       "kind": "test-transformed-module",
       "specifier": "three",
       "target": {
@@ -7898,7 +8135,7 @@
     },
     {
       "file": "tests/caching.check.mjs",
-      "line": 35,
+      "line": 32,
       "kind": "test-transformed-module",
       "specifier": "../shared/asset-runtime/ModelCache.ts",
       "target": "shared/asset-runtime/ModelCache.ts",
@@ -7907,7 +8144,7 @@
     },
     {
       "file": "tests/caching.check.mjs",
-      "line": 37,
+      "line": 34,
       "kind": "test-transformed-module",
       "specifier": "three",
       "target": {
@@ -7917,7 +8154,7 @@
     },
     {
       "file": "tests/caching.check.mjs",
-      "line": 40,
+      "line": 37,
       "kind": "dynamic",
       "specifier": "/graphics/scene.ts",
       "target": "editor/graphics/scene.ts",
@@ -7926,7 +8163,7 @@
     },
     {
       "file": "tests/caching.check.mjs",
-      "line": 41,
+      "line": 38,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -7937,17 +8174,16 @@
       "file": "tests/caching.measure.mjs",
       "line": 1,
       "kind": "static",
-      "specifier": "node:assert/strict",
-      "target": {
-        "package": "node:*"
-      },
-      "from": "checks"
+      "specifier": "./browser-security.mjs",
+      "target": "tests/browser-security.mjs",
+      "from": "checks",
+      "to": "checks"
     },
     {
       "file": "tests/caching.measure.mjs",
       "line": 2,
       "kind": "static",
-      "specifier": "node:child_process",
+      "specifier": "node:assert/strict",
       "target": {
         "package": "node:*"
       },
@@ -7957,7 +8193,7 @@
       "file": "tests/caching.measure.mjs",
       "line": 3,
       "kind": "static",
-      "specifier": "node:crypto",
+      "specifier": "node:child_process",
       "target": {
         "package": "node:*"
       },
@@ -7967,7 +8203,7 @@
       "file": "tests/caching.measure.mjs",
       "line": 4,
       "kind": "static",
-      "specifier": "node:fs/promises",
+      "specifier": "node:crypto",
       "target": {
         "package": "node:*"
       },
@@ -7977,7 +8213,7 @@
       "file": "tests/caching.measure.mjs",
       "line": 5,
       "kind": "static",
-      "specifier": "node:os",
+      "specifier": "node:fs/promises",
       "target": {
         "package": "node:*"
       },
@@ -7987,7 +8223,7 @@
       "file": "tests/caching.measure.mjs",
       "line": 6,
       "kind": "static",
-      "specifier": "node:url",
+      "specifier": "node:os",
       "target": {
         "package": "node:*"
       },
@@ -7997,6 +8233,16 @@
       "file": "tests/caching.measure.mjs",
       "line": 7,
       "kind": "static",
+      "specifier": "node:url",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/caching.measure.mjs",
+      "line": 8,
+      "kind": "static",
       "specifier": "vite",
       "target": {
         "package": "vite"
@@ -8005,17 +8251,7 @@
     },
     {
       "file": "tests/caching.measure.mjs",
-      "line": 48,
-      "kind": "test-environment",
-      "specifier": "playwright",
-      "target": {
-        "package": "playwright"
-      },
-      "from": "checks"
-    },
-    {
-      "file": "tests/caching.measure.mjs",
-      "line": 82,
+      "line": 88,
       "kind": "test-environment",
       "specifier": "three",
       "target": {
@@ -8025,7 +8261,7 @@
     },
     {
       "file": "tests/caching.measure.mjs",
-      "line": 83,
+      "line": 89,
       "kind": "test-environment",
       "specifier": "three",
       "target": {
@@ -8035,7 +8271,7 @@
     },
     {
       "file": "tests/caching.measure.mjs",
-      "line": 84,
+      "line": 90,
       "kind": "dynamic",
       "specifier": "/graphics/ti18-baseline.ts",
       "target": {
@@ -8047,7 +8283,7 @@
     },
     {
       "file": "tests/caching.measure.mjs",
-      "line": 85,
+      "line": 91,
       "kind": "dynamic",
       "specifier": "/graphics/scene.ts",
       "target": "editor/graphics/scene.ts",
@@ -8056,7 +8292,7 @@
     },
     {
       "file": "tests/caching.measure.mjs",
-      "line": 86,
+      "line": 92,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -8067,6 +8303,15 @@
       "file": "tests/class-assignment.check.mjs",
       "line": 1,
       "kind": "static",
+      "specifier": "./browser-security.mjs",
+      "target": "tests/browser-security.mjs",
+      "from": "checks",
+      "to": "checks"
+    },
+    {
+      "file": "tests/class-assignment.check.mjs",
+      "line": 2,
+      "kind": "static",
       "specifier": "node:assert/strict",
       "target": {
         "package": "node:*"
@@ -8075,7 +8320,7 @@
     },
     {
       "file": "tests/class-assignment.check.mjs",
-      "line": 2,
+      "line": 3,
       "kind": "static",
       "specifier": "node:fs/promises",
       "target": {
@@ -8084,18 +8329,17 @@
       "from": "checks"
     },
     {
-      "file": "tests/class-assignment.check.mjs",
-      "line": 3,
+      "file": "tests/deployment.check.mjs",
+      "line": 1,
       "kind": "static",
-      "specifier": "playwright",
-      "target": {
-        "package": "playwright"
-      },
-      "from": "checks"
+      "specifier": "./browser-security.mjs",
+      "target": "tests/browser-security.mjs",
+      "from": "checks",
+      "to": "checks"
     },
     {
       "file": "tests/deployment.check.mjs",
-      "line": 1,
+      "line": 2,
       "kind": "static",
       "specifier": "node:assert/strict",
       "target": {
@@ -8105,7 +8349,7 @@
     },
     {
       "file": "tests/deployment.check.mjs",
-      "line": 2,
+      "line": 3,
       "kind": "static",
       "specifier": "node:fs",
       "target": {
@@ -8114,30 +8358,19 @@
       "from": "checks"
     },
     {
-      "file": "tests/deployment.check.mjs",
-      "line": 3,
-      "kind": "static",
-      "specifier": "playwright",
-      "target": {
-        "package": "playwright"
-      },
-      "from": "checks"
-    },
-    {
       "file": "tests/editor-build.check.mjs",
       "line": 1,
       "kind": "static",
-      "specifier": "node:assert/strict",
-      "target": {
-        "package": "node:*"
-      },
-      "from": "checks"
+      "specifier": "./browser-security.mjs",
+      "target": "tests/browser-security.mjs",
+      "from": "checks",
+      "to": "checks"
     },
     {
       "file": "tests/editor-build.check.mjs",
       "line": 2,
       "kind": "static",
-      "specifier": "node:url",
+      "specifier": "node:assert/strict",
       "target": {
         "package": "node:*"
       },
@@ -8154,18 +8387,17 @@
       "from": "checks"
     },
     {
-      "file": "tests/editor-build.check.mjs",
-      "line": 5,
-      "kind": "test-environment",
-      "specifier": "playwright",
-      "target": {
-        "package": "playwright"
-      },
-      "from": "checks"
+      "file": "tests/editor-integration.check.mjs",
+      "line": 1,
+      "kind": "static",
+      "specifier": "./browser-security.mjs",
+      "target": "tests/browser-security.mjs",
+      "from": "checks",
+      "to": "checks"
     },
     {
       "file": "tests/editor-integration.check.mjs",
-      "line": 1,
+      "line": 2,
       "kind": "static",
       "specifier": "node:assert/strict",
       "target": {
@@ -8175,19 +8407,9 @@
     },
     {
       "file": "tests/editor-integration.check.mjs",
-      "line": 2,
-      "kind": "static",
-      "specifier": "node:fs",
-      "target": {
-        "package": "node:*"
-      },
-      "from": "checks"
-    },
-    {
-      "file": "tests/editor-integration.check.mjs",
       "line": 3,
       "kind": "static",
-      "specifier": "node:url",
+      "specifier": "node:fs",
       "target": {
         "package": "node:*"
       },
@@ -8205,17 +8427,7 @@
     },
     {
       "file": "tests/editor-integration.check.mjs",
-      "line": 6,
-      "kind": "test-environment",
-      "specifier": "playwright",
-      "target": {
-        "package": "playwright"
-      },
-      "from": "checks"
-    },
-    {
-      "file": "tests/editor-integration.check.mjs",
-      "line": 99,
+      "line": 96,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -8224,7 +8436,7 @@
     },
     {
       "file": "tests/editor-integration.check.mjs",
-      "line": 100,
+      "line": 97,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -8233,7 +8445,7 @@
     },
     {
       "file": "tests/editor-integration.check.mjs",
-      "line": 176,
+      "line": 173,
       "kind": "test-environment",
       "specifier": "three",
       "target": {
@@ -8243,7 +8455,7 @@
     },
     {
       "file": "tests/editor-integration.check.mjs",
-      "line": 177,
+      "line": 174,
       "kind": "dynamic",
       "specifier": "/graphics/scene.ts",
       "target": "editor/graphics/scene.ts",
@@ -8252,7 +8464,7 @@
     },
     {
       "file": "tests/editor-integration.check.mjs",
-      "line": 178,
+      "line": 175,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -8263,17 +8475,16 @@
       "file": "tests/editor-shell.check.mjs",
       "line": 1,
       "kind": "static",
-      "specifier": "node:assert/strict",
-      "target": {
-        "package": "node:*"
-      },
-      "from": "checks"
+      "specifier": "./browser-security.mjs",
+      "target": "tests/browser-security.mjs",
+      "from": "checks",
+      "to": "checks"
     },
     {
       "file": "tests/editor-shell.check.mjs",
       "line": 2,
       "kind": "static",
-      "specifier": "node:fs",
+      "specifier": "node:assert/strict",
       "target": {
         "package": "node:*"
       },
@@ -8283,7 +8494,7 @@
       "file": "tests/editor-shell.check.mjs",
       "line": 3,
       "kind": "static",
-      "specifier": "node:url",
+      "specifier": "node:fs",
       "target": {
         "package": "node:*"
       },
@@ -8301,17 +8512,7 @@
     },
     {
       "file": "tests/editor-shell.check.mjs",
-      "line": 6,
-      "kind": "test-environment",
-      "specifier": "playwright",
-      "target": {
-        "package": "playwright"
-      },
-      "from": "checks"
-    },
-    {
-      "file": "tests/editor-shell.check.mjs",
-      "line": 639,
+      "line": 636,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -8320,7 +8521,7 @@
     },
     {
       "file": "tests/editor-shell.check.mjs",
-      "line": 674,
+      "line": 671,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -8331,6 +8532,15 @@
       "file": "tests/entry.check.mjs",
       "line": 1,
       "kind": "static",
+      "specifier": "./browser-security.mjs",
+      "target": "tests/browser-security.mjs",
+      "from": "checks",
+      "to": "checks"
+    },
+    {
+      "file": "tests/entry.check.mjs",
+      "line": 2,
+      "kind": "static",
       "specifier": "node:assert/strict",
       "target": {
         "package": "node:*"
@@ -8339,7 +8549,7 @@
     },
     {
       "file": "tests/entry.check.mjs",
-      "line": 2,
+      "line": 3,
       "kind": "static",
       "specifier": "node:fs/promises",
       "target": {
@@ -8348,18 +8558,17 @@
       "from": "checks"
     },
     {
-      "file": "tests/entry.check.mjs",
-      "line": 3,
+      "file": "tests/history-recovery.check.mjs",
+      "line": 1,
       "kind": "static",
-      "specifier": "playwright",
-      "target": {
-        "package": "playwright"
-      },
-      "from": "checks"
+      "specifier": "./browser-security.mjs",
+      "target": "tests/browser-security.mjs",
+      "from": "checks",
+      "to": "checks"
     },
     {
       "file": "tests/history-recovery.check.mjs",
-      "line": 1,
+      "line": 2,
       "kind": "static",
       "specifier": "node:assert/strict",
       "target": {
@@ -8369,7 +8578,7 @@
     },
     {
       "file": "tests/history-recovery.check.mjs",
-      "line": 2,
+      "line": 3,
       "kind": "static",
       "specifier": "node:fs",
       "target": {
@@ -8379,27 +8588,7 @@
     },
     {
       "file": "tests/history-recovery.check.mjs",
-      "line": 3,
-      "kind": "static",
-      "specifier": "node:url",
-      "target": {
-        "package": "node:*"
-      },
-      "from": "checks"
-    },
-    {
-      "file": "tests/history-recovery.check.mjs",
-      "line": 5,
-      "kind": "test-environment",
-      "specifier": "playwright",
-      "target": {
-        "package": "playwright"
-      },
-      "from": "checks"
-    },
-    {
-      "file": "tests/history-recovery.check.mjs",
-      "line": 41,
+      "line": 38,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -8408,7 +8597,7 @@
     },
     {
       "file": "tests/history-recovery.check.mjs",
-      "line": 42,
+      "line": 39,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -8417,7 +8606,7 @@
     },
     {
       "file": "tests/history-recovery.check.mjs",
-      "line": 144,
+      "line": 141,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -8426,7 +8615,7 @@
     },
     {
       "file": "tests/history-recovery.check.mjs",
-      "line": 145,
+      "line": 142,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -8435,7 +8624,7 @@
     },
     {
       "file": "tests/history-recovery.check.mjs",
-      "line": 245,
+      "line": 242,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -8444,7 +8633,7 @@
     },
     {
       "file": "tests/history-recovery.check.mjs",
-      "line": 246,
+      "line": 243,
       "kind": "dynamic",
       "specifier": "/document-store.ts",
       "target": "editor/document-store.ts",
@@ -8453,7 +8642,7 @@
     },
     {
       "file": "tests/history-recovery.check.mjs",
-      "line": 247,
+      "line": 244,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -8462,7 +8651,7 @@
     },
     {
       "file": "tests/history-recovery.check.mjs",
-      "line": 284,
+      "line": 281,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -8471,7 +8660,7 @@
     },
     {
       "file": "tests/history-recovery.check.mjs",
-      "line": 285,
+      "line": 282,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -8482,17 +8671,16 @@
       "file": "tests/interaction-navigation.check.mjs",
       "line": 1,
       "kind": "static",
-      "specifier": "node:assert/strict",
-      "target": {
-        "package": "node:*"
-      },
-      "from": "checks"
+      "specifier": "./browser-security.mjs",
+      "target": "tests/browser-security.mjs",
+      "from": "checks",
+      "to": "checks"
     },
     {
       "file": "tests/interaction-navigation.check.mjs",
       "line": 2,
       "kind": "static",
-      "specifier": "node:fs",
+      "specifier": "node:assert/strict",
       "target": {
         "package": "node:*"
       },
@@ -8502,7 +8690,7 @@
       "file": "tests/interaction-navigation.check.mjs",
       "line": 3,
       "kind": "static",
-      "specifier": "node:url",
+      "specifier": "node:fs",
       "target": {
         "package": "node:*"
       },
@@ -8510,17 +8698,7 @@
     },
     {
       "file": "tests/interaction-navigation.check.mjs",
-      "line": 4,
-      "kind": "test-environment",
-      "specifier": "playwright",
-      "target": {
-        "package": "playwright"
-      },
-      "from": "checks"
-    },
-    {
-      "file": "tests/interaction-navigation.check.mjs",
-      "line": 110,
+      "line": 107,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -8529,7 +8707,7 @@
     },
     {
       "file": "tests/interaction-navigation.check.mjs",
-      "line": 111,
+      "line": 108,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -8538,7 +8716,7 @@
     },
     {
       "file": "tests/interaction-navigation.check.mjs",
-      "line": 134,
+      "line": 131,
       "kind": "test-environment",
       "specifier": "three",
       "target": {
@@ -8550,17 +8728,16 @@
       "file": "tests/interaction-review.check.mjs",
       "line": 1,
       "kind": "static",
-      "specifier": "node:assert/strict",
-      "target": {
-        "package": "node:*"
-      },
-      "from": "checks"
+      "specifier": "./browser-security.mjs",
+      "target": "tests/browser-security.mjs",
+      "from": "checks",
+      "to": "checks"
     },
     {
       "file": "tests/interaction-review.check.mjs",
       "line": 2,
       "kind": "static",
-      "specifier": "node:fs",
+      "specifier": "node:assert/strict",
       "target": {
         "package": "node:*"
       },
@@ -8570,7 +8747,7 @@
       "file": "tests/interaction-review.check.mjs",
       "line": 3,
       "kind": "static",
-      "specifier": "node:url",
+      "specifier": "node:fs",
       "target": {
         "package": "node:*"
       },
@@ -8578,17 +8755,7 @@
     },
     {
       "file": "tests/interaction-review.check.mjs",
-      "line": 4,
-      "kind": "test-environment",
-      "specifier": "playwright",
-      "target": {
-        "package": "playwright"
-      },
-      "from": "checks"
-    },
-    {
-      "file": "tests/interaction-review.check.mjs",
-      "line": 24,
+      "line": 21,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -8597,7 +8764,7 @@
     },
     {
       "file": "tests/interaction-review.check.mjs",
-      "line": 25,
+      "line": 22,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -8606,7 +8773,7 @@
     },
     {
       "file": "tests/interaction-review.check.mjs",
-      "line": 92,
+      "line": 89,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -8615,7 +8782,7 @@
     },
     {
       "file": "tests/interaction-review.check.mjs",
-      "line": 93,
+      "line": 90,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -8624,7 +8791,7 @@
     },
     {
       "file": "tests/interaction-review.check.mjs",
-      "line": 128,
+      "line": 125,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -8633,7 +8800,7 @@
     },
     {
       "file": "tests/interaction-review.check.mjs",
-      "line": 129,
+      "line": 126,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -8644,17 +8811,16 @@
       "file": "tests/local-drafts.check.mjs",
       "line": 1,
       "kind": "static",
-      "specifier": "node:assert/strict",
-      "target": {
-        "package": "node:*"
-      },
-      "from": "checks"
+      "specifier": "./browser-security.mjs",
+      "target": "tests/browser-security.mjs",
+      "from": "checks",
+      "to": "checks"
     },
     {
       "file": "tests/local-drafts.check.mjs",
       "line": 2,
       "kind": "static",
-      "specifier": "node:fs",
+      "specifier": "node:assert/strict",
       "target": {
         "package": "node:*"
       },
@@ -8664,7 +8830,7 @@
       "file": "tests/local-drafts.check.mjs",
       "line": 3,
       "kind": "static",
-      "specifier": "node:url",
+      "specifier": "node:fs",
       "target": {
         "package": "node:*"
       },
@@ -8672,17 +8838,7 @@
     },
     {
       "file": "tests/local-drafts.check.mjs",
-      "line": 5,
-      "kind": "test-environment",
-      "specifier": "playwright",
-      "target": {
-        "package": "playwright"
-      },
-      "from": "checks"
-    },
-    {
-      "file": "tests/local-drafts.check.mjs",
-      "line": 76,
+      "line": 73,
       "kind": "dynamic",
       "specifier": "/persistence/draft-db.ts",
       "target": "editor/persistence/draft-db.ts",
@@ -8691,7 +8847,7 @@
     },
     {
       "file": "tests/local-drafts.check.mjs",
-      "line": 96,
+      "line": 93,
       "kind": "dynamic",
       "specifier": "/persistence/draft-db.ts",
       "target": "editor/persistence/draft-db.ts",
@@ -8700,7 +8856,7 @@
     },
     {
       "file": "tests/local-drafts.check.mjs",
-      "line": 146,
+      "line": 143,
       "kind": "dynamic",
       "specifier": "/document-store.ts",
       "target": "editor/document-store.ts",
@@ -8709,7 +8865,7 @@
     },
     {
       "file": "tests/local-drafts.check.mjs",
-      "line": 148,
+      "line": 145,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -8718,7 +8874,7 @@
     },
     {
       "file": "tests/local-drafts.check.mjs",
-      "line": 241,
+      "line": 238,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -8727,7 +8883,7 @@
     },
     {
       "file": "tests/local-drafts.check.mjs",
-      "line": 386,
+      "line": 383,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -8736,7 +8892,7 @@
     },
     {
       "file": "tests/local-drafts.check.mjs",
-      "line": 428,
+      "line": 425,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -8745,7 +8901,7 @@
     },
     {
       "file": "tests/local-drafts.check.mjs",
-      "line": 429,
+      "line": 426,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -8754,7 +8910,7 @@
     },
     {
       "file": "tests/local-drafts.check.mjs",
-      "line": 597,
+      "line": 594,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -8765,19 +8921,18 @@
       "file": "tests/login-real-api.check.mjs",
       "line": 1,
       "kind": "static",
-      "specifier": "node:assert/strict",
-      "target": {
-        "package": "node:*"
-      },
-      "from": "checks"
+      "specifier": "./browser-security.mjs",
+      "target": "tests/browser-security.mjs",
+      "from": "checks",
+      "to": "checks"
     },
     {
       "file": "tests/login-real-api.check.mjs",
       "line": 2,
       "kind": "static",
-      "specifier": "playwright",
+      "specifier": "node:assert/strict",
       "target": {
-        "package": "playwright"
+        "package": "node:*"
       },
       "from": "checks"
     },
@@ -8795,19 +8950,18 @@
       "file": "tests/new-project.check.mjs",
       "line": 1,
       "kind": "static",
-      "specifier": "node:assert/strict",
-      "target": {
-        "package": "node:*"
-      },
-      "from": "checks"
+      "specifier": "./browser-security.mjs",
+      "target": "tests/browser-security.mjs",
+      "from": "checks",
+      "to": "checks"
     },
     {
       "file": "tests/new-project.check.mjs",
       "line": 2,
       "kind": "static",
-      "specifier": "playwright",
+      "specifier": "node:assert/strict",
       "target": {
-        "package": "playwright"
+        "package": "node:*"
       },
       "from": "checks"
     },
@@ -8865,17 +9019,16 @@
       "file": "tests/review-directory.check.mjs",
       "line": 1,
       "kind": "static",
-      "specifier": "node:assert/strict",
-      "target": {
-        "package": "node:*"
-      },
-      "from": "checks"
+      "specifier": "./browser-security.mjs",
+      "target": "tests/browser-security.mjs",
+      "from": "checks",
+      "to": "checks"
     },
     {
       "file": "tests/review-directory.check.mjs",
       "line": 2,
       "kind": "static",
-      "specifier": "node:fs/promises",
+      "specifier": "node:assert/strict",
       "target": {
         "package": "node:*"
       },
@@ -8885,7 +9038,7 @@
       "file": "tests/review-directory.check.mjs",
       "line": 3,
       "kind": "static",
-      "specifier": "node:url",
+      "specifier": "node:fs/promises",
       "target": {
         "package": "node:*"
       },
@@ -8895,15 +9048,24 @@
       "file": "tests/review-directory.check.mjs",
       "line": 4,
       "kind": "static",
-      "specifier": "playwright",
+      "specifier": "node:url",
       "target": {
-        "package": "playwright"
+        "package": "node:*"
       },
       "from": "checks"
     },
     {
       "file": "tests/server-autosave.check.mjs",
       "line": 1,
+      "kind": "static",
+      "specifier": "./browser-security.mjs",
+      "target": "tests/browser-security.mjs",
+      "from": "checks",
+      "to": "checks"
+    },
+    {
+      "file": "tests/server-autosave.check.mjs",
+      "line": 2,
       "kind": "static",
       "specifier": "node:assert/strict",
       "target": {
@@ -8913,7 +9075,7 @@
     },
     {
       "file": "tests/server-autosave.check.mjs",
-      "line": 2,
+      "line": 3,
       "kind": "static",
       "specifier": "node:fs",
       "target": {
@@ -8922,18 +9084,17 @@
       "from": "checks"
     },
     {
-      "file": "tests/server-autosave.check.mjs",
-      "line": 3,
+      "file": "tests/ui-foundation.check.mjs",
+      "line": 1,
       "kind": "static",
-      "specifier": "playwright",
-      "target": {
-        "package": "playwright"
-      },
-      "from": "checks"
+      "specifier": "./browser-security.mjs",
+      "target": "tests/browser-security.mjs",
+      "from": "checks",
+      "to": "checks"
     },
     {
       "file": "tests/ui-foundation.check.mjs",
-      "line": 1,
+      "line": 2,
       "kind": "static",
       "specifier": "node:assert/strict",
       "target": {
@@ -8943,7 +9104,7 @@
     },
     {
       "file": "tests/ui-foundation.check.mjs",
-      "line": 2,
+      "line": 3,
       "kind": "static",
       "specifier": "node:fs/promises",
       "target": {
@@ -8953,37 +9114,7 @@
     },
     {
       "file": "tests/ui-foundation.check.mjs",
-      "line": 3,
-      "kind": "static",
-      "specifier": "node:url",
-      "target": {
-        "package": "node:*"
-      },
-      "from": "checks"
-    },
-    {
-      "file": "tests/ui-foundation.check.mjs",
       "line": 4,
-      "kind": "static",
-      "specifier": "playwright",
-      "target": {
-        "package": "playwright"
-      },
-      "from": "checks"
-    },
-    {
-      "file": "tests/ui-sounds.check.mjs",
-      "line": 1,
-      "kind": "static",
-      "specifier": "node:assert/strict",
-      "target": {
-        "package": "node:*"
-      },
-      "from": "checks"
-    },
-    {
-      "file": "tests/ui-sounds.check.mjs",
-      "line": 2,
       "kind": "static",
       "specifier": "node:url",
       "target": {
@@ -8993,17 +9124,16 @@
     },
     {
       "file": "tests/ui-sounds.check.mjs",
-      "line": 4,
-      "kind": "test-environment",
-      "specifier": "playwright",
-      "target": {
-        "package": "playwright"
-      },
-      "from": "checks"
+      "line": 1,
+      "kind": "static",
+      "specifier": "./browser-security.mjs",
+      "target": "tests/browser-security.mjs",
+      "from": "checks",
+      "to": "checks"
     },
     {
-      "file": "tests/workspace-routes.check.mjs",
-      "line": 1,
+      "file": "tests/ui-sounds.check.mjs",
+      "line": 2,
       "kind": "static",
       "specifier": "node:assert/strict",
       "target": {
@@ -9012,12 +9142,30 @@
       "from": "checks"
     },
     {
+      "file": "tests/verify-browser.mjs",
+      "line": 1,
+      "kind": "static",
+      "specifier": "./browser-security.mjs",
+      "target": "tests/browser-security.mjs",
+      "from": "checks",
+      "to": "checks"
+    },
+    {
+      "file": "tests/workspace-routes.check.mjs",
+      "line": 1,
+      "kind": "static",
+      "specifier": "./browser-security.mjs",
+      "target": "tests/browser-security.mjs",
+      "from": "checks",
+      "to": "checks"
+    },
+    {
       "file": "tests/workspace-routes.check.mjs",
       "line": 2,
       "kind": "static",
-      "specifier": "playwright",
+      "specifier": "node:assert/strict",
       "target": {
-        "package": "playwright"
+        "package": "node:*"
       },
       "from": "checks"
     },
@@ -9083,88 +9231,38 @@
   "computedImports": [
     {
       "file": "tests/caching.check.mjs",
-      "line": 5,
-      "expression": "process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : \"playwright\""
-    },
-    {
-      "file": "tests/caching.check.mjs",
-      "line": 29,
+      "line": 26,
       "expression": "source.match(/import \\* as THREE from \"([^\"]+)\"/)[1]"
     },
     {
       "file": "tests/caching.check.mjs",
-      "line": 35,
+      "line": 32,
       "expression": "cachePath"
     },
     {
       "file": "tests/caching.check.mjs",
-      "line": 37,
+      "line": 34,
       "expression": "cacheSource.match(/import \\{ GLTFLoader \\} from \"([^\"]+)\"/)[1]"
     },
     {
       "file": "tests/caching.measure.mjs",
-      "line": 48,
-      "expression": "process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : \"playwright\""
-    },
-    {
-      "file": "tests/caching.measure.mjs",
-      "line": 82,
+      "line": 88,
       "expression": "threePath"
     },
     {
       "file": "tests/caching.measure.mjs",
-      "line": 83,
+      "line": 89,
       "expression": "loaderPath"
     },
     {
-      "file": "tests/editor-build.check.mjs",
-      "line": 5,
-      "expression": "process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : \"playwright\""
-    },
-    {
       "file": "tests/editor-integration.check.mjs",
-      "line": 6,
-      "expression": "process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : \"playwright\""
-    },
-    {
-      "file": "tests/editor-integration.check.mjs",
-      "line": 176,
+      "line": 173,
       "expression": "threePath"
     },
     {
-      "file": "tests/editor-shell.check.mjs",
-      "line": 6,
-      "expression": "process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : \"playwright\""
-    },
-    {
-      "file": "tests/history-recovery.check.mjs",
-      "line": 5,
-      "expression": "process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : \"playwright\""
-    },
-    {
       "file": "tests/interaction-navigation.check.mjs",
-      "line": 4,
-      "expression": "process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : \"playwright\""
-    },
-    {
-      "file": "tests/interaction-navigation.check.mjs",
-      "line": 134,
+      "line": 131,
       "expression": "threePath"
-    },
-    {
-      "file": "tests/interaction-review.check.mjs",
-      "line": 4,
-      "expression": "process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : \"playwright\""
-    },
-    {
-      "file": "tests/local-drafts.check.mjs",
-      "line": 5,
-      "expression": "process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : \"playwright\""
-    },
-    {
-      "file": "tests/ui-sounds.check.mjs",
-      "line": 4,
-      "expression": "process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : \"playwright\""
     }
   ]
 }

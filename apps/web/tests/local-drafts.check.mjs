@@ -1,10 +1,7 @@
+import { launchBrowser, launchPersistentBrowser } from "./browser-security.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { pathToFileURL } from "node:url";
 
-const { chromium } = await import(
-  process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : "playwright"
-);
 // Wire writers omit empty extensions; compare authored values using the reader's defaults.
 function withSceneDefaults(document) {
   return {
@@ -13,9 +10,9 @@ function withSceneDefaults(document) {
   };
 }
 
-const browser = await chromium.launch({
+const browser = await launchBrowser({
+  target: process.argv[2] ?? "http://127.0.0.1:5173/",
   args: ["--enable-unsafe-swiftshader"],
-  ...(process.env.PLAYWRIGHT_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHANNEL } : {}),
 });
 let fileContext;
 // Asset library is a pop up now. Only open it when closed, since the button toggles it
@@ -485,9 +482,9 @@ try {
   // Real file streams live in an isolated browser folder; only the OS pickers are substituted
   // A temporary regular profile exercises durable handles across reloads
   // Chromium's headless incognito profile crashes when cloning OPFS handles into IndexedDB
-  const context = await chromium.launchPersistentContext("", {
+  const context = await launchPersistentBrowser({
+    target: process.argv[2] ?? "http://127.0.0.1:5173/",
     args: ["--enable-unsafe-swiftshader"],
-    ...(process.env.PLAYWRIGHT_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHANNEL } : {}),
   });
   fileContext = context;
   const editor = await context.newPage();
