@@ -280,7 +280,7 @@ public sealed class ProjectAccessService(
         return row is null ? null : Snapshot(account, row.Project, row.CanPublish);
     }
 
-    private IQueryable<Project> VisibleProjects(CurrentAccount account)
+    internal IQueryable<Project> VisibleProjects(CurrentAccount account)
     {
         var projects = database.Projects.AsNoTracking();
         return account.Role switch
@@ -288,10 +288,19 @@ public sealed class ProjectAccessService(
             ApplicationRoles.Administrator => projects,
             ApplicationRoles.Educator => projects.Where(project => project.OrganizationId == account.OrganizationId
                 && database.ProjectAssignments.Any(assignment => assignment.ProjectId == project.Id
-                    && assignment.UserId == account.UserId && assignment.CanManage)),
+                    && assignment.UserId == account.UserId && assignment.CanManage)
+                && (!database.ClassAssignmentStudents.Any(mapping => mapping.ProjectId == project.Id)
+                    || database.ClassAssignmentStudents.Any(mapping => mapping.ProjectId == project.Id
+                        && database.ClassroomMembers.Any(member => member.ClassroomId == mapping.ClassroomId
+                            && member.UserId == account.UserId && member.RoleId == ApplicationRoles.EducatorId && member.IsActive)))),
             ApplicationRoles.Creator => projects.Where(project => project.OrganizationId == account.OrganizationId
                 && database.ProjectAssignments.Any(assignment => assignment.ProjectId == project.Id
-                    && assignment.UserId == account.UserId && assignment.CanEdit)),
+                    && assignment.UserId == account.UserId && assignment.CanEdit)
+                && (!database.ClassAssignmentStudents.Any(mapping => mapping.ProjectId == project.Id)
+                    || database.ClassAssignmentStudents.Any(mapping => mapping.ProjectId == project.Id
+                        && mapping.StudentId == account.UserId
+                        && database.ClassroomMembers.Any(member => member.ClassroomId == mapping.ClassroomId
+                            && member.UserId == account.UserId && member.RoleId == ApplicationRoles.CreatorId && member.IsActive)))),
             _ => projects.Where(_ => false),
         };
     }

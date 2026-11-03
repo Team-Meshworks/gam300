@@ -99,10 +99,7 @@ function hasInvalidUnicode(value: unknown): boolean {
 // Read JSON text into a separate validated project
 // Caller replaces the open project only after an ok result
 // File upload code must also check File.size before reading its text
-export function deserializeProject(
-  text: unknown,
-  assetKinds: ReadonlyMap<string, string>,
-): ValidationResult<ProjectDocument> {
+export function readProjectJson(text: unknown): ValidationResult<unknown> {
   if (typeof text !== "string") {
     return invalid("project", "Expected project JSON text");
   }
@@ -138,5 +135,13 @@ export function deserializeProject(
   }
 
   // Version, IDs and asset references go through the same checks as saving
-  return validateProject(raw, assetKinds);
+  return { ok: true, value: raw };
+}
+
+export function deserializeProject(
+  text: unknown,
+  assetKinds: ReadonlyMap<string, string>,
+): ValidationResult<ProjectDocument> {
+  const parsed = readProjectJson(text);
+  return parsed.ok ? validateProject(parsed.value, assetKinds) : parsed;
 }

@@ -46,7 +46,8 @@ public sealed class ProjectSaveServiceTests
         var expectedDigest = SHA256.HashData(Encoding.UTF8.GetBytes(
             "spatia-save-v1\n" + seeded.ProjectId.ToString("D") + "\n" + seeded.ActorId.ToString("D") + "\n0\n" + request.DocumentJson));
         await Assert.That(stored.LastMutationDigest!.SequenceEqual(expectedDigest)).IsTrue();
-        var documents = fixture.App.Services.GetRequiredService<ProjectDocumentService>();
+        await using var documentScope = fixture.App.Services.CreateAsyncScope();
+        var documents = documentScope.ServiceProvider.GetRequiredService<ProjectDocumentService>();
         var reopened = documents.ReadStored(seeded.ProjectId, stored.SchemaVersion, stored.DocumentJson);
         await Assert.That(reopened.Ok).IsTrue();
         await Assert.That(reopened.Value!.SchemaVersion).IsEqualTo(version);
@@ -57,11 +58,16 @@ public sealed class ProjectSaveServiceTests
         await Assert.That(replay.GetProperty("acknowledgement").GetRawText()).IsEqualTo(acknowledgement.GetRawText());
         await AssertSameAsync(await ReadAsync(fixture, seeded.ProjectId), stored);
 
-        var next = request with { ExpectedRevision = 1, ClientMutationId = Guid.NewGuid() };
+        var next = request with
+        {
+            ExpectedRevision = 1,
+            ClientMutationId = Guid.NewGuid(),
+            DocumentJson = ProjectTestDocuments.Create(seeded.ProjectId, "Newer draft", version)
+        };
         await AssertCommittedAsync(await SaveAsync(fixture, seeded.ProjectId, next), seeded.ProjectId, next.ClientMutationId, 2);
         var latest = await ReadAsync(fixture, seeded.ProjectId);
-        await Assert.That(latest.DocumentJson).IsEqualTo(stored.DocumentJson);
-        await AssertRejectedAsync(await SaveAsync(fixture, seeded.ProjectId, request), ProjectSaveDecision.Conflict, 2);
+        var historical = await SaveAsync(fixture, seeded.ProjectId, request);
+        await Assert.That(historical.GetProperty("acknowledgement").GetRawText()).IsEqualTo(acknowledgement.GetRawText());
         await AssertSameAsync(await ReadAsync(fixture, seeded.ProjectId), latest);
     }
 
@@ -159,6 +165,8 @@ public sealed class ProjectSaveServiceTests
         await fixture.SignInAsync(seeded.ActorId);
         var request = CreateRequest(seeded.ProjectId);
         await SaveAsync(fixture, seeded.ProjectId, request);
+        var newer = request with { ExpectedRevision = 1, ClientMutationId = Guid.NewGuid() };
+        await AssertCommittedAsync(await SaveAsync(fixture, seeded.ProjectId, newer), seeded.ProjectId, newer.ClientMutationId, 2);
         var stored = await ReadAsync(fixture, seeded.ProjectId);
         var token = await fixture.GetCsrfAsync();
         await using var scope = fixture.Database.Services.CreateAsyncScope();
@@ -256,6 +264,10 @@ public sealed class ProjectSaveServiceTests
             }
         }
         await Assert.That((await ReadAsync(fixture, seeded.ProjectId)).Revision).IsEqualTo(1L);
+        await using var receiptScope = fixture.Database.Services.CreateAsyncScope();
+        var receipt = await receiptScope.ServiceProvider.GetRequiredService<ApplicationDbContext>().ProjectSaveReceipts.SingleAsync();
+        await Assert.That(receipt.ClientMutationId).IsEqualTo(request.ClientMutationId);
+        await Assert.That(receipt.Revision).IsEqualTo(1L);
     }
 
     [Test]
@@ -298,11 +310,27 @@ public sealed class ProjectSaveServiceTests
         }
 
         useCancellation = false;
-        await AssertCommittedAsync(await SaveAsync(fixture, seeded.ProjectId, request), seeded.ProjectId, request.ClientMutationId, 1);
+        Project? latest = null;
         if (stage != "before-commit")
         {
-            await AssertSameAsync(await ReadAsync(fixture, seeded.ProjectId), afterFailure);
+            var next = request with
+            {
+                ExpectedRevision = 1,
+                ClientMutationId = Guid.NewGuid(),
+                DocumentJson = ProjectTestDocuments.Create(seeded.ProjectId, "Newer confirmed draft")
+            };
+            await AssertCommittedAsync(await SaveAsync(fixture, seeded.ProjectId, next), seeded.ProjectId, next.ClientMutationId, 2);
+            latest = await ReadAsync(fixture, seeded.ProjectId);
         }
+        var recovered = await AssertCommittedAsync(await SaveAsync(fixture, seeded.ProjectId, request), seeded.ProjectId, request.ClientMutationId, 1);
+        if (stage != "before-commit")
+        {
+            await Assert.That(recovered.GetProperty("savedAt").GetDateTimeOffset()).IsEqualTo(afterFailure.UpdatedAt);
+            await AssertSameAsync(await ReadAsync(fixture, seeded.ProjectId), latest!);
+        }
+        await using var receipts = fixture.Database.Services.CreateAsyncScope();
+        await Assert.That(await receipts.ServiceProvider.GetRequiredService<ApplicationDbContext>().ProjectSaveReceipts.CountAsync())
+            .IsEqualTo(stage == "before-commit" ? 1 : 2);
     }
 
     [Test]
@@ -456,7 +484,8 @@ public sealed class ProjectSaveServiceTests
         await using var fixture = await CreateFixtureAsync();
         var seeded = await SeedAsync(fixture);
         await fixture.SignInAsync(seeded.ActorId);
-        var documents = fixture.App.Services.GetRequiredService<ProjectDocumentService>();
+        await using var documentScope = fixture.App.Services.CreateAsyncScope();
+        var documents = documentScope.ServiceProvider.GetRequiredService<ProjectDocumentService>();
         var node = JsonNode.Parse(ProjectTestDocuments.Create(seeded.ProjectId, ""))!;
         node["scenes"]![0]!["objects"]![0]!["transform"]!["scale"] = new JsonArray(double.MaxValue, double.Epsilon, 1);
         var baseline = documents.Serialize(documents.Read(seeded.ProjectId, node.ToJsonString()).Value!).Value!;

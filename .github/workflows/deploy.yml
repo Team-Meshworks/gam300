@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       ci_run_id:
-        description: Successful CI run ID from the selected branch (an older run rolls back)
+        description: Successful CI run ID for the current selected branch commit (older releases are rejected)
         required: true
         type: string
 
@@ -18,6 +18,8 @@ concurrency:
 
 jobs:
   release:
+    # Reject manual runs from other branches before allocating a runner
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
     name: Verify release and branch
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -25,6 +27,12 @@ jobs:
       environment: ${{ steps.release.outputs.environment }}
       commit: ${{ steps.release.outputs.commit }}
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: apps/web/.nvmrc
       - name: Require a successful CI run from this branch
         id: release
         env:
@@ -40,9 +48,7 @@ jobs:
           [[ "$CI_RUN_ID" =~ ^[0-9]+$ ]]
           workflow=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml" --jq .id)
           gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CI_RUN_ID" > run.json
-          jq -e --arg branch "$GITHUB_REF_NAME" --argjson workflow "$workflow" \
-            '.status == "completed" and .conclusion == "success" and .head_branch == $branch
-             and .workflow_id == $workflow and (.event == "push" or .event == "workflow_dispatch")' run.json
+          node deploy/verify-release.mjs run.json "$GITHUB_REF_NAME" "$workflow" "$GITHUB_SHA"
           echo "environment=$environment" >> "$GITHUB_OUTPUT"
           echo "commit=$(jq -r .head_sha run.json)" >> "$GITHUB_OUTPUT"
 
@@ -70,19 +76,28 @@ jobs:
           path: ${{ env.RELEASE_DIR }}
           run-id: ${{ inputs.ci_run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Pull and deploy; restore the previous release on failure
+      - name: Pull and deploy; keep failed server releases closed for reviewed recovery
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           EXPECTED_COMMIT: ${{ needs.release.outputs.commit }}
           CI_RUN_ID: ${{ inputs.ci_run_id }}
           APP_URL: ${{ vars.APP_URL }}
+          DEPLOY_ENVIRONMENT: ${{ needs.release.outputs.environment }}
         shell: bash
         run: |
+          # Recheck after environment approval so an old artifact cannot run its old deploy script
+          [[ "$EXPECTED_COMMIT" == "$GITHUB_SHA" ]]
+          [[ "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$GITHUB_REF_NAME" --jq .object.sha)" == "$EXPECTED_COMMIT" ]]
           jq -e --arg branch "$GITHUB_REF_NAME" --arg commit "$EXPECTED_COMMIT" --arg run "$CI_RUN_ID" \
             '.branch == $branch and .commit == $commit and .run == $run' "$RELEASE_DIR/release.json"
+          if [[ -f "${DEPLOY_ROOT:-$HOME/vthere}/$DEPLOY_ENVIRONMENT/current/compose.server.yaml" ]]; then
+            jq -e '.apiImage and .migrationImage' "$RELEASE_DIR/release.json"
+          fi
           printf '%s' "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
           bash "$RELEASE_DIR/deploy.sh" "$GITHUB_REF_NAME" \
-            "$(jq -er .image "$RELEASE_DIR/release.json")" "$EXPECTED_COMMIT"
+            "$(jq -er .image "$RELEASE_DIR/release.json")" "$EXPECTED_COMMIT" \
+            "$(jq -r '.apiImage // empty' "$RELEASE_DIR/release.json")" \
+            "$(jq -r '.migrationImage // empty' "$RELEASE_DIR/release.json")"
           printf 'Deployed `%s` to %s\n' "$EXPECTED_COMMIT" "$APP_URL" >> "$GITHUB_STEP_SUMMARY"
       - name: Remove temporary registry credentials and release files
         if: always()

@@ -67,39 +67,46 @@ public sealed class ProjectSaveService(ApplicationDbContext database, ProjectAcc
         }
 
         var project = authorization.Snapshot!;
-        var document = documents.Read(projectId, envelope.UnvalidatedDocumentJson);
-        if (!document.Ok)
-        {
-            return ProjectSaveResult.Invalid();
-        }
-        var serialized = documents.Serialize(document.Value!);
-        if (!serialized.Ok)
-        {
-            return ProjectSaveResult.Invalid();
-        }
         // Fixed UUID fields and a newline-terminated decimal revision frame the final original UTF-8 document
         // Retry identity deliberately retains whitespace, key order and number spelling; storage does not
         var digest = SHA256.HashData(Encoding.UTF8.GetBytes(
             $"spatia-save-v1\n{projectId:D}\n{project.ActorId:D}\n{envelope.ExpectedRevision.ToString(CultureInfo.InvariantCulture)}\n"
             + envelope.UnvalidatedDocumentJson));
+        var receipt = await database.ProjectSaveReceipts.AsNoTracking().SingleOrDefaultAsync(
+            row => row.ProjectId == projectId && row.ClientMutationId == envelope.ClientMutationId, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         if (HasExpired(context))
         {
             return ProjectSaveResult.Denied(ProjectAccessFailure.AuthenticationRequired);
         }
-        var decision = ProjectSavePolicy.Decide(project, envelope.ExpectedRevision, envelope.ClientMutationId, digest);
-        if (decision is ProjectSaveDecision.Conflict or ProjectSaveDecision.RevisionExhausted)
-        {
-            return ProjectSaveResult.Rejected(decision, project.Revision);
-        }
+        var decision = ProjectSavePolicy.Decide(project, envelope.ExpectedRevision, envelope.ClientMutationId, digest, receipt);
 
         ProjectSaveAcknowledgement acknowledgement;
-        if (decision == ProjectSaveDecision.Replay)
+        if (receipt is not null)
         {
-            acknowledgement = new(projectId, project.Revision, envelope.ClientMutationId, project.UpdatedAt);
+            if (decision != ProjectSaveDecision.Replay)
+            {
+                return ProjectSaveResult.Rejected(decision, project.Revision);
+            }
+            // Reconciliation confirms a previous commit even if its content no longer passes today's catalogue
+            acknowledgement = new(projectId, receipt.Revision, receipt.ClientMutationId, receipt.SavedAt);
         }
         else
         {
+            // Preserve previously saved retired assets when validating a fresh mutation
+            var document = documents.Read(projectId, envelope.UnvalidatedDocumentJson, project.UnvalidatedDocumentJson);
+            if (!document.Ok) { return ProjectSaveResult.Invalid(); }
+            var serialized = documents.Serialize(document.Value!);
+            if (!serialized.Ok) { return ProjectSaveResult.Invalid(); }
+            cancellationToken.ThrowIfCancellationRequested();
+            if (HasExpired(context))
+            {
+                return ProjectSaveResult.Denied(ProjectAccessFailure.AuthenticationRequired);
+            }
+            if (decision is ProjectSaveDecision.Conflict or ProjectSaveDecision.RevisionExhausted)
+            {
+                return ProjectSaveResult.Rejected(decision, project.Revision);
+            }
             var staged = await new ProjectSaveWriter(database).TryStageAsync(project, envelope.ExpectedRevision,
                 envelope.ClientMutationId, document.Value!.SchemaVersion, serialized.Value!, digest, cancellationToken);
             if (HasExpired(context))

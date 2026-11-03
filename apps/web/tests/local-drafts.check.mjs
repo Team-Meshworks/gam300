@@ -10,6 +10,20 @@ const browser = await chromium.launch({
   ...(process.env.PLAYWRIGHT_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHANNEL } : {}),
 });
 let fileContext;
+// Asset library is a pop up now. Only open it when closed, since the button toggles it
+async function openLibrary(page) {
+  if ((await page.locator(".asset-picker").count()) === 0) {
+    await page.getByRole("button", { name: "Asset library", exact: true }).click();
+  }
+}
+
+// Clicking a card only picks it, Add is what places it
+async function addAsset(page, name) {
+  await openLibrary(page);
+  await page.locator(".asset-picker").getByRole("button", { name, exact: true }).click();
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+}
+
 try {
   const errors = [];
   // Fresh browser context keeps these writes away from the author's saved drafts
@@ -23,6 +37,82 @@ try {
   const fixture = JSON.parse(
     readFileSync(new URL("../shared/project/fixtures/m1-project.json", import.meta.url), "utf8"),
   );
+  // An old browser backup must stay intact until the author explicitly converts it.
+  const oldContext = await browser.newContext();
+  try {
+    const oldPage = await oldContext.newPage();
+    oldPage.on("pageerror", (error) => errors.push(error.message));
+    oldPage.on("dialog", (dialog) => dialog.accept());
+    await oldPage.goto(process.argv[2] ?? "http://127.0.0.1:5173/");
+    await oldPage.waitForFunction(
+      () => document.querySelector(".draft-feedback")?.textContent !== "Reopening saved work…",
+    );
+    const oldDocument = {
+      ...fixture,
+      scenes: fixture.scenes.map((scene) => ({
+        ...scene,
+        environmentAssetId: null,
+        viewpoints: [],
+      })),
+    };
+    const original = {
+      revision: 4,
+      document: JSON.stringify(oldDocument),
+      fileName: "old.json",
+      savedJson: null,
+      pristine: false,
+    };
+    await oldPage.evaluate(async (original) => {
+      const { IndexedDBDraftDatabase } = await import("/persistence/draft-db.ts");
+      const db = await new IndexedDBDraftDatabase().getIndexedDB();
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction("session", "readwrite");
+        tx.objectStore("session").put(original, "active");
+        tx.oncomplete = resolve;
+        tx.onabort = reject;
+      });
+      db.close();
+    }, original);
+    await oldPage.reload();
+    await oldPage.getByText("Untitled project", { exact: true }).click();
+    await oldPage.getByRole("button", { name: "Import older browser backup", exact: true }).click();
+    await oldPage.getByRole("button", { name: "Convert and open", exact: true }).click();
+    assert.match(await oldPage.getByRole("alert").innerText(), /environment/i);
+    await oldPage.getByLabel("Environment for Room", { exact: false }).selectOption("test-room-v1");
+    await oldPage.getByRole("button", { name: "Convert and open", exact: true }).click();
+    await oldPage.getByText("old-converted.json", { exact: true }).waitFor();
+    await oldPage.getByText("Not saved", { exact: true }).waitFor();
+    const records = await oldPage.evaluate(async () => {
+      const { IndexedDBDraftDatabase } = await import("/persistence/draft-db.ts");
+      const db = await new IndexedDBDraftDatabase().getIndexedDB();
+      const records = await new Promise((resolve, reject) => {
+        const tx = db.transaction("session", "readonly");
+        const active = tx.objectStore("session").get("active");
+        const original = tx.objectStore("session").get("older-scene-backup:4");
+        tx.oncomplete = () => resolve({ active: active.result, original: original.result });
+        tx.onabort = reject;
+      });
+      db.close();
+      return records;
+    });
+    assert.deepEqual(records.original, original);
+    const converted = JSON.parse(records.active.document);
+    assert.equal(converted.schemaVersion, 2);
+    assert.equal(converted.scenes[0].environmentAssetId, "test-room-v1");
+    assert.equal(converted.scenes[0].objects.length, fixture.scenes[0].objects.length);
+    assert.equal(records.active.savedJson, null, "Conversion needs an explicit save");
+    await oldPage.reload();
+    await oldPage.getByText("old-converted.json", { exact: true }).waitFor();
+    await oldPage.getByText("Not saved", { exact: true }).waitFor();
+    await oldPage.getByText("old-converted.json", { exact: true }).click();
+    await oldPage
+      .getByRole("button", { name: "Import older browser backup", exact: true })
+      .waitFor();
+    await oldPage.getByRole("button", { name: "Import older browser backup", exact: true }).click();
+    await oldPage.getByRole("heading", { name: "Import older scene file" }).waitFor();
+  } finally {
+    await oldContext.close();
+  }
   const contentFixture = JSON.parse(
     readFileSync(new URL("../shared/project/fixtures/m2-project.json", import.meta.url), "utf8"),
   );
@@ -449,8 +539,8 @@ try {
         .getByText("Add a room from the asset library to start.", { exact: true })
         .isVisible()
     )
-      await editor.getByRole("button", { name: "Add test-room", exact: true }).click();
-    await editor.getByRole("button", { name: "Add test-crate", exact: true }).click();
+      await addAsset(editor, "test-room");
+    await addAsset(editor, "test-crate");
   };
   const writeFile = (name, text) =>
     editor.evaluate(
@@ -674,7 +764,7 @@ try {
   await second.getByText("Reopened your last project", { exact: true }).waitFor();
   await add();
   await waitBackup(3);
-  await second.getByRole("button", { name: "Add test-crate", exact: true }).click();
+  await addAsset(second, "test-crate");
   await second.getByRole("alert").filter({ hasText: "Recovery changed in another tab" }).waitFor();
   assert.equal(await second.locator(".object-row").count(), 3);
   await second.close();
@@ -745,7 +835,7 @@ try {
   await fallback.evaluate(() => {
     window.failRecovery = true;
   });
-  await fallback.getByRole("button", { name: "Add test-crate", exact: true }).click();
+  await addAsset(fallback, "test-crate");
   await fallback.getByRole("alert").filter({ hasText: "Recovery backup failed" }).waitFor();
   await fallback.evaluate(() => {
     window.failRecovery = false;
@@ -758,7 +848,7 @@ try {
   // The download can finish before the recovery write and its UI update
   await status("Not saved", fallback);
   await waitBackup(3, fallback);
-  await fallback.getByRole("button", { name: "Add test-crate", exact: true }).click();
+  await addAsset(fallback, "test-crate");
   await waitBackup(4, fallback);
   await fallback.reload();
   await fallback.getByText("Reopened your last project", { exact: true }).waitFor();

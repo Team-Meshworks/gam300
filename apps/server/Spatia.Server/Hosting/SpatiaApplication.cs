@@ -9,10 +9,15 @@ using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Npgsql;
 using Spatia.Server.Accounts;
+using Spatia.Server.Assets;
+using Spatia.Server.Publications;
+using Spatia.Server.Classes;
 using Spatia.Server.Persistence;
 using Spatia.Server.Projects;
+using Spatia.Server.Reviews;
 using Spatia.Server.Security;
 
 namespace Spatia.Server.Hosting;
@@ -78,6 +83,7 @@ public static class SpatiaApplication
         var forwardedHeaders = new ForwardedHeadersOptions
         {
             ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
+            // The isolated Caddy peer normalizes the trusted outer chain to one client address
             ForwardLimit = 1,
         };
         forwardedHeaders.KnownProxies.Clear();
@@ -123,11 +129,16 @@ public static class SpatiaApplication
             options.SerializerOptions.AllowDuplicateProperties = false;
             options.SerializerOptions.UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow;
         });
+        builder.Services.AddHttpContextAccessor();
+        builder.Services.AddScoped<IPublicationAccessReader, StoredPublicationAccessReader>();
+        builder.Services.AddScoped<AssetUploadValidator>();
+        builder.Services.AddScoped<AssetAdministrationService>();
         builder.Services.AddScoped<AccountAdministrationService>();
         builder.Services.AddScoped<AccountSessionService>();
         builder.Services.AddScoped<ProjectAccessService>();
-        builder.Services.AddSingleton<ProjectDocumentService>();
+        builder.Services.AddScoped<ProjectDocumentService>();
         builder.Services.AddScoped<ProjectSaveService>();
+        builder.Services.TryAddScoped<IReviewAssetResolver, ApprovedReviewAssetResolver>();
         builder.Services.AddSpatiaAccounts(connectionString);
         builder.Services.AddSpatiaRequestSecurity();
         builder.Services.AddDataProtection()
@@ -206,11 +217,17 @@ public static class SpatiaApplication
             var tokens = antiforgery.GetAndStoreTokens(context);
             return Results.Ok(new { requestToken = tokens.RequestToken });
         }).AllowAnonymous();
+        app.MapAssetAdministration();
+        app.MapAssetDelivery();
+        app.MapPublicationDelivery();
         app.MapAccountAdministration();
+        app.MapAccountDirectory();
         app.MapAccountSessions();
         app.MapProjectReads();
         app.MapProjectSaves();
         app.MapProjectLifecycle();
+        app.MapClassrooms();
+        app.MapReviewSubmissions();
         return app;
     }
 

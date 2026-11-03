@@ -1,0 +1,23 @@
+# This build needs only backend sources and locked dependencies
+**
+!apps/
+!apps/server/
+!apps/server/**
+# Resolve the existing validator dependency from the shared lockfile
+!apps/web/
+!apps/web/package.json
+!apps/web/package-lock.json
+!tools/
+!tools/validate-intake.mjs
+!tools/asset-content-validation.mjs
+# Include metadata required by the server without bundling delivery or source assets
+!assets/
+!assets/manifest.json
+**/bin/
+**/obj/
+**/test-results/
+**/.artifacts/
+**/.env
+**/.env.*
+**/*.pfx
+**/*.pem

@@ -3,6 +3,7 @@ import { assets } from "virtual:asset-catalogue";
 import type { Vector3Tuple } from "../shared/project/scene-object";
 import type { Transform } from "../shared/project/project-types";
 import { missingProjectCapabilities } from "../shared/project/project-capabilities";
+import { playUiSound } from "./audio/ui-sounds";
 import { createDocumentStore } from "./document-store";
 import {
   handleDeleteShortcut,
@@ -15,7 +16,10 @@ import type { ModeManager, ModeManagerState } from "./graphics/modeManager";
 import { BottomBar } from "./ui/BottomBar";
 import { SidePanels } from "./ui/SidePanels";
 import { TopBar } from "./ui/TopBar";
-import { Viewport } from "./viewport/Viewport";
+import { OlderSceneImport } from "./OlderSceneImport";
+import { Scenes } from "./Scenes";
+import { Viewpoints } from "./Viewpoints";
+import { Viewport, type ViewpointCamera } from "./viewport/Viewport";
 
 import { ProjectConfirmation } from "./ProjectConfirmation";
 import { useProjectSession } from "./persistence/use-project-session";
@@ -25,10 +29,8 @@ const assetKinds = new Map(assets.map((asset) => [asset.id, asset.kind]));
 
 export function App() {
   const [store] = useState(() => createDocumentStore(assets));
-  const { objects, project, canUndo, canRedo } = useSyncExternalStore(
-    store.subscribe,
-    store.getSnapshot,
-  );
+  const { objects, project, activeSceneId, loadGeneration, canUndo, canRedo } =
+    useSyncExternalStore(store.subscribe, store.getSnapshot);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [generatedThumbnails, setGeneratedThumbnails] = useState<Record<string, string>>({});
   const onThumbnail = useCallback((id: string, url: string) => {
@@ -52,10 +54,11 @@ export function App() {
     }, 3500);
     return () => clearTimeout(timer);
   }, [feedback.sequence]);
+  const [viewCamera, setViewCamera] = useState<ViewpointCamera | null>(null);
   const [manager, setManager] = useState<ModeManager | null>(null);
   const [modeState, setModeState] = useState<ModeManagerState | null>(null);
   const selection = objects.some((object) => object.id === selectedId) ? selectedId : null;
-  const projectScene = project?.scenes[0];
+  const projectScene = project?.scenes.find((scene) => scene.id === activeSceneId);
   const roomAsset = assets.find((asset) => asset.id === projectScene?.environmentAssetId);
 
   // Room selection uses the scene ID because its asset lives in the environment field
@@ -80,7 +83,19 @@ export function App() {
     setError("");
     setHasDeleted(false);
   }, []);
-  const session = useProjectSession(store, assets, project, objects.length, onReplace, setNotice);
+  const session = useProjectSession(
+    store,
+    assets,
+    project,
+    objects.length,
+    onReplace,
+    setNotice,
+    () => playUiSound("save"),
+  );
+  // Here rather than in the dialog, whose mount effect run twice in development
+  useEffect(() => {
+    if (session.confirmation) playUiSound("warning");
+  }, [session.confirmation]);
   const storageOperation = session.operation;
   const switching =
     storageOperation === "switch" ||
@@ -100,6 +115,7 @@ export function App() {
     setHasDeleted(true);
     setSelectedId(null);
     setNotice(`Deleted ${result.value.name}. Undo restores it.`);
+    playUiSound("delete");
   }, [store, selection, visitor, setNotice]);
 
   useEffect(() => {
@@ -208,9 +224,20 @@ export function App() {
 
       // The library keeps the room available after placement
       // Dropping the current room again leaves the scene and undo history alone
-      if (store.getSnapshot().project?.scenes[0]?.environmentAssetId === assetId) {
+      if (projectScene?.environmentAssetId === assetId) {
         setDragging(false);
         setNotice("This room is already in the scene");
+        return;
+      }
+      if (project !== null) {
+        const changed = store.setEnvironment(assetId);
+        if (!changed.ok) setError(changed.error.message);
+        else {
+          setError("");
+          setNotice("Scene environment updated. Undo is available.");
+          playUiSound("assetPlace");
+        }
+        setDragging(false);
         return;
       }
       const created = store.createProject(assetId);
@@ -224,6 +251,7 @@ export function App() {
         session.markPristine(created.value);
       }
       setNotice("Project created; choose Save to name its file");
+      playUiSound("assetPlace");
       return;
     }
     // Clicks and drops share this path; room selection starts the project before furnishing it
@@ -241,6 +269,7 @@ export function App() {
     setError("");
     setSelectedId(result.object.id);
     setNotice(`Added ${result.object.name}`);
+    playUiSound("assetPlace");
   }
 
   return (
@@ -259,7 +288,7 @@ export function App() {
         canRedo={canRedo}
         onUndo={store.undo}
         onRedo={store.redo}
-        canPreview={manager !== null && !session.busy}
+        canPreview={manager !== null && (!session.busy || storageOperation === "backup")}
         onPreview={() => {
           const current = store.getSnapshot().project;
           const unavailable =
@@ -271,9 +300,13 @@ export function App() {
             return;
           }
           manager?.setMode("visitor");
+          playUiSound("enterPreview");
           document.getElementById("viewport")?.focus();
         }}
-        onExitPreview={() => manager?.setMode("editor")}
+        onExitPreview={() => {
+          manager?.setMode("editor");
+          playUiSound("goingBack");
+        }}
       />
       {/* Reset the input so choosing the same file again still fires a change */}
       <input
@@ -290,11 +323,46 @@ export function App() {
         }}
       />
 
+      <OlderSceneImport
+        olderSceneFiles={session.olderSceneFiles}
+        assets={assets}
+        onImport={session.importConvertedFile}
+        onError={setError}
+      />
       <main className="workspace" inert={switching}>
         <SidePanels
+          scenes={
+            <Scenes
+              key={`${loadGeneration}:${project?.projectId ?? "new"}:${activeSceneId}:${projectScene?.name}`}
+              scenes={project?.scenes ?? []}
+              activeSceneId={activeSceneId}
+              assets={assets}
+              store={store}
+              disabled={visitor || switching || status !== "ready"}
+              onSwitch={() => {
+                setSelectedId(null);
+                setDragging(false);
+                setError("");
+              }}
+            />
+          }
+          savedViews={
+            projectScene ? (
+              <Viewpoints
+                key={`${loadGeneration}:${projectScene.id}`}
+                views={projectScene.viewpoints ?? []}
+                startCamera={projectScene.startCamera}
+                camera={viewCamera}
+                disabled={visitor || switching || status !== "ready"}
+                store={store}
+              />
+            ) : (
+              <p>Create a scene in the Scenes panel to start saving views.</p>
+            )
+          }
           visitor={visitor}
           room={
-            projectScene === undefined
+            !projectScene?.environmentAssetId
               ? undefined
               : {
                   id: projectScene.id,
@@ -311,9 +379,12 @@ export function App() {
         />
 
         <Viewport
+          key={activeSceneId ?? "grid"}
+          onCamera={setViewCamera}
           assets={assets}
           objects={objects}
-          projectScene={project?.scenes[0] ?? null}
+          projectScene={projectScene ?? null}
+          loadGeneration={loadGeneration}
           selectedId={roomSelected ? projectScene.id : selection}
           dragging={dragging}
           editingEnabled={!switching}

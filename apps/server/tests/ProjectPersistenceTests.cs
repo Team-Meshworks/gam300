@@ -19,6 +19,135 @@ public sealed class ProjectPersistenceTests
     private static readonly DateTimeOffset UpdatedAt = new(2026, 10, 18, 9, 0, 0, TimeSpan.Zero);
 
     [Test]
+    public async Task ProjectDatabase_ReceiptUpgradeBackfillsOnlyTheRetainedLatestMutation()
+    {
+        await using var fixture = await PostgresAccountFixture.CreateAsync("20261018091152_AddProjectDraftStorage");
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var project = await SeedProjectAsync(database);
+        project.Revision = 7;
+        project.LastMutationActorId = UserId;
+        project.LastMutationId = MutationId;
+        project.LastMutationDigest = Enumerable.Repeat((byte)42, 32).ToArray();
+        var forgotten = CreateProject(Guid.NewGuid());
+        forgotten.Revision = 9;
+        database.Projects.Add(forgotten);
+        await database.SaveChangesAsync();
+
+        await database.Database.MigrateAsync();
+        await Assert.That(await database.Database.SqlQuery<bool>($"SELECT to_regclass('project_save_receipts') IS NOT NULL AS \"Value\"").SingleAsync()).IsTrue();
+        var receipt = JsonNode.Parse(await database.Database.SqlQuery<string>($"""
+            SELECT json_build_object('projectId', project_id, 'mutationId', client_mutation_id,
+                'actorId', actor_id, 'expectedRevision', expected_revision, 'revision', revision,
+                'digest', encode(request_digest, 'hex'), 'savedAt', saved_at)::text AS "Value"
+            FROM project_save_receipts
+            """).SingleAsync())!;
+        await Assert.That(receipt["projectId"]!.GetValue<string>()).IsEqualTo(ProjectId.ToString("D"));
+        await Assert.That(receipt["mutationId"]!.GetValue<string>()).IsEqualTo(MutationId.ToString("D"));
+        await Assert.That(receipt["actorId"]!.GetValue<string>()).IsEqualTo(UserId.ToString("D"));
+        await Assert.That(receipt["expectedRevision"]!.GetValue<long>()).IsEqualTo(6L);
+        await Assert.That(receipt["revision"]!.GetValue<long>()).IsEqualTo(7L);
+        await Assert.That(receipt["digest"]!.GetValue<string>()).IsEqualTo(Convert.ToHexString(project.LastMutationDigest).ToLowerInvariant());
+        await Assert.That(receipt["savedAt"]!.GetValue<DateTimeOffset>()).IsEqualTo(UpdatedAt);
+        await database.Database.MigrateAsync();
+        await Assert.That(await database.Database.SqlQuery<long>($"SELECT count(*) AS \"Value\" FROM project_save_receipts").SingleAsync()).IsEqualTo(1L);
+        await Assert.That(await database.Projects.AsNoTracking().CountAsync()).IsEqualTo(2);
+        await Assert.That((await database.Projects.AsNoTracking().SingleAsync(row => row.Id == forgotten.Id)).Revision).IsEqualTo(9L);
+        await AssertDocumentAsync((await database.Projects.AsNoTracking().SingleAsync(row => row.Id == ProjectId)).DocumentJson, project.DocumentJson);
+    }
+
+    [Test]
+    public async Task ProjectDatabase_ReceiptUpgradeRejectsPopulatedRevisionZeroWithoutPartialMigration()
+    {
+        await using var fixture = await PostgresAccountFixture.CreateAsync("20261018091152_AddProjectDraftStorage");
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var project = await SeedProjectAsync(database);
+        project.LastMutationActorId = UserId;
+        project.LastMutationId = MutationId;
+        project.LastMutationDigest = Enumerable.Repeat((byte)42, 32).ToArray();
+        await database.SaveChangesAsync();
+
+        var exception = await Assert.ThrowsAsync<PostgresException>(() => database.Database.MigrateAsync());
+        await Assert.That(exception!.SqlState).IsEqualTo(PostgresErrorCodes.CheckViolation);
+        await Assert.That(await database.Database.SqlQuery<bool>($"SELECT to_regclass('project_save_receipts') IS NULL AS \"Value\"").SingleAsync()).IsTrue();
+        var stored = await database.Projects.AsNoTracking().SingleAsync();
+        await Assert.That(stored.Revision).IsEqualTo(0L);
+        await Assert.That(stored.LastMutationId).IsEqualTo((Guid?)MutationId);
+        // Earlier migrations may commit before the receipt backfill fails.
+        await Assert.That((await database.Database.GetAppliedMigrationsAsync()).Contains("20261029122111_AddProjectSaveReceipts")).IsFalse();
+    }
+
+    [Test]
+    [Arguments("mutation-key", PostgresErrorCodes.UniqueViolation)]
+    [Arguments("revision-key", PostgresErrorCodes.UniqueViolation)]
+    [Arguments("project-fk", PostgresErrorCodes.ForeignKeyViolation)]
+    [Arguments("actor-fk", PostgresErrorCodes.ForeignKeyViolation)]
+    [Arguments("negative-revision", PostgresErrorCodes.CheckViolation)]
+    [Arguments("exhausted-revision", PostgresErrorCodes.CheckViolation)]
+    [Arguments("revision-pair", PostgresErrorCodes.CheckViolation)]
+    [Arguments("digest", PostgresErrorCodes.CheckViolation)]
+    [Arguments("time", PostgresErrorCodes.CheckViolation)]
+    [Arguments("project-delete", PostgresErrorCodes.RestrictViolation)]
+    [Arguments("actor-delete", PostgresErrorCodes.RestrictViolation)]
+    public async Task ProjectDatabase_ReceiptsEnforceIdentityBoundsAndRetention(string change, string sqlState)
+    {
+        await using var fixture = await PostgresAccountFixture.CreateAsync();
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var project = await SeedProjectAsync(database);
+        project.Revision = 1;
+        database.ProjectSaveReceipts.Add(CreateReceipt(ProjectId, MutationId, 1));
+        var otherActor = new ApplicationUser { Id = Guid.NewGuid(), UserName = "other", NormalizedUserName = "OTHER" };
+        database.Users.Add(otherActor);
+        await database.SaveChangesAsync();
+        database.ChangeTracker.Clear();
+        var invalid = CreateReceipt(ProjectId, Guid.NewGuid(), 2);
+        switch (change)
+        {
+            case "mutation-key": invalid.ClientMutationId = MutationId; invalid.ActorId = otherActor.Id; break;
+            case "revision-key": invalid.ExpectedRevision = 0; invalid.Revision = 1; break;
+            case "project-fk": invalid.ProjectId = Guid.NewGuid(); break;
+            case "actor-fk": invalid.ActorId = Guid.NewGuid(); break;
+            case "negative-revision": invalid.ExpectedRevision = -1; invalid.Revision = 0; break;
+            case "exhausted-revision": invalid.ExpectedRevision = Project.MaxRevision; invalid.Revision = Project.MaxRevision + 1; break;
+            case "revision-pair": invalid.Revision = 3; break;
+            case "digest": invalid.RequestDigest = new byte[31]; break;
+            case "time": invalid.SavedAt = DateTimeOffset.MaxValue; break;
+            case "project-delete": database.Projects.Remove(await database.Projects.SingleAsync()); break;
+            case "actor-delete": database.Users.Remove(await database.Users.SingleAsync(row => row.Id == UserId)); break;
+        }
+        if (change is not ("project-delete" or "actor-delete")) { database.ProjectSaveReceipts.Add(invalid); }
+        var exception = await Assert.ThrowsAsync<DbUpdateException>(() => database.SaveChangesAsync());
+        await Assert.That((exception!.InnerException as PostgresException)!.SqlState).IsEqualTo(sqlState);
+        await using var reopened = fixture.Services.CreateAsyncScope();
+        var stored = reopened.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var receipt = await stored.ProjectSaveReceipts.SingleAsync();
+        await Assert.That(receipt.ClientMutationId).IsEqualTo(MutationId);
+        await Assert.That(receipt.ActorId).IsEqualTo(UserId);
+        await Assert.That(receipt.Revision).IsEqualTo(1L);
+        await Assert.That(await stored.Projects.AnyAsync(row => row.Id == ProjectId)).IsTrue();
+        await Assert.That(await stored.Users.AnyAsync(row => row.Id == UserId)).IsTrue();
+    }
+
+    [Test]
+    public async Task ProjectDatabase_ReceiptKeyIsPerProjectAndMaximumRevisionIsValid()
+    {
+        await using var fixture = await PostgresAccountFixture.CreateAsync();
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var first = await SeedProjectAsync(database);
+        first.Revision = 1;
+        var second = CreateProject(Guid.NewGuid());
+        second.Revision = Project.MaxRevision;
+        database.Projects.Add(second);
+        database.ProjectSaveReceipts.AddRange(CreateReceipt(first.Id, MutationId, 1), CreateReceipt(second.Id, MutationId, Project.MaxRevision));
+        await database.SaveChangesAsync();
+        await Assert.That(await database.ProjectSaveReceipts.CountAsync()).IsEqualTo(2);
+        await Assert.That((await database.ProjectSaveReceipts.AsNoTracking().SingleAsync(row => row.ProjectId == second.Id)).Revision).IsEqualTo(Project.MaxRevision);
+    }
+
+    [Test]
     public async Task ProjectDatabase_FreshSchemaMigrations_RoundTripProjectAndAssignments()
     {
         var digest = Enumerable.Range(0, 32).Select(index => (byte)index).ToArray();
@@ -448,6 +577,17 @@ public sealed class ProjectPersistenceTests
         SchemaVersion = 1,
         DocumentJson = CreateDocument(id),
         UpdatedAt = UpdatedAt,
+    };
+
+    private static ProjectSaveReceipt CreateReceipt(Guid projectId, Guid mutationId, long revision) => new()
+    {
+        ProjectId = projectId,
+        ClientMutationId = mutationId,
+        ActorId = UserId,
+        ExpectedRevision = revision - 1,
+        Revision = revision,
+        RequestDigest = new byte[32],
+        SavedAt = UpdatedAt
     };
 
     private static string CreateDocument(Guid id) =>

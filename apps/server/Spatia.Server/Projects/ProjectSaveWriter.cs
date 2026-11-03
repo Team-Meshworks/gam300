@@ -12,7 +12,7 @@ namespace Spatia.Server.Projects;
 public sealed class ProjectSaveWriter(ApplicationDbContext database)
 {
     /// <summary>
-    /// Stages one conditional draft update without committing or acknowledging it
+    /// Stages one conditional draft update and its receipt without committing or acknowledging it
     /// </summary>
     /// <param name="project">The editable snapshot obtained while holding an EditDraft lock</param>
     /// <param name="expectedRevision">The revision the client intends to replace</param>
@@ -45,7 +45,7 @@ public sealed class ProjectSaveWriter(ApplicationDbContext database)
         {
             throw new InvalidOperationException("Draft staging requires a caller-owned read-committed transaction.");
         }
-        if (ProjectSavePolicy.Decide(project, expectedRevision, clientMutationId, requestDigest)
+        if (ProjectSavePolicy.Decide(project, expectedRevision, clientMutationId, requestDigest, receipt: null)
             != ProjectSaveDecision.WriteRequired)
         {
             return false;
@@ -64,8 +64,21 @@ public sealed class ProjectSaveWriter(ApplicationDbContext database)
                 AND organization_id = {project.OrganizationId}
                 AND revision = {project.Revision}
                 AND archived = FALSE
+                AND NOT EXISTS (SELECT 1 FROM project_save_receipts
+                    WHERE project_id = {project.ProjectId} AND client_mutation_id = {clientMutationId})
             """, cancellationToken);
 
-        return affected == 1;
+        if (affected != 1) { return false; }
+        var inserted = await database.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO project_save_receipts
+                (project_id, client_mutation_id, actor_id, expected_revision, revision, request_digest, saved_at)
+            SELECT id, {clientMutationId}, {project.ActorId}, {expectedRevision}, revision, {requestDigest}, updated_at
+            FROM projects WHERE id = {project.ProjectId}
+            """, cancellationToken);
+        if (inserted != 1)
+        {
+            throw new InvalidOperationException("A staged draft must have exactly one save receipt.");
+        }
+        return true;
     }
 }
