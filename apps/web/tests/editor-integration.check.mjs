@@ -17,9 +17,21 @@ async function openLibrary(page) {
 
 // Clicking a card only picks it, Add is what places it
 async function addAsset(page, name) {
-  await openLibrary(page);
-  await page.locator(".asset-picker").getByRole("button", { name, exact: true }).click();
-  await page.getByRole("button", { name: "Add", exact: true }).click();
+  if (name === "test-room") {
+    if (await page.locator(".asset-picker").count()) await page.keyboard.press("Escape");
+    const overview = page.getByRole("button", { name: "Third person", exact: true });
+    if ((await overview.getAttribute("aria-pressed")) !== "true") await overview.click();
+    await page.getByRole("button", { name: "Rooms", exact: true }).click();
+    await page
+      .getByRole("group", { name: "Rooms options", exact: true })
+      .getByRole("button", { name, exact: true })
+      .click();
+  } else {
+    await openLibrary(page);
+    await page.locator(".asset-picker").getByRole("button", { name, exact: true }).click();
+    await page.getByRole("button", { name: "Add", exact: true }).click();
+  }
+  await page.locator(".viewport-stage").click({ position: { x: 500, y: 300 } });
 }
 
 try {

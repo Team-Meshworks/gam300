@@ -35,6 +35,7 @@ try {
     (test) =>
       test.patches.length === 0 ||
       test.name.startsWith("storage NUL") ||
+      test.name.includes("appearance") ||
       test.name.startsWith("v2 preserves") ||
       test.name.startsWith("v2 interaction navigation") ||
       /^v[12] interaction URL/.test(test.name) ||

@@ -37,6 +37,7 @@ try {
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(process.argv[2] ?? "http://127.0.0.1:5173/");
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
+  await page.getByRole("button", { name: "Third person", exact: true }).click();
   await page.getByRole("button", { name: "Asset library", exact: true }).click();
   const registeredDisplays = await page.evaluate(async () => {
     const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
@@ -57,7 +58,12 @@ try {
   const regularNames = await page.evaluate(async () => {
     const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
     return assets
-      .filter((asset) => asset.displayRole === undefined && asset.id !== "test-room-module-v1")
+      .filter(
+        (asset) =>
+          asset.displayRole === undefined &&
+          asset.kind === "model" &&
+          asset.id !== "test-room-module-v1",
+      )
       .map((asset) => asset.name);
   });
   for (const name of regularNames)
@@ -69,11 +75,10 @@ try {
   await library.getByRole("searchbox", { name: "Search assets", exact: true }).fill("media");
   assert.equal(await library.locator(".asset-card").count(), 0);
   await library.getByRole("button", { name: "Reset asset filters", exact: true }).click();
-  await page
-    .locator(".asset-picker")
-    .getByRole("button", { name: "test-room", exact: true })
-    .click();
-  await page.getByRole("button", { name: "Add", exact: true }).click();
+  await library.getByRole("button", { name: "Close asset library", exact: true }).click();
+  await page.getByRole("button", { name: "Rooms", exact: true }).click();
+  await page.getByRole("button", { name: "test-room", exact: true }).click();
+  await page.locator(".viewport-stage").click({ position: { x: 500, y: 300 } });
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   await mkdir(screenshots, { recursive: true });
   let placed = 0;
@@ -104,7 +109,7 @@ try {
       });
       assert.ok(geometry.source.endsWith(filename));
       assert.deepEqual(geometry.natural, [40, 40]);
-      assert.deepEqual(geometry.rendered, [40, 40]);
+      assert.deepEqual(geometry.rendered, [36, 36]);
       assert.equal(geometry.contained, true);
       assert.equal(geometry.decorative, true);
       assert.equal(geometry.draggable, false);
@@ -137,6 +142,7 @@ try {
         }),
         true,
       );
+      await page.locator(".viewport-stage").click({ position: { x: 500, y: 300 } });
       placed += 1;
       await page.waitForFunction(
         (count) => document.querySelectorAll(".object-row").length === count,
