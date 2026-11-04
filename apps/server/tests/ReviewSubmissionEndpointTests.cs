@@ -37,10 +37,13 @@ public sealed class ReviewSubmissionEndpointTests
         };
         if (scenario != "rotation")
         {
+            ProjectTestDocuments.PadTitleToBytes(input, Format.MaxProjectBytes);
             var documents = fixture.App.Services.GetRequiredService<ProjectDocumentService>();
-            var saved = documents.Serialize(documents.Read(data.ProjectId, input.ToJsonString()).Value!).Value!;
-            input["title"] = input["title"]!.GetValue<string>()
-                + new string('x', Format.MaxProjectBytes - Encoding.UTF8.GetByteCount(saved));
+            var accepted = documents.Read(data.ProjectId, input.ToJsonString());
+            await Assert.That(accepted.Ok).IsTrue();
+            var saved = documents.Serialize(accepted.Value!);
+            await Assert.That(saved.Ok).IsTrue();
+            await Assert.That(Encoding.UTF8.GetByteCount(saved.Value!)).IsEqualTo(Format.MaxProjectBytes);
         }
         var original = input.ToJsonString();
         await Assert.That(Encoding.UTF8.GetByteCount(original) <= Format.MaxProjectBytes).IsTrue();

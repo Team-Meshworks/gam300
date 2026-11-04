@@ -17,6 +17,8 @@ const scene: ProjectScene = {
   name: "World",
   environmentAssetId: "room",
   objects: [],
+  hotspots: [],
+  interactions: [],
   startCamera: camera,
   viewpoints: [first, second],
 };

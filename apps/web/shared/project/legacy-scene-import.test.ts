@@ -8,7 +8,11 @@ const kinds = new Map([
   ["test-crate-v1", "model"],
 ]);
 function older() {
-  const scene = structuredClone(sample.scenes[0]!);
+  const scene = {
+    ...structuredClone(sample.scenes[0]!),
+    hotspots: undefined,
+    interactions: undefined,
+  };
   const view = {
     id: crypto.randomUUID(),
     name: "Entrance",

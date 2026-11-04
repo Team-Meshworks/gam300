@@ -1,13 +1,13 @@
+import { launchBrowser } from "./browser-security.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { chromium } from "playwright";
 
 const url = process.argv[2] ?? "http://127.0.0.1:8081/";
 const useFileTransfer = () => {
   window.showOpenFilePicker = undefined;
   window.showSaveFilePicker = undefined;
 };
-const browser = await chromium.launch({ args: ["--enable-unsafe-swiftshader"] });
+const browser = await launchBrowser({ target: url, args: ["--enable-unsafe-swiftshader"] });
 // Asset library is a pop up now. Only open it when closed, since the button toggles it
 async function openLibrary(page) {
   if ((await page.locator(".asset-picker").count()) === 0) {
@@ -37,12 +37,14 @@ try {
   assert.ok(response.headers()["content-security-policy"], "The real server applies its policy");
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   assert.equal(await page.locator("canvas").count(), 1);
-  const asset = page
-    .locator(".asset-picker")
-    .getByRole("button", { name: "test-crate", exact: true });
   await openLibrary(page);
   assert.ok(
-    await asset.locator("img").evaluate((image) => image.complete && image.naturalWidth > 0),
+    await page
+      .locator(".asset-card", {
+        has: page.getByRole("button", { name: "test-crate", exact: true }),
+      })
+      .locator("img")
+      .evaluate((image) => image.complete && image.naturalWidth > 0),
   );
   // Fresh projects require an environment before model placement can change the document
   await addAsset(page, "test-crate");

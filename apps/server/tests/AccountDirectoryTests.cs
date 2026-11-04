@@ -37,7 +37,7 @@ public sealed class AccountDirectoryTests
         await Assert.That(userResponse.StatusCode).IsEqualTo(HttpStatusCode.OK);
         var account = await userResponse.Content.ReadFromJsonAsync<JsonElement>();
         await Assert.That(account.EnumerateObject().Select(property => property.Name).Order().SequenceEqual(
-            new[] { "isActive", "mustChangePassword", "orgId", "role", "userId", "userName" })).IsTrue();
+            new[] { "displayName", "isActive", "mustChangePassword", "orgId", "role", "userId", "userName" })).IsTrue();
         await Assert.That(account.GetProperty("userId").GetGuid()).IsEqualTo(userId);
         await Assert.That(account.GetProperty("userName").GetString()).IsEqualTo(userName);
         await Assert.That(account.GetProperty("orgId").GetGuid()).IsEqualTo(orgId);

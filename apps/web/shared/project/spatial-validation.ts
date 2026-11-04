@@ -41,7 +41,7 @@ function isQuaternion(value: unknown): value is QuaternionTuple {
   );
 }
 
-function validatePosition(raw: unknown, path: string): ValidationResult<Vector3Tuple> {
+export function validatePosition(raw: unknown, path = "position"): ValidationResult<Vector3Tuple> {
   if (!isVector3(raw)) {
     return invalid(path, "Position must contain three finite numbers");
   }

@@ -56,6 +56,11 @@ export function missingProjectCapabilities(
         }
       });
     });
+    scene.interactions.forEach((rule, index) => {
+      if (rule.do.type === "navigate-scene" || rule.do.type === "move-to-viewpoint") {
+        need(`interaction:${rule.do.type}`, `${path}.interactions[${index}].do`);
+      }
+    });
     scene.rules.forEach((rule, index) => {
       // Keep disabled rules saved without requiring a player to execute their variants
       if (!rule.enabled) {
