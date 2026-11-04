@@ -40,8 +40,9 @@
   cursor: pointer;
 }
 .display-editor button:disabled {
-  opacity: 0.45;
-  cursor: default;
+  background: var(--pill);
+  color: var(--muted);
+  cursor: not-allowed;
 }
 .display-editor button:focus-visible,
 .display-editor input:focus-visible,
@@ -469,4 +470,247 @@
   .display-editor-add {
     grid-column: 1;
   }
+}
+
+/* Match the existing asset library's footprint and reusable cards, retaining the Figma tab rail. */
+.sp-dialog.sp-display-dialog {
+  width: 70%;
+  height: 70dvh;
+}
+.sp-display-dialog .sp-dialog-body {
+  height: 100%;
+}
+.sp-display-dialog .display-editor {
+  height: 100%;
+  min-height: 0;
+}
+.sp-display-dialog .display-editor-main {
+  padding: 16px 20px 18px;
+  min-height: 0;
+}
+.sp-display-dialog .display-editor-head h3 {
+  font-weight: 400;
+}
+.sp-display-dialog .display-editor-add {
+  font-weight: 400 !important;
+}
+.sp-display-dialog .display-editor-library {
+  min-height: 100px;
+  max-height: none;
+}
+.sp-display-dialog .display-editor-cards.asset-grid {
+  display: block;
+  columns: 10.5rem;
+  column-gap: 0.9rem;
+}
+.sp-display-dialog .display-card {
+  display: block;
+  padding: 0;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+}
+.sp-display-dialog .display-card[aria-pressed="true"] {
+  box-shadow: none;
+}
+.sp-display-dialog .display-card-favourite {
+  top: calc(75cqw + 0.35rem);
+  right: 0.45rem;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+}
+.sp-display-dialog .display-card-favourite:hover {
+  background: var(--pill);
+}
+.sp-display-dialog .display-card-favourite[aria-pressed="true"] {
+  background: transparent;
+  color: var(--accent);
+  box-shadow: none;
+}
+.sp-display-dialog textarea:focus-visible {
+  outline-offset: -3px;
+}
+@media (max-width: 650px) {
+  .sp-dialog.sp-display-dialog {
+    width: calc(100% - 16px);
+    height: calc(100dvh - 24px);
+  }
+  .sp-display-dialog .display-editor {
+    overflow-y: auto;
+  }
+  .sp-display-dialog .display-editor-rail {
+    min-height: 100px;
+  }
+  .sp-display-dialog .display-editor-main {
+    min-height: 650px;
+  }
+}
+
+/* Fill media previews without letterboxing; retain the shared card dimensions. */
+.sp-display-dialog .asset-art img.is-media-thumbnail {
+  object-fit: cover;
+}
+
+.display-editor-rail .display-tab-hover {
+  display: none;
+  position: absolute;
+  right: 0;
+}
+.display-editor-rail button:is(:hover, :active, [aria-selected="true"]) {
+  background: none;
+}
+.display-editor-rail button[aria-selected="false"]:is(:hover, :focus-visible) .display-tab-hover {
+  display: block;
+}
+.display-editor-rail button:is([aria-selected="true"], :hover, :focus-visible) .display-tab-icon {
+  transform: translateX(11px);
+}
+
+@media (max-width: 40rem) {
+  dialog.content-dialog.pdf-content-dialog,
+  .sp-dialog.sp-display-dialog {
+    width: 92%;
+    height: 70dvh;
+  }
+}
+
+@media (orientation: portrait) {
+  dialog.content-dialog.pdf-content-dialog,
+  .sp-dialog.sp-display-dialog {
+    width: 92%;
+  }
+}
+
+dialog.sp-dialog.sp-display-dialog .display-editor {
+  grid-template-columns: var(--library-rail-width) minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+}
+dialog.sp-dialog.sp-display-dialog .display-editor-rail {
+  position: relative;
+  border-radius: 0;
+}
+dialog.sp-dialog.sp-display-dialog .display-editor-main {
+  padding: 1rem 1.25rem 1.1rem;
+  min-height: 0;
+  gap: 0;
+}
+dialog.sp-dialog.sp-display-dialog .sp-dialog-body {
+  font-size: inherit;
+}
+dialog.sp-dialog.sp-display-dialog .display-editor-rail [role="tablist"] {
+  display: grid;
+  gap: 40px;
+}
+dialog.sp-dialog.sp-display-dialog .display-editor-rail button {
+  width: var(--library-rail-width);
+  height: 100px;
+}
+dialog.sp-dialog.sp-display-dialog .display-tab-background {
+  display: none;
+  position: absolute;
+  top: 1px;
+  right: 0;
+  width: 58.5px;
+  height: 98px;
+  background: var(--library-surface);
+  mask-size: 100% 100%;
+  mask-repeat: no-repeat;
+}
+dialog.sp-dialog.sp-display-dialog
+  .display-editor-rail
+  button:is([aria-selected="true"], :hover, :focus-visible)
+  .display-tab-background {
+  display: block;
+}
+dialog.sp-dialog.sp-display-dialog
+  .display-editor-rail
+  button:is([aria-selected="true"], :hover, :focus-visible)
+  .display-tab-icon {
+  transform: translateX(3px);
+}
+dialog.sp-dialog.sp-display-dialog .display-tab-background.is-selected {
+  display: block;
+  top: 50%;
+  transform: translateY(-50%);
+}
+dialog.sp-dialog.sp-display-dialog .display-editor-rail > .icon {
+  position: relative;
+  transform: translateX(3px);
+  width: 22px;
+  height: 22px;
+}
+dialog.sp-dialog.sp-display-dialog .display-editor-library {
+  min-height: 0;
+  padding: 0 0.35rem 0 0;
+}
+.display-owner {
+  grid-column: 1;
+  margin: 12px 12px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.display-owner span {
+  display: block;
+  color: var(--text);
+}
+@media (max-width: 650px) {
+  dialog.sp-dialog.sp-display-dialog .display-editor {
+    overflow: hidden;
+  }
+  dialog.sp-dialog.sp-display-dialog .display-editor-rail {
+    min-height: 0;
+  }
+  dialog.sp-dialog.sp-display-dialog .display-editor-main {
+    min-height: 0;
+  }
+  .display-owner {
+    grid-column: 1 / -1;
+    text-align: center;
+    margin-right: 0;
+  }
+}
+
+dialog.sp-dialog.sp-display-dialog .display-tab-icon {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+}
+dialog.sp-dialog.sp-display-dialog .display-tab-background {
+  width: 44px;
+  height: auto;
+  aspect-ratio: 58.5 / 98;
+  top: 50%;
+  transform: translateY(-50%);
+}
+dialog.sp-dialog.sp-display-dialog .display-editor-rail > .icon {
+  width: 20px;
+  height: 20px;
+}
+
+dialog.sp-dialog.sp-display-dialog .display-editor-rail button .display-tab-icon,
+dialog.sp-dialog.sp-display-dialog
+  .display-editor-rail
+  button:is(:hover, :focus-visible, [aria-pressed="true"], [aria-selected="true"])
+  .display-tab-icon {
+  position: absolute;
+  left: 62%;
+  top: 50%;
+  display: block;
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  transform: translate(-50%, -50%);
+}
+
+dialog.sp-dialog.sp-display-dialog
+  .display-editor-rail
+  button:not([aria-selected="true"]):is(:hover, :focus-visible)
+  .display-tab-background {
+  background: var(--card-raised);
 }
