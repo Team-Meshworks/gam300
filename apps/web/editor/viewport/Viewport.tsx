@@ -38,6 +38,7 @@ type ViewportProps = {
   projectScene: ProjectScene | null;
   loadGeneration: number;
   selectedId: string | null;
+  selectedIds?: readonly string[];
   dragging: string | null;
   placingAssetId?: string | null;
   textPlacement?:
@@ -75,6 +76,7 @@ export function Viewport({
   projectScene,
   loadGeneration,
   selectedId,
+  selectedIds = [],
   dragging,
   placingAssetId,
   textPlacement,
@@ -103,6 +105,7 @@ export function Viewport({
   const snapshotRef = useRef({
     objects,
     selectedId,
+    selectedIds,
     projectScene,
     loadGeneration,
     editingEnabled,
@@ -139,6 +142,7 @@ export function Viewport({
           current.selectedId,
           current.projectScene,
           current.loadGeneration,
+          current.selectedIds,
         );
         scene?.setEditingEnabled(current.editingEnabled);
         scene?.setNavigationTool(current.navigationTool);
@@ -187,19 +191,21 @@ export function Viewport({
     snapshotRef.current = {
       objects,
       selectedId,
+      selectedIds,
       projectScene,
       loadGeneration,
       editingEnabled,
       navigationTool,
       view,
     };
-    sceneRef.current?.update(objects, selectedId, projectScene, loadGeneration);
+    sceneRef.current?.update(objects, selectedId, projectScene, loadGeneration, selectedIds);
     sceneRef.current?.setEditingEnabled(editingEnabled);
     sceneRef.current?.setNavigationTool(navigationTool);
     sceneRef.current?.modeManager.setView(view);
   }, [
     objects,
     selectedId,
+    selectedIds,
     projectScene,
     loadGeneration,
     editingEnabled,
@@ -210,7 +216,10 @@ export function Viewport({
   ]);
 
   useEffect(() => {
-    if (!dragging && !placingAssetId) sceneRef.current?.showPlacementPreview(undefined, undefined);
+    if (!dragging && !placingAssetId) {
+      sceneRef.current?.showPlacementPreview(undefined, undefined);
+      if (hostRef.current) hostRef.current.style.cursor = "";
+    }
   }, [dragging, placingAssetId]);
 
   useEffect(() => {
@@ -218,7 +227,9 @@ export function Viewport({
       placingAssetId ?? undefined,
       placingAssetId ? [0, 0, 0] : undefined,
     );
-    return () => sceneRef.current?.showPlacementPreview(undefined, undefined);
+    return () => {
+      sceneRef.current?.showPlacementPreview(undefined, undefined);
+    };
   }, [placingAssetId, status]);
 
   useEffect(
@@ -232,6 +243,12 @@ export function Viewport({
     [textPlacement, status],
   );
 
+  function isRoom(id: string | null | undefined) {
+    return (
+      id === "test-room-module-v1" ||
+      assets.some((asset) => asset.id === id && asset.kind === "environment")
+    );
+  }
   function accepts(event: DragEvent) {
     return (
       dragging &&
@@ -265,12 +282,15 @@ export function Viewport({
             event.currentTarget.dataset.textPlacementValid = String(!!placement);
             return;
           }
-          if (placingAssetId)
-            sceneRef.current?.showPlacementPreview(
+          if (placingAssetId) {
+            const scene = sceneRef.current;
+            const valid = scene?.showPlacementPreview(
               placingAssetId,
-              sceneRef.current.getDropPosition(event.clientX, event.clientY),
-              sceneRef.current.pickObjectAt(event.clientX, event.clientY),
+              scene.getDropPosition(event.clientX, event.clientY, isRoom(placingAssetId)),
+              scene.pickObjectAt(event.clientX, event.clientY),
             );
+            event.currentTarget.style.cursor = valid ? "crosshair" : "not-allowed";
+          }
         }}
         onPointerLeave={() => {
           if (textPlacement) sceneRef.current?.clearTextPlacement();
@@ -304,8 +324,17 @@ export function Viewport({
             onPlacementCancel?.();
             return;
           }
-          const position = sceneRef.current.getDropPosition(event.clientX, event.clientY);
+          const position = sceneRef.current.getDropPosition(
+            event.clientX,
+            event.clientY,
+            isRoom(placingAssetId),
+          );
           if (position) {
+            if (
+              isRoom(placingAssetId) &&
+              !sceneRef.current.showPlacementPreview(placingAssetId, position)
+            )
+              return;
             const objectId = sceneRef.current.pickObjectAt(event.clientX, event.clientY);
             onPlace(
               placingAssetId,
@@ -332,9 +361,13 @@ export function Viewport({
             );
             return;
           }
-          const position = sceneRef.current?.getDropPosition(event.clientX, event.clientY);
-          event.dataTransfer.dropEffect = position === undefined ? "none" : "copy";
-          sceneRef.current?.showPlacementPreview(dragging ?? undefined, position);
+          const position = sceneRef.current?.getDropPosition(
+            event.clientX,
+            event.clientY,
+            isRoom(dragging),
+          );
+          const valid = sceneRef.current?.showPlacementPreview(dragging ?? undefined, position);
+          event.dataTransfer.dropEffect = valid ? "copy" : "none";
         }}
         onDragLeave={(event) => {
           if (
@@ -353,8 +386,12 @@ export function Viewport({
               const objectId = scene?.pickObjectAt(event.clientX, event.clientY);
               onPlace(assetId, [0, 0, 0], objectId === undefined ? undefined : { objectId });
             } else {
-              const position = scene?.getDropPosition(event.clientX, event.clientY);
-              if (position !== undefined)
+              const position = scene?.getDropPosition(
+                event.clientX,
+                event.clientY,
+                isRoom(assetId),
+              );
+              if (position !== undefined && scene?.showPlacementPreview(assetId, position))
                 onPlace(assetId, position, undefined, scene?.getRoomAtPosition(position) ?? null);
             }
           }

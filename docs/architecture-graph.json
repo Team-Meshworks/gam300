@@ -403,7 +403,7 @@
     "editor/ui/use-drag-image.ts": "c109ad3337c28ad964da475b87c258cdf092f9f90591ecefcd2aea91a7af8699",
     "editor/viewpoints.test.ts": "383d49fc0c57b158b739781160ada8bef63d23e5b6fa03a7a5a605032a812da9",
     "editor/viewport/MobileControls.tsx": "f3f37136f19839fe7e1348c80581ae866e4bf19e9cda98aaf92718955f67d5bb",
-    "editor/viewport/Viewport.tsx": "e6b6467c468f7143bf8b849991fcee0b4dd3d114ea07ff483036c3f86f9e44a7",
+    "editor/viewport/Viewport.tsx": "d48d73677c36cc4e39c50bbd941c677c650d2937f351ff72a03aab245bfa460a",
     "editor/viewport/mobile-device.ts": "ab05c53861f725a35b68e2509872d8e247f6a8adfaccd7cbdc337f7f41426599",
     "editor/workspace/WorkspacePage.tsx": "1f9aac3a156bba603ff4c92d56a48deed74f6dfaee331e8f3cfcf7ec58ae0d8c",
     "editor/workspace/main.tsx": "ba13928e8e371d8dcf218adb28f93eaab5e47d2ef5c020a4ee823190ac47d2dd",
@@ -8029,7 +8029,7 @@
     },
     {
       "file": "editor/viewport/Viewport.tsx",
-      "line": 120,
+      "line": 123,
       "kind": "dynamic",
       "specifier": "../graphics/scene",
       "target": "editor/graphics/scene.ts",
@@ -8038,7 +8038,7 @@
     },
     {
       "file": "editor/viewport/Viewport.tsx",
-      "line": 246,
+      "line": 263,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
