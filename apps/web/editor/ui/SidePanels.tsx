@@ -1,3 +1,4 @@
+import type { CatalogueAsset } from "../../shared/asset-runtime/catalogue";
 import { useState, type ReactNode } from "react";
 import type { SceneObject } from "../../shared/project/scene-object";
 import type {
@@ -12,7 +13,8 @@ import { InteractionPanel } from "./InteractionPanel";
 import { degreesToQuaternion, quaternionToDegrees } from "./rotation-angles";
 
 import { SceneTreePanel, type Room, type HierarchyActions } from "./SceneTreePanel";
-import type { ProjectGroup } from "../../shared/project/project-content";
+import type { ContentObject, ProjectGroup } from "../../shared/project/project-content";
+import type { ContentKind } from "./ContentEditor";
 
 type PanelId = "scenes" | "position" | "tree" | "interaction" | "views";
 
@@ -25,6 +27,8 @@ const railButtons: { id: PanelId; label: string; icon: IconName }[] = [
 ];
 
 export function SidePanels({
+  assets = [],
+  onContent,
   visitor,
   savedViews,
   scenes,
@@ -46,6 +50,8 @@ export function SidePanels({
   groups,
   hierarchy,
 }: {
+  assets?: readonly CatalogueAsset[];
+  onContent: (kind: ContentKind) => void;
   groups: readonly ProjectGroup[];
   hierarchy: HierarchyActions;
   visitor: boolean;
@@ -91,16 +97,42 @@ export function SidePanels({
       {panel !== null && (
         <div className={`panel-slot is-${panel}`}>
           {panel === "position" && (
-            <PositionPanel
-              object={selectedObject}
-              onChange={(transform) => {
-                if (selectedObject !== undefined) onTransform(selectedObject.id, transform);
-              }}
-            />
+            <div>
+              <PositionPanel
+                object={selectedObject}
+                onChange={(transform) => {
+                  if (selectedObject !== undefined) onTransform(selectedObject.id, transform);
+                }}
+              />
+              {assets.some(
+                (asset) => asset.id === selectedObject?.assetId && !!asset.displayRole,
+              ) && (
+                <button
+                  className="ui-button content-inspector-open"
+                  type="button"
+                  disabled={!selectedObject}
+                  onClick={() => {
+                    const media = (selectedObject as ContentObject | undefined)?.components?.find(
+                      (component) => component.type === "image" || component.type === "video",
+                    );
+                    onContent(
+                      media?.type === "image"
+                        ? "image"
+                        : media?.type === "video"
+                          ? "video"
+                          : "text",
+                    );
+                  }}
+                >
+                  Edit exhibit information
+                </button>
+              )}
+            </div>
           )}
           {panel === "tree" && (
             <SceneTreePanel
               key={room?.id ?? "draft"}
+              assets={assets}
               room={room}
               groups={groups}
               hierarchy={hierarchy}
@@ -220,30 +252,32 @@ function TransformFields({
 
   return (
     <div className="transform-fields">
-      {rows.map((row) => (
-        <fieldset key={row.label}>
-          <legend>
-            <Icon name={row.icon} />
-            {row.label}
-          </legend>
-          <div className="axis-fields">
-            {(["X", "Y", "Z"] as const).map((axisName, axis) => (
-              <label key={axisName}>
-                <span>{axisName}</span>
-                <NumberField
-                  label={`${object.name} ${row.label.toLowerCase()} ${axisName} (${row.unit})`}
-                  value={row.values[axis] ?? 0}
-                  onCommit={(value) => {
-                    const next: [number, number, number] = [...row.values];
-                    next[axis] = value;
-                    onChange(row.apply(next));
-                  }}
-                />
-              </label>
-            ))}
-          </div>
-        </fieldset>
-      ))}
+      {rows
+        .filter((row) => row.label !== "Scale" || object.assetId !== "test-room-module-v1")
+        .map((row) => (
+          <fieldset key={row.label}>
+            <legend>
+              <Icon name={row.icon} />
+              {row.label}
+            </legend>
+            <div className="axis-fields">
+              {(["X", "Y", "Z"] as const).map((axisName, axis) => (
+                <label key={axisName}>
+                  <span>{axisName}</span>
+                  <NumberField
+                    label={`${object.name} ${row.label.toLowerCase()} ${axisName} (${row.unit})`}
+                    value={row.values[axis] ?? 0}
+                    onCommit={(value) => {
+                      const next: [number, number, number] = [...row.values];
+                      next[axis] = value;
+                      onChange(row.apply(next));
+                    }}
+                  />
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        ))}
     </div>
   );
 }
