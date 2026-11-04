@@ -2595,3 +2595,253 @@ a {
 .exhibit-context .exhibit-popup-actions button {
   min-height: 38px;
   padding: 8px 22px;
+  border-radius: 999px;
+  background: var(--button);
+}
+.exhibit-context button:focus-visible,
+.content-dialog button:focus-visible {
+  outline: 2px solid var(--muted);
+  outline-offset: 3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .content-dialog,
+  .exhibit-context,
+  .content-format {
+    animation: none;
+    transition: none;
+  }
+}
+
+/* Reference pages 4-6: one large editable surface, three content tabs, circular close. */
+.content-dialog:not(.content-dialog-properties) {
+  width: min(1440px, calc(100% - 48px));
+  height: min(90dvh, 1000px);
+  max-height: calc(100dvh - 32px);
+  padding: 24px 28px;
+}
+.content-dialog:not(.content-dialog-properties) > form {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.content-dialog:not(.content-dialog-properties) .content-layout {
+  flex: 1;
+  min-height: 0;
+  grid-template-columns: 64px minmax(0, 1fr);
+  margin-top: 24px;
+}
+.content-dialog:not(.content-dialog-properties) .content-tabs {
+  justify-content: center;
+  gap: clamp(24px, 9vh, 110px);
+}
+.content-dialog:not(.content-dialog-properties) .content-fields {
+  min-height: 0;
+  overflow-y: auto;
+}
+.content-dialog .content-items[hidden] {
+  display: none;
+}
+.content-dialog-text .content-text-label {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.content-dialog-text .content-text-label > span {
+  position: absolute;
+  clip-path: inset(50%);
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+.content-text-surface {
+  position: relative;
+  flex: 1;
+  min-height: 220px;
+  border-radius: 24px;
+  background: var(--pill);
+  border: 1px solid var(--line);
+  box-shadow: inset 0 1px 4px var(--picker-backdrop);
+}
+.content-dialog .content-text-surface textarea,
+.content-dialog .content-text-surface .content-text-preview {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: 20px 20px 76px;
+  margin: 0;
+  border: 0;
+  border-radius: 24px;
+  font: inherit;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  box-shadow: none;
+}
+.content-dialog .content-text-surface textarea {
+  z-index: 2;
+  resize: none;
+  background: transparent;
+  color: transparent;
+  caret-color: var(--text);
+}
+.content-dialog .content-text-surface textarea::placeholder {
+  color: var(--muted);
+}
+.content-dialog .content-text-surface .content-text-preview {
+  z-index: 1;
+  pointer-events: none;
+  background: transparent;
+  overflow: hidden;
+}
+.content-dialog-text .content-format {
+  position: relative;
+  flex: none;
+  align-self: center;
+  margin: -68px auto 14px;
+  z-index: 3;
+  padding: 4px 12px;
+  gap: 8px;
+  background: var(--button);
+}
+.content-dialog:not(.content-dialog-properties) .content-actions {
+  flex: none;
+  margin-top: 16px;
+}
+.content-dialog .content-heading h2 {
+  border-radius: 999px;
+  font-size: 18px;
+  padding: 10px 24px;
+}
+.content-dialog .content-close {
+  background: var(--button);
+}
+.content-dialog .content-tabs button {
+  background: transparent;
+}
+.content-dialog .content-tabs button[aria-pressed="true"] {
+  background: var(--button);
+}
+@media (max-width: 600px) {
+  .content-dialog:not(.content-dialog-properties) {
+    width: calc(100% - 24px);
+    height: calc(100dvh - 24px);
+    max-height: calc(100dvh - 24px);
+    padding: 16px;
+  }
+  .content-dialog:not(.content-dialog-properties) .content-layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    margin-top: 16px;
+  }
+  .content-dialog:not(.content-dialog-properties) .content-tabs {
+    flex-direction: row;
+    gap: 12px;
+    justify-content: center;
+  }
+  .content-dialog .content-text-surface textarea,
+  .content-dialog .content-text-surface .content-text-preview {
+    padding: 16px 16px 76px;
+  }
+}
+
+/* Keep the move handle's artwork within its narrower hit area. */
+.scene-toolbar .dock-grip .icon {
+  width: 20px;
+  height: 20px;
+}
+
+/* Project actions use the same spacious rounded treatment as the editor popups. */
+.draft-menu-panel {
+  width: 15.5rem;
+  max-width: calc(100dvw - 7rem);
+  padding: 0.5rem;
+  border-color: var(--line);
+  border-radius: 1.25rem;
+  box-shadow: var(--picker-shadow);
+}
+.draft-menu-panel button {
+  min-height: 2.75rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.75rem;
+  font: inherit;
+  font-weight: 400;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.draft-menu-panel button:hover:not(:disabled) {
+  background: var(--pill);
+}
+.draft-menu-panel button:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: -2px;
+}
+.draft-menu-panel button:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
+}
+.draft-menu-panel #project-save {
+  margin-top: 0.25rem;
+  border-top: 1px solid var(--line);
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+:root {
+  --library-width: 70vw;
+  --library-height: 70dvh;
+  --library-surface: #e9e5db;
+  --library-rail-width: 64px;
+}
+@media (orientation: portrait) {
+  :root {
+    --library-width: 92vw;
+  }
+}
+.asset-picker {
+  --picker-width: var(--library-width);
+  --picker-height: var(--library-height);
+  background: var(--library-surface);
+}
+dialog.content-dialog.pdf-content-dialog,
+dialog.sp-dialog.sp-display-dialog {
+  width: var(--library-width);
+  height: var(--library-height);
+  min-width: 0;
+  max-width: calc(100dvw - 16px);
+  max-height: calc(100dvh - 24px);
+  background: var(--library-surface);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  box-shadow: var(--picker-shadow);
+}
+dialog.content-dialog.pdf-content-dialog::backdrop,
+dialog.sp-dialog.sp-display-dialog::backdrop {
+  background: var(--picker-backdrop);
+}
+:is(.asset-picker, .pdf-content-dialog, .sp-display-dialog) .asset-picker-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 0;
+  margin: 0 0 16px;
+}
+:is(.asset-picker, .pdf-content-dialog, .sp-display-dialog) .asset-picker-title {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex-shrink: 0;
+  margin: 0;
+  min-height: 2.6rem;
+  padding: 0 1.1rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--card-raised);
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 400;
