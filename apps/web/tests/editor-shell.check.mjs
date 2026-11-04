@@ -121,7 +121,10 @@ try {
   assert.equal(await asset.getAttribute("aria-pressed"), "true", "Enter picks the card");
   assert.equal(await rows.count(), 0, "Picking a card alone places nothing");
 
-  // Exercise catalogue growth without inventing production assets or changing authored project data
+  // A short result set fits; the delivered catalogue may legitimately be taller.
+  // Exercise growth independently of how many production assets have been registered.
+  await picker.getByRole("searchbox", { name: "Search assets", exact: true }).fill("test-crate");
+  assert.equal(await picker.locator(".asset-card").count(), 1);
   const scrollLayout = await picker.locator(".asset-grid-scroll").evaluate((viewport) => {
     const grid = viewport.querySelector(".asset-grid");
     const shortListScrolls = viewport.scrollHeight > viewport.clientHeight;
@@ -140,6 +143,7 @@ try {
     longListScrolls: true,
     horizontalOverflow: false,
   });
+  await picker.getByRole("searchbox", { name: "Search assets", exact: true }).fill("");
 
   // Filtering keeps the pick, and says so when the current results hide it
   const filter = picker.getByRole("combobox", { name: "Filter assets", exact: true });
@@ -151,10 +155,24 @@ try {
   );
   await filter.click();
   const filterMenu = page.getByRole("listbox", { name: "Filter assets" });
-  assert.equal(
-    await filterMenu.getByRole("option", { name: "Furniture", exact: true }).isDisabled(),
-    true,
-  );
+  const availableCategories = await page.evaluate(async () => {
+    const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
+    return [
+      ...new Set(
+        assets
+          .filter((item) => item.displayRole === undefined && item.id !== "test-room-module-v1")
+          .map((item) => item.category)
+          .filter(Boolean),
+      ),
+    ];
+  });
+  let lastEnabledCategory;
+  for (const option of await filterMenu.getByRole("option").all()) {
+    const label = (await option.textContent()).trim();
+    const available = ["All assets", "Favourites", ...availableCategories].includes(label);
+    assert.equal(await option.isDisabled(), !available, `${label} reflects catalogue availability`);
+    if (available) lastEnabledCategory = label;
+  }
   await page.keyboard.press("Escape");
   assert.equal(await filterMenu.isVisible(), false);
   assert.equal(await picker.isVisible(), true, "First Escape closes only the filter menu");
@@ -162,7 +180,7 @@ try {
   await filter.press("ArrowDown");
   await page.keyboard.press("End");
   await page.keyboard.press("Enter");
-  assert.equal(await filter.textContent(), "Architecture");
+  assert.equal(await filter.textContent(), lastEnabledCategory);
   await picker.getByRole("button", { name: "Reset asset filters", exact: true }).click();
   // Announce selection without adding a visible footer or changing the library layout
   const selection = picker.locator("#asset-picker-selection");

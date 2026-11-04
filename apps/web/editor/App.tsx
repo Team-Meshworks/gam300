@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { assets } from "virtual:asset-catalogue";
 import { HOTSPOT_ASSET, HOTSPOT_ASSET_ID } from "../shared/asset-runtime/hotspot";
+import type { ContentObject } from "../shared/project/project-content";
 import type { Vector3Tuple } from "../shared/project/scene-object";
 import type { HotspotDropTarget, ProjectHotspot, Transform } from "../shared/project/project-types";
 import { missingProjectCapabilities } from "../shared/project/project-capabilities";
@@ -17,6 +18,8 @@ import type { ModeManager, ModeManagerState } from "./graphics/modeManager";
 import { createActionRunner } from "./interaction/actionHandler";
 import { createPreviewNavigation } from "./interaction/preview-navigation";
 import { createInteractionHandler, type Interaction } from "./interaction/interactionHandler";
+import { DisplayEditor } from "./ui/DisplayEditor";
+import { Button } from "../shared/ui/Button";
 import { BottomBar } from "./ui/BottomBar";
 import { PreviewTargets } from "./ui/PreviewTargets";
 import { SidePanels } from "./ui/SidePanels";
@@ -50,6 +53,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
   const [store] = useState(() => server?.store ?? createDocumentStore(editorAssets));
   const { objects, project, activeSceneId, loadGeneration, canUndo, canRedo } =
     useSyncExternalStore(store.subscribe, store.getSnapshot);
+  const [displayEditing, setDisplayEditing] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [generatedThumbnails, setGeneratedThumbnails] = useState<Record<string, string>>({});
   const onThumbnail = useCallback((id: string, url: string) => {
@@ -59,7 +63,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
     editorAssets.find((asset) => asset.id === id)?.thumbnail ?? generatedThumbnails[id];
   const [status, setStatus] = useState<ViewportStatus>("loading");
   const [attempt, setAttempt] = useState(0);
-  const [dragging, setDragging] = useState(false);
+  const [dragging, setDragging] = useState<string | null>(null);
   const [feedback, setFeedback] = useState({ text: "", sequence: 0 });
   const notice = feedback.text;
   const [error, setError] = useState("");
@@ -151,7 +155,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
 
   const onReplace = useCallback(() => {
     setSelectedId(null);
-    setDragging(false);
+    setDragging(null);
     setError("");
     setHasDeleted(false);
   }, []);
@@ -307,10 +311,12 @@ export function App({ server }: { server?: ServerEditorSession }) {
         setNotice("Select an object to attach the hotspot to");
         return;
       }
-      const result = store.addHotspot(
-        objectId,
-        hotspotTarget?.objectId === objectId ? hotspotTarget.localPosition : [0, 0, 0],
-      );
+      const localPosition = viewCamera?.hotspotAnchor(objectId);
+      if (localPosition === undefined) {
+        setNotice("Bring the selected object fully into view before adding a hotspot");
+        return;
+      }
+      const result = store.addHotspot(objectId, localPosition);
       if (!result.ok) {
         setError(result.error.message);
         return;
@@ -338,7 +344,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
         } else {
           setError(added.error);
         }
-        setDragging(false);
+        setDragging(null);
         return;
       }
       if (project !== null) {
@@ -349,7 +355,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
           setNotice("Scene environment updated. Undo is available.");
           playUiSound("assetPlace");
         }
-        setDragging(false);
+        setDragging(null);
         return;
       }
       const created = store.createProject(assetId);
@@ -359,7 +365,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
       }
       setError("");
       setSelectedId(created.value.scenes[0]!.id);
-      setDragging(false);
+      setDragging(null);
       if (created.value.scenes[0]?.objects.length === 0) {
         session.markPristine(created.value);
       }
@@ -369,7 +375,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
     }
     // Clicks and drops share this path; room selection starts the project before furnishing it
     if (store.getSnapshot().project === null) {
-      setDragging(false);
+      setDragging(null);
       setError("Choose a room first");
       return;
     }
@@ -418,11 +424,27 @@ export function App({ server }: { server?: ServerEditorSession }) {
                   current,
                   new Set([
                     "multipleScenes",
+                    "content:text",
+                    "content:image",
+                    "content:video",
+                    "text:bold",
+                    "text:italic",
+                    "text:underline",
                     "interaction:navigate-scene",
                     "interaction:move-to-viewpoint",
                   ]),
                 );
-          if (unavailable.length > 0) {
+          const unsupportedDisplay =
+            current?.schemaVersion === 2 &&
+            current.scenes.some((scene) =>
+              scene.objects.some(
+                (object) =>
+                  object.components.some((component) =>
+                    ["text", "image", "video"].includes(component.type),
+                  ) && !assets.find((asset) => asset.id === object.assetId)?.displaySurface,
+              ),
+            );
+          if (unavailable.length > 0 || unsupportedDisplay) {
             setNotice(
               "This preview does not support all the scenes and interactions in this project",
             );
@@ -476,7 +498,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
               disabled={visitor || switching || status !== "ready"}
               onSwitch={() => {
                 setSelectedId(null);
-                setDragging(false);
+                setDragging(null);
                 setError("");
               }}
             />
@@ -562,13 +584,28 @@ export function App({ server }: { server?: ServerEditorSession }) {
           onObjectClick={onObjectClick}
           onSceneUpdate={onSceneUpdate}
           onPlace={place}
-          onDragFinish={() => setDragging(false)}
+          onDragFinish={() => setDragging(null)}
           onRetry={() => {
             setStatus("loading");
             setAttempt((previous) => previous + 1);
           }}
           onManager={onManager}
         >
+          {visitor && (
+            <div className="display-media-controls">
+              {objects
+                .filter((object) =>
+                  (object as ContentObject).components?.some(
+                    (component) => component.type === "video",
+                  ),
+                )
+                .map((object) => (
+                  <Button key={object.id} onClick={() => viewCamera?.toggleDisplayMedia(object.id)}>
+                    Play / pause {object.name}
+                  </Button>
+                ))}
+            </div>
+          )}
           {visitor && (
             <PreviewTargets
               objects={objects}
@@ -579,7 +616,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
           )}
           {!visitor && (
             <BottomBar
-              assets={assets}
+              assets={assets.filter((a) => a.kind === "model" || a.kind === "environment")}
               hotspot={HOTSPOT_ASSET}
               ready={status === "ready"}
               thumbnailFor={thumbnailFor}
@@ -587,6 +624,15 @@ export function App({ server }: { server?: ServerEditorSession }) {
               onDragChange={setDragging}
               tool={navigationTool}
               onToolChange={setNavigationTool}
+              selectedDisplay={
+                selectedObject && assets.find((a) => a.id === selectedObject.assetId)?.displayRole
+                  ? {
+                      name: selectedObject.name,
+                      onEdit: () => setDisplayEditing(selectedObject.id),
+                      disabled: switching || status !== "ready",
+                    }
+                  : undefined
+              }
             />
           )}
         </Viewport>
@@ -602,6 +648,25 @@ export function App({ server }: { server?: ServerEditorSession }) {
             ? "Reading project file…"
             : notice}
       </p>
+      {displayEditing &&
+        !visitor &&
+        project &&
+        (() => {
+          const object = objects.find((entry) => entry.id === displayEditing);
+          const asset = assets.find((entry) => entry.id === object?.assetId);
+          return object && asset?.displayRole ? (
+            <DisplayEditor
+              key={`${loadGeneration}:${activeSceneId}:${object.id}`}
+              object={object}
+              asset={asset}
+              assets={assets}
+              project={project}
+              store={store}
+              thumbnailFor={thumbnailFor}
+              onClose={() => setDisplayEditing(null)}
+            />
+          ) : null;
+        })()}
       {session.confirmation && (
         <ProjectConfirmation
           fileName={session.fileName || "Untitled"}

@@ -320,19 +320,29 @@ export function scan(root = webRoot) {
                 "tests/caching.measure.mjs",
               ].includes(file) && ["threePath", "loaderPath"].includes(argument?.getText(source));
             const cacheProbe = file === "tests/caching.check.mjs";
+            const hotspotProbe = [
+              "tests/hotspot-placement.check.mjs",
+              "tests/hotspot-rendering.check.mjs",
+            ].includes(file);
             const probeExpression = argument?.getText(source).replace(/\s+/g, " ");
             const cacheThree =
-              cacheProbe &&
+              (cacheProbe || hotspotProbe) &&
               [
                 'source.match(/import \\* as THREE from "([^"]+)"/)[1]',
                 'cacheSource.match(/import \\{ GLTFLoader \\} from "([^"]+)"/)[1]',
               ].includes(probeExpression);
             const cacheModule = cacheProbe && probeExpression === "cachePath";
+            const hotspotModule =
+              file === "tests/hotspot-rendering.check.mjs" && probeExpression === "hotspotPath";
             if (playwright || browserThree)
               record(playwright ? "playwright" : "three", file, source, node, "test-environment");
-            else if (cacheThree || cacheModule)
+            else if (cacheThree || cacheModule || hotspotModule)
               record(
-                cacheModule ? "../shared/asset-runtime/ModelCache.ts" : "three",
+                cacheModule
+                  ? "../shared/asset-runtime/ModelCache.ts"
+                  : hotspotModule
+                    ? "../shared/asset-runtime/hotspot.ts"
+                    : "three",
                 file,
                 source,
                 node,

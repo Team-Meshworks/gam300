@@ -1,4 +1,6 @@
+import { createDisplayContent } from "./display-content";
 import { createActiveClock } from "./active-clock";
+import { HOTSPOT_SIZE, hotspotAnchor, hotspotWorldSize } from "./hotspot-anchor";
 import { moveAttachedObjects } from "../../shared/project/attached-transforms";
 import type { ContentScene } from "../../shared/project/project-content";
 import { getStartingCamera } from "../../shared/project/starting-view";
@@ -34,8 +36,6 @@ const ROTATION_SNAP = THREE.MathUtils.degToRad(15);
 
 // Pointer travel under this many pixels still counts as a click while visiting
 const VISITOR_CLICK_TOLERANCE = 6;
-
-const HOTSPOT_SIZE = 0.6;
 
 // One lazy renderer-module owner per editor page, shared across viewport retries/remounts
 export const editorModelCache = new ModelCache();
@@ -75,12 +75,13 @@ export interface InitSceneHandle {
   getDropPosition: (clientX: number, clientY: number) => Vector3Tuple | undefined;
   showDropPosition: (position: Vector3Tuple | undefined) => void;
   pickObjectAt: (clientX: number, clientY: number) => string | undefined;
-  worldToLocal: (objectId: string, position: Vector3Tuple) => Vector3Tuple | undefined;
+  getHotspotAnchor: (objectId: string) => Vector3Tuple | undefined;
   setEditingEnabled: (enabled: boolean) => void;
   captureCamera: () => CameraPose;
   showCamera: (pose: CameraPose) => void;
   locateObject: (id: string) => void;
   setNavigationTool: (tool: NavigationTool) => void;
+  toggleDisplayMedia: (id: string) => void;
   modeManager: ModeManager;
   dispose: () => void;
 }
@@ -197,6 +198,7 @@ export function initScene(
   let environmentId: string | undefined;
   const environmentBounds = new THREE.Box3();
   const instances = new Map<string, THREE.Group>();
+  const displays = createDisplayContent(assets, render);
   const instanceAssets = new Map<string, string>();
   function instanceFor(objectId: string): THREE.Group | undefined {
     const exact = instances.get(objectId);
@@ -340,6 +342,10 @@ export function initScene(
       if (sprite.parent !== owner) owner.add(sprite);
       const [x, y, z] = hotspot.position;
       sprite.position.set(x, y + HOTSPOT_SIZE / 2, z);
+      // Billboards inherit position, but stay round under nonuniform owner scale.
+      const ownerScale = owner.getWorldScale(new THREE.Vector3());
+      const markerSize = hotspotWorldSize(owner);
+      sprite.scale.set(markerSize / Math.abs(ownerScale.x), markerSize / Math.abs(ownerScale.y), 1);
       sprite.visible = editorMode;
     }
     for (const [id, sprite] of hotspotSprites) {
@@ -356,6 +362,7 @@ export function initScene(
     const now = performance.now();
     interactionClock.setActive(now, !document.hidden && modeManager.getState().mode === "visitor");
     lastFrameTime = now;
+    if (document.hidden) displays.pause();
   };
   document.addEventListener("visibilitychange", visibilityChanged);
   const animate = (now: number) => {
@@ -524,6 +531,7 @@ export function initScene(
           new THREE.Box3().setFromObject(content === undefined ? instance : content),
         );
       }
+      displays.sync(objects, instances);
       syncHotspots();
     }
     const selectedBounds = getSelectionBounds();
@@ -594,6 +602,7 @@ export function initScene(
         bounds.set(object.id, new THREE.Box3().setFromObject(child));
       }
     }
+    syncHotspots();
     const box = new THREE.Box3().setFromObject(instance);
     bounds.set(id, box);
     selection.box.copy(box);
@@ -704,11 +713,12 @@ export function initScene(
     return id;
   }
 
-  function worldToLocal(objectId: string, position: Vector3Tuple): Vector3Tuple | undefined {
-    const instance = instances.get(objectId);
+  function getHotspotAnchor(objectId: string): Vector3Tuple | undefined {
+    const instance = instanceFor(objectId);
     if (instance === undefined) return;
-    instance.updateWorldMatrix(true, false);
-    return instance.worldToLocal(new THREE.Vector3().fromArray(position)).toArray() as Vector3Tuple;
+    const object = objects.find((item) => item.id.toLowerCase() === objectId.toLowerCase());
+    const model = object === undefined ? undefined : models.get(object.assetId);
+    return model === undefined ? undefined : hotspotAnchor(model, instance, camera);
   }
 
   function pointerDown(event: PointerEvent) {
@@ -803,6 +813,7 @@ export function initScene(
         click.target !== null &&
         pick(event.clientX, event.clientY) === click.target
       ) {
+        displays.toggle(click.target);
         callbacks.onObjectClick(click.target);
       }
       return;
@@ -896,6 +907,7 @@ export function initScene(
       interactionClock.reset(performance.now(), mode === "visitor" && !document.hidden);
       previousMode = mode;
     }
+    displays.setPreview(mode === "visitor");
     visitorClick = undefined;
     cancelDrag();
     cancelWheelEdit();
@@ -913,6 +925,7 @@ export function initScene(
   async function loadAssets() {
     try {
       for (const asset of assets) {
+        if (asset.kind !== "model" && asset.kind !== "environment") continue;
         if (asset.id === HOTSPOT_ASSET_ID) {
           const texture = await new THREE.TextureLoader().loadAsync(asset.url);
           if (disposed || controller.signal.aborted) {
@@ -923,10 +936,13 @@ export function initScene(
           const material = new THREE.SpriteMaterial({
             map: texture,
             transparent: true,
+            // Editor annotations stay readable even through the owner's geometry.
+            depthTest: false,
             depthWrite: false,
           });
           hotspotMaterials.add(material);
           const sprite = new THREE.Sprite(material);
+          sprite.renderOrder = 1000;
           sprite.scale.setScalar(HOTSPOT_SIZE);
           sprite.position.y = HOTSPOT_SIZE / 2;
           const model = new THREE.Group();
@@ -983,7 +999,7 @@ export function initScene(
     getDropPosition,
     showDropPosition,
     pickObjectAt,
-    worldToLocal,
+    getHotspotAnchor,
     setEditingEnabled(enabled) {
       editingEnabled = enabled;
       if (!enabled) {
@@ -1025,6 +1041,7 @@ export function initScene(
       cancelWheelEdit();
       applyNavigationTool();
     },
+    toggleDisplayMedia: (id) => displays.toggle(id),
     modeManager,
     dispose() {
       if (disposed) {
@@ -1033,6 +1050,7 @@ export function initScene(
       cancelDrag();
       cancelWheelEdit();
       disposed = true;
+      displays.dispose();
       controller.abort();
       observer.disconnect();
       fpsMeter.dispose();

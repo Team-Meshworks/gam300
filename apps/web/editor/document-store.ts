@@ -6,6 +6,7 @@ import {
 import { freezeValidatedData, invalid } from "../shared/project/validation-helpers";
 import { validateProject } from "../shared/project/project-validation";
 import type {
+  ContentComponent,
   ContentObject,
   ContentProject,
   ContentScene,
@@ -462,6 +463,47 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
   }
 
   return {
+    setDisplayContent(objectId: string, component: ContentComponent | null) {
+      if (project === null) return invalid("project", "Choose a room first");
+      const target = objects.find((object) => object.id === objectId);
+      if (!target) return invalid("objectId", "Choose a display in the current scene");
+      const asset = assets.find((entry) => entry.id === target.assetId);
+      if (asset?.displayRole !== "digital") {
+        return invalid("objectId", "Choose a digital stand or panel");
+      }
+      if (component && !["text", "image", "video"].includes(component.type)) {
+        return invalid("component", "Choose text, an image or a video");
+      }
+      const content = toContentProject(project);
+      const next = {
+        ...content,
+        scenes: content.scenes.map((scene) =>
+          scene.id !== state.activeSceneId
+            ? scene
+            : {
+                ...scene,
+                objects: scene.objects.map((object) =>
+                  object.id !== target.id
+                    ? object
+                    : {
+                        ...object,
+                        components: [
+                          ...object.components.filter(
+                            (entry) => !["text", "image", "video"].includes(entry.type),
+                          ),
+                          ...(component ? [component] : []),
+                        ],
+                      },
+                ),
+              },
+        ),
+      };
+      return commitProject(
+        next,
+        state.activeSceneId!,
+        component ? "Edit display content" : "Remove display content",
+      );
+    },
     addAttachedObject(assetId: string, parentId: string, position: Vector3Tuple) {
       // A placed case is identified by its object ID, never its asset name or list position
       // The caller supplies the model's display surface in world coordinates
