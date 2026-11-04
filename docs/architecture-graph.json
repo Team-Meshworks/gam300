@@ -16,6 +16,7 @@
         "shared/project/project-content.ts",
         "shared/project/project-appearance.ts",
         "shared/project/room-placement.ts",
+        "shared/project/selection-transform.ts",
         "shared/project/project-capabilities.ts",
         "shared/project/scene-object.ts",
         "shared/project/spatial-validation.ts",
@@ -240,7 +241,7 @@
   "files": {
     "account-dev-server.ts": "e117343d2dda5bf2d1a2636bfffdb6d2559da9410db4a42fdc336a837259c6fd",
     "architecture.check.mjs": "7056958085076fb9a6f14992dded7faf21aedd9d78a48ae5484704020a25cfb7",
-    "architecture.mjs": "dfe80683a770f9a5a903b2ed9773c13677a06775a5a090e98b124f099e49b6e3",
+    "architecture.mjs": "fe2344a85b2daa9c2b0c1f2d79a9a46a2059fcbb9017b6d23336295cf3bc6a37",
     "asset-catalogue-plugin.ts": "510957e04b7e92e171d5dd47655c58e80ae7327a1532a59791e51388f061c924",
     "editor/App.tsx": "ce4a07b78f61ae092b2060e7f5e8d7810e2b005c1f136c6036cdea928ede19a4",
     "editor/OlderSceneImport.tsx": "9ab5f31f2ac60a12bfb5931592c54ed566140baac1bb38f3358fa0bd0ca93397",
@@ -437,6 +438,7 @@
     "shared/project/project-wire.ts": "b7f494c9672fb688a4a882883cf3bece67dfdd46633a14e4e95aecd68139654d",
     "shared/project/room-placement.ts": "17a0de40ef17f65498e1ef5c3106a920a099df7618ec980444b1f2f695e71042",
     "shared/project/scene-object.ts": "eb0421d014733ee53241324fbf7f110bf3415cc6c737080a4416eafaac4748d1",
+    "shared/project/selection-transform.ts": "ba09ee06ff373ab73d8545ccf62aaa6373cb8cca9c08d62fb437d7eb3ed4085d",
     "shared/project/spatial-validation.test.ts": "1451aa2673f445e8dbdff9e3628dd474ec1f9aa1238b4867c67913bb682e3c0d",
     "shared/project/spatial-validation.ts": "793f30ede0c1d12d1e0cf57bf0f219b3bbc57752fd465801499699283e480d12",
     "shared/project/starting-view.test.ts": "d2bc542394e14f8360b29933e58b9d39ed5cf16b6e77985d5a7ef0dee0d88121",
@@ -9124,6 +9126,51 @@
       "kind": "static",
       "specifier": "./project-types",
       "target": "shared/project/project-types.ts",
+      "from": "project",
+      "to": "project"
+    },
+    {
+      "file": "shared/project/selection-transform.ts",
+      "line": 1,
+      "kind": "type",
+      "specifier": "./project-content",
+      "target": "shared/project/project-content.ts",
+      "from": "project",
+      "to": "project"
+    },
+    {
+      "file": "shared/project/selection-transform.ts",
+      "line": 2,
+      "kind": "type",
+      "specifier": "./project-types",
+      "target": "shared/project/project-types.ts",
+      "from": "project",
+      "to": "project"
+    },
+    {
+      "file": "shared/project/selection-transform.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./attached-transforms",
+      "target": "shared/project/attached-transforms.ts",
+      "from": "project",
+      "to": "project"
+    },
+    {
+      "file": "shared/project/selection-transform.ts",
+      "line": 4,
+      "kind": "static",
+      "specifier": "./room-placement",
+      "target": "shared/project/room-placement.ts",
+      "from": "project",
+      "to": "project"
+    },
+    {
+      "file": "shared/project/selection-transform.ts",
+      "line": 5,
+      "kind": "static",
+      "specifier": "./validation-helpers",
+      "target": "shared/project/validation-helpers.ts",
       "from": "project",
       "to": "project"
     },

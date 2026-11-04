@@ -19,6 +19,7 @@ export const modules = {
       "shared/project/project-content.ts",
       "shared/project/project-appearance.ts",
       "shared/project/room-placement.ts",
+      "shared/project/selection-transform.ts",
       "shared/project/project-capabilities.ts",
       "shared/project/scene-object.ts",
       "shared/project/spatial-validation.ts",
