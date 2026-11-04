@@ -248,3 +248,57 @@ try {
   await page.getByRole("button", { name: "wood texture", exact: true }).click();
   await page
     .getByRole("dialog", { name: "Display texture", exact: true })
+    .screenshot({ path: "test-results/scrum56/texture-popup.png" });
+  await page.keyboard.press("Escape");
+  const styled = await saved();
+  assert.equal(
+    styled.scenes[0].objects.find((object) => object.id === testCase.id).appearance.material,
+    "wood",
+  );
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  assert.deepEqual(await saved(), fixtureSave);
+  await page.getByRole("button", { name: "Redo", exact: true }).click();
+  assert.deepEqual(await saved(), styled);
+  // Dragging uses the same translucent asset preview and only dropping commits an object.
+  await page.getByRole("button", { name: "Asset library", exact: true }).click();
+  const draggedCard = await page
+    .locator(".asset-picker")
+    .getByRole("button", { name: "test-crate", exact: true })
+    .elementHandle();
+  const dragData = await page.evaluateHandle(() => new DataTransfer());
+  await draggedCard.dispatchEvent("dragstart", { dataTransfer: dragData });
+  const stage = page.locator(".viewport-stage");
+  assert.equal(await stage.getAttribute("data-dragging-asset"), "test-crate-v1");
+  assert.equal(await page.locator(".asset-picker").isVisible(), false);
+  assert.equal(await page.locator(".object-row").count(), 3);
+  const bounds = await stage.boundingBox();
+  const drop = {
+    dataTransfer: dragData,
+    clientX: bounds.x + bounds.width / 2,
+    clientY: bounds.y + bounds.height / 2,
+  };
+  await stage.dispatchEvent("dragover", drop);
+  await page.screenshot({ path: "test-results/scrum56/drag-preview.png" });
+  await stage.dispatchEvent("dragleave", { dataTransfer: dragData });
+  await draggedCard.dispatchEvent("dragend", { dataTransfer: dragData });
+  assert.equal(await stage.getAttribute("data-dragging-asset"), null);
+  assert.equal(await page.locator(".object-row").count(), 3);
+  const secondData = await page.evaluateHandle(() => new DataTransfer());
+  await draggedCard.dispatchEvent("dragstart", { dataTransfer: secondData });
+  const confirmedDrop = { ...drop, dataTransfer: secondData };
+  await stage.dispatchEvent("dragover", confirmedDrop);
+  await stage.dispatchEvent("drop", confirmedDrop);
+  await draggedCard.dispatchEvent("dragend", { dataTransfer: secondData });
+  await page.waitForFunction(() => document.querySelectorAll(".object-row").length === 4);
+  assert.equal(await stage.getAttribute("data-dragging-asset"), null);
+  // Synthetic dragend lacks the native accepted drop effect; dismiss the retained picker.
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await page.waitForFunction(() => document.querySelectorAll(".object-row").length === 3);
+  assert.deepEqual(errors, []);
+  console.log(
+    "PASS: content Cancel, literal formatting, display media gating, single Undo/Redo, appearance, drag placement and save/reopen",
+  );
+} finally {
+  await browser.close();
+}
