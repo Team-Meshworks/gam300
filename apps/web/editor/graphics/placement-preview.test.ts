@@ -1,0 +1,46 @@
+import { expect, it, vi } from "vitest";
+import * as THREE from "three";
+import { createPlacementPreview } from "./placement-preview";
+it("previews without mutating borrowed assets and disposes only owned materials", () => {
+  const scene = new THREE.Scene();
+  const material = new THREE.MeshStandardMaterial({ color: "red" });
+  const geometry = new THREE.BoxGeometry();
+  const model = new THREE.Group();
+  model.add(new THREE.Mesh(geometry, material));
+  const borrowedDispose = vi.spyOn(material, "dispose");
+  const geometryDispose = vi.spyOn(geometry, "dispose");
+  const preview = createPlacementPreview(scene, new Map([["panel", model]]));
+  preview.show("panel", [2, 0, 3]);
+  const ghost = scene.getObjectByName("placement-preview")!;
+  const mesh = ghost.children[0]!.children[0] as THREE.Mesh;
+  const owned = mesh.material as THREE.Material;
+  const ownedDispose = vi.spyOn(owned, "dispose");
+  expect(ghost.position.toArray()).toEqual([2, 0, 3]);
+  expect(owned.opacity).toBe(0.4);
+  expect(material.opacity).toBe(1);
+  expect(scene.children).toHaveLength(1);
+  preview.show("panel", undefined);
+  expect(ghost.visible).toBe(false);
+  preview.clear();
+  expect(scene.children).toHaveLength(0);
+  expect(ownedDispose).toHaveBeenCalledOnce();
+  expect(borrowedDispose).not.toHaveBeenCalled();
+  expect(geometryDispose).not.toHaveBeenCalled();
+});
+
+it("retains model normalization so the preview occupies the same space as the placed model", () => {
+  const scene = new THREE.Scene();
+  const model = new THREE.Group();
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2));
+  mesh.position.set(100, 21, -50);
+  model.add(mesh);
+  model.position.set(-100, -20, 50);
+  const preview = createPlacementPreview(scene, new Map([["display", model]]));
+  preview.show("display", [3, 0, 4]);
+  const ghost = scene.getObjectByName("placement-preview")!;
+  const bounds = new THREE.Box3().setFromObject(ghost);
+  expect(bounds.min.toArray()).toEqual([2, 0, 3]);
+  expect(bounds.max.toArray()).toEqual([4, 2, 5]);
+  expect(model.position.toArray()).toEqual([-100, -20, 50]);
+  preview.clear();
+});
