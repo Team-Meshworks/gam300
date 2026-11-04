@@ -32,12 +32,14 @@ export function SidePanels({
   objects,
   selectedId,
   selectedObject,
+  mobileDevice,
   hotspots,
   interactions,
   projectScenes,
   activeSceneId,
   thumbnailFor,
   onSelect,
+  onDelete,
   onTransform,
   onInteractionsChange,
   onLocate,
@@ -53,12 +55,14 @@ export function SidePanels({
   objects: readonly SceneObject[];
   selectedId: string | null;
   selectedObject: SceneObject | undefined;
+  mobileDevice: boolean;
   hotspots: readonly ProjectHotspot[];
   interactions: readonly Interaction[];
   projectScenes: readonly ProjectScene[];
   activeSceneId: string | null;
   thumbnailFor: (assetId: string) => string | undefined;
   onSelect: (id: string) => void;
+  onDelete: () => void;
   onTransform: (id: string, transform: Transform) => void;
   onLocate: (id: string) => void;
   onInteractionsChange: (next: Interaction[]) => void;
@@ -104,6 +108,8 @@ export function SidePanels({
               hotspots={hotspots}
               selectedId={selectedId}
               onSelect={onSelect}
+              onDelete={onDelete}
+              mobileDevice={mobileDevice}
               thumbnailFor={thumbnailFor}
             />
           )}

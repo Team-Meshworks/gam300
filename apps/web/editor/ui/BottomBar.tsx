@@ -57,6 +57,7 @@ export function BottomBar({
   tool,
   onToolChange,
   selectedDisplay,
+  showCameraTools,
 }: {
   assets: readonly CatalogueAsset[];
   hotspot: CatalogueAsset;
@@ -67,6 +68,8 @@ export function BottomBar({
   tool: NavigationTool;
   onToolChange: (tool: NavigationTool) => void;
   selectedDisplay?: { name: string; onEdit: () => void; disabled: boolean } | undefined;
+  // Camera tools only make sense for the orbit camera, so third person only
+  showCameraTools: boolean;
 }) {
   // Only one tool selected at a time. Library start closed now since its a big pop up
   const [selected, setSelected] = useState<SceneTool | null>(null);
@@ -240,24 +243,26 @@ export function BottomBar({
             Edit display content
           </button>
         )}
-        <div className="tool-tip-anchor">
-          {cameraTip.bubble}
-          <div className="mode-bar" role="group" aria-label="Camera tools" inert={libraryOpen}>
-            {cameraTools.map((cameraTool) => (
-              <button
-                key={cameraTool.id}
-                className="ui-button"
-                type="button"
-                aria-label={cameraTool.label}
-                aria-pressed={cameraTool.id === tool}
-                onClick={() => onToolChange(cameraTool.id)}
-                {...cameraTip.handlers(cameraTool.hint)}
-              >
-                <Icon name={cameraTool.icon} />
-              </button>
-            ))}
+        {showCameraTools && (
+          <div className="tool-tip-anchor">
+            {cameraTip.bubble}
+            <div className="mode-bar" role="group" aria-label="Camera tools" inert={libraryOpen}>
+              {cameraTools.map((cameraTool) => (
+                <button
+                  key={cameraTool.id}
+                  className="ui-button"
+                  type="button"
+                  aria-label={cameraTool.label}
+                  aria-pressed={cameraTool.id === tool}
+                  onClick={() => onToolChange(cameraTool.id)}
+                  {...cameraTip.handlers(cameraTool.hint)}
+                >
+                  <Icon name={cameraTool.icon} />
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="tool-tip-anchor">
           {popup === null && toolTip.bubble}

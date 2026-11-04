@@ -14,7 +14,7 @@ import {
   isTextEditingTarget,
 } from "./history-shortcuts";
 import type { NavigationTool, ViewportStatus } from "./graphics/scene";
-import type { ModeManager, ModeManagerState } from "./graphics/modeManager";
+import type { CameraView, ModeManager, ModeManagerState } from "./graphics/modeManager";
 import { createActionRunner } from "./interaction/actionHandler";
 import { createPreviewNavigation } from "./interaction/preview-navigation";
 import { createInteractionHandler, type Interaction } from "./interaction/interactionHandler";
@@ -28,6 +28,9 @@ import { OlderSceneImport } from "./OlderSceneImport";
 import { Scenes } from "./Scenes";
 import { Viewpoints } from "./Viewpoints";
 import { Viewport, type ViewpointCamera } from "./viewport/Viewport";
+import { MobileControls } from "./viewport/MobileControls";
+import { isMobileTouchDevice } from "./viewport/mobile-device";
+import type { FpsMobileControls } from "./graphics/scene";
 
 import { ProjectConfirmation } from "./ProjectConfirmation";
 import { useProjectSession } from "./persistence/use-project-session";
@@ -79,6 +82,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
   }, [feedback.sequence]);
   const [viewCamera, setViewCamera] = useState<ViewpointCamera | null>(null);
   const [manager, setManager] = useState<ModeManager | null>(null);
+  const [mobileControls, setMobileControls] = useState<FpsMobileControls | null>(null);
   const [modeState, setModeState] = useState<ModeManagerState | null>(null);
   const selection = objects.some((object) => object.id === selectedId) ? selectedId : null;
   const projectScene = useMemo(
@@ -98,7 +102,13 @@ export function App({ server }: { server?: ServerEditorSession }) {
   const selectedObject = objects.find((object) => object.id === selection);
   const hasChanges = project !== null || objects.length > 0 || hasDeleted;
   const visitor = modeState?.mode === "visitor";
+  const mobileDevice = isMobileTouchDevice();
   const [navigationTool, setNavigationTool] = useState<NavigationTool>("select");
+  // Start inside the scene, the overview button switch to the orbit camera
+  const [view, setView] = useState<CameraView>("first");
+  const walking = visitor || view === "first";
+  const captured = modeState?.captured ?? false;
+  const canCapture = modeState?.canCapture ?? true;
   const interactions = projectScene?.interactions ?? EMPTY_INTERACTIONS;
   const hotspots = projectScene?.hotspots ?? EMPTY_HOTSPOTS;
 
@@ -329,7 +339,9 @@ export function App({ server }: { server?: ServerEditorSession }) {
     // Choosing the first room turns the grid scene into a saveable project
     // Room placement uses the environment slot so it survives JSON reconstruction
     if (assetKinds.get(assetId) === "environment") {
-      if (session.busy) {
+      const creatingDuringInitialRecovery =
+        session.busy && session.operation === "recover" && project === null;
+      if (session.busy && !creatingDuringInitialRecovery) {
         setNotice("Wait for the project to finish opening, then choose a room");
         return;
       }
@@ -396,7 +408,9 @@ export function App({ server }: { server?: ServerEditorSession }) {
   }
 
   return (
-    <div className={`editor-shell${visitor ? " is-previewing" : ""}`}>
+    <div
+      className={`editor-shell${visitor ? " is-previewing" : ""}${walking ? " is-walking" : ""}`}
+    >
       <a className="skip-link" href="#viewport">
         Skip to scene
       </a>
@@ -460,6 +474,8 @@ export function App({ server }: { server?: ServerEditorSession }) {
           navigation.end();
           playUiSound("goingBack");
         }}
+        view={view}
+        onToggleView={() => setView((previous) => (previous === "first" ? "third" : "first"))}
       />
       {/* Reset the input so choosing the same file again still fires a change */}
       {!server && (
@@ -549,12 +565,14 @@ export function App({ server }: { server?: ServerEditorSession }) {
           objects={objects}
           selectedId={roomSelected ? projectScene.id : groupSelected ? selectedId : selection}
           selectedObject={selectedObject}
+          mobileDevice={mobileDevice}
           hotspots={hotspots}
           interactions={interactions}
           projectScenes={project?.scenes ?? []}
           activeSceneId={activeSceneId}
           thumbnailFor={thumbnailFor}
           onSelect={setSelectedId}
+          onDelete={deleteSelection}
           onTransform={onTransform}
           onInteractionsChange={onInteractionsChange}
           onLocate={(id) => {
@@ -575,6 +593,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
           dragging={dragging}
           editingEnabled={!switching}
           navigationTool={navigationTool}
+          view={view}
           status={status}
           attempt={attempt}
           onStatus={setStatus}
@@ -590,6 +609,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
             setAttempt((previous) => previous + 1);
           }}
           onManager={onManager}
+          onMobileControls={setMobileControls}
         >
           {visitor && (
             <div className="display-media-controls">
@@ -633,7 +653,21 @@ export function App({ server }: { server?: ServerEditorSession }) {
                     }
                   : undefined
               }
+              showCameraTools={view === "third"}
             />
+          )}
+          {mobileDevice && walking && mobileControls !== null && (
+            <MobileControls controls={mobileControls} />
+          )}
+          {walking && status === "ready" && (
+            <>
+              {captured && <span className="crosshair" aria-hidden="true" />}
+              <p className="walk-hint">
+                {captured
+                  ? `${visitor ? "" : "Click selects what's under the + · Hold the click to carry it, scroll to push or pull · Hold right click to turn it · "}Hold Alt for the mouse · Esc to stop`
+                  : `${canCapture ? "Click the scene" : "Drag"} to look around · WASD to walk · Space to jump, double tap to fly`}
+              </p>
+            </>
           )}
         </Viewport>
       </main>

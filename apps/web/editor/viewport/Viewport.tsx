@@ -9,7 +9,8 @@ import type {
   Transform,
 } from "../../shared/project/project-types";
 import type { initScene, NavigationTool, ViewportStatus } from "../graphics/scene";
-import type { ModeManager } from "../graphics/modeManager";
+import type { FpsMobileControls } from "../graphics/scene";
+import type { CameraView, ModeManager } from "../graphics/modeManager";
 
 const statusMessages = {
   loading: "Loading assets…",
@@ -38,6 +39,7 @@ type ViewportProps = {
   placingAssetId?: string | null;
   editingEnabled: boolean;
   navigationTool: NavigationTool;
+  view: CameraView;
   status: ViewportStatus;
   attempt: number;
   onStatus: (status: ViewportStatus) => void;
@@ -50,6 +52,7 @@ type ViewportProps = {
   onDragFinish: () => void;
   onRetry: () => void;
   onManager: (manager: ModeManager) => void;
+  onMobileControls: (controls: FpsMobileControls | null) => void;
   children?: ReactNode;
 };
 
@@ -64,6 +67,7 @@ export function Viewport({
   placingAssetId,
   editingEnabled,
   navigationTool,
+  view,
   status,
   attempt,
   onStatus,
@@ -76,6 +80,7 @@ export function Viewport({
   onDragFinish,
   onRetry,
   onManager,
+  onMobileControls,
   children,
 }: ViewportProps) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -87,6 +92,7 @@ export function Viewport({
     loadGeneration,
     editingEnabled,
     navigationTool,
+    view,
   });
 
   useEffect(() => {
@@ -109,6 +115,10 @@ export function Viewport({
         });
         sceneRef.current = scene;
         const current = snapshotRef.current;
+        // Establish the requested navigation mode before applying the authored camera.
+        // Otherwise first-person initialization can replace the authored pose with the
+        // orbit controller's default target before the first selection update.
+        scene?.modeManager.initializeView(current.view);
         scene?.update(
           current.objects,
           current.selectedId,
@@ -119,6 +129,7 @@ export function Viewport({
         scene?.setNavigationTool(current.navigationTool);
         if (scene !== undefined) {
           onManager(scene.modeManager);
+          onMobileControls(scene.mobileControls);
           onCamera({
             capture: scene.captureCamera,
             show: scene.showCamera,
@@ -137,6 +148,7 @@ export function Viewport({
     return () => {
       disposed = true;
       onCamera(null);
+      onMobileControls(null);
       sceneRef.current?.dispose();
       sceneRef.current = undefined;
     };
@@ -151,6 +163,7 @@ export function Viewport({
     onSceneUpdate,
     onManager,
     onCamera,
+    onMobileControls,
   ]);
 
   useEffect(() => {
@@ -161,10 +174,12 @@ export function Viewport({
       loadGeneration,
       editingEnabled,
       navigationTool,
+      view,
     };
     sceneRef.current?.update(objects, selectedId, projectScene, loadGeneration);
     sceneRef.current?.setEditingEnabled(editingEnabled);
     sceneRef.current?.setNavigationTool(navigationTool);
+    sceneRef.current?.modeManager.setView(view);
   }, [
     objects,
     selectedId,
@@ -172,6 +187,7 @@ export function Viewport({
     loadGeneration,
     editingEnabled,
     navigationTool,
+    view,
     assets,
     attempt,
   ]);
