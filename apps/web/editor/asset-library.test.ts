@@ -157,11 +157,13 @@ describe("asset library behavior without a popup implementation", () => {
     expect(position[2]).toBeCloseTo(-2);
     const before = store.getSnapshot();
 
-    // Reject distortion and parent deletion before either can alter saved data or history
+    // Reject distortion; parent deletion removes its branch in one reversible command.
     expect(store.setTransform(root.object.id, { ...rotated, scale: [2, 3, 2] }).ok).toBe(false);
     expect(store.getSnapshot()).toBe(before);
-    expect(store.deleteObject(root.object.id).ok).toBe(false);
-    expect(store.getSnapshot()).toBe(before);
+    expect(store.deleteObject(root.object.id).ok).toBe(true);
+    expect(store.getSnapshot().objects).toHaveLength(0);
+    store.undo();
+    expect(store.getSnapshot().project).toEqual(before.project);
   });
   it("rejects stale cases and invalid surfaces without leaving a partial placement", () => {
     const { store, library } = setup();
@@ -218,14 +220,16 @@ describe("asset library behavior without a popup implementation", () => {
     expect(library.remove().ok).toBe(false);
     expect(store.getSnapshot()).toBe(before);
 
-    // A displayed object's descendants survive replacement and prevent unsafe removal
+    // Descendants survive replacement; removing their parent removes the whole nested branch.
     expect(store.addAttachedObject("vase", original.id, [2, 2, 0]).ok).toBe(true);
     library.openOnCase(id, [2, 1, 0]);
     expect(library.choose("vase").ok).toBe(true);
     library.openOnCase(id, [2, 1, 0]);
     const referenced = store.getSnapshot();
-    expect(library.remove().ok).toBe(false);
-    expect(store.getSnapshot()).toBe(referenced);
+    expect(library.remove().ok).toBe(true);
+    expect(store.getSnapshot().objects.map((object) => object.id)).toEqual([id]);
+    store.undo();
+    expect(store.getSnapshot().project).toEqual(referenced.project);
   });
   it("removes displayed content from the active second scene and restores it with Undo", () => {
     const { store, library } = setup();
@@ -252,8 +256,8 @@ describe("asset library behavior without a popup implementation", () => {
     expect(store.getSnapshot().objects).toHaveLength(0);
   });
   it("places multiple room modules in one scene and retains them across serialization and undo", () => {
-    // These generic room fixtures check repeated placement independently of test-room snapping
-    const module = { ...assets[1]!, id: "room-module", name: "test-room" };
+    // These generic room fixtures check repeated placement independently of Starter room snapping
+    const module = { ...assets[1]!, id: "room-module", name: "Starter room" };
     const catalogue = [...assets, module];
     const store = createDocumentStore(catalogue);
     store.createProject("room");

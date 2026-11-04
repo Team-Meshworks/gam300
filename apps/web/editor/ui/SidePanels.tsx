@@ -35,6 +35,8 @@ export function SidePanels({
   room,
   objects,
   selectedId,
+  selectedIds,
+  onMultiSelect,
   selectedObject,
   mobileDevice,
   hotspots,
@@ -49,8 +51,15 @@ export function SidePanels({
   onLocate,
   groups,
   hierarchy,
+  sceneAudio = [],
+  onHotspotRemove,
 }: {
   assets?: readonly CatalogueAsset[];
+  sceneAudio?: readonly Extract<
+    import("../../shared/project/project-content").ContentComponent,
+    { type: "audio" }
+  >[];
+  onHotspotRemove?: ((id: string) => void) | undefined;
   onContent: (kind: ContentKind) => void;
   groups: readonly ProjectGroup[];
   hierarchy: HierarchyActions;
@@ -60,6 +69,8 @@ export function SidePanels({
   room: Room | undefined;
   objects: readonly SceneObject[];
   selectedId: string | null;
+  selectedIds?: readonly string[];
+  onMultiSelect?: (ids: readonly string[], id: string | null) => void;
   selectedObject: SceneObject | undefined;
   mobileDevice: boolean;
   hotspots: readonly ProjectHotspot[];
@@ -134,12 +145,15 @@ export function SidePanels({
             <SceneTreePanel
               key={room?.id ?? "draft"}
               assets={assets}
+              sceneAudio={sceneAudio}
               room={room}
               groups={groups}
               hierarchy={hierarchy}
               objects={objects}
               hotspots={hotspots}
               selectedId={selectedId}
+              selectedIds={selectedIds}
+              onMultiSelect={onMultiSelect}
               onSelect={onSelect}
               onDelete={onDelete}
               mobileDevice={mobileDevice}
@@ -150,6 +164,17 @@ export function SidePanels({
           {panel === "views" && <div className="editor-panel">{savedViews}</div>}
           {panel === "interaction" && (
             <InteractionPanel
+              selectedObjectId={selectedObject?.id}
+              onHotspotRemove={onHotspotRemove}
+              audioTargets={[
+                ...sceneAudio,
+                ...objects.flatMap((object) => (object as Partial<ContentObject>).components ?? []),
+              ]
+                .filter((entry) => entry.type === "audio")
+                .map((entry) => ({
+                  value: entry.id,
+                  label: assets.find((asset) => asset.id === entry.assetId)?.name ?? "Audio",
+                }))}
               interactions={interactions}
               scenes={projectScenes}
               activeSceneId={activeSceneId}
@@ -161,16 +186,6 @@ export function SidePanels({
           )}
         </div>
       )}
-
-      <button
-        className="ui-button filter-button"
-        type="button"
-        aria-disabled="true"
-        title="Filters · coming soon"
-      >
-        Filters
-        <Icon name="caretDown" />
-      </button>
 
       {selectedObject !== undefined && (
         // Browser checks read this without opening the panel

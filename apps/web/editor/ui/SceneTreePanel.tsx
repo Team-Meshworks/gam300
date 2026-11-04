@@ -20,18 +20,27 @@ export function SceneTreePanel({
   groups,
   hotspots,
   selectedId,
+  selectedIds = selectedId === null ? [] : [selectedId],
+  onMultiSelect,
   onSelect,
   onDelete,
   mobileDevice,
   thumbnailFor,
   hierarchy,
+  sceneAudio = [],
 }: {
   assets?: readonly CatalogueAsset[];
+  sceneAudio?: readonly Extract<
+    import("../../shared/project/project-content").ContentComponent,
+    { type: "audio" }
+  >[];
   room: Room | undefined;
   objects: readonly SceneObject[];
   groups: readonly ProjectGroup[];
   hotspots: readonly import("../../shared/project/project-types").ProjectHotspot[];
   selectedId: string | null;
+  selectedIds?: readonly string[] | undefined;
+  onMultiSelect?: ((ids: readonly string[], id: string | null) => void) | undefined;
   onSelect: (id: string) => void;
   onDelete: () => void;
   // Touch has no Delete key, so the selected object gets its own button
@@ -47,12 +56,62 @@ export function SceneTreePanel({
   // The draft name stays in the input until a confirmed store command succeeds
   const [renaming, setRenaming] = useState<string | null>(null);
   const listId = useId();
+  const panel = useRef<HTMLElement>(null);
+  const rangeAnchor = useRef<string | null>(null);
+  // Shift follows visible tree order; Ctrl toggles membership without changing authored parentage
+  function selectRow(id: string, event: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }) {
+    if (!onMultiSelect) return onSelect(id);
+    const toggle = event.ctrlKey || event.metaKey;
+    let next: readonly string[] = [id];
+    if (event.shiftKey && rangeAnchor.current) {
+      const order = [
+        ...(panel.current?.querySelectorAll<HTMLButtonElement>(
+          "button[data-object-id], button[data-scene-id], button[data-group-id]",
+        ) ?? []),
+      ].map((row) => row.dataset.objectId ?? row.dataset.sceneId ?? row.dataset.groupId!);
+      const start = order.indexOf(rangeAnchor.current),
+        end = order.indexOf(id);
+      if (start >= 0 && end >= 0)
+        next = order.slice(Math.min(start, end), Math.max(start, end) + 1);
+      if (toggle) next = [...new Set([...selectedIds, ...next])];
+    } else {
+      rangeAnchor.current = id;
+      if (toggle)
+        next = selectedIds.includes(id)
+          ? selectedIds.filter((entry) => entry !== id)
+          : [...selectedIds, id];
+    }
+    onMultiSelect(next, next.includes(id) ? id : (next.at(-1) ?? null));
+  }
   const dragging = useRef<string | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const rootId = room?.id ?? "draft";
   const count = objects.length + groups.length + (room ? 1 : 0);
-  const nodes = [...groups, ...objects];
+  // Older drafts retain the released generated names; show the current labels without rewriting their data
+  const roomName = room?.name === "test-room" ? "Starter room" : (room?.name ?? "");
+  const nodes = [
+    ...groups,
+    ...objects.map((object, index) => {
+      const label =
+        assets.find((asset) => asset.id === object.assetId)?.name ??
+        (object.assetId === "test-crate-v1"
+          ? "Sample crate"
+          : object.assetId === "test-room-module-v1"
+            ? "Starter room"
+            : null);
+      const legacy =
+        object.assetId === "test-crate-v1"
+          ? /^test-crate( \d+)?$/.test(object.name)
+          : object.assetId === "test-room-module-v1" && /^test-room( \d+)?$/.test(object.name);
+      if (!label || (!legacy && object.name !== `${label} 1`)) return object;
+      const number =
+        objects.slice(0, index).filter((entry) => entry.assetId === object.assetId).length +
+        1 +
+        (room && object.assetId === "test-room-module-v1" ? 1 : 0);
+      return { ...object, name: number === 1 ? label : `${label} ${number}` };
+    }),
+  ];
 
   const parentOf = (node: (typeof nodes)[number]) =>
     (node as ContentObject | ProjectGroup).parentId?.toLowerCase() ?? null;
@@ -201,7 +260,7 @@ export function SceneTreePanel({
               type="button"
               data-object-id={isObject ? node.id : undefined}
               data-group-id={!isObject ? node.id : undefined}
-              aria-pressed={selectedId === node.id}
+              aria-pressed={selectedIds.includes(node.id)}
               draggable
               title="Drag to reparent, or use Ctrl+X then Ctrl+V on the destination"
               // Object rows can enter the same rename flow by mouse or keyboard
@@ -243,7 +302,7 @@ export function SceneTreePanel({
                   moving.current = null;
                 }
               }}
-              onClick={() => onSelect(node.id)}
+              onClick={(event) => selectRow(node.id, event)}
             >
               {isObject ? (
                 displayTool ? (
@@ -290,6 +349,7 @@ export function SceneTreePanel({
                   <button
                     className="group-row"
                     type="button"
+                    aria-pressed={component.type === "audio" && selectedId === component.id}
                     data-component-id={component.id}
                     data-owner-id={node.id}
                     onKeyDown={(event) => {
@@ -310,17 +370,21 @@ export function SceneTreePanel({
                         moving.current = null;
                       }
                     }}
-                    onClick={() => onSelect(node.id)}
+                    onClick={() => {
+                      onSelect(component.type === "audio" ? component.id : node.id);
+                    }}
                   >
                     <Icon
                       name={
-                        component.type === "video"
-                          ? "video"
-                          : component.type === "image"
-                            ? "image"
-                            : component.type === "text"
-                              ? "text"
-                              : "info"
+                        component.type === "audio"
+                          ? "music"
+                          : component.type === "video"
+                            ? "video"
+                            : component.type === "image"
+                              ? "image"
+                              : component.type === "text"
+                                ? "text"
+                                : "info"
                       }
                     />
                     <span>
@@ -347,85 +411,100 @@ export function SceneTreePanel({
   }
 
   return (
-    <section className="editor-panel" aria-labelledby="objects-heading">
+    <section ref={panel} className="editor-panel" aria-labelledby="objects-heading">
       <h2 id="objects-heading">
         <Icon name="info" />
         Scene Tree <span className="panel-count">{count}</span>
       </h2>
-      {!room ? (
+      {!room && objects.length === 0 && groups.length === 0 ? (
         <p className="panel-empty">Add a room to start.</p>
       ) : (
         <>
           <ul role="list" className={`scene-tree${showAll ? " is-expanded" : ""}`}>
-            <li>
-              <div
-                className="scene-root"
-                data-drop-target={dropTarget === rootId || undefined}
-                onDragLeave={(event) => {
-                  if (!event.currentTarget.contains(event.relatedTarget as Node | null))
-                    setDropTarget(null);
-                }}
-                onDragOver={(event) => {
-                  if (dragging.current) {
-                    event.preventDefault();
-                    event.dataTransfer.dropEffect = "move";
-                    setDropTarget(rootId);
-                  }
-                }}
-                onDrop={(event) => drop(event, null)}
-              >
-                {(children.get(rootId.toLowerCase())?.length ?? 0) > 0 ? (
-                  disclosure(rootId, "scene objects")
-                ) : (
-                  <span className="scene-disclosure-space" aria-hidden="true" />
-                )}
-                {/* The environment row uses its scene ID for the same rename command */}
-                {renameField(room.id, room.name)}
-                <button
-                  style={{ visibility: renaming === room.id ? "hidden" : undefined }}
-                  onDoubleClick={() => setRenaming(room.id)}
-                  className="environment-row"
-                  type="button"
-                  aria-pressed={selectedId === room.id}
-                  data-scene-id={room.id}
-                  onKeyDown={(event) => {
-                    if (event.key === "F2") {
+            {room && (
+              <li>
+                <div
+                  className="scene-root"
+                  data-drop-target={dropTarget === rootId || undefined}
+                  onDragLeave={(event) => {
+                    if (!event.currentTarget.contains(event.relatedTarget as Node | null))
+                      setDropTarget(null);
+                  }}
+                  onDragOver={(event) => {
+                    if (dragging.current) {
                       event.preventDefault();
-                      setRenaming(room.id);
-                      return;
-                    }
-                    if (
-                      (event.ctrlKey || event.metaKey) &&
-                      event.key.toLowerCase() === "v" &&
-                      moving.current
-                    ) {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      hierarchy.move(moving.current, null);
-                      moving.current = null;
+                      event.dataTransfer.dropEffect = "move";
+                      setDropTarget(rootId);
                     }
                   }}
-                  onClick={() => onSelect(room.id)}
+                  onDrop={(event) => drop(event, null)}
                 >
-                  <img src={room.thumbnail} alt="" draggable={false} />
-                  <span>{room.name}</span>
-                </button>
-              </div>
-              <ul
-                className="scene-objects"
-                id={`${listId}-${rootId}`}
-                role="list"
-                aria-label="Scene objects"
-                hidden={collapsed.has(rootId)}
-              >
-                {nodes.length ? (
-                  renderChildren(rootId)
-                ) : (
-                  <li className="panel-empty scene-tree-empty">No objects in this scene.</li>
-                )}
-              </ul>
-            </li>
+                  {(children.get(rootId.toLowerCase())?.length ?? 0) > 0 ? (
+                    disclosure(rootId, "scene objects")
+                  ) : (
+                    <span className="scene-disclosure-space" aria-hidden="true" />
+                  )}
+                  {/* The environment row uses its scene ID for the same rename command */}
+                  {renameField(room.id, roomName)}
+                  <button
+                    style={{ visibility: renaming === room.id ? "hidden" : undefined }}
+                    onDoubleClick={() => setRenaming(room.id)}
+                    className="environment-row"
+                    type="button"
+                    aria-pressed={selectedIds.includes(room.id)}
+                    data-scene-id={room.id}
+                    onKeyDown={(event) => {
+                      if (event.key === "F2") {
+                        event.preventDefault();
+                        setRenaming(room.id);
+                        return;
+                      }
+                      if (
+                        (event.ctrlKey || event.metaKey) &&
+                        event.key.toLowerCase() === "v" &&
+                        moving.current
+                      ) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        hierarchy.move(moving.current, null);
+                        moving.current = null;
+                      }
+                    }}
+                    onClick={(event) => selectRow(room.id, event)}
+                  >
+                    <img src={room.thumbnail} alt="" draggable={false} />
+                    <span>{roomName}</span>
+                  </button>
+                </div>
+                <ul
+                  className="scene-objects"
+                  id={`${listId}-${rootId}`}
+                  role="list"
+                  aria-label="Scene objects"
+                  hidden={collapsed.has(rootId)}
+                >
+                  {nodes.length ? (
+                    renderChildren(rootId)
+                  ) : (
+                    <li className="panel-empty scene-tree-empty">No objects in this scene.</li>
+                  )}
+                </ul>
+              </li>
+            )}
             {renderChildren(null)}
+            {sceneAudio.map((audio) => (
+              <li key={audio.id} className="scene-audio-row">
+                <button
+                  className="ui-button scene-audio-select"
+                  type="button"
+                  aria-pressed={selectedId === audio.id}
+                  onClick={() => onSelect(audio.id)}
+                >
+                  <Icon name="music" />
+                  <span>{assets.find((asset) => asset.id === audio.assetId)?.name ?? "Audio"}</span>
+                </button>
+              </li>
+            ))}
           </ul>
           {!collapsed.has(rootId) && count > 6 && (
             <button

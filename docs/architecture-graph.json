@@ -254,7 +254,7 @@
     "editor/admin/AdminDashboard.tsx": "e3b6177c4676ce2f3355d8172553499bcddbfedbb343714fbdc40a077c73ac41",
     "editor/admin/dashboard-client.test.ts": "0c27ad7c9b1a9a6f7f30313ed2d8daced010194a70d85c468f334d3124f7fdcd",
     "editor/admin/dashboard-client.ts": "d3ec4a0005936005576a588682d0b0ec4eb86a597209392afb29afbcdbef5d4f",
-    "editor/asset-library.test.ts": "cb7967865f915d072c4ab336eb933d5536d116b5830daeb8de82d084e880f616",
+    "editor/asset-library.test.ts": "151e34c1351105624a159e8039749a9698de6ec621edc7fb305c05f11ff1d388",
     "editor/asset-library.ts": "241937b9c14465a98b5a711efc748b3b7fcd92de6cbca7efa32de26206d73a64",
     "editor/audio/ui-sounds.ts": "4cc6288694e652328a4794949cbdc88ebf555322ce4bdba215afd4ebd93bb494",
     "editor/command-history.test.ts": "783c026523513ea5520cde04e61502aba13ca3a612b509a904c2a50e50be2d1f",
@@ -389,8 +389,8 @@
     "editor/ui/LibraryRail.tsx": "ffb582a25b6b0a84d0ca2a7c2cb8f79470e647474530d4b6a37b8ab3f4b3497f",
     "editor/ui/PreviewTargets.tsx": "d49499d2e889781f42239cfe9cdd17a174691baed6dc86815a2d3e577af00884",
     "editor/ui/RichTextInput.tsx": "8508440ea3abe0f184f38738e1a3163064444456cb3bee0d56bc4096730c0dbd",
-    "editor/ui/SceneTreePanel.tsx": "f0bae3431660e3f6d6a1545ae16af4dd7aae6660f9ff3ecd0664caf577d6ce77",
-    "editor/ui/SidePanels.tsx": "257e5fa191e05bd07b384e59e6df9a555ae207ceb2fe0230a9053de6136f0fe2",
+    "editor/ui/SceneTreePanel.tsx": "5af456c56df023aeb315640b8406c0d01a1f73f7968d09d46980b06c1df02fcc",
+    "editor/ui/SidePanels.tsx": "698c3ce4371fd049ef111c96b722c3856b2f1118a12347afdace2d74e4004ccc",
     "editor/ui/TopBar.tsx": "a1e07470dcee2c4fe9a54031f45a6fe07530c17a3eae484e24a8f395f9c2e466",
     "editor/ui/asset-filters.test.ts": "0b88a68d514d283e155ceb0838d4951c1b4fd5867459df2e8c6ab8780c65f858",
     "editor/ui/asset-filters.ts": "5e08299dbfc2543f41017306fdff78d7ba3161e2242186877a315e3ea75fa8cc",
@@ -7559,7 +7559,16 @@
     },
     {
       "file": "editor/ui/SceneTreePanel.tsx",
-      "line": 33,
+      "line": 34,
+      "kind": "type-query",
+      "specifier": "../../shared/project/project-content",
+      "target": "shared/project/project-content.ts",
+      "from": "editor",
+      "to": "project"
+    },
+    {
+      "file": "editor/ui/SceneTreePanel.tsx",
+      "line": 40,
       "kind": "type-query",
       "specifier": "../../shared/project/project-types",
       "target": "shared/project/project-types.ts",
@@ -7568,7 +7577,7 @@
     },
     {
       "file": "editor/ui/SceneTreePanel.tsx",
-      "line": 100,
+      "line": 159,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -7678,7 +7687,16 @@
     },
     {
       "file": "editor/ui/SidePanels.tsx",
-      "line": 80,
+      "line": 59,
+      "kind": "type-query",
+      "specifier": "../../shared/project/project-content",
+      "target": "shared/project/project-content.ts",
+      "from": "editor",
+      "to": "project"
+    },
+    {
+      "file": "editor/ui/SidePanels.tsx",
+      "line": 91,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
