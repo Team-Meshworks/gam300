@@ -1,6 +1,29 @@
+import {
+  environmentObject,
+  moveSceneSelection,
+  ROOM_TRANSFORM,
+} from "../../shared/project/selection-transform";
+import { createRoomEntrances } from "./room-entrances";
+import { visibleModelBounds, visibleRaycastHit } from "./visible-model-bounds";
+import { textSurfacePlacement } from "./text-placement";
+import {
+  snapRoomPlacement,
+  roomFitsGrid,
+  roomLayoutTransform,
+} from "../../shared/project/room-placement";
+import { fitDisplayedObject } from "./fit-displayed-object";
+import { roomAtPosition, type RoomFootprint } from "./room-at-position";
+import { createDisplayContent } from "./display-content";
+import { createExhibitAppearance } from "./exhibit-appearance";
+import { createPlacementPreview } from "./placement-preview";
 import { createActiveClock } from "./active-clock";
+import { HOTSPOT_SIZE, hotspotAnchor, hotspotWorldSize } from "./hotspot-anchor";
 import { moveAttachedObjects } from "../../shared/project/attached-transforms";
-import type { ContentScene } from "../../shared/project/project-content";
+import type {
+  ContentComponent,
+  ContentObject,
+  ContentScene,
+} from "../../shared/project/project-content";
 import { getStartingCamera } from "../../shared/project/starting-view";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
@@ -42,8 +65,6 @@ const MOBILE_GIZMO_HIT_RADIUS = 32;
 // Pointer travel under this many pixels still counts as a click while visiting
 const VISITOR_CLICK_TOLERANCE = 6;
 
-const HOTSPOT_SIZE = 0.6;
-
 // One lazy renderer-module owner per editor page, shared across viewport retries/remounts
 export const editorModelCache = new ModelCache();
 if (import.meta.hot) {
@@ -78,16 +99,39 @@ export interface InitSceneHandle {
     nextSelectedId: string | null,
     nextScene?: ProjectScene | null,
     loadGeneration?: number,
+    selectedIds?: readonly string[],
   ) => void;
-  getDropPosition: (clientX: number, clientY: number) => Vector3Tuple | undefined;
+  showTextPlacement: (
+    objectId: string,
+    component: Extract<ContentComponent, { type: "text" }>,
+    clientX: number,
+    clientY: number,
+  ) => Transform | undefined;
+  clearTextPlacement: () => void;
+  getDisplayPlacement: (ownerId: string, assetId: string) => Transform | undefined;
+  getRoomAtPosition: (position: Vector3Tuple) => string | null;
+  getDropPosition: (
+    clientX: number,
+    clientY: number,
+    outsideGrid?: boolean,
+  ) => Vector3Tuple | undefined;
   showDropPosition: (position: Vector3Tuple | undefined) => void;
+  showPlacementPreview: (
+    assetId: string | undefined,
+    position: Vector3Tuple | undefined,
+    ownerId?: string,
+  ) => boolean;
   pickObjectAt: (clientX: number, clientY: number) => string | undefined;
-  worldToLocal: (objectId: string, position: Vector3Tuple) => Vector3Tuple | undefined;
+  getHotspotAnchor: (objectId: string) => Vector3Tuple | undefined;
   setEditingEnabled: (enabled: boolean) => void;
   captureCamera: () => CameraPose;
   showCamera: (pose: CameraPose) => void;
   locateObject: (id: string) => void;
+  getObjectScreenBounds: (
+    id: string,
+  ) => { left: number; right: number; top: number; bottom: number } | null;
   setNavigationTool: (tool: NavigationTool) => void;
+  toggleDisplayMedia: (id: string) => void;
   mobileControls: FpsMobileControls;
   modeManager: ModeManager;
   dispose: () => void;
@@ -190,6 +234,7 @@ export function initScene(
 
   const controller = new AbortController();
   let disposed = false;
+  const appearanceRenderer = createExhibitAppearance();
   const models = new Map<string, THREE.Group>();
   const leases: ModelLease[] = [];
   const hotspotMaterials = new Set<THREE.SpriteMaterial>();
@@ -207,8 +252,26 @@ export function initScene(
   let environmentId: string | undefined;
   const environmentBounds = new THREE.Box3();
   const instances = new Map<string, THREE.Group>();
+  const roomEntrances = createRoomEntrances();
+  let selectedIds: readonly string[] = [];
+  function findObject(id: string | null) {
+    return id === projectScene?.id && projectScene.environmentAssetId === "test-room-v1"
+      ? environmentObject(projectScene as ContentScene)
+      : objects.find((object) => object.id === id);
+  }
+  function syncRoomEntrances() {
+    roomEntrances.sync([
+      ...(environmentId === "test-room-v1" && environment ? [environment] : []),
+      ...objects.flatMap((object) => {
+        const instance = instances.get(object.id);
+        return object.assetId === "test-room-module-v1" && instance ? [instance] : [];
+      }),
+    ]);
+  }
+  const displays = createDisplayContent(assets, render, models);
   const instanceAssets = new Map<string, string>();
   function instanceFor(objectId: string): THREE.Group | undefined {
+    if (objectId === projectScene?.id) return environment;
     const exact = instances.get(objectId);
     if (exact !== undefined) return exact;
     const key = objectId.toLowerCase();
@@ -320,7 +383,7 @@ export function initScene(
       gizmo.visible = false;
       return;
     }
-    const instance = selectedId === null ? undefined : instances.get(selectedId);
+    const instance = selectedId === null ? undefined : instanceFor(selectedId);
     gizmo.visible = instance !== undefined;
     if (instance === undefined) return;
     gizmo.position.copy(instance.position);
@@ -412,6 +475,10 @@ export function initScene(
       if (sprite.parent !== owner) owner.add(sprite);
       const [x, y, z] = hotspot.position;
       sprite.position.set(x, y + HOTSPOT_SIZE / 2, z);
+      // Billboards inherit position, but stay round under nonuniform owner scale.
+      const ownerScale = owner.getWorldScale(new THREE.Vector3());
+      const markerSize = hotspotWorldSize(owner);
+      sprite.scale.set(markerSize / Math.abs(ownerScale.x), markerSize / Math.abs(ownerScale.y), 1);
       sprite.visible = editorMode;
     }
     for (const [id, sprite] of hotspotSprites) {
@@ -428,6 +495,8 @@ export function initScene(
     const now = performance.now();
     interactionClock.setActive(now, !document.hidden && modeManager.getState().mode === "visitor");
     lastFrameTime = now;
+    if (document.hidden) displays.pause();
+    else displays.resumeEditing();
   };
   document.addEventListener("visibilitychange", visibilityChanged);
   const animate = (now: number) => {
@@ -497,19 +566,23 @@ export function initScene(
     nextSelectedId: string | null,
     nextScene: ProjectScene | null = projectScene,
     loadGeneration = appliedLoadGeneration ?? 0,
+    nextSelectedIds: readonly string[] = [],
   ) {
+    selectedIds = nextSelectedIds;
+    const nextTransform = (id: string) =>
+      id === nextScene?.id
+        ? (nextScene.environmentTransform ?? ROOM_TRANSFORM)
+        : nextObjects.find((object) => object.id === id)?.transform;
     if (
       drag !== undefined &&
-      (nextSelectedId !== drag.id ||
-        nextObjects.find((object) => object.id === drag?.id)?.transform !== drag.transform)
+      (nextSelectedId !== drag.id || nextTransform(drag.id) !== drag.transform)
     ) {
       cancelDrag();
     }
     if (
       touchGesture !== undefined &&
       (nextSelectedId !== touchGesture.id ||
-        nextObjects.find((object) => object.id === touchGesture?.id)?.transform !==
-          touchGesture.original)
+        nextTransform(touchGesture.id) !== touchGesture.original)
     ) {
       cancelTouchGesture();
     }
@@ -531,15 +604,10 @@ export function initScene(
     // A loaded camera resets the view once
     // Selection and placement keep the same camera-pose reference
     const startingCamera = projectScene ? getStartingCamera(projectScene) : null;
-    // Renaming a view can produce a fresh object with the same pose. Keep the live camera still.
+    // Saved starting-camera edits must not replace the live editing view.
     // Loading leaves Preview. Scene navigation keeps the same visitor controls and asset cache
     if (startingCamera !== null && loadChanged) modeManager.setMode("editor");
-    if (
-      startingCamera !== null &&
-      (sceneChanged ||
-        reloadCamera ||
-        JSON.stringify(appliedCamera) !== JSON.stringify(startingCamera))
-    ) {
+    if (startingCamera !== null && (sceneChanged || reloadCamera)) {
       if (sceneChanged)
         interactionClock.reset(
           performance.now(),
@@ -558,11 +626,13 @@ export function initScene(
     if (sceneChanged || loadChanged) pendingPreviewReturn = undefined;
     appliedLoadGeneration = loadGeneration;
 
-    if (ready && environmentId !== (projectScene?.environmentAssetId ?? undefined)) {
+    const nextEnvironmentId =
+      projectScene?.environmentVisible === false ? undefined : projectScene?.environmentAssetId;
+    if (ready && environmentId !== nextEnvironmentId) {
       // Environment stays at its exported origin, outside the placed-object list
       // Removed instances borrow resources from this viewport's cache leases
       if (environment !== undefined) scene.remove(environment);
-      environmentId = projectScene?.environmentAssetId ?? undefined;
+      environmentId = nextEnvironmentId;
       environment =
         environmentId === undefined ? undefined : models.get(environmentId)?.clone(true);
       environmentBounds.makeEmpty();
@@ -571,13 +641,18 @@ export function initScene(
         environmentBounds.setFromObject(environment);
       }
     }
-    // Sample room floor sits at zero; lift the grid slightly so it stays readable
-    grid.position.y = projectScene === null ? -0.01 : 0.01;
+    if (environment && projectScene) {
+      applyTransform(environment, projectScene.environmentTransform ?? ROOM_TRANSFORM);
+      environmentBounds.copy(visibleModelBounds(environment));
+    }
+    // Keep grid lines above the floor without cutting across thin display bases.
+    grid.position.y = projectScene === null ? -0.01 : 0.0001;
     for (const [id, instance] of instances) {
       if (
         !objects.some((object) => object.id === id && object.assetId === instanceAssets.get(id))
       ) {
         // An imported project can reuse an ID with a different model
+        appearanceRenderer.release(instance);
         scene.remove(instance);
         instances.delete(id);
         instanceAssets.delete(id);
@@ -604,13 +679,27 @@ export function initScene(
         instance.scale.fromArray(object.transform.scale);
         // Bounds read the parent's world matrix, which must reflect this frame's transform.
         instance.updateMatrixWorld(true);
+        if (assets.find((asset) => asset.id === object.assetId)?.displayRole === "physical") {
+          const filled = objects.some(
+            (child) => (child as Partial<ContentObject>).parentId === object.id,
+          );
+          instance.traverse((node) => {
+            if (!(node instanceof THREE.Mesh)) return;
+            const materials = Array.isArray(node.material) ? node.material : [node.material];
+            if (node.userData.displayGlass === undefined)
+              node.userData.displayGlass = materials.every(
+                (material) => material.transparent && material.opacity < 0.9,
+              );
+            if (node.userData.displayGlass) node.visible = !filled;
+          });
+        }
+        appearanceRenderer.apply(instance, (object as Partial<ContentObject>).appearance);
         // Exclude attached markers so selection outlines match the model itself.
         const content = instance.children.find((child) => !(child instanceof THREE.Sprite));
-        bounds.set(
-          object.id,
-          new THREE.Box3().setFromObject(content === undefined ? instance : content),
-        );
+        bounds.set(object.id, visibleModelBounds(content === undefined ? instance : content));
       }
+      syncRoomEntrances();
+      displays.sync(objects, instances);
       syncHotspots();
     }
     const selectedBounds = getSelectionBounds();
@@ -622,13 +711,35 @@ export function initScene(
     render();
   }
 
-  function getSelectionBounds() {
+  function getSelectionBounds(): THREE.Box3 | undefined {
+    if (selectedIds.length > 1) {
+      const combined = new THREE.Box3();
+      for (const id of selectedIds) {
+        const box = id === projectScene?.id ? environmentBounds : getObjectBounds(id);
+        if (box) combined.union(box);
+      }
+      if (!combined.isEmpty()) return combined;
+    }
     // Use the same outline for the room and exhibits
     // Room bounds stay separate from the movable object instances
     if (selectedId === projectScene?.id && !environmentBounds.isEmpty()) {
       return environmentBounds;
     }
-    return selectedId === null ? undefined : bounds.get(selectedId);
+    return selectedId === null ? undefined : getObjectBounds(selectedId);
+  }
+
+  function getObjectBounds(id: string) {
+    const box = bounds.get(id);
+    const owner = objects.find((object) => object.id === id);
+    if (!box || assets.find((asset) => asset.id === owner?.assetId)?.displayRole !== "physical")
+      return box;
+    const combined = box.clone();
+    for (const child of objects) {
+      if ((child as Partial<ContentObject>).parentId !== id) continue;
+      const childBox = bounds.get(child.id);
+      if (childBox) combined.union(childBox);
+    }
+    return combined;
   }
 
   // A locked mouse doesnt move on screen, so it aims with the crosshair in the middle
@@ -648,14 +759,20 @@ export function initScene(
     return new THREE.Ray(camera.position, point.unproject(camera).sub(camera.position).normalize());
   }
 
-  function getDropPosition(clientX: number, clientY: number): Vector3Tuple | undefined {
+  function getDropPosition(
+    clientX: number,
+    clientY: number,
+    outsideGrid = false,
+  ): Vector3Tuple | undefined {
     if (!ready || !editingEnabled || modeManager.getState().mode !== "editor") {
       return;
     }
     const point = screenRay(clientX, clientY).intersectPlane(ground, new THREE.Vector3());
     if (
       point === null ||
-      !point.toArray().every((value) => Number.isFinite(value) && Math.abs(value) <= 20)
+      !point
+        .toArray()
+        .every((value) => Number.isFinite(value) && Math.abs(value) <= (outsideGrid ? 10_000 : 20))
     ) {
       return;
     }
@@ -670,29 +787,63 @@ export function initScene(
     render();
   }
 
-  function applyPreviewTransform(id: string, transform: Transform) {
-    const instance = instances.get(id);
+  function applyPreviewTransform(id: string, transform: Transform, final = false) {
+    const instance = instanceFor(id);
     if (instance === undefined) return;
     // Preview uses the same attachment delta as commit so cancel restores every child too
-    const moved = moveAttachedObjects(
-      objects,
-      (projectScene as ContentScene | null)?.groups ?? [],
-      id,
-      transform,
-    );
+    const sceneSelection =
+      projectScene &&
+      (id === projectScene.id ||
+        findObject(id)?.assetId === "test-room-module-v1" ||
+        selectedIds.length > 1)
+        ? moveSceneSelection(projectScene as ContentScene, selectedIds, id, transform, !final)
+        : null;
+    if (sceneSelection && !sceneSelection.ok) {
+      if (final) update(objects, selectedId, projectScene, appliedLoadGeneration ?? 0, selectedIds);
+      return;
+    }
+    const moved = sceneSelection?.ok
+      ? { ok: true as const, value: sceneSelection.value.objects }
+      : moveAttachedObjects(
+          objects,
+          (projectScene as ContentScene | null)?.groups ?? [],
+          id,
+          transform,
+        );
+    if (sceneSelection?.ok && environment) {
+      applyTransform(environment, sceneSelection.value.environmentTransform ?? ROOM_TRANSFORM);
+      environmentBounds.copy(visibleModelBounds(environment));
+    }
     if (!moved.ok) return;
     for (const object of moved.value) {
       const child = instances.get(object.id);
       if (child) {
         applyTransform(child, object.transform);
-        bounds.set(object.id, new THREE.Box3().setFromObject(child));
+        bounds.set(object.id, visibleModelBounds(child));
       }
     }
-    const box = new THREE.Box3().setFromObject(instance);
+    syncRoomEntrances();
+    syncHotspots();
+    const box = visibleModelBounds(instance);
     bounds.set(id, box);
-    selection.box.copy(box);
+    selection.box.copy(getSelectionBounds() ?? box);
     updateGizmo();
     render();
+  }
+
+  function commitTransform(id: string, transform: Transform) {
+    const authored = findObject(id);
+    // Room resizing is visual feedback only; release restores its original size and attached contents
+    if (
+      authored?.assetId === "test-room-module-v1" &&
+      transform.scale.some((value, axis) => value !== authored.transform.scale[axis])
+    ) {
+      applyPreviewTransform(id, authored.transform, true);
+      return;
+    }
+    // A snap back to the original position creates no store update, so restore the live mesh here too.
+    applyPreviewTransform(id, transform, true);
+    callbacks.onTransform(id, transform);
   }
 
   function previewTransform(id: string, transform: Transform, immediate = false) {
@@ -756,7 +907,7 @@ export function initScene(
     wheelEdit = undefined;
     clearTimeout(completed.timer);
     previewTransform(completed.id, completed.current, true);
-    callbacks.onTransform(completed.id, completed.current);
+    commitTransform(completed.id, completed.current);
   }
 
   function beginDrag(event: PointerEvent, next: NonNullable<typeof drag>) {
@@ -781,8 +932,8 @@ export function initScene(
 
   // First person: holding the click on an object picks it up, letting go puts it down
   function startCarry(event: PointerEvent, id: string | null) {
-    const object = objects.find((entry) => entry.id === id);
-    const instance = id === null ? undefined : instances.get(id);
+    const object = findObject(id);
+    const instance = id === null ? undefined : instanceFor(id);
     if (object === undefined || instance === undefined) return;
     const aim = aimPoint(event);
     const ray = screenRay(aim.x, aim.y);
@@ -809,7 +960,7 @@ export function initScene(
 
   // First person: holding right click on an object turns it, the camera stays still meanwhile
   function startTurn(event: PointerEvent, id: string | null) {
-    const object = objects.find((entry) => entry.id === id);
+    const object = findObject(id);
     if (object === undefined) return;
     const rotation = new THREE.Quaternion().fromArray(object.transform.rotation);
     beginDrag(event, {
@@ -841,8 +992,8 @@ export function initScene(
   }
 
   function startRotation(event: PointerEvent, handle: (typeof handles)[number] | undefined) {
-    const object = objects.find((entry) => entry.id === selectedId);
-    const instance = selectedId === null ? undefined : instances.get(selectedId);
+    const object = findObject(selectedId);
+    const instance = selectedId === null ? undefined : instanceFor(selectedId);
     if (object === undefined || instance === undefined) return;
     const ray = screenRay(event.clientX, event.clientY);
     const rotation = new THREE.Quaternion().fromArray(object.transform.rotation);
@@ -866,7 +1017,7 @@ export function initScene(
     }
     const raycaster = new THREE.Raycaster(ray.origin, ray.direction);
     raycaster.camera = camera;
-    if (raycaster.intersectObject(instance, true).length === 0) return;
+    if (!raycaster.intersectObject(instance, true).some(visibleRaycastHit)) return;
     const geometry = beginFreeRotation(rotation, event.clientX, event.clientY);
     beginDrag(event, { ...shared, currentMode: "freeRotate", geometry });
   }
@@ -878,11 +1029,12 @@ export function initScene(
     let nearest =
       environment === undefined
         ? Infinity
-        : (raycaster.intersectObject(environment, true)[0]?.distance ?? Infinity);
+        : (raycaster.intersectObject(environment, true).find(visibleRaycastHit)?.distance ??
+          Infinity);
     // A wall or floor hit selects the room; a closer exhibit can still win the pick
     let id: string | null = Number.isFinite(nearest) ? (projectScene?.id ?? null) : null;
     for (const [objectId, instance] of instances) {
-      const hit = raycaster.intersectObject(instance, true)[0];
+      const hit = raycaster.intersectObject(instance, true).find(visibleRaycastHit);
       if (hit !== undefined && hit.distance < nearest) {
         nearest = hit.distance;
         id = objectId;
@@ -898,7 +1050,7 @@ export function initScene(
     let nearest = Infinity;
     let id: string | undefined;
     for (const [objectId, instance] of instances) {
-      const hit = raycaster.intersectObject(instance, true)[0];
+      const hit = raycaster.intersectObject(instance, true).find(visibleRaycastHit);
       if (hit !== undefined && hit.distance < nearest) {
         nearest = hit.distance;
         id = objectId;
@@ -907,11 +1059,12 @@ export function initScene(
     return id;
   }
 
-  function worldToLocal(objectId: string, position: Vector3Tuple): Vector3Tuple | undefined {
-    const instance = instances.get(objectId);
+  function getHotspotAnchor(objectId: string): Vector3Tuple | undefined {
+    const instance = instanceFor(objectId);
     if (instance === undefined) return;
-    instance.updateWorldMatrix(true, false);
-    return instance.worldToLocal(new THREE.Vector3().fromArray(position)).toArray() as Vector3Tuple;
+    const object = objects.find((item) => item.id.toLowerCase() === objectId.toLowerCase());
+    const model = object === undefined ? undefined : models.get(object.assetId);
+    return model === undefined ? undefined : hotspotAnchor(model, instance, camera);
   }
 
   function pointerDown(event: PointerEvent) {
@@ -950,8 +1103,13 @@ export function initScene(
       return;
     }
     if (!firstContact || drag !== undefined || touchGesture !== undefined) return;
-    // Camera tools never pick or move objects
-    if (cameraToolActive()) return;
+    const handle = pickHandle(
+      event.clientX,
+      event.clientY,
+      event.pointerType === "touch" ? MOBILE_GIZMO_HIT_RADIUS : 10,
+    );
+    // Explicit handles take priority; dragging the rest of the view still uses the camera tool.
+    if (cameraToolActive() && handle === undefined) return;
     // First person: a plain click only grab the mouse, FpsControls does that
     if (fpsControls.wantsCapture(event)) return;
     if (wheelEdit !== undefined) {
@@ -973,23 +1131,18 @@ export function initScene(
     // so the gizmo only answers presses that miss the object
     if (event.pointerType === "touch" && fpsControls.isEngaged()) {
       const id = pick(event.clientX, event.clientY);
-      if (objects.some((object) => object.id === id)) {
+      if (findObject(id) !== undefined) {
         callbacks.onSelect(id);
         startCarry(event, id);
         return;
       }
     }
-    const handle = pickHandle(
-      event.clientX,
-      event.clientY,
-      event.pointerType === "touch" ? MOBILE_GIZMO_HIT_RADIUS : 10,
-    );
     if (event.button === 2) {
       startRotation(event, handle);
       return;
     }
     if (handle !== undefined && selectedId !== null) {
-      const object = objects.find((entry) => entry.id === selectedId);
+      const object = findObject(selectedId);
       if (object === undefined) return;
       const geometry = beginAxisDrag(
         screenRay(event.clientX, event.clientY),
@@ -1072,7 +1225,7 @@ export function initScene(
         const rotationIntent =
           Math.abs(rotationDelta) >= 0.16 && Math.abs(rotationDelta) * distance >= 18;
         if (scaleIntent || rotationIntent) {
-          const object = objects.find((entry) => entry.id === selectedId);
+          const object = findObject(selectedId);
           if (object !== undefined) {
             const activeDrag = drag;
             const base = activeDrag?.id === object.id ? activeDrag.current : object.transform;
@@ -1149,7 +1302,7 @@ export function initScene(
         orbit.enabled = orbitEnabledBeforeDrag;
         previewTransform(completed.id, completed.current, true);
         if (completed.current !== completed.original) {
-          callbacks.onTransform(completed.id, completed.current);
+          commitTransform(completed.id, completed.current);
         }
         return;
       }
@@ -1166,6 +1319,7 @@ export function initScene(
         click.target !== null &&
         pick(aim.x, aim.y) === click.target
       ) {
+        displays.toggle(click.target);
         callbacks.onObjectClick(click.target);
       }
       return;
@@ -1186,7 +1340,7 @@ export function initScene(
     }
     previewTransform(completed.id, completed.current, true);
     if (completed.current !== completed.transform) {
-      callbacks.onTransform(completed.id, completed.current);
+      commitTransform(completed.id, completed.current);
     }
   }
 
@@ -1214,14 +1368,14 @@ export function initScene(
     )
       return;
     if (modeManager.getState().mode !== "editor") return;
-    const object = objects.find((entry) => entry.id === selectedId);
-    const instance = instances.get(selectedId);
+    const object = findObject(selectedId);
+    const instance = instanceFor(selectedId);
     if (object === undefined || instance === undefined) return;
     const aim = aimPoint(event);
     const ray = screenRay(aim.x, aim.y);
     const raycaster = new THREE.Raycaster(ray.origin, ray.direction);
     raycaster.camera = camera;
-    if (raycaster.intersectObject(instance, true).length === 0) return;
+    if (!raycaster.intersectObject(instance, true).some(visibleRaycastHit)) return;
     event.preventDefault();
     event.stopPropagation();
     if (wheelEdit !== undefined && wheelEdit.id !== object.id) commitWheelEdit();
@@ -1291,6 +1445,7 @@ export function initScene(
       interactionClock.reset(performance.now(), mode === "visitor" && !document.hidden);
       previousMode = mode;
     }
+    displays.setPreview(mode === "visitor");
     visitorClick = undefined;
     // Esc or Alt let go of the mouse, which also puts back whatever was being carried or turned
     if (!captured && drag !== undefined && dragLocked) cancelDrag();
@@ -1314,6 +1469,7 @@ export function initScene(
   async function loadAssets() {
     try {
       for (const asset of assets) {
+        if (asset.kind !== "model" && asset.kind !== "environment") continue;
         if (asset.id === HOTSPOT_ASSET_ID) {
           const texture = await new THREE.TextureLoader().loadAsync(asset.url);
           if (disposed || controller.signal.aborted) {
@@ -1324,10 +1480,13 @@ export function initScene(
           const material = new THREE.SpriteMaterial({
             map: texture,
             transparent: true,
+            // Editor annotations stay readable even through the owner's geometry.
+            depthTest: false,
             depthWrite: false,
           });
           hotspotMaterials.add(material);
           const sprite = new THREE.Sprite(material);
+          sprite.renderOrder = 1000;
           sprite.scale.setScalar(HOTSPOT_SIZE);
           sprite.position.y = HOTSPOT_SIZE / 2;
           const model = new THREE.Group();
@@ -1368,7 +1527,7 @@ export function initScene(
         models.set(asset.id, model);
       }
       ready = true;
-      update(objects, selectedId);
+      update(objects, selectedId, projectScene, appliedLoadGeneration ?? 0, selectedIds);
       callbacks.onStatus("ready");
     } catch (error) {
       if (!disposed) {
@@ -1379,12 +1538,169 @@ export function initScene(
   }
   void loadAssets();
 
+  const placementPreview = createPlacementPreview(scene, models);
+  const textPreview = createDisplayContent(assets, render, models);
+  let textPreviewRoot: THREE.Group | undefined;
+  let hiddenText: THREE.Object3D | undefined;
+  function clearTextPlacement() {
+    textPreview.dispose();
+    if (textPreviewRoot) scene.remove(textPreviewRoot);
+    textPreviewRoot = undefined;
+    if (hiddenText) hiddenText.visible = true;
+    hiddenText = undefined;
+  }
+  function showTextPlacement(
+    objectId: string,
+    component: Extract<ContentComponent, { type: "text" }>,
+    clientX: number,
+    clientY: number,
+  ): Transform | undefined {
+    const object = objects.find((entry) => entry.id === objectId),
+      owner = instances.get(objectId);
+    if (!object || !owner || !owner.children[0]) {
+      clearTextPlacement();
+      return;
+    }
+    owner.updateMatrixWorld(true);
+    const ray = screenRay(clientX, clientY),
+      raycaster = new THREE.Raycaster(ray.origin, ray.direction);
+    const hit = raycaster
+      .intersectObject(owner.children[0], true)
+      .find((hit) => visibleRaycastHit(hit) && !!hit.face);
+    if (!hit?.face || !(hit.object instanceof THREE.Mesh)) {
+      if (textPreviewRoot) textPreviewRoot.visible = false;
+      return;
+    }
+    const inverse = owner.matrixWorld.clone().invert(),
+      localMatrix = inverse.clone().multiply(hit.object.matrixWorld);
+    const normal = hit.face.normal
+      .clone()
+      .applyMatrix3(new THREE.Matrix3().getNormalMatrix(localMatrix))
+      .normalize();
+    const meshBounds = new THREE.Box3()
+      .setFromBufferAttribute(hit.object.geometry.attributes.position as THREE.BufferAttribute)
+      .applyMatrix4(localMatrix);
+    const placement = textSurfacePlacement(
+      meshBounds,
+      hit.point.clone().applyMatrix4(inverse),
+      normal,
+    );
+    if (!textPreviewRoot) {
+      textPreviewRoot = new THREE.Group();
+      textPreviewRoot.name = "text-placement-preview";
+      scene.add(textPreviewRoot);
+      hiddenText = owner.getObjectByName("Display content");
+      if (hiddenText) hiddenText.visible = false;
+    }
+    textPreviewRoot.visible = true;
+    textPreviewRoot.position.copy(owner.position);
+    textPreviewRoot.quaternion.copy(owner.quaternion);
+    textPreviewRoot.scale.copy(owner.scale);
+    const previewObject: ContentObject = {
+      ...object,
+      parentId: (object as Partial<ContentObject>).parentId ?? null,
+      visible: (object as Partial<ContentObject>).visible ?? true,
+      components: [
+        { ...component, placement: { ...placement, position: [0, 0, 0], rotation: [0, 0, 0, 1] } },
+      ],
+    };
+    textPreview.sync([previewObject], new Map([[objectId, textPreviewRoot]]));
+    const label = textPreviewRoot.getObjectByName("Display content");
+    if (label) {
+      label.position.fromArray(placement.position);
+      label.quaternion.fromArray(placement.rotation);
+      label.translateZ(0.004);
+    }
+    return placement;
+  }
+
   return {
     update,
+    showTextPlacement,
+    clearTextPlacement,
     getDropPosition,
+    getDisplayPlacement(ownerId, assetId) {
+      const owner = objects.find((object) => object.id === ownerId);
+      const metadata = assets.find((asset) => asset.id === owner?.assetId);
+      const caseModel = owner && models.get(owner.assetId);
+      const model = models.get(assetId);
+      if (!owner || metadata?.displayRole !== "physical" || !caseModel || !model) return;
+      return fitDisplayedObject(
+        owner,
+        metadata.displayTop ?? 0,
+        new THREE.Box3().setFromObject(caseModel),
+        new THREE.Box3().setFromObject(model),
+      );
+    },
+    getRoomAtPosition(position) {
+      const rooms: RoomFootprint[] = [];
+      for (const object of objects) {
+        if (object.assetId !== "test-room-module-v1") continue;
+        const instance = instances.get(object.id);
+        const model = models.get(object.assetId);
+        if (instance && model) {
+          instance.updateWorldMatrix(true, false);
+          rooms.push({
+            id: object.id,
+            bounds: new THREE.Box3().setFromObject(model),
+            transform: instance.matrixWorld,
+          });
+        }
+      }
+      if (projectScene && !environmentBounds.isEmpty())
+        rooms.push({
+          id: projectScene.id,
+          bounds:
+            environment && models.get(projectScene.environmentAssetId)
+              ? new THREE.Box3().setFromObject(models.get(projectScene.environmentAssetId)!)
+              : environmentBounds,
+          ...(environment ? { transform: environment.matrixWorld } : {}),
+        });
+      return roomAtPosition(position, rooms);
+    },
     showDropPosition,
+    showPlacementPreview(id, position, ownerId) {
+      if (id === "test-room-v1" && projectScene?.environmentAssetId === id)
+        id = "test-room-module-v1";
+      const room = id === "test-room-v1" || id === "test-room-module-v1";
+      const rotation =
+        id === "test-room-module-v1"
+          ? roomLayoutTransform(objects, projectScene)?.rotation
+          : undefined;
+      const requestedFits = position !== undefined && (!room || roomFitsGrid(position, rotation));
+      if (id === "test-room-module-v1" && position && requestedFits)
+        position =
+          snapRoomPlacement(
+            position,
+            objects,
+            projectScene?.environmentVisible === false
+              ? undefined
+              : projectScene?.environmentAssetId,
+            roomLayoutTransform(objects, projectScene),
+          ) ?? undefined;
+      let scale = 1;
+      if (id === HOTSPOT_ASSET_ID && position !== undefined) {
+        const target = ownerId ?? selectedId;
+        const owner = target === null ? undefined : instanceFor(target);
+        const anchor = target === null ? undefined : getHotspotAnchor(target);
+        position = undefined;
+        if (owner && anchor) {
+          const world = owner.localToWorld(
+            new THREE.Vector3(anchor[0], anchor[1] + HOTSPOT_SIZE / 2, anchor[2]),
+          );
+          scale = hotspotWorldSize(owner) / HOTSPOT_SIZE;
+          world.y -= (HOTSPOT_SIZE / 2) * scale;
+          position = world.toArray() as Vector3Tuple;
+        }
+      }
+      const valid =
+        position !== undefined && (!room || (requestedFits && roomFitsGrid(position, rotation)));
+      placementPreview.show(id, position, scale, rotation, valid);
+      render();
+      return valid;
+    },
     pickObjectAt,
-    worldToLocal,
+    getHotspotAnchor,
     setEditingEnabled(enabled) {
       editingEnabled = enabled;
       if (!enabled) {
@@ -1401,6 +1717,28 @@ export function initScene(
       fovDegrees: camera.fov,
     }),
     showCamera,
+    getObjectScreenBounds(id) {
+      const box = getObjectBounds(id);
+      if (!box || box.isEmpty()) return null;
+      const rect = renderer.domElement.getBoundingClientRect();
+      let left = Infinity,
+        top = Infinity,
+        right = -Infinity,
+        bottom = -Infinity;
+      for (const x of [box.min.x, box.max.x])
+        for (const y of [box.min.y, box.max.y])
+          for (const z of [box.min.z, box.max.z]) {
+            const point = new THREE.Vector3(x, y, z).project(camera);
+            if (point.z < -1 || point.z > 1) return null;
+            const screenX = rect.left + ((point.x + 1) * rect.width) / 2;
+            const screenY = rect.top + ((1 - point.y) * rect.height) / 2;
+            left = Math.min(left, screenX);
+            right = Math.max(right, screenX);
+            top = Math.min(top, screenY);
+            bottom = Math.max(bottom, screenY);
+          }
+      return { left, right, top, bottom };
+    },
     locateObject(id) {
       if (modeManager.getState().mode !== "editor") return;
       const instance = instanceFor(id);
@@ -1428,6 +1766,7 @@ export function initScene(
       cancelWheelEdit();
       applyNavigationTool();
     },
+    toggleDisplayMedia: (id) => displays.toggle(id),
     mobileControls: fpsControls.mobileControls,
     modeManager,
     dispose() {
@@ -1440,7 +1779,12 @@ export function initScene(
       cancelDrag();
       cancelTouchGesture();
       cancelWheelEdit();
+      clearTextPlacement();
+      placementPreview.clear();
+      roomEntrances.dispose();
+      appearanceRenderer.dispose();
       disposed = true;
+      displays.dispose();
       controller.abort();
       observer.disconnect();
       fpsMeter.dispose();
@@ -1494,11 +1838,10 @@ function createFpsMeter(host: HTMLDivElement): FpsMeter & { dispose(): void } {
     right: "1.5rem",
     padding: "0.25rem 0.5rem",
     borderRadius: "0.375rem",
-    background: "rgba(41, 46, 41, 0.6)",
-    color: "#f5f7fa",
+    background: "var(--scene-hint-background)",
+    color: "var(--scene-hint-text)",
     font: "0.75rem/1.4 system-ui, sans-serif",
     zIndex: "2",
-    opacity: "0.8",
     pointerEvents: "none",
   } satisfies Partial<CSSStyleDeclaration>);
   // Anchor inside the scene so a taller header still leaves the save status clear

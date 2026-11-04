@@ -1,3 +1,4 @@
+import type { ExhibitAppearance } from "./project-appearance";
 import type {
   CameraPose,
   EntityId,
@@ -14,7 +15,16 @@ export type TextRun = Readonly<{ text: string; marks: readonly TextMark[] }>;
 // Components belong to placed objects; rules refer to their stable IDs rather than list positions
 export type ContentComponent =
   | Readonly<{ id: EntityId; type: "hotspot"; label: string }>
-  | Readonly<{ id: EntityId; type: "text"; runs: readonly TextRun[]; caption: string }>
+  | Readonly<{
+      id: EntityId;
+      type: "text";
+      runs: readonly TextRun[];
+      caption: string;
+      placement?: Transform;
+      background?: string;
+      color?: string;
+      fontSize?: number;
+    }>
   | Readonly<{ id: EntityId; type: "image"; assetId: string; caption: string; alt: string }>
   | Readonly<{
       id: EntityId;
@@ -75,6 +85,7 @@ export type ContentObject = ProjectObject &
     parentId: EntityId | null;
     visible: boolean;
     components: readonly ContentComponent[];
+    appearance?: ExhibitAppearance;
   }>;
 
 // Scale gives the full dimensions of a box centered at the transform position
@@ -89,6 +100,8 @@ export type ContentScene = Omit<ProjectScene, "objects"> &
     zones: readonly ProjectZone[];
     viewpoints: readonly ProjectViewpoint[];
     rules: readonly ProjectRule[];
+    audio?: readonly Extract<ContentComponent, { type: "audio" }>[];
+    environmentTransform?: Transform;
   }>;
 
 // The version tag lets readers select this contract without silently converting released v1 files

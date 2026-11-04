@@ -22,11 +22,26 @@ async function openLibrary(page) {
   }
 }
 
-// Clicking a card only picks it, Add is what places it
+// Add arms placement; the viewport click commits the chosen asset
 async function addAsset(page, name) {
+  // Rooms now use the dedicated placement tray rather than the object library
+  if (name === "Starter room") {
+    if (await page.locator(".asset-picker").count()) await page.keyboard.press("Escape");
+    const overview = page.getByRole("button", { name: "Third person", exact: true });
+    if ((await overview.getAttribute("aria-pressed")) !== "true") await overview.click();
+    await page.getByRole("button", { name: "Rooms", exact: true }).click();
+    await page
+      .getByRole("group", { name: "Rooms options", exact: true })
+      .getByRole("button", { name, exact: true })
+      .click();
+    await page.locator(".viewport-stage").click({ position: { x: 500, y: 300 } });
+    return;
+  }
+
   await openLibrary(page);
   await page.locator(".asset-picker").getByRole("button", { name, exact: true }).click();
   await page.getByRole("button", { name: "Add", exact: true }).click();
+  await page.locator(".viewport-stage").click({ position: { x: 500, y: 300 } });
 }
 
 try {
@@ -552,18 +567,14 @@ try {
   };
   const status = (text, target = editor) =>
     target.waitForFunction(
-      (expected) => document.querySelector(".save-state")?.textContent === expected,
+      (expected) => document.querySelector(".save-state .sr-only")?.textContent === expected,
       text,
     );
   const add = async () => {
     // New now follows first visit; choose the environment before adding the next test object
-    if (
-      await editor
-        .getByText("Add a room from the asset library to start.", { exact: true })
-        .isVisible()
-    )
-      await addAsset(editor, "test-room");
-    await addAsset(editor, "test-crate");
+    if (await editor.getByText("Add a room to start.", { exact: true }).isVisible())
+      await addAsset(editor, "Starter room");
+    await addAsset(editor, "Sample crate");
   };
   const writeFile = (name, text) =>
     editor.evaluate(
@@ -639,7 +650,7 @@ try {
     fixture,
     "Quiet recovery must not overwrite the JSON file",
   );
-  assert.equal(await editor.locator(".save-state").textContent(), "Not saved");
+  assert.equal(await editor.locator(".save-state .sr-only").textContent(), "Not saved");
   await editor.reload();
   await editor.getByText("Reopened your last project", { exact: true }).waitFor();
   await status("Not saved");
@@ -689,7 +700,7 @@ try {
   await menu("New");
   await choose("Save");
   await waitBackup(null);
-  await editor.getByText("Add a room from the asset library to start.", { exact: true }).waitFor();
+  await editor.getByText("Add a room to start.", { exact: true }).waitFor();
   assert.equal(await editor.locator("#project-save").isDisabled(), true);
   assert.equal((await readFile("a.json")).scenes[0].objects.length, 4, "Save completes before New");
   assert.equal(await editor.locator(".object-row").count(), 0);
@@ -717,7 +728,7 @@ try {
   const empty = await waitBackup(null);
   assert.equal(empty.document, null);
   await editor.reload();
-  await editor.getByText("Add a room from the asset library to start.", { exact: true }).waitFor();
+  await editor.getByText("Add a room to start.", { exact: true }).waitFor();
   assert.equal(await editor.locator(".object-row").count(), 0);
   assert.equal((await session()).document, null);
 
@@ -789,7 +800,7 @@ try {
   await second.getByText("Reopened your last project", { exact: true }).waitFor();
   await add();
   await waitBackup(3);
-  await addAsset(second, "test-crate");
+  await addAsset(second, "Sample crate");
   await second.getByRole("alert").filter({ hasText: "Recovery changed in another tab" }).waitFor();
   assert.equal(await second.locator(".object-row").count(), 3);
   await second.close();
@@ -860,7 +871,7 @@ try {
   await fallback.evaluate(() => {
     window.failRecovery = true;
   });
-  await addAsset(fallback, "test-crate");
+  await addAsset(fallback, "Sample crate");
   await fallback.getByRole("alert").filter({ hasText: "Recovery backup failed" }).waitFor();
   await fallback.evaluate(() => {
     window.failRecovery = false;
@@ -873,7 +884,7 @@ try {
   // The download can finish before the recovery write and its UI update
   await status("Not saved", fallback);
   await waitBackup(3, fallback);
-  await addAsset(fallback, "test-crate");
+  await addAsset(fallback, "Sample crate");
   await waitBackup(4, fallback);
   await fallback.reload();
   await fallback.getByText("Reopened your last project", { exact: true }).waitFor();

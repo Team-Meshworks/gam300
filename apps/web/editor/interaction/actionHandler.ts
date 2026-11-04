@@ -26,18 +26,33 @@ export type NavigationActions = Readonly<{
   goToViewpoint(viewpointId: string): void;
 }>;
 
-export function createActionRunner(navigation?: NavigationActions): ActionRunner {
+export function createActionRunner(
+  navigation?: NavigationActions,
+  resolveAudio?: (id: string) => { url: string; loop: boolean; volume: number } | undefined,
+): ActionRunner {
   let activeAudio: HTMLAudioElement | undefined;
+  let activeTrack: string | undefined;
 
   function stop(): void {
     activeAudio?.pause();
     activeAudio = undefined;
+    activeTrack = undefined;
   }
 
-  function playAudio(url: string): void {
+  function playAudio(url: string, loop = false, volume = 1, trackId?: string): void {
+    const key = trackId === undefined ? undefined : `${trackId.toLowerCase()}:${url}`;
+    // Repeated Play actions keep the same track running; a replaced reference starts its new bytes
+    if (key !== undefined && key === activeTrack && activeAudio) {
+      if (activeAudio.ended) activeAudio.currentTime = 0;
+      if (activeAudio.paused || activeAudio.ended) void activeAudio.play().catch(() => {});
+      return;
+    }
     stop();
     const audio = new Audio(url);
+    audio.loop = loop;
+    audio.volume = volume;
     activeAudio = audio;
+    activeTrack = key;
     void audio.play().catch(() => {
       if (activeAudio === audio) activeAudio = undefined;
     });
@@ -50,7 +65,11 @@ export function createActionRunner(navigation?: NavigationActions): ActionRunner
           if (action.url !== undefined) openInNewTab(action.url);
           return;
         case "play-audio":
-          if (action.url !== undefined) playAudio(action.url);
+          // Resolve from the current scene at playback time; replaced tracks keep their authored link
+          if (action.mediaId !== undefined) {
+            const source = resolveAudio?.(action.mediaId);
+            if (source) playAudio(source.url, source.loop, source.volume, action.mediaId);
+          } else if (action.url !== undefined) playAudio(action.url);
           return;
         case "navigate-scene":
           if (navigation?.goToScene(action.sceneId)) {
