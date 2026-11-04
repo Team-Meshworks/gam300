@@ -8,10 +8,25 @@ const browser = await launchBrowser({
 });
 const url = process.argv[2] ?? "http://127.0.0.1:5173/";
 async function add(page, name) {
+  // Rooms now use the dedicated placement tray rather than the object library
+  if (name === "test-room") {
+    if (await page.locator(".asset-picker").count()) await page.keyboard.press("Escape");
+    const overview = page.getByRole("button", { name: "Third person", exact: true });
+    if ((await overview.getAttribute("aria-pressed")) !== "true") await overview.click();
+    await page.getByRole("button", { name: "Rooms", exact: true }).click();
+    await page
+      .getByRole("group", { name: "Rooms options", exact: true })
+      .getByRole("button", { name, exact: true })
+      .click();
+    await page.locator(".viewport-stage").click({ position: { x: 500, y: 300 } });
+    return;
+  }
+
   if (!(await page.locator(".asset-picker").count()))
     await page.getByRole("button", { name: "Asset library", exact: true }).click();
   await page.locator(".asset-picker").getByRole("button", { name, exact: true }).click();
   await page.getByRole("button", { name: "Add", exact: true }).click();
+  await page.locator(".viewport-stage").click({ position: { x: 500, y: 300 } });
 }
 async function backup(page, expectedUrl, count) {
   const deadline = Date.now() + 12000;

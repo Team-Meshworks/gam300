@@ -72,14 +72,16 @@ try {
   );
   await forget(page);
 
-  await page.getByRole("button", { name: "Asset library", exact: true }).click();
+  // Rooms are placed from their own tray; object cards retain the library selection sound
+  await page.getByRole("button", { name: "Third person", exact: true }).click();
+  await page.getByRole("button", { name: "Rooms", exact: true }).click();
   await page
-    .locator(".asset-picker")
+    .getByRole("group", { name: "Rooms options", exact: true })
     .getByRole("button", { name: "test-room", exact: true })
     .click();
-  await played(page, ["asset-select.wav"], "Picking a card plays Asset Select");
-  await page.getByRole("button", { name: "Add", exact: true }).click();
-  await played(page, ["asset-place.wav"], "Adding the asset plays Asset Place");
+  await forget(page);
+  await page.locator(".viewport-stage").click({ position: { x: 500, y: 300 } });
+  await played(page, ["asset-place.wav"], "Placing a room plays Asset Place");
 
   await page.getByRole("button", { name: "Asset library", exact: true }).click();
   await page
@@ -87,6 +89,9 @@ try {
     .getByRole("button", { name: "test-crate", exact: true })
     .click();
   await page.getByRole("button", { name: "Add", exact: true }).click();
+  await played(page, ["asset-select.wav"], "Picking an object card plays Asset Select");
+  await page.locator(".viewport-stage").click({ position: { x: 500, y: 300 } });
+  await played(page, ["asset-place.wav"], "Placing an object plays Asset Place");
   await forget(page);
 
   await page.keyboard.press("Delete");
@@ -100,7 +105,9 @@ try {
     await page.getByRole("button", { name, exact: true }).click();
   };
   await menu("Save");
-  await page.waitForFunction(() => document.querySelector(".save-state")?.textContent === "Saved");
+  await page.waitForFunction(
+    () => document.querySelector(".save-state .sr-only")?.textContent === "Saved",
+  );
   await played(page, ["save.wav"], "A finished save plays Save");
   await page.evaluate(() => (window.cancelPicker = true));
   await menu("Save As");
@@ -120,6 +127,9 @@ try {
     .getByRole("button", { name: "test-crate", exact: true })
     .click();
   await page.getByRole("button", { name: "Add", exact: true }).click();
+  await played(page, ["asset-select.wav"], "Picking an object card plays Asset Select");
+  await page.locator(".viewport-stage").click({ position: { x: 500, y: 300 } });
+  await played(page, ["asset-place.wav"], "Placing an object plays Asset Place");
   await forget(page);
   await menu("New");
   await page.getByRole("dialog").waitFor();
