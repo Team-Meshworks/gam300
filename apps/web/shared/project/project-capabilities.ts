@@ -32,6 +32,7 @@ export function missingProjectCapabilities(
     const path = `project.scenes[${sceneIndex}]`;
     scene.objects.forEach((object, objectIndex) => {
       const objectPath = `${path}.objects[${objectIndex}]`;
+      if (object.appearance) need("appearance", `${objectPath}.appearance`);
       // Hidden objects need explicit support; visible objects match the baseline player behavior
       if (!object.visible) {
         need("visibility", `${objectPath}.visible`);
@@ -48,6 +49,13 @@ export function missingProjectCapabilities(
 
         // Inspect each text mark without interpreting the authored strings as markup
         if (component.type === "text") {
+          if (component.placement) need("text:placement", `${path}.placement`);
+          if (
+            component.background !== undefined ||
+            component.fontSize !== undefined ||
+            component.color !== undefined
+          )
+            need("text:style", path);
           component.runs.forEach((run, index) => {
             run.marks.forEach((mark, markIndex) =>
               need(`text:${mark}`, `${path}.runs[${index}].marks[${markIndex}]`),

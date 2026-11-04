@@ -2234,6 +2234,129 @@
         }
       ],
       "path": "project.scenes[0].interactions[0].do.extra"
+    },
+    {
+      "name": "v2 preserves exhibit appearance",
+      "base": "m2",
+      "valid": true,
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "appearance"],
+          "value": {
+            "color": "#bd2949",
+            "material": "wood"
+          }
+        }
+      ]
+    },
+    {
+      "name": "v2 appearance rejects unknown material",
+      "base": "m2",
+      "valid": false,
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "appearance"],
+          "value": {
+            "color": "#bd2949",
+            "material": "unknown"
+          }
+        }
+      ],
+      "path": "project.scenes[0].objects[0].appearance.material"
+    },
+    {
+      "name": "v2 appearance rejects unsafe colour",
+      "base": "m2",
+      "valid": false,
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "appearance"],
+          "value": {
+            "color": "url(x)",
+            "material": "plain"
+          }
+        }
+      ],
+      "path": "project.scenes[0].objects[0].appearance.color"
+    },
+    {
+      "name": "v2 preserves text placement and styling",
+      "base": "m2",
+      "valid": true,
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "components", 1, "placement"],
+          "value": {
+            "position": [0, 0.7, 0.31],
+            "rotation": [0, 0, 0, 1],
+            "scale": [0.5, 0.25, 1]
+          }
+        },
+        {
+          "path": ["scenes", 0, "objects", 0, "components", 1, "background"],
+          "value": "#bd2949"
+        },
+        {
+          "path": ["scenes", 0, "objects", 0, "components", 1, "fontSize"],
+          "value": 32
+        },
+        {
+          "path": ["scenes", 0, "objects", 0, "components", 1, "color"],
+          "value": "#cdbc43"
+        }
+      ]
+    },
+    {
+      "name": "v2 invalid text fontSize",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].objects[0].components[1].fontSize",
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "components", 1, "fontSize"],
+          "value": 0
+        }
+      ]
+    },
+    {
+      "name": "v2 invalid text background",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].objects[0].components[1].background",
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "components", 1, "background"],
+          "value": "url(script)"
+        }
+      ]
+    },
+    {
+      "name": "v2 invalid text placement",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].objects[0].components[1].placement.scale[0]",
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "components", 1, "placement"],
+          "value": {
+            "position": [0, 0.7, 0.31],
+            "rotation": [0, 0, 0, 1],
+            "scale": [0, 1, 1]
+          }
+        }
+      ]
+    },
+    {
+      "name": "v2 invalid text color",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].objects[0].components[1].color",
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "components", 1, "color"],
+          "value": "transparent"
+        }
+      ]
     }
   ],
   "rawCases": [

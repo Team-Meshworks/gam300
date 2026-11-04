@@ -50,6 +50,7 @@ public static class ProjectCapabilities
                 var itemPath = $"{path}.objects[{j}]";
 
                 // Visible objects match the baseline; hidden objects need explicit player support
+                if (item.Appearance is not null) { Need("appearance", $"{itemPath}.appearance"); }
                 if (!item.Visible)
                 {
                     Need("visibility", $"{itemPath}.visible");
@@ -83,6 +84,8 @@ public static class ProjectCapabilities
                     // Retain run and mark indexes so feedback can identify the exact unsupported span
                     if (item.Components[k] is TextComponent text)
                     {
+                        if (text.Placement is not null) { Need("text:placement", $"{componentPath}.placement"); }
+                        if (text.Background is not null || text.FontSize is not null || text.Color is not null) { Need("text:style", componentPath); }
                         for (var run = 0; run < text.Runs.Length; run++)
                         {
                             for (var mark = 0; mark < text.Runs[run].Marks.Length; mark++)
