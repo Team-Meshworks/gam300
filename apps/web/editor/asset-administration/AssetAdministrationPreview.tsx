@@ -29,6 +29,9 @@ const initial: AssetAdministrationData = {
     maxBytes: 20 * 1024 * 1024,
     categories: {
       environment: null,
+      image: null,
+      audio: null,
+      video: null,
       model: ["Objects", "Furniture", "Architecture", "Clothing", "Tools & Equipment"],
     },
     canSubmit: true,

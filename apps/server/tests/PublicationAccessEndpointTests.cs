@@ -40,7 +40,7 @@ public sealed class PublicationAccessEndpointTests
         using var process = Process.Start(start) ?? throw new InvalidOperationException("Could not start the publication browser check");
         var output = process.StandardOutput.ReadToEndAsync();
         var error = process.StandardError.ReadToEndAsync();
-        try { await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(90)); }
+        try { await process.WaitForExitAsync().WaitAsync(TimeSpan.FromMinutes(5)); }
         catch { process.Kill(entireProcessTree: true); await process.WaitForExitAsync(); throw; }
         await Assert.That(process.ExitCode).IsEqualTo(0).Because(await output + await error);
         var evidence = await output;

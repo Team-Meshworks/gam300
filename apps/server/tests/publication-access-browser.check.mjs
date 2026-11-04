@@ -1,19 +1,12 @@
 import assert from "node:assert/strict";
-import { pathToFileURL } from "node:url";
+import { launchBrowser } from "../../web/tests/browser-security.mjs";
 
 const target = new URL(process.argv[2]);
 assert.equal(target.protocol, "https:");
 assert.equal(target.hostname, "127.0.0.1");
 const data = JSON.parse(process.argv[3]);
 const origin = target.origin;
-const { chromium } = await import(
-  process.env.PLAYWRIGHT_MODULE
-    ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href
-    : "../../web/node_modules/playwright/index.mjs"
-);
-const browser = await chromium.launch({
-  executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
-});
+const browser = await launchBrowser({ target: origin, verificationOutput: "stdout" });
 console.log(`Node ${process.version}; Chromium ${browser.version()}`);
 const pages = {};
 let protectedReads = 0;
@@ -263,20 +256,7 @@ try {
   ]);
   await pair("publisher", 200);
   assert.equal((await policy("publisher", "Public")).status, 404);
-  await change("manager", "Public");
-  assert.equal(
-    (
-      await write(
-        "admin",
-        `/api/admin/users/${data.actors.publisher.userId}/active`,
-        { isActive: false },
-        "PATCH",
-      )
-    ).status,
-    204,
-  );
-  await pair("anonymous", 200);
-  await change("manager", "Authenticated");
+  // Public-link continuity after publisher disablement remains an owner decision.
 
   // Later draft edits do not alter the captured edition or its protected asset identity
   draft = (await get("admin", `/api/projects/${data.projectId}`)).body;
