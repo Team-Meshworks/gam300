@@ -437,6 +437,103 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
   }
 
   return {
+    // Route root and attached audio through the same immutable history command
+    addAudio(
+      assetId: string,
+      mode: "global" | "spatial",
+      objectId: string | null,
+      existingId?: string,
+    ) {
+      if (!project) return invalid("project", "Choose a room first");
+      if (projectAssets.get(assetId) !== "audio")
+        return invalid("assetId", "Choose an approved audio clip");
+      if (mode === "spatial" && !objects.some((object) => object.id === objectId))
+        return invalid("objectId", "Select an object for spatial audio");
+      // Replacements retain identity so existing hotspot links still resolve
+      if (existingId) {
+        const scene = toContentProject(project).scenes.find(
+          (entry) => entry.id === state.activeSceneId,
+        )!;
+        const entries =
+          mode === "global"
+            ? (scene.audio ?? [])
+            : (scene.objects.find((object) => object.id === objectId)?.components ?? []);
+        if (!entries.some((entry) => entry.id === existingId && entry.type === "audio"))
+          return invalid("audio", "This audio changed; close and reopen its library");
+      }
+      const audio = {
+        id: existingId ?? crypto.randomUUID(),
+        type: "audio" as const,
+        assetId,
+        caption: "",
+        mode,
+        loop: mode === "global",
+        volume: 1,
+      };
+      return editHierarchy("Add audio", (scene) =>
+        mode === "global"
+          ? {
+              ...scene,
+              audio: existingId
+                ? (scene.audio ?? []).map((item) =>
+                    item.id === existingId ? { ...item, assetId } : item,
+                  )
+                : [...(scene.audio ?? []), audio],
+            }
+          : {
+              ...scene,
+              objects: scene.objects.map((object) =>
+                object.id === objectId
+                  ? {
+                      ...object,
+                      components: existingId
+                        ? object.components.map((item) =>
+                            item.id === existingId && item.type === "audio"
+                              ? { ...item, assetId }
+                              : item,
+                          )
+                        : [...object.components, audio],
+                    }
+                  : object,
+              ),
+            },
+      );
+    },
+    // Reject stale selections before removing the track and its dependent playback rules
+    removeAudio(id: string) {
+      const scene =
+        project?.schemaVersion === 2
+          ? project.scenes.find((entry) => entry.id === state.activeSceneId)
+          : undefined;
+      if (
+        !scene ||
+        !(
+          scene.audio?.some((audio) => audio.id === id) ||
+          scene.objects.some((object) =>
+            object.components.some(
+              (component) => component.type === "audio" && component.id === id,
+            ),
+          )
+        )
+      )
+        return invalid("audio", "This audio no longer exists");
+      return editHierarchy("Remove audio", (scene) => ({
+        ...scene,
+        ...(scene.audio === undefined
+          ? {}
+          : { audio: scene.audio.filter((audio) => audio.id !== id) }),
+        // Removing a track also removes its playback links; Undo restores the complete relationship
+        interactions: scene.interactions.filter(
+          (rule) => rule.do.type !== "play-audio" || rule.do.mediaId !== id,
+        ),
+        objects: scene.objects.map((object) => ({
+          ...object,
+          components: object.components.filter(
+            (component) => component.type !== "audio" || component.id !== id,
+          ),
+        })),
+      }));
+    },
     removeDisplayMedia(objectId: string) {
       const object = objects.find((entry) => entry.id === objectId);
       if (!object || assets.find((asset) => asset.id === object.assetId)?.displayRole !== "digital")

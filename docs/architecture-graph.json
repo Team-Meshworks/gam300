@@ -269,8 +269,8 @@
     "editor/directory/directory.ts": "ec5cf37c67e953850b1115ba316cec367527baa0c4fbc3f5aca289a171ba477a",
     "editor/display-content.test.ts": "ab6c58c76485718556b5d4915f18f7216008f4d4b68b8b59cb99f3b24319e85f",
     "editor/display-position.ts": "0b17fa58f2032cf143efdeb0e1e424f712024222e389c41963bc5bfe4b04e625",
-    "editor/document-store.test.ts": "6763203075d31eadabfd094c57d42eb7057b63a9b555dad3c0a410248c22d300",
-    "editor/document-store.ts": "c1c87b7e94ac286d42a4300fbd686f020690d5685439c23ff61ad44c14238594",
+    "editor/document-store.test.ts": "36a515e33100a2c00fe4dfea414a186cba7b2947b00a3c348612c8c38e0678d7",
+    "editor/document-store.ts": "ee1db169756f798d79ebd888f658983e7b47cdec5a5d079713367b6c83e3b68b",
     "editor/edit-session.test.ts": "fd971338990e32158eb0355508fb39a7c3284db62421501024da029a82dc784a",
     "editor/entry/EntryBrand.tsx": "21be448d7b3232fe2fb0906ad4386e4a854c6a4369d75b851b1446e9af849b06",
     "editor/entry/LandingPage.tsx": "00176c689fdc4a8657c3ea48c912ad03ede1388d698888b01308462955d2b5af",
@@ -2169,6 +2169,24 @@
       "file": "editor/document-store.test.ts",
       "line": 1,
       "kind": "static",
+      "specifier": "../shared/project/project-serialization",
+      "target": "shared/project/project-serialization.ts",
+      "from": "checks",
+      "to": "project"
+    },
+    {
+      "file": "editor/document-store.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "../shared/project/project-deserialization",
+      "target": "shared/project/project-deserialization.ts",
+      "from": "checks",
+      "to": "project"
+    },
+    {
+      "file": "editor/document-store.test.ts",
+      "line": 3,
+      "kind": "static",
       "specifier": "vitest",
       "target": {
         "package": "vitest"
@@ -2177,7 +2195,7 @@
     },
     {
       "file": "editor/document-store.test.ts",
-      "line": 2,
+      "line": 4,
       "kind": "type",
       "specifier": "../shared/asset-runtime/catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -2186,7 +2204,7 @@
     },
     {
       "file": "editor/document-store.test.ts",
-      "line": 3,
+      "line": 5,
       "kind": "static",
       "specifier": "./document-store.ts",
       "target": "editor/document-store.ts",
