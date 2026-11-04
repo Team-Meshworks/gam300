@@ -52,7 +52,9 @@ internal static class ClassAssignmentReads
                               orderby mapping.StudentId
                               select new
                               {
-                                  mapping.AssignmentId, mapping.StudentId, mapping.ProjectId,
+                                  mapping.AssignmentId,
+                                  mapping.StudentId,
+                                  mapping.ProjectId,
                                   StudentName = string.IsNullOrEmpty(student.DisplayName)
                                       ? student.UserName ?? student.Id.ToString()
                                       : student.DisplayName + " (" + (student.UserName ?? student.Id.ToString()) + ")",
