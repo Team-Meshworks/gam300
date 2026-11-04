@@ -122,6 +122,7 @@ export function WorkspacePage() {
     >
       {!dashboard && (
         <nav className="sp-workspace-links" aria-label="Workspace screens">
+          <a href="/home">Home</a>
           {permitted.map((item) => (
             <a
               key={item.id}
