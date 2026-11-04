@@ -104,8 +104,10 @@ export function AssignmentCreationScreen({
           setMessage("Class assignment creation is unavailable for this account.");
           return;
         }
-        const choices = await assignmentChoices(controller.signal);
         const saved = loadPending(session.userId);
+        const choices = saved
+          ? { classes: [], projects: [] }
+          : await assignmentChoices(controller.signal);
         if (controller.signal.aborted) return;
         setSetup({ session, ...choices });
         setPending(saved);

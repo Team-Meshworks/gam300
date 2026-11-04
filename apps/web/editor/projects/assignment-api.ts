@@ -216,7 +216,11 @@ export async function submitAssignment(
         credentials: "same-origin",
         cache: "no-store",
         signal: AbortSignal.timeout(15000),
-        headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": csrf.requestToken },
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-TOKEN": csrf.requestToken,
+          "X-Spatia-Account": pending.actorId,
+        },
         body: JSON.stringify(pending.body),
       });
     } catch {
@@ -233,11 +237,13 @@ export async function submitAssignment(
         return { kind: "unknown" };
       }
     }
-    if (!previouslyUncertain && [400, 409, 422].includes(response.status))
+    if (!previouslyUncertain && [400, 409, 413, 422].includes(response.status))
       return {
         kind: "rejected",
         message:
-          "The assignment was not created. Check the source revision, class and students, then try again.",
+          response.status === 413
+            ? "The assignment is too large to send. Shorten the title, description or instructions and try again."
+            : "The assignment was not created. Check the source revision, class and students, then try again.",
       };
     return { kind: "unknown" };
   } catch {

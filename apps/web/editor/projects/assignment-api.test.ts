@@ -27,6 +27,19 @@ const csrf = () => json({ requestToken: "token" });
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("allows correction after an initial oversized request but preserves an uncertain replay", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (path: string) => {
+      if (path === "/api/auth/session") return session();
+      if (path === "/api/auth/csrf") return csrf();
+      return json({}, 413);
+    }),
+  );
+  expect(await submitAssignment(pending, false)).toMatchObject({ kind: "rejected" });
+  expect(await submitAssignment(pending, true)).toEqual({ kind: "unknown" });
+});
+
 it("retries an uncertain request with the same identity and complete body", async () => {
   const fetchMock = vi
     .fn()
@@ -55,7 +68,10 @@ it("retries an uncertain request with the same identity and complete body", asyn
   });
   expect(fetchMock.mock.calls[3]?.[1]?.body).toBe(fetchMock.mock.calls[7]?.[1]?.body);
   expect(JSON.parse(fetchMock.mock.calls[3]?.[1]?.body as string)).toEqual(pending.body);
-  expect(fetchMock.mock.calls[3]?.[1]?.headers).toMatchObject({ "X-CSRF-TOKEN": "token" });
+  expect(fetchMock.mock.calls[3]?.[1]?.headers).toMatchObject({
+    "X-CSRF-TOKEN": "token",
+    "X-Spatia-Account": "teacher",
+  });
 });
 
 it("keeps malformed success and later rejection uncertain", async () => {
