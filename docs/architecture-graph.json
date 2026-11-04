@@ -11233,6 +11233,63 @@
       },
       "from": "checks"
     },
+    {
+      "file": "tests/text-placement.check.mjs",
+      "line": 1,
+      "kind": "static",
+      "specifier": "node:assert/strict",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/text-placement.check.mjs",
+      "line": 2,
+      "kind": "static",
+      "specifier": "node:fs/promises",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/text-placement.check.mjs",
+      "line": 3,
+      "kind": "static",
+      "specifier": "playwright",
+      "target": {
+        "package": "playwright"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/text-placement.check.mjs",
+      "line": 4,
+      "kind": "static",
+      "specifier": "three",
+      "target": {
+        "package": "three"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/text-placement.check.mjs",
+      "line": 21,
+      "kind": "dynamic",
+      "specifier": "/@id/__x00__virtual:asset-catalogue",
+      "target": "shared/asset-runtime/catalogue.ts",
+      "from": "checks",
+      "to": "catalogue"
+    },
+    {
+      "file": "tests/text-placement.check.mjs",
+      "line": 22,
+      "kind": "dynamic",
+      "specifier": "/persistence/local-drafts.ts",
+      "target": "editor/persistence/local-drafts.ts",
+      "from": "checks",
+      "to": "persistence"
     },
     {
       "file": "tests/ui-foundation.check.mjs",
@@ -11407,12 +11464,12 @@
     },
     {
       "file": "tests/editor-integration.check.mjs",
-      "line": 173,
+      "line": 185,
       "expression": "threePath"
     },
     {
       "file": "tests/editor-integration.check.mjs",
-      "line": 477,
+      "line": 489,
       "expression": "threePath"
     },
     {
