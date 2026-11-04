@@ -1,3 +1,4 @@
+import { textColorOn } from "../../shared/project/project-appearance";
 import * as THREE from "three";
 import type { CatalogueAsset } from "../../shared/asset-runtime/catalogue";
 import type {
@@ -14,37 +15,50 @@ type Display = {
   group: THREE.Group;
   dispose: () => void;
   pause: () => void;
+  setPreview: (active: boolean) => void;
   toggle: () => void;
 };
 
-function textCanvas(text: string, width: number, height: number, runs?: readonly TextRun[]) {
+function textCanvas(
+  text: string,
+  width: number,
+  height: number,
+  runs?: readonly TextRun[],
+  fontSize = 32,
+  transparent = false,
+  ink = "#292522",
+  background = "#fffaf0",
+) {
   const canvas = document.createElement("canvas");
   canvas.width = 1024;
   canvas.height = Math.max(256, Math.min(2048, Math.round((height / width) * 1024)));
   const ctx = canvas.getContext("2d")!;
-  ctx.fillStyle = "#fffaf0";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = "#292522";
-  ctx.font = "32px sans-serif";
+  if (!transparent) {
+    ctx.fillStyle = background;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+  ctx.fillStyle = ink;
+  ctx.font = `${fontSize}px sans-serif`;
+  const lineHeight = Math.ceil(fontSize * 1.3);
   ctx.textBaseline = "top";
   if (runs) {
     let x = 44;
     let y = 44;
     outer: for (const run of runs) {
-      ctx.font = `${run.marks.includes("italic") ? "italic " : ""}${run.marks.includes("bold") ? "bold " : ""}32px sans-serif`;
+      ctx.font = `${run.marks.includes("italic") ? "italic " : ""}${run.marks.includes("bold") ? "bold " : ""}${fontSize}px sans-serif`;
       for (const char of run.text) {
         const advance = ctx.measureText(char).width;
         if (char === "\n" || x + advance > canvas.width - 44) {
           x = 44;
-          y += 42;
+          y += lineHeight;
         }
-        if (y > canvas.height - 70) {
+        if (y > canvas.height - fontSize - 16) {
           ctx.fillText("…", x, y);
           break outer;
         }
         if (char === "\n") continue;
         ctx.fillText(char, x, y);
-        if (run.marks.includes("underline")) ctx.fillRect(x, y + 34, advance, 2);
+        if (run.marks.includes("underline")) ctx.fillRect(x, y + fontSize + 2, advance, 2);
         x += advance;
       }
     }
@@ -62,7 +76,11 @@ function textCanvas(text: string, width: number, height: number, runs?: readonly
   return texture;
 }
 
-export function createDisplayContent(assets: readonly CatalogueAsset[], redraw: () => void) {
+export function createDisplayContent(
+  assets: readonly CatalogueAsset[],
+  redraw: () => void,
+  models: ReadonlyMap<string, THREE.Object3D> = new Map(),
+) {
   const registry = new Map(assets.map((asset) => [asset.id, asset]));
   const displays = new Map<string, Display>();
   let preview = false;
@@ -73,8 +91,49 @@ export function createDisplayContent(assets: readonly CatalogueAsset[], redraw: 
     content: DisplayContent,
     signature: string,
   ): Display | undefined {
-    if (!asset.displaySurface) return;
-    const surface = asset.displaySurface;
+    const physical = asset.displayRole === "physical";
+    let resolved = asset.displaySurface;
+    if (physical && content.type === "text") {
+      const model = models.get(asset.id);
+      if (!model) return;
+      const box = new THREE.Box3().setFromObject(model),
+        size = box.getSize(new THREE.Vector3());
+      const width = Math.max(0.2, size.x * 0.9);
+      resolved = {
+        position: [
+          (box.min.x + box.max.x) / 2,
+          box.min.y + (asset.displayTop ?? size.y) / 2,
+          box.max.z + 0.006,
+        ],
+        rotation: [0, 0, 0, 1],
+        width,
+        height: width * 0.6,
+      };
+    }
+    if (content.type === "text" && content.placement)
+      resolved = {
+        position: content.placement.position,
+        rotation: content.placement.rotation,
+        width: content.placement.scale[0],
+        height: content.placement.scale[1],
+      };
+    if (!resolved) return;
+    const surface = resolved;
+    const appearance = (owner.userData.captionAppearance ?? {}) as {
+      color?: string;
+      material?: string;
+    };
+    const background = content.type === "text" ? content.background : undefined;
+    const transparent = background === "transparent" || (physical && background === undefined);
+    const ink =
+      (content.type === "text" ? content.color : undefined) ??
+      textColorOn(
+        background && background !== "transparent"
+          ? background
+          : physical && appearance.material !== "glass"
+            ? (appearance.color ?? "#ffffff")
+            : "#ffffff",
+      );
     const group = new THREE.Group();
     group.name = "Display content";
     group.position.fromArray(surface.position);
@@ -97,6 +156,8 @@ export function createDisplayContent(assets: readonly CatalogueAsset[], redraw: 
         map: texture,
         side: THREE.DoubleSide,
         toneMapped: false,
+        transparent,
+        depthWrite: !transparent,
       });
       materials.push(material);
       const mesh = new THREE.Mesh(geometry, material);
@@ -104,9 +165,10 @@ export function createDisplayContent(assets: readonly CatalogueAsset[], redraw: 
       group.add(mesh);
       return mesh;
     }
-    const captionHeight = content.caption
-      ? Math.min(surface.height * 0.25, surface.width * 0.22)
-      : 0;
+    const captionHeight =
+      content.type === "text" && content.caption
+        ? Math.min(surface.height * 0.25, surface.width * 0.22)
+        : 0;
     const mediaHeight = surface.height - captionHeight;
     const main = plane(
       surface.width,
@@ -117,9 +179,13 @@ export function createDisplayContent(assets: readonly CatalogueAsset[], redraw: 
         surface.width,
         mediaHeight,
         content.type === "text" ? content.runs : undefined,
+        content.type === "text" ? (content.fontSize ?? (physical ? 28 : 24)) * 4 : 32,
+        transparent,
+        ink,
+        background && background !== "transparent" ? background : "#fffaf0",
       ),
     );
-    if (content.caption)
+    if (content.type === "text" && content.caption)
       plane(
         surface.width,
         captionHeight,
@@ -168,17 +234,19 @@ export function createDisplayContent(assets: readonly CatalogueAsset[], redraw: 
         video.crossOrigin = "anonymous";
         video.preload = "metadata";
         video.playsInline = true;
-        video.loop = content.loop;
+        video.loop = !preview || content.loop;
         video.volume = content.volume;
+        video.muted = !preview;
         video.onloadeddata = () => {
           if (disposed || !video) return;
           videoReady = true;
           const texture = new THREE.VideoTexture(video);
           texture.colorSpace = THREE.SRGBColorSpace;
           replace(texture, video.videoWidth, video.videoHeight);
+          if (!preview && !document.hidden) void video.play().catch(() => {});
         };
         video.onerror = failure;
-        // Never autoplay. A visitor explicitly clicks the display to play/pause it.
+        // Editing plays silently; visitor playback still requires a click.
         video.src = media.url;
         video.load();
         replace(textCanvas("Video · click in Preview to play", surface.width, mediaHeight));
@@ -189,6 +257,13 @@ export function createDisplayContent(assets: readonly CatalogueAsset[], redraw: 
       group,
       pause() {
         video?.pause();
+      },
+      setPreview(active) {
+        if (!video) return;
+        video.pause();
+        video.muted = !active;
+        video.loop = !active || (content.type === "video" && content.loop);
+        if (!active && videoReady && !document.hidden) void video.play().catch(() => {});
       },
       toggle() {
         if (!preview || document.hidden || !video || disposed) return;
@@ -233,17 +308,23 @@ export function createDisplayContent(assets: readonly CatalogueAsset[], redraw: 
         const asset = registry.get(object.assetId);
         const content = (object as ContentObject).components?.find(
           (entry): entry is DisplayContent =>
-            entry.type === "text" || entry.type === "image" || entry.type === "video",
+            asset?.displayRole === "digital"
+              ? entry.type === "text" || entry.type === "image" || entry.type === "video"
+              : entry.type === "text" && entry.runs.some((run) => run.text.trim()),
         );
         const owner = owners.get(object.id);
-        if (asset?.displayRole !== "digital" || !asset.displaySurface || !owner || !content)
-          continue;
+        if (!asset?.displayRole || !owner || !content) continue;
         retained.add(object.id);
-        const signature = JSON.stringify([object.assetId, content]);
+        const signature = JSON.stringify([
+          object.assetId,
+          content,
+          (object as ContentObject).appearance,
+        ]);
         const old = displays.get(object.id);
         if (old?.signature === signature && old.group.parent === owner) continue;
         old?.dispose();
         displays.delete(object.id);
+        owner.userData.captionAppearance = (object as ContentObject).appearance;
         const next = make(owner, asset, content, signature);
         if (next) displays.set(object.id, next);
       }
@@ -255,11 +336,15 @@ export function createDisplayContent(assets: readonly CatalogueAsset[], redraw: 
       }
     },
     setPreview(active: boolean) {
+      if (preview === active) return;
       preview = active;
-      if (!active) displays.forEach((display) => display.pause());
+      displays.forEach((display) => display.setPreview(active));
     },
     pause() {
       displays.forEach((display) => display.pause());
+    },
+    resumeEditing() {
+      if (!preview && !document.hidden) displays.forEach((display) => display.setPreview(false));
     },
     toggle(id: string) {
       displays.get(id)?.toggle();
