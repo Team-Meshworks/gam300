@@ -77,7 +77,7 @@ try {
   await page.getByRole("button", { name: "Rooms", exact: true }).click();
   await page
     .getByRole("group", { name: "Rooms options", exact: true })
-    .getByRole("button", { name: "test-room", exact: true })
+    .getByRole("button", { name: "Starter room", exact: true })
     .click();
   await forget(page);
   await page.locator(".viewport-stage").click({ position: { x: 500, y: 300 } });
@@ -86,7 +86,7 @@ try {
   await page.getByRole("button", { name: "Asset library", exact: true }).click();
   await page
     .locator(".asset-picker")
-    .getByRole("button", { name: "test-crate", exact: true })
+    .getByRole("button", { name: "Sample crate", exact: true })
     .click();
   await page.getByRole("button", { name: "Add", exact: true }).click();
   await played(page, ["asset-select.wav"], "Picking an object card plays Asset Select");
@@ -124,7 +124,7 @@ try {
   await page.getByRole("button", { name: "Asset library", exact: true }).click();
   await page
     .locator(".asset-picker")
-    .getByRole("button", { name: "test-crate", exact: true })
+    .getByRole("button", { name: "Sample crate", exact: true })
     .click();
   await page.getByRole("button", { name: "Add", exact: true }).click();
   await played(page, ["asset-select.wav"], "Picking an object card plays Asset Select");

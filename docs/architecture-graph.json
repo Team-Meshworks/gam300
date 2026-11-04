@@ -461,6 +461,7 @@
     "tests/account-directory-real-api.check.mjs": "d991e67e295d098ad4ff91e0bbce93b75d907ea095b0093f6687a273459e14b3",
     "tests/account-directory.check.mjs": "cc1753a40467d9ff76c838ff5cc4f80925cfa2eeb9113c56459f7b5ccdd4bbaa",
     "tests/admin-dashboard.check.mjs": "3832e37d333ac8151773f0cc5f919de27950bf60afac3fc2e034677157fee0bc",
+    "tests/audio-library.check.mjs": "83b5135e14f48681e5de6dd19648730914b188c2a9965bdee49c5dbf8bd18b47",
     "tests/browser-network.mjs": "502fa431b9df37478a112c58cdce855a62bd422c62d123854b98a1ff003cdd88",
     "tests/browser-network.test.mjs": "34fd4a44eab68ab895b61ef23620cf7e300b5767f30eedb780dcd5819a9e1025",
     "tests/browser-security.check.mjs": "4ebdb00d3dcffffe44861b82d254f58a1975862d191feb84061b6d78a69f09ae",
@@ -471,10 +472,10 @@
     "tests/case-outline.check.mjs": "0de189ea3752eb84d1e4ee4a5146c20b63907cb6511312627cd380ec1009ce19",
     "tests/class-assignment.check.mjs": "1a0475d08891bcf89a11b6441aa320707ccadcca388f01e0d6cf491a54b90ed4",
     "tests/content-editor.check.mjs": "500481d7abdc553224892fa38b0cdca6292b9050e4fd1b1b51220bdfd99576c4",
-    "tests/deployment.check.mjs": "e0f7a34202240069e92beb60a5480955a4d8c7186963d96cef02b44eca29d6a5",
+    "tests/deployment.check.mjs": "634d9b6cbc294875a2db77299db88d4fdfa8eab08e4c9bf3fef072440569225d",
     "tests/display-editor.check.mjs": "f5f56d1037cb3b44a0951e6b956601f49fa42cd16307455b3ffc3cbd4392ac11",
     "tests/display-tools.check.mjs": "57af89e688f30d6b884a72e1c5ee2468cd01b877800ecbbc52c658b357c6e8df",
-    "tests/editor-build.check.mjs": "c8459856ff2c2ba28c7f81a9accf488e5e6211eb0e432f58c70c7e01171d34c6",
+    "tests/editor-build.check.mjs": "33f3746db22c60b0500e912f8cb41cc58a9849e03f6e65efb7c1bc7f06ad3f1c",
     "tests/editor-integration.check.mjs": "58968598b530594f294b9d4dc819d95b0c159517fc8ab03656ab6bc18285be8c",
     "tests/editor-shell.check.mjs": "629169e0999e9374b157310f450ee0cfaf3291eb92949681381d04172b20cc70",
     "tests/entry.check.mjs": "e63ff3adfaca3fde6a5da9f134ea7fda317b83b84ea4c9b16e1d438710c5f777",
@@ -482,7 +483,7 @@
     "tests/hotspot-placement.check.mjs": "a190990e03afacd5da85c73e718952b2f2f73127a589f762a434a9fc81025f3c",
     "tests/hotspot-rendering.check.mjs": "c42c9400bdf09cb1f7a7c52441d0503935a0eabb131f4ab3c85b676da3f8f77d",
     "tests/interaction-navigation.check.mjs": "ef080b60235cf85d8741e48f87516fb7271f610679e649fe6f16e6d88176b353",
-    "tests/interaction-review.check.mjs": "4e17005e1e72168b5d4b7f88abc5bd4aa6c530a6daec8049d34a9c5f1c5ff342",
+    "tests/interaction-review.check.mjs": "f46dce13ba4b361b1a503507665de396644f7a7c8b56b5119a74b27475c771d8",
     "tests/local-drafts.check.mjs": "3c3fa4662f489e91b809c1a3fcd9e183df6a718e5503c2ad939a234134fc3e66",
     "tests/login-real-api.check.mjs": "fde802b13e8c954736d33d5101e0cf0596f667ddf8a625c85138e5d936273caf",
     "tests/new-project.check.mjs": "7001c7bb51345dfe92b3bfd819223bf6eec70d6cee82a4d8ddaae4326d36311f",
@@ -492,7 +493,7 @@
     "tests/server-autosave.check.mjs": "eaca99e446854e846dcbc25512264df684f857bd67d0c6c89afc07b38321fa1b",
     "tests/text-placement.check.mjs": "812c9e0c977310df205eb7bf9934ea2d55f42ea0685fd41f8901be988f09ced9",
     "tests/ui-foundation.check.mjs": "68aef400173d9b0beda8d7e70aac85e957b034a83fb60cfdd3b834785fcc7c20",
-    "tests/ui-sounds.check.mjs": "d78791841df1ce2af8ff47d1e0b2d5c2d4d8d46ef1b8b05ee13a791f1a72f6aa",
+    "tests/ui-sounds.check.mjs": "cd1c5f008c1e56b69fdd67037a7725e308a0737ebc5742ebb86503bcb6c6292e",
     "tests/verify-browser.mjs": "d976ca6aededfbe021dcfa16d2fed4384eba32e79df27149570f2bc7114178d2",
     "tests/workspace-routes.check.mjs": "2d584d5fdc28fc960f9dc8a311d9b153440c21d8c38aecdde4e090ae4bbbaf18",
     "vite.config.ts": "7ab395c5523eac22c76dd9237ace595f776ebd723ca6b846a1f7924e15a1b90c",
@@ -9971,6 +9972,53 @@
         "package": "vite"
       },
       "from": "checks"
+    },
+    {
+      "file": "tests/audio-library.check.mjs",
+      "line": 1,
+      "kind": "static",
+      "specifier": "node:assert/strict",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/audio-library.check.mjs",
+      "line": 2,
+      "kind": "static",
+      "specifier": "node:fs/promises",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/audio-library.check.mjs",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./browser-security.mjs",
+      "target": "tests/browser-security.mjs",
+      "from": "checks",
+      "to": "checks"
+    },
+    {
+      "file": "tests/audio-library.check.mjs",
+      "line": 33,
+      "kind": "dynamic",
+      "specifier": "/@id/__x00__virtual:asset-catalogue",
+      "target": "shared/asset-runtime/catalogue.ts",
+      "from": "checks",
+      "to": "catalogue"
+    },
+    {
+      "file": "tests/audio-library.check.mjs",
+      "line": 34,
+      "kind": "dynamic",
+      "specifier": "/persistence/local-drafts.ts",
+      "target": "editor/persistence/local-drafts.ts",
+      "from": "checks",
+      "to": "persistence"
     },
     {
       "file": "tests/browser-network.mjs",

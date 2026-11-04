@@ -51,7 +51,8 @@
     "test:browser-security": "node tests/browser-security.check.mjs",
     "browser:update": "playwright install --with-deps --force chrome",
     "test:text-placement": "node tests/text-placement.check.mjs",
-    "test:room-preview": "node tests/room-preview.check.mjs"
+    "test:room-preview": "node tests/room-preview.check.mjs",
+    "test:audio-library": "node tests/audio-library.check.mjs"
   },
   "dependencies": {
     "@fontsource/inter": "5.3.0",

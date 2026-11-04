@@ -9,7 +9,7 @@ const browser = await launchBrowser({
 const url = process.argv[2] ?? "http://127.0.0.1:5173/";
 async function add(page, name) {
   // Rooms now use the dedicated placement tray rather than the object library
-  if (name === "test-room") {
+  if (name === "Starter room") {
     if (await page.locator(".asset-picker").count()) await page.keyboard.press("Escape");
     const overview = page.getByRole("button", { name: "Third person", exact: true });
     if ((await overview.getAttribute("aria-pressed")) !== "true") await overview.click();
@@ -61,8 +61,8 @@ try {
     page.on("pageerror", (error) => errors.push(error.message));
     await page.goto(url);
     await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
-    await add(page, "test-room");
-    await add(page, "test-crate");
+    await add(page, "Starter room");
+    await add(page, "Sample crate");
     if (version === 2) {
       await page.locator(".environment-row").press("F2");
       await page.getByRole("textbox", { name: /^Rename / }).fill("Draft gallery");
@@ -237,7 +237,7 @@ try {
   const page = await context.newPage();
   await page.goto(url);
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
-  await add(page, "test-room");
+  await add(page, "Starter room");
   await page.getByRole("button", { name: "Interaction", exact: true }).click();
   await page.getByRole("button", { name: "+ Add Interaction", exact: true }).click();
   await page.getByLabel("Interaction 1 when", { exact: true }).selectOption("time-elapsed");
