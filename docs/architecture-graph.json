@@ -295,6 +295,8 @@
     "editor/graphics/placement-preview.ts": "9865bd8a31b79de8be8f2e27cc668a9488571898b63ddb28a71407988e6c1e4d",
     "editor/graphics/room-at-position.test.ts": "e28247e40b49694eafb7b09b753d1494846b721a2c74dc5ed2d28f03d11ddf6b",
     "editor/graphics/room-at-position.ts": "b6caea26202275a552a04a2cbe4064f7435936f658dc117484c438b636ea2972",
+    "editor/graphics/room-entrances.test.ts": "49b17ff5ba3b7de13e64f3bfeaa535800093fd70e3bcb1bdb10e91cda9f504cb",
+    "editor/graphics/room-entrances.ts": "cb9993b0f6aeb296680c9df1089e02c2455f6fc5f542c88ee571a58205ba4d35",
     "editor/graphics/rotation.test.ts": "58844092035329772ba8c941b1b93737d142d7c597f015900041721d0018bb69",
     "editor/graphics/rotation.ts": "d847162644716d2b36e8b3e4f1ad190360527a46351cb2969d411dbe76ea96d3",
     "editor/graphics/scaling.test.ts": "346b243798597de2a5b00384904bdf04f9f3826a8753bcde3282e5356b0ceb0a",
@@ -3169,6 +3171,55 @@
       "target": "shared/project/scene-object.ts",
       "from": "rendering",
       "to": "project"
+    },
+    {
+      "file": "editor/graphics/room-entrances.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/graphics/room-entrances.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "three",
+      "target": {
+        "package": "three"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/graphics/room-entrances.test.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./room-entrances",
+      "target": "editor/graphics/room-entrances.ts",
+      "from": "checks",
+      "to": "rendering"
+    },
+    {
+      "file": "editor/graphics/room-entrances.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "three",
+      "target": {
+        "package": "three"
+      },
+      "from": "rendering"
+    },
+    {
+      "file": "editor/graphics/room-entrances.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "three/examples/jsm/utils/BufferGeometryUtils.js",
+      "target": {
+        "package": "three"
+      },
+      "from": "rendering"
     },
     {
       "file": "editor/graphics/rotation.test.ts",
