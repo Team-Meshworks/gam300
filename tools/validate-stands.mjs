@@ -13,6 +13,7 @@ const expected = new Map([
   ["display-rectangle-stand-v1", "digital"],
   ["display-rectangle-panel-v1", "digital"],
   ["display-square-stand-v1", "digital"],
+  ["display-square-panel-v1", "digital"],
 ]);
 for (const [id, role] of expected) {
   const asset = manifest.assets.find((entry) => entry.assetId === id);
@@ -41,4 +42,4 @@ for (const [id, role] of expected) {
 }
 const plugin = readFileSync(fileURLToPath(new URL("../apps/web/asset-catalogue-plugin.ts", import.meta.url)), "utf8");
 for (const id of expected.keys()) assert.ok(plugin.includes(`"${id}"`), `${id}: missing allowlist entry`);
-console.log("PASS: seven display assets preserve bytes, hashes, development scope and measured placement metadata");
+console.log("PASS: eight display assets preserve bytes, hashes, development scope and measured placement metadata");

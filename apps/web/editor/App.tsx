@@ -589,19 +589,8 @@ export function App({ server }: { server?: ServerEditorSession }) {
           }}
           onManager={onManager}
         >
-          {!visitor &&
-            selectedObject &&
-            assets.find((a) => a.id === selectedObject.assetId)?.displayRole && (
-              <Button
-                className="display-content-launcher"
-                disabled={switching || status !== "ready"}
-                onClick={() => setDisplayEditing(selectedObject.id)}
-              >
-                Edit display content
-              </Button>
-            )}
           {visitor && (
-            <div className="display-content-launcher">
+            <div className="display-media-controls">
               {objects
                 .filter((object) =>
                   (object as ContentObject).components?.some(
@@ -633,6 +622,15 @@ export function App({ server }: { server?: ServerEditorSession }) {
               onDragChange={setDragging}
               tool={navigationTool}
               onToolChange={setNavigationTool}
+              selectedDisplay={
+                selectedObject && assets.find((a) => a.id === selectedObject.assetId)?.displayRole
+                  ? {
+                      name: selectedObject.name,
+                      onEdit: () => setDisplayEditing(selectedObject.id),
+                      disabled: switching || status !== "ready",
+                    }
+                  : undefined
+              }
             />
           )}
         </Viewport>
@@ -662,6 +660,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
               assets={assets}
               project={project}
               store={store}
+              thumbnailFor={thumbnailFor}
               onClose={() => setDisplayEditing(null)}
             />
           ) : null;

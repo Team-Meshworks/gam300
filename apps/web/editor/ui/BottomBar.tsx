@@ -56,6 +56,7 @@ export function BottomBar({
   onDragChange,
   tool,
   onToolChange,
+  selectedDisplay,
 }: {
   assets: readonly CatalogueAsset[];
   hotspot: CatalogueAsset;
@@ -65,6 +66,7 @@ export function BottomBar({
   onDragChange: (dragging: boolean) => void;
   tool: NavigationTool;
   onToolChange: (tool: NavigationTool) => void;
+  selectedDisplay?: { name: string; onEdit: () => void; disabled: boolean } | undefined;
 }) {
   // Only one tool selected at a time. Library start closed now since its a big pop up
   const [selected, setSelected] = useState<SceneTool | null>(null);
@@ -225,6 +227,17 @@ export function BottomBar({
           dragOffset === null ? undefined : { translate: `${dragOffset.x}px ${dragOffset.y}px` }
         }
       >
+        {selectedDisplay && !libraryOpen && (
+          <button
+            type="button"
+            className="display-content-launcher"
+            disabled={selectedDisplay.disabled}
+            title={`Edit ${selectedDisplay.name}`}
+            onClick={selectedDisplay.onEdit}
+          >
+            Edit display content
+          </button>
+        )}
         <div className="tool-tip-anchor">
           {cameraTip.bubble}
           <div className="mode-bar" role="group" aria-label="Camera tools" inert={libraryOpen}>

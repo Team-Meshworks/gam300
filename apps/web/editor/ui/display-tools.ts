@@ -3,7 +3,6 @@ import type { IconName } from "./Icon";
 export type DisplayTool = { label: string; icon: IconName; assetId: string };
 
 // Keep each supplied model paired with its exported Figma toolbar SVG.
-// The reference's fourth portrait panel has no supplied GLB and is not offered.
 export const displayPanelTools = [
   {
     label: "Landscape media stand",
@@ -11,6 +10,7 @@ export const displayPanelTools = [
     assetId: "display-rectangle-stand-v1",
   },
   { label: "Square media stand", icon: "panelSmall", assetId: "display-square-stand-v1" },
+  { label: "Square media panel", icon: "panelPortrait", assetId: "display-square-panel-v1" },
   {
     label: "Landscape media panel",
     icon: "panelLandscape",

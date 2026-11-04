@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import horizontalStand from "./assets/horizontal-stand.svg?no-inline";
 import verticalStand from "./assets/vertical-stand.svg?no-inline";
 import horizontalPanel from "./assets/horizontal-panel.svg?no-inline";
+import verticalPanel from "./assets/vertical-panel.svg?no-inline";
 import cubeDisplayCase from "./assets/cube-display-case.svg?no-inline";
 import clearCubeDisplayCase from "./assets/clear-cube-display-case.svg?no-inline";
 import clearCuboidDisplayCase from "./assets/clear-cuboid-display-case.svg?no-inline";
@@ -245,10 +246,7 @@ const icons = {
   // Full Figma exports retain the design's native 40px slot, strokes and fills.
   panelStanding: { src: horizontalStand },
   panelSmall: { src: verticalStand },
-  panelPortrait: shaded(
-    "0 0 22 28",
-    "M21.5 2L21.5 26C21.5 26.8284 20.8284 27.5 20 27.5L2 27.5C1.17157 27.5 0.500001 26.8284 0.500001 26L0.500002 2C0.500002 1.17157 1.17157 0.499999 2 0.499999L20 0.5C20.8284 0.5 21.5 1.17157 21.5 2Z",
-  ),
+  panelPortrait: { src: verticalPanel },
   panelLandscape: { src: horizontalPanel },
   case: { src: cubeDisplayCase },
   caseClosed: { src: clearCubeDisplayCase },

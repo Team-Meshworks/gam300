@@ -10,6 +10,7 @@ They retain the source 40 × 40 viewport, internal padding, colour, fill opacity
 | ------------------------------- | ----------- | ------------------------- | --------------------------------- |
 | `horizontal-stand.svg`          | `152:60024` | Horizontal Stand          | `display-rectangle-stand-v1`      |
 | `vertical-stand.svg`            | `152:60025` | Vertical Stand            | `display-square-stand-v1`         |
+| `vertical-panel.svg`            | `152:60026` | Vertical Panel            | `display-square-panel-v1`         |
 | `horizontal-panel.svg`          | `152:60027` | Horizontal Panel          | `display-rectangle-panel-v1`      |
 | `cube-display-case.svg`         | `152:62226` | Cube Display Case         | `display-cube-v1`                 |
 | `clear-cube-display-case.svg`   | `152:62227` | Clear Cube Display Case   | `display-half-glass-case-v1`      |
@@ -17,5 +18,10 @@ They retain the source 40 × 40 viewport, internal padding, colour, fill opacity
 | `cuboid-display-case.svg`       | `152:62229` | Cubiod Display Case       | `display-one-sided-glass-case-v1` |
 
 The digital tray is node `152:60099` and the physical tray is node `152:62245`.
-The design's fourth digital option, Vertical Panel, has no supplied GLB and remains
-unavailable in the toolbar. Existing runtime labels and asset mappings are unchanged.
+The Vertical Panel SVG was exported on 4 November 2026. Its supplied GLB is square,
+so the runtime label is **Square media panel** while the exact design icon is preserved.
+
+The `editor-*.svg` assets are unchanged exports returned by Figma design context
+for text `152:62374`, image `152:62291`, video `152:62332`, and physical `160:64163`.
+They retain their intrinsic sizes. Reference thumbnail photographs are not included:
+the picker uses the real catalogue's model previews and explicitly empty media tabs.

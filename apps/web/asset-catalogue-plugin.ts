@@ -19,6 +19,7 @@ const allowedIds = new Set([
   "display-rectangle-stand-v1",
   "display-rectangle-panel-v1",
   "display-square-stand-v1",
+  "display-square-panel-v1",
 ]);
 type Entry = {
   assetId: string;

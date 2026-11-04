@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
-import type { KeyboardEvent } from "react";
+import type { KeyboardEvent, ReactNode } from "react";
 import { Icon } from "./Icon";
 
 type Option = { value: string; label: string; disabled?: boolean };
@@ -9,10 +9,12 @@ export function AssetFilterSelect({
   value,
   options,
   onChange,
+  icon,
 }: {
   value: string;
   options: readonly Option[];
   onChange: (value: string) => void;
+  icon?: ReactNode;
 }) {
   const id = useId();
   const trigger = useRef<HTMLButtonElement>(null);
@@ -113,7 +115,7 @@ export function AssetFilterSelect({
         onClick={() => (menu.current?.matches(":popover-open") ? close() : expand())}
       >
         {options.find((option) => option.value === value)?.label}
-        <Icon name="caretSolid" />
+        {icon ?? <Icon name="caretSolid" />}
       </button>
       <div
         ref={menu}

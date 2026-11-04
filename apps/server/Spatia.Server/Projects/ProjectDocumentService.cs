@@ -38,7 +38,7 @@ public sealed class ProjectDocumentService
             if (id is not ("test-room-v1" or "test-room-module-v1" or "test-crate-v1" or "sample-snowglobe-v1"
                 or "display-cube-v1" or "display-full-glass-case-v1" or "display-half-glass-case-v1"
                 or "display-one-sided-glass-case-v1" or "display-rectangle-stand-v1"
-                or "display-rectangle-panel-v1" or "display-square-stand-v1"))
+                or "display-rectangle-panel-v1" or "display-square-stand-v1" or "display-square-panel-v1"))
             {
                 continue;
             }
@@ -49,7 +49,7 @@ public sealed class ProjectDocumentService
                 throw new InvalidOperationException("Invalid packaged development asset catalogue.");
             }
         }
-        if (assets.Count != 11)
+        if (assets.Count != 12)
         {
             throw new InvalidOperationException("The packaged development asset catalogue is incomplete.");
         }

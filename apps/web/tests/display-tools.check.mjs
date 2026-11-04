@@ -12,7 +12,12 @@ const browser = await chromium.launch({
 const trays = [
   {
     name: "Display panels",
-    files: ["horizontal-stand.svg", "vertical-stand.svg", "horizontal-panel.svg"],
+    files: [
+      "horizontal-stand.svg",
+      "vertical-stand.svg",
+      "vertical-panel.svg",
+      "horizontal-panel.svg",
+    ],
   },
   {
     name: "Display cases",
@@ -108,10 +113,10 @@ try {
       );
     }
   }
-  assert.equal(placed, 7);
+  assert.equal(placed, 8);
   assert.deepEqual(errors, []);
   console.log(
-    "Display tool SVGs: seven source assets loaded at 40×40, both trays dismiss/reopen, keyboard placement and selected icons passed.",
+    "Display tool SVGs: eight source assets loaded at 40×40, both trays dismiss/reopen, keyboard placement and selected icons passed.",
   );
 } finally {
   await browser.close();

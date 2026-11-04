@@ -321,6 +321,42 @@
         "width": 0.61,
         "height": 0.61
       }
+    },
+    {
+      "assetId": "display-square-panel-v1",
+      "name": "Square media panel",
+      "kind": "model",
+      "mediaType": "model/gltf-binary",
+      "file": "delivery/stands-displays/display-square-panel-v1.glb",
+      "sourceFile": "source/stands-displays/display-square-panel-v1.glb",
+      "byteSize": 7292,
+      "sha256": "fdd9139e74ba98d5a1eee8652076353130ba51bbfafb7528c7e71c42c965f167",
+      "category": "Furniture",
+      "thumbnail": null,
+      "thumbnailMode": "generated",
+      "placement": "bottom-center",
+      "displayRole": "digital",
+      "access": "development-only",
+      "license": {
+        "status": "pending-team-confirmation",
+        "provenance": "User-supplied square display.glb, provided for Meshworks stands and displays on 2026-11-04. Original bytes preserved. Authorship and redistribution rights remain unconfirmed."
+      },
+      "reviewNotes": "Transformed mesh measures 1 x 1 x 0.1 metres after bottom-center normalization. Surface is inset 45 mm from edges and sits 4 mm ahead of the positive-Z face. Toolbar uses the exact supplied Figma Vertical Panel icon; the delivered model is square.",
+      "displaySurface": {
+        "position": [
+          0,
+          0.5,
+          0.054
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "width": 0.91,
+        "height": 0.91
+      }
     }
   ],
   "coordinateSystem": "glTF Y-up, metres",
