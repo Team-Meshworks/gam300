@@ -1,3 +1,5 @@
+import type { CatalogueAsset } from "../../shared/asset-runtime/catalogue";
+import { displayPanelTools, displayCaseTools } from "./display-tools";
 import { useId, useRef, useState, type DragEvent } from "react";
 import type { ContentObject, ProjectGroup } from "../../shared/project/project-content";
 import type { SceneObject } from "../../shared/project/scene-object";
@@ -12,6 +14,7 @@ export type HierarchyActions = {
 };
 
 export function SceneTreePanel({
+  assets = [],
   room,
   objects,
   groups,
@@ -23,6 +26,7 @@ export function SceneTreePanel({
   thumbnailFor,
   hierarchy,
 }: {
+  assets?: readonly CatalogueAsset[];
   room: Room | undefined;
   objects: readonly SceneObject[];
   groups: readonly ProjectGroup[];
@@ -156,6 +160,9 @@ export function SceneTreePanel({
     const descendants = children.get(parentId?.toLowerCase() ?? null) ?? [];
     return descendants.map((node) => {
       const isObject = "assetId" in node;
+      const displayTool = isObject
+        ? [...displayPanelTools, ...displayCaseTools].find((tool) => tool.assetId === node.assetId)
+        : undefined;
       const components = isObject ? ((node as ContentObject).components ?? []) : [];
       const hasChildren = (children.get(node.id.toLowerCase())?.length ?? 0) > 0;
       // Every group has a disclosure, including empty groups ready to receive objects
@@ -239,7 +246,11 @@ export function SceneTreePanel({
               onClick={() => onSelect(node.id)}
             >
               {isObject ? (
-                <img src={thumbnailFor(node.assetId)} alt="" draggable={false} />
+                displayTool ? (
+                  <Icon name={displayTool.icon} />
+                ) : (
+                  <img src={thumbnailFor(node.assetId)} alt="" draggable={false} />
+                )
               ) : (
                 <Icon name="tree" />
               )}
@@ -301,8 +312,26 @@ export function SceneTreePanel({
                     }}
                     onClick={() => onSelect(node.id)}
                   >
+                    <Icon
+                      name={
+                        component.type === "video"
+                          ? "video"
+                          : component.type === "image"
+                            ? "image"
+                            : component.type === "text"
+                              ? "text"
+                              : "info"
+                      }
+                    />
                     <span>
-                      {component.type}: {"label" in component ? component.label : component.caption}
+                      {component.type === "text"
+                        ? component.runs.map((run) => run.text).join("") || "Text"
+                        : "assetId" in component
+                          ? (assets.find((asset) => asset.id === component.assetId)?.name ??
+                            `${component.type[0]!.toUpperCase()}${component.type.slice(1)}`)
+                          : "label" in component
+                            ? component.label
+                            : "Content"}
                     </span>
                   </button>
                 </li>
@@ -324,7 +353,7 @@ export function SceneTreePanel({
         Scene Tree <span className="panel-count">{count}</span>
       </h2>
       {!room ? (
-        <p className="panel-empty">Add a room from the asset library to start.</p>
+        <p className="panel-empty">Add a room to start.</p>
       ) : (
         <>
           <ul role="list" className={`scene-tree${showAll ? " is-expanded" : ""}`}>
@@ -392,7 +421,7 @@ export function SceneTreePanel({
                 {nodes.length ? (
                   renderChildren(rootId)
                 ) : (
-                  <li className="panel-empty">No objects in this scene.</li>
+                  <li className="panel-empty scene-tree-empty">No objects in this scene.</li>
                 )}
               </ul>
             </li>
