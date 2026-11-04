@@ -8,6 +8,20 @@ const assetsRoot = fileURLToPath(new URL("../../assets", import.meta.url));
 const manifestPath = resolve(assetsRoot, "manifest.json");
 // Only these local development samples may enter the browser build
 const allowedIds = new Set([
+  "audio-ethereal-calm-v1",
+  "audio-mystic-harp-v1",
+  "audio-calm-piano-v1",
+  "audio-mysterious-piano-v1",
+  "audio-reflective-piano-v1",
+  "audio-classical-piano-v1",
+  "audio-octave-piano-loop-v1",
+  "audio-museum-hall-v1",
+  "audio-museum-hall-conversation-v1",
+  "audio-washroom-room-tone-v1",
+  "audio-wooden-cabin-at-night-v1",
+  "audio-outdoor-restaurant-v1",
+  "audio-quiet-crowd-v1",
+
   "sample-dunes-image-v1",
   "sample-forest-image-v1",
   "sample-sunset-image-v1",
@@ -35,7 +49,7 @@ const allowedIds = new Set([
 type Entry = {
   assetId: string;
   name: string;
-  kind: "environment" | "model" | "image" | "video";
+  kind: "environment" | "model" | "image" | "video" | "audio";
   file: string;
   sha256: string;
   thumbnail: string | null;
@@ -51,6 +65,7 @@ type Entry = {
   };
   access: string;
   category: string;
+  durationSeconds?: number;
 };
 
 function deliveryPath(value: unknown, extension: RegExp): string {
@@ -77,7 +92,7 @@ export function assetCataloguePlugin(): Plugin {
       seen.has(entry.assetId) ||
       typeof entry.name !== "string" ||
       !entry.name.trim() ||
-      !["environment", "model", "image", "video"].includes(entry.kind) ||
+      !["environment", "model", "image", "video", "audio"].includes(entry.kind) ||
       entry.access !== "development-only" ||
       typeof entry.category !== "string" ||
       !entry.category.trim() ||
@@ -85,6 +100,13 @@ export function assetCataloguePlugin(): Plugin {
       (entry.thumbnail === null && entry.thumbnailMode !== "generated")
     ) {
       throw new Error("Invalid or non-development catalogue entry: " + entry.assetId);
+    }
+    // Audio cards use checked duration metadata instead of loading every track for its length
+    if (
+      entry.kind === "audio" &&
+      (!Number.isFinite(entry.durationSeconds) || entry.durationSeconds! <= 0)
+    ) {
+      throw new Error("Invalid audio duration: " + entry.assetId);
     }
     if (entry.displayRole !== undefined) {
       if (entry.kind !== "model" || !["physical", "digital"].includes(entry.displayRole)) {
@@ -118,9 +140,11 @@ export function assetCataloguePlugin(): Plugin {
     const extension =
       entry.kind === "image"
         ? /\.(png|jpe?g|webp)$/i
-        : entry.kind === "video"
-          ? /\.(mp4|webm)$/i
-          : /\.glb$/i;
+        : entry.kind === "audio"
+          ? /\.m4a$/i
+          : entry.kind === "video"
+            ? /\.(mp4|webm)$/i
+            : /\.glb$/i;
     const model = deliveryPath(entry.file, extension);
     if (
       !/^[a-f0-9]{64}$/.test(entry.sha256) ||
@@ -131,7 +155,7 @@ export function assetCataloguePlugin(): Plugin {
     return {
       model,
       thumbnail:
-        entry.thumbnail === null ? null : deliveryPath(entry.thumbnail, /\.(png|jpe?g|webp)$/i),
+        entry.thumbnail === null ? null : deliveryPath(entry.thumbnail, /\.(png|jpe?g|webp|svg)$/i),
     };
   });
   if (seen.size !== allowedIds.size) {
@@ -197,6 +221,8 @@ export function assetCataloguePlugin(): Plugin {
             JSON.stringify(entry.name) +
             ",kind:" +
             JSON.stringify(entry.kind) +
+            ",durationSeconds:" +
+            JSON.stringify(entry.durationSeconds) +
             ",category:" +
             JSON.stringify(entry.category) +
             ",sha256:" +

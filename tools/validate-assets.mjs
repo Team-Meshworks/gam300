@@ -35,14 +35,24 @@ try {
       if (!asset || typeof asset.assetId !== "string" || !asset.assetId.trim()) throw new Error("missing assetId");
       if (ids.has(asset.assetId)) throw new Error("duplicate assetId");
       ids.add(asset.assetId);
-      if (!["environment", "model", "image", "video"].includes(asset.kind)) throw new Error("unsupported kind");
-      if (!["image", "video"].includes(asset.kind) && asset.mediaType !== "model/gltf-binary") throw new Error("expected model/gltf-binary");
+      if (!["environment", "model", "image", "video", "audio"].includes(asset.kind)) throw new Error("unsupported kind");
+      if (!["image", "video", "audio"].includes(asset.kind) && asset.mediaType !== "model/gltf-binary") throw new Error("expected model/gltf-binary");
       for (const key of ["name", "category"]) if (typeof asset[key] !== "string" || !asset[key].trim()) throw new Error(`missing ${key}`);
       if (asset.access !== "development-only") throw new Error("baseline assets must remain development-only");
       if (!asset.license || typeof asset.license.provenance !== "string" || !asset.license.provenance.trim()) throw new Error("missing provenance");
       if (asset.license.status !== "approved") warn(`${label}: distribution licence not confirmed`);
       const bytes = await assetFile(asset.file);
       if (bytes.toString("utf8", 0, 43).startsWith("version https://git-lfs.github.com/spec/v1")) throw new Error("Git LFS pointer found; run git lfs pull before building");
+      // Verify the delivered audio container and bytes before trusting its duration or preview
+      if (asset.kind === "audio") {
+        if (asset.mediaType !== "audio/mp4" || bytes.toString("ascii", 4, 8) !== "ftyp" || !asset.file.endsWith(".m4a")) throw new Error("Invalid audio header or mediaType");
+        if (asset.byteSize !== bytes.length || createHash("sha256").update(bytes).digest("hex") !== asset.sha256) throw new Error("Audio bytes or hash differ");
+        if (!Number.isFinite(asset.durationSeconds) || asset.durationSeconds <= 0) throw new Error("Invalid audio duration");
+        await assetFile(asset.thumbnail);
+        if (!deliveryOnly) await assetFile(asset.sourceFile);
+        console.log(`OK: ${label} (${bytes.length} bytes)`);
+        continue;
+      }
       if (["image", "video"].includes(asset.kind)) {
         if (!Number.isSafeInteger(asset.byteSize) || asset.byteSize !== bytes.length) throw new Error("byteSize differs from file");
         if (createHash("sha256").update(bytes).digest("hex") !== asset.sha256) throw new Error("SHA-256 differs");

@@ -537,6 +537,240 @@
         "spdx": "CC0-1.0",
         "provenance": "Procedural landscape illustration created for this project as a lightweight testing fixture. Silent three-second video derived from the matching image; no external footage."
       }
+    },
+    {
+      "assetId": "audio-ethereal-calm-v1",
+      "name": "Ethereal Calm",
+      "kind": "audio",
+      "mediaType": "audio/mp4",
+      "file": "delivery/audio/ethereal-calm.m4a",
+      "sourceFile": "delivery/audio/ethereal-calm.m4a",
+      "byteSize": 389389,
+      "sha256": "120b1162ae5ec42ab36e797d98e86d7bbc0a45ce72157c18ff664ac55904bffa",
+      "category": "BGM",
+      "thumbnail": "delivery/audio/thumbnails/ethereal-calm.svg",
+      "access": "development-only",
+      "durationSeconds": 24.0,
+      "license": {
+        "status": "pending-team-confirmation",
+        "provenance": "User supplied BGM/Musical, Loop, Ethereal, Beautiful, Calm, Creepy SND91105.wav. Original retained in project asset folder; browser delivery converted to 44.1 kHz AAC, 128 kbit/s. Original SHA-256: b7b35f888f58d9cff0fc8c41196af253063cab823d8a7de0eb07b002e8d3301d"
+      }
+    },
+    {
+      "assetId": "audio-mystic-harp-v1",
+      "name": "Mystic Harp",
+      "kind": "audio",
+      "mediaType": "audio/mp4",
+      "file": "delivery/audio/mystic-harp.m4a",
+      "sourceFile": "delivery/audio/mystic-harp.m4a",
+      "byteSize": 974770,
+      "sha256": "364c9dec2b0b5787611126b0c0884f997cf078aef37b298e887ee16612d9c225",
+      "category": "BGM",
+      "thumbnail": "delivery/audio/thumbnails/mystic-harp.svg",
+      "access": "development-only",
+      "durationSeconds": 60.0,
+      "license": {
+        "status": "pending-team-confirmation",
+        "provenance": "User supplied BGM/Musical, Loop, Harp, Mystic, Calm SND77330.wav. Original retained in project asset folder; browser delivery converted to 44.1 kHz AAC, 128 kbit/s. Original SHA-256: ca3a85964eca0ae95e3418793c00027625fa298600ef3c55fd7bc2d474cd045f"
+      }
+    },
+    {
+      "assetId": "audio-calm-piano-v1",
+      "name": "Calm Piano",
+      "kind": "audio",
+      "mediaType": "audio/mp4",
+      "file": "delivery/audio/calm-piano.m4a",
+      "sourceFile": "delivery/audio/calm-piano.m4a",
+      "byteSize": 199719,
+      "sha256": "4158474c19c5ace3c710f088a247b9a9a1ab98218781ff893b9ee52e6e75b1ad",
+      "category": "BGM",
+      "thumbnail": "delivery/audio/thumbnails/calm-piano.svg",
+      "access": "development-only",
+      "durationSeconds": 12.12,
+      "license": {
+        "status": "pending-team-confirmation",
+        "provenance": "User supplied BGM/Musical, Loop, Logo, Calm, Piano 01 SND112672.wav. Original retained in project asset folder; browser delivery converted to 44.1 kHz AAC, 128 kbit/s. Original SHA-256: 9d568fd62422a0c8807a100e8f8cf319020d329d0b925783718d3b2d564ceec7"
+      }
+    },
+    {
+      "assetId": "audio-mysterious-piano-v1",
+      "name": "Mysterious Piano",
+      "kind": "audio",
+      "mediaType": "audio/mp4",
+      "file": "delivery/audio/mysterious-piano.m4a",
+      "sourceFile": "delivery/audio/mysterious-piano.m4a",
+      "byteSize": 780586,
+      "sha256": "fc49caa7cbc68c0e00910296fdd2fe950f9f525d0edd0c54805cf86c4b10d4ba",
+      "category": "BGM",
+      "thumbnail": "delivery/audio/thumbnails/mysterious-piano.svg",
+      "access": "development-only",
+      "durationSeconds": 48.0,
+      "license": {
+        "status": "pending-team-confirmation",
+        "provenance": "User supplied BGM/Musical, Loop, Piano, Mysterious, Calm, Quiet SND91079.wav. Original retained in project asset folder; browser delivery converted to 44.1 kHz AAC, 128 kbit/s. Original SHA-256: 4be1ed5909c2d5156c24bc998cfaa9fe1040f9f93cc529b783f84471895e2368"
+      }
+    },
+    {
+      "assetId": "audio-reflective-piano-v1",
+      "name": "Reflective Piano",
+      "kind": "audio",
+      "mediaType": "audio/mp4",
+      "file": "delivery/audio/reflective-piano.m4a",
+      "sourceFile": "delivery/audio/reflective-piano.m4a",
+      "byteSize": 624515,
+      "sha256": "a6b6248f2711839afe2a7a4988282dcbfadba795d82456940e35f1d33581d135",
+      "category": "BGM",
+      "thumbnail": "delivery/audio/thumbnails/reflective-piano.svg",
+      "access": "development-only",
+      "durationSeconds": 38.4,
+      "license": {
+        "status": "pending-team-confirmation",
+        "provenance": "User supplied BGM/Musical, Loop, Piano, Sad, Calm 01 SND96659.wav. Original retained in project asset folder; browser delivery converted to 44.1 kHz AAC, 128 kbit/s. Original SHA-256: bdb65d13604e89985f988b22401b2e5e45dc4d793e3a1a54af4d370ba628fa30"
+      }
+    },
+    {
+      "assetId": "audio-classical-piano-v1",
+      "name": "Classical Piano",
+      "kind": "audio",
+      "mediaType": "audio/mp4",
+      "file": "delivery/audio/classical-piano.m4a",
+      "sourceFile": "delivery/audio/classical-piano.m4a",
+      "byteSize": 1297545,
+      "sha256": "f7596c6c67ca4ebf6b1307ee8b667c79499f182eda9e217fc8865245b0ee4d44",
+      "category": "BGM",
+      "thumbnail": "delivery/audio/thumbnails/classical-piano.svg",
+      "access": "development-only",
+      "durationSeconds": 80.0,
+      "license": {
+        "status": "pending-team-confirmation",
+        "provenance": "User supplied BGM/Musical, Sample, Classical, Piano, Happy, Beautiful, Calm SND94339.wav. Original retained in project asset folder; browser delivery converted to 44.1 kHz AAC, 128 kbit/s. Original SHA-256: d7897ab23887af8ffe5624ce4d51ab916efc2ddee7017f75bce5166cc759fcb1"
+      }
+    },
+    {
+      "assetId": "audio-octave-piano-loop-v1",
+      "name": "Octave Piano Loop",
+      "kind": "audio",
+      "mediaType": "audio/mp4",
+      "file": "delivery/audio/octave-piano-loop.m4a",
+      "sourceFile": "delivery/audio/octave-piano-loop.m4a",
+      "byteSize": 2112096,
+      "sha256": "464d3ecf78c11451938cf11797d8e1cddb17940dd8eb06b7759ac420892dd4a4",
+      "category": "BGM",
+      "thumbnail": "delivery/audio/thumbnails/octave-piano-loop.svg",
+      "access": "development-only",
+      "durationSeconds": 130.0,
+      "license": {
+        "status": "pending-team-confirmation",
+        "provenance": "User supplied BGM/Piano Loops 212 Octave Down Long Loop 120 Bpm by josefpres Id-871863.wav. Original retained in project asset folder; browser delivery converted to 44.1 kHz AAC, 128 kbit/s. Original SHA-256: 14ff6a8cfd08db78222cb3fc50d1c933fe69233c1bef2dcd22c4d0e46d601dcc"
+      }
+    },
+    {
+      "assetId": "audio-museum-hall-v1",
+      "name": "Museum Hall",
+      "kind": "audio",
+      "mediaType": "audio/mp4",
+      "file": "delivery/audio/museum-hall.m4a",
+      "sourceFile": "delivery/audio/museum-hall.m4a",
+      "byteSize": 3361536,
+      "sha256": "5d69c5952816466f636b0d32824d87792be316af7d284e273ff9d39677de4825",
+      "category": "Ambience",
+      "thumbnail": "delivery/audio/thumbnails/museum-hall.svg",
+      "access": "development-only",
+      "durationSeconds": 206.86,
+      "license": {
+        "status": "pending-team-confirmation",
+        "provenance": "User supplied SFX/Ambience, Public Place, Museum, Medium Hall, People Talk Quietly, Lima, Peru 01 SND167538.wav. Original retained in project asset folder; browser delivery converted to 44.1 kHz AAC, 128 kbit/s. Original SHA-256: dfd39cf96b08ab268e5763f88ed27f4349f1354761500b212c7e0a4e3c284a45"
+      }
+    },
+    {
+      "assetId": "audio-museum-hall-conversation-v1",
+      "name": "Museum Hall Conversation",
+      "kind": "audio",
+      "mediaType": "audio/mp4",
+      "file": "delivery/audio/museum-hall-conversation.m4a",
+      "sourceFile": "delivery/audio/museum-hall-conversation.m4a",
+      "byteSize": 2734667,
+      "sha256": "297d2fd3a1769a39397835e6b4b2d552c2dea9c37eedd0d8ed871f3a1f7a63b7",
+      "category": "Ambience",
+      "thumbnail": "delivery/audio/thumbnails/museum-hall-conversation.svg",
+      "access": "development-only",
+      "durationSeconds": 168.086,
+      "license": {
+        "status": "pending-team-confirmation",
+        "provenance": "User supplied SFX/Ambience, Public Place, Museum, Medium Hall, People Talk Quietly, Lima, Peru 02 SND167432.wav. Original retained in project asset folder; browser delivery converted to 44.1 kHz AAC, 128 kbit/s. Original SHA-256: e66a6277558ab355b59cffa0cbbc123f896525983e58418780253a7ae7e1aaba"
+      }
+    },
+    {
+      "assetId": "audio-washroom-room-tone-v1",
+      "name": "Washroom Room Tone",
+      "kind": "audio",
+      "mediaType": "audio/mp4",
+      "file": "delivery/audio/washroom-room-tone.m4a",
+      "sourceFile": "delivery/audio/washroom-room-tone.m4a",
+      "byteSize": 1319991,
+      "sha256": "2a6d326d9d3ff2d33b70b78ecfe9080410886dab9b2eac15ec2294571e9cb9d8",
+      "category": "Ambience",
+      "thumbnail": "delivery/audio/thumbnails/washroom-room-tone.svg",
+      "access": "development-only",
+      "durationSeconds": 81.34,
+      "license": {
+        "status": "pending-team-confirmation",
+        "provenance": "User supplied SFX/Ambience, Room Tone, Washroom (40) SND112384.wav. Original retained in project asset folder; browser delivery converted to 44.1 kHz AAC, 128 kbit/s. Original SHA-256: 91e15a9e0a1445520d9013aa5e3ec5a7e33eb1e8f572853339b405259e1e0717"
+      }
+    },
+    {
+      "assetId": "audio-wooden-cabin-at-night-v1",
+      "name": "Wooden Cabin at Night",
+      "kind": "audio",
+      "mediaType": "audio/mp4",
+      "file": "delivery/audio/wooden-cabin-at-night.m4a",
+      "sourceFile": "delivery/audio/wooden-cabin-at-night.m4a",
+      "byteSize": 2245075,
+      "sha256": "aea55bb07b7e5f54bcae7371dbcd40442496cc7693599ec6d1d0151df550d0ce",
+      "category": "Ambience",
+      "thumbnail": "delivery/audio/thumbnails/wooden-cabin-at-night.svg",
+      "access": "development-only",
+      "durationSeconds": 138.446,
+      "license": {
+        "status": "pending-team-confirmation",
+        "provenance": "User supplied SFX/Ambience, Room Tone, Wooden Cabin, Night, Very Quiet, Air SND138993.wav. Original retained in project asset folder; browser delivery converted to 44.1 kHz AAC, 128 kbit/s. Original SHA-256: f581841f6314aca4529631e87e8a8bcff49e0dfee63211cdcc8f55d39afd4b97"
+      }
+    },
+    {
+      "assetId": "audio-outdoor-restaurant-v1",
+      "name": "Outdoor Restaurant",
+      "kind": "audio",
+      "mediaType": "audio/mp4",
+      "file": "delivery/audio/outdoor-restaurant.m4a",
+      "sourceFile": "delivery/audio/outdoor-restaurant.m4a",
+      "byteSize": 3457865,
+      "sha256": "0602769f6f3c848ced4df8b67e7a63a307b5e282c10e4dc2a8f5ee7837c08bf6",
+      "category": "Ambience",
+      "thumbnail": "delivery/audio/thumbnails/outdoor-restaurant.svg",
+      "access": "development-only",
+      "durationSeconds": 212.546,
+      "license": {
+        "status": "pending-team-confirmation",
+        "provenance": "User supplied SFX/Crowds, Conversation, Small Mixed Crowd, Dominican Spanish, American, Norwegian, Outdoor Island Restaurant, Cabarete, Dominican Republic SND128719.wav. Original retained in project asset folder; browser delivery converted to 44.1 kHz AAC, 128 kbit/s. Original SHA-256: a850e8718c4b3b569fad78491240dd7773a0a70c620c61d37c5a71835c1ea224"
+      }
+    },
+    {
+      "assetId": "audio-quiet-crowd-v1",
+      "name": "Quiet Crowd",
+      "kind": "audio",
+      "mediaType": "audio/mp4",
+      "file": "delivery/audio/quiet-crowd.m4a",
+      "sourceFile": "delivery/audio/quiet-crowd.m4a",
+      "byteSize": 2442817,
+      "sha256": "34cefe0b6430cd7ef260d30410c55965c5d99ed112f6dc273b7a6e2abd063434",
+      "category": "Ambience",
+      "thumbnail": "delivery/audio/thumbnails/quiet-crowd.svg",
+      "access": "development-only",
+      "durationSeconds": 150.0,
+      "license": {
+        "status": "pending-team-confirmation",
+        "provenance": "User supplied SFX/Crowds, Quiet, Quiet Chatting Before Presentation, Central Europe SND124022.wav. Original retained in project asset folder; browser delivery converted to 44.1 kHz AAC, 128 kbit/s. Original SHA-256: bd3fd8ef0c9e41cf7900e5fb44b720cda87d12fd9927781b60929469a9f21a83"
+      }
     }
   ],
   "coordinateSystem": "glTF Y-up, metres",
