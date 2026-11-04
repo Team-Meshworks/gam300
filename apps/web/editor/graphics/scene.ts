@@ -14,7 +14,8 @@ import type {
   QuaternionTuple,
   Transform,
 } from "../../shared/project/project-types";
-import { FpsControls } from "../controls/fpsControls";
+import { FpsControls, type FpsMobileControls } from "../controls/fpsControls";
+export type { FpsMobileControls } from "../controls/fpsControls";
 import { ModeManager } from "./modeManager";
 import {
   axisRotation,
@@ -32,6 +33,12 @@ const WHEEL_COMMIT_DELAY_MS = 250;
 
 const ROTATION_SNAP = THREE.MathUtils.degToRad(15);
 
+// How far scrolling can push a carried object away, and how close it can pull it in
+const CARRY_REACH = 6;
+const CARRY_NEAR = 1;
+// Metres the aim must travel before a held click starts carrying, like a drag threshold
+const CARRY_DEAD_ZONE = 0.05;
+const MOBILE_GIZMO_HIT_RADIUS = 32;
 // Pointer travel under this many pixels still counts as a click while visiting
 const VISITOR_CLICK_TOLERANCE = 6;
 
@@ -81,6 +88,7 @@ export interface InitSceneHandle {
   showCamera: (pose: CameraPose) => void;
   locateObject: (id: string) => void;
   setNavigationTool: (tool: NavigationTool) => void;
+  mobileControls: FpsMobileControls;
   modeManager: ModeManager;
   dispose: () => void;
 }
@@ -127,11 +135,13 @@ export function initScene(
   orbit.enableDamping = true;
   orbit.target.set(0, 0, 0);
   let navigationTool: NavigationTool = "select";
-  // Select still orbit when you drag empty space
+  // Select still orbit when you drag empty space. First person has no camera tools
   function applyNavigationTool() {
     orbit.mouseButtons.LEFT = leftDrag[navigationTool];
-    renderer.domElement.style.cursor =
-      modeManager.getState().mode === "editor" ? cursors[navigationTool] : "";
+    renderer.domElement.style.cursor = modeManager.usesOrbit() ? cursors[navigationTool] : "";
+  }
+  function cameraToolActive() {
+    return modeManager.usesOrbit() && navigationTool !== "select";
   }
 
   const fpsControls = new FpsControls(camera, renderer.domElement);
@@ -220,15 +230,59 @@ export function initScene(
         | { currentMode: "move"; geometry: NonNullable<ReturnType<typeof beginAxisDrag>> }
         | { currentMode: "rotate"; geometry: AxisRotation }
         | { currentMode: "freeRotate"; geometry: FreeRotation }
+        | {
+            currentMode: "carry";
+            geometry: {
+              distance: number;
+              offset: THREE.Vector3;
+              moving: boolean;
+              // Touch carries under the finger, the mouse under the crosshair
+              finger: { x: number; y: number } | undefined;
+            };
+          }
       ))
     | undefined;
   let orbitEnabledBeforeDrag = true;
+  // Drags begun with the mouse locked stop when it is freed, the pointer would jump otherwise
+  let dragLocked = false;
   // Scroll that is shown but not yet saved.
   let wheelEdit:
     { id: string; transform: Transform; current: Transform; timer: number } | undefined;
+  let previewFrame: number | undefined;
+  let pendingPreview: { id: string; transform: Transform } | undefined;
+  const touchPoints = new Map<number, { x: number; y: number }>();
+  let touchPair:
+    | {
+        pointerIds: readonly number[];
+        startDistance: number;
+        startAngle: number;
+      }
+    | undefined;
+  let touchGesture:
+    | {
+        id: string;
+        pointerIds: readonly number[];
+        // The document's transform, a drag handed over to the gesture may have moved past it
+        original: Transform;
+        transform: Transform;
+        current: Transform;
+        mode: "scale" | "rotate";
+        startDistance: number;
+        startAngle: number;
+        rotationAxis: THREE.Vector3;
+      }
+    | undefined;
   // A press stays tied to the object under it; once it becomes a drag it can no longer click
+  // A locked mouse stays where capture began, so it counts relative movement instead
   let visitorClick:
-    | { pointerId: number; x: number; y: number; target: string | null; dragged: boolean }
+    | {
+        pointerId: number;
+        x: number;
+        y: number;
+        moved: { x: number; y: number };
+        target: string | null;
+        dragged: boolean;
+      }
     | undefined;
 
   function render() {
@@ -272,15 +326,18 @@ export function initScene(
     gizmo.position.copy(instance.position);
     camera.updateMatrixWorld(true);
     const pivot = instance.position;
-    const distance = camera.position.distanceTo(pivot);
+    const distance = THREE.MathUtils.clamp(camera.position.distanceTo(pivot), 0.25, 1000);
     const forward = camera.getWorldDirection(new THREE.Vector3());
     if (pivot.clone().sub(camera.position).dot(forward) <= camera.near) {
       gizmo.visible = false;
       return;
     }
-    const pixelScale =
+    const pixelScale = THREE.MathUtils.clamp(
       (2 * distance * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2))) /
-      Math.max(renderer.domElement.clientHeight, 1);
+        Math.max(renderer.domElement.clientHeight, 1),
+      0.0001,
+      100,
+    );
     const start = projectedPoint(pivot);
     for (const handle of handles) {
       const trial = projectedPoint(pivot.clone().addScaledVector(handle.axis, 80 * pixelScale));
@@ -296,10 +353,10 @@ export function initScene(
     }
   }
 
-  function pickHandle(clientX: number, clientY: number) {
+  function pickHandle(clientX: number, clientY: number, hitRadius = 10) {
     if (!gizmo.visible) return;
     const pivot = projectedPoint(gizmo.position);
-    let nearest = 10;
+    let nearest = hitRadius;
     let picked: (typeof handles)[number] | undefined;
     for (const handle of handles) {
       if (!handle.visible) continue;
@@ -321,6 +378,21 @@ export function initScene(
       }
     }
     return picked;
+  }
+
+  const gizmoCameraPosition = new THREE.Vector3();
+  const gizmoCameraQuaternion = new THREE.Quaternion();
+  // Orbit reports its own changes, walking and looking around dont
+  function refreshGizmoForWalking() {
+    if (modeManager.usesOrbit()) return;
+    if (
+      gizmoCameraPosition.equals(camera.position) &&
+      gizmoCameraQuaternion.equals(camera.quaternion)
+    )
+      return;
+    gizmoCameraPosition.copy(camera.position);
+    gizmoCameraQuaternion.copy(camera.quaternion);
+    updateGizmo();
   }
 
   function syncHotspots() {
@@ -367,6 +439,9 @@ export function initScene(
     const elapsed = interactionClock.tick(now);
     lastFrameTime = now;
     modeManager.update(delta);
+    // Walking moves a carried object too, not only the mouse
+    carry();
+    refreshGizmoForWalking();
     if (modeManager.getState().mode === "visitor") callbacks.onUpdate(elapsed);
     fpsMeter.tick(now);
     render();
@@ -398,7 +473,7 @@ export function initScene(
     orbit.dispose();
     orbit = new OrbitControls(camera, renderer.domElement);
     orbit.enableDamping = true;
-    orbit.enabled = editingEnabled;
+    orbit.enabled = editingEnabled && modeManager.usesOrbit();
     applyNavigationTool();
     // The constructor looks at its default target, so reinstall the authored pose afterward
     camera.position.fromArray(pose.position);
@@ -413,6 +488,7 @@ export function initScene(
     orbit.addEventListener("change", updateGizmo);
     camera.fov = pose.fovDegrees;
     camera.updateProjectionMatrix();
+    modeManager.resetView();
     camera.updateMatrixWorld(true);
   }
 
@@ -430,6 +506,14 @@ export function initScene(
       cancelDrag();
     }
     if (
+      touchGesture !== undefined &&
+      (nextSelectedId !== touchGesture.id ||
+        nextObjects.find((object) => object.id === touchGesture?.id)?.transform !==
+          touchGesture.original)
+    ) {
+      cancelTouchGesture();
+    }
+    if (
       wheelEdit !== undefined &&
       nextObjects.find((object) => object.id === wheelEdit?.id)?.transform !== wheelEdit.transform
     ) {
@@ -438,6 +522,9 @@ export function initScene(
     }
     const sceneChanged = projectScene?.id !== nextScene?.id;
     const loadChanged = appliedLoadGeneration !== loadGeneration;
+    // A load that arrives together with a new selection keeps the live camera
+    // An explicit load always restores the saved camera, even when it also clears the selection
+    const reloadCamera = loadChanged;
     objects = nextObjects;
     selectedId = nextSelectedId;
     projectScene = nextScene;
@@ -445,21 +532,20 @@ export function initScene(
     // Selection and placement keep the same camera-pose reference
     const startingCamera = projectScene ? getStartingCamera(projectScene) : null;
     // Renaming a view can produce a fresh object with the same pose. Keep the live camera still.
+    // Loading leaves Preview. Scene navigation keeps the same visitor controls and asset cache
+    if (startingCamera !== null && loadChanged) modeManager.setMode("editor");
     if (
       startingCamera !== null &&
       (sceneChanged ||
-        loadChanged ||
+        reloadCamera ||
         JSON.stringify(appliedCamera) !== JSON.stringify(startingCamera))
     ) {
-      // Scene navigation keeps the same visitor controls and asset cache alive.
-      if (loadChanged) modeManager.setMode("editor");
       if (sceneChanged)
         interactionClock.reset(
           performance.now(),
           modeManager.getState().mode === "visitor" && !document.hidden,
         );
       appliedCamera = startingCamera;
-      appliedLoadGeneration = loadGeneration;
       // ModeManager already restored the editing pose. Returning to the preview's
       // origin must not replace it with that scene's starting view.
       const returningFromPreview =
@@ -470,6 +556,7 @@ export function initScene(
     }
     // Consume only on a scene/load transition, not a redundant update before return.
     if (sceneChanged || loadChanged) pendingPreviewReturn = undefined;
+    appliedLoadGeneration = loadGeneration;
 
     if (ready && environmentId !== (projectScene?.environmentAssetId ?? undefined)) {
       // Environment stays at its exported origin, outside the placed-object list
@@ -544,6 +631,13 @@ export function initScene(
     return selectedId === null ? undefined : bounds.get(selectedId);
   }
 
+  // A locked mouse doesnt move on screen, so it aims with the crosshair in the middle
+  function aimPoint(event: MouseEvent) {
+    if (!fpsControls.isCaptured()) return { x: event.clientX, y: event.clientY };
+    const rect = renderer.domElement.getBoundingClientRect();
+    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+  }
+
   function screenRay(clientX: number, clientY: number) {
     const rect = renderer.domElement.getBoundingClientRect();
     const point = new THREE.Vector3(
@@ -576,7 +670,7 @@ export function initScene(
     render();
   }
 
-  function previewTransform(id: string, transform: Transform) {
+  function applyPreviewTransform(id: string, transform: Transform) {
     const instance = instances.get(id);
     if (instance === undefined) return;
     // Preview uses the same attachment delta as commit so cancel restores every child too
@@ -601,15 +695,51 @@ export function initScene(
     render();
   }
 
-  function cancelDrag() {
+  function previewTransform(id: string, transform: Transform, immediate = false) {
+    pendingPreview = { id, transform };
+    if (immediate) {
+      if (previewFrame !== undefined) cancelAnimationFrame(previewFrame);
+      previewFrame = undefined;
+      const next = pendingPreview;
+      pendingPreview = undefined;
+      applyPreviewTransform(next.id, next.transform);
+      return;
+    }
+    if (previewFrame !== undefined) return;
+    previewFrame = requestAnimationFrame(() => {
+      previewFrame = undefined;
+      const next = pendingPreview;
+      pendingPreview = undefined;
+      if (next !== undefined) applyPreviewTransform(next.id, next.transform);
+    });
+  }
+
+  // A drag handing over to a two-finger gesture keeps the capture. Releasing it would report
+  // that finger as lost, and that ends the gesture it is now part of
+  function cancelDrag(keepCapture = false) {
     if (drag === undefined) return;
     const previous = drag;
     drag = undefined;
     orbit.enabled = orbitEnabledBeforeDrag;
-    previewTransform(previous.id, previous.transform);
-    if (renderer.domElement.hasPointerCapture(previous.pointerId)) {
+    fpsControls.holdLook(false);
+    previewTransform(previous.id, previous.transform, true);
+    if (!keepCapture && renderer.domElement.hasPointerCapture(previous.pointerId)) {
       renderer.domElement.releasePointerCapture(previous.pointerId);
     }
+  }
+
+  // Two-finger transforms belong to authoring, not to Preview or the camera tools
+  function touchEditingAllowed() {
+    return modeManager.getState().mode === "editor" && !cameraToolActive();
+  }
+
+  function cancelTouchGesture() {
+    touchPair = undefined;
+    if (touchGesture === undefined) return;
+    const previous = touchGesture;
+    touchGesture = undefined;
+    orbit.enabled = orbitEnabledBeforeDrag;
+    previewTransform(previous.id, previous.original, true);
   }
 
   function cancelWheelEdit() {
@@ -625,6 +755,7 @@ export function initScene(
     const completed = wheelEdit;
     wheelEdit = undefined;
     clearTimeout(completed.timer);
+    previewTransform(completed.id, completed.current, true);
     callbacks.onTransform(completed.id, completed.current);
   }
 
@@ -633,8 +764,80 @@ export function initScene(
     orbitEnabledBeforeDrag = orbit.enabled;
     orbit.enabled = false;
     drag = next;
-    renderer.domElement.setPointerCapture(event.pointerId);
+    dragLocked = fpsControls.isCaptured();
+    // A locked mouse already sends every event to the canvas, and capturing it then throws
+    if (!dragLocked) renderer.domElement.setPointerCapture(event.pointerId);
     event.preventDefault();
+  }
+
+  // The point straight ahead of the crosshair, this far from the eye
+  function carryAim(distance: number, finger?: { x: number; y: number }) {
+    const direction =
+      finger === undefined
+        ? camera.getWorldDirection(new THREE.Vector3())
+        : screenRay(finger.x, finger.y).direction;
+    return camera.position.clone().addScaledVector(direction, distance);
+  }
+
+  // First person: holding the click on an object picks it up, letting go puts it down
+  function startCarry(event: PointerEvent, id: string | null) {
+    const object = objects.find((entry) => entry.id === id);
+    const instance = id === null ? undefined : instances.get(id);
+    if (object === undefined || instance === undefined) return;
+    const aim = aimPoint(event);
+    const ray = screenRay(aim.x, aim.y);
+    const hit = new THREE.Raycaster(ray.origin, ray.direction).intersectObject(instance, true)[0];
+    if (hit === undefined) return;
+    const finger = event.pointerType === "touch" ? aim : undefined;
+    beginDrag(event, {
+      id: object.id,
+      pointerId: event.pointerId,
+      transform: object.transform,
+      current: object.transform,
+      currentMode: "carry",
+      // Keep the grab point under the crosshair so the object doesnt jump on pick up
+      geometry: {
+        distance: hit.distance,
+        offset: new THREE.Vector3()
+          .fromArray(object.transform.position)
+          .sub(carryAim(hit.distance, finger)),
+        moving: false,
+        finger,
+      },
+    });
+  }
+
+  // First person: holding right click on an object turns it, the camera stays still meanwhile
+  function startTurn(event: PointerEvent, id: string | null) {
+    const object = objects.find((entry) => entry.id === id);
+    if (object === undefined) return;
+    const rotation = new THREE.Quaternion().fromArray(object.transform.rotation);
+    beginDrag(event, {
+      id: object.id,
+      pointerId: event.pointerId,
+      transform: object.transform,
+      current: object.transform,
+      currentMode: "freeRotate",
+      geometry: beginFreeRotation(rotation, 0, 0),
+    });
+    fpsControls.holdLook(true);
+  }
+
+  function carry() {
+    const held = drag;
+    if (held?.currentMode !== "carry") return;
+    const position = carryAim(held.geometry.distance, held.geometry.finger).add(
+      held.geometry.offset,
+    );
+    // Objects stand on the floor, so looking down lowers it only that far
+    position.y = Math.max(position.y, 0);
+    // Clicking while still gliding to a stop stay a plain select, not an undo step
+    const start = new THREE.Vector3().fromArray(held.transform.position);
+    if (!held.geometry.moving && position.distanceTo(start) < CARRY_DEAD_ZONE) return;
+    held.geometry.moving = true;
+    if (position.toArray().every((value, index) => value === held.current.position[index])) return;
+    held.current = { ...held.current, position: position.toArray() as Vector3Tuple };
+    previewTransform(held.id, held.current);
   }
 
   function startRotation(event: PointerEvent, handle: (typeof handles)[number] | undefined) {
@@ -712,30 +915,75 @@ export function initScene(
   }
 
   function pointerDown(event: PointerEvent) {
-    if (!ready || !event.isPrimary) return;
+    if (!ready) return;
+    if (event.pointerType === "touch") {
+      touchPoints.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    }
+    // A finger already on a joystick is the primary touch, so count the ones on the scene instead
+    const firstContact = event.pointerType === "touch" ? touchPoints.size === 1 : event.isPrimary;
     if (modeManager.getState().mode === "visitor") {
+      const aim = aimPoint(event);
       visitorClick =
-        event.button === 0
+        firstContact && event.button === 0
           ? {
               pointerId: event.pointerId,
               x: event.clientX,
               y: event.clientY,
-              target: pick(event.clientX, event.clientY),
+              moved: { x: 0, y: 0 },
+              target: pick(aim.x, aim.y),
               dragged: false,
             }
           : undefined;
       return;
     }
     if (!editingEnabled || (event.button !== 0 && event.button !== 2)) return;
-    if (drag !== undefined) return;
+    if (event.pointerType === "touch" && touchPoints.size === 2) {
+      if (!touchEditingAllowed()) return;
+      const points = [...touchPoints.values()];
+      const dx = points[1]!.x - points[0]!.x;
+      const dy = points[1]!.y - points[0]!.y;
+      touchPair = {
+        pointerIds: [...touchPoints.keys()],
+        startDistance: Math.max(Math.hypot(dx, dy), 1),
+        startAngle: Math.atan2(dy, dx),
+      };
+      return;
+    }
+    if (!firstContact || drag !== undefined || touchGesture !== undefined) return;
     // Camera tools never pick or move objects
-    if (navigationTool !== "select") return;
+    if (cameraToolActive()) return;
+    // First person: a plain click only grab the mouse, FpsControls does that
+    if (fpsControls.wantsCapture(event)) return;
     if (wheelEdit !== undefined) {
       commitWheelEdit();
       event.preventDefault();
       return;
     }
-    const handle = pickHandle(event.clientX, event.clientY);
+    // With the mouse locked, clicking picks what the crosshair is on.
+    // Holding the left button carries the object; holding right turns it.
+    if (fpsControls.isCaptured()) {
+      const aim = aimPoint(event);
+      const id = pick(aim.x, aim.y);
+      callbacks.onSelect(id);
+      if (event.button === 0) startCarry(event, id);
+      else startTurn(event, id);
+      return;
+    }
+    // Touch never locks the pointer. In first person a finger on an object moves it freely,
+    // so the gizmo only answers presses that miss the object
+    if (event.pointerType === "touch" && fpsControls.isEngaged()) {
+      const id = pick(event.clientX, event.clientY);
+      if (objects.some((object) => object.id === id)) {
+        callbacks.onSelect(id);
+        startCarry(event, id);
+        return;
+      }
+    }
+    const handle = pickHandle(
+      event.clientX,
+      event.clientY,
+      event.pointerType === "touch" ? MOBILE_GIZMO_HIT_RADIUS : 10,
+    );
     if (event.button === 2) {
       startRotation(event, handle);
       return;
@@ -766,21 +1014,121 @@ export function initScene(
   function pointerMove(event: PointerEvent) {
     if (modeManager.getState().mode === "visitor") {
       const click = visitorClick;
-      if (
-        click !== undefined &&
-        click.pointerId === event.pointerId &&
-        Math.hypot(event.clientX - click.x, event.clientY - click.y) > VISITOR_CLICK_TOLERANCE
-      ) {
-        click.dragged = true;
+      if (click === undefined || click.pointerId !== event.pointerId) return;
+      if (fpsControls.isCaptured()) {
+        click.moved.x += event.movementX;
+        click.moved.y += event.movementY;
+      } else {
+        click.moved = { x: event.clientX - click.x, y: event.clientY - click.y };
       }
+      if (Math.hypot(click.moved.x, click.moved.y) > VISITOR_CLICK_TOLERANCE) click.dragged = true;
       return;
     }
+    if (event.pointerType === "touch" && touchPoints.has(event.pointerId)) {
+      touchPoints.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (!touchEditingAllowed()) {
+        cancelTouchGesture();
+        return;
+      }
+      if (touchGesture !== undefined) {
+        const first = touchPoints.get(touchGesture.pointerIds[0]!);
+        const second = touchPoints.get(touchGesture.pointerIds[1]!);
+        if (first === undefined || second === undefined) return;
+        const dx = second.x - first.x;
+        const dy = second.y - first.y;
+        const distance = Math.max(Math.hypot(dx, dy), 1);
+        const angle = Math.atan2(dy, dx);
+        let rotationDelta = angle - touchGesture.startAngle;
+        rotationDelta -= Math.round(rotationDelta / (2 * Math.PI)) * 2 * Math.PI;
+        if (touchGesture.mode === "scale") {
+          touchGesture.current = {
+            ...touchGesture.current,
+            scale: scaleBy(touchGesture.transform.scale, distance / touchGesture.startDistance),
+          };
+        } else {
+          const rotation = new THREE.Quaternion()
+            .setFromAxisAngle(touchGesture.rotationAxis, rotationDelta)
+            .multiply(new THREE.Quaternion().fromArray(touchGesture.transform.rotation))
+            .normalize();
+          touchGesture.current = {
+            ...touchGesture.current,
+            rotation: rotation.toArray() as QuaternionTuple,
+          };
+        }
+        previewTransform(touchGesture.id, touchGesture.current);
+        return;
+      }
+      const pairFirst = touchPair && touchPoints.get(touchPair.pointerIds[0]!);
+      const pairSecond = touchPair && touchPoints.get(touchPair.pointerIds[1]!);
+      if (touchPair !== undefined && pairFirst !== undefined && pairSecond !== undefined) {
+        const dx = pairSecond.x - pairFirst.x;
+        const dy = pairSecond.y - pairFirst.y;
+        // Spread in any direction scales, the angle between the fingers rotates
+        const distance = Math.max(Math.hypot(dx, dy), 1);
+        const angle = Math.atan2(dy, dx);
+        let rotationDelta = angle - touchPair.startAngle;
+        rotationDelta -= Math.round(rotationDelta / (2 * Math.PI)) * 2 * Math.PI;
+        const scaleIntent = Math.abs(distance - touchPair.startDistance) >= 12;
+        const rotationIntent =
+          Math.abs(rotationDelta) >= 0.16 && Math.abs(rotationDelta) * distance >= 18;
+        if (scaleIntent || rotationIntent) {
+          const object = objects.find((entry) => entry.id === selectedId);
+          if (object !== undefined) {
+            const activeDrag = drag;
+            const base = activeDrag?.id === object.id ? activeDrag.current : object.transform;
+            if (activeDrag !== undefined) cancelDrag(true);
+            // The gesture owns both fingers now, the camera shouldnt pinch along with it
+            orbitEnabledBeforeDrag = orbit.enabled;
+            orbit.enabled = false;
+            const scaleStrength = Math.abs(distance - touchPair.startDistance) / 12;
+            const rotationStrength = (Math.abs(rotationDelta) * distance) / 18;
+            const diagonalStart = Math.abs(Math.sin(touchPair.startAngle * 2)) >= 0.5;
+            const scaleWins =
+              scaleIntent &&
+              !rotationIntent &&
+              (!diagonalStart || scaleStrength >= rotationStrength);
+            touchGesture = {
+              id: object.id,
+              pointerIds: touchPair.pointerIds,
+              original: object.transform,
+              transform: base,
+              current: base,
+              mode: scaleWins ? "scale" : "rotate",
+              startDistance: distance,
+              startAngle: angle,
+              rotationAxis: camera.getWorldDirection(new THREE.Vector3()).normalize(),
+            };
+            touchPair = undefined;
+            event.preventDefault();
+          }
+        }
+      }
+      if (touchGesture !== undefined) return;
+      if (touchPair !== undefined && event.pointerId !== drag?.pointerId) return;
+    }
     if (drag === undefined || event.pointerId !== drag.pointerId) return;
+    if (drag.currentMode === "carry") {
+      if (drag.geometry.finger !== undefined) {
+        drag.geometry.finger = { x: event.clientX, y: event.clientY };
+      }
+      carry();
+      return;
+    }
     const ray = screenRay(event.clientX, event.clientY);
     if (drag.currentMode === "move") {
       const position = axisDragPosition(drag.geometry, ray);
       if (position === undefined) return;
       drag.current = { ...drag.current, position: position.toArray() as Vector3Tuple };
+    } else if (drag.currentMode === "freeRotate" && dragLocked) {
+      // A locked mouse stays put on screen, so add up how far it moved instead
+      const { lastX, lastY } = drag.geometry;
+      const rotation = freeRotation(
+        drag.geometry,
+        lastX + event.movementX,
+        lastY + event.movementY,
+        camera.quaternion,
+      );
+      drag.current = { ...drag.current, rotation: rotation.toArray() as QuaternionTuple };
     } else {
       const rotation =
         drag.currentMode === "rotate"
@@ -793,40 +1141,73 @@ export function initScene(
   }
 
   function pointerUp(event: PointerEvent) {
+    if (event.pointerType === "touch") {
+      touchPoints.delete(event.pointerId);
+      if (touchGesture?.pointerIds.includes(event.pointerId)) {
+        const completed = touchGesture;
+        touchGesture = undefined;
+        orbit.enabled = orbitEnabledBeforeDrag;
+        previewTransform(completed.id, completed.current, true);
+        if (completed.current !== completed.original) {
+          callbacks.onTransform(completed.id, completed.current);
+        }
+        return;
+      }
+      if (touchPair?.pointerIds.includes(event.pointerId)) touchPair = undefined;
+    }
     if (modeManager.getState().mode === "visitor") {
       const click = visitorClick;
       visitorClick = undefined;
+      const aim = aimPoint(event);
       if (
         click !== undefined &&
         click.pointerId === event.pointerId &&
         !click.dragged &&
         click.target !== null &&
-        pick(event.clientX, event.clientY) === click.target
+        pick(aim.x, aim.y) === click.target
       ) {
         callbacks.onObjectClick(click.target);
       }
       return;
     }
     if (drag === undefined || event.pointerId !== drag.pointerId) return;
+    // Alt or Esc can free the mouse before the browser reports it, so check the lock itself
+    if (dragLocked && document.pointerLockElement !== renderer.domElement) {
+      cancelDrag();
+      return;
+    }
     pointerMove(event);
     const completed = drag;
     drag = undefined;
     orbit.enabled = orbitEnabledBeforeDrag;
+    fpsControls.holdLook(false);
     if (renderer.domElement.hasPointerCapture(event.pointerId)) {
       renderer.domElement.releasePointerCapture(event.pointerId);
     }
+    previewTransform(completed.id, completed.current, true);
     if (completed.current !== completed.transform) {
       callbacks.onTransform(completed.id, completed.current);
-    } else {
-      previewTransform(completed.id, completed.transform);
     }
   }
 
   function wheel(event: WheelEvent) {
+    if (drag?.currentMode === "carry" && event.deltaY !== 0) {
+      event.preventDefault();
+      event.stopPropagation();
+      // Scrolling while carrying pushes the object away or pulls it closer
+      const { distance } = drag.geometry;
+      drag.geometry.distance = THREE.MathUtils.clamp(
+        distance * wheelScaleFactor(event.deltaY, event.deltaMode),
+        Math.min(CARRY_NEAR, distance),
+        Math.max(CARRY_REACH, distance),
+      );
+      carry();
+      return;
+    }
     if (
       !ready ||
       !editingEnabled ||
-      navigationTool !== "select" ||
+      cameraToolActive() ||
       drag !== undefined ||
       selectedId === null ||
       event.deltaY === 0
@@ -836,7 +1217,8 @@ export function initScene(
     const object = objects.find((entry) => entry.id === selectedId);
     const instance = instances.get(selectedId);
     if (object === undefined || instance === undefined) return;
-    const ray = screenRay(event.clientX, event.clientY);
+    const aim = aimPoint(event);
+    const ray = screenRay(aim.x, aim.y);
     const raycaster = new THREE.Raycaster(ray.origin, ray.direction);
     raycaster.camera = camera;
     if (raycaster.intersectObject(instance, true).length === 0) return;
@@ -854,17 +1236,29 @@ export function initScene(
     edit.current = { ...edit.current, scale: scaleBy(edit.current.scale, factor) };
     edit.timer = window.setTimeout(commitWheelEdit, WHEEL_COMMIT_DELAY_MS);
     wheelEdit = edit;
-    previewTransform(edit.id, edit.current);
+    previewTransform(edit.id, edit.current, true);
   }
 
   function keyDown(event: KeyboardEvent) {
-    if (event.key !== "Escape" || (drag === undefined && wheelEdit === undefined)) return;
+    if (
+      event.key !== "Escape" ||
+      (drag === undefined && wheelEdit === undefined && touchGesture === undefined)
+    )
+      return;
     event.preventDefault();
     cancelDrag();
+    cancelTouchGesture();
     cancelWheelEdit();
   }
 
+  // Also runs after every normal lift, touch pointers lose their implicit capture then. So only
+  // the fingers an edit actually depends on can cancel it
   function pointerCancel(event: PointerEvent) {
+    if (event.pointerType === "touch") {
+      touchPoints.delete(event.pointerId);
+      if (touchGesture?.pointerIds.includes(event.pointerId)) cancelTouchGesture();
+      else if (touchPair?.pointerIds.includes(event.pointerId)) touchPair = undefined;
+    }
     if (event.pointerId === visitorClick?.pointerId) visitorClick = undefined;
     if (event.pointerId === drag?.pointerId) cancelDrag();
   }
@@ -882,8 +1276,9 @@ export function initScene(
   host.addEventListener("wheel", wheel, { capture: true, passive: false });
   window.addEventListener("keydown", keyDown);
   orbit.addEventListener("change", updateGizmo);
+  let shownCamera = "";
   let previousMode = modeManager.getState().mode;
-  const unsubscribeMode = modeManager.subscribe(({ mode }) => {
+  const unsubscribeMode = modeManager.subscribe(({ mode, view, captured }) => {
     if (mode !== previousMode) {
       if (mode === "visitor") {
         previewOrigin = { sceneId: projectScene?.id, loadGeneration: appliedLoadGeneration };
@@ -897,10 +1292,16 @@ export function initScene(
       previousMode = mode;
     }
     visitorClick = undefined;
+    // Esc or Alt let go of the mouse, which also puts back whatever was being carried or turned
+    if (!captured && drag !== undefined && dragLocked) cancelDrag();
+    // Grabbing or freeing the mouse alone shouldnt cancel an edit
+    if (shownCamera === `${mode} ${view}`) return;
+    shownCamera = `${mode} ${view}`;
     cancelDrag();
+    cancelTouchGesture();
     cancelWheelEdit();
-    // Cancellation must not re-enable orbit controls while visiting
-    orbit.enabled = mode === "editor" && editingEnabled;
+    // Cancellation must not re-enable orbit controls while visiting or walking
+    orbit.enabled = modeManager.usesOrbit() && editingEnabled;
     applyNavigationTool();
     selection.visible = mode === "editor" && getSelectionBounds() !== undefined;
     // Markers are authoring aids; visitors interact with the objects themselves.
@@ -988,10 +1389,11 @@ export function initScene(
       editingEnabled = enabled;
       if (!enabled) {
         cancelDrag();
+        cancelTouchGesture();
         cancelWheelEdit();
         showDropPosition(undefined);
       }
-      orbit.enabled = enabled && modeManager.getState().mode === "editor";
+      orbit.enabled = enabled && modeManager.usesOrbit() && touchGesture === undefined;
     },
     captureCamera: () => ({
       position: camera.position.toArray() as [number, number, number],
@@ -1022,15 +1424,21 @@ export function initScene(
       if (tool === navigationTool) return;
       navigationTool = tool;
       cancelDrag();
+      cancelTouchGesture();
       cancelWheelEdit();
       applyNavigationTool();
     },
+    mobileControls: fpsControls.mobileControls,
     modeManager,
     dispose() {
       if (disposed) {
         return;
       }
+      if (previewFrame !== undefined) cancelAnimationFrame(previewFrame);
+      previewFrame = undefined;
+      pendingPreview = undefined;
       cancelDrag();
+      cancelTouchGesture();
       cancelWheelEdit();
       disposed = true;
       controller.abort();

@@ -551,6 +551,25 @@ a {
 .environment-row[aria-pressed="true"] {
   background: #e2dccb;
 }
+.scene-tree-delete {
+  display: none;
+  flex: 0 0 auto;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: #d65b4b;
+  color: #fff;
+  font-size: 1.25rem;
+  line-height: 1;
+}
+@media (pointer: coarse) {
+  .scene-tree-delete {
+    display: grid;
+    place-items: center;
+  }
+}
 .hotspot-indicator {
   display: inline-flex;
   align-items: center;
@@ -761,6 +780,53 @@ a {
   font-size: 0.875rem;
   pointer-events: none;
 }
+/* First person aim, a click with the mouse locked picks what sit under it */
+.crosshair {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 1.25rem;
+  height: 1.25rem;
+  translate: -50% -50%;
+  pointer-events: none;
+}
+.crosshair::before,
+.crosshair::after {
+  content: "";
+  position: absolute;
+  background: #292e29;
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.8);
+}
+.crosshair::before {
+  top: 0;
+  bottom: 0;
+  left: calc(50% - 1px);
+  width: 2px;
+}
+.crosshair::after {
+  top: calc(50% - 1px);
+  right: 0;
+  left: 0;
+  height: 2px;
+}
+.walk-hint {
+  position: absolute;
+  top: 6rem;
+  left: 50%;
+  max-width: calc(100% - 2rem);
+  margin: 0;
+  padding: 0.4rem 0.8rem;
+  border-radius: 999px;
+  background: rgb(41 46 41 / 0.6);
+  color: #f5f7fa;
+  font-size: 0.8125rem;
+  text-align: center;
+  translate: -50% 0;
+  pointer-events: none;
+}
+.view-toggle[aria-pressed="true"] {
+  background: #e7e2d6;
+}
 .viewport-feedback {
   position: absolute;
   top: 6rem;
@@ -773,6 +839,80 @@ a {
   max-width: calc(100% - 2rem);
   font-size: 0.875rem;
   transform: translateX(-50%);
+}
+
+.mobile-controls {
+  position: absolute;
+  inset: auto 0 0;
+  z-index: 3;
+  display: none;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding: 1rem max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom))
+    max(1rem, env(safe-area-inset-left));
+  pointer-events: none;
+}
+.mobile-controls-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  pointer-events: none;
+}
+.mobile-joystick {
+  width: 9rem;
+  height: 9rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  touch-action: none;
+  pointer-events: auto;
+}
+.mobile-joystick-base {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  border: 2px solid rgb(255 255 255 / 45%);
+  border-radius: 50%;
+  background: rgb(41 46 41 / 24%);
+  box-shadow: inset 0 0 0 1rem rgb(41 46 41 / 8%);
+}
+.mobile-joystick-thumb {
+  width: 4.25rem;
+  height: 4.25rem;
+  border: 2px solid rgb(255 255 255 / 70%);
+  border-radius: 50%;
+  background: rgb(41 46 41 / 62%);
+  transition: transform 80ms ease-out;
+}
+.mobile-jump-button {
+  min-width: 4.5rem;
+  min-height: 2.75rem;
+  padding: 0.4rem 1rem;
+  border: 0;
+  border-radius: 999px;
+  background: rgb(233 229 219 / 88%);
+  box-shadow: var(--shadow);
+  font-weight: 650;
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+@media (hover: none) and (pointer: coarse) {
+  .is-walking .mobile-controls {
+    display: flex;
+  }
+}
+@media (hover: none) and (pointer: coarse) and (orientation: portrait) {
+  /* Two full-size sticks and Jump are wider than a phone held upright */
+  .mobile-joystick {
+    width: min(7rem, 28vw);
+    height: min(7rem, 28vw);
+  }
+  .mobile-joystick-thumb {
+    width: 3.25rem;
+    height: 3.25rem;
+  }
 }
 .retry-button {
   min-height: 2.75rem;

@@ -1,13 +1,9 @@
 {
   "modules": {
     "project": {
-      "paths": [
-        "shared/project/"
-      ],
+      "paths": ["shared/project/"],
       "uses": [],
-      "packages": [
-        "punycode"
-      ],
+      "packages": ["punycode"],
       "public": [
         "shared/project/project-types.ts",
         "shared/project/attached-transforms.ts",
@@ -29,9 +25,7 @@
       ]
     },
     "catalogue": {
-      "paths": [
-        "shared/asset-runtime/"
-      ],
+      "paths": ["shared/asset-runtime/"],
       "uses": [],
       "packages": [],
       "public": [
@@ -40,28 +34,16 @@
       ]
     },
     "asset-loading": {
-      "paths": [
-        "shared/asset-runtime/ModelCache.ts"
-      ],
-      "uses": [
-        "catalogue"
-      ],
-      "packages": [
-        "three"
-      ],
-      "public": [
-        "shared/asset-runtime/ModelCache.ts"
-      ]
+      "paths": ["shared/asset-runtime/ModelCache.ts"],
+      "uses": ["catalogue"],
+      "packages": ["three"],
+      "public": ["shared/asset-runtime/ModelCache.ts"]
     },
     "input": {
-      "paths": [
-        "editor/history-shortcuts.ts"
-      ],
+      "paths": ["editor/history-shortcuts.ts"],
       "uses": [],
       "packages": [],
-      "public": [
-        "editor/history-shortcuts.ts"
-      ]
+      "public": ["editor/history-shortcuts.ts"]
     },
     "document": {
       "paths": [
@@ -70,47 +52,20 @@
         "editor/transform-command.ts",
         "editor/recovery-history.ts"
       ],
-      "uses": [
-        "project",
-        "catalogue"
-      ],
+      "uses": ["project", "catalogue"],
       "packages": [],
-      "public": [
-        "editor/document-store.ts",
-        "editor/recovery-history.ts"
-      ]
+      "public": ["editor/document-store.ts", "editor/recovery-history.ts"]
     },
     "rendering": {
-      "paths": [
-        "editor/graphics/",
-        "editor/controls/"
-      ],
-      "uses": [
-        "project",
-        "catalogue",
-        "input",
-        "asset-loading"
-      ],
-      "packages": [
-        "three"
-      ],
-      "public": [
-        "editor/graphics/scene.ts",
-        "editor/graphics/modeManager.ts"
-      ]
+      "paths": ["editor/graphics/", "editor/controls/"],
+      "uses": ["project", "catalogue", "input", "asset-loading"],
+      "packages": ["three"],
+      "public": ["editor/graphics/scene.ts", "editor/graphics/modeManager.ts"]
     },
     "persistence": {
-      "paths": [
-        "editor/persistence/"
-      ],
-      "uses": [
-        "project",
-        "catalogue",
-        "document"
-      ],
-      "packages": [
-        "react"
-      ],
+      "paths": ["editor/persistence/"],
+      "uses": ["project", "catalogue", "document"],
+      "packages": ["react"],
       "public": [
         "editor/persistence/use-project-session.ts",
         "editor/persistence/server-project-session.ts",
@@ -121,9 +76,7 @@
       ]
     },
     "ui-foundation": {
-      "paths": [
-        "shared/ui/"
-      ],
+      "paths": ["shared/ui/"],
       "uses": [],
       "packages": [
         "react",
@@ -144,9 +97,7 @@
       ]
     },
     "editor": {
-      "paths": [
-        "editor/"
-      ],
+      "paths": ["editor/"],
       "uses": [
         "project",
         "catalogue",
@@ -172,9 +123,7 @@
       "public": []
     },
     "checks": {
-      "paths": [
-        "tests/"
-      ],
+      "paths": ["tests/"],
       "uses": [
         "project",
         "catalogue",
@@ -193,25 +142,11 @@
   "edges": {
     "project": [],
     "catalogue": [],
-    "asset-loading": [
-      "catalogue"
-    ],
+    "asset-loading": ["catalogue"],
     "input": [],
-    "document": [
-      "catalogue",
-      "project"
-    ],
-    "rendering": [
-      "asset-loading",
-      "catalogue",
-      "input",
-      "project"
-    ],
-    "persistence": [
-      "catalogue",
-      "document",
-      "project"
-    ],
+    "document": ["catalogue", "project"],
+    "rendering": ["asset-loading", "catalogue", "input", "project"],
+    "persistence": ["catalogue", "document", "project"],
     "ui-foundation": [],
     "editor": [
       "catalogue",
@@ -240,7 +175,7 @@
     "architecture.check.mjs": "7056958085076fb9a6f14992dded7faf21aedd9d78a48ae5484704020a25cfb7",
     "architecture.mjs": "a7524d4c9ed8f10574c61e6bb1af1b93f53cd3eda8fcf7c37d1aa217fee6aa8b",
     "asset-catalogue-plugin.ts": "fdbfbf69501e6d772ea43c7a4575549f68985bc4e94bed0cfc5c7dc70ba3cbe2",
-    "editor/App.tsx": "d8efcc39283c6a3a74ade0cd9d8054296c7b366a31af7659f60a176aa63a4940",
+    "editor/App.tsx": "07aa68048b675b2e86e9fcd5297b6a4ea277ab611a65703f243bc250847c04ca",
     "editor/OlderSceneImport.tsx": "9ab5f31f2ac60a12bfb5931592c54ed566140baac1bb38f3358fa0bd0ca93397",
     "editor/ProjectConfirmation.tsx": "07a0fedf8fbf88865b3b8232c8665c139348fc64ebce478ea01e55eb7fd14eff",
     "editor/Scenes.tsx": "fbd0b23955e14e7f41db3b7d28dfd2d9c3650614d8bfa5601a434f45b096c0cd",
@@ -257,7 +192,7 @@
     "editor/command-history.test.ts": "783c026523513ea5520cde04e61502aba13ca3a612b509a904c2a50e50be2d1f",
     "editor/command-history.ts": "e243335582ab03da9d131bd80edef7b908e3eb0a751d6ebfa7deb77750fc54ad",
     "editor/controls/fpsControls.test.ts": "cbd1846abe8e90e5c4d0c703ed07297f89153bc6901a757d46231ac80e28b831",
-    "editor/controls/fpsControls.ts": "e902d1355fb1be962656a793d96805990a5637161355118e9dd8bd1c0a7d4052",
+    "editor/controls/fpsControls.ts": "6afe8f61f1d40ecd51550ce6e590ec8977ea24eeab6d50efbc0cd2c5953b4ae4",
     "editor/directory/AccountDialog.tsx": "252a33524213bea4422d6924091af632d7a21bbee2cc788fd096287cad63cb75",
     "editor/directory/AccountDirectoryPage.tsx": "8da9a3ff026ca8fb2cac9e9bad78052a0a28ec67ee36a910ba828747ee77447a",
     "editor/directory/AccountList.tsx": "a13ebd1917e4de800d12db5a7cdcd6e4864c0192de8890fd12298b534e87c5f0",
@@ -266,7 +201,7 @@
     "editor/directory/directory-client.ts": "cc2514d06eb56b603a9a69c39b977d4436bb65e905e68bda1a71b924fac06442",
     "editor/directory/directory.ts": "ec5cf37c67e953850b1115ba316cec367527baa0c4fbc3f5aca289a171ba477a",
     "editor/document-store.test.ts": "caa268822fa0d253276080a63cba13ab892858ff9f105335622d0f29a15874ca",
-    "editor/document-store.ts": "85972b581b103426f9b9a6d27e3dcb216f282238fa6adb889d8c46d61b289c56",
+    "editor/document-store.ts": "bbe7693bca1053c93f570f785f7f9b36ea003728ce080ebb8f16ec62842b9638",
     "editor/edit-session.test.ts": "fd971338990e32158eb0355508fb39a7c3284db62421501024da029a82dc784a",
     "editor/entry/EntryBrand.tsx": "21be448d7b3232fe2fb0906ad4386e4a854c6a4369d75b851b1446e9af849b06",
     "editor/entry/LandingPage.tsx": "00176c689fdc4a8657c3ea48c912ad03ede1388d698888b01308462955d2b5af",
@@ -274,12 +209,13 @@
     "editor/entry/main.tsx": "c94eb8216c552696432a0c8e0cdb5f15ff97682d4d910d103ca3a0286059a558",
     "editor/graphics/active-clock.test.ts": "29145e0a9e58264cd0e192d607be8e7fee69ae18b0aef52e6c5e4c5a2670aa4d",
     "editor/graphics/active-clock.ts": "9dfb0530c27712140610a6269d64b41e9f88e2622593696f73d5295162b271a0",
-    "editor/graphics/modeManager.ts": "08617006856a4f3ac55c7fd9caed4875bddfa06305cbfd184dae0dc8fef3387e",
+    "editor/graphics/modeManager.test.ts": "e7ea10b5d517dce2902ee093a8cd26d63b0b8c000b80e2f36586a13f02c00d16",
+    "editor/graphics/modeManager.ts": "f401c2722b8b7def182a3ed4cacbff8a1604edc9a71e801fc3713a9c7a6dae2e",
     "editor/graphics/rotation.test.ts": "58844092035329772ba8c941b1b93737d142d7c597f015900041721d0018bb69",
     "editor/graphics/rotation.ts": "d847162644716d2b36e8b3e4f1ad190360527a46351cb2969d411dbe76ea96d3",
     "editor/graphics/scaling.test.ts": "346b243798597de2a5b00384904bdf04f9f3826a8753bcde3282e5356b0ceb0a",
     "editor/graphics/scaling.ts": "0277d21b28d246ddb2f94216fe29afb24ebbc8e257dd3510eca91bb176867da1",
-    "editor/graphics/scene.ts": "5650ef6c3a88dedaca2940df816c9761e1963417badcddb696bd1d047596d5eb",
+    "editor/graphics/scene.ts": "bbbdbc1acf66fa8b97d0cb6d74dc4b3ea8c88682005a15927cba995f477fb663",
     "editor/graphics/translation.test.ts": "b4a888b963437ca3508c04cc3e933ab215d301908384ea9af37ee8aabd6fae2c",
     "editor/graphics/translation.ts": "a4ea05b137e4dee436848693a57273c54025856bdf943eb1e9413de5509bb2d4",
     "editor/hierarchy.test.ts": "9183c999766d2e2779b8e2cc6d22d1f041709781771a0d303b639b2ef7e027a7",
@@ -351,14 +287,14 @@
     "editor/ui-preview/fixtures.ts": "7bff292876860adb3e059fdaae85a77acafc74586fadb832043a51275d49e04a",
     "editor/ui-preview/main.tsx": "10d494ed224f1fda3fc0fa3f6d1ef68527e859d62a1ef6bbd3854561dde10f64",
     "editor/ui/AssetFilterSelect.tsx": "d5449ccfb82270fb1baae4503d61014a3d42f87b07272b85f8a0f6d3feb55450",
-    "editor/ui/AssetPicker.tsx": "b49b053f5d08c1b20ec5e35f65d5c0865f5ed6b8f4bd1454b139a82977c7646e",
-    "editor/ui/BottomBar.tsx": "03256cd1aabe6a412be04ab3526826c94625178b5f4bb331d47261cea51b8690",
+    "editor/ui/AssetPicker.tsx": "3facfdb5516f020508cce34564eb51fd5180c733b9997e0cb279ada2ea6156fa",
+    "editor/ui/BottomBar.tsx": "4ca06b2ef2e8ef474b4eb7ff81ff9ac23ece8fa06897b3e81df9eb48104286b4",
     "editor/ui/Icon.tsx": "9541d7b9446bdc777fa17a0276232859ea688aed6b7d2ab1af25dbd0cea58323",
     "editor/ui/InteractionPanel.tsx": "bd06335bb72d214c8fe24093706b5c8ef7294ba47c6fbe9a1f53808216e5555f",
     "editor/ui/PreviewTargets.tsx": "d49499d2e889781f42239cfe9cdd17a174691baed6dc86815a2d3e577af00884",
-    "editor/ui/SceneTreePanel.tsx": "b5f514cfe2094f9be97c03d4b02703a0836702276286982e3701e94ab0ac0fe9",
-    "editor/ui/SidePanels.tsx": "8af10e3103dde03df82e035f0d76d1ff3a805a0a444044a42e1e6a06c9cf4237",
-    "editor/ui/TopBar.tsx": "5992d5b27ce28074bfa529864be389a23a9e707877abf3928d83e65d80c1a95e",
+    "editor/ui/SceneTreePanel.tsx": "b423eb6a49a325121a69a0aa47614d1d45fbb20d89d968021e667ec9438af546",
+    "editor/ui/SidePanels.tsx": "4b46eda44b8fcc20da98755df3e718bd5a4ccb270d13697308937a22bbb1b7aa",
+    "editor/ui/TopBar.tsx": "a1e07470dcee2c4fe9a54031f45a6fe07530c17a3eae484e24a8f395f9c2e466",
     "editor/ui/asset-filters.test.ts": "0b88a68d514d283e155ceb0838d4951c1b4fd5867459df2e8c6ab8780c65f858",
     "editor/ui/asset-filters.ts": "5e08299dbfc2543f41017306fdff78d7ba3161e2242186877a315e3ea75fa8cc",
     "editor/ui/dock-edge.test.ts": "5f23848e403e898efc84d2c34ae327b5d5313a066c6391a79cec336e73759ead",
@@ -366,7 +302,9 @@
     "editor/ui/rotation-angles.test.ts": "768d7e7fcfe8d5a5fc0a11f3bc70fa734e5e84ce161fd9aa5b1807b850f4438d",
     "editor/ui/rotation-angles.ts": "16a42a83ee7bb2435c4ee7b640fa6ca3c65a7564fd68981084ce57f5e9687f3b",
     "editor/viewpoints.test.ts": "383d49fc0c57b158b739781160ada8bef63d23e5b6fa03a7a5a605032a812da9",
-    "editor/viewport/Viewport.tsx": "7f43e60501edf610ed4d641b920cb5c23e34e2eff2b9f52a7cc2b6fbab8a5f90",
+    "editor/viewport/MobileControls.tsx": "f3f37136f19839fe7e1348c80581ae866e4bf19e9cda98aaf92718955f67d5bb",
+    "editor/viewport/Viewport.tsx": "47228e2b96425e16ccf02bdb1ccaca7c53b69764f95e6ff5f9f87f8a2a5b3060",
+    "editor/viewport/mobile-device.ts": "ab05c53861f725a35b68e2509872d8e247f6a8adfaccd7cbdc337f7f41426599",
     "editor/workspace/WorkspacePage.tsx": "1f9aac3a156bba603ff4c92d56a48deed74f6dfaee331e8f3cfcf7ec58ae0d8c",
     "editor/workspace/main.tsx": "ba13928e8e371d8dcf218adb28f93eaab5e47d2ef5c020a4ee823190ac47d2dd",
     "eslint.config.js": "cbab291dfcf10a7c58563e96b2c29cc213c402ebaf35f89789663d96bdb12135",
@@ -418,18 +356,18 @@
     "tests/account-directory-real-api.check.mjs": "d991e67e295d098ad4ff91e0bbce93b75d907ea095b0093f6687a273459e14b3",
     "tests/account-directory.check.mjs": "cc1753a40467d9ff76c838ff5cc4f80925cfa2eeb9113c56459f7b5ccdd4bbaa",
     "tests/admin-dashboard.check.mjs": "3832e37d333ac8151773f0cc5f919de27950bf60afac3fc2e034677157fee0bc",
-    "tests/browser-network.mjs": "9e5c7999bd4e7c0fb613c4c60597dd92b070f5c5c9d5d453d57b7c6631439aee",
-    "tests/browser-network.test.mjs": "d214691fc7f09af3f163cc8ce378051ab57e04ca8b05dc5f954a9ed39f06d973",
+    "tests/browser-network.mjs": "502fa431b9df37478a112c58cdce855a62bd422c62d123854b98a1ff003cdd88",
+    "tests/browser-network.test.mjs": "34fd4a44eab68ab895b61ef23620cf7e300b5767f30eedb780dcd5819a9e1025",
     "tests/browser-security.check.mjs": "4ebdb00d3dcffffe44861b82d254f58a1975862d191feb84061b6d78a69f09ae",
-    "tests/browser-security.mjs": "a5d2aad1b72f60d7badb4a36a32287ab2183ff183f62ee42cf6db5fd7ef8f16a",
-    "tests/browser-security.test.mjs": "c8e67a86a08fa889f902c3436e8afcbcd3a9c2dc8d5c00e33d7f0ca3a289c564",
+    "tests/browser-security.mjs": "949ffb7a43e95bc5c721520ee8b2581813b6a5d930cc56c6afd57dfb181077ef",
+    "tests/browser-security.test.mjs": "f9f79a3e43b8fc9bdde9bad5481deab1ba34a5ec642e5f3c15e6f5c9778400b3",
     "tests/caching.check.mjs": "e19339a9d576ebcab99466e33cfd0dc79f61ede12fa4bbf6541412a1b0a1667c",
     "tests/caching.measure.mjs": "19dff9da0f727d891bdb7a6180a88837998d83a2eb139d4ed78ee697883c1f18",
     "tests/class-assignment.check.mjs": "1a0475d08891bcf89a11b6441aa320707ccadcca388f01e0d6cf491a54b90ed4",
-    "tests/deployment.check.mjs": "6a0b976d2939c02ab29db80195baff699e004aefcb602871c6430bbbc85a9576",
+    "tests/deployment.check.mjs": "e0f7a34202240069e92beb60a5480955a4d8c7186963d96cef02b44eca29d6a5",
     "tests/editor-build.check.mjs": "c8459856ff2c2ba28c7f81a9accf488e5e6211eb0e432f58c70c7e01171d34c6",
-    "tests/editor-integration.check.mjs": "40bd0d47fb660fe483d79483eb2fc1d4e15fd34ec03d9b4c860256e9db25e7db",
-    "tests/editor-shell.check.mjs": "306d7cc0e60f9884b998344b610dc2bc426d1bfd89dc6717b3f3a30ace4f857d",
+    "tests/editor-integration.check.mjs": "16ddfdd747522787a3a5aa84e36fb46c57ef8025db2cacd8760c2f80d6ee01b7",
+    "tests/editor-shell.check.mjs": "35b317e5ea4b6c30c5adbb142333bbb1171aaf81911af25d9c3e2af170305874",
     "tests/entry.check.mjs": "e63ff3adfaca3fde6a5da9f134ea7fda317b83b84ea4c9b16e1d438710c5f777",
     "tests/history-recovery.check.mjs": "f5f2a9d710c3b403a099a163cbf65a8a22d7e53cd5263bfd150bddc90035f03f",
     "tests/interaction-navigation.check.mjs": "ef080b60235cf85d8741e48f87516fb7271f610679e649fe6f16e6d88176b353",
@@ -471,7 +409,7 @@
     "editor/entry/entry.css": "fe7cbc59e81658828c79a8d61a5025b090b2ad23533bb1f26830518138d74dbd",
     "shared/project/fixtures/m2-project.json": "d0b01cf012c8418b3d5e0acef2053b936fdce5333603666dd1e757a3b5e5565b",
     "shared/project/fixtures/project-format-cases.json": "7f97616a88dc3fc8fc228d04a573c1e0be51ced9a81495fe86d828a13500ec83",
-    "editor/styles.css": "e44630081a62dc9fc515bbb55d94fe365c1a02d67370c311f300e4275c0c0d5f",
+    "editor/styles.css": "ba16eb14b0e577b2072a01a30cffd17c90826003bfc12b9ad433904be34752df",
     "editor/fixtures/asset-pipeline-document-history.json": "4fe51cba770226d856f37cbbc2afbe0b3fe393e5990b8f761b794b7b5bf5380d",
     "editor/fixtures/asset-pipeline-view-history.json": "d33e208ca99c5fb1e816a9e0b79aebb987c79ef354179d8c06e430b382cf4f59",
     "editor/projects/class-assignment.css": "fb9bdc1b367853c792e1ba88513872fd0d410cef67e5c144ad0ccce8c0194c64",
@@ -916,7 +854,34 @@
     },
     {
       "file": "editor/App.tsx",
+      "line": 28,
+      "kind": "static",
+      "specifier": "./viewport/MobileControls",
+      "target": "editor/viewport/MobileControls.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/App.tsx",
       "line": 29,
+      "kind": "static",
+      "specifier": "./viewport/mobile-device",
+      "target": "editor/viewport/mobile-device.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/App.tsx",
+      "line": 30,
+      "kind": "type",
+      "specifier": "./graphics/scene",
+      "target": "editor/graphics/scene.ts",
+      "from": "editor",
+      "to": "rendering"
+    },
+    {
+      "file": "editor/App.tsx",
+      "line": 32,
       "kind": "static",
       "specifier": "./ProjectConfirmation",
       "target": "editor/ProjectConfirmation.tsx",
@@ -925,7 +890,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 30,
+      "line": 33,
       "kind": "static",
       "specifier": "./persistence/use-project-session",
       "target": "editor/persistence/use-project-session.ts",
@@ -934,7 +899,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 393,
+      "line": 405,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -2493,6 +2458,54 @@
       "to": "editor"
     },
     {
+      "file": "editor/graphics/modeManager.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/graphics/modeManager.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "three",
+      "target": {
+        "package": "three"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/graphics/modeManager.test.ts",
+      "line": 3,
+      "kind": "type",
+      "specifier": "three/examples/jsm/controls/OrbitControls.js",
+      "target": {
+        "package": "three"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/graphics/modeManager.test.ts",
+      "line": 4,
+      "kind": "static",
+      "specifier": "../controls/fpsControls",
+      "target": "editor/controls/fpsControls.ts",
+      "from": "checks",
+      "to": "rendering"
+    },
+    {
+      "file": "editor/graphics/modeManager.test.ts",
+      "line": 5,
+      "kind": "static",
+      "specifier": "./modeManager",
+      "target": "editor/graphics/modeManager.ts",
+      "from": "checks",
+      "to": "rendering"
+    },
+    {
       "file": "editor/graphics/modeManager.ts",
       "line": 1,
       "kind": "static",
@@ -2515,7 +2528,7 @@
     {
       "file": "editor/graphics/modeManager.ts",
       "line": 3,
-      "kind": "type",
+      "kind": "static",
       "specifier": "../controls/fpsControls",
       "target": "editor/controls/fpsControls.ts",
       "from": "rendering",
@@ -2702,6 +2715,15 @@
       "file": "editor/graphics/scene.ts",
       "line": 18,
       "kind": "static",
+      "specifier": "../controls/fpsControls",
+      "target": "editor/controls/fpsControls.ts",
+      "from": "rendering",
+      "to": "rendering"
+    },
+    {
+      "file": "editor/graphics/scene.ts",
+      "line": 19,
+      "kind": "static",
       "specifier": "./modeManager",
       "target": "editor/graphics/modeManager.ts",
       "from": "rendering",
@@ -2709,7 +2731,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 19,
+      "line": 20,
       "kind": "static",
       "specifier": "./rotation",
       "target": "editor/graphics/rotation.ts",
@@ -2718,7 +2740,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 27,
+      "line": 28,
       "kind": "static",
       "specifier": "./scaling",
       "target": "editor/graphics/scaling.ts",
@@ -2727,7 +2749,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 28,
+      "line": 29,
       "kind": "static",
       "specifier": "./translation",
       "target": "editor/graphics/translation.ts",
@@ -2736,7 +2758,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 376,
+      "line": 445,
       "kind": "type-query",
       "specifier": "../../shared/project/project-types",
       "target": "shared/project/project-types.ts",
@@ -5688,7 +5710,7 @@
     },
     {
       "file": "editor/ui/BottomBar.tsx",
-      "line": 214,
+      "line": 217,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -5856,7 +5878,7 @@
     },
     {
       "file": "editor/ui/SceneTreePanel.tsx",
-      "line": 27,
+      "line": 29,
       "kind": "type-query",
       "specifier": "../../shared/project/project-types",
       "target": "shared/project/project-types.ts",
@@ -5865,7 +5887,7 @@
     },
     {
       "file": "editor/ui/SceneTreePanel.tsx",
-      "line": 91,
+      "line": 96,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -5957,7 +5979,7 @@
     },
     {
       "file": "editor/ui/SidePanels.tsx",
-      "line": 70,
+      "line": 74,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -5988,6 +6010,15 @@
       "file": "editor/ui/TopBar.tsx",
       "line": 3,
       "kind": "type",
+      "specifier": "../graphics/modeManager",
+      "target": "editor/graphics/modeManager.ts",
+      "from": "editor",
+      "to": "rendering"
+    },
+    {
+      "file": "editor/ui/TopBar.tsx",
+      "line": 4,
+      "kind": "type",
       "specifier": "../persistence/use-project-session",
       "target": "editor/persistence/use-project-session.ts",
       "from": "editor",
@@ -5995,7 +6026,7 @@
     },
     {
       "file": "editor/ui/TopBar.tsx",
-      "line": 4,
+      "line": 5,
       "kind": "static",
       "specifier": "./Icon",
       "target": "editor/ui/Icon.tsx",
@@ -6004,7 +6035,7 @@
     },
     {
       "file": "editor/ui/TopBar.tsx",
-      "line": 78,
+      "line": 83,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -6171,6 +6202,35 @@
       "to": "project"
     },
     {
+      "file": "editor/viewport/MobileControls.tsx",
+      "line": 1,
+      "kind": "static",
+      "specifier": "react",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/viewport/MobileControls.tsx",
+      "line": 2,
+      "kind": "type",
+      "specifier": "../graphics/scene",
+      "target": "editor/graphics/scene.ts",
+      "from": "editor",
+      "to": "rendering"
+    },
+    {
+      "file": "editor/viewport/MobileControls.tsx",
+      "line": 50,
+      "kind": "implicit-jsx",
+      "specifier": "react/jsx-runtime",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
       "file": "editor/viewport/Viewport.tsx",
       "line": 1,
       "kind": "static",
@@ -6220,6 +6280,15 @@
       "file": "editor/viewport/Viewport.tsx",
       "line": 11,
       "kind": "type",
+      "specifier": "../graphics/scene",
+      "target": "editor/graphics/scene.ts",
+      "from": "editor",
+      "to": "rendering"
+    },
+    {
+      "file": "editor/viewport/Viewport.tsx",
+      "line": 12,
+      "kind": "type",
       "specifier": "../graphics/modeManager",
       "target": "editor/graphics/modeManager.ts",
       "from": "editor",
@@ -6227,7 +6296,7 @@
     },
     {
       "file": "editor/viewport/Viewport.tsx",
-      "line": 96,
+      "line": 102,
       "kind": "dynamic",
       "specifier": "../graphics/scene",
       "target": "editor/graphics/scene.ts",
@@ -6236,7 +6305,7 @@
     },
     {
       "file": "editor/viewport/Viewport.tsx",
-      "line": 191,
+      "line": 207,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -8472,6 +8541,34 @@
       "to": "catalogue"
     },
     {
+      "file": "tests/editor-integration.check.mjs",
+      "line": 386,
+      "kind": "test-environment",
+      "specifier": "three",
+      "target": {
+        "package": "three"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/editor-integration.check.mjs",
+      "line": 387,
+      "kind": "dynamic",
+      "specifier": "/graphics/scene.ts",
+      "target": "editor/graphics/scene.ts",
+      "from": "checks",
+      "to": "rendering"
+    },
+    {
+      "file": "tests/editor-integration.check.mjs",
+      "line": 388,
+      "kind": "dynamic",
+      "specifier": "/@id/__x00__virtual:asset-catalogue",
+      "target": "shared/asset-runtime/catalogue.ts",
+      "from": "checks",
+      "to": "catalogue"
+    },
+    {
       "file": "tests/editor-shell.check.mjs",
       "line": 1,
       "kind": "static",
@@ -8512,7 +8609,7 @@
     },
     {
       "file": "tests/editor-shell.check.mjs",
-      "line": 636,
+      "line": 738,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -8521,7 +8618,7 @@
     },
     {
       "file": "tests/editor-shell.check.mjs",
-      "line": 671,
+      "line": 773,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -9257,6 +9354,11 @@
     {
       "file": "tests/editor-integration.check.mjs",
       "line": 173,
+      "expression": "threePath"
+    },
+    {
+      "file": "tests/editor-integration.check.mjs",
+      "line": 386,
       "expression": "threePath"
     },
     {

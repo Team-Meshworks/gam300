@@ -18,6 +18,8 @@ export function SceneTreePanel({
   hotspots,
   selectedId,
   onSelect,
+  onDelete,
+  mobileDevice,
   thumbnailFor,
   hierarchy,
 }: {
@@ -27,6 +29,9 @@ export function SceneTreePanel({
   hotspots: readonly import("../../shared/project/project-types").ProjectHotspot[];
   selectedId: string | null;
   onSelect: (id: string) => void;
+  onDelete: () => void;
+  // Touch has no Delete key, so the selected object gets its own button
+  mobileDevice: boolean;
   thumbnailFor: (assetId: string) => string | undefined;
   hierarchy: HierarchyActions;
 }) {
@@ -248,6 +253,17 @@ export function SceneTreePanel({
                 </span>
               )}
             </button>
+            {mobileDevice && isObject && selectedId === node.id && (
+              <button
+                className="scene-tree-delete"
+                type="button"
+                aria-label={`Delete ${node.name}`}
+                title={`Delete ${node.name}`}
+                onClick={onDelete}
+              >
+                ×
+              </button>
+            )}
           </div>
           {expandable && (
             <ul
