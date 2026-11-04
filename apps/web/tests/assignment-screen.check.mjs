@@ -241,7 +241,10 @@ async function returningEducator() {
     await page.getByRole("button", { name: "Assignment", exact: true }).click();
     const open = page.getByRole("button", { name: `Open project for ${studentName}`, exact: true });
     await open.waitFor();
-    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), "Long student name overflows narrow viewport");
+    assert.ok(
+      await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+      "Long student name overflows narrow viewport",
+    );
     await open.focus();
     await page.keyboard.press("Enter");
     assert.equal(await page.locator("#opened").textContent(), "a");

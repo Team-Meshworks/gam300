@@ -51,6 +51,18 @@ try {
   assert.equal(receipt.projects.length, 1);
   const project = receipt.projects[0].projectId;
   await page.getByRole("heading", { name: "Live class assignment" }).waitFor();
+  await page.reload();
+  await page.getByRole("button", { name: "Classes", exact: true }).click();
+  await page
+    .getByRole("combobox", { name: "Class", exact: true })
+    .selectOption(process.env.SPATIA_TEST_CLASS);
+  await page.getByRole("button", { name: "Live class assignment", exact: true }).click();
+  await page
+    .getByRole("button", {
+      name: `Open project for ${process.env.SPATIA_TEST_STUDENT}`,
+      exact: true,
+    })
+    .waitFor();
   const studentContext = await browser.newContext({
     ignoreHTTPSErrors: true,
     timezoneId: "Asia/Singapore",

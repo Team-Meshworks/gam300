@@ -14,6 +14,8 @@ for administrator class creation. Read-only and archived projects remain unavail
 in the editable server editor. Session gates retain an unsent assignment only for the
 same verified actor, organisation and role. Confirmed editor departure returns home.
 The existing account directory provides provisioning and reset, and the home links to it.
+Administrators who sign in normally land on the dashboard and can open the project
+workspace from its prominent link, then use the same home and class navigation.
 The current-grant read API and administrator project-access editor are connected.
 The editor loads the complete current set and only submits a replacement when its
 existing flags can be represented without silently losing or upgrading access.
