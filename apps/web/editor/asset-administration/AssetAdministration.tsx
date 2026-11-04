@@ -286,7 +286,7 @@ function AssetAdministrationScreen({ service, kind, onClose }: Props) {
       <div className="asset-admin-heading">
         <div>
           <h1 id="asset-admin-heading">{title}</h1>
-          <p>Review published experiences and control what visitors can explore.</p>
+          <p>Manage and review catalogue assets.</p>
         </div>
         <label className="asset-admin-search">
           <span className="asset-admin-sr">Search {noun}</span>
@@ -337,8 +337,8 @@ function AssetAdministrationScreen({ service, kind, onClose }: Props) {
                 kind === "environment" ? "All Spaces" : "All Assets",
                 items.filter((a) => !a.deleted).length,
               ],
-              ["visible", "Public", items.filter((a) => !a.deleted && !a.hidden).length],
-              ["hidden", "Private", items.filter((a) => !a.deleted && a.hidden).length],
+              ["visible", "Not hidden", items.filter((a) => !a.deleted && !a.hidden).length],
+              ["hidden", "Hidden", items.filter((a) => !a.deleted && a.hidden).length],
               ["deleted", "Deleted", items.filter((a) => a.deleted).length],
             ] as const
           ).map(([value, label, count]) => (
@@ -422,7 +422,7 @@ function AssetAdministrationScreen({ service, kind, onClose }: Props) {
                         : asset.status === "approved"
                           ? asset.hidden
                             ? "Hidden"
-                            : "Public"
+                            : "Available"
                           : asset.status}
                     </span>
                   </div>

@@ -16,7 +16,6 @@ public sealed class ProjectDraftStagingTests
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
         var userId = await fixture.CreateAccountAsync();
-        // Resolve the catalogue within a scope so current asset availability is read from the database
         await using var documentScope = fixture.App.Services.CreateAsyncScope();
         var documents = documentScope.ServiceProvider.GetRequiredService<ProjectDocumentService>();
         await using var scope = fixture.Database.Services.CreateAsyncScope();

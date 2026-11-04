@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
-import { chromium } from "playwright";
+import { launchBrowser } from "./browser-security.mjs";
 
-const browser = await chromium.launch();
+const baseUrl = process.argv[2] ?? "http://127.0.0.1:5173/";
+const browser = await launchBrowser({ target: baseUrl });
 const page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
 const errors = [];
 page.on("pageerror", (error) => errors.push(error.message));
@@ -41,8 +42,13 @@ async function choose(label, text) {
 try {
   // Exercise the real components with the clearly labelled local adapter
   // No fixture response is evidence of authenticated intake or persisted asset approval
-  await page.goto(`${process.argv[2] ?? "http://127.0.0.1:5173/"}?asset-admin-test`);
+  await page.goto(`${baseUrl}?asset-admin-test`);
   await page.getByRole("heading", { name: "All 3D Spaces" }).waitFor();
+  await page
+    .getByText("Manage and review catalogue assets.", { exact: true })
+    .waitFor({ timeout: 5000 });
+  await page.getByRole("button", { name: /^Not hidden \(/ }).waitFor({ timeout: 5000 });
+  await page.getByRole("button", { name: /^Hidden \(/ }).waitFor();
   await page
     .getByRole("button", { name: /View Model/ })
     .first()
@@ -365,7 +371,7 @@ try {
   assert.ok(viewBounds.height <= 460, "Viewing should not occupy most of the viewport");
   const modelName = await dialog.locator("h2").textContent();
   await dialog.getByRole("button", { name: "Hide", exact: true }).click();
-  await page.getByRole("button", { name: /^Private \(/ }).click();
+  await page.getByRole("button", { name: /^Hidden \(/ }).click();
   await page
     .locator(".asset-admin-card")
     .filter({ has: page.getByRole("heading", { name: modelName, exact: true }) })

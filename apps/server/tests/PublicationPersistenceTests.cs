@@ -335,6 +335,48 @@ public sealed class PublicationPersistenceTests
     [Test]
     [Arguments(false)]
     [Arguments(true)]
+    public async Task PublicationDatabase_RuntimeRoleCannotDeleteCommittedEdition(bool upgrade)
+    {
+        await using var fixture = await PostgresAccountFixture.CreateAsync(
+            upgrade ? "20261103080036_AddAccountDisplayName" : null);
+        await SeedAsync(fixture);
+        await InsertAsync(fixture, Edition());
+        var original = await ReadAsync(fixture);
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var database = Db(scope);
+        await database.Database.MigrateAsync();
+        var role = "publication_test_" + Guid.NewGuid().ToString("N");
+        await using (var transaction = await database.Database.BeginTransactionAsync())
+        {
+            // Match the runtime DML grants without ownership or migration privileges.
+            // Role creation is transactional, so rollback also removes this fixture role.
+            using var identifiers = new NpgsqlCommandBuilder();
+            var quotedRole = identifiers.QuoteIdentifier(role);
+            var quotedSchema = identifiers.QuoteIdentifier(fixture.SchemaName);
+            var setup = $"CREATE ROLE {quotedRole} NOLOGIN; " +
+                $"GRANT USAGE ON SCHEMA {quotedSchema} TO {quotedRole}; " +
+                $"GRANT SELECT, INSERT, UPDATE, DELETE ON publications TO {quotedRole}; " +
+                $"SET LOCAL ROLE {quotedRole}";
+            await database.Database.ExecuteSqlRawAsync(setup);
+            await Assert.That(await database.Publications.AsNoTracking().CountAsync()).IsEqualTo(1);
+            var error = await Assert.ThrowsAsync<PostgresException>(async () =>
+                await database.Database.ExecuteSqlRawAsync("DELETE FROM publications"));
+            await Assert.That(error!.SqlState).IsEqualTo(PostgresErrorCodes.CheckViolation);
+            await Assert.That(error.ConstraintName).IsEqualTo("CK_publications_immutable");
+            await transaction.RollbackAsync();
+        }
+
+        var stored = await ReadAsync(fixture);
+        await AssertJsonAsync(stored.DocumentJson, original.DocumentJson);
+        await AssertJsonAsync(stored.AssetReferencesJson, original.AssetReferencesJson);
+        await Assert.That(stored.CreatedAt).IsEqualTo(original.CreatedAt);
+        await Assert.That(PublicationRetryPolicy.Decide(stored, PublicationId, ProjectId, ActorId, 7, Digest))
+            .IsEqualTo(PublicationRetryDecision.Replay);
+    }
+
+    [Test]
+    [Arguments(false)]
+    [Arguments(true)]
     public async Task PublicationDatabase_EfTrackedDigestMutationCannotAlterRetryHistory(bool replaceArray)
     {
         await using var fixture = await PostgresAccountFixture.CreateAsync();
@@ -605,7 +647,8 @@ public sealed class PublicationPersistenceTests
         await using var scope = fixture.Services.CreateAsyncScope();
         var database = Db(scope);
         database.Organizations.Add(new Organization { Id = OrganizationId, Name = "Synthetic publication school" });
-        database.Users.Add(new ApplicationUser { Id = ActorId, UserName = "publication-user", NormalizedUserName = "PUBLICATION-USER" });
+        await LegacyAccountSeed.InsertAsync(database,
+            new ApplicationUser { Id = ActorId, UserName = "publication-user", NormalizedUserName = "PUBLICATION-USER" });
         database.Projects.Add(new Project
         {
             Id = ProjectId,

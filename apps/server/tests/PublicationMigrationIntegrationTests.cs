@@ -16,16 +16,20 @@ public sealed class PublicationMigrationIntegrationTests
     {
         const string draftMigration = "20261018091152_AddProjectDraftStorage";
         const string publicationMigration = "20261029094707_AddPublicationSnapshots";
+        const string assetMigration = "20261031112544_AddAssetIntake";
+        const string currentDevMigration = "20261103080036_AddAccountDisplayName";
         await using var fixture = await PostgresAccountFixture.CreateAsync(draftMigration);
         await using var scope = fixture.Services.CreateAsyncScope();
         var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var migrator = database.GetService<IMigrator>();
         var previous = draftMigration;
         foreach (var migration in database.GetService<IMigrationsAssembly>().Migrations.Keys
-            .Where(id => string.CompareOrdinal(id, draftMigration) > 0).Order(StringComparer.Ordinal))
+            .Where(id => string.CompareOrdinal(id, draftMigration) > 0 &&
+                string.CompareOrdinal(id, currentDevMigration) <= 0).Order(StringComparer.Ordinal))
         {
-            // Reproduce dev before publication storage and its dependent access and immutability guards were introduced
-            if (migration != publicationMigration && !migration.EndsWith("_AddPublicationAccess", StringComparison.Ordinal)
+            // Reproduce dev before either storage feature and dependent access guards existed
+            if (migration != publicationMigration && migration != assetMigration
+                && !migration.EndsWith("_AddPublicationAccess", StringComparison.Ordinal)
                 && !migration.EndsWith("_HardenPublicationAccess", StringComparison.Ordinal))
             {
                 await PostgresAccountFixture.ExecuteMigrationScriptAsync(database,
@@ -78,6 +82,7 @@ public sealed class PublicationMigrationIntegrationTests
         await Assert.That((await reopened.ReviewSubmissions.SingleAsync()).Id).IsEqualTo(data.SubmissionId);
         await Assert.That((await reopened.ReviewDecisions.SingleAsync()).Id).IsEqualTo(data.DecisionId);
         await Assert.That((await reopened.Publications.SingleAsync()).Id).IsEqualTo(edition);
+        await Assert.That(await reopened.AssetCandidates.CountAsync()).IsEqualTo(0);
         await Assert.That(await reopened.Database.GetPendingMigrationsAsync()).IsEmpty();
     }
 }

@@ -349,7 +349,6 @@ jobs:
           stack=(docker compose --env-file ../../.env -f ../../compose.yaml -f ../../compose.server.yaml -p vthere-ci)
           "${stack[@]}" build api migrate
           "${stack[@]}" up -d --no-build --wait --wait-timeout 120
-          # Validate a real GLB inside the packaged API as its unprivileged runtime user
           "${stack[@]}" exec -T api node /app/tools/validate-intake.mjs < ../../assets/delivery/test-crate.glb > test-results/packaged-asset-validation.json
           node -e "const assert = require('node:assert/strict'); const result = require('./test-results/packaged-asset-validation.json'); assert.equal(result.valid, true)"
           docker cp "$("${stack[@]}" ps -q gateway):/data/caddy/pki/authorities/local/root.crt" test-results/server-root.crt
