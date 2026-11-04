@@ -248,3 +248,47 @@ try {
     .first()
     .click();
   await dialog.getByRole("button", { name: "Update", exact: true }).click();
+  assert.equal(
+    await page.locator("[data-placing-text]").count(),
+    0,
+    "Editing placed text must not restart placement",
+  );
+  const edited = await saved(
+    (doc) =>
+      doc.scenes[0].objects.find((object) => object.id === target.id).components[0]?.background,
+  );
+  assert.deepEqual(
+    edited.scenes[0].objects.find((object) => object.id === target.id).components[0].placement,
+    text.placement,
+  );
+  for (const row of [page.locator(".object-row").last(), page.locator(".object-row").first()]) {
+    await row.click();
+    const removeText = page.getByRole("button", { name: "Remove text", exact: true });
+    await removeText.hover();
+    assert.equal(await removeText.locator(".exhibit-remove-badge svg").count(), 1);
+    const alignment = await removeText.evaluate((button) => {
+      const bounds = button.getBoundingClientRect();
+      const icon = button.querySelector(".icon").getBoundingClientRect();
+      return {
+        x: Math.abs(bounds.x + bounds.width / 2 - icon.x - icon.width / 2),
+        y: Math.abs(bounds.y + bounds.height / 2 - icon.y - icon.height / 2),
+      };
+    });
+    assert.ok(
+      alignment.x < 1 && alignment.y < 1,
+      "Remove text icon must be centred in its hover target",
+    );
+    await removeText.click();
+    await page
+      .getByRole("button", { name: "Remove text", exact: true })
+      .waitFor({ state: "detached" });
+    await page.getByRole("button", { name: "Undo", exact: true }).click();
+    await page.getByRole("button", { name: "Remove text", exact: true }).waitFor();
+  }
+  assert.deepEqual(errors, []);
+  console.log(
+    "PASS: screen background/font, no hover border, case text preview, cancel without saving, placement, Undo/Redo and reload.",
+  );
+} finally {
+  await browser.close();
+}
