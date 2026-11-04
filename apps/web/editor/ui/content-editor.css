@@ -748,3 +748,14 @@ dialog.content-dialog.pdf-content-dialog .content-font-size .asset-filter-trigge
   padding: 0 2px;
   gap: 4px;
 }
+
+dialog.content-dialog.pdf-content-dialog .content-format {
+  gap: 0;
+  padding-inline: 16px;
+}
+
+dialog.content-dialog.pdf-content-dialog .content-font-size .asset-filter-trigger .icon {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+}
