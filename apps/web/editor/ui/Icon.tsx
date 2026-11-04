@@ -1,3 +1,7 @@
+import audioLibrary from "./assets/audio-library.png";
+import audioMusic from "./assets/audio-music.png";
+import audioSpeaker from "./assets/audio-speaker.png";
+import audioPhone from "./assets/audio-phone.png";
 import type { ReactNode } from "react";
 import horizontalStand from "./assets/horizontal-stand.svg?no-inline";
 import verticalStand from "./assets/vertical-stand.svg?no-inline";
@@ -175,6 +179,19 @@ const icons = {
 
   // Placeholders
   caretDown: drawn(<path d="m7 10 5 5 5-5" />),
+  scenes: drawn(
+    <>
+      <rect x="7" y="3" width="14" height="13" rx="2" />
+      <path d="M17 20H5a2 2 0 0 1-2-2V8" />
+      <path d="m10 12 3-3 5 4" />
+    </>,
+  ),
+  savedView: drawn(
+    <>
+      <path d="M8 6 10 3h4l2 3h3a2 2 0 0 1 2 2v11H3V8a2 2 0 0 1 2-2h3Z" />
+      <circle cx="12" cy="12" r="4" />
+    </>,
+  ),
   tree: drawn(<path d="M12 3 7 10h3l-4 6h5v5h2v-5h5l-4-6h3z" />),
   info: drawn(
     <>
@@ -289,9 +306,15 @@ const icons = {
     />,
   ),
   music: shaded(
-    "0 0 26 26",
+    "-1 -1 28 28",
     "M8.386 2.81126L23.814 0.0112611C24.584 -0.100739 25.2 0.641261 25.2 1.41126V18.7993C25.2 21.5153 23.002 23.6993 20.3 23.6993C17.598 23.6993 15.4 21.5153 15.4 18.7993C15.4 16.0973 17.598 13.8993 20.3 13.8993C21.056 13.8993 21.756 14.0953 22.4 14.3893V5.61126L9.8 8.41126V20.8993C9.464 23.2793 7.364 25.0993 4.9 25.0993C2.198 25.0993 0 22.9153 0 20.1993C0 17.4973 2.198 15.2993 4.9 15.2993C5.656 15.2993 6.356 15.4953 7 15.7893V4.21126C7 3.44126 7.616 2.93726 8.386 2.81126Z",
   ),
+  audioPlay: drawn(<path d="m8 5 11 7-11 7V5Z" />),
+  audioPause: drawn(<path d="M8 5v14M16 5v14" />),
+  audioLibrary: { src: audioLibrary },
+  audioMusic: { src: audioMusic },
+  audioSpeaker: { src: audioSpeaker },
+  audioPhone: { src: audioPhone },
   speaker: drawn(
     <>
       <rect className="fill" x="6" y="2.5" width="12" height="19" rx="2" />
@@ -309,6 +332,7 @@ export function Icon({ name }: { name: IconName }) {
     return (
       <img
         className="figma-tool-icon"
+        data-icon={name}
         src={icon.src}
         width={40}
         height={40}

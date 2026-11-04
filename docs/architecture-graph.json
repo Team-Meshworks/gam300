@@ -241,8 +241,8 @@
     "account-dev-server.ts": "e117343d2dda5bf2d1a2636bfffdb6d2559da9410db4a42fdc336a837259c6fd",
     "architecture.check.mjs": "7056958085076fb9a6f14992dded7faf21aedd9d78a48ae5484704020a25cfb7",
     "architecture.mjs": "dfe80683a770f9a5a903b2ed9773c13677a06775a5a090e98b124f099e49b6e3",
-    "asset-catalogue-plugin.ts": "c42da3eb405092eae6aa6d76eeddd1d261b253b1fcfdf0499b62a2832a8e3b50",
-    "editor/App.tsx": "339b8f78442f911c8d3d3459bac72776c222c6a2fcd4a9398e55888ac65bed80",
+    "asset-catalogue-plugin.ts": "510957e04b7e92e171d5dd47655c58e80ae7327a1532a59791e51388f061c924",
+    "editor/App.tsx": "ce4a07b78f61ae092b2060e7f5e8d7810e2b005c1f136c6036cdea928ede19a4",
     "editor/OlderSceneImport.tsx": "9ab5f31f2ac60a12bfb5931592c54ed566140baac1bb38f3358fa0bd0ca93397",
     "editor/ProjectConfirmation.tsx": "07a0fedf8fbf88865b3b8232c8665c139348fc64ebce478ea01e55eb7fd14eff",
     "editor/Scenes.tsx": "fbd0b23955e14e7f41db3b7d28dfd2d9c3650614d8bfa5601a434f45b096c0cd",
@@ -309,8 +309,8 @@
     "editor/history-shortcuts.test.ts": "fc33404f4da0e7c9fd27d2da50d63eb3367c790cda0f985dd98b398b651e3a3b",
     "editor/history-shortcuts.ts": "e9d147c651ba15b45484207f805fbb648beb13c7393e4538d249c159c4b4e583",
     "editor/interaction-history.test.ts": "178fb9f576d890f84302c0e5d804eab6698989b8ea0c9ca128c3e4bb75a4cc6f",
-    "editor/interaction/actionHandler.test.ts": "2199a7cee89c87895d31c993eb9348aec24b02f52de5a0df064b160311198fab",
-    "editor/interaction/actionHandler.ts": "7b2bbbca2472870a0c672a12b7c462d9bfb9fe52809e75a0dff0519d0eff6058",
+    "editor/interaction/actionHandler.test.ts": "4d20e5122bf4398b78d45c60c2892ba50c3b468aaf2631feb685763933e1d0c0",
+    "editor/interaction/actionHandler.ts": "9996661af820653074089f35211f0e038b7afe1aedee604ec146a2b2c5ab672c",
     "editor/interaction/audio.ts": "6700985d7e44bcd8d2ee89b1a2b590cef3fbc480a96760e40da5e9c947582a32",
     "editor/interaction/interactionHandler.test.ts": "fd183832b622635ca66da7960eb63e84b23cf956351e3fe043cbca4dfe1a39ce",
     "editor/interaction/interactionHandler.ts": "f92d76f0a57f3edb4182c7e420c5ee55a35715d9b0dcea5091afc282a09a3db3",
@@ -380,7 +380,7 @@
     "editor/ui/ContentEditor.tsx": "fb51c304eb7815dbe55f53cd1b5ebac87e6683f14deb77b5a1273c8852798340",
     "editor/ui/DisplayEditor.tsx": "8dbef5e9a5ca627cc864ae61757bbfba62778baed79e214f54d913d85d9f60e3",
     "editor/ui/ExhibitPopups.tsx": "bb85bfd0f131c19365e296b23cf3cfc7eae97e65f80618058115692517e3c31f",
-    "editor/ui/Icon.tsx": "f14627fe1de88c82253d8381b1dfd2ec5596c44358131f1cfd0d9387934129c9",
+    "editor/ui/Icon.tsx": "e6dd35d62b18b4c09ac7b2da5dece2f1d62f0b268afedd547b1777b4b6d6d091",
     "editor/ui/InteractionPanel.tsx": "bd06335bb72d214c8fe24093706b5c8ef7294ba47c6fbe9a1f53808216e5555f",
     "editor/ui/PreviewTargets.tsx": "d49499d2e889781f42239cfe9cdd17a174691baed6dc86815a2d3e577af00884",
     "editor/ui/RichTextInput.tsx": "8508440ea3abe0f184f38738e1a3163064444456cb3bee0d56bc4096730c0dbd",
@@ -408,7 +408,7 @@
     "shared/asset-runtime/ModelCache.test.ts": "6e5cf28591eb858c981923550fe49fb330535b085db0d99d7ce209736fefc2d3",
     "shared/asset-runtime/ModelCache.ts": "7ba493c76290a999db38013457dea39e5b08492416487338b05e1be6490dde2e",
     "shared/asset-runtime/catalogue.test.ts": "93f76097551fcf8adaa581777554edfa38c4defb12d9711c3f2c7f3332a77fac",
-    "shared/asset-runtime/catalogue.ts": "b9c5aee97f1b4ef240349d3421faa292a047deb91f9cdaacb54d954b59ccfd1b",
+    "shared/asset-runtime/catalogue.ts": "39acde0ac5b42a25f28af6697d1227fd34273be0b9445bdae9192b42599765ba",
     "shared/asset-runtime/hotspot.ts": "1981f66fb7e803218b2cbf88b6e64c649a8dd4f2298b70882003495b631e16aa",
     "shared/asset-runtime/manifest-module.d.ts": "ff7add6e7e483a4cc6a0dd48c9ead7b2f4cd0b0a5ccc7fb06181e1a5d2d1326e",
     "shared/project/attached-transforms.ts": "73599346cb723db417b11d02eb9bf92f80f038ff070f605d11b62d77083f543a",
@@ -419,10 +419,10 @@
     "shared/project/legacy-scene-validation.ts": "1624a10526146da0eb0bf1b0e1e3a1ac795c3f77c2e8b2f65c7b0fcd8ec0b650",
     "shared/project/portable-url.ts": "b6d6fc16ca16de2378f700669074296a96bef4374f28725cbc2abe0dc007f3a0",
     "shared/project/project-appearance.ts": "c72ef377a312b917799680851f94852faf9a4a9879a23ccabb8e5821905a6503",
-    "shared/project/project-capabilities.ts": "43c06f85e1d57e6017b230f69e56776e41f766c9c14b7739959c5f718ac9f565",
-    "shared/project/project-content-validation.ts": "c2fcb8bb887fe44b22541babf5e94f056c2f3172bc2ca5f18c959a82104bc453",
+    "shared/project/project-capabilities.ts": "96e5a86f2b9de6d9c09a028dea167fb789fea37c80899ebb5e66cc0e2a530170",
+    "shared/project/project-content-validation.ts": "2ccd27a64cf0004171061ceeba3e6c491f10cd49fe54223316364457b98cde13",
     "shared/project/project-content.test.ts": "348f9d8fd26a3273e1e4bc701565345607c6eba773ceef342702b08a004a9bc0",
-    "shared/project/project-content.ts": "fda566155ad291c3c0ac0eebd428c56b64222af960b2b73a1867b2e834c3d969",
+    "shared/project/project-content.ts": "27ea65f05be152c324730e8f481042c8ab14dc496ea5194960a740bc06f937fa",
     "shared/project/project-deserialization.test.ts": "a4159c5ffc88b8d3f22ed9fcca5b7b37cb7a90d1766dc46080264ca3b552ffb1",
     "shared/project/project-deserialization.ts": "380048b4c4f18537670171023b49d5e95f80be7981975c9edd44b4584391df1b",
     "shared/project/project-limits.ts": "6d4db8b98f0a4d9d90b9b7d8935a8d9c2d77037f92654c6aaf0397fc57f387dc",
@@ -430,7 +430,7 @@
     "shared/project/project-serialization.ts": "ed89d30126f5d2b67afed66895bcfc47546911a20993974a5a2d633ca2868698",
     "shared/project/project-structure-validation.test.ts": "c67d2e9beaf71cf5d1c576a313be56c18639078602b1405a1fe4c28d398e2054",
     "shared/project/project-structure-validation.ts": "b11b21a2bc8f375d081e7f0108f40422102795e2608bb66f70a0f27543ff1d21",
-    "shared/project/project-types.ts": "cb29e9d64ad8fa4c1bf1daf46fc28c6e679d725353b0b6cbcdca502b08eca6a9",
+    "shared/project/project-types.ts": "380c8ea2c234633b0ad5e8459a9a89e01e8fd7c9ee88c8b9f00efcdd8aa749fc",
     "shared/project/project-validation.test.ts": "3c76118f85391181ccc59c47dd21bbde4c849666e0aa191a93702f31e7ceced3",
     "shared/project/project-validation.ts": "c3871c73fd30a591677df1385c3c31844cf9a385a0082593ff6da126d0e52eea",
     "shared/project/project-wire.test.ts": "c91c12dbf83e3bb45e8213da0fb2f6511b838450b5c0c42f1297a24c4754ad46",
@@ -461,32 +461,32 @@
     "tests/browser-security.mjs": "949ffb7a43e95bc5c721520ee8b2581813b6a5d930cc56c6afd57dfb181077ef",
     "tests/browser-security.test.mjs": "f9f79a3e43b8fc9bdde9bad5481deab1ba34a5ec642e5f3c15e6f5c9778400b3",
     "tests/caching.check.mjs": "e19339a9d576ebcab99466e33cfd0dc79f61ede12fa4bbf6541412a1b0a1667c",
-    "tests/caching.measure.mjs": "19dff9da0f727d891bdb7a6180a88837998d83a2eb139d4ed78ee697883c1f18",
-    "tests/case-outline.check.mjs": "15bbd73a7bcbe9667d8ebf33ff31064e21180477a0677abfad289f4561ba42a3",
+    "tests/caching.measure.mjs": "aab8ebc43abf70c2c3ce186e4d58e1321651e686bfd0a10e7c3498404129a937",
+    "tests/case-outline.check.mjs": "0de189ea3752eb84d1e4ee4a5146c20b63907cb6511312627cd380ec1009ce19",
     "tests/class-assignment.check.mjs": "1a0475d08891bcf89a11b6441aa320707ccadcca388f01e0d6cf491a54b90ed4",
-    "tests/content-editor.check.mjs": "0c5792df4e319f4f611a9ed0aeee5398b4ce3f29b0092fe40c3f154f07b36787",
+    "tests/content-editor.check.mjs": "500481d7abdc553224892fa38b0cdca6292b9050e4fd1b1b51220bdfd99576c4",
     "tests/deployment.check.mjs": "e0f7a34202240069e92beb60a5480955a4d8c7186963d96cef02b44eca29d6a5",
-    "tests/display-editor.check.mjs": "8e061fc7c8222cd917b51830f0cc31caf7cf91947645638847dbdf90100c52a8",
-    "tests/display-tools.check.mjs": "a27de59edf472b1cfb7eca1a1106d3e8d50a3dc81fcde145e0cc59aae9576ea8",
+    "tests/display-editor.check.mjs": "f5f56d1037cb3b44a0951e6b956601f49fa42cd16307455b3ffc3cbd4392ac11",
+    "tests/display-tools.check.mjs": "57af89e688f30d6b884a72e1c5ee2468cd01b877800ecbbc52c658b357c6e8df",
     "tests/editor-build.check.mjs": "c8459856ff2c2ba28c7f81a9accf488e5e6211eb0e432f58c70c7e01171d34c6",
     "tests/editor-integration.check.mjs": "f5b4300c5ae7c959cbb86afb6bf7b999334dd7a4dc311a5fddc6422c04c809bc",
-    "tests/editor-shell.check.mjs": "99551aed2f2cb92da5e9bbcd13901b96d0bed2f218c45465da958e80669c335c",
+    "tests/editor-shell.check.mjs": "629169e0999e9374b157310f450ee0cfaf3291eb92949681381d04172b20cc70",
     "tests/entry.check.mjs": "e63ff3adfaca3fde6a5da9f134ea7fda317b83b84ea4c9b16e1d438710c5f777",
     "tests/history-recovery.check.mjs": "6f8740ba79ef315a69359ac4017b543804ad365b0a67a3481bfc07aa16456258",
-    "tests/hotspot-placement.check.mjs": "2b563c222055eeba684ed1fa49b08a28738aa1aa277e25f3733364f6a01ac259",
-    "tests/hotspot-rendering.check.mjs": "61f8e09c5c3b9e34078234efe6c12d969cf98d395875a0b692833712132ee6af",
+    "tests/hotspot-placement.check.mjs": "a190990e03afacd5da85c73e718952b2f2f73127a589f762a434a9fc81025f3c",
+    "tests/hotspot-rendering.check.mjs": "c42c9400bdf09cb1f7a7c52441d0503935a0eabb131f4ab3c85b676da3f8f77d",
     "tests/interaction-navigation.check.mjs": "ef080b60235cf85d8741e48f87516fb7271f610679e649fe6f16e6d88176b353",
-    "tests/interaction-review.check.mjs": "859d5bf45b3ba90edbf2a148ae336db9db4b4de8c00e3b4725f8e28b31088b92",
-    "tests/local-drafts.check.mjs": "b8925e83c230758a0d6b6d6d06ada95e512f674a0b4a972095c72299019ed0f8",
+    "tests/interaction-review.check.mjs": "4e17005e1e72168b5d4b7f88abc5bd4aa6c530a6daec8049d34a9c5f1c5ff342",
+    "tests/local-drafts.check.mjs": "3c3fa4662f489e91b809c1a3fcd9e183df6a718e5503c2ad939a234134fc3e66",
     "tests/login-real-api.check.mjs": "fde802b13e8c954736d33d5101e0cf0596f667ddf8a625c85138e5d936273caf",
     "tests/new-project.check.mjs": "7001c7bb51345dfe92b3bfd819223bf6eec70d6cee82a4d8ddaae4326d36311f",
     "tests/project-format-cross.check.mjs": "4d326ac5a65b206019967b24cc4cfa1ea492212b734712f83bb97593e6459144",
     "tests/review-directory.check.mjs": "38c7c15bf9da45f16ae65de04b535a4f54cf22aab2a1119e126797dba593f7fb",
-    "tests/room-preview.check.mjs": "069b4f07c1efa749f30109374a6de2634ecfcf938b75dd3c7608ad1a59454114",
+    "tests/room-preview.check.mjs": "b08da0a6b06bfc2bfcfae4e9601005330ce76b729d682590c85cbe80161d066c",
     "tests/server-autosave.check.mjs": "eaca99e446854e846dcbc25512264df684f857bd67d0c6c89afc07b38321fa1b",
-    "tests/text-placement.check.mjs": "76e059825930bf3627c25ebac64a5254c76e0443b0d6ae22d8a6347ac5ac1d36",
+    "tests/text-placement.check.mjs": "812c9e0c977310df205eb7bf9934ea2d55f42ea0685fd41f8901be988f09ced9",
     "tests/ui-foundation.check.mjs": "68aef400173d9b0beda8d7e70aac85e957b034a83fb60cfdd3b834785fcc7c20",
-    "tests/ui-sounds.check.mjs": "64f419a03ab04bbb28e8ffa05ff016068718dbea90112b9bf4d843c090532332",
+    "tests/ui-sounds.check.mjs": "d78791841df1ce2af8ff47d1e0b2d5c2d4d8d46ef1b8b05ee13a791f1a72f6aa",
     "tests/verify-browser.mjs": "d976ca6aededfbe021dcfa16d2fed4384eba32e79df27149570f2bc7114178d2",
     "tests/workspace-routes.check.mjs": "2d584d5fdc28fc960f9dc8a311d9b153440c21d8c38aecdde4e090ae4bbbaf18",
     "vite.config.ts": "7ab395c5523eac22c76dd9237ace595f776ebd723ca6b846a1f7924e15a1b90c",
@@ -533,6 +533,10 @@
     "editor/ui/assets/editor-library-selected.svg": "327300c2e7fdccf167990a9ef26919259d6af7f7d612022f70caf2985a0ef278",
     "editor/ui/display-editor.css": "e7d1b6e70e888e061b173fdd2f3d02dff22e541bcb752a3a9dd8994f1639c91f",
     "editor/ui/exhibit-popups.css": "bd732d6feb89c4541305a45e2a2fc14608d93b34fe035699cc331ba63b8d94fe",
+    "editor/ui/assets/audio-library.png": "903556ec2a42bd673301b1b1bfc0e6bcb2f0c60552c9807e495cbbcdb33d8dd8",
+    "editor/ui/assets/audio-music.png": "5b324fd0ee4650d5a955d38dac91a3663bc4832e54c35387ca067fbc5c8b4fb0",
+    "editor/ui/assets/audio-speaker.png": "5a6db2dbebf564e1fc55808ad4b96dd81b9b3876aaef1d84a5b3565b0ef55aeb",
+    "editor/ui/assets/audio-phone.png": "1b52372b826a667506d94054dfb4b3c25a4be4fbd6269045c1ba59ce4fa5df85",
     "editor/ui/assets/horizontal-stand.svg": "3014a5df8cda6c47b1a6eded71ce39680a1d421e64db75ebf912d6c8f9d9cd79",
     "editor/ui/assets/vertical-stand.svg": "1c70ec327ec6515bb4f0848d636e317f9c8b0b4f87c9cd06cbe5bf23989128c4",
     "editor/ui/assets/horizontal-panel.svg": "db50e81494ec72ed259e38f972d0e47382c95c78841f7d7b1ee9b229dee1f599",
@@ -6976,6 +6980,42 @@
     {
       "file": "editor/ui/Icon.tsx",
       "line": 1,
+      "kind": "static",
+      "specifier": "./assets/audio-library.png",
+      "target": "editor/ui/assets/audio-library.png",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/Icon.tsx",
+      "line": 2,
+      "kind": "static",
+      "specifier": "./assets/audio-music.png",
+      "target": "editor/ui/assets/audio-music.png",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/Icon.tsx",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./assets/audio-speaker.png",
+      "target": "editor/ui/assets/audio-speaker.png",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/Icon.tsx",
+      "line": 4,
+      "kind": "static",
+      "specifier": "./assets/audio-phone.png",
+      "target": "editor/ui/assets/audio-phone.png",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/Icon.tsx",
+      "line": 5,
       "kind": "type",
       "specifier": "react",
       "target": {
@@ -6985,7 +7025,7 @@
     },
     {
       "file": "editor/ui/Icon.tsx",
-      "line": 2,
+      "line": 6,
       "kind": "static",
       "specifier": "./assets/horizontal-stand.svg?no-inline",
       "target": "editor/ui/assets/horizontal-stand.svg",
@@ -6994,7 +7034,7 @@
     },
     {
       "file": "editor/ui/Icon.tsx",
-      "line": 3,
+      "line": 7,
       "kind": "static",
       "specifier": "./assets/vertical-stand.svg?no-inline",
       "target": "editor/ui/assets/vertical-stand.svg",
@@ -7003,7 +7043,7 @@
     },
     {
       "file": "editor/ui/Icon.tsx",
-      "line": 4,
+      "line": 8,
       "kind": "static",
       "specifier": "./assets/horizontal-panel.svg?no-inline",
       "target": "editor/ui/assets/horizontal-panel.svg",
@@ -7012,7 +7052,7 @@
     },
     {
       "file": "editor/ui/Icon.tsx",
-      "line": 5,
+      "line": 9,
       "kind": "static",
       "specifier": "./assets/vertical-panel.svg?no-inline",
       "target": "editor/ui/assets/vertical-panel.svg",
@@ -7021,7 +7061,7 @@
     },
     {
       "file": "editor/ui/Icon.tsx",
-      "line": 6,
+      "line": 10,
       "kind": "static",
       "specifier": "./assets/cube-display-case.svg?no-inline",
       "target": "editor/ui/assets/cube-display-case.svg",
@@ -7030,7 +7070,7 @@
     },
     {
       "file": "editor/ui/Icon.tsx",
-      "line": 7,
+      "line": 11,
       "kind": "static",
       "specifier": "./assets/clear-cube-display-case.svg?no-inline",
       "target": "editor/ui/assets/clear-cube-display-case.svg",
@@ -7039,7 +7079,7 @@
     },
     {
       "file": "editor/ui/Icon.tsx",
-      "line": 8,
+      "line": 12,
       "kind": "static",
       "specifier": "./assets/clear-cuboid-display-case.svg?no-inline",
       "target": "editor/ui/assets/clear-cuboid-display-case.svg",
@@ -7048,7 +7088,7 @@
     },
     {
       "file": "editor/ui/Icon.tsx",
-      "line": 9,
+      "line": 13,
       "kind": "static",
       "specifier": "./assets/cuboid-display-case.svg?no-inline",
       "target": "editor/ui/assets/cuboid-display-case.svg",
@@ -7057,7 +7097,7 @@
     },
     {
       "file": "editor/ui/Icon.tsx",
-      "line": 18,
+      "line": 22,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -9942,7 +9982,7 @@
     },
     {
       "file": "tests/caching.measure.mjs",
-      "line": 88,
+      "line": 95,
       "kind": "test-environment",
       "specifier": "three",
       "target": {
@@ -9952,7 +9992,7 @@
     },
     {
       "file": "tests/caching.measure.mjs",
-      "line": 89,
+      "line": 96,
       "kind": "test-environment",
       "specifier": "three",
       "target": {
@@ -9962,7 +10002,7 @@
     },
     {
       "file": "tests/caching.measure.mjs",
-      "line": 90,
+      "line": 97,
       "kind": "dynamic",
       "specifier": "/graphics/ti18-baseline.ts",
       "target": {
@@ -9974,7 +10014,7 @@
     },
     {
       "file": "tests/caching.measure.mjs",
-      "line": 91,
+      "line": 98,
       "kind": "dynamic",
       "specifier": "/graphics/scene.ts",
       "target": "editor/graphics/scene.ts",
@@ -9983,7 +10023,7 @@
     },
     {
       "file": "tests/caching.measure.mjs",
-      "line": 92,
+      "line": 99,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -10004,15 +10044,14 @@
       "file": "tests/case-outline.check.mjs",
       "line": 2,
       "kind": "static",
-      "specifier": "playwright",
-      "target": {
-        "package": "playwright"
-      },
-      "from": "checks"
+      "specifier": "./browser-security.mjs",
+      "target": "tests/browser-security.mjs",
+      "from": "checks",
+      "to": "checks"
     },
     {
       "file": "tests/case-outline.check.mjs",
-      "line": 9,
+      "line": 12,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -10021,7 +10060,7 @@
     },
     {
       "file": "tests/case-outline.check.mjs",
-      "line": 10,
+      "line": 13,
       "kind": "dynamic",
       "specifier": "/graphics/scene.ts",
       "target": "editor/graphics/scene.ts",
@@ -10030,7 +10069,7 @@
     },
     {
       "file": "tests/case-outline.check.mjs",
-      "line": 11,
+      "line": 14,
       "kind": "dynamic",
       "specifier": "/graphics/visible-model-bounds.ts",
       "target": "editor/graphics/visible-model-bounds.ts",
@@ -10090,11 +10129,10 @@
       "file": "tests/content-editor.check.mjs",
       "line": 3,
       "kind": "static",
-      "specifier": "playwright",
-      "target": {
-        "package": "playwright"
-      },
-      "from": "checks"
+      "specifier": "./browser-security.mjs",
+      "target": "tests/browser-security.mjs",
+      "from": "checks",
+      "to": "checks"
     },
     {
       "file": "tests/deployment.check.mjs",
@@ -10149,11 +10187,10 @@
       "file": "tests/display-editor.check.mjs",
       "line": 3,
       "kind": "static",
-      "specifier": "playwright",
-      "target": {
-        "package": "playwright"
-      },
-      "from": "checks"
+      "specifier": "./browser-security.mjs",
+      "target": "tests/browser-security.mjs",
+      "from": "checks",
+      "to": "checks"
     },
     {
       "file": "tests/display-tools.check.mjs",
@@ -10189,15 +10226,14 @@
       "file": "tests/display-tools.check.mjs",
       "line": 4,
       "kind": "static",
-      "specifier": "playwright",
-      "target": {
-        "package": "playwright"
-      },
-      "from": "checks"
+      "specifier": "./browser-security.mjs",
+      "target": "tests/browser-security.mjs",
+      "from": "checks",
+      "to": "checks"
     },
     {
       "file": "tests/display-tools.check.mjs",
-      "line": 43,
+      "line": 41,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -10206,7 +10242,7 @@
     },
     {
       "file": "tests/display-tools.check.mjs",
-      "line": 59,
+      "line": 57,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -10215,7 +10251,7 @@
     },
     {
       "file": "tests/display-tools.check.mjs",
-      "line": 158,
+      "line": 156,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -10224,7 +10260,7 @@
     },
     {
       "file": "tests/display-tools.check.mjs",
-      "line": 159,
+      "line": 157,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -10423,7 +10459,7 @@
     },
     {
       "file": "tests/editor-shell.check.mjs",
-      "line": 785,
+      "line": 800,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -10432,7 +10468,7 @@
     },
     {
       "file": "tests/editor-shell.check.mjs",
-      "line": 820,
+      "line": 835,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -10612,15 +10648,14 @@
       "file": "tests/hotspot-placement.check.mjs",
       "line": 4,
       "kind": "static",
-      "specifier": "playwright",
-      "target": {
-        "package": "playwright"
-      },
-      "from": "checks"
+      "specifier": "./browser-security.mjs",
+      "target": "tests/browser-security.mjs",
+      "from": "checks",
+      "to": "checks"
     },
     {
       "file": "tests/hotspot-placement.check.mjs",
-      "line": 38,
+      "line": 41,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -10629,7 +10664,7 @@
     },
     {
       "file": "tests/hotspot-placement.check.mjs",
-      "line": 39,
+      "line": 42,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -10638,7 +10673,7 @@
     },
     {
       "file": "tests/hotspot-placement.check.mjs",
-      "line": 60,
+      "line": 63,
       "kind": "test-transformed-module",
       "specifier": "three",
       "target": {
@@ -10648,7 +10683,7 @@
     },
     {
       "file": "tests/hotspot-placement.check.mjs",
-      "line": 61,
+      "line": 64,
       "kind": "dynamic",
       "specifier": "/graphics/scene.ts",
       "target": "editor/graphics/scene.ts",
@@ -10657,7 +10692,7 @@
     },
     {
       "file": "tests/hotspot-placement.check.mjs",
-      "line": 62,
+      "line": 65,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -10666,7 +10701,7 @@
     },
     {
       "file": "tests/hotspot-placement.check.mjs",
-      "line": 117,
+      "line": 120,
       "kind": "test-transformed-module",
       "specifier": "three",
       "target": {
@@ -10676,7 +10711,7 @@
     },
     {
       "file": "tests/hotspot-placement.check.mjs",
-      "line": 152,
+      "line": 155,
       "kind": "test-transformed-module",
       "specifier": "three",
       "target": {
@@ -10718,15 +10753,14 @@
       "file": "tests/hotspot-rendering.check.mjs",
       "line": 4,
       "kind": "static",
-      "specifier": "playwright",
-      "target": {
-        "package": "playwright"
-      },
-      "from": "checks"
+      "specifier": "./browser-security.mjs",
+      "target": "tests/browser-security.mjs",
+      "from": "checks",
+      "to": "checks"
     },
     {
       "file": "tests/hotspot-rendering.check.mjs",
-      "line": 26,
+      "line": 29,
       "kind": "test-transformed-module",
       "specifier": "three",
       "target": {
@@ -10736,7 +10770,7 @@
     },
     {
       "file": "tests/hotspot-rendering.check.mjs",
-      "line": 27,
+      "line": 30,
       "kind": "dynamic",
       "specifier": "/graphics/scene.ts",
       "target": "editor/graphics/scene.ts",
@@ -10745,7 +10779,7 @@
     },
     {
       "file": "tests/hotspot-rendering.check.mjs",
-      "line": 29,
+      "line": 32,
       "kind": "test-transformed-module",
       "specifier": "../shared/asset-runtime/hotspot.ts",
       "target": "shared/asset-runtime/hotspot.ts",
@@ -10754,7 +10788,7 @@
     },
     {
       "file": "tests/hotspot-rendering.check.mjs",
-      "line": 30,
+      "line": 33,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -10849,7 +10883,7 @@
     },
     {
       "file": "tests/interaction-review.check.mjs",
-      "line": 21,
+      "line": 36,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -10858,7 +10892,7 @@
     },
     {
       "file": "tests/interaction-review.check.mjs",
-      "line": 22,
+      "line": 37,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -10867,7 +10901,7 @@
     },
     {
       "file": "tests/interaction-review.check.mjs",
-      "line": 89,
+      "line": 104,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -10876,7 +10910,7 @@
     },
     {
       "file": "tests/interaction-review.check.mjs",
-      "line": 90,
+      "line": 105,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -10885,7 +10919,7 @@
     },
     {
       "file": "tests/interaction-review.check.mjs",
-      "line": 125,
+      "line": 140,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -10894,7 +10928,7 @@
     },
     {
       "file": "tests/interaction-review.check.mjs",
-      "line": 126,
+      "line": 141,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -10932,7 +10966,7 @@
     },
     {
       "file": "tests/local-drafts.check.mjs",
-      "line": 73,
+      "line": 88,
       "kind": "dynamic",
       "specifier": "/persistence/draft-db.ts",
       "target": "editor/persistence/draft-db.ts",
@@ -10941,7 +10975,7 @@
     },
     {
       "file": "tests/local-drafts.check.mjs",
-      "line": 93,
+      "line": 108,
       "kind": "dynamic",
       "specifier": "/persistence/draft-db.ts",
       "target": "editor/persistence/draft-db.ts",
@@ -10950,7 +10984,7 @@
     },
     {
       "file": "tests/local-drafts.check.mjs",
-      "line": 143,
+      "line": 158,
       "kind": "dynamic",
       "specifier": "/document-store.ts",
       "target": "editor/document-store.ts",
@@ -10959,7 +10993,7 @@
     },
     {
       "file": "tests/local-drafts.check.mjs",
-      "line": 145,
+      "line": 160,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -10968,7 +11002,7 @@
     },
     {
       "file": "tests/local-drafts.check.mjs",
-      "line": 238,
+      "line": 253,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -10977,7 +11011,7 @@
     },
     {
       "file": "tests/local-drafts.check.mjs",
-      "line": 383,
+      "line": 398,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -10986,7 +11020,7 @@
     },
     {
       "file": "tests/local-drafts.check.mjs",
-      "line": 425,
+      "line": 440,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -10995,7 +11029,7 @@
     },
     {
       "file": "tests/local-drafts.check.mjs",
-      "line": 426,
+      "line": 441,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -11004,7 +11038,7 @@
     },
     {
       "file": "tests/local-drafts.check.mjs",
-      "line": 594,
+      "line": 605,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -11162,15 +11196,14 @@
       "file": "tests/room-preview.check.mjs",
       "line": 2,
       "kind": "static",
-      "specifier": "playwright",
-      "target": {
-        "package": "playwright"
-      },
-      "from": "checks"
+      "specifier": "./browser-security.mjs",
+      "target": "tests/browser-security.mjs",
+      "from": "checks",
+      "to": "checks"
     },
     {
       "file": "tests/room-preview.check.mjs",
-      "line": 10,
+      "line": 13,
       "kind": "dynamic",
       "specifier": "/graphics/scene.ts",
       "target": "editor/graphics/scene.ts",
@@ -11179,7 +11212,7 @@
     },
     {
       "file": "tests/room-preview.check.mjs",
-      "line": 11,
+      "line": 14,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -11188,7 +11221,7 @@
     },
     {
       "file": "tests/room-preview.check.mjs",
-      "line": 35,
+      "line": 38,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -11197,7 +11230,7 @@
     },
     {
       "file": "tests/room-preview.check.mjs",
-      "line": 36,
+      "line": 39,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -11257,11 +11290,10 @@
       "file": "tests/text-placement.check.mjs",
       "line": 3,
       "kind": "static",
-      "specifier": "playwright",
-      "target": {
-        "package": "playwright"
-      },
-      "from": "checks"
+      "specifier": "./browser-security.mjs",
+      "target": "tests/browser-security.mjs",
+      "from": "checks",
+      "to": "checks"
     },
     {
       "file": "tests/text-placement.check.mjs",
@@ -11275,7 +11307,7 @@
     },
     {
       "file": "tests/text-placement.check.mjs",
-      "line": 21,
+      "line": 24,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -11284,7 +11316,7 @@
     },
     {
       "file": "tests/text-placement.check.mjs",
-      "line": 22,
+      "line": 25,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -11454,12 +11486,12 @@
     },
     {
       "file": "tests/caching.measure.mjs",
-      "line": 88,
+      "line": 95,
       "expression": "threePath"
     },
     {
       "file": "tests/caching.measure.mjs",
-      "line": 89,
+      "line": 96,
       "expression": "loaderPath"
     },
     {
@@ -11474,27 +11506,27 @@
     },
     {
       "file": "tests/hotspot-placement.check.mjs",
-      "line": 60,
+      "line": 63,
       "expression": "source.match(/import \\* as THREE from \"([^\"]+)\"/)[1]"
     },
     {
       "file": "tests/hotspot-placement.check.mjs",
-      "line": 117,
+      "line": 120,
       "expression": "source.match(/import \\* as THREE from \"([^\"]+)\"/)[1]"
     },
     {
       "file": "tests/hotspot-placement.check.mjs",
-      "line": 152,
-      "expression": "source.match(/import \\* as THREE from \"([^\"]+)\"/)[1]"
-    },
-    {
-      "file": "tests/hotspot-rendering.check.mjs",
-      "line": 26,
+      "line": 155,
       "expression": "source.match(/import \\* as THREE from \"([^\"]+)\"/)[1]"
     },
     {
       "file": "tests/hotspot-rendering.check.mjs",
       "line": 29,
+      "expression": "source.match(/import \\* as THREE from \"([^\"]+)\"/)[1]"
+    },
+    {
+      "file": "tests/hotspot-rendering.check.mjs",
+      "line": 32,
       "expression": "hotspotPath"
     },
     {
