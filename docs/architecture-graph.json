@@ -7878,6 +7878,12 @@
       "specifier": "../graphics/scene",
       "target": "editor/graphics/scene.ts",
       "from": "editor",
+      "to": "rendering"
+    },
+    {
+      "file": "editor/viewport/Viewport.tsx",
+      "line": 14,
+      "kind": "type",
       "specifier": "../graphics/modeManager",
       "target": "editor/graphics/modeManager.ts",
       "from": "editor",
@@ -7885,7 +7891,7 @@
     },
     {
       "file": "editor/viewport/Viewport.tsx",
-      "line": 105,
+      "line": 120,
       "kind": "dynamic",
       "specifier": "../graphics/scene",
       "target": "editor/graphics/scene.ts",
@@ -7894,7 +7900,7 @@
     },
     {
       "file": "editor/viewport/Viewport.tsx",
-      "line": 212,
+      "line": 246,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -8503,6 +8509,15 @@
       "file": "shared/project/project-content-validation.ts",
       "line": 1,
       "kind": "static",
+      "specifier": "./project-appearance",
+      "target": "shared/project/project-appearance.ts",
+      "from": "project",
+      "to": "project"
+    },
+    {
+      "file": "shared/project/project-content-validation.ts",
+      "line": 2,
+      "kind": "static",
       "specifier": "./project-wire",
       "target": "shared/project/project-wire.ts",
       "from": "project",
@@ -8510,7 +8525,7 @@
     },
     {
       "file": "shared/project/project-content-validation.ts",
-      "line": 2,
+      "line": 3,
       "kind": "type",
       "specifier": "./project-content",
       "target": "shared/project/project-content.ts",
@@ -8519,7 +8534,7 @@
     },
     {
       "file": "shared/project/project-content-validation.ts",
-      "line": 9,
+      "line": 10,
       "kind": "static",
       "specifier": "./project-limits",
       "target": "shared/project/project-limits.ts",
@@ -8528,7 +8543,7 @@
     },
     {
       "file": "shared/project/project-content-validation.ts",
-      "line": 10,
+      "line": 11,
       "kind": "static",
       "specifier": "./portable-url",
       "target": "shared/project/portable-url.ts",
@@ -8537,7 +8552,7 @@
     },
     {
       "file": "shared/project/project-content-validation.ts",
-      "line": 15,
+      "line": 16,
       "kind": "type",
       "specifier": "./project-types",
       "target": "shared/project/project-types.ts",
@@ -8546,7 +8561,7 @@
     },
     {
       "file": "shared/project/project-content-validation.ts",
-      "line": 16,
+      "line": 17,
       "kind": "static",
       "specifier": "./spatial-validation",
       "target": "shared/project/spatial-validation.ts",
@@ -8555,7 +8570,7 @@
     },
     {
       "file": "shared/project/project-content-validation.ts",
-      "line": 17,
+      "line": 18,
       "kind": "static",
       "specifier": "./validation-helpers",
       "target": "shared/project/validation-helpers.ts",
@@ -8638,6 +8653,15 @@
     {
       "file": "shared/project/project-content.ts",
       "line": 1,
+      "kind": "type",
+      "specifier": "./project-appearance",
+      "target": "shared/project/project-appearance.ts",
+      "from": "project",
+      "to": "project"
+    },
+    {
+      "file": "shared/project/project-content.ts",
+      "line": 2,
       "kind": "type",
       "specifier": "./project-types",
       "target": "shared/project/project-types.ts",
@@ -9015,6 +9039,15 @@
       "kind": "type",
       "specifier": "./project-types",
       "target": "shared/project/project-types.ts",
+      "from": "project",
+      "to": "project"
+    },
+    {
+      "file": "shared/project/room-placement.ts",
+      "line": 1,
+      "kind": "type",
+      "specifier": "./scene-object",
+      "target": "shared/project/scene-object.ts",
       "from": "project",
       "to": "project"
     },
@@ -9958,6 +9991,53 @@
       "to": "catalogue"
     },
     {
+      "file": "tests/case-outline.check.mjs",
+      "line": 1,
+      "kind": "static",
+      "specifier": "node:assert/strict",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/case-outline.check.mjs",
+      "line": 2,
+      "kind": "static",
+      "specifier": "playwright",
+      "target": {
+        "package": "playwright"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/case-outline.check.mjs",
+      "line": 9,
+      "kind": "dynamic",
+      "specifier": "/@id/__x00__virtual:asset-catalogue",
+      "target": "shared/asset-runtime/catalogue.ts",
+      "from": "checks",
+      "to": "catalogue"
+    },
+    {
+      "file": "tests/case-outline.check.mjs",
+      "line": 10,
+      "kind": "dynamic",
+      "specifier": "/graphics/scene.ts",
+      "target": "editor/graphics/scene.ts",
+      "from": "checks",
+      "to": "rendering"
+    },
+    {
+      "file": "tests/case-outline.check.mjs",
+      "line": 11,
+      "kind": "dynamic",
+      "specifier": "/graphics/visible-model-bounds.ts",
+      "target": "editor/graphics/visible-model-bounds.ts",
+      "from": "checks",
+      "to": "rendering"
+    },
+    {
       "file": "tests/class-assignment.check.mjs",
       "line": 1,
       "kind": "static",
@@ -9983,6 +10063,36 @@
       "specifier": "node:fs/promises",
       "target": {
         "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/content-editor.check.mjs",
+      "line": 1,
+      "kind": "static",
+      "specifier": "node:assert/strict",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/content-editor.check.mjs",
+      "line": 2,
+      "kind": "static",
+      "specifier": "node:fs",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/content-editor.check.mjs",
+      "line": 3,
+      "kind": "static",
+      "specifier": "playwright",
+      "target": {
+        "package": "playwright"
       },
       "from": "checks"
     },
@@ -10039,30 +10149,11 @@
       "file": "tests/display-editor.check.mjs",
       "line": 3,
       "kind": "static",
-      "specifier": "node:url",
-      "target": {
-        "package": "node:*"
-      },
-      "from": "checks"
-    },
-    {
-      "file": "tests/display-editor.check.mjs",
-      "line": 4,
-      "kind": "static",
       "specifier": "playwright",
       "target": {
         "package": "playwright"
       },
       "from": "checks"
-    },
-    {
-      "file": "tests/display-editor.check.mjs",
-      "line": 170,
-      "kind": "dynamic",
-      "specifier": "/@id/__x00__virtual:asset-catalogue",
-      "target": "shared/asset-runtime/catalogue.ts",
-      "from": "checks",
-      "to": "catalogue"
     },
     {
       "file": "tests/display-tools.check.mjs",
@@ -10106,7 +10197,7 @@
     },
     {
       "file": "tests/display-tools.check.mjs",
-      "line": 42,
+      "line": 43,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -10115,7 +10206,7 @@
     },
     {
       "file": "tests/display-tools.check.mjs",
-      "line": 58,
+      "line": 59,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -10124,7 +10215,7 @@
     },
     {
       "file": "tests/display-tools.check.mjs",
-      "line": 152,
+      "line": 158,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -10133,6 +10224,299 @@
     },
     {
       "file": "tests/display-tools.check.mjs",
+      "line": 159,
+      "kind": "dynamic",
+      "specifier": "/persistence/local-drafts.ts",
+      "target": "editor/persistence/local-drafts.ts",
+      "from": "checks",
+      "to": "persistence"
+    },
+    {
+      "file": "tests/editor-build.check.mjs",
+      "line": 1,
+      "kind": "static",
+      "specifier": "./browser-security.mjs",
+      "target": "tests/browser-security.mjs",
+      "from": "checks",
+      "to": "checks"
+    },
+    {
+      "file": "tests/editor-build.check.mjs",
+      "line": 2,
+      "kind": "static",
+      "specifier": "node:assert/strict",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/editor-build.check.mjs",
+      "line": 3,
+      "kind": "static",
+      "specifier": "node:fs",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/editor-integration.check.mjs",
+      "line": 1,
+      "kind": "static",
+      "specifier": "./browser-security.mjs",
+      "target": "tests/browser-security.mjs",
+      "from": "checks",
+      "to": "checks"
+    },
+    {
+      "file": "tests/editor-integration.check.mjs",
+      "line": 2,
+      "kind": "static",
+      "specifier": "node:assert/strict",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/editor-integration.check.mjs",
+      "line": 3,
+      "kind": "static",
+      "specifier": "node:fs",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/editor-integration.check.mjs",
+      "line": 4,
+      "kind": "static",
+      "specifier": "three",
+      "target": {
+        "package": "three"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/editor-integration.check.mjs",
+      "line": 108,
+      "kind": "dynamic",
+      "specifier": "/persistence/local-drafts.ts",
+      "target": "editor/persistence/local-drafts.ts",
+      "from": "checks",
+      "to": "persistence"
+    },
+    {
+      "file": "tests/editor-integration.check.mjs",
+      "line": 109,
+      "kind": "dynamic",
+      "specifier": "/@id/__x00__virtual:asset-catalogue",
+      "target": "shared/asset-runtime/catalogue.ts",
+      "from": "checks",
+      "to": "catalogue"
+    },
+    {
+      "file": "tests/editor-integration.check.mjs",
+      "line": 185,
+      "kind": "test-environment",
+      "specifier": "three",
+      "target": {
+        "package": "three"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/editor-integration.check.mjs",
+      "line": 186,
+      "kind": "dynamic",
+      "specifier": "/graphics/scene.ts",
+      "target": "editor/graphics/scene.ts",
+      "from": "checks",
+      "to": "rendering"
+    },
+    {
+      "file": "tests/editor-integration.check.mjs",
+      "line": 187,
+      "kind": "dynamic",
+      "specifier": "/@id/__x00__virtual:asset-catalogue",
+      "target": "shared/asset-runtime/catalogue.ts",
+      "from": "checks",
+      "to": "catalogue"
+    },
+    {
+      "file": "tests/editor-integration.check.mjs",
+      "line": 489,
+      "kind": "test-environment",
+      "specifier": "three",
+      "target": {
+        "package": "three"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/editor-integration.check.mjs",
+      "line": 490,
+      "kind": "dynamic",
+      "specifier": "/graphics/scene.ts",
+      "target": "editor/graphics/scene.ts",
+      "from": "checks",
+      "to": "rendering"
+    },
+    {
+      "file": "tests/editor-integration.check.mjs",
+      "line": 491,
+      "kind": "dynamic",
+      "specifier": "/@id/__x00__virtual:asset-catalogue",
+      "target": "shared/asset-runtime/catalogue.ts",
+      "from": "checks",
+      "to": "catalogue"
+    },
+    {
+      "file": "tests/editor-shell.check.mjs",
+      "line": 1,
+      "kind": "static",
+      "specifier": "./browser-security.mjs",
+      "target": "tests/browser-security.mjs",
+      "from": "checks",
+      "to": "checks"
+    },
+    {
+      "file": "tests/editor-shell.check.mjs",
+      "line": 2,
+      "kind": "static",
+      "specifier": "node:assert/strict",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/editor-shell.check.mjs",
+      "line": 3,
+      "kind": "static",
+      "specifier": "node:fs",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/editor-shell.check.mjs",
+      "line": 4,
+      "kind": "static",
+      "specifier": "three",
+      "target": {
+        "package": "three"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/editor-shell.check.mjs",
+      "line": 177,
+      "kind": "dynamic",
+      "specifier": "/@id/__x00__virtual:asset-catalogue",
+      "target": "shared/asset-runtime/catalogue.ts",
+      "from": "checks",
+      "to": "catalogue"
+    },
+    {
+      "file": "tests/editor-shell.check.mjs",
+      "line": 785,
+      "kind": "dynamic",
+      "specifier": "/persistence/local-drafts.ts",
+      "target": "editor/persistence/local-drafts.ts",
+      "from": "checks",
+      "to": "persistence"
+    },
+    {
+      "file": "tests/editor-shell.check.mjs",
+      "line": 820,
+      "kind": "dynamic",
+      "specifier": "/persistence/local-drafts.ts",
+      "target": "editor/persistence/local-drafts.ts",
+      "from": "checks",
+      "to": "persistence"
+    },
+    {
+      "file": "tests/entry.check.mjs",
+      "line": 1,
+      "kind": "static",
+      "specifier": "./browser-security.mjs",
+      "target": "tests/browser-security.mjs",
+      "from": "checks",
+      "to": "checks"
+    },
+    {
+      "file": "tests/entry.check.mjs",
+      "line": 2,
+      "kind": "static",
+      "specifier": "node:assert/strict",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/entry.check.mjs",
+      "line": 3,
+      "kind": "static",
+      "specifier": "node:fs/promises",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/history-recovery.check.mjs",
+      "line": 1,
+      "kind": "static",
+      "specifier": "./browser-security.mjs",
+      "target": "tests/browser-security.mjs",
+      "from": "checks",
+      "to": "checks"
+    },
+    {
+      "file": "tests/history-recovery.check.mjs",
+      "line": 2,
+      "kind": "static",
+      "specifier": "node:assert/strict",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/history-recovery.check.mjs",
+      "line": 3,
+      "kind": "static",
+      "specifier": "node:fs",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/history-recovery.check.mjs",
+      "line": 50,
+      "kind": "dynamic",
+      "specifier": "/persistence/local-drafts.ts",
+      "target": "editor/persistence/local-drafts.ts",
+      "from": "checks",
+      "to": "persistence"
+    },
+    {
+      "file": "tests/history-recovery.check.mjs",
+      "line": 51,
+      "kind": "dynamic",
+      "specifier": "/@id/__x00__virtual:asset-catalogue",
+      "target": "shared/asset-runtime/catalogue.ts",
+      "from": "checks",
+      "to": "catalogue"
+    },
+    {
+      "file": "tests/history-recovery.check.mjs",
       "line": 153,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
@@ -10141,283 +10525,8 @@
       "to": "persistence"
     },
     {
-      "file": "tests/editor-build.check.mjs",
-      "line": 1,
-      "kind": "static",
-      "specifier": "./browser-security.mjs",
-      "target": "tests/browser-security.mjs",
-      "from": "checks",
-      "to": "checks"
-    },
-    {
-      "file": "tests/editor-build.check.mjs",
-      "line": 2,
-      "kind": "static",
-      "specifier": "node:assert/strict",
-      "target": {
-        "package": "node:*"
-      },
-      "from": "checks"
-    },
-    {
-      "file": "tests/editor-build.check.mjs",
-      "line": 3,
-      "kind": "static",
-      "specifier": "node:fs",
-      "target": {
-        "package": "node:*"
-      },
-      "from": "checks"
-    },
-    {
-      "file": "tests/editor-integration.check.mjs",
-      "line": 1,
-      "kind": "static",
-      "specifier": "./browser-security.mjs",
-      "target": "tests/browser-security.mjs",
-      "from": "checks",
-      "to": "checks"
-    },
-    {
-      "file": "tests/editor-integration.check.mjs",
-      "line": 2,
-      "kind": "static",
-      "specifier": "node:assert/strict",
-      "target": {
-        "package": "node:*"
-      },
-      "from": "checks"
-    },
-    {
-      "file": "tests/editor-integration.check.mjs",
-      "line": 3,
-      "kind": "static",
-      "specifier": "node:fs",
-      "target": {
-        "package": "node:*"
-      },
-      "from": "checks"
-    },
-    {
-      "file": "tests/editor-integration.check.mjs",
-      "line": 4,
-      "kind": "static",
-      "specifier": "three",
-      "target": {
-        "package": "three"
-      },
-      "from": "checks"
-    },
-    {
-      "file": "tests/editor-integration.check.mjs",
-      "line": 96,
-      "kind": "dynamic",
-      "specifier": "/persistence/local-drafts.ts",
-      "target": "editor/persistence/local-drafts.ts",
-      "from": "checks",
-      "to": "persistence"
-    },
-    {
-      "file": "tests/editor-integration.check.mjs",
-      "line": 97,
-      "kind": "dynamic",
-      "specifier": "/@id/__x00__virtual:asset-catalogue",
-      "target": "shared/asset-runtime/catalogue.ts",
-      "from": "checks",
-      "to": "catalogue"
-    },
-    {
-      "file": "tests/editor-integration.check.mjs",
-      "line": 173,
-      "kind": "test-environment",
-      "specifier": "three",
-      "target": {
-        "package": "three"
-      },
-      "from": "checks"
-    },
-    {
-      "file": "tests/editor-integration.check.mjs",
-      "line": 174,
-      "kind": "dynamic",
-      "specifier": "/graphics/scene.ts",
-      "target": "editor/graphics/scene.ts",
-      "from": "checks",
-      "to": "rendering"
-    },
-    {
-      "file": "tests/editor-integration.check.mjs",
-      "line": 175,
-      "kind": "dynamic",
-      "specifier": "/@id/__x00__virtual:asset-catalogue",
-      "target": "shared/asset-runtime/catalogue.ts",
-      "from": "checks",
-      "to": "catalogue"
-    },
-    {
-      "file": "tests/editor-integration.check.mjs",
-      "line": 477,
-      "kind": "test-environment",
-      "specifier": "three",
-      "target": {
-        "package": "three"
-      },
-      "from": "checks"
-    },
-    {
-      "file": "tests/editor-integration.check.mjs",
-      "line": 478,
-      "kind": "dynamic",
-      "specifier": "/graphics/scene.ts",
-      "target": "editor/graphics/scene.ts",
-      "from": "checks",
-      "to": "rendering"
-    },
-    {
-      "file": "tests/editor-integration.check.mjs",
-      "line": 479,
-      "kind": "dynamic",
-      "specifier": "/@id/__x00__virtual:asset-catalogue",
-      "target": "shared/asset-runtime/catalogue.ts",
-      "from": "checks",
-      "to": "catalogue"
-    },
-    {
-      "file": "tests/editor-shell.check.mjs",
-      "line": 1,
-      "kind": "static",
-      "specifier": "./browser-security.mjs",
-      "target": "tests/browser-security.mjs",
-      "from": "checks",
-      "to": "checks"
-    },
-    {
-      "file": "tests/editor-shell.check.mjs",
-      "line": 2,
-      "kind": "static",
-      "specifier": "node:assert/strict",
-      "target": {
-        "package": "node:*"
-      },
-      "from": "checks"
-    },
-    {
-      "file": "tests/editor-shell.check.mjs",
-      "line": 3,
-      "kind": "static",
-      "specifier": "node:fs",
-      "target": {
-        "package": "node:*"
-      },
-      "from": "checks"
-    },
-    {
-      "file": "tests/editor-shell.check.mjs",
-      "line": 4,
-      "kind": "static",
-      "specifier": "three",
-      "target": {
-        "package": "three"
-      },
-      "from": "checks"
-    },
-    {
-      "file": "tests/editor-shell.check.mjs",
-      "line": 165,
-      "kind": "dynamic",
-      "specifier": "/@id/__x00__virtual:asset-catalogue",
-      "target": "shared/asset-runtime/catalogue.ts",
-      "from": "checks",
-      "to": "catalogue"
-    },
-    {
-      "file": "tests/editor-shell.check.mjs",
-      "line": 766,
-      "kind": "dynamic",
-      "specifier": "/persistence/local-drafts.ts",
-      "target": "editor/persistence/local-drafts.ts",
-      "from": "checks",
-      "to": "persistence"
-    },
-    {
-      "file": "tests/editor-shell.check.mjs",
-      "line": 801,
-      "kind": "dynamic",
-      "specifier": "/persistence/local-drafts.ts",
-      "target": "editor/persistence/local-drafts.ts",
-      "from": "checks",
-      "to": "persistence"
-    },
-    {
-      "file": "tests/entry.check.mjs",
-      "line": 1,
-      "kind": "static",
-      "specifier": "./browser-security.mjs",
-      "target": "tests/browser-security.mjs",
-      "from": "checks",
-      "to": "checks"
-    },
-    {
-      "file": "tests/entry.check.mjs",
-      "line": 2,
-      "kind": "static",
-      "specifier": "node:assert/strict",
-      "target": {
-        "package": "node:*"
-      },
-      "from": "checks"
-    },
-    {
-      "file": "tests/entry.check.mjs",
-      "line": 3,
-      "kind": "static",
-      "specifier": "node:fs/promises",
-      "target": {
-        "package": "node:*"
-      },
-      "from": "checks"
-    },
-    {
       "file": "tests/history-recovery.check.mjs",
-      "line": 1,
-      "kind": "static",
-      "specifier": "./browser-security.mjs",
-      "target": "tests/browser-security.mjs",
-      "from": "checks",
-      "to": "checks"
-    },
-    {
-      "file": "tests/history-recovery.check.mjs",
-      "line": 2,
-      "kind": "static",
-      "specifier": "node:assert/strict",
-      "target": {
-        "package": "node:*"
-      },
-      "from": "checks"
-    },
-    {
-      "file": "tests/history-recovery.check.mjs",
-      "line": 3,
-      "kind": "static",
-      "specifier": "node:fs",
-      "target": {
-        "package": "node:*"
-      },
-      "from": "checks"
-    },
-    {
-      "file": "tests/history-recovery.check.mjs",
-      "line": 38,
-      "kind": "dynamic",
-      "specifier": "/persistence/local-drafts.ts",
-      "target": "editor/persistence/local-drafts.ts",
-      "from": "checks",
-      "to": "persistence"
-    },
-    {
-      "file": "tests/history-recovery.check.mjs",
-      "line": 39,
+      "line": 154,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -10426,7 +10535,7 @@
     },
     {
       "file": "tests/history-recovery.check.mjs",
-      "line": 141,
+      "line": 254,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -10435,25 +10544,7 @@
     },
     {
       "file": "tests/history-recovery.check.mjs",
-      "line": 142,
-      "kind": "dynamic",
-      "specifier": "/@id/__x00__virtual:asset-catalogue",
-      "target": "shared/asset-runtime/catalogue.ts",
-      "from": "checks",
-      "to": "catalogue"
-    },
-    {
-      "file": "tests/history-recovery.check.mjs",
-      "line": 242,
-      "kind": "dynamic",
-      "specifier": "/persistence/local-drafts.ts",
-      "target": "editor/persistence/local-drafts.ts",
-      "from": "checks",
-      "to": "persistence"
-    },
-    {
-      "file": "tests/history-recovery.check.mjs",
-      "line": 243,
+      "line": 255,
       "kind": "dynamic",
       "specifier": "/document-store.ts",
       "target": "editor/document-store.ts",
@@ -10462,7 +10553,7 @@
     },
     {
       "file": "tests/history-recovery.check.mjs",
-      "line": 244,
+      "line": 256,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -10471,7 +10562,7 @@
     },
     {
       "file": "tests/history-recovery.check.mjs",
-      "line": 281,
+      "line": 293,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -10480,7 +10571,7 @@
     },
     {
       "file": "tests/history-recovery.check.mjs",
-      "line": 282,
+      "line": 294,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -11058,6 +11149,62 @@
       "from": "checks"
     },
     {
+      "file": "tests/room-preview.check.mjs",
+      "line": 1,
+      "kind": "static",
+      "specifier": "node:assert/strict",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/room-preview.check.mjs",
+      "line": 2,
+      "kind": "static",
+      "specifier": "playwright",
+      "target": {
+        "package": "playwright"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/room-preview.check.mjs",
+      "line": 10,
+      "kind": "dynamic",
+      "specifier": "/graphics/scene.ts",
+      "target": "editor/graphics/scene.ts",
+      "from": "checks",
+      "to": "rendering"
+    },
+    {
+      "file": "tests/room-preview.check.mjs",
+      "line": 11,
+      "kind": "dynamic",
+      "specifier": "/@id/__x00__virtual:asset-catalogue",
+      "target": "shared/asset-runtime/catalogue.ts",
+      "from": "checks",
+      "to": "catalogue"
+    },
+    {
+      "file": "tests/room-preview.check.mjs",
+      "line": 35,
+      "kind": "dynamic",
+      "specifier": "/@id/__x00__virtual:asset-catalogue",
+      "target": "shared/asset-runtime/catalogue.ts",
+      "from": "checks",
+      "to": "catalogue"
+    },
+    {
+      "file": "tests/room-preview.check.mjs",
+      "line": 36,
+      "kind": "dynamic",
+      "specifier": "/persistence/local-drafts.ts",
+      "target": "editor/persistence/local-drafts.ts",
+      "from": "checks",
+      "to": "persistence"
+    },
+    {
       "file": "tests/server-autosave.check.mjs",
       "line": 1,
       "kind": "static",
@@ -11085,6 +11232,7 @@
         "package": "node:*"
       },
       "from": "checks"
+    },
     },
     {
       "file": "tests/ui-foundation.check.mjs",
