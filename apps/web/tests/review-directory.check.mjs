@@ -1,9 +1,11 @@
+import { launchBrowser } from "./browser-security.mjs";
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { chromium } from "playwright";
 
-const browser = await chromium.launch();
+const browser = await launchBrowser({
+  target: process.argv[2] ?? "http://127.0.0.1:5182/ui-preview.html",
+});
 try {
   const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
   page.setDefaultTimeout(5000);

@@ -104,3 +104,20 @@ it("only confirms logout after a fresh session check returns signed out", async 
     "/api/auth/session",
   ]);
 });
+
+it("binds logout token and mutation to the original account across a cookie switch", async () => {
+  let cookie = session.userId;
+  const request = vi.fn<typeof fetch>().mockImplementation(async (url, init) => {
+    if (url === "/api/auth/csrf") {
+      expect(new Headers(init?.headers).get("X-Spatia-Account")).toBe(session.userId);
+      cookie = "another-account";
+      return json({ requestToken: "old-token" });
+    }
+    expect(url).toBe("/api/auth/logout");
+    expect(new Headers(init?.headers).get("X-Spatia-Account")).not.toBe(cookie);
+    return new Response(null, { status: 403 });
+  });
+  await expect(createAccountClient(request).signOut(session.userId)).rejects.toThrow();
+  expect(cookie).toBe("another-account");
+  expect(request).toHaveBeenCalledTimes(2);
+});
