@@ -38,7 +38,7 @@ try {
     }
     throw new Error("Expected text did not reach recovery storage");
   }
-  await add("Rooms", "test-room");
+  await add("Rooms", "Starter room");
   await add("Display panels", "Square media stand");
   await page.locator(".object-row").first().click();
   await page.getByRole("button", { name: "Edit text", exact: true }).click();

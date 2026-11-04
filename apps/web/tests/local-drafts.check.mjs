@@ -25,7 +25,7 @@ async function openLibrary(page) {
 // Add arms placement; the viewport click commits the chosen asset
 async function addAsset(page, name) {
   // Rooms now use the dedicated placement tray rather than the object library
-  if (name === "test-room") {
+  if (name === "Starter room") {
     if (await page.locator(".asset-picker").count()) await page.keyboard.press("Escape");
     const overview = page.getByRole("button", { name: "Third person", exact: true });
     if ((await overview.getAttribute("aria-pressed")) !== "true") await overview.click();
@@ -573,8 +573,8 @@ try {
   const add = async () => {
     // New now follows first visit; choose the environment before adding the next test object
     if (await editor.getByText("Add a room to start.", { exact: true }).isVisible())
-      await addAsset(editor, "test-room");
-    await addAsset(editor, "test-crate");
+      await addAsset(editor, "Starter room");
+    await addAsset(editor, "Sample crate");
   };
   const writeFile = (name, text) =>
     editor.evaluate(
@@ -800,7 +800,7 @@ try {
   await second.getByText("Reopened your last project", { exact: true }).waitFor();
   await add();
   await waitBackup(3);
-  await addAsset(second, "test-crate");
+  await addAsset(second, "Sample crate");
   await second.getByRole("alert").filter({ hasText: "Recovery changed in another tab" }).waitFor();
   assert.equal(await second.locator(".object-row").count(), 3);
   await second.close();
@@ -871,7 +871,7 @@ try {
   await fallback.evaluate(() => {
     window.failRecovery = true;
   });
-  await addAsset(fallback, "test-crate");
+  await addAsset(fallback, "Sample crate");
   await fallback.getByRole("alert").filter({ hasText: "Recovery backup failed" }).waitFor();
   await fallback.evaluate(() => {
     window.failRecovery = false;
@@ -884,7 +884,7 @@ try {
   // The download can finish before the recovery write and its UI update
   await status("Not saved", fallback);
   await waitBackup(3, fallback);
-  await addAsset(fallback, "test-crate");
+  await addAsset(fallback, "Sample crate");
   await waitBackup(4, fallback);
   await fallback.reload();
   await fallback.getByText("Reopened your last project", { exact: true }).waitFor();

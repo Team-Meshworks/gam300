@@ -50,7 +50,7 @@ async function openLibrary(page) {
 
 // Clicking a card only picks it, Add is what places it
 async function addAsset(page, name, position = { x: 500, y: 300 }) {
-  if (name === "test-room") {
+  if (name === "Starter room") {
     if (await page.locator(".asset-picker").count()) await page.keyboard.press("Escape");
     const overview = page.getByRole("button", { name: "Third person", exact: true });
     if ((await overview.getAttribute("aria-pressed")) !== "true") await overview.click();
@@ -84,7 +84,7 @@ try {
   await page.goto(process.argv[2] ?? "http://127.0.0.1:5173/");
   const ready = page.getByRole("status").filter({ hasText: "Scene ready" });
   const picker = page.locator(".asset-picker");
-  const asset = picker.getByRole("button", { name: "test-crate", exact: true });
+  const asset = picker.getByRole("button", { name: "Sample crate", exact: true });
   const add = page.getByRole("button", { name: "Add", exact: true });
   const undo = page.getByRole("button", { name: "Undo", exact: true });
   const redo = page.getByRole("button", { name: "Redo", exact: true });
@@ -129,7 +129,7 @@ try {
   assert.ok(
     await picker
       .locator(".asset-card")
-      .filter({ has: page.getByRole("button", { name: "test-crate", exact: true }) })
+      .filter({ has: page.getByRole("button", { name: "Sample crate", exact: true }) })
       .locator("img")
       .evaluate((image) => image.complete && image.naturalWidth > 0),
   );
@@ -140,7 +140,7 @@ try {
 
   // A short result set fits; the delivered catalogue may legitimately be taller.
   // Exercise growth independently of how many production assets have been registered.
-  await picker.getByRole("searchbox", { name: "Search assets", exact: true }).fill("test-crate");
+  await picker.getByRole("searchbox", { name: "Search assets", exact: true }).fill("Sample crate");
   assert.equal(await picker.locator(".asset-card").count(), 1);
   const scrollLayout = await picker.locator(".asset-grid-scroll").evaluate((viewport) => {
     const grid = viewport.querySelector(".asset-grid");
@@ -165,8 +165,9 @@ try {
   // Filtering keeps the pick, and says so when the current results hide it
   const filter = picker.getByRole("combobox", { name: "Filter assets", exact: true });
   // Modal browsing leaves the asset hotbar available while hotspot controls stay inactive.
-  // Walking has no camera tools, third person checks they stay inactive too
-  assert.equal(await page.locator(".mode-bar").count(), 0);
+  // Camera tools stay available while editing, but browsing hides and disables them.
+  assert.equal(await page.locator(".mode-bar").isVisible(), false);
+  assert.equal(await page.locator(".mode-bar").evaluate((bar) => bar.inert), true);
   assert.equal(
     await page.getByRole("button", { name: "Add Hotspot", exact: true }).isDisabled(),
     true,
@@ -209,7 +210,7 @@ try {
   // Announce selection without adding a visible footer or changing the library layout
   const selection = picker.locator("#asset-picker-selection");
   assert.equal(await selection.getAttribute("class"), "sr-only");
-  assert.equal(await selection.textContent(), "Selected: test-crate");
+  assert.equal(await selection.textContent(), "Selected: Sample crate");
   // Search and category filtering keep the selected ID and popup dimensions without editing the draft
   const search = picker.getByRole("searchbox", { name: "Search assets", exact: true });
   const resetFilters = picker.getByRole("button", { name: "Reset asset filters", exact: true });
@@ -223,7 +224,7 @@ try {
     .click();
   assert.equal(await picker.locator(".asset-card-pick").count(), 0);
   await picker.getByText("No assets match this search and filter.", { exact: true }).waitFor();
-  assert.match(await selection.textContent(), /test-crate \(not shown/);
+  assert.match(await selection.textContent(), /Sample crate \(not shown/);
   assert.ok(
     Math.abs((await picker.boundingBox()).height - pickerBeforeSearch.height) < 1,
     "Empty results keep the library height stable",
@@ -244,7 +245,7 @@ try {
   assert.equal(await asset.count(), 0, "No favourites saved, so the crate is filtered out");
   assert.equal(
     await selection.textContent(),
-    "Selected: test-crate (not shown in the current results)",
+    "Selected: Sample crate (not shown in the current results)",
   );
   await filter.click();
   await page
@@ -264,7 +265,7 @@ try {
   assert.equal(await undo.isDisabled(), true);
   await page.getByText("Add a room to start.", { exact: true }).waitFor();
 
-  await addAsset(page, "test-room");
+  await addAsset(page, "Starter room");
   await ready.waitFor();
   assert.equal(
     await page.getByRole("alert").count(),
@@ -315,7 +316,7 @@ try {
   placementCamera.quaternion.fromArray(placementPose.rotation);
   placementCamera.updateMatrixWorld();
   const placementPoint = new THREE.Vector3(0, 0, 0).project(placementCamera);
-  await addAsset(page, "test-crate", {
+  await addAsset(page, "Sample crate", {
     x: ((placementPoint.x + 1) / 2) * placementBox.width,
     y: ((1 - placementPoint.y) / 2) * placementBox.height,
   });
@@ -336,12 +337,12 @@ try {
   await page.keyboard.press("Enter");
   assert.equal(await rows.first().isVisible(), true);
   await page.getByRole("button", { name: "Third person", exact: true }).click();
-  // Editor start in first person, the view button switch to the orbit camera and its tools
+  // Editor starts in first person; the camera toolbar remains available in either editing view.
   const viewToggle = page.getByRole("button", { name: "Third person", exact: true });
   const cameraTools = page.getByRole("group", { name: "Camera tools" });
   const locked = () => page.evaluate(() => document.pointerLockElement?.tagName ?? null);
   assert.equal(await viewToggle.getAttribute("aria-pressed"), "false");
-  assert.equal(await cameraTools.count(), 0, "No camera tools while walking");
+  assert.equal(await cameraTools.isVisible(), true, "Camera tools remain available while editing");
   assert.match(await page.locator(".walk-hint").textContent(), /Click the scene to look around/);
   await viewToggle.click();
   assert.equal(await viewToggle.getAttribute("aria-pressed"), "true");
@@ -369,7 +370,7 @@ try {
     ["X", "Y", "Z"].map(async (axis) =>
       Number(
         await page
-          .getByRole("textbox", { name: `test-crate 1 transform ${axis} (m)`, exact: true })
+          .getByRole("textbox", { name: `Sample crate transform ${axis} (m)`, exact: true })
           .inputValue(),
       ),
     ),
@@ -399,7 +400,7 @@ try {
   );
   const position = page.locator('output[aria-label="Selected position"]');
   const initialPosition = await position.textContent();
-  await nudge(page, "test-crate 1", "X", 0.25);
+  await nudge(page, "Sample crate", "X", 0.25);
   assert.notEqual(await position.textContent(), initialPosition);
   await undo.click();
   assert.equal(await position.textContent(), initialPosition);
@@ -442,9 +443,10 @@ try {
   // First person stand where the orbit camera looked, so back off the crate then aim at it
   await rows.nth(1).click();
   await viewToggle.click();
-  assert.equal(await cameraTools.count(), 0);
+  assert.equal(await cameraTools.isVisible(), true);
   await stage.click({ position: { x: stageBox.width / 2, y: stageBox.height / 2 } });
   assert.equal(await locked(), "CANVAS", "A click on the scene grabs the mouse");
+  await page.locator(".crosshair").waitFor();
   assert.equal(await page.locator(".crosshair").count(), 1);
   assert.equal(await rows.nth(1).getAttribute("aria-pressed"), "true", "Grabbing picks nothing");
   await page.keyboard.down("s");
@@ -521,6 +523,7 @@ try {
   await page.mouse.up();
   assert.equal(await position.textContent(), initialPosition, "Alt cancels the carry");
   await page.keyboard.up("Alt");
+  await page.waitForFunction(() => document.pointerLockElement?.tagName === "CANVAS");
   assert.equal(await locked(), "CANVAS", "Letting go of Alt takes it again");
   // Alt clicking a button moves focus to it, so the mouse stays free for the UI
   await page.keyboard.down("Alt");
@@ -599,7 +602,7 @@ try {
     "Redo preserves identity and order",
   );
   await undo.click();
-  await addAsset(page, "test-crate");
+  await addAsset(page, "Sample crate");
   assert.equal(await rows.count(), 2);
   assert.notEqual(await rows.nth(1).getAttribute("data-object-id"), secondId);
   assert.equal(await redo.isDisabled(), true, "A new addition clears the redo branch");
@@ -686,7 +689,7 @@ try {
 
   assert.deepEqual(consoleErrors, [], "No console errors during normal authoring");
 
-  await addAsset(page, "test-room");
+  await addAsset(page, "Starter room");
   assert.equal(
     await rows.count(),
     3,
@@ -712,7 +715,7 @@ try {
   ]);
   assert.equal(await undo.isDisabled(), true);
   assert.equal(await redo.isDisabled(), true);
-  const room = picker.getByRole("button", { name: "test-room", exact: true });
+  const room = picker.getByRole("button", { name: "Starter room", exact: true });
   await openLibrary(page);
   assert.equal(await room.count(), 0, "Rooms belong to their own hotbar popup");
   // Library sits over the side panels, close it before using the scene tree
@@ -724,7 +727,7 @@ try {
   await roomRow.click();
   assert.equal(await roomRow.getAttribute("aria-pressed"), "true");
   // Reuse the same room tile and undo only its newly placed instance
-  await addAsset(page, "test-room");
+  await addAsset(page, "Starter room");
   assert.equal(await rows.count(), 3);
   await undo.click();
   assert.deepEqual(await rows.allTextContents(), ["First crate", "Second crate"]);
@@ -745,7 +748,7 @@ try {
     savedBeforeTree,
     "Tree expansion preserves saved JSON",
   );
-  await addAsset(page, "test-crate");
+  await addAsset(page, "Sample crate");
   assert.equal(await rows.count(), 3);
   await undo.click();
   assert.equal(await rows.count(), 2);
@@ -823,7 +826,7 @@ try {
   await page.getByText("Add a room to start.", { exact: true }).waitFor();
   await openLibrary(page);
   assert.equal(await room.count(), 0, "Rooms stay in the Rooms popup after New");
-  await addAsset(page, "test-room");
+  await addAsset(page, "Starter room");
   await roomRow.waitFor();
   assert.equal(await rows.count(), 0);
   assert.equal(await undo.isDisabled(), true);
@@ -863,14 +866,14 @@ try {
     const nested = await nestedContext.newPage();
     await nested.goto(process.argv[2] ?? "http://127.0.0.1:5173/");
     await nested.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
-    await addAsset(nested, "test-room");
-    await addAsset(nested, "test-crate");
+    await addAsset(nested, "Starter room");
+    await addAsset(nested, "Sample crate");
     const parent = nested.locator("[data-object-id]").first();
     await parent.click();
     const labelX = await parent
       .locator("span")
       .evaluate((element) => element.getBoundingClientRect().x);
-    await addAsset(nested, "test-crate");
+    await addAsset(nested, "Sample crate");
     assert.equal(
       await parent.locator("../..").locator("[data-object-id]").count(),
       1,
@@ -885,10 +888,10 @@ try {
       .locator(".object-row, .environment-row")
       .evaluateAll((rows) => rows.map((row) => getComputedStyle(row).fontSize));
     assert.equal(new Set(sizes).size, 1, "All tree levels use the parent font size");
-    await addAsset(nested, "test-room");
-    const roomInstance = nested.locator("[data-object-id]").filter({ hasText: "test-room" });
+    await addAsset(nested, "Starter room");
+    const roomInstance = nested.locator("[data-object-id]").filter({ hasText: "Starter room" });
     await roomInstance.click();
-    await addAsset(nested, "test-crate");
+    await addAsset(nested, "Sample crate");
     // Placement follows the room under the pointer; explicit nesting remains a tree drop.
     await nested.locator("[data-object-id]").last().dragTo(roomInstance);
     assert.equal(await roomInstance.locator("../..").locator("[data-object-id]").count(), 2);
@@ -927,7 +930,7 @@ try {
     );
     assert.equal(await parent.textContent(), "Display pedestal");
     await nested.getByRole("button", { name: "Undo", exact: true }).click();
-    assert.match(await parent.textContent(), /test-crate/);
+    assert.match(await parent.textContent(), /Sample crate/);
     await nested.getByRole("button", { name: "Redo", exact: true }).click();
     assert.equal(await parent.textContent(), "Display pedestal");
     await roomInstance.dragTo(parent);
@@ -1011,7 +1014,7 @@ try {
   await page.getByText("Select an object to attach the hotspot to", { exact: true }).waitFor();
   assert.equal(await rows.count(), 0, "Hotspots need an object to attach to");
 
-  await addAsset(page, "test-crate");
+  await addAsset(page, "Sample crate");
   assert.equal(await rows.count(), 1);
   await hotspot.click();
   await page.getByText("Hotspot attached to the selected object", { exact: true }).waitFor();
@@ -1024,9 +1027,10 @@ try {
   const interactionPanel = page.locator(".editor-panel").filter({ hasText: "Interactions" });
   await interactionPanel.getByRole("button", { name: "+ Add Interaction", exact: true }).click();
   const hotspotTarget = interactionPanel.getByLabel("Interaction 1 hotspot", { exact: true });
+  assert.equal(await hotspotTarget.locator("option").first().textContent(), "Sample crate");
   assert.match(
-    await hotspotTarget.locator("option").first().textContent(),
-    /^test-crate 1 \([a-f0-9-]+\)$/i,
+    await hotspotTarget.locator("option").first().getAttribute("value"),
+    /^[a-f0-9-]{36}$/i,
   );
   await page.getByRole("button", { name: "Scene tree", exact: true }).click();
 
@@ -1036,7 +1040,7 @@ try {
   page.on("dialog", recordAlert);
   await page.getByRole("button", { name: "Preview", exact: true }).click();
   const previewTargets = page.getByRole("navigation", { name: "Interactive objects" });
-  const crateTarget = previewTargets.getByRole("button", { name: "test-crate 1", exact: true });
+  const crateTarget = previewTargets.getByRole("button", { name: "Sample crate", exact: true });
   await crateTarget.waitFor();
   await crateTarget.focus();
   await page.keyboard.press("Enter");

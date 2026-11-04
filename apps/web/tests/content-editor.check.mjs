@@ -29,9 +29,9 @@ try {
   // Dev now starts in first person; placement checks use the overview camera.
   await page.getByRole("button", { name: "Third person", exact: true }).click();
   async function place(name) {
-    if (name === "test-room") {
+    if (name === "Starter room") {
       await page.getByRole("button", { name: "Rooms", exact: true }).click();
-      await page.getByRole("button", { name: "test-room", exact: true }).click();
+      await page.getByRole("button", { name: "Starter room", exact: true }).click();
     } else if (name === "Landscape media stand") {
       await page.getByRole("button", { name: "Display panels", exact: true }).click();
       await page.getByRole("button", { name, exact: true }).click();
@@ -51,14 +51,14 @@ try {
     await page.waitForFunction(() => !document.querySelector("#project-save")?.disabled);
     return content;
   }
-  await place("test-room");
+  await place("Starter room");
   const undoBeforePreview = await page
     .getByRole("button", { name: "Undo", exact: true })
     .isEnabled();
   await page.getByRole("button", { name: "Asset library", exact: true }).click();
   await page
     .locator(".asset-picker")
-    .getByRole("button", { name: "test-crate", exact: true })
+    .getByRole("button", { name: "Sample crate", exact: true })
     .click();
   await page.getByRole("button", { name: "Add", exact: true }).click();
   assert.equal(
@@ -263,7 +263,7 @@ try {
   await page.getByRole("button", { name: "Asset library", exact: true }).click();
   const draggedCard = await page
     .locator(".asset-picker")
-    .getByRole("button", { name: "test-crate", exact: true })
+    .getByRole("button", { name: "Sample crate", exact: true })
     .elementHandle();
   const dragData = await page.evaluateHandle(() => new DataTransfer());
   await draggedCard.dispatchEvent("dragstart", { dataTransfer: dragData });

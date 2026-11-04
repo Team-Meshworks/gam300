@@ -75,7 +75,7 @@ try {
   await library.getByRole("button", { name: "Reset asset filters", exact: true }).click();
   await library.getByRole("button", { name: "Close asset library", exact: true }).click();
   await page.getByRole("button", { name: "Rooms", exact: true }).click();
-  await page.getByRole("button", { name: "test-room", exact: true }).click();
+  await page.getByRole("button", { name: "Starter room", exact: true }).click();
   await page.locator(".viewport-stage").click({ position: { x: 500, y: 300 } });
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   await mkdir(screenshots, { recursive: true });

@@ -67,7 +67,7 @@ try {
   await page.getByRole("button", { name: "Rooms", exact: true }).click();
   await page
     .getByRole("group", { name: "Rooms options", exact: true })
-    .getByRole("button", { name: "test-room", exact: true })
+    .getByRole("button", { name: "Starter room", exact: true })
     .click();
   await page.locator(".viewport-stage").click({ position: { x: 600, y: 350 } });
   await page.getByRole("button", { name: "Display panels", exact: true }).click();
@@ -188,7 +188,7 @@ try {
     0,
   );
   assert.equal(await library.locator(".asset-card").count(), 2);
-  await library.getByRole("button", { name: "test-crate", exact: true }).click();
+  await library.getByRole("button", { name: "Sample crate", exact: true }).click();
   await library.screenshot({ path: "test-results/display-editor/physical-library.png" });
   await library.getByRole("button", { name: "Add", exact: true }).click();
   await page.waitForFunction(() => document.querySelectorAll(".object-row").length === 3);
@@ -205,7 +205,7 @@ try {
   await page.getByRole("button", { name: "Asset library", exact: true }).click();
   await page
     .locator(".asset-picker")
-    .getByRole("button", { name: "test-crate", exact: true })
+    .getByRole("button", { name: "Sample crate", exact: true })
     .click();
   await page.locator(".asset-picker").getByRole("button", { name: "Add", exact: true }).click();
   await page.locator(".viewport-stage").click({ position: { x: 700, y: 420 } });
