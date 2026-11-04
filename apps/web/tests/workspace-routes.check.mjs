@@ -1,5 +1,6 @@
 import { launchBrowser } from "./browser-security.mjs";
 import assert from "node:assert/strict";
+import { mkdir } from "node:fs/promises";
 
 const origin = process.argv[2] ?? "http://127.0.0.1:5173";
 const browser = await launchBrowser({ target: origin, args: ["--enable-unsafe-swiftshader"] });
@@ -52,6 +53,45 @@ try {
     await screen(`${path}/?source=check`, heading);
     await page.reload();
     await page.getByRole("heading", { name: heading, exact: true }).waitFor();
+  }
+
+  // Use the mounted screen and authenticated intake adapter, not its local preview.
+  mode = "Administrator";
+  let assetReads = 0;
+  await page.route("**/api/admin/assets", (route) => {
+    assetReads++;
+    return route.fulfill({
+      json: {
+        assets: [],
+        policy: {
+          extensions: [".glb"],
+          maxBytes: 20 * 1024 * 1024,
+          categories: { environment: null, model: ["Objects"] },
+          canSubmit: true,
+          canForceRemove: false,
+        },
+      },
+    });
+  });
+  await screen("assets", "All Assets");
+  await page.getByText("No assets yet", { exact: true }).waitFor();
+  await mkdir("test-results/scrum168", { recursive: true });
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    await page.screenshot({ path: `test-results/scrum168/mounted-assets-${width}.png`, fullPage: true });
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await screen("spaces", "All 3D Spaces");
+  assert.ok(assetReads >= 2, "Both admin libraries load the real service route");
+
+  // Direct creator and educator routes must not fetch intake data.
+  for (const role of ["Creator", "Educator"]) {
+    mode = role;
+    const before = assetReads;
+    await screen("assets", "Access denied");
+    await screen("spaces", "Access denied");
+    assert.equal(assetReads, before);
   }
 
   mode = "Educator";

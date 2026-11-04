@@ -74,8 +74,7 @@ public sealed class ProjectPersistenceTests
         var stored = await database.Projects.AsNoTracking().SingleAsync();
         await Assert.That(stored.Revision).IsEqualTo(0L);
         await Assert.That(stored.LastMutationId).IsEqualTo((Guid?)MutationId);
-        // Earlier migrations may commit before the receipt backfill fails.
-        await Assert.That((await database.Database.GetAppliedMigrationsAsync()).Contains("20261029122111_AddProjectSaveReceipts")).IsFalse();
+        await Assert.That((await database.Database.GetAppliedMigrationsAsync()).Last()).IsEqualTo("20261018091152_AddProjectDraftStorage");
     }
 
     [Test]

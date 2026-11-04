@@ -1,4 +1,16 @@
+import audioLibrary from "./assets/audio-library.png";
+import audioMusic from "./assets/audio-music.png";
+import audioSpeaker from "./assets/audio-speaker.png";
+import audioPhone from "./assets/audio-phone.png";
 import type { ReactNode } from "react";
+import horizontalStand from "./assets/horizontal-stand.svg?no-inline";
+import verticalStand from "./assets/vertical-stand.svg?no-inline";
+import horizontalPanel from "./assets/horizontal-panel.svg?no-inline";
+import verticalPanel from "./assets/vertical-panel.svg?no-inline";
+import cubeDisplayCase from "./assets/cube-display-case.svg?no-inline";
+import clearCubeDisplayCase from "./assets/clear-cube-display-case.svg?no-inline";
+import clearCuboidDisplayCase from "./assets/clear-cuboid-display-case.svg?no-inline";
+import cuboidDisplayCase from "./assets/cuboid-display-case.svg?no-inline";
 
 type IconShape = { viewBox: string; body: ReactNode };
 
@@ -51,6 +63,36 @@ const tick =
   "M4.22581 0.137088C4.31359 0.224979 4.3629 0.344118 4.3629 0.468338C4.3629 0.592557 4.31359 0.711697 4.22581 0.799587L2.03831 2.98709C1.95042 3.07487 1.83128 3.12418 1.70706 3.12418C1.58284 3.12418 1.4637 3.07487 1.37581 2.98709L0.125808 1.73709C0.0430078 1.64823 -0.00206961 1.5307 7.30287e-05 1.40926C0.00221566 1.28782 0.0514111 1.17196 0.137294 1.08607C0.223177 1.00019 0.339043 0.950996 0.460481 0.948853C0.58192 0.94671 0.699448 0.991788 0.788307 1.07459L1.70706 1.99334L3.56331 0.137088C3.6512 0.0493062 3.77034 0 3.89456 0C4.01878 0 4.13792 0.0493062 4.22581 0.137088Z";
 
 const icons = {
+  door: {
+    viewBox: "0 0 24 32",
+    body: (
+      <g stroke="currentColor" strokeWidth="1.2">
+        <path fill="currentColor" fillOpacity="0.5" d="M2 30V12a10 10 0 0 1 20 0v18H2Z" />
+        <circle cx="17" cy="17" r="1.6" fill="#fff" />
+      </g>
+    ),
+  },
+  removeDisplayObject: drawn(
+    <>
+      <path d="m3 9 7-4 7 4v9l-7 4-7-4V9Zm0 0 7 4 7-4M10 13v9" />
+      <circle cx="19" cy="5" r="4" className="hole" />
+      <path d="m17.5 3.5 3 3m0-3-3 3" />
+    </>,
+  ),
+  text: drawn(<path d="M5 5h14M12 5v14M8 19h8" />),
+  image: drawn(
+    <>
+      <rect x="3" y="4" width="18" height="16" rx="3" />
+      <circle cx="8" cy="9" r="1.5" />
+      <path d="m4 18 6-6 4 4 3-3 4 5" />
+    </>,
+  ),
+  video: drawn(
+    <>
+      <rect x="3" y="5" width="18" height="14" rx="3" />
+      <path d="m10 9 5 3-5 3z" />
+    </>,
+  ),
   chevronRight: drawn(<path d="m9 6 6 6-6 6" />),
   // Figma
   back: {
@@ -137,6 +179,19 @@ const icons = {
 
   // Placeholders
   caretDown: drawn(<path d="m7 10 5 5 5-5" />),
+  scenes: drawn(
+    <>
+      <rect x="7" y="3" width="14" height="13" rx="2" />
+      <path d="M17 20H5a2 2 0 0 1-2-2V8" />
+      <path d="m10 12 3-3 5 4" />
+    </>,
+  ),
+  savedView: drawn(
+    <>
+      <path d="M8 6 10 3h4l2 3h3a2 2 0 0 1 2 2v11H3V8a2 2 0 0 1 2-2h3Z" />
+      <circle cx="12" cy="12" r="4" />
+    </>,
+  ),
   tree: drawn(<path d="M12 3 7 10h3l-4 6h5v5h2v-5h5l-4-6h3z" />),
   info: drawn(
     <>
@@ -235,38 +290,15 @@ const icons = {
     "0 0 24 32",
     "M5.32524 24.5217C5.00524 24.2017 4.84524 23.8056 4.84524 23.3333V20H4.59524C3.70635 20 2.94246 19.7083 2.30357 19.125C1.66468 18.5417 1.31746 17.8194 1.2619 16.9583L0.0119048 1.79167C-0.0436508 1.31944 0.0952381 0.902778 0.428571 0.541667C0.761905 0.180556 1.16468 0 1.6369 0H3.92857C5.17857 0 6.2619 0.388889 7.17857 1.16667C8.09524 1.94444 8.66468 2.94444 8.88691 4.16667L9.84524 10H16.5119C18.3452 10 19.9147 10.6528 21.2202 11.9583C22.5258 13.2639 23.1786 14.8333 23.1786 16.6667V18.3333C23.1786 18.8056 23.0186 19.2017 22.6986 19.5217C22.3786 19.8417 21.983 20.0011 21.5119 20H19.8452V23.3333C19.8452 23.8056 19.6852 24.2017 19.3652 24.5217C19.0452 24.8417 18.6497 25.0011 18.1786 25C17.7075 24.9989 17.3119 24.8389 16.9919 24.52C16.6719 24.2011 16.5119 23.8056 16.5119 23.3333V20H8.17857V23.3333C8.17857 23.8056 8.01857 24.2017 7.69857 24.5217C7.37857 24.8417 6.98302 25.0011 6.51191 25C6.04079 24.9989 5.64524 24.8406 5.32524 24.5217ZM4.84524 31.6667C4.37302 31.6667 3.97746 31.5067 3.65857 31.1867C3.33968 30.8667 3.17968 30.4711 3.17857 30C3.17746 29.5289 3.33746 29.1333 3.65857 28.8133C3.97968 28.4933 4.37524 28.3333 4.84524 28.3333C5.31524 28.3333 5.71135 28.4933 6.03357 28.8133C6.35579 29.1333 6.51524 29.5289 6.51191 30C6.50857 30.4711 6.34857 30.8672 6.0319 31.1883C5.71524 31.5094 5.31968 31.6689 4.84524 31.6667ZM11.5119 31.6667C11.0397 31.6667 10.6441 31.5067 10.3252 31.1867C10.0064 30.8667 9.84635 30.4711 9.84524 30C9.84413 29.5289 10.0041 29.1333 10.3252 28.8133C10.6464 28.4933 11.0419 28.3333 11.5119 28.3333C11.9819 28.3333 12.378 28.4933 12.7002 28.8133C13.0225 29.1333 13.1819 29.5289 13.1786 30C13.1752 30.4711 13.0152 30.8672 12.6986 31.1883C12.3819 31.5094 11.9864 31.6689 11.5119 31.6667ZM18.1786 31.6667C17.7063 31.6667 17.3108 31.5067 16.9919 31.1867C16.673 30.8667 16.513 30.4711 16.5119 30C16.5108 29.5289 16.6708 29.1333 16.9919 28.8133C17.313 28.4933 17.7086 28.3333 18.1786 28.3333C18.6486 28.3333 19.0447 28.4933 19.3669 28.8133C19.6891 29.1333 19.8486 29.5289 19.8452 30C19.8419 30.4711 19.6819 30.8672 19.3652 31.1883C19.0486 31.5094 18.653 31.6689 18.1786 31.6667Z",
   ),
-  panelStanding: shaded(
-    "0 0 29 30",
-    "M2 0.5H26.5714C27.3999 0.5 28.0714 1.17157 28.0714 2V18C28.0714 18.8284 27.3999 19.5 26.5714 19.5H2C1.17157 19.5 0.5 18.8284 0.5 18V2C0.5 1.17157 1.17157 0.5 2 0.5Z",
-    "M11.4285 19.2856H17.857V27.9999C17.857 29.1045 16.9616 29.9999 15.857 29.9999H13.4285C12.3239 29.9999 11.4285 29.1045 11.4285 27.9999V19.2856Z",
-  ),
-  panelSmall: shaded(
-    "0 0 21 30",
-    "M2 0.5H19C19.8284 0.5 20.5 1.17157 20.5 2V18C20.5 18.8284 19.8284 19.5 19 19.5H2C1.17157 19.5 0.5 18.8284 0.5 18V2C0.5 1.17157 1.17157 0.5 2 0.5Z",
-    "M7.42871 19.2856H13.8573V27.9999C13.8573 29.1045 12.9619 29.9999 11.8573 29.9999H9.42871C8.32414 29.9999 7.42871 29.1045 7.42871 27.9999V19.2856Z",
-  ),
-  panelPortrait: shaded(
-    "0 0 22 28",
-    "M21.5 2L21.5 26C21.5 26.8284 20.8284 27.5 20 27.5L2 27.5C1.17157 27.5 0.500001 26.8284 0.500001 26L0.500002 2C0.500002 1.17157 1.17157 0.499999 2 0.499999L20 0.5C20.8284 0.5 21.5 1.17157 21.5 2Z",
-  ),
-  panelLandscape: shaded(
-    "0 0 31 23",
-    "M2 0.5H29C29.8284 0.5 30.5 1.17157 30.5 2V21C30.5 21.8284 29.8284 22.5 29 22.5H2C1.17157 22.5 0.5 21.8284 0.5 21V2C0.5 1.17157 1.17157 0.5 2 0.5Z",
-  ),
-  case: drawn(<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9zM4 7.5l8 4.5 8-4.5M12 12v9" />),
-  caseClosed: shaded(
-    "0 0 25 28",
-    "M0 19.5998C0 20.0758 0.25 20.5378 0.652778 20.7898L11.7639 27.7897C11.9852 27.9272 12.24 28 12.5 28C12.76 28 13.0148 27.9272 13.2361 27.7897L24.3472 20.7898C24.75 20.5378 25 20.0898 25 19.5998V8.3999C25 7.92391 24.75 7.46191 24.3472 7.20992L13.2361 0.209998C12.7917 -0.0699992 12.2083 -0.0699992 11.7639 0.209998L0.652778 7.20992C0.25 7.46191 0 7.90991 0 8.3999V19.5998ZM13.8889 24.0797V15.4978L22.2222 10.4579V18.8298L13.8889 24.0797ZM12.5 3.05196L20.6111 8.16191L12.5 13.0618L4.38889 8.16191L12.5 3.05196Z",
-  ),
-  caseTall: drawn(
-    <path d="M6.5 5.5 12 3l5.5 2.5v13L12 21l-5.5-2.5zM6.5 5.5 12 8l5.5-2.5M12 8v13" />,
-  ),
-  caseTallClosed: drawn(
-    <>
-      <path className="fill" d="M12 8l5.5-2.5v13L12 21z" />
-      <path d="M6.5 5.5 12 3l5.5 2.5v13L12 21l-5.5-2.5zM6.5 5.5 12 8l5.5-2.5M12 8v13" />
-    </>,
-  ),
+  // Full Figma exports retain the design's native 40px slot, strokes and fills.
+  panelStanding: { src: horizontalStand },
+  panelSmall: { src: verticalStand },
+  panelPortrait: { src: verticalPanel },
+  panelLandscape: { src: horizontalPanel },
+  case: { src: cubeDisplayCase },
+  caseClosed: { src: clearCubeDisplayCase },
+  caseTall: { src: cuboidDisplayCase },
+  caseTallClosed: { src: clearCuboidDisplayCase },
   phone: drawn(
     <path
       className="fill"
@@ -274,9 +306,15 @@ const icons = {
     />,
   ),
   music: shaded(
-    "0 0 26 26",
+    "-1 -1 28 28",
     "M8.386 2.81126L23.814 0.0112611C24.584 -0.100739 25.2 0.641261 25.2 1.41126V18.7993C25.2 21.5153 23.002 23.6993 20.3 23.6993C17.598 23.6993 15.4 21.5153 15.4 18.7993C15.4 16.0973 17.598 13.8993 20.3 13.8993C21.056 13.8993 21.756 14.0953 22.4 14.3893V5.61126L9.8 8.41126V20.8993C9.464 23.2793 7.364 25.0993 4.9 25.0993C2.198 25.0993 0 22.9153 0 20.1993C0 17.4973 2.198 15.2993 4.9 15.2993C5.656 15.2993 6.356 15.4953 7 15.7893V4.21126C7 3.44126 7.616 2.93726 8.386 2.81126Z",
   ),
+  audioPlay: drawn(<path d="m8 5 11 7-11 7V5Z" />),
+  audioPause: drawn(<path d="M8 5v14M16 5v14" />),
+  audioLibrary: { src: audioLibrary },
+  audioMusic: { src: audioMusic },
+  audioSpeaker: { src: audioSpeaker },
+  audioPhone: { src: audioPhone },
   speaker: drawn(
     <>
       <rect className="fill" x="6" y="2.5" width="12" height="19" rx="2" />
@@ -284,12 +322,27 @@ const icons = {
       <circle className="hole" cx="12" cy="15" r="3.4" />
     </>,
   ),
-} satisfies Record<string, IconShape>;
+} satisfies Record<string, IconShape | { src: string }>;
 
 export type IconName = keyof typeof icons;
 
 export function Icon({ name }: { name: IconName }) {
-  const { viewBox, body } = icons[name];
+  const icon = icons[name];
+  if ("src" in icon) {
+    return (
+      <img
+        className="figma-tool-icon"
+        data-icon={name}
+        src={icon.src}
+        width={40}
+        height={40}
+        alt=""
+        aria-hidden="true"
+        draggable={false}
+      />
+    );
+  }
+  const { viewBox, body } = icon;
   return (
     <svg className="icon" viewBox={viewBox} aria-hidden="true">
       {body}

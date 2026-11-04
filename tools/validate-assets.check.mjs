@@ -42,6 +42,37 @@ try {
   process.stdout.write(normal.stdout);
   process.stderr.write(normal.stderr);
 
+  // Exercise the actual upload worker with enough warnings to hide a later invalid reference
+  // A capped report with zero observed errors is incomplete rather than safe to approve
+  const warningDocument = Buffer.from(
+    JSON.stringify({
+      asset: { version: "2.0" },
+      nodes: Array.from({ length: 110 }, () => ({ unexpectedProperty: true })),
+      scenes: [{ nodes: [999] }],
+      scene: 0,
+    }),
+  );
+  const jsonLength = Math.ceil(warningDocument.length / 4) * 4;
+  const saturated = Buffer.alloc(20 + jsonLength, 0x20);
+  saturated.writeUInt32LE(0x46546c67, 0);
+  saturated.writeUInt32LE(2, 4);
+  saturated.writeUInt32LE(saturated.length, 8);
+  saturated.writeUInt32LE(jsonLength, 12);
+  saturated.writeUInt32LE(0x4e4f534a, 16);
+  warningDocument.copy(saturated, 20);
+  const rejected = spawnSync(
+    process.execPath,
+    [join(root, "tools/validate-intake.mjs")],
+    {
+      input: saturated,
+      encoding: "utf8",
+      timeout: 10000,
+    },
+  );
+  assert.ifError(rejected.error);
+  assert.equal(rejected.status, 1, rejected.stdout + rejected.stderr);
+  assert.equal(JSON.parse(rejected.stdout).valid, false);
+
   const deliveryFixture = structuredClone(manifest);
   deliveryFixture.assets[0].sourceFile =
     "source/missing-source-for-validation-check.blend";
@@ -60,6 +91,17 @@ try {
   assert.equal(delivery.status, 0, delivery.stdout + delivery.stderr);
   for (const asset of manifest.assets)
     assert.ok(delivery.stdout.includes(`OK: ${asset.assetId} (`));
+
+  for (const kind of ["image", "video"]) {
+    const invalidMedia = structuredClone(manifest);
+    const model = invalidMedia.assets.find(asset => asset.kind === "model");
+    const media = invalidMedia.assets.find(asset => asset.kind === kind);
+    Object.assign(media, {file:model.file, byteSize:model.byteSize, sha256:model.sha256});
+    writeFileSync(fixturePath, JSON.stringify(invalidMedia));
+    const invalid = validate("--delivery-only", fixturePath);
+    assert.equal(invalid.status, 1, invalid.stdout + invalid.stderr);
+    assert.match(invalid.stderr, /Invalid media header or mediaType/);
+  }
 
   const escapedFixture = structuredClone(manifest);
   escapedFixture.assets[0].file = "../README.md";

@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
-import type { KeyboardEvent } from "react";
+import type { KeyboardEvent, ReactNode } from "react";
 import { Icon } from "./Icon";
 
 type Option = { value: string; label: string; disabled?: boolean };
@@ -9,10 +9,20 @@ export function AssetFilterSelect({
   value,
   options,
   onChange,
+  icon,
+  label = "Filter assets",
+  minWidth = 220,
+  maxHeight = 300,
+  tooltip,
 }: {
   value: string;
   options: readonly Option[];
   onChange: (value: string) => void;
+  icon?: ReactNode;
+  label?: string;
+  minWidth?: number;
+  maxHeight?: number;
+  tooltip?: string;
 }) {
   const id = useId();
   const trigger = useRef<HTMLButtonElement>(null);
@@ -27,11 +37,11 @@ export function AssetFilterSelect({
 
   function expand() {
     const bounds = trigger.current!.getBoundingClientRect();
-    const width = Math.min(Math.max(bounds.width, 220), innerWidth - 24);
+    const width = Math.min(Math.max(bounds.width, minWidth), innerWidth - 24);
     const below = innerHeight - bounds.bottom - 12;
     const above = bounds.top - 12;
     const upwards = below < 300 && above > below;
-    const height = Math.min(300, upwards ? above : below);
+    const height = Math.min(maxHeight, upwards ? above : below);
 
     // Attach directly to the field and flip upwards only when the viewport needs it
     Object.assign(menu.current!.style, {
@@ -41,6 +51,8 @@ export function AssetFilterSelect({
       maxHeight: `${height}px`,
     });
     menu.current?.showPopover();
+    const actualHeight = menu.current!.getBoundingClientRect().height;
+    menu.current!.style.top = `${upwards ? bounds.top - actualHeight : bounds.bottom}px`;
 
     // Focus immediately so fast arrow-key navigation never waits for a delayed toggle event
     const selected = menu.current?.querySelector<HTMLButtonElement>(
@@ -106,14 +118,19 @@ export function AssetFilterSelect({
         className="asset-filter-trigger"
         type="button"
         role="combobox"
-        aria-label="Filter assets"
+        aria-label={label}
         aria-expanded={open}
         aria-controls={id}
         aria-haspopup="listbox"
         onClick={() => (menu.current?.matches(":popover-open") ? close() : expand())}
       >
         {options.find((option) => option.value === value)?.label}
-        <Icon name="caretSolid" />
+        {icon ?? <Icon name="caretSolid" />}
+        {tooltip && (
+          <span className="content-control-tooltip" role="tooltip">
+            {tooltip}
+          </span>
+        )}
       </button>
       <div
         ref={menu}
@@ -121,7 +138,7 @@ export function AssetFilterSelect({
         className="asset-filter-menu"
         popover="auto"
         role="listbox"
-        aria-label="Filter assets"
+        aria-label={label}
         onToggle={(event) => setOpen(event.newState === "open")}
       >
         {options.map((option) => (

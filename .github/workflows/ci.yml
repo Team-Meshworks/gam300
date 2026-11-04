@@ -173,6 +173,8 @@ jobs:
         include:
           - name: browser
             script: test:browser
+          - name: asset-admin
+            script: test:asset-admin
           - name: integration
             script: test:integration
           - name: caching
@@ -347,6 +349,8 @@ jobs:
           stack=(docker compose --env-file ../../.env -f ../../compose.yaml -f ../../compose.server.yaml -p vthere-ci)
           "${stack[@]}" build api migrate
           "${stack[@]}" up -d --no-build --wait --wait-timeout 120
+          "${stack[@]}" exec -T api node /app/tools/validate-intake.mjs < ../../assets/delivery/test-crate.glb > test-results/packaged-asset-validation.json
+          node -e "const assert = require('node:assert/strict'); const result = require('./test-results/packaged-asset-validation.json'); assert.equal(result.valid, true)"
           docker cp "$("${stack[@]}" ps -q gateway):/data/caddy/pki/authorities/local/root.crt" test-results/server-root.crt
           # Compose waits for running containers; Caddy still needs to start TLS and issue its certificate.
           curl --fail --silent --show-error --retry 12 --retry-delay 1 --retry-all-errors --max-time 5 --retry-max-time 60 --cacert test-results/server-root.crt https://localhost:8444/healthz

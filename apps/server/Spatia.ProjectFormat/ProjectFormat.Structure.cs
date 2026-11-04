@@ -184,7 +184,22 @@ public static partial class ProjectFormat
             Fail($"{path}.type", "Unsupported component type");
         }
 
-        Fields(value, path, ["id", "type", .. extra!]);
+        Fields(value, path, ["id", "type", .. extra!], type == "text" ? ["placement", "background", "color", "fontSize"] : []);
+        if (type == "text")
+        {
+            if (value.TryGetProperty("placement", out var placement)) { Pose(placement, $"{path}.placement", false, true); }
+            if (value.TryGetProperty("fontSize", out var fontSize)) { Number(fontSize, $"{path}.fontSize", 12, 96); }
+            if (value.TryGetProperty("color", out var textColor))
+            {
+                var color = Text(textColor, $"{path}.color", 7);
+                if (!Regex.IsMatch(color, "^#[0-9a-fA-F]{6}$", RegexOptions.CultureInvariant)) { Fail($"{path}.color", "Choose a text color"); }
+            }
+            if (value.TryGetProperty("background", out var background))
+            {
+                var color = Text(background, $"{path}.background", 16);
+                if (color != "transparent" && !Regex.IsMatch(color, "^#[0-9a-fA-F]{6}$", RegexOptions.CultureInvariant)) { Fail($"{path}.background", "Choose a background color or transparent"); }
+            }
+        }
         Text(Get(value, "id"), $"{path}.id");
 
         // Validate local parameters now; asset approval and entity targets need the complete document
@@ -458,8 +473,17 @@ public static partial class ProjectFormat
                 }
                 break;
             case "play-audio":
-                Fields(value, path, "type", "url");
-                Text(Get(value, "url"), $"{path}.url", 2048);
+                // Stable media IDs follow the same scene reference checks as other authored targets
+                if (value.TryGetProperty("mediaId", out var mediaId))
+                {
+                    Fields(value, path, "type", "mediaId");
+                    Text(mediaId, $"{path}.mediaId");
+                }
+                else
+                {
+                    Fields(value, path, "type", "url");
+                    Text(Get(value, "url"), $"{path}.url", 2048);
+                }
                 break;
             case "navigate-scene":
                 Fields(value, path, "type", "sceneId");
@@ -505,7 +529,7 @@ public static partial class ProjectFormat
             Fields(scene, path, content
                 ? ["id", "name", "environmentAssetId", "startCamera", "objects", "groups", "zones", "viewpoints", "rules"]
                 : ["id", "name", "environmentAssetId", "startCamera", "objects"],
-                ["hotspots", "interactions"]);
+                content ? ["hotspots", "interactions", "audio", "environmentTransform", "environmentVisible"] : ["hotspots", "interactions"]);
 
             // Version 1 retains its released text and spatial limits
             var maxText = content ? 256 : int.MaxValue;
@@ -517,7 +541,7 @@ public static partial class ProjectFormat
             // Check the shared spatial fields before reading v2 hierarchy and attached content
             Array(Get(scene, "objects"), $"{path}.objects", 200, (item, path) =>
             {
-                Fields(item, path, content ? ["id", "name", "assetId", "transform", "parentId", "visible", "components"] : ["id", "name", "assetId", "transform"]);
+                Fields(item, path, content ? ["id", "name", "assetId", "transform", "parentId", "visible", "components"] : ["id", "name", "assetId", "transform"], content ? ["appearance"] : []);
                 Text(Get(item, "id"), $"{path}.id", maxText);
                 Text(Get(item, "name"), $"{path}.name", maxText);
                 Text(Get(item, "assetId"), $"{path}.assetId", maxText);
@@ -530,6 +554,15 @@ public static partial class ProjectFormat
                 Parent(Get(item, "parentId"), $"{path}.parentId");
                 Boolean(Get(item, "visible"), $"{path}.visible");
                 Array(Get(item, "components"), $"{path}.components", 16, Component);
+                if (item.TryGetProperty("appearance", out var appearance))
+                {
+                    Fields(appearance, $"{path}.appearance", "color", "material");
+                    var color = Text(Get(appearance, "color"), $"{path}.appearance.color", 7);
+                    if (!Regex.IsMatch(color, "^#[0-9a-fA-F]{6}$")) { Fail($"{path}.appearance.color", "Choose a six-digit colour"); }
+                    var material = Text(Get(appearance, "material"), $"{path}.appearance.material");
+                    if (material is not ("plain" or "wood" or "glass" or "leather" or "marble" or "tile" or "concrete" or "ceramic"))
+                    { Fail($"{path}.appearance.material", "Choose a supported material"); }
+                }
             });
 
             // Scene hotspots and interactions are shared by both released formats and default to empty
@@ -546,6 +579,22 @@ public static partial class ProjectFormat
                 return;
             }
 
+            if (scene.TryGetProperty("environmentVisible", out var environmentVisible))
+            { Boolean(environmentVisible, $"{path}.environmentVisible"); }
+            if (scene.TryGetProperty("environmentTransform", out var environmentTransform))
+            {
+                Pose(environmentTransform, $"{path}.environmentTransform", false, true);
+            }
+            // Only bounded global audio can live at scene level; other content stays attached to objects
+            if (scene.TryGetProperty("audio", out var sceneAudio))
+            {
+                Array(sceneAudio, $"{path}.audio", 64, (item, audioPath) =>
+                {
+                    Component(item, audioPath);
+                    if (String(item, "type") != "audio" || String(item, "mode") != "global")
+                    { Fail(audioPath, "Scene audio must be global audio"); }
+                });
+            }
             // Groups carry hierarchy only; zones and viewpoints own their separate spatial data
             Array(Get(scene, "groups"), $"{path}.groups", 200, (item, path) =>
             {

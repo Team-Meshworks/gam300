@@ -1,0 +1,1030 @@
+/* Match the approved administrative surfaces, typography and compact task dialogs */
+@import "@fontsource/inter/latin-400.css";
+@import "@fontsource/inter/latin-500.css";
+@import "@fontsource/inter/latin-600.css";
+@import "@fontsource/inter/latin-700.css";
+
+:root {
+  --aa-font: "Inter", "Segoe UI", sans-serif;
+  /* Share the same hierarchy across library pages, dialogs and menus */
+  --aa-text-small: 12px;
+  --aa-text-body: 14px;
+  --aa-text-section: 16px;
+  --aa-text-card: 18px;
+  --aa-text-title: 20px;
+  --aa-text-page: 22px;
+  --aa-paper: #ffffff;
+  --aa-surface: #f7f5f3;
+  --aa-upload-surface: #fffdfb;
+  --aa-ink: #302d29;
+  --aa-heading: #151c2c;
+  --aa-muted: #666d7b;
+  --aa-border: #d1d5db;
+  --aa-placeholder: #c5c5c4;
+  --aa-focus: #69645e;
+  --aa-cancel-ink: #565550;
+  --aa-selected: #eeeae4;
+  --aa-danger: #bf3325;
+  --aa-danger-surface: #fff5f2;
+  --aa-shadow: #302d2920;
+  --aa-backdrop: #302d2955;
+  --aa-inset-light: #ffffffdd;
+  --aa-inset-edge: #817a7040;
+  --aa-close-surface: #eae9e6;
+  --aa-close-ink: #080808;
+  --aa-scroll-track: #efede9;
+  --aa-scroll-thumb: #8f8981;
+  --aa-scroll-hover: #6f6961;
+  --aa-avatar: #eee5d8;
+  --aa-avatar-ink: #755c45;
+  --aa-panel: linear-gradient(112deg, #f0f0ef 0%, #ffffff 55%, #efeeeb 100%);
+  --aa-page: linear-gradient(135deg, #efedeb 0%, #ffffff 34%, #ffffff 65%, #efedeb 100%);
+}
+
+html.asset-admin-preview-page,
+.asset-admin-preview-page body {
+  height: 100%;
+  overflow-x: clip;
+  overflow-y: hidden;
+}
+.asset-admin-preview-page body {
+  margin: 0;
+  background: var(--aa-page);
+}
+.asset-admin-preview-page #root {
+  height: 100%;
+  min-height: 0;
+  background: transparent;
+}
+.asset-admin-preview {
+  position: relative;
+  box-sizing: border-box;
+  max-width: 1600px;
+  overflow: clip;
+  height: 100dvh;
+  padding: 80px;
+  margin: auto;
+  font-family: var(--aa-font);
+  color: var(--aa-ink);
+  font-size: var(--aa-text-body);
+}
+.asset-admin-preview header {
+  position: absolute;
+  top: 24px;
+  left: 80px;
+  right: 80px;
+  height: 36px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.asset-admin-preview a {
+  color: var(--aa-ink);
+  text-decoration: none;
+}
+.asset-admin-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  font-size: var(--aa-text-section);
+}
+.asset-admin-brand > span {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: var(--aa-ink);
+  color: var(--aa-paper);
+}
+.asset-admin-account {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  font-size: var(--aa-text-body);
+}
+.asset-admin-account > span:first-child {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--aa-avatar);
+  color: var(--aa-avatar-ink);
+  font-size: var(--aa-text-small);
+  font-weight: 600;
+}
+.asset-admin-account > span:nth-child(2) {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.asset-admin-account :is(a, button) {
+  padding: 12px 20px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--aa-surface);
+  color: var(--aa-ink);
+  font: 600 var(--aa-text-body) var(--aa-font);
+  cursor: pointer;
+}
+.asset-admin-preview-controls {
+  position: fixed;
+  bottom: 16px;
+  left: max(24px, calc((100% - 1440px) / 2));
+  max-width: calc(100% - 48px);
+  z-index: 3;
+  font-size: var(--aa-text-small);
+}
+.asset-admin-preview-controls summary {
+  color: var(--aa-muted);
+  cursor: pointer;
+}
+.asset-admin-preview-controls[open] {
+  max-height: 40dvh;
+  overflow: auto;
+  padding: 16px;
+  border: 1px solid var(--aa-border);
+  border-radius: 12px;
+  background: var(--aa-paper);
+  box-shadow: 0 4px 20px var(--aa-shadow);
+}
+.asset-admin-preview-controls aside {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 16px;
+  padding-top: 12px;
+}
+.asset-admin-preview-controls aside p {
+  flex-basis: 100%;
+  margin: 0;
+}
+.asset-admin-preview-controls label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.asset-admin-preview-controls input {
+  max-width: 160px;
+  padding: 8px 12px;
+  border: 1px solid var(--aa-border);
+  border-radius: 6px;
+  font: inherit;
+  color: var(--aa-ink);
+  background: var(--aa-paper);
+  accent-color: var(--aa-ink);
+}
+
+.asset-admin {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: 36px;
+  border: 1px solid var(--aa-paper);
+  border-radius: 40px;
+  background: var(--aa-panel);
+  box-shadow:
+    inset 0 3px 12px var(--aa-inset-edge),
+    inset 0 -2px 8px var(--aa-inset-light);
+  color: var(--aa-ink);
+  font: var(--aa-text-body)/1.5 var(--aa-font);
+}
+.asset-admin *,
+.asset-admin *::before,
+.asset-admin *::after {
+  box-sizing: border-box;
+}
+.asset-admin h1,
+.asset-admin h2,
+.asset-admin h3,
+.asset-admin p {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+.asset-admin h1 {
+  font-size: var(--aa-text-page);
+  line-height: 1.25;
+  text-wrap: balance;
+}
+.asset-admin h2 {
+  font-size: var(--aa-text-card);
+}
+.asset-admin h3 {
+  margin: 20px 0 12px;
+  font-size: var(--aa-text-section);
+  line-height: 1.3;
+  color: var(--aa-heading);
+}
+.asset-admin button,
+.asset-admin input {
+  font: inherit;
+  color: inherit;
+}
+.asset-admin button {
+  min-height: 40px;
+  padding: 8px 20px;
+  border: 1px solid var(--aa-border);
+  border-radius: 999px;
+  background: var(--aa-paper);
+  font-weight: 600;
+  cursor: pointer;
+}
+.asset-admin button:hover:not(:disabled) {
+  box-shadow: 0 2px 7px var(--aa-shadow);
+}
+.asset-admin button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.asset-admin :is(button, input, [tabindex]):focus-visible,
+.asset-admin-preview :is(a, button, input, summary):focus-visible {
+  outline: 3px solid var(--aa-focus);
+  outline-offset: 3px;
+}
+.asset-admin button:disabled,
+.asset-admin input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.asset-admin .asset-admin-primary {
+  background: var(--aa-ink);
+  color: var(--aa-paper);
+  border-color: var(--aa-ink);
+}
+.asset-admin-heading {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  flex-shrink: 0;
+}
+.asset-admin-heading > div {
+  flex: 0 0 34%;
+}
+.asset-admin-heading p {
+  margin-top: 8px;
+  color: var(--aa-muted);
+  font-size: var(--aa-text-small);
+}
+.asset-admin .asset-admin-close {
+  display: grid;
+  place-items: center;
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
+  padding: 0;
+  border: 0;
+  line-height: 0;
+  background: var(--aa-close-surface);
+  color: var(--aa-close-ink);
+}
+.asset-admin-close svg,
+.asset-admin-actions svg {
+  display: block;
+  flex-shrink: 0;
+}
+.asset-admin-search {
+  position: relative;
+  flex: 1;
+}
+.asset-admin-search input {
+  width: 100%;
+  height: 44px;
+  padding: 12px 48px 12px 24px;
+  border: 1px solid var(--aa-paper);
+  border-radius: 999px;
+  background: var(--aa-surface);
+  box-shadow: inset 0 2px 6px var(--aa-inset-edge);
+  font-size: var(--aa-text-body);
+}
+/* Keep the browser-provided clear action neutral alongside the custom search icon */
+.asset-admin-search input::-webkit-search-cancel-button {
+  filter: grayscale(1);
+  opacity: 0.7;
+  cursor: pointer;
+}
+.asset-admin-search > svg {
+  position: absolute;
+  right: 18px;
+  top: 10px;
+  pointer-events: none;
+}
+.asset-admin-toolbar {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 28px 0 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--aa-border);
+}
+.asset-admin-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.asset-admin-tabs button {
+  padding-inline: 12px;
+  background: transparent;
+  border-color: transparent;
+  color: var(--aa-muted);
+  font-weight: 400;
+}
+.asset-admin-tabs button[aria-pressed="true"] {
+  color: var(--aa-ink);
+  font-weight: 700;
+}
+
+/* Keep the toolbar fixed while the catalogue alone grows and scrolls */
+.asset-admin-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: clip;
+  padding: 2px 8px 2px 2px;
+}
+.asset-admin-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-content: start;
+  gap: 12px;
+}
+.asset-admin-models .asset-admin-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.asset-admin-card {
+  min-width: 0;
+  overflow: hidden;
+  border-radius: 18px;
+  background: var(--aa-paper);
+}
+.asset-admin-thumbnail {
+  height: 144px;
+  background: var(--aa-placeholder);
+}
+.asset-admin-models .asset-admin-thumbnail {
+  height: 124px;
+}
+.asset-admin-thumbnail img,
+.asset-admin-detail-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+.asset-admin-placeholder {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--aa-placeholder);
+}
+.asset-admin-card-content {
+  padding: 16px 20px;
+}
+.asset-admin-card-content > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.asset-admin-card-content h2 {
+  font-size: var(--aa-text-body);
+}
+.asset-admin-card-content .asset-admin-visibility {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--aa-muted);
+  font-size: var(--aa-text-small);
+  white-space: nowrap;
+  text-transform: capitalize;
+}
+.asset-admin-visibility svg {
+  flex-shrink: 0;
+}
+.asset-admin-card-content button {
+  min-height: 32px;
+  padding: 4px 20px;
+  font-size: var(--aa-text-body);
+}
+.asset-admin-state {
+  grid-column: 1 / -1;
+  padding: 48px 24px;
+  text-align: center;
+}
+.asset-admin-state p {
+  margin: 12px 0 20px;
+  color: var(--aa-muted);
+}
+.asset-admin-skeleton {
+  height: 240px;
+  border-radius: 18px;
+  background: var(--aa-placeholder);
+  opacity: 0.4;
+}
+.asset-admin-denied {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.asset-admin-denied p {
+  margin: 16px 0 24px;
+}
+
+/* Size the task dialog independently of the catalogue frame */
+.asset-admin-dialog {
+  width: min(640px, calc(100% - 48px));
+  max-height: calc(100dvh - 80px);
+  margin: auto;
+  padding: 28px 32px;
+  border: 1px solid var(--aa-border);
+  border-radius: 24px;
+  background: var(--aa-paper);
+  color: var(--aa-heading);
+  box-shadow: 0 16px 40px var(--aa-shadow);
+}
+/* Keep viewing compact while uploads retain room for the file chooser */
+.asset-admin-dialog-detail {
+  width: min(560px, calc(100% - 48px));
+  padding: 24px;
+}
+.asset-admin-dialog-detail .asset-admin-detail-preview {
+  min-height: 120px;
+  height: min(16dvh, 160px);
+}
+
+.asset-admin-dialog::backdrop {
+  background: var(--aa-backdrop);
+}
+.asset-admin-dialog-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+  margin-bottom: 16px;
+}
+.asset-admin-dialog-heading h2 {
+  font-size: var(--aa-text-title);
+  line-height: 1.25;
+}
+.asset-admin-upload,
+.asset-admin-detail-preview {
+  display: flex;
+  position: relative;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  min-height: 160px;
+  height: min(26dvh, 260px);
+  border-radius: 16px;
+}
+.asset-admin-upload {
+  padding: 20px;
+  border: 1px dashed var(--aa-ink);
+  background: var(--aa-upload-surface);
+  color: var(--aa-muted);
+  text-align: center;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.asset-admin-upload-symbol {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  color: var(--aa-ink);
+}
+.asset-admin-upload-symbol svg {
+  width: 44px;
+  height: 44px;
+}
+.asset-admin-upload input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+.asset-admin-upload:focus-within {
+  outline: 3px solid var(--aa-focus);
+  outline-offset: 4px;
+}
+.asset-admin-help {
+  font-size: var(--aa-text-small);
+}
+.asset-admin-detail-preview {
+  overflow: hidden;
+  background: var(--aa-placeholder);
+}
+.asset-admin-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.asset-admin-validation {
+  margin-top: 16px;
+  font-size: var(--aa-text-small);
+}
+.asset-admin-validation ul {
+  margin: 8px 0 0;
+  padding-left: 20px;
+  list-style: disc;
+}
+.asset-admin-message {
+  margin-top: 16px !important;
+  padding: 12px 16px;
+  border: 1px solid var(--aa-danger);
+  background: var(--aa-danger-surface);
+  color: var(--aa-danger);
+}
+.asset-admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 20px;
+}
+.asset-admin-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: var(--aa-text-body);
+}
+.asset-admin-actions > button:first-child {
+  color: var(--aa-cancel-ink);
+  background: var(--aa-paper);
+}
+.asset-admin .asset-admin-danger {
+  color: var(--aa-danger);
+  background: var(--aa-danger-surface);
+}
+.asset-admin-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Use one menu treatment for form fields and the local preview controls */
+.asset-admin-select {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font: var(--aa-text-body)/1.4 var(--aa-font);
+  color: var(--aa-heading);
+}
+.asset-admin-select > label,
+.asset-admin-select > span {
+  color: var(--aa-muted);
+  font-weight: 600;
+}
+.asset-admin-select > button,
+.asset-admin-select > input {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 16px;
+  border: 1px solid var(--aa-border);
+  border-radius: 22px;
+  background: var(--aa-paper);
+  color: var(--aa-heading);
+  font: 500 var(--aa-text-body)/1.4 var(--aa-font);
+  text-align: left;
+  cursor: pointer;
+}
+/* Read-only type fields share the form styling without suggesting a menu */
+.asset-admin-select > input[readonly] {
+  cursor: default;
+  background: var(--aa-surface);
+}
+.asset-admin-select > button > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.asset-admin-select > button > svg {
+  flex-shrink: 0;
+  color: var(--aa-muted);
+}
+.asset-admin-select > button:disabled {
+  opacity: 1;
+  background: var(--aa-surface);
+  color: var(--aa-muted);
+  cursor: not-allowed;
+}
+.asset-admin-select > button:focus-visible,
+.asset-admin-select-menu button:focus-visible {
+  outline: 3px solid var(--aa-focus);
+  outline-offset: 3px;
+}
+.asset-admin-select-menu {
+  position: fixed;
+  inset: auto;
+  box-sizing: border-box;
+  min-width: 0;
+  margin: 0;
+  padding: 8px;
+  overflow-y: auto;
+  border: 1px solid var(--aa-border);
+  border-radius: 12px;
+  background: var(--aa-paper);
+  color: var(--aa-ink);
+  box-shadow: 0 8px 24px var(--aa-shadow);
+  font: var(--aa-text-body)/1.4 var(--aa-font);
+}
+.asset-admin-select-menu button {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 36px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--aa-paper);
+  color: var(--aa-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.asset-admin-select-menu button[data-active="true"],
+.asset-admin-select-menu button[aria-selected="true"] {
+  background: var(--aa-selected);
+}
+.asset-admin-select-menu button > svg {
+  flex-shrink: 0;
+}
+.asset-admin-preview-controls .asset-admin-select {
+  min-width: 140px;
+}
+
+/* Firefox uses these colours; Chromium gets a drawn track and rounded thumb below */
+.asset-admin-scroll,
+.asset-admin-dialog,
+.asset-admin-select-menu,
+.asset-admin-preview-controls {
+  scrollbar-width: thin;
+  scrollbar-color: var(--aa-scroll-thumb) var(--aa-scroll-track);
+  scrollbar-gutter: stable;
+}
+@supports selector(::-webkit-scrollbar) {
+  .asset-admin-scroll,
+  .asset-admin-dialog,
+  .asset-admin-select-menu,
+  .asset-admin-preview-controls {
+    scrollbar-width: auto;
+    scrollbar-color: auto;
+  }
+}
+:is(
+  .asset-admin-scroll,
+  .asset-admin-dialog,
+  .asset-admin-select-menu,
+  .asset-admin-preview-controls
+)::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+:is(
+  .asset-admin-scroll,
+  .asset-admin-dialog,
+  .asset-admin-select-menu,
+  .asset-admin-preview-controls
+)::-webkit-scrollbar-track {
+  background: var(--aa-scroll-track);
+  border-radius: 8px;
+}
+:is(
+  .asset-admin-scroll,
+  .asset-admin-dialog,
+  .asset-admin-select-menu,
+  .asset-admin-preview-controls
+)::-webkit-scrollbar-thumb {
+  background: var(--aa-scroll-thumb);
+  border: 2px solid var(--aa-scroll-track);
+  border-radius: 8px;
+}
+:is(
+    .asset-admin-scroll,
+    .asset-admin-dialog,
+    .asset-admin-select-menu,
+    .asset-admin-preview-controls
+  )::-webkit-scrollbar-thumb:hover {
+  background: var(--aa-scroll-hover);
+}
+:is(
+  .asset-admin-scroll,
+  .asset-admin-dialog,
+  .asset-admin-select-menu,
+  .asset-admin-preview-controls
+)::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+@media (max-width: 1050px) {
+  .asset-admin-preview {
+    padding: 80px 40px;
+  }
+  .asset-admin-preview header {
+    left: 40px;
+    right: 40px;
+  }
+  .asset-admin {
+    padding: 28px;
+  }
+  .asset-admin-heading {
+    gap: 24px;
+  }
+  .asset-admin-models .asset-admin-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 850px) {
+  .asset-admin-preview {
+    padding: 72px 24px 24px;
+  }
+  .asset-admin-preview header {
+    top: 20px;
+    left: 24px;
+    right: 24px;
+  }
+  .asset-admin {
+    padding: 24px;
+    border-radius: 28px;
+  }
+  .asset-admin-heading {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .asset-admin-heading > div {
+    flex-basis: calc(100% - 48px);
+  }
+  .asset-admin-search {
+    flex-basis: 100%;
+    order: 1;
+  }
+  .asset-admin-grid,
+  .asset-admin-models .asset-admin-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .asset-admin-toolbar {
+    margin-top: 20px;
+  }
+}
+@media (max-width: 520px) {
+  .asset-admin-preview {
+    padding: 72px 16px 24px;
+  }
+  .asset-admin-preview header {
+    left: 20px;
+    right: 20px;
+  }
+  .asset-admin-account {
+    gap: 12px;
+  }
+  .asset-admin-account > span:first-child {
+    display: none;
+  }
+  .asset-admin-account > span:nth-child(2) {
+    max-width: 88px;
+  }
+  .asset-admin {
+    padding: 20px;
+    border-radius: 24px;
+  }
+  .asset-admin-grid,
+  .asset-admin-models .asset-admin-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .asset-admin-dialog {
+    width: calc(100% - 32px);
+    max-height: calc(100dvh - 32px);
+    padding: 20px;
+    border-radius: 20px;
+  }
+  .asset-admin-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .asset-admin-preview-controls {
+    bottom: 4px;
+  }
+}
+
+/* Keep the destructive opt-in readable without inheriting full-width text-input sizing */
+.asset-admin-force-removal {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.asset-admin-force-removal input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  accent-color: var(--aa-focus);
+}
+
+.asset-admin-review {
+  display: grid;
+  gap: 12px;
+  margin: 20px 0;
+  padding: 0;
+  border: 0;
+}
+.asset-admin-review legend {
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.asset-admin-review dd {
+  margin: 4px 0 0;
+  color: var(--aa-muted);
+  overflow-wrap: anywhere;
+}
+.asset-admin-review dt {
+  font-weight: 600;
+}
+/* Keep field boundaries visible while preserving the reference's neutral inset surfaces */
+.asset-admin-preview-controls input,
+.asset-admin-select input {
+  border-color: var(--aa-scroll-thumb);
+}
+
+.asset-admin-text-link {
+  color: var(--aa-ink);
+  font-size: var(--aa-text-body);
+  text-underline-offset: 3px;
+}
+.asset-admin-text-link:focus-visible {
+  outline: 2px solid var(--aa-focus);
+  outline-offset: 3px;
+}
+
+/* Fixed metadata uses the same disabled treatment as an unavailable category selector */
+.asset-admin-select > input:disabled {
+  opacity: 1;
+  background: var(--aa-surface);
+  color: var(--aa-muted);
+  -webkit-text-fill-color: var(--aa-muted);
+  border-color: var(--aa-border);
+  cursor: not-allowed;
+}
+.asset-admin-fields-upload {
+  grid-template-columns: minmax(0, 1fr);
+  margin-top: 20px;
+}
+/* Replace the details with one focused decision instead of appending warnings to the form */
+.asset-admin-dialog-confirmation {
+  width: min(440px, calc(100% - 48px));
+  padding: 28px;
+}
+.asset-admin-confirmation-content {
+  font-size: var(--aa-text-body);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.asset-admin-confirmation-content > p {
+  margin: 0;
+}
+.asset-admin-confirmation-content > p + p {
+  margin-top: 16px;
+}
+.asset-admin-confirmation-hint {
+  color: var(--aa-muted);
+}
+.asset-admin-confirmation-content .asset-admin-force-removal {
+  align-items: flex-start;
+  margin: 16px 0 0;
+}
+.asset-admin-confirmation-content input[type="checkbox"] {
+  margin: 4px 0 0;
+}
+.asset-admin-confirmation-warning {
+  color: var(--aa-danger);
+}
+.asset-admin-dialog-confirmation .asset-admin-actions {
+  margin-top: 20px;
+}
+.asset-admin-dialog-confirmation .asset-admin-actions svg {
+  display: none;
+}
+.asset-admin-dialog-confirmation .asset-admin-danger {
+  background: var(--aa-danger);
+  border-color: var(--aa-danger);
+  color: var(--aa-paper);
+}
+
+/* Supporting text avoids a third control-like block between the fixed type and removal action */
+.asset-admin .asset-admin-retired-status {
+  margin: 16px 0 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--aa-danger);
+  font-size: var(--aa-text-body);
+  line-height: 1.5;
+}
+/* Keep the title separate from the decision content */
+.asset-admin-dialog-confirmation .asset-admin-dialog-heading {
+  margin-bottom: 16px;
+}
+.asset-admin-dialog-confirmation .asset-admin-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  margin-top: 16px;
+}
+.asset-admin-dialog-confirmation .asset-admin-actions button {
+  width: 100%;
+}
+
+/* Reserve only the wrapped text height needed at this dialog width */
+.asset-admin-confirmation-outcome {
+  min-height: 1.6em;
+}
+@media (max-width: 600px) {
+  .asset-admin-confirmation-outcome {
+    min-height: 3.2em;
+  }
+}
+
+/* Separate preview, metadata and lifecycle actions without a stranded half-width field */
+.asset-admin-dialog-detail h3 {
+  margin-top: 24px;
+}
+.asset-admin-dialog-detail .asset-admin-retired-status {
+  margin-top: 20px;
+}
+.asset-admin-dialog-detail:not(.asset-admin-dialog-confirmation) .asset-admin-actions {
+  margin-top: 20px;
+}
+
+@media (max-width: 520px) {
+  /* Keep a long retained-use action from stranding Cancel on a separate right-aligned row */
+  .asset-admin-dialog-detail:has(.asset-admin-retired-status):not(.asset-admin-dialog-confirmation)
+    .asset-admin-actions {
+    display: flex;
+    flex-direction: column-reverse;
+  }
+  .asset-admin-dialog-detail:has(.asset-admin-retired-status):not(.asset-admin-dialog-confirmation)
+    .asset-admin-actions
+    > button {
+    width: 100%;
+  }
+}
+
+/* Keep retired details compact while preserving the regular view and confirmation spacing */
+.asset-admin-dialog-detail:has(.asset-admin-retired-status):not(.asset-admin-dialog-confirmation)
+  h3 {
+  margin-top: 16px;
+  margin-bottom: 8px;
+}
+.asset-admin-dialog-detail:has(.asset-admin-retired-status):not(.asset-admin-dialog-confirmation)
+  .asset-admin-retired-status {
+  margin-top: 12px;
+}
+.asset-admin-dialog-detail:has(.asset-admin-retired-status):not(.asset-admin-dialog-confirmation)
+  .asset-admin-actions {
+  margin-top: 12px;
+}
+
+/* Center empty and unavailable states within the remaining catalogue area, not the whole page */
+.asset-admin-scroll:has(.asset-admin-state) {
+  display: grid;
+  padding: 0;
+  scrollbar-gutter: stable both-edges;
+  place-items: center;
+}
+.asset-admin-scroll > .asset-admin-grid:has(> .asset-admin-state) {
+  display: grid;
+  width: 100%;
+  min-height: 100%;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: center;
+  place-items: center;
+}
+.asset-admin-scroll .asset-admin-state {
+  width: 100%;
+  padding: 24px;
+}

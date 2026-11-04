@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Spatia.Server.Accounts;
+using Spatia.Server.Assets;
 using Spatia.Server.Classes;
 using Spatia.Server.Projects;
 using Spatia.Server.Publications;
@@ -41,6 +42,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     /// </summary>
     public DbSet<ProjectAssignment> ProjectAssignments => Set<ProjectAssignment>();
 
+    /// <summary>Gets private candidates and retained approved asset versions</summary>
+    public DbSet<AssetCandidate> AssetCandidates => Set<AssetCandidate>();
     /// <summary>Gets organization-owned classes.</summary>
     public DbSet<Classroom> Classrooms => Set<Classroom>();
 
@@ -63,18 +66,29 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<ReviewDecision> ReviewDecisions => Set<ReviewDecision>();
 
     /// <summary>
-    /// Gets immutable publication editions; current audience and lifecycle authorization must be checked separately
+    /// Gets immutable publication editions; current audience and lifecycle authorization are checked separately
     /// </summary>
     public DbSet<Publication> Publications => Set<Publication>();
 
+    // Store access separately so hiding or revocation never rewrites a captured edition
+    public DbSet<PublicationAccessState> PublicationAccess => Set<PublicationAccessState>();
+
     /// <summary>
-    /// Configures account, organization and project mappings, constraints and fixed role seeds
+    /// Configures account, project, asset and publication mappings with their independent retention constraints
     /// </summary>
     /// <param name="builder">The model builder receiving the database mappings</param>
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+        builder.ApplyConfiguration(new AssetCandidateConfiguration());
         builder.ApplyConfiguration(new PublicationConfiguration());
+        builder.Entity<PublicationAccessState>(policy =>
+        {
+            policy.ToTable("publication_access");
+            policy.HasKey(row => row.PublicationId);
+            policy.HasOne<Publication>().WithOne().HasForeignKey<PublicationAccessState>(row => row.PublicationId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
 
         builder.Entity<ApplicationUser>(user =>
         {

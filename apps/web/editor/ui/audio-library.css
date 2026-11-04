@@ -1,0 +1,240 @@
+:root {
+  --audio-preview-fill: #fffefa;
+  --audio-rail: #f5f4f2;
+}
+dialog.asset-picker.audio-library {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  width: var(--library-width);
+  height: var(--library-height);
+  max-width: calc(100dvw - 16px);
+  max-height: calc(100dvh - 24px);
+  padding: 1rem 1.25rem 1.1rem calc(var(--library-rail-width) + 1.25rem);
+  background: var(--library-surface);
+  color: var(--text);
+  overflow: hidden;
+}
+dialog.audio-library:not([open]) {
+  display: none;
+}
+dialog.audio-library::backdrop {
+  background: var(--picker-backdrop);
+}
+.audio-library-rail {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--library-rail-width);
+  background: var(--audio-rail);
+  display: grid;
+  place-items: center;
+}
+.audio-library-rail > .figma-tool-icon {
+  position: absolute;
+  z-index: 1;
+  left: 62%;
+  top: 50%;
+  width: 22px;
+  height: 22px;
+  transform: translate(-50%, -50%);
+  object-fit: contain;
+}
+.audio-library-rail-shape {
+  position: absolute;
+  width: 44px;
+  aspect-ratio: 58.5 / 98;
+  right: 0;
+  background: var(--library-surface);
+  mask-size: 100% 100%;
+}
+.audio-library .asset-grid-scroll {
+  flex: 1;
+  min-height: 0;
+}
+.audio-library .audio-art {
+  aspect-ratio: 2;
+  position: relative;
+}
+.audio-library .audio-art img {
+  height: 100%;
+  object-fit: cover;
+}
+.audio-duration {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  padding: 0 4px;
+  border-radius: 8px;
+  color: var(--text);
+  background: var(--audio-preview-fill);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.audio-preview.ui-button {
+  position: absolute;
+  top: 25cqw;
+  left: 50%;
+  translate: -50% -50%;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color: var(--text);
+  background: var(--audio-preview-fill);
+}
+.audio-preview.ui-button:hover {
+  background: var(--button);
+}
+.audio-preview.ui-button:focus-visible {
+  outline: 2px solid var(--muted);
+  outline-offset: 2px;
+}
+.audio-preview > .icon {
+  display: block;
+  width: 24px;
+  height: 24px;
+}
+.audio-library-target {
+  color: var(--muted);
+  font-size: 12px;
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+.audio-library-feedback {
+  color: var(--text);
+  margin: 8px 0;
+}
+.audio-library .asset-picker-add:disabled {
+  background: var(--button);
+  color: var(--muted);
+  cursor: not-allowed;
+}
+@media (max-width: 700px) {
+  dialog.asset-picker.audio-library {
+    padding: 16px 12px 16px calc(var(--library-rail-width) + 12px);
+  }
+  dialog.audio-library .asset-picker-head {
+    flex-wrap: wrap;
+  }
+  dialog.audio-library .asset-search {
+    flex-basis: 100%;
+    order: 1;
+  }
+  dialog.audio-library .asset-picker-close {
+    margin-left: auto;
+  }
+  dialog.audio-library .asset-picker-reset {
+    margin-left: auto;
+  }
+}
+
+.scene-audio-row {
+  padding-left: 1.75rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.scene-audio-select.ui-button {
+  border: 0;
+  border-radius: 0.6rem;
+  flex: 1;
+  color: inherit;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 0.3rem 0.5rem;
+  min-height: 2.5rem;
+  background: transparent;
+  font: inherit;
+  font-size: 0.875rem;
+}
+.scene-audio-select > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.scene-audio-select > .icon {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+}
+.scene-audio-select:hover {
+  background: var(--pill);
+}
+.scene-audio-select:focus-visible {
+  outline: 2px solid var(--muted);
+  outline-offset: -2px;
+}
+
+.audio-preview.ui-button:active {
+  background: var(--pill);
+}
+
+dialog.audio-library .asset-search {
+  min-width: 0;
+}
+dialog.audio-library .asset-search input {
+  width: 0;
+}
+.audio-library .asset-favourite {
+  top: calc(50cqw + 0.35rem);
+}
+
+/* Match visible artwork heights: these supplied PNGs have different transparent margins. */
+:is(.scene-toolbar, .tool-popup) .figma-tool-icon[data-icon="audioMusic"] {
+  width: 36px;
+  height: 36px;
+}
+:is(.scene-toolbar, .tool-popup) .figma-tool-icon[data-icon="audioSpeaker"] {
+  width: 24px;
+  height: 24px;
+}
+:is(.scene-toolbar, .tool-popup) .figma-tool-icon[data-icon="audioPhone"] {
+  width: 26px;
+  height: 26px;
+}
+
+/* Keep unavailable types readable while reserving their hover hint and keyboard focus */
+.tool-popup button[aria-disabled="true"] .figma-tool-icon {
+  opacity: 0.4;
+}
+:is(.scene-toolbar, .tool-popup) .figma-tool-icon {
+  justify-self: center;
+  align-self: center;
+}
+
+.audio-tool-popup {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 44px;
+  gap: 4px;
+}
+.audio-tool-popup button {
+  width: 44px;
+  height: 44px;
+  position: relative;
+}
+.audio-tool-popup .figma-tool-icon {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  translate: -50% -50%;
+}
+
+@media (min-width: 48rem) {
+  :is([data-edge="left"], [data-edge="right"]) .audio-tool-popup {
+    grid-auto-flow: row;
+    grid-template-columns: 44px;
+    grid-auto-rows: 44px;
+  }
+}
+
+.scene-audio-select[aria-pressed="true"] {
+  background: var(--button-strong);
+}
