@@ -207,6 +207,8 @@ jobs:
             path: /ui-preview/assignment-test.html
           - name: home
             script: test:home
+          - name: project-grants
+            script: test:project-grants
           - name: workspace-assignments
             script: test:workspace-assignments
           - name: review-directory

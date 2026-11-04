@@ -6,6 +6,18 @@
   margin: 100px auto;
   padding: 24px;
 }
+.sp-grant-options,
+.sp-grant-person {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.sp-grant-options label {
+  display: flex;
+  align-items: start;
+  gap: 10px;
+  overflow-wrap: anywhere;
+}
 .sp-home-toolbar {
   display: flex;
   flex-wrap: wrap;

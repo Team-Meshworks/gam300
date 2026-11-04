@@ -14,11 +14,16 @@ for administrator class creation. Read-only and archived projects remain unavail
 in the editable server editor. Session gates retain an unsent assignment only for the
 same verified actor, organisation and role. Confirmed editor departure returns home.
 The existing account directory provides provisioning and reset, and the home links to it.
-The current-grant read API exists; direct project grant editing UI is still absent.
+The current-grant read API and administrator project-access editor are connected.
+The editor loads the complete current set and only submits a replacement when its
+existing flags can be represented without silently losing or upgrading access.
+Educators do not receive an organisation-wide account picker.
 
-The production catalogue and approved assets remain SCRUM-73 dependencies. Real API
-workflow, server-denial, recovery and accessibility acceptance on the final integrated
-head still need evidence; fixture checks do not establish full Jira acceptance. The
+The production catalogue and approved assets remain SCRUM-73 dependencies. An isolated
+Development-catalogue browser test exercised real API grant editing and an educator-to-
+student assignment, editor save/reopen and outsider denial. Broader real-service,
+recovery and accessibility acceptance remains open; these checks do not establish full
+Jira acceptance. The
 following plan, dependency table and dated audit reflect the earlier implementation
 and are retained as historical evidence, not current dependency status.
 
