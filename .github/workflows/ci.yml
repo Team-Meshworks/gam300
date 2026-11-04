@@ -205,6 +205,9 @@ jobs:
           - name: assignment-screen
             script: test:assignment-screen
             path: /ui-preview/assignment-test.html
+          - name: deadline
+            script: test:deadline
+            path: /ui-preview.html
           - name: review-directory
             script: test:review-directory
             path: /ui-preview.html

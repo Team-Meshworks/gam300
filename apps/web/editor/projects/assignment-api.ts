@@ -7,7 +7,7 @@ export type AssignmentSession = {
   orgId: string | null;
 };
 export type SourceProject = { projectId: string; title: string; revision: number };
-export type AssignmentProject = { studentId: string; projectId: string };
+export type AssignmentProject = { studentId: string; projectId: string; studentName?: string };
 export type AssignmentDetails = {
   assignmentId: string;
   title: string;
@@ -47,6 +47,10 @@ async function readJson(path: string, signal?: AbortSignal): Promise<unknown> {
 
 function record(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function validStudentName(value: unknown): boolean {
+  return value === undefined || (typeof value === "string" && value.trim().length > 0);
 }
 
 async function pages(path: string, signal?: AbortSignal): Promise<unknown[]> {
@@ -170,6 +174,7 @@ function receipt(value: unknown, pending: PendingAssignment): AssignmentProject[
       !record(row) ||
       typeof row.studentId !== "string" ||
       typeof row.projectId !== "string" ||
+      !validStudentName(row.studentName) ||
       !expected.has(row.studentId) ||
       found.has(row.studentId) ||
       projectIds.has(row.projectId)
@@ -223,13 +228,15 @@ export async function submitAssignment(
         return { kind: "unknown" };
       }
     }
-    if (!previouslyUncertain && [400, 409, 413, 422].includes(response.status))
+    if (!previouslyUncertain && [400, 403, 404, 409, 413, 422].includes(response.status))
       return {
         kind: "rejected",
         message:
-          response.status === 413
-            ? "The assignment is too large to send. Shorten the title, description or instructions and try again."
-            : "The assignment was not created. Check the source revision, class and students, then try again.",
+          response.status === 403 || response.status === 404
+            ? "The assignment was not created. Check your access, refresh projects and classes, or cancel."
+            : response.status === 413
+              ? "The assignment is too large to send. Shorten the title, description or instructions and try again."
+              : "The assignment was not created. Check the source revision, class and students, then try again.",
       };
     return { kind: "unknown" };
   } catch {
@@ -254,7 +261,10 @@ function assignmentDetails(value: unknown): AssignmentDetails {
     !Array.isArray(value.projects) ||
     value.projects.some(
       (row) =>
-        !record(row) || typeof row.studentId !== "string" || typeof row.projectId !== "string",
+        !record(row) ||
+        typeof row.studentId !== "string" ||
+        typeof row.projectId !== "string" ||
+        !validStudentName(row.studentName),
     )
   )
     throw new Error("The assignment is unavailable.");

@@ -2,6 +2,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import {
   assignmentChoices,
   enrolledStudents,
+  readAssignment,
   submitAssignment,
   type PendingAssignment,
 } from "./assignment-api";
@@ -26,6 +27,45 @@ const session = () =>
 const csrf = () => json({ requestToken: "token" });
 
 afterEach(() => vi.unstubAllGlobals());
+
+it("reads named assignment projects and rejects malformed identity labels", async () => {
+  const details = {
+    assignmentId: "request",
+    title: "Assignment",
+    description: "Description",
+    instructions: "Instructions",
+    dueAtUnixSeconds: 2_000_000_000,
+    projects: [{ studentId: "alice", projectId: "a", studentName: "Alice (alice)" }],
+  };
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => json(details)),
+  );
+  expect(await readAssignment("class", "request")).toEqual(details);
+  for (const studentName of [42, "", "  "]) {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => json({ ...details, projects: [{ ...details.projects[0], studentName }] })),
+    );
+    await expect(readAssignment("class", "request")).rejects.toThrow("unavailable");
+  }
+});
+
+it.each([403, 404])(
+  "unlocks an initial %i denial but preserves a previously uncertain request",
+  async (status) => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (path: string) => {
+        if (path === "/api/auth/session") return session();
+        if (path === "/api/auth/csrf") return csrf();
+        return json({}, status);
+      }),
+    );
+    expect(await submitAssignment(pending, false)).toMatchObject({ kind: "rejected" });
+    expect(await submitAssignment(pending, true)).toEqual({ kind: "unknown" });
+  },
+);
 
 it("allows correction after an initial oversized request but preserves an uncertain replay", async () => {
   vi.stubGlobal(

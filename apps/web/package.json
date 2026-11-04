@@ -37,6 +37,7 @@
     "test:new-project": "node tests/new-project.check.mjs",
     "test:classes": "node tests/class-assignment.check.mjs",
     "test:assignment-screen": "node tests/assignment-screen.check.mjs",
+    "test:deadline": "node tests/deadline.check.mjs",
     "test:review-directory": "node tests/review-directory.check.mjs",
     "test:accounts": "node tests/account-directory.check.mjs",
     "test:admin-dashboard": "node tests/admin-dashboard.check.mjs",

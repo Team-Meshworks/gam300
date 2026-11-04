@@ -3,6 +3,7 @@ import { Button } from "../../shared/ui/Button";
 import { Field } from "../../shared/ui/Field";
 import { NewProjectForm } from "./NewProjectForm";
 import { formatLocalDeadline, localDeadlineToUnixSeconds } from "./deadline";
+import "./assignment-screens.css";
 import {
   assignmentChoices,
   assignmentSession,
@@ -342,19 +343,21 @@ export function AssignmentDetailsScreen({
     return <p role="alert">This assignment is unavailable for the current account.</p>;
   const details = result.details;
   return (
-    <section aria-label="Assignment details">
+    <section aria-label="Assignment details" className="sp-assignment-details">
       <h2>{details.title}</h2>
       <p>{details.description}</p>
       <h3>Instructions</h3>
       <p>{details.instructions}</p>
       <p>Due: {formatLocalDeadline(details.dueAtUnixSeconds) ?? "Unavailable"}</p>
-      {details.projects.map((project, index) => (
+      {details.projects.map((project) => (
         <Button
           key={project.projectId}
-          disabled={!onOpenProject}
+          disabled={!onOpenProject || !(project.studentName ?? studentNames?.[project.studentId])}
           onClick={() => onOpenProject?.(project.projectId)}
         >
-          Open project for {studentNames?.[project.studentId] ?? `student ${index + 1}`}
+          {(project.studentName ?? studentNames?.[project.studentId])
+            ? `Open project for ${project.studentName ?? studentNames?.[project.studentId]}`
+            : "Student name unavailable"}
         </Button>
       ))}
     </section>

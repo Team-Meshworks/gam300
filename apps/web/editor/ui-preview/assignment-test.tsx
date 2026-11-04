@@ -23,6 +23,6 @@ if (import.meta.env.DEV)
         onOpenProject={open}
       />
     ) : (
-      <AssignmentCreationScreen onOpenProject={open} />
+      <AssignmentCreationScreen onOpenProject={open} onCancel={() => open("cancelled")} />
     ),
   );
