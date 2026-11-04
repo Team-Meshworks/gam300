@@ -66,6 +66,11 @@ public static partial class ProjectFormat
                     Array(Get(item, "components"), $"{path}.components", 16, (component, path) => Entity(String(component, "id"), String(component, "type"), sceneId, $"{path}.id"));
                 }
             });
+            // Register root audio before resolving hotspot actions against scene-local identities
+            if (content && scene.TryGetProperty("audio", out var audio))
+            {
+                Array(audio, $"{path}.audio", 64, (item, audioPath) => Entity(String(item, "id"), "audio", sceneId, $"{audioPath}.id"));
+            }
             if (scene.TryGetProperty("hotspots", out var hotspots))
             {
                 Array(hotspots, $"{path}.hotspots", 200, (item, path) => Entity(String(item, "id"), "hotspot", sceneId, $"{path}.id"));
@@ -123,6 +128,10 @@ public static partial class ProjectFormat
             // One interactive marker per object keeps click dispatch unambiguous
             var hotspotObjects = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
+            if (content && scene.TryGetProperty("audio", out var audio))
+            {
+                Array(audio, $"{path}.audio", 64, (item, audioPath) => Asset(String(item, "assetId"), "audio", $"{audioPath}.assetId"));
+            }
             // Resolve model and media assets separately so an approved asset of the wrong kind is rejected
             Array(Get(scene, "objects"), $"{path}.objects", 200, (item, path) =>
             {
@@ -166,6 +175,9 @@ public static partial class ProjectFormat
                     var action = Get(item, "do");
                     switch (String(action, "type"))
                     {
+                        case "play-audio" when action.TryGetProperty("mediaId", out var mediaId):
+                            Ref(mediaId.GetString()!, ["audio"], sceneId, $"{path}.do.mediaId");
+                            break;
                         case "navigate-scene": Ref(String(action, "sceneId"), ["scene"], null, $"{path}.do.sceneId"); break;
                         case "move-to-viewpoint": Ref(String(action, "viewpointId"), ["viewpoint"], sceneId, $"{path}.do.viewpointId"); break;
                     }

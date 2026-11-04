@@ -43,6 +43,14 @@ public static class ProjectCapabilities
             var scene = content.Scenes[i];
             var path = $"project.scenes[{i}]";
 
+            // Report optional room state and root audio before inspecting attached object content
+            if (scene.EnvironmentVisible is false) { Need("environment:visibility", $"{path}.environmentVisible"); }
+            if (scene.EnvironmentTransform is not null) { Need("environment:transform", $"{path}.environmentTransform"); }
+            for (var audioIndex = 0; audioIndex < (scene.Audio?.Length ?? 0); audioIndex++)
+            {
+                Need("content:audio", $"{path}.audio[{audioIndex}]");
+                Need("audio:global", $"{path}.audio[{audioIndex}].mode");
+            }
             // Every object can require visibility handling as well as attached content playback
             for (var j = 0; j < scene.Objects.Length; j++)
             {
@@ -102,6 +110,7 @@ public static class ProjectCapabilities
             {
                 var kind = scene.Interactions[j].Do switch
                 {
+                    PlayAudioInteractionAction { MediaId: not null } => "play-audio",
                     NavigateSceneInteractionAction => "navigate-scene",
                     MoveToViewpointInteractionAction => "move-to-viewpoint",
                     _ => null,

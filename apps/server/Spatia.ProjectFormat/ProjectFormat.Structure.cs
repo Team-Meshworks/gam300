@@ -473,8 +473,17 @@ public static partial class ProjectFormat
                 }
                 break;
             case "play-audio":
-                Fields(value, path, "type", "url");
-                Text(Get(value, "url"), $"{path}.url", 2048);
+                // Stable media IDs follow the same scene reference checks as other authored targets
+                if (value.TryGetProperty("mediaId", out var mediaId))
+                {
+                    Fields(value, path, "type", "mediaId");
+                    Text(mediaId, $"{path}.mediaId");
+                }
+                else
+                {
+                    Fields(value, path, "type", "url");
+                    Text(Get(value, "url"), $"{path}.url", 2048);
+                }
                 break;
             case "navigate-scene":
                 Fields(value, path, "type", "sceneId");
@@ -520,7 +529,7 @@ public static partial class ProjectFormat
             Fields(scene, path, content
                 ? ["id", "name", "environmentAssetId", "startCamera", "objects", "groups", "zones", "viewpoints", "rules"]
                 : ["id", "name", "environmentAssetId", "startCamera", "objects"],
-                ["hotspots", "interactions"]);
+                content ? ["hotspots", "interactions", "audio", "environmentTransform", "environmentVisible"] : ["hotspots", "interactions"]);
 
             // Version 1 retains its released text and spatial limits
             var maxText = content ? 256 : int.MaxValue;
@@ -570,6 +579,22 @@ public static partial class ProjectFormat
                 return;
             }
 
+            if (scene.TryGetProperty("environmentVisible", out var environmentVisible))
+            { Boolean(environmentVisible, $"{path}.environmentVisible"); }
+            if (scene.TryGetProperty("environmentTransform", out var environmentTransform))
+            {
+                Pose(environmentTransform, $"{path}.environmentTransform", false, true);
+            }
+            // Only bounded global audio can live at scene level; other content stays attached to objects
+            if (scene.TryGetProperty("audio", out var sceneAudio))
+            {
+                Array(sceneAudio, $"{path}.audio", 64, (item, audioPath) =>
+                {
+                    Component(item, audioPath);
+                    if (String(item, "type") != "audio" || String(item, "mode") != "global")
+                    { Fail(audioPath, "Scene audio must be global audio"); }
+                });
+            }
             // Groups carry hierarchy only; zones and viewpoints own their separate spatial data
             Array(Get(scene, "groups"), $"{path}.groups", 200, (item, path) =>
             {
