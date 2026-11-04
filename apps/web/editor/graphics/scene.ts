@@ -1,6 +1,16 @@
+import {
+  environmentObject,
+  moveSceneSelection,
+  ROOM_TRANSFORM,
+} from "../../shared/project/selection-transform";
+import { createRoomEntrances } from "./room-entrances";
 import { visibleModelBounds } from "./visible-model-bounds";
 import { textSurfacePlacement } from "./text-placement";
-import { snapRoomPlacement } from "../../shared/project/room-placement";
+import {
+  snapRoomPlacement,
+  roomFitsGrid,
+  roomLayoutTransform,
+} from "../../shared/project/room-placement";
 import { fitDisplayedObject } from "./fit-displayed-object";
 import { roomAtPosition, type RoomFootprint } from "./room-at-position";
 import { createDisplayContent } from "./display-content";
@@ -89,6 +99,7 @@ export interface InitSceneHandle {
     nextSelectedId: string | null,
     nextScene?: ProjectScene | null,
     loadGeneration?: number,
+    selectedIds?: readonly string[],
   ) => void;
   showTextPlacement: (
     objectId: string,
@@ -99,13 +110,17 @@ export interface InitSceneHandle {
   clearTextPlacement: () => void;
   getDisplayPlacement: (ownerId: string, assetId: string) => Transform | undefined;
   getRoomAtPosition: (position: Vector3Tuple) => string | null;
-  getDropPosition: (clientX: number, clientY: number) => Vector3Tuple | undefined;
+  getDropPosition: (
+    clientX: number,
+    clientY: number,
+    outsideGrid?: boolean,
+  ) => Vector3Tuple | undefined;
   showDropPosition: (position: Vector3Tuple | undefined) => void;
   showPlacementPreview: (
     assetId: string | undefined,
     position: Vector3Tuple | undefined,
     ownerId?: string,
-  ) => void;
+  ) => boolean;
   pickObjectAt: (clientX: number, clientY: number) => string | undefined;
   getHotspotAnchor: (objectId: string) => Vector3Tuple | undefined;
   setEditingEnabled: (enabled: boolean) => void;
@@ -237,9 +252,26 @@ export function initScene(
   let environmentId: string | undefined;
   const environmentBounds = new THREE.Box3();
   const instances = new Map<string, THREE.Group>();
+  const roomEntrances = createRoomEntrances();
+  let selectedIds: readonly string[] = [];
+  function findObject(id: string | null) {
+    return id === projectScene?.id && projectScene.environmentAssetId === "test-room-v1"
+      ? environmentObject(projectScene as ContentScene)
+      : objects.find((object) => object.id === id);
+  }
+  function syncRoomEntrances() {
+    roomEntrances.sync([
+      ...(environmentId === "test-room-v1" && environment ? [environment] : []),
+      ...objects.flatMap((object) => {
+        const instance = instances.get(object.id);
+        return object.assetId === "test-room-module-v1" && instance ? [instance] : [];
+      }),
+    ]);
+  }
   const displays = createDisplayContent(assets, render, models);
   const instanceAssets = new Map<string, string>();
   function instanceFor(objectId: string): THREE.Group | undefined {
+    if (objectId === projectScene?.id) return environment;
     const exact = instances.get(objectId);
     if (exact !== undefined) return exact;
     const key = objectId.toLowerCase();
@@ -351,7 +383,7 @@ export function initScene(
       gizmo.visible = false;
       return;
     }
-    const instance = selectedId === null ? undefined : instances.get(selectedId);
+    const instance = selectedId === null ? undefined : instanceFor(selectedId);
     gizmo.visible = instance !== undefined;
     if (instance === undefined) return;
     gizmo.position.copy(instance.position);
@@ -534,19 +566,23 @@ export function initScene(
     nextSelectedId: string | null,
     nextScene: ProjectScene | null = projectScene,
     loadGeneration = appliedLoadGeneration ?? 0,
+    nextSelectedIds: readonly string[] = [],
   ) {
+    selectedIds = nextSelectedIds;
+    const nextTransform = (id: string) =>
+      id === nextScene?.id
+        ? (nextScene.environmentTransform ?? ROOM_TRANSFORM)
+        : nextObjects.find((object) => object.id === id)?.transform;
     if (
       drag !== undefined &&
-      (nextSelectedId !== drag.id ||
-        nextObjects.find((object) => object.id === drag?.id)?.transform !== drag.transform)
+      (nextSelectedId !== drag.id || nextTransform(drag.id) !== drag.transform)
     ) {
       cancelDrag();
     }
     if (
       touchGesture !== undefined &&
       (nextSelectedId !== touchGesture.id ||
-        nextObjects.find((object) => object.id === touchGesture?.id)?.transform !==
-          touchGesture.original)
+        nextTransform(touchGesture.id) !== touchGesture.original)
     ) {
       cancelTouchGesture();
     }
@@ -590,11 +626,13 @@ export function initScene(
     if (sceneChanged || loadChanged) pendingPreviewReturn = undefined;
     appliedLoadGeneration = loadGeneration;
 
-    if (ready && environmentId !== (projectScene?.environmentAssetId ?? undefined)) {
+    const nextEnvironmentId =
+      projectScene?.environmentVisible === false ? undefined : projectScene?.environmentAssetId;
+    if (ready && environmentId !== nextEnvironmentId) {
       // Environment stays at its exported origin, outside the placed-object list
       // Removed instances borrow resources from this viewport's cache leases
       if (environment !== undefined) scene.remove(environment);
-      environmentId = projectScene?.environmentAssetId ?? undefined;
+      environmentId = nextEnvironmentId;
       environment =
         environmentId === undefined ? undefined : models.get(environmentId)?.clone(true);
       environmentBounds.makeEmpty();
@@ -602,6 +640,10 @@ export function initScene(
         scene.add(environment);
         environmentBounds.setFromObject(environment);
       }
+    }
+    if (environment && projectScene) {
+      applyTransform(environment, projectScene.environmentTransform ?? ROOM_TRANSFORM);
+      environmentBounds.copy(visibleModelBounds(environment));
     }
     // Keep grid lines above the floor without cutting across thin display bases.
     grid.position.y = projectScene === null ? -0.01 : 0.0001;
@@ -656,6 +698,7 @@ export function initScene(
         const content = instance.children.find((child) => !(child instanceof THREE.Sprite));
         bounds.set(object.id, visibleModelBounds(content === undefined ? instance : content));
       }
+      syncRoomEntrances();
       displays.sync(objects, instances);
       syncHotspots();
     }
@@ -668,7 +711,15 @@ export function initScene(
     render();
   }
 
-  function getSelectionBounds() {
+  function getSelectionBounds(): THREE.Box3 | undefined {
+    if (selectedIds.length > 1) {
+      const combined = new THREE.Box3();
+      for (const id of selectedIds) {
+        const box = id === projectScene?.id ? environmentBounds : getObjectBounds(id);
+        if (box) combined.union(box);
+      }
+      if (!combined.isEmpty()) return combined;
+    }
     // Use the same outline for the room and exhibits
     // Room bounds stay separate from the movable object instances
     if (selectedId === projectScene?.id && !environmentBounds.isEmpty()) {
@@ -708,14 +759,20 @@ export function initScene(
     return new THREE.Ray(camera.position, point.unproject(camera).sub(camera.position).normalize());
   }
 
-  function getDropPosition(clientX: number, clientY: number): Vector3Tuple | undefined {
+  function getDropPosition(
+    clientX: number,
+    clientY: number,
+    outsideGrid = false,
+  ): Vector3Tuple | undefined {
     if (!ready || !editingEnabled || modeManager.getState().mode !== "editor") {
       return;
     }
     const point = screenRay(clientX, clientY).intersectPlane(ground, new THREE.Vector3());
     if (
       point === null ||
-      !point.toArray().every((value) => Number.isFinite(value) && Math.abs(value) <= 20)
+      !point
+        .toArray()
+        .every((value) => Number.isFinite(value) && Math.abs(value) <= (outsideGrid ? 10_000 : 20))
     ) {
       return;
     }
@@ -730,16 +787,33 @@ export function initScene(
     render();
   }
 
-  function applyPreviewTransform(id: string, transform: Transform) {
-    const instance = instances.get(id);
+  function applyPreviewTransform(id: string, transform: Transform, final = false) {
+    const instance = instanceFor(id);
     if (instance === undefined) return;
     // Preview uses the same attachment delta as commit so cancel restores every child too
-    const moved = moveAttachedObjects(
-      objects,
-      (projectScene as ContentScene | null)?.groups ?? [],
-      id,
-      transform,
-    );
+    const sceneSelection =
+      projectScene &&
+      (id === projectScene.id ||
+        findObject(id)?.assetId === "test-room-module-v1" ||
+        selectedIds.length > 1)
+        ? moveSceneSelection(projectScene as ContentScene, selectedIds, id, transform, !final)
+        : null;
+    if (sceneSelection && !sceneSelection.ok) {
+      if (final) update(objects, selectedId, projectScene, appliedLoadGeneration ?? 0, selectedIds);
+      return;
+    }
+    const moved = sceneSelection?.ok
+      ? { ok: true as const, value: sceneSelection.value.objects }
+      : moveAttachedObjects(
+          objects,
+          (projectScene as ContentScene | null)?.groups ?? [],
+          id,
+          transform,
+        );
+    if (sceneSelection?.ok && environment) {
+      applyTransform(environment, sceneSelection.value.environmentTransform ?? ROOM_TRANSFORM);
+      environmentBounds.copy(visibleModelBounds(environment));
+    }
     if (!moved.ok) return;
     for (const object of moved.value) {
       const child = instances.get(object.id);
@@ -748,12 +822,28 @@ export function initScene(
         bounds.set(object.id, visibleModelBounds(child));
       }
     }
+    syncRoomEntrances();
     syncHotspots();
     const box = visibleModelBounds(instance);
     bounds.set(id, box);
     selection.box.copy(getSelectionBounds() ?? box);
     updateGizmo();
     render();
+  }
+
+  function commitTransform(id: string, transform: Transform) {
+    const authored = findObject(id);
+    // Room resizing is visual feedback only; release restores its original size and attached contents
+    if (
+      authored?.assetId === "test-room-module-v1" &&
+      transform.scale.some((value, axis) => value !== authored.transform.scale[axis])
+    ) {
+      applyPreviewTransform(id, authored.transform, true);
+      return;
+    }
+    // A snap back to the original position creates no store update, so restore the live mesh here too.
+    applyPreviewTransform(id, transform, true);
+    callbacks.onTransform(id, transform);
   }
 
   function previewTransform(id: string, transform: Transform, immediate = false) {
@@ -817,7 +907,7 @@ export function initScene(
     wheelEdit = undefined;
     clearTimeout(completed.timer);
     previewTransform(completed.id, completed.current, true);
-    callbacks.onTransform(completed.id, completed.current);
+    commitTransform(completed.id, completed.current);
   }
 
   function beginDrag(event: PointerEvent, next: NonNullable<typeof drag>) {
@@ -842,8 +932,8 @@ export function initScene(
 
   // First person: holding the click on an object picks it up, letting go puts it down
   function startCarry(event: PointerEvent, id: string | null) {
-    const object = objects.find((entry) => entry.id === id);
-    const instance = id === null ? undefined : instances.get(id);
+    const object = findObject(id);
+    const instance = id === null ? undefined : instanceFor(id);
     if (object === undefined || instance === undefined) return;
     const aim = aimPoint(event);
     const ray = screenRay(aim.x, aim.y);
@@ -870,7 +960,7 @@ export function initScene(
 
   // First person: holding right click on an object turns it, the camera stays still meanwhile
   function startTurn(event: PointerEvent, id: string | null) {
-    const object = objects.find((entry) => entry.id === id);
+    const object = findObject(id);
     if (object === undefined) return;
     const rotation = new THREE.Quaternion().fromArray(object.transform.rotation);
     beginDrag(event, {
@@ -902,8 +992,8 @@ export function initScene(
   }
 
   function startRotation(event: PointerEvent, handle: (typeof handles)[number] | undefined) {
-    const object = objects.find((entry) => entry.id === selectedId);
-    const instance = selectedId === null ? undefined : instances.get(selectedId);
+    const object = findObject(selectedId);
+    const instance = selectedId === null ? undefined : instanceFor(selectedId);
     if (object === undefined || instance === undefined) return;
     const ray = screenRay(event.clientX, event.clientY);
     const rotation = new THREE.Quaternion().fromArray(object.transform.rotation);
@@ -1012,8 +1102,13 @@ export function initScene(
       return;
     }
     if (!firstContact || drag !== undefined || touchGesture !== undefined) return;
-    // Camera tools never pick or move objects
-    if (cameraToolActive()) return;
+    const handle = pickHandle(
+      event.clientX,
+      event.clientY,
+      event.pointerType === "touch" ? MOBILE_GIZMO_HIT_RADIUS : 10,
+    );
+    // Explicit handles take priority; dragging the rest of the view still uses the camera tool.
+    if (cameraToolActive() && handle === undefined) return;
     // First person: a plain click only grab the mouse, FpsControls does that
     if (fpsControls.wantsCapture(event)) return;
     if (wheelEdit !== undefined) {
@@ -1035,23 +1130,18 @@ export function initScene(
     // so the gizmo only answers presses that miss the object
     if (event.pointerType === "touch" && fpsControls.isEngaged()) {
       const id = pick(event.clientX, event.clientY);
-      if (objects.some((object) => object.id === id)) {
+      if (findObject(id) !== undefined) {
         callbacks.onSelect(id);
         startCarry(event, id);
         return;
       }
     }
-    const handle = pickHandle(
-      event.clientX,
-      event.clientY,
-      event.pointerType === "touch" ? MOBILE_GIZMO_HIT_RADIUS : 10,
-    );
     if (event.button === 2) {
       startRotation(event, handle);
       return;
     }
     if (handle !== undefined && selectedId !== null) {
-      const object = objects.find((entry) => entry.id === selectedId);
+      const object = findObject(selectedId);
       if (object === undefined) return;
       const geometry = beginAxisDrag(
         screenRay(event.clientX, event.clientY),
@@ -1134,9 +1224,8 @@ export function initScene(
         const rotationIntent =
           Math.abs(rotationDelta) >= 0.16 && Math.abs(rotationDelta) * distance >= 18;
         if (scaleIntent || rotationIntent) {
-          const object = objects.find((entry) => entry.id === selectedId);
+          const object = findObject(selectedId);
           if (object !== undefined) {
-            if (object.assetId === "test-room-module-v1" && !rotationIntent) return;
             const activeDrag = drag;
             const base = activeDrag?.id === object.id ? activeDrag.current : object.transform;
             if (activeDrag !== undefined) cancelDrag(true);
@@ -1147,7 +1236,6 @@ export function initScene(
             const rotationStrength = (Math.abs(rotationDelta) * distance) / 18;
             const diagonalStart = Math.abs(Math.sin(touchPair.startAngle * 2)) >= 0.5;
             const scaleWins =
-              object.assetId !== "test-room-module-v1" &&
               scaleIntent &&
               !rotationIntent &&
               (!diagonalStart || scaleStrength >= rotationStrength);
@@ -1213,7 +1301,7 @@ export function initScene(
         orbit.enabled = orbitEnabledBeforeDrag;
         previewTransform(completed.id, completed.current, true);
         if (completed.current !== completed.original) {
-          callbacks.onTransform(completed.id, completed.current);
+          commitTransform(completed.id, completed.current);
         }
         return;
       }
@@ -1251,7 +1339,7 @@ export function initScene(
     }
     previewTransform(completed.id, completed.current, true);
     if (completed.current !== completed.transform) {
-      callbacks.onTransform(completed.id, completed.current);
+      commitTransform(completed.id, completed.current);
     }
   }
 
@@ -1279,10 +1367,9 @@ export function initScene(
     )
       return;
     if (modeManager.getState().mode !== "editor") return;
-    const object = objects.find((entry) => entry.id === selectedId);
-    const instance = instances.get(selectedId);
+    const object = findObject(selectedId);
+    const instance = instanceFor(selectedId);
     if (object === undefined || instance === undefined) return;
-    if (object.assetId === "test-room-module-v1") return;
     const aim = aimPoint(event);
     const ray = screenRay(aim.x, aim.y);
     const raycaster = new THREE.Raycaster(ray.origin, ray.direction);
@@ -1439,7 +1526,7 @@ export function initScene(
         models.set(asset.id, model);
       }
       ready = true;
-      update(objects, selectedId);
+      update(objects, selectedId, projectScene, appliedLoadGeneration ?? 0, selectedIds);
       callbacks.onStatus("ready");
     } catch (error) {
       if (!disposed) {
@@ -1565,16 +1652,36 @@ export function initScene(
         }
       }
       if (projectScene && !environmentBounds.isEmpty())
-        rooms.push({ id: projectScene.id, bounds: environmentBounds });
+        rooms.push({
+          id: projectScene.id,
+          bounds:
+            environment && models.get(projectScene.environmentAssetId)
+              ? new THREE.Box3().setFromObject(models.get(projectScene.environmentAssetId)!)
+              : environmentBounds,
+          ...(environment ? { transform: environment.matrixWorld } : {}),
+        });
       return roomAtPosition(position, rooms);
     },
     showDropPosition,
     showPlacementPreview(id, position, ownerId) {
       if (id === "test-room-v1" && projectScene?.environmentAssetId === id)
         id = "test-room-module-v1";
-      if (id === "test-room-module-v1" && position)
+      const room = id === "test-room-v1" || id === "test-room-module-v1";
+      const rotation =
+        id === "test-room-module-v1"
+          ? roomLayoutTransform(objects, projectScene)?.rotation
+          : undefined;
+      const requestedFits = position !== undefined && (!room || roomFitsGrid(position, rotation));
+      if (id === "test-room-module-v1" && position && requestedFits)
         position =
-          snapRoomPlacement(position, objects, projectScene?.environmentAssetId) ?? undefined;
+          snapRoomPlacement(
+            position,
+            objects,
+            projectScene?.environmentVisible === false
+              ? undefined
+              : projectScene?.environmentAssetId,
+            roomLayoutTransform(objects, projectScene),
+          ) ?? undefined;
       let scale = 1;
       if (id === HOTSPOT_ASSET_ID && position !== undefined) {
         const target = ownerId ?? selectedId;
@@ -1590,8 +1697,11 @@ export function initScene(
           position = world.toArray() as Vector3Tuple;
         }
       }
-      placementPreview.show(id, position, scale);
+      const valid =
+        position !== undefined && (!room || (requestedFits && roomFitsGrid(position, rotation)));
+      placementPreview.show(id, position, scale, rotation, valid);
       render();
+      return valid;
     },
     pickObjectAt,
     getHotspotAnchor,
@@ -1675,6 +1785,7 @@ export function initScene(
       cancelWheelEdit();
       clearTextPlacement();
       placementPreview.clear();
+      roomEntrances.dispose();
       appearanceRenderer.dispose();
       disposed = true;
       displays.dispose();

@@ -301,7 +301,7 @@
     "editor/graphics/rotation.ts": "d847162644716d2b36e8b3e4f1ad190360527a46351cb2969d411dbe76ea96d3",
     "editor/graphics/scaling.test.ts": "346b243798597de2a5b00384904bdf04f9f3826a8753bcde3282e5356b0ceb0a",
     "editor/graphics/scaling.ts": "0277d21b28d246ddb2f94216fe29afb24ebbc8e257dd3510eca91bb176867da1",
-    "editor/graphics/scene.ts": "1872779202377aea304917fee4b6b9027a0c8bccf6dace1cd034a68bcec32a93",
+    "editor/graphics/scene.ts": "9d46dc4279eaabdcc04d687b607fe47db0b49169e978fe6c981225040c1a1719",
     "editor/graphics/text-placement.test.ts": "6725b6c884938884042c6e7ae01fb9e9556188df8bb6f640b2bc51af094daca9",
     "editor/graphics/text-placement.ts": "fc51a66844b92dfeb74b23d535419d872a5afa755cc6b0abcf2c0b731224551e",
     "editor/graphics/translation.test.ts": "b4a888b963437ca3508c04cc3e933ab215d301908384ea9af37ee8aabd6fae2c",
@@ -3292,6 +3292,24 @@
       "file": "editor/graphics/scene.ts",
       "line": 1,
       "kind": "static",
+      "specifier": "../../shared/project/selection-transform",
+      "target": "shared/project/selection-transform.ts",
+      "from": "rendering",
+      "to": "project"
+    },
+    {
+      "file": "editor/graphics/scene.ts",
+      "line": 6,
+      "kind": "static",
+      "specifier": "./room-entrances",
+      "target": "editor/graphics/room-entrances.ts",
+      "from": "rendering",
+      "to": "rendering"
+    },
+    {
+      "file": "editor/graphics/scene.ts",
+      "line": 7,
+      "kind": "static",
       "specifier": "./visible-model-bounds",
       "target": "editor/graphics/visible-model-bounds.ts",
       "from": "rendering",
@@ -3299,7 +3317,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 2,
+      "line": 8,
       "kind": "static",
       "specifier": "./text-placement",
       "target": "editor/graphics/text-placement.ts",
@@ -3308,7 +3326,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 3,
+      "line": 9,
       "kind": "static",
       "specifier": "../../shared/project/room-placement",
       "target": "shared/project/room-placement.ts",
@@ -3317,7 +3335,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 4,
+      "line": 14,
       "kind": "static",
       "specifier": "./fit-displayed-object",
       "target": "editor/graphics/fit-displayed-object.ts",
@@ -3326,7 +3344,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 5,
+      "line": 15,
       "kind": "static",
       "specifier": "./room-at-position",
       "target": "editor/graphics/room-at-position.ts",
@@ -3335,7 +3353,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 6,
+      "line": 16,
       "kind": "static",
       "specifier": "./display-content",
       "target": "editor/graphics/display-content.ts",
@@ -3344,7 +3362,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 7,
+      "line": 17,
       "kind": "static",
       "specifier": "./exhibit-appearance",
       "target": "editor/graphics/exhibit-appearance.ts",
@@ -3353,7 +3371,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 8,
+      "line": 18,
       "kind": "static",
       "specifier": "./placement-preview",
       "target": "editor/graphics/placement-preview.ts",
@@ -3362,7 +3380,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 9,
+      "line": 19,
       "kind": "static",
       "specifier": "./active-clock",
       "target": "editor/graphics/active-clock.ts",
@@ -3371,7 +3389,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 10,
+      "line": 20,
       "kind": "static",
       "specifier": "./hotspot-anchor",
       "target": "editor/graphics/hotspot-anchor.ts",
@@ -3380,7 +3398,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 11,
+      "line": 21,
       "kind": "static",
       "specifier": "../../shared/project/attached-transforms",
       "target": "shared/project/attached-transforms.ts",
@@ -3389,7 +3407,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 12,
+      "line": 22,
       "kind": "type",
       "specifier": "../../shared/project/project-content",
       "target": "shared/project/project-content.ts",
@@ -3398,7 +3416,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 17,
+      "line": 27,
       "kind": "static",
       "specifier": "../../shared/project/starting-view",
       "target": "shared/project/starting-view.ts",
@@ -3407,7 +3425,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 18,
+      "line": 28,
       "kind": "static",
       "specifier": "three",
       "target": {
@@ -3417,7 +3435,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 19,
+      "line": 29,
       "kind": "static",
       "specifier": "three/examples/jsm/controls/OrbitControls.js",
       "target": {
@@ -3427,7 +3445,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 20,
+      "line": 30,
       "kind": "static",
       "specifier": "../../shared/asset-runtime/ModelCache",
       "target": "shared/asset-runtime/ModelCache.ts",
@@ -3436,7 +3454,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 21,
+      "line": 31,
       "kind": "type",
       "specifier": "../../shared/asset-runtime/catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -3445,7 +3463,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 22,
+      "line": 32,
       "kind": "static",
       "specifier": "../../shared/asset-runtime/hotspot",
       "target": "shared/asset-runtime/hotspot.ts",
@@ -3454,7 +3472,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 23,
+      "line": 33,
       "kind": "type",
       "specifier": "../../shared/project/scene-object",
       "target": "shared/project/scene-object.ts",
@@ -3463,7 +3481,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 24,
+      "line": 34,
       "kind": "type",
       "specifier": "../../shared/project/project-types",
       "target": "shared/project/project-types.ts",
@@ -3472,7 +3490,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 30,
+      "line": 40,
       "kind": "static",
       "specifier": "../controls/fpsControls",
       "target": "editor/controls/fpsControls.ts",
@@ -3481,7 +3499,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 31,
+      "line": 41,
       "kind": "static",
       "specifier": "../controls/fpsControls",
       "target": "editor/controls/fpsControls.ts",
@@ -3490,7 +3508,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 32,
+      "line": 42,
       "kind": "static",
       "specifier": "./modeManager",
       "target": "editor/graphics/modeManager.ts",
@@ -3499,7 +3517,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 33,
+      "line": 43,
       "kind": "static",
       "specifier": "./rotation",
       "target": "editor/graphics/rotation.ts",
@@ -3508,7 +3526,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 41,
+      "line": 51,
       "kind": "static",
       "specifier": "./scaling",
       "target": "editor/graphics/scaling.ts",
@@ -3517,7 +3535,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 42,
+      "line": 52,
       "kind": "static",
       "specifier": "./translation",
       "target": "editor/graphics/translation.ts",
@@ -3526,7 +3544,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 488,
+      "line": 520,
       "kind": "type-query",
       "specifier": "../../shared/project/project-types",
       "target": "shared/project/project-types.ts",
