@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
-import { chromium } from "playwright";
+import { launchBrowser } from "./browser-security.mjs";
 
 const baseUrl = process.argv[2] ?? "http://127.0.0.1:5182/ui-preview/assignment-test.html";
-const browser = await chromium.launch();
+const browser = await launchBrowser({ target: baseUrl });
 const context = await browser.newContext({ timezoneId: "Asia/Singapore", locale: "en-GB" });
 let saved;
 const requests = [];
@@ -96,5 +96,108 @@ try {
   console.log("Assignment screen retry and cross-tab checks passed");
 } finally {
   await context.close();
+}
+
+async function recoveryScenario(kind) {
+  const isolated = await browser.newContext({ timezoneId: "Asia/Singapore", locale: "en-GB" });
+  const posts = [];
+  let projectsFail = false;
+  try {
+    await isolated.route("**/api/**", async (route) => {
+      const request = route.request();
+      const path = new URL(request.url()).pathname;
+      const json = (body, status = 200) =>
+        route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
+      if (path === "/api/auth/session")
+        return json({
+          userId: "teacher",
+          displayName: "Teacher",
+          role: "Educator",
+          orgId: "school",
+        });
+      if (path === "/api/auth/csrf") return json({ requestToken: "token" });
+      if (path === "/api/classes")
+        return json({ items: [{ id: "class", name: "Class" }], nextCursor: null });
+      if (path === "/api/projects")
+        return projectsFail
+          ? json({}, 503)
+          : json({
+              items: [
+                {
+                  projectId: "source",
+                  title: "Source",
+                  revision: 3,
+                  permissions: { canManage: true },
+                },
+              ],
+              nextCursor: null,
+            });
+      if (path === "/api/classes/class/eligible-students")
+        return json({
+          items: [{ userId: "alice", userName: "Alice", enrolled: true }],
+          nextCursor: null,
+        });
+      if (path === "/api/classes/class/assignments" && request.method() === "POST") {
+        posts.push(request.postDataJSON());
+        if (kind !== "initial-413" && posts.length === 1) return route.abort("failed");
+        return json({}, 413);
+      }
+      throw new Error(`Unexpected API request: ${path}`);
+    });
+    const page = await isolated.newPage();
+    await page.goto(baseUrl);
+    await page.getByLabel("Source project").selectOption("source");
+    await page.getByLabel("Project title").fill("Assignment");
+    await page.getByLabel("Project description").fill("Description");
+    await page.getByLabel("Project instructions").fill("Instructions");
+    await page.getByLabel("Due date and time").fill("2026-12-01T15:30");
+    await page.getByLabel(/^Class/).selectOption("class");
+    await page.getByRole("checkbox", { name: /Alice/ }).check();
+    await page.getByRole("button", { name: "Create project" }).click();
+    if (kind === "initial-413") {
+      await page.getByRole("alert").waitFor({ timeout: 5000 });
+      assert.equal(
+        await page.evaluate(() => localStorage.getItem("spatia.assignment.pending:teacher")),
+        null,
+      );
+      assert.equal(await page.getByLabel("Project title").inputValue(), "Assignment");
+      await page.getByLabel("Project title").fill("Corrected assignment");
+      assert.equal(await page.getByLabel("Project title").inputValue(), "Corrected assignment");
+    } else {
+      await page.getByRole("button", { name: "Retry same assignment" }).waitFor();
+      const pending = await page.evaluate(() =>
+        localStorage.getItem("spatia.assignment.pending:teacher"),
+      );
+      assert.ok(pending);
+      if (kind === "choices-fail") {
+        projectsFail = true;
+        await page.reload();
+      }
+      await Promise.all([
+        page.waitForResponse(
+          (item) => item.url().endsWith("/assignments") && item.status() === 413,
+        ),
+        page.getByRole("button", { name: "Retry same assignment" }).click({ timeout: 5000 }),
+      ]);
+      assert.equal(posts.length, 2);
+      assert.deepEqual(posts[1], posts[0]);
+      assert.equal(
+        await page.evaluate(() => localStorage.getItem("spatia.assignment.pending:teacher")),
+        pending,
+      );
+      await page.getByRole("button", { name: "Retry same assignment" }).waitFor();
+    }
+    console.log(`${kind} recovery check passed`);
+  } finally {
+    await isolated.close();
+  }
+}
+
+try {
+  for (const scenario of process.argv[3]
+    ? [process.argv[3]]
+    : ["initial-413", "choices-fail", "replay-413"])
+    await recoveryScenario(scenario);
+} finally {
   await browser.close();
 }
