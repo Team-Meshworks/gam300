@@ -16,13 +16,15 @@ public sealed class PublicationMigrationIntegrationTests
     {
         const string draftMigration = "20261018091152_AddProjectDraftStorage";
         const string publicationMigration = "20261029094707_AddPublicationSnapshots";
+        const string currentDevMigration = "20261103080036_AddAccountDisplayName";
         await using var fixture = await PostgresAccountFixture.CreateAsync(draftMigration);
         await using var scope = fixture.Services.CreateAsyncScope();
         var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var migrator = database.GetService<IMigrator>();
         var previous = draftMigration;
         foreach (var migration in database.GetService<IMigrationsAssembly>().Migrations.Keys
-            .Where(id => string.CompareOrdinal(id, draftMigration) > 0).Order(StringComparer.Ordinal))
+            .Where(id => string.CompareOrdinal(id, draftMigration) > 0 &&
+                string.CompareOrdinal(id, currentDevMigration) <= 0).Order(StringComparer.Ordinal))
         {
             // Reproduce dev's real migration history, where the older publication migration never ran.
             if (migration != publicationMigration)
