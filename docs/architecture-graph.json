@@ -248,7 +248,7 @@
     "editor/ProjectConfirmation.tsx": "07a0fedf8fbf88865b3b8232c8665c139348fc64ebce478ea01e55eb7fd14eff",
     "editor/Scenes.tsx": "83b06f9b5b2e07b53cfb6de08bb051f0a970d391b7599442e556d7ca791bbdbf",
     "editor/ServerProjectEditor.tsx": "76f597d3fbc9968be0ba94cfe402f3250789b90fdeb6d3ab31480146c51e5daf",
-    "editor/Viewpoints.tsx": "aa66b98b65a5187e386c0ac367ae134fda711988e8a89fe0618cfde385662d26",
+    "editor/Viewpoints.tsx": "c63887232def67d153627b910f64a2a79b6ff3a10019e28d991fe12490f96547",
     "editor/accounts/account-client.test.ts": "63ee51fbda7d94a082d0f906b56bf236545778e3519b1af94ffbc47c39a824a1",
     "editor/accounts/account-client.ts": "c1db44f6e08c55994387133e1a73ce43dc2ccd170fd6295bba0cffadab03f51b",
     "editor/admin/AdminDashboard.tsx": "e3b6177c4676ce2f3355d8172553499bcddbfedbb343714fbdc40a077c73ac41",
@@ -377,7 +377,7 @@
     "editor/ui-preview/fixtures.ts": "7bff292876860adb3e059fdaae85a77acafc74586fadb832043a51275d49e04a",
     "editor/ui-preview/main.tsx": "10d494ed224f1fda3fc0fa3f6d1ef68527e859d62a1ef6bbd3854561dde10f64",
     "editor/ui/AssetFilterSelect.tsx": "a6165d2e7714c0c542bfb26e8f59e40c0608abec36a6691f8de8a5f95e179dcf",
-    "editor/ui/AssetPicker.tsx": "a6d11403b312b31ab95092bd5acefb448db9275277ea13e41015132f3d400f59",
+    "editor/ui/AssetPicker.tsx": "25c1a5032105906d8288ab6c19dfce0bca106018c43b038bcf25397112f34b22",
     "editor/ui/AudioLibrary.tsx": "d34b93f67ca6a162265d35a024aa9aa678d1337ba10a5240840e3c49e488be5a",
     "editor/ui/BottomBar.tsx": "b1013fc2beae3f0334eb1487b4ff0b1258442e9eab7e004465463d80bcb64308",
     "editor/ui/ColorSwatches.tsx": "9d5add9ed67436ed70e201257935852ba44b822b303f25eb0e0a123856b7fe55",
@@ -386,10 +386,11 @@
     "editor/ui/ExhibitPopups.tsx": "bb85bfd0f131c19365e296b23cf3cfc7eae97e65f80618058115692517e3c31f",
     "editor/ui/Icon.tsx": "e6dd35d62b18b4c09ac7b2da5dece2f1d62f0b268afedd547b1777b4b6d6d091",
     "editor/ui/InteractionPanel.tsx": "bd06335bb72d214c8fe24093706b5c8ef7294ba47c6fbe9a1f53808216e5555f",
+    "editor/ui/LibraryRail.tsx": "ffb582a25b6b0a84d0ca2a7c2cb8f79470e647474530d4b6a37b8ab3f4b3497f",
     "editor/ui/PreviewTargets.tsx": "d49499d2e889781f42239cfe9cdd17a174691baed6dc86815a2d3e577af00884",
     "editor/ui/RichTextInput.tsx": "8508440ea3abe0f184f38738e1a3163064444456cb3bee0d56bc4096730c0dbd",
     "editor/ui/SceneTreePanel.tsx": "f0bae3431660e3f6d6a1545ae16af4dd7aae6660f9ff3ecd0664caf577d6ce77",
-    "editor/ui/SidePanels.tsx": "b0a1d359ed19f9d87b65980add5f1eec0ea6ea6a0f31790214f2719ee516b859",
+    "editor/ui/SidePanels.tsx": "257e5fa191e05bd07b384e59e6df9a555ae207ceb2fe0230a9053de6136f0fe2",
     "editor/ui/TopBar.tsx": "a1e07470dcee2c4fe9a54031f45a6fe07530c17a3eae484e24a8f395f9c2e466",
     "editor/ui/asset-filters.test.ts": "0b88a68d514d283e155ceb0838d4951c1b4fd5867459df2e8c6ab8780c65f858",
     "editor/ui/asset-filters.ts": "5e08299dbfc2543f41017306fdff78d7ba3161e2242186877a315e3ea75fa8cc",
@@ -521,7 +522,7 @@
     "editor/entry/entry.css": "fe7cbc59e81658828c79a8d61a5025b090b2ad23533bb1f26830518138d74dbd",
     "shared/project/fixtures/m2-project.json": "d0b01cf012c8418b3d5e0acef2053b936fdce5333603666dd1e757a3b5e5565b",
     "shared/project/fixtures/project-format-cases.json": "06300d01e8e644f8c7e9ffe91d42d92b072448dfe26b75580314e31f4d5b43ac",
-    "editor/styles.css": "883339446c7540fdafd89910cc33f6c35026a293a7be8e2e5bd4be9c302aafa2",
+    "editor/styles.css": "3d362dbd44a629bf3ce51e6c11fc8f61a91aaf4caa211c2f425a9d083e74fcee",
     "editor/fixtures/asset-pipeline-document-history.json": "4fe51cba770226d856f37cbbc2afbe0b3fe393e5990b8f761b794b7b5bf5380d",
     "editor/fixtures/asset-pipeline-view-history.json": "d33e208ca99c5fb1e816a9e0b79aebb987c79ef354179d8c06e430b382cf4f59",
     "editor/projects/class-assignment.css": "fb9bdc1b367853c792e1ba88513872fd0d410cef67e5c144ad0ccce8c0194c64",
@@ -551,6 +552,7 @@
     "editor/ui/assets/clear-cube-display-case.svg": "db8429656cef3e5aa16f15cea92109341e17c02e82335ffcc6e147bc07b6b465",
     "editor/ui/assets/clear-cuboid-display-case.svg": "3add1794981dbc2898c8fa887bf780563b3186d6b9128a4712f3236b93669211",
     "editor/ui/assets/cuboid-display-case.svg": "b3f7e884d8e720766cfd889ff0622259c522b4b772cca52011e67853388b4613",
+    "editor/ui/library-rail.css": "c3aac7297e68b4e79528174123b0da6304ce80fc1f25be5695469f28e3241974",
     "editor/workspace/workspace.css": "db47caae28b45fcb41cfdfeb0d4a966d31b9ff0ba16c73e160f1c5053cf022dc",
     "shared/ui/assets/landmark.svg": "955e9305808f5a6ec562703feca8b81963f6ca198f9913aa8557cd2c0687b864",
     "shared/ui/assets/ambient-left.svg": "51054c252a837e4480db62f01f80d6cdd3c1ab8dd93910c57afc8540424cbe31",
@@ -1359,6 +1361,15 @@
       "file": "editor/Viewpoints.tsx",
       "line": 1,
       "kind": "static",
+      "specifier": "./ui/Icon",
+      "target": "editor/ui/Icon.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/Viewpoints.tsx",
+      "line": 2,
+      "kind": "static",
       "specifier": "../shared/project/starting-view",
       "target": "shared/project/starting-view.ts",
       "from": "editor",
@@ -1366,7 +1377,7 @@
     },
     {
       "file": "editor/Viewpoints.tsx",
-      "line": 2,
+      "line": 3,
       "kind": "static",
       "specifier": "react",
       "target": {
@@ -1376,7 +1387,7 @@
     },
     {
       "file": "editor/Viewpoints.tsx",
-      "line": 3,
+      "line": 4,
       "kind": "type",
       "specifier": "../shared/project/project-types",
       "target": "shared/project/project-types.ts",
@@ -1385,7 +1396,7 @@
     },
     {
       "file": "editor/Viewpoints.tsx",
-      "line": 4,
+      "line": 5,
       "kind": "static",
       "specifier": "./audio/ui-sounds",
       "target": "editor/audio/ui-sounds.ts",
@@ -1394,7 +1405,7 @@
     },
     {
       "file": "editor/Viewpoints.tsx",
-      "line": 5,
+      "line": 6,
       "kind": "type",
       "specifier": "./document-store",
       "target": "editor/document-store.ts",
@@ -1403,7 +1414,7 @@
     },
     {
       "file": "editor/Viewpoints.tsx",
-      "line": 6,
+      "line": 7,
       "kind": "type",
       "specifier": "./viewport/Viewport",
       "target": "editor/viewport/Viewport.tsx",
@@ -1412,7 +1423,7 @@
     },
     {
       "file": "editor/Viewpoints.tsx",
-      "line": 16,
+      "line": 17,
       "kind": "type-query",
       "specifier": "../shared/project/project-types",
       "target": "shared/project/project-types.ts",
@@ -1421,7 +1432,7 @@
     },
     {
       "file": "editor/Viewpoints.tsx",
-      "line": 60,
+      "line": 61,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -6494,6 +6505,15 @@
       "file": "editor/ui/AssetPicker.tsx",
       "line": 1,
       "kind": "static",
+      "specifier": "./LibraryRail",
+      "target": "editor/ui/LibraryRail.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/AssetPicker.tsx",
+      "line": 2,
+      "kind": "static",
       "specifier": "./use-drag-image",
       "target": "editor/ui/use-drag-image.ts",
       "from": "editor",
@@ -6501,7 +6521,7 @@
     },
     {
       "file": "editor/ui/AssetPicker.tsx",
-      "line": 2,
+      "line": 3,
       "kind": "static",
       "specifier": "react",
       "target": {
@@ -6511,7 +6531,7 @@
     },
     {
       "file": "editor/ui/AssetPicker.tsx",
-      "line": 3,
+      "line": 4,
       "kind": "static",
       "specifier": "../../shared/asset-runtime/catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -6520,7 +6540,7 @@
     },
     {
       "file": "editor/ui/AssetPicker.tsx",
-      "line": 4,
+      "line": 5,
       "kind": "static",
       "specifier": "../audio/ui-sounds",
       "target": "editor/audio/ui-sounds.ts",
@@ -6529,7 +6549,7 @@
     },
     {
       "file": "editor/ui/AssetPicker.tsx",
-      "line": 5,
+      "line": 6,
       "kind": "static",
       "specifier": "./asset-filters",
       "target": "editor/ui/asset-filters.ts",
@@ -6538,7 +6558,7 @@
     },
     {
       "file": "editor/ui/AssetPicker.tsx",
-      "line": 14,
+      "line": 15,
       "kind": "static",
       "specifier": "./Icon",
       "target": "editor/ui/Icon.tsx",
@@ -6547,7 +6567,7 @@
     },
     {
       "file": "editor/ui/AssetPicker.tsx",
-      "line": 15,
+      "line": 16,
       "kind": "static",
       "specifier": "./AssetFilterSelect",
       "target": "editor/ui/AssetFilterSelect.tsx",
@@ -6556,7 +6576,7 @@
     },
     {
       "file": "editor/ui/AssetPicker.tsx",
-      "line": 52,
+      "line": 53,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -7372,6 +7392,43 @@
     {
       "file": "editor/ui/InteractionPanel.tsx",
       "line": 145,
+      "kind": "implicit-jsx",
+      "specifier": "react/jsx-runtime",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/ui/LibraryRail.tsx",
+      "line": 1,
+      "kind": "static",
+      "specifier": "./Icon",
+      "target": "editor/ui/Icon.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/LibraryRail.tsx",
+      "line": 2,
+      "kind": "static",
+      "specifier": "./assets/editor-video-selected-bg.svg?no-inline",
+      "target": "editor/ui/assets/editor-video-selected-bg.svg",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/LibraryRail.tsx",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./library-rail.css",
+      "target": "editor/ui/library-rail.css",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/LibraryRail.tsx",
+      "line": 7,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {

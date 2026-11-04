@@ -3143,3 +3143,96 @@ dialog.sp-dialog.sp-display-dialog {
   display: none;
 }
 
+/* Name and capture form one task; keep browsing controls together below it */
+.editor-panel .viewpoints label {
+  margin: 8px 0 6px;
+}
+.editor-panel .viewpoints > p:nth-of-type(2) {
+  margin-bottom: 12px;
+}
+.editor-panel .viewpoints fieldset > button {
+  margin-bottom: 12px;
+}
+.editor-panel .viewpoints .saved-view-picker {
+  margin-top: 0;
+}
+.editor-panel .viewpoints .viewpoint-actions {
+  margin-bottom: 0;
+}
+
+/* Balance the visible artwork, accounting for padding within the existing SVG view boxes */
+.panel-rail .rail-button > .icon {
+  width: 26px;
+  height: 26px;
+  display: block;
+}
+.panel-rail .rail-button[data-panel="position"] > .icon {
+  width: 24px;
+  height: 24px;
+}
+.editor-panel .viewpoints > p:first-of-type {
+  margin-bottom: 3px;
+}
+.editor-panel .viewpoints > p:nth-of-type(2) {
+  margin-top: 0;
+}
+.editor-panel .saved-view-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.saved-view-toggle > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.saved-view-toggle > .icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+.saved-view-toggle[aria-expanded="true"] > .icon {
+  rotate: 180deg;
+}
+.editor-panel .viewpoint-cycle button {
+  display: grid;
+  place-items: center;
+}
+.viewpoint-cycle .icon {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+.viewpoint-previous {
+  display: block;
+  rotate: 180deg;
+}
+/* Lists should reserve space only when they contain items, keeping help and ordering actions adjacent */
+.editor-panel .saved-view-menu p {
+  margin: 0 0 8px;
+}
+.editor-panel .saved-view-menu ol {
+  margin: 4px 0;
+}
+.editor-panel .saved-view-menu ol:empty {
+  display: none;
+}
+.editor-panel .saved-view-menu .viewpoint-actions {
+  margin-top: 8px;
+  gap: 6px;
+}
+.editor-panel .saved-view-menu .viewpoint-actions button {
+  min-height: 32px;
+}
+/* Match stroke weight in the rail without changing the same symbols elsewhere */
+.panel-rail .icon g[stroke="currentColor"] {
+  stroke-width: 1.25;
+}
+.panel-rail .icon g[stroke="currentColor"] > * {
+  vector-effect: non-scaling-stroke;
+}
+.panel-rail [data-panel="position"] .icon path {
+  stroke: none;
+}

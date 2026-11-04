@@ -1,3 +1,4 @@
+import { LibraryRail } from "./LibraryRail";
 import { useDragImage } from "./use-drag-image";
 import { useState } from "react";
 import { assetDragType, type CatalogueAsset } from "../../shared/asset-runtime/catalogue";
@@ -49,7 +50,12 @@ export function AssetPicker({
   }
 
   return (
-    <section className="asset-picker" id="asset-panel" aria-labelledby="assets-heading">
+    <section
+      className="asset-picker has-library-rail"
+      id="asset-panel"
+      aria-labelledby="assets-heading"
+    >
+      <LibraryRail icon="library" label="Asset library" />
       <div className="asset-picker-head">
         <h2 id="assets-heading" className="asset-picker-title">
           <Icon name="info" />

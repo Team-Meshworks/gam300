@@ -21,8 +21,8 @@ type PanelId = "scenes" | "position" | "tree" | "interaction" | "views";
 const railButtons: { id: PanelId; label: string; icon: IconName }[] = [
   { id: "position", label: "Position", icon: "axes" },
   { id: "tree", label: "Scene tree", icon: "tree" },
-  { id: "scenes", label: "Scenes", icon: "library" },
-  { id: "views", label: "Saved views", icon: "tree" },
+  { id: "scenes", label: "Scenes", icon: "scenes" },
+  { id: "views", label: "Saved views", icon: "savedView" },
   { id: "interaction", label: "Interaction", icon: "touch" },
 ];
 
@@ -84,6 +84,7 @@ export function SidePanels({
             key={button.id}
             className="ui-button rail-button"
             type="button"
+            data-panel={button.id}
             aria-label={button.label}
             title={button.label}
             aria-pressed={panel === button.id}
