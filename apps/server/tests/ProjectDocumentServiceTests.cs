@@ -194,8 +194,13 @@ public sealed class ProjectDocumentServiceTests
         // Save root audio through the same development catalogue boundary used by the API
         scene["audio"] = new JsonArray(new JsonObject
         {
-            ["id"] = Guid.NewGuid().ToString(), ["type"] = "audio", ["mode"] = "global",
-            ["assetId"] = "audio-ethereal-calm-v1", ["caption"] = "", ["loop"] = true, ["volume"] = 1,
+            ["id"] = Guid.NewGuid().ToString(),
+            ["type"] = "audio",
+            ["mode"] = "global",
+            ["assetId"] = "audio-ethereal-calm-v1",
+            ["caption"] = "",
+            ["loop"] = true,
+            ["volume"] = 1,
         });
         var id = Guid.Parse(document["projectId"]!.GetValue<string>());
         var service = Create("Development");
