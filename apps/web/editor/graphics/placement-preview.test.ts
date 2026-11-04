@@ -44,3 +44,18 @@ it("retains model normalization so the preview occupies the same space as the pl
   expect(model.position.toArray()).toEqual([-100, -20, 50]);
   preview.clear();
 });
+
+it("switches an invalid preview to red and back without recoloring the cached model", () => {
+  const scene = new THREE.Scene();
+  const source = new THREE.MeshStandardMaterial({ color: "white" });
+  const model = new THREE.Mesh(new THREE.BoxGeometry(), source);
+  const preview = createPlacementPreview(scene, new Map([["room", model]]));
+  preview.show("room", [20, 0, 0], 1, undefined, false);
+  const mesh = scene.getObjectByName("placement-preview")!.children[0] as THREE.Mesh;
+  const material = mesh.material as THREE.MeshStandardMaterial;
+  expect(material.color.getHexString()).toBe("c84637");
+  preview.show("room", [10, 0, 0]);
+  expect(material.color.getHexString()).toBe("999999");
+  expect(source.color.getHexString()).toBe("ffffff");
+  preview.clear();
+});

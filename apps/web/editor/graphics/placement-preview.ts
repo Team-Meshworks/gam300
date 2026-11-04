@@ -18,7 +18,13 @@ export function createPlacementPreview(
   }
   return {
     clear,
-    show(id: string | undefined, position: Vector3Tuple | undefined, scale = 1) {
+    show(
+      id: string | undefined,
+      position: Vector3Tuple | undefined,
+      scale = 1,
+      rotation: readonly [number, number, number, number] = [0, 0, 0, 1],
+      valid = true,
+    ) {
       if (id !== asset) {
         clear();
         const model = id === undefined ? undefined : models.get(id);
@@ -45,9 +51,16 @@ export function createPlacementPreview(
         });
         scene.add(ghost);
       }
+      // Preview materials are cloned so invalid placement feedback never changes the cached model
+      for (const material of materials) {
+        if ("color" in material && material.color instanceof THREE.Color)
+          material.color.set(valid ? "#999999" : "#c84637");
+        material.opacity = valid ? 0.4 : 0.55;
+      }
       if (ghost) {
         ghost.visible = position !== undefined;
         ghost.scale.setScalar(scale);
+        ghost.quaternion.fromArray(rotation);
         if (position) ghost.position.fromArray(position);
       }
     },
