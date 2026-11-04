@@ -2,7 +2,7 @@
 FROM node:24.22.2-bookworm-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS asset-validation
 WORKDIR /src/apps/web
 COPY apps/web/package.json apps/web/package-lock.json ./
-RUN npm install --global npm@11.17.0 && npm ci --ignore-scripts --no-audit --no-fund
+RUN npm install --global npm@11.21.1 && npm ci --ignore-scripts --no-audit --no-fund
 
 # Match the backend's global.json; keep migrations separate from the running API
 FROM mcr.microsoft.com/dotnet/sdk:10.0.401@sha256:e70cdb7f80b0348f5cb85f19a8f670fca061f033d57eed12fa003d58b0e06317 AS build

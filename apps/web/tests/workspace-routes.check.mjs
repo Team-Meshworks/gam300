@@ -1,5 +1,6 @@
 import { launchBrowser } from "./browser-security.mjs";
 import assert from "node:assert/strict";
+import { mkdir } from "node:fs/promises";
 
 const origin = process.argv[2] ?? "http://127.0.0.1:5173";
 const browser = await launchBrowser({ target: origin, args: ["--enable-unsafe-swiftshader"] });
@@ -74,6 +75,13 @@ try {
   });
   await screen("assets", "All Assets");
   await page.getByText("No assets yet", { exact: true }).waitFor();
+  await mkdir("test-results/scrum168", { recursive: true });
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    await page.screenshot({ path: `test-results/scrum168/mounted-assets-${width}.png`, fullPage: true });
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
   await screen("spaces", "All 3D Spaces");
   assert.ok(assetReads >= 2, "Both admin libraries load the real service route");
 

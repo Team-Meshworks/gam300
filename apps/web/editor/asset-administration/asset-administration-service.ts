@@ -6,7 +6,7 @@ import type {
 } from "./asset-administration";
 
 // Keep all requests on the authenticated application origin; never send cookies to an upload URL
-export function createAssetAdministrationService(): AssetAdministrationService {
+export function createAssetAdministrationService(actorId: string): AssetAdministrationService {
   async function request<T>(
     path: string,
     signal: AbortSignal,
@@ -14,9 +14,14 @@ export function createAssetAdministrationService(): AssetAdministrationService {
   ): Promise<AssetAdministrationResult<T>> {
     try {
       const headers = new Headers(init?.headers);
+      headers.set("X-Spatia-Account", actorId);
       if (init?.method) {
-        // Refresh the token for each write so account/session changes cannot reuse an old grant
-        const csrf = await fetch("/api/auth/csrf", { credentials: "same-origin", signal });
+        // Bind both token acquisition and the write to the account that opened this screen.
+        const csrf = await fetch("/api/auth/csrf", {
+          credentials: "same-origin",
+          headers: { "X-Spatia-Account": actorId },
+          signal,
+        });
         if (!csrf.ok) {
           return failure(csrf.status);
         }

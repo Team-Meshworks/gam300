@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createAccountClient, type AccountSession } from "../accounts/account-client";
 import { leaveWithUiSound } from "../audio/ui-sounds";
 import { WorkspaceShell } from "../../shared/ui/WorkspaceShell";
@@ -11,7 +11,6 @@ import { AssetAdministration } from "../asset-administration/AssetAdministration
 import { createAssetAdministrationService } from "../asset-administration/asset-administration-service";
 
 const client = createAccountClient();
-const assetService = createAssetAdministrationService();
 const screens = [
   { id: "assets", title: "3D Assets", roles: ["Administrator"] },
   { id: "spaces", title: "3D Spaces", roles: ["Administrator"] },
@@ -29,6 +28,13 @@ type Access =
 // Route visibility follows the session; each screen's API enforces access to its records.
 export function WorkspacePage() {
   const [access, setAccess] = useState<Access>({ kind: "loading" });
+  const assetService = useMemo(
+    () =>
+      access.kind === "ready" && access.session
+        ? createAssetAdministrationService(access.session.userId)
+        : null,
+    [access],
+  );
   const [attempt, setAttempt] = useState(0);
   const [logoutError, setLogoutError] = useState("");
   const signingOut = useRef(false);
@@ -146,7 +152,7 @@ export function WorkspacePage() {
           {!dashboard && screen.id !== "assets" && screen.id !== "spaces" && (
             <h1 className="sp-page-heading">{screen.title}</h1>
           )}
-          {(screen.id === "assets" || screen.id === "spaces") && (
+          {assetService && (screen.id === "assets" || screen.id === "spaces") && (
             <AssetAdministration
               key={session.userId}
               session={session}

@@ -45,6 +45,11 @@ try {
   await page.goto(`${baseUrl}?asset-admin-test`);
   await page.getByRole("heading", { name: "All 3D Spaces" }).waitFor();
   await page
+    .getByText("Manage and review catalogue assets.", { exact: true })
+    .waitFor({ timeout: 5000 });
+  await page.getByRole("button", { name: /^Not hidden \(/ }).waitFor({ timeout: 5000 });
+  await page.getByRole("button", { name: /^Hidden \(/ }).waitFor();
+  await page
     .getByRole("button", { name: /View Model/ })
     .first()
     .waitFor();
@@ -366,7 +371,7 @@ try {
   assert.ok(viewBounds.height <= 460, "Viewing should not occupy most of the viewport");
   const modelName = await dialog.locator("h2").textContent();
   await dialog.getByRole("button", { name: "Hide", exact: true }).click();
-  await page.getByRole("button", { name: /^Private \(/ }).click();
+  await page.getByRole("button", { name: /^Hidden \(/ }).click();
   await page
     .locator(".asset-admin-card")
     .filter({ has: page.getByRole("heading", { name: modelName, exact: true }) })

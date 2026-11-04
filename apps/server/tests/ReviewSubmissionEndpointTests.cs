@@ -39,7 +39,7 @@ public sealed class ReviewSubmissionEndpointTests
         {
             ProjectTestDocuments.PadTitleToBytes(input, Format.MaxProjectBytes);
             await using var documentScope = fixture.App.Services.CreateAsyncScope();
-        var documents = documentScope.ServiceProvider.GetRequiredService<ProjectDocumentService>();
+            var documents = documentScope.ServiceProvider.GetRequiredService<ProjectDocumentService>();
             var accepted = documents.Read(data.ProjectId, input.ToJsonString());
             await Assert.That(accepted.Ok).IsTrue();
             var saved = documents.Serialize(accepted.Value!);
