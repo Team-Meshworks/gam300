@@ -1,5 +1,6 @@
 import { useEffect, useRef, type DragEvent, type ReactNode } from "react";
 import { assetDragType, type CatalogueAsset } from "../../shared/asset-runtime/catalogue";
+import { HOTSPOT_ASSET_ID } from "../../shared/asset-runtime/hotspot";
 import type { SceneObject, Vector3Tuple } from "../../shared/project/scene-object";
 import type {
   CameraPose,
@@ -23,6 +24,7 @@ export type ViewpointCamera = {
   show: (pose: CameraPose) => void;
   locate: (id: string) => void;
   toggleDisplayMedia: (id: string) => void;
+  hotspotAnchor: (id: string) => Vector3Tuple | undefined;
 };
 
 type ViewportProps = {
@@ -32,7 +34,7 @@ type ViewportProps = {
   projectScene: ProjectScene | null;
   loadGeneration: number;
   selectedId: string | null;
-  dragging: boolean;
+  dragging: string | null;
   placingAssetId?: string | null;
   editingEnabled: boolean;
   navigationTool: NavigationTool;
@@ -122,6 +124,7 @@ export function Viewport({
             show: scene.showCamera,
             locate: scene.locateObject,
             toggleDisplayMedia: scene.toggleDisplayMedia,
+            hotspotAnchor: scene.getHotspotAnchor,
           });
         }
       })
@@ -217,6 +220,15 @@ export function Viewport({
             return;
           }
           event.preventDefault();
+          if (dragging === HOTSPOT_ASSET_ID) {
+            const scene = sceneRef.current;
+            const objectId = scene?.pickObjectAt(event.clientX, event.clientY) ?? selectedId;
+            const anchor = objectId === null ? undefined : scene?.getHotspotAnchor(objectId);
+            event.dataTransfer.dropEffect = anchor === undefined ? "none" : "copy";
+            // A floor marker would imply an arbitrary position; attachment uses the owner.
+            scene?.showDropPosition(undefined);
+            return;
+          }
           const position = sceneRef.current?.getDropPosition(event.clientX, event.clientY);
           event.dataTransfer.dropEffect = position === undefined ? "none" : "copy";
           sceneRef.current?.showDropPosition(position);
@@ -234,18 +246,12 @@ export function Viewport({
           const assetId = event.dataTransfer.getData(assetDragType);
           if (accepts(event) && assets.some((asset) => asset.id === assetId)) {
             const scene = sceneRef.current;
-            const position = scene?.getDropPosition(event.clientX, event.clientY);
-            if (position !== undefined) {
+            if (assetId === HOTSPOT_ASSET_ID) {
               const objectId = scene?.pickObjectAt(event.clientX, event.clientY);
-              const localPosition =
-                objectId === undefined ? undefined : scene?.worldToLocal(objectId, position);
-              onPlace(
-                assetId,
-                position,
-                objectId === undefined || localPosition === undefined
-                  ? undefined
-                  : { objectId, localPosition },
-              );
+              onPlace(assetId, [0, 0, 0], objectId === undefined ? undefined : { objectId });
+            } else {
+              const position = scene?.getDropPosition(event.clientX, event.clientY);
+              if (position !== undefined) onPlace(assetId, position);
             }
           }
           sceneRef.current?.showDropPosition(undefined);

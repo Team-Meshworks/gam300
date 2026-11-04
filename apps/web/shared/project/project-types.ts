@@ -53,7 +53,6 @@ export type ProjectHotspot = Readonly<{
 
 export type HotspotDropTarget = Readonly<{
   objectId: EntityId;
-  localPosition: Vector3Tuple;
 }>;
 
 export type InteractionTrigger =

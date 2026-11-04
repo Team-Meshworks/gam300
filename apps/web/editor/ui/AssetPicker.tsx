@@ -26,7 +26,7 @@ export function AssetPicker({
   ready: boolean;
   thumbnailFor: (assetId: string) => string | undefined;
   onAdd: (assetId: string) => void;
-  onDragChange: (dragging: boolean) => void;
+  onDragChange: (assetId: string | null) => void;
   onClose: () => void;
 }) {
   const [chosen, setChosen] = useState<string | null>(null);
@@ -120,10 +120,10 @@ export function AssetPicker({
                     onDragStart={(event) => {
                       event.dataTransfer.setData(assetDragType, asset.id);
                       event.dataTransfer.effectAllowed = "copy";
-                      onDragChange(true);
+                      onDragChange(asset.id);
                     }}
                     onDragEnd={(event) => {
-                      onDragChange(false);
+                      onDragChange(null);
                       // Only close when it really landed in the scene, a cancelled drag keep it open
                       if (event.dataTransfer.dropEffect !== "none") onClose();
                     }}

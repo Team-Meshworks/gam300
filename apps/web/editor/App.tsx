@@ -63,7 +63,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
     editorAssets.find((asset) => asset.id === id)?.thumbnail ?? generatedThumbnails[id];
   const [status, setStatus] = useState<ViewportStatus>("loading");
   const [attempt, setAttempt] = useState(0);
-  const [dragging, setDragging] = useState(false);
+  const [dragging, setDragging] = useState<string | null>(null);
   const [feedback, setFeedback] = useState({ text: "", sequence: 0 });
   const notice = feedback.text;
   const [error, setError] = useState("");
@@ -155,7 +155,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
 
   const onReplace = useCallback(() => {
     setSelectedId(null);
-    setDragging(false);
+    setDragging(null);
     setError("");
     setHasDeleted(false);
   }, []);
@@ -311,10 +311,12 @@ export function App({ server }: { server?: ServerEditorSession }) {
         setNotice("Select an object to attach the hotspot to");
         return;
       }
-      const result = store.addHotspot(
-        objectId,
-        hotspotTarget?.objectId === objectId ? hotspotTarget.localPosition : [0, 0, 0],
-      );
+      const localPosition = viewCamera?.hotspotAnchor(objectId);
+      if (localPosition === undefined) {
+        setNotice("Select a loaded object to attach the hotspot to");
+        return;
+      }
+      const result = store.addHotspot(objectId, localPosition);
       if (!result.ok) {
         setError(result.error.message);
         return;
@@ -342,7 +344,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
         } else {
           setError(added.error);
         }
-        setDragging(false);
+        setDragging(null);
         return;
       }
       if (project !== null) {
@@ -353,7 +355,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
           setNotice("Scene environment updated. Undo is available.");
           playUiSound("assetPlace");
         }
-        setDragging(false);
+        setDragging(null);
         return;
       }
       const created = store.createProject(assetId);
@@ -363,7 +365,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
       }
       setError("");
       setSelectedId(created.value.scenes[0]!.id);
-      setDragging(false);
+      setDragging(null);
       if (created.value.scenes[0]?.objects.length === 0) {
         session.markPristine(created.value);
       }
@@ -373,7 +375,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
     }
     // Clicks and drops share this path; room selection starts the project before furnishing it
     if (store.getSnapshot().project === null) {
-      setDragging(false);
+      setDragging(null);
       setError("Choose a room first");
       return;
     }
@@ -496,7 +498,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
               disabled={visitor || switching || status !== "ready"}
               onSwitch={() => {
                 setSelectedId(null);
-                setDragging(false);
+                setDragging(null);
                 setError("");
               }}
             />
@@ -582,7 +584,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
           onObjectClick={onObjectClick}
           onSceneUpdate={onSceneUpdate}
           onPlace={place}
-          onDragFinish={() => setDragging(false)}
+          onDragFinish={() => setDragging(null)}
           onRetry={() => {
             setStatus("loading");
             setAttempt((previous) => previous + 1);

@@ -1,5 +1,6 @@
 import { createDisplayContent } from "./display-content";
 import { createActiveClock } from "./active-clock";
+import { HOTSPOT_SIZE, hotspotAnchor } from "./hotspot-anchor";
 import { moveAttachedObjects } from "../../shared/project/attached-transforms";
 import type { ContentScene } from "../../shared/project/project-content";
 import { getStartingCamera } from "../../shared/project/starting-view";
@@ -35,8 +36,6 @@ const ROTATION_SNAP = THREE.MathUtils.degToRad(15);
 
 // Pointer travel under this many pixels still counts as a click while visiting
 const VISITOR_CLICK_TOLERANCE = 6;
-
-const HOTSPOT_SIZE = 0.6;
 
 // One lazy renderer-module owner per editor page, shared across viewport retries/remounts
 export const editorModelCache = new ModelCache();
@@ -76,7 +75,7 @@ export interface InitSceneHandle {
   getDropPosition: (clientX: number, clientY: number) => Vector3Tuple | undefined;
   showDropPosition: (position: Vector3Tuple | undefined) => void;
   pickObjectAt: (clientX: number, clientY: number) => string | undefined;
-  worldToLocal: (objectId: string, position: Vector3Tuple) => Vector3Tuple | undefined;
+  getHotspotAnchor: (objectId: string) => Vector3Tuple | undefined;
   setEditingEnabled: (enabled: boolean) => void;
   captureCamera: () => CameraPose;
   showCamera: (pose: CameraPose) => void;
@@ -709,11 +708,12 @@ export function initScene(
     return id;
   }
 
-  function worldToLocal(objectId: string, position: Vector3Tuple): Vector3Tuple | undefined {
-    const instance = instances.get(objectId);
+  function getHotspotAnchor(objectId: string): Vector3Tuple | undefined {
+    const instance = instanceFor(objectId);
     if (instance === undefined) return;
-    instance.updateWorldMatrix(true, false);
-    return instance.worldToLocal(new THREE.Vector3().fromArray(position)).toArray() as Vector3Tuple;
+    const object = objects.find((item) => item.id.toLowerCase() === objectId.toLowerCase());
+    const model = object === undefined ? undefined : models.get(object.assetId);
+    return model === undefined ? undefined : hotspotAnchor(model);
   }
 
   function pointerDown(event: PointerEvent) {
@@ -931,10 +931,13 @@ export function initScene(
           const material = new THREE.SpriteMaterial({
             map: texture,
             transparent: true,
+            // Editor annotations stay readable even through the owner's geometry.
+            depthTest: false,
             depthWrite: false,
           });
           hotspotMaterials.add(material);
           const sprite = new THREE.Sprite(material);
+          sprite.renderOrder = 1000;
           sprite.scale.setScalar(HOTSPOT_SIZE);
           sprite.position.y = HOTSPOT_SIZE / 2;
           const model = new THREE.Group();
@@ -991,7 +994,7 @@ export function initScene(
     getDropPosition,
     showDropPosition,
     pickObjectAt,
-    worldToLocal,
+    getHotspotAnchor,
     setEditingEnabled(enabled) {
       editingEnabled = enabled;
       if (!enabled) {

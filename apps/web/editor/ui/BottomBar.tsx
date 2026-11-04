@@ -63,7 +63,7 @@ export function BottomBar({
   ready: boolean;
   thumbnailFor: (assetId: string) => string | undefined;
   onAdd: (assetId: string) => void;
-  onDragChange: (dragging: boolean) => void;
+  onDragChange: (assetId: string | null) => void;
   tool: NavigationTool;
   onToolChange: (tool: NavigationTool) => void;
   selectedDisplay?: { name: string; onEdit: () => void; disabled: boolean } | undefined;
@@ -303,10 +303,10 @@ export function BottomBar({
                           if (!item.assetId) return;
                           event.dataTransfer.setData(assetDragType, item.assetId);
                           event.dataTransfer.effectAllowed = "copy";
-                          onDragChange(true);
+                          onDragChange(item.assetId);
                         }}
                         onDragEnd={() => {
-                          onDragChange(false);
+                          onDragChange(null);
                           setPopup(null);
                         }}
                         onClick={() => {
@@ -359,9 +359,9 @@ export function BottomBar({
               onDragStart={(event) => {
                 event.dataTransfer.setData(assetDragType, hotspot.id);
                 event.dataTransfer.effectAllowed = "copy";
-                onDragChange(true);
+                onDragChange(hotspot.id);
               }}
-              onDragEnd={() => onDragChange(false)}
+              onDragEnd={() => onDragChange(null)}
               {...toolTip.handlers(hotspot.name)}
             >
               <Icon name="hotspot" />
