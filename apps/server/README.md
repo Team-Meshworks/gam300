@@ -163,7 +163,7 @@ application and is not part of the CI job.
 
 The full suite includes `ProxyChainTests`, which starts two Caddy processes and a
 local ASP.NET test host. Provide the pinned Caddy **2.11.4** executable through
-`CADDY_BINARY` (or as `caddy` on `PATH`) and Node 24.19.0 on `PATH`;
+`CADDY_BINARY` (or as `caddy` on `PATH`) and Node 24.22.2 on `PATH`;
 `SPATIA_TEST_NODE` may specify the Node executable instead. CI extracts Caddy from
 the pinned image. The filtered proxy test uses anonymous test-only endpoints and
 does not require PostgreSQL:
@@ -461,12 +461,14 @@ allows the synthetic certificate only for this loopback test flow and blocks oth
 origins; it does not install a certificate or change global browser trust.
 
 Run the canonical checks above from `apps/server/`, with the disposable PostgreSQL
-instance running. The browser case also requires the pinned web dependencies and
-Chromium installed. A fresh checkout uses `apps/web/node_modules/playwright/index.mjs`;
-a managed checkout may set `PLAYWRIGHT_MODULE` to that same existing package in its
-primary checkout. `PLAYWRIGHT_BROWSERS_PATH` can select the existing Chromium cache
-when sandbox AppData differs. No additional server test-host/time-provider/browser
-package is required. Database configuration is removed from the Node child's environment.
+instance running. The browser case also requires `npm ci` and `npm run browser:install`
+from `apps/web/`, followed by `npm run browser:verify` on a non-root sandbox-capable
+host. It uses this checkout's pinned Playwright dependency with verified official
+Chrome, not the bundled Chromium cache. Set `CHROME_PATH` only when selecting an
+existing official Chrome for Testing binary. Remove obsolete `PLAYWRIGHT_MODULE`,
+`PLAYWRIGHT_CHANNEL` and `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` overrides; they fail
+closed. No additional server test-host/time-provider/browser package is required.
+Database configuration is removed from the Node child's environment.
 
 Part 3 was verified on 14 October 2026 against the working tree based on `3e63b057`
 after source review. Locked restore, Release build (zero warnings/errors), both format
@@ -810,14 +812,15 @@ storage, image or non-loopback mapping. A new checkout must establish and review
 its own disposable setup and save the ownership/private files using the fresh-setup recipe above; no source identity edit is needed. Do not point it at a
 partner, pilot, Wiki.js or shared database.
 
-Use the installed Playwright **1.63.0** module and its existing Chromium cache; no
-browser/package install is performed by this runner. For the managed checkout,
-point `PLAYWRIGHT_MODULE` to the installed module in the separate primary checkout
-if that is where dependencies are available. These paths contain no credentials:
+Use this checkout's locked Playwright dependency and verified official Chrome.
+Run `npm ci`, `npm run browser:install` and `npm run browser:verify` in `apps/web/`
+first. This restart runner does not install packages or browsers. For a custom
+Chrome for Testing installation, set `CHROME_PATH` to its executable; otherwise
+leave it unset to use installed Google Chrome. Old Playwright module/channel
+browser overrides are rejected.
 
 ```powershell
-$env:PLAYWRIGHT_MODULE = 'C:/Users/kille/Documents/GitHub/gam300/apps/web/node_modules/playwright/index.mjs'
-$env:PLAYWRIGHT_BROWSERS_PATH = Join-Path $env:LOCALAPPDATA 'ms-playwright'
+Remove-Item Env:PLAYWRIGHT_MODULE, Env:PLAYWRIGHT_CHANNEL, Env:PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH -ErrorAction SilentlyContinue
 pwsh -NoProfile -File tests/restart-acceptance.ps1 `
   -ExpectedVolume (Get-Content .artifacts/scrum45-postgres-container.json -Raw | ConvertFrom-Json).expectedVolume
 ```
@@ -1638,7 +1641,7 @@ claimed by this part; those acceptance gates remain separate.
 
 ## SCRUM-45 Part 7: authorized project list and open
 
-The production host now maps `GET /api/projects` and `GET /api/projects/{id}` under
+The production host maps `GET /api/projects` and `GET /api/projects/{id}` under
 the existing `FullAccount` policy. Both recheck current Identity, organization and
 project assignment authority through `ProjectAccessService`. They use the Part 5d
 document boundary, with no schema, dependency or asset-approval change.
@@ -1726,6 +1729,36 @@ restart were not run for this slice.
 At the Part 7 checkpoint, PUT, lifecycle writers and saved-project restart evidence
 were still outstanding; the following section records their backend implementation.
 Protected asset delivery and the SCRUM-126/SCRUM-67 frontend work remain separate.
+
+## SCRUM-69: current project grants
+
+`GET /api/projects/{id}/assignments` returns a current grant snapshot to a global
+Administrator or an assigned same-organization Educator manager, including on an
+archived project. For a class draft the manager also needs active class membership.
+The response contains all stored rows and flags in user-ID order, including disabled
+accounts and combinations the replacement API cannot represent. It contains no
+names, roles or project document. For example:
+
+```json
+{"projectId":"11111111-1111-1111-1111-111111111111","organizationId":"22222222-2222-2222-2222-222222222222","revision":4,"archived":false,"assignments":[{"userId":"33333333-3333-3333-3333-333333333333","canEdit":true,"canManage":true,"canPublish":true}]}
+```
+
+There are no query parameters: any returns `400 invalid_project_query`. A visible
+Creator gets `403 access_denied`; a missing or inaccessible project gets generic
+`404 project_not_found`. Invalid or expired authentication gets 401. Results and
+errors are `no-store`. Account, authority, metadata and grants come from one
+repeatable-read snapshot; it can become stale immediately.
+
+For a deliberate PATCH replacement, use the GET `revision` as `expectedRevision`.
+Only canonical rows map to its three arrays: `canEdit`, `canManage`, `canPublish`
+all true maps the ID to `managedByUserIds`; `canEdit` true and `canManage` false
+maps it to `assignedCreatorIds`, also adding it to `canPublishUserIds` when publish
+is true. Do not echo GET metadata or raw rows as PATCH fields. The caller must
+surface unsupported flags, unresolved IDs and disabled or otherwise ineligible
+grants and block replacement or handle them deliberately; never silently drop or
+normalize them. PATCH reauthorizes and validates every account and the revision, so
+GET does not guarantee a replacement will succeed. Directory reads are admin-only;
+Educator selection and display need a separately authorized solution.
 
 ## SCRUM-66/45: protected save and project lifecycle
 
@@ -2084,10 +2117,13 @@ as an immutable identity.
 
 PostgreSQL checks document/project/schema agreement, bounded source revisions,
 complete manifest entries, distinct asset IDs, finite timestamps, required fields
-and digest length. The `TR_publications_immutable` trigger rejects **every UPDATE**,
-including direct SQL, manifest replacement and request-identity changes. Foreign
-keys restrict deletion of referenced projects/accounts instead of cascading into
-publication history. There is no purge job, expiry rule or new retention policy.
+and digest length. The additive `ProtectPublicationHistory` migration extends
+`TR_publications_immutable` to reject **every UPDATE and DELETE**, including direct
+SQL, manifest replacement and request-identity changes. This prevents a runtime
+role from deleting an edition and replacing it under the same ID. Foreign keys
+restrict deletion of referenced projects/accounts instead of cascading into
+publication history. There is no runtime purge or bypass, expiry rule or approved
+retention policy in this change.
 Audience and revocation state belong to SCRUM-71 and must remain separate from the
 immutable snapshot.
 

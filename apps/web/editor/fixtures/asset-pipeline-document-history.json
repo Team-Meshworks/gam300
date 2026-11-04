@@ -1,0 +1,970 @@
+{
+  "source": {
+    "branch": "asset-pipeline",
+    "commit": "bad2ff2458b69bc4d30f250b541df1b85fad0012"
+  },
+  "document": {
+    "schemaVersion": 2,
+    "projectId": "01a186c3-4925-7675-8094-b6a1400d76ea",
+    "title": "Untitled project",
+    "scenes": [
+      {
+        "id": "fd1c2f87-c010-479f-b67d-76e1998f2596",
+        "name": "Gallery",
+        "environmentAssetId": "room",
+        "startCamera": {
+          "position": [12, 16, 18],
+          "rotation": [
+            -0.29962059992658957, 0.2752183320355054, 0.09071781822041597, 0.9089844021041025
+          ],
+          "fovDegrees": 40
+        },
+        "objects": [
+          {
+            "id": "ad3a8aa9-3b2b-4f07-b320-9e7d200b95a2",
+            "name": "crate 1",
+            "assetId": "crate",
+            "transform": {
+              "position": [1, 0, 0],
+              "rotation": [0, 0, 0, 1],
+              "scale": [1, 1, 1]
+            },
+            "parentId": null,
+            "visible": true,
+            "components": []
+          }
+        ],
+        "groups": [],
+        "zones": [],
+        "viewpoints": [
+          {
+            "id": "9537f2a5-d378-4bc9-9887-ab94b75b8eb8",
+            "name": "Entrance",
+            "camera": {
+              "position": [12, 16, 18],
+              "rotation": [
+                -0.29962059992658957, 0.2752183320355054, 0.09071781822041597, 0.9089844021041025
+              ],
+              "fovDegrees": 40
+            }
+          }
+        ],
+        "rules": []
+      },
+      {
+        "id": "20b236a5-8d0e-431b-b317-57db6946a216",
+        "name": "Exhibit",
+        "environmentAssetId": "room",
+        "startCamera": {
+          "position": [12, 16, 18],
+          "rotation": [
+            -0.29962059992658957, 0.2752183320355054, 0.09071781822041597, 0.9089844021041025
+          ],
+          "fovDegrees": 40
+        },
+        "objects": [
+          {
+            "id": "3931e4a6-c606-4b7b-a518-fca39a57e4a1",
+            "name": "crate 1",
+            "assetId": "crate",
+            "transform": {
+              "position": [9, 0, 0],
+              "rotation": [0, 0, 0, 1],
+              "scale": [1, 1, 1]
+            },
+            "parentId": null,
+            "visible": true,
+            "components": []
+          }
+        ],
+        "groups": [],
+        "zones": [],
+        "viewpoints": [
+          {
+            "id": "f11c85d4-5e80-4bae-87dd-ea5dfeb51e40",
+            "name": "Window",
+            "camera": {
+              "position": [12, 16, 18],
+              "rotation": [
+                -0.29962059992658957, 0.2752183320355054, 0.09071781822041597, 0.9089844021041025
+              ],
+              "fovDegrees": 40
+            }
+          }
+        ],
+        "rules": []
+      }
+    ]
+  },
+  "history": {
+    "version": 1,
+    "views": {
+      "current": [
+        {
+          "id": "9537f2a5-d378-4bc9-9887-ab94b75b8eb8",
+          "name": "Entrance",
+          "camera": {
+            "position": [12, 16, 18],
+            "rotation": [
+              -0.29962059992658957, 0.2752183320355054, 0.09071781822041597, 0.9089844021041025
+            ],
+            "fovDegrees": 40
+          }
+        }
+      ],
+      "past": [
+        [
+          {
+            "id": "9537f2a5-d378-4bc9-9887-ab94b75b8eb8",
+            "name": "Entrance",
+            "camera": {
+              "position": [12, 16, 18],
+              "rotation": [
+                -0.29962059992658957, 0.2752183320355054, 0.09071781822041597, 0.9089844021041025
+              ],
+              "fovDegrees": 40
+            }
+          }
+        ],
+        [
+          {
+            "id": "9537f2a5-d378-4bc9-9887-ab94b75b8eb8",
+            "name": "Entrance",
+            "camera": {
+              "position": [12, 16, 18],
+              "rotation": [
+                -0.29962059992658957, 0.2752183320355054, 0.09071781822041597, 0.9089844021041025
+              ],
+              "fovDegrees": 40
+            }
+          }
+        ],
+        [
+          {
+            "id": "9537f2a5-d378-4bc9-9887-ab94b75b8eb8",
+            "name": "Entrance",
+            "camera": {
+              "position": [12, 16, 18],
+              "rotation": [
+                -0.29962059992658957, 0.2752183320355054, 0.09071781822041597, 0.9089844021041025
+              ],
+              "fovDegrees": 40
+            }
+          }
+        ],
+        [
+          {
+            "id": "9537f2a5-d378-4bc9-9887-ab94b75b8eb8",
+            "name": "Entrance",
+            "camera": {
+              "position": [12, 16, 18],
+              "rotation": [
+                -0.29962059992658957, 0.2752183320355054, 0.09071781822041597, 0.9089844021041025
+              ],
+              "fovDegrees": 40
+            }
+          }
+        ],
+        [],
+        []
+      ],
+      "future": [
+        [
+          {
+            "id": "f11c85d4-5e80-4bae-87dd-ea5dfeb51e40",
+            "name": "Window",
+            "camera": {
+              "position": [12, 16, 18],
+              "rotation": [
+                -0.29962059992658957, 0.2752183320355054, 0.09071781822041597, 0.9089844021041025
+              ],
+              "fovDegrees": 40
+            }
+          }
+        ],
+        [
+          {
+            "id": "f11c85d4-5e80-4bae-87dd-ea5dfeb51e40",
+            "name": "Window",
+            "camera": {
+              "position": [12, 16, 18],
+              "rotation": [
+                -0.29962059992658957, 0.2752183320355054, 0.09071781822041597, 0.9089844021041025
+              ],
+              "fovDegrees": 40
+            }
+          }
+        ]
+      ]
+    },
+    "projectId": "01a186c3-4925-7675-8094-b6a1400d76ea",
+    "sceneId": "fd1c2f87-c010-479f-b67d-76e1998f2596",
+    "current": [
+      {
+        "id": "ad3a8aa9-3b2b-4f07-b320-9e7d200b95a2",
+        "name": "crate 1",
+        "assetId": "crate",
+        "transform": {
+          "position": [1, 0, 0],
+          "rotation": [0, 0, 0, 1],
+          "scale": [1, 1, 1]
+        },
+        "parentId": null,
+        "visible": true,
+        "components": []
+      }
+    ],
+    "past": [
+      [
+        {
+          "id": "ad3a8aa9-3b2b-4f07-b320-9e7d200b95a2",
+          "name": "crate 1",
+          "assetId": "crate",
+          "transform": {
+            "position": [1, 0, 0],
+            "rotation": [0, 0, 0, 1],
+            "scale": [1, 1, 1]
+          },
+          "parentId": null,
+          "visible": true,
+          "components": []
+        }
+      ],
+      [
+        {
+          "id": "ad3a8aa9-3b2b-4f07-b320-9e7d200b95a2",
+          "name": "crate 1",
+          "assetId": "crate",
+          "transform": {
+            "position": [1, 0, 0],
+            "rotation": [0, 0, 0, 1],
+            "scale": [1, 1, 1]
+          },
+          "parentId": null,
+          "visible": true,
+          "components": []
+        }
+      ],
+      [
+        {
+          "id": "ad3a8aa9-3b2b-4f07-b320-9e7d200b95a2",
+          "name": "crate 1",
+          "assetId": "crate",
+          "transform": {
+            "position": [1, 0, 0],
+            "rotation": [0, 0, 0, 1],
+            "scale": [1, 1, 1]
+          },
+          "parentId": null,
+          "visible": true,
+          "components": []
+        }
+      ],
+      [
+        {
+          "id": "ad3a8aa9-3b2b-4f07-b320-9e7d200b95a2",
+          "name": "crate 1",
+          "assetId": "crate",
+          "transform": {
+            "position": [1, 0, 0],
+            "rotation": [0, 0, 0, 1],
+            "scale": [1, 1, 1]
+          },
+          "parentId": null,
+          "visible": true,
+          "components": []
+        }
+      ],
+      [
+        {
+          "id": "ad3a8aa9-3b2b-4f07-b320-9e7d200b95a2",
+          "name": "crate 1",
+          "assetId": "crate",
+          "transform": {
+            "position": [1, 0, 0],
+            "rotation": [0, 0, 0, 1],
+            "scale": [1, 1, 1]
+          },
+          "parentId": null,
+          "visible": true,
+          "components": []
+        }
+      ],
+      []
+    ],
+    "future": [
+      [
+        {
+          "id": "3931e4a6-c606-4b7b-a518-fca39a57e4a1",
+          "name": "crate 1",
+          "assetId": "crate",
+          "transform": {
+            "position": [9, 0, 0],
+            "rotation": [0, 0, 0, 1],
+            "scale": [1, 1, 1]
+          },
+          "parentId": null,
+          "visible": true,
+          "components": []
+        }
+      ],
+      [
+        {
+          "id": "3931e4a6-c606-4b7b-a518-fca39a57e4a1",
+          "name": "crate 1",
+          "assetId": "crate",
+          "transform": {
+            "position": [9, 0, 0],
+            "rotation": [0, 0, 0, 1],
+            "scale": [1, 1, 1]
+          },
+          "parentId": null,
+          "visible": true,
+          "components": []
+        }
+      ]
+    ],
+    "documents": {
+      "current": {
+        "schemaVersion": 2,
+        "projectId": "01a186c3-4925-7675-8094-b6a1400d76ea",
+        "title": "Untitled project",
+        "scenes": [
+          {
+            "id": "fd1c2f87-c010-479f-b67d-76e1998f2596",
+            "name": "Gallery",
+            "environmentAssetId": "room",
+            "startCamera": {
+              "position": [12, 16, 18],
+              "rotation": [
+                -0.29962059992658957, 0.2752183320355054, 0.09071781822041597, 0.9089844021041025
+              ],
+              "fovDegrees": 40
+            },
+            "objects": [
+              {
+                "id": "ad3a8aa9-3b2b-4f07-b320-9e7d200b95a2",
+                "name": "crate 1",
+                "assetId": "crate",
+                "transform": {
+                  "position": [1, 0, 0],
+                  "rotation": [0, 0, 0, 1],
+                  "scale": [1, 1, 1]
+                },
+                "parentId": null,
+                "visible": true,
+                "components": []
+              }
+            ],
+            "groups": [],
+            "zones": [],
+            "viewpoints": [
+              {
+                "id": "9537f2a5-d378-4bc9-9887-ab94b75b8eb8",
+                "name": "Entrance",
+                "camera": {
+                  "position": [12, 16, 18],
+                  "rotation": [
+                    -0.29962059992658957, 0.2752183320355054, 0.09071781822041597,
+                    0.9089844021041025
+                  ],
+                  "fovDegrees": 40
+                }
+              }
+            ],
+            "rules": []
+          },
+          {
+            "id": "20b236a5-8d0e-431b-b317-57db6946a216",
+            "name": "Exhibit",
+            "environmentAssetId": "room",
+            "startCamera": {
+              "position": [12, 16, 18],
+              "rotation": [
+                -0.29962059992658957, 0.2752183320355054, 0.09071781822041597, 0.9089844021041025
+              ],
+              "fovDegrees": 40
+            },
+            "objects": [
+              {
+                "id": "3931e4a6-c606-4b7b-a518-fca39a57e4a1",
+                "name": "crate 1",
+                "assetId": "crate",
+                "transform": {
+                  "position": [9, 0, 0],
+                  "rotation": [0, 0, 0, 1],
+                  "scale": [1, 1, 1]
+                },
+                "parentId": null,
+                "visible": true,
+                "components": []
+              }
+            ],
+            "groups": [],
+            "zones": [],
+            "viewpoints": [
+              {
+                "id": "f11c85d4-5e80-4bae-87dd-ea5dfeb51e40",
+                "name": "Window",
+                "camera": {
+                  "position": [12, 16, 18],
+                  "rotation": [
+                    -0.29962059992658957, 0.2752183320355054, 0.09071781822041597,
+                    0.9089844021041025
+                  ],
+                  "fovDegrees": 40
+                }
+              }
+            ],
+            "rules": []
+          }
+        ]
+      },
+      "activeSceneId": "20b236a5-8d0e-431b-b317-57db6946a216",
+      "past": [
+        {
+          "project": {
+            "schemaVersion": 2,
+            "projectId": "01a186c3-4925-7675-8094-b6a1400d76ea",
+            "title": "Untitled project",
+            "scenes": [
+              {
+                "id": "fd1c2f87-c010-479f-b67d-76e1998f2596",
+                "name": "Gallery",
+                "environmentAssetId": "room",
+                "startCamera": {
+                  "position": [12, 16, 18],
+                  "rotation": [
+                    -0.29962059992658957, 0.2752183320355054, 0.09071781822041597,
+                    0.9089844021041025
+                  ],
+                  "fovDegrees": 40
+                },
+                "objects": [
+                  {
+                    "id": "ad3a8aa9-3b2b-4f07-b320-9e7d200b95a2",
+                    "name": "crate 1",
+                    "assetId": "crate",
+                    "transform": {
+                      "position": [1, 0, 0],
+                      "rotation": [0, 0, 0, 1],
+                      "scale": [1, 1, 1]
+                    },
+                    "parentId": null,
+                    "visible": true,
+                    "components": []
+                  }
+                ],
+                "groups": [],
+                "zones": [],
+                "viewpoints": [
+                  {
+                    "id": "9537f2a5-d378-4bc9-9887-ab94b75b8eb8",
+                    "name": "Entrance",
+                    "camera": {
+                      "position": [12, 16, 18],
+                      "rotation": [
+                        -0.29962059992658957, 0.2752183320355054, 0.09071781822041597,
+                        0.9089844021041025
+                      ],
+                      "fovDegrees": 40
+                    }
+                  }
+                ],
+                "rules": []
+              },
+              {
+                "id": "20b236a5-8d0e-431b-b317-57db6946a216",
+                "name": "Annex",
+                "environmentAssetId": "room",
+                "startCamera": {
+                  "position": [12, 16, 18],
+                  "rotation": [
+                    -0.29962059992658957, 0.2752183320355054, 0.09071781822041597,
+                    0.9089844021041025
+                  ],
+                  "fovDegrees": 40
+                },
+                "objects": [
+                  {
+                    "id": "3931e4a6-c606-4b7b-a518-fca39a57e4a1",
+                    "name": "crate 1",
+                    "assetId": "crate",
+                    "transform": {
+                      "position": [9, 0, 0],
+                      "rotation": [0, 0, 0, 1],
+                      "scale": [1, 1, 1]
+                    },
+                    "parentId": null,
+                    "visible": true,
+                    "components": []
+                  }
+                ],
+                "groups": [],
+                "zones": [],
+                "viewpoints": [
+                  {
+                    "id": "f11c85d4-5e80-4bae-87dd-ea5dfeb51e40",
+                    "name": "Window",
+                    "camera": {
+                      "position": [12, 16, 18],
+                      "rotation": [
+                        -0.29962059992658957, 0.2752183320355054, 0.09071781822041597,
+                        0.9089844021041025
+                      ],
+                      "fovDegrees": 40
+                    }
+                  }
+                ],
+                "rules": []
+              }
+            ]
+          },
+          "activeSceneId": "20b236a5-8d0e-431b-b317-57db6946a216"
+        },
+        {
+          "project": {
+            "schemaVersion": 2,
+            "projectId": "01a186c3-4925-7675-8094-b6a1400d76ea",
+            "title": "Untitled project",
+            "scenes": [
+              {
+                "id": "fd1c2f87-c010-479f-b67d-76e1998f2596",
+                "name": "Gallery",
+                "environmentAssetId": "room",
+                "startCamera": {
+                  "position": [12, 16, 18],
+                  "rotation": [
+                    -0.29962059992658957, 0.2752183320355054, 0.09071781822041597,
+                    0.9089844021041025
+                  ],
+                  "fovDegrees": 40
+                },
+                "objects": [
+                  {
+                    "id": "ad3a8aa9-3b2b-4f07-b320-9e7d200b95a2",
+                    "name": "crate 1",
+                    "assetId": "crate",
+                    "transform": {
+                      "position": [1, 0, 0],
+                      "rotation": [0, 0, 0, 1],
+                      "scale": [1, 1, 1]
+                    },
+                    "parentId": null,
+                    "visible": true,
+                    "components": []
+                  }
+                ],
+                "groups": [],
+                "zones": [],
+                "viewpoints": [
+                  {
+                    "id": "9537f2a5-d378-4bc9-9887-ab94b75b8eb8",
+                    "name": "Entrance",
+                    "camera": {
+                      "position": [12, 16, 18],
+                      "rotation": [
+                        -0.29962059992658957, 0.2752183320355054, 0.09071781822041597,
+                        0.9089844021041025
+                      ],
+                      "fovDegrees": 40
+                    }
+                  }
+                ],
+                "rules": []
+              },
+              {
+                "id": "20b236a5-8d0e-431b-b317-57db6946a216",
+                "name": "Annex",
+                "environmentAssetId": "room",
+                "startCamera": {
+                  "position": [12, 16, 18],
+                  "rotation": [
+                    -0.29962059992658957, 0.2752183320355054, 0.09071781822041597,
+                    0.9089844021041025
+                  ],
+                  "fovDegrees": 40
+                },
+                "objects": [
+                  {
+                    "id": "3931e4a6-c606-4b7b-a518-fca39a57e4a1",
+                    "name": "crate 1",
+                    "assetId": "crate",
+                    "transform": {
+                      "position": [9, 0, 0],
+                      "rotation": [0, 0, 0, 1],
+                      "scale": [1, 1, 1]
+                    },
+                    "parentId": null,
+                    "visible": true,
+                    "components": []
+                  }
+                ],
+                "groups": [],
+                "zones": [],
+                "viewpoints": [],
+                "rules": []
+              }
+            ]
+          },
+          "activeSceneId": "20b236a5-8d0e-431b-b317-57db6946a216"
+        },
+        {
+          "project": {
+            "schemaVersion": 2,
+            "projectId": "01a186c3-4925-7675-8094-b6a1400d76ea",
+            "title": "Untitled project",
+            "scenes": [
+              {
+                "id": "fd1c2f87-c010-479f-b67d-76e1998f2596",
+                "name": "Gallery",
+                "environmentAssetId": "room",
+                "startCamera": {
+                  "position": [12, 16, 18],
+                  "rotation": [
+                    -0.29962059992658957, 0.2752183320355054, 0.09071781822041597,
+                    0.9089844021041025
+                  ],
+                  "fovDegrees": 40
+                },
+                "objects": [
+                  {
+                    "id": "ad3a8aa9-3b2b-4f07-b320-9e7d200b95a2",
+                    "name": "crate 1",
+                    "assetId": "crate",
+                    "transform": {
+                      "position": [1, 0, 0],
+                      "rotation": [0, 0, 0, 1],
+                      "scale": [1, 1, 1]
+                    },
+                    "parentId": null,
+                    "visible": true,
+                    "components": []
+                  }
+                ],
+                "groups": [],
+                "zones": [],
+                "viewpoints": [
+                  {
+                    "id": "9537f2a5-d378-4bc9-9887-ab94b75b8eb8",
+                    "name": "Entrance",
+                    "camera": {
+                      "position": [12, 16, 18],
+                      "rotation": [
+                        -0.29962059992658957, 0.2752183320355054, 0.09071781822041597,
+                        0.9089844021041025
+                      ],
+                      "fovDegrees": 40
+                    }
+                  }
+                ],
+                "rules": []
+              },
+              {
+                "id": "20b236a5-8d0e-431b-b317-57db6946a216",
+                "name": "Annex",
+                "environmentAssetId": "room",
+                "startCamera": {
+                  "position": [12, 16, 18],
+                  "rotation": [
+                    -0.29962059992658957, 0.2752183320355054, 0.09071781822041597,
+                    0.9089844021041025
+                  ],
+                  "fovDegrees": 40
+                },
+                "objects": [],
+                "groups": [],
+                "zones": [],
+                "viewpoints": [],
+                "rules": []
+              }
+            ]
+          },
+          "activeSceneId": "20b236a5-8d0e-431b-b317-57db6946a216"
+        },
+        {
+          "project": {
+            "schemaVersion": 2,
+            "projectId": "01a186c3-4925-7675-8094-b6a1400d76ea",
+            "title": "Untitled project",
+            "scenes": [
+              {
+                "id": "fd1c2f87-c010-479f-b67d-76e1998f2596",
+                "name": "Gallery",
+                "environmentAssetId": "room",
+                "startCamera": {
+                  "position": [12, 16, 18],
+                  "rotation": [
+                    -0.29962059992658957, 0.2752183320355054, 0.09071781822041597,
+                    0.9089844021041025
+                  ],
+                  "fovDegrees": 40
+                },
+                "objects": [
+                  {
+                    "id": "ad3a8aa9-3b2b-4f07-b320-9e7d200b95a2",
+                    "name": "crate 1",
+                    "assetId": "crate",
+                    "transform": {
+                      "position": [1, 0, 0],
+                      "rotation": [0, 0, 0, 1],
+                      "scale": [1, 1, 1]
+                    },
+                    "parentId": null,
+                    "visible": true,
+                    "components": []
+                  }
+                ],
+                "groups": [],
+                "zones": [],
+                "viewpoints": [
+                  {
+                    "id": "9537f2a5-d378-4bc9-9887-ab94b75b8eb8",
+                    "name": "Entrance",
+                    "camera": {
+                      "position": [12, 16, 18],
+                      "rotation": [
+                        -0.29962059992658957, 0.2752183320355054, 0.09071781822041597,
+                        0.9089844021041025
+                      ],
+                      "fovDegrees": 40
+                    }
+                  }
+                ],
+                "rules": []
+              }
+            ]
+          },
+          "activeSceneId": "fd1c2f87-c010-479f-b67d-76e1998f2596"
+        },
+        {
+          "project": {
+            "schemaVersion": 2,
+            "projectId": "01a186c3-4925-7675-8094-b6a1400d76ea",
+            "title": "Untitled project",
+            "scenes": [
+              {
+                "id": "fd1c2f87-c010-479f-b67d-76e1998f2596",
+                "name": "Gallery",
+                "environmentAssetId": "room",
+                "startCamera": {
+                  "position": [12, 16, 18],
+                  "rotation": [
+                    -0.29962059992658957, 0.2752183320355054, 0.09071781822041597,
+                    0.9089844021041025
+                  ],
+                  "fovDegrees": 40
+                },
+                "objects": [
+                  {
+                    "id": "ad3a8aa9-3b2b-4f07-b320-9e7d200b95a2",
+                    "name": "crate 1",
+                    "assetId": "crate",
+                    "transform": {
+                      "position": [1, 0, 0],
+                      "rotation": [0, 0, 0, 1],
+                      "scale": [1, 1, 1]
+                    },
+                    "parentId": null,
+                    "visible": true,
+                    "components": []
+                  }
+                ],
+                "groups": [],
+                "zones": [],
+                "viewpoints": [],
+                "rules": []
+              }
+            ]
+          },
+          "activeSceneId": "fd1c2f87-c010-479f-b67d-76e1998f2596"
+        },
+        {
+          "project": {
+            "schemaVersion": 2,
+            "projectId": "01a186c3-4925-7675-8094-b6a1400d76ea",
+            "title": "Untitled project",
+            "scenes": [
+              {
+                "id": "fd1c2f87-c010-479f-b67d-76e1998f2596",
+                "name": "Gallery",
+                "environmentAssetId": "room",
+                "startCamera": {
+                  "position": [12, 16, 18],
+                  "rotation": [
+                    -0.29962059992658957, 0.2752183320355054, 0.09071781822041597,
+                    0.9089844021041025
+                  ],
+                  "fovDegrees": 40
+                },
+                "objects": [],
+                "groups": [],
+                "zones": [],
+                "viewpoints": [],
+                "rules": []
+              }
+            ]
+          },
+          "activeSceneId": "fd1c2f87-c010-479f-b67d-76e1998f2596"
+        }
+      ],
+      "future": [
+        {
+          "project": {
+            "schemaVersion": 2,
+            "projectId": "01a186c3-4925-7675-8094-b6a1400d76ea",
+            "title": "Untitled project",
+            "scenes": [
+              {
+                "id": "20b236a5-8d0e-431b-b317-57db6946a216",
+                "name": "Exhibit",
+                "environmentAssetId": "room",
+                "startCamera": {
+                  "position": [12, 16, 18],
+                  "rotation": [
+                    -0.29962059992658957, 0.2752183320355054, 0.09071781822041597,
+                    0.9089844021041025
+                  ],
+                  "fovDegrees": 40
+                },
+                "objects": [
+                  {
+                    "id": "3931e4a6-c606-4b7b-a518-fca39a57e4a1",
+                    "name": "crate 1",
+                    "assetId": "crate",
+                    "transform": {
+                      "position": [9, 0, 0],
+                      "rotation": [0, 0, 0, 1],
+                      "scale": [1, 1, 1]
+                    },
+                    "parentId": null,
+                    "visible": true,
+                    "components": []
+                  }
+                ],
+                "groups": [],
+                "zones": [],
+                "viewpoints": [
+                  {
+                    "id": "f11c85d4-5e80-4bae-87dd-ea5dfeb51e40",
+                    "name": "Window",
+                    "camera": {
+                      "position": [12, 16, 18],
+                      "rotation": [
+                        -0.29962059992658957, 0.2752183320355054, 0.09071781822041597,
+                        0.9089844021041025
+                      ],
+                      "fovDegrees": 40
+                    }
+                  }
+                ],
+                "rules": []
+              },
+              {
+                "id": "fd1c2f87-c010-479f-b67d-76e1998f2596",
+                "name": "Gallery",
+                "environmentAssetId": "room",
+                "startCamera": {
+                  "position": [12, 16, 18],
+                  "rotation": [
+                    -0.29962059992658957, 0.2752183320355054, 0.09071781822041597,
+                    0.9089844021041025
+                  ],
+                  "fovDegrees": 40
+                },
+                "objects": [
+                  {
+                    "id": "ad3a8aa9-3b2b-4f07-b320-9e7d200b95a2",
+                    "name": "crate 1",
+                    "assetId": "crate",
+                    "transform": {
+                      "position": [1, 0, 0],
+                      "rotation": [0, 0, 0, 1],
+                      "scale": [1, 1, 1]
+                    },
+                    "parentId": null,
+                    "visible": true,
+                    "components": []
+                  }
+                ],
+                "groups": [],
+                "zones": [],
+                "viewpoints": [
+                  {
+                    "id": "9537f2a5-d378-4bc9-9887-ab94b75b8eb8",
+                    "name": "Entrance",
+                    "camera": {
+                      "position": [12, 16, 18],
+                      "rotation": [
+                        -0.29962059992658957, 0.2752183320355054, 0.09071781822041597,
+                        0.9089844021041025
+                      ],
+                      "fovDegrees": 40
+                    }
+                  }
+                ],
+                "rules": []
+              }
+            ]
+          },
+          "activeSceneId": "20b236a5-8d0e-431b-b317-57db6946a216"
+        },
+        {
+          "project": {
+            "schemaVersion": 2,
+            "projectId": "01a186c3-4925-7675-8094-b6a1400d76ea",
+            "title": "Untitled project",
+            "scenes": [
+              {
+                "id": "20b236a5-8d0e-431b-b317-57db6946a216",
+                "name": "Exhibit",
+                "environmentAssetId": "room",
+                "startCamera": {
+                  "position": [12, 16, 18],
+                  "rotation": [
+                    -0.29962059992658957, 0.2752183320355054, 0.09071781822041597,
+                    0.9089844021041025
+                  ],
+                  "fovDegrees": 40
+                },
+                "objects": [
+                  {
+                    "id": "3931e4a6-c606-4b7b-a518-fca39a57e4a1",
+                    "name": "crate 1",
+                    "assetId": "crate",
+                    "transform": {
+                      "position": [9, 0, 0],
+                      "rotation": [0, 0, 0, 1],
+                      "scale": [1, 1, 1]
+                    },
+                    "parentId": null,
+                    "visible": true,
+                    "components": []
+                  }
+                ],
+                "groups": [],
+                "zones": [],
+                "viewpoints": [
+                  {
+                    "id": "f11c85d4-5e80-4bae-87dd-ea5dfeb51e40",
+                    "name": "Window",
+                    "camera": {
+                      "position": [12, 16, 18],
+                      "rotation": [
+                        -0.29962059992658957, 0.2752183320355054, 0.09071781822041597,
+                        0.9089844021041025
+                      ],
+                      "fovDegrees": 40
+                    }
+                  }
+                ],
+                "rules": []
+              }
+            ]
+          },
+          "activeSceneId": "20b236a5-8d0e-431b-b317-57db6946a216"
+        }
+      ]
+    }
+  }
+}

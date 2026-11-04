@@ -38,7 +38,7 @@ public static class AccountSessionEndpoints
         {
             var account = context.Features.Get<CurrentAccount>()!;
             return Results.Ok(new SessionResponse(
-                account.UserId, account.UserName, account.Role, account.OrganizationId, account.MustChangePassword));
+                account.UserId, account.DisplayName ?? account.UserName, account.Role, account.OrganizationId, account.MustChangePassword));
         }).RequireAuthorization(SecurityPolicies.CurrentAccount);
         group.MapPost("/logout", async (SignInManager<ApplicationUser> signIn) =>
         {

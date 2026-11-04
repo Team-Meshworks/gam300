@@ -1,9 +1,11 @@
+using System.Data.Common;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Spatia.Server.Accounts;
 using Spatia.Server.Persistence;
@@ -35,7 +37,7 @@ public sealed class AdministrationEndpointTests
         await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.Created);
         var json = await response.Content.ReadFromJsonAsync<JsonElement>();
         await Assert.That(json.EnumerateObject().Select(property => property.Name).Order().SequenceEqual(
-            new[] { "isActive", "mustChangePassword", "orgId", "role", "userId", "userName" })).IsTrue();
+            new[] { "displayName", "isActive", "mustChangePassword", "orgId", "role", "userId", "userName" })).IsTrue();
         await Assert.That(json.GetProperty("userName").GetString()).IsEqualTo(userName);
         await Assert.That(json.GetProperty("role").GetString()).IsEqualTo(role);
         await Assert.That(json.GetProperty("isActive").GetBoolean()).IsTrue();
@@ -339,7 +341,7 @@ public sealed class AdministrationEndpointTests
     [Test]
     public async Task Provision_NormalizedDuplicateConcurrentRequests_CreateOnlyOneAccount()
     {
-        var barrier = new AccountSaveBarrierInterceptor(EntityState.Added);
+        var barrier = new ProvisionTransactionBarrier();
         await using var fixture = await HttpsApplicationFixture.CreateAsync(builder =>
             builder.Services.AddDbContext<ApplicationDbContext>(options => options.AddInterceptors(barrier)));
         await fixture.SignInAsync(await fixture.CreateAccountAsync(ApplicationRoles.Administrator));
@@ -720,5 +722,29 @@ public sealed class AdministrationEndpointTests
         await Assert.That(text.Contains("securityStamp", StringComparison.OrdinalIgnoreCase)).IsFalse();
         await Assert.That(fixture.Logs.Messages.Contains(secret, StringComparison.Ordinal)
             || fixture.Logs.Messages.Contains(HttpsApplicationFixture.SecretSentinel, StringComparison.Ordinal)).IsFalse();
+    }
+
+    // Meet before either request holds the role serialization lock. Waiting for two
+    // user writes inside that lock would deadlock the test instead of testing the API.
+    private sealed class ProvisionTransactionBarrier : DbTransactionInterceptor
+    {
+        private readonly TaskCompletionSource _bothArrived = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int _arrivals;
+        private int _armed;
+        public void Arm() => Interlocked.Exchange(ref _armed, 1);
+        public override async ValueTask<InterceptionResult<DbTransaction>> TransactionStartingAsync(DbConnection connection,
+            TransactionStartingEventData eventData, InterceptionResult<DbTransaction> result, CancellationToken cancellationToken = default)
+        {
+            if (Volatile.Read(ref _armed) == 1)
+            {
+                if (Interlocked.Increment(ref _arrivals) == 2)
+                {
+                    Interlocked.Exchange(ref _armed, 0);
+                    _bothArrived.TrySetResult();
+                }
+                await _bothArrived.Task.WaitAsync(TimeSpan.FromSeconds(10), cancellationToken);
+            }
+            return result;
+        }
     }
 }

@@ -2,18 +2,30 @@ import { useState, type ReactNode } from "react";
 import { Avatar } from "../../shared/ui/Avatar";
 import { Button } from "../../shared/ui/Button";
 import { SearchField } from "../../shared/ui/SearchField";
-import { Table } from "../../shared/ui/Table";
 import { Tabs } from "../../shared/ui/Tabs";
 import type { DirectoryAccount } from "./directory";
 
+export interface AccountActions {
+  onCreate: () => void;
+  onView: (id: string) => void;
+  onToggleActive: (id: string) => void;
+  busy: boolean;
+  canCreate: boolean;
+}
 export function AccountList({
   accounts,
   organizationName,
   onPreview,
+  actions,
+  loading,
+  error,
 }: {
   accounts: readonly DirectoryAccount[];
   organizationName: string;
   onPreview: (title: string, body: ReactNode) => void;
+  actions?: AccountActions | undefined;
+  loading?: boolean;
+  error?: string | undefined;
 }) {
   const [query, setQuery] = useState("");
   const [role, setRole] = useState<"All" | "Students" | "Teachers">("All");
@@ -23,43 +35,69 @@ export function AccountList({
       `${account.name} ${account.account}`.toLowerCase().includes(query.trim().toLowerCase()),
   );
   return (
-    <section className="sp-card sp-directory">
-      <div className="sp-directory-heading">
-        <div className="sp-account">
-          <Avatar name={organizationName} />
-          <div>
-            <h2>Accounts</h2>
-            <p className="sp-hint">{organizationName}</p>
-          </div>
-        </div>
+    <section
+      className="sp-card sp-account-list"
+      aria-label={`${organizationName} accounts`}
+      aria-busy={loading}
+    >
+      <div className="sp-account-list-header">
         <SearchField
           label="Search accounts"
           placeholder="Search by name or account"
           value={query}
           onChange={setQuery}
         />
+        <div className="sp-account-list-toolbar">
+          <Tabs
+            id="account-tabs"
+            label="Account roles"
+            value={role}
+            onChange={setRole}
+            items={[
+              { value: "All", label: actions ? `All Accounts (${accounts.length})` : "All" },
+              {
+                value: "Students",
+                label: actions
+                  ? `Creators (${accounts.filter((row) => row.role === "Students").length})`
+                  : "Students",
+              },
+              {
+                value: "Teachers",
+                label: actions
+                  ? `Facilitators (${accounts.filter((row) => row.role === "Teachers").length})`
+                  : "Teachers",
+              },
+            ]}
+          />
+          {actions && (
+            <Button
+              variant="primary"
+              disabled={loading || Boolean(error) || actions.busy || !actions.canCreate}
+              onClick={actions.onCreate}
+            >
+              + Add Accounts
+            </Button>
+          )}
+        </div>
       </div>
-      <Tabs
-        id="account-tabs"
-        label="Account roles"
-        value={role}
-        onChange={setRole}
-        items={[
-          { value: "All", label: "All" },
-          { value: "Students", label: "Students" },
-          { value: "Teachers", label: "Teachers" },
-        ]}
-      />
       <div
         role="tabpanel"
         id="account-tabs-panel"
         aria-labelledby={`account-tabs-${role}`}
         tabIndex={0}
       >
-        <Table caption="Organisation accounts" headings={["Account", "Role", "Status", "Details"]}>
-          {visible.map((account) => (
-            <tr key={account.id}>
-              <th scope="row">
+        {error ? (
+          <p className="sp-list-empty" role="alert">
+            {error}
+          </p>
+        ) : loading ? (
+          <p className="sp-list-empty" role="status">
+            Loading accounts…
+          </p>
+        ) : (
+          visible.map((account) => (
+            <article className="sp-account-row" key={account.id}>
+              <div className="sp-account-row-top">
                 <div className="sp-account">
                   <Avatar name={account.name} />
                   <span className="sp-person-name">
@@ -67,50 +105,64 @@ export function AccountList({
                     <small>{account.account}</small>
                   </span>
                 </div>
-              </th>
-              <td>{account.role === "Students" ? "Student" : "Teacher"}</td>
-              <td>
                 <span
-                  className={`sp-badge ${account.status === "Active" ? "sp-badge--success" : ""}`}
+                  className={`sp-badge${account.status === "Active" ? " sp-badge--success" : ""}`}
                 >
                   {account.status}
                 </span>
-              </td>
-              <td>
-                <Button
-                  aria-label={`View account for ${account.name}`}
-                  onClick={() =>
-                    onPreview(
-                      "Account details",
-                      <>
-                        <div className="sp-account">
-                          <Avatar name={account.name} />
-                          <h3>{account.name}</h3>
-                        </div>
-                        <dl className="sp-summary">
-                          <dt>Account</dt>
-                          <dd>{account.account}</dd>
-                          <dt>Role</dt>
-                          <dd>{account.role}</dd>
-                          <dt>Status</dt>
-                          <dd>{account.status}</dd>
-                        </dl>
-                        <p className="sp-example-note">
-                          Account changes are unavailable until an authorized backend is connected.
-                        </p>
-                      </>,
-                    )
-                  }
-                >
-                  View Account
-                </Button>
-              </td>
-            </tr>
-          ))}
-        </Table>
-        {!visible.length && (
+              </div>
+              <div className="sp-account-row-bottom">
+                <div className="sp-actions">
+                  <Button
+                    variant="primary"
+                    disabled={actions?.busy}
+                    aria-label={`View account for ${account.name}`}
+                    onClick={() => {
+                      if (actions) actions.onView(account.id);
+                      else
+                        onPreview(
+                          "Account details",
+                          <>
+                            <div className="sp-account">
+                              <Avatar name={account.name} />
+                              <h3>{account.name}</h3>
+                            </div>
+                            <dl className="sp-summary">
+                              <dt>Account</dt>
+                              <dd>{account.account}</dd>
+                              <dt>Role</dt>
+                              <dd>{account.role}</dd>
+                              <dt>Status</dt>
+                              <dd>{account.status}</dd>
+                            </dl>
+                          </>,
+                        );
+                    }}
+                  >
+                    View Account
+                  </Button>
+                  {actions && (
+                    <Button
+                      disabled={actions.busy}
+                      aria-label={`${account.status === "Active" ? "Disable" : "Enable"} account for ${account.name}`}
+                      onClick={() => actions.onToggleActive(account.id)}
+                    >
+                      {account.status === "Active" ? "Disable" : "Enable"}
+                    </Button>
+                  )}
+                </div>
+                <span className="sp-hint">
+                  {account.role === "Students" ? "Creator" : "Facilitator"}
+                </span>
+              </div>
+            </article>
+          ))
+        )}
+        {!loading && !error && !visible.length && (
           <p className="sp-list-empty" role="status">
-            No matching accounts. Try another name.
+            {accounts.length
+              ? "No matching accounts. Try another name."
+              : "No accounts yet. Add the first account to this organisation."}
           </p>
         )}
       </div>

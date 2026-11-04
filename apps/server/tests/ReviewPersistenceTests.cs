@@ -150,10 +150,13 @@ public sealed class ReviewPersistenceTests
         await using var scope = fixture.Services.CreateAsyncScope();
         var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         database.Organizations.Add(new Organization { Id = data.OrganizationId, Name = "Review school" });
-        database.Users.AddRange(
+        foreach (var user in new[] {
             new ApplicationUser { Id = data.EducatorId, UserName = "educator", NormalizedUserName = "EDUCATOR" },
             new ApplicationUser { Id = data.StudentId, UserName = "student", NormalizedUserName = "STUDENT" },
-            new ApplicationUser { Id = data.OtherStudentId, UserName = "other", NormalizedUserName = "OTHER" });
+            new ApplicationUser { Id = data.OtherStudentId, UserName = "other", NormalizedUserName = "OTHER" } })
+        {
+            await LegacyAccountSeed.InsertAsync(database, user);
+        }
         foreach (var (id, role) in new[] { (data.EducatorId, ApplicationRoles.EducatorId),
             (data.StudentId, ApplicationRoles.CreatorId), (data.OtherStudentId, ApplicationRoles.CreatorId) })
         {

@@ -1,6 +1,6 @@
 # Account and organization directory
 
-This describes the administrator account and organization directory and lifecycle API.
+This describes the administrator account and organization directory, profile overrides and lifecycle API.
 
 All routes require a fully authorized administrator. Responses are not cacheable. Mutations use the existing CSRF and account security protections. No response exposes credentials, password hashes or security stamps.
 
@@ -10,7 +10,31 @@ If the session reaches its absolute expiry during transaction commit, the respon
 
 `GET /api/admin/users` and `GET /api/admin/organizations` return `{ items, nextCursor }`. `nextCursor` is the last returned UUID when another page exists, otherwise null. Results are ordered by ascending UUID. `cursor` resumes after that UUID; `limit` defaults to 20 and is between 1 and 100. Optional `q` is a literal case-insensitive substring of username or organization name respectively, with at most 256 characters; NUL is invalid. User lists additionally accept exact `role`, `orgId`, and `isActive` filters; organization lists accept `isActive`. Unknown, repeated or invalid query parameters are rejected.
 
-`GET /api/admin/users/{id}` and `GET /api/admin/organizations/{id}` return a matching record or 404. User records contain `userId`, `userName`, `role`, `orgId`, `isActive`, and `mustChangePassword`; organization records contain `id`, `name`, and `isActive`. User `isActive` is the stored account flag, independent of organization state. These are the existing provisioning response fields. Role and membership are fixed; this API does not transfer users, change roles or delete records.
+`GET /api/admin/users/{id}` and `GET /api/admin/organizations/{id}` return a matching record or 404. User records contain `userId`, `displayName`, `userName`, `role`, `orgId`, `isActive`, and `mustChangePassword`; organization records contain `id`, `name`, and `isActive`. User `isActive` is independent of organization state. Legacy accounts without a person's name use their username as `displayName`. User `q` searches both username and person's name.
+
+`GET /api/admin/organizations/{id}/projects` returns `{ items, nextCursor }` containing `id`, `title`, and `status` for the organisation's projects. It accepts only `cursor` and `limit` (1–20, default 20). Titles come from validated documents; status is Draft or Archived. Publication and approval are not inferred from account state.
+
+## Account creation and overrides
+
+### Administrator entry flow
+
+Successful administrator sign-in at `/login` opens `/admin/dashboard`, matching the [Admin – Dashboard Figma frame](https://www.figma.com/design/QNpdfKb2Ge7vO8uG8HphxB/Meshworks?node-id=226-15002). A required password change completes first. An existing authorized administrator session visiting `/login` also opens the dashboard. Other roles retain their existing login flow and cannot open the administrator dashboard.
+
+The dashboard's **View Organisations** link opens the existing `/accounts` directory, where administrators select an organisation and create or view its accounts. **Add Organisations** uses the existing `POST /api/admin/organizations` endpoint. The workspace's Spatia home link returns administrators to their dashboard. Both Vite and the deployed Caddy app serve the nested dashboard URL directly, including on refresh.
+
+Project cards use `GET /api/projects`, with pagination and current/archived filters in **View All Projects**. Details expose the current project metadata and an editor link when permitted. This API does not provide cover images, publication visibility or approval status; the dashboard displays placeholders and actual Draft/Archived states. The environment and physical asset library dialogs browse the existing asset catalogue. Upload buttons are unavailable until upload APIs exist.
+
+`npm run test:admin-dashboard` checks the browser flow with API fixtures; `AccountDirectoryBrowserTests` checks both normal and forced-password-change administrator login, dashboard organisation creation, and account creation/overrides against the real API and PostgreSQL.
+
+### Account dialogs
+
+The administrator `/accounts` workspace reuses the organisation directory and opens Account Creation or View Account Details overlays. Facilitator maps to `Educator`; Creator maps to `Creator`.
+
+`POST /api/admin/users` accepts optional `displayName` alongside `userName`, `initialPassword`, `role`, and `orgId`. Apply migration `AddAccountDisplayName` before deploying the updated API. Names are limited to 256 characters and passwords retain the existing 12–128 character policy. New accounts require a password change on first sign-in.
+
+`PATCH /api/admin/users/{id}` overrides only supplied fields: `displayName`, `userName`, `role`, and `newTemporaryPassword`. Changes commit together; validation failures and duplicate usernames roll back every override. A successful change invalidates old sessions. A password override requires a password change on sign-in. Credentials are never returned; the UI reveals only a newly entered password.
+
+Role overrides support Creator ↔ Educator within the current organisation. Administrator promotion/demotion and transfers are rejected. Accounts with retained class membership or student assignment history return 409 `account_role_in_use`; names and credentials remain editable. The UI exposes reversible account enable/disable with confirmation.
 
 ## Lifecycle policy
 
@@ -20,4 +44,4 @@ An active-to-inactive account transition rotates its Identity security stamp in 
 
 Organization changes lock the organization row and change only its `IsActive` state. Members of an inactive organization cannot authenticate or access protected operations under the current account resolver. An otherwise valid cookie can become usable again after re-enabling if it was not rejected and cleared while the organization was inactive. Global administrators retain their existing management permissions. Existing authorization checks and project access rules continue to apply; these changes do not cancel already authorized in-flight work.
 
-Provisioning, password resets, authentication and sessions remain with SCRUM-68/83; project access effects remain with SCRUM-69. SCRUM-171 owns directory screens and SCRUM-126 owns the shared shell and provisioning/reset forms. Public signup, destructive deletion, transfers and arbitrary role management are outside this contract.
+Provisioning, password validation, authentication and sessions reuse the existing account services. Public signup, destructive deletion, transfers and arbitrary role management are outside this contract.

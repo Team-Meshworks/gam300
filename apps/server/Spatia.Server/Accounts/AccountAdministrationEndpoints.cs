@@ -44,7 +44,7 @@ public static class AccountAdministrationEndpoints
         return endpoints;
     }
 
-    private static IResult ToProblem(HttpContext context, IdentityResult result)
+    internal static IResult ToProblem(HttpContext context, IdentityResult result)
     {
         var codes = result.Errors.Select(error => error.Code).ToHashSet(StringComparer.Ordinal);
         if (codes.Contains("DuplicateUserName"))

@@ -1,14 +1,12 @@
+import { launchBrowser } from "../../web/tests/browser-security.mjs";
 import assert from "node:assert/strict";
-import { pathToFileURL } from "node:url";
 
 const target = new URL(process.argv[2]);
 assert.equal(target.protocol, "https:");
 assert.equal(target.hostname, "127.0.0.1");
 const origin = target.origin;
 const administratorName = process.argv[3];
-const { chromium } = await import(process.env.PLAYWRIGHT_MODULE
-  ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : "../../web/node_modules/playwright/index.mjs");
-const browser = await chromium.launch();
+const browser = await launchBrowser({ target: origin, verificationOutput: "stdout" });
 process.stdout.write(`node ${process.version}; chromium ${browser.version()}\n`);
 try {
   const makeContext = async () => {
