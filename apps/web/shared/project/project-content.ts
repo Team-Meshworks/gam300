@@ -100,6 +100,8 @@ export type ContentScene = Omit<ProjectScene, "objects"> &
     zones: readonly ProjectZone[];
     viewpoints: readonly ProjectViewpoint[];
     rules: readonly ProjectRule[];
+    audio?: readonly Extract<ContentComponent, { type: "audio" }>[];
+    environmentTransform?: Transform;
   }>;
 
 // The version tag lets readers select this contract without silently converting released v1 files

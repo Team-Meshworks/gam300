@@ -30,6 +30,16 @@ export function missingProjectCapabilities(
   content.scenes.forEach((scene, sceneIndex) => {
     // Inspect content first, then enabled rules; report locations in the original authored arrays
     const path = `project.scenes[${sceneIndex}]`;
+    if (scene.environmentVisible === false) {
+      need("environment:visibility", `${path}.environmentVisible`);
+    }
+    if (scene.environmentTransform) {
+      need("environment:transform", `${path}.environmentTransform`);
+    }
+    scene.audio?.forEach((_, index) => {
+      need("content:audio", `${path}.audio[${index}]`);
+      need("audio:global", `${path}.audio[${index}].mode`);
+    });
     scene.objects.forEach((object, objectIndex) => {
       const objectPath = `${path}.objects[${objectIndex}]`;
       if (object.appearance) need("appearance", `${objectPath}.appearance`);
@@ -65,7 +75,11 @@ export function missingProjectCapabilities(
       });
     });
     scene.interactions.forEach((rule, index) => {
-      if (rule.do.type === "navigate-scene" || rule.do.type === "move-to-viewpoint") {
+      if (
+        rule.do.type === "navigate-scene" ||
+        rule.do.type === "move-to-viewpoint" ||
+        (rule.do.type === "play-audio" && rule.do.mediaId !== undefined)
+      ) {
         need(`interaction:${rule.do.type}`, `${path}.interactions[${index}].do`);
       }
     });

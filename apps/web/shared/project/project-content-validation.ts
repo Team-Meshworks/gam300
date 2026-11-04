@@ -363,8 +363,16 @@ function interactionAction(
     fail(path, "Action must be an object");
   }
   switch (raw.type) {
-    case "open-link":
     case "play-audio": {
+      if (raw.mediaId !== undefined) {
+        record(raw, ["type", "mediaId"], path);
+        return { type: "play-audio", mediaId: text(raw.mediaId, `${path}.mediaId`) };
+      }
+      // Retain released URL actions; new authoring links the stable scene audio ID
+      record(raw, ["type", "url"], path);
+      return { type: "play-audio", url: text(raw.url, `${path}.url`, MAX_PORTABLE_URL_LENGTH) };
+    }
+    case "open-link": {
       record(raw, ["type", "url"], path);
       const url = text(
         raw.url,
@@ -427,13 +435,23 @@ export function validateContentStructure(
           "rules",
         ],
         path,
-        ["hotspots", "interactions"],
+        ["hotspots", "interactions", "audio", "environmentTransform", "environmentVisible"],
       );
       return {
         id: text(scene.id, `${path}.id`),
         name: text(scene.name, `${path}.name`),
         environmentAssetId: text(scene.environmentAssetId, `${path}.environmentAssetId`),
+        ...(scene.environmentVisible === undefined
+          ? {}
+          : { environmentVisible: flag(scene.environmentVisible, `${path}.environmentVisible`) }),
         startCamera: checked(validateCameraPose(scene.startCamera, `${path}.startCamera`)),
+        ...(scene.environmentTransform === undefined
+          ? {}
+          : {
+              environmentTransform: checked(
+                validateTransform(scene.environmentTransform, `${path}.environmentTransform`),
+              ),
+            }),
         hotspots:
           scene.hotspots === undefined
             ? []
@@ -444,6 +462,18 @@ export function validateContentStructure(
             : list(scene.interactions, `${path}.interactions`, 200, (value, path) =>
                 interaction(value, path, allowDraftLinks),
               ),
+        // Root audio uses the same component validation while rejecting non-global content
+        ...(scene.audio === undefined
+          ? {}
+          : {
+              audio: list(scene.audio, `${path}.audio`, 64, (raw, path) => {
+                const value = component(raw, path);
+                if (value.type !== "audio" || value.mode !== "global") {
+                  fail(path, "Scene audio must be global audio");
+                }
+                return value;
+              }),
+            }),
         objects: list(scene.objects, `${path}.objects`, 200, (input, path) => {
           const object = record(
             input,
@@ -564,6 +594,10 @@ export function validateContentReferences(
           entity(component.id, component.type, scene.id, `${objectPath}.components[${index}]`),
         );
       });
+      // Root and attached tracks share one scene-local identity namespace
+      scene.audio?.forEach((value, index) =>
+        entity(value.id, "audio", scene.id, `${path}.audio[${index}]`),
+      );
       scene.hotspots.forEach((value, index) =>
         entity(value.id, "hotspot", scene.id, `${path}.hotspots[${index}]`),
       );
@@ -630,6 +664,9 @@ export function validateContentReferences(
         }
       }
 
+      scene.audio?.forEach((value, index) =>
+        asset(value.assetId, "audio", `${path}.audio[${index}].assetId`),
+      );
       // Model approval does not imply approval of attached media or navigation destinations
       const hotspotObjects = new Set<string>();
       scene.objects.forEach((object, index) => {
@@ -657,7 +694,9 @@ export function validateContentReferences(
       });
       scene.interactions.forEach((value, index) => {
         const actionPath = `${path}.interactions[${index}].do`;
-        if (value.do.type === "navigate-scene") {
+        if (value.do.type === "play-audio" && value.do.mediaId !== undefined) {
+          reference(value.do.mediaId, ["audio"], scene.id, `${actionPath}.mediaId`);
+        } else if (value.do.type === "navigate-scene") {
           reference(value.do.sceneId, ["scene"], null, `${actionPath}.sceneId`);
         } else if (value.do.type === "move-to-viewpoint") {
           reference(value.do.viewpointId, ["viewpoint"], scene.id, `${actionPath}.viewpointId`);
