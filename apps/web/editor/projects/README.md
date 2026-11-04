@@ -2,7 +2,7 @@
 
 `NewProjectForm` is a reusable frontend form. Supply `organizationName`, `creatorName`, `classes` and `students` from host-validated, authorized data. Each student includes the class IDs for which they are eligible. Key the form by identity and organization so a change of either remounts it instead of retaining the previous context's entries.
 
-The types in `new-project-form.ts` describe UI data, not an agreed backend wire contract. The validated `NewProjectDraft` contains a calendar-date string (`YYYY-MM-DD`); do not infer a timezone or cutoff. Once the SCRUM-161 API contract exists, the host must map the draft to it and enforce authorization and roster eligibility on the server.
+The types in `new-project-form.ts` describe UI data, not the backend wire format. The validated `NewProjectDraft` contains the entering device's local date and time. Convert it with `localDeadlineToUnixSeconds` for SCRUM-161 and display saved seconds with `formatLocalDeadline` in the viewer's local time. Nonexistent local times are rejected; for an ambiguous repeated time, the device's JavaScript date rules choose the instant. A request contains at most 20 selected students, and the server enforces authorization and roster eligibility.
 
 Gallery sits beside Cover image and 360° in equally sized, 52px-high controls and opens the device's file chooser for an optional cover image. The draft may contain a local `coverImage` File; the preview does not upload or persist it. `imageType` accepts Cover image or 360°; Gallery is an action, not an image type. The cover preview releases its object URL when replaced, removed or unmounted. The 360° option remains unconnected. A host integrating storage must define the file upload and persistence contract separately.
 
@@ -17,6 +17,16 @@ While submission is pending, the form locks and warns on page unload. After succ
 The optional `onCancel` callback lets the host leave the form and discard its draft. Without a callback, Cancel is disabled. The host owns navigation and must remount the form when discarding its state; cancellation is unavailable while the form is locked.
 
 `../ui-preview/NewProjectExample.tsx` is a development-only simulation with unavailable, success, rejected and unknown scenarios. Changing the scenario or using Reset simulation intentionally remounts the keyed form and clears its entries. Cancel returns to the preview screen that opened New Project, or Classes for a direct entry, and discards the draft. It makes no server requests and creates no project.
+
+`AssignmentCreationScreen` connects this form to SCRUM-161: it loads the current session, manageable source projects and classes, then loads enrolled students for the selected class. It submits the source revision, local deadline converted to Unix seconds, assignment details and selected students. Image controls are hidden because the assignment API does not persist those selections. The server remains authoritative for permissions, organization membership and revisions.
+
+The screen stores an unconfirmed request in browser local storage under the current user ID before sending it. A browser Web Lock prevents two tabs for the same account from replacing that request. After a lost response, reopening the screen offers the exact same request ID and body for retry; only a confirmed result or a known first rejection clears it. The stored data includes the entered assignment text and student IDs. A browser that cannot provide storage or Web Locks cannot send a new assignment. Clearing browser storage while an outcome is unknown loses the retry identity; check existing assignments before creating another.
+
+An initial 403 or 404 is a definite rejection: the form remains editable and cancellable. A 403 or 404 after an earlier uncertain outcome does not resolve that outcome; the same pending request remains available for reconciliation.
+
+Authorised assignment list and detail reads include `studentName` for each visible student project. The label uses display name and username when available, otherwise username. The API filters project visibility before returning names. For older responses without a name, a host-supplied authorised name may be used; otherwise the corresponding educator open control remains unavailable rather than presenting an ambiguous ordinal.
+
+`AssignmentListScreen` reads the current account's visible assignments for a supplied class, and `AssignmentDetailsScreen` reads the selected assignment and displays its deadline in the viewer's local time. Each invokes the host's `onOpenProject` callback rather than navigating directly. SCRUM-126 must mount these screens, remount them when account identity changes, provide class selection and run SCRUM-67's save/export/cancel coordination before changing accounts or projects. The current UI preview is not a production route.
 
 # Class assignment integration
 

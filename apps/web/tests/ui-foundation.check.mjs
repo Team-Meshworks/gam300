@@ -45,7 +45,7 @@ try {
   await page.getByLabel("Project title").fill("A project for review");
   await page.getByLabel("Project description").fill("A description");
   await page.getByLabel("Project instructions").fill("Follow the instructions");
-  await page.getByLabel("Due date").fill("2026-12-01");
+  await page.getByLabel("Due date and time").fill("2026-12-01T15:30");
   await page
     .getByRole("group", { name: "New project details" })
     .getByLabel(/^Class/)
