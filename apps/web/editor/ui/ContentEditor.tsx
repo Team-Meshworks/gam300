@@ -248,3 +248,253 @@ export function ContentEditor({
           <button
             className="ui-button asset-picker-close"
             type="button"
+            aria-label="Cancel content editing"
+            onClick={onClose}
+          >
+            <Icon name="close" />
+          </button>
+        </header>
+        <div className="content-layout">
+          <nav className="content-tabs" aria-label="Content types">
+            {kinds
+              .filter((type) => (type !== "image" && type !== "video") || displayMedia)
+              .map((type) => (
+                <button
+                  key={type}
+                  type="button"
+                  aria-label={labels[type]}
+                  disabled={type === "text" && occupied}
+                  title={labels[type]}
+                  aria-pressed={kind === type}
+                  onClick={() => choose(type)}
+                >
+                  <span
+                    className="content-tab-background"
+                    style={{ maskImage: `url(${videoSelected})` }}
+                    aria-hidden="true"
+                  />
+                  <img
+                    className="content-tab-icon"
+                    src={contentIcons[type]}
+                    alt=""
+                    draggable={false}
+                  />
+                  <span className="content-tab-label">{labels[type]}</span>
+                </button>
+              ))}
+          </nav>
+          <div className="content-fields">
+            {kind !== "text" && (
+              <div className="asset-grid-scroll" aria-label={`${labels[kind]} library`}>
+                <ul className="asset-grid">
+                  {shown.map((item) => (
+                    <li className="asset-card" key={item.id}>
+                      <button
+                        type="button"
+                        className="asset-card-pick"
+                        aria-label={item.name}
+                        aria-pressed={source?.id === item.id}
+                        onClick={() => {
+                          if (component && component.type === kind)
+                            update({ ...component, assetId: item.id });
+                          else {
+                            const next = {
+                              ...newContent(kind),
+                              assetId: item.id,
+                              ...(kind === "image" ? { alt: item.name } : {}),
+                            };
+                            setComponents((items) => [...items, next]);
+                            setActiveId(next.id);
+                          }
+                        }}
+                      >
+                        <span className="asset-art">
+                          <img
+                            src={item.thumbnail ?? (kind === "image" ? item.url : undefined)}
+                            alt=""
+                            draggable={false}
+                            loading="lazy"
+                          />
+                        </span>
+                        <span className="asset-card-info">
+                          <span className="asset-tag">{item.category ?? labels[kind]}</span>
+                          <span className="asset-name">{item.name}</span>
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        className="ui-button asset-favourite"
+                        aria-label={`Favourite ${item.name}`}
+                        aria-pressed={favourites.includes(item.id)}
+                        onClick={() => {
+                          const next = toggleFavourite(favourites, item.id);
+                          setFavourites(next);
+                          saveFavourites(next);
+                        }}
+                      >
+                        <Icon name={favourites.includes(item.id) ? "heartFilled" : "heart"} />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                {shown.length === 0 && (
+                  <p role="status">
+                    {choices.length
+                      ? "No matching media"
+                      : `No approved ${kind} is available in this catalogue.`}
+                  </p>
+                )}
+              </div>
+            )}
+            {component && (
+              <>
+                <div
+                  className="content-items"
+                  aria-label="Attached content"
+                  hidden={components.filter((item) => item.type === kind).length < 2}
+                >
+                  {components
+                    .filter((item) => item.type === kind)
+                    .map((item, index) => (
+                      <button
+                        type="button"
+                        key={item.id}
+                        aria-pressed={component.id === item.id}
+                        onClick={() => setActiveId(item.id)}
+                      >
+                        {labels[kind]} {index + 1}
+                      </button>
+                    ))}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = newContent(kind);
+                      setComponents((items) => [...items, next]);
+                      setActiveId(next.id);
+                    }}
+                  >
+                    + Add {labels[kind].toLowerCase()}
+                  </button>
+                </div>
+                {component.type === "text" && (
+                  <>
+                    <label className="content-text-label">
+                      <span className="content-tab-label">Text</span>
+                      <div
+                        className="content-text-surface"
+                        style={
+                          {
+                            background:
+                              component.background && component.background !== "transparent"
+                                ? component.background
+                                : undefined,
+                            "--content-font-size": `${component.fontSize ?? (displayMedia ? 24 : 28)}px`,
+                            "--content-ink":
+                              component.color ??
+                              (component.background && component.background !== "transparent"
+                                ? textColorOn(component.background)
+                                : undefined),
+                          } as CSSProperties
+                        }
+                      >
+                        <RichTextInput
+                          ref={textarea}
+                          value={component.runs}
+                          marks={marks}
+                          onFormat={format}
+                          onChange={(runs) => update({ ...component, runs })}
+                        />
+                      </div>
+                    </label>
+                    <div className="content-format" role="group" aria-label="Text formatting">
+                      <span className="content-font-size" onClickCapture={() => setPalette(null)}>
+                        <AssetFilterSelect
+                          label="Font size"
+                          tooltip="Font Size"
+                          icon={<Icon name="caretDown" />}
+                          minWidth={96}
+                          maxHeight={360}
+                          value={String(component.fontSize ?? (displayMedia ? 24 : 28))}
+                          options={[12, 16, 20, 24, 28, 32, 40, 48].map((size) => ({
+                            value: String(size),
+                            label: String(size),
+                          }))}
+                          onChange={(value) => update({ ...component, fontSize: Number(value) })}
+                        />
+                      </span>
+                      <span className="content-color-control">
+                        <button
+                          type="button"
+                          className="content-background-control"
+                          aria-label="Text color"
+                          aria-expanded={palette === "color"}
+                          onClick={() => setPalette(palette === "color" ? null : "color")}
+                        >
+                          <span
+                            className="content-text-color-icon"
+                            style={{ borderBottomColor: component.color ?? "var(--content-ink)" }}
+                            aria-hidden="true"
+                          >
+                            <Icon name="text" />
+                          </span>
+                          <span className="content-control-tooltip" role="tooltip">
+                            Text Color
+                          </span>
+                        </button>
+                        {palette === "color" && (
+                          <div
+                            className="content-background-palette color-palette is-compact"
+                            role="group"
+                            aria-label="Text colors"
+                          >
+                            <ColorSwatches
+                              compact
+                              foreground
+                              value={component.color}
+                              onChange={(color) => {
+                                update({ ...component, color });
+                              }}
+                            />
+                          </div>
+                        )}
+                      </span>
+                      {
+                        <span className="content-color-control">
+                          <button
+                            type="button"
+                            className="content-background-control"
+                            aria-label="Text background"
+                            aria-expanded={palette === "background"}
+                            onClick={() =>
+                              setPalette(palette === "background" ? null : "background")
+                            }
+                          >
+                            <span
+                              className="content-background-icon"
+                              style={{
+                                background: component.background ?? "var(--content-screen)",
+                              }}
+                              aria-hidden="true"
+                            />
+                            <span className="content-control-tooltip" role="tooltip">
+                              Background Color
+                            </span>
+                          </button>
+                          {palette === "background" && (
+                            <div
+                              className="content-background-palette color-palette is-compact"
+                              role="group"
+                              aria-label="Text background colors"
+                            >
+                              <ColorSwatches
+                                compact
+                                backgrounds
+                                value={component.background}
+                                onChange={(background) => {
+                                  update({ ...component, background });
+                                }}
+                              />
+                            </div>
+                          )}
+                        </span>
+                      }
