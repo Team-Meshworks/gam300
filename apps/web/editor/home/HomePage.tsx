@@ -13,6 +13,7 @@ const accounts = createAccountClient();
 
 export function HomePage() {
   const [session, setSession] = useState<AccountSession | null>(null);
+  const [workspaceSession, setWorkspaceSession] = useState<AccountSession | null>(null);
   const [checking, setChecking] = useState(true);
   const [error, setError] = useState("");
   const [version, setVersion] = useState(0);
@@ -28,6 +29,7 @@ export function HomePage() {
         const value = await accounts.getSession();
         if (!alive || current !== generation.current) return;
         setSession(value);
+        if (value && !value.mustChangePassword) setWorkspaceSession(value);
         setError("");
       } catch {
         if (alive && current === generation.current)
@@ -51,8 +53,9 @@ export function HomePage() {
     generation.current++;
     setChecking(true);
     try {
-      await accounts.signOut();
+      await accounts.signOut(workspaceSession?.userId);
       setSession(null);
+      setWorkspaceSession(null);
     } catch {
       setError("Sign-out could not be confirmed. Retry to check your session.");
     } finally {
@@ -83,11 +86,14 @@ export function HomePage() {
           <a href="/login">Go to login</a>
         </div>
       )}
-      {session && !session.mustChangePassword && (
-        <div hidden={checking || !!error} inert={checking || !!error}>
+      {workspaceSession && (
+        <div
+          hidden={checking || !!error || !session || session.mustChangePassword}
+          inert={checking || !!error || !session || session.mustChangePassword}
+        >
           <HomeWorkspace
-            key={`${session.userId}:${session.orgId}:${session.role}`}
-            session={session}
+            key={`${workspaceSession.userId}:${workspaceSession.orgId}:${workspaceSession.role}`}
+            session={workspaceSession}
             onSignOut={() => void signOut()}
           />
         </div>
@@ -114,6 +120,9 @@ function HomeWorkspace({ session, onSignOut }: { session: AccountSession; onSign
     if (navigation.dirty) setLeave(() => action);
     else action();
   }
+  function openProject(projectId: string) {
+    navigate(() => location.assign(`/?projectId=${encodeURIComponent(projectId)}`));
+  }
   useEffect(() => {
     document.getElementById("workspace")?.focus();
   }, [view]);
@@ -139,11 +148,41 @@ function HomeWorkspace({ session, onSignOut }: { session: AccountSession; onSign
         >
           Classes
         </Button>
+        {session.role === "Administrator" && (
+          <>
+            <a
+              className="sp-button"
+              href="/accounts"
+              aria-disabled={navigation.locked}
+              onClick={(event) => {
+                event.preventDefault();
+                navigate(() => location.assign("/accounts"));
+              }}
+            >
+              Accounts
+            </a>
+            <a
+              className="sp-button"
+              href="/admin/dashboard"
+              aria-disabled={navigation.locked}
+              onClick={(event) => {
+                event.preventDefault();
+                navigate(() => location.assign("/admin/dashboard"));
+              }}
+            >
+              Dashboard
+            </a>
+          </>
+        )}
       </nav>
       {view === "projects" ? (
-        <ProjectHome session={session} />
+        <ProjectHome session={session} onOpenProject={openProject} />
       ) : view === "classes" ? (
-        <ClassHome session={session} onCreateAssignment={() => setView("assignment")} />
+        <ClassHome
+          session={session}
+          onCreateAssignment={() => setView("assignment")}
+          onOpenProject={openProject}
+        />
       ) : (
         <>
           <div className="sp-page-heading">
@@ -157,6 +196,7 @@ function HomeWorkspace({ session, onSignOut }: { session: AccountSession; onSign
             expectedUserId={session.userId}
             onCancel={() => navigate(() => setView("classes"))}
             onNavigationStateChange={setNavigation}
+            onOpenProject={openProject}
           />
         </>
       )}

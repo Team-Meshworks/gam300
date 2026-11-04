@@ -107,7 +107,11 @@ export function createWorkspaceClient(request: typeof fetch = fetch) {
         credentials: "same-origin",
         cache: "no-store",
         signal: AbortSignal.timeout(15000),
-        headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": token.requestToken },
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-TOKEN": token.requestToken,
+          "X-Spatia-Account": actorId,
+        },
         ...(body ? { body: JSON.stringify(body) } : {}),
       });
       if ([400, 409, 422, 429].includes(response.status))

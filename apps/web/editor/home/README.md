@@ -2,9 +2,27 @@
 
 The production `/home` route uses the existing account client and UI foundation. `/login`
 links here after a verified sign-in or mandatory password change. Vite and the Caddy
-entry route both serve it. It does not mount the local-only editor or its recovery store.
+entry route both serve it. Editable authorised server projects open through the existing
+server editor and its account/project-scoped recovery coordinator.
 
-## Plan and blocker checks
+## 4 November 2026 integration update
+
+SCRUM-161 class APIs, SCRUM-67 server recovery, SCRUM-170 directory reads and the
+current-grant API are on `dev`. This integration mounts assignment screens, opens
+editable projects through the server editor, and uses active directory organisations
+for administrator class creation. Read-only and archived projects remain unavailable
+in the editable server editor. Session gates retain an unsent assignment only for the
+same verified actor, organisation and role. Confirmed editor departure returns home.
+The existing account directory provides provisioning and reset, and the home links to it.
+The current-grant read API exists; direct project grant editing UI is still absent.
+
+The production catalogue and approved assets remain SCRUM-73 dependencies. Real API
+workflow, server-denial, recovery and accessibility acceptance on the final integrated
+head still need evidence; fixture checks do not establish full Jira acceptance. The
+following plan, dependency table and dated audit reflect the earlier implementation
+and are retained as historical evidence, not current dependency status.
+
+## Historical plan and blocker checks (30–31 October 2026)
 
 1. Project home: session gating, authorised lists, search, duplicate and archive/reopen.
    Completed against the existing SCRUM-66/69 routes. Opening a server project and

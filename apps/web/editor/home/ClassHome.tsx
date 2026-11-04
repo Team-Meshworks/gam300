@@ -14,17 +14,21 @@ import {
   type EligibleStudent,
 } from "./classroom-api";
 import { createWorkspaceClient } from "./workspace-api";
+import { createDirectoryClient, type ManagedOrganization } from "../directory/directory-client";
 
 const api = createWorkspaceClient();
 const classesApi = createClassroomClient();
 const accounts = createAccountClient();
+const directory = createDirectoryClient();
 
 export function ClassHome({
   session,
   onCreateAssignment,
+  onOpenProject,
 }: {
   session: AccountSession;
   onCreateAssignment: () => void;
+  onOpenProject: (projectId: string) => void;
 }) {
   const [classes, setClasses] = useState<Classroom[] | null>(null);
   const [classId, setClassId] = useState("");
@@ -38,6 +42,8 @@ export function ClassHome({
   const [rosterError, setRosterError] = useState("");
   const [name, setName] = useState("");
   const [organizationId, setOrganizationId] = useState("");
+  const [organizations, setOrganizations] = useState<ManagedOrganization[] | null>(null);
+  const [organizationError, setOrganizationError] = useState("");
   const [dialog, setDialog] = useState<
     "create" | { userId: string; name: string; enrolled: boolean } | null
   >(null);
@@ -46,6 +52,33 @@ export function ClassHome({
   const busy = useRef(false);
   const manager = session.role !== "Creator";
   const rosterKey = `${classId}:${refresh}`;
+  useEffect(() => {
+    if (dialog !== "create" || session.role !== "Administrator") return;
+    let active = true;
+    void directory.organizations().then(
+      async (rows) => {
+        try {
+          if ((await accounts.getSession())?.userId !== session.userId)
+            throw new Error("Account changed");
+          if (active) setOrganizations(rows.filter((row) => row.isActive));
+        } catch {
+          if (active)
+            setOrganizationError(
+              "Organisations are unavailable. Close and reopen this form to retry.",
+            );
+        }
+      },
+      () => {
+        if (active)
+          setOrganizationError(
+            "Organisations are unavailable. Close and reopen this form to retry.",
+          );
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [dialog, session.role, session.userId]);
   useEffect(() => {
     const controller = new AbortController();
     void classesApi
@@ -156,6 +189,8 @@ export function ClassHome({
               onClick={() => {
                 setName("");
                 setOrganizationId("");
+                setOrganizations(null);
+                setOrganizationError("");
                 setNotice("");
                 setDialog("create");
               }}
@@ -215,6 +250,7 @@ export function ClassHome({
               classId={classId}
               studentNames={studentNames}
               ownProject={session.role === "Creator"}
+              onOpenProject={onOpenProject}
             />
           </div>
           {manager && (
@@ -327,11 +363,7 @@ export function ClassHome({
                       />
                     </Field>
                     {session.role === "Administrator" && (
-                      <Field
-                        id="class-organization"
-                        label="Organisation"
-                        hint="Choose the organisation of an existing class."
-                      >
+                      <Field id="class-organization" label="Organisation">
                         <select
                           id="class-organization"
                           required
@@ -339,27 +371,22 @@ export function ClassHome({
                           onChange={(event) => setOrganizationId(event.target.value)}
                         >
                           <option value="">Choose an organisation</option>
-                          {classes
-                            ?.filter(
-                              (row, index, rows) =>
-                                rows.findIndex(
-                                  (item) => item.organizationId === row.organizationId,
-                                ) === index,
-                            )
-                            .map((row) => (
-                              <option key={row.organizationId} value={row.organizationId}>
-                                Same organisation as {row.name}
-                              </option>
-                            ))}
+                          {organizations?.map((row) => (
+                            <option key={row.id} value={row.id}>
+                              {row.name}
+                            </option>
+                          ))}
                         </select>
                       </Field>
                     )}
-                    {session.role === "Administrator" && !classes?.length && (
-                      <p role="status">
-                        Organisation selection is unavailable until an organisation directory is
-                        connected.
-                      </p>
-                    )}
+                    {session.role === "Administrator" &&
+                      (organizationError ? (
+                        <p role="alert">{organizationError}</p>
+                      ) : organizations === null ? (
+                        <p role="status">Loading organisations…</p>
+                      ) : !organizations.length ? (
+                        <p role="status">No active organisations are available.</p>
+                      ) : null)}
                   </>
                 ) : (
                   <p>

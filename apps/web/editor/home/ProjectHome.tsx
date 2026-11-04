@@ -12,7 +12,13 @@ import { createWorkspaceClient, projectReceipt, type ProjectSummary } from "./wo
 const api = createWorkspaceClient();
 const accounts = createAccountClient();
 
-export function ProjectHome({ session }: { session: AccountSession }) {
+export function ProjectHome({
+  session,
+  onOpenProject,
+}: {
+  session: AccountSession;
+  onOpenProject: (projectId: string) => void;
+}) {
   const [tab, setTab] = useState<"active" | "archived">("active");
   const [search, setSearch] = useState("");
   const [version, setVersion] = useState(0);
@@ -127,10 +133,7 @@ export function ProjectHome({ session }: { session: AccountSession }) {
         />
         <Button onClick={() => setVersion((value) => value + 1)}>Refresh</Button>
       </div>
-      <p className="sp-hint sp-home-notice">
-        Opening projects is not available yet. Your saved projects remain unchanged. New projects
-        require an approved 3D space.
-      </p>
+      <p className="sp-hint sp-home-notice">New projects require an approved 3D space.</p>
       {message && !action && (
         <p role="status" className="sp-home-notice">
           {message}
@@ -157,7 +160,17 @@ export function ProjectHome({ session }: { session: AccountSession }) {
                   <h2>{project.title}</h2>
                   <p className="sp-muted">Updated {new Date(project.updatedAt).toLocaleString()}</p>
                   <div className="sp-actions">
-                    <Button disabled title="Project opening is not available yet">
+                    <Button
+                      disabled={!project.permissions.canEdit || project.archived}
+                      title={
+                        project.archived
+                          ? "Reopen this project before editing"
+                          : !project.permissions.canEdit
+                            ? "Editing is unavailable for this account"
+                            : undefined
+                      }
+                      onClick={() => onOpenProject(project.projectId)}
+                    >
                       {project.permissions.canEdit ? "Continue editing" : "Open project"}
                     </Button>
                     {project.permissions.canEdit && !project.archived && (

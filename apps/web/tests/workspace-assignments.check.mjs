@@ -1,11 +1,9 @@
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
-import { chromium } from "playwright";
+import { launchBrowser } from "./browser-security.mjs";
 
 const origin = process.argv[2] ?? "http://127.0.0.1:5182";
-const browser = await chromium.launch({
-  executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
-});
+const browser = await launchBrowser({ target: origin });
 const teacher = "7ea0882b-9365-4b9c-b8b8-e5ee113ad07e";
 const org = "ef580108-e406-4c8e-ac76-75cd41e9d2dc";
 const classId = "a9f15e21-026d-4200-baca-0ba9bd411842";
@@ -272,12 +270,15 @@ try {
   );
   assert.equal(
     await local.getByRole("button", { name: "Open your project", exact: true }).isDisabled(),
-    true,
+    false,
   );
   assert.equal(await local.getByRole("button", { name: "New assignment", exact: true }).count(), 0);
   assert.equal(await local.getByRole("region", { name: "Class roster", exact: true }).count(), 0);
   assert.ok(await local.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   await local.screenshot({ path: `${snapshots}/student-assignment-390.png`, fullPage: true });
+  await local.route(`**/?projectId=${alice}`, (route) => route.fulfill({ body: "editor" }));
+  await local.getByRole("button", { name: "Open your project", exact: true }).click();
+  await local.waitForURL(`**/?projectId=${alice}`);
   assert.deepEqual(errors, []);
   console.log(
     "Workspace class creation, roster changes, denied states, guarded navigation, exact assignment retries, student views and device-local deadlines passed.",

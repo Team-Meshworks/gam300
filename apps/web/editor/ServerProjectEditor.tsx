@@ -340,7 +340,7 @@ export function ServerProjectEditor({ projectId }: { projectId: string }) {
         const identity = await accounts.getSession();
         if (identity?.userId === active.accountId) await accounts.signOut(active.accountId);
       }
-      location.assign(departure === "logout" ? "/login" : "/landing");
+      location.assign(departure === "logout" ? "/login" : "/home");
     });
   }
 

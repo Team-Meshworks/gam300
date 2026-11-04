@@ -81,7 +81,7 @@ it("sends the exact revision with CSRF and verifies the resulting account", asyn
     method: "PATCH",
     credentials: "same-origin",
     cache: "no-store",
-    headers: { "X-CSRF-TOKEN": "token" },
+    headers: { "X-CSRF-TOKEN": "token", "X-Spatia-Account": actor },
     body: JSON.stringify({ expectedRevision: 3, archived: true }),
   });
 });

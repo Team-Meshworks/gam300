@@ -88,6 +88,11 @@ async function saved() {
 try {
   await page.goto(url);
   await saved();
+  await page.getByRole("button", { name: "Leave editor" }).click();
+  await page.getByRole("button", { name: "Save and continue" }).click();
+  await page.waitForURL(`${base}/home`, { timeout: 5000 });
+  await page.goto(url);
+  await saved();
   await ready();
   await page.screenshot({ path: ".artifacts/scrum67-editor.png" });
   await edit("Autosaved in the real editor");
@@ -276,14 +281,10 @@ try {
     IDBObjectStore.prototype.put = function (...args) {
       if (this.name === "session" && ++writes === 2) {
         const transaction = this.transaction;
-        transaction.addEventListener(
-          "complete",
-          (event) => {
-            event.stopImmediatePropagation();
-            window.releaseDeparture = () => transaction.oncomplete.call(transaction, event);
-          },
-          { once: true },
-        );
+        const complete = transaction.oncomplete;
+        transaction.oncomplete = (event) => {
+          window.releaseDeparture = () => complete.call(transaction, event);
+        };
       }
       return put.apply(this, args);
     };

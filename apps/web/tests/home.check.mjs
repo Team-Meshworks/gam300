@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { mkdir } from "node:fs/promises";
-import { chromium } from "playwright";
+import { fileURLToPath } from "node:url";
+import { launchBrowser } from "./browser-security.mjs";
 
 const origin = process.argv[2] ?? "http://127.0.0.1:5182";
-const browser = await chromium.launch({
-  executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
-});
+const browser = await launchBrowser({ target: origin });
 const userId = "7ea0882b-9365-4b9c-b8b8-e5ee113ad07e";
 const orgId = "ef580108-e406-4c8e-ac76-75cd41e9d2dc";
 const projectId = "aefea67c-caca-4300-923c-937f1c785578";
@@ -44,6 +44,24 @@ try {
     if (path === "/api/auth/session")
       return route.fulfill(account ? { json: account } : { status: 401 });
     if (path === "/api/auth/csrf") return route.fulfill({ json: { requestToken: "test-token" } });
+    if (path === "/api/admin/organizations")
+      return route.fulfill({
+        json: {
+          items: [
+            { id: orgId, name: "Active school", isActive: true },
+            { id: copyId, name: "Inactive school", isActive: false },
+          ],
+          nextCursor: null,
+        },
+      });
+    if (path === "/api/classes" && request.method() === "POST") {
+      assert.deepEqual(request.postDataJSON(), { name: "First class", orgId });
+      return route.fulfill({
+        status: 201,
+        json: { id: copyId, name: "First class", organizationId: orgId },
+      });
+    }
+    if (path === "/api/classes") return route.fulfill({ json: { items: [], nextCursor: null } });
     if (path === "/api/auth/logout") {
       account = null;
       return route.fulfill({ status: 204 });
@@ -99,83 +117,153 @@ try {
   await page.reload();
   await page.getByRole("heading", { name: "Change your password to continue" }).waitFor();
   account = session;
-  for (const width of [1440, 1024, 768, 390]) {
-    await page.setViewportSize({ width, height: 1000 });
+  if (process.argv[3] === "admin") {
+    account = { ...session, role: "Administrator", orgId: null };
+    await page.goto(origin + "/home");
+    await page.getByRole("button", { name: "Classes", exact: true }).click();
+    await page.getByRole("button", { name: "New class" }).click();
+    await page.getByLabel("Class name").fill("First class");
+    await page
+      .getByLabel("Organisation")
+      .selectOption({ label: "Active school" }, { timeout: 5000 });
+    assert.equal(await page.getByRole("option", { name: "Inactive school" }).count(), 0);
+    await page.getByRole("button", { name: "Confirm", exact: true }).click();
+    await page.getByText("Class change confirmed.").waitFor();
+    assert.equal(
+      await page.getByRole("link", { name: "Accounts" }).getAttribute("href"),
+      "/accounts",
+    );
+    assert.equal(
+      await page.getByRole("link", { name: "Dashboard" }).getAttribute("href"),
+      "/admin/dashboard",
+    );
+    for (const width of [1440, 390]) {
+      await page.setViewportSize({ width, height: 1000 });
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+      await page.screenshot({ path: `${screenshotDirectory}/admin-${width}.png`, fullPage: true });
+    }
+    console.log("Administrator creates the first class from an active organisation");
+  } else if (process.argv[3] === "open-project") {
     await page.goto(origin + "/home");
     await page.getByRole("heading", { name: "The Silk Road", exact: true }).waitFor();
-    assert.equal(await page.getByRole("button", { name: "Continue editing" }).isDisabled(), true);
-    assert.equal(
-      await page.getByRole("button", { name: "New project", exact: true }).isDisabled(),
-      true,
-    );
-    assert.ok(
-      await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
-      `home overflows at ${width}`,
-    );
-    assert.ok(
-      await page.getByRole("button", { name: "Log Out", exact: true }).evaluate((element) => {
-        const bounds = element.getBoundingClientRect();
-        return bounds.left >= 0 && bounds.right <= innerWidth;
-      }),
-      `logout must remain on screen with a long account name at ${width}`,
-    );
-    for (const image of await page.locator(".sp-shell img").all()) {
-      await image.evaluate((element) => element.decode());
-      assert.ok(await image.evaluate((element) => element.naturalWidth > 0));
+    await page.route(`**/?projectId=${projectId}`, (route) => route.fulfill({ body: "editor" }));
+    await page.getByRole("button", { name: "Continue editing" }).click();
+    assert.equal(new URL(page.url()).searchParams.get("projectId"), projectId);
+    console.log("Project opens in server editor");
+  } else if (process.argv[3] === "gate") {
+    await page.goto(origin + "/home");
+    await page.getByRole("button", { name: "Classes", exact: true }).click();
+    await page.getByRole("button", { name: "New assignment" }).click();
+    await page.getByLabel("Project title").fill("Unsent assignment");
+    account = { ...session, mustChangePassword: true };
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await page.getByRole("heading", { name: "Change your password to continue" }).waitFor();
+    assert.equal(await page.getByLabel("Project title").isVisible(), false);
+    account = session;
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await page.getByLabel("Project title").waitFor();
+    assert.equal(await page.getByLabel("Project title").inputValue(), "Unsent assignment");
+    account = { ...session, userId: orgId };
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await page.getByRole("heading", { name: "The Silk Road", exact: true }).waitFor();
+    assert.equal(await page.getByText("Unsent assignment").count(), 0);
+    console.log("Assignment survives same-actor gate and stays hidden from other actors");
+    process.exitCode = 0;
+  } else {
+    for (const width of [1440, 1024, 768, 390]) {
+      await page.setViewportSize({ width, height: 1000 });
+      await page.goto(origin + "/home");
+      await page.getByRole("heading", { name: "The Silk Road", exact: true }).waitFor();
+      assert.equal(
+        await page.getByRole("button", { name: "Continue editing" }).isDisabled(),
+        false,
+      );
+      assert.equal(
+        await page.getByRole("button", { name: "New project", exact: true }).isDisabled(),
+        true,
+      );
+      assert.ok(
+        await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+        `home overflows at ${width}`,
+      );
+      assert.ok(
+        await page.getByRole("button", { name: "Log Out", exact: true }).evaluate((element) => {
+          const bounds = element.getBoundingClientRect();
+          return bounds.left >= 0 && bounds.right <= innerWidth;
+        }),
+        `logout must remain on screen with a long account name at ${width}`,
+      );
+      for (const image of await page.locator(".sp-shell img").all()) {
+        await image.evaluate((element) => element.decode());
+        assert.ok(await image.evaluate((element) => element.naturalWidth > 0));
+      }
+      await page.screenshot({
+        path: `${screenshotDirectory}/projects-${width}.png`,
+        fullPage: true,
+      });
     }
-    await page.screenshot({ path: `${screenshotDirectory}/projects-${width}.png`, fullPage: true });
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.getByRole("searchbox", { name: "Search projects" }).fill("unrelated");
+    await page.getByText("No projects match your search.").waitFor();
+    await page.getByRole("searchbox", { name: "Search projects" }).fill("");
+    await page.getByRole("button", { name: "Archive", exact: true }).click();
+    await page.getByRole("button", { name: "Confirm", exact: true }).click();
+    await page.getByText("Project archived.", { exact: true }).waitFor();
+    await page.getByRole("tab", { name: "Archived", exact: true }).click();
+    await page.getByRole("button", { name: "Reopen", exact: true }).click();
+    await page.getByRole("button", { name: "Confirm", exact: true }).click();
+    await page.getByText("Project reopened.", { exact: true }).waitFor();
+    await page.getByRole("tab", { name: "Projects", exact: true }).click();
+    items[0].revision = 3;
+    await page.getByRole("button", { name: "Refresh", exact: true }).click();
+    await page.getByRole("button", { name: "Duplicate", exact: true }).click();
+    await page.getByLabel("Copy title").fill("Silk Road copy");
+    lostResponse = true;
+    await page.getByRole("button", { name: "Confirm", exact: true }).click();
+    await page
+      .getByRole("alert")
+      .filter({ hasText: /could not be confirmed/ })
+      .waitFor();
+    assert.equal(writes, 3, "An uncertain copy is not automatically retried");
+    assert.equal(await page.getByRole("button", { name: "Confirm", exact: true }).count(), 0);
+    await page.getByRole("button", { name: "Close", exact: true }).click();
+    await page.getByRole("heading", { name: "Silk Road copy", exact: true }).waitFor();
+    account = { ...session, userId: orgId, role: "Creator" };
+    items = [
+      {
+        ...project,
+        title: "Student draft",
+        permissions: { canEdit: true, canManage: false, canPublish: false },
+      },
+    ];
+    await page.reload();
+    await page.getByRole("heading", { name: "Student draft" }).waitFor();
+    assert.equal(await page.getByRole("button", { name: "Archive", exact: true }).count(), 0);
+    assert.equal(await page.getByRole("heading", { name: "The Silk Road" }).count(), 0);
+    rejectList = true;
+    await page.getByRole("button", { name: "Refresh", exact: true }).click();
+    await page.getByRole("heading", { name: "We couldn’t load this view" }).waitFor();
+    rejectList = false;
+    await page.getByRole("button", { name: "Retry", exact: true }).click();
+    await page.getByRole("heading", { name: "Student draft" }).waitFor();
+    await page.getByRole("button", { name: "Log Out", exact: true }).click();
+    await page.getByRole("heading", { name: "Log in to your workspace" }).waitFor();
+    assert.equal(await page.getByRole("heading", { name: "Student draft" }).count(), 0);
+    assert.deepEqual(errors, []);
+    console.log(
+      "Home session gates, permission controls, lifecycle outcomes, recovery from unknown responses and four responsive widths passed.",
+    );
   }
-  await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.getByRole("searchbox", { name: "Search projects" }).fill("unrelated");
-  await page.getByText("No projects match your search.").waitFor();
-  await page.getByRole("searchbox", { name: "Search projects" }).fill("");
-  await page.getByRole("button", { name: "Archive", exact: true }).click();
-  await page.getByRole("button", { name: "Confirm", exact: true }).click();
-  await page.getByText("Project archived.", { exact: true }).waitFor();
-  await page.getByRole("tab", { name: "Archived", exact: true }).click();
-  await page.getByRole("button", { name: "Reopen", exact: true }).click();
-  await page.getByRole("button", { name: "Confirm", exact: true }).click();
-  await page.getByText("Project reopened.", { exact: true }).waitFor();
-  await page.getByRole("tab", { name: "Projects", exact: true }).click();
-  items[0].revision = 3;
-  await page.getByRole("button", { name: "Refresh", exact: true }).click();
-  await page.getByRole("button", { name: "Duplicate", exact: true }).click();
-  await page.getByLabel("Copy title").fill("Silk Road copy");
-  lostResponse = true;
-  await page.getByRole("button", { name: "Confirm", exact: true }).click();
-  await page
-    .getByRole("alert")
-    .filter({ hasText: /could not be confirmed/ })
-    .waitFor();
-  assert.equal(writes, 3, "An uncertain copy is not automatically retried");
-  assert.equal(await page.getByRole("button", { name: "Confirm", exact: true }).count(), 0);
-  await page.getByRole("button", { name: "Close", exact: true }).click();
-  await page.getByRole("heading", { name: "Silk Road copy", exact: true }).waitFor();
-  account = { ...session, userId: orgId, role: "Creator" };
-  items = [
-    {
-      ...project,
-      title: "Student draft",
-      permissions: { canEdit: true, canManage: false, canPublish: false },
-    },
-  ];
-  await page.reload();
-  await page.getByRole("heading", { name: "Student draft" }).waitFor();
-  assert.equal(await page.getByRole("button", { name: "Archive", exact: true }).count(), 0);
-  assert.equal(await page.getByRole("heading", { name: "The Silk Road" }).count(), 0);
-  rejectList = true;
-  await page.getByRole("button", { name: "Refresh", exact: true }).click();
-  await page.getByRole("heading", { name: "We couldn’t load this view" }).waitFor();
-  rejectList = false;
-  await page.getByRole("button", { name: "Retry", exact: true }).click();
-  await page.getByRole("heading", { name: "Student draft" }).waitFor();
-  await page.getByRole("button", { name: "Log Out", exact: true }).click();
-  await page.getByRole("heading", { name: "Log in to your workspace" }).waitFor();
-  assert.equal(await page.getByRole("heading", { name: "Student draft" }).count(), 0);
-  assert.deepEqual(errors, []);
-  console.log(
-    "Home session gates, permission controls, lifecycle outcomes, recovery from unknown responses and four responsive widths passed.",
-  );
 } finally {
   await browser.close();
+}
+
+if (!process.argv[3]) {
+  for (const scenario of ["gate", "open-project", "admin"]) {
+    const result = spawnSync(process.execPath, [fileURLToPath(import.meta.url), origin, scenario], {
+      stdio: "inherit",
+      env: process.env,
+    });
+    assert.equal(result.status, 0, `${scenario} browser regression failed`);
+  }
 }
