@@ -26,7 +26,9 @@ export default defineConfig(({ command, mode }) => {
               request.url = "/entry.html";
             else if (
               request.url &&
-              /^\/(new-project|classes|review|accounts|assets|spaces)\/?(?:\?|$)/.test(request.url)
+              /^\/(admin\/dashboard|new-project|classes|review|accounts|assets|spaces)\/?(?:\?|$)/.test(
+                request.url,
+              )
             )
               request.url = "/workspace.html";
             next();
@@ -38,7 +40,9 @@ export default defineConfig(({ command, mode }) => {
               request.url = "/entry.html";
             else if (
               request.url &&
-              /^\/(new-project|classes|review|accounts|assets|spaces)\/?(?:\?|$)/.test(request.url)
+              /^\/(admin\/dashboard|new-project|classes|review|accounts|assets|spaces)\/?(?:\?|$)/.test(
+                request.url,
+              )
             )
               request.url = "/workspace.html";
             next();
@@ -59,6 +63,7 @@ export default defineConfig(({ command, mode }) => {
         output: {
           codeSplitting: {
             groups: [
+              { name: "project-format", test: /[\\/]shared[\\/]project[\\/]/ },
               { name: "three-core", test: /[\\/]three[\\/]build[\\/]three\.core\.js$/ },
               { name: "react", test: /[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/ },
             ],

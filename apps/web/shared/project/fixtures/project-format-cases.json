@@ -8,11 +8,99 @@
   },
   "cases": [
     {
+      "name": "v2 preserves deleted initial room",
+      "base": "m2",
+      "valid": true,
+      "patches": [
+        {
+          "path": ["scenes", 0, "environmentVisible"],
+          "value": false
+        }
+      ]
+    },
+    {
+      "name": "invalid initial room visibility",
+      "base": "m2",
+      "valid": false,
+      "patches": [
+        {
+          "path": ["scenes", 0, "environmentVisible"],
+          "value": "false"
+        }
+      ],
+      "path": "project.scenes[0].environmentVisible"
+    },
+    {
+      "name": "v1 rejects initial room visibility",
+      "base": "m1",
+      "valid": false,
+      "patches": [
+        {
+          "path": ["scenes", 0, "environmentVisible"],
+          "value": false
+        }
+      ],
+      "path": "project.scenes[0].environmentVisible"
+    },
+    {
+      "name": "moved initial room",
+      "base": "m2",
+      "valid": true,
+      "patches": [
+        {
+          "path": ["scenes", 0, "environmentTransform"],
+          "value": {
+            "position": [4, 0, -3],
+            "rotation": [0, 0.7071067811865475, 0, 0.7071067811865476],
+            "scale": [1, 1, 1]
+          }
+        }
+      ]
+    },
+    {
+      "name": "invalid initial room transform",
+      "base": "m2",
+      "valid": false,
+      "patches": [
+        {
+          "path": ["scenes", 0, "environmentTransform"],
+          "value": {
+            "position": [0, 0],
+            "rotation": [0, 0.7071067811865475, 0, 0.7071067811865476],
+            "scale": [1, 1, 1]
+          }
+        }
+      ],
+      "path": "project.scenes[0].environmentTransform.position"
+    },
+    {
+      "name": "v1 rejects initial room transform",
+      "base": "m1",
+      "valid": false,
+      "patches": [
+        {
+          "path": ["scenes", 0, "environmentTransform"],
+          "value": {
+            "position": [4, 0, -3],
+            "rotation": [0, 0.7071067811865475, 0, 0.7071067811865476],
+            "scale": [1, 1, 1]
+          }
+        }
+      ],
+      "path": "project.scenes[0].environmentTransform"
+    },
+    {
       "name": "storage NUL in released title",
       "base": "m1",
       "valid": false,
       "path": "project.title",
-      "patches": [{ "path": ["title"], "value": "before\u0000after", "remove": false }]
+      "patches": [
+        {
+          "path": ["title"],
+          "value": "before\u0000after",
+          "remove": false
+        }
+      ]
     },
     {
       "name": "storage NUL in content caption",
@@ -32,7 +120,11 @@
       "base": "m1",
       "valid": true,
       "patches": [
-        { "path": ["title"], "value": "literal \\u0000 and controls\n\t\b\f\r", "remove": false }
+        {
+          "path": ["title"],
+          "value": "literal \\u0000 and controls\n\t\b\f\r",
+          "remove": false
+        }
       ]
     },
     {
@@ -1718,6 +1810,869 @@
         {
           "path": ["scenes", 0, "rules", 5, "actions", 0, "url"],
           "value": "https://[::ffff:192.0.2.1]/"
+        }
+      ]
+    },
+    {
+      "name": "v1 interaction URL accepts 320 characters",
+      "base": "m1",
+      "valid": true,
+      "patches": [
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "open-link",
+                "url": "https://example.com/"
+              }
+            }
+          ]
+        },
+        {
+          "path": ["scenes", 0, "interactions", 0, "do", "url"],
+          "value": "https://example.com/",
+          "repeat": 16
+        }
+      ]
+    },
+    {
+      "name": "v1 interaction URL rejects http",
+      "base": "m1",
+      "valid": false,
+      "path": "project.scenes[0].interactions[0].do.url",
+      "patches": [
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "open-link",
+                "url": "http://example.com/"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "v1 interaction URL rejects credentials",
+      "base": "m1",
+      "valid": false,
+      "path": "project.scenes[0].interactions[0].do.url",
+      "patches": [
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "open-link",
+                "url": "https://user:pass@example.com/"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "v1 interaction URL rejects malformed host",
+      "base": "m1",
+      "valid": false,
+      "path": "project.scenes[0].interactions[0].do.url",
+      "patches": [
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "open-link",
+                "url": "https://["
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "v1 interaction URL rejects over 2048 characters",
+      "base": "m1",
+      "valid": false,
+      "path": "project.scenes[0].interactions[0].do.url",
+      "patches": [
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "open-link",
+                "url": "https://example.com/"
+              }
+            }
+          ]
+        },
+        {
+          "path": ["scenes", 0, "interactions", 0, "do", "url"],
+          "value": "https://example.com/",
+          "repeat": 103
+        }
+      ]
+    },
+    {
+      "name": "v1 rejects a second hotspot on one object",
+      "base": "m1",
+      "valid": false,
+      "path": "project.scenes[0].hotspots[1].objectId",
+      "patches": [
+        {
+          "path": ["scenes", 0, "hotspots"],
+          "value": [
+            {
+              "id": "00000070-0000-4000-8000-000000000000",
+              "objectId": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+              "position": [0, 0, 0]
+            },
+            {
+              "id": "00000071-0000-4000-8000-000000000000",
+              "objectId": "DDDDDDDD-DDDD-4DDD-8DDD-DDDDDDDDDDDD",
+              "position": [1, 0, 0]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "v2 preserves multiple uniquely identified hotspot components on one object",
+      "base": "m2",
+      "valid": true,
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 1, "components"],
+          "value": [
+            {
+              "id": "00000072-0000-4000-8000-000000000000",
+              "type": "hotspot",
+              "label": "First marker"
+            },
+            {
+              "id": "00000073-0000-4000-8000-000000000000",
+              "type": "hotspot",
+              "label": "Second marker"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "v2 preserves hotspot components alongside scene markers",
+      "base": "m2",
+      "valid": true,
+      "patches": [
+        {
+          "path": ["scenes", 0, "hotspots"],
+          "value": [
+            {
+              "id": "00000074-0000-4000-8000-000000000000",
+              "objectId": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+              "position": [0, 0, 0]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "v2 interaction URL accepts 320 characters",
+      "base": "m2",
+      "valid": true,
+      "patches": [
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "open-link",
+                "url": "https://example.com/"
+              }
+            }
+          ]
+        },
+        {
+          "path": ["scenes", 0, "interactions", 0, "do", "url"],
+          "value": "https://example.com/",
+          "repeat": 16
+        }
+      ]
+    },
+    {
+      "name": "v2 interaction URL rejects http",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].interactions[0].do.url",
+      "patches": [
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "open-link",
+                "url": "http://example.com/"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "v2 interaction URL rejects credentials",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].interactions[0].do.url",
+      "patches": [
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "open-link",
+                "url": "https://user:pass@example.com/"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "v2 interaction URL rejects malformed host",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].interactions[0].do.url",
+      "patches": [
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "open-link",
+                "url": "https://["
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "v2 interaction URL rejects over 2048 characters",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].interactions[0].do.url",
+      "patches": [
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "open-link",
+                "url": "https://example.com/"
+              }
+            }
+          ]
+        },
+        {
+          "path": ["scenes", 0, "interactions", 0, "do", "url"],
+          "value": "https://example.com/",
+          "repeat": 103
+        }
+      ]
+    },
+    {
+      "name": "v1 interaction URL rejects unfinished link",
+      "base": "m1",
+      "valid": false,
+      "path": "project.scenes[0].interactions[0].do.url",
+      "patches": [
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "open-link",
+                "url": ""
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "v2 interaction URL rejects unfinished link",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].interactions[0].do.url",
+      "patches": [
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "open-link",
+                "url": ""
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "v2 interaction navigation scene forward reference",
+      "base": "m2",
+      "valid": true,
+      "patches": [
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "navigate-scene",
+                "sceneId": "00000002-0000-4000-8000-000000000000"
+              }
+            }
+          ],
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "v2 interaction navigation viewpoint uppercase reference",
+      "base": "m2",
+      "valid": true,
+      "patches": [
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "move-to-viewpoint",
+                "viewpointId": "00000014-0000-4000-8000-000000000000"
+              }
+            }
+          ],
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "v2 interaction navigation missing scene",
+      "base": "m2",
+      "valid": false,
+      "patches": [
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "navigate-scene",
+                "sceneId": "99999999-9999-4999-8999-999999999999"
+              }
+            }
+          ],
+          "remove": false
+        }
+      ],
+      "path": "project.scenes[0].interactions[0].do.sceneId"
+    },
+    {
+      "name": "v2 interaction navigation wrong target kind",
+      "base": "m2",
+      "valid": false,
+      "patches": [
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "navigate-scene",
+                "sceneId": "00000014-0000-4000-8000-000000000000"
+              }
+            }
+          ],
+          "remove": false
+        }
+      ],
+      "path": "project.scenes[0].interactions[0].do.sceneId"
+    },
+    {
+      "name": "v2 interaction navigation wrong scene viewpoint",
+      "base": "m2",
+      "valid": false,
+      "patches": [
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "move-to-viewpoint",
+                "viewpointId": "00000015-0000-4000-8000-000000000000"
+              }
+            }
+          ],
+          "remove": false
+        }
+      ],
+      "path": "project.scenes[0].interactions[0].do.viewpointId"
+    },
+    {
+      "name": "v2 interaction navigation missing viewpoint",
+      "base": "m2",
+      "valid": false,
+      "patches": [
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "move-to-viewpoint",
+                "viewpointId": ""
+              }
+            }
+          ],
+          "remove": false
+        }
+      ],
+      "path": "project.scenes[0].interactions[0].do.viewpointId"
+    },
+    {
+      "name": "v2 interaction navigation extra navigation field",
+      "base": "m2",
+      "valid": false,
+      "patches": [
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "navigate-scene",
+                "sceneId": "00000002-0000-4000-8000-000000000000",
+                "extra": true
+              }
+            }
+          ],
+          "remove": false
+        }
+      ],
+      "path": "project.scenes[0].interactions[0].do.extra"
+    },
+    {
+      "name": "v2 preserves exhibit appearance",
+      "base": "m2",
+      "valid": true,
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "appearance"],
+          "value": {
+            "color": "#bd2949",
+            "material": "wood"
+          }
+        }
+      ]
+    },
+    {
+      "name": "v2 appearance rejects unknown material",
+      "base": "m2",
+      "valid": false,
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "appearance"],
+          "value": {
+            "color": "#bd2949",
+            "material": "unknown"
+          }
+        }
+      ],
+      "path": "project.scenes[0].objects[0].appearance.material"
+    },
+    {
+      "name": "v2 appearance rejects unsafe colour",
+      "base": "m2",
+      "valid": false,
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "appearance"],
+          "value": {
+            "color": "url(x)",
+            "material": "plain"
+          }
+        }
+      ],
+      "path": "project.scenes[0].objects[0].appearance.color"
+    },
+    {
+      "name": "v2 preserves text placement and styling",
+      "base": "m2",
+      "valid": true,
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "components", 1, "placement"],
+          "value": {
+            "position": [0, 0.7, 0.31],
+            "rotation": [0, 0, 0, 1],
+            "scale": [0.5, 0.25, 1]
+          }
+        },
+        {
+          "path": ["scenes", 0, "objects", 0, "components", 1, "background"],
+          "value": "#bd2949"
+        },
+        {
+          "path": ["scenes", 0, "objects", 0, "components", 1, "fontSize"],
+          "value": 32
+        },
+        {
+          "path": ["scenes", 0, "objects", 0, "components", 1, "color"],
+          "value": "#cdbc43"
+        }
+      ]
+    },
+    {
+      "name": "v2 invalid text fontSize",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].objects[0].components[1].fontSize",
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "components", 1, "fontSize"],
+          "value": 0
+        }
+      ]
+    },
+    {
+      "name": "v2 invalid text background",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].objects[0].components[1].background",
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "components", 1, "background"],
+          "value": "url(script)"
+        }
+      ]
+    },
+    {
+      "name": "v2 invalid text placement",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].objects[0].components[1].placement.scale[0]",
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "components", 1, "placement"],
+          "value": {
+            "position": [0, 0.7, 0.31],
+            "rotation": [0, 0, 0, 1],
+            "scale": [0, 1, 1]
+          }
+        }
+      ]
+    },
+    {
+      "name": "v2 invalid text color",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].objects[0].components[1].color",
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 0, "components", 1, "color"],
+          "value": "transparent"
+        }
+      ]
+    },
+    {
+      "name": "v2 preserves scene background audio",
+      "base": "m2",
+      "valid": true,
+      "patches": [
+        {
+          "path": ["scenes", 0, "audio"],
+          "value": [
+            {
+              "id": "63636363-6363-4363-8363-636363636363",
+              "type": "audio",
+              "mode": "global",
+              "assetId": "demo-audio-v1",
+              "caption": "",
+              "loop": true,
+              "volume": 0.6
+            }
+          ],
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "scene audio rejects spatial mode",
+      "base": "m2",
+      "valid": false,
+      "patches": [
+        {
+          "path": ["scenes", 0, "audio"],
+          "value": [
+            {
+              "id": "63636363-6363-4363-8363-636363636363",
+              "type": "audio",
+              "mode": "spatial",
+              "assetId": "demo-audio-v1",
+              "caption": "",
+              "loop": true,
+              "volume": 0.6
+            }
+          ],
+          "remove": false
+        }
+      ],
+      "path": "project.scenes[0].audio[0]"
+    },
+    {
+      "name": "scene audio rejects wrong asset kind",
+      "base": "m2",
+      "valid": false,
+      "patches": [
+        {
+          "path": ["scenes", 0, "audio"],
+          "value": [
+            {
+              "id": "63636363-6363-4363-8363-636363636363",
+              "type": "audio",
+              "mode": "global",
+              "assetId": "demo-image-v1",
+              "caption": "",
+              "loop": true,
+              "volume": 0.6
+            }
+          ],
+          "remove": false
+        }
+      ],
+      "path": "project.scenes[0].audio[0].assetId"
+    },
+    {
+      "name": "scene audio rejects invalid volume",
+      "base": "m2",
+      "valid": false,
+      "patches": [
+        {
+          "path": ["scenes", 0, "audio"],
+          "value": [
+            {
+              "id": "63636363-6363-4363-8363-636363636363",
+              "type": "audio",
+              "mode": "global",
+              "assetId": "demo-audio-v1",
+              "caption": "",
+              "loop": true,
+              "volume": 2
+            }
+          ],
+          "remove": false
+        }
+      ],
+      "path": "project.scenes[0].audio[0].volume"
+    },
+    {
+      "name": "scene audio rejects duplicate identity",
+      "base": "m2",
+      "valid": false,
+      "patches": [
+        {
+          "path": ["scenes", 0, "audio"],
+          "value": [
+            {
+              "id": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+              "type": "audio",
+              "mode": "global",
+              "assetId": "demo-audio-v1",
+              "caption": "",
+              "loop": true,
+              "volume": 0.6
+            }
+          ],
+          "remove": false
+        }
+      ],
+      "path": "project.scenes[0].audio[0].id"
+    },
+    {
+      "name": "v2 interaction audio stable audio reference",
+      "base": "m2",
+      "valid": true,
+      "patches": [
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "play-audio",
+                "mediaId": "00000067-0000-4000-8000-000000000000"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "v2 interaction audio wrong-kind audio reference",
+      "base": "m2",
+      "valid": false,
+      "patches": [
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "play-audio",
+                "mediaId": "00000065-0000-4000-8000-000000000000"
+              }
+            }
+          ]
+        }
+      ],
+      "path": "project.scenes[0].interactions[0].do.mediaId"
+    },
+    {
+      "name": "v2 interaction audio missing audio reference",
+      "base": "m2",
+      "valid": false,
+      "patches": [
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "play-audio",
+                "mediaId": "99999999-9999-4999-8999-999999999999"
+              }
+            }
+          ]
+        }
+      ],
+      "path": "project.scenes[0].interactions[0].do.mediaId"
+    },
+    {
+      "name": "v2 interaction audio scene track",
+      "base": "m2",
+      "valid": true,
+      "patches": [
+        {
+          "path": ["scenes", 0, "audio"],
+          "value": [
+            {
+              "id": "7f300001-0000-4000-8000-000000000000",
+              "type": "audio",
+              "mode": "global",
+              "assetId": "demo-audio-v1",
+              "caption": "",
+              "loop": true,
+              "volume": 0.5
+            }
+          ]
+        },
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "play-audio",
+                "mediaId": "7f300001-0000-4000-8000-000000000000"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "v2 interaction audio cross-scene target",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[1].interactions[0].do.mediaId",
+      "patches": [
+        {
+          "path": ["scenes", 1, "interactions"],
+          "value": [
+            {
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "play-audio",
+                "mediaId": "00000067-0000-4000-8000-000000000000"
+              }
+            }
+          ]
         }
       ]
     }

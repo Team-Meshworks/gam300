@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 
 namespace Spatia.ProjectFormat;
 
@@ -14,6 +15,10 @@ public static partial class ProjectFormat
     // Variant metadata may appear anywhere in an imported object
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
+        TypeInfoResolver = new DefaultJsonTypeInfoResolver
+        {
+            Modifiers = { OmitEmptyInteractionExtensions },
+        },
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         PropertyNameCaseInsensitive = false,
         UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
@@ -21,6 +26,29 @@ public static partial class ProjectFormat
         MaxDepth = MaxJsonDepth,
         Converters = { new ExactStringConverter(), new BrowserNumberConverter() },
     };
+
+    // Keep unchanged v1/v2 exports readable by released readers, while retaining authored extensions.
+    private static void OmitEmptyInteractionExtensions(JsonTypeInfo info)
+    {
+        if (info.Type == typeof(ContentObject))
+        {
+            foreach (var property in info.Properties)
+            {
+                if (property.Name == "appearance") { property.ShouldSerialize = (_, value) => value is not null; }
+            }
+        }
+        if (info.Type != typeof(LegacyScene) && info.Type != typeof(ContentScene))
+        {
+            return;
+        }
+        foreach (var property in info.Properties)
+        {
+            if (property.Name is "hotspots" or "interactions")
+            {
+                property.ShouldSerialize = (_, value) => value is not Array { Length: 0 };
+            }
+        }
+    }
 
     // Carry the first rejected field through nested readers without returning partially checked data
     private sealed class InvalidFormat(string path, string message) : Exception(message)
@@ -114,6 +142,28 @@ public static partial class ProjectFormat
                 ? new ContentProject(2, String(root, "projectId"), String(root, "title"), JsonSerializer.Deserialize<ContentScene[]>(scenes, JsonOptions)!)
                 : new LegacyProject(1, String(root, "projectId"), String(root, "title"), JsonSerializer.Deserialize<LegacyScene[]>(scenes, JsonOptions)!);
 
+            // Older files may omit scene hotspots and interactions; store empty lists for later edits
+            value = value switch
+            {
+                LegacyProject legacy => legacy with
+                {
+                    Scenes = legacy.Scenes.Select(scene => scene with
+                    {
+                        Hotspots = scene.Hotspots ?? [],
+                        Interactions = scene.Interactions ?? [],
+                    }).ToArray(),
+                },
+                ContentProject contentProject => contentProject with
+                {
+                    Scenes = contentProject.Scenes.Select(scene => scene with
+                    {
+                        Hotspots = scene.Hotspots ?? [],
+                        Interactions = scene.Interactions ?? [],
+                    }).ToArray(),
+                },
+                _ => value,
+            };
+
             // Stored rotations already passed the writer; normalizing again can change values and exceed the byte limit.
             if (normalize) { Normalize(value); }
             if (Encoding.UTF8.GetByteCount(Encode(value)) > MaxProjectBytes)
@@ -203,6 +253,10 @@ public static partial class ProjectFormat
                 foreach (var item in scene.Objects)
                 {
                     Rotation(item.Transform.Rotation);
+                    foreach (var text in item.Components.OfType<TextComponent>())
+                    {
+                        if (text.Placement is not null) { Rotation(text.Placement.Rotation); }
+                    }
                 }
 
                 foreach (var zone in scene.Zones)

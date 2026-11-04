@@ -1,20 +1,20 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createAccountClient, type AccountSession } from "../accounts/account-client";
 import { leaveWithUiSound } from "../audio/ui-sounds";
 import { WorkspaceShell } from "../../shared/ui/WorkspaceShell";
 import { Button } from "../../shared/ui/Button";
 import { NewProjectForm } from "../projects/NewProjectForm";
 import { ClassAssignmentForm } from "../projects/ClassAssignmentForm";
-
+import { AccountDirectoryPage } from "../directory/AccountDirectoryPage";
+import { AdminDashboard } from "../admin/AdminDashboard";
 import { AssetAdministration } from "../asset-administration/AssetAdministration";
 import { createAssetAdministrationService } from "../asset-administration/asset-administration-service";
 
 const client = createAccountClient();
-// Reuse the authenticated intake adapter; the screen cancels its requests when leaving or switching accounts
-const assetService = createAssetAdministrationService();
 const screens = [
   { id: "assets", title: "3D Assets", roles: ["Administrator"] },
   { id: "spaces", title: "3D Spaces", roles: ["Administrator"] },
+  { id: "admin/dashboard", title: "Dashboard", roles: ["Administrator"] },
   { id: "new-project", title: "New Project", roles: ["Administrator", "Educator", "Creator"] },
   { id: "classes", title: "Class assignments", roles: ["Administrator", "Educator"] },
   { id: "review", title: "Submission review", roles: ["Administrator", "Educator"] },
@@ -25,9 +25,16 @@ type Access =
   | { kind: "error"; message: string }
   | { kind: "ready"; session: AccountSession | null };
 
-// This shell contains no private records; future data adapters must enforce grants on the server
+// Route visibility follows the session; each screen's API enforces access to its records.
 export function WorkspacePage() {
   const [access, setAccess] = useState<Access>({ kind: "loading" });
+  const assetService = useMemo(
+    () =>
+      access.kind === "ready" && access.session
+        ? createAssetAdministrationService(access.session.userId)
+        : null,
+    [access],
+  );
   const [attempt, setAttempt] = useState(0);
   const [logoutError, setLogoutError] = useState("");
   const signingOut = useRef(false);
@@ -94,7 +101,13 @@ export function WorkspacePage() {
     );
   const screen = screens.find((item) => `/${item.id}` === location.pathname.replace(/\/$/, ""));
   const permitted = screens.filter((item) => item.roles.includes(session.role));
-  const fallback = session.role === "Creator" ? "/landing" : "/classes";
+  const fallback =
+    session.role === "Administrator"
+      ? "/admin/dashboard"
+      : session.role === "Creator"
+        ? "/landing"
+        : "/classes";
+  const dashboard = screen?.id === "admin/dashboard" && session.role === "Administrator";
   const from = new URLSearchParams(location.search).get("from");
   const cancelTarget = permitted.find((item) => item.id === from && item.id !== "new-project");
   async function signOut() {
@@ -102,7 +115,7 @@ export function WorkspacePage() {
     signingOut.current = true;
     setLogoutError("");
     try {
-      await client.signOut();
+      await client.signOut(session!.userId);
       location.assign("/login");
     } catch (error) {
       setLogoutError(error instanceof Error ? error.message : "Sign-out failed. Please try again.");
@@ -115,35 +128,40 @@ export function WorkspacePage() {
       name={session.displayName}
       initials={session.displayName.slice(0, 2).toUpperCase()}
       homeHref={fallback}
+      variant={dashboard ? "dashboard" : undefined}
       onSignOut={() => void signOut()}
     >
-      <nav className="sp-workspace-links" aria-label="Workspace screens">
-        {permitted.map((item) => (
-          <a
-            key={item.id}
-            aria-current={screen === item ? "page" : undefined}
-            href={`/${item.id}${item.id === "new-project" && screen && screen.id !== "new-project" ? `?from=${screen.id}` : ""}`}
-          >
-            {item.title}
-          </a>
-        ))}
-      </nav>
+      {!dashboard && (
+        <nav className="sp-workspace-links" aria-label="Workspace screens">
+          {permitted.map((item) => (
+            <a
+              key={item.id}
+              aria-current={screen === item ? "page" : undefined}
+              href={`/${item.id}${item.id === "new-project" && screen && screen.id !== "new-project" ? `?from=${screen.id}` : ""}`}
+            >
+              {item.title}
+            </a>
+          ))}
+        </nav>
+      )}
       {logoutError && <p role="alert">{logoutError}</p>}
       {!screen || !permitted.includes(screen) ? (
         <h1>Access denied</h1>
       ) : (
         <>
-          {/* Keep the existing asset screen heading and layout inside this authenticated shell */}
-          {screen.id === "assets" || screen.id === "spaces" ? (
+          {!dashboard && screen.id !== "assets" && screen.id !== "spaces" && (
+            <h1 className="sp-page-heading">{screen.title}</h1>
+          )}
+          {assetService && (screen.id === "assets" || screen.id === "spaces") && (
             <AssetAdministration
+              key={session.userId}
               session={session}
               service={assetService}
               kind={screen.id === "spaces" ? "environment" : "model"}
               onClose={() => location.assign(fallback)}
             />
-          ) : (
-            <h1 className="sp-page-heading">{screen.title}</h1>
           )}
+          {dashboard && <AdminDashboard key={session.userId} session={session} />}
           {screen.id === "new-project" && (
             <>
               <p role="status">
@@ -176,11 +194,7 @@ export function WorkspacePage() {
               submissions can be loaded.
             </p>
           )}
-          {screen.id === "accounts" && (
-            <p role="status">
-              The account directory is currently unavailable. No account records have been loaded.
-            </p>
-          )}
+          {screen.id === "accounts" && <AccountDirectoryPage key={session.userId} />}
         </>
       )}
     </WorkspaceShell>

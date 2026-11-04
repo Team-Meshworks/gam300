@@ -1,13 +1,10 @@
+import { launchBrowser } from "./browser-security.mjs";
 import assert from "node:assert/strict";
-import { pathToFileURL } from "node:url";
 import { readFileSync } from "node:fs";
 
-const { chromium } = await import(
-  process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : "playwright"
-);
-const browser = await chromium.launch({
+const browser = await launchBrowser({
+  target: process.argv[2] ?? "http://127.0.0.1:4173/",
   args: ["--enable-unsafe-swiftshader"],
-  ...(process.env.PLAYWRIGHT_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHANNEL } : {}),
 });
 const url = process.argv[2] ?? "http://127.0.0.1:4173/";
 const isDevelopment = process.env.BUILD_MODE === "development";
@@ -21,9 +18,23 @@ async function openLibrary(page) {
 
 // Clicking a card only picks it, Add is what places it
 async function addAsset(page, name) {
+  // Rooms use their own tray and the existing viewport placement gesture
+  if (name === "Starter room") {
+    if (await page.locator(".asset-picker").count()) await page.keyboard.press("Escape");
+    const overview = page.getByRole("button", { name: "Third person", exact: true });
+    if ((await overview.getAttribute("aria-pressed")) !== "true") await overview.click();
+    await page.getByRole("button", { name: "Rooms", exact: true }).click();
+    await page
+      .getByRole("group", { name: "Rooms options", exact: true })
+      .getByRole("button", { name, exact: true })
+      .click();
+    await page.locator(".viewport-stage").click({ position: { x: 500, y: 300 } });
+    return;
+  }
   await openLibrary(page);
   await page.locator(".asset-picker").getByRole("button", { name, exact: true }).click();
   await page.getByRole("button", { name: "Add", exact: true }).click();
+  await page.locator(".viewport-stage").click({ position: { x: 500, y: 300 } });
 }
 
 try {
@@ -58,7 +69,7 @@ try {
   assert.equal(await page.locator("canvas").count(), 0, "Shell renders before Three.js arrives");
   const asset = page
     .locator(".asset-picker")
-    .getByRole("button", { name: "test-crate", exact: true });
+    .getByRole("button", { name: "Sample crate", exact: true });
   await openLibrary(page);
   assert.equal(await asset.isDisabled(), true);
   releaseCore();
@@ -66,13 +77,22 @@ try {
   assert.ok((await snowglobeResponse).ok(), "The manifest snowglobe still loads");
   assert.equal(await page.locator("canvas").count(), 1);
   // Packaged builds follow the same room-first authoring flow as the local editor
-  await addAsset(page, "test-room");
-  await addAsset(page, "test-crate");
+  await addAsset(page, "Starter room");
+  await addAsset(page, "Sample crate");
   assert.equal(await page.locator(".object-row").count(), 1);
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   assert.equal(await page.locator(".object-row").count(), 0);
   await addAsset(page, "Snow globe");
   assert.equal(await page.locator(".object-row").count(), 1);
+  // A collapsed tree must restore the same selected object when reopened
+  const placedObjectId = await page.locator(".object-row").getAttribute("data-object-id");
+  const disclosure = page.locator(".scene-disclosure");
+  await disclosure.press("ArrowLeft");
+  assert.equal(await page.locator(".object-row").isVisible(), false);
+  await disclosure.press("ArrowRight");
+  assert.equal(await page.locator(".object-row").isVisible(), true);
+  assert.equal(await page.locator(".object-row").getAttribute("data-object-id"), placedObjectId);
+  assert.equal(await page.locator(".object-row").getAttribute("aria-pressed"), "true");
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   assert.equal(await page.locator(".object-row").count(), 0);
 
@@ -83,11 +103,20 @@ try {
     "Sample control matches the build mode",
   );
   if (isDevelopment) {
-    // Undo above restores the pristine room; leave an authored edit to exercise the save decision.
-    await addAsset(page, "test-crate");
-    assert.equal(await page.locator(".object-row").count(), 1);
+    // Whole-project undo restores the untouched room, so there is no work to discard.
     await sample.click();
-    // Opening a sample uses the same save decision as replacing any room-based project
+    await page.locator(".object-row").filter({ hasText: "First crate" }).waitFor();
+    assert.equal(await page.locator(".object-row").count(), 2);
+    assert.equal(await page.getByRole("dialog").count(), 0);
+
+    // A remaining edit must still prompt; Cancel keeps it and Don't Save discards it.
+    await addAsset(page, "Sample crate");
+    assert.equal(await page.locator(".object-row").count(), 3);
+    await sample.click();
+    await page.getByRole("dialog").getByRole("button", { name: "Cancel", exact: true }).click();
+    await page.getByRole("dialog").waitFor({ state: "hidden" });
+    assert.equal(await page.locator(".object-row").count(), 3);
+    await sample.click();
     await page.getByRole("dialog").getByRole("button", { name: "Don’t Save", exact: true }).click();
     await page.getByRole("dialog").waitFor({ state: "hidden" });
     await page.locator(".object-row").filter({ hasText: "First crate" }).waitFor();
@@ -113,7 +142,7 @@ try {
   );
   await page.close();
 
-  // Packaged builds must reject incomplete multi-scene playback while keeping the imported editor open
+  // Packaged builds must execute supported scene navigation and restore the authoring scene
   const contentPage = await browser.newPage();
   contentPage.on("pageerror", (error) => errors.push(error.message));
   await contentPage.goto(url);
@@ -126,6 +155,16 @@ try {
     scene.rules = [];
     for (const object of scene.objects) object.components = [];
   }
+  content.scenes.forEach((scene, index) => {
+    const hotspotId = `30000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`;
+    scene.hotspots = [{ id: hotspotId, objectId: scene.objects[0].id, position: [0, 1, 0] }];
+    scene.interactions = [
+      {
+        when: { type: "visitor-clicks-hotspot", targetHotspotId: hotspotId },
+        do: { type: "navigate-scene", sceneId: content.scenes[1 - index].id },
+      },
+    ];
+  });
   await contentPage.locator("#project-import").setInputFiles({
     name: "two-scene.json",
     mimeType: "application/json",
@@ -133,12 +172,52 @@ try {
   });
   await contentPage.locator(".object-row").filter({ hasText: "First crate" }).waitFor();
   await contentPage.getByRole("button", { name: "Preview", exact: true }).click();
-  await contentPage
+  await contentPage.locator(".editor-shell.is-previewing").waitFor();
+  const targets = contentPage.getByRole("navigation", { name: "Interactive objects" });
+  await targets.getByRole("button", { name: "First crate", exact: true }).click();
+  await targets.getByRole("button", { name: "Second-scene crate", exact: true }).waitFor();
+  assert.equal(await contentPage.locator(".editor-shell.is-previewing").count(), 1);
+  await targets.getByRole("button", { name: "Second-scene crate", exact: true }).click();
+  await targets.getByRole("button", { name: "First crate", exact: true }).waitFor();
+  await contentPage.getByRole("button", { name: "Exit preview", exact: true }).click();
+  await contentPage.locator(".object-row").filter({ hasText: "First crate" }).waitFor();
+  assert.equal(await contentPage.locator(".editor-shell.is-previewing").count(), 0);
+  await contentPage.close();
+
+  // Rich v2 rules are still unsupported, even when the project's scene navigation is supported.
+  const unsupported = structuredClone(content);
+  unsupported.scenes[0].rules = [
+    {
+      id: "30000000-0000-4000-8000-000000000003",
+      enabled: true,
+      trigger: { type: "sceneStart" },
+      actions: [
+        {
+          type: "moveCamera",
+          viewpointId: unsupported.scenes[0].viewpoints[0].id,
+          durationSeconds: 1,
+        },
+      ],
+    },
+  ];
+  const unsupportedPage = await browser.newPage();
+  unsupportedPage.on("pageerror", (error) => errors.push(error.message));
+  await unsupportedPage.goto(url);
+  await unsupportedPage.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
+  await unsupportedPage.locator("#project-import").setInputFiles({
+    name: "unsupported-rule.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(unsupported)),
+  });
+  await unsupportedPage.locator(".object-row").filter({ hasText: "First crate" }).waitFor();
+  await unsupportedPage.getByRole("button", { name: "Preview", exact: true }).click();
+  await unsupportedPage
     .getByRole("status")
     .filter({ hasText: "This preview does not support all the scenes and interactions" })
     .waitFor();
-  assert.equal(await contentPage.locator(".editor-shell.is-previewing").count(), 0);
-  await contentPage.close();
+  assert.equal(await unsupportedPage.locator(".editor-shell.is-previewing").count(), 0);
+  assert.equal(await unsupportedPage.locator(".object-row").count(), 2);
+  await unsupportedPage.close();
 
   // Use a fresh document so an already-evaluated module cannot hide a failed download
   const failed = await browser.newPage();
@@ -154,7 +233,7 @@ try {
   assert.deepEqual(errors, []);
   await failed.close();
   console.log(
-    `PASS: ${isDevelopment ? "development" : "production"} build controls, shell before renderer, chunk budget, placement and chunk recovery`,
+    `PASS: ${isDevelopment ? "development" : "production"} build controls, shell before renderer, chunk budget, placement, scene navigation, unsupported rules and chunk recovery`,
   );
   console.log(JSON.stringify({ chunks }));
 

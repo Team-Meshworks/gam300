@@ -1,13 +1,18 @@
+import { launchBrowser, launchPersistentBrowser } from "./browser-security.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { pathToFileURL } from "node:url";
 
-const { chromium } = await import(
-  process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : "playwright"
-);
-const browser = await chromium.launch({
+// Wire writers omit empty extensions; compare authored values using the reader's defaults.
+function withSceneDefaults(document) {
+  return {
+    ...document,
+    scenes: document.scenes.map((scene) => ({ hotspots: [], interactions: [], ...scene })),
+  };
+}
+
+const browser = await launchBrowser({
+  target: process.argv[2] ?? "http://127.0.0.1:5173/",
   args: ["--enable-unsafe-swiftshader"],
-  ...(process.env.PLAYWRIGHT_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHANNEL } : {}),
 });
 let fileContext;
 // Asset library is a pop up now. Only open it when closed, since the button toggles it
@@ -17,11 +22,26 @@ async function openLibrary(page) {
   }
 }
 
-// Clicking a card only picks it, Add is what places it
+// Add arms placement; the viewport click commits the chosen asset
 async function addAsset(page, name) {
+  // Rooms now use the dedicated placement tray rather than the object library
+  if (name === "Starter room") {
+    if (await page.locator(".asset-picker").count()) await page.keyboard.press("Escape");
+    const overview = page.getByRole("button", { name: "Third person", exact: true });
+    if ((await overview.getAttribute("aria-pressed")) !== "true") await overview.click();
+    await page.getByRole("button", { name: "Rooms", exact: true }).click();
+    await page
+      .getByRole("group", { name: "Rooms options", exact: true })
+      .getByRole("button", { name, exact: true })
+      .click();
+    await page.locator(".viewport-stage").click({ position: { x: 500, y: 300 } });
+    return;
+  }
+
   await openLibrary(page);
   await page.locator(".asset-picker").getByRole("button", { name, exact: true }).click();
   await page.getByRole("button", { name: "Add", exact: true }).click();
+  await page.locator(".viewport-stage").click({ position: { x: 500, y: 300 } });
 }
 
 try {
@@ -49,11 +69,13 @@ try {
     );
     const oldDocument = {
       ...fixture,
-      scenes: fixture.scenes.map((scene) => ({
-        ...scene,
-        environmentAssetId: null,
-        viewpoints: [],
-      })),
+      scenes: fixture.scenes.map((scene) => {
+        const older = { ...scene, environmentAssetId: null, viewpoints: [] };
+        // This fixture predates the interaction extension; its reader rejects newer fields.
+        delete older.hotspots;
+        delete older.interactions;
+        return older;
+      }),
     };
     const original = {
       revision: 4,
@@ -186,7 +208,7 @@ try {
   } finally {
     await formatContext.close();
   }
-  // Remove media dependencies so this check isolates the unsupported multi-scene preview boundary
+  // Remove media dependencies; an unsupported content rule must still block preview
   const previewContext = await browser.newContext();
   try {
     const previewPage = await previewContext.newPage();
@@ -198,6 +220,20 @@ try {
       scene.rules = [];
       for (const object of scene.objects) object.components = [];
     }
+    modelOnly.scenes[0].rules = [
+      {
+        id: "20000000-0000-4000-8000-000000000001",
+        enabled: true,
+        trigger: { type: "sceneStart" },
+        actions: [
+          {
+            type: "moveCamera",
+            viewpointId: modelOnly.scenes[0].viewpoints[0].id,
+            durationSeconds: 1,
+          },
+        ],
+      },
+    ];
     await previewPage.locator("#project-import").setInputFiles({
       name: "two-scene.json",
       mimeType: "application/json",
@@ -374,7 +410,9 @@ try {
   assert.equal(results.first.ok, true);
   assert.equal(results.stored.localStorageRevision, 1);
   assert.equal(results.stored.localEditSequence, 1);
-  assert.deepEqual(JSON.parse(results.stored.document), fixture);
+  assert.equal(JSON.parse(results.stored.document).scenes[0].hotspots, undefined);
+  assert.equal(JSON.parse(results.stored.document).scenes[0].interactions, undefined);
+  assert.deepEqual(withSceneDefaults(JSON.parse(results.stored.document)), fixture);
   assert.equal(results.invalid.ok, false);
   assert.equal(results.stale.ok, false);
   assert.deepEqual(results.afterRejections, results.stored);
@@ -459,9 +497,9 @@ try {
   // Real file streams live in an isolated browser folder; only the OS pickers are substituted
   // A temporary regular profile exercises durable handles across reloads
   // Chromium's headless incognito profile crashes when cloning OPFS handles into IndexedDB
-  const context = await chromium.launchPersistentContext("", {
+  const context = await launchPersistentBrowser({
+    target: process.argv[2] ?? "http://127.0.0.1:5173/",
     args: ["--enable-unsafe-swiftshader"],
-    ...(process.env.PLAYWRIGHT_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHANNEL } : {}),
   });
   fileContext = context;
   const editor = await context.newPage();
@@ -529,18 +567,14 @@ try {
   };
   const status = (text, target = editor) =>
     target.waitForFunction(
-      (expected) => document.querySelector(".save-state")?.textContent === expected,
+      (expected) => document.querySelector(".save-state .sr-only")?.textContent === expected,
       text,
     );
   const add = async () => {
     // New now follows first visit; choose the environment before adding the next test object
-    if (
-      await editor
-        .getByText("Add a room from the asset library to start.", { exact: true })
-        .isVisible()
-    )
-      await addAsset(editor, "test-room");
-    await addAsset(editor, "test-crate");
+    if (await editor.getByText("Add a room to start.", { exact: true }).isVisible())
+      await addAsset(editor, "Starter room");
+    await addAsset(editor, "Sample crate");
   };
   const writeFile = (name, text) =>
     editor.evaluate(
@@ -555,15 +589,17 @@ try {
       { name, text },
     );
   const readFile = (name) =>
-    editor.evaluate(
-      async (name) =>
-        JSON.parse(
-          await (
-            await (await (await navigator.storage.getDirectory()).getFileHandle(name)).getFile()
-          ).text(),
-        ),
-      name,
-    );
+    editor
+      .evaluate(
+        async (name) =>
+          JSON.parse(
+            await (
+              await (await (await navigator.storage.getDirectory()).getFileHandle(name)).getFile()
+            ).text(),
+          ),
+        name,
+      )
+      .then(withSceneDefaults);
   const session = (target = editor) =>
     target.evaluate(async () => {
       const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
@@ -614,7 +650,7 @@ try {
     fixture,
     "Quiet recovery must not overwrite the JSON file",
   );
-  assert.equal(await editor.locator(".save-state").textContent(), "Not saved");
+  assert.equal(await editor.locator(".save-state .sr-only").textContent(), "Not saved");
   await editor.reload();
   await editor.getByText("Reopened your last project", { exact: true }).waitFor();
   await status("Not saved");
@@ -664,7 +700,7 @@ try {
   await menu("New");
   await choose("Save");
   await waitBackup(null);
-  await editor.getByText("Add a room from the asset library to start.", { exact: true }).waitFor();
+  await editor.getByText("Add a room to start.", { exact: true }).waitFor();
   assert.equal(await editor.locator("#project-save").isDisabled(), true);
   assert.equal((await readFile("a.json")).scenes[0].objects.length, 4, "Save completes before New");
   assert.equal(await editor.locator(".object-row").count(), 0);
@@ -692,7 +728,7 @@ try {
   const empty = await waitBackup(null);
   assert.equal(empty.document, null);
   await editor.reload();
-  await editor.getByText("Add a room from the asset library to start.", { exact: true }).waitFor();
+  await editor.getByText("Add a room to start.", { exact: true }).waitFor();
   assert.equal(await editor.locator(".object-row").count(), 0);
   assert.equal((await session()).document, null);
 
@@ -764,7 +800,7 @@ try {
   await second.getByText("Reopened your last project", { exact: true }).waitFor();
   await add();
   await waitBackup(3);
-  await addAsset(second, "test-crate");
+  await addAsset(second, "Sample crate");
   await second.getByRole("alert").filter({ hasText: "Recovery changed in another tab" }).waitFor();
   assert.equal(await second.locator(".object-row").count(), 3);
   await second.close();
@@ -835,7 +871,7 @@ try {
   await fallback.evaluate(() => {
     window.failRecovery = true;
   });
-  await addAsset(fallback, "test-crate");
+  await addAsset(fallback, "Sample crate");
   await fallback.getByRole("alert").filter({ hasText: "Recovery backup failed" }).waitFor();
   await fallback.evaluate(() => {
     window.failRecovery = false;
@@ -848,7 +884,7 @@ try {
   // The download can finish before the recovery write and its UI update
   await status("Not saved", fallback);
   await waitBackup(3, fallback);
-  await addAsset(fallback, "test-crate");
+  await addAsset(fallback, "Sample crate");
   await waitBackup(4, fallback);
   await fallback.reload();
   await fallback.getByText("Reopened your last project", { exact: true }).waitFor();

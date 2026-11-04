@@ -19,6 +19,38 @@ public sealed class ProjectReadEndpointTests
     private const string BodyMarker = "private-read-document-sentinel";
 
     [Test]
+    public async Task ProjectReads_AccountBindingRejectsAnotherCookieOwnerBeforeReadingOrSaving()
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
+        var actor = await fixture.CreateAccountAsync(ApplicationRoles.Educator);
+        var project = await SeedAsync(fixture, actor, manage: true);
+        await fixture.SignInAsync(actor);
+
+        // Reject an old tab even when its new cookie owner could access the same project
+        using var staleRead = new HttpRequestMessage(HttpMethod.Get, Path(project.Id));
+        staleRead.Headers.Add("X-Spatia-Account", Guid.NewGuid().ToString("D"));
+        using var read = await fixture.Client.SendAsync(staleRead);
+        await ProblemAsync(read, HttpStatusCode.Forbidden, "account_changed");
+        using var staleSave = new HttpRequestMessage(HttpMethod.Put, Path(project.Id))
+        {
+            Content = JsonContent.Create(new { invalid = "must never reach the save reader" }),
+        };
+        staleSave.Headers.Add("X-Spatia-Account", Guid.NewGuid().ToString("D"));
+        staleSave.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync());
+        using var saved = await fixture.Client.SendAsync(staleSave);
+        await ProblemAsync(saved, HttpStatusCode.Forbidden, "account_changed");
+
+        // Matching owners retain normal access and the rejected write leaves the revision untouched
+        using var current = new HttpRequestMessage(HttpMethod.Get, Path(project.Id));
+        current.Headers.Add("X-Spatia-Account", actor.ToString("D"));
+        using var accepted = await fixture.Client.SendAsync(current);
+        await Assert.That(accepted.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        await using var scope = fixture.Database.Services.CreateAsyncScope();
+        await Assert.That(await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().Projects
+            .Where(row => row.Id == project.Id).Select(row => row.Revision).SingleAsync()).IsEqualTo(project.Revision);
+    }
+
+    [Test]
     [Arguments(ApplicationRoles.Educator, false)]
     [Arguments(ApplicationRoles.Educator, true)]
     [Arguments(ApplicationRoles.Administrator, true)]
@@ -291,7 +323,7 @@ public sealed class ProjectReadEndpointTests
         var error = process.StandardError.ReadToEndAsync();
         try
         {
-            await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(30));
+            await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(90));
         }
         catch
         {

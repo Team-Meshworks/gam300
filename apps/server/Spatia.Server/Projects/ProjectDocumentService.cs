@@ -17,7 +17,7 @@ public sealed class ProjectDocumentService
     private readonly HashSet<string> _retired = new(StringComparer.Ordinal);
 
     /// <summary>
-    /// Reads approved asset identities for this request and adds the three packaged samples only in development
+    /// Reads approved asset identities for this request and adds packaged samples only in development
     /// </summary>
     public ProjectDocumentService(IHostEnvironment environment, ApplicationDbContext? database = null)
     {
@@ -47,7 +47,7 @@ public sealed class ProjectDocumentService
         foreach (var entry in manifest.RootElement.GetProperty("assets").EnumerateArray())
         {
             var id = entry.GetProperty("assetId").GetString()!;
-            if (id is not ("test-room-v1" or "test-crate-v1" or "sample-snowglobe-v1"))
+            if (id is not ("test-room-v1" or "test-room-module-v1" or "test-crate-v1" or "sample-snowglobe-v1"))
             {
                 continue;
             }
@@ -58,7 +58,7 @@ public sealed class ProjectDocumentService
                 throw new InvalidOperationException("Invalid packaged development asset catalogue.");
             }
         }
-        if (assets.Count != 3)
+        if (assets.Count != 4)
         {
             throw new InvalidOperationException("The packaged development asset catalogue is incomplete.");
         }
