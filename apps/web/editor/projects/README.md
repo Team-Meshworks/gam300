@@ -25,6 +25,9 @@ The screen stores an unconfirmed request in browser local storage under the curr
 `AssignmentListScreen` reads the current account's visible assignments for a supplied class, and `AssignmentDetailsScreen` reads the selected assignment and displays its deadline in the viewer's local time. `/home` mounts these screens, supplies authorised class selection and teacher roster names, and remounts them when account identity changes. Student views show only the projects returned for their account. The host opens a selected project in the existing SCRUM-67 server editor and recovery coordinator. Production catalogue availability and live integrated acceptance still require verification.
 
 `onNavigationStateChange` reports dirty and pending form state to the host. Leaving an unsent assignment or logging out requires an explicit discard choice; pending submissions block host navigation. Submitted requests remain under their original account's pending-request storage key and can be retried after a reload. The source selection is included in navigation protection. Account identity is rechecked after obtaining CSRF and before acknowledging a successful assignment.
+An initial 403 or 404 is a definite rejection: the form remains editable and cancellable. A 403 or 404 after an earlier uncertain outcome does not resolve that outcome; the same pending request remains available for reconciliation.
+
+Authorised assignment list and detail reads include `studentName` for each visible student project. The label uses display name and username when available, otherwise username. The API filters project visibility before returning names. For older responses without a name, a host-supplied authorised name may be used; otherwise the corresponding educator open control remains unavailable rather than presenting an ambiguous ordinal.
 
 # Class assignment integration
 
