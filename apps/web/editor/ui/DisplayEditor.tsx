@@ -5,7 +5,7 @@ import type {
   ContentObject,
   TextMark,
 } from "../../shared/project/project-content";
-import type { ProjectDocument, ProjectObject } from "../../shared/project/project-types";
+import type { ProjectDocument, ProjectObject, Transform } from "../../shared/project/project-types";
 import { Dialog } from "../../shared/ui/Dialog";
 import type { createDocumentStore } from "../document-store";
 import { displayPosition } from "../display-position";
@@ -18,18 +18,12 @@ import {
   saveFavourites,
   toggleFavourite,
 } from "./asset-filters";
-import infoIcon from "./assets/editor-info.svg?no-inline";
-import closeIcon from "./assets/editor-close.svg?no-inline";
 import textIcon from "./assets/editor-text.svg?no-inline";
 import videoIcon from "./assets/editor-video.svg?no-inline";
 import imageIcon from "./assets/editor-image.svg?no-inline";
-import textSelected from "./assets/editor-text-selected.svg?no-inline";
-import imageSelected from "./assets/editor-image-selected.svg?no-inline";
 import videoSelected from "./assets/editor-video-selected-bg.svg?no-inline";
 import librarySelected from "./assets/editor-library-selected.svg?no-inline";
-import searchIcon from "./assets/editor-search.svg?no-inline";
-import heartIcon from "./assets/editor-heart.svg?no-inline";
-import caretIcon from "./assets/editor-caret.svg?no-inline";
+import { Icon } from "./Icon";
 import "./display-editor.css";
 
 const kinds = ["text", "video", "image"] as const;
@@ -42,19 +36,23 @@ function Art({ src, className }: { src: string; className?: string }) {
 
 export function DisplayEditor({
   object,
+  initialKind,
   asset,
   assets,
   project,
   store,
   thumbnailFor,
+  placementFor,
   onClose,
 }: {
   object: ProjectObject;
+  initialKind?: Kind;
   asset: CatalogueAsset;
   assets: readonly CatalogueAsset[];
   project: ProjectDocument;
   store: ReturnType<typeof createDocumentStore>;
   thumbnailFor: (assetId: string) => string | undefined;
+  placementFor: (ownerId: string, assetId: string) => Transform | undefined;
   onClose: () => void;
 }) {
   const id = useId();
@@ -64,7 +62,8 @@ export function DisplayEditor({
     ["text", "image", "video"].includes(c.type),
   );
   const [type, setType] = useState<Kind>(
-    existing?.type === "image" || existing?.type === "video" ? existing.type : "text",
+    initialKind ??
+      (existing?.type === "image" || existing?.type === "video" ? existing.type : "text"),
   );
   const initialText = existing?.type === "text" ? existing.runs.map((r) => r.text).join("") : "";
   const [text, setText] = useState(initialText);
@@ -72,7 +71,7 @@ export function DisplayEditor({
     existing?.type === "text" ? (existing.runs[0]?.marks ?? []) : [],
   );
   const [formatChanged, setFormatChanged] = useState(false);
-  const [caption, setCaption] = useState(existing && "caption" in existing ? existing.caption : "");
+  const caption = existing && "caption" in existing ? existing.caption : "";
   const physical = asset.displayRole === "physical";
   const attached = store
     .getSnapshot()
@@ -87,14 +86,15 @@ export function DisplayEditor({
   const [favourites, setFavourites] = useState(loadFavourites);
   const [error, setError] = useState("");
   const candidates = assets.filter((a) =>
-    physical ? a.kind === "model" && !a.displayRole : a.kind === type,
+    physical
+      ? a.kind === "model" && !a.displayRole && a.id !== "test-room-module-v1"
+      : a.kind === type,
   );
   const shown = filterAssets(candidates, filter, favourites, query);
   const choiceKey = physical ? "physical" : type;
   const chosen = candidates.find((a) => a.id === choices[choiceKey]);
   const textMode = !physical && type === "text";
   const title = physical ? "Assets" : labels[type];
-  const canRemove = physical ? attached !== undefined : existing !== undefined;
   function current() {
     if (store.getSnapshot().project !== openedProject) {
       setError("The project changed. Close this editor and select the display again.");
@@ -106,10 +106,16 @@ export function DisplayEditor({
     if (!current()) return;
     if (physical) {
       if (!chosen) return;
+      const fitted = placementFor(object.id, chosen.id);
+      if (!fitted) {
+        setError("The models are still loading. Try adding the object again.");
+        return;
+      }
       const result = store.addAttachedObject(
         chosen.id,
         object.id,
         displayPosition(object, asset.displayTop ?? 0),
+        fitted,
       );
       if (!result.ok) {
         setError(result.error);
@@ -156,17 +162,6 @@ export function DisplayEditor({
     }
     onClose();
   }
-  function remove() {
-    if (!current()) return;
-    const result = physical
-      ? store.removeDisplayedAsset(object.id)
-      : store.setDisplayContent(object.id, null);
-    if (!result.ok) {
-      setError(result.error.message);
-      return;
-    }
-    onClose();
-  }
   function selectTab(kind: Kind) {
     setType(kind);
     setError("");
@@ -195,7 +190,14 @@ export function DisplayEditor({
       <div className={`display-editor${textMode ? " is-text" : ""}`}>
         <aside className="display-editor-rail">
           {physical ? (
-            <Art src={librarySelected} />
+            <>
+              <span
+                className="display-tab-background is-selected"
+                style={{ maskImage: `url(${videoSelected})` }}
+                aria-hidden="true"
+              />
+              <Icon name="library" />
+            </>
           ) : (
             <div
               ref={tablist}
@@ -217,16 +219,12 @@ export function DisplayEditor({
                   tabIndex={type === kind ? 0 : -1}
                   onClick={() => selectTab(kind)}
                 >
-                  {type === kind && kind !== "video" ? (
-                    <Art src={kind === "text" ? textSelected : imageSelected} />
-                  ) : (
-                    <>
-                      {type === kind && (
-                        <Art src={videoSelected} className="display-tab-background" />
-                      )}
-                      <Art src={icons[kind]} className="display-tab-icon" />
-                    </>
-                  )}
+                  <span
+                    className="display-tab-background"
+                    style={{ maskImage: `url(${videoSelected})` }}
+                    aria-hidden="true"
+                  />
+                  <Art src={icons[kind]} className="display-tab-icon" />
                 </button>
               ))}
             </div>
@@ -238,18 +236,18 @@ export function DisplayEditor({
           role={physical ? undefined : "tabpanel"}
           aria-labelledby={physical ? undefined : `${id}-${type}`}
         >
-          <header className="display-editor-head">
-            <h3>
-              <Art src={infoIcon} />
+          <header className="asset-picker-head">
+            <h3 className="asset-picker-title">
+              <Icon name="info" />
               {title}
             </h3>
             {!textMode && (
-              <div className="display-editor-search">
-                <Art src={searchIcon} />
+              <div className="asset-search">
+                <Icon name="search" />
                 <input
                   type="search"
                   aria-label="Search library"
-                  placeholder="Search for something."
+                  placeholder="Search for something…"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                 />
@@ -257,20 +255,32 @@ export function DisplayEditor({
                   value={filter}
                   options={filterOptions(candidates)}
                   onChange={setFilter}
-                  icon={<Art src={caretIcon} />}
                 />
               </div>
             )}
+            {!textMode && (
+              <button
+                type="button"
+                className="ui-button asset-picker-reset"
+                aria-label="Reset asset filters"
+                disabled={query === "" && filter === "all"}
+                onClick={() => {
+                  setQuery("");
+                  setFilter("all");
+                }}
+              >
+                Reset
+              </button>
+            )}
             <button
               type="button"
-              className="display-editor-close"
+              className="ui-button asset-picker-close"
               aria-label="Close display editor"
               onClick={onClose}
             >
-              <Art src={closeIcon} />
+              <Icon name="close" />
             </button>
           </header>
-          <p className="display-editor-object">{object.name}</p>
           {textMode ? (
             <div className="display-text-pad">
               <textarea
@@ -318,19 +328,24 @@ export function DisplayEditor({
           ) : (
             <div className="display-editor-library">
               {shown.length ? (
-                <ul className="display-editor-cards">
+                <ul className="display-editor-cards asset-grid">
                   {shown.map((entry) => (
-                    <li key={entry.id}>
+                    <li key={entry.id} className="asset-card">
                       <button
                         type="button"
-                        className="display-card"
+                        className="display-card asset-card-pick"
                         aria-pressed={chosen?.id === entry.id}
                         aria-label={entry.name}
                         onClick={() => setChoices({ ...choices, [choiceKey]: entry.id })}
                       >
-                        <span className="display-card-art">
+                        <span className="asset-art">
                           {thumbnailFor(entry.id) || entry.thumbnail ? (
                             <img
+                              className={
+                                entry.kind === "image" || entry.kind === "video"
+                                  ? "is-media-thumbnail"
+                                  : undefined
+                              }
                               src={thumbnailFor(entry.id) ?? entry.thumbnail ?? undefined}
                               alt=""
                               draggable={false}
@@ -339,16 +354,16 @@ export function DisplayEditor({
                             <span>Preview unavailable</span>
                           )}
                         </span>
-                        <span className="display-card-info">
-                          <span className="display-card-category">
+                        <span className="asset-card-info">
+                          <span className="asset-tag">
                             {categoryOf(entry) ?? (physical ? "Object" : title)}
                           </span>
-                          <strong>{entry.name}</strong>
+                          <span className="asset-name">{entry.name}</span>
                         </span>
                       </button>
                       <button
                         type="button"
-                        className="display-card-favourite"
+                        className="ui-button display-card-favourite asset-favourite"
                         aria-label={`Favourite ${entry.name}`}
                         aria-pressed={favourites.includes(entry.id)}
                         onClick={() => {
@@ -357,7 +372,7 @@ export function DisplayEditor({
                           saveFavourites(next);
                         }}
                       >
-                        <Art src={heartIcon} />
+                        <Icon name={favourites.includes(entry.id) ? "heartFilled" : "heart"} />
                       </button>
                     </li>
                   ))}
@@ -390,44 +405,24 @@ export function DisplayEditor({
               )}
             </div>
           )}
-          {!physical && (
-            <label className="display-caption">
-              Caption <span>(optional)</span>
-              <textarea
-                aria-label="Caption (optional)"
-                placeholder="Add a caption…"
-                maxLength={4096}
-                value={caption}
-                onChange={(e) => setCaption(e.target.value)}
-              />
-            </label>
-          )}
           {error && (
             <p className="display-editor-error" role="alert">
               {error}
             </p>
           )}
-          <footer className="display-editor-actions">
-            <p aria-live="polite">
-              {chosen && !textMode
-                ? `Selected: ${chosen.name}${shown.includes(chosen) ? "" : " (hidden by filters)"}`
-                : ""}
-            </p>
+          <footer className="asset-picker-actions">
+            {physical && (
+              <p className="display-owner">
+                Display<span>{object.name}</span>
+              </p>
+            )}
             <button
               type="button"
-              className="display-editor-add"
+              className="ui-button pill-button asset-picker-add"
               disabled={textMode ? !text.trim() : !chosen}
               onClick={save}
             >
-              {existing || attached ? "Save" : "Add"}
-            </button>
-            <button
-              type="button"
-              className="display-editor-remove"
-              disabled={!canRemove}
-              onClick={remove}
-            >
-              Remove content
+              Add
             </button>
           </footer>
         </section>
