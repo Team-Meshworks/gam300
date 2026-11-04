@@ -52,10 +52,37 @@ public sealed class PublicationAccessEndpointTests
         // Visitor and management operations keep immutable editions and retained asset bytes intact
         await using var scope = fixture.Database.Services.CreateAsyncScope();
         var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        await Assert.That(await database.Publications.CountAsync()).IsEqualTo(2);
+        await Assert.That(await database.Publications.CountAsync()).IsEqualTo(4);
         await Assert.That(await database.AssetCandidates.CountAsync()).IsEqualTo(1);
         await Assert.That(await database.PublicationAccess.CountAsync(row => row.Deleted)).IsEqualTo(1);
         await Assert.That(await database.PublicationAccess.CountAsync(row => row.Revoked)).IsEqualTo(1);
+    }
+
+    [Test]
+    public async Task AudienceChange_UnresolvedPublicModesCannotExposeAnAuthenticatedEdition()
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
+        var data = JsonSerializer.SerializeToElement(await SeedAsync(fixture));
+        var publication = data.GetProperty("publicationId").GetGuid();
+        await fixture.SignInAsync(data.GetProperty("actors").GetProperty("publisher").GetProperty("userId").GetGuid());
+        foreach (var audience in new[] { "Public", "Unlisted" })
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/publications/{publication}/access")
+            {
+                Content = JsonContent.Create(new { audience, viewerIds = Array.Empty<Guid>(), action = "audience" }),
+            };
+            request.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync());
+            using var response = await fixture.Client.SendAsync(request);
+            await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.ServiceUnavailable);
+        }
+        await using var scope = fixture.App.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var state = await database.PublicationAccess.AsNoTracking().SingleAsync(row => row.PublicationId == publication);
+        await Assert.That(state.Audience).IsEqualTo(3);
+        await Assert.That(state.ViewerIds.Length).IsEqualTo(1);
+        using var anonymous = fixture.CreateClient();
+        using var denied = await anonymous.GetAsync($"/api/publications/{publication}");
+        await Assert.That(denied.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
     }
 
     [Test]
@@ -165,7 +192,9 @@ public sealed class PublicationAccessEndpointTests
         // Seed real immutable storage; all subsequent reads and permission changes go through production HTTP routes
         var publicationId = Guid.NewGuid();
         var deletedId = Guid.NewGuid();
-        foreach (var id in new[] { publicationId, deletedId })
+        var publicId = Guid.NewGuid();
+        var unlistedId = Guid.NewGuid();
+        foreach (var (id, audience) in new[] { (publicationId, 3), (deletedId, 3), (publicId, 1), (unlistedId, 2) })
         {
             database.Publications.Add(new Publication
             {
@@ -178,7 +207,7 @@ public sealed class PublicationAccessEndpointTests
                 RequestDigest = new byte[32],
                 AssetReferencesJson = PublicationAssetManifest.Serialize([new(asset.Id.ToString("D"), asset.Sha256)]),
             });
-            database.PublicationAccess.Add(new PublicationAccessState { PublicationId = id, Audience = 3, ViewerIds = [viewer] });
+            database.PublicationAccess.Add(new PublicationAccessState { PublicationId = id, Audience = audience, ViewerIds = [viewer] });
         }
         await database.SaveChangesAsync();
         var actors = new Dictionary<string, object>();
@@ -187,7 +216,7 @@ public sealed class PublicationAccessEndpointTests
         {
             actors[name] = new { userId = id, userName = await AuthTestRequests.UserNameAsync(fixture, id) };
         }
-        return new { projectId, publicationId, deletedId, assetId = asset.Id, actors };
+        return new { projectId, publicationId, deletedId, publicId, unlistedId, assetId = asset.Id, actors };
     }
 
     private static string FindServerDirectory()

@@ -93,6 +93,13 @@ internal static class PublicationDeliveryEndpoints
                 && !(request.Action == "audience" && current.ActorId == edition.PublishedById && current.CanEdit && current.CanPublish)))
             { return Unavailable(context); }
 
+            // Match the publisher's unavailable result until public/unlisted lifecycle policy is agreed
+            // Existing stored editions retain their read policy; this cannot promote a restricted edition
+            if (request.Action == "audience" && audience is PublicationAudience.Public or PublicationAudience.Unlisted)
+            {
+                return ApiProblems.Create(context, 503, "publication_unavailable", "This audience is not available for new access changes.");
+            }
+
             // Validate newly chosen viewers against the locked project's current organization
             // Existing inactive viewers must never prevent managers from hiding or revoking an edition
             if (request.Action == "audience")
