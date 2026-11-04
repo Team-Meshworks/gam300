@@ -22,7 +22,8 @@ try {
   await page.getByLabel("Password", { exact: true }).fill("Synthetic-long-password1!");
   await page.getByRole("button", { name: "Log in", exact: true }).click();
   await page.waitForURL(`${origin}/admin/dashboard`);
-  await page.goto(`${origin}/home`);
+  await page.getByRole("link", { name: "Open project workspace", exact: true }).click();
+  await page.waitForURL(`${origin}/home`);
   await page.getByRole("heading", { name: "Grant browser project", exact: true }).waitFor();
   await page.getByRole("button", { name: "Manage access", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Project access" });

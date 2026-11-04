@@ -25,6 +25,9 @@
   color: var(--sp-muted);
   font-size: 15px;
 }
+.admin-greeting > .sp-button {
+  margin-top: 20px;
+}
 .admin-panel {
   padding: 34px 46px;
   border-radius: 50px;

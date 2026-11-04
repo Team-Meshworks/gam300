@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
-import { chromium } from "playwright";
+import { launchBrowser } from "./browser-security.mjs";
 
 // Run only against the disposable HTTPS fixture; no production credentials or API mocks.
 const target = new URL(process.argv[2]);
@@ -8,9 +8,7 @@ assert.equal(target.protocol, "https:");
 assert.equal(target.hostname, "127.0.0.1");
 const data = JSON.parse(process.argv[3]);
 const origin = target.origin;
-const browser = await chromium.launch({
-  executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
-});
+const browser = await launchBrowser({ target: origin });
 const snapshots = "../../.artifacts/home-check";
 await mkdir(snapshots, { recursive: true });
 try {
