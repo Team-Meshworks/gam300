@@ -1,3 +1,4 @@
+import { useDragImage } from "./use-drag-image";
 import {
   useEffect,
   useRef,
@@ -22,7 +23,7 @@ const cameraTools: { id: NavigationTool; label: string; hint: string; icon: Icon
   { id: "zoom", label: "Zoom", hint: "Zoom · drag up or down", icon: "zoom" },
 ];
 
-type Category = "furniture" | "panels" | "cases" | "audio";
+type Category = "rooms" | "furniture" | "panels" | "cases" | "audio";
 type SceneTool = "library" | Category;
 type Item = { label: string; icon: IconName; assetId?: string };
 type PopupId = Category | "dock";
@@ -40,7 +41,8 @@ function place(point: { x: number; y: number }, name: "popup" | "tip") {
 }
 
 // First item is what the bar show until something else is picked
-const categories: { id: Category; label: string; items: [Item, ...Item[]] }[] = [
+const baseCategories: { id: Category; label: string; items: Item[] }[] = [
+  { id: "rooms", label: "Rooms", items: [{ label: "Room", icon: "door" }] },
   { id: "furniture", label: "Furniture", items: [{ label: "Chair", icon: "chair" }] },
   { id: "panels", label: "Display panels", items: displayPanelTools },
   { id: "cases", label: "Display cases", items: displayCaseTools },
@@ -56,7 +58,6 @@ export function BottomBar({
   onDragChange,
   tool,
   onToolChange,
-  selectedDisplay,
   showCameraTools,
 }: {
   assets: readonly CatalogueAsset[];
@@ -67,14 +68,26 @@ export function BottomBar({
   onDragChange: (assetId: string | null) => void;
   tool: NavigationTool;
   onToolChange: (tool: NavigationTool) => void;
-  selectedDisplay?: { name: string; onEdit: () => void; disabled: boolean } | undefined;
   // Camera tools only make sense for the orbit camera, so third person only
   showCameraTools: boolean;
 }) {
+  const setDragImage = useDragImage();
+  const categories = baseCategories.map((category) =>
+    category.id === "rooms"
+      ? {
+          ...category,
+          items: assets
+            .filter((asset) => asset.kind === "environment")
+            .map((asset): Item => ({ label: asset.name, icon: "door", assetId: asset.id })),
+        }
+      : category,
+  );
   // Only one tool selected at a time. Library start closed now since its a big pop up
   const [selected, setSelected] = useState<SceneTool | null>(null);
   const libraryOpen = selected === "library";
+  const [draggingAsset, setDraggingAsset] = useState(false);
   const [picked, setPicked] = useState<Record<Category, number>>({
+    rooms: 0,
     furniture: 0,
     panels: 0,
     cases: 0,
@@ -211,15 +224,25 @@ export function BottomBar({
     <>
       {libraryOpen && (
         // Outside the dock so it can be big and centred in the scene, not squeezed into the bar
-        <div className="asset-picker-layer" ref={picker}>
+        <div
+          className="asset-picker-layer"
+          ref={picker}
+          style={draggingAsset ? { visibility: "hidden" } : undefined}
+        >
           <AssetPicker
             assets={assets.filter(
-              (asset) => asset.id !== "test-room-module-v1" && asset.displayRole === undefined,
+              (asset) =>
+                asset.id !== "test-room-module-v1" &&
+                asset.kind !== "environment" &&
+                !asset.displayRole,
             )}
             ready={ready}
             thumbnailFor={thumbnailFor}
             onAdd={onAdd}
-            onDragChange={onDragChange}
+            onDragChange={(assetId) => {
+              setDraggingAsset(assetId !== null);
+              onDragChange(assetId);
+            }}
             onClose={() => select(null)}
           />
         </div>
@@ -232,19 +255,8 @@ export function BottomBar({
           dragOffset === null ? undefined : { translate: `${dragOffset.x}px ${dragOffset.y}px` }
         }
       >
-        {selectedDisplay && !libraryOpen && (
-          <button
-            type="button"
-            className="display-content-launcher"
-            disabled={selectedDisplay.disabled}
-            title={`Edit ${selectedDisplay.name}`}
-            onClick={selectedDisplay.onEdit}
-          >
-            Edit display content
-          </button>
-        )}
         {showCameraTools && (
-          <div className="tool-tip-anchor">
+          <div className="tool-tip-anchor" hidden={popup !== null || libraryOpen}>
             {cameraTip.bubble}
             <div className="mode-bar" role="group" aria-label="Camera tools" inert={libraryOpen}>
               {cameraTools.map((cameraTool) => (
@@ -265,7 +277,7 @@ export function BottomBar({
         )}
 
         <div className="tool-tip-anchor">
-          {popup === null && toolTip.bubble}
+          {toolTip.bubble}
           {popup !== null && (
             // Outside the toolbar so its scroll wont cut the pop up off
             <div className="tool-popup-anchor" style={place(popup, "popup")}>
@@ -310,6 +322,7 @@ export function BottomBar({
                           if (!item.assetId) return;
                           event.dataTransfer.setData(assetDragType, item.assetId);
                           event.dataTransfer.effectAllowed = "copy";
+                          setDragImage(event.dataTransfer);
                           onDragChange(item.assetId);
                         }}
                         onDragEnd={() => {
@@ -366,6 +379,7 @@ export function BottomBar({
               onDragStart={(event) => {
                 event.dataTransfer.setData(assetDragType, hotspot.id);
                 event.dataTransfer.effectAllowed = "copy";
+                setDragImage(event.dataTransfer);
                 onDragChange(hotspot.id);
               }}
               onDragEnd={() => onDragChange(null)}
@@ -380,12 +394,15 @@ export function BottomBar({
                 className="ui-button"
                 type="button"
                 aria-label={category.label}
+                data-category={category.id}
                 aria-pressed={selected === category.id}
                 aria-expanded={popup?.id === category.id}
                 onClick={(event) => chooseCategory(event, category.id)}
                 {...toolTip.handlers(category.label)}
               >
-                <Icon name={(category.items[picked[category.id]] ?? category.items[0]).icon} />
+                <Icon
+                  name={(category.items[picked[category.id]] ?? category.items[0])?.icon ?? "door"}
+                />
               </button>
             ))}
           </div>

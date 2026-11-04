@@ -1,3 +1,4 @@
+import { useDragImage } from "./use-drag-image";
 import { useState } from "react";
 import { assetDragType, type CatalogueAsset } from "../../shared/asset-runtime/catalogue";
 import { playUiSound } from "../audio/ui-sounds";
@@ -29,6 +30,7 @@ export function AssetPicker({
   onDragChange: (assetId: string | null) => void;
   onClose: () => void;
 }) {
+  const setDragImage = useDragImage();
   const [chosen, setChosen] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<AssetFilter>("all");
@@ -120,6 +122,7 @@ export function AssetPicker({
                     onDragStart={(event) => {
                       event.dataTransfer.setData(assetDragType, asset.id);
                       event.dataTransfer.effectAllowed = "copy";
+                      setDragImage(event.dataTransfer);
                       onDragChange(asset.id);
                     }}
                     onDragEnd={(event) => {
