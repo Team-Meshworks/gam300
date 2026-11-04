@@ -442,7 +442,7 @@
     "shared/project/project-wire.ts": "b7f494c9672fb688a4a882883cf3bece67dfdd46633a14e4e95aecd68139654d",
     "shared/project/room-placement.ts": "3cd537d20e080a1736f6ff2a1beab7a7153e8d3da951b75bca8f43b6630b39d2",
     "shared/project/scene-object.ts": "eb0421d014733ee53241324fbf7f110bf3415cc6c737080a4416eafaac4748d1",
-    "shared/project/selection-transform.ts": "470481d1208cc4adb4a04816dcd0a384cdcce4558ceb688094dd4a1b7f2a5c8f",
+    "shared/project/selection-transform.ts": "fca682a9dbf7f9588861c76524a418698ba2a1a42bb5e94dc1bf9fcae3b89833",
     "shared/project/spatial-validation.test.ts": "1451aa2673f445e8dbdff9e3628dd474ec1f9aa1238b4867c67913bb682e3c0d",
     "shared/project/spatial-validation.ts": "793f30ede0c1d12d1e0cf57bf0f219b3bbc57752fd465801499699283e480d12",
     "shared/project/starting-view.test.ts": "d2bc542394e14f8360b29933e58b9d39ed5cf16b6e77985d5a7ef0dee0d88121",

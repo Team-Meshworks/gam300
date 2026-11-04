@@ -104,15 +104,11 @@ export function moveSceneSelection(
     (object) => moving.has(object.id) && object.assetId === "test-room-module-v1",
   );
   if (anchor.assetId !== "test-room-module-v1" && movingRoom) {
-    const candidate = moveAttachedObjects(
-      [
-        { ...anchor, parentId: null },
-        { ...movingRoom, parentId: anchorId },
-      ],
-      [],
-      anchorId,
-      proposed,
-    );
+    const attached: ContentObject[] = [
+      { ...anchor, parentId: null },
+      { ...movingRoom, parentId: anchorId },
+    ];
+    const candidate = moveAttachedObjects(attached, [], anchorId, proposed);
     if (!candidate.ok) return candidate;
     return moveSceneSelection(
       scene,
