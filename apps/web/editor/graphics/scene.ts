@@ -203,7 +203,6 @@ export function initScene(
   let previewOrigin:
     { sceneId: string | undefined; loadGeneration: number | undefined } | undefined;
   let pendingPreviewReturn: typeof previewOrigin;
-  let previousSelectedId: string | null = null;
   let environment: THREE.Group | undefined;
   let environmentId: string | undefined;
   const environmentBounds = new THREE.Box3();
@@ -256,7 +255,6 @@ export function initScene(
     | {
         pointerIds: readonly number[];
         startDistance: number;
-        startVerticalDistance: number;
         startAngle: number;
       }
     | undefined;
@@ -269,14 +267,22 @@ export function initScene(
         transform: Transform;
         current: Transform;
         mode: "scale" | "rotate";
-        startVerticalDistance: number;
+        startDistance: number;
         startAngle: number;
         rotationAxis: THREE.Vector3;
       }
     | undefined;
   // A press stays tied to the object under it; once it becomes a drag it can no longer click
+  // A locked mouse stays where capture began, so it counts relative movement instead
   let visitorClick:
-    | { pointerId: number; x: number; y: number; target: string | null; dragged: boolean }
+    | {
+        pointerId: number;
+        x: number;
+        y: number;
+        moved: { x: number; y: number };
+        target: string | null;
+        dragged: boolean;
+      }
     | undefined;
 
   function render() {
@@ -517,8 +523,8 @@ export function initScene(
     const sceneChanged = projectScene?.id !== nextScene?.id;
     const loadChanged = appliedLoadGeneration !== loadGeneration;
     // A load that arrives together with a new selection keeps the live camera
-    const reloadCamera =
-      loadChanged && (appliedLoadGeneration === undefined || previousSelectedId === nextSelectedId);
+    // An explicit load always restores the saved camera, even when it also clears the selection
+    const reloadCamera = loadChanged;
     objects = nextObjects;
     selectedId = nextSelectedId;
     projectScene = nextScene;
@@ -551,7 +557,6 @@ export function initScene(
     // Consume only on a scene/load transition, not a redundant update before return.
     if (sceneChanged || loadChanged) pendingPreviewReturn = undefined;
     appliedLoadGeneration = loadGeneration;
-    previousSelectedId = nextSelectedId;
 
     if (ready && environmentId !== (projectScene?.environmentAssetId ?? undefined)) {
       // Environment stays at its exported origin, outside the placed-object list
@@ -917,13 +922,15 @@ export function initScene(
     // A finger already on a joystick is the primary touch, so count the ones on the scene instead
     const firstContact = event.pointerType === "touch" ? touchPoints.size === 1 : event.isPrimary;
     if (modeManager.getState().mode === "visitor") {
+      const aim = aimPoint(event);
       visitorClick =
         firstContact && event.button === 0
           ? {
               pointerId: event.pointerId,
               x: event.clientX,
               y: event.clientY,
-              target: pick(event.clientX, event.clientY),
+              moved: { x: 0, y: 0 },
+              target: pick(aim.x, aim.y),
               dragged: false,
             }
           : undefined;
@@ -938,7 +945,6 @@ export function initScene(
       touchPair = {
         pointerIds: [...touchPoints.keys()],
         startDistance: Math.max(Math.hypot(dx, dy), 1),
-        startVerticalDistance: Math.max(Math.abs(dy), 1),
         startAngle: Math.atan2(dy, dx),
       };
       return;
@@ -1008,13 +1014,14 @@ export function initScene(
   function pointerMove(event: PointerEvent) {
     if (modeManager.getState().mode === "visitor") {
       const click = visitorClick;
-      if (
-        click !== undefined &&
-        click.pointerId === event.pointerId &&
-        Math.hypot(event.clientX - click.x, event.clientY - click.y) > VISITOR_CLICK_TOLERANCE
-      ) {
-        click.dragged = true;
+      if (click === undefined || click.pointerId !== event.pointerId) return;
+      if (fpsControls.isCaptured()) {
+        click.moved.x += event.movementX;
+        click.moved.y += event.movementY;
+      } else {
+        click.moved = { x: event.clientX - click.x, y: event.clientY - click.y };
       }
+      if (Math.hypot(click.moved.x, click.moved.y) > VISITOR_CLICK_TOLERANCE) click.dragged = true;
       return;
     }
     if (event.pointerType === "touch" && touchPoints.has(event.pointerId)) {
@@ -1029,17 +1036,14 @@ export function initScene(
         if (first === undefined || second === undefined) return;
         const dx = second.x - first.x;
         const dy = second.y - first.y;
-        const verticalDistance = Math.max(Math.abs(dy), 1);
+        const distance = Math.max(Math.hypot(dx, dy), 1);
         const angle = Math.atan2(dy, dx);
         let rotationDelta = angle - touchGesture.startAngle;
         rotationDelta -= Math.round(rotationDelta / (2 * Math.PI)) * 2 * Math.PI;
         if (touchGesture.mode === "scale") {
           touchGesture.current = {
             ...touchGesture.current,
-            scale: scaleBy(
-              touchGesture.transform.scale,
-              verticalDistance / touchGesture.startVerticalDistance,
-            ),
+            scale: scaleBy(touchGesture.transform.scale, distance / touchGesture.startDistance),
           };
         } else {
           const rotation = new THREE.Quaternion()
@@ -1059,12 +1063,12 @@ export function initScene(
       if (touchPair !== undefined && pairFirst !== undefined && pairSecond !== undefined) {
         const dx = pairSecond.x - pairFirst.x;
         const dy = pairSecond.y - pairFirst.y;
+        // Spread in any direction scales, the angle between the fingers rotates
         const distance = Math.max(Math.hypot(dx, dy), 1);
-        const verticalDistance = Math.abs(dy);
         const angle = Math.atan2(dy, dx);
         let rotationDelta = angle - touchPair.startAngle;
         rotationDelta -= Math.round(rotationDelta / (2 * Math.PI)) * 2 * Math.PI;
-        const scaleIntent = Math.abs(verticalDistance - touchPair.startVerticalDistance) >= 12;
+        const scaleIntent = Math.abs(distance - touchPair.startDistance) >= 12;
         const rotationIntent =
           Math.abs(rotationDelta) >= 0.16 && Math.abs(rotationDelta) * distance >= 18;
         if (scaleIntent || rotationIntent) {
@@ -1076,7 +1080,7 @@ export function initScene(
             // The gesture owns both fingers now, the camera shouldnt pinch along with it
             orbitEnabledBeforeDrag = orbit.enabled;
             orbit.enabled = false;
-            const scaleStrength = Math.abs(verticalDistance - touchPair.startVerticalDistance) / 12;
+            const scaleStrength = Math.abs(distance - touchPair.startDistance) / 12;
             const rotationStrength = (Math.abs(rotationDelta) * distance) / 18;
             const diagonalStart = Math.abs(Math.sin(touchPair.startAngle * 2)) >= 0.5;
             const scaleWins =
@@ -1090,7 +1094,7 @@ export function initScene(
               transform: base,
               current: base,
               mode: scaleWins ? "scale" : "rotate",
-              startVerticalDistance: Math.max(verticalDistance, 1),
+              startDistance: distance,
               startAngle: angle,
               rotationAxis: camera.getWorldDirection(new THREE.Vector3()).normalize(),
             };
@@ -1154,12 +1158,13 @@ export function initScene(
     if (modeManager.getState().mode === "visitor") {
       const click = visitorClick;
       visitorClick = undefined;
+      const aim = aimPoint(event);
       if (
         click !== undefined &&
         click.pointerId === event.pointerId &&
         !click.dragged &&
         click.target !== null &&
-        pick(event.clientX, event.clientY) === click.target
+        pick(aim.x, aim.y) === click.target
       ) {
         callbacks.onObjectClick(click.target);
       }

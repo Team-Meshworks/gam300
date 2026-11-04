@@ -182,6 +182,7 @@ try {
     };
     const { promise: ready, resolve: finish } = Promise.withResolvers();
     const commits = [];
+    const clicks = [];
     let handle;
     try {
       handle = initScene(
@@ -192,7 +193,7 @@ try {
             if (status === "ready") finish();
           },
           onThumbnail() {},
-          onObjectClick() {},
+          onObjectClick: (id) => clicks.push(id),
           onUpdate() {},
           onSelect() {},
           onTransform: (...args) => commits.push(args),
@@ -252,6 +253,19 @@ try {
       const reopenedRotationError = camera.quaternion.angleTo(
         new THREE.Quaternion().fromArray(savedPose.rotation),
       );
+      // Open clears the selection in the same update, the saved camera still wins
+      manager.orbit.rotateLeft(0.4);
+      manager.update(0);
+      const movedBeforeOpen = camera.position.distanceTo(
+        new THREE.Vector3().fromArray(savedPose.position),
+      );
+      handle.update([object], null, savedScene, 3);
+      await frame();
+      const openedPositionError = camera.position.distanceTo(
+        new THREE.Vector3().fromArray(savedPose.position),
+      );
+      handle.update([object], object.id, savedScene, 3);
+      await frame();
       install({ ...fixture.scenes[0].startCamera });
       await frame();
       const height = camera.position.y;
@@ -323,7 +337,70 @@ try {
         stoppedDistances.push(camera.position.distanceTo(stopped));
         manager.setMode("editor");
       }
+
+      // Preview clicks with a locked mouse aim at the crosshair, not where the lock began
+      manager.setMode("visitor");
+      camera.updateMatrixWorld(true);
+      const ahead = camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(6);
+      const exhibit = {
+        ...object,
+        transform: {
+          ...object.transform,
+          position: camera.position
+            .clone()
+            .add(ahead)
+            .sub(new THREE.Vector3(0, 0.5, 0))
+            .toArray(),
+        },
+      };
+      handle.update([exhibit], null);
+      await frame();
+      const corner = { clientX: rect.left + 50, clientY: rect.top + 50 };
+      const press = (type, init) =>
+        canvas.dispatchEvent(
+          new PointerEvent(type, {
+            pointerId: 7,
+            isPrimary: true,
+            button: 0,
+            bubbles: true,
+            cancelable: true,
+            ...corner,
+            ...init,
+          }),
+        );
+      const setLocked = (locked) => {
+        if (locked)
+          Object.defineProperty(document, "pointerLockElement", {
+            configurable: true,
+            get: () => canvas,
+          });
+        else Reflect.deleteProperty(document, "pointerLockElement");
+        document.dispatchEvent(new Event("pointerlockchange"));
+      };
+      clicks.length = 0;
+      // Control: the corner itself is off the exhibit
+      press("pointerdown", { pointerType: "touch" });
+      press("pointerup", { pointerType: "touch" });
+      const cornerClicks = clicks.length;
+      setLocked(true);
+      press("pointerdown", { pointerType: "mouse" });
+      press("pointerup", { pointerType: "mouse" });
+      const lockedClicks = [...clicks];
+      clicks.length = 0;
+      // Looking around while held is a drag, even though the locked mouse never moves on screen
+      press("pointerdown", { pointerType: "mouse" });
+      press("pointermove", { pointerType: "mouse", movementX: 30, buttons: 1 });
+      press("pointerup", { pointerType: "mouse" });
+      const draggedClicks = clicks.length;
+      setLocked(false);
+      manager.setMode("editor");
+      handle.update([object], object.id);
       return {
+        cornerClicks,
+        lockedClicks,
+        draggedClicks,
+        movedBeforeOpen,
+        openedPositionError,
         cameraErrors,
         positionErrors,
         selectionCameraDrift,
@@ -357,6 +434,18 @@ try {
   assert.ok(measured.editCameraDrift < 1e-6, "Edits preserve the live camera");
   assert.ok(measured.reopenedPositionError < 1e-6, "Reopening restores the saved camera position");
   assert.ok(measured.reopenedRotationError < 1e-6, "Reopening restores the saved camera rotation");
+  assert.ok(measured.movedBeforeOpen > 0.1, "The camera moved away before Open");
+  assert.ok(
+    measured.openedPositionError < 1e-6,
+    "Open restores the saved camera even when it clears the selection",
+  );
+  assert.equal(measured.cornerClicks, 0, "The corner where the lock began is off the exhibit");
+  assert.deepEqual(
+    measured.lockedClicks,
+    [fixture.scenes[0].objects[0].id],
+    "A locked Preview click activates what the crosshair is on",
+  );
+  assert.equal(measured.draggedClicks, 0, "Looking around with a locked mouse is not a click");
   assert.equal(measured.hiddenInVisitor, true);
   assert.equal(measured.visibleOnReturn, true);
   assert.equal(measured.unexpectedCommits, 0, "Entering Visitor cancels a pending wheel edit");
@@ -527,6 +616,16 @@ try {
   assert.equal(pinching.commits, 0, "A pinch only commits once it ends");
   await touch("touchEnd");
   assert.equal((await read()).commits, 1, "Lifting the fingers commits one edit");
+  await reset();
+
+  // Spreading side by side changes neither the height between the fingers nor their angle
+  await touch("touchStart", pinchA);
+  await touch("touchStart", pinchA, { x: 160, y: 60, id: 2 });
+  await touch("touchMove", pinchA, { x: 220, y: 60, id: 2 });
+  await touch("touchMove", pinchA, { x: 300, y: 60, id: 2 });
+  assert.ok((await read()).scale > 1, "A horizontal pinch scales too");
+  await touch("touchEnd");
+  assert.equal((await read()).commits, 1, "Lifting a horizontal pinch commits one edit");
   await reset();
 
   await touchPage.evaluate(() => window.harness.manager.setMode("visitor"));
