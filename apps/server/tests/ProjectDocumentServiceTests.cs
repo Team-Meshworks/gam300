@@ -25,8 +25,49 @@ public sealed class ProjectDocumentServiceTests
 
         await Assert.That(development.Read(id, json.Replace("test-crate-v1", "demo-image-v1", StringComparison.Ordinal)).Ok).IsFalse();
         await Assert.That(development.Read(id, json.Replace("test-room-v1", "test-crate-v1", StringComparison.Ordinal)).Ok).IsFalse();
+        foreach (var asset in new[] { "display-square-stand-v1", "display-cube-v1" })
+        {
+            var fixture = json.Replace("test-crate-v1", asset, StringComparison.Ordinal);
+            await Assert.That(development.Read(id, fixture).Ok).IsTrue();
+            await Assert.That(Create("Production").Read(id, fixture).Ok).IsFalse();
+        }
         await Assert.That(Create("Production").Read(id, json).Ok).IsFalse();
         await Assert.That(Create("Testing").Read(id, json).Ok).IsFalse();
+    }
+
+    [Test]
+    [Arguments("image", "sample-landscape-image-v1")]
+    [Arguments("image", "sample-coast-image-v1")]
+    [Arguments("video", "sample-coast-video-v1")]
+    [Arguments("image", "sample-dunes-image-v1")]
+    [Arguments("image", "sample-forest-image-v1")]
+    [Arguments("image", "sample-sunset-image-v1")]
+    [Arguments("image", "sample-valley-image-v1")]
+    [Arguments("video", "sample-dunes-video-v1")]
+    [Arguments("video", "sample-forest-video-v1")]
+    [Arguments("video", "sample-sunset-video-v1")]
+    public async Task Documents_SampleMediaRoundTripsOnlyInDevelopment(string kind, string assetId)
+    {
+        var id = Guid.NewGuid();
+        var input = JsonNode.Parse(ProjectTestDocuments.Create(id, "Sample media", 2))!;
+        var components = input["scenes"]![0]!["objects"]![0]!["components"]!.AsArray();
+        components.Add(new JsonObject
+        {
+            ["id"] = Guid.NewGuid().ToString("D"),
+            ["type"] = kind,
+            ["assetId"] = assetId,
+            ["caption"] = "Sample caption",
+        });
+        var component = components.Last()!;
+        if (kind == "image") { component["alt"] = "Sample landscape"; }
+        else { component["loop"] = false; component["volume"] = 1; }
+        var development = Create("Development");
+        var accepted = development.Read(id, input.ToJsonString());
+        await Assert.That(accepted.Ok).IsTrue();
+        var saved = development.Serialize(accepted.Value!);
+        await Assert.That(saved.Ok).IsTrue();
+        await Assert.That(development.Read(id, saved.Value!).Ok).IsTrue();
+        await Assert.That(Create("Production").Read(id, input.ToJsonString()).Ok).IsFalse();
     }
 
     [Test]

@@ -38,18 +38,22 @@ public sealed class ProjectDocumentService
             if (id is not ("test-room-v1" or "test-room-module-v1" or "test-crate-v1" or "sample-snowglobe-v1"
                 or "display-cube-v1" or "display-full-glass-case-v1" or "display-half-glass-case-v1"
                 or "display-one-sided-glass-case-v1" or "display-rectangle-stand-v1"
-                or "display-rectangle-panel-v1" or "display-square-stand-v1" or "display-square-panel-v1"))
+                or "display-rectangle-panel-v1" or "display-square-stand-v1" or "display-square-panel-v1" or "sample-landscape-image-v1" or "sample-coast-image-v1" or "sample-coast-video-v1"
+                or "sample-dunes-image-v1" or "sample-forest-image-v1" or "sample-sunset-image-v1" or "sample-valley-image-v1" or "sample-dunes-video-v1" or "sample-forest-video-v1" or "sample-sunset-video-v1"))
             {
                 continue;
             }
             var kind = entry.GetProperty("kind").GetString()!;
+            var expectedKind = id is "sample-landscape-image-v1" or "sample-coast-image-v1" or "sample-dunes-image-v1" or "sample-forest-image-v1" or "sample-sunset-image-v1" or "sample-valley-image-v1" ? "image"
+                : id is "sample-coast-video-v1" or "sample-dunes-video-v1" or "sample-forest-video-v1" or "sample-sunset-video-v1" ? "video"
+                : id == "test-room-v1" ? "environment" : "model";
             if (entry.GetProperty("access").GetString() != "development-only"
-                || kind != (id == "test-room-v1" ? "environment" : "model") || !assets.TryAdd(id, kind))
+                || kind != expectedKind || !assets.TryAdd(id, kind))
             {
                 throw new InvalidOperationException("Invalid packaged development asset catalogue.");
             }
         }
-        if (assets.Count != 12)
+        if (assets.Count != 22)
         {
             throw new InvalidOperationException("The packaged development asset catalogue is incomplete.");
         }
