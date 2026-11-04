@@ -1,3 +1,5 @@
+import { snapRoomPlacement } from "../shared/project/room-placement";
+import type { ExhibitAppearance } from "../shared/project/project-appearance";
 import {
   validateCameraPose,
   validatePosition,
@@ -122,62 +124,6 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
   // Choosing a room creates the project; imports can supply one directly
   let project: ProjectDocument | null = null;
   let projectAssets: ReadonlyMap<string, string> = new Map();
-
-  function snapRoom(position: Vector3Tuple): Vector3Tuple | null {
-    // The approved test-room GLB spans -5 to 5 on floor axes and -0.2 to 3 in height
-    // Keep this asset-specific until production rooms supply approved connection points
-    const rooms = objects.filter((object) => object.assetId === "test-room-module-v1");
-    const footprints = rooms.map(({ transform }) => {
-      const [x, y, z, w] = transform.rotation;
-      const [sx, sy, sz] = transform.scale;
-      // Project the transformed room bounds onto the floor, including tilted rooms
-      // Conservative bounds prevent a new room from cutting through existing geometry
-      const xx = 1 - 2 * (y * y + z * z);
-      const xy = 2 * (x * y - z * w);
-      const xz = 2 * (x * z + y * w);
-      const zx = 2 * (x * z - y * w);
-      const zy = 2 * (y * z + x * w);
-      const zz = 1 - 2 * (x * x + y * y);
-      return {
-        x: transform.position[0] + xy * 1.4 * sy,
-        z: transform.position[2] + zy * 1.4 * sy,
-        halfX: Math.abs(xx * sx * 5) + Math.abs(xy * sy * 1.6) + Math.abs(xz * sz * 5),
-        halfZ: Math.abs(zx * sx * 5) + Math.abs(zy * sy * 1.6) + Math.abs(zz * sz * 5),
-      };
-    });
-    // The initial environment has no object transform and always occupies the origin
-    if (activeScene()?.environmentAssetId === "test-room-v1") {
-      footprints.unshift({ x: 0, z: 0, halfX: 5, halfZ: 5 });
-    }
-    if (footprints.length === 0) {
-      return position;
-    }
-
-    // Compare the four adjoining positions on every room, skipping occupied sides
-    // Pointer proximity chooses the side; stable ordering resolves exact ties
-    const candidates: Vector3Tuple[] = footprints.flatMap((room) => [
-      [room.x + room.halfX + 5, 0, room.z],
-      [room.x - room.halfX - 5, 0, room.z],
-      [room.x, 0, room.z + room.halfZ + 5],
-      [room.x, 0, room.z - room.halfZ - 5],
-    ]);
-    const available = candidates.filter(
-      ([x, , z]) =>
-        Math.abs(x) <= 10_000 &&
-        Math.abs(z) <= 10_000 &&
-        footprints.every(
-          (room) =>
-            Math.abs(x - room.x) >= room.halfX + 5 - 1e-8 ||
-            Math.abs(z - room.z) >= room.halfZ + 5 - 1e-8,
-        ),
-    );
-    available.sort(
-      (a, b) =>
-        Math.hypot(a[0] - position[0], a[2] - position[2]) -
-        Math.hypot(b[0] - position[0], b[2] - position[2]),
-    );
-    return available[0] ?? null;
-  }
 
   // Keep history here so the buttons and future edit controls share one undo order.
   type State = Readonly<{ objects: readonly SceneObject[] }> &
@@ -309,6 +255,15 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
     // Carry descendants in the active scene through the same immutable transform command
     const groups = project?.schemaVersion === 2 ? activeGroups() : [];
     const result = prepareTransformCommand(objects, input, groups);
+    if (result.ok) {
+      const proposed = result.value.object;
+      const before = objects.find((item) => item.id === proposed.id)!;
+      if (
+        proposed.assetId === "test-room-module-v1" &&
+        proposed.transform.scale.some((value, axis) => value !== before.transform.scale[axis])
+      )
+        return invalid("transform.scale", "Rooms cannot be scaled");
+    }
     if (!result.ok) {
       return result;
     }
@@ -482,6 +437,24 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
   }
 
   return {
+    removeDisplayMedia(objectId: string) {
+      const object = objects.find((entry) => entry.id === objectId);
+      if (!object || assets.find((asset) => asset.id === object.assetId)?.displayRole !== "digital")
+        return invalid("objectId", "Choose a display panel or stand");
+      return editHierarchy("Remove display media", (scene) => ({
+        ...scene,
+        objects: scene.objects.map((entry) =>
+          entry.id === objectId
+            ? {
+                ...entry,
+                components: entry.components.filter(
+                  (component) => component.type !== "image" && component.type !== "video",
+                ),
+              }
+            : entry,
+        ),
+      }));
+    },
     setDisplayContent(objectId: string, component: ContentComponent | null) {
       if (project === null) return invalid("project", "Choose a room first");
       const target = objects.find((object) => object.id === objectId);
@@ -523,7 +496,57 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
         component ? "Edit display content" : "Remove display content",
       );
     },
-    addAttachedObject(assetId: string, parentId: string, position: Vector3Tuple) {
+    setAppearance(id: string, appearance: ExhibitAppearance): ValidationResult<true> {
+      if (!objects.some((object) => object.id === id))
+        return invalid("object", "Select an exhibit first");
+      return editHierarchy("Edit exhibit appearance", (scene) => ({
+        ...scene,
+        objects: scene.objects.map((object) =>
+          object.id === id ? { ...object, appearance } : object,
+        ),
+      }));
+    },
+    editExhibit(
+      id: string,
+      before: SceneObject,
+      fields: Readonly<{
+        name: string;
+        transform: Transform;
+        components: readonly ContentComponent[];
+      }>,
+    ): ValidationResult<true> {
+      // Bind a form to the object it opened; external edits must not be overwritten by an old draft
+      const object = objects.find((entry) => entry.id === id);
+      if (!object || JSON.stringify(object) !== JSON.stringify(before)) {
+        return invalid("object", "This exhibit changed; cancel and reopen its properties");
+      }
+      const prepared = prepareTransformCommand(
+        objects,
+        { objectId: id, before: object.transform, after: fields.transform },
+        activeGroups(),
+      );
+      if (!prepared.ok) return prepared;
+
+      // Reuse hierarchy upgrade and full-project validation before one reversible snapshot
+      // Carry attached descendants with the same transform command used by the gizmos
+      return editHierarchy("Edit exhibit", (scene) => {
+        const moved = prepared.value.command?.apply(scene.objects) ?? scene.objects;
+        return {
+          ...scene,
+          objects: scene.objects.map((entry, index) => ({
+            ...entry,
+            ...moved[index],
+            ...(entry.id === id ? fields : {}),
+          })),
+        };
+      });
+    },
+    addAttachedObject(
+      assetId: string,
+      parentId: string,
+      position: Vector3Tuple,
+      fitted?: Transform,
+    ) {
       // A placed case is identified by its object ID, never its asset name or list position
       // The caller supplies the model's display surface in world coordinates
       if (!objects.some((object) => object.id === parentId)) {
@@ -534,7 +557,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
         return { ok: false, error: "Choose a model from this project's catalog" } as const;
       }
       const transform = validateTransform(
-        { position, rotation: [0, 0, 0, 1], scale: [1, 1, 1] },
+        fitted ?? { position, rotation: [0, 0, 0, 1], scale: [1, 1, 1] },
         "transform",
       );
       if (!transform.ok) return { ok: false, error: transform.error.message } as const;
@@ -554,7 +577,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
         id: previous?.id ?? createId(),
         name: asset.name,
         assetId,
-        transform: previous?.transform ?? transform.value,
+        transform: fitted ? transform.value : (previous?.transform ?? transform.value),
         parentId,
         visible: previous?.visible ?? true,
         components: previous?.components ?? [],
@@ -952,6 +975,14 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
         return result;
       }
       const after = result.value;
+      const object = objects.find((item) => item.id === edit!.objectId);
+      if (
+        object?.assetId === "test-room-module-v1" &&
+        after.scale.some((value, axis) => value !== edit!.before.scale[axis])
+      ) {
+        clearEdit();
+        return invalid("transform.scale", "Rooms cannot be scaled");
+      }
       Object.freeze(after.position);
       Object.freeze(after.rotation);
       Object.freeze(after.scale);
@@ -1196,7 +1227,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       // Snap before creating the command so saved data, rendering and Redo share one position
       // Other assets keep their chosen coordinates and parent-selection behavior
       if (assetId === "test-room-module-v1" && project !== null) {
-        const snapped = snapRoom(position);
+        const snapped = snapRoomPlacement(position, objects, activeScene()?.environmentAssetId);
         if (snapped === null) {
           return {
             ok: false,
