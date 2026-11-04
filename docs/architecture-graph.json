@@ -6894,6 +6894,78 @@
       "file": "editor/ui/ExhibitPopups.tsx",
       "line": 2,
       "kind": "static",
+      "specifier": "react",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/ui/ExhibitPopups.tsx",
+      "line": 3,
+      "kind": "type",
+      "specifier": "../../shared/project/project-content",
+      "target": "shared/project/project-content.ts",
+      "from": "editor",
+      "to": "project"
+    },
+    {
+      "file": "editor/ui/ExhibitPopups.tsx",
+      "line": 4,
+      "kind": "type",
+      "specifier": "../../shared/project/scene-object",
+      "target": "shared/project/scene-object.ts",
+      "from": "editor",
+      "to": "project"
+    },
+    {
+      "file": "editor/ui/ExhibitPopups.tsx",
+      "line": 5,
+      "kind": "static",
+      "specifier": "../../shared/project/project-appearance",
+      "target": "shared/project/project-appearance.ts",
+      "from": "editor",
+      "to": "project"
+    },
+    {
+      "file": "editor/ui/ExhibitPopups.tsx",
+      "line": 10,
+      "kind": "type",
+      "specifier": "../../shared/project/validation-helpers",
+      "target": "shared/project/validation-helpers.ts",
+      "from": "editor",
+      "to": "project"
+    },
+    {
+      "file": "editor/ui/ExhibitPopups.tsx",
+      "line": 11,
+      "kind": "type",
+      "specifier": "./ContentEditor",
+      "target": "editor/ui/ContentEditor.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/ExhibitPopups.tsx",
+      "line": 12,
+      "kind": "static",
+      "specifier": "./Icon",
+      "target": "editor/ui/Icon.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/ExhibitPopups.tsx",
+      "line": 13,
+      "kind": "static",
+      "specifier": "./exhibit-popups.css",
+      "target": "editor/ui/exhibit-popups.css",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/ExhibitPopups.tsx",
+      "line": 82,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -7095,7 +7167,7 @@
       "from": "editor"
     },
     {
-      "file": "editor/ui/SceneTreePanel.tsx",
+      "file": "editor/ui/RichTextInput.tsx",
       "line": 1,
       "kind": "static",
       "specifier": "react",
@@ -7105,7 +7177,7 @@
       "from": "editor"
     },
     {
-      "file": "editor/ui/SceneTreePanel.tsx",
+      "file": "editor/ui/RichTextInput.tsx",
       "line": 2,
       "kind": "type",
       "specifier": "../../shared/project/project-content",
@@ -7114,8 +7186,64 @@
       "to": "project"
     },
     {
+      "file": "editor/ui/RichTextInput.tsx",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./text-runs",
+      "target": "editor/ui/text-runs.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/RichTextInput.tsx",
+      "line": 121,
+      "kind": "implicit-jsx",
+      "specifier": "react/jsx-runtime",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/ui/SceneTreePanel.tsx",
+      "line": 1,
+      "kind": "type",
+      "specifier": "../../shared/asset-runtime/catalogue",
+      "target": "shared/asset-runtime/catalogue.ts",
+      "from": "editor",
+      "to": "catalogue"
+    },
+    {
+      "file": "editor/ui/SceneTreePanel.tsx",
+      "line": 2,
+      "kind": "static",
+      "specifier": "./display-tools",
+      "target": "editor/ui/display-tools.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
       "file": "editor/ui/SceneTreePanel.tsx",
       "line": 3,
+      "kind": "static",
+      "specifier": "react",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/ui/SceneTreePanel.tsx",
+      "line": 4,
+      "kind": "type",
+      "specifier": "../../shared/project/project-content",
+      "target": "shared/project/project-content.ts",
+      "from": "editor",
+      "to": "project"
+    },
+    {
+      "file": "editor/ui/SceneTreePanel.tsx",
+      "line": 5,
       "kind": "type",
       "specifier": "../../shared/project/scene-object",
       "target": "shared/project/scene-object.ts",
@@ -7124,7 +7252,7 @@
     },
     {
       "file": "editor/ui/SceneTreePanel.tsx",
-      "line": 4,
+      "line": 6,
       "kind": "static",
       "specifier": "./Icon",
       "target": "editor/ui/Icon.tsx",
@@ -7133,7 +7261,7 @@
     },
     {
       "file": "editor/ui/SceneTreePanel.tsx",
-      "line": 29,
+      "line": 33,
       "kind": "type-query",
       "specifier": "../../shared/project/project-types",
       "target": "shared/project/project-types.ts",
@@ -7142,7 +7270,7 @@
     },
     {
       "file": "editor/ui/SceneTreePanel.tsx",
-      "line": 96,
+      "line": 100,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -7153,6 +7281,15 @@
     {
       "file": "editor/ui/SidePanels.tsx",
       "line": 1,
+      "kind": "type",
+      "specifier": "../../shared/asset-runtime/catalogue",
+      "target": "shared/asset-runtime/catalogue.ts",
+      "from": "editor",
+      "to": "catalogue"
+    },
+    {
+      "file": "editor/ui/SidePanels.tsx",
+      "line": 2,
       "kind": "static",
       "specifier": "react",
       "target": {
@@ -7162,7 +7299,7 @@
     },
     {
       "file": "editor/ui/SidePanels.tsx",
-      "line": 2,
+      "line": 3,
       "kind": "type",
       "specifier": "../../shared/project/scene-object",
       "target": "shared/project/scene-object.ts",
@@ -7171,7 +7308,7 @@
     },
     {
       "file": "editor/ui/SidePanels.tsx",
-      "line": 3,
+      "line": 4,
       "kind": "type",
       "specifier": "../../shared/project/project-types",
       "target": "shared/project/project-types.ts",
@@ -7180,7 +7317,7 @@
     },
     {
       "file": "editor/ui/SidePanels.tsx",
-      "line": 9,
+      "line": 10,
       "kind": "static",
       "specifier": "./Icon",
       "target": "editor/ui/Icon.tsx",
@@ -7189,7 +7326,7 @@
     },
     {
       "file": "editor/ui/SidePanels.tsx",
-      "line": 10,
+      "line": 11,
       "kind": "type",
       "specifier": "../interaction/interactionHandler",
       "target": "editor/interaction/interactionHandler.ts",
@@ -7198,7 +7335,7 @@
     },
     {
       "file": "editor/ui/SidePanels.tsx",
-      "line": 11,
+      "line": 12,
       "kind": "static",
       "specifier": "./InteractionPanel",
       "target": "editor/ui/InteractionPanel.tsx",
@@ -7207,7 +7344,7 @@
     },
     {
       "file": "editor/ui/SidePanels.tsx",
-      "line": 12,
+      "line": 13,
       "kind": "static",
       "specifier": "./rotation-angles",
       "target": "editor/ui/rotation-angles.ts",
@@ -7216,7 +7353,7 @@
     },
     {
       "file": "editor/ui/SidePanels.tsx",
-      "line": 14,
+      "line": 15,
       "kind": "static",
       "specifier": "./SceneTreePanel",
       "target": "editor/ui/SceneTreePanel.tsx",
@@ -7225,7 +7362,7 @@
     },
     {
       "file": "editor/ui/SidePanels.tsx",
-      "line": 15,
+      "line": 16,
       "kind": "type",
       "specifier": "../../shared/project/project-content",
       "target": "shared/project/project-content.ts",
@@ -7234,7 +7371,16 @@
     },
     {
       "file": "editor/ui/SidePanels.tsx",
-      "line": 74,
+      "line": 17,
+      "kind": "type",
+      "specifier": "./ContentEditor",
+      "target": "editor/ui/ContentEditor.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/SidePanels.tsx",
+      "line": 80,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -7522,6 +7668,53 @@
       "to": "project"
     },
     {
+      "file": "editor/ui/text-runs.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/ui/text-runs.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "./text-runs",
+      "target": "editor/ui/text-runs.ts",
+      "from": "checks",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/text-runs.test.ts",
+      "line": 6,
+      "kind": "type-query",
+      "specifier": "../../shared/project/project-content",
+      "target": "shared/project/project-content.ts",
+      "from": "checks",
+      "to": "project"
+    },
+    {
+      "file": "editor/ui/text-runs.ts",
+      "line": 1,
+      "kind": "type",
+      "specifier": "../../shared/project/project-content",
+      "target": "shared/project/project-content.ts",
+      "from": "editor",
+      "to": "project"
+    },
+    {
+      "file": "editor/ui/use-drag-image.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "react",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
       "file": "editor/viewpoints.test.ts",
       "line": 1,
       "kind": "static",
@@ -7617,6 +7810,15 @@
     {
       "file": "editor/viewport/Viewport.tsx",
       "line": 1,
+      "kind": "type",
+      "specifier": "../../shared/project/project-content",
+      "target": "shared/project/project-content.ts",
+      "from": "editor",
+      "to": "project"
+    },
+    {
+      "file": "editor/viewport/Viewport.tsx",
+      "line": 2,
       "kind": "static",
       "specifier": "react",
       "target": {
@@ -7626,7 +7828,7 @@
     },
     {
       "file": "editor/viewport/Viewport.tsx",
-      "line": 2,
+      "line": 3,
       "kind": "static",
       "specifier": "../../shared/asset-runtime/catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -7635,7 +7837,7 @@
     },
     {
       "file": "editor/viewport/Viewport.tsx",
-      "line": 3,
+      "line": 4,
       "kind": "static",
       "specifier": "../../shared/asset-runtime/hotspot",
       "target": "shared/asset-runtime/hotspot.ts",
@@ -7644,7 +7846,7 @@
     },
     {
       "file": "editor/viewport/Viewport.tsx",
-      "line": 4,
+      "line": 5,
       "kind": "type",
       "specifier": "../../shared/project/scene-object",
       "target": "shared/project/scene-object.ts",
@@ -7653,21 +7855,12 @@
     },
     {
       "file": "editor/viewport/Viewport.tsx",
-      "line": 5,
+      "line": 6,
       "kind": "type",
       "specifier": "../../shared/project/project-types",
       "target": "shared/project/project-types.ts",
       "from": "editor",
       "to": "project"
-    },
-    {
-      "file": "editor/viewport/Viewport.tsx",
-      "line": 11,
-      "kind": "type",
-      "specifier": "../graphics/scene",
-      "target": "editor/graphics/scene.ts",
-      "from": "editor",
-      "to": "rendering"
     },
     {
       "file": "editor/viewport/Viewport.tsx",
@@ -7682,6 +7875,9 @@
       "file": "editor/viewport/Viewport.tsx",
       "line": 13,
       "kind": "type",
+      "specifier": "../graphics/scene",
+      "target": "editor/graphics/scene.ts",
+      "from": "editor",
       "specifier": "../graphics/modeManager",
       "target": "editor/graphics/modeManager.ts",
       "from": "editor",
