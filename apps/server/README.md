@@ -2116,10 +2116,13 @@ as an immutable identity.
 
 PostgreSQL checks document/project/schema agreement, bounded source revisions,
 complete manifest entries, distinct asset IDs, finite timestamps, required fields
-and digest length. The `TR_publications_immutable` trigger rejects **every UPDATE**,
-including direct SQL, manifest replacement and request-identity changes. Foreign
-keys restrict deletion of referenced projects/accounts instead of cascading into
-publication history. There is no purge job, expiry rule or new retention policy.
+and digest length. The additive `ProtectPublicationHistory` migration extends
+`TR_publications_immutable` to reject **every UPDATE and DELETE**, including direct
+SQL, manifest replacement and request-identity changes. This prevents a runtime
+role from deleting an edition and replacing it under the same ID. Foreign keys
+restrict deletion of referenced projects/accounts instead of cascading into
+publication history. There is no runtime purge or bypass, expiry rule or approved
+retention policy in this change.
 Audience and revocation state belong to SCRUM-71 and must remain separate from the
 immutable snapshot.
 
