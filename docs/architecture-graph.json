@@ -6561,6 +6561,164 @@
         "package": "react"
       },
       "from": "editor"
+    },
+    {
+      "file": "editor/ui/ContentEditor.tsx",
+      "line": 1,
+      "kind": "static",
+      "specifier": "./ColorSwatches",
+      "target": "editor/ui/ColorSwatches.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/ContentEditor.tsx",
+      "line": 2,
+      "kind": "static",
+      "specifier": "../../shared/project/project-appearance",
+      "target": "shared/project/project-appearance.ts",
+      "from": "editor",
+      "to": "project"
+    },
+    {
+      "file": "editor/ui/ContentEditor.tsx",
+      "line": 3,
+      "kind": "static",
+      "specifier": "react",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/ui/ContentEditor.tsx",
+      "line": 4,
+      "kind": "type",
+      "specifier": "../../shared/project/scene-object",
+      "target": "shared/project/scene-object.ts",
+      "from": "editor",
+      "to": "project"
+    },
+    {
+      "file": "editor/ui/ContentEditor.tsx",
+      "line": 5,
+      "kind": "type",
+      "specifier": "../../shared/project/project-types",
+      "target": "shared/project/project-types.ts",
+      "from": "editor",
+      "to": "project"
+    },
+    {
+      "file": "editor/ui/ContentEditor.tsx",
+      "line": 6,
+      "kind": "type",
+      "specifier": "../../shared/project/project-content",
+      "target": "shared/project/project-content.ts",
+      "from": "editor",
+      "to": "project"
+    },
+    {
+      "file": "editor/ui/ContentEditor.tsx",
+      "line": 11,
+      "kind": "type",
+      "specifier": "../../shared/project/validation-helpers",
+      "target": "shared/project/validation-helpers.ts",
+      "from": "editor",
+      "to": "project"
+    },
+    {
+      "file": "editor/ui/ContentEditor.tsx",
+      "line": 12,
+      "kind": "static",
+      "specifier": "./text-runs",
+      "target": "editor/ui/text-runs.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/ContentEditor.tsx",
+      "line": 13,
+      "kind": "static",
+      "specifier": "./RichTextInput",
+      "target": "editor/ui/RichTextInput.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/ContentEditor.tsx",
+      "line": 14,
+      "kind": "static",
+      "specifier": "./Icon",
+      "target": "editor/ui/Icon.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/ContentEditor.tsx",
+      "line": 15,
+      "kind": "static",
+      "specifier": "./AssetFilterSelect",
+      "target": "editor/ui/AssetFilterSelect.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/ContentEditor.tsx",
+      "line": 16,
+      "kind": "static",
+      "specifier": "./asset-filters",
+      "target": "editor/ui/asset-filters.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/ContentEditor.tsx",
+      "line": 17,
+      "kind": "static",
+      "specifier": "./assets/editor-text.svg?no-inline",
+      "target": "editor/ui/assets/editor-text.svg",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/ContentEditor.tsx",
+      "line": 18,
+      "kind": "static",
+      "specifier": "./assets/editor-video.svg?no-inline",
+      "target": "editor/ui/assets/editor-video.svg",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/ContentEditor.tsx",
+      "line": 19,
+      "kind": "static",
+      "specifier": "./assets/editor-image.svg?no-inline",
+      "target": "editor/ui/assets/editor-image.svg",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/ContentEditor.tsx",
+      "line": 20,
+      "kind": "static",
+      "specifier": "./assets/editor-video-selected-bg.svg?no-inline",
+      "target": "editor/ui/assets/editor-video-selected-bg.svg",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/ContentEditor.tsx",
+      "line": 21,
+      "kind": "static",
+      "specifier": "./content-editor.css",
+      "target": "editor/ui/content-editor.css",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/ContentEditor.tsx",
+      "line": 182,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -6654,24 +6812,6 @@
       "file": "editor/ui/DisplayEditor.tsx",
       "line": 21,
       "kind": "static",
-      "specifier": "./assets/editor-info.svg?no-inline",
-      "target": "editor/ui/assets/editor-info.svg",
-      "from": "editor",
-      "to": "editor"
-    },
-    {
-      "file": "editor/ui/DisplayEditor.tsx",
-      "line": 22,
-      "kind": "static",
-      "specifier": "./assets/editor-close.svg?no-inline",
-      "target": "editor/ui/assets/editor-close.svg",
-      "from": "editor",
-      "to": "editor"
-    },
-    {
-      "file": "editor/ui/DisplayEditor.tsx",
-      "line": 23,
-      "kind": "static",
       "specifier": "./assets/editor-text.svg?no-inline",
       "target": "editor/ui/assets/editor-text.svg",
       "from": "editor",
@@ -6679,7 +6819,7 @@
     },
     {
       "file": "editor/ui/DisplayEditor.tsx",
-      "line": 24,
+      "line": 22,
       "kind": "static",
       "specifier": "./assets/editor-video.svg?no-inline",
       "target": "editor/ui/assets/editor-video.svg",
@@ -6688,7 +6828,7 @@
     },
     {
       "file": "editor/ui/DisplayEditor.tsx",
-      "line": 25,
+      "line": 23,
       "kind": "static",
       "specifier": "./assets/editor-image.svg?no-inline",
       "target": "editor/ui/assets/editor-image.svg",
@@ -6697,25 +6837,7 @@
     },
     {
       "file": "editor/ui/DisplayEditor.tsx",
-      "line": 26,
-      "kind": "static",
-      "specifier": "./assets/editor-text-selected.svg?no-inline",
-      "target": "editor/ui/assets/editor-text-selected.svg",
-      "from": "editor",
-      "to": "editor"
-    },
-    {
-      "file": "editor/ui/DisplayEditor.tsx",
-      "line": 27,
-      "kind": "static",
-      "specifier": "./assets/editor-image-selected.svg?no-inline",
-      "target": "editor/ui/assets/editor-image-selected.svg",
-      "from": "editor",
-      "to": "editor"
-    },
-    {
-      "file": "editor/ui/DisplayEditor.tsx",
-      "line": 28,
+      "line": 24,
       "kind": "static",
       "specifier": "./assets/editor-video-selected-bg.svg?no-inline",
       "target": "editor/ui/assets/editor-video-selected-bg.svg",
@@ -6724,7 +6846,7 @@
     },
     {
       "file": "editor/ui/DisplayEditor.tsx",
-      "line": 29,
+      "line": 25,
       "kind": "static",
       "specifier": "./assets/editor-library-selected.svg?no-inline",
       "target": "editor/ui/assets/editor-library-selected.svg",
@@ -6733,34 +6855,16 @@
     },
     {
       "file": "editor/ui/DisplayEditor.tsx",
-      "line": 30,
+      "line": 26,
       "kind": "static",
-      "specifier": "./assets/editor-search.svg?no-inline",
-      "target": "editor/ui/assets/editor-search.svg",
+      "specifier": "./Icon",
+      "target": "editor/ui/Icon.tsx",
       "from": "editor",
       "to": "editor"
     },
     {
       "file": "editor/ui/DisplayEditor.tsx",
-      "line": 31,
-      "kind": "static",
-      "specifier": "./assets/editor-heart.svg?no-inline",
-      "target": "editor/ui/assets/editor-heart.svg",
-      "from": "editor",
-      "to": "editor"
-    },
-    {
-      "file": "editor/ui/DisplayEditor.tsx",
-      "line": 32,
-      "kind": "static",
-      "specifier": "./assets/editor-caret.svg?no-inline",
-      "target": "editor/ui/assets/editor-caret.svg",
-      "from": "editor",
-      "to": "editor"
-    },
-    {
-      "file": "editor/ui/DisplayEditor.tsx",
-      "line": 33,
+      "line": 27,
       "kind": "static",
       "specifier": "./display-editor.css",
       "target": "editor/ui/display-editor.css",
@@ -6769,7 +6873,27 @@
     },
     {
       "file": "editor/ui/DisplayEditor.tsx",
-      "line": 40,
+      "line": 34,
+      "kind": "implicit-jsx",
+      "specifier": "react/jsx-runtime",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/ui/ExhibitPopups.tsx",
+      "line": 1,
+      "kind": "static",
+      "specifier": "./ColorSwatches",
+      "target": "editor/ui/ColorSwatches.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/ExhibitPopups.tsx",
+      "line": 2,
+      "kind": "static",
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
