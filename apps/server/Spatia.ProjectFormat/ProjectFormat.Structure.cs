@@ -7,7 +7,14 @@ namespace Spatia.ProjectFormat;
 // Check exact field shapes and local values before resolving entity or asset references
 public static partial class ProjectFormat
 {
-    private static void Fields(JsonElement value, string path, params string[] fields)
+    private static void Fields(JsonElement value, string path, params string[] fields) =>
+        Fields(value, path, fields, []);
+
+    private static void Fields(
+        JsonElement value,
+        string path,
+        string[] fields,
+        string[] optional)
     {
         // Check the field set before readers use GetProperty so missing data gets a useful error path
         if (value.ValueKind != JsonValueKind.Object)
@@ -26,7 +33,8 @@ public static partial class ProjectFormat
         // Reject misspellings and unsupported fields instead of silently dropping authored data
         foreach (var property in value.EnumerateObject())
         {
-            if (!fields.Contains(property.Name, StringComparer.Ordinal))
+            if (!fields.Contains(property.Name, StringComparer.Ordinal)
+                && !optional.Contains(property.Name, StringComparer.Ordinal))
             {
                 Fail($"{path}.{property.Name}", "Unknown field");
             }
@@ -393,6 +401,90 @@ public static partial class ProjectFormat
         }
     }
 
+    private static void Hotspot(JsonElement value, string path)
+    {
+        // Scene hotspots attach to one object and store their position in that object's local space
+        Fields(value, path, "id", "objectId", "position");
+        Text(Get(value, "id"), $"{path}.id");
+        Text(Get(value, "objectId"), $"{path}.objectId");
+        Vector(Get(value, "position"), $"{path}.position", 3, -10000, 10000);
+    }
+
+    private static void InteractionTrigger(JsonElement value, string path)
+    {
+        // Scene interaction tags differ from content rule triggers and keep their own field sets
+        if (value.ValueKind != JsonValueKind.Object)
+        {
+            Fail(path, "Expected a trigger");
+        }
+
+        var type = value.TryGetProperty("type", out var tag) && tag.ValueKind == JsonValueKind.String ? tag.GetString() : null;
+        switch (type)
+        {
+            case "visitor-clicks-hotspot":
+                Fields(value, path, "type", "targetHotspotId");
+                Text(Get(value, "targetHotspotId"), $"{path}.targetHotspotId");
+                break;
+            case "scene-starts":
+                Fields(value, path, "type");
+                break;
+            case "time-elapsed":
+                Fields(value, path, "type", "seconds");
+                Number(Get(value, "seconds"), $"{path}.seconds", double.Epsilon, 86400);
+                break;
+            default:
+                Fail($"{path}.type", "Unsupported trigger type");
+                break;
+        }
+    }
+
+    private static void InteractionAction(JsonElement value, string path)
+    {
+        // Open links use the shared portable HTTPS rules; audio remains authored text
+        if (value.ValueKind != JsonValueKind.Object)
+        {
+            Fail(path, "Expected an action");
+        }
+
+        var type = value.TryGetProperty("type", out var tag) && tag.ValueKind == JsonValueKind.String ? tag.GetString() : null;
+        switch (type)
+        {
+            case "open-link":
+                Fields(value, path, "type", "url");
+                var link = Text(Get(value, "url"), $"{path}.url", 2048);
+                if (!HttpsLink(link))
+                {
+                    Fail($"{path}.url", "Expected an absolute HTTPS URL without credentials");
+                }
+                break;
+            case "play-audio":
+                Fields(value, path, "type", "url");
+                Text(Get(value, "url"), $"{path}.url", 2048);
+                break;
+            case "navigate-scene":
+                Fields(value, path, "type", "sceneId");
+                Text(Get(value, "sceneId"), $"{path}.sceneId");
+                break;
+            case "move-to-viewpoint":
+                Fields(value, path, "type", "viewpointId");
+                Text(Get(value, "viewpointId"), $"{path}.viewpointId");
+                break;
+            case "print-hi":
+                Fields(value, path, "type");
+                break;
+            default:
+                Fail($"{path}.type", "Unsupported action type");
+                break;
+        }
+    }
+
+    private static void Interaction(JsonElement value, string path)
+    {
+        Fields(value, path, "when", "do");
+        InteractionTrigger(Get(value, "when"), $"{path}.when");
+        InteractionAction(Get(value, "do"), $"{path}.do");
+    }
+
     private static void Structure(JsonElement root, bool content)
     {
         // Walk the document from the root down before any typed records are constructed
@@ -412,7 +504,8 @@ public static partial class ProjectFormat
         {
             Fields(scene, path, content
                 ? ["id", "name", "environmentAssetId", "startCamera", "objects", "groups", "zones", "viewpoints", "rules"]
-                : ["id", "name", "environmentAssetId", "startCamera", "objects"]);
+                : ["id", "name", "environmentAssetId", "startCamera", "objects"],
+                ["hotspots", "interactions"]);
 
             // Version 1 retains its released text and spatial limits
             var maxText = content ? 256 : int.MaxValue;
@@ -438,6 +531,16 @@ public static partial class ProjectFormat
                 Boolean(Get(item, "visible"), $"{path}.visible");
                 Array(Get(item, "components"), $"{path}.components", 16, Component);
             });
+
+            // Scene hotspots and interactions are shared by both released formats and default to empty
+            if (scene.TryGetProperty("hotspots", out var hotspots))
+            {
+                Array(hotspots, $"{path}.hotspots", 200, Hotspot);
+            }
+            if (scene.TryGetProperty("interactions", out var interactions))
+            {
+                Array(interactions, $"{path}.interactions", 200, Interaction);
+            }
             if (!content)
             {
                 return;

@@ -1,14 +1,11 @@
+import { launchBrowser } from "./browser-security.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { pathToFileURL } from "node:url";
 import * as THREE from "three";
 
-const { chromium } = await import(
-  process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : "playwright"
-);
-const browser = await chromium.launch({
+const browser = await launchBrowser({
+  target: process.argv[2] ?? "http://127.0.0.1:5173/",
   args: ["--enable-unsafe-swiftshader"],
-  ...(process.env.PLAYWRIGHT_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHANNEL } : {}),
 });
 const url = process.argv[2] ?? "http://127.0.0.1:5173/";
 // Asset library is a pop up now. Only open it when closed, since the button toggles it
@@ -195,6 +192,8 @@ try {
             if (status === "ready") finish();
           },
           onThumbnail() {},
+          onObjectClick() {},
+          onUpdate() {},
           onSelect() {},
           onTransform: (...args) => commits.push(args),
         },
@@ -412,6 +411,8 @@ try {
             if (status === "ready") finish();
           },
           onThumbnail() {},
+          onObjectClick() {},
+          onUpdate() {},
           // Pinches start away from the crate here, so only the carry checks follow the app
           onSelect(id) {
             if (!state.followSelection) return;

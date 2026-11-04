@@ -7,6 +7,7 @@ import type { ValidationResult } from "../../shared/project/validation-helpers";
 import type { ProjectFileHandle } from "./project-files";
 import { validateRecoveryHistory, type RecoveryHistory } from "../recovery-history";
 import { IndexedDBDraftDatabase, type IDraftDatabase } from "./draft-db";
+import { validateServerSaveRecovery, type ServerSaveRecovery } from "./server-save-recovery";
 
 const STORE_NAME = "drafts";
 const LOCAL_PRINCIPAL = "local";
@@ -365,13 +366,35 @@ export type RecoverySession = Readonly<{
   fileText?: string;
   history?: RecoveryHistory;
   historyWarning?: string;
+  // Present for signed-in project recovery; local JSON-file sessions omit this
+  serverSave?: ServerSaveRecovery;
   olderSceneFile?: { text: string; name: string };
 }>;
 
+// Account ID comes from the authenticated session
+// This key separates backups; server permissions still decide access to the project
+export type RecoveryScope = Readonly<{ accountId: string; projectId: string }>;
+
+function recoveryKey(scope: RecoveryScope | undefined): IDBValidKey | null {
+  // Keep the existing local-only session readable
+  // Signed-in sessions use an exact account/project key and never fall back to it
+  if (scope === undefined) return "active";
+  if (
+    !scope.accountId.trim() ||
+    !scope.projectId.trim() ||
+    scope.accountId.length > 255 ||
+    scope.projectId.length > 255
+  )
+    return null;
+  // Array keys keep account and project IDs in separate parts of the IndexedDB key
+  return ["account", scope.accountId.toLowerCase(), scope.projectId.toLowerCase()];
+}
+
 export async function loadRecoverySession(
   assetKinds: ReadonlyMap<string, string>,
+  scope?: RecoveryScope,
 ): Promise<ValidationResult<RecoverySession | null>> {
-  return await getRecoverySession(assetKinds, new IndexedDBDraftDatabase());
+  return await getRecoverySession(assetKinds, new IndexedDBDraftDatabase(), scope);
 }
 
 export async function getOlderRecoveryFiles(
@@ -415,7 +438,12 @@ export async function getOlderRecoveryFiles(
 export async function getRecoverySession(
   assetKinds: ReadonlyMap<string, string>,
   database: IDraftDatabase,
+  scope?: RecoveryScope,
 ): Promise<ValidationResult<RecoverySession | null>> {
+  // Capture identity before IndexedDB yields to a possible account switch
+  const key = recoveryKey(scope);
+  if (key === null) return invalid("storage", "Invalid recovery account or project");
+  const projectId = scope?.projectId.toLowerCase();
   let connection: IDBDatabase;
   try {
     connection = await database.getIndexedDB();
@@ -425,7 +453,7 @@ export async function getRecoverySession(
   try {
     const raw: unknown = await new Promise((resolve, reject) => {
       const tx = connection.transaction("session", "readonly");
-      const read = tx.objectStore("session").get("active");
+      const read = tx.objectStore("session").get(key);
       tx.oncomplete = () => resolve(read.result);
       tx.onabort = () => reject(tx.error);
     });
@@ -455,6 +483,7 @@ export async function getRecoverySession(
         ...(Object.hasOwn(raw, "fileHandle") ? ["fileHandle"] : []),
         ...(Object.hasOwn(raw, "fileText") ? ["fileText"] : []),
         ...(Object.hasOwn(raw, "history") ? ["history"] : []),
+        ...(Object.hasOwn(raw, "serverSave") ? ["serverSave"] : []),
       ],
       "recovery",
     );
@@ -467,7 +496,9 @@ export async function getRecoverySession(
         raw.fileName !== "" ||
         raw.savedJson !== null ||
         !raw.pristine ||
-        raw.history !== undefined
+        raw.history !== undefined ||
+        raw.serverSave !== undefined ||
+        scope !== undefined
       ) {
         return invalid("storage", "Empty recovery session contains project metadata");
       }
@@ -482,12 +513,12 @@ export async function getRecoverySession(
         },
       };
     }
-    const document = deserializeProject(raw.document, assetKinds);
+    const document = deserializeProject(raw.document, assetKinds, { allowDraftLinks: true });
     if (!document.ok) {
       const older =
         typeof raw.document === "string" ? readOlderSceneFile(raw.document, assetKinds) : null;
-      if (!older?.ok) return document;
-      // Offer conversion explicitly. Nothing is rewritten during recovery.
+      if (scope !== undefined || raw.serverSave !== undefined || !older?.ok) return document;
+      // Offer local older-format conversion explicitly without changing authenticated recovery or retry metadata
       return {
         ok: true,
         value: {
@@ -504,6 +535,20 @@ export async function getRecoverySession(
       };
     }
 
+    // Validate the pending request alongside the scene before offering recovery
+    // A damaged retry record must stay stored for inspection rather than being sent
+    const serverSave =
+      raw.serverSave === undefined
+        ? undefined
+        : validateServerSaveRecovery(raw.serverSave, document.value.projectId, assetKinds);
+    if (serverSave && !serverSave.ok) return serverSave;
+    if (serverSave && scope === undefined)
+      return invalid("storage", "Server recovery requires an account and project");
+    if (projectId !== undefined && document.value.projectId.toLowerCase() !== projectId)
+      return invalid(
+        "storage",
+        "Recovery belongs to a different project; the stored copy was kept",
+      );
     // Keep the valid scene available even if an older history record cannot be restored
     const history =
       raw.history === undefined
@@ -519,7 +564,9 @@ export async function getRecoverySession(
       if (saved.value.projectId !== document.value.projectId) {
         return invalid("storage", "Recovery file belongs to a different project");
       }
-      savedJson = JSON.stringify(saved.value);
+      const encoded = serializeProject(saved.value, assetKinds);
+      if (!encoded.ok) return encoded;
+      savedJson = encoded.value;
     }
 
     // File contents can include whitespace; keep the exact text for overwrite checks
@@ -537,7 +584,8 @@ export async function getRecoverySession(
       // Match the stored connection to the saved version before reusing it
       // A stale or incomplete connection can be ignored without losing the scene
       const baseline = deserializeProject(raw.fileText, assetKinds);
-      if (baseline.ok && JSON.stringify(baseline.value) === savedJson) {
+      const canonical = baseline.ok ? serializeProject(baseline.value, assetKinds) : baseline;
+      if (canonical.ok && canonical.value === savedJson) {
         fileHandle = raw.fileHandle as unknown as ProjectFileHandle;
         fileText = raw.fileText;
       }
@@ -557,6 +605,7 @@ export async function getRecoverySession(
           !document.value.scenes[0]?.viewpoints?.length,
         fileHandle,
         fileText,
+        ...(serverSave?.ok ? { serverSave: serverSave.value } : {}),
         ...(history?.ok ? { history: history.value } : {}),
         ...(history && !history.ok
           ? { historyWarning: "Scene recovered, but its undo history could not be restored" }
@@ -574,6 +623,7 @@ export async function saveRecoverySession(
   expectedRevision: number,
   assetKinds: ReadonlyMap<string, string>,
   previousProjectId?: string,
+  scope?: RecoveryScope,
 ): Promise<ValidationResult<number>> {
   return await applySaveRecoverySession(
     session,
@@ -581,6 +631,7 @@ export async function saveRecoverySession(
     assetKinds,
     new IndexedDBDraftDatabase(),
     previousProjectId,
+    scope,
   );
 }
 
@@ -590,7 +641,19 @@ export async function applySaveRecoverySession(
   assetKinds: ReadonlyMap<string, string>,
   database: IDraftDatabase,
   previousProjectId?: string,
+  scope?: RecoveryScope,
 ): Promise<ValidationResult<number>> {
+  // Scoped backups must never replace another project's record or the local-only session
+  const key = recoveryKey(scope);
+  if (key === null) {
+    return invalid("storage", "Invalid recovery account or project");
+  }
+  if (
+    scope !== undefined &&
+    session.document?.projectId.toLowerCase() !== scope.projectId.toLowerCase()
+  ) {
+    return invalid("storage", "Recovery belongs to a different project");
+  }
   if (!isCounter(expectedRevision) || expectedRevision === Number.MAX_SAFE_INTEGER) {
     return invalid("storage", "Invalid recovery revision");
   }
@@ -599,7 +662,7 @@ export async function applySaveRecoverySession(
   const encoded =
     session.document === null
       ? { ok: true as const, value: null }
-      : serializeProject(session.document, assetKinds);
+      : serializeProject(session.document, assetKinds, { allowDraftLinks: true });
   if (!encoded.ok) {
     return encoded;
   }
@@ -611,6 +674,20 @@ export async function applySaveRecoverySession(
       session.history !== undefined)
   ) {
     return invalid("storage", "Empty recovery session contains project metadata");
+  }
+  // Server retry metadata only belongs to a nonempty authenticated project
+  if (session.serverSave !== undefined) {
+    if (scope === undefined || session.document === null) {
+      return invalid("storage", "Server recovery requires an account and project");
+    }
+    const serverSave = validateServerSaveRecovery(
+      session.serverSave,
+      session.document.projectId,
+      assetKinds,
+    );
+    if (!serverSave.ok) {
+      return serverSave;
+    }
   }
   const history =
     session.history === undefined || session.document === null
@@ -644,10 +721,13 @@ export async function applySaveRecoverySession(
   return new Promise((resolve) => {
     let message = "Recovery backup failed; your current project is still open";
     try {
-      // Update active recovery and retire legacy backups atomically so reload cannot revive discarded work
-      const tx = connection.transaction(["session", STORE_NAME], "readwrite");
+      // Only local sessions retire legacy drafts; scoped saves leave other recovery untouched
+      const tx = connection.transaction(
+        scope === undefined ? ["session", STORE_NAME] : ["session"],
+        "readwrite",
+      );
       const store = tx.objectStore("session");
-      const read = store.get("active");
+      const read = store.get(key);
       tx.onabort = () => {
         connection.close();
         resolve(invalid("storage", message));
@@ -673,9 +753,10 @@ export async function applySaveRecoverySession(
         // Keep the scene and manual-save baseline together in one atomic write
         // Don't Save switches to a new record without leaving the discarded edits behind
         try {
-          // Keep the original older-format backup, including its old history, before replacement.
-          // The revision check above prevents archiving or overwriting another tab's newer work.
+          // Keep the original local older-format backup and history before replacement
+          // Revision checks prevent archiving or overwriting another tab's newer work
           if (
+            scope === undefined &&
             isRecord(previous) &&
             typeof previous.document === "string" &&
             !deserializeProject(previous.document, assetKinds).ok &&
@@ -683,16 +764,15 @@ export async function applySaveRecoverySession(
           ) {
             store.put(previous, `older-scene-backup:${expectedRevision}`);
           }
-          store.put(
-            { ...session, document: encoded.value, revision: expectedRevision + 1 },
-            "active",
-          );
-          const legacy = tx.objectStore(STORE_NAME);
-          if (session.document) {
-            legacy.delete([LOCAL_PRINCIPAL, session.document.projectId.toLowerCase()]);
-          }
-          if (previousProjectId) {
-            legacy.delete([LOCAL_PRINCIPAL, previousProjectId.toLowerCase()]);
+          store.put({ ...session, document: encoded.value, revision: expectedRevision + 1 }, key);
+          if (scope === undefined) {
+            const legacy = tx.objectStore(STORE_NAME);
+            if (session.document) {
+              legacy.delete([LOCAL_PRINCIPAL, session.document.projectId.toLowerCase()]);
+            }
+            if (previousProjectId) {
+              legacy.delete([LOCAL_PRINCIPAL, previousProjectId.toLowerCase()]);
+            }
           }
         } catch {
           // Cloning a file handle or starting the write can fail before a request exists
@@ -706,6 +786,62 @@ export async function applySaveRecoverySession(
     } catch {
       connection.close();
       resolve(invalid("storage", message));
+    }
+  });
+}
+
+// Closing an authenticated session can remove its confirmed cache
+// Keep uncertain requests and unsynced edits available to the original account
+export async function clearConfirmedServerRecovery(
+  scope: RecoveryScope,
+  database: IDraftDatabase = new IndexedDBDraftDatabase(),
+): Promise<ValidationResult<boolean>> {
+  const key = recoveryKey(scope);
+  if (key === null) return invalid("storage", "Invalid recovery account or project");
+  // Open only the account-scoped record after validating its identity
+  let connection: IDBDatabase;
+  try {
+    connection = await database.getIndexedDB();
+  } catch {
+    return invalid("storage", "Recovery storage could not open");
+  }
+  return new Promise((resolve) => {
+    let removed = false;
+    try {
+      // Compare and delete in one transaction so a newer tab's edits survive cleanup
+      const tx = connection.transaction("session", "readwrite");
+      const store = tx.objectStore("session");
+      const read = store.get(key);
+      tx.onabort = () => {
+        connection.close();
+        resolve(invalid("storage", "Recovery cache could not be cleared"));
+      };
+      tx.oncomplete = () => {
+        connection.close();
+        resolve({ ok: true, value: removed });
+      };
+      read.onsuccess = () => {
+        const raw: unknown = read.result;
+        // Only remove an exact confirmed copy with no outstanding request
+        // Missing metadata or newer local edits leave the backup in place
+        if (
+          !isRecord(raw) ||
+          !isRecord(raw.serverSave) ||
+          raw.serverSave.pending !== null ||
+          typeof raw.document !== "string" ||
+          raw.document !== raw.serverSave.confirmedJson
+        )
+          return;
+        try {
+          store.delete(key);
+          removed = true;
+        } catch {
+          tx.abort();
+        }
+      };
+    } catch {
+      connection.close();
+      resolve(invalid("storage", "Recovery cache could not be cleared"));
     }
   });
 }

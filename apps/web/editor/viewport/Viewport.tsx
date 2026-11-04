@@ -1,7 +1,12 @@
 import { useEffect, useRef, type DragEvent, type ReactNode } from "react";
 import { assetDragType, type CatalogueAsset } from "../../shared/asset-runtime/catalogue";
 import type { SceneObject, Vector3Tuple } from "../../shared/project/scene-object";
-import type { ProjectScene, Transform, CameraPose } from "../../shared/project/project-types";
+import type {
+  CameraPose,
+  HotspotDropTarget,
+  ProjectScene,
+  Transform,
+} from "../../shared/project/project-types";
 import type { initScene, NavigationTool, ViewportStatus } from "../graphics/scene";
 import type { FpsMobileControls } from "../graphics/scene";
 import type { CameraView, ModeManager } from "../graphics/modeManager";
@@ -14,7 +19,11 @@ const statusMessages = {
   unsupported: "The 3D view needs WebGL 2. Check your browser's graphics settings and retry.",
 };
 
-export type ViewpointCamera = { capture: () => CameraPose; show: (pose: CameraPose) => void };
+export type ViewpointCamera = {
+  capture: () => CameraPose;
+  show: (pose: CameraPose) => void;
+  locate: (id: string) => void;
+};
 
 type ViewportProps = {
   onCamera: (camera: ViewpointCamera | null) => void;
@@ -24,6 +33,7 @@ type ViewportProps = {
   loadGeneration: number;
   selectedId: string | null;
   dragging: boolean;
+  placingAssetId?: string | null;
   editingEnabled: boolean;
   navigationTool: NavigationTool;
   view: CameraView;
@@ -33,7 +43,9 @@ type ViewportProps = {
   onThumbnail: (id: string, url: string) => void;
   onSelect: (id: string | null) => void;
   onTransform: (id: string, transform: Transform) => void;
-  onPlace: (assetId: string, position: Vector3Tuple) => void;
+  onObjectClick: (id: string) => void;
+  onSceneUpdate: (deltaSeconds: number) => void;
+  onPlace: (assetId: string, position: Vector3Tuple, hotspotTarget?: HotspotDropTarget) => void;
   onDragFinish: () => void;
   onRetry: () => void;
   onManager: (manager: ModeManager) => void;
@@ -49,6 +61,7 @@ export function Viewport({
   loadGeneration,
   selectedId,
   dragging,
+  placingAssetId,
   editingEnabled,
   navigationTool,
   view,
@@ -58,6 +71,8 @@ export function Viewport({
   onThumbnail,
   onSelect,
   onTransform,
+  onObjectClick,
+  onSceneUpdate,
   onPlace,
   onDragFinish,
   onRetry,
@@ -87,7 +102,14 @@ export function Viewport({
     import("../graphics/scene")
       .then(({ initScene }) => {
         if (disposed) return;
-        const scene = initScene(host, assets, { onStatus, onThumbnail, onSelect, onTransform });
+        const scene = initScene(host, assets, {
+          onStatus,
+          onThumbnail,
+          onSelect,
+          onTransform,
+          onObjectClick,
+          onUpdate: onSceneUpdate,
+        });
         sceneRef.current = scene;
         const current = snapshotRef.current;
         // Establish the requested navigation mode before applying the authored camera.
@@ -105,7 +127,11 @@ export function Viewport({
         if (scene !== undefined) {
           onManager(scene.modeManager);
           onMobileControls(scene.mobileControls);
-          onCamera({ capture: scene.captureCamera, show: scene.showCamera });
+          onCamera({
+            capture: scene.captureCamera,
+            show: scene.showCamera,
+            locate: scene.locateObject,
+          });
         }
       })
       .catch((error: unknown) => {
@@ -128,6 +154,8 @@ export function Viewport({
     onThumbnail,
     onSelect,
     onTransform,
+    onObjectClick,
+    onSceneUpdate,
     onManager,
     onCamera,
     onMobileControls,
@@ -184,6 +212,20 @@ export function Viewport({
         className={`viewport-stage${dragging ? " is-dragging" : ""}`}
         ref={hostRef}
         aria-busy={status === "loading"}
+        onPointerDownCapture={(event) => {
+          // A library pick owns the next scene click; cancel remains with the caller
+          if (
+            !placingAssetId ||
+            !editingEnabled ||
+            status !== "ready" ||
+            sceneRef.current?.modeManager.getState().mode !== "editor"
+          )
+            return;
+          event.preventDefault();
+          event.stopPropagation();
+          const position = sceneRef.current.getDropPosition(event.clientX, event.clientY);
+          if (position) onPlace(placingAssetId, position);
+        }}
         onDragOver={(event) => {
           if (!accepts(event)) {
             return;
@@ -205,9 +247,19 @@ export function Viewport({
           event.preventDefault();
           const assetId = event.dataTransfer.getData(assetDragType);
           if (accepts(event) && assets.some((asset) => asset.id === assetId)) {
-            const position = sceneRef.current?.getDropPosition(event.clientX, event.clientY);
+            const scene = sceneRef.current;
+            const position = scene?.getDropPosition(event.clientX, event.clientY);
             if (position !== undefined) {
-              onPlace(assetId, position);
+              const objectId = scene?.pickObjectAt(event.clientX, event.clientY);
+              const localPosition =
+                objectId === undefined ? undefined : scene?.worldToLocal(objectId, position);
+              onPlace(
+                assetId,
+                position,
+                objectId === undefined || localPosition === undefined
+                  ? undefined
+                  : { objectId, localPosition },
+              );
             }
           }
           sceneRef.current?.showDropPosition(undefined);

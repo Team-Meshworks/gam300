@@ -138,10 +138,12 @@ export function readProjectJson(text: unknown): ValidationResult<unknown> {
   return { ok: true, value: raw };
 }
 
+// Browser recovery may opt into unfinished link text; ordinary file imports remain strict.
 export function deserializeProject(
   text: unknown,
   assetKinds: ReadonlyMap<string, string>,
+  options: { allowDraftLinks?: boolean } = {},
 ): ValidationResult<ProjectDocument> {
   const parsed = readProjectJson(text);
-  return parsed.ok ? validateProject(parsed.value, assetKinds) : parsed;
+  return parsed.ok ? validateProject(parsed.value, assetKinds, options) : parsed;
 }

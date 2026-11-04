@@ -204,7 +204,6 @@ public sealed class ProjectPersistenceTests
         await using (var scope = fixture.Services.CreateAsyncScope())
         {
             var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            var manager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
             var user = new ApplicationUser
             {
                 Id = UserId,
@@ -212,8 +211,10 @@ public sealed class ProjectPersistenceTests
                 IsActive = false,
                 MustChangePassword = false,
             };
-            await Assert.That((await manager.CreateAsync(user, "Synthetic-migration-password1!")).Succeeded).IsTrue();
-            await Assert.That((await manager.AddToRoleAsync(user, ApplicationRoles.Creator)).Succeeded).IsTrue();
+            user.PasswordHash = new PasswordHasher<ApplicationUser>().HashPassword(user, "Synthetic-migration-password1!");
+            user.SecurityStamp = Guid.NewGuid().ToString();
+            await LegacyAccountSeed.InsertAsync(database, user);
+            database.UserRoles.Add(new IdentityUserRole<Guid> { UserId = user.Id, RoleId = ApplicationRoles.CreatorId });
             originalHash = user.PasswordHash;
             originalStamp = user.SecurityStamp;
             database.Organizations.Add(new Organization { Id = OrganizationId, Name = "Preserved school" });
@@ -595,7 +596,7 @@ public sealed class ProjectPersistenceTests
     private static async Task<Project> SeedProjectAsync(ApplicationDbContext database)
     {
         database.Organizations.Add(new Organization { Id = OrganizationId, Name = "Synthetic project school" });
-        database.Users.Add(new ApplicationUser { Id = UserId, UserName = "project-user", NormalizedUserName = "PROJECT-USER" });
+        await LegacyAccountSeed.InsertAsync(database, new ApplicationUser { Id = UserId, UserName = "project-user", NormalizedUserName = "PROJECT-USER" });
         var project = CreateProject(ProjectId);
         database.Projects.Add(project);
         await database.SaveChangesAsync();

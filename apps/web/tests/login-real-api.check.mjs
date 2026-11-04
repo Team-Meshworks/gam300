@@ -1,5 +1,5 @@
+import { launchBrowser } from "./browser-security.mjs";
 import assert from "node:assert/strict";
-import { chromium } from "playwright";
 import { createServer } from "vite";
 
 const oldPassword = "Synthetic-long-password1!";
@@ -14,9 +14,7 @@ try {
   const address = server.httpServer.address();
   assert.ok(address && typeof address !== "string");
   const origin = `https://127.0.0.1:${address.port}`;
-  browser = await chromium.launch({
-    executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
-  });
+  browser = await launchBrowser({ target: origin });
   async function context() {
     const result = await browser.newContext({ ignoreHTTPSErrors: true });
     await result.route("**/*", (route) => {
@@ -47,6 +45,8 @@ try {
   await page.getByRole("heading", { name: "Welcome back." }).waitFor();
   assert.equal(new URL(page.url()).pathname, "/login");
   await page.getByRole("link", { name: /back to home/i }).click();
+  // Back navigation waits briefly for its UI sound before leaving the page.
+  await page.waitForURL(origin + "/landing");
   assert.equal(new URL(page.url()).pathname, "/landing");
   await page
     .getByRole("link", { name: /get started/i })
@@ -83,10 +83,11 @@ try {
   await page.getByLabel("New password", { exact: true }).fill(newPassword);
   await page.getByLabel("Confirm new password").fill(newPassword);
   await page.getByRole("button", { name: "Change password" }).click();
-  await page.getByRole("heading", { name: /You.re signed in/ }).waitFor();
+  await page.waitForURL(origin + "/admin/dashboard");
+  await page.getByRole("heading", { name: /^Welcome Back,/ }).waitFor();
   assert.equal((await session(page)).body.mustChangePassword, false);
   await page.reload();
-  await page.getByRole("heading", { name: /You.re signed in/ }).waitFor();
+  await page.getByRole("heading", { name: /^Welcome Back,/ }).waitFor();
   const browserStorage = await page.evaluate(() =>
     JSON.stringify({
       local: { ...localStorage },
@@ -96,7 +97,7 @@ try {
   );
   assert.ok(!browserStorage.includes(oldPassword) && !browserStorage.includes(newPassword));
   assert.ok(!browserStorage.includes("__Host-Spatia.Application"));
-  await page.getByRole("button", { name: "Log out" }).click();
+  await page.getByRole("button", { name: "Log Out", exact: true }).click();
   await page.getByRole("heading", { name: "Welcome back." }).waitFor();
   assert.equal((await session(page)).status, 401);
   await page.reload();
@@ -110,7 +111,8 @@ try {
   await login(next, admin, oldPassword);
   await next.getByText(/username or password could not be accepted/i).waitFor();
   await login(next, admin, newPassword);
-  await next.getByRole("heading", { name: /You.re signed in/ }).waitFor();
+  await next.waitForURL(origin + "/admin/dashboard");
+  await next.getByRole("heading", { name: /^Welcome Back,/ }).waitFor();
   assert.equal((await session(next)).body.role, "Administrator");
   await fresh.close();
   const normalContext = await context();

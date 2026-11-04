@@ -15,6 +15,9 @@ const saveLabels: Record<SaveState, string> = {
 
 export function TopBar({
   session,
+  serverMode = false,
+  serverSaving = false,
+  onLeave,
   hasProject,
   hasChanges,
   ready,
@@ -31,6 +34,9 @@ export function TopBar({
   onToggleView,
 }: {
   session: ReturnType<typeof useProjectSession>;
+  serverMode?: boolean;
+  serverSaving?: boolean;
+  onLeave?: (() => void) | undefined;
   hasProject: boolean;
   hasChanges: boolean;
   ready: boolean;
@@ -65,7 +71,7 @@ export function TopBar({
 
   const busy = session.operation !== null;
   const saveState: SaveState =
-    session.operation === "file"
+    serverSaving || session.operation === "file"
       ? "saving"
       : session.fileFailed
         ? "failed"
@@ -81,9 +87,10 @@ export function TopBar({
         <button
           className="ui-button icon-button"
           type="button"
-          aria-label="Back to projects (coming soon)"
-          aria-disabled="true"
-          title="Back to projects · coming soon"
+          aria-label={serverMode ? "Leave editor" : "Back to projects (coming soon)"}
+          onClick={onLeave}
+          aria-disabled={!serverMode}
+          title={serverMode ? "Leave editor" : "Back to projects (coming soon)"}
         >
           <Icon name="back" />
         </button>
@@ -108,59 +115,65 @@ export function TopBar({
             <Icon name="caretDown" />
           </summary>
           <div className="draft-menu-panel">
-            <button
-              type="button"
-              title="Start a new project and choose a room"
-              disabled={!ready || busy}
-              onClick={() => {
-                closeMenu();
-                void session.createNew();
-              }}
-            >
-              New
-            </button>
-            <button
-              type="button"
-              title="Open a JSON project file"
-              disabled={!ready || busy}
-              onClick={() => {
-                closeMenu();
-                void session.open();
-              }}
-            >
-              Open
-            </button>
-            <button
-              type="button"
-              disabled={!ready || busy}
-              onClick={() => {
-                closeMenu();
-                document.getElementById("older-scene-import")?.click();
-              }}
-            >
-              Import older scene file
-            </button>
-            {session.olderSceneFiles.map((file, index) => (
-              <button
-                key={index}
-                type="button"
-                disabled={!ready || busy}
-                onClick={() => {
-                  closeMenu();
-                  document.getElementById(`older-recovery-import-${index}`)?.click();
-                }}
-              >
-                Import older browser backup
-                {session.olderSceneFiles.length > 1 ? ` ${index + 1}: ${file.name}` : ""}
-              </button>
-            ))}
+            {!serverMode && (
+              <>
+                <button
+                  type="button"
+                  title="Start a new project and choose a room"
+                  disabled={!ready || busy}
+                  onClick={() => {
+                    closeMenu();
+                    void session.createNew();
+                  }}
+                >
+                  New
+                </button>
+                <button
+                  type="button"
+                  title="Open a JSON project file"
+                  disabled={!ready || busy}
+                  onClick={() => {
+                    closeMenu();
+                    void session.open();
+                  }}
+                >
+                  Open
+                </button>
+                <button
+                  type="button"
+                  disabled={!ready || busy}
+                  onClick={() => {
+                    closeMenu();
+                    document.getElementById("older-scene-import")?.click();
+                  }}
+                >
+                  Import older scene file
+                </button>
+                {session.olderSceneFiles.map((file, index) => (
+                  <button
+                    key={index}
+                    type="button"
+                    disabled={!ready || busy}
+                    onClick={() => {
+                      closeMenu();
+                      document.getElementById(`older-recovery-import-${index}`)?.click();
+                    }}
+                  >
+                    Import older browser backup
+                    {session.olderSceneFiles.length > 1 ? ` ${index + 1}: ${file.name}` : ""}
+                  </button>
+                ))}
+              </>
+            )}
             {/* Ctrl+S clicks these two by id, so dont change the ids */}
             <button
               id="project-save"
               type="button"
               title={
                 hasProject
-                  ? "Save changes to the current file · Ctrl+S"
+                  ? serverMode
+                    ? "Save to server"
+                    : "Save changes to the current file · Ctrl+S"
                   : "Choose a room to create your project"
               }
               disabled={!hasProject || busy}
@@ -185,19 +198,21 @@ export function TopBar({
                 void session.save(true);
               }}
             >
-              Save As
+              {serverMode ? "Export project file" : "Save As"}
             </button>
           </div>
         </details>
         {hasChanges && (
-          // Recovery stays quiet; this status only describes the manual JSON save
+          // Server sessions use confirmed server state; local sessions use the file baseline
           <span
             className="save-state"
             data-state={saveState}
             title={
-              session.dirty
-                ? "Changes have not been saved to the JSON file"
-                : "Project matches the last opened or saved JSON file"
+              serverMode
+                ? saveLabels[saveState]
+                : session.dirty
+                  ? "Changes have not been saved to the JSON file"
+                  : "Project matches the last opened or saved JSON file"
             }
             role="status"
           >
@@ -238,7 +253,7 @@ export function TopBar({
       </div>
 
       <div className="mode-actions" role="group" aria-label="View and publish">
-        {import.meta.env.DEV && !visitor && (
+        {import.meta.env.DEV && !visitor && !serverMode && (
           <button
             className="dev-action"
             type="button"

@@ -1,9 +1,9 @@
+import { launchBrowser } from "../../web/tests/browser-security.mjs";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { createInterface } from "node:readline";
-import { pathToFileURL } from "node:url";
 
 const applicationCookie = "__Host-Spatia.Application";
 const administratorTemporary = "Synthetic restart administrator password 1!";
@@ -89,12 +89,9 @@ try {
   const administratorName = process.argv[3];
   assert.equal(typeof administratorName, "string");
   assert.ok(administratorName.length > 0 && administratorName.length <= 256);
-  const playwrightUrl = process.env.PLAYWRIGHT_MODULE
-    ? pathToFileURL(process.env.PLAYWRIGHT_MODULE)
-    : new URL("../../web/node_modules/playwright/index.mjs", import.meta.url);
-  const { chromium } = await import(playwrightUrl.href);
+  const playwrightUrl = new URL("../../web/node_modules/playwright/index.mjs", import.meta.url);
   const playwrightVersion = createRequire(playwrightUrl)("./package.json").version;
-  browser = await chromium.launch();
+  browser = await launchBrowser({ target: origin });
   process.stdout.write(`node ${process.version}; playwright ${playwrightVersion}; chromium ${browser.version()}\n`);
 
   const freshPage = async () => {
@@ -200,6 +197,7 @@ try {
   const next = JSON.parse(await replacement);
   assert.deepEqual(Object.keys(next), ["origin"]);
   origin = parseOrigin(next.origin);
+  browser.allowLocalOrigin(origin);
 
   stage = "retained administrator session";
   assert.ok(Date.now() - capturedAt < 5 * 60_000);

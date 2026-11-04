@@ -25,6 +25,7 @@ export class ModeManager {
   private readonly savedTarget = new THREE.Vector3();
   private readonly previewPosition = new THREE.Vector3();
   private readonly previewQuaternion = new THREE.Quaternion();
+  private previewFov: number | undefined;
   private state: ModeManagerState;
 
   constructor(camera: THREE.Camera, orbit: OrbitControls, fps: FpsControls) {
@@ -103,12 +104,18 @@ export class ModeManager {
   private enterVisitor(): void {
     this.previewPosition.copy(this.camera.position);
     this.previewQuaternion.copy(this.camera.quaternion);
+    // Viewpoints in Preview can change the lens, so leaving puts the editor's back
+    if (this.camera instanceof THREE.PerspectiveCamera) this.previewFov = this.camera.fov;
     if (this.state.view === "third") this.startWalking(false);
     this.setState({ mode: "visitor" });
   }
 
   private exitVisitor(): void {
     if (this.state.mode !== "visitor") return;
+    if (this.camera instanceof THREE.PerspectiveCamera && this.previewFov !== undefined) {
+      this.camera.fov = this.previewFov;
+      this.camera.updateProjectionMatrix();
+    }
     this.camera.position.copy(this.previewPosition);
     this.camera.quaternion.copy(this.previewQuaternion);
     if (this.state.view === "third") this.stopWalking();

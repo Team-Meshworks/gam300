@@ -34,6 +34,8 @@ export class FpsControls {
   private readonly velocity = new THREE.Vector3();
   private yaw = 0;
   private pitch = 0;
+  private roll = 0;
+  private minimumHeight = EYE_HEIGHT;
   private dragging = false;
   private engaged = false;
   private flying = false;
@@ -112,6 +114,9 @@ export class FpsControls {
     this._euler.setFromQuaternion(this.camera.quaternion, "YXZ");
     this.yaw = this._euler.y;
     this.pitch = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, this._euler.x));
+    this.roll = this._euler.z;
+    // Below eye height is an authored low viewpoint, stand there rather than jump up
+    this.minimumHeight = Math.min(EYE_HEIGHT, this.camera.position.y);
     this.applyRotation();
   }
 
@@ -121,6 +126,8 @@ export class FpsControls {
     this._euler.setFromQuaternion(this.camera.quaternion, "YXZ");
     this.yaw = this._euler.y;
     this.pitch = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, this._euler.x));
+    // Turning to face something is always upright
+    this.roll = 0;
     this.applyRotation();
   }
 
@@ -150,6 +157,12 @@ export class FpsControls {
 
   holdLook(held: boolean): void {
     this.lookHeld = held;
+  }
+
+  // A viewpoint or saved camera just moved the camera, carry on from exactly that pose
+  syncFromCamera(): void {
+    this.clearInput();
+    this.sync();
   }
 
   disengage(): void {
@@ -233,8 +246,10 @@ export class FpsControls {
       this.velocity.y = fall;
     }
     this.physicsPosition.addScaledVector(previous.lerp(this.velocity, 0.5), delta);
-    if (this.physicsPosition.y <= EYE_HEIGHT) {
-      this.physicsPosition.y = EYE_HEIGHT;
+    // An authored low viewpoint is the floor until you climb back to eye height
+    if (this.physicsPosition.y >= EYE_HEIGHT) this.minimumHeight = EYE_HEIGHT;
+    if (this.physicsPosition.y <= this.minimumHeight) {
+      this.physicsPosition.y = this.minimumHeight;
       this.velocity.y = Math.max(this.velocity.y, 0);
       // Touching the floor stops flying, same as Minecraft
       this.flying = false;
@@ -242,7 +257,7 @@ export class FpsControls {
   }
 
   private onFloor(): boolean {
-    return this.physicsPosition.y <= EYE_HEIGHT + 1e-4;
+    return this.physicsPosition.y <= this.minimumHeight + 1e-4;
   }
 
   private capture(): void {
@@ -370,7 +385,7 @@ export class FpsControls {
     this.pitch = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, this.pitch));
     this.mobileLookX = 0;
     this.mobileLookY = 0;
-    this.camera.rotation.set(this.pitch, this.yaw, 0, "YXZ");
+    this.camera.rotation.set(this.pitch, this.yaw, this.roll, "YXZ");
   }
 
   private resetMobileInput(): void {
