@@ -1,11 +1,12 @@
 :root {
+  --text: #1f1d1a;
   font-family: "Segoe UI", system-ui, sans-serif;
   line-height: 1.45;
   color: #1f1d1a;
   background: #fffdf3;
   font-synthesis: none;
   --accent: #ae452e;
-  --muted: #77726a;
+  --muted: #686357;
   --line: #dedad0;
   --card: #f2efe6;
   --card-raised: #f8f6f0;
@@ -21,6 +22,253 @@
   --asset-scroll-thumb: #8f8981;
   --asset-scroll-hover: #6f6961;
   --asset-scroll-track: #efede9;
+  --scene-hint-background: #292e29;
+  --scene-hint-text: #f5f7fa;
+}
+
+/* Content forms share the library's warm surface and keep the scene inert until Save or Cancel */
+.content-dialog {
+  width: min(960px, calc(100% - 48px));
+  font-size: 14px;
+  max-height: calc(100dvh - 3rem);
+  padding: 1.25rem;
+  border: 1px solid var(--line);
+  border-radius: 1.75rem;
+  color: inherit;
+  background: var(--pill);
+  box-shadow: var(--picker-shadow);
+  overflow: auto;
+  scrollbar-color: var(--asset-scroll-thumb) transparent;
+  scrollbar-width: thin;
+}
+.content-dialog::backdrop {
+  background: var(--picker-backdrop);
+}
+.content-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+.content-heading h2 {
+  display: flex;
+  gap: 0.65rem;
+  align-items: center;
+  font-size: 1rem;
+}
+.content-heading .icon {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+.content-close {
+  border-radius: 50%;
+  width: 2.5rem;
+  height: 2.5rem;
+  display: grid;
+  place-items: center;
+}
+.content-layout {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 1rem;
+}
+.content-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.content-dialog button {
+  border: 0;
+  border-radius: 1rem;
+  padding: 0.65rem 0.85rem;
+  background: var(--card-raised);
+  font-size: 0.875rem;
+}
+.content-dialog button:hover:not(:disabled),
+.content-dialog button[aria-pressed="true"] {
+  background: var(--button-strong);
+}
+.content-dialog :focus-visible {
+  outline: 2px solid var(--muted);
+  outline-offset: 2px;
+}
+.content-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+}
+.content-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  font-size: 0.875rem;
+}
+.content-fields input:not([type="checkbox"]),
+.content-fields textarea,
+.content-fields select {
+  font: inherit;
+  color: inherit;
+  background: var(--card-raised);
+  border: 1px solid var(--line);
+  border-radius: 0.9rem;
+  padding: 0.7rem 0.9rem;
+  width: 100%;
+  min-width: 0;
+}
+.content-fields select {
+  padding-right: 2rem;
+}
+.content-fields textarea {
+  resize: vertical;
+  min-height: 5rem;
+  line-height: 1.5;
+}
+.content-text-label textarea {
+  height: clamp(220px, 38dvh, 380px);
+  min-height: 180px;
+  resize: none;
+  background: var(--pill);
+  box-shadow: inset 0 1px 4px rgb(64 52 32 / 0.08);
+}
+.content-fields fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.content-fields legend {
+  font-size: 0.875rem;
+  margin-bottom: 0.4rem;
+}
+.content-axes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+.content-items,
+.content-format {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.content-format {
+  align-self: center;
+  border-radius: 2rem;
+  background: var(--card-raised);
+  padding: 0.2rem;
+}
+.content-format button {
+  min-width: 2.5rem;
+}
+.content-text-preview {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding: 0.5rem 0;
+  font-size: 0.875rem;
+}
+.content-media-preview {
+  width: 100%;
+  max-height: 18rem;
+  object-fit: contain;
+  border-radius: 1rem;
+}
+.content-fields .content-check {
+  flex-direction: row;
+  align-items: center;
+}
+.content-remove {
+  align-self: flex-start;
+  color: var(--accent);
+}
+.content-error {
+  color: var(--accent);
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+.content-actions {
+  display: flex;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+.content-actions button:last-child {
+  background: var(--button-strong);
+  min-width: 6rem;
+}
+.content-dialog button:disabled,
+.content-dialog select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.content-inspector-open {
+  margin: 0.75rem;
+  padding: 0.65rem;
+  border-radius: 1rem;
+}
+@media (max-width: 600px) {
+  .content-dialog {
+    padding: 1rem;
+  }
+  .content-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .content-tabs {
+    flex-direction: row;
+    overflow-x: auto;
+  }
+  .content-tabs button {
+    flex-shrink: 0;
+  }
+  .content-text-label textarea {
+    min-height: 10rem;
+  }
+}
+
+/* Match the content sheet's narrow rail and centred title without changing its draft controls */
+.content-heading {
+  position: relative;
+  justify-content: center;
+  min-height: 40px;
+}
+.content-heading h2 {
+  margin: 0;
+  padding: 8px 18px;
+  border-radius: 16px;
+  background: var(--button);
+}
+.content-close {
+  position: absolute;
+  right: 0;
+}
+.content-tabs button {
+  width: 44px;
+  height: 44px;
+  padding: 10px;
+  display: grid;
+  place-items: center;
+}
+.content-tabs .icon {
+  width: 22px;
+  height: 22px;
+}
+.content-tab-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.content-format {
+  margin-top: -64px;
+  margin-bottom: 16px;
+  z-index: 1;
+}
+.content-text-preview[hidden] {
+  display: none;
+}
+.content-dialog-text .content-fields {
+  gap: 14px;
+}
 }
 
 * {
