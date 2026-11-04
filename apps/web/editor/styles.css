@@ -3019,3 +3019,127 @@ dialog.sp-dialog.sp-display-dialog {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Match the secondary editor panels without changing their controls or action order */
+.editor-panel :is(.scenes-panel, .viewpoints) {
+  font-size: 0.875rem;
+}
+.editor-panel :is(.scenes-panel, .viewpoints) h2 {
+  margin: 0 0 12px;
+  font-size: 1rem;
+}
+.editor-panel :is(.scenes-panel, .viewpoints) p {
+  margin: 6px 0 10px;
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.55;
+}
+.editor-panel :is(.scenes-panel, .viewpoints) label {
+  position: relative;
+  gap: 6px;
+  margin: 12px 0 6px;
+  font-size: 0.8125rem;
+}
+.editor-panel :is(.scenes-panel, .viewpoints) :is(input, select, button) {
+  min-height: 36px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card-raised);
+  color: inherit;
+  font: inherit;
+  font-size: 0.8125rem;
+  line-height: 1.35;
+}
+.editor-panel :is(.scenes-panel, .viewpoints) select {
+  padding-right: 30px;
+  appearance: none;
+}
+.editor-panel :is(.scenes-panel, .viewpoints) label:has(> select)::after {
+  content: "";
+  position: absolute;
+  right: 14px;
+  bottom: 15px;
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid var(--muted);
+  border-bottom: 1.5px solid var(--muted);
+  rotate: 45deg;
+  pointer-events: none;
+}
+.editor-panel :is(.scenes-panel, .viewpoints) button:not(:disabled):hover {
+  background: var(--button);
+}
+.editor-panel :is(.scenes-panel, .viewpoints) button[aria-pressed="true"] {
+  background: var(--button-strong);
+  color: inherit;
+}
+.editor-panel :is(.scenes-panel, .viewpoints) button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.editor-panel :is(.scenes-panel, .viewpoints) :focus-visible {
+  outline: 2px solid var(--muted);
+  outline-offset: 2px;
+}
+.editor-panel :is(.scenes-panel, .viewpoints) .viewpoint-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 8px 0;
+}
+.editor-panel :is(.scenes-panel, .viewpoints) .viewpoint-actions button {
+  min-height: 36px;
+}
+.editor-panel :is(.scenes-panel, .viewpoints) ol {
+  margin: 12px 0 16px;
+}
+.editor-panel .view-drag-handle {
+  padding: 8px 6px;
+  color: var(--muted);
+}
+.editor-panel .saved-view-menu {
+  margin-top: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card-raised);
+}
+.editor-panel .viewpoint-cycle {
+  margin: 8px 0;
+}
+.editor-panel .viewpoint-cycle button {
+  width: 36px;
+  padding: 6px;
+}
+.editor-panel .scenes-panel .asset-filter {
+  display: block;
+  min-width: 0;
+}
+.editor-panel .scenes-panel .asset-filter-trigger {
+  width: 100%;
+  text-align: left;
+  padding-right: 32px;
+  font-weight: 400;
+}
+.editor-panel .scenes-panel .asset-filter .icon {
+  width: 14px;
+  height: 14px;
+  right: 12px;
+}
+.editor-panel .scenes-panel .asset-filter-menu {
+  font-size: 0.8125rem;
+}
+.editor-panel .scenes-panel .asset-filter-menu button {
+  width: 100%;
+  border: 0;
+  text-align: left;
+  border-radius: 8px;
+}
+.editor-panel .scenes-panel .asset-filter-menu button[aria-selected="true"] {
+  background: var(--button);
+}
+.editor-panel :is(.scenes-panel, .viewpoints) [role="status"]:empty {
+  display: none;
+}
+
