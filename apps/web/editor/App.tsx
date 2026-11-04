@@ -842,11 +842,6 @@ export function App({ server }: { server?: ServerEditorSession }) {
               }}
               tool={navigationTool}
               onToolChange={setNavigationTool}
-                      onEdit: () => setDisplayEditing(selectedObject.id),
-                      disabled: switching || status !== "ready",
-                    }
-                  : undefined
-              }
               showCameraTools={view === "third"}
             />
           )}
@@ -865,6 +860,47 @@ export function App({ server }: { server?: ServerEditorSession }) {
           )}
         </Viewport>
       </main>
+      {contentEdit && contentObject && (
+        <ContentEditor
+          key={contentEdit.objectId}
+          object={contentObject}
+          initialKind={contentEdit.kind}
+          media={assets
+            .filter((asset) => asset.kind === "image" || asset.kind === "video")
+            .map((asset) => ({ ...asset, kind: asset.kind as "image" | "video" }))}
+          displayMedia={
+            editorAssets.find((asset) => asset.id === contentObject.assetId)?.displayRole ===
+            "digital"
+          }
+          onSave={(before, fields) => {
+            if (
+              assets.find((asset) => asset.id === contentObject.assetId)?.displayRole ===
+                "physical" &&
+              !(before as Partial<ContentObject>).components?.some(
+                (component) => component.type === "text",
+              ) &&
+              fields.components.some(
+                (component) =>
+                  component.type === "text" && component.runs.some((run) => run.text.trim()),
+              )
+            ) {
+              setPendingText({
+                objectId: contentEdit.objectId,
+                before,
+                fields,
+                sceneId: activeSceneId,
+                generation: loadGeneration,
+              });
+              setPlacingAssetId(null);
+              setDragging(null);
+              setView("third");
+              return { ok: true, value: true };
+            }
+            return store.editExhibit(contentEdit.objectId, before, fields);
+          }}
+          onClose={() => setContentEdit(null)}
+        />
+      )}
       <p
         key={`${storageOperation === "recover" || storageOperation === "import" ? storageOperation : "notice"}-${feedback.sequence}`}
         className="draft-feedback"
@@ -886,6 +922,8 @@ export function App({ server }: { server?: ServerEditorSession }) {
             <DisplayEditor
               key={`${loadGeneration}:${activeSceneId}:${object.id}`}
               object={object}
+              placementFor={(ownerId, assetId) => viewCamera?.displayPlacement?.(ownerId, assetId)}
+              initialKind="image"
               asset={asset}
               assets={assets}
               project={project}
