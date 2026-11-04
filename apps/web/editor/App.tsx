@@ -1,8 +1,9 @@
+import { ExhibitPopups } from "./ui/ExhibitPopups";
+import type { ContentObject } from "../shared/project/project-content";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { assets } from "virtual:asset-catalogue";
 import { HOTSPOT_ASSET, HOTSPOT_ASSET_ID } from "../shared/asset-runtime/hotspot";
-import type { ContentObject } from "../shared/project/project-content";
-import type { Vector3Tuple } from "../shared/project/scene-object";
+import type { SceneObject, Vector3Tuple } from "../shared/project/scene-object";
 import type { HotspotDropTarget, ProjectHotspot, Transform } from "../shared/project/project-types";
 import { missingProjectCapabilities } from "../shared/project/project-capabilities";
 import { playUiSound } from "./audio/ui-sounds";
@@ -21,6 +22,7 @@ import { createInteractionHandler, type Interaction } from "./interaction/intera
 import { DisplayEditor } from "./ui/DisplayEditor";
 import { Button } from "../shared/ui/Button";
 import { BottomBar } from "./ui/BottomBar";
+import { ContentEditor, type ContentKind, type ExhibitFields } from "./ui/ContentEditor";
 import { PreviewTargets } from "./ui/PreviewTargets";
 import { SidePanels } from "./ui/SidePanels";
 import { TopBar } from "./ui/TopBar";
@@ -58,6 +60,27 @@ export function App({ server }: { server?: ServerEditorSession }) {
     useSyncExternalStore(store.subscribe, store.getSnapshot);
   const [displayEditing, setDisplayEditing] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [contentEdit, setContentEdit] = useState<{
+    objectId: string;
+    kind: ContentKind;
+  } | null>(null);
+  const [pendingTextDraft, setPendingText] = useState<{
+    objectId: string;
+    before: SceneObject;
+    fields: ExhibitFields;
+    sceneId: string | null;
+    generation: number;
+  } | null>(null);
+  const pendingText =
+    pendingTextDraft?.sceneId === activeSceneId && pendingTextDraft.generation === loadGeneration
+      ? pendingTextDraft
+      : null;
+  const textPlacement = useMemo(() => {
+    const component = pendingText?.fields.components.find((entry) => entry.type === "text");
+    return pendingText && component?.type === "text"
+      ? { objectId: pendingText.objectId, component }
+      : undefined;
+  }, [pendingText]);
   const [generatedThumbnails, setGeneratedThumbnails] = useState<Record<string, string>>({});
   const onThumbnail = useCallback((id: string, url: string) => {
     setGeneratedThumbnails((previous) => ({ ...previous, [id]: url }));
@@ -67,6 +90,19 @@ export function App({ server }: { server?: ServerEditorSession }) {
   const [status, setStatus] = useState<ViewportStatus>("loading");
   const [attempt, setAttempt] = useState(0);
   const [dragging, setDragging] = useState<string | null>(null);
+  const [placingAssetId, setPlacingAssetId] = useState<string | null>(null);
+  const [showExhibitTools, setShowExhibitTools] = useState(false);
+
+  useEffect(() => {
+    function cancel(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setPlacingAssetId(null);
+        setPendingText(null);
+      }
+    }
+    window.addEventListener("keydown", cancel);
+    return () => window.removeEventListener("keydown", cancel);
+  }, []);
   const [feedback, setFeedback] = useState({ text: "", sequence: 0 });
   const notice = feedback.text;
   const [error, setError] = useState("");
@@ -81,6 +117,9 @@ export function App({ server }: { server?: ServerEditorSession }) {
     return () => clearTimeout(timer);
   }, [feedback.sequence]);
   const [viewCamera, setViewCamera] = useState<ViewpointCamera | null>(null);
+  useEffect(() => {
+    if (pendingText) viewCamera?.locate(pendingText.objectId);
+  }, [pendingText, viewCamera]);
   const [manager, setManager] = useState<ModeManager | null>(null);
   const [mobileControls, setMobileControls] = useState<FpsMobileControls | null>(null);
   const [modeState, setModeState] = useState<ModeManagerState | null>(null);
@@ -164,6 +203,8 @@ export function App({ server }: { server?: ServerEditorSession }) {
   useEffect(() => (manager === null ? undefined : manager.subscribe(setModeState)), [manager]);
 
   const onReplace = useCallback(() => {
+    setPlacingAssetId(null);
+    setShowExhibitTools(false);
     setSelectedId(null);
     setDragging(null);
     setError("");
@@ -219,7 +260,12 @@ export function App({ server }: { server?: ServerEditorSession }) {
   useEffect(() => {
     function onHistoryKeyDown(event: KeyboardEvent) {
       // Foreground file operations own the keyboard; background backups must not block edits.
-      if (visitor || (storageOperation !== null && storageOperation !== "backup")) {
+      if (
+        placingAssetId ||
+        pendingText ||
+        visitor ||
+        (storageOperation !== null && storageOperation !== "backup")
+      ) {
         return;
       }
       const editingText = event.composedPath().some(isTextEditingTarget);
@@ -271,7 +317,16 @@ export function App({ server }: { server?: ServerEditorSession }) {
     }
     window.addEventListener("keydown", onHistoryKeyDown);
     return () => window.removeEventListener("keydown", onHistoryKeyDown);
-  }, [store, selection, storageOperation, visitor, setNotice, deleteSelection]);
+  }, [
+    store,
+    selection,
+    storageOperation,
+    visitor,
+    setNotice,
+    deleteSelection,
+    placingAssetId,
+    pendingText,
+  ]);
 
   useEffect(() => {
     // Filename identifies the browser tab; save status stays in the editor
@@ -306,7 +361,12 @@ export function App({ server }: { server?: ServerEditorSession }) {
     [store, setNotice],
   );
 
-  function place(assetId: string, position: Vector3Tuple, hotspotTarget?: HotspotDropTarget) {
+  function place(
+    assetId: string,
+    position: Vector3Tuple,
+    hotspotTarget?: HotspotDropTarget,
+    roomId: string | null = null,
+  ) {
     if (visitor) {
       return;
     }
@@ -392,11 +452,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
       return;
     }
 
-    const result = store.addObject(
-      assetId,
-      position,
-      roomSelected || groupSelected ? selectedId : selection,
-    );
+    const result = store.addObject(assetId, position, roomId);
     if (!result.ok) {
       setError(result.error);
       return;
@@ -406,6 +462,48 @@ export function App({ server }: { server?: ServerEditorSession }) {
     setNotice(`Added ${result.object.name}`);
     playUiSound("assetPlace");
   }
+
+  function openContent(kind: ContentKind) {
+    const object = store.getSnapshot().objects.find((entry) => entry.id === selectedId);
+    if (!object) {
+      setNotice("Select an exhibit in the scene or scene tree first");
+      return;
+    }
+    if (!assets.find((asset) => asset.id === object.assetId)?.displayRole) {
+      setNotice("Text can only be added to displays");
+      return;
+    }
+    if (
+      kind === "text" &&
+      (object as Partial<ContentObject>).components?.some(
+        (component) => component.type === "image" || component.type === "video",
+      )
+    ) {
+      setNotice("Remove the image or video before adding text");
+      return;
+    }
+    // Capture the selected stable ID so switching controls cannot silently retarget a pending form
+    setContentEdit({ objectId: object.id, kind });
+  }
+  const contentObject = objects.find(
+    (object) =>
+      object.id === contentEdit?.objectId &&
+      !!assets.find((asset) => asset.id === object.assetId)?.displayRole,
+  );
+  const onSceneSelect = useCallback(
+    (id: string | null) => {
+      setPendingText(null);
+      setSelectedId(id);
+      setShowExhibitTools(
+        id !== null && store.getSnapshot().objects.some((object) => object.id === id),
+      );
+    },
+    [store],
+  );
+  const popupAnchor = useCallback(
+    () => (selection === null ? null : (viewCamera?.bounds(selection) ?? null)),
+    [viewCamera, selection],
+  );
 
   return (
     <div
@@ -428,7 +526,9 @@ export function App({ server }: { server?: ServerEditorSession }) {
         canRedo={canRedo}
         onUndo={store.undo}
         onRedo={store.redo}
-        canPreview={manager !== null && (!session.busy || storageOperation === "backup")}
+        canPreview={
+          !pendingText && manager !== null && (!session.busy || storageOperation === "backup")
+        }
         onPreview={() => {
           const current = store.getSnapshot().project;
           const unavailable =
@@ -437,10 +537,13 @@ export function App({ server }: { server?: ServerEditorSession }) {
               : missingProjectCapabilities(
                   current,
                   new Set([
+                    "appearance",
                     "multipleScenes",
                     "content:text",
                     "content:image",
                     "content:video",
+                    "text:placement",
+                    "text:style",
                     "text:bold",
                     "text:italic",
                     "text:underline",
@@ -451,12 +554,20 @@ export function App({ server }: { server?: ServerEditorSession }) {
           const unsupportedDisplay =
             current?.schemaVersion === 2 &&
             current.scenes.some((scene) =>
-              scene.objects.some(
-                (object) =>
-                  object.components.some((component) =>
-                    ["text", "image", "video"].includes(component.type),
-                  ) && !assets.find((asset) => asset.id === object.assetId)?.displaySurface,
-              ),
+              scene.objects.some((object) => {
+                const display = assets.find((asset) => asset.id === object.assetId);
+                const content = object.components.filter((component) =>
+                  ["text", "image", "video"].includes(component.type),
+                );
+                return (
+                  content.length > 0 &&
+                  !display?.displaySurface &&
+                  !(
+                    display?.displayRole === "physical" &&
+                    content.every((component) => component.type === "text")
+                  )
+                );
+              }),
             );
           if (unavailable.length > 0 || unsupportedDisplay) {
             setNotice(
@@ -504,6 +615,8 @@ export function App({ server }: { server?: ServerEditorSession }) {
       )}
       <main className="workspace" inert={switching}>
         <SidePanels
+          assets={assets}
+          onContent={openContent}
           scenes={
             <Scenes
               key={`${loadGeneration}:${project?.projectId ?? "new"}:${activeSceneId}:${projectScene?.name}`}
@@ -571,7 +684,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
           projectScenes={project?.scenes ?? []}
           activeSceneId={activeSceneId}
           thumbnailFor={thumbnailFor}
-          onSelect={setSelectedId}
+          onSelect={onSceneSelect}
           onDelete={deleteSelection}
           onTransform={onTransform}
           onInteractionsChange={onInteractionsChange}
@@ -591,19 +704,42 @@ export function App({ server }: { server?: ServerEditorSession }) {
           projectScene={projectScene ?? null}
           selectedId={roomSelected ? projectScene.id : selection}
           dragging={dragging}
+          textPlacement={textPlacement}
+          onTextPlace={(placement) => {
+            if (!pendingText) return;
+            const result = store.editExhibit(pendingText.objectId, pendingText.before, {
+              ...pendingText.fields,
+              components: pendingText.fields.components.map((component) =>
+                component.type === "text" ? { ...component, placement } : component,
+              ),
+            });
+            if (!result.ok) {
+              setError(result.error.message);
+              return;
+            }
+            setPendingText(null);
+            setShowExhibitTools(true);
+          }}
+          placingAssetId={placingAssetId}
+          onPlacementCancel={() => setPlacingAssetId(null)}
           editingEnabled={!switching}
-          navigationTool={navigationTool}
+          navigationTool={pendingText ? "orbit" : navigationTool}
           view={view}
           status={status}
           attempt={attempt}
           onStatus={setStatus}
           onThumbnail={onThumbnail}
-          onSelect={setSelectedId}
+          onSelect={onSceneSelect}
           onTransform={onTransform}
           onObjectClick={onObjectClick}
           onSceneUpdate={onSceneUpdate}
-          onPlace={place}
-          onDragFinish={() => setDragging(null)}
+          onPlace={(...args) => {
+            place(...args);
+            setPlacingAssetId(null);
+          }}
+          onDragFinish={() => {
+            setDragging(null);
+          }}
           onRetry={() => {
             setStatus("loading");
             setAttempt((previous) => previous + 1);
@@ -611,6 +747,50 @@ export function App({ server }: { server?: ServerEditorSession }) {
           onManager={onManager}
           onMobileControls={setMobileControls}
         >
+          {!visitor &&
+            !placingAssetId &&
+            !pendingText &&
+            !contentEdit &&
+            showExhibitTools &&
+            selectedObject && (
+              <ExhibitPopups
+                key={selectedObject.id}
+                object={selectedObject}
+                anchor={popupAnchor}
+                displayRole={
+                  editorAssets.find((asset) => asset.id === selectedObject.assetId)?.displayRole
+                }
+                onEdit={openContent}
+                onLibrary={() => setDisplayEditing(selectedObject.id)}
+                onRemoveText={() => {
+                  const result = store.editExhibit(selectedObject.id, selectedObject, {
+                    name: selectedObject.name,
+                    transform: selectedObject.transform,
+                    components: (
+                      (selectedObject as Partial<ContentObject>).components ?? []
+                    ).filter((component) => component.type !== "text"),
+                  });
+                  if (!result.ok) setError(result.error.message);
+                }}
+                onRemoveMedia={() => {
+                  const result = store.removeDisplayMedia(selectedObject.id);
+                  if (!result.ok) setError(result.error.message);
+                }}
+                onRemoveContent={
+                  assets.find((asset) => asset.id === selectedObject.assetId)?.displayRole ===
+                    "physical" &&
+                  objects.some(
+                    (object) => (object as Partial<ContentObject>).parentId === selectedObject.id,
+                  )
+                    ? () => {
+                        const result = store.removeDisplayedAsset(selectedObject.id);
+                        if (!result.ok) setError(result.error.message);
+                      }
+                    : undefined
+                }
+                onConfirm={(appearance) => store.setAppearance(selectedObject.id, appearance)}
+              />
+            )}
           {visitor && (
             <div className="display-media-controls">
               {objects
@@ -640,14 +820,28 @@ export function App({ server }: { server?: ServerEditorSession }) {
               hotspot={HOTSPOT_ASSET}
               ready={status === "ready"}
               thumbnailFor={thumbnailFor}
-              onAdd={(assetId) => place(assetId, [0, 0, 0])}
-              onDragChange={setDragging}
+              onAdd={(assetId) => {
+                setShowExhibitTools(false);
+                if (assetId === HOTSPOT_ASSET_ID) {
+                  place(assetId, [0, 0, 0]);
+                  return;
+                }
+                if (project === null && assetKinds.get(assetId) !== "environment") {
+                  setError("Choose a room first");
+                  return;
+                }
+                setPlacingAssetId(assetId);
+                setNavigationTool("select");
+              }}
+              onDragChange={(assetId) => {
+                setDragging(assetId);
+                if (assetId !== null) {
+                  setPlacingAssetId(null);
+                  setShowExhibitTools(false);
+                }
+              }}
               tool={navigationTool}
               onToolChange={setNavigationTool}
-              selectedDisplay={
-                selectedObject && assets.find((a) => a.id === selectedObject.assetId)?.displayRole
-                  ? {
-                      name: selectedObject.name,
                       onEdit: () => setDisplayEditing(selectedObject.id),
                       disabled: switching || status !== "ready",
                     }
