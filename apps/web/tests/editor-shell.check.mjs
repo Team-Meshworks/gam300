@@ -64,7 +64,13 @@ async function addAsset(page, name, position = { x: 500, y: 300 }) {
     await page.locator(".asset-picker").getByRole("button", { name, exact: true }).click();
     await page.getByRole("button", { name: "Add", exact: true }).click();
   }
-  await page.locator(".viewport-stage").click({ position });
+  // Wait for React to arm placement before clicking; the room centre stays valid across viewport sizes
+  const stage = page.locator(".viewport-stage[data-placing-asset]");
+  await stage.waitFor();
+  const bounds = await stage.boundingBox();
+  await stage.click({
+    position: name === "Starter room" ? { x: bounds.width / 2, y: bounds.height / 2 } : position,
+  });
 }
 
 try {
@@ -889,7 +895,13 @@ try {
       .evaluateAll((rows) => rows.map((row) => getComputedStyle(row).fontSize));
     assert.equal(new Set(sizes).size, 1, "All tree levels use the parent font size");
     await addAsset(nested, "Starter room");
-    const roomInstance = nested.locator("[data-object-id]").filter({ hasText: "Starter room" });
+    await nested.locator(".object-row").nth(2).waitFor();
+    // Retain the newly selected room identity across later placements and renaming
+    const roomId = await nested
+      .locator('.object-row[aria-pressed="true"]')
+      .getAttribute("data-object-id");
+    assert.ok(roomId, "Adding the repeated room selects its new object row");
+    const roomInstance = nested.locator(`[data-object-id="${roomId}"]`);
     await roomInstance.click();
     await addAsset(nested, "Sample crate");
     // Placement follows the room under the pointer; explicit nesting remains a tree drop.
