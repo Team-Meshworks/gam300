@@ -378,6 +378,7 @@
     "editor/ui-preview/main.tsx": "10d494ed224f1fda3fc0fa3f6d1ef68527e859d62a1ef6bbd3854561dde10f64",
     "editor/ui/AssetFilterSelect.tsx": "a6165d2e7714c0c542bfb26e8f59e40c0608abec36a6691f8de8a5f95e179dcf",
     "editor/ui/AssetPicker.tsx": "a6d11403b312b31ab95092bd5acefb448db9275277ea13e41015132f3d400f59",
+    "editor/ui/AudioLibrary.tsx": "d34b93f67ca6a162265d35a024aa9aa678d1337ba10a5240840e3c49e488be5a",
     "editor/ui/BottomBar.tsx": "b1013fc2beae3f0334eb1487b4ff0b1258442e9eab7e004465463d80bcb64308",
     "editor/ui/ColorSwatches.tsx": "9d5add9ed67436ed70e201257935852ba44b822b303f25eb0e0a123856b7fe55",
     "editor/ui/ContentEditor.tsx": "fb51c304eb7815dbe55f53cd1b5ebac87e6683f14deb77b5a1273c8852798340",
@@ -528,11 +529,12 @@
     "editor/projects/submission.css": "db57ed4f57cb5a7374fd2d6da08946f4adaa35b4d27dc68543489ad9e4dffd03",
     "editor/ui-preview/museum-cover.png": "d1cd189d664335f8eba41739047648d54e1418ff1a517907c45f352e419b2f9b",
     "editor/ui-preview/preview.css": "57cd262a9cf55849fd30423eef659354dc6fb59d024eb5c1b392fa0a0901672e",
+    "editor/ui/assets/editor-video-selected-bg.svg": "6ed0223494d6d1c24e07794e3734460c6cc9e4b7025f1f96ede23cf70caf580f",
+    "editor/ui/audio-library.css": "3dd4d3bff210652c80aab4492d3d3b62650d52a955b8f60f7b969d725ea07706",
     "editor/ui/color-swatches.css": "3cc25621cafe269611caa459c0fdd22aa6b2198df8197f5cdec8ac8b18d524cf",
     "editor/ui/assets/editor-text.svg": "0e5095c5bf8643d9bcd3dd5ca66d5ae50a53600dfc9dc9dcb7a9d74e31016e5c",
     "editor/ui/assets/editor-video.svg": "77888111455a4637b5594e124ace4924e5645e6134841bdd5c1d500f1141d6db",
     "editor/ui/assets/editor-image.svg": "fc086161de6e0f5399fd2ff1e3503022714c5116b0a979db512c99c08dea3e03",
-    "editor/ui/assets/editor-video-selected-bg.svg": "6ed0223494d6d1c24e07794e3734460c6cc9e4b7025f1f96ede23cf70caf580f",
     "editor/ui/content-editor.css": "0b7a002e6d43279a13a586ceb37b07a186fa5c0dd58193ae5083a12ee52a10b3",
     "editor/ui/assets/editor-library-selected.svg": "327300c2e7fdccf167990a9ef26919259d6af7f7d612022f70caf2985a0ef278",
     "editor/ui/display-editor.css": "e7d1b6e70e888e061b173fdd2f3d02dff22e541bcb752a3a9dd8994f1639c91f",
@@ -6555,6 +6557,89 @@
     {
       "file": "editor/ui/AssetPicker.tsx",
       "line": 52,
+      "kind": "implicit-jsx",
+      "specifier": "react/jsx-runtime",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/ui/AudioLibrary.tsx",
+      "line": 1,
+      "kind": "static",
+      "specifier": "react",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/ui/AudioLibrary.tsx",
+      "line": 2,
+      "kind": "type",
+      "specifier": "../../shared/asset-runtime/catalogue",
+      "target": "shared/asset-runtime/catalogue.ts",
+      "from": "editor",
+      "to": "catalogue"
+    },
+    {
+      "file": "editor/ui/AudioLibrary.tsx",
+      "line": 3,
+      "kind": "type",
+      "specifier": "../../shared/project/validation-helpers",
+      "target": "shared/project/validation-helpers.ts",
+      "from": "editor",
+      "to": "project"
+    },
+    {
+      "file": "editor/ui/AudioLibrary.tsx",
+      "line": 4,
+      "kind": "static",
+      "specifier": "./AssetFilterSelect",
+      "target": "editor/ui/AssetFilterSelect.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/AudioLibrary.tsx",
+      "line": 5,
+      "kind": "static",
+      "specifier": "./asset-filters",
+      "target": "editor/ui/asset-filters.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/AudioLibrary.tsx",
+      "line": 6,
+      "kind": "static",
+      "specifier": "./Icon",
+      "target": "editor/ui/Icon.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/AudioLibrary.tsx",
+      "line": 7,
+      "kind": "static",
+      "specifier": "./assets/editor-video-selected-bg.svg?no-inline",
+      "target": "editor/ui/assets/editor-video-selected-bg.svg",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/AudioLibrary.tsx",
+      "line": 8,
+      "kind": "static",
+      "specifier": "./audio-library.css",
+      "target": "editor/ui/audio-library.css",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/AudioLibrary.tsx",
+      "line": 94,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
