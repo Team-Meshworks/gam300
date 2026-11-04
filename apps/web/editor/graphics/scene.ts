@@ -1737,10 +1737,9 @@ function createFpsMeter(host: HTMLDivElement): FpsMeter & { dispose(): void } {
     padding: "0.25rem 0.5rem",
     borderRadius: "0.375rem",
     background: "var(--scene-hint-background)",
-    color: "#f5f7fa",
+    color: "var(--scene-hint-text)",
     font: "0.75rem/1.4 system-ui, sans-serif",
     zIndex: "2",
-    opacity: "0.8",
     pointerEvents: "none",
   } satisfies Partial<CSSStyleDeclaration>);
   // Anchor inside the scene so a taller header still leaves the save status clear
