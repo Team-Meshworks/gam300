@@ -498,3 +498,253 @@ dialog.content-dialog.pdf-content-dialog .content-rich-input {
   font: inherit;
   font-size: var(--content-font-size, 24px);
   line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  overflow-y: auto;
+  border-radius: 24px;
+  outline-offset: -3px;
+}
+dialog.content-dialog.pdf-content-dialog .content-rich-input[data-empty="true"]::before {
+  content: attr(data-placeholder);
+  font-size: inherit;
+  position: absolute;
+  top: 24px;
+  left: 24px;
+  right: 24px;
+  color: var(--content-muted);
+  pointer-events: none;
+}
+dialog.content-dialog.pdf-content-dialog .content-rich-input:focus-visible {
+  outline: 2px solid var(--content-hover);
+  outline-offset: -3px;
+}
+dialog.content-dialog.pdf-content-dialog .content-tab-icon {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+}
+dialog.content-dialog.pdf-content-dialog .content-tabs .content-tab-background {
+  width: 44px;
+  height: auto;
+  aspect-ratio: 58.5 / 98;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+dialog.content-dialog.pdf-content-dialog .content-tabs button .content-tab-icon,
+dialog.content-dialog.pdf-content-dialog
+  .content-tabs
+  button:is(:hover, :focus-visible, [aria-pressed="true"], [aria-selected="true"])
+  .content-tab-icon {
+  position: absolute;
+  left: 62%;
+  top: 50%;
+  display: block;
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  transform: translate(-50%, -50%);
+}
+
+dialog.content-dialog.pdf-content-dialog
+  .content-tabs
+  button:not([aria-pressed="true"]):is(:hover, :focus-visible)
+  .content-tab-background {
+  background: var(--card-raised);
+}
+
+dialog.content-dialog.pdf-content-dialog .content-format {
+  flex-wrap: wrap;
+  max-width: calc(100% - 32px);
+}
+dialog.content-dialog.pdf-content-dialog .content-font-size {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+dialog.content-dialog.pdf-content-dialog .content-background-icon {
+  display: block;
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--content-ink);
+  border-radius: 5px;
+}
+dialog.content-dialog.pdf-content-dialog .content-background-palette {
+  position: absolute;
+  bottom: calc(100% + 12px);
+  left: 50%;
+  transform: translateX(-50%);
+}
+dialog.content-dialog.pdf-content-dialog .content-format .content-background-control {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: auto;
+  min-width: 44px;
+  padding: 0;
+  font-size: 14px;
+  font-weight: 400;
+}
+dialog.content-dialog.pdf-content-dialog .content-font-size .asset-filter-trigger {
+  width: auto;
+  min-width: 60px;
+  min-height: 40px;
+  padding: 4px 8px;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  border-radius: 20px;
+}
+@media (max-width: 40rem) {
+  dialog.content-dialog.pdf-content-dialog .content-rich-input {
+    padding-bottom: 128px;
+  }
+}
+
+dialog.content-dialog.pdf-content-dialog .content-font-size .asset-filter-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 64px;
+  height: 44px;
+  background: var(--button);
+}
+dialog.content-dialog.pdf-content-dialog .content-font-size .asset-filter .icon {
+  position: static;
+  inset: auto;
+  translate: none;
+  width: 10px;
+  height: 10px;
+}
+dialog.content-dialog.pdf-content-dialog .content-font-size .asset-filter-menu button {
+  display: block;
+  width: 100%;
+  height: auto;
+  min-height: 36px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: 16px;
+  line-height: 1.25;
+  text-align: center;
+}
+dialog.content-dialog.pdf-content-dialog .content-text-color-icon {
+  display: grid;
+  place-items: center;
+  border-bottom: 3px solid currentColor;
+}
+dialog.content-dialog.pdf-content-dialog .content-text-color-icon .icon {
+  display: block;
+  width: 20px;
+  height: 20px;
+}
+@media (max-width: 40rem) {
+  dialog.content-dialog.pdf-content-dialog .content-rich-input {
+    padding-bottom: 176px;
+  }
+}
+
+dialog.content-dialog.pdf-content-dialog .content-format button {
+  position: relative;
+}
+.content-control-tooltip {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  width: max-content;
+  max-width: 240px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: var(--exhibit-tooltip);
+  color: var(--exhibit-edge);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.4;
+  white-space: nowrap;
+  pointer-events: none;
+}
+dialog.content-dialog.pdf-content-dialog
+  button:is(:hover, :focus-visible)
+  > .content-control-tooltip {
+  display: block;
+}
+dialog.content-dialog.pdf-content-dialog button[aria-expanded="true"] > .content-control-tooltip {
+  display: none;
+}
+
+dialog.content-dialog.pdf-content-dialog .content-color-control {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+dialog.content-dialog.pdf-content-dialog .content-text-color-icon {
+  color: var(--content-ink);
+}
+dialog.content-dialog.pdf-content-dialog
+  .content-font-size
+  .asset-filter-menu
+  button:is([aria-selected="true"], :hover) {
+  background: var(--button);
+}
+
+dialog.content-dialog.pdf-content-dialog .content-format .content-background-control {
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 50%;
+}
+dialog.content-dialog.pdf-content-dialog .content-background-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+}
+dialog.content-dialog.pdf-content-dialog .content-color-control .color-palette {
+  max-width: none;
+}
+
+dialog.content-dialog.pdf-content-dialog .content-format > button,
+dialog.content-dialog.pdf-content-dialog .content-format > .content-color-control > button {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border-radius: 50%;
+}
+dialog.content-dialog.pdf-content-dialog .content-font-size .asset-filter-trigger {
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0 4px;
+  gap: 4px;
+  font-size: 16px;
+  border-radius: 50%;
+  background: transparent;
+}
+dialog.content-dialog.pdf-content-dialog .content-format > button:hover:not([aria-pressed="true"]),
+dialog.content-dialog.pdf-content-dialog .content-format > .content-color-control > button:hover,
+dialog.content-dialog.pdf-content-dialog
+  .content-font-size
+  .asset-filter-trigger:is(:hover, [aria-expanded="true"]) {
+  background: var(--pill);
+}
+
+/* Formatting controls share the editor's rounded-corner button shape. */
+dialog.content-dialog.pdf-content-dialog .content-format > button,
+dialog.content-dialog.pdf-content-dialog .content-format > .content-color-control > button,
+dialog.content-dialog.pdf-content-dialog .content-font-size .asset-filter-trigger {
+  border-radius: 12px;
+}
+dialog.content-dialog.pdf-content-dialog .content-font-size .asset-filter-trigger {
+  width: 44px;
+  min-width: 44px;
+  padding: 0 2px;
+  gap: 4px;
+}
