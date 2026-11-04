@@ -17,6 +17,8 @@ export const modules = {
       "shared/project/starting-view.ts",
       "shared/project/legacy-scene-import.ts",
       "shared/project/project-content.ts",
+      "shared/project/project-appearance.ts",
+      "shared/project/room-placement.ts",
       "shared/project/project-capabilities.ts",
       "shared/project/scene-object.ts",
       "shared/project/spatial-validation.ts",
