@@ -1,3 +1,4 @@
+import type { ContentComponent } from "../../shared/project/project-content";
 import { useEffect, useRef, type DragEvent, type ReactNode } from "react";
 import { assetDragType, type CatalogueAsset } from "../../shared/asset-runtime/catalogue";
 import { HOTSPOT_ASSET_ID } from "../../shared/asset-runtime/hotspot";
@@ -21,11 +22,13 @@ const statusMessages = {
 };
 
 export type ViewpointCamera = {
+  displayPlacement?: (ownerId: string, assetId: string) => Transform | undefined;
   capture: () => CameraPose;
   show: (pose: CameraPose) => void;
   locate: (id: string) => void;
   toggleDisplayMedia: (id: string) => void;
   hotspotAnchor: (id: string) => Vector3Tuple | undefined;
+  bounds: (id: string) => { left: number; right: number; top: number; bottom: number } | null;
 };
 
 type ViewportProps = {
@@ -37,6 +40,9 @@ type ViewportProps = {
   selectedId: string | null;
   dragging: string | null;
   placingAssetId?: string | null;
+  textPlacement?:
+    { objectId: string; component: Extract<ContentComponent, { type: "text" }> } | undefined;
+  onTextPlace?: (placement: Transform) => void;
   editingEnabled: boolean;
   navigationTool: NavigationTool;
   view: CameraView;
@@ -48,8 +54,14 @@ type ViewportProps = {
   onTransform: (id: string, transform: Transform) => void;
   onObjectClick: (id: string) => void;
   onSceneUpdate: (deltaSeconds: number) => void;
-  onPlace: (assetId: string, position: Vector3Tuple, hotspotTarget?: HotspotDropTarget) => void;
+  onPlace: (
+    assetId: string,
+    position: Vector3Tuple,
+    hotspotTarget?: HotspotDropTarget,
+    roomId?: string | null,
+  ) => void;
   onDragFinish: () => void;
+  onPlacementCancel?: () => void;
   onRetry: () => void;
   onManager: (manager: ModeManager) => void;
   onMobileControls: (controls: FpsMobileControls | null) => void;
@@ -65,6 +77,8 @@ export function Viewport({
   selectedId,
   dragging,
   placingAssetId,
+  textPlacement,
+  onTextPlace,
   editingEnabled,
   navigationTool,
   view,
@@ -78,6 +92,7 @@ export function Viewport({
   onSceneUpdate,
   onPlace,
   onDragFinish,
+  onPlacementCancel,
   onRetry,
   onManager,
   onMobileControls,
@@ -131,11 +146,13 @@ export function Viewport({
           onManager(scene.modeManager);
           onMobileControls(scene.mobileControls);
           onCamera({
+            displayPlacement: scene.getDisplayPlacement,
             capture: scene.captureCamera,
             show: scene.showCamera,
             locate: scene.locateObject,
             toggleDisplayMedia: scene.toggleDisplayMedia,
             hotspotAnchor: scene.getHotspotAnchor,
+            bounds: scene.getObjectScreenBounds,
           });
         }
       })
@@ -193,10 +210,27 @@ export function Viewport({
   ]);
 
   useEffect(() => {
-    if (!dragging) {
-      sceneRef.current?.showDropPosition(undefined);
-    }
-  }, [dragging]);
+    if (!dragging && !placingAssetId) sceneRef.current?.showPlacementPreview(undefined, undefined);
+  }, [dragging, placingAssetId]);
+
+  useEffect(() => {
+    sceneRef.current?.showPlacementPreview(
+      placingAssetId ?? undefined,
+      placingAssetId ? [0, 0, 0] : undefined,
+    );
+    return () => sceneRef.current?.showPlacementPreview(undefined, undefined);
+  }, [placingAssetId, status]);
+
+  useEffect(
+    () => () => {
+      sceneRef.current?.clearTextPlacement();
+      if (hostRef.current) {
+        hostRef.current.style.cursor = "";
+        delete hostRef.current.dataset.textPlacementValid;
+      }
+    },
+    [textPlacement, status],
+  );
 
   function accepts(event: DragEvent) {
     return (
@@ -216,8 +250,46 @@ export function Viewport({
       <div
         className={`viewport-stage${dragging ? " is-dragging" : ""}`}
         ref={hostRef}
+        data-placing-text={textPlacement?.objectId}
+        data-placing-asset={placingAssetId ?? undefined}
+        data-dragging-asset={dragging ?? undefined}
+        onPointerMove={(event) => {
+          if (textPlacement) {
+            const placement = sceneRef.current?.showTextPlacement(
+              textPlacement.objectId,
+              textPlacement.component,
+              event.clientX,
+              event.clientY,
+            );
+            event.currentTarget.style.cursor = placement ? "crosshair" : "not-allowed";
+            event.currentTarget.dataset.textPlacementValid = String(!!placement);
+            return;
+          }
+          if (placingAssetId)
+            sceneRef.current?.showPlacementPreview(
+              placingAssetId,
+              sceneRef.current.getDropPosition(event.clientX, event.clientY),
+              sceneRef.current.pickObjectAt(event.clientX, event.clientY),
+            );
+        }}
+        onPointerLeave={() => {
+          if (textPlacement) sceneRef.current?.clearTextPlacement();
+          if (placingAssetId) sceneRef.current?.showPlacementPreview(placingAssetId, undefined);
+        }}
         aria-busy={status === "loading"}
         onPointerDownCapture={(event) => {
+          if (textPlacement && event.button === 0) {
+            event.preventDefault();
+            event.stopPropagation();
+            const placement = sceneRef.current?.showTextPlacement(
+              textPlacement.objectId,
+              textPlacement.component,
+              event.clientX,
+              event.clientY,
+            );
+            if (placement) onTextPlace?.(placement);
+            return;
+          }
           // A library pick owns the next scene click; cancel remains with the caller
           if (
             !placingAssetId ||
@@ -228,8 +300,20 @@ export function Viewport({
             return;
           event.preventDefault();
           event.stopPropagation();
+          if (event.button !== 0) {
+            onPlacementCancel?.();
+            return;
+          }
           const position = sceneRef.current.getDropPosition(event.clientX, event.clientY);
-          if (position) onPlace(placingAssetId, position);
+          if (position) {
+            const objectId = sceneRef.current.pickObjectAt(event.clientX, event.clientY);
+            onPlace(
+              placingAssetId,
+              position,
+              objectId === undefined ? undefined : { objectId },
+              sceneRef.current.getRoomAtPosition(position),
+            );
+          }
         }}
         onDragOver={(event) => {
           if (!accepts(event)) {
@@ -241,20 +325,23 @@ export function Viewport({
             const objectId = scene?.pickObjectAt(event.clientX, event.clientY) ?? selectedId;
             const anchor = objectId === null ? undefined : scene?.getHotspotAnchor(objectId);
             event.dataTransfer.dropEffect = anchor === undefined ? "none" : "copy";
-            // A floor marker would imply an arbitrary position; attachment uses the owner.
-            scene?.showDropPosition(undefined);
+            scene?.showPlacementPreview(
+              HOTSPOT_ASSET_ID,
+              anchor === undefined ? undefined : [0, 0, 0],
+              objectId ?? undefined,
+            );
             return;
           }
           const position = sceneRef.current?.getDropPosition(event.clientX, event.clientY);
           event.dataTransfer.dropEffect = position === undefined ? "none" : "copy";
-          sceneRef.current?.showDropPosition(position);
+          sceneRef.current?.showPlacementPreview(dragging ?? undefined, position);
         }}
         onDragLeave={(event) => {
           if (
             !(event.relatedTarget instanceof Node) ||
             !event.currentTarget.contains(event.relatedTarget)
           ) {
-            sceneRef.current?.showDropPosition(undefined);
+            sceneRef.current?.showPlacementPreview(dragging ?? undefined, undefined);
           }
         }}
         onDrop={(event) => {
@@ -267,15 +354,26 @@ export function Viewport({
               onPlace(assetId, [0, 0, 0], objectId === undefined ? undefined : { objectId });
             } else {
               const position = scene?.getDropPosition(event.clientX, event.clientY);
-              if (position !== undefined) onPlace(assetId, position);
+              if (position !== undefined)
+                onPlace(assetId, position, undefined, scene?.getRoomAtPosition(position) ?? null);
             }
           }
-          sceneRef.current?.showDropPosition(undefined);
+          sceneRef.current?.showPlacementPreview(undefined, undefined);
           onDragFinish();
         }}
       />
       {children}
       {dragging && <p className="drop-cue">Drop to place</p>}
+      {textPlacement && (
+        <p className="drop-cue" role="status">
+          Click the case to place text · Escape to cancel
+        </p>
+      )}
+      {placingAssetId && (
+        <p className="drop-cue" role="status">
+          Click to place · Escape to cancel
+        </p>
+      )}
       <div className={status === "ready" ? "sr-only" : "viewport-feedback"}>
         <p role="status">{statusMessages[status]}</p>
         {(status === "error" || status === "unsupported") && (
