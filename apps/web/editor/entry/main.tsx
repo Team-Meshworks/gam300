@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { config } from "@fortawesome/fontawesome-svg-core";
 import "../../shared/ui/foundation.css";
 import "./entry.css";
+import { preloadUiSounds } from "../audio/ui-sounds";
 import { LandingPage } from "./LandingPage";
 import { LoginPage } from "./LoginPage";
 import { HomePage } from "../home/HomePage";
@@ -17,6 +18,7 @@ document.title = home
   : login
     ? "Log in · Spatia"
     : "Spatia · Interactive learning";
+if (login) preloadUiSounds("goingBack");
 createRoot(root).render(
   <StrictMode>{home ? <HomePage /> : login ? <LoginPage /> : <LandingPage />}</StrictMode>,
 );

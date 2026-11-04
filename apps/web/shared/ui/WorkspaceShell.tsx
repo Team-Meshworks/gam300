@@ -4,6 +4,8 @@ import { Button } from "./Button";
 import landmark from "./assets/landmark.svg";
 import washLeft from "./assets/ambient-left.svg";
 import washRight from "./assets/ambient-right.svg";
+import adminWashLeft from "./assets/admin-ambient-left.svg";
+import adminWashRight from "./assets/admin-ambient-right.svg";
 
 export function WorkspaceShell({
   name,
@@ -11,6 +13,7 @@ export function WorkspaceShell({
   onSignOut,
   onHome,
   homeHref = "#new-project",
+  variant,
   children,
 }: {
   name: string;
@@ -18,12 +21,21 @@ export function WorkspaceShell({
   onSignOut?: () => void;
   onHome?: () => void;
   homeHref?: string;
+  variant?: "dashboard" | undefined;
   children: ReactNode;
 }) {
   return (
-    <div className="sp-shell">
-      <img className="sp-wash sp-wash--left" src={washLeft} alt="" />
-      <img className="sp-wash sp-wash--right" src={washRight} alt="" />
+    <div className={`sp-shell${variant === "dashboard" ? " sp-shell--dashboard" : ""}`}>
+      <img
+        className="sp-wash sp-wash--left"
+        src={variant === "dashboard" ? adminWashLeft : washLeft}
+        alt=""
+      />
+      <img
+        className="sp-wash sp-wash--right"
+        src={variant === "dashboard" ? adminWashRight : washRight}
+        alt=""
+      />
       <header className="sp-navigation">
         <a
           className="sp-brand"

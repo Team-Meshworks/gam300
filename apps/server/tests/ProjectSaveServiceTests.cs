@@ -486,10 +486,9 @@ public sealed class ProjectSaveServiceTests
         var documents = fixture.App.Services.GetRequiredService<ProjectDocumentService>();
         var node = JsonNode.Parse(ProjectTestDocuments.Create(seeded.ProjectId, ""))!;
         node["scenes"]![0]!["objects"]![0]!["transform"]!["scale"] = new JsonArray(double.MaxValue, double.Epsilon, 1);
-        var baseline = documents.Serialize(documents.Read(seeded.ProjectId, node.ToJsonString()).Value!).Value!;
-        node["title"] = new string('x', Format.MaxProjectBytes - Encoding.UTF8.GetByteCount(baseline) - 16);
+        ProjectTestDocuments.PadTitleToBytes(node, Format.MaxProjectBytes);
         var request = CreateRequest(seeded.ProjectId) with { DocumentJson = node.ToJsonString() };
-        await Assert.That(Encoding.UTF8.GetByteCount(request.DocumentJson) <= Format.MaxProjectBytes).IsTrue();
+        await Assert.That(Encoding.UTF8.GetByteCount(request.DocumentJson)).IsEqualTo(Format.MaxProjectBytes);
         await AssertCommittedAsync(await SaveAsync(fixture, seeded.ProjectId, request), seeded.ProjectId, request.ClientMutationId, 1);
 
         var stored = await ReadAsync(fixture, seeded.ProjectId);
@@ -499,7 +498,7 @@ public sealed class ProjectSaveServiceTests
         await Assert.That(reopened.Value!.Title).IsEqualTo(node["title"]!.GetValue<string>());
         var exported = documents.Serialize(reopened.Value);
         await Assert.That(exported.Ok).IsTrue();
-        await Assert.That(Encoding.UTF8.GetByteCount(exported.Value!) <= Format.MaxProjectBytes).IsTrue();
+        await Assert.That(Encoding.UTF8.GetByteCount(exported.Value!)).IsEqualTo(Format.MaxProjectBytes);
         await Assert.That(exported.Value).IsEqualTo(documents.Serialize(documents.Read(seeded.ProjectId, request.DocumentJson).Value!).Value);
         await AssertCommittedAsync(await SaveAsync(fixture, seeded.ProjectId, request), seeded.ProjectId, request.ClientMutationId, 1);
         await AssertSameAsync(await ReadAsync(fixture, seeded.ProjectId), stored);
