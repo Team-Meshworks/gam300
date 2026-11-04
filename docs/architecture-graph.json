@@ -270,7 +270,7 @@
     "editor/directory/directory.ts": "ec5cf37c67e953850b1115ba316cec367527baa0c4fbc3f5aca289a171ba477a",
     "editor/display-content.test.ts": "ab6c58c76485718556b5d4915f18f7216008f4d4b68b8b59cb99f3b24319e85f",
     "editor/display-position.ts": "0b17fa58f2032cf143efdeb0e1e424f712024222e389c41963bc5bfe4b04e625",
-    "editor/document-store.test.ts": "36a515e33100a2c00fe4dfea414a186cba7b2947b00a3c348612c8c38e0678d7",
+    "editor/document-store.test.ts": "53a1f2b159ebe1842f6b9f9acbd4215b2a804d6268143378c3a583f26b8f9629",
     "editor/document-store.ts": "e3ce45fe7cc3d0af2c4c32bf7be4979976d840a7f1a171a835855c62f23ab003",
     "editor/edit-session.test.ts": "fd971338990e32158eb0355508fb39a7c3284db62421501024da029a82dc784a",
     "editor/entry/EntryBrand.tsx": "21be448d7b3232fe2fb0906ad4386e4a854c6a4369d75b851b1446e9af849b06",
@@ -308,7 +308,7 @@
     "editor/graphics/translation.ts": "a4ea05b137e4dee436848693a57273c54025856bdf943eb1e9413de5509bb2d4",
     "editor/graphics/visible-model-bounds.test.ts": "2d7cf52aa114d135a68215963e3af9dd00aa054860106df7dc81781700bedccd",
     "editor/graphics/visible-model-bounds.ts": "b0e04234fd91dcc661f95cf69bd64ed9b2915d7f91f70146d054dd15550ab713",
-    "editor/hierarchy.test.ts": "9183c999766d2e2779b8e2cc6d22d1f041709781771a0d303b639b2ef7e027a7",
+    "editor/hierarchy.test.ts": "5f3f556f3c50a8d27c01a6162abb3580c60e9a2a41155791cfab58b910c6b300",
     "editor/history-shortcuts.test.ts": "fc33404f4da0e7c9fd27d2da50d63eb3367c790cda0f985dd98b398b651e3a3b",
     "editor/history-shortcuts.ts": "e9d147c651ba15b45484207f805fbb648beb13c7393e4538d249c159c4b4e583",
     "editor/interaction-history.test.ts": "178fb9f576d890f84302c0e5d804eab6698989b8ea0c9ca128c3e4bb75a4cc6f",
@@ -486,7 +486,7 @@
     "tests/local-drafts.check.mjs": "3c3fa4662f489e91b809c1a3fcd9e183df6a718e5503c2ad939a234134fc3e66",
     "tests/login-real-api.check.mjs": "fde802b13e8c954736d33d5101e0cf0596f667ddf8a625c85138e5d936273caf",
     "tests/new-project.check.mjs": "7001c7bb51345dfe92b3bfd819223bf6eec70d6cee82a4d8ddaae4326d36311f",
-    "tests/project-format-cross.check.mjs": "4d326ac5a65b206019967b24cc4cfa1ea492212b734712f83bb97593e6459144",
+    "tests/project-format-cross.check.mjs": "e9306e6fe1dbc61b6b68272d044672f1dcbda318aec36a49e79137c80605972d",
     "tests/review-directory.check.mjs": "38c7c15bf9da45f16ae65de04b535a4f54cf22aab2a1119e126797dba593f7fb",
     "tests/room-preview.check.mjs": "b08da0a6b06bfc2bfcfae4e9601005330ce76b729d682590c85cbe80161d066c",
     "tests/server-autosave.check.mjs": "eaca99e446854e846dcbc25512264df684f857bd67d0c6c89afc07b38321fa1b",
@@ -521,7 +521,7 @@
     "shared/ui/foundation.css": "98a051c00415cfb9bc98f9e921d3f66685766a10a837d5737c76ba4f7bc54ffc",
     "editor/entry/entry.css": "fe7cbc59e81658828c79a8d61a5025b090b2ad23533bb1f26830518138d74dbd",
     "shared/project/fixtures/m2-project.json": "d0b01cf012c8418b3d5e0acef2053b936fdce5333603666dd1e757a3b5e5565b",
-    "shared/project/fixtures/project-format-cases.json": "06300d01e8e644f8c7e9ffe91d42d92b072448dfe26b75580314e31f4d5b43ac",
+    "shared/project/fixtures/project-format-cases.json": "16bb431943ce0590088374afc47ca12a2c6d021b41aecf9b261c807f110210d2",
     "editor/styles.css": "4941b526a1c66e83736cf11b963e2048b6fff18c8422bf6b218170bbe4b3ed0f",
     "editor/fixtures/asset-pipeline-document-history.json": "4fe51cba770226d856f37cbbc2afbe0b3fe393e5990b8f761b794b7b5bf5380d",
     "editor/fixtures/asset-pipeline-view-history.json": "d33e208ca99c5fb1e816a9e0b79aebb987c79ef354179d8c06e430b382cf4f59",
@@ -3739,6 +3739,33 @@
       "file": "editor/hierarchy.test.ts",
       "line": 1,
       "kind": "static",
+      "specifier": "../shared/project/selection-transform",
+      "target": "shared/project/selection-transform.ts",
+      "from": "checks",
+      "to": "project"
+    },
+    {
+      "file": "editor/hierarchy.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "../shared/project/room-placement",
+      "target": "shared/project/room-placement.ts",
+      "from": "checks",
+      "to": "project"
+    },
+    {
+      "file": "editor/hierarchy.test.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "../shared/project/project-deserialization",
+      "target": "shared/project/project-deserialization.ts",
+      "from": "checks",
+      "to": "project"
+    },
+    {
+      "file": "editor/hierarchy.test.ts",
+      "line": 4,
+      "kind": "static",
       "specifier": "vitest",
       "target": {
         "package": "vitest"
@@ -3747,7 +3774,7 @@
     },
     {
       "file": "editor/hierarchy.test.ts",
-      "line": 2,
+      "line": 5,
       "kind": "static",
       "specifier": "./document-store",
       "target": "editor/document-store.ts",
@@ -3756,7 +3783,7 @@
     },
     {
       "file": "editor/hierarchy.test.ts",
-      "line": 3,
+      "line": 6,
       "kind": "static",
       "specifier": "./recovery-history",
       "target": "editor/recovery-history.ts",
@@ -3765,7 +3792,7 @@
     },
     {
       "file": "editor/hierarchy.test.ts",
-      "line": 4,
+      "line": 7,
       "kind": "static",
       "specifier": "../shared/project/project-serialization",
       "target": "shared/project/project-serialization.ts",
@@ -3774,7 +3801,7 @@
     },
     {
       "file": "editor/hierarchy.test.ts",
-      "line": 5,
+      "line": 8,
       "kind": "static",
       "specifier": "../shared/project/fixtures/m1-project.json",
       "target": "shared/project/fixtures/m1-project.json",
@@ -3783,7 +3810,7 @@
     },
     {
       "file": "editor/hierarchy.test.ts",
-      "line": 6,
+      "line": 9,
       "kind": "static",
       "specifier": "../shared/project/fixtures/m2-project.json",
       "target": "shared/project/fixtures/m2-project.json",
@@ -3792,7 +3819,7 @@
     },
     {
       "file": "editor/hierarchy.test.ts",
-      "line": 7,
+      "line": 10,
       "kind": "static",
       "specifier": "../shared/project/fixtures/project-format-cases.json",
       "target": "shared/project/fixtures/project-format-cases.json",
@@ -3801,7 +3828,7 @@
     },
     {
       "file": "editor/hierarchy.test.ts",
-      "line": 8,
+      "line": 11,
       "kind": "type",
       "specifier": "../shared/project/project-content",
       "target": "shared/project/project-content.ts",
@@ -3810,7 +3837,7 @@
     },
     {
       "file": "editor/hierarchy.test.ts",
-      "line": 9,
+      "line": 12,
       "kind": "type",
       "specifier": "../shared/asset-runtime/catalogue",
       "target": "shared/asset-runtime/catalogue.ts",

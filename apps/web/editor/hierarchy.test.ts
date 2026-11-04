@@ -1,3 +1,6 @@
+import { moveSceneSelection } from "../shared/project/selection-transform";
+import { roomFitsGrid } from "../shared/project/room-placement";
+import { deserializeProject } from "../shared/project/project-deserialization";
 import { describe, expect, it } from "vitest";
 import { createDocumentStore } from "./document-store";
 import { validateRecoveryHistory } from "./recovery-history";
@@ -65,7 +68,7 @@ describe("authored hierarchy", () => {
     const roomModel = {
       ...assets[1]!,
       id: "test-room-module-v1",
-      name: "test-room",
+      name: "Starter room",
       kind: "model" as const,
     };
     const store = createDocumentStore([...assets, roomModel]);
@@ -244,5 +247,229 @@ describe("authored hierarchy", () => {
     reopened.redo();
     reopened.redo();
     expect(content(reopened)).toEqual(content(store));
+  });
+});
+
+it("deletes a group with nested groups and objects while preserving siblings and restoring the branch with Undo", () => {
+  const store = setup();
+  const root = group(store, "Parent");
+  const nested = group(store, "Child", root.id);
+  const sibling = group(store, "Keep me");
+  const objects = store.getSnapshot().objects;
+  expect(store.reparent(objects[0]!.id, nested.id).ok).toBe(true);
+  expect(store.reparent(objects[1]!.id, root.id).ok).toBe(true);
+  const before = store.getSnapshot().project;
+  expect(store.deleteObject(root.id).ok).toBe(true);
+  expect(store.getSnapshot().objects).toHaveLength(0);
+  expect(content(store).scenes[0]!.groups.map((entry) => entry.id)).toEqual([sibling.id]);
+  store.undo();
+  expect(store.getSnapshot().project).toEqual(before);
+  store.redo();
+  expect(store.getSnapshot().objects).toHaveLength(0);
+});
+
+// Keep room command regressions beside the hierarchy and history behavior they preserve
+describe("room layouts", () => {
+  const assets: CatalogueAsset[] = ["test-room-v1", "test-room-module-v1", "test-crate-v1"].map(
+    (id) => ({
+      id,
+      name: id,
+      kind: id === "test-room-v1" ? "environment" : "model",
+      url: `${id}.glb`,
+      sha256: "0".repeat(64),
+      thumbnail: null,
+    }),
+  );
+  function layout() {
+    const store = createDocumentStore(assets);
+    store.createProject("test-room-v1");
+    const a = store.addObject("test-room-module-v1", [10, 0, 0]);
+    const b = store.addObject("test-room-module-v1", [10, 0, 10]);
+    if (!a.ok || !b.ok) throw new Error("Could not create rooms");
+    return { store, a: a.object, b: b.object, first: store.getSnapshot().activeSceneId! };
+  }
+  it("moves all selected rooms including the initial room and attached contents exactly once in one undo step", () => {
+    const { store, a, b, first } = layout();
+    const crate = store.addObject("test-crate-v1", [11, 0, 1], a.id);
+    if (!crate.ok) throw new Error(crate.error);
+    const before = store.getSnapshot().project;
+    expect(
+      store.setSelectionTransform([first, a.id, b.id, crate.object.id], a.id, {
+        ...a.transform,
+        position: [13, 0, 4],
+      }).ok,
+    ).toBe(true);
+    const project = store.getSnapshot().project as ContentProject;
+    const scene = project.scenes[0]!;
+    expect(scene.environmentTransform?.position).toEqual([3, 0, 4]);
+    expect(scene.objects.map((object) => object.transform.position)).toEqual([
+      [13, 0, 4],
+      [13, 0, 14],
+      [14, 0, 5],
+    ]);
+    expect(scene.objects[2]!.parentId).toBe(a.id);
+    const saved = serializeProject(project, new Map(assets.map((asset) => [asset.id, asset.kind])));
+    expect(saved.ok).toBe(true);
+    if (saved.ok)
+      expect(
+        deserializeProject(saved.value, new Map(assets.map((asset) => [asset.id, asset.kind]))),
+      ).toEqual({ ok: true, value: project });
+    store.undo();
+    expect(store.getSnapshot().project).toEqual(before);
+    store.redo();
+    expect(store.getSnapshot().project).toEqual(project);
+  });
+  it("snaps individual room translation and rotation to the stationary layout without disabling rotation", () => {
+    const { store, a } = layout();
+    expect(
+      store.setTransform(a.id, {
+        ...a.transform,
+        position: [0.1, 0, -9.8],
+        rotation: [0, Math.sin(Math.PI / 5), 0, Math.cos(Math.PI / 5)],
+      }).ok,
+    ).toBe(true);
+    const moved = store.getSnapshot().objects.find((object) => object.id === a.id)!;
+    expect(moved.transform.position).toEqual([0, 0, -10]);
+    expect(moved.transform.rotation[1]).toBeCloseTo(Math.SQRT1_2);
+    expect(
+      store.setSelectionTransform([a.id], a.id, { ...moved.transform, scale: [2, 2, 2] }).ok,
+    ).toBe(false);
+  });
+  it("rotates a selected layout freely on the floor and aligns newly added rooms to that layout", () => {
+    const { store, a, b, first } = layout();
+    const yaw = Math.PI / 4;
+    expect(
+      store.setSelectionTransform([first, a.id, b.id], first, {
+        position: [3, 0, 4],
+        rotation: [0, Math.sin(yaw / 2), 0, Math.cos(yaw / 2)],
+        scale: [1, 1, 1],
+      }).ok,
+    ).toBe(true);
+    const scene = (store.getSnapshot().project as ContentProject).scenes[0]!;
+    expect(scene.objects[0]!.transform.position[0]).toBeCloseTo(3 + 10 * Math.SQRT1_2);
+    expect(scene.objects[0]!.transform.position[2]).toBeCloseTo(4 - 10 * Math.SQRT1_2);
+    const added = store.addObject("test-room-module-v1", [-4, 0, 11]);
+    expect(added.ok).toBe(true);
+    if (added.ok)
+      expect(added.object.transform.rotation).toEqual(scene.environmentTransform!.rotation);
+  });
+  it("rejects moving a selected pair through a stationary room without changing history", () => {
+    const { store, a, b } = layout();
+    const before = store.getSnapshot();
+    // Snapping A behind the initial room would put B inside the initial room.
+    expect(
+      store.setSelectionTransform([a.id, b.id], a.id, { ...a.transform, position: [0, 0, -10] }).ok,
+    ).toBe(false);
+    expect(store.getSnapshot()).toBe(before);
+  });
+
+  it("requires the whole room, including rotated corners, to fit on the grid", () => {
+    expect(roomFitsGrid([15, 0, -15])).toBe(true);
+    expect(roomFitsGrid([15.1, 0, 0])).toBe(false);
+    const rotation = [0, Math.sin(Math.PI / 8), 0, Math.cos(Math.PI / 8)] as const;
+    expect(roomFitsGrid([12, 0, 12], rotation)).toBe(true);
+    expect(roomFitsGrid([13, 0, 13], rotation)).toBe(false);
+  });
+
+  it("previews room movement freely but reconnects on release instead of saving gaps", () => {
+    const { store, a } = layout();
+    const edit = store.beginTransform(a.id);
+    if (!edit.ok) throw new Error(edit.error.message);
+    const preview = store.previewTransform(edit.value.token, {
+      ...a.transform,
+      position: [11.5, 0.2, 0],
+    });
+    expect(preview.ok).toBe(true);
+    if (preview.ok) expect(preview.value.after.position).toEqual([11.5, 0.2, 0]);
+    expect(store.commitTransformEdit(edit.value.token).ok).toBe(true);
+    expect(
+      store.getSnapshot().objects.find((object) => object.id === a.id)!.transform.position,
+    ).toEqual([10, 0, 0]);
+    expect(store.setTransform(a.id, { ...a.transform, position: [0.7, 0, -9] }).ok).toBe(true);
+    expect(
+      store.getSnapshot().objects.find((object) => object.id === a.id)!.transform.position,
+    ).toEqual([0, 0, -10]);
+  });
+
+  it("numbers repeated assets per type starting at two, including the initial room", () => {
+    const { store, a, b } = layout();
+    expect(a.name).toBe("test-room-module-v1 2");
+    expect(b.name).toBe("test-room-module-v1 3");
+    const first = store.addObject("test-crate-v1", [1, 0, 1]);
+    const second = store.addObject("test-crate-v1", [2, 0, 2]);
+    expect(first.ok && first.object.name).toBe("test-crate-v1");
+    expect(second.ok && second.object.name).toBe("test-crate-v1 2");
+  });
+  it("deletes the initial room and its nested contents, preserving other rooms and one undo step", () => {
+    const { store, a, first } = layout();
+    const crate = store.addObject("test-crate-v1", [0, 0, 0], first);
+    const other = store.addObject("test-crate-v1", [10, 0, 0], a.id);
+    if (!crate.ok || !other.ok) throw new Error("Could not place contents");
+    const before = store.getSnapshot().project;
+    expect(store.deleteObject(first).ok).toBe(true);
+    const scene = (store.getSnapshot().project as ContentProject).scenes[0]!;
+    expect(scene.environmentVisible).toBe(false);
+    expect(scene.objects.some((object) => object.id === crate.object.id)).toBe(false);
+    expect(scene.objects.some((object) => object.id === other.object.id)).toBe(true);
+    store.undo();
+    expect(store.getSnapshot().project).toEqual(before);
+    store.redo();
+    expect((store.getSnapshot().project as ContentProject).scenes[0]!.environmentVisible).toBe(
+      false,
+    );
+  });
+  it("deletes the last room into an empty saveable project and permits adding a new room", () => {
+    const store = createDocumentStore(assets);
+    store.createProject("test-room-v1");
+    const id = store.getSnapshot().activeSceneId!;
+    store.addObject("test-crate-v1", [0, 0, 0], id);
+    expect(store.deleteObject(id).ok).toBe(true);
+    expect(store.getSnapshot().objects).toHaveLength(0);
+    const project = store.getSnapshot().project as ContentProject;
+    const kinds = new Map(assets.map((asset) => [asset.id, asset.kind]));
+    const saved = serializeProject(project, kinds);
+    expect(saved.ok).toBe(true);
+    if (saved.ok)
+      expect(deserializeProject(saved.value, kinds)).toEqual({ ok: true, value: project });
+    const room = store.addObject("test-room-module-v1", [0, 0, 0]);
+    expect(room.ok && room.object.name).toBe("test-room-module-v1");
+  });
+
+  it("allows a room resize preview while retaining the original authored size", () => {
+    const { store, a } = layout();
+    const original = store.getSnapshot().project as ContentProject;
+    const scene = original.scenes[0]!;
+    const resized = { ...a.transform, scale: [1.2, 1.2, 1.2] as const };
+    const preview = moveSceneSelection(scene, [a.id], a.id, resized, true);
+    expect(preview.ok).toBe(true);
+    if (preview.ok)
+      expect(preview.value.objects.find((object) => object.id === a.id)!.transform.scale).toEqual(
+        resized.scale,
+      );
+    expect(moveSceneSelection(scene, [a.id], a.id, resized).ok).toBe(false);
+    expect(store.getSnapshot().project).toBe(original);
+    expect(scene.objects.find((object) => object.id === a.id)!.transform.scale).toEqual([1, 1, 1]);
+  });
+
+  it("aligns new rooms with the remaining rotated layout after deleting the initial room", () => {
+    const store = createDocumentStore(assets);
+    store.createProject("test-room-v1");
+    expect(store.deleteObject(store.getSnapshot().activeSceneId!).ok).toBe(true);
+    const first = store.addObject("test-room-module-v1", [0, 0, 0]);
+    if (!first.ok) throw new Error(first.error);
+    const rotation = [0, Math.sin(Math.PI / 8), 0, Math.cos(Math.PI / 8)] as const;
+    expect(
+      store.setSelectionTransform([first.object.id], first.object.id, {
+        ...first.object.transform,
+        rotation,
+      }).ok,
+    ).toBe(true);
+    const next = store.addObject("test-room-module-v1", [-7, 0, 7]);
+    expect(next.ok).toBe(true);
+    if (next.ok)
+      expect(next.object.transform.rotation).toEqual(
+        store.getSnapshot().objects.find((object) => object.id === first.object.id)!.transform
+          .rotation,
+      );
   });
 });

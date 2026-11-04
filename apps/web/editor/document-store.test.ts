@@ -563,12 +563,18 @@ it("rejects room scaling in direct edits and previews while allowing movement an
 
 it("links hotspot playback to scene audio and removes only the hotspot and its rules", () => {
   // Keep one store-level regression for track removal and atomic restoration of its hotspot links
-  const assets: CatalogueAsset[] = ([
-    { id: "room", kind: "environment" },
-    { id: "object", kind: "model" },
-    { id: "audio", kind: "audio" },
-  ] as const).map((asset) => ({
-    ...asset, name: asset.id, url: asset.id, sha256: "0".repeat(64), thumbnail: null,
+  const assets: CatalogueAsset[] = (
+    [
+      { id: "room", kind: "environment" },
+      { id: "object", kind: "model" },
+      { id: "audio", kind: "audio" },
+    ] as const
+  ).map((asset) => ({
+    ...asset,
+    name: asset.id,
+    url: asset.id,
+    sha256: "0".repeat(64),
+    thumbnail: null,
   }));
   const store = createDocumentStore(assets);
   store.createProject("room");

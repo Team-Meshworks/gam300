@@ -8,6 +8,88 @@
   },
   "cases": [
     {
+      "name": "v2 preserves deleted initial room",
+      "base": "m2",
+      "valid": true,
+      "patches": [
+        {
+          "path": ["scenes", 0, "environmentVisible"],
+          "value": false
+        }
+      ]
+    },
+    {
+      "name": "invalid initial room visibility",
+      "base": "m2",
+      "valid": false,
+      "patches": [
+        {
+          "path": ["scenes", 0, "environmentVisible"],
+          "value": "false"
+        }
+      ],
+      "path": "project.scenes[0].environmentVisible"
+    },
+    {
+      "name": "v1 rejects initial room visibility",
+      "base": "m1",
+      "valid": false,
+      "patches": [
+        {
+          "path": ["scenes", 0, "environmentVisible"],
+          "value": false
+        }
+      ],
+      "path": "project.scenes[0].environmentVisible"
+    },
+    {
+      "name": "moved initial room",
+      "base": "m2",
+      "valid": true,
+      "patches": [
+        {
+          "path": ["scenes", 0, "environmentTransform"],
+          "value": {
+            "position": [4, 0, -3],
+            "rotation": [0, 0.7071067811865475, 0, 0.7071067811865476],
+            "scale": [1, 1, 1]
+          }
+        }
+      ]
+    },
+    {
+      "name": "invalid initial room transform",
+      "base": "m2",
+      "valid": false,
+      "patches": [
+        {
+          "path": ["scenes", 0, "environmentTransform"],
+          "value": {
+            "position": [0, 0],
+            "rotation": [0, 0.7071067811865475, 0, 0.7071067811865476],
+            "scale": [1, 1, 1]
+          }
+        }
+      ],
+      "path": "project.scenes[0].environmentTransform.position"
+    },
+    {
+      "name": "v1 rejects initial room transform",
+      "base": "m1",
+      "valid": false,
+      "patches": [
+        {
+          "path": ["scenes", 0, "environmentTransform"],
+          "value": {
+            "position": [4, 0, -3],
+            "rotation": [0, 0.7071067811865475, 0, 0.7071067811865476],
+            "scale": [1, 1, 1]
+          }
+        }
+      ],
+      "path": "project.scenes[0].environmentTransform"
+    },
+    {
       "name": "storage NUL in released title",
       "base": "m1",
       "valid": false,
@@ -2355,6 +2437,242 @@
         {
           "path": ["scenes", 0, "objects", 0, "components", 1, "color"],
           "value": "transparent"
+        }
+      ]
+    },
+    {
+      "name": "v2 preserves scene background audio",
+      "base": "m2",
+      "valid": true,
+      "patches": [
+        {
+          "path": ["scenes", 0, "audio"],
+          "value": [
+            {
+              "id": "63636363-6363-4363-8363-636363636363",
+              "type": "audio",
+              "mode": "global",
+              "assetId": "demo-audio-v1",
+              "caption": "",
+              "loop": true,
+              "volume": 0.6
+            }
+          ],
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "scene audio rejects spatial mode",
+      "base": "m2",
+      "valid": false,
+      "patches": [
+        {
+          "path": ["scenes", 0, "audio"],
+          "value": [
+            {
+              "id": "63636363-6363-4363-8363-636363636363",
+              "type": "audio",
+              "mode": "spatial",
+              "assetId": "demo-audio-v1",
+              "caption": "",
+              "loop": true,
+              "volume": 0.6
+            }
+          ],
+          "remove": false
+        }
+      ],
+      "path": "project.scenes[0].audio[0]"
+    },
+    {
+      "name": "scene audio rejects wrong asset kind",
+      "base": "m2",
+      "valid": false,
+      "patches": [
+        {
+          "path": ["scenes", 0, "audio"],
+          "value": [
+            {
+              "id": "63636363-6363-4363-8363-636363636363",
+              "type": "audio",
+              "mode": "global",
+              "assetId": "demo-image-v1",
+              "caption": "",
+              "loop": true,
+              "volume": 0.6
+            }
+          ],
+          "remove": false
+        }
+      ],
+      "path": "project.scenes[0].audio[0].assetId"
+    },
+    {
+      "name": "scene audio rejects invalid volume",
+      "base": "m2",
+      "valid": false,
+      "patches": [
+        {
+          "path": ["scenes", 0, "audio"],
+          "value": [
+            {
+              "id": "63636363-6363-4363-8363-636363636363",
+              "type": "audio",
+              "mode": "global",
+              "assetId": "demo-audio-v1",
+              "caption": "",
+              "loop": true,
+              "volume": 2
+            }
+          ],
+          "remove": false
+        }
+      ],
+      "path": "project.scenes[0].audio[0].volume"
+    },
+    {
+      "name": "scene audio rejects duplicate identity",
+      "base": "m2",
+      "valid": false,
+      "patches": [
+        {
+          "path": ["scenes", 0, "audio"],
+          "value": [
+            {
+              "id": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+              "type": "audio",
+              "mode": "global",
+              "assetId": "demo-audio-v1",
+              "caption": "",
+              "loop": true,
+              "volume": 0.6
+            }
+          ],
+          "remove": false
+        }
+      ],
+      "path": "project.scenes[0].audio[0].id"
+    },
+    {
+      "name": "v2 interaction audio stable audio reference",
+      "base": "m2",
+      "valid": true,
+      "patches": [
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "play-audio",
+                "mediaId": "00000067-0000-4000-8000-000000000000"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "v2 interaction audio wrong-kind audio reference",
+      "base": "m2",
+      "valid": false,
+      "patches": [
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "play-audio",
+                "mediaId": "00000065-0000-4000-8000-000000000000"
+              }
+            }
+          ]
+        }
+      ],
+      "path": "project.scenes[0].interactions[0].do.mediaId"
+    },
+    {
+      "name": "v2 interaction audio missing audio reference",
+      "base": "m2",
+      "valid": false,
+      "patches": [
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "play-audio",
+                "mediaId": "99999999-9999-4999-8999-999999999999"
+              }
+            }
+          ]
+        }
+      ],
+      "path": "project.scenes[0].interactions[0].do.mediaId"
+    },
+    {
+      "name": "v2 interaction audio scene track",
+      "base": "m2",
+      "valid": true,
+      "patches": [
+        {
+          "path": ["scenes", 0, "audio"],
+          "value": [
+            {
+              "id": "7f300001-0000-4000-8000-000000000000",
+              "type": "audio",
+              "mode": "global",
+              "assetId": "demo-audio-v1",
+              "caption": "",
+              "loop": true,
+              "volume": 0.5
+            }
+          ]
+        },
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "play-audio",
+                "mediaId": "7f300001-0000-4000-8000-000000000000"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "v2 interaction audio cross-scene target",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[1].interactions[0].do.mediaId",
+      "patches": [
+        {
+          "path": ["scenes", 1, "interactions"],
+          "value": [
+            {
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "play-audio",
+                "mediaId": "00000067-0000-4000-8000-000000000000"
+              }
+            }
+          ]
         }
       ]
     }
