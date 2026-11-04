@@ -498,3 +498,76 @@ export function ContentEditor({
                           )}
                         </span>
                       }
+                      <button
+                        type="button"
+                        aria-label="Clear text formatting"
+                        onPointerDown={(event) => event.preventDefault()}
+                        onClick={() => {
+                          if (component.type === "text")
+                            update({
+                              ...component,
+                              runs: component.runs.map((run) => ({ ...run, marks: [] })),
+                            });
+                          setMarks([]);
+                        }}
+                      >
+                        Tt
+                        <span className="content-control-tooltip" role="tooltip">
+                          Clear Formatting
+                        </span>
+                      </button>
+                      {(["bold", "italic", "underline"] as const).map((mark) => (
+                        <button
+                          type="button"
+                          key={mark}
+                          aria-label={mark}
+                          aria-pressed={marks.includes(mark)}
+                          onPointerDown={(event) => event.preventDefault()}
+                          onClick={() => format(mark)}
+                        >
+                          {mark === "bold" ? <b>B</b> : mark === "italic" ? <i>I</i> : <u>U</u>}
+                          <span
+                            className="content-control-tooltip"
+                            role="tooltip"
+                          >{`${mark[0]!.toUpperCase()}${mark.slice(1)} (Ctrl/⌘+${mark === "bold" ? "B" : mark === "italic" ? "I" : "U"})`}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+
+            {error && (
+              <p className="content-error" role="alert" tabIndex={-1} ref={alert}>
+                {error}
+              </p>
+            )}
+          </div>
+        </div>
+        <footer className="asset-picker-actions">
+          <button
+            type="submit"
+            className="ui-button pill-button asset-picker-add"
+            disabled={
+              component && "assetId" in component
+                ? !media.some(
+                    (item) => item.id === component.assetId && item.kind === component.type,
+                  )
+                : !component &&
+                  ["audio", "video", "image"].includes(kind) &&
+                  !((before as Partial<ContentObject>).components ?? []).some(
+                    (item) => item.type === kind,
+                  )
+            }
+          >
+            {kind === "text" &&
+            (before as Partial<ContentObject>).components?.some((item) => item.type === "text")
+              ? "Update"
+              : "Add"}
+          </button>
+        </footer>
+      </form>
+    </dialog>
+  );
+}
