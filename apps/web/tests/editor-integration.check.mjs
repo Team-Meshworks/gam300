@@ -17,7 +17,7 @@ async function openLibrary(page) {
 
 // Clicking a card only picks it, Add is what places it
 async function addAsset(page, name) {
-  if (name === "test-room") {
+  if (name === "Starter room") {
     if (await page.locator(".asset-picker").count()) await page.keyboard.press("Escape");
     const overview = page.getByRole("button", { name: "Third person", exact: true });
     if ((await overview.getAttribute("aria-pressed")) !== "true") await overview.click();
@@ -62,9 +62,9 @@ try {
   });
   await page.goto(url);
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
-  await addAsset(page, "test-room");
+  await addAsset(page, "Starter room");
   await page.waitForFunction(() => typeof window.finishBackup === "function");
-  await addAsset(page, "test-crate");
+  await addAsset(page, "Sample crate");
   const position = await page.getByLabel("Selected position").textContent();
   assert.equal(
     await page.getByRole("button", { name: "Preview", exact: true }).isEnabled(),
@@ -228,8 +228,11 @@ try {
       };
       const frame = () =>
         new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-      const install = (pose) =>
+      const install = (pose) => {
         handle.update([object], object.id, { ...fixture.scenes[0], startCamera: pose });
+        // Explicit camera navigation is distinct from editing a saved starting pose.
+        handle.showCamera(pose);
+      };
       const cameraErrors = [];
       const positionErrors = [];
       for (const rotation of [
@@ -257,6 +260,17 @@ try {
       handle.update([{ ...object, name: "Edited" }], object.id, savedScene, 1);
       await frame();
       const editCameraDrift = camera.position.distanceTo(navigatedPosition);
+      const navigatedRotation = camera.quaternion.clone();
+      handle.update(
+        [object],
+        object.id,
+        { ...savedScene, startCamera: { ...savedPose, position: [7, 9, 11] } },
+        1,
+      );
+      await frame();
+      const savedCameraEditDrift =
+        camera.position.distanceTo(navigatedPosition) +
+        camera.quaternion.angleTo(navigatedRotation);
       handle.update([object], object.id, savedScene, 2);
       await frame();
       const reopenedPositionError = camera.position.distanceTo(
@@ -417,6 +431,7 @@ try {
         positionErrors,
         selectionCameraDrift,
         editCameraDrift,
+        savedCameraEditDrift,
         reopenedPositionError,
         reopenedRotationError,
         orbitHeightError,
@@ -444,6 +459,10 @@ try {
   assert.ok(measured.orbitHeightError < 1e-6, "An upright view still orbits around world up");
   assert.ok(measured.selectionCameraDrift < 1e-6, "Selection preserves the live camera");
   assert.ok(measured.editCameraDrift < 1e-6, "Edits preserve the live camera");
+  assert.ok(
+    measured.savedCameraEditDrift < 1e-6,
+    "Editing the saved starting camera preserves the current view",
+  );
   assert.ok(measured.reopenedPositionError < 1e-6, "Reopening restores the saved camera position");
   assert.ok(measured.reopenedRotationError < 1e-6, "Reopening restores the saved camera rotation");
   assert.ok(measured.movedBeforeOpen > 0.1, "The camera moved away before Open");
@@ -886,6 +905,75 @@ try {
   assert.ok(tookOver.scale > 1, "A second finger starts a transform during a carry");
   await touch("touchEnd");
   assert.equal((await read()).commits, 1, "The takeover is one edit");
+  // The environment-backed first room must carry by touch just like added room objects.
+  await touchPage.evaluate(async (fixture) => {
+    window.harness.handle.dispose();
+    const { initScene } = await import("/graphics/scene.ts");
+    const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
+    const scene = {
+      ...fixture.scenes[0],
+      objects: [],
+      startCamera: { position: [0, 1.6, 3], rotation: [0, 0, 0, 1], fovDegrees: 40 },
+    };
+    const state = { commits: 0, transform: null };
+    const { promise, resolve } = Promise.withResolvers();
+    const handle = initScene(
+      document.getElementById("host"),
+      assets.filter((asset) => asset.id === "test-room-v1"),
+      {
+        onStatus(status) {
+          if (status === "ready") resolve();
+        },
+        onThumbnail() {},
+        onSelect() {},
+        onObjectClick() {},
+        onUpdate() {},
+        onTransform(_id, transform) {
+          state.commits++;
+          state.transform = transform;
+        },
+      },
+    );
+    handle.modeManager.initializeView("first");
+    handle.update([], scene.id, scene, 0, [scene.id]);
+    await promise;
+    window.roomTouch = { handle, state, camera: handle.modeManager.camera };
+    window.roomTouch.before = [
+      ...window.roomTouch.camera.position.toArray(),
+      ...window.roomTouch.camera.quaternion.toArray(),
+    ];
+  }, fixture);
+  await touch("touchStart", { x: 400, y: 300, id: 1 });
+  await touch("touchMove", { x: 450, y: 300, id: 1 });
+  await touchPage.evaluate(
+    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+  );
+  await touch("touchEnd");
+  const roomTouch = await touchPage.evaluate(() => ({
+    commits: window.roomTouch.state.commits,
+    transform: window.roomTouch.state.transform,
+    before: window.roomTouch.before,
+    after: [
+      ...window.roomTouch.camera.position.toArray(),
+      ...window.roomTouch.camera.quaternion.toArray(),
+    ],
+  }));
+  assert.equal(
+    roomTouch.commits,
+    1,
+    "Touching and dragging the first room body must commit a move",
+  );
+  assert.ok(
+    Math.abs(roomTouch.transform.position[0]) > 0.1,
+    "A touch drag must move the first room",
+  );
+  roomTouch.after.forEach((number, index) =>
+    assert.ok(
+      Math.abs(number - roomTouch.before[index]) < 1e-6,
+      "Dragging the first room by touch preserves the camera",
+    ),
+  );
+  await touchPage.evaluate(() => window.roomTouch.handle.dispose());
   await cdp.detach();
   await touchContext.close();
 

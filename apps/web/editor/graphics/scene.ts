@@ -568,15 +568,10 @@ export function initScene(
     // A loaded camera resets the view once
     // Selection and placement keep the same camera-pose reference
     const startingCamera = projectScene ? getStartingCamera(projectScene) : null;
-    // Renaming a view can produce a fresh object with the same pose. Keep the live camera still.
+    // Saved starting-camera edits must not replace the live editing view.
     // Loading leaves Preview. Scene navigation keeps the same visitor controls and asset cache
     if (startingCamera !== null && loadChanged) modeManager.setMode("editor");
-    if (
-      startingCamera !== null &&
-      (sceneChanged ||
-        reloadCamera ||
-        JSON.stringify(appliedCamera) !== JSON.stringify(startingCamera))
-    ) {
+    if (startingCamera !== null && (sceneChanged || reloadCamera)) {
       if (sceneChanged)
         interactionClock.reset(
           performance.now(),

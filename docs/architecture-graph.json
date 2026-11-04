@@ -301,7 +301,7 @@
     "editor/graphics/rotation.ts": "d847162644716d2b36e8b3e4f1ad190360527a46351cb2969d411dbe76ea96d3",
     "editor/graphics/scaling.test.ts": "346b243798597de2a5b00384904bdf04f9f3826a8753bcde3282e5356b0ceb0a",
     "editor/graphics/scaling.ts": "0277d21b28d246ddb2f94216fe29afb24ebbc8e257dd3510eca91bb176867da1",
-    "editor/graphics/scene.ts": "8e1bc17da8690fd69f936683e8bcf6ff5de50d6f23a93308c3ad72bf31827386",
+    "editor/graphics/scene.ts": "1872779202377aea304917fee4b6b9027a0c8bccf6dace1cd034a68bcec32a93",
     "editor/graphics/text-placement.test.ts": "6725b6c884938884042c6e7ae01fb9e9556188df8bb6f640b2bc51af094daca9",
     "editor/graphics/text-placement.ts": "fc51a66844b92dfeb74b23d535419d872a5afa755cc6b0abcf2c0b731224551e",
     "editor/graphics/translation.test.ts": "b4a888b963437ca3508c04cc3e933ab215d301908384ea9af37ee8aabd6fae2c",
@@ -473,7 +473,7 @@
     "tests/display-editor.check.mjs": "f5f56d1037cb3b44a0951e6b956601f49fa42cd16307455b3ffc3cbd4392ac11",
     "tests/display-tools.check.mjs": "57af89e688f30d6b884a72e1c5ee2468cd01b877800ecbbc52c658b357c6e8df",
     "tests/editor-build.check.mjs": "c8459856ff2c2ba28c7f81a9accf488e5e6211eb0e432f58c70c7e01171d34c6",
-    "tests/editor-integration.check.mjs": "f5b4300c5ae7c959cbb86afb6bf7b999334dd7a4dc311a5fddc6422c04c809bc",
+    "tests/editor-integration.check.mjs": "58968598b530594f294b9d4dc819d95b0c159517fc8ab03656ab6bc18285be8c",
     "tests/editor-shell.check.mjs": "629169e0999e9374b157310f450ee0cfaf3291eb92949681381d04172b20cc70",
     "tests/entry.check.mjs": "e63ff3adfaca3fde6a5da9f134ea7fda317b83b84ea4c9b16e1d438710c5f777",
     "tests/history-recovery.check.mjs": "6f8740ba79ef315a69359ac4017b543804ad365b0a67a3481bfc07aa16456258",
@@ -10517,7 +10517,7 @@
     },
     {
       "file": "tests/editor-integration.check.mjs",
-      "line": 489,
+      "line": 508,
       "kind": "test-environment",
       "specifier": "three",
       "target": {
@@ -10527,7 +10527,7 @@
     },
     {
       "file": "tests/editor-integration.check.mjs",
-      "line": 490,
+      "line": 509,
       "kind": "dynamic",
       "specifier": "/graphics/scene.ts",
       "target": "editor/graphics/scene.ts",
@@ -10536,7 +10536,25 @@
     },
     {
       "file": "tests/editor-integration.check.mjs",
-      "line": 491,
+      "line": 510,
+      "kind": "dynamic",
+      "specifier": "/@id/__x00__virtual:asset-catalogue",
+      "target": "shared/asset-runtime/catalogue.ts",
+      "from": "checks",
+      "to": "catalogue"
+    },
+    {
+      "file": "tests/editor-integration.check.mjs",
+      "line": 911,
+      "kind": "dynamic",
+      "specifier": "/graphics/scene.ts",
+      "target": "editor/graphics/scene.ts",
+      "from": "checks",
+      "to": "rendering"
+    },
+    {
+      "file": "tests/editor-integration.check.mjs",
+      "line": 912,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -11635,7 +11653,7 @@
     },
     {
       "file": "tests/editor-integration.check.mjs",
-      "line": 489,
+      "line": 508,
       "expression": "threePath"
     },
     {
