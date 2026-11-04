@@ -1,3 +1,4 @@
+import { exhibitMaterials, type ExhibitAppearance } from "./project-appearance";
 import { encodeProjectJson } from "./project-wire";
 import type {
   ContentComponent,
@@ -64,6 +65,15 @@ function text(raw: unknown, path: string, limit = 256): string {
   }
   return raw;
 }
+function appearance(raw: unknown, path: string): ExhibitAppearance {
+  const value = record(raw, ["color", "material"], path);
+  const color = text(value.color, `${path}.color`, 7);
+  if (!/^#[0-9a-fA-F]{6}$/.test(color)) fail(`${path}.color`, "Choose a six-digit colour");
+  const material = text(value.material, `${path}.material`);
+  if (!(exhibitMaterials as readonly string[]).includes(material))
+    fail(`${path}.material`, "Choose a supported material");
+  return { color, material: material as ExhibitAppearance["material"] };
+}
 function flag(raw: unknown, path: string): boolean {
   // Do not coerce strings or numbers from imported files into authored flags
   if (typeof raw !== "boolean") {
@@ -122,12 +132,28 @@ function component(raw: unknown, path: string): ContentComponent {
   if (typeof type !== "string" || !Object.hasOwn(variants, type)) {
     fail(`${path}.type`, "Unsupported component type");
   }
-  record(raw, ["id", "type", ...variants[type]!], path);
+  record(
+    raw,
+    ["id", "type", ...variants[type]!],
+    path,
+    type === "text" ? ["placement", "background", "color", "fontSize"] : [],
+  );
   const id = text(raw.id, `${path}.id`);
   switch (type) {
     case "hotspot":
       return { id, type, label: text(raw.label, `${path}.label`) };
     case "text": {
+      if (
+        raw.background !== undefined &&
+        raw.background !== "transparent" &&
+        (typeof raw.background !== "string" || !/^#[0-9a-fA-F]{6}$/.test(raw.background))
+      )
+        fail(`${path}.background`, "Choose a background color or transparent");
+      if (
+        raw.color !== undefined &&
+        (typeof raw.color !== "string" || !/^#[0-9a-fA-F]{6}$/.test(raw.color))
+      )
+        fail(`${path}.color`, "Choose a text color");
       // Bound the whole panel so splitting text into many runs cannot bypass its limit
       let length = 0;
       const runs = list(raw.runs, `${path}.runs`, 256, (input, path) => {
@@ -153,6 +179,14 @@ function component(raw: unknown, path: string): ContentComponent {
         type,
         runs,
         caption: text(raw.caption, `${path}.caption`, 4096),
+        ...(raw.placement === undefined
+          ? {}
+          : { placement: transform(raw.placement, `${path}.placement`) }),
+        ...(raw.background === undefined ? {} : { background: raw.background as string }),
+        ...(raw.color === undefined ? {} : { color: raw.color as string }),
+        ...(raw.fontSize === undefined
+          ? {}
+          : { fontSize: number(raw.fontSize, `${path}.fontSize`, 12, 96) }),
       };
     }
     case "image":
@@ -415,6 +449,7 @@ export function validateContentStructure(
             input,
             ["id", "name", "assetId", "transform", "parentId", "visible", "components"],
             path,
+            ["appearance"],
           );
           return {
             id: text(object.id, `${path}.id`),
@@ -424,6 +459,9 @@ export function validateContentStructure(
             parentId: parent(object.parentId, `${path}.parentId`),
             visible: flag(object.visible, `${path}.visible`),
             components: list(object.components, `${path}.components`, 16, component),
+            ...(object.appearance === undefined
+              ? {}
+              : { appearance: appearance(object.appearance, `${path}.appearance`) }),
           };
         }),
         // Groups express parent membership without introducing another room or transform
