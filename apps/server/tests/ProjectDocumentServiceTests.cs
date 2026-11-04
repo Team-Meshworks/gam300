@@ -178,6 +178,36 @@ public sealed class ProjectDocumentServiceTests
         await Assert.That(count).IsEqualTo(authored ? 1 : 0);
     }
 
+    [Test]
+    public async Task Documents_PreserveSceneAudioFromTheDevelopmentCatalogue()
+    {
+        var document = JsonNode.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "fixtures", "m1-project.json")))!;
+        document["schemaVersion"] = 2;
+        var scene = document["scenes"]![0]!;
+        foreach (var field in new[] { "groups", "zones", "viewpoints", "rules" }) { scene[field] = new JsonArray(); }
+        foreach (var item in scene["objects"]!.AsArray())
+        {
+            item!["parentId"] = null;
+            item["visible"] = true;
+            item["components"] = new JsonArray();
+        }
+        // Save root audio through the same development catalogue boundary used by the API
+        scene["audio"] = new JsonArray(new JsonObject
+        {
+            ["id"] = Guid.NewGuid().ToString(), ["type"] = "audio", ["mode"] = "global",
+            ["assetId"] = "audio-ethereal-calm-v1", ["caption"] = "", ["loop"] = true, ["volume"] = 1,
+        });
+        var id = Guid.Parse(document["projectId"]!.GetValue<string>());
+        var service = Create("Development");
+        var accepted = service.Read(id, document.ToJsonString());
+        await Assert.That(accepted.Ok).IsTrue();
+        var saved = service.Serialize(accepted.Value!);
+        await Assert.That(saved.Ok).IsTrue();
+        await Assert.That(JsonNode.DeepEquals(JsonNode.Parse(saved.Value!)!["scenes"]![0]!["audio"], scene["audio"])).IsTrue();
+        // Development-only media must still be rejected by the production reader
+        await Assert.That(Create("Production").Read(id, document.ToJsonString()).Ok).IsFalse();
+    }
+
     private static ProjectDocumentService Create(string environment) =>
         new(WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = environment }).Environment);
 }
