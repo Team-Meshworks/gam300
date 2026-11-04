@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { mkdirSync, readFileSync } from "node:fs";
-import { chromium } from "playwright";
+import { launchBrowser } from "./browser-security.mjs";
 
 mkdirSync("test-results/scrum56", { recursive: true });
 
-const browser = await chromium.launch({
-  executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
+const browser = await launchBrowser({
+  target: process.argv[2] ?? "http://127.0.0.1:5184/",
   args: ["--enable-unsafe-swiftshader"],
 });
 const origin = process.argv[2] ?? "http://127.0.0.1:5184";

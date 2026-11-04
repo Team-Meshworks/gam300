@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
-import { chromium } from "playwright";
+import { launchBrowser } from "./browser-security.mjs";
 import * as THREE from "three";
 await mkdir("test-results/text-placement", { recursive: true });
-const browser = await chromium.launch({ args: ["--enable-unsafe-swiftshader"] });
+const browser = await launchBrowser({
+  target: process.argv[2] ?? "http://127.0.0.1:5185/",
+  args: ["--enable-unsafe-swiftshader"],
+});
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1024 } });
   const errors = [];

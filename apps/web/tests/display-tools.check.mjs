@@ -1,13 +1,11 @@
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { chromium } from "playwright";
+import { launchBrowser } from "./browser-security.mjs";
 
-const browser = await chromium.launch({
+const browser = await launchBrowser({
+  target: process.argv[2] ?? "http://127.0.0.1:5173/",
   args: ["--enable-unsafe-swiftshader"],
-  ...(process.env.PLAYWRIGHT_EXECUTABLE_PATH
-    ? { executablePath: process.env.PLAYWRIGHT_EXECUTABLE_PATH }
-    : {}),
 });
 const trays = [
   {

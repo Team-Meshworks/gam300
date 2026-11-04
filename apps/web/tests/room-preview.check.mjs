@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
-import { chromium } from "playwright";
-const browser = await chromium.launch({ args: ["--enable-unsafe-swiftshader"] });
+import { launchBrowser } from "./browser-security.mjs";
+const browser = await launchBrowser({
+  target: process.argv[2] ?? "http://127.0.0.1:5185/",
+  args: ["--enable-unsafe-swiftshader"],
+});
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1024 } });
   await page.goto(process.argv[2] ?? "http://127.0.0.1:5185/");
