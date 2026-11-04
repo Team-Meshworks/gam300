@@ -16,8 +16,8 @@ export type CatalogueAsset = Readonly<{
   sha256: string;
   thumbnail: string | null;
   placement?: "bottom-center";
-  category?: string;
   displayRole?: "physical" | "digital";
+  category?: string;
   // Local coordinates after bottom-center model normalization, in metres.
   displayTop?: number;
   displaySurface?: Readonly<{

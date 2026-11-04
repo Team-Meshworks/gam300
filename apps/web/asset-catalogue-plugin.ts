@@ -8,6 +8,17 @@ const assetsRoot = fileURLToPath(new URL("../../assets", import.meta.url));
 const manifestPath = resolve(assetsRoot, "manifest.json");
 // Only these local development samples may enter the browser build
 const allowedIds = new Set([
+  "sample-dunes-image-v1",
+  "sample-forest-image-v1",
+  "sample-sunset-image-v1",
+  "sample-valley-image-v1",
+  "sample-dunes-video-v1",
+  "sample-forest-video-v1",
+  "sample-sunset-video-v1",
+
+  "sample-landscape-image-v1",
+  "sample-coast-image-v1",
+  "sample-coast-video-v1",
   "test-room-v1",
   "test-crate-v1",
   "sample-snowglobe-v1",

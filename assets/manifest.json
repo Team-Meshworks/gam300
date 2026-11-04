@@ -357,6 +357,186 @@
         "width": 0.91,
         "height": 0.91
       }
+    },
+    {
+      "assetId": "sample-landscape-image-v1",
+      "name": "Sample landscape",
+      "kind": "image",
+      "mediaType": "image/webp",
+      "file": "delivery/sample-media/sample-landscape.webp",
+      "byteSize": 3650,
+      "sha256": "2dbc4f0eefa1d408266170da525cb1afaaf14b81c298a868b50b8f368177079a",
+      "category": "Sample media",
+      "thumbnail": "delivery/sample-media/sample-landscape.webp",
+      "access": "development-only",
+      "license": {
+        "status": "approved",
+        "provenance": "Procedural landscape illustration created for this project as a lightweight testing fixture. Silent video is a three-second pan of the coast image; no external footage.",
+        "spdx": "CC0-1.0"
+      },
+      "sourceFile": "delivery/sample-media/sample-landscape.webp"
+    },
+    {
+      "assetId": "sample-coast-image-v1",
+      "name": "Sample coast",
+      "kind": "image",
+      "mediaType": "image/webp",
+      "file": "delivery/sample-media/sample-coast.webp",
+      "byteSize": 3370,
+      "sha256": "44527b273891c781c5e4d31cdedfa3e1aed52f47e902f75b92ef1aeed9f807c7",
+      "category": "Sample media",
+      "thumbnail": "delivery/sample-media/sample-coast.webp",
+      "access": "development-only",
+      "license": {
+        "status": "approved",
+        "provenance": "Procedural landscape illustration created for this project as a lightweight testing fixture. Silent video is a three-second pan of the coast image; no external footage.",
+        "spdx": "CC0-1.0"
+      },
+      "sourceFile": "delivery/sample-media/sample-coast.webp"
+    },
+    {
+      "assetId": "sample-coast-video-v1",
+      "name": "Sample coast motion (3 seconds)",
+      "kind": "video",
+      "mediaType": "video/webm",
+      "file": "delivery/sample-media/sample-coast-motion.webm",
+      "byteSize": 9880,
+      "sha256": "dcbb4aac579ff2ba69dcba1bf139dc06fd319c026f8579f0f74b3aae161b0a89",
+      "category": "Sample media",
+      "thumbnail": "delivery/sample-media/sample-coast.webp",
+      "access": "development-only",
+      "license": {
+        "status": "approved",
+        "provenance": "Procedural landscape illustration created for this project as a lightweight testing fixture. Silent video is a three-second pan of the coast image; no external footage.",
+        "spdx": "CC0-1.0"
+      },
+      "sourceFile": "delivery/sample-media/sample-coast-motion.webm"
+    },
+    {
+      "assetId": "sample-dunes-image-v1",
+      "name": "Sample dunes",
+      "kind": "image",
+      "mediaType": "image/webp",
+      "file": "delivery/sample-media/sample-dunes.webp",
+      "sourceFile": "delivery/sample-media/sample-dunes.webp",
+      "byteSize": 3302,
+      "sha256": "de2d1dc3e1625c0720f6f7a65f09bce5bf0c23130834ecc74450680266b9b01c",
+      "category": "Sample media",
+      "thumbnail": "delivery/sample-media/sample-dunes.webp",
+      "access": "development-only",
+      "license": {
+        "status": "approved",
+        "spdx": "CC0-1.0",
+        "provenance": "Procedural landscape illustration created for this project as a lightweight testing fixture. Silent three-second video derived from the matching image; no external footage."
+      }
+    },
+    {
+      "assetId": "sample-forest-image-v1",
+      "name": "Sample forest",
+      "kind": "image",
+      "mediaType": "image/webp",
+      "file": "delivery/sample-media/sample-forest.webp",
+      "sourceFile": "delivery/sample-media/sample-forest.webp",
+      "byteSize": 3422,
+      "sha256": "0ffa89735518be434b74c4e8877428546be82d7271f9e44d3333fa423eceb638",
+      "category": "Sample media",
+      "thumbnail": "delivery/sample-media/sample-forest.webp",
+      "access": "development-only",
+      "license": {
+        "status": "approved",
+        "spdx": "CC0-1.0",
+        "provenance": "Procedural landscape illustration created for this project as a lightweight testing fixture. Silent three-second video derived from the matching image; no external footage."
+      }
+    },
+    {
+      "assetId": "sample-sunset-image-v1",
+      "name": "Sample sunset",
+      "kind": "image",
+      "mediaType": "image/webp",
+      "file": "delivery/sample-media/sample-sunset.webp",
+      "sourceFile": "delivery/sample-media/sample-sunset.webp",
+      "byteSize": 3364,
+      "sha256": "a39e3ab47f215af710e84f3cd2792e119ea17c8d3b6109edce014a99e6a4de95",
+      "category": "Sample media",
+      "thumbnail": "delivery/sample-media/sample-sunset.webp",
+      "access": "development-only",
+      "license": {
+        "status": "approved",
+        "spdx": "CC0-1.0",
+        "provenance": "Procedural landscape illustration created for this project as a lightweight testing fixture. Silent three-second video derived from the matching image; no external footage."
+      }
+    },
+    {
+      "assetId": "sample-valley-image-v1",
+      "name": "Sample valley",
+      "kind": "image",
+      "mediaType": "image/webp",
+      "file": "delivery/sample-media/sample-valley.webp",
+      "sourceFile": "delivery/sample-media/sample-valley.webp",
+      "byteSize": 3104,
+      "sha256": "4f7067b50e00ace2cc5c478a80978057f522f5875d3b1af720de08a49e1a3b7a",
+      "category": "Sample media",
+      "thumbnail": "delivery/sample-media/sample-valley.webp",
+      "access": "development-only",
+      "license": {
+        "status": "approved",
+        "spdx": "CC0-1.0",
+        "provenance": "Procedural landscape illustration created for this project as a lightweight testing fixture. Silent three-second video derived from the matching image; no external footage."
+      }
+    },
+    {
+      "assetId": "sample-dunes-video-v1",
+      "name": "Sample dunes motion (3 seconds)",
+      "kind": "video",
+      "mediaType": "video/webm",
+      "file": "delivery/sample-media/sample-dunes-motion.webm",
+      "sourceFile": "delivery/sample-media/sample-dunes-motion.webm",
+      "byteSize": 9220,
+      "sha256": "6841cd9ac1921f882322d10540a7d2bae6501de90b96e3e641ad0a88fc6a7c4a",
+      "category": "Sample media",
+      "thumbnail": "delivery/sample-media/sample-dunes.webp",
+      "access": "development-only",
+      "license": {
+        "status": "approved",
+        "spdx": "CC0-1.0",
+        "provenance": "Procedural landscape illustration created for this project as a lightweight testing fixture. Silent three-second video derived from the matching image; no external footage."
+      }
+    },
+    {
+      "assetId": "sample-forest-video-v1",
+      "name": "Sample forest motion (3 seconds)",
+      "kind": "video",
+      "mediaType": "video/webm",
+      "file": "delivery/sample-media/sample-forest-motion.webm",
+      "sourceFile": "delivery/sample-media/sample-forest-motion.webm",
+      "byteSize": 10004,
+      "sha256": "f89f995869962c97ed77756f7240b7b165c1c2e6067044f8068330fdbaba8026",
+      "category": "Sample media",
+      "thumbnail": "delivery/sample-media/sample-forest.webp",
+      "access": "development-only",
+      "license": {
+        "status": "approved",
+        "spdx": "CC0-1.0",
+        "provenance": "Procedural landscape illustration created for this project as a lightweight testing fixture. Silent three-second video derived from the matching image; no external footage."
+      }
+    },
+    {
+      "assetId": "sample-sunset-video-v1",
+      "name": "Sample sunset motion (3 seconds)",
+      "kind": "video",
+      "mediaType": "video/webm",
+      "file": "delivery/sample-media/sample-sunset-motion.webm",
+      "sourceFile": "delivery/sample-media/sample-sunset-motion.webm",
+      "byteSize": 9627,
+      "sha256": "5cfa121571d8e268a8a4b7e5a7b1d929a8452ee35a2c5152d5af8e14b7e249b4",
+      "category": "Sample media",
+      "thumbnail": "delivery/sample-media/sample-sunset.webp",
+      "access": "development-only",
+      "license": {
+        "status": "approved",
+        "spdx": "CC0-1.0",
+        "provenance": "Procedural landscape illustration created for this project as a lightweight testing fixture. Silent three-second video derived from the matching image; no external footage."
+      }
     }
   ],
   "coordinateSystem": "glTF Y-up, metres",
