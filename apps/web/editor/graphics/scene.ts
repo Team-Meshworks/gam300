@@ -1,8 +1,19 @@
+import { visibleModelBounds } from "./visible-model-bounds";
+import { textSurfacePlacement } from "./text-placement";
+import { snapRoomPlacement } from "../../shared/project/room-placement";
+import { fitDisplayedObject } from "./fit-displayed-object";
+import { roomAtPosition, type RoomFootprint } from "./room-at-position";
 import { createDisplayContent } from "./display-content";
+import { createExhibitAppearance } from "./exhibit-appearance";
+import { createPlacementPreview } from "./placement-preview";
 import { createActiveClock } from "./active-clock";
 import { HOTSPOT_SIZE, hotspotAnchor, hotspotWorldSize } from "./hotspot-anchor";
 import { moveAttachedObjects } from "../../shared/project/attached-transforms";
-import type { ContentScene } from "../../shared/project/project-content";
+import type {
+  ContentComponent,
+  ContentObject,
+  ContentScene,
+} from "../../shared/project/project-content";
 import { getStartingCamera } from "../../shared/project/starting-view";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
@@ -79,14 +90,31 @@ export interface InitSceneHandle {
     nextScene?: ProjectScene | null,
     loadGeneration?: number,
   ) => void;
+  showTextPlacement: (
+    objectId: string,
+    component: Extract<ContentComponent, { type: "text" }>,
+    clientX: number,
+    clientY: number,
+  ) => Transform | undefined;
+  clearTextPlacement: () => void;
+  getDisplayPlacement: (ownerId: string, assetId: string) => Transform | undefined;
+  getRoomAtPosition: (position: Vector3Tuple) => string | null;
   getDropPosition: (clientX: number, clientY: number) => Vector3Tuple | undefined;
   showDropPosition: (position: Vector3Tuple | undefined) => void;
+  showPlacementPreview: (
+    assetId: string | undefined,
+    position: Vector3Tuple | undefined,
+    ownerId?: string,
+  ) => void;
   pickObjectAt: (clientX: number, clientY: number) => string | undefined;
   getHotspotAnchor: (objectId: string) => Vector3Tuple | undefined;
   setEditingEnabled: (enabled: boolean) => void;
   captureCamera: () => CameraPose;
   showCamera: (pose: CameraPose) => void;
   locateObject: (id: string) => void;
+  getObjectScreenBounds: (
+    id: string,
+  ) => { left: number; right: number; top: number; bottom: number } | null;
   setNavigationTool: (tool: NavigationTool) => void;
   toggleDisplayMedia: (id: string) => void;
   mobileControls: FpsMobileControls;
@@ -191,6 +219,7 @@ export function initScene(
 
   const controller = new AbortController();
   let disposed = false;
+  const appearanceRenderer = createExhibitAppearance();
   const models = new Map<string, THREE.Group>();
   const leases: ModelLease[] = [];
   const hotspotMaterials = new Set<THREE.SpriteMaterial>();
@@ -208,7 +237,7 @@ export function initScene(
   let environmentId: string | undefined;
   const environmentBounds = new THREE.Box3();
   const instances = new Map<string, THREE.Group>();
-  const displays = createDisplayContent(assets, render);
+  const displays = createDisplayContent(assets, render, models);
   const instanceAssets = new Map<string, string>();
   function instanceFor(objectId: string): THREE.Group | undefined {
     const exact = instances.get(objectId);
@@ -435,6 +464,7 @@ export function initScene(
     interactionClock.setActive(now, !document.hidden && modeManager.getState().mode === "visitor");
     lastFrameTime = now;
     if (document.hidden) displays.pause();
+    else displays.resumeEditing();
   };
   document.addEventListener("visibilitychange", visibilityChanged);
   const animate = (now: number) => {
@@ -578,13 +608,14 @@ export function initScene(
         environmentBounds.setFromObject(environment);
       }
     }
-    // Sample room floor sits at zero; lift the grid slightly so it stays readable
-    grid.position.y = projectScene === null ? -0.01 : 0.01;
+    // Keep grid lines above the floor without cutting across thin display bases.
+    grid.position.y = projectScene === null ? -0.01 : 0.0001;
     for (const [id, instance] of instances) {
       if (
         !objects.some((object) => object.id === id && object.assetId === instanceAssets.get(id))
       ) {
         // An imported project can reuse an ID with a different model
+        appearanceRenderer.release(instance);
         scene.remove(instance);
         instances.delete(id);
         instanceAssets.delete(id);
@@ -611,12 +642,24 @@ export function initScene(
         instance.scale.fromArray(object.transform.scale);
         // Bounds read the parent's world matrix, which must reflect this frame's transform.
         instance.updateMatrixWorld(true);
+        if (assets.find((asset) => asset.id === object.assetId)?.displayRole === "physical") {
+          const filled = objects.some(
+            (child) => (child as Partial<ContentObject>).parentId === object.id,
+          );
+          instance.traverse((node) => {
+            if (!(node instanceof THREE.Mesh)) return;
+            const materials = Array.isArray(node.material) ? node.material : [node.material];
+            if (node.userData.displayGlass === undefined)
+              node.userData.displayGlass = materials.every(
+                (material) => material.transparent && material.opacity < 0.9,
+              );
+            if (node.userData.displayGlass) node.visible = !filled;
+          });
+        }
+        appearanceRenderer.apply(instance, (object as Partial<ContentObject>).appearance);
         // Exclude attached markers so selection outlines match the model itself.
         const content = instance.children.find((child) => !(child instanceof THREE.Sprite));
-        bounds.set(
-          object.id,
-          new THREE.Box3().setFromObject(content === undefined ? instance : content),
-        );
+        bounds.set(object.id, visibleModelBounds(content === undefined ? instance : content));
       }
       displays.sync(objects, instances);
       syncHotspots();
@@ -636,7 +679,21 @@ export function initScene(
     if (selectedId === projectScene?.id && !environmentBounds.isEmpty()) {
       return environmentBounds;
     }
-    return selectedId === null ? undefined : bounds.get(selectedId);
+    return selectedId === null ? undefined : getObjectBounds(selectedId);
+  }
+
+  function getObjectBounds(id: string) {
+    const box = bounds.get(id);
+    const owner = objects.find((object) => object.id === id);
+    if (!box || assets.find((asset) => asset.id === owner?.assetId)?.displayRole !== "physical")
+      return box;
+    const combined = box.clone();
+    for (const child of objects) {
+      if ((child as Partial<ContentObject>).parentId !== id) continue;
+      const childBox = bounds.get(child.id);
+      if (childBox) combined.union(childBox);
+    }
+    return combined;
   }
 
   // A locked mouse doesnt move on screen, so it aims with the crosshair in the middle
@@ -693,13 +750,13 @@ export function initScene(
       const child = instances.get(object.id);
       if (child) {
         applyTransform(child, object.transform);
-        bounds.set(object.id, new THREE.Box3().setFromObject(child));
+        bounds.set(object.id, visibleModelBounds(child));
       }
     }
     syncHotspots();
-    const box = new THREE.Box3().setFromObject(instance);
+    const box = visibleModelBounds(instance);
     bounds.set(id, box);
-    selection.box.copy(box);
+    selection.box.copy(getSelectionBounds() ?? box);
     updateGizmo();
     render();
   }
@@ -1084,6 +1141,7 @@ export function initScene(
         if (scaleIntent || rotationIntent) {
           const object = objects.find((entry) => entry.id === selectedId);
           if (object !== undefined) {
+            if (object.assetId === "test-room-module-v1" && !rotationIntent) return;
             const activeDrag = drag;
             const base = activeDrag?.id === object.id ? activeDrag.current : object.transform;
             if (activeDrag !== undefined) cancelDrag(true);
@@ -1094,6 +1152,7 @@ export function initScene(
             const rotationStrength = (Math.abs(rotationDelta) * distance) / 18;
             const diagonalStart = Math.abs(Math.sin(touchPair.startAngle * 2)) >= 0.5;
             const scaleWins =
+              object.assetId !== "test-room-module-v1" &&
               scaleIntent &&
               !rotationIntent &&
               (!diagonalStart || scaleStrength >= rotationStrength);
@@ -1228,6 +1287,7 @@ export function initScene(
     const object = objects.find((entry) => entry.id === selectedId);
     const instance = instances.get(selectedId);
     if (object === undefined || instance === undefined) return;
+    if (object.assetId === "test-room-module-v1") return;
     const aim = aimPoint(event);
     const ray = screenRay(aim.x, aim.y);
     const raycaster = new THREE.Raycaster(ray.origin, ray.direction);
@@ -1395,10 +1455,149 @@ export function initScene(
   }
   void loadAssets();
 
+  const placementPreview = createPlacementPreview(scene, models);
+  const textPreview = createDisplayContent(assets, render, models);
+  let textPreviewRoot: THREE.Group | undefined;
+  let hiddenText: THREE.Object3D | undefined;
+  function clearTextPlacement() {
+    textPreview.dispose();
+    if (textPreviewRoot) scene.remove(textPreviewRoot);
+    textPreviewRoot = undefined;
+    if (hiddenText) hiddenText.visible = true;
+    hiddenText = undefined;
+  }
+  function showTextPlacement(
+    objectId: string,
+    component: Extract<ContentComponent, { type: "text" }>,
+    clientX: number,
+    clientY: number,
+  ): Transform | undefined {
+    const object = objects.find((entry) => entry.id === objectId),
+      owner = instances.get(objectId);
+    if (!object || !owner || !owner.children[0]) {
+      clearTextPlacement();
+      return;
+    }
+    owner.updateMatrixWorld(true);
+    const ray = screenRay(clientX, clientY),
+      raycaster = new THREE.Raycaster(ray.origin, ray.direction);
+    const hit = raycaster.intersectObject(owner.children[0], true).find((hit) => {
+      let node: THREE.Object3D | null = hit.object;
+      while (node && node !== owner) {
+        if (!node.visible) return false;
+        node = node.parent;
+      }
+      return !!hit.face;
+    });
+    if (!hit?.face || !(hit.object instanceof THREE.Mesh)) {
+      if (textPreviewRoot) textPreviewRoot.visible = false;
+      return;
+    }
+    const inverse = owner.matrixWorld.clone().invert(),
+      localMatrix = inverse.clone().multiply(hit.object.matrixWorld);
+    const normal = hit.face.normal
+      .clone()
+      .applyMatrix3(new THREE.Matrix3().getNormalMatrix(localMatrix))
+      .normalize();
+    const meshBounds = new THREE.Box3()
+      .setFromBufferAttribute(hit.object.geometry.attributes.position as THREE.BufferAttribute)
+      .applyMatrix4(localMatrix);
+    const placement = textSurfacePlacement(
+      meshBounds,
+      hit.point.clone().applyMatrix4(inverse),
+      normal,
+    );
+    if (!textPreviewRoot) {
+      textPreviewRoot = new THREE.Group();
+      textPreviewRoot.name = "text-placement-preview";
+      scene.add(textPreviewRoot);
+      hiddenText = owner.getObjectByName("Display content");
+      if (hiddenText) hiddenText.visible = false;
+    }
+    textPreviewRoot.visible = true;
+    textPreviewRoot.position.copy(owner.position);
+    textPreviewRoot.quaternion.copy(owner.quaternion);
+    textPreviewRoot.scale.copy(owner.scale);
+    const previewObject: ContentObject = {
+      ...object,
+      parentId: (object as Partial<ContentObject>).parentId ?? null,
+      visible: (object as Partial<ContentObject>).visible ?? true,
+      components: [
+        { ...component, placement: { ...placement, position: [0, 0, 0], rotation: [0, 0, 0, 1] } },
+      ],
+    };
+    textPreview.sync([previewObject], new Map([[objectId, textPreviewRoot]]));
+    const label = textPreviewRoot.getObjectByName("Display content");
+    if (label) {
+      label.position.fromArray(placement.position);
+      label.quaternion.fromArray(placement.rotation);
+      label.translateZ(0.004);
+    }
+    return placement;
+  }
+
   return {
     update,
+    showTextPlacement,
+    clearTextPlacement,
     getDropPosition,
+    getDisplayPlacement(ownerId, assetId) {
+      const owner = objects.find((object) => object.id === ownerId);
+      const metadata = assets.find((asset) => asset.id === owner?.assetId);
+      const caseModel = owner && models.get(owner.assetId);
+      const model = models.get(assetId);
+      if (!owner || metadata?.displayRole !== "physical" || !caseModel || !model) return;
+      return fitDisplayedObject(
+        owner,
+        metadata.displayTop ?? 0,
+        new THREE.Box3().setFromObject(caseModel),
+        new THREE.Box3().setFromObject(model),
+      );
+    },
+    getRoomAtPosition(position) {
+      const rooms: RoomFootprint[] = [];
+      for (const object of objects) {
+        if (object.assetId !== "test-room-module-v1") continue;
+        const instance = instances.get(object.id);
+        const model = models.get(object.assetId);
+        if (instance && model) {
+          instance.updateWorldMatrix(true, false);
+          rooms.push({
+            id: object.id,
+            bounds: new THREE.Box3().setFromObject(model),
+            transform: instance.matrixWorld,
+          });
+        }
+      }
+      if (projectScene && !environmentBounds.isEmpty())
+        rooms.push({ id: projectScene.id, bounds: environmentBounds });
+      return roomAtPosition(position, rooms);
+    },
     showDropPosition,
+    showPlacementPreview(id, position, ownerId) {
+      if (id === "test-room-v1" && projectScene?.environmentAssetId === id)
+        id = "test-room-module-v1";
+      if (id === "test-room-module-v1" && position)
+        position =
+          snapRoomPlacement(position, objects, projectScene?.environmentAssetId) ?? undefined;
+      let scale = 1;
+      if (id === HOTSPOT_ASSET_ID && position !== undefined) {
+        const target = ownerId ?? selectedId;
+        const owner = target === null ? undefined : instanceFor(target);
+        const anchor = target === null ? undefined : getHotspotAnchor(target);
+        position = undefined;
+        if (owner && anchor) {
+          const world = owner.localToWorld(
+            new THREE.Vector3(anchor[0], anchor[1] + HOTSPOT_SIZE / 2, anchor[2]),
+          );
+          scale = hotspotWorldSize(owner) / HOTSPOT_SIZE;
+          world.y -= (HOTSPOT_SIZE / 2) * scale;
+          position = world.toArray() as Vector3Tuple;
+        }
+      }
+      placementPreview.show(id, position, scale);
+      render();
+    },
     pickObjectAt,
     getHotspotAnchor,
     setEditingEnabled(enabled) {
@@ -1417,6 +1616,28 @@ export function initScene(
       fovDegrees: camera.fov,
     }),
     showCamera,
+    getObjectScreenBounds(id) {
+      const box = getObjectBounds(id);
+      if (!box || box.isEmpty()) return null;
+      const rect = renderer.domElement.getBoundingClientRect();
+      let left = Infinity,
+        top = Infinity,
+        right = -Infinity,
+        bottom = -Infinity;
+      for (const x of [box.min.x, box.max.x])
+        for (const y of [box.min.y, box.max.y])
+          for (const z of [box.min.z, box.max.z]) {
+            const point = new THREE.Vector3(x, y, z).project(camera);
+            if (point.z < -1 || point.z > 1) return null;
+            const screenX = rect.left + ((point.x + 1) * rect.width) / 2;
+            const screenY = rect.top + ((1 - point.y) * rect.height) / 2;
+            left = Math.min(left, screenX);
+            right = Math.max(right, screenX);
+            top = Math.min(top, screenY);
+            bottom = Math.max(bottom, screenY);
+          }
+      return { left, right, top, bottom };
+    },
     locateObject(id) {
       if (modeManager.getState().mode !== "editor") return;
       const instance = instanceFor(id);
@@ -1457,6 +1678,9 @@ export function initScene(
       cancelDrag();
       cancelTouchGesture();
       cancelWheelEdit();
+      clearTextPlacement();
+      placementPreview.clear();
+      appearanceRenderer.dispose();
       disposed = true;
       displays.dispose();
       controller.abort();
@@ -1512,7 +1736,7 @@ function createFpsMeter(host: HTMLDivElement): FpsMeter & { dispose(): void } {
     right: "1.5rem",
     padding: "0.25rem 0.5rem",
     borderRadius: "0.375rem",
-    background: "rgba(41, 46, 41, 0.6)",
+    background: "var(--scene-hint-background)",
     color: "#f5f7fa",
     font: "0.75rem/1.4 system-ui, sans-serif",
     zIndex: "2",
