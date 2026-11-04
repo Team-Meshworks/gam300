@@ -1,3 +1,6 @@
+import { roomFitsGrid } from "../shared/project/room-placement";
+import { environmentObject } from "../shared/project/selection-transform";
+import { AudioLibrary, type AudioLibraryMode } from "./ui/AudioLibrary";
 import { ExhibitPopups } from "./ui/ExhibitPopups";
 import type { ContentObject } from "../shared/project/project-content";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
@@ -60,6 +63,28 @@ export function App({ server }: { server?: ServerEditorSession }) {
     useSyncExternalStore(store.subscribe, store.getSnapshot);
   const [displayEditing, setDisplayEditing] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Selection belongs to one loaded scene generation and never enters the saved project
+  const [multiSelection, setMultiSelection] = useState<{
+    sceneId: string | null;
+    generation: number;
+    ids: readonly string[];
+  } | null>(null);
+  const selectedIds = useMemo(
+    () =>
+      multiSelection?.sceneId === activeSceneId &&
+      multiSelection.generation === loadGeneration &&
+      selectedId !== null &&
+      multiSelection.ids.includes(selectedId)
+        ? multiSelection.ids
+        : selectedId === null
+          ? []
+          : [selectedId],
+    [multiSelection, activeSceneId, loadGeneration, selectedId],
+  );
+  const selectionRef = useRef(selectedIds);
+  useEffect(() => {
+    selectionRef.current = selectedIds;
+  }, [selectedIds]);
   const [contentEdit, setContentEdit] = useState<{
     objectId: string;
     kind: ContentKind;
@@ -90,6 +115,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
   const [status, setStatus] = useState<ViewportStatus>("loading");
   const [attempt, setAttempt] = useState(0);
   const [dragging, setDragging] = useState<string | null>(null);
+  const [audioLibrary, setAudioLibrary] = useState<AudioLibraryMode | null>(null);
   const [placingAssetId, setPlacingAssetId] = useState<string | null>(null);
   const [showExhibitTools, setShowExhibitTools] = useState(false);
 
@@ -132,13 +158,17 @@ export function App({ server }: { server?: ServerEditorSession }) {
     project?.schemaVersion === 2
       ? (project.scenes.find((scene) => scene.id === activeSceneId)?.groups ?? [])
       : [];
-  const groupSelected = groups.some((group) => group.id === selectedId);
 
   // Room selection uses the scene ID because its asset lives in the environment field
   // Object commands still receive only placed-object IDs
-  const roomSelected = projectScene !== undefined && selectedId === projectScene.id;
+  const roomSelected =
+    projectScene !== undefined &&
+    projectScene.environmentVisible !== false &&
+    selectedId === projectScene.id;
   const [hasDeleted, setHasDeleted] = useState(false);
-  const selectedObject = objects.find((object) => object.id === selection);
+  const selectedObject = roomSelected
+    ? environmentObject(projectScene)
+    : objects.find((object) => object.id === selection);
   const hasChanges = project !== null || objects.length > 0 || hasDeleted;
   const visitor = modeState?.mode === "visitor";
   const mobileDevice = isMobileTouchDevice();
@@ -166,10 +196,26 @@ export function App({ server }: { server?: ServerEditorSession }) {
       createInteractionHandler(
         projectScene?.interactions ?? EMPTY_INTERACTIONS,
         projectScene?.hotspots ?? EMPTY_HOTSPOTS,
-        createActionRunner(navigation),
+        // Resolve linked tracks from the active draft so playback uses current catalogue metadata
+        createActionRunner(navigation, (id) => {
+          const current = store.getSnapshot();
+          const scene =
+            current.project?.schemaVersion === 2
+              ? current.project.scenes.find((entry) => entry.id === current.activeSceneId)
+              : undefined;
+          const audio = [
+            ...(scene?.audio ?? []),
+            ...(scene?.objects.flatMap((object) => object.components) ?? []),
+          ].find((entry) => entry.type === "audio" && entry.id.toLowerCase() === id.toLowerCase());
+          if (audio?.type !== "audio" || audio.mode !== "global") return undefined;
+          const asset = assets.find(
+            (entry) => entry.id === audio.assetId && entry.kind === "audio",
+          );
+          return asset ? { url: asset.url, loop: audio.loop, volume: audio.volume } : undefined;
+        }),
         navigation.beginEvent,
       ),
-    [projectScene, navigation],
+    [projectScene, navigation, store],
   );
   const interactionHandlerRef = useRef(interactionHandler);
   useEffect(() => {
@@ -242,10 +288,37 @@ export function App({ server }: { server?: ServerEditorSession }) {
     storageOperation === "import";
 
   const deleteSelection = useCallback(() => {
-    if (selection === null || visitor) {
+    if (visitor) return;
+    const current = store.getSnapshot();
+    const scene =
+      current.project?.schemaVersion === 2
+        ? current.project.scenes.find((entry) => entry.id === current.activeSceneId)
+        : undefined;
+    const audio = [
+      ...(scene?.audio ?? []),
+      ...(scene?.objects.flatMap((object) => object.components) ?? []),
+    ].find((entry) => entry.type === "audio" && entry.id === selectedId);
+    // Audio uses ordinary selection and Delete, without opening its library or deleting its owner
+    if (audio) {
+      const result = store.removeAudio(audio.id);
+      if (!result.ok) {
+        setError(result.error.message);
+        return;
+      }
+      setSelectedId(null);
+      setError("");
+      setNotice("Audio removed. Undo restores it.");
+      playUiSound("delete");
       return;
     }
-    const result = store.deleteObject(selection);
+    const target =
+      selection ??
+      (selectedId === current.activeSceneId ||
+      scene?.groups.some((group) => group.id === selectedId)
+        ? selectedId
+        : null);
+    if (target === null) return;
+    const result = store.deleteObject(target);
     if (!result.ok) {
       setError(result.error.message);
       return;
@@ -255,13 +328,14 @@ export function App({ server }: { server?: ServerEditorSession }) {
     setSelectedId(null);
     setNotice(`Deleted ${result.value.name}. Undo restores it.`);
     playUiSound("delete");
-  }, [store, selection, visitor, setNotice]);
+  }, [store, selection, selectedId, visitor, setNotice]);
 
   useEffect(() => {
     function onHistoryKeyDown(event: KeyboardEvent) {
       // Foreground file operations own the keyboard; background backups must not block edits.
       if (
         placingAssetId ||
+        audioLibrary ||
         pendingText ||
         visitor ||
         (storageOperation !== null && storageOperation !== "backup")
@@ -325,6 +399,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
     setNotice,
     deleteSelection,
     placingAssetId,
+    audioLibrary,
     pendingText,
   ]);
 
@@ -350,7 +425,16 @@ export function App({ server }: { server?: ServerEditorSession }) {
 
   const onTransform = useCallback(
     (id: string, transform: Transform) => {
-      const result = store.setTransform(id, transform);
+      const snapshot = store.getSnapshot();
+      const ids = selectionRef.current;
+      const result =
+        ids.length > 1 ||
+        id === snapshot.activeSceneId ||
+        snapshot.objects.some(
+          (object) => object.id === id && object.assetId === "test-room-module-v1",
+        )
+          ? store.setSelectionTransform(ids, id, transform)
+          : store.setTransform(id, transform);
       if (!result.ok) {
         setError(result.error);
       } else if (result.changed) {
@@ -399,6 +483,10 @@ export function App({ server }: { server?: ServerEditorSession }) {
     // Choosing the first room turns the grid scene into a saveable project
     // Room placement uses the environment slot so it survives JSON reconstruction
     if (assetKinds.get(assetId) === "environment") {
+      if (!projectScene && !roomFitsGrid(position)) {
+        setError("Keep the whole room inside the grid");
+        return;
+      }
       const creatingDuringInitialRecovery =
         session.busy && session.operation === "recover" && project === null;
       if (session.busy && !creatingDuringInitialRecovery) {
@@ -542,7 +630,12 @@ export function App({ server }: { server?: ServerEditorSession }) {
                     "content:text",
                     "content:image",
                     "content:video",
+                    "content:audio",
+                    "audio:global",
+                    "interaction:play-audio",
                     "text:placement",
+                    "environment:transform",
+                    "environment:visibility",
                     "text:style",
                     "text:bold",
                     "text:italic",
@@ -616,6 +709,15 @@ export function App({ server }: { server?: ServerEditorSession }) {
       <main className="workspace" inert={switching}>
         <SidePanels
           assets={assets}
+          sceneAudio={
+            project?.schemaVersion === 2
+              ? (project.scenes.find((scene) => scene.id === activeSceneId)?.audio ?? [])
+              : []
+          }
+          onHotspotRemove={(id) => {
+            const result = store.deleteHotspot(id);
+            if (!result.ok) setNotice(result.error.message);
+          }}
           onContent={openContent}
           scenes={
             <Scenes
@@ -648,7 +750,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
           }
           visitor={visitor}
           room={
-            !projectScene?.environmentAssetId
+            !projectScene?.environmentAssetId || projectScene.environmentVisible === false
               ? undefined
               : {
                   id: projectScene.id,
@@ -676,7 +778,12 @@ export function App({ server }: { server?: ServerEditorSession }) {
             },
           }}
           objects={objects}
-          selectedId={roomSelected ? projectScene.id : groupSelected ? selectedId : selection}
+          selectedId={selectedId}
+          selectedIds={selectedIds}
+          onMultiSelect={(ids, id) => {
+            onSceneSelect(id);
+            setMultiSelection({ sceneId: activeSceneId, generation: loadGeneration, ids });
+          }}
           selectedObject={selectedObject}
           mobileDevice={mobileDevice}
           hotspots={hotspots}
@@ -697,6 +804,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
         />
 
         <Viewport
+          selectedIds={selectedIds}
           onCamera={setViewCamera}
           loadGeneration={loadGeneration}
           assets={editorAssets}
@@ -820,6 +928,10 @@ export function App({ server }: { server?: ServerEditorSession }) {
               hotspot={HOTSPOT_ASSET}
               ready={status === "ready"}
               thumbnailFor={thumbnailFor}
+              onAudio={(mode) => {
+                setPlacingAssetId(null);
+                setAudioLibrary(mode);
+              }}
               onAdd={(assetId) => {
                 setShowExhibitTools(false);
                 if (assetId === HOTSPOT_ASSET_ID) {
@@ -841,8 +953,11 @@ export function App({ server }: { server?: ServerEditorSession }) {
                 }
               }}
               tool={navigationTool}
-              onToolChange={setNavigationTool}
-              showCameraTools={view === "third"}
+              onToolChange={(tool) => {
+                setView("third");
+                setNavigationTool(tool);
+              }}
+              showCameraTools={true}
             />
           )}
           {mobileDevice && walking && mobileControls !== null && (
@@ -899,6 +1014,21 @@ export function App({ server }: { server?: ServerEditorSession }) {
             return store.editExhibit(contentEdit.objectId, before, fields);
           }}
           onClose={() => setContentEdit(null)}
+        />
+      )}
+      {audioLibrary && (
+        <AudioLibrary
+          assets={assets}
+          mode={audioLibrary}
+          targetName={selectedObject?.name ?? null}
+          onAdd={(id) =>
+            store.addAudio(
+              id,
+              audioLibrary === "background" ? "global" : "spatial",
+              selectedObject?.id ?? null,
+            )
+          }
+          onClose={() => setAudioLibrary(null)}
         />
       )}
       <p

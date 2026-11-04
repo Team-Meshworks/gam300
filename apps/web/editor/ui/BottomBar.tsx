@@ -1,3 +1,4 @@
+import type { AudioLibraryMode } from "./AudioLibrary";
 import { useDragImage } from "./use-drag-image";
 import {
   useEffect,
@@ -46,7 +47,15 @@ const baseCategories: { id: Category; label: string; items: Item[] }[] = [
   { id: "furniture", label: "Furniture", items: [{ label: "Chair", icon: "chair" }] },
   { id: "panels", label: "Display panels", items: displayPanelTools },
   { id: "cases", label: "Display cases", items: displayCaseTools },
-  { id: "audio", label: "Audio", items: [{ label: "Background music", icon: "music" }] },
+  {
+    id: "audio",
+    label: "Audio",
+    items: [
+      { label: "BGM", icon: "audioMusic" },
+      { label: "Sound effects", icon: "audioSpeaker" },
+      { label: "Payphone audio", icon: "audioPhone" },
+    ],
+  },
 ];
 
 export function BottomBar({
@@ -55,6 +64,7 @@ export function BottomBar({
   ready,
   thumbnailFor,
   onAdd,
+  onAudio,
   onDragChange,
   tool,
   onToolChange,
@@ -65,10 +75,11 @@ export function BottomBar({
   ready: boolean;
   thumbnailFor: (assetId: string) => string | undefined;
   onAdd: (assetId: string) => void;
+  onAudio: (mode: AudioLibraryMode) => void;
   onDragChange: (assetId: string | null) => void;
   tool: NavigationTool;
   onToolChange: (tool: NavigationTool) => void;
-  // Camera tools only make sense for the orbit camera, so third person only
+  // Available while editing; choosing a camera tool switches to third person
   showCameraTools: boolean;
 }) {
   const setDragImage = useDragImage();
@@ -301,7 +312,11 @@ export function BottomBar({
                     ))}
                   </div>
                 ) : (
-                  <div className="tool-popup" role="group" aria-label={`${open.label} options`}>
+                  <div
+                    className={`tool-popup${open.id === "audio" ? " audio-tool-popup" : ""}`}
+                    role="group"
+                    aria-label={`${open.label} options`}
+                  >
                     {open.items.map((item, index) => (
                       <button
                         key={item.label}
@@ -309,6 +324,8 @@ export function BottomBar({
                         type="button"
                         aria-label={item.label}
                         aria-pressed={picked[open.id] === index}
+                        aria-disabled={open.id === "audio" && index !== 0}
+                        title={open.id === "audio" && index !== 0 ? "Coming soon" : item.label}
                         disabled={
                           item.assetId !== undefined &&
                           (!ready || !assets.some((asset) => asset.id === item.assetId))
@@ -330,12 +347,18 @@ export function BottomBar({
                           setPopup(null);
                         }}
                         onClick={() => {
+                          // Keep future audio types visible without opening an unsupported authoring flow
+                          if (open.id === "audio" && index !== 0) return;
                           setPicked((previous) => ({ ...previous, [open.id]: index }));
                           setPopup(null);
                           playUiSound("assetSelect");
-                          if (item.assetId) onAdd(item.assetId);
+                          if (open.id === "audio")
+                            onAudio((["background", "spatial", "narration"] as const)[index]!);
+                          else if (item.assetId) onAdd(item.assetId);
                         }}
-                        {...popupTip.handlers(item.label)}
+                        {...popupTip.handlers(
+                          open.id === "audio" && index !== 0 ? "Coming soon" : item.label,
+                        )}
                       >
                         <Icon name={item.icon} />
                       </button>
