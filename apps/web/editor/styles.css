@@ -269,6 +269,28 @@
 .content-dialog-text .content-fields {
   gap: 14px;
 }
+.content-items button {
+  padding: 5px 12px;
+  font-size: 12px;
+}
+.content-remove {
+  padding: 5px 0 !important;
+  background: transparent !important;
+}
+.content-fields label:has(> textarea[aria-label="Caption"]) textarea {
+  min-height: 44px;
+  height: 44px;
+}
+@media (max-width: 600px) {
+  .content-dialog {
+    width: calc(100% - 24px);
+  }
+  .content-tabs {
+    flex-direction: row;
+  }
+  .content-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 * {
@@ -337,7 +359,7 @@ a {
   width: 1.25rem;
   height: 1.25rem;
 }
-/* Source toolbar SVGs include their own 40px slot and must keep their intrinsic size. */
+/* Figma exports include padding around their artwork. */
 .figma-tool-icon {
   display: block;
   flex-shrink: 0;
@@ -552,7 +574,7 @@ a {
   background: #e3ddcd;
 }
 .pill-button:disabled {
-  color: #9b968d;
+  color: var(--muted);
 }
 .dev-action {
   min-height: 2rem;
@@ -1070,8 +1092,8 @@ a {
   margin: 0;
   padding: 0.4rem 0.8rem;
   border-radius: 999px;
-  background: rgb(41 46 41 / 0.6);
-  color: #f5f7fa;
+  background: var(--scene-hint-background);
+  color: var(--scene-hint-text);
   font-size: 0.8125rem;
   text-align: center;
   translate: -50% 0;
@@ -1457,10 +1479,22 @@ a {
 .mode-bar button[aria-pressed="true"] {
   background: #fff;
 }
-.mode-bar .icon,
-.scene-toolbar .icon {
+.mode-bar .icon {
   width: 1.5rem;
   height: 1.5rem;
+}
+:is(.scene-toolbar, .tool-popup) .icon {
+  width: 1.75rem;
+  height: 1.75rem;
+}
+.scene-toolbar [data-category="audio"] .icon {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+/* The padded exports need a larger box to match the inline icons' visible size. */
+:is(.scene-toolbar, .tool-popup) .figma-tool-icon {
+  width: 2.25rem;
+  height: 2.25rem;
 }
 
 .scene-toolbar {
@@ -1535,10 +1569,6 @@ a {
 .tool-popup button:hover,
 .tool-popup button[aria-pressed="true"] {
   background: #efebe1;
-}
-.tool-popup .icon {
-  width: 1.5rem;
-  height: 1.5rem;
 }
 
 /* Grip is thinner than the tools, hold it to drag the bar to another edge */
@@ -2365,3 +2395,203 @@ a {
   justify-content: center;
   margin: 0;
 }
+
+/* Contextual sheets match the reference's rounded swatches and icon popups. */
+.exhibit-context {
+  position: absolute;
+  inset: 18% 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  z-index: 4;
+  pointer-events: none;
+}
+.exhibit-context > * {
+  pointer-events: auto;
+}
+.exhibit-popup-toolbar,
+.exhibit-swatches {
+  background: #e8e6db;
+  border-radius: 24px;
+  padding: 14px 20px;
+  box-shadow: 0 6px 20px #342b2414;
+}
+.exhibit-popup-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.exhibit-popup-toolbar button {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 14px;
+  background: #fff9;
+  color: #3d3133;
+  cursor: pointer;
+}
+.exhibit-popup-toolbar .icon {
+  width: 24px;
+  height: 24px;
+}
+.exhibit-texture-icon,
+.exhibit-colour-icon {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid #9a9488;
+}
+.exhibit-texture-icon {
+  background: repeating-linear-gradient(35deg, #b3a893 0 2px, #eee6d8 2px 5px);
+}
+.exhibit-swatches {
+  position: relative;
+  width: min(290px, calc(100vw - 36px));
+}
+.exhibit-swatches::after {
+  content: "";
+  position: absolute;
+  left: calc(50% - 16px);
+  bottom: -14px;
+  border: 16px solid transparent;
+  border-top-color: #e8e6db;
+  border-bottom: 0;
+}
+.exhibit-swatch-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+.exhibit-swatch-grid button {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+}
+.exhibit-swatch-grid button[aria-pressed="true"] {
+  outline: 2px solid #3d3133;
+  outline-offset: 2px;
+}
+.exhibit-swatch-grid .swatch-plain {
+  background: #e8e9eb;
+}
+.exhibit-swatch-grid .swatch-wood {
+  background: repeating-linear-gradient(7deg, #bd8a54 0 4px, #89613c 5px, #bd8a54 7px);
+}
+.exhibit-swatch-grid .swatch-glass {
+  background: repeating-linear-gradient(135deg, #a9bcc6 0 9px, #e7eff0 10px 12px, #a9bcc6 14px);
+}
+.exhibit-swatch-grid .swatch-leather {
+  background: radial-gradient(ellipse, #78614d 35%, #40352d 45%, #78614d 65%);
+  background-size: 7px 6px;
+}
+.exhibit-swatch-grid .swatch-marble {
+  background: repeating-linear-gradient(35deg, #f6f4f0 0 8px, #a5a5a5 9px, #f6f4f0 11px);
+}
+.exhibit-swatch-grid .swatch-tile {
+  background:
+    repeating-linear-gradient(0deg, transparent 0 12px, #c5c8c8 13px 14px),
+    repeating-linear-gradient(90deg, #eeefed 0 12px, #c5c8c8 13px 14px);
+}
+.exhibit-swatch-grid .swatch-concrete {
+  background: radial-gradient(#9a9e9b 1px, transparent 1px) #cdd0cf;
+  background-size: 8px 8px;
+}
+.exhibit-swatch-grid .swatch-ceramic {
+  background: radial-gradient(circle at 35% 30%, white, #cfd4d9);
+}
+.exhibit-popup-actions {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+.exhibit-popup-actions button {
+  border: 0;
+  border-radius: 16px;
+  background: #fff9;
+  color: #3d3133;
+  padding: 6px 14px;
+  cursor: pointer;
+}
+.exhibit-context button:focus-visible {
+  outline: 2px solid #3d3133;
+  outline-offset: 3px;
+}
+
+/* Content sheets follow the text/video/image rail and centered pill controls in the reference. */
+.content-dialog .content-tabs[hidden] {
+  display: none;
+}
+.content-dialog-properties .content-layout {
+  grid-template-columns: minmax(0, 1fr);
+}
+.content-dialog .content-close {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+}
+.content-dialog .content-actions button {
+  min-height: 44px;
+  border-radius: 999px;
+  padding: 10px 28px;
+  background: var(--button);
+}
+.content-dialog .content-format {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+}
+.content-dialog .content-format button {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 50%;
+  line-height: 1;
+}
+.content-dialog .content-tabs button {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  padding: 0;
+  border-radius: 50%;
+}
+.content-dialog .content-tabs .icon {
+  width: 28px;
+  height: 28px;
+  margin: 0;
+}
+.exhibit-context {
+  position: fixed;
+  inset: auto;
+  width: max-content;
+  max-width: calc(100% - 24px);
+  transform: translate(-50%, -100%);
+}
+.exhibit-context[hidden] {
+  display: none;
+}
+.exhibit-context .exhibit-popup-toolbar {
+  justify-content: center;
+}
+.exhibit-context .exhibit-popup-toolbar button {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 12px;
+  line-height: 1;
+}
+.exhibit-context .exhibit-popup-actions button {
+  min-height: 38px;
+  padding: 8px 22px;
