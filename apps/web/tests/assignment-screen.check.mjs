@@ -94,6 +94,9 @@ try {
     null,
   );
   console.log("Assignment screen retry and cross-tab checks passed");
+} catch (error) {
+  await browser.close();
+  throw error;
 } finally {
   await context.close();
 }

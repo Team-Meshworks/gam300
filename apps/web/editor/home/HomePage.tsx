@@ -63,6 +63,14 @@ export function HomePage() {
       setChecking(false);
     }
   }
+  const workspaceActive =
+    !checking &&
+    !error &&
+    !!session &&
+    !session.mustChangePassword &&
+    session.userId === workspaceSession?.userId &&
+    session.orgId === workspaceSession.orgId &&
+    session.role === workspaceSession.role;
   return (
     <>
       <a className="sp-skip-link" href="#workspace">
@@ -87,13 +95,11 @@ export function HomePage() {
         </div>
       )}
       {workspaceSession && (
-        <div
-          hidden={checking || !!error || !session || session.mustChangePassword}
-          inert={checking || !!error || !session || session.mustChangePassword}
-        >
+        <div hidden={!workspaceActive} inert={!workspaceActive}>
           <HomeWorkspace
             key={`${workspaceSession.userId}:${workspaceSession.orgId}:${workspaceSession.role}`}
             session={workspaceSession}
+            active={workspaceActive}
             onSignOut={() => void signOut()}
           />
         </div>
@@ -102,7 +108,15 @@ export function HomePage() {
   );
 }
 
-function HomeWorkspace({ session, onSignOut }: { session: AccountSession; onSignOut: () => void }) {
+function HomeWorkspace({
+  session,
+  active,
+  onSignOut,
+}: {
+  session: AccountSession;
+  active: boolean;
+  onSignOut: () => void;
+}) {
   const [view, setView] = useState<"projects" | "classes" | "assignment">("projects");
   const [navigation, setNavigation] = useState<FormNavigationState>({
     dirty: false,
@@ -176,10 +190,11 @@ function HomeWorkspace({ session, onSignOut }: { session: AccountSession; onSign
         )}
       </nav>
       {view === "projects" ? (
-        <ProjectHome session={session} onOpenProject={openProject} />
+        <ProjectHome session={session} active={active} onOpenProject={openProject} />
       ) : view === "classes" ? (
         <ClassHome
           session={session}
+          active={active}
           onCreateAssignment={() => setView("assignment")}
           onOpenProject={openProject}
         />
@@ -200,7 +215,7 @@ function HomeWorkspace({ session, onSignOut }: { session: AccountSession; onSign
           />
         </>
       )}
-      {leave && (
+      {leave && active && (
         <Dialog title="Leave this assignment?" onClose={() => setLeave(null)}>
           <p>
             Your unsent details will be discarded. Stay here to finish or keep a copy before

@@ -155,12 +155,20 @@ try {
     await page.getByRole("button", { name: "Classes", exact: true }).click();
     await page.getByRole("button", { name: "New assignment" }).click();
     await page.getByLabel("Project title").fill("Unsent assignment");
+    await page.getByRole("button", { name: "Projects", exact: true }).click();
+    await page.getByRole("dialog", { name: "Leave this assignment?" }).waitFor();
     account = { ...session, mustChangePassword: true };
     await page.evaluate(() => window.dispatchEvent(new Event("focus")));
     await page.getByRole("heading", { name: "Change your password to continue" }).waitFor();
+    assert.equal(await page.getByRole("dialog", { name: "Leave this assignment?" }).count(), 0);
+    await page.getByRole("link", { name: "Go to login" }).evaluate((link) => {
+      link.addEventListener("click", (event) => event.preventDefault(), { once: true });
+    });
+    await page.getByRole("link", { name: "Go to login" }).click({ timeout: 5000 });
     assert.equal(await page.getByLabel("Project title").isVisible(), false);
     account = session;
     await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await page.getByRole("button", { name: "Keep editing" }).click();
     await page.getByLabel("Project title").waitFor();
     assert.equal(await page.getByLabel("Project title").inputValue(), "Unsent assignment");
     account = { ...session, userId: orgId };

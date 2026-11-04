@@ -23,10 +23,12 @@ const directory = createDirectoryClient();
 
 export function ClassHome({
   session,
+  active,
   onCreateAssignment,
   onOpenProject,
 }: {
   session: AccountSession;
+  active: boolean;
   onCreateAssignment: () => void;
   onOpenProject: (projectId: string) => void;
 }) {
@@ -324,7 +326,7 @@ export function ClassHome({
           )}
         </>
       )}
-      {dialog && (
+      {dialog && active && (
         <Dialog
           title={
             dialog === "create"

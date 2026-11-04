@@ -14,9 +14,11 @@ const accounts = createAccountClient();
 
 export function ProjectHome({
   session,
+  active,
   onOpenProject,
 }: {
   session: AccountSession;
+  active: boolean;
   onOpenProject: (projectId: string) => void;
 }) {
   const [tab, setTab] = useState<"active" | "archived">("active");
@@ -210,7 +212,7 @@ export function ProjectHome({
           </ul>
         )}
       </div>
-      {action && (
+      {action && active && (
         <Dialog
           title={
             action.kind === "duplicate"
