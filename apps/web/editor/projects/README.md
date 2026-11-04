@@ -22,6 +22,10 @@ The optional `onCancel` callback lets the host leave the form and discard its dr
 
 The screen stores an unconfirmed request in browser local storage under the current user ID before sending it. A browser Web Lock prevents two tabs for the same account from replacing that request. After a lost response, reopening the screen offers the exact same request ID and body for retry; only a confirmed result or a known first rejection clears it. The stored data includes the entered assignment text and student IDs. A browser that cannot provide storage or Web Locks cannot send a new assignment. Clearing browser storage while an outcome is unknown loses the retry identity; check existing assignments before creating another.
 
+An initial 403 or 404 is a definite rejection: the form remains editable and cancellable. A 403 or 404 after an earlier uncertain outcome does not resolve that outcome; the same pending request remains available for reconciliation.
+
+Authorised assignment list and detail reads include `studentName` for each visible student project. The label uses display name and username when available, otherwise username. The API filters project visibility before returning names. For older responses without a name, a host-supplied authorised name may be used; otherwise the corresponding educator open control remains unavailable rather than presenting an ambiguous ordinal.
+
 `AssignmentListScreen` reads the current account's visible assignments for a supplied class, and `AssignmentDetailsScreen` reads the selected assignment and displays its deadline in the viewer's local time. Each invokes the host's `onOpenProject` callback rather than navigating directly. SCRUM-126 must mount these screens, remount them when account identity changes, provide class selection and run SCRUM-67's save/export/cancel coordination before changing accounts or projects. The current UI preview is not a production route.
 
 # Class assignment integration
