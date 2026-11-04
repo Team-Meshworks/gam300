@@ -3,10 +3,10 @@ import type { TextMark, TextRun } from "../../shared/project/project-content";
 import { editTextRuns } from "./text-runs";
 
 export type RichTextInputHandle = { focus: () => void; selection: () => readonly [number, number] };
-function offsets(root: HTMLElement): readonly [number, number] | null {
+function offsets(root: HTMLElement, target?: StaticRange): readonly [number, number] | null {
   const selection = window.getSelection();
-  if (!selection?.rangeCount) return null;
-  const selected = selection.getRangeAt(0);
+  if (!target && !selection?.rangeCount) return null;
+  const selected = target ?? selection!.getRangeAt(0);
   if (!root.contains(selected.startContainer) || !root.contains(selected.endContainer)) return null;
   const range = document.createRange();
   range.selectNodeContents(root);
@@ -80,6 +80,8 @@ export const RichTextInput = forwardRef<
 >(function RichTextInput({ value, marks, onChange, onFormat }, ref) {
   const element = useRef<HTMLDivElement>(null);
   const composing = useRef(false);
+  const editRange = useRef<readonly [number, number] | null>(null);
+  const deleteBackward = useRef<boolean | null>(null);
   const selected = useRef<readonly [number, number]>([0, 0]);
   useImperativeHandle(
     ref,
@@ -90,6 +92,21 @@ export const RichTextInput = forwardRef<
     }),
     [],
   );
+  useLayoutEffect(() => {
+    const root = element.current!;
+    // Capture the affected range before the browser removes or replaces DOM text
+    const beforeInput = (event: InputEvent) => {
+      const target = event.getTargetRanges()[0];
+      editRange.current = target ? offsets(root, target) : offsets(root);
+      // Plaintext-only editors can omit target ranges; retain deletion direction and the pre-edit caret
+      deleteBackward.current =
+        !target && event.inputType.startsWith("delete")
+          ? event.inputType.endsWith("Backward")
+          : null;
+    };
+    root.addEventListener("beforeinput", beforeInput);
+    return () => root.removeEventListener("beforeinput", beforeInput);
+  }, []);
   useLayoutEffect(() => {
     const root = element.current;
     if (!root || composing.current || signature(domRuns(root)) === signature(value)) return;
@@ -115,7 +132,19 @@ export const RichTextInput = forwardRef<
   function change() {
     const root = element.current!;
     selected.current = offsets(root) ?? selected.current;
-    onChange(editTextRuns(value, (root.textContent ?? "").slice(0, 65536), marks));
+    const text = (root.textContent ?? "").slice(0, 65536);
+    let range = editRange.current;
+    if (range && range[0] === range[1] && deleteBackward.current !== null) {
+      const removed = value.reduce((length, run) => length + run.text.length, 0) - text.length;
+      if (removed > 0) {
+        range = deleteBackward.current
+          ? [range[0] - removed, range[1]]
+          : [range[0], range[1] + removed];
+      }
+    }
+    editRange.current = null;
+    deleteBackward.current = null;
+    onChange(editTextRuns(value, text, marks, range));
   }
   return (
     <div

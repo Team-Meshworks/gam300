@@ -1,3 +1,6 @@
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { SceneTreePanel } from "./ui/SceneTreePanel";
 import { moveSceneSelection } from "../shared/project/selection-transform";
 import { roomFitsGrid } from "../shared/project/room-placement";
 import { deserializeProject } from "../shared/project/project-deserialization";
@@ -391,6 +394,48 @@ describe("room layouts", () => {
     ).toEqual([0, 0, -10]);
   });
 
+  it("snaps a selected room when its crate is the active transform anchor", () => {
+    const { store, a } = layout();
+    const crate = store.addObject("test-crate-v1", [11, 0, 1], a.id);
+    if (!crate.ok) throw Error(crate.error);
+    const original = store.getSnapshot().project;
+    expect(
+      store.setSelectionTransform([a.id, crate.object.id], crate.object.id, {
+        ...crate.object.transform,
+        position: [-9, 0.4, 1],
+      }).ok,
+    ).toBe(true);
+    expect(
+      store.getSnapshot().objects.find((object) => object.id === a.id)!.transform.position,
+    ).toEqual([-10, 0, 0]);
+    expect(
+      store.getSnapshot().objects.find((object) => object.id === crate.object.id)!.transform
+        .position,
+    ).toEqual([-9, 0, 1]);
+    store.undo();
+    expect(store.getSnapshot().project).toEqual(original);
+  });
+  it("renders unparented furnishings after deleting the initial room", () => {
+    const { store, first } = layout();
+    store.deleteObject(first);
+    const loose = store.addObject("test-crate-v1", [-12, 0, -12]);
+    if (!loose.ok) throw Error(loose.error);
+    const html = renderToStaticMarkup(
+      createElement(SceneTreePanel, {
+        room: undefined,
+        objects: store.getSnapshot().objects,
+        groups: [],
+        hotspots: [],
+        selectedId: loose.object.id,
+        onSelect() {},
+        onDelete() {},
+        mobileDevice: false,
+        thumbnailFor: () => undefined,
+        hierarchy: { rename: () => true, move() {} },
+      }),
+    );
+    expect(html).toContain(`data-object-id="${loose.object.id}"`);
+  });
   it("numbers repeated assets per type starting at two, including the initial room", () => {
     const { store, a, b } = layout();
     expect(a.name).toBe("test-room-module-v1 2");

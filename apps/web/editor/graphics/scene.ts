@@ -4,7 +4,7 @@ import {
   ROOM_TRANSFORM,
 } from "../../shared/project/selection-transform";
 import { createRoomEntrances } from "./room-entrances";
-import { visibleModelBounds } from "./visible-model-bounds";
+import { visibleModelBounds, visibleRaycastHit } from "./visible-model-bounds";
 import { textSurfacePlacement } from "./text-placement";
 import {
   snapRoomPlacement,
@@ -1017,7 +1017,7 @@ export function initScene(
     }
     const raycaster = new THREE.Raycaster(ray.origin, ray.direction);
     raycaster.camera = camera;
-    if (raycaster.intersectObject(instance, true).length === 0) return;
+    if (!raycaster.intersectObject(instance, true).some(visibleRaycastHit)) return;
     const geometry = beginFreeRotation(rotation, event.clientX, event.clientY);
     beginDrag(event, { ...shared, currentMode: "freeRotate", geometry });
   }
@@ -1029,11 +1029,12 @@ export function initScene(
     let nearest =
       environment === undefined
         ? Infinity
-        : (raycaster.intersectObject(environment, true)[0]?.distance ?? Infinity);
+        : (raycaster.intersectObject(environment, true).find(visibleRaycastHit)?.distance ??
+          Infinity);
     // A wall or floor hit selects the room; a closer exhibit can still win the pick
     let id: string | null = Number.isFinite(nearest) ? (projectScene?.id ?? null) : null;
     for (const [objectId, instance] of instances) {
-      const hit = raycaster.intersectObject(instance, true)[0];
+      const hit = raycaster.intersectObject(instance, true).find(visibleRaycastHit);
       if (hit !== undefined && hit.distance < nearest) {
         nearest = hit.distance;
         id = objectId;
@@ -1049,7 +1050,7 @@ export function initScene(
     let nearest = Infinity;
     let id: string | undefined;
     for (const [objectId, instance] of instances) {
-      const hit = raycaster.intersectObject(instance, true)[0];
+      const hit = raycaster.intersectObject(instance, true).find(visibleRaycastHit);
       if (hit !== undefined && hit.distance < nearest) {
         nearest = hit.distance;
         id = objectId;
@@ -1374,7 +1375,7 @@ export function initScene(
     const ray = screenRay(aim.x, aim.y);
     const raycaster = new THREE.Raycaster(ray.origin, ray.direction);
     raycaster.camera = camera;
-    if (raycaster.intersectObject(instance, true).length === 0) return;
+    if (!raycaster.intersectObject(instance, true).some(visibleRaycastHit)) return;
     event.preventDefault();
     event.stopPropagation();
     if (wheelEdit !== undefined && wheelEdit.id !== object.id) commitWheelEdit();
@@ -1563,14 +1564,9 @@ export function initScene(
     owner.updateMatrixWorld(true);
     const ray = screenRay(clientX, clientY),
       raycaster = new THREE.Raycaster(ray.origin, ray.direction);
-    const hit = raycaster.intersectObject(owner.children[0], true).find((hit) => {
-      let node: THREE.Object3D | null = hit.object;
-      while (node && node !== owner) {
-        if (!node.visible) return false;
-        node = node.parent;
-      }
-      return !!hit.face;
-    });
+    const hit = raycaster
+      .intersectObject(owner.children[0], true)
+      .find((hit) => visibleRaycastHit(hit) && !!hit.face);
     if (!hit?.face || !(hit.object instanceof THREE.Mesh)) {
       if (textPreviewRoot) textPreviewRoot.visible = false;
       return;

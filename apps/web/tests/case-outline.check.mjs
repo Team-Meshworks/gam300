@@ -63,7 +63,10 @@ try {
         node.isGroup && node.children[0]?.isGroup && node.position.x === 3 && node.position.z === 2,
     );
     const expected = roots.map(visibleModelBounds).reduce((box, next) => box.union(next));
+    // Hidden covers cannot intercept either an object pick or hotspot placement on its visible exhibit
+    renderer.showCamera({ position: [3, 1.475, 7], rotation: [0, 0, 0, 1], fovDegrees: 60 });
     const filled = {
+      picked: renderer.pickObjectAt(400, 300),
       actual: [...outline.box.min.toArray(), ...outline.box.max.toArray()],
       expected: [...expected.min.toArray(), ...expected.max.toArray()],
       roots: roots.length,
@@ -74,6 +77,11 @@ try {
     host.remove();
     return { filled, empty };
   });
+  assert.equal(
+    result.filled.picked,
+    "object",
+    "Hidden glass does not cover the visible exhibit pick",
+  );
   assert.equal(result.filled.roots, 2);
   result.filled.actual.forEach((value, index) =>
     assert.ok(Math.abs(value - result.filled.expected[index]) < 1e-6),

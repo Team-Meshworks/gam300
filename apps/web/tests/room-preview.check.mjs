@@ -235,6 +235,25 @@ try {
   await firstRow.click();
   await rows.last().click({ modifiers: ["Shift"] });
   assert.equal(await tree.locator('[aria-pressed="true"]').count(), 3);
+  // A plain viewport pick replaces the range instead of reviving it on the next object click
+  await page.getByRole("button", { name: "Select", exact: true }).click();
+  await stage.click({ position: { x: 1400, y: 2 } });
+  assert.equal(await tree.locator('[aria-pressed="true"]').count(), 0);
+  const roomPoint = await page.evaluate(() => {
+    const room = window.roomRoots[1];
+    const point = room.getWorldPosition(room.position.clone());
+    point.y += 1;
+    point.project(window.roomCamera);
+    const canvas = document.querySelector("canvas");
+    return {
+      x: ((point.x + 1) * canvas.clientWidth) / 2,
+      y: ((1 - point.y) * canvas.clientHeight) / 2,
+    };
+  });
+  await stage.click({ position: roomPoint });
+  assert.equal(await tree.locator('[aria-pressed="true"]').count(), 1);
+  await firstRow.click();
+  await rows.last().click({ modifiers: ["Shift"] });
   const selectedRows = await tree.locator('[aria-pressed="true"]').evaluateAll((rows) =>
     rows.map((row) => ({
       top: row.getBoundingClientRect().top,

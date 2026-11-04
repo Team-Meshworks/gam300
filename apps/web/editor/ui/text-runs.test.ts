@@ -13,6 +13,21 @@ describe("literal formatted text editing", () => {
     { text: "First", marks: ["bold"] as const },
     { text: " last", marks: [] },
   ];
+  it.each([
+    [0, 1, []],
+    [1, 2, ["bold"]],
+  ] as const)(
+    "preserves the surviving repeated character when deleting offsets %i to %i",
+    (start, end, survivingMarks) => {
+      const repeated = [
+        { text: "a", marks: ["bold"] as const },
+        { text: "a", marks: [] },
+      ];
+      expect(editTextRuns(repeated, "a", [], [start, end])).toEqual([
+        { text: "a", marks: [...survivingMarks] },
+      ]);
+    },
+  );
   it("keeps untouched marks when inserting literal markup", () => {
     const next = editTextRuns(runs, "First<script> last", ["italic"]);
     expect(next).toEqual([runs[0], { text: "<script>", marks: ["italic"] }, runs[1]]);

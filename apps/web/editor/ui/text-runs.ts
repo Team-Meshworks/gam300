@@ -34,19 +34,29 @@ export function editTextRuns(
   runs: readonly TextRun[],
   text: string,
   marks: readonly TextMark[],
+  range: readonly [number, number] | null = null,
 ): TextRun[] {
   const old = runs.map((run) => run.text).join("");
-  let start = 0;
-  while (start < old.length && start < text.length && old[start] === text[start]) {
-    start++;
-  }
-  let suffix = 0;
-  while (
-    suffix < old.length - start &&
-    suffix < text.length - start &&
-    old[old.length - 1 - suffix] === text[text.length - 1 - suffix]
-  ) {
-    suffix++;
+  // Native edit ranges distinguish repeated characters that a text diff cannot identify
+  const exact =
+    range !== null &&
+    range[0] >= 0 &&
+    range[1] >= range[0] &&
+    range[1] <= old.length &&
+    text.length - (old.length - range[1]) >= range[0] &&
+    old.slice(0, range[0]) === text.slice(0, range[0]) &&
+    old.slice(range[1]) === text.slice(text.length - (old.length - range[1]));
+  let start = exact ? range[0] : 0;
+  let suffix = exact ? old.length - range[1] : 0;
+  // Non-native changes retain the existing inference fallback, without overriding a known edit range
+  if (!exact) {
+    while (start < old.length && start < text.length && old[start] === text[start]) start++;
+    while (
+      suffix < old.length - start &&
+      suffix < text.length - start &&
+      old[old.length - 1 - suffix] === text[text.length - 1 - suffix]
+    )
+      suffix++;
   }
   // Replace only the changed range; imported mixed formatting stays intact around it
   return compact([

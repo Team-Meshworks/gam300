@@ -99,6 +99,29 @@ export function moveSceneSelection(
     proposed.scale.some((value, axis) => value !== anchor.transform.scale[axis])
   )
     return invalid("transform.scale", "Rooms cannot be scaled");
+  // A selected room owns snapping even when its furnishing is the active transform pivot
+  const movingRoom = all.find(
+    (object) => moving.has(object.id) && object.assetId === "test-room-module-v1",
+  );
+  if (anchor.assetId !== "test-room-module-v1" && movingRoom) {
+    const candidate = moveAttachedObjects(
+      [
+        { ...anchor, parentId: null },
+        { ...movingRoom, parentId: anchorId },
+      ],
+      [],
+      anchorId,
+      proposed,
+    );
+    if (!candidate.ok) return candidate;
+    return moveSceneSelection(
+      scene,
+      [...selectedIds, movingRoom.id],
+      movingRoom.id,
+      candidate.value[1]!.transform,
+      preview,
+    );
+  }
   let after = proposed;
   if (anchor.assetId === "test-room-module-v1") {
     // Shared walls require parallel edges. A free layout can rotate as a whole;

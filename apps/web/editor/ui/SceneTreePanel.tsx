@@ -124,7 +124,10 @@ export function SceneTreePanel({
     // Unparented furnishings retain their released meaning as children of that first room
     const parent =
       parentOf(node) ??
-      ("assetId" in node && node.assetId !== "test-room-module-v1" ? rootId.toLowerCase() : null);
+      // Furnishings stay at the visible tree root when the initial room no longer exists
+      (room && "assetId" in node && node.assetId !== "test-room-module-v1"
+        ? rootId.toLowerCase()
+        : null);
     const siblings = children.get(parent) ?? [];
     siblings.push(node);
     children.set(parent, siblings);

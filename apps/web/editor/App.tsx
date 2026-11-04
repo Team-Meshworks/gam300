@@ -580,6 +580,8 @@ export function App({ server }: { server?: ServerEditorSession }) {
   );
   const onSceneSelect = useCallback(
     (id: string | null) => {
+      // Ordinary picks replace the previous range; tree multi-selection supplies its new range afterward
+      setMultiSelection(null);
       setPendingText(null);
       setSelectedId(id);
       setShowExhibitTools(

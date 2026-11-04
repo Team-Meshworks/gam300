@@ -12,3 +12,11 @@ export function visibleModelBounds(root: THREE.Object3D): THREE.Box3 {
   });
   return bounds;
 }
+
+// Raycaster includes hidden geometry; picking must use the same ancestor visibility as rendering
+export function visibleRaycastHit(hit: THREE.Intersection): boolean {
+  for (let node: THREE.Object3D | null = hit.object; node; node = node.parent) {
+    if (!node.visible) return false;
+  }
+  return true;
+}
