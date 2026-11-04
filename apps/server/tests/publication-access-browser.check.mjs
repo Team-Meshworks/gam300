@@ -110,18 +110,19 @@ try {
     }
   }
 
-  // Public and unlisted share anonymous access; management metadata spells out link possession
-  for (const mode of ["Public", "Unlisted"]) {
-    await change("publisher", mode);
+  // Existing public and unlisted editions permit anonymous reads; creation policy remains unresolved
+  for (const [mode, id] of [["Public", data.publicId], ["Unlisted", data.unlistedId]]) {
     for (const name of ["anonymous", "unrelated", "foreign"])
-      await pair(name, 200);
-    const metadata = await get("publisher", path() + "/access");
+      await pair(name, 200, id);
+    const metadata = await get("publisher", path(id) + "/access");
     assert.equal(metadata.status, 200);
     assert.match(
       metadata.body.explanation,
       mode === "Unlisted" ? /anyone with the link/i : /without signing in/i,
     );
   }
+  for (const mode of ["Public", "Unlisted"])
+    assert.equal((await policy("publisher", mode)).status, 503);
   await pair("anonymous", 404, "invalid-publication");
   await pair("anonymous", 404, crypto.randomUUID());
   await change("publisher", "Authenticated");
@@ -287,8 +288,8 @@ try {
       .status,
     404,
   );
-  await change("manager", "Public", "show");
-  await change("manager", "Public");
+  await change("manager", "Authenticated", "show");
+  await change("manager", "Authenticated");
   await pair("anonymous", 404);
   await archive(true);
   await archive(false);
@@ -296,7 +297,7 @@ try {
   await change("admin", "Authenticated", "delete", [], data.deletedId);
   await pair("admin", 404, data.deletedId);
   assert.equal(
-    (await policy("admin", "Public", "show", [], data.deletedId)).status,
+    (await policy("admin", "Authenticated", "show", [], data.deletedId)).status,
     404,
   );
   console.log(
