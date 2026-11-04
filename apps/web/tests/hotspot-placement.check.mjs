@@ -145,6 +145,58 @@ async function dragHotspot(page, point) {
   await page.mouse.up();
 }
 
+async function visiblePlacement(page, doc, local, anchor) {
+  return page.evaluate(
+    async ({ doc, local, anchor }) => {
+      const source = await (await fetch("/graphics/scene.ts")).text();
+      const THREE = await import(source.match(/import \* as THREE from "([^"]+)"/)[1]);
+      const rect = document.querySelector(".viewport-stage canvas").getBoundingClientRect();
+      const pose = doc.scenes[0].startCamera;
+      const camera = new THREE.PerspectiveCamera(
+        pose.fovDegrees,
+        rect.width / rect.height,
+        0.1,
+        100,
+      );
+      camera.position.fromArray(pose.position);
+      camera.quaternion.fromArray(pose.rotation);
+      camera.updateMatrixWorld();
+      const owner = new THREE.Group();
+      const transform = doc.scenes[0].objects[0].transform;
+      owner.position.fromArray(transform.position);
+      owner.quaternion.fromArray(transform.rotation);
+      owner.scale.fromArray(transform.scale);
+      owner.updateMatrixWorld();
+      const bounds = new THREE.Box3();
+      for (const x of [local.min[0], local.max[0]])
+        for (const y of [local.min[1], local.max[1]])
+          for (const z of [local.min[2], local.max[2]])
+            bounds.expandByPoint(owner.localToWorld(new THREE.Vector3(x, y, z)).project(camera));
+      const centre = owner.localToWorld(
+        new THREE.Vector3(...anchor).add(new THREE.Vector3(0, 0.3, 0)),
+      );
+      const radius = 0.3 * Math.min(transform.scale[0], transform.scale[1]);
+      const right = centre
+        .clone()
+        .add(new THREE.Vector3(radius, 0, 0).applyQuaternion(camera.quaternion))
+        .project(camera);
+      const bottom = centre
+        .clone()
+        .add(new THREE.Vector3(0, -radius, 0).applyQuaternion(camera.quaternion))
+        .project(camera);
+      return {
+        leftGap: ((bounds.min.x - right.x) * rect.width) / 2,
+        topGap: ((bottom.y - bounds.max.y) * rect.height) / 2,
+        size: Math.max(
+          ((bounds.max.x - bounds.min.x) * rect.width) / 2,
+          ((bounds.max.y - bounds.min.y) * rect.height) / 2,
+        ),
+      };
+    },
+    { doc, local, anchor },
+  );
+}
+
 try {
   const variants = [
     ["test-crate-v1", [1, 1, 1], [0, 0, 0]],
@@ -152,9 +204,12 @@ try {
     ["display-rectangle-stand-v1", [1, 1, 1], [0, 0, 0]],
     ["test-crate-v1", [0.2, 0.4, 0.3], [0.1, 0.7, 0.2]],
     ["display-square-panel-v1", [3, 1.5, 0.5], [0.1, -0.45, -0.2]],
+    ["display-square-panel-v1", [1.5, 1, 0.5], [0, Math.PI, 0]],
   ];
   for (const [index, [assetId, scale, rotation]] of variants.entries()) {
-    const context = await browser.newContext({ viewport: { width: 1440, height: 1024 } });
+    if (process.argv[3] !== undefined && index !== Number(process.argv[3])) continue;
+    // Leave space for the scene tree beside wide, nonuniformly scaled objects.
+    const context = await browser.newContext({ viewport: { width: 1920, height: 1024 } });
     const page = await context.newPage();
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
@@ -167,8 +222,15 @@ try {
     await page.getByRole("button", { name: "Add Hotspot", exact: true }).click();
     const clickDoc = await recovery(page, 1);
     const anchor = clickDoc.scenes[0].hotspots[0].position;
-    assert.ok(anchor[0] > local.max[0] && anchor[1] > local.max[1]);
-    assert.equal(anchor[2], local.max[2]);
+    const placement = await visiblePlacement(page, doc, local, anchor);
+    assert.ok(
+      placement.leftGap > 0 && placement.leftGap < placement.size * 0.05,
+      "slightly outside the visible left edge",
+    );
+    assert.ok(
+      placement.topGap > 0 && placement.topGap < placement.size * 0.05,
+      "slightly above the visible top edge",
+    );
     await page.screenshot({ path: `${output}/${index}-${assetId}.png` });
     await page.getByRole("button", { name: "Undo", exact: true }).click();
     await recovery(page, 0);
@@ -187,8 +249,9 @@ try {
       "click and drag share one anchor",
     );
     assert.equal(dragDoc.scenes[0].hotspots[0].objectId, doc.scenes[0].objects[0].id);
-    await page.reload();
-    await page.getByText("Reopened your last project", { exact: true }).waitFor();
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.locator("[data-object-id] .hotspot-indicator").first().waitFor();
+    await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
     assert.deepEqual((await recovery(page, 1)).scenes[0].hotspots, dragDoc.scenes[0].hotspots);
     // Existing authored positions remain byte-for-byte identical through import and edits.
     const legacy = structuredClone(dragDoc);
@@ -207,7 +270,7 @@ try {
     assert.deepEqual(errors, []);
     await context.close();
     console.log(
-      `PASS: ${assetId} ${scale} / ${rotation}: click, drag, upper-right bounds, undo/redo, reload, legacy position and unsupported room`,
+      `PASS: ${assetId} ${scale} / ${rotation}: click, drag, visible upper-left bounds, undo/redo, reload, legacy position and unsupported room`,
     );
   }
 } finally {

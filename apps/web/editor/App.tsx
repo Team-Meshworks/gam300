@@ -313,7 +313,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
       }
       const localPosition = viewCamera?.hotspotAnchor(objectId);
       if (localPosition === undefined) {
-        setNotice("Select a loaded object to attach the hotspot to");
+        setNotice("Bring the selected object fully into view before adding a hotspot");
         return;
       }
       const result = store.addHotspot(objectId, localPosition);

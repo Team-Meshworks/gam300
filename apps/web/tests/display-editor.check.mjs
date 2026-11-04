@@ -166,6 +166,16 @@ try {
   await page.getByRole("button", { name: "Display plinth", exact: true }).click();
   await launch.click();
   const picker = page.getByRole("dialog", { name: "Place an object on this display", exact: true });
+  const displayNames = await page.evaluate(async () => {
+    const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
+    return assets.filter((asset) => asset.displayRole).map((asset) => asset.name);
+  });
+  for (const name of displayNames)
+    assert.equal(
+      await picker.getByRole("button", { name, exact: true }).count(),
+      0,
+      `${name} is excluded from physical content choices`,
+    );
   await picker.getByRole("button", { name: "test-crate", exact: true }).click();
   await picker.getByRole("button", { name: "Favourite test-crate", exact: true }).click();
   await picker

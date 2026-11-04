@@ -1,6 +1,6 @@
 import { createDisplayContent } from "./display-content";
 import { createActiveClock } from "./active-clock";
-import { HOTSPOT_SIZE, hotspotAnchor } from "./hotspot-anchor";
+import { HOTSPOT_SIZE, hotspotAnchor, hotspotWorldSize } from "./hotspot-anchor";
 import { moveAttachedObjects } from "../../shared/project/attached-transforms";
 import type { ContentScene } from "../../shared/project/project-content";
 import { getStartingCamera } from "../../shared/project/starting-view";
@@ -342,6 +342,10 @@ export function initScene(
       if (sprite.parent !== owner) owner.add(sprite);
       const [x, y, z] = hotspot.position;
       sprite.position.set(x, y + HOTSPOT_SIZE / 2, z);
+      // Billboards inherit position, but stay round under nonuniform owner scale.
+      const ownerScale = owner.getWorldScale(new THREE.Vector3());
+      const markerSize = hotspotWorldSize(owner);
+      sprite.scale.set(markerSize / Math.abs(ownerScale.x), markerSize / Math.abs(ownerScale.y), 1);
       sprite.visible = editorMode;
     }
     for (const [id, sprite] of hotspotSprites) {
@@ -598,6 +602,7 @@ export function initScene(
         bounds.set(object.id, new THREE.Box3().setFromObject(child));
       }
     }
+    syncHotspots();
     const box = new THREE.Box3().setFromObject(instance);
     bounds.set(id, box);
     selection.box.copy(box);
@@ -713,7 +718,7 @@ export function initScene(
     if (instance === undefined) return;
     const object = objects.find((item) => item.id.toLowerCase() === objectId.toLowerCase());
     const model = object === undefined ? undefined : models.get(object.assetId);
-    return model === undefined ? undefined : hotspotAnchor(model);
+    return model === undefined ? undefined : hotspotAnchor(model, instance, camera);
   }
 
   function pointerDown(event: PointerEvent) {

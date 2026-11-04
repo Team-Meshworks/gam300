@@ -25,9 +25,8 @@ try {
     const source = await (await fetch("/graphics/scene.ts")).text();
     const THREE = await import(source.match(/import \* as THREE from "([^"]+)"/)[1]);
     const { initScene } = await import("/graphics/scene.ts");
-    const { HOTSPOT_ASSET } = await import(
-      source.match(/from "([^"]*asset-runtime\/hotspot[^"]*)"/)[1]
-    );
+    const hotspotPath = source.match(/from "([^"]*asset-runtime\/hotspot[^"]*)"/)[1];
+    const { HOTSPOT_ASSET } = await import(hotspotPath);
     const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
     const { promise, resolve, reject } = Promise.withResolvers();
     const originalAdd = THREE.Object3D.prototype.add;
@@ -93,6 +92,7 @@ try {
       .applyQuaternion(new THREE.Quaternion(...moved.transform.rotation))
       .add(new THREE.Vector3(...moved.transform.position));
     const transformError = sprite.getWorldPosition(new THREE.Vector3()).distanceTo(expected);
+    const scaledMarkerSize = sprite.getWorldScale(new THREE.Vector3()).toArray();
     const anchorAfterTransform = handle.getHotspotAnchor(object.id);
     handle.update([object], null, saved);
     const panel = new THREE.Mesh(
@@ -109,6 +109,7 @@ try {
       unsupported,
       anchorAfterTransform,
       transformError,
+      scaledMarkerSize,
       originalWorld,
       local: sprite.position.toArray(),
       depthTest: sprite.material.depthTest,
@@ -119,8 +120,16 @@ try {
   }, fixture);
   assert.deepEqual(result.anchor, result.upperCase);
   assert.equal(result.unsupported, undefined);
-  assert.deepEqual(result.anchor, result.anchorAfterTransform);
+  assert.notDeepEqual(
+    result.anchor,
+    result.anchorAfterTransform,
+    "new attachments account for the transformed visible edge",
+  );
   assert.ok(result.transformError < 1e-12);
+  assert.ok(
+    Math.abs(result.scaledMarkerSize[0] - result.scaledMarkerSize[1]) < 1e-12,
+    "nonuniform owner scale keeps the marker round",
+  );
   assert.deepEqual(result.local, [0, 0.3, 0]);
   assert.deepEqual(result.storedPosition, [0, 0, 0]);
   assert.equal(result.depthTest, false);
@@ -166,7 +175,7 @@ try {
   });
   assert.deepEqual(errors, []);
   console.log(
-    "PASS: live renderer anchor invariance, case-insensitive owner, unsupported room, transformed legacy position, actual pixels through opaque geometry, preview hiding and editor restoration",
+    "PASS: view-aware new anchors, case-insensitive owner, unsupported room, unchanged transformed legacy position, actual pixels through opaque geometry, preview hiding and editor restoration",
   );
 } finally {
   await browser.close();

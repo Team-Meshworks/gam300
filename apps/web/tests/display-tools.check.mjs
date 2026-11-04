@@ -38,6 +38,37 @@ try {
   await page.goto(process.argv[2] ?? "http://127.0.0.1:5173/");
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   await page.getByRole("button", { name: "Asset library", exact: true }).click();
+  const registeredDisplays = await page.evaluate(async () => {
+    const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
+    return assets.filter((asset) => asset.displayRole).map(({ id, name }) => ({ id, name }));
+  });
+  assert.equal(
+    registeredDisplays.length,
+    8,
+    "all display registrations remain available internally",
+  );
+  const library = page.locator(".asset-picker");
+  for (const display of registeredDisplays)
+    assert.equal(
+      await library.getByRole("button", { name: display.name, exact: true }).count(),
+      0,
+      `${display.name} belongs to the toolbar, not the general library`,
+    );
+  const regularNames = await page.evaluate(async () => {
+    const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
+    return assets
+      .filter((asset) => asset.displayRole === undefined && asset.id !== "test-room-module-v1")
+      .map((asset) => asset.name);
+  });
+  for (const name of regularNames)
+    assert.equal(
+      await library.getByRole("button", { name, exact: true }).count(),
+      1,
+      `${name} remains in the library`,
+    );
+  await library.getByRole("searchbox", { name: "Search assets", exact: true }).fill("media");
+  assert.equal(await library.locator(".asset-card").count(), 0);
+  await library.getByRole("button", { name: "Reset asset filters", exact: true }).click();
   await page
     .locator(".asset-picker")
     .getByRole("button", { name: "test-room", exact: true })
@@ -114,9 +145,31 @@ try {
     }
   }
   assert.equal(placed, 8);
+  const deadline = Date.now() + 12000;
+  let saved;
+  while (Date.now() < deadline) {
+    saved = await page.evaluate(async () => {
+      const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
+      const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
+      const result = await loadRecoverySession(
+        new Map(assets.map((asset) => [asset.id, asset.kind])),
+      );
+      return result.ok ? result.value?.document : null;
+    });
+    if (saved?.scenes[0].objects.length === 8) break;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  assert.deepEqual(
+    saved.scenes[0].objects.map((object) => object.assetId).sort(),
+    registeredDisplays.map((asset) => asset.id).sort(),
+  );
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.locator(".object-row").first().waitFor();
+  await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
+  assert.equal(await page.locator(".object-row").count(), 8);
   assert.deepEqual(errors, []);
   console.log(
-    "Display tool SVGs: eight source assets loaded at 40×40, both trays dismiss/reopen, keyboard placement and selected icons passed.",
+    "Display tools: eight registrations retained, hidden from general library/search, regular assets retained; toolbar SVGs, keyboard placement, saved references and reload passed.",
   );
 } finally {
   await browser.close();

@@ -4,7 +4,7 @@ The editor now reuses v2 content components and attached-object transforms for d
 
 ## Authoring
 
-1. Choose a room, then use the Display panels or Display cases toolbar popup (or asset library) to place one of the eight supplied models.
+1. Choose a room, then use the Display panels or Display cases toolbar popup to place one of the eight supplied models. Stands and displays are excluded from the general asset library and from physical-content choices.
 2. Select the placed display and choose **Edit display content** beside the scene tools. The contextual action follows the dock and stays outside the header.
 3. For physical displays, choose a model to place at its measured support height. The model is attached to the display and follows its transforms. The existing single-slot replacement/removal commands and undo history are reused.
 4. For digital displays, choose Text, Image or Video. Text supports whole-panel bold, italic and underline, with an optional plain-text caption. Add, Save or Remove content is one undoable document change. Close or Escape leaves the document untouched. Arrow keys, Home and End switch tabs; text and media choices survive tab changes. Unchanged mixed text runs and existing media playback options are preserved.
@@ -12,6 +12,7 @@ The editor now reuses v2 content components and attached-object transforms for d
 
 ## Boundaries
 
+- The picker exclusion uses `displayRole`, not the broader Furniture category. Ordinary furniture and exhibit models remain eligible. Internal model registrations, GLB delivery files, validation and saved references are retained.
 - The supplied inputs contain eight GLBs and visual references, not image/video media. Image and Video pickers show an explicit empty-library message with Add disabled until approved media are registered. Search and filters never erase an existing selection.
 - The physical picker uses real generated thumbnail cards, category filters and persistent favourites. Physical captions and formatted captions are omitted because the current project/rendering contract does not support them. Digital captions remain plain text; formatting controls apply to the whole display text.
 - Typed media registry selection and rendering are implemented. Actual registered media files still require provenance, immutable IDs/hashes, delivery configuration and corresponding asset validation. No external media or redistribution rights were invented.

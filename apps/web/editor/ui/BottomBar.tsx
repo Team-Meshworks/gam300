@@ -210,7 +210,9 @@ export function BottomBar({
         // Outside the dock so it can be big and centred in the scene, not squeezed into the bar
         <div className="asset-picker-layer" ref={picker}>
           <AssetPicker
-            assets={assets.filter((asset) => asset.id !== "test-room-module-v1")}
+            assets={assets.filter(
+              (asset) => asset.id !== "test-room-module-v1" && asset.displayRole === undefined,
+            )}
             ready={ready}
             thumbnailFor={thumbnailFor}
             onAdd={onAdd}
