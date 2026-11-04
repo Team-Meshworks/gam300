@@ -398,6 +398,8 @@ try {
   await page.keyboard.down("s");
   await page.waitForTimeout(600);
   await page.keyboard.up("s");
+  // Let the walk glide to a stop, a click while still moving is allowed to carry
+  await page.waitForTimeout(250);
   await page.mouse.down();
   await page.mouse.up();
   assert.equal(await rows.first().getAttribute("aria-pressed"), "true", "Crosshair picks");
@@ -415,19 +417,17 @@ try {
   const centre = { x: stageBox.x + stageBox.width / 2, y: stageBox.y + stageBox.height / 2 };
   const height = async () => Number((await position.textContent()).match(/Y (-?[\d.]+)/)[1]);
   //send mouse movement directly to the page to have a more consistent testing
+  // The camera only turns on the next frame, so wait for it before aiming or letting go
   const look = (movementY) =>
     page.evaluate((y) => {
       for (let step = 0; step < 20; step += 1) {
         document.dispatchEvent(new MouseEvent("mousemove", { movementY: y }));
       }
+      return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     }, movementY);
   await page.mouse.down();
   await page.waitForTimeout(100);
   await look(-8);
-  // The look turns the camera on the next frame, letting go before then carries nothing
-  await page.evaluate(
-    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
-  );
   await page.mouse.up();
   console.log("movement seen:", JSON.stringify(await page.evaluate(() => window.lookLog)));
   await page.waitForFunction(

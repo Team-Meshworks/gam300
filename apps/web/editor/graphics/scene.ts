@@ -1166,6 +1166,11 @@ export function initScene(
       return;
     }
     if (drag === undefined || event.pointerId !== drag.pointerId) return;
+    // Alt or Esc can free the mouse before the browser reports it, so check the lock itself
+    if (dragLocked && document.pointerLockElement !== renderer.domElement) {
+      cancelDrag();
+      return;
+    }
     pointerMove(event);
     const completed = drag;
     drag = undefined;
