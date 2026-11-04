@@ -2134,14 +2134,46 @@ is deliberately no uniqueness constraint on project/revision. Later draft edits 
 newer editions do not replace the older ID's retry record. The global primary key
 also prevents two projects from claiming the same publication ID.
 
-Parts 1 and 2 supply storage and an internal transaction coordinator. They expose
-**no publication HTTP endpoint** and register no publishing or retrieval service.
-The default integration denies publication, including in Development. Completing
-SCRUM-85 still requires SCRUM-71/73 integration and trusted ordinary-origin evidence; the protected publish
-API with its canonical committed HTTPS URL; protected durable retrieval; and linked
-browser/device acceptance with SCRUM-70/127. UI, QR, catalogue processing and
-deployment remain with their owning issues. [Draft PR #27](https://github.com/Team-Meshworks/gam300/pull/27)
-tracks the full backend implementation and stays draft while these parts remain.
+The integrated backend exposes protected publication creation and retrieval for a
+bounded initial case. SCRUM-85 acceptance still requires the visitor UI and linked
+browser/device and restart evidence, plus unresolved origin and lifecycle decisions.
+UI, QR, catalogue processing and deployment remain with their owning issues.
+[Draft PR #27](https://github.com/Team-Meshworks/gam300/pull/27) does not complete
+the parent story.
+
+### Publication HTTP contract
+
+`POST /api/projects/{id}/publications` requires a current full account, CSRF token
+and account-write rate limit. The request is bounded to 16 KiB and has the shape:
+
+```json
+{"publicationId":"<uuid>","confirmedRevision":0,"intent":{"audience":"Authenticated","viewerIds":["<uuid>"]}}
+```
+
+The ID is client-generated and nonempty. `confirmedRevision` is the saved project
+revision, including metadata revisions. `viewerIds` contains at most 100 distinct,
+nonempty IDs of eligible active full accounts in the project's organization. The
+intent permits exactly those two fields. The server rechecks current publishing
+authority and, for a known class draft, approval of the exact revision under the
+project lock. This first integration supports schema-v1 class-approved drafts and
+authenticated audiences only. Missing trusted origin evidence, public/unlisted
+creation and unsupported runtime capabilities remain unavailable; a missing class
+mapping does not establish ordinary origin. Audience writes also cannot promote an
+existing edition to public or unlisted while those decisions remain unresolved;
+existing public and unlisted editions retain their read policy. The approved asset resolver pins every
+required asset's immutable identity in the same transaction as snapshot and access
+state. A rejected request commits no partial edition.
+
+Configure `Publication:Origin` as a trusted absolute HTTPS origin with no user
+information, path, query or fragment. Request Host and forwarded headers do not
+choose it. After commit, a new request returns 201 and a replay returns 200 with
+`publicationId`, `projectId`, `sourceRevision`, `createdAt` and `snapshotUrl`.
+The URL points to the protected JSON API, not a visitor UI. The server returns
+`private, no-store`; missing or unsafe origin configuration makes publishing
+unavailable. Use the same publication ID, confirmed revision and exact intent bytes
+for an uncertain retry. A changed identity conflicts (409), and a replay rechecks
+current authority and publication state without recreating or restoring access.
+See the coordinator contract below for identity framing and failure behavior.
 
 ### Transaction coordinator (Part 2)
 
@@ -2172,15 +2204,14 @@ document from a publish caller. Every authored environment, model, image, audio 
 the complete pinned manifest; an owning resolver may also supply required derived
 resources. Missing, duplicate or incorrectly cased references cannot commit.
 
-`PublicationRequest` is a private coordinator input, **not a proposed public audience
-DTO**. Its bounded object-valued `IntentJson` retains the complete original intent.
+`PublicationRequest` is the coordinator input. Its bounded object-valued
+`IntentJson` retains the complete original intent.
 SHA-256 framing is `spatia-publication-v1`, publication UUID, route/project UUID,
 authorized actor UUID, invariant decimal confirmed revision, then the original
 UTF-8 intent, with a newline after each preceding field. Whitespace, key order,
-number spelling and extra fields all participate in retry identity. The future
-adapter must pass all accepted policy inputs; the owning integration must validate
-the complete intent schema and reject unknown fields. No public/unlisted/restricted
-policy or lifecycle choice is defined here.
+number spelling and extra fields all participate in retry identity. The HTTP
+integration validates the complete intent schema and rejects unknown fields.
+Public/unlisted creation and unresolved lifecycle choices are not selected here.
 
 The durable ID lookup precedes current-revision and document checks. An exact retry
 can acknowledge its historical edition after later saves or publications, while
@@ -2192,7 +2223,7 @@ simultaneous global ID claims from different project locks without aborting the
 transaction. A subsequent read reconciles the winning row; unrelated constraint
 errors propagate and roll back instead of masquerading as successful retries.
 
-`IPublicationIntegration` is a private seam for Part 3, with three phases under the
+`IPublicationIntegration` has three phases under the
 retained transaction and lock:
 
 - Read-only preparation: validate the whole intent and new-edition policy; resolve
@@ -2206,10 +2237,10 @@ retained transaction and lock:
 - Authorize an existing edition's replay against the current shared policy without
   restaging or changing history.
 
-No production integration is supplied yet. The fixture gates and synthetic hashes
-prove orchestration and rollback only; they are not catalogue approval or audience
-protection. Review integration tests exercise the real submission and decision HTTP
-endpoints with fixture asset providers. The fallback denies both creation and replay. A committed
+The authenticated integration resolves approved retained assets and stages access
+state in the transaction. It provides no trusted ordinary-origin evidence and limits
+creation to the v1 runtime. Review integration tests also exercise real submission
+and decision HTTP endpoints with fixture asset providers. A committed
 acknowledgement contains the persisted ID, project, revision and original timestamp,
 and is constructed only after commit and a final cancellation/session check. A
 failed or canceled commit may already be durable: retry the **same** ID and original
@@ -2238,9 +2269,22 @@ Snapshot regressions use actual saves to verify exact v1/v2 jsonb capture, uncha
 drafts and retries, and valid 5 MiB documents whose rotations would grow on another
 normalization pass. Malformed, unknown-field, unresolvable-asset and oversized stored
 documents remain rejected before any publication commits.
-They do not supply evidence of the production publish API, retained asset bytes, delivery,
-API restart or browser acceptance. Full server regression is required because the
-lock service and migration are shared by the account/project fixtures.
+The coordinator-focused cases alone do not establish the HTTP or browser behavior.
+On 5 November 2026, 12 publish endpoint cases passed against disposable PostgreSQL,
+including class approval, retries and rollback without partial rows. Five review
+integration cases, including both revocation/publish lock orders, and the route
+inventory case also passed. The new rollback case initially expected 500; the
+corrected assertion checks the existing 503 `storage_unavailable` response and
+absence of both rows. A separate
+HTTPS browser API test passed with verified Chrome 157.0.8103.38 and Node 24.22.1:
+it created a class-approved authenticated edition, retrieved JSON and exact retained
+asset bytes as the educator and named viewer, denied an unrelated account, and
+checked replay and conflicting intent. A rebuilt rerun after the access gate merge
+also rejected public and unlisted promotion of the new edition and confirmed the
+named viewer retained access. Its first attempt failed because the isolated
+worktree lacked Playwright; after linking installed dependencies, it passed. This
+is not visitor UI, API restart or another-device acceptance evidence. Full server
+regression remains relevant because the lock service and migration are shared.
 
 Part 1 local verification on **29 October 2026** passed all **97/97** new tests, with zero
 skipped, plus the Release build, both formatting checks and EF model/migration

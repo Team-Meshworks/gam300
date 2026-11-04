@@ -89,7 +89,7 @@ public sealed class HostBoundaryTests
     {
         await using var app = SpatiaApplication.Build(CreateConfigurationBuilder());
         var endpoints = ((IEndpointRouteBuilder)app).DataSources.SelectMany(source => source.Endpoints).OfType<RouteEndpoint>().ToArray();
-        await Assert.That(endpoints.Length).IsEqualTo(50);
+        await Assert.That(endpoints.Length).IsEqualTo(51);
         var expected = new[] { "GET /api/auth/csrf", "POST /api/auth/login", "GET /api/auth/session", "POST /api/auth/logout", "POST /api/auth/password",
             "POST /api/admin/organizations", "POST /api/admin/users", "POST /api/admin/users/{id:guid}/password",
             "GET /api/admin/users", "GET /api/admin/users/{id:guid}", "GET /api/admin/organizations", "GET /api/admin/organizations/{id:guid}",
@@ -107,7 +107,8 @@ public sealed class HostBoundaryTests
             "POST /api/admin/assets/{id:guid}/availability", "GET /api/assets", "GET /api/assets/{id:guid}/bytes",
             "GET /api/projects/{projectId:guid}/assets/{id:guid}/bytes",
             "GET /api/publications/{publicationId}", "GET /api/publications/{publicationId}/assets/{assetId}/bytes",
-            "GET /api/publications/{publicationId:guid}/access", "POST /api/publications/{publicationId:guid}/access" };
+            "GET /api/publications/{publicationId:guid}/access", "POST /api/publications/{publicationId:guid}/access",
+            "POST /api/projects/{id:guid}/publications" };
         await Assert.That(string.Join(";", endpoints.Select(endpoint =>
             endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Single() + " " + endpoint.RoutePattern.RawText).Order()))
             .IsEqualTo(string.Join(";", expected.Order()));

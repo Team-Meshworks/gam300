@@ -10,8 +10,8 @@ namespace Spatia.Server.Publications;
 
 /// <summary>Owns the shared lock, exact-revision capture, durable retry and atomic publication commit</summary>
 /// <remarks>
-/// Internal until the owning integrations and protected API are ready. No registration exposes this
-/// coordinator. The default integration denies all publication, including in Development.
+/// The protected API supplies its scoped access/asset integration. Direct callers without that
+/// integration remain unavailable, including in Development.
 /// </remarks>
 internal sealed class PublicationCoordinator(ApplicationDbContext database, ProjectAccessService access,
     ProjectDocumentService documents, IPublicationIntegration? integration = null)

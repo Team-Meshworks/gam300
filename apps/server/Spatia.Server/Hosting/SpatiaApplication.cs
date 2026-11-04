@@ -131,6 +131,8 @@ public static class SpatiaApplication
         });
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddScoped<IPublicationAccessReader, StoredPublicationAccessReader>();
+        builder.Services.AddScoped<IPublicationIntegration, AuthenticatedPublicationIntegration>();
+        builder.Services.AddScoped<PublicationCoordinator>();
         builder.Services.AddScoped<AssetUploadValidator>();
         builder.Services.AddScoped<AssetAdministrationService>();
         builder.Services.AddScoped<AccountAdministrationService>();
@@ -233,6 +235,7 @@ public static class SpatiaApplication
         app.MapAssetAdministration();
         app.MapAssetDelivery();
         app.MapPublicationDelivery();
+        app.MapPublicationWrites();
         app.MapAccountAdministration();
         app.MapAccountDirectory();
         app.MapAccountSessions();
