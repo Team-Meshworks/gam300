@@ -2308,6 +2308,7 @@
     },
     {
       "file": "editor/document-store.ts",
+      "line": 36,
       "kind": "type",
       "specifier": "../shared/project/project-types",
       "target": "shared/project/project-types.ts",
@@ -2316,7 +2317,7 @@
     },
     {
       "file": "editor/document-store.ts",
-      "line": 35,
+      "line": 37,
       "kind": "type",
       "specifier": "../shared/project/validation-helpers",
       "target": "shared/project/validation-helpers.ts",
@@ -2749,6 +2750,15 @@
       "file": "editor/graphics/display-content.ts",
       "line": 1,
       "kind": "static",
+      "specifier": "../../shared/project/project-appearance",
+      "target": "shared/project/project-appearance.ts",
+      "from": "rendering",
+      "to": "project"
+    },
+    {
+      "file": "editor/graphics/display-content.ts",
+      "line": 2,
+      "kind": "static",
       "specifier": "three",
       "target": {
         "package": "three"
@@ -2757,7 +2767,7 @@
     },
     {
       "file": "editor/graphics/display-content.ts",
-      "line": 2,
+      "line": 3,
       "kind": "type",
       "specifier": "../../shared/asset-runtime/catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -2766,7 +2776,7 @@
     },
     {
       "file": "editor/graphics/display-content.ts",
-      "line": 3,
+      "line": 4,
       "kind": "type",
       "specifier": "../../shared/project/project-content",
       "target": "shared/project/project-content.ts",
@@ -2775,7 +2785,7 @@
     },
     {
       "file": "editor/graphics/display-content.ts",
-      "line": 8,
+      "line": 9,
       "kind": "type",
       "specifier": "../../shared/project/scene-object",
       "target": "shared/project/scene-object.ts",
@@ -2784,7 +2794,7 @@
     },
     {
       "file": "editor/graphics/display-content.ts",
-      "line": 9,
+      "line": 10,
       "kind": "static",
       "specifier": "./display-layout",
       "target": "editor/graphics/display-layout.ts",
@@ -2809,6 +2819,102 @@
       "target": "editor/graphics/display-layout.ts",
       "from": "checks",
       "to": "rendering"
+    },
+    {
+      "file": "editor/graphics/exhibit-appearance.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/graphics/exhibit-appearance.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "three",
+      "target": {
+        "package": "three"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/graphics/exhibit-appearance.test.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./exhibit-appearance",
+      "target": "editor/graphics/exhibit-appearance.ts",
+      "from": "checks",
+      "to": "rendering"
+    },
+    {
+      "file": "editor/graphics/exhibit-appearance.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "three",
+      "target": {
+        "package": "three"
+      },
+      "from": "rendering"
+    },
+    {
+      "file": "editor/graphics/exhibit-appearance.ts",
+      "line": 2,
+      "kind": "type",
+      "specifier": "../../shared/project/project-appearance",
+      "target": "shared/project/project-appearance.ts",
+      "from": "rendering",
+      "to": "project"
+    },
+    {
+      "file": "editor/graphics/fit-displayed-object.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/graphics/fit-displayed-object.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "three",
+      "target": {
+        "package": "three"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/graphics/fit-displayed-object.test.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./fit-displayed-object",
+      "target": "editor/graphics/fit-displayed-object.ts",
+      "from": "checks",
+      "to": "rendering"
+    },
+    {
+      "file": "editor/graphics/fit-displayed-object.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "three",
+      "target": {
+        "package": "three"
+      },
+      "from": "rendering"
+    },
+    {
+      "file": "editor/graphics/fit-displayed-object.ts",
+      "line": 2,
+      "kind": "type",
+      "specifier": "../../shared/project/project-types",
+      "target": "shared/project/project-types.ts",
+      "from": "rendering",
+      "to": "project"
     },
     {
       "file": "editor/graphics/hotspot-anchor.test.ts",
@@ -2936,6 +3042,102 @@
       "to": "rendering"
     },
     {
+      "file": "editor/graphics/placement-preview.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/graphics/placement-preview.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "three",
+      "target": {
+        "package": "three"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/graphics/placement-preview.test.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./placement-preview",
+      "target": "editor/graphics/placement-preview.ts",
+      "from": "checks",
+      "to": "rendering"
+    },
+    {
+      "file": "editor/graphics/placement-preview.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "three",
+      "target": {
+        "package": "three"
+      },
+      "from": "rendering"
+    },
+    {
+      "file": "editor/graphics/placement-preview.ts",
+      "line": 2,
+      "kind": "type",
+      "specifier": "../../shared/project/scene-object",
+      "target": "shared/project/scene-object.ts",
+      "from": "rendering",
+      "to": "project"
+    },
+    {
+      "file": "editor/graphics/room-at-position.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/graphics/room-at-position.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "three",
+      "target": {
+        "package": "three"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/graphics/room-at-position.test.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./room-at-position",
+      "target": "editor/graphics/room-at-position.ts",
+      "from": "checks",
+      "to": "rendering"
+    },
+    {
+      "file": "editor/graphics/room-at-position.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "three",
+      "target": {
+        "package": "three"
+      },
+      "from": "rendering"
+    },
+    {
+      "file": "editor/graphics/room-at-position.ts",
+      "line": 2,
+      "kind": "type",
+      "specifier": "../../shared/project/scene-object",
+      "target": "shared/project/scene-object.ts",
+      "from": "rendering",
+      "to": "project"
+    },
+    {
       "file": "editor/graphics/rotation.test.ts",
       "line": 1,
       "kind": "static",
@@ -3006,6 +3208,44 @@
       "file": "editor/graphics/scene.ts",
       "line": 1,
       "kind": "static",
+      "specifier": "./visible-model-bounds",
+      "target": "editor/graphics/visible-model-bounds.ts",
+      "from": "rendering",
+      "to": "rendering"
+    },
+    {
+      "file": "editor/graphics/scene.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "./text-placement",
+      "target": "editor/graphics/text-placement.ts",
+      "from": "rendering",
+      "to": "rendering"
+    },
+    {
+      "file": "editor/graphics/scene.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "../../shared/project/room-placement",
+      "target": "shared/project/room-placement.ts",
+      "from": "rendering",
+      "to": "project"
+    },
+    {
+      "file": "editor/graphics/scene.ts",
+      "line": 4,
+      "kind": "static",
+      "specifier": "./fit-displayed-object",
+      "target": "editor/graphics/fit-displayed-object.ts",
+      "from": "rendering",
+      "to": "rendering"
+    },
+    {
+      "file": "editor/graphics/scene.ts",
+      "line": 5,
+      "kind": "static",
+      "specifier": "./room-at-position",
+      "target": "editor/graphics/room-at-position.ts",
       "specifier": "./display-content",
       "target": "editor/graphics/display-content.ts",
       "from": "rendering",
