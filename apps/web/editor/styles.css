@@ -623,7 +623,7 @@ a {
   position: absolute;
   left: 4.25rem;
   width: min(18.5rem, calc(100vw - 7rem));
-  max-height: calc(100% - var(--panel-offset, 0rem) - 3.25rem);
+  max-height: calc(100% - var(--panel-offset, 0rem));
   display: flex;
 }
 /* Each panel open beside its own rail button */
@@ -633,8 +633,7 @@ a {
 .panel-slot.is-tree {
   --panel-offset: 3.5rem;
   top: 3.5rem;
-  /* Expanded content scrolls above the fixed Filters control instead of passing behind it */
-  max-height: calc(100% - var(--panel-offset) - 3.25rem);
+  max-height: calc(100% - var(--panel-offset));
 }
 .panel-slot.is-scenes {
   --panel-offset: 7rem;
@@ -719,10 +718,17 @@ a {
   padding-left: 1.4rem;
 }
 .axis-fields label {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1rem minmax(0, 1fr);
   align-items: center;
   gap: 0.35rem;
   font-size: 0.8125rem;
+}
+.axis-fields label > span {
+  display: grid;
+  place-items: center;
+  height: 1.75rem;
+  line-height: 1;
 }
 .axis-fields input {
   width: 100%;
@@ -735,6 +741,7 @@ a {
   color: inherit;
   font: inherit;
   font-variant-numeric: tabular-nums;
+  line-height: 1.75rem;
   text-align: center;
 }
 .axis-fields input:focus-visible {
@@ -774,6 +781,7 @@ a {
   max-height: none;
 }
 .scene-root {
+  padding-block: 2px;
   position: relative;
   display: flex;
   align-items: center;
@@ -825,6 +833,11 @@ a {
 .object-row[aria-pressed="true"],
 .environment-row[aria-pressed="true"] {
   background: #e2dccb;
+}
+/* Keep keyboard focus inside the row and separate adjacent selected highlights. */
+.scene-tree :focus-visible {
+  outline: 2px solid var(--muted);
+  outline-offset: -2px;
 }
 .scene-tree-delete {
   display: none;
@@ -913,13 +926,14 @@ a {
 }
 .interaction-rule {
   display: grid;
+  align-items: start;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.5rem 1rem;
 }
 /* Label on the left, the action and its target pill stacked on the right */
 .interaction-half {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: 3rem minmax(0, 1fr);
   align-items: center;
   gap: 0.4rem 0.6rem;
 }
@@ -927,14 +941,21 @@ a {
 .interaction-half > .interaction-input {
   grid-column: 2;
 }
+/* Locate belongs below the target so its width cannot stretch the When label column */
+.interaction-half > button {
+  grid-column: 2;
+  justify-self: start;
+}
 .interaction-label {
   grid-row: 1;
+  justify-self: end;
   font-size: 0.875rem;
   font-weight: 650;
 }
+/* Grid removes the select baseline gap so the arrow centres against the field itself */
 .interaction-select {
   position: relative;
-  display: block;
+  display: grid;
   min-width: 0;
 }
 .interaction-select select {
@@ -987,27 +1008,6 @@ a {
 }
 .interaction-add {
   color: var(--muted);
-}
-
-.filter-button {
-  position: absolute;
-  bottom: 0;
-  left: 4.25rem;
-  display: flex;
-  align-items: center;
-  gap: 1.25rem;
-  min-height: 2.6rem;
-  padding: 0.35rem 1.2rem 0.35rem 1.4rem;
-  border: 0;
-  border-radius: 999px;
-  background: var(--button);
-  box-shadow: var(--shadow);
-  font-size: 1rem;
-  font-weight: 650;
-}
-.filter-button .icon {
-  width: 1rem;
-  height: 1rem;
 }
 
 .viewport {
@@ -1721,7 +1721,6 @@ a {
 .rail-button:hover {
   box-shadow: 0 6px 18px rgb(64 52 32 / 0.16);
 }
-.filter-button:hover,
 .panel-pill:hover {
   background: #e7e2d6;
 }
@@ -1943,9 +1942,6 @@ a {
   .panel-slot {
     left: 3.5rem;
   }
-  .filter-button {
-    left: 3.5rem;
-  }
   .asset-picker-layer {
     inset: 0 0.75rem;
   }
@@ -1971,9 +1967,8 @@ a {
   .asset-grid {
     columns: 8rem;
   }
-  /* Hide the dev sample button and Filters on phones, else they overlap the dock */
-  .dev-action,
-  .filter-button {
+  /* Keep the dev sample button clear of the phone dock. */
+  .dev-action {
     display: none;
   }
   .pill-button {
@@ -2360,34 +2355,84 @@ a {
   outline: 2px solid var(--muted);
   outline-offset: -2px;
 }
-/* Match the administrative scrollbar treatment; auto overflow keeps it absent for short lists */
-.asset-grid-scroll,
-.asset-filter-menu {
+/* Share the existing library scrollbar across editor panels and nested lists */
+:is(
+  .asset-grid-scroll,
+  .asset-filter-menu,
+  .editor-panel,
+  .saved-view-menu ol,
+  .scenes-panel ol,
+  .scene-tree
+) {
   scrollbar-width: thin;
   scrollbar-color: var(--asset-scroll-thumb) var(--asset-scroll-track);
 }
-.asset-grid-scroll::-webkit-scrollbar,
-.asset-filter-menu::-webkit-scrollbar {
+:is(
+  .asset-grid-scroll,
+  .asset-filter-menu,
+  .editor-panel,
+  .saved-view-menu ol,
+  .scenes-panel ol,
+  .scene-tree
+)::-webkit-scrollbar {
   width: 8px;
 }
-.asset-grid-scroll::-webkit-scrollbar-track,
-.asset-filter-menu::-webkit-scrollbar-track {
+:is(
+  .asset-grid-scroll,
+  .asset-filter-menu,
+  .editor-panel,
+  .saved-view-menu ol,
+  .scenes-panel ol,
+  .scene-tree
+)::-webkit-scrollbar-track {
   border-radius: 999px;
   background: var(--asset-scroll-track);
 }
-.asset-grid-scroll::-webkit-scrollbar-thumb,
-.asset-filter-menu::-webkit-scrollbar-thumb {
+:is(
+  .asset-grid-scroll,
+  .asset-filter-menu,
+  .editor-panel,
+  .saved-view-menu ol,
+  .scenes-panel ol,
+  .scene-tree
+)::-webkit-scrollbar-thumb {
   border: 2px solid var(--asset-scroll-track);
   border-radius: 999px;
   background: var(--asset-scroll-thumb);
 }
-.asset-grid-scroll::-webkit-scrollbar-thumb:hover,
-.asset-filter-menu::-webkit-scrollbar-thumb:hover {
+:is(
+    .asset-grid-scroll,
+    .asset-filter-menu,
+    .editor-panel,
+    .saved-view-menu ol,
+    .scenes-panel ol,
+    .scene-tree
+  )::-webkit-scrollbar-thumb:hover {
   background: var(--asset-scroll-hover);
 }
-.asset-grid-scroll::-webkit-scrollbar-button,
-.asset-filter-menu::-webkit-scrollbar-button {
+:is(
+  .asset-grid-scroll,
+  .asset-filter-menu,
+  .editor-panel,
+  .saved-view-menu ol,
+  .scenes-panel ol,
+  .scene-tree
+)::-webkit-scrollbar-button {
   display: none;
+}
+/* Chromium otherwise gives scrollbar-color precedence over the existing custom thumb and arrow rules */
+@supports selector(::-webkit-scrollbar) {
+  :is(
+    .asset-grid-scroll,
+    .asset-filter-menu,
+    .editor-panel,
+    .saved-view-menu ol,
+    .scenes-panel ol,
+    .scene-tree
+  ) {
+    scrollbar-width: auto;
+    scrollbar-color: auto;
+  }
 }
 .asset-picker-empty {
   display: flex;
@@ -3112,37 +3157,52 @@ dialog.sp-dialog.sp-display-dialog {
   width: 36px;
   padding: 6px;
 }
-.editor-panel .scenes-panel .asset-filter {
-  display: block;
-  min-width: 0;
+/* Keep the empty state and its action together, with setup hints in a quieter footer */
+.interaction-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
-.editor-panel .scenes-panel .asset-filter-trigger {
-  width: 100%;
-  text-align: left;
-  padding-right: 32px;
-  font-weight: 400;
+.interaction-panel h2 {
+  margin: 0;
 }
-.editor-panel .scenes-panel .asset-filter .icon {
-  width: 14px;
-  height: 14px;
-  right: 12px;
+.interaction-panel .panel-placeholder {
+  padding: 12px 8px 0;
+  gap: 10px;
+  max-width: 25rem;
+  margin-inline: auto;
 }
-.editor-panel .scenes-panel .asset-filter-menu {
+.interaction-panel .panel-placeholder p {
+  margin: 0;
+}
+.interaction-panel .panel-placeholder .panel-empty {
+  line-height: 1.5;
+}
+.interaction-panel .interaction-add {
+  align-self: center;
+  margin: 0;
+  min-height: 36px;
   font-size: 0.8125rem;
 }
-.editor-panel .scenes-panel .asset-filter-menu button {
-  width: 100%;
-  border: 0;
-  text-align: left;
-  border-radius: 8px;
+.interaction-help {
+  display: grid;
+  gap: 8px;
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
 }
-.editor-panel .scenes-panel .asset-filter-menu button[aria-selected="true"] {
-  background: var(--button);
-}
-.editor-panel :is(.scenes-panel, .viewpoints) [role="status"]:empty {
+.interaction-help:empty {
   display: none;
 }
-
+.interaction-help p {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.55;
+}
+.interaction-panel .interaction-select select,
+.interaction-panel .interaction-input {
+  min-height: 32px;
+}
 /* Name and capture form one task; keep browsing controls together below it */
 .editor-panel .viewpoints label {
   margin: 8px 0 6px;
@@ -3209,6 +3269,36 @@ dialog.sp-dialog.sp-display-dialog {
   display: block;
   rotate: 180deg;
 }
+/* Keep removal secondary and outside the empty-state composition */
+.interaction-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.interaction-heading h2 {
+  flex: 1;
+  min-width: 0;
+}
+.interaction-remove {
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+.interaction-remove:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+.interaction-panel .panel-placeholder {
+  padding-top: 20px;
+  padding-bottom: 0;
+}
+.interaction-panel .interaction-add {
+  margin-bottom: 8px;
+}
+
 /* Lists should reserve space only when they contain items, keeping help and ordering actions adjacent */
 .editor-panel .saved-view-menu p {
   margin: 0 0 8px;
@@ -3226,6 +3316,37 @@ dialog.sp-dialog.sp-display-dialog {
 .editor-panel .saved-view-menu .viewpoint-actions button {
   min-height: 32px;
 }
+.editor-panel .scenes-panel .asset-filter {
+  display: block;
+  min-width: 0;
+}
+.editor-panel .scenes-panel .asset-filter-trigger {
+  width: 100%;
+  text-align: left;
+  padding-right: 32px;
+  font-weight: 400;
+}
+.editor-panel .scenes-panel .asset-filter .icon {
+  width: 14px;
+  height: 14px;
+  right: 12px;
+}
+.editor-panel .scenes-panel .asset-filter-menu {
+  font-size: 0.8125rem;
+}
+.editor-panel .scenes-panel .asset-filter-menu button {
+  width: 100%;
+  border: 0;
+  text-align: left;
+  border-radius: 8px;
+}
+.editor-panel .scenes-panel .asset-filter-menu button[aria-selected="true"] {
+  background: var(--button);
+}
+.editor-panel :is(.scenes-panel, .viewpoints) [role="status"]:empty {
+  display: none;
+}
+
 /* Match stroke weight in the rail without changing the same symbols elsewhere */
 .panel-rail .icon g[stroke="currentColor"] {
   stroke-width: 1.25;
@@ -3235,4 +3356,110 @@ dialog.sp-dialog.sp-display-dialog {
 }
 .panel-rail [data-panel="position"] .icon path {
   stroke: none;
+}
+/* Retain native select semantics while styling the open picker to match our rounded menus */
+@supports (appearance: base-select) {
+  .interaction-select select,
+  .interaction-select select::picker(select) {
+    appearance: base-select;
+  }
+  .interaction-select select::picker-icon {
+    display: none;
+  }
+  .interaction-select select::picker(select) {
+    padding: 6px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: var(--card-raised);
+    color: inherit;
+    box-shadow: var(--shadow);
+  }
+  .interaction-select option {
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 0.8125rem;
+  }
+  .interaction-select option:hover,
+  .interaction-select option:checked {
+    background: var(--button);
+  }
+  .interaction-select option::checkmark {
+    display: none;
+  }
+}
+
+/* Padded display exports need optical scaling inside the unchanged hierarchy icon column */
+.scene-tree .object-row > .figma-tool-icon {
+  transform: scale(1.4);
+  transform-origin: center;
+}
+
+/* Centre the empty-state group within its own body; the setup footer does not affect its balance */
+.interaction-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+.interaction-content.is-empty {
+  flex: 1;
+  justify-content: center;
+  padding-block: 24px;
+}
+.interaction-panel .interaction-content.is-empty .panel-placeholder {
+  padding: 0;
+}
+.interaction-panel .interaction-content .interaction-add {
+  margin: 0;
+}
+
+/* Keep long selected labels clear of the arrow without changing native selection behavior */
+.interaction-select select {
+  min-width: 0;
+  color: transparent;
+}
+.interaction-select select:disabled {
+  color: transparent;
+}
+.interaction-select option {
+  color: var(--text, #24221f);
+}
+.interaction-selected-label {
+  position: absolute;
+  inset: 0 1.8rem 0 0.7rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  align-content: center;
+  font-size: 0.8125rem;
+  pointer-events: none;
+}
+.interaction-select:has(select:disabled) .interaction-selected-label {
+  color: var(--muted);
+}
+/* Keep side-panel scrollbars inset, like the scene hierarchy, without changing content alignment. */
+.panel-slot .editor-panel {
+  min-height: 0;
+  border: solid transparent;
+  border-width: 8px 8px 8px 0;
+  padding: calc(1.1rem - 8px) calc(1.1rem - 8px) calc(1.25rem - 8px) 1.1rem;
+}
+.panel-slot :is(.editor-panel, .scene-tree, .saved-view-menu ol, .scenes-panel ol) {
+  scrollbar-width: thin;
+  scrollbar-color: var(--asset-scroll-thumb) transparent;
+}
+.panel-slot
+  :is(.editor-panel, .scene-tree, .saved-view-menu ol, .scenes-panel ol)::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.panel-slot
+  :is(.editor-panel, .scene-tree, .saved-view-menu ol, .scenes-panel ol)::-webkit-scrollbar-track {
+  background: transparent;
+}
+.panel-slot
+  :is(.editor-panel, .scene-tree, .saved-view-menu ol, .scenes-panel ol)::-webkit-scrollbar-thumb {
+  border: 0;
+  border-radius: 999px;
+  background: var(--asset-scroll-thumb);
 }

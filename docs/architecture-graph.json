@@ -385,7 +385,7 @@
     "editor/ui/DisplayEditor.tsx": "8dbef5e9a5ca627cc864ae61757bbfba62778baed79e214f54d913d85d9f60e3",
     "editor/ui/ExhibitPopups.tsx": "bb85bfd0f131c19365e296b23cf3cfc7eae97e65f80618058115692517e3c31f",
     "editor/ui/Icon.tsx": "e6dd35d62b18b4c09ac7b2da5dece2f1d62f0b268afedd547b1777b4b6d6d091",
-    "editor/ui/InteractionPanel.tsx": "bd06335bb72d214c8fe24093706b5c8ef7294ba47c6fbe9a1f53808216e5555f",
+    "editor/ui/InteractionPanel.tsx": "7537c30d1fe681a8a7743025f461363cbf9e2e6d23fe959bd3881df3f88bf348",
     "editor/ui/LibraryRail.tsx": "ffb582a25b6b0a84d0ca2a7c2cb8f79470e647474530d4b6a37b8ab3f4b3497f",
     "editor/ui/PreviewTargets.tsx": "d49499d2e889781f42239cfe9cdd17a174691baed6dc86815a2d3e577af00884",
     "editor/ui/RichTextInput.tsx": "8508440ea3abe0f184f38738e1a3163064444456cb3bee0d56bc4096730c0dbd",
@@ -522,7 +522,7 @@
     "editor/entry/entry.css": "fe7cbc59e81658828c79a8d61a5025b090b2ad23533bb1f26830518138d74dbd",
     "shared/project/fixtures/m2-project.json": "d0b01cf012c8418b3d5e0acef2053b936fdce5333603666dd1e757a3b5e5565b",
     "shared/project/fixtures/project-format-cases.json": "06300d01e8e644f8c7e9ffe91d42d92b072448dfe26b75580314e31f4d5b43ac",
-    "editor/styles.css": "3d362dbd44a629bf3ce51e6c11fc8f61a91aaf4caa211c2f425a9d083e74fcee",
+    "editor/styles.css": "4941b526a1c66e83736cf11b963e2048b6fff18c8422bf6b218170bbe4b3ed0f",
     "editor/fixtures/asset-pipeline-document-history.json": "4fe51cba770226d856f37cbbc2afbe0b3fe393e5990b8f761b794b7b5bf5380d",
     "editor/fixtures/asset-pipeline-view-history.json": "d33e208ca99c5fb1e816a9e0b79aebb987c79ef354179d8c06e430b382cf4f59",
     "editor/projects/class-assignment.css": "fb9bdc1b367853c792e1ba88513872fd0d410cef67e5c144ad0ccce8c0194c64",
@@ -7391,7 +7391,7 @@
     },
     {
       "file": "editor/ui/InteractionPanel.tsx",
-      "line": 145,
+      "line": 179,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
