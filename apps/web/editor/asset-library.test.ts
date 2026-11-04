@@ -304,6 +304,18 @@ describe("asset library behavior without a popup implementation", () => {
     expect(store.getSnapshot().objects.map((object) => object.id)).toEqual([id]);
     store.undo();
     expect(store.getSnapshot().objects[1]!.id).toBe(first.object.id);
+    const fitted = {
+      position: [0, 2, 0] as const,
+      rotation: [0, 0, 0, 1] as const,
+      scale: [0.2, 0.2, 0.2] as const,
+    };
+    const resized = store.addAttachedObject("vase", id, fitted.position, fitted);
+    if (!resized.ok) throw new Error(resized.error);
+    expect(resized.object.transform).toEqual(fitted);
+    store.undo();
+    expect(store.getSnapshot().objects[1]!.transform).toEqual(first.object.transform);
+    store.redo();
+    expect(store.getSnapshot().objects[1]!.transform).toEqual(fitted);
     const before = store.getSnapshot();
 
     // Invalid model and parent references leave the complete previous snapshot untouched

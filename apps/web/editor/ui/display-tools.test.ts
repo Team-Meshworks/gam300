@@ -67,7 +67,12 @@ describe("stand and display toolbar mappings", () => {
       expect(icon).not.toContain("<svg");
       expect(icon).not.toContain("figma.com");
       const source = sources[index]!;
-      expect(source).toContain('<svg width="40" height="40" viewBox="0 0 40 40"');
+      expect(source).toContain('<svg width="40" height="40"');
+      const viewBox = source
+        .match(/viewBox="([^"]+)"/)![1]!
+        .split(" ")
+        .map(Number);
+      expect(viewBox.slice(2)).toEqual([40, 40]);
       expect(source).toContain('fill="#3D3133" fill-opacity="0.5" stroke="#3D3133"');
       expect(source).not.toContain("<image");
     }

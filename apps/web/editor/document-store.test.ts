@@ -500,14 +500,54 @@ it("snaps rooms to vacant adjoining sides while preserving undo and saved positi
   const before = store.getSnapshot();
   assert.equal(store.addObject("test-room-module-v1", [NaN, 0, 0]).ok, false);
   assert.equal(store.getSnapshot(), before);
-  // A moved and resized room supplies its actual footprint
+  // Previously saved scaled rooms remain readable and still supply their actual footprint.
+  const imported = structuredClone(store.getSnapshot().project!);
+  const existing = imported.scenes[0]!.objects.find((object) => object.id === next.id)!;
+  Object.assign(existing, {
+    transform: { ...existing.transform, position: [50, 0, 0], scale: [2, 1, 1] },
+  });
   assert.equal(
-    store.setTransform(next.id, {
-      ...next.transform,
-      position: [50, 0, 0],
-      scale: [2, 1, 1],
-    }).ok,
+    store.loadProject(
+      JSON.stringify(imported),
+      new Map(assets.map((asset) => [asset.id, asset.kind])),
+    ).ok,
     true,
   );
   assert.deepEqual(add([65, 0, 0]).transform.position, [65, 0, 0]);
+});
+
+it("rejects room scaling in direct edits and previews while allowing movement and normal object scaling", () => {
+  const assets: CatalogueAsset[] = ["test-room-v1", "test-room-module-v1", "test-crate-v1"].map(
+    (id) => ({
+      id,
+      name: id,
+      kind: id === "test-room-v1" ? "environment" : "model",
+      url: `${id}.glb`,
+      sha256: "0".repeat(64),
+      thumbnail: null,
+    }),
+  );
+  const store = createDocumentStore(assets);
+  store.createProject("test-room-v1");
+  const added = store.addObject("test-room-module-v1", [10, 0, 0]);
+  if (!added.ok) throw new Error(added.error);
+  const room = added.object;
+  const before = store.getSnapshot();
+  assert.equal(store.setTransform(room.id, { ...room.transform, scale: [2, 2, 2] }).ok, false);
+  assert.equal(store.getSnapshot(), before);
+  const edit = store.beginTransform(room.id);
+  if (!edit.ok) throw new Error(edit.error.message);
+  assert.equal(
+    store.previewTransform(edit.value.token, { ...room.transform, scale: [0.5, 0.5, 0.5] }).ok,
+    false,
+  );
+  assert.equal(store.getTransformEdit(), null);
+  assert.equal(store.getSnapshot(), before);
+  assert.equal(store.setTransform(room.id, { ...room.transform, position: [20, 0, 0] }).ok, true);
+  const crate = store.addObject("test-crate-v1", [0, 0, 0]);
+  if (!crate.ok) throw new Error(crate.error);
+  assert.equal(
+    store.setTransform(crate.object.id, { ...crate.object.transform, scale: [2, 2, 2] }).ok,
+    true,
+  );
 });
