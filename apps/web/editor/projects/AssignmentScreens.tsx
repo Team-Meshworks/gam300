@@ -3,6 +3,7 @@ import { Button } from "../../shared/ui/Button";
 import { Field } from "../../shared/ui/Field";
 import { NewProjectForm, type FormNavigationState } from "./NewProjectForm";
 import { formatLocalDeadline, localDeadlineToUnixSeconds } from "./deadline";
+import "./assignment-screens.css";
 import {
   assignmentChoices,
   assignmentSession,
@@ -374,15 +375,20 @@ export function AssignmentDetailsScreen({
       <h3>Instructions</h3>
       <p>{details.instructions}</p>
       <p>Due: {formatLocalDeadline(details.dueAtUnixSeconds) ?? "Unavailable"}</p>
-      {details.projects.map((project, index) => (
+      {details.projects.map((project) => (
         <Button
           key={project.projectId}
-          disabled={!onOpenProject}
+          disabled={
+            !onOpenProject ||
+            (!ownProject && !(project.studentName ?? studentNames?.[project.studentId]))
+          }
           onClick={() => onOpenProject?.(project.projectId)}
         >
           {ownProject
             ? "Open your project"
-            : `Open project for ${studentNames?.[project.studentId] ?? `student ${index + 1}`}`}
+            : (project.studentName ?? studentNames?.[project.studentId])
+              ? `Open project for ${project.studentName ?? studentNames?.[project.studentId]}`
+              : "Student name unavailable"}
         </Button>
       ))}
       {!onOpenProject && (

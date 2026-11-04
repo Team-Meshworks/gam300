@@ -105,6 +105,8 @@ async function recoveryScenario(kind) {
   const isolated = await browser.newContext({ timezoneId: "Asia/Singapore", locale: "en-GB" });
   const posts = [];
   let projectsFail = false;
+  const status = kind.endsWith("403") ? 403 : kind.endsWith("404") ? 404 : 413;
+  const initial = kind.startsWith("initial-");
   try {
     await isolated.route("**/api/**", async (route) => {
       const request = route.request();
@@ -142,8 +144,8 @@ async function recoveryScenario(kind) {
         });
       if (path === "/api/classes/class/assignments" && request.method() === "POST") {
         posts.push(request.postDataJSON());
-        if (kind !== "initial-413" && posts.length === 1) return route.abort("failed");
-        return json({}, 413);
+        if (!initial && posts.length === 1) return route.abort("failed");
+        return json({}, status);
       }
       throw new Error(`Unexpected API request: ${path}`);
     });
@@ -157,7 +159,7 @@ async function recoveryScenario(kind) {
     await page.getByLabel(/^Class/).selectOption("class");
     await page.getByRole("checkbox", { name: /Alice/ }).check();
     await page.getByRole("button", { name: "Create project" }).click();
-    if (kind === "initial-413") {
+    if (initial) {
       await page.getByRole("alert").waitFor({ timeout: 5000 });
       assert.equal(
         await page.evaluate(() => localStorage.getItem("spatia.assignment.pending:teacher")),
@@ -166,6 +168,10 @@ async function recoveryScenario(kind) {
       assert.equal(await page.getByLabel("Project title").inputValue(), "Assignment");
       await page.getByLabel("Project title").fill("Corrected assignment");
       assert.equal(await page.getByLabel("Project title").inputValue(), "Corrected assignment");
+      if (status !== 413) {
+        await page.getByRole("button", { name: "Cancel", exact: true }).click();
+        assert.equal(await page.locator("#opened").textContent(), "cancelled");
+      }
     } else {
       await page.getByRole("button", { name: "Retry same assignment" }).waitFor();
       const pending = await page.evaluate(() =>
@@ -178,7 +184,7 @@ async function recoveryScenario(kind) {
       }
       await Promise.all([
         page.waitForResponse(
-          (item) => item.url().endsWith("/assignments") && item.status() === 413,
+          (item) => item.url().endsWith("/assignments") && item.status() === status,
         ),
         page.getByRole("button", { name: "Retry same assignment" }).click({ timeout: 5000 }),
       ]);
@@ -196,11 +202,70 @@ async function recoveryScenario(kind) {
   }
 }
 
+async function returningEducator() {
+  const isolated = await browser.newContext();
+  let studentName = "Alice";
+  try {
+    await isolated.route("**/api/**", async (route) => {
+      const path = new URL(route.request().url()).pathname;
+      const json = (body) => route.fulfill({ json: body });
+      if (path === "/api/auth/session")
+        return json({
+          userId: "teacher",
+          displayName: "Teacher",
+          role: "Educator",
+          orgId: "school",
+        });
+      const assignment = {
+        assignmentId: "assignment",
+        title: "Assignment",
+        description: "Description",
+        instructions: "Instructions",
+        dueAtUnixSeconds: 1796110200,
+        projects: [{ studentId: "alice", studentName, projectId: "a" }],
+      };
+      if (path === "/api/classes/class/assignments")
+        return json({ items: [assignment], nextCursor: null });
+      if (path === "/api/classes/class/assignments/assignment") return json(assignment);
+      throw new Error(`Unexpected API request: ${path}`);
+    });
+    const page = await isolated.newPage();
+    await page.goto(`${baseUrl}?view=list&class=class`);
+    await page.getByRole("button", { name: "Assignment", exact: true }).click();
+    await page
+      .getByRole("button", { name: "Open project for Alice", exact: true })
+      .waitFor({ timeout: 5000 });
+    studentName = `${"UnbrokenName".repeat(8)} (alice)`;
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.reload();
+    await page.getByRole("button", { name: "Assignment", exact: true }).click();
+    const open = page.getByRole("button", { name: `Open project for ${studentName}`, exact: true });
+    await open.waitFor();
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), "Long student name overflows narrow viewport");
+    await open.focus();
+    await page.keyboard.press("Enter");
+    assert.equal(await page.locator("#opened").textContent(), "a");
+    console.log("Returning educator sees authorised student names");
+  } finally {
+    await isolated.close();
+  }
+}
+
 try {
   for (const scenario of process.argv[3]
     ? [process.argv[3]]
-    : ["initial-413", "choices-fail", "replay-413"])
-    await recoveryScenario(scenario);
+    : [
+        "initial-413",
+        "choices-fail",
+        "replay-413",
+        "initial-403",
+        "initial-404",
+        "replay-403",
+        "replay-404",
+        "returning-educator",
+      ])
+    if (scenario === "returning-educator") await returningEducator();
+    else await recoveryScenario(scenario);
 } finally {
   await browser.close();
 }

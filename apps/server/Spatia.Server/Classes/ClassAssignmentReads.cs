@@ -46,12 +46,20 @@ internal static class ClassAssignmentReads
             .ToArrayAsync(cancellationToken);
         var page = rows.Take(limit).ToArray();
         var ids = page.Select(row => row.Id).ToArray();
-        var projects = await mappings.Where(row => ids.Contains(row.AssignmentId))
-            .OrderBy(row => row.StudentId)
-            .Select(row => new { row.AssignmentId, row.StudentId, row.ProjectId }).ToArrayAsync(cancellationToken);
+        var projects = await (from mapping in mappings
+                              join student in database.Users.AsNoTracking() on mapping.StudentId equals student.Id
+                              where ids.Contains(mapping.AssignmentId)
+                              orderby mapping.StudentId
+                              select new
+                              {
+                                  mapping.AssignmentId, mapping.StudentId, mapping.ProjectId,
+                                  StudentName = string.IsNullOrEmpty(student.DisplayName)
+                                      ? student.UserName ?? student.Id.ToString()
+                                      : student.DisplayName + " (" + (student.UserName ?? student.Id.ToString()) + ")",
+                              }).ToArrayAsync(cancellationToken);
         var items = page.Select(row => new AssignmentView(row.Id, row.Title, row.Description, row.Instructions, row.DueAtUnixSeconds,
             projects.Where(project => project.AssignmentId == row.Id)
-                .Select(project => new StudentProject(project.StudentId, project.ProjectId)).ToArray())).ToArray();
+                .Select(project => new StudentProject(project.StudentId, project.ProjectId, project.StudentName)).ToArray())).ToArray();
         if (assignmentId is not null && items.Length == 0)
         {
             return ApiProblems.Create(context, 404, "class_assignment_not_found", "The assignment is unavailable.");
@@ -63,5 +71,5 @@ internal static class ClassAssignmentReads
 
     private sealed record AssignmentView(Guid AssignmentId, string Title, string Description, string Instructions,
         long DueAtUnixSeconds, StudentProject[] Projects);
-    private sealed record StudentProject(Guid StudentId, Guid ProjectId);
+    private sealed record StudentProject(Guid StudentId, Guid ProjectId, string StudentName);
 }

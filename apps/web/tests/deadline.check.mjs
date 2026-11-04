@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
-import { chromium } from "playwright";
+import { launchBrowser } from "./browser-security.mjs";
 
-const browser = await chromium.launch();
 const baseUrl = process.argv[2] ?? "http://127.0.0.1:5182/ui-preview.html";
+const browser = await launchBrowser({ target: baseUrl });
 try {
   const singapore = await browser.newContext({ timezoneId: "Asia/Singapore", locale: "en-GB" });
   const newYork = await browser.newContext({ timezoneId: "America/New_York", locale: "en-GB" });

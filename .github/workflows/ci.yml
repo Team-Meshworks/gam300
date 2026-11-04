@@ -211,6 +211,9 @@ jobs:
             script: test:project-grants
           - name: workspace-assignments
             script: test:workspace-assignments
+          - name: deadline
+            script: test:deadline
+            path: /ui-preview.html
           - name: review-directory
             script: test:review-directory
             path: /ui-preview.html
