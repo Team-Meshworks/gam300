@@ -13,7 +13,7 @@ public sealed class ProjectDocumentService
     private readonly IReadOnlyDictionary<string, string> _assets;
 
     /// <summary>
-    /// Uses the same three development samples as the editor; other environments fail closed
+    /// Uses the same development catalogue as the editor; other environments fail closed
     /// </summary>
     public ProjectDocumentService(IHostEnvironment environment)
     {
@@ -34,7 +34,8 @@ public sealed class ProjectDocumentService
         foreach (var entry in manifest.RootElement.GetProperty("assets").EnumerateArray())
         {
             var id = entry.GetProperty("assetId").GetString()!;
-            if (id is not ("test-room-v1" or "test-crate-v1" or "sample-snowglobe-v1"))
+            // Repeated rooms reuse the room bytes as model instances; keep their manifest identity saveable
+            if (id is not ("test-room-v1" or "test-room-module-v1" or "test-crate-v1" or "sample-snowglobe-v1"))
             {
                 continue;
             }
@@ -45,7 +46,7 @@ public sealed class ProjectDocumentService
                 throw new InvalidOperationException("Invalid packaged development asset catalogue.");
             }
         }
-        if (assets.Count != 3)
+        if (assets.Count != 4)
         {
             throw new InvalidOperationException("The packaged development asset catalogue is incomplete.");
         }

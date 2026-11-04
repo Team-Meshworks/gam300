@@ -1,6 +1,7 @@
 import { getStartingView } from "../shared/project/starting-view";
 import { useState } from "react";
 import type { NamedViewpoint } from "../shared/project/project-types";
+import { playUiSound } from "./audio/ui-sounds";
 import type { createDocumentStore } from "./document-store";
 import type { ViewpointCamera } from "./viewport/Viewport";
 
@@ -248,7 +249,10 @@ export function Viewpoints({
             type="button"
             disabled={!view}
             onClick={() => {
-              if (view) report(store.deleteViewpoint(view.id), "View deleted. Undo restores it.");
+              if (!view) return;
+              const result = store.deleteViewpoint(view.id);
+              if (result.ok) playUiSound("delete");
+              report(result, "View deleted. Undo restores it.");
             }}
           >
             Delete view

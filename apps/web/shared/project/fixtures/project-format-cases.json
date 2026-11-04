@@ -12,7 +12,13 @@
       "base": "m1",
       "valid": false,
       "path": "project.title",
-      "patches": [{ "path": ["title"], "value": "before\u0000after", "remove": false }]
+      "patches": [
+        {
+          "path": ["title"],
+          "value": "before\u0000after",
+          "remove": false
+        }
+      ]
     },
     {
       "name": "storage NUL in content caption",
@@ -32,7 +38,11 @@
       "base": "m1",
       "valid": true,
       "patches": [
-        { "path": ["title"], "value": "literal \\u0000 and controls\n\t\b\f\r", "remove": false }
+        {
+          "path": ["title"],
+          "value": "literal \\u0000 and controls\n\t\b\f\r",
+          "remove": false
+        }
       ]
     },
     {
@@ -1720,6 +1730,510 @@
           "value": "https://[::ffff:192.0.2.1]/"
         }
       ]
+    },
+    {
+      "name": "v1 interaction URL accepts 320 characters",
+      "base": "m1",
+      "valid": true,
+      "patches": [
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "open-link",
+                "url": "https://example.com/"
+              }
+            }
+          ]
+        },
+        {
+          "path": ["scenes", 0, "interactions", 0, "do", "url"],
+          "value": "https://example.com/",
+          "repeat": 16
+        }
+      ]
+    },
+    {
+      "name": "v1 interaction URL rejects http",
+      "base": "m1",
+      "valid": false,
+      "path": "project.scenes[0].interactions[0].do.url",
+      "patches": [
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "open-link",
+                "url": "http://example.com/"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "v1 interaction URL rejects credentials",
+      "base": "m1",
+      "valid": false,
+      "path": "project.scenes[0].interactions[0].do.url",
+      "patches": [
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "open-link",
+                "url": "https://user:pass@example.com/"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "v1 interaction URL rejects malformed host",
+      "base": "m1",
+      "valid": false,
+      "path": "project.scenes[0].interactions[0].do.url",
+      "patches": [
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "open-link",
+                "url": "https://["
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "v1 interaction URL rejects over 2048 characters",
+      "base": "m1",
+      "valid": false,
+      "path": "project.scenes[0].interactions[0].do.url",
+      "patches": [
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "open-link",
+                "url": "https://example.com/"
+              }
+            }
+          ]
+        },
+        {
+          "path": ["scenes", 0, "interactions", 0, "do", "url"],
+          "value": "https://example.com/",
+          "repeat": 103
+        }
+      ]
+    },
+    {
+      "name": "v1 rejects a second hotspot on one object",
+      "base": "m1",
+      "valid": false,
+      "path": "project.scenes[0].hotspots[1].objectId",
+      "patches": [
+        {
+          "path": ["scenes", 0, "hotspots"],
+          "value": [
+            {
+              "id": "00000070-0000-4000-8000-000000000000",
+              "objectId": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+              "position": [0, 0, 0]
+            },
+            {
+              "id": "00000071-0000-4000-8000-000000000000",
+              "objectId": "DDDDDDDD-DDDD-4DDD-8DDD-DDDDDDDDDDDD",
+              "position": [1, 0, 0]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "v2 preserves multiple uniquely identified hotspot components on one object",
+      "base": "m2",
+      "valid": true,
+      "patches": [
+        {
+          "path": ["scenes", 0, "objects", 1, "components"],
+          "value": [
+            {
+              "id": "00000072-0000-4000-8000-000000000000",
+              "type": "hotspot",
+              "label": "First marker"
+            },
+            {
+              "id": "00000073-0000-4000-8000-000000000000",
+              "type": "hotspot",
+              "label": "Second marker"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "v2 preserves hotspot components alongside scene markers",
+      "base": "m2",
+      "valid": true,
+      "patches": [
+        {
+          "path": ["scenes", 0, "hotspots"],
+          "value": [
+            {
+              "id": "00000074-0000-4000-8000-000000000000",
+              "objectId": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+              "position": [0, 0, 0]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "v2 interaction URL accepts 320 characters",
+      "base": "m2",
+      "valid": true,
+      "patches": [
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "open-link",
+                "url": "https://example.com/"
+              }
+            }
+          ]
+        },
+        {
+          "path": ["scenes", 0, "interactions", 0, "do", "url"],
+          "value": "https://example.com/",
+          "repeat": 16
+        }
+      ]
+    },
+    {
+      "name": "v2 interaction URL rejects http",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].interactions[0].do.url",
+      "patches": [
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "open-link",
+                "url": "http://example.com/"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "v2 interaction URL rejects credentials",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].interactions[0].do.url",
+      "patches": [
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "open-link",
+                "url": "https://user:pass@example.com/"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "v2 interaction URL rejects malformed host",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].interactions[0].do.url",
+      "patches": [
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "open-link",
+                "url": "https://["
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "v2 interaction URL rejects over 2048 characters",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].interactions[0].do.url",
+      "patches": [
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "open-link",
+                "url": "https://example.com/"
+              }
+            }
+          ]
+        },
+        {
+          "path": ["scenes", 0, "interactions", 0, "do", "url"],
+          "value": "https://example.com/",
+          "repeat": 103
+        }
+      ]
+    },
+    {
+      "name": "v1 interaction URL rejects unfinished link",
+      "base": "m1",
+      "valid": false,
+      "path": "project.scenes[0].interactions[0].do.url",
+      "patches": [
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "open-link",
+                "url": ""
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "v2 interaction URL rejects unfinished link",
+      "base": "m2",
+      "valid": false,
+      "path": "project.scenes[0].interactions[0].do.url",
+      "patches": [
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "open-link",
+                "url": ""
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "v2 interaction navigation scene forward reference",
+      "base": "m2",
+      "valid": true,
+      "patches": [
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "navigate-scene",
+                "sceneId": "00000002-0000-4000-8000-000000000000"
+              }
+            }
+          ],
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "v2 interaction navigation viewpoint uppercase reference",
+      "base": "m2",
+      "valid": true,
+      "patches": [
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "move-to-viewpoint",
+                "viewpointId": "00000014-0000-4000-8000-000000000000"
+              }
+            }
+          ],
+          "remove": false
+        }
+      ]
+    },
+    {
+      "name": "v2 interaction navigation missing scene",
+      "base": "m2",
+      "valid": false,
+      "patches": [
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "navigate-scene",
+                "sceneId": "99999999-9999-4999-8999-999999999999"
+              }
+            }
+          ],
+          "remove": false
+        }
+      ],
+      "path": "project.scenes[0].interactions[0].do.sceneId"
+    },
+    {
+      "name": "v2 interaction navigation wrong target kind",
+      "base": "m2",
+      "valid": false,
+      "patches": [
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "navigate-scene",
+                "sceneId": "00000014-0000-4000-8000-000000000000"
+              }
+            }
+          ],
+          "remove": false
+        }
+      ],
+      "path": "project.scenes[0].interactions[0].do.sceneId"
+    },
+    {
+      "name": "v2 interaction navigation wrong scene viewpoint",
+      "base": "m2",
+      "valid": false,
+      "patches": [
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "move-to-viewpoint",
+                "viewpointId": "00000015-0000-4000-8000-000000000000"
+              }
+            }
+          ],
+          "remove": false
+        }
+      ],
+      "path": "project.scenes[0].interactions[0].do.viewpointId"
+    },
+    {
+      "name": "v2 interaction navigation missing viewpoint",
+      "base": "m2",
+      "valid": false,
+      "patches": [
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "move-to-viewpoint",
+                "viewpointId": ""
+              }
+            }
+          ],
+          "remove": false
+        }
+      ],
+      "path": "project.scenes[0].interactions[0].do.viewpointId"
+    },
+    {
+      "name": "v2 interaction navigation extra navigation field",
+      "base": "m2",
+      "valid": false,
+      "patches": [
+        {
+          "path": ["scenes", 0, "interactions"],
+          "value": [
+            {
+              "when": {
+                "type": "scene-starts"
+              },
+              "do": {
+                "type": "navigate-scene",
+                "sceneId": "00000002-0000-4000-8000-000000000000",
+                "extra": true
+              }
+            }
+          ],
+          "remove": false
+        }
+      ],
+      "path": "project.scenes[0].interactions[0].do.extra"
     }
   ],
   "rawCases": [

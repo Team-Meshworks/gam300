@@ -8,9 +8,11 @@ namespace Spatia.Server.Security;
 /// <param name="Role">The currently validated fixed role name</param>
 /// <param name="OrganizationId">The active organization identifier, or null for an administrator</param>
 /// <param name="MustChangePassword">Whether the session is restricted pending a password change</param>
+/// <param name="DisplayName">The person's name when one has been set</param>
 public sealed record CurrentAccount(
     Guid UserId,
     string UserName,
     string Role,
     Guid? OrganizationId,
-    bool MustChangePassword);
+    bool MustChangePassword,
+    string? DisplayName = null);

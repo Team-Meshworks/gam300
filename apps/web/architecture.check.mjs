@@ -14,7 +14,7 @@ import {
 import { dirname, resolve } from "node:path";
 import ts from "typescript";
 import { createServer } from "vite";
-import { chromium } from "playwright";
+import { launchBrowser } from "./tests/browser-security.mjs";
 import { compilerOptions, dependents, moduleOf, modules, scan, webRoot } from "./architecture.mjs";
 
 // Used to observe the real missing tooling dependency after removal
@@ -120,9 +120,9 @@ async function browserEntry(root) {
   let browser;
   try {
     await server.listen();
-    browser = await chromium.launch({
+    browser = await launchBrowser({
+      target: server.resolvedUrls.local[0],
       args: ["--enable-unsafe-swiftshader"],
-      ...(process.env.PLAYWRIGHT_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHANNEL } : {}),
     });
     const page = await browser.newPage();
     const response = await page.goto(server.resolvedUrls.local[0]);
@@ -329,6 +329,7 @@ try {
         "node_modules/vitest/vitest.mjs",
         "run",
         ...unitFiles,
+        "--reporter=default",
         "--reporter=json",
         "--outputFile=test-results/removal-units.json",
       ]);

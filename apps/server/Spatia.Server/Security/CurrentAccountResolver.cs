@@ -43,6 +43,7 @@ public sealed class CurrentAccountResolver(ApplicationDbContext database)
             select new
             {
                 user.UserName,
+                user.DisplayName,
                 user.IsActive,
                 user.MustChangePassword,
                 user.SecurityStamp,
@@ -78,6 +79,6 @@ public sealed class CurrentAccountResolver(ApplicationDbContext database)
             return null;
         }
 
-        return new CurrentAccount(userId, current.UserName, role, current.OrganizationId, current.MustChangePassword);
+        return new CurrentAccount(userId, current.UserName, role, current.OrganizationId, current.MustChangePassword, current.DisplayName);
     }
 }
