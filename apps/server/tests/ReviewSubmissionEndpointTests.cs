@@ -37,12 +37,14 @@ public sealed class ReviewSubmissionEndpointTests
         };
         if (scenario != "rotation")
         {
-            // Resolve the catalogue within a scope so current asset availability is read from the database
+            ProjectTestDocuments.PadTitleToBytes(input, Format.MaxProjectBytes);
             await using var documentScope = fixture.App.Services.CreateAsyncScope();
-            var documents = documentScope.ServiceProvider.GetRequiredService<ProjectDocumentService>();
-            var saved = documents.Serialize(documents.Read(data.ProjectId, input.ToJsonString()).Value!).Value!;
-            input["title"] = input["title"]!.GetValue<string>()
-                + new string('x', Format.MaxProjectBytes - Encoding.UTF8.GetByteCount(saved));
+        var documents = documentScope.ServiceProvider.GetRequiredService<ProjectDocumentService>();
+            var accepted = documents.Read(data.ProjectId, input.ToJsonString());
+            await Assert.That(accepted.Ok).IsTrue();
+            var saved = documents.Serialize(accepted.Value!);
+            await Assert.That(saved.Ok).IsTrue();
+            await Assert.That(Encoding.UTF8.GetByteCount(saved.Value!)).IsEqualTo(Format.MaxProjectBytes);
         }
         var original = input.ToJsonString();
         await Assert.That(Encoding.UTF8.GetByteCount(original) <= Format.MaxProjectBytes).IsTrue();

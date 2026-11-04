@@ -1,13 +1,10 @@
+import { launchPersistentBrowser } from "./browser-security.mjs";
 import assert from "node:assert/strict";
-import { pathToFileURL } from "node:url";
 
-const { chromium } = await import(
-  process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : "playwright"
-);
 const origin = (process.argv[2] ?? "http://127.0.0.1:5173").replace(/\/$/, "");
-const context = await chromium.launchPersistentContext("", {
+const context = await launchPersistentBrowser({
+  target: origin,
   args: ["--enable-unsafe-swiftshader"],
-  ...(process.env.PLAYWRIGHT_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHANNEL } : {}),
 });
 
 try {

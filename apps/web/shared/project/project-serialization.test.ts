@@ -21,12 +21,60 @@ describe("project JSON serialization", () => {
     expect(serializeProject(restored.value, assets)).toEqual(first);
   });
 
+  it("preserves ordered interactions through save and reload", () => {
+    const scene = structuredClone(fixture.scenes[0]);
+    const input = {
+      ...fixture,
+      scenes: [
+        {
+          ...scene,
+          hotspots: [
+            {
+              id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+              objectId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+              position: [0, 0, 0],
+            },
+          ],
+          interactions: [
+            { when: { type: "scene-starts" }, do: { type: "print-hi" } },
+            {
+              when: {
+                type: "visitor-clicks-hotspot",
+                targetHotspotId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+              },
+              do: { type: "open-link", url: "https://example.com" },
+            },
+            {
+              when: { type: "time-elapsed", seconds: 5 },
+              do: { type: "play-audio", url: "/audio/ding.wav" },
+            },
+          ],
+        },
+      ],
+    };
+    const saved = serializeProject(input, assets);
+    expect(saved.ok).toBe(true);
+    if (!saved.ok) throw new Error(saved.error.message);
+    expect(JSON.parse(saved.value)).toEqual(input);
+    expect(deserializeProject(saved.value, assets)).toEqual({ ok: true, value: input });
+  });
+
+  it("omits empty extensions when exporting a released document", () => {
+    const scene = structuredClone(fixture.scenes[0]) as Record<string, unknown>;
+    delete scene.interactions;
+    const saved = serializeProject({ ...fixture, scenes: [scene] }, assets);
+    expect(saved.ok).toBe(true);
+    if (!saved.ok) throw new Error(saved.error.message);
+    expect(JSON.parse(saved.value).scenes[0]).not.toHaveProperty("interactions");
+    expect(JSON.parse(saved.value).scenes[0]).not.toHaveProperty("hotspots");
+  });
+
   it("preserves names with quotes, line breaks and Unicode text", () => {
     const input = { ...fixture, title: '展览 "Crates"\nRoom \\ A' };
     const result = serializeProject(input, assets);
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error(result.error.message);
-    expect(JSON.parse(result.value)).toEqual(input);
+    expect(deserializeProject(result.value, assets)).toEqual({ ok: true, value: input });
   });
 
   it("rejects invalid project data with its original field error", () => {
@@ -61,7 +109,7 @@ describe("project JSON serialization", () => {
     const savedObject = expected.scenes[0]?.objects[0];
     if (!savedObject) throw new Error("Fixture needs a placed object");
     savedObject.transform.rotation = [0, 0, 0, 1];
-    expect(JSON.parse(result.value)).toEqual(expected);
+    expect(deserializeProject(result.value, assets)).toEqual({ ok: true, value: expected });
     expect(input).toEqual(before);
   });
 });

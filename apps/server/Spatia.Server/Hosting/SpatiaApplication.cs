@@ -128,11 +128,11 @@ public static class SpatiaApplication
             options.SerializerOptions.AllowDuplicateProperties = false;
             options.SerializerOptions.UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow;
         });
-        builder.Services.AddScoped<AssetUploadValidator>();
-        builder.Services.AddScoped<AssetAdministrationService>();
         builder.Services.AddScoped<AccountAdministrationService>();
         builder.Services.AddScoped<AccountSessionService>();
         builder.Services.AddScoped<ProjectAccessService>();
+        builder.Services.AddScoped<AssetUploadValidator>();
+        builder.Services.AddScoped<AssetAdministrationService>();
         builder.Services.AddScoped<ProjectDocumentService>();
         builder.Services.AddScoped<ProjectSaveService>();
         builder.Services.TryAddScoped<IReviewAssetResolver, ApprovedReviewAssetResolver>();
@@ -208,15 +208,28 @@ public static class SpatiaApplication
         app.UseAuthentication();
         app.UseRateLimiter();
         app.UseAuthorization();
+        // Optional actor binding prevents a queued browser request from crossing an account switch
+        // It grants no authority; the authenticated cookie account must already match the captured owner
+        app.Use(async (context, next) =>
+        {
+            if (context.Request.Headers.TryGetValue("X-Spatia-Account", out var expected)
+                && (expected.Count != 1 || !Guid.TryParseExact(expected[0], "D", out var id)
+                    || context.Features.Get<CurrentAccount>()?.UserId != id))
+            {
+                await ApiProblems.Create(context, 403, "account_changed", "The signed-in account changed").ExecuteAsync(context);
+                return;
+            }
+            await next(context);
+        });
         app.UseSpatiaAntiforgery();
         app.MapGet("/api/auth/csrf", (HttpContext context, IAntiforgery antiforgery) =>
         {
             var tokens = antiforgery.GetAndStoreTokens(context);
             return Results.Ok(new { requestToken = tokens.RequestToken });
         }).AllowAnonymous();
+        app.MapAccountAdministration();
         app.MapAssetAdministration();
         app.MapAssetDelivery();
-        app.MapAccountAdministration();
         app.MapAccountDirectory();
         app.MapAccountSessions();
         app.MapProjectReads();

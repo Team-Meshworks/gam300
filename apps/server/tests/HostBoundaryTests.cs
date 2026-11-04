@@ -85,15 +85,16 @@ public sealed class HostBoundaryTests
     }
 
     [Test]
-    public async Task ProductionRouteInventory_ContainsOnlyReviewedAccountProjectClassAndAssetRoutes()
+    public async Task ProductionRouteInventory_ContainsOnlyReviewedAccountProjectAndClassRoutes()
     {
         await using var app = SpatiaApplication.Build(CreateConfigurationBuilder());
         var endpoints = ((IEndpointRouteBuilder)app).DataSources.SelectMany(source => source.Endpoints).OfType<RouteEndpoint>().ToArray();
-        await Assert.That(endpoints.Length).IsEqualTo(44);
+        await Assert.That(endpoints.Length).IsEqualTo(46);
         var expected = new[] { "GET /api/auth/csrf", "POST /api/auth/login", "GET /api/auth/session", "POST /api/auth/logout", "POST /api/auth/password",
             "POST /api/admin/organizations", "POST /api/admin/users", "POST /api/admin/users/{id:guid}/password",
             "GET /api/admin/users", "GET /api/admin/users/{id:guid}", "GET /api/admin/organizations", "GET /api/admin/organizations/{id:guid}",
             "PATCH /api/admin/users/{id:guid}/active",
+            "PATCH /api/admin/users/{id:guid}", "GET /api/admin/organizations/{id:guid}/projects",
             "PATCH /api/admin/organizations/{id:guid}/active",
             "GET /api/projects/", "GET /api/projects/{id:guid}", "GET /api/projects/{id:guid}/assignments", "PUT /api/projects/{id:guid}",
             "POST /api/projects/", "POST /api/projects/{id:guid}/duplicate", "POST /api/projects/{id:guid}/submissions", "PATCH /api/projects/{id:guid}/assignments", "PATCH /api/projects/{id:guid}/archive",

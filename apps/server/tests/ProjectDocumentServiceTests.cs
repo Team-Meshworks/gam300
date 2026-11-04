@@ -17,6 +17,7 @@ public sealed class ProjectDocumentServiceTests
         var development = Create("Development");
         await Assert.That(development.Read(id, json).Ok).IsTrue();
         await Assert.That(development.Read(id, json.Replace("test-crate-v1", "sample-snowglobe-v1", StringComparison.Ordinal)).Ok).IsTrue();
+        await Assert.That(development.Read(id, json.Replace("test-crate-v1", "test-room-module-v1", StringComparison.Ordinal)).Ok).IsTrue();
         await Assert.That(development.Read(id, json.Replace("test-crate-v1", "demo-image-v1", StringComparison.Ordinal)).Ok).IsFalse();
         await Assert.That(development.Read(id, json.Replace("test-room-v1", "test-crate-v1", StringComparison.Ordinal)).Ok).IsFalse();
         await Assert.That(Create("Production").Read(id, json).Ok).IsFalse();
@@ -63,22 +64,72 @@ public sealed class ProjectDocumentServiceTests
     }
 
     [Test]
-    public async Task Documents_StoredValidationAllowsSavedContentAtTheSizeLimit()
+    [Arguments("read-limit")]
+    [Arguments("serialize-limit")]
+    [Arguments("jsonb-scale")]
+    public async Task Documents_StoredValidationAllowsSavedContentAtTheSizeLimit(string scenario)
     {
         var documents = Create("Development");
         var id = Guid.NewGuid();
         var input = JsonNode.Parse(ProjectTestDocuments.Create(id, "Saved snapshot"))!;
-        input["scenes"]![0]!["startCamera"]!["rotation"] =
-            new JsonArray(0.47490965438830257, -0.6980326014100272, -0.1736294030169948, -0.5070149287205405);
-        var baseline = documents.Serialize(documents.Read(id, input.ToJsonString()).Value!).Value!;
-        input["title"] = input["title"]!.GetValue<string>()
-            + new string('x', Format.MaxProjectBytes - Encoding.UTF8.GetByteCount(baseline));
+        input["scenes"]![0]!["startCamera"]!["rotation"] = scenario switch
+        {
+            "read-limit" => new JsonArray(0.47490965438830257, -0.6980326014100272, -0.1736294030169948, -0.5070149287205405),
+            "serialize-limit" => new JsonArray(0.6267845488506097, -0.36662911366558604, 0.5535539462274982, -0.4078017299508285),
+            _ => new JsonArray(0, 0, 0, 1),
+        };
+        if (scenario == "jsonb-scale")
+        {
+            input["scenes"]![0]!["objects"]![0]!["transform"]!["scale"] = new JsonArray(double.MaxValue, double.Epsilon, 1);
+        }
+        ProjectTestDocuments.PadTitleToBytes(input, Format.MaxProjectBytes);
+        await Assert.That(Encoding.UTF8.GetByteCount(input.ToJsonString())).IsEqualTo(Format.MaxProjectBytes);
         var accepted = documents.Read(id, input.ToJsonString());
         await Assert.That(accepted.Ok).IsTrue();
         var saved = documents.Serialize(accepted.Value!);
         await Assert.That(saved.Ok).IsTrue();
         await Assert.That(Encoding.UTF8.GetByteCount(saved.Value!)).IsEqualTo(Format.MaxProjectBytes);
         await Assert.That(documents.ReadStored(id, 1, saved.Value!).Ok).IsTrue();
+    }
+
+    [Test]
+    [Arguments(1, false)]
+    [Arguments(2, false)]
+    [Arguments(1, true)]
+    [Arguments(2, true)]
+    public async Task Documents_OmitOnlyEmptyInteractionExtensions(int version, bool authored)
+    {
+        var documents = Create("Development");
+        var id = Guid.NewGuid();
+        var input = JsonNode.Parse(ProjectTestDocuments.Create(id, "Interaction export", version))!;
+        var scene = input["scenes"]![0]!;
+        var hotspotId = Guid.NewGuid().ToString("D");
+        scene["hotspots"] = authored ? new JsonArray(new JsonObject
+        {
+            ["id"] = hotspotId,
+            ["objectId"] = scene["objects"]![0]!["id"]!.GetValue<string>(),
+            ["position"] = new JsonArray(0, 0, 0),
+        }) : new JsonArray();
+        scene["interactions"] = authored ? new JsonArray(new JsonObject
+        {
+            ["when"] = new JsonObject { ["type"] = "visitor-clicks-hotspot", ["targetHotspotId"] = hotspotId },
+            ["do"] = new JsonObject { ["type"] = "print-hi" },
+        }) : new JsonArray();
+        var accepted = documents.Read(id, input.ToJsonString());
+        await Assert.That(accepted.Ok).IsTrue();
+        var saved = documents.Serialize(accepted.Value!);
+        await Assert.That(saved.Ok).IsTrue();
+        var exported = JsonNode.Parse(saved.Value!)!["scenes"]![0]!;
+        foreach (var name in new[] { "hotspots", "interactions" })
+        {
+            await Assert.That(exported.AsObject().ContainsKey(name)).IsEqualTo(authored);
+            if (authored) { await Assert.That(JsonNode.DeepEquals(scene[name], exported[name])).IsTrue(); }
+        }
+        var reopened = documents.ReadStored(id, version, saved.Value!);
+        await Assert.That(reopened.Ok).IsTrue();
+        var count = reopened.Value is LegacyProject legacy ? legacy.Scenes[0].Hotspots.Length
+            : ((ContentProject)reopened.Value!).Scenes[0].Hotspots.Length;
+        await Assert.That(count).IsEqualTo(authored ? 1 : 0);
     }
 
     private static ProjectDocumentService Create(string environment) =>

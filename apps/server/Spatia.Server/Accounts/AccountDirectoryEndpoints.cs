@@ -12,7 +12,7 @@ namespace Spatia.Server.Accounts;
 /// <summary>
 /// Exposes administrator-only account and organization directory operations without credential fields
 /// </summary>
-public static class AccountDirectoryEndpoints
+public static partial class AccountDirectoryEndpoints
 {
     /// <summary>
     /// Maps bounded directory reads and lifecycle writes under the full administrator policy
@@ -24,6 +24,8 @@ public static class AccountDirectoryEndpoints
         group.MapGet("/users/{id:guid}", GetUserAsync);
         group.MapGet("/organizations", ListOrganizationsAsync);
         group.MapGet("/organizations/{id:guid}", GetOrganizationAsync);
+        group.MapGet("/organizations/{id:guid}/projects", ListOrganizationProjectsAsync);
+        group.MapPatch("/users/{id:guid}", UpdateUserAsync).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
         group.MapPatch("/users/{id:guid}/active", SetUserActiveAsync).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
         group.MapPatch("/organizations/{id:guid}/active", SetOrganizationActiveAsync).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
         return endpoints;
@@ -106,7 +108,11 @@ public static class AccountDirectoryEndpoints
             query = query.Where(row => database.UserRoles.Any(assignment => assignment.UserId == row.Id
                 && database.Roles.Any(assignedRole => assignedRole.Id == assignment.RoleId && assignedRole.Name == role)));
         }
-        if (page.SearchPattern is { } pattern) { query = query.Where(row => EF.Functions.ILike(row.UserName!, pattern, "\\")); }
+        if (page.SearchPattern is { } pattern)
+        {
+            query = query.Where(row => EF.Functions.ILike(row.UserName!, pattern, "\\")
+                || EF.Functions.ILike(row.DisplayName ?? row.UserName!, pattern, "\\"));
+        }
         var rows = await Users(database, query.OrderBy(row => row.Id).Take(page.Limit + 1)).ToListAsync(cancellationToken);
         var nextCursor = rows.Count > page.Limit ? rows[page.Limit - 1].UserId : (Guid?)null;
         return await CompleteAsync(context, transaction,
@@ -161,7 +167,7 @@ public static class AccountDirectoryEndpoints
         from membership in memberships.DefaultIfEmpty()
         orderby user.Id
         select new ProvisionedAccount(user.Id, user.UserName!, role.Name!,
-            membership == null ? null : membership.OrganizationId, user.IsActive, user.MustChangePassword);
+            membership == null ? null : membership.OrganizationId, user.IsActive, user.MustChangePassword, user.DisplayName ?? user.UserName);
 
     private static DirectoryQuery? ReadQuery(IQueryCollection query, bool users)
     {

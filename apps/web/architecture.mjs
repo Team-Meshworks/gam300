@@ -13,6 +13,7 @@ export const modules = {
     packages: ["punycode"],
     public: [
       "shared/project/project-types.ts",
+      "shared/project/attached-transforms.ts",
       "shared/project/starting-view.ts",
       "shared/project/legacy-scene-import.ts",
       "shared/project/project-content.ts",
@@ -23,6 +24,7 @@ export const modules = {
       "shared/project/project-serialization.ts",
       "shared/project/project-deserialization.ts",
       "shared/project/project-limits.ts",
+      "shared/project/portable-url.ts",
       "shared/project/validation-helpers.ts",
       "shared/project/fixtures/m1-project.json",
       "shared/project/fixtures/m2-project.json",
@@ -33,7 +35,7 @@ export const modules = {
     paths: ["shared/asset-runtime/"],
     uses: [],
     packages: [],
-    public: ["shared/asset-runtime/catalogue.ts"],
+    public: ["shared/asset-runtime/catalogue.ts", "shared/asset-runtime/hotspot.ts"],
   },
   "asset-loading": {
     paths: ["shared/asset-runtime/ModelCache.ts"],
@@ -68,7 +70,14 @@ export const modules = {
     paths: ["editor/persistence/"],
     uses: ["project", "catalogue", "document"],
     packages: ["react"],
-    public: ["editor/persistence/use-project-session.ts"],
+    public: [
+      "editor/persistence/use-project-session.ts",
+      "editor/persistence/server-project-session.ts",
+      "editor/persistence/server-project-read.ts",
+      "editor/persistence/local-drafts.ts",
+      "editor/persistence/project-files.ts",
+      "editor/persistence/server-autosave.ts",
+    ],
   },
   "ui-foundation": {
     paths: ["shared/ui/"],
@@ -305,8 +314,11 @@ export function scan(root = webRoot) {
               argument?.getText(source) ===
                 'process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : "playwright"';
             const browserThree =
-              ["tests/editor-integration.check.mjs", "tests/caching.measure.mjs"].includes(file) &&
-              ["threePath", "loaderPath"].includes(argument?.getText(source));
+              [
+                "tests/editor-integration.check.mjs",
+                "tests/interaction-navigation.check.mjs",
+                "tests/caching.measure.mjs",
+              ].includes(file) && ["threePath", "loaderPath"].includes(argument?.getText(source));
             const cacheProbe = file === "tests/caching.check.mjs";
             const probeExpression = argument?.getText(source).replace(/\s+/g, " ");
             const cacheThree =

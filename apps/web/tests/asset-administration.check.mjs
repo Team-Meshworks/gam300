@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
-import { chromium } from "playwright";
+import { launchBrowser } from "./browser-security.mjs";
 
-const browser = await chromium.launch();
+const baseUrl = process.argv[2] ?? "http://127.0.0.1:5173/";
+const browser = await launchBrowser({ target: baseUrl });
 const page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
 const errors = [];
 page.on("pageerror", (error) => errors.push(error.message));
@@ -41,7 +42,7 @@ async function choose(label, text) {
 try {
   // Exercise the real components with the clearly labelled local adapter
   // No fixture response is evidence of authenticated intake or persisted asset approval
-  await page.goto(`${process.argv[2] ?? "http://127.0.0.1:5173/"}?asset-admin-test`);
+  await page.goto(`${baseUrl}?asset-admin-test`);
   await page.getByRole("heading", { name: "All 3D Spaces" }).waitFor();
   await page
     .getByRole("button", { name: /View Model/ })
