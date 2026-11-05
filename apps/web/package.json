@@ -10,7 +10,7 @@
   "packageManager": "npm@11.21.1",
   "scripts": {
     "dev": "vite",
-    "build": "npm run build:editor",
+    "build": "npm run build:editor && npm run build:visitor",
     "build:editor": "npm run typecheck && vite build",
     "preview": "vite preview",
     "typecheck": "tsc -b",
@@ -39,6 +39,8 @@
     "test:ui": "node tests/ui-foundation.check.mjs",
     "test:entry": "node tests/entry.check.mjs",
     "test:home": "node tests/home.check.mjs",
+    "test:publication": "node tests/publication.check.mjs",
+    "test:visitor": "node tests/visitor.check.mjs",
     "test:workspace-assignments": "node tests/workspace-assignments.check.mjs",
     "test:entry-config": "node tests/account-dev-server.check.mjs",
     "test:workspace": "node tests/workspace-routes.check.mjs",
@@ -59,7 +61,8 @@
     "test:text-placement": "node tests/text-placement.check.mjs",
     "test:room-preview": "node tests/room-preview.check.mjs",
     "test:audio-library": "node tests/audio-library.check.mjs",
-    "test:reviews": "node tests/review-workflow.check.mjs"
+    "test:reviews": "node tests/review-workflow.check.mjs",
+    "build:visitor": "vite build --config vite.visitor.config.ts"
   },
   "dependencies": {
     "@fontsource/inter": "5.3.0",

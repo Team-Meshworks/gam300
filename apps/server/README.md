@@ -2167,8 +2167,11 @@ state. A rejected request commits no partial edition.
 Configure `Publication:Origin` as a trusted absolute HTTPS origin with no user
 information, path, query or fragment. Request Host and forwarded headers do not
 choose it. After commit, a new request returns 201 and a replay returns 200 with
-`publicationId`, `projectId`, `sourceRevision`, `createdAt` and `snapshotUrl`.
-The URL points to the protected JSON API, not a visitor UI. The server returns
+`publicationId`, `projectId`, `sourceRevision`, `createdAt`, `snapshotUrl` and
+`visitorUrl`. The snapshot URL points to the protected JSON API; the visitor URL
+points to `/p/<publicationId>` on the configured origin. The protected
+`GET /api/publications/{id}/manifest` supplies the visitor's asset metadata under
+the same access policy. The server returns
 `private, no-store`; missing or unsafe origin configuration makes publishing
 unavailable. Use the same publication ID, confirmed revision and exact intent bytes
 for an uncertain retry. A changed identity conflicts (409), and a replay rechecks

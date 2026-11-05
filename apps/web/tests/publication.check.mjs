@@ -1,0 +1,172 @@
+import assert from "node:assert/strict";
+import { launchBrowser } from "./browser-security.mjs";
+
+const origin = process.argv[2] ?? "http://127.0.0.1:5181";
+const browser = await launchBrowser({ target: origin });
+const projectId = "7ea0882b-9365-4b9c-b8b8-e5ee113ad07e";
+const actor = "8ea0882b-9365-4b9c-b8b8-e5ee113ad07e";
+const student = "9ea0882b-9365-4b9c-b8b8-e5ee113ad07e";
+const classId = "aea0882b-9365-4b9c-b8b8-e5ee113ad07e";
+const session = {
+  userId: actor,
+  role: "Educator",
+  displayName: "Teacher",
+  orgId: classId,
+  mustChangePassword: false,
+};
+const requests = [];
+let outcome = "unknown";
+let canPublish = true;
+let rosterAvailable = true;
+let largeRoster = false;
+let currentSession = session;
+try {
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  page.setDefaultTimeout(5000);
+  await page.route("**/api/**", async (route) => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    if (path === "/api/auth/session") return route.fulfill({ json: currentSession });
+    if (path === "/api/auth/csrf") return route.fulfill({ json: { requestToken: "test" } });
+    if (path === `/api/projects/${projectId}`)
+      return route.fulfill({
+        json: {
+          projectId,
+          revision: 4,
+          document: { title: "Saved exhibition" },
+          permissions: { canPublish },
+        },
+      });
+    if (path === "/api/classes")
+      return route.fulfill({
+        json: { items: [{ id: classId, name: "Class A" }], nextCursor: null },
+      });
+    if (path === `/api/classes/${classId}/roster`)
+      return rosterAvailable
+        ? route.fulfill({
+            json: {
+              items: largeRoster
+                ? Array.from({ length: 101 }, (_, index) => ({
+                    userId: `9ea0882b-9365-4b9c-b8b8-${String(index + 1).padStart(12, "0")}`,
+                    userName: `Student ${index + 1}`,
+                    accountActive: true,
+                  }))
+                : [{ userId: student, userName: "Aisyah", accountActive: true }],
+              nextCursor: null,
+            },
+          })
+        : route.fulfill({ status: 403 });
+    if (path === `/api/projects/${projectId}/publications`) {
+      assert.equal(request.headers()["x-spatia-account"], actor);
+      const body = request.postDataJSON();
+      requests.push(body);
+      if (outcome === "unknown") return route.abort();
+      if (outcome === "conflict")
+        return route.fulfill({ status: 409, json: { code: "revision_conflict" } });
+      if (outcome === "approval")
+        return route.fulfill({ status: 409, json: { code: "approval_required" } });
+      return route.fulfill({
+        status: 201,
+        json: {
+          publicationId: body.publicationId,
+          projectId,
+          sourceRevision: 4,
+          createdAt: "2026-11-05T00:00:00Z",
+          visitorUrl: `https://spatia.example/p/${body.publicationId}`,
+        },
+      });
+    }
+    return route.fulfill({ status: 404 });
+  });
+  await page.goto(`${origin}/publish?projectId=${projectId}`);
+  await page.getByRole("heading", { name: "Publish project" }).waitFor();
+  await page.getByText("Saved exhibition", { exact: true }).waitFor();
+  assert.equal(await page.getByText(/revision 4/i).isVisible(), true);
+  await page.getByRole("checkbox", { name: /Aisyah/ }).check();
+  const publish = page.getByRole("button", { name: "Publish", exact: true });
+  assert.equal(await publish.isDisabled(), true);
+  await page.getByRole("checkbox", { name: /confirm.*saved revision/i }).check();
+  await publish.click();
+  await page.getByText(/could not be confirmed/i).waitFor();
+  assert.equal(await page.getByRole("link", { name: /open publication/i }).count(), 0);
+  assert.deepEqual(requests[0].intent, { audience: "Authenticated", viewerIds: [student] });
+  assert.equal(requests[0].confirmedRevision, 4);
+  await page.reload();
+  await page.getByText(/could not be confirmed/i).waitFor();
+  assert.equal(await page.getByRole("link", { name: /open publication/i }).count(), 0);
+  outcome = "success";
+  await page.getByRole("button", { name: /retry publication/i }).click();
+  const link = page.getByRole("link", { name: /open publication/i });
+  await link.waitFor();
+  assert.deepEqual(requests[1], requests[0]);
+  assert.equal(
+    await link.getAttribute("href"),
+    `https://spatia.example/p/${requests[0].publicationId}`,
+  );
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+  canPublish = false;
+  await page.reload();
+  await page.getByText(/do not have permission to publish/i).waitFor();
+  assert.equal(await page.getByRole("button", { name: "Publish", exact: true }).count(), 0);
+  canPublish = true;
+  rosterAvailable = false;
+  await page.reload();
+  await page.getByText(/viewers could not be loaded/i).waitFor();
+  await page.getByRole("checkbox", { name: /confirm.*saved revision/i }).check();
+  outcome = "conflict";
+  await page.getByRole("button", { name: "Publish", exact: true }).click();
+  await page.getByText(/saved project has changed/i).waitFor();
+  assert.deepEqual(requests.at(-1).intent.viewerIds, []);
+  assert.equal(await page.getByRole("button", { name: "Publish", exact: true }).isDisabled(), true);
+  assert.equal(
+    await page.getByRole("checkbox", { name: /confirm.*saved revision/i }).isDisabled(),
+    true,
+  );
+  await page.reload();
+  await page.getByRole("checkbox", { name: /confirm.*saved revision/i }).check();
+  outcome = "approval";
+  await page.getByRole("button", { name: "Publish", exact: true }).click();
+  await page.getByText(/needs approval.*current saved revision/i).waitFor();
+  await page.getByRole("checkbox", { name: /confirm.*saved revision/i }).check();
+  currentSession = { ...session, userId: student };
+  const countBeforeAccountChange = requests.length;
+  await page.getByRole("button", { name: "Publish", exact: true }).click();
+  await page.getByText(/account changed/i).waitFor();
+  assert.equal(requests.length, countBeforeAccountChange);
+  rosterAvailable = true;
+  largeRoster = true;
+  currentSession = session;
+  await page.reload();
+  for (let index = 1; index <= 100; index += 1) {
+    await page.getByRole("checkbox", { name: `Student ${index}`, exact: true }).check();
+  }
+  assert.equal(
+    await page.getByRole("checkbox", { name: "Student 101", exact: true }).isDisabled(),
+    true,
+  );
+  await page.getByText(/up to 100 viewers/i).waitFor();
+  await page.getByRole("checkbox", { name: "Student 1", exact: true }).uncheck();
+  assert.equal(
+    await page.getByRole("checkbox", { name: "Student 101", exact: true }).isEnabled(),
+    true,
+  );
+  rosterAvailable = false;
+  largeRoster = false;
+  currentSession = session;
+  await page.reload();
+  await page.getByRole("checkbox", { name: /confirm.*saved revision/i }).check();
+  await page.evaluate(() => {
+    Storage.prototype.setItem = () => {
+      throw new DOMException("Blocked", "QuotaExceededError");
+    };
+  });
+  const countBeforeStorageFailure = requests.length;
+  await page.getByRole("button", { name: "Publish", exact: true }).click();
+  await page.getByText(/could not safely store.*request/i).waitFor();
+  assert.equal(requests.length, countBeforeStorageFailure);
+  console.log(
+    "Publication screen checks passed: saved revision, audience, uncertain retry, acknowledgement, permission and conflict.",
+  );
+} finally {
+  await browser.close();
+}

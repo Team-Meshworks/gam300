@@ -18,6 +18,16 @@ import exhibit from "./assets/login-exhibit.png";
 
 const client = createAccountClient();
 
+function publicationReturnPath(): string | null {
+  const values = new URLSearchParams(location.search).getAll("returnTo");
+  const path = values[0];
+  return values.length === 1 &&
+    path &&
+    /^\/p\/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(path)
+    ? path
+    : null;
+}
+
 export function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -60,7 +70,10 @@ export function LoginPage() {
     if (error) errorRef.current?.focus();
   }, [error]);
   useEffect(() => {
-    if (session?.role === "Administrator" && !session.mustChangePassword) {
+    const returnPath = publicationReturnPath();
+    if (session && !session.mustChangePassword && returnPath) {
+      location.replace(returnPath);
+    } else if (session?.role === "Administrator" && !session.mustChangePassword) {
       location.replace("/admin/dashboard");
     } else if (session) statusRef.current?.focus();
   }, [session]);

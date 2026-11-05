@@ -218,6 +218,96 @@ try {
       .isVisible(),
     true,
   );
+  // A publication link survives authentication and the mandatory password step.
+  const publication = "/p/7ea0882b-9365-4b9c-b8b8-e5ee113ad07e";
+  for (const role of ["Administrator", "Educator", "Creator"]) {
+    const visitorPage = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    let visitorSession = null;
+    let forcePassword = role === "Creator";
+    await visitorPage.route("**/api/auth/**", async (route) => {
+      const path = new URL(route.request().url()).pathname;
+      if (path === "/api/auth/csrf") return route.fulfill({ json: { requestToken: "test" } });
+      if (path === "/api/auth/session")
+        return visitorSession
+          ? route.fulfill({ json: visitorSession })
+          : route.fulfill({ status: 401 });
+      if (path === "/api/auth/login") {
+        visitorSession = {
+          ...session,
+          role,
+          orgId: role === "Administrator" ? null : session.orgId,
+          mustChangePassword: forcePassword,
+        };
+        return route.fulfill({ status: 204 });
+      }
+      if (path === "/api/auth/password") {
+        forcePassword = false;
+        visitorSession = { ...visitorSession, mustChangePassword: false };
+        return route.fulfill({ status: 204 });
+      }
+      return route.fulfill({ status: 404 });
+    });
+    await visitorPage.route(`**${publication}`, (route) =>
+      route.fulfill({ contentType: "text/html", body: "<h1>Publication destination</h1>" }),
+    );
+    await visitorPage.goto(`${origin}/login?returnTo=${encodeURIComponent(publication)}`);
+    await visitorPage.getByLabel("Username", { exact: true }).fill("teacher");
+    await visitorPage.getByLabel("Password", { exact: true }).fill("incorrect password");
+    await visitorPage.getByLabel("Password", { exact: true }).press("Enter");
+    if (forcePassword) {
+      await visitorPage.getByRole("heading", { name: "Change your password." }).waitFor();
+      assert.equal(new URL(visitorPage.url()).pathname, "/login");
+      await visitorPage.reload();
+      await visitorPage.getByRole("heading", { name: "Change your password." }).waitFor();
+      await visitorPage.getByLabel("Current password").fill("incorrect password");
+      await visitorPage.getByLabel("New password", { exact: true }).fill("a different password");
+      await visitorPage.getByLabel("Confirm new password").fill("a different password");
+      await visitorPage.getByRole("button", { name: "Change password" }).click();
+    }
+    await visitorPage.waitForURL(`${origin}${publication}`, { timeout: 5000 });
+    await visitorPage.getByRole("heading", { name: "Publication destination" }).waitFor();
+    await visitorPage.close();
+  }
+  for (const role of ["Educator", "Creator"]) {
+    const rolePage = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    await rolePage.route("**/api/auth/session", (route) =>
+      route.fulfill({ json: { ...session, role } }),
+    );
+    await rolePage.route("**/home", (route) =>
+      route.fulfill({ contentType: "text/html", body: "<h1>Project home</h1>" }),
+    );
+    await rolePage.goto(`${origin}/login`);
+    const projects = rolePage.getByRole("link", { name: "Go to projects" });
+    await projects.focus();
+    await rolePage.keyboard.press("Enter");
+    await rolePage.waitForURL(`${origin}/home`);
+    await rolePage.getByRole("heading", { name: "Project home" }).waitFor();
+    await rolePage.close();
+  }
+  for (const query of [
+    "returnTo=https%3A%2F%2Fevil.example%2Fp%2F7ea0882b-9365-4b9c-b8b8-e5ee113ad07e",
+    "returnTo=%2F%2Fevil.example%2Fp%2F7ea0882b-9365-4b9c-b8b8-e5ee113ad07e",
+    "returnTo=%2Fp%2Fnot-a-uuid",
+    `returnTo=${encodeURIComponent(publication)}&returnTo=${encodeURIComponent(publication)}`,
+  ]) {
+    await page.goto(`${origin}/login?${query}`);
+    await page.getByRole("heading", { name: /You.re signed in/ }).waitFor();
+    assert.equal(new URL(page.url()).pathname, "/login");
+  }
+  mode = "reject";
+  await page.goto(`${origin}/login?returnTo=${encodeURIComponent(publication)}`);
+  await page.getByLabel("Username", { exact: true }).fill("teacher");
+  await page.getByLabel("Password", { exact: true }).fill("incorrect password");
+  await page.getByRole("button", { name: "Log in" }).click();
+  await page.getByText(/username or password could not be accepted/i).waitFor();
+  assert.equal(new URL(page.url()).pathname, "/login");
+  mode = "signed-in";
+  await page.route(`**${publication}`, (route) =>
+    route.fulfill({ contentType: "text/html", body: "<h1>Publication destination</h1>" }),
+  );
+  await page.goto(`${origin}/login?returnTo=${encodeURIComponent(publication)}`);
+  await page.waitForURL(`${origin}${publication}`);
+  await page.getByRole("heading", { name: "Publication destination" }).waitFor();
   const racePage = await browser.newPage();
   let raceSignedIn = false;
   let releaseInitial;

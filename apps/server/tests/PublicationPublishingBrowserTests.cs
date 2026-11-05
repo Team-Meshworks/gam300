@@ -1,5 +1,8 @@
 using System.Diagnostics;
+using System.Net;
+using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Spatia.Server.Persistence;
@@ -15,6 +18,7 @@ public sealed class PublicationPublishingBrowserTests
         await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
         var (data, asset) = await PublicationEndpointTests.PrepareAsync(fixture);
         var unrelated = await fixture.CreateAccountAsync();
+        var (certificate, key) = fixture.WritePemFiles();
         var serverDirectory = FindServerDirectory();
         var start = new ProcessStartInfo(Environment.GetEnvironmentVariable("SPATIA_TEST_NODE") ?? "node")
         {
@@ -36,6 +40,8 @@ public sealed class PublicationPublishingBrowserTests
             educator = await AuthTestRequests.UserNameAsync(fixture, data.Educator),
             viewer = await AuthTestRequests.UserNameAsync(fixture, data.OtherStudent),
             unrelated = await AuthTestRequests.UserNameAsync(fixture, unrelated),
+            certificate,
+            key,
         }));
         start.Environment.Remove("SPATIA_TEST_DATABASE_CONNECTION");
         start.Environment.Remove("ConnectionStrings__Spatia");
@@ -54,6 +60,20 @@ public sealed class PublicationPublishingBrowserTests
         var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         await Assert.That(await database.Publications.CountAsync()).IsEqualTo(1);
         await Assert.That(await database.PublicationAccess.CountAsync()).IsEqualTo(1);
+        var edition = await database.Publications.SingleAsync();
+        await fixture.App.StopAsync();
+        await using var restarted = await fixture.CreateSiblingAsync(_ => { });
+        await restarted.SignInAsync(data.OtherStudent);
+        using var snapshot = await restarted.Client.GetAsync($"/api/publications/{edition.Id:D}");
+        await Assert.That(snapshot.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        await Assert.That(JsonNode.DeepEquals(JsonNode.Parse(edition.DocumentJson),
+            JsonNode.Parse(await snapshot.Content.ReadAsStringAsync()))).IsTrue();
+        using var manifest = await restarted.Client.GetAsync($"/api/publications/{edition.Id:D}/manifest");
+        await Assert.That(manifest.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        using var bytes = await restarted.Client.GetAsync($"/api/publications/{edition.Id:D}/assets/{asset.Id:D}/bytes");
+        await Assert.That(bytes.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        await Assert.That(Convert.ToHexStringLower(SHA256.HashData(await bytes.Content.ReadAsByteArrayAsync())))
+            .IsEqualTo(asset.Sha256);
     }
 
     private static string FindServerDirectory()

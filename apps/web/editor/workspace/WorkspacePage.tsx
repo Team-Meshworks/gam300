@@ -8,11 +8,13 @@ import { ClassAssignmentForm } from "../projects/ClassAssignmentForm";
 import { AccountDirectoryPage } from "../directory/AccountDirectoryPage";
 import { AdminDashboard } from "../admin/AdminDashboard";
 import { ReviewWorkspace } from "../reviews/ReviewWorkspace";
+import { PublicationPage } from "../publications/PublicationPage";
 import { AssetAdministration } from "../asset-administration/AssetAdministration";
 import { createAssetAdministrationService } from "../asset-administration/asset-administration-service";
 
 const client = createAccountClient();
 const screens = [
+  { id: "publish", title: "Publish project", roles: ["Administrator", "Educator", "Creator"] },
   { id: "assets", title: "3D Assets", roles: ["Administrator"] },
   { id: "spaces", title: "3D Spaces", roles: ["Administrator"] },
   { id: "admin/dashboard", title: "Dashboard", roles: ["Administrator"] },
@@ -135,15 +137,17 @@ export function WorkspacePage() {
       {!dashboard && (
         <nav className="sp-workspace-links" aria-label="Workspace screens">
           <a href="/home">Home</a>
-          {permitted.map((item) => (
-            <a
-              key={item.id}
-              aria-current={screen === item ? "page" : undefined}
-              href={`/${item.id}${item.id === "new-project" && screen && screen.id !== "new-project" ? `?from=${screen.id}` : ""}`}
-            >
-              {item.title}
-            </a>
-          ))}
+          {permitted
+            .filter((item) => item.id !== "publish")
+            .map((item) => (
+              <a
+                key={item.id}
+                aria-current={screen === item ? "page" : undefined}
+                href={`/${item.id}${item.id === "new-project" && screen && screen.id !== "new-project" ? `?from=${screen.id}` : ""}`}
+              >
+                {item.title}
+              </a>
+            ))}
         </nav>
       )}
       {logoutError && <p role="alert">{logoutError}</p>}
@@ -194,6 +198,7 @@ export function WorkspacePage() {
             <ReviewWorkspace key={session.userId + ":" + session.orgId} session={session} />
           )}
           {screen.id === "accounts" && <AccountDirectoryPage key={session.userId} />}
+          {screen.id === "publish" && <PublicationPage key={session.userId} session={session} />}
         </>
       )}
     </WorkspaceShell>

@@ -99,6 +99,25 @@ try {
   await saved();
   assert.equal(document.scenes[0].name, "Autosaved in the real editor");
   assert.equal(writes.length, 1);
+  // Publishing goes through the same preservation choices as leaving the editor.
+  mode = "failed";
+  await edit("Draft before publishing");
+  await status.filter({ hasText: "Save failed" }).waitFor();
+  await page.getByRole("button", { name: "Publish", exact: true }).click();
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  assert.equal(
+    await page.getByLabel("Scene name", { exact: true }).inputValue(),
+    "Draft before publishing",
+  );
+  assert.notEqual(document.scenes[0].name, "Draft before publishing");
+  mode = "saved";
+  await page.getByRole("button", { name: "Publish", exact: true }).click();
+  await page.getByRole("button", { name: "Save and continue", exact: true }).click();
+  await page.waitForURL(`${base}/publish?projectId=${fixture.projectId}`);
+  assert.equal(document.scenes[0].name, "Draft before publishing");
+  await page.goto(url);
+  await saved();
+  await ready();
   // A fresh browser opens the confirmed server content without local recovery.
   const freshContext = await browser.newContext();
   await freshContext.route("**/api/**", api);

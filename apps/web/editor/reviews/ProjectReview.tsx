@@ -502,10 +502,30 @@ export function ProjectReview({
                 : "not granted"}
               .
             </p>
-            <Button disabled>Publish project</Button>
+            {state === "approved" &&
+            project.permissions.canPublish &&
+            !loading &&
+            phase === "ready" &&
+            !dirty ? (
+              <a
+                className="sp-button sp-button--primary"
+                href={`/publish?projectId=${encodeURIComponent(projectId)}`}
+              >
+                Publish project
+              </a>
+            ) : (
+              <Button disabled>Publish project</Button>
+            )}
             <p className="sp-hint">
-              Publishing is not available yet. Approval does not publish this or another student’s
-              work.
+              {loading || phase !== "ready"
+                ? "Wait for the current review action to finish before publishing."
+                : dirty
+                  ? "Save or discard your unsaved input before publishing."
+                  : state !== "approved"
+                    ? "The current submission must be approved before publishing."
+                    : !project.permissions.canPublish
+                      ? "Your current project access does not allow publishing."
+                      : "Continue to publishing to choose how to share this project."}
             </p>
           </section>
         </>

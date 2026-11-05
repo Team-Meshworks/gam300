@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { chromium } from "playwright";
+import { launchBrowser } from "./browser-security.mjs";
 import { createServer } from "vite";
 
 const projectId = process.env.SPATIA_REVIEW_PROJECT;
@@ -14,9 +14,7 @@ try {
   await server.listen();
   const address = server.httpServer.address();
   const origin = "https://127.0.0.1:" + address.port;
-  browser = await chromium.launch({
-    executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
-  });
+  browser = await launchBrowser({ target: origin });
   const errors = [];
   async function login(userName) {
     const context = await browser.newContext({ ignoreHTTPSErrors: true });

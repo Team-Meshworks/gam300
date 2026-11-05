@@ -1,5 +1,14 @@
 # M2 workspace integration
 
+## Login and publishing integration
+
+The project home and review flow can open `/publish?projectId=<id>`; the editor
+uses its existing departure coordinator before leaving for publication. A verified
+login or mandatory password change can return to a validated local `/p/<id>`
+visitor route. See [publishing](../publications/README.md) and the separate
+[visitor application](../../visitor/README.md). These integrations do not remove
+the production catalogue or broader acceptance limits below.
+
 ## 5 November 2026 dev integration
 
 PR #34 is integrated with `dev` at `e921576`, including the merged class screens.

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 using Spatia.Server.Hosting;
 using Spatia.Server.Persistence;
 using Spatia.Server.Projects;
@@ -11,6 +12,35 @@ internal static class PublicationDeliveryEndpoints
 {
     internal static void MapPublicationDelivery(this IEndpointRouteBuilder endpoints)
     {
+        endpoints.MapGet("/api/publications/{publicationId}/manifest", async (string publicationId,
+            HttpContext context, ApplicationDbContext database, CancellationToken token) =>
+        {
+            var id = Guid.Parse(publicationId);
+            var edition = await database.Publications.AsNoTracking().SingleAsync(row => row.Id == id, token);
+            var references = JsonSerializer.Deserialize<PublicationAssetReference[]>(edition.AssetReferencesJson)
+                ?? throw new InvalidOperationException("The publication manifest is invalid.");
+            var ids = references.Select(reference => Guid.Parse(reference.AssetId)).ToArray();
+            var assets = await database.AssetCandidates.AsNoTracking()
+                .Where(asset => ids.Contains(asset.Id) && asset.Status == "approved" && !asset.RemovedFromProjects)
+                .Select(asset => new { asset.Id, asset.Kind, asset.Sha256 }).ToListAsync(token);
+            if (assets.Count != references.Length || references.Any(reference =>
+                !assets.Any(asset => asset.Id == Guid.Parse(reference.AssetId) && asset.Sha256 == reference.Sha256)))
+            { return Unavailable(context); }
+            return Results.Ok(new
+            {
+                publicationId = id,
+                edition.ProjectId,
+                edition.SourceRevision,
+                assets = assets.Select(asset => new
+                {
+                    id = asset.Id.ToString("D"),
+                    kind = asset.Kind,
+                    sha256 = asset.Sha256,
+                    url = $"/api/publications/{id:D}/assets/{asset.Id:D}/bytes",
+                }),
+            });
+        }).RequirePublicationRead(PublicationReadKind.Snapshot);
+
         // Let the shared filter explain malformed IDs before reading the captured edition
         endpoints.MapGet("/api/publications/{publicationId}", async (string publicationId,
             ApplicationDbContext database, CancellationToken token) =>

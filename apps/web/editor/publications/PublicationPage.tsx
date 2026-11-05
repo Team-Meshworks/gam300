@@ -1,0 +1,351 @@
+import { useEffect, useRef, useState } from "react";
+import type { AccountSession } from "../accounts/account-client";
+import { createAccountClient } from "../accounts/account-client";
+import { createWorkspaceClient, isId, isRecord } from "../home/workspace-api";
+import { allPages, createReviewClient } from "../reviews/review-client";
+import type { Classroom, Student } from "../reviews/review-types";
+import { Button } from "../../shared/ui/Button";
+import {
+  publicationAcknowledgement,
+  type PublicationAcknowledgement,
+  type PublicationRequest,
+} from "./publication-client";
+import "./publication.css";
+
+const api = createWorkspaceClient();
+const accounts = createAccountClient();
+const reviews = createReviewClient();
+type Saved = { title: string; revision: number; canPublish: boolean };
+type ViewerGroup = { classroom: Classroom; students: Student[] };
+const problems = {
+  revision_conflict:
+    "The saved project has changed. Refresh and confirm the latest revision before publishing.",
+  approval_required:
+    "This class project needs approval for the current saved revision before it can be published.",
+  publication_id_conflict:
+    "This publication request conflicts with an existing one. Refresh before continuing.",
+  publication_assets_unavailable: "The saved project's assets are not available for publication.",
+  invalid_document: "The saved project is not valid for publication.",
+  unsupported_publication_runtime: "This project cannot be published by the current runtime.",
+};
+const uncertainMessage =
+  "The publication result could not be confirmed. Retry this same request to check its outcome.";
+const storageMessage =
+  "The browser could not safely store the publication request. Check browser storage before continuing.";
+
+function pendingRequest(key: string | null): {
+  request: PublicationRequest | null;
+  error: boolean;
+} {
+  if (!key) return { request: null, error: false };
+  try {
+    const raw = sessionStorage.getItem(key);
+    if (raw === null) return { request: null, error: false };
+    const value: unknown = JSON.parse(raw);
+    if (
+      !isRecord(value) ||
+      !isId(value.publicationId) ||
+      !Number.isSafeInteger(value.confirmedRevision) ||
+      (value.confirmedRevision as number) < 0 ||
+      !isRecord(value.intent) ||
+      value.intent.audience !== "Authenticated" ||
+      !Array.isArray(value.intent.viewerIds) ||
+      value.intent.viewerIds.length > 100 ||
+      !value.intent.viewerIds.every(isId) ||
+      new Set(value.intent.viewerIds.map((id: string) => id.toLowerCase())).size !==
+        value.intent.viewerIds.length ||
+      Object.keys(value).length !== 3 ||
+      Object.keys(value.intent).length !== 2
+    )
+      return { request: null, error: true };
+    return { request: value as unknown as PublicationRequest, error: false };
+  } catch {
+    return { request: null, error: true };
+  }
+}
+
+export function PublicationPage({ session }: { session: AccountSession }) {
+  const params = new URLSearchParams(location.search).getAll("projectId");
+  const projectId = params.length === 1 && isId(params[0]) ? params[0] : null;
+  const storageKey = projectId
+    ? `spatia-publication:${session.userId.toLowerCase()}:${projectId.toLowerCase()}`
+    : null;
+  const [pending] = useState(() => pendingRequest(storageKey));
+  const [saved, setSaved] = useState<Saved | null>(null);
+  const [loading, setLoading] = useState(Boolean(projectId));
+  const [error, setError] = useState(
+    pending.error ? storageMessage : pending.request ? uncertainMessage : "",
+  );
+  const [groups, setGroups] = useState<ViewerGroup[]>([]);
+  const [viewersLoading, setViewersLoading] = useState(true);
+  const [viewersError, setViewersError] = useState(false);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [confirmed, setConfirmed] = useState(false);
+  const [phase, setPhase] = useState<
+    "ready" | "pending" | "unknown" | "success" | "stale" | "storage-error"
+  >(pending.error ? "storage-error" : pending.request ? "unknown" : "ready");
+  const [request, setRequest] = useState<PublicationRequest | null>(pending.request);
+  const [ack, setAck] = useState<PublicationAcknowledgement | null>(null);
+  const [copyStatus, setCopyStatus] = useState("");
+  const inFlight = useRef(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!projectId) return;
+    void (async () => {
+      try {
+        const value = await api.read(`/api/projects/${encodeURIComponent(projectId)}`);
+        const current = await accounts.getSession();
+        if (current?.userId !== session.userId || current.mustChangePassword)
+          throw new Error("Your account changed. Sign in again before continuing.");
+        if (
+          !isRecord(value) ||
+          value.projectId !== projectId ||
+          !Number.isSafeInteger(value.revision) ||
+          (value.revision as number) < 0 ||
+          !isRecord(value.document) ||
+          typeof value.document.title !== "string" ||
+          !value.document.title.trim() ||
+          !isRecord(value.permissions) ||
+          typeof value.permissions.canPublish !== "boolean"
+        )
+          throw new Error("The saved project could not be verified. Refresh before continuing.");
+        if (!cancelled)
+          setSaved({
+            title: value.document.title,
+            revision: value.revision as number,
+            canPublish: value.permissions.canPublish,
+          });
+      } catch (failure) {
+        if (!cancelled)
+          setError(
+            failure instanceof Error ? failure.message : "The saved project could not be loaded.",
+          );
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    void (async () => {
+      try {
+        const classes = await allPages((cursor) => reviews.classrooms(cursor));
+        const rows = await Promise.all(
+          classes.map(async (classroom) => ({
+            classroom,
+            students: (await allPages((cursor) => reviews.roster(classroom.id, cursor))).filter(
+              (student) => student.accountActive && student.userId !== session.userId,
+            ),
+          })),
+        );
+        const current = await accounts.getSession();
+        if (current?.userId !== session.userId || current.mustChangePassword)
+          throw new Error("Account changed");
+        if (!cancelled) setGroups(rows);
+      } catch {
+        if (!cancelled) setViewersError(true);
+      } finally {
+        if (!cancelled) setViewersLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId, session.userId]);
+
+  useEffect(() => {
+    if (phase !== "pending" && phase !== "unknown") return;
+    const preventLoss = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener("beforeunload", preventLoss);
+    return () => window.removeEventListener("beforeunload", preventLoss);
+  }, [phase]);
+
+  async function publish(retry = false) {
+    if (
+      inFlight.current ||
+      !saved ||
+      !projectId ||
+      !saved.canPublish ||
+      (!retry && (!confirmed || phase !== "ready")) ||
+      (retry && (phase !== "unknown" || !request))
+    )
+      return;
+    const payload: PublicationRequest =
+      retry && request
+        ? request
+        : {
+            publicationId: crypto.randomUUID(),
+            confirmedRevision: saved.revision,
+            intent: { audience: "Authenticated", viewerIds: [...selected].sort() },
+          };
+    try {
+      if (!storageKey) throw new Error("Missing key");
+      const encoded = JSON.stringify(payload);
+      sessionStorage.setItem(storageKey, encoded);
+      if (sessionStorage.getItem(storageKey) !== encoded)
+        throw new Error("Storage could not be verified");
+    } catch {
+      setError(storageMessage);
+      return;
+    }
+    setRequest(payload);
+    inFlight.current = true;
+    setPhase("pending");
+    setError("");
+    const result = await api.write(
+      session.userId,
+      `/api/projects/${encodeURIComponent(projectId)}/publications`,
+      "POST",
+      payload,
+      problems,
+    );
+    inFlight.current = false;
+    if (result.kind === "confirmed") {
+      const receipt = publicationAcknowledgement(result.value, projectId, payload);
+      if (receipt) {
+        try {
+          sessionStorage.removeItem(storageKey!);
+        } catch {
+          /* A replay of the same ID remains safe. */
+        }
+        setAck(receipt);
+        setPhase("success");
+        return;
+      }
+    }
+    if (result.kind === "rejected") {
+      if (retry) {
+        setError(`${result.message} The earlier publication outcome is still unconfirmed.`);
+        setPhase("unknown");
+        return;
+      }
+      try {
+        sessionStorage.removeItem(storageKey!);
+        if (sessionStorage.getItem(storageKey!) !== null)
+          throw new Error("Storage could not be cleared");
+      } catch {
+        setError(storageMessage);
+        setPhase("storage-error");
+        return;
+      }
+      setError(result.message);
+      setRequest(null);
+      setConfirmed(false);
+      setPhase(
+        result.code === "revision_conflict" ||
+          result.message === "The record changed or already exists. Refresh before trying again."
+          ? "stale"
+          : "ready",
+      );
+    } else {
+      setError(uncertainMessage);
+      setPhase("unknown");
+    }
+  }
+
+  async function copyLink() {
+    if (!ack) return;
+    try {
+      await navigator.clipboard.writeText(ack.visitorUrl);
+      setCopyStatus("Link copied.");
+    } catch {
+      setCopyStatus("Copy the link from the field below.");
+    }
+  }
+
+  return (
+    <section className="sp-publication" aria-label="Publication settings">
+      {!projectId && <p role="alert">Choose a valid project before publishing.</p>}
+      <p>
+        Publish a saved revision for selected signed-in viewers. The publisher can also view it.
+        Unsaved edits, including unsaved recovery edits, are not included. Later edits will not
+        change this published edition.
+      </p>
+      {loading && <p role="status">Loading saved project…</p>}
+      {error && <p role="alert">{error}</p>}
+      {saved && (
+        <>
+          <h2>{saved.title}</h2>
+          <p>Saved revision {saved.revision}</p>
+          {!saved.canPublish ? (
+            <p>You do not have permission to publish this project.</p>
+          ) : phase === "success" && ack ? (
+            <div>
+              <p role="status">Published saved revision {ack.sourceRevision}.</p>
+              <a href={ack.visitorUrl}>Open publication</a>
+              <label htmlFor="publication-link">Publication link</label>
+              <input
+                id="publication-link"
+                readOnly
+                value={ack.visitorUrl}
+                onFocus={(event) => event.currentTarget.select()}
+              />
+              <Button onClick={() => void copyLink()}>Copy link</Button>
+              <p role="status">{copyStatus}</p>
+            </div>
+          ) : (
+            <>
+              <fieldset disabled={phase !== "ready" || viewersLoading}>
+                <legend>Signed-in viewers</legend>
+                <p>Choose up to 100 viewers.</p>
+                {viewersLoading && <p role="status">Loading viewers…</p>}
+                {viewersError && (
+                  <p>Viewers could not be loaded. You can publish for yourself only.</p>
+                )}
+                {!viewersLoading &&
+                  !viewersError &&
+                  groups.every((group) => group.students.length === 0) && (
+                    <p>No other viewers are available to select.</p>
+                  )}
+                {groups.map(
+                  ({ classroom, students }) =>
+                    students.length > 0 && (
+                      <div key={classroom.id}>
+                        <h3>{classroom.name}</h3>
+                        {students.map((student) => (
+                          <label key={student.userId}>
+                            <input
+                              type="checkbox"
+                              checked={selected.includes(student.userId)}
+                              disabled={
+                                selected.length >= 100 && !selected.includes(student.userId)
+                              }
+                              onChange={(event) =>
+                                setSelected((previous) =>
+                                  event.target.checked
+                                    ? [...new Set([...previous, student.userId])]
+                                    : previous.filter((id) => id !== student.userId),
+                                )
+                              }
+                            />{" "}
+                            {student.userName}
+                          </label>
+                        ))}
+                      </div>
+                    ),
+                )}
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={confirmed}
+                    onChange={(event) => setConfirmed(event.target.checked)}
+                  />{" "}
+                  I confirm this saved revision is ready to publish.
+                </label>
+              </fieldset>
+              {phase === "unknown" ? (
+                <Button onClick={() => void publish(true)}>Retry publication</Button>
+              ) : (
+                <Button
+                  variant="primary"
+                  disabled={phase !== "ready" || !confirmed || viewersLoading}
+                  onClick={() => void publish()}
+                >
+                  {phase === "pending" ? "Publishing…" : "Publish"}
+                </Button>
+              )}
+            </>
+          )}
+        </>
+      )}
+    </section>
+  );
+}

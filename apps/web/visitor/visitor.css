@@ -1,0 +1,57 @@
+:root {
+  font-family: system-ui, sans-serif;
+  color: #152b39;
+  background: #f4f8fa;
+}
+body {
+  margin: 0;
+}
+header {
+  display: flex;
+  justify-content: space-between;
+  padding: 1rem 5%;
+  background: white;
+  border-bottom: 1px solid #ccd9df;
+}
+main {
+  max-width: 1200px;
+  margin: auto;
+  padding: 1.5rem;
+}
+a {
+  color: #145775;
+}
+button,
+select {
+  font: inherit;
+  padding: 0.65rem 1rem;
+  margin: 0.5rem;
+  border: 1px solid #517084;
+  border-radius: 0.5rem;
+  background: white;
+  color: inherit;
+}
+:focus-visible {
+  outline: 3px solid #007fa6;
+  outline-offset: 3px;
+}
+.visitor-canvas {
+  width: 100%;
+  height: min(65vh, 720px);
+  min-height: 260px;
+  background: #edf2f4;
+  border-radius: 1rem;
+  overflow: hidden;
+}
+.visitor-canvas canvas {
+  display: block;
+}
+.skip {
+  position: absolute;
+  top: -100px;
+}
+.skip:focus {
+  top: 0;
+  background: white;
+  padding: 1rem;
+}

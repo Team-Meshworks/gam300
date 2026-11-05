@@ -188,6 +188,18 @@ function HomeWorkspace({
             </a>
           </>
         )}
+        {session.role !== "Administrator" && (
+          <a
+            className="sp-button"
+            href="/review"
+            onClick={(event) => {
+              event.preventDefault();
+              navigate(() => location.assign("/review"));
+            }}
+          >
+            Submissions and reviews
+          </a>
+        )}
       </nav>
       {view === "projects" ? (
         <ProjectHome session={session} active={active} onOpenProject={openProject} />

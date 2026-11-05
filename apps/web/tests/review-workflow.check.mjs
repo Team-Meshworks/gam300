@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 import { readFile, mkdir } from "node:fs/promises";
-import { chromium } from "playwright";
+import { launchBrowser } from "./browser-security.mjs";
 import { createServer } from "vite";
 
 const server = await createServer({
@@ -13,9 +13,7 @@ try {
   await server.listen();
   const address = server.httpServer.address();
   const origin = "http://127.0.0.1:" + address.port;
-  browser = await chromium.launch({
-    executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
-  });
+  browser = await launchBrowser({ target: origin });
   const page = await browser.newPage();
   page.setDefaultTimeout(10000);
   const errors = [];
@@ -36,7 +34,8 @@ try {
   let submissions = [],
     decisions = [];
   const writes = [];
-  let denied = false;
+  let denied = false,
+    canPublish = true;
   await page.route("**/api/**", async (route) => {
     const req = route.request(),
       path = new URL(req.url()).pathname;
@@ -75,7 +74,7 @@ try {
         projectId,
         revision,
         document: { ...document, title: "Current draft" },
-        permissions: { canEdit: true, canManage: role === "Educator", canPublish: false },
+        permissions: { canEdit: true, canManage: role === "Educator", canPublish },
       });
     const latestSequence = submissions.length;
     function detail(s) {
@@ -221,11 +220,56 @@ try {
   await page.getByRole("button", { name: "Approve submission", exact: true }).click();
   await page.getByRole("button", { name: "Confirm decision", exact: true }).click();
   await page.getByText("Approved for this revision", { exact: true }).waitFor();
+  const publish = page.getByRole("link", { name: "Publish project", exact: true });
+  await publish.waitFor();
+  assert.equal(
+    await publish.getAttribute("href"),
+    "/publish?projectId=" + encodeURIComponent(projectId),
+  );
+  await page.setViewportSize({ width: 390, height: 844 });
+  await publish.scrollIntoViewIfNeeded();
+  const bounds = await publish.boundingBox();
+  assert.ok(
+    bounds && bounds.x >= 0 && bounds.x + bounds.width <= 390,
+    "Publish link fits mobile viewport",
+  );
+  await mkdir(new URL("../../../.artifacts/scrum-165/", import.meta.url), { recursive: true });
+  await page.screenshot({
+    path: fileURLToPath(
+      new URL("../../../.artifacts/scrum-165/review-publish-mobile.png", import.meta.url),
+    ),
+    fullPage: true,
+  });
+  await feedback.fill("Unsaved feedback stays here.");
+  assert.equal(await publish.count(), 0, "Unsaved feedback prevents navigation");
+  assert.equal(await page.getByRole("button", { name: "Publish project" }).isDisabled(), true);
+  assert.equal(await feedback.inputValue(), "Unsaved feedback stays here.");
+  await page.getByRole("button", { name: "Revoke approval" }).click();
+  assert.equal(await publish.count(), 0, "Pending decision prevents navigation");
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Discard feedback" }).click();
+  canPublish = false;
+  await page.getByRole("button", { name: "Refresh status" }).click();
+  await page
+    .getByText("Publish permission:", { exact: false })
+    .filter({ hasText: "not granted" })
+    .waitFor();
+  assert.equal(await publish.count(), 0, "Permission is required");
+  canPublish = true;
+  await page.getByRole("button", { name: "Refresh status" }).click();
+  await publish.waitFor();
+  await publish.focus();
+  assert.equal(await publish.evaluate((element) => document.activeElement === element), true);
+  await page.keyboard.press("Enter");
+  await page.waitForURL("**/publish?projectId=*");
+  await open();
   revision = 8;
   await page.getByRole("button", { name: "Refresh status", exact: true }).click();
   await page
     .getByText("Historical submission — not approval of the current revision", { exact: true })
     .waitFor();
+  assert.equal(await publish.count(), 0, "Historical approval cannot publish");
   await feedback.fill("Keep recoverable feedback.");
   assert.equal(
     await page.getByRole("button", { name: "Approve submission", exact: true }).isDisabled(),

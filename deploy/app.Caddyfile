@@ -19,7 +19,9 @@
 	respond /version.txt "{$APP_REVISION:local}" 200
 	@entry path /landing /landing/ /login /login/ /home /home/
 	rewrite @entry /entry.html
-	@workspace path /admin/dashboard /admin/dashboard/ /assets /assets/ /spaces /spaces/ /new-project /new-project/ /classes /classes/ /review /review/ /accounts /accounts/
+	@visitor path /p/*
+	rewrite @visitor /visit/index.html
+	@workspace path /admin/dashboard /admin/dashboard/ /assets /assets/ /spaces /spaces/ /new-project /new-project/ /classes /classes/ /review /review/ /publish /publish/ /accounts /accounts/
 	rewrite @workspace /workspace.html
 	file_server
 }

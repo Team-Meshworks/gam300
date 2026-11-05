@@ -17,7 +17,7 @@ export interface ProjectSummary {
 }
 export type WriteResult =
   | { kind: "confirmed"; value: unknown }
-  | { kind: "rejected"; message: string }
+  | { kind: "rejected"; message: string; code?: string }
   | { kind: "unknown" };
 
 export function createWorkspaceClient(request: typeof fetch = fetch) {
@@ -90,6 +90,7 @@ export function createWorkspaceClient(request: typeof fetch = fetch) {
     path: string,
     method: "POST" | "PATCH" | "PUT" | "DELETE",
     body?: object,
+    problemMessages: Record<string, string> = {},
   ): Promise<WriteResult> {
     let sent = false;
     try {
@@ -114,16 +115,26 @@ export function createWorkspaceClient(request: typeof fetch = fetch) {
         },
         ...(body ? { body: JSON.stringify(body) } : {}),
       });
-      if ([400, 409, 422, 429].includes(response.status))
+      if ([400, 409, 422, 429].includes(response.status)) {
+        const problem: unknown = await response.json().catch(() => null);
+        const detail =
+          isRecord(problem) && typeof problem.code === "string"
+            ? problemMessages[problem.code]
+            : undefined;
         return {
           kind: "rejected",
+          ...(detail && isRecord(problem) && typeof problem.code === "string"
+            ? { code: problem.code }
+            : {}),
           message:
-            response.status === 409
+            detail ??
+            (response.status === 409
               ? "The record changed or already exists. Refresh before trying again."
               : response.status === 429
                 ? "Too many changes. Wait before trying again."
-                : "The change was not accepted. Check the details and your permissions.",
+                : "The change was not accepted. Check the details and your permissions."),
         };
+      }
       // Authentication can expire after a commit; a missing acknowledgement must not invite a duplicate.
       if (![200, 201, 204].includes(response.status)) return { kind: "unknown" };
       const value: unknown = response.status === 204 ? null : await response.json();

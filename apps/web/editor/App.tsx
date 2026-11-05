@@ -55,6 +55,7 @@ export type ServerEditorSession = {
   departing: boolean;
   save: (exportFile?: boolean) => Promise<boolean>;
   leave: () => void;
+  publish: () => void;
 };
 
 export function App({ server }: { server?: ServerEditorSession }) {
@@ -607,6 +608,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
         serverMode={!!server}
         serverSaving={server?.saving ?? false}
         onLeave={server?.leave}
+        onPublish={server?.publish}
         hasProject={project !== null}
         hasChanges={hasChanges}
         ready={status === "ready"}

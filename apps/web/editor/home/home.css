@@ -75,6 +75,11 @@
 .sp-home-project-copy h2 {
   overflow-wrap: anywhere;
 }
+.sp-home-project-card a.sp-button {
+  color: var(--sp-ink);
+  text-decoration: none;
+  text-align: center;
+}
 .sp-home-fields {
   display: grid;
   gap: 20px;

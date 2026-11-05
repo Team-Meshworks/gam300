@@ -85,7 +85,7 @@ export function ServerProjectEditor({ projectId }: { projectId: string }) {
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
   const [attempt, setAttempt] = useState(0);
-  const [departure, setDeparture] = useState<"home" | "logout" | "reload" | null>(null);
+  const [departure, setDeparture] = useState<"home" | "logout" | "reload" | "publish" | null>(null);
 
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => {
@@ -340,7 +340,13 @@ export function ServerProjectEditor({ projectId }: { projectId: string }) {
         const identity = await accounts.getSession();
         if (identity?.userId === active.accountId) await accounts.signOut(active.accountId);
       }
-      location.assign(departure === "logout" ? "/login" : "/home");
+      location.assign(
+        departure === "logout"
+          ? "/login"
+          : departure === "publish"
+            ? `/publish?projectId=${encodeURIComponent(projectId)}`
+            : "/home",
+      );
     });
   }
 
@@ -357,6 +363,7 @@ export function ServerProjectEditor({ projectId }: { projectId: string }) {
             departing: departure !== null,
             save,
             leave: () => setDeparture("home"),
+            publish: () => setDeparture("publish"),
           }}
         />
       ) : (

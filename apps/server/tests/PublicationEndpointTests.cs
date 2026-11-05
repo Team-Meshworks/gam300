@@ -25,6 +25,12 @@ public sealed class PublicationEndpointTests
         var ack = await published.Content.ReadFromJsonAsync<JsonElement>();
         await Assert.That(ack.GetProperty("publicationId").GetGuid()).IsEqualTo(id);
         await Assert.That(ack.GetProperty("sourceRevision").GetInt64()).IsEqualTo(0);
+        await Assert.That(ack.GetProperty("visitorUrl").GetString()).IsEqualTo($"https://publications.example.test/p/{id:D}");
+        using var manifest = await fixture.Client.GetAsync($"/api/publications/{id}/manifest");
+        await Assert.That(manifest.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        var manifestBody = await manifest.Content.ReadFromJsonAsync<JsonElement>();
+        await Assert.That(manifestBody.GetProperty("assets")[0].GetProperty("id").GetString()).IsEqualTo(asset.Id.ToString("D"));
+        await Assert.That(manifestBody.GetProperty("assets")[0].GetProperty("sha256").GetString()).IsEqualTo(asset.Sha256);
         await Assert.That(ack.GetProperty("snapshotUrl").GetString()).IsEqualTo($"https://publications.example.test/api/publications/{id:D}");
         using var snapshot = await fixture.Client.GetAsync($"/api/publications/{id}");
         await Assert.That(snapshot.StatusCode).IsEqualTo(HttpStatusCode.OK);
@@ -37,11 +43,16 @@ public sealed class PublicationEndpointTests
         await fixture.SignInAsync(data.OtherStudent);
         using var named = await fixture.Client.GetAsync($"/api/publications/{id}");
         await Assert.That(named.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        using var namedManifest = await fixture.Client.GetAsync($"/api/publications/{id}/manifest");
+        await Assert.That(namedManifest.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        await Assert.That(namedManifest.Headers.CacheControl?.NoStore).IsTrue();
         using var draft = await fixture.Client.GetAsync($"/api/projects/{data.ProjectId}");
         await Assert.That(draft.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
         await fixture.SignInAsync(await fixture.CreateAccountAsync());
         using var denied = await fixture.Client.GetAsync($"/api/publications/{id}");
         await Assert.That(denied.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+        using var deniedManifest = await fixture.Client.GetAsync($"/api/publications/{id}/manifest");
+        await Assert.That(deniedManifest.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
         await using var scope = fixture.App.Services.CreateAsyncScope();
         var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         await Assert.That(await database.Publications.CountAsync()).IsEqualTo(1);
@@ -72,6 +83,8 @@ public sealed class PublicationEndpointTests
         await Assert.That(retry.StatusCode).IsEqualTo(HttpStatusCode.Forbidden);
         using var hidden = await fixture.Client.GetAsync($"/api/publications/{id}");
         await Assert.That(hidden.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+        using var hiddenManifest = await fixture.Client.GetAsync($"/api/publications/{id}/manifest");
+        await Assert.That(hiddenManifest.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
         await using var scope = fixture.App.Services.CreateAsyncScope();
         var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         await Assert.That(await database.Publications.CountAsync()).IsEqualTo(1);

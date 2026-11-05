@@ -223,6 +223,10 @@ jobs:
             script: test:server-autosave
           - name: reviews
             script: test:reviews
+          - name: publication
+            script: test:publication
+          - name: visitor
+            script: test:visitor
     defaults:
       run:
         working-directory: apps/web
