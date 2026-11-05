@@ -154,6 +154,12 @@ try {
     .getByRole("button", { name: "Sample dunes motion (3 seconds)", exact: true })
     .click();
   await content.getByRole("button", { name: "Add", exact: true }).click();
+  await page.getByRole("button", { name: "Position", exact: true }).click();
+  assert.equal(
+    await page.getByRole("button", { name: "Edit exhibit information", exact: true }).count(),
+    0,
+  );
+  await page.getByRole("button", { name: "Scene tree", exact: true }).click();
   const textAction = page.getByRole("button", { name: "Edit text", exact: true });
   assert.equal(await textAction.isDisabled(), true);
   await page.getByRole("button", { name: "Remove video", exact: true }).click();
@@ -165,6 +171,25 @@ try {
   await content.getByRole("button", { name: "Sample landscape", exact: true }).click();
   await content.getByRole("button", { name: "Add", exact: true }).click();
   assert.equal(await textAction.isDisabled(), true);
+  await page.getByRole("button", { name: "Edit image", exact: true }).click();
+  const disabledText = content.getByRole("button", { name: "Text", exact: true });
+  assert.equal(await disabledText.isDisabled(), true);
+  await page.mouse.move(1300, 950);
+  assert.equal(
+    await disabledText.evaluate((el) => getComputedStyle(el).backgroundColor),
+    "rgba(0, 0, 0, 0)",
+  );
+  await disabledText.hover();
+  const hover = await disabledText.evaluate((el) => ({
+    fill: getComputedStyle(el).backgroundColor,
+    curve: getComputedStyle(el.querySelector(".content-tab-background")).display,
+    highlight: getComputedStyle(el.querySelector(".content-tab-background")).backgroundColor,
+  }));
+  assert.equal(hover.fill, "rgba(0, 0, 0, 0)");
+  assert.equal(hover.curve, "block");
+  assert.notEqual(hover.highlight, "rgba(0, 0, 0, 0)");
+  await content.screenshot({ path: "test-results/display-editor/disabled-text-hover.png" });
+  await content.getByRole("button", { name: "Cancel content editing", exact: true }).click();
   await page.getByRole("button", { name: "Remove image", exact: true }).click();
   assert.equal(await textAction.isEnabled(), true);
   await page.getByRole("button", { name: "Display cases", exact: true }).click();

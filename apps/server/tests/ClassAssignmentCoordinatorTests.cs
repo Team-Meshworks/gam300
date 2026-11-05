@@ -300,6 +300,13 @@ public sealed class ClassAssignmentCoordinatorTests
     {
         await using var fixture = await CreateFixtureAsync();
         var data = await SeedAsync(fixture);
+        await using (var scope = fixture.Database.Services.CreateAsyncScope())
+        {
+            var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            await database.Users.Where(row => row.Id == data.FirstStudent)
+                .ExecuteUpdateAsync(set => set.SetProperty(row => row.DisplayName, "Alice Example"));
+        }
+        var firstName = $"Alice Example ({await AuthTestRequests.UserNameAsync(fixture, data.FirstStudent)})";
         var request = Request(data);
         using var created = await SendAsync(fixture, data.ClassroomId, request);
         await Assert.That(created.StatusCode).IsEqualTo(HttpStatusCode.Created);
@@ -316,8 +323,19 @@ public sealed class ClassAssignmentCoordinatorTests
             await Assert.That(body.GetProperty("instructions").GetString()).IsEqualTo(request.Instructions);
             await Assert.That(body.GetProperty("dueAtUnixSeconds").GetInt64()).IsEqualTo(request.DueAtUnixSeconds!.Value);
             await Assert.That(body.GetProperty("projects").GetArrayLength()).IsEqualTo(2);
+            var names = body.GetProperty("projects").EnumerateArray().ToDictionary(
+                row => row.GetProperty("studentId").GetGuid(), row => row.GetProperty("studentName").GetString());
+            await Assert.That(names[data.FirstStudent]).IsEqualTo(firstName);
+            await Assert.That(names[data.SecondStudent]).IsEqualTo(await AuthTestRequests.UserNameAsync(fixture, data.SecondStudent));
             await Assert.That(body.TryGetProperty("sourceProjectId", out _)).IsFalse();
             await Assert.That(body.TryGetProperty("requestDigest", out _)).IsFalse();
+        }
+        using (var list = await fixture.Client.GetAsync($"/api/classes/{data.ClassroomId:D}/assignments"))
+        {
+            var entries = (await list.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("items")[0]
+                .GetProperty("projects").EnumerateArray().ToArray();
+            await Assert.That(entries.Single(row => row.GetProperty("studentId").GetGuid() == data.FirstStudent)
+                .GetProperty("studentName").GetString()).IsEqualTo(firstName);
         }
 
         using var firstStudent = fixture.CreateClient();
@@ -345,6 +363,8 @@ public sealed class ClassAssignmentCoordinatorTests
             await Assert.That(entries.Length).IsEqualTo(1);
             await Assert.That(entries[0].GetProperty("studentId").GetGuid()).IsEqualTo(studentId);
             await Assert.That(entries[0].GetProperty("projectId").GetGuid()).IsEqualTo(projects[studentId]);
+            await Assert.That(entries[0].GetProperty("studentName").GetString()).IsEqualTo(
+                studentId == data.FirstStudent ? firstName : await AuthTestRequests.UserNameAsync(fixture, data.SecondStudent));
             using var list = await client.GetAsync($"/api/classes/{data.ClassroomId:D}/assignments");
             var listed = (await list.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("items").EnumerateArray().ToArray();
             await Assert.That(listed.Length).IsEqualTo(1);
@@ -402,6 +422,12 @@ public sealed class ClassAssignmentCoordinatorTests
         }
         using (var removed = await ChangeMemberAsync(fixture, data.ClassroomId, data.FirstStudent, HttpMethod.Delete))
         { await Assert.That(removed.StatusCode).IsEqualTo(HttpStatusCode.NoContent); }
+        using (var educatorDetail = await fixture.Client.GetAsync(detailPath))
+        {
+            var entries = (await educatorDetail.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("projects").EnumerateArray().ToArray();
+            await Assert.That(entries.Single(row => row.GetProperty("studentId").GetGuid() == data.FirstStudent)
+                .GetProperty("studentName").GetString()).IsEqualTo(firstName);
+        }
         using (var denied = await firstStudent.GetAsync(detailPath))
         { await Assert.That(denied.StatusCode).IsEqualTo(HttpStatusCode.NotFound); }
         using (var retained = await secondStudent.GetAsync(detailPath))

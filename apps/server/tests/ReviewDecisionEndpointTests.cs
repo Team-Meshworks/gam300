@@ -337,9 +337,78 @@ public sealed class ReviewDecisionEndpointTests
         await Assert.That(await stored.ReviewDecisions.CountAsync()).IsEqualTo(0);
     }
 
+    [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task ReviewApproval_AndRevocationRespectTheCallerTransaction(bool approvalFirst)
+    {
+        var pause = new CommitPause();
+        var probe = new ProjectLockProbe();
+        await using var fixture = await HttpsApplicationFixture.CreateAsync(builder =>
+        {
+            builder.Services.AddSingleton<IReviewAssetResolver>(new FixtureAssets());
+            builder.Services.AddDbContext<ApplicationDbContext>(options => options.AddInterceptors(pause, probe));
+        }, environmentName: "Development");
+        var data = await SeedAsync(fixture, false);
+        var submissionId = Guid.NewGuid();
+        using (var submitted = await SubmitAsync(fixture, data.ProjectId, submissionId, 0, true))
+        { await Assert.That(submitted.StatusCode).IsEqualTo(HttpStatusCode.Created); }
+        using var educator = fixture.CreateClient();
+        await fixture.SignInAsync(data.Educator, educator);
+        using (var approved = await DecideAsync(fixture, educator, data.ProjectId, submissionId,
+            Guid.NewGuid(), 0, ReviewDecision.Approved, "Approved"))
+        { await Assert.That(approved.StatusCode).IsEqualTo(HttpStatusCode.Created); }
+        var token = await fixture.GetCsrfAsync(educator);
+        await using var scope = fixture.Database.Services.CreateAsyncScope();
+        var caller = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var project = await caller.Projects.AsNoTracking().SingleAsync(row => row.Id == data.ProjectId);
+        var snapshot = new ProjectAccessSnapshot(data.Educator, project.Id, project.OrganizationId, false,
+            project.Revision, project.SchemaVersion, project.DocumentJson, project.UpdatedAt,
+            null, null, null, true, true, true);
+        await using var transaction = await caller.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted);
+        var callerPid = await caller.Database.SqlQuery<int>($"SELECT pg_backend_pid() AS \"Value\"").SingleAsync();
+        Task<HttpResponseMessage>? revoking = null;
+        try
+        {
+            if (approvalFirst)
+            {
+                await Assert.That(await ReviewApproval.CheckLockedAsync(caller, snapshot)).IsEqualTo(ReviewApprovalState.Approved);
+                probe.Arm();
+                revoking = DecideAsync(fixture, educator, data.ProjectId, submissionId,
+                    Guid.NewGuid(), 0, ReviewDecision.Revoked, "Revoked", token);
+                var waiter = await probe.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+                await WaitBlockedAsync(fixture, waiter, callerPid);
+                await transaction.CommitAsync();
+            }
+            else
+            {
+                pause.Arm();
+                revoking = DecideAsync(fixture, educator, data.ProjectId, submissionId,
+                    Guid.NewGuid(), 0, ReviewDecision.Revoked, "Revoked", token);
+                var blocker = await pause.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+                var checking = ReviewApproval.CheckLockedAsync(caller, snapshot);
+                await WaitBlockedAsync(fixture, callerPid, blocker);
+                pause.Release.TrySetResult();
+                await Assert.That(await checking.WaitAsync(TimeSpan.FromSeconds(10))).IsEqualTo(ReviewApprovalState.ApprovalRequired);
+                await transaction.CommitAsync();
+            }
+            using var revoked = await revoking.WaitAsync(TimeSpan.FromSeconds(10));
+            await Assert.That(revoked.StatusCode).IsEqualTo(HttpStatusCode.Created);
+        }
+        finally
+        {
+            pause.Release.TrySetResult();
+            await transaction.DisposeAsync();
+            if (revoking is not null) { using var drained = await revoking.WaitAsync(TimeSpan.FromSeconds(10)); }
+        }
+        await Assert.That(await ApprovalAsync(fixture, data)).IsEqualTo(ReviewApprovalState.ApprovalRequired);
+        await Assert.That(await caller.ReviewDecisions.CountAsync()).IsEqualTo(2);
+        await Assert.That((await caller.Projects.AsNoTracking().SingleAsync(row => row.Id == data.ProjectId)).Revision).IsEqualTo(0L);
+    }
+
     private static string DetailPath(Guid project, Guid submission) => $"/api/projects/{project:D}/submissions/{submission:D}";
 
-    private static async Task<HttpResponseMessage> DecideAsync(HttpsApplicationFixture fixture, HttpClient client, Guid project,
+    internal static async Task<HttpResponseMessage> DecideAsync(HttpsApplicationFixture fixture, HttpClient client, Guid project,
         Guid submission, Guid decision, long revision, string outcome, string feedback, string? token = null)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, DetailPath(project, submission) + "/decisions")
