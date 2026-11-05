@@ -224,6 +224,60 @@ public sealed class AssetIntakeTests
         await using var scope = fixture.Database.Services.CreateAsyncScope();
         await Assert.That(await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().AssetCandidates.CountAsync()).IsEqualTo(0);
     }
+    [Test]
+    [Arguments("hide")]
+    [Arguments("delete")]
+    public async Task Intake_RetiredRoomRejectsFreshCreationButKeepsExistingCreatorReferences(string retirement)
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
+        var admin = await fixture.CreateAccountAsync(ApplicationRoles.Administrator);
+        var creator = await fixture.CreateAccountAsync();
+        await fixture.SignInAsync(admin);
+        using var upload = new HttpRequestMessage(HttpMethod.Post, "/api/admin/assets?name=room.glb&kind=environment");
+        upload.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync());
+        upload.Content = new ByteArrayContent(CreateMinimalGlb());
+        upload.Content.Headers.ContentType = new("model/gltf-binary");
+        using var submitted = await fixture.Client.SendAsync(upload);
+        await Assert.That(submitted.StatusCode).IsEqualTo(HttpStatusCode.Created);
+        var candidate = (await submitted.Content.ReadFromJsonAsync<AssetAdministrationRecord>())!;
+        using var reviewed = await AuthTestRequests.PostAsync(fixture, $"/api/admin/assets/{candidate.Id}/approve",
+            new AssetReviewRequest("Synthetic source", "Synthetic rights", "Reviewed room"));
+        await Assert.That(reviewed.StatusCode).IsEqualTo(HttpStatusCode.OK);
+
+        await fixture.SignInAsync(creator);
+        using var created = await AuthTestRequests.PostAsync(fixture, "/api/projects/",
+            new { title = "Existing room", environmentAssetId = candidate.Id.ToString() });
+        await Assert.That(created.StatusCode).IsEqualTo(HttpStatusCode.Created);
+        var projectId = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("projectId").GetGuid();
+        await fixture.SignInAsync(admin);
+        using var retired = await AuthTestRequests.PostAsync(fixture, $"/api/admin/assets/{candidate.Id}/availability",
+            new AssetAvailabilityRequest(retirement));
+        await Assert.That(retired.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        await fixture.SignInAsync(creator);
+
+        using var rejected = await AuthTestRequests.PostAsync(fixture, "/api/projects/",
+            new { title = "Fresh retired room", environmentAssetId = candidate.Id.ToString() });
+        await Assert.That(rejected.StatusCode).IsEqualTo(HttpStatusCode.UnprocessableEntity);
+        using var opened = await fixture.Client.GetAsync($"/api/projects/{projectId}");
+        await Assert.That(opened.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        var document = (await opened.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("document");
+        using var imported = await AuthTestRequests.PostAsync(fixture, "/api/projects/",
+            new { title = "Imported retired room", document });
+        await Assert.That(imported.StatusCode).IsEqualTo(HttpStatusCode.UnprocessableEntity);
+        using var save = new HttpRequestMessage(HttpMethod.Put, $"/api/projects/{projectId}");
+        save.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync());
+        save.Content = JsonContent.Create(new { expectedRevision = 0, clientMutationId = Guid.NewGuid(), document });
+        using var saved = await fixture.Client.SendAsync(save);
+        await Assert.That(saved.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        using var bytes = await fixture.Client.GetAsync($"/api/projects/{projectId}/assets/{candidate.Id}/bytes");
+        await Assert.That(bytes.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        await Assert.That((await bytes.Content.ReadAsByteArrayAsync()).SequenceEqual(CreateMinimalGlb())).IsTrue();
+        await using var scope = fixture.Database.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await Assert.That(await database.Projects.CountAsync()).IsEqualTo(1);
+        await Assert.That(await database.ProjectAssignments.CountAsync()).IsEqualTo(1);
+    }
+
     // Keep API tests independent of Git LFS while exercising the real GLB validator
     private static byte[] CreateMinimalGlb(string? document = null)
     {
