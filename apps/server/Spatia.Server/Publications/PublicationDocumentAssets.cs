@@ -1,44 +1,10 @@
 using Spatia.ProjectFormat;
+using Spatia.Server.Reviews;
 
 namespace Spatia.Server.Publications;
 
-/// <summary>Collects authored references only after full format validation; resolution belongs to SCRUM-73</summary>
+/// <summary>Uses the same authored references as review evidence; resolution belongs to SCRUM-73</summary>
 internal static class PublicationDocumentAssets
 {
-    public static HashSet<string> Required(IAuthoredProject document)
-    {
-        var ids = new HashSet<string>(StringComparer.Ordinal);
-        switch (document)
-        {
-            case LegacyProject { SchemaVersion: 1 } legacy:
-                foreach (var scene in legacy.Scenes)
-                {
-                    ids.Add(scene.EnvironmentAssetId);
-                    foreach (var item in scene.Objects) { ids.Add(item.AssetId); }
-                }
-                break;
-            case ContentProject { SchemaVersion: 2 } content:
-                foreach (var scene in content.Scenes)
-                {
-                    ids.Add(scene.EnvironmentAssetId);
-                    foreach (var item in scene.Objects)
-                    {
-                        ids.Add(item.AssetId);
-                        foreach (var component in item.Components)
-                        {
-                            switch (component)
-                            {
-                                case ImageComponent image: ids.Add(image.AssetId); break;
-                                case AudioComponent audio: ids.Add(audio.AssetId); break;
-                                case VideoComponent video: ids.Add(video.AssetId); break;
-                            }
-                        }
-                    }
-                }
-                break;
-            default:
-                throw new ArgumentException("Assets require a validated supported project.", nameof(document));
-        }
-        return ids;
-    }
+    public static HashSet<string> Required(IAuthoredProject document) => ReviewAssetManifest.Required(document);
 }
