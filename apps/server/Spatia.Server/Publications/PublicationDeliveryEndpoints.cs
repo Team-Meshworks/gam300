@@ -12,7 +12,7 @@ internal static class PublicationDeliveryEndpoints
     internal static void MapPublicationDelivery(this IEndpointRouteBuilder endpoints)
     {
         // Let the shared filter explain malformed IDs before reading the captured edition
-        endpoints.MapGet("/api/publications/{publicationId}", async (string publicationId,
+        endpoints.MapMethods("/api/publications/{publicationId}", [HttpMethods.Get, HttpMethods.Head], async (string publicationId,
             ApplicationDbContext database, CancellationToken token) =>
         {
             var id = Guid.Parse(publicationId);
@@ -20,7 +20,7 @@ internal static class PublicationDeliveryEndpoints
             return Results.Content(edition.DocumentJson, "application/json");
         }).RequirePublicationRead(PublicationReadKind.Snapshot);
 
-        endpoints.MapGet("/api/publications/{publicationId}/assets/{assetId}/bytes", async (string assetId,
+        endpoints.MapMethods("/api/publications/{publicationId}/assets/{assetId}/bytes", [HttpMethods.Get, HttpMethods.Head], async (string assetId,
             HttpContext context, ApplicationDbContext database, CancellationToken token) =>
         {
             // Recheck removal at byte loading too; never let a stale policy lookup bypass global removal
@@ -134,11 +134,17 @@ internal static class PublicationDeliveryEndpoints
 
             // Acknowledge only after the policy and retained project lock commit together
             await database.SaveChangesAsync(token);
+            if (HasExpired(context)) { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired); }
             await transaction.CommitAsync(token);
+            token.ThrowIfCancellationRequested();
+            if (HasExpired(context)) { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired); }
             return Results.NoContent();
         }).RequireAuthorization(SecurityPolicies.FullAccount).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit)
             .WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(16 * 1024));
     }
+
+    private static bool HasExpired(HttpContext context) =>
+        context.Features.Get<ValidatedAccountSession>() is not { } session || session.Clock.GetUtcNow() >= session.ExpiresUtc;
 
     private static IResult Unavailable(HttpContext context) =>
         ApiProblems.Create(context, 404, "publication_unavailable", "Publication is unavailable or access is not permitted");
