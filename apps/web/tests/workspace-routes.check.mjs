@@ -79,7 +79,10 @@ try {
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 900 });
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
-    await page.screenshot({ path: `test-results/scrum168/mounted-assets-${width}.png`, fullPage: true });
+    await page.screenshot({
+      path: `test-results/scrum168/mounted-assets-${width}.png`,
+      fullPage: true,
+    });
   }
   await page.setViewportSize({ width: 1440, height: 900 });
   await screen("spaces", "All 3D Spaces");

@@ -52,7 +52,7 @@ export function AssetAdministrationPreview() {
   const [failure, setFailure] = useState("none");
   const [closed, setClosed] = useState(false);
   const [overflow, setOverflow] = useState(false);
-  const [displayName, setDisplayName] = useState("Rui Qin");
+  const [displayName, setDisplayName] = useState("Preview Admin");
   const initials = displayName
     .trim()
     .split(/\s+/)
