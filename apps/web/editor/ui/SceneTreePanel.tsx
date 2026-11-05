@@ -414,7 +414,11 @@ export function SceneTreePanel({
   }
 
   return (
-    <section ref={panel} className="editor-panel" aria-labelledby="objects-heading">
+    <section
+      ref={panel}
+      className="editor-panel editor-detail-panel scene-tree-panel"
+      aria-labelledby="objects-heading"
+    >
       <h2 id="objects-heading">
         <Icon name="info" />
         Scene Tree <span className="panel-count">{count}</span>

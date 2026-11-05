@@ -11,6 +11,8 @@ import cubeDisplayCase from "./assets/cube-display-case.svg?no-inline";
 import clearCubeDisplayCase from "./assets/clear-cube-display-case.svg?no-inline";
 import clearCuboidDisplayCase from "./assets/clear-cuboid-display-case.svg?no-inline";
 import cuboidDisplayCase from "./assets/cuboid-display-case.svg?no-inline";
+import furnitureBench from "./assets/furniture-bench.svg?no-inline";
+import savedViews from "./assets/saved-views.svg?no-inline";
 
 type IconShape = { viewBox: string; body: ReactNode };
 
@@ -186,12 +188,7 @@ const icons = {
       <path d="m10 12 3-3 5 4" />
     </>,
   ),
-  savedView: drawn(
-    <>
-      <path d="M8 6 10 3h4l2 3h3a2 2 0 0 1 2 2v11H3V8a2 2 0 0 1 2-2h3Z" />
-      <circle cx="12" cy="12" r="4" />
-    </>,
-  ),
+  savedView: { src: savedViews },
   tree: drawn(<path d="M12 3 7 10h3l-4 6h5v5h2v-5h5l-4-6h3z" />),
   info: drawn(
     <>
@@ -292,6 +289,7 @@ const icons = {
   ),
   // Full Figma exports retain the design's native 40px slot, strokes and fills.
   panelStanding: { src: horizontalStand },
+  bench: { src: furnitureBench },
   panelSmall: { src: verticalStand },
   panelPortrait: { src: verticalPanel },
   panelLandscape: { src: horizontalPanel },

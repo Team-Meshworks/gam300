@@ -60,6 +60,7 @@ try {
         (asset) =>
           asset.displayRole === undefined &&
           asset.kind === "model" &&
+          !asset.id.startsWith("furniture-modern-bench-") &&
           asset.id !== "test-room-module-v1",
       )
       .map((asset) => asset.name);

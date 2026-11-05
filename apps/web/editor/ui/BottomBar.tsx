@@ -16,6 +16,7 @@ import { AssetPicker } from "./AssetPicker";
 import { dockEdges, loadDockEdge, nearestEdge, saveDockEdge, type DockEdge } from "./dock-edge";
 import { Icon, type IconName } from "./Icon";
 import { displayPanelTools, displayCaseTools } from "./display-tools";
+import { furnitureTools } from "./furniture-tools";
 
 const cameraTools: { id: NavigationTool; label: string; hint: string; icon: IconName }[] = [
   { id: "select", label: "Select", hint: "Select · click objects to edit them", icon: "select" },
@@ -44,7 +45,7 @@ function place(point: { x: number; y: number }, name: "popup" | "tip") {
 // First item is what the bar show until something else is picked
 const baseCategories: { id: Category; label: string; items: Item[] }[] = [
   { id: "rooms", label: "Rooms", items: [{ label: "Room", icon: "door" }] },
-  { id: "furniture", label: "Furniture", items: [{ label: "Chair", icon: "chair" }] },
+  { id: "furniture", label: "Furniture", items: furnitureTools },
   { id: "panels", label: "Display panels", items: displayPanelTools },
   { id: "cases", label: "Display cases", items: displayCaseTools },
   {
@@ -245,7 +246,8 @@ export function BottomBar({
               (asset) =>
                 asset.id !== "test-room-module-v1" &&
                 asset.kind !== "environment" &&
-                !asset.displayRole,
+                !asset.displayRole &&
+                !furnitureTools.some((tool) => tool.assetId === asset.id),
             )}
             ready={ready}
             thumbnailFor={thumbnailFor}

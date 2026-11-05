@@ -176,7 +176,10 @@ export function InteractionPanel({
   }
 
   return (
-    <section className="editor-panel interaction-panel" aria-labelledby="interaction-heading">
+    <section
+      className="editor-panel editor-detail-panel interaction-panel"
+      aria-labelledby="interaction-heading"
+    >
       <header className="interaction-heading">
         <h2 id="interaction-heading">
           <Icon name="info" />

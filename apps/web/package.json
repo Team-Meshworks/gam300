@@ -34,6 +34,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test:display-tools": "node tests/display-tools.check.mjs",
+    "test:furniture-tools": "node tests/furniture-tools.check.mjs",
     "test:display-editor": "node tests/display-editor.check.mjs",
     "test:hotspot-placement": "node tests/hotspot-placement.check.mjs",
     "test:hotspot-rendering": "node tests/hotspot-rendering.check.mjs",

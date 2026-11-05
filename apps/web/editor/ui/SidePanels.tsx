@@ -133,7 +133,15 @@ export function SidePanels({
             />
           )}
           {panel === "scenes" && <div className="editor-panel">{scenes}</div>}
-          {panel === "views" && <div className="editor-panel">{savedViews}</div>}
+          {panel === "views" && (
+            <section
+              className="editor-panel editor-detail-panel saved-views-panel"
+              aria-labelledby="saved-views-heading"
+            >
+              <PanelHeading id="saved-views-heading">Saved Views</PanelHeading>
+              {savedViews}
+            </section>
+          )}
           {panel === "interaction" && (
             <InteractionPanel
               selectedObjectId={selectedObject?.id}

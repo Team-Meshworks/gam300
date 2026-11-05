@@ -45,6 +45,8 @@ const allowedIds = new Set([
   "display-rectangle-panel-v1",
   "display-square-stand-v1",
   "display-square-panel-v1",
+  "furniture-modern-bench-1-v1",
+  "furniture-modern-bench-2-v1",
 ]);
 type Entry = {
   assetId: string;

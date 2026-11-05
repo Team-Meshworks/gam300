@@ -756,7 +756,9 @@ export function App({ server }: { server?: ServerEditorSession }) {
                 store={store}
               />
             ) : (
-              <p>Create a scene in the Scenes panel to start saving views.</p>
+              <p className="panel-empty">
+                Create a scene in the Scenes panel to start saving views.
+              </p>
             )
           }
           visitor={visitor}
