@@ -89,10 +89,19 @@ try {
   });
   await page.goto(`${origin}/accounts`);
   await page.getByRole("button", { name: "Open Ridgeview Secondary School" }).click();
-  await page.getByRole("button", { name: "+ Add Accounts", exact: true }).click();
+  await page.getByRole("button", { name: "+ Add Accounts", exact: true }).focus();
+  await page.keyboard.press("Enter");
   let dialog = page.getByRole("dialog");
-  await dialog.getByLabel("Name", { exact: true }).fill("Aisyah Abdullah");
-  await dialog.getByLabel("Username", { exact: true }).fill("aisyah");
+  await dialog.getByLabel("Name", { exact: true }).focus();
+  await page.keyboard.type("Aisyah Abdullah");
+  await page.keyboard.press("Tab");
+  assert.equal(
+    await dialog
+      .getByLabel("Username", { exact: true })
+      .evaluate((node) => node === document.activeElement),
+    true,
+  );
+  await page.keyboard.type("aisyah");
   await dialog.getByLabel("Password", { exact: true }).fill("Synthetic-password1!");
   await dialog.getByRole("button", { name: "Show password", exact: true }).click();
   assert.equal(await dialog.getByLabel("Password", { exact: true }).getAttribute("type"), "text");
@@ -124,7 +133,8 @@ try {
   duplicate = false;
   await dialog.getByRole("button", { name: "Override account type", exact: true }).click();
   await dialog.getByLabel("Account Type", { exact: true }).selectOption("Educator");
-  await dialog.getByRole("button", { name: "Override password", exact: true }).click();
+  await dialog.getByRole("button", { name: "Override password", exact: true }).focus();
+  await page.keyboard.press("Enter");
   await dialog.getByLabel("New password", { exact: true }).fill("Replacement-password2!");
   await dialog.getByRole("button", { name: "Save changes" }).click();
   await dialog.waitFor({ state: "detached" });

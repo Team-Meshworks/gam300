@@ -36,6 +36,7 @@ const api = async (route) => {
     return json(403, {});
   if (path === "/api/auth/csrf") return json(200, { requestToken: "test-token" });
   if (path === "/api/assets") return catalogueUnavailable ? json(503, {}) : json(200, []);
+  if (path === `/api/projects/${fixture.projectId}/assets`) return json(200, []);
   if (path === "/api/auth/logout") {
     account = null;
     return route.fulfill({ status: 204 });
@@ -94,8 +95,12 @@ try {
   catalogueUnavailable = false;
   await page.getByRole("button", { name: "Retry opening" }).click();
   await saved();
-  await page.getByRole("button", { name: "Leave editor" }).click();
-  await page.getByRole("button", { name: "Save and continue" }).click();
+  await page.getByRole("button", { name: "Leave editor" }).focus();
+  await page.keyboard.press("Enter");
+  const departureSave = page.getByRole("button", { name: "Save and continue" });
+  await departureSave.waitFor();
+  assert.equal(await departureSave.evaluate((node) => node === document.activeElement), true);
+  await page.keyboard.press("Enter");
   await page.waitForURL(`${base}/home`, { timeout: 5000 });
   await page.goto(url);
   await saved();

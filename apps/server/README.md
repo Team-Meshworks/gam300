@@ -2097,6 +2097,16 @@ SCRUM-126 project-home UI, SCRUM-67 autosave/recovery integration, publication/a
 delivery, hosted CI and deployment remain separate. Production still has no approved
 asset catalogue. These backend checks do not complete parent Story/Epic acceptance.
 
+## Saved project asset delivery
+
+`GET /api/projects/{projectId}/assets` checks current project read authority and
+returns catalogue metadata for approved assets referenced by the saved server
+document, including hidden or deleted entries unless removed from projects. It
+does not depend on the active catalogue's 1,000-entry limit. Entries use
+project-scoped bytes URLs; those requests recheck project access and the saved
+reference. The list is `private, no-store`, and asset bytes are `no-store`.
+`GET /api/assets` remains the active catalogue for new selections.
+
 ## Immutable publication snapshots (SCRUM-85)
 
 `AddPublicationSnapshots` adds a durable `publications` ledger. Each row holds its

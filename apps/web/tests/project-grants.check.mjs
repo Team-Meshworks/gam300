@@ -139,7 +139,9 @@ try {
   await manager().focus();
   await page.keyboard.press("Tab");
   assert.equal(await edit().evaluate((element) => document.activeElement === element), true);
-  await publishBox().check();
+  await publishBox().focus();
+  await page.keyboard.press("Space");
+  assert.equal(await publishBox().isChecked(), true);
   actor = { ...session, mustChangePassword: true };
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
   await page.getByRole("heading", { name: "Change your password to continue" }).waitFor();

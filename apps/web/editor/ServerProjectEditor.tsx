@@ -77,7 +77,10 @@ function ChoiceDialog({
 
 // SCRUM-126 can open /?projectId=<id>; this boundary owns only the editor's save/recovery session.
 export function ServerProjectEditor({ projectId }: { projectId: string }) {
-  const [catalogue, setCatalogue] = useState<readonly CatalogueAsset[] | null>(null);
+  const [catalogue, setCatalogue] = useState<{
+    all: readonly CatalogueAsset[];
+    available: readonly CatalogueAsset[];
+  } | null>(null);
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
@@ -88,11 +91,22 @@ export function ServerProjectEditor({ projectId }: { projectId: string }) {
         const identity = await accounts.getSession();
         if (!identity || identity.mustChangePassword)
           throw new Error("Sign in before opening this project.");
-        const approved = await readServerAssets(identity.userId, controller.signal);
+        const [approved, retained] = await Promise.all([
+          readServerAssets(identity.userId, controller.signal),
+          readServerAssets(identity.userId, controller.signal, fetch, projectId),
+        ]);
         const current = await accounts.getSession();
         if (current?.userId !== identity.userId || current.mustChangePassword)
           throw new Error("The account changed. Sign in again.");
-        if (!controller.signal.aborted) setCatalogue([...assets, ...approved]);
+        if (!controller.signal.aborted)
+          setCatalogue({
+            all: [
+              ...new Map(
+                [...assets, ...approved, ...retained].map((asset) => [asset.id, asset]),
+              ).values(),
+            ],
+            available: [...assets, ...approved],
+          });
       } catch (cause) {
         if (!controller.signal.aborted)
           setError(cause instanceof Error ? cause.message : "Approved assets could not be loaded.");
@@ -115,15 +129,23 @@ export function ServerProjectEditor({ projectId }: { projectId: string }) {
         )}
       </main>
     );
-  return <ServerProjectSession projectId={projectId} catalogue={catalogue} />;
+  return (
+    <ServerProjectSession
+      projectId={projectId}
+      catalogue={catalogue.all}
+      available={catalogue.available}
+    />
+  );
 }
 
 function ServerProjectSession({
   projectId,
   catalogue,
+  available,
 }: {
   projectId: string;
   catalogue: readonly CatalogueAsset[];
+  available: readonly CatalogueAsset[];
 }) {
   const editorAssets = useMemo(() => [...catalogue, HOTSPOT_ASSET], [catalogue]);
   const kinds = useMemo(
@@ -412,6 +434,7 @@ function ServerProjectSession({
         <App
           server={{
             assets: catalogue,
+            selectionAssets: available,
             store,
             title: active.title,
             dirty: status !== "saved",

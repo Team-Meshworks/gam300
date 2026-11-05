@@ -11,6 +11,18 @@ const asset = {
   thumbnail: null,
   category: null,
 };
+it("loads retained references independently of the active catalogue using project-scoped bytes", async () => {
+  const projectId = "22222222-2222-4222-8222-222222222222";
+  const retained = { ...asset, url: `/api/projects/${projectId}/assets/${id}/bytes` };
+  const fetcher = vi
+    .fn<typeof fetch>()
+    .mockImplementation(async (url) =>
+      Response.json(url === `/api/projects/${projectId}/assets` ? [retained] : []),
+    );
+  expect(await readServerAssets("alice", new AbortController().signal, fetcher, projectId)).toEqual(
+    [{ ...retained, category: undefined }],
+  );
+});
 it("loads approved server identities and uses authenticated uncached requests", async () => {
   const fetcher = vi.fn<typeof fetch>().mockResolvedValue(Response.json([asset]));
   expect(await readServerAssets("alice", new AbortController().signal, fetcher)).toEqual([

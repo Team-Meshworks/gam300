@@ -69,8 +69,19 @@ try {
       (button) => button.textContent.trim() === "New project" && !button.disabled,
     ),
   );
-  await create.click();
+  await create.focus();
+  await page.keyboard.press("Enter");
   const dialog = page.getByRole("dialog", { name: "New project" });
+  await dialog.waitFor();
+  assert.equal(
+    await dialog.getByLabel("Project title").evaluate((node) => node === document.activeElement),
+    true,
+  );
+  await page.keyboard.press("Tab");
+  assert.equal(
+    await dialog.getByLabel("3D space").evaluate((node) => node === document.activeElement),
+    true,
+  );
   await dialog.getByLabel("Project title").fill("My gallery");
   await dialog.getByLabel("3D space").selectOption(assetId);
   for (const width of [390, 1440]) {

@@ -163,6 +163,16 @@ public sealed class AssetIntakeTests
         using var retained = await fixture.Client.GetAsync($"/api/projects/{projectId}/assets/{candidate.Id}/bytes");
         await Assert.That(retained.StatusCode).IsEqualTo(HttpStatusCode.OK);
         await Assert.That((await retained.Content.ReadAsByteArrayAsync()).SequenceEqual(bytes)).IsTrue();
+        using var metadata = await fixture.Client.GetAsync($"/api/projects/{projectId}/assets");
+        await Assert.That(metadata.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        await Assert.That(metadata.Headers.CacheControl?.NoStore).IsTrue();
+        var entries = await metadata.Content.ReadFromJsonAsync<JsonElement>();
+        await Assert.That(entries.GetArrayLength()).IsEqualTo(1);
+        await Assert.That(entries[0].GetProperty("id").GetString()).IsEqualTo(candidate.Id.ToString());
+        await Assert.That(entries[0].GetProperty("url").GetString()).IsEqualTo($"/api/projects/{projectId}/assets/{candidate.Id}/bytes");
+        await Assert.That(entries[0].GetProperty("sha256").GetString()).IsEqualTo(stored.Sha256);
+        using var missingMetadata = await fixture.Client.GetAsync($"/api/projects/{Guid.NewGuid()}/assets");
+        await Assert.That(missingMetadata.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
         using var unrelated = await fixture.Client.GetAsync($"/api/projects/{Guid.NewGuid()}/assets/{candidate.Id}/bytes");
         await Assert.That(unrelated.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
         // Existing references remain saveable after retirement while an old retry acknowledges only its original commit
@@ -171,6 +181,8 @@ public sealed class AssetIntakeTests
         var withoutRetired = ProjectTestDocuments.Create(projectId, "Newer draft without retired asset");
         using var newerSave = await SaveAsync(withoutRetired, 2, Guid.NewGuid());
         await Assert.That(newerSave.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        using var noLongerReferenced = await fixture.Client.GetAsync($"/api/projects/{projectId}/assets");
+        await Assert.That((await noLongerReferenced.Content.ReadFromJsonAsync<JsonElement>()).GetArrayLength()).IsEqualTo(0);
         using var historicalRetry = await SaveAsync(json, 0, originalMutation);
         await Assert.That(historicalRetry.StatusCode).IsEqualTo(HttpStatusCode.OK);
         var replay = await historicalRetry.Content.ReadFromJsonAsync<JsonElement>();
@@ -190,6 +202,9 @@ public sealed class AssetIntakeTests
         await Assert.That((await database.AssetCandidates.AsNoTracking().SingleAsync()).RemovedFromProjects).IsFalse();
         // Database enforcement prevents later writers from replacing a reviewed version's bytes
         await Assert.ThrowsAsync<Npgsql.PostgresException>(async () => await database.Database.ExecuteSqlRawAsync("UPDATE asset_candidates SET bytes = decode('00', 'hex')"));
+        await fixture.SignInAsync(await fixture.CreateAccountAsync());
+        using var deniedMetadata = await fixture.Client.GetAsync($"/api/projects/{projectId}/assets");
+        await Assert.That(deniedMetadata.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
     }
 
     [Test]

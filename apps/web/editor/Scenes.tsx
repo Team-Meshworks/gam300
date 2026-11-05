@@ -10,6 +10,7 @@ export function Scenes({
   scenes,
   activeSceneId,
   assets,
+  existingAssets = assets,
   store,
   disabled,
   onSwitch,
@@ -17,6 +18,7 @@ export function Scenes({
   scenes: readonly ProjectScene[];
   activeSceneId: string | null;
   assets: readonly CatalogueAsset[];
+  existingAssets?: readonly CatalogueAsset[];
   store: ReturnType<typeof createDocumentStore>;
   disabled: boolean;
   onSwitch: () => void;
@@ -30,6 +32,13 @@ export function Scenes({
   const [dragged, setDragged] = useState<string | null>(null);
   const [drop, setDrop] = useState<{ id: string; after: boolean } | null>(null);
   const active = scenes.find((s) => s.id === activeSceneId);
+  const environments = assets.filter((asset) => asset.kind === "environment");
+  const selectedEnvironment = environments.some((asset) => asset.id === newEnvironment)
+    ? newEnvironment
+    : "";
+  const retainedEnvironment = existingAssets.find(
+    (asset) => asset.kind === "environment" && asset.id === active?.environmentAssetId,
+  );
   function report(result: ReturnType<typeof store.switchScene>, success: string) {
     setMessage(result.ok ? success : result.error.message);
   }
@@ -117,12 +126,10 @@ export function Scenes({
           New scene environment
           <AssetFilterSelect
             label="New scene environment"
-            value={newEnvironment}
+            value={selectedEnvironment}
             options={[
               { value: "", label: "Choose an environment" },
-              ...assets
-                .filter((asset) => asset.kind === "environment")
-                .map((asset) => ({ value: asset.id, label: asset.name })),
+              ...environments.map((asset) => ({ value: asset.id, label: asset.name })),
             ]}
             onChange={setNewEnvironment}
             icon={<Icon name="caretDown" />}
@@ -132,9 +139,9 @@ export function Scenes({
         <div className="viewpoint-actions">
           <button
             type="button"
-            disabled={!name.trim() || !newEnvironment || scenes.length >= 16}
+            disabled={!name.trim() || !selectedEnvironment || scenes.length >= 16}
             onClick={() => {
-              const result = store.createScene(name, newEnvironment);
+              const result = store.createScene(name, selectedEnvironment);
               if (result.ok) onSwitch();
               report(result, `Created ${name.trim()}.`);
             }}
@@ -208,9 +215,19 @@ export function Scenes({
             <AssetFilterSelect
               label="Environment"
               value={active.environmentAssetId ?? ""}
-              options={assets
-                .filter((asset) => asset.kind === "environment")
-                .map((asset) => ({ value: asset.id, label: asset.name }))}
+              options={[
+                ...(retainedEnvironment &&
+                !environments.some((asset) => asset.id === retainedEnvironment.id)
+                  ? [
+                      {
+                        value: retainedEnvironment.id,
+                        label: `${retainedEnvironment.name} (retired)`,
+                        disabled: true,
+                      },
+                    ]
+                  : []),
+                ...environments.map((asset) => ({ value: asset.id, label: asset.name })),
+              ]}
               onChange={(value) =>
                 report(store.setEnvironment(value), "Environment updated. Undo is available.")
               }

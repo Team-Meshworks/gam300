@@ -22,6 +22,8 @@ public sealed class ProjectGrantBrowserTests
         var classroom = Guid.NewGuid();
         var source = Guid.NewGuid();
         var environment = Guid.NewGuid();
+        var retainedProject = Guid.NewGuid();
+        var retainedAsset = Guid.NewGuid();
         await using (var scope = fixture.App.Services.CreateAsyncScope())
         {
             var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -45,6 +47,35 @@ public sealed class ProjectGrantBrowserTests
                 ReviewedBy = educator,
                 CreatedAt = DateTimeOffset.UtcNow,
             });
+            database.AssetCandidates.Add(new AssetCandidate
+            {
+                Id = retainedAsset,
+                Name = "Retired browser room",
+                Kind = "environment",
+                Bytes = bytes,
+                Sha256 = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(bytes)),
+                Status = "approved",
+                Hidden = true,
+                Deleted = true,
+                ValidationJson = "{}",
+                Source = "Synthetic fixture",
+                License = "Synthetic test only",
+                ReviewNotes = "Fixture approval",
+                SubmittedBy = educator,
+                ReviewedBy = educator,
+                CreatedAt = DateTimeOffset.UtcNow,
+            });
+            database.Projects.Add(new Project
+            {
+                Id = retainedProject,
+                OrganizationId = organization,
+                SchemaVersion = 1,
+                DocumentJson = ProjectTestDocuments.Create(retainedProject, "Retained room project", 1)
+                    .Replace("test-room-v1", retainedAsset.ToString(), StringComparison.Ordinal),
+                UpdatedAt = DateTimeOffset.UtcNow,
+            });
+            database.ProjectAssignments.Add(new ProjectAssignment
+            { ProjectId = retainedProject, UserId = educator, CanEdit = true, CanManage = true, CanPublish = true });
             await database.OrganizationMemberships.Where(row => row.UserId == student || row.UserId == outsider)
                 .ExecuteUpdateAsync(set => set.SetProperty(row => row.OrganizationId, organization));
             database.Classrooms.Add(new Classroom { Id = classroom, OrganizationId = organization, Name = "Live class" });
@@ -90,6 +121,8 @@ public sealed class ProjectGrantBrowserTests
         start.Environment["SPATIA_TEST_CLASS"] = classroom.ToString("D");
         start.Environment["SPATIA_TEST_SOURCE"] = source.ToString("D");
         start.Environment["SPATIA_TEST_ENVIRONMENT"] = environment.ToString("D");
+        start.Environment["SPATIA_TEST_RETAINED_PROJECT"] = retainedProject.ToString("D");
+        start.Environment["SPATIA_TEST_RETAINED_ASSET"] = retainedAsset.ToString("D");
         start.Environment.Remove("SPATIA_TEST_DATABASE_CONNECTION");
         start.Environment.Remove("ConnectionStrings__Spatia");
         using var process = Process.Start(start)!;

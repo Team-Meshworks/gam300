@@ -22,6 +22,7 @@ try {
   let loginRequests = 0;
   let passwordRequests = 0;
   let releaseLogin;
+  let notifyLogin;
   let pendingLogin;
   await page.route("**/api/auth/**", async (route) => {
     const request = route.request();
@@ -46,6 +47,7 @@ try {
         : route.fulfill({ status: 401 });
     if (path === "/api/auth/login") {
       loginRequests += 1;
+      notifyLogin?.();
       assert.equal(request.headers()["x-csrf-token"], "browser-test-token");
       assert.deepEqual(request.postDataJSON(), {
         userName: "teacher",
@@ -149,14 +151,20 @@ try {
     .click();
   assert.equal(new URL(page.url()).pathname, "/login");
 
-  await page.getByRole("button", { name: "Need help signing in?" }).click();
+  const help = page.getByRole("button", { name: "Need help signing in?" });
+  await help.focus();
+  await page.keyboard.press("Enter");
   await page.getByRole("dialog", { name: "Account help" }).waitFor();
   await page.keyboard.press("Escape");
   assert.equal(await page.getByRole("dialog").count(), 0);
+  assert.equal(await help.evaluate((node) => node === document.activeElement), true);
   const username = page.getByLabel("Username", { exact: true });
   const password = page.getByLabel("Password", { exact: true });
-  await username.fill("teacher");
-  await password.fill("incorrect password");
+  await username.focus();
+  await page.keyboard.type("teacher");
+  await page.keyboard.press("Tab");
+  assert.equal(await password.evaluate((node) => node === document.activeElement), true);
+  await page.keyboard.type("incorrect password");
   await page.getByRole("button", { name: /show password/i }).click();
   assert.equal(await password.getAttribute("type"), "text");
   await page.getByRole("button", { name: /hide password/i }).click();
@@ -165,13 +173,23 @@ try {
   pendingLogin = new Promise((resolve) => {
     releaseLogin = resolve;
   });
+  const loginStarted = new Promise((resolve) => {
+    notifyLogin = resolve;
+  });
   const submit = page.getByRole("button", { name: /log in/i });
   await submit.click();
   await page.waitForFunction(() => document.querySelector("fieldset")?.disabled);
+  await loginStarted;
   assert.equal(loginRequests, 1);
   releaseLogin();
   pendingLogin = undefined;
+  notifyLogin = undefined;
   await page.getByText(/username or password could not be accepted/i).waitFor();
+  assert.equal(loginRequests, 1);
+  assert.equal(
+    await page.getByRole("alert").evaluate((node) => node === document.activeElement),
+    true,
+  );
   assert.equal(await username.inputValue(), "teacher");
   assert.equal(await password.inputValue(), "");
   mode = "unavailable";
@@ -183,6 +201,12 @@ try {
   await password.fill("incorrect password");
   await submit.click();
   await page.getByRole("heading", { name: "Change your password." }).waitFor();
+  assert.equal(
+    await page
+      .getByRole("heading", { name: "Change your password." })
+      .evaluate((node) => node === document.activeElement),
+    true,
+  );
   assert.equal(await page.getByLabel("Username", { exact: true }).count(), 0);
   await page.getByLabel("Current password").fill("incorrect password");
   await page.getByLabel("New password", { exact: true }).fill("a different password");

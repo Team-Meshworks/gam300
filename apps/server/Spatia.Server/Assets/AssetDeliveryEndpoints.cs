@@ -26,6 +26,35 @@ public static class AssetDeliveryEndpoints
                     thumbnail = (string?)null
                 })
                 .Take(1000).ToArrayAsync(token))).RequireAuthorization(SecurityPolicies.FullAccount);
+        endpoints.MapGet("/api/projects/{projectId:guid}/assets", async (Guid projectId, HttpContext context,
+            ApplicationDbContext database, ProjectAccessService access, ProjectDocumentService documents, CancellationToken token) =>
+        {
+            var authorization = await access.ReadAsync(context, projectId, token);
+            if (authorization.Failure is { } failure) { return ProjectHttpResults.FromAccessFailure(context, failure); }
+            var project = authorization.Snapshot!;
+            if (!documents.ReadStored(projectId, project.SchemaVersion, project.UnvalidatedDocumentJson).Ok)
+            { return ApiProblems.Create(context, 503, "project_unavailable", "Project assets are unavailable"); }
+            // Resolve every saved reference, independent of discovery pagination and retirement.
+            // Project-scoped delivery retains its existing access and removal checks on every byte read.
+            var ids = AssetDocumentReferences.Read(project.UnvalidatedDocumentJson)
+                .Where(value => Guid.TryParse(value, out _)).Select(Guid.Parse).ToArray();
+            var rows = await database.AssetCandidates.AsNoTracking()
+                .Where(asset => ids.Contains(asset.Id) && asset.Status == "approved" && !asset.RemovedFromProjects)
+                .Select(asset => new
+                {
+                    id = asset.Id.ToString(),
+                    asset.Name,
+                    asset.Kind,
+                    asset.Category,
+                    url = "/api/projects/" + projectId + "/assets/" + asset.Id + "/bytes",
+                    asset.Sha256,
+                    thumbnail = (string?)null
+                }).ToArrayAsync(token);
+            if (context.Features.Get<ValidatedAccountSession>() is not { } session || session.Clock.GetUtcNow() >= session.ExpiresUtc)
+            { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired); }
+            context.Response.Headers.CacheControl = "private, no-store";
+            return Results.Ok(rows);
+        }).RequireAuthorization(SecurityPolicies.FullAccount);
         endpoints.MapGet("/api/assets/{id:guid}/bytes", async (Guid id, HttpContext context,
             ApplicationDbContext database, CancellationToken token) =>
         {

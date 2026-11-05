@@ -10,6 +10,8 @@ const required = [
   "SPATIA_TEST_CLASS",
   "SPATIA_TEST_SOURCE",
   "SPATIA_TEST_ENVIRONMENT",
+  "SPATIA_TEST_RETAINED_PROJECT",
+  "SPATIA_TEST_RETAINED_ASSET",
 ];
 for (const name of required) assert.ok(process.env[name], `Missing ${name}`);
 const server = await createServer({ server: { port: 0 }, logLevel: "silent" });
@@ -99,6 +101,69 @@ try {
   await page.getByRole("button", { name: "Save and continue" }).click();
   await page.waitForURL(`${origin}/home`);
   await page.getByRole("heading", { name: "Live blank project" }).waitFor();
+  const retainedId = process.env.SPATIA_TEST_RETAINED_PROJECT;
+  const retainedAsset = process.env.SPATIA_TEST_RETAINED_ASSET;
+  const retainedBytes = page.waitForResponse(
+    (item) =>
+      new URL(item.url()).pathname === `/api/projects/${retainedId}/assets/${retainedAsset}/bytes`,
+    { timeout: 30000 },
+  );
+  await page
+    .getByRole("listitem")
+    .filter({ has: page.getByRole("heading", { name: "Retained room project" }) })
+    .getByRole("button", { name: "Continue editing" })
+    .click();
+  await page.waitForURL(`**/?projectId=${retainedId}`);
+  const retainedResponse = await retainedBytes;
+  assert.equal(retainedResponse.status(), 200, "Saved retired room bytes remain available");
+  assert.ok((await retainedResponse.body()).length > 0);
+  await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
+  await page.getByRole("button", { name: "Rooms", exact: true }).click();
+  assert.equal(
+    await page
+      .getByRole("group", { name: "Rooms options" })
+      .getByRole("button", { name: "Retired browser room" })
+      .count(),
+    0,
+  );
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Scenes", exact: true }).click();
+  assert.match(
+    await page.getByRole("combobox", { name: "Environment", exact: true }).textContent(),
+    /Retired browser room/,
+  );
+  await page.getByLabel("Scene name", { exact: true }).fill("Retained room saved");
+  assert.equal(
+    await page.getByRole("button", { name: "Add scene", exact: true }).isDisabled(),
+    true,
+    "A retired room cannot be selected for a new scene",
+  );
+  await page.getByRole("combobox", { name: "New scene environment" }).click();
+  await page.getByRole("option", { name: "Approved browser room" }).click();
+  assert.equal(
+    await page.getByRole("button", { name: "Add scene", exact: true }).isEnabled(),
+    true,
+  );
+  const retainedSave = page.waitForResponse(
+    (item) =>
+      new URL(item.url()).pathname.toLowerCase() === `/api/projects/${retainedId}`.toLowerCase() &&
+      item.request().method() === "PUT",
+  );
+  await page.getByRole("button", { name: "Rename scene", exact: true }).click();
+  let savedRetained;
+  try {
+    savedRetained = await retainedSave;
+  } catch (error) {
+    const status = await page.locator('[role="alert"], [role="status"]').allTextContents();
+    throw new Error(
+      `Retained room save did not reach the API. Visible status: ${status.join(" | ")}`,
+      { cause: error },
+    );
+  }
+  assert.equal(savedRetained.status(), 200, "A project retaining the retired room can be saved");
+  await page.getByRole("button", { name: "Leave editor" }).click();
+  await page.getByRole("button", { name: "Save and continue" }).click();
+  await page.waitForURL(`${origin}/home`);
   await page.getByRole("button", { name: "Classes", exact: true }).click();
   await page.getByRole("button", { name: "New assignment", exact: true }).click();
   await page.getByLabel("Source project").selectOption(process.env.SPATIA_TEST_SOURCE);
@@ -153,6 +218,10 @@ try {
     .waitFor();
   const outsiderContext = await browser.newContext({ ignoreHTTPSErrors: true });
   await login(outsiderContext, process.env.SPATIA_TEST_OUTSIDER);
+  assert.equal(
+    (await outsiderContext.request.get(`${origin}/api/projects/${retainedId}/assets`)).status(),
+    404,
+  );
   assert.equal(
     (await outsiderContext.request.get(`${origin}/api/projects/${project}`)).status(),
     404,

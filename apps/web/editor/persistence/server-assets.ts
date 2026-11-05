@@ -5,8 +5,12 @@ export async function readServerAssets(
   accountId: string,
   signal: AbortSignal,
   fetcher: typeof fetch = fetch,
+  projectId?: string,
 ): Promise<readonly CatalogueAsset[]> {
-  const response = await fetcher("/api/assets", {
+  if (projectId !== undefined && !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(projectId))
+    throw new Error("Invalid project identity.");
+  const path = projectId ? `/api/projects/${projectId}/assets` : "/api/assets";
+  const response = await fetcher(path, {
     headers: { "X-Spatia-Account": accountId },
     credentials: "same-origin",
     cache: "no-store",
@@ -16,7 +20,7 @@ export async function readServerAssets(
   if (!response.ok)
     throw new Error("Approved assets could not be loaded. Retry opening this project.");
   const rows: unknown = await response.json();
-  if (!Array.isArray(rows) || rows.length > 1000)
+  if (!Array.isArray(rows) || rows.length > (projectId ? 100_000 : 1000))
     throw new Error("Invalid approved asset catalogue.");
   const seen = new Set<string>();
   return rows.map((row: unknown) => {
@@ -28,7 +32,7 @@ export async function readServerAssets(
       typeof row.name !== "string" ||
       !row.name.trim() ||
       !["environment", "model", "image", "video", "audio"].includes(String(row.kind)) ||
-      row.url !== `/api/assets/${row.id}/bytes` ||
+      row.url !== `${path}/${row.id}/bytes` ||
       typeof row.sha256 !== "string" ||
       !/^[0-9a-f]{64}$/i.test(row.sha256) ||
       (row.category !== null && typeof row.category !== "string") ||
