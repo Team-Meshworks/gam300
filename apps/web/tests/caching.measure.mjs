@@ -23,6 +23,13 @@ const fixture = JSON.parse(
 const manifest = JSON.parse(
   await readFile(new URL("../../../assets/manifest.json", import.meta.url), "utf8"),
 );
+// Keep the historical comparison on its original workload as the live catalogue gains media
+const measurementAssetIds = ["test-room-v1", "test-crate-v1", "sample-snowglobe-v1"];
+const measurementAssets = measurementAssetIds.map((id) => {
+  const asset = manifest.assets.find((entry) => entry.assetId === id);
+  assert.ok(asset && ["model", "environment"].includes(asset.kind), `Missing benchmark GLB: ${id}`);
+  return asset;
+});
 const runs = 16;
 const missRuns = 8;
 const output = process.argv[2] ?? "test-results/caching.json";
@@ -81,7 +88,7 @@ try {
         });
     });
     await page.goto("http://127.0.0.1:5190/ti18-harness.html");
-    browserDetails = await page.evaluate(async () => {
+    browserDetails = await page.evaluate(async (assetIds) => {
       const source = await (await fetch("/graphics/ti18-baseline.ts")).text();
       const threePath = source.match(/import \* as THREE from "([^"]+)"/)[1];
       const loaderPath = source.match(/import \{ GLTFLoader \} from "([^"]+)"/)[1];
@@ -89,7 +96,15 @@ try {
       const { GLTFLoader } = await import(loaderPath);
       const baseline = await import("/graphics/ti18-baseline.ts");
       const candidate = await import("/graphics/scene.ts");
-      const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
+      const { assets: catalogue } = await import("/@id/__x00__virtual:asset-catalogue");
+      // Both renderers receive the same GLBs; newer media and sprite entries are not baseline inputs
+      const assets = assetIds.map((id) => {
+        const asset = catalogue.find((entry) => entry.id === id);
+        if (!asset || !["model", "environment"].includes(asset.kind)) {
+          throw new Error(`Missing benchmark GLB: ${id}`);
+        }
+        return asset;
+      });
       const originalFetch = window.fetch;
       const originalParse = GLTFLoader.prototype.parseAsync;
       const originalImage = HTMLCanvasElement.prototype.toDataURL;
@@ -194,7 +209,7 @@ try {
         : gl.getParameter(gl.RENDERER);
       gl.getExtension("WEBGL_lose_context").loseContext();
       return { userAgent: navigator.userAgent, renderer, devicePixelRatio };
-    });
+    }, measurementAssetIds);
     const versions = process.env.BASELINE_ONLY === "1" ? ["baseline"] : ["baseline", "cached"];
     // Keep and label warm-up results; do not mix them into warm medians
     for (const version of versions) {
@@ -306,9 +321,8 @@ try {
       network: "localhost; unthrottled",
       cpuThrottling: 1,
       node: process.version,
-      fixture:
-        "apps/web/shared/project/fixtures/m1-project.json; full 3-asset development catalogue",
-      assets: manifest.assets.map(({ assetId, byteSize, sha256 }) => ({
+      fixture: "apps/web/shared/project/fixtures/m1-project.json; original 3-asset GLB workload",
+      assets: measurementAssets.map(({ assetId, byteSize, sha256 }) => ({
         assetId,
         byteSize,
         sha256,

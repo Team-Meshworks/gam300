@@ -1,3 +1,4 @@
+import { exhibitMaterials, type ExhibitAppearance } from "./project-appearance";
 import { encodeProjectJson } from "./project-wire";
 import type {
   ContentComponent,
@@ -64,6 +65,15 @@ function text(raw: unknown, path: string, limit = 256): string {
   }
   return raw;
 }
+function appearance(raw: unknown, path: string): ExhibitAppearance {
+  const value = record(raw, ["color", "material"], path);
+  const color = text(value.color, `${path}.color`, 7);
+  if (!/^#[0-9a-fA-F]{6}$/.test(color)) fail(`${path}.color`, "Choose a six-digit colour");
+  const material = text(value.material, `${path}.material`);
+  if (!(exhibitMaterials as readonly string[]).includes(material))
+    fail(`${path}.material`, "Choose a supported material");
+  return { color, material: material as ExhibitAppearance["material"] };
+}
 function flag(raw: unknown, path: string): boolean {
   // Do not coerce strings or numbers from imported files into authored flags
   if (typeof raw !== "boolean") {
@@ -122,12 +132,28 @@ function component(raw: unknown, path: string): ContentComponent {
   if (typeof type !== "string" || !Object.hasOwn(variants, type)) {
     fail(`${path}.type`, "Unsupported component type");
   }
-  record(raw, ["id", "type", ...variants[type]!], path);
+  record(
+    raw,
+    ["id", "type", ...variants[type]!],
+    path,
+    type === "text" ? ["placement", "background", "color", "fontSize"] : [],
+  );
   const id = text(raw.id, `${path}.id`);
   switch (type) {
     case "hotspot":
       return { id, type, label: text(raw.label, `${path}.label`) };
     case "text": {
+      if (
+        raw.background !== undefined &&
+        raw.background !== "transparent" &&
+        (typeof raw.background !== "string" || !/^#[0-9a-fA-F]{6}$/.test(raw.background))
+      )
+        fail(`${path}.background`, "Choose a background color or transparent");
+      if (
+        raw.color !== undefined &&
+        (typeof raw.color !== "string" || !/^#[0-9a-fA-F]{6}$/.test(raw.color))
+      )
+        fail(`${path}.color`, "Choose a text color");
       // Bound the whole panel so splitting text into many runs cannot bypass its limit
       let length = 0;
       const runs = list(raw.runs, `${path}.runs`, 256, (input, path) => {
@@ -153,6 +179,14 @@ function component(raw: unknown, path: string): ContentComponent {
         type,
         runs,
         caption: text(raw.caption, `${path}.caption`, 4096),
+        ...(raw.placement === undefined
+          ? {}
+          : { placement: transform(raw.placement, `${path}.placement`) }),
+        ...(raw.background === undefined ? {} : { background: raw.background as string }),
+        ...(raw.color === undefined ? {} : { color: raw.color as string }),
+        ...(raw.fontSize === undefined
+          ? {}
+          : { fontSize: number(raw.fontSize, `${path}.fontSize`, 12, 96) }),
       };
     }
     case "image":
@@ -329,8 +363,16 @@ function interactionAction(
     fail(path, "Action must be an object");
   }
   switch (raw.type) {
-    case "open-link":
     case "play-audio": {
+      if (raw.mediaId !== undefined) {
+        record(raw, ["type", "mediaId"], path);
+        return { type: "play-audio", mediaId: text(raw.mediaId, `${path}.mediaId`) };
+      }
+      // Retain released URL actions; new authoring links the stable scene audio ID
+      record(raw, ["type", "url"], path);
+      return { type: "play-audio", url: text(raw.url, `${path}.url`, MAX_PORTABLE_URL_LENGTH) };
+    }
+    case "open-link": {
       record(raw, ["type", "url"], path);
       const url = text(
         raw.url,
@@ -393,13 +435,23 @@ export function validateContentStructure(
           "rules",
         ],
         path,
-        ["hotspots", "interactions"],
+        ["hotspots", "interactions", "audio", "environmentTransform", "environmentVisible"],
       );
       return {
         id: text(scene.id, `${path}.id`),
         name: text(scene.name, `${path}.name`),
         environmentAssetId: text(scene.environmentAssetId, `${path}.environmentAssetId`),
+        ...(scene.environmentVisible === undefined
+          ? {}
+          : { environmentVisible: flag(scene.environmentVisible, `${path}.environmentVisible`) }),
         startCamera: checked(validateCameraPose(scene.startCamera, `${path}.startCamera`)),
+        ...(scene.environmentTransform === undefined
+          ? {}
+          : {
+              environmentTransform: checked(
+                validateTransform(scene.environmentTransform, `${path}.environmentTransform`),
+              ),
+            }),
         hotspots:
           scene.hotspots === undefined
             ? []
@@ -410,11 +462,24 @@ export function validateContentStructure(
             : list(scene.interactions, `${path}.interactions`, 200, (value, path) =>
                 interaction(value, path, allowDraftLinks),
               ),
+        // Root audio uses the same component validation while rejecting non-global content
+        ...(scene.audio === undefined
+          ? {}
+          : {
+              audio: list(scene.audio, `${path}.audio`, 64, (raw, path) => {
+                const value = component(raw, path);
+                if (value.type !== "audio" || value.mode !== "global") {
+                  fail(path, "Scene audio must be global audio");
+                }
+                return value;
+              }),
+            }),
         objects: list(scene.objects, `${path}.objects`, 200, (input, path) => {
           const object = record(
             input,
             ["id", "name", "assetId", "transform", "parentId", "visible", "components"],
             path,
+            ["appearance"],
           );
           return {
             id: text(object.id, `${path}.id`),
@@ -424,6 +489,9 @@ export function validateContentStructure(
             parentId: parent(object.parentId, `${path}.parentId`),
             visible: flag(object.visible, `${path}.visible`),
             components: list(object.components, `${path}.components`, 16, component),
+            ...(object.appearance === undefined
+              ? {}
+              : { appearance: appearance(object.appearance, `${path}.appearance`) }),
           };
         }),
         // Groups express parent membership without introducing another room or transform
@@ -526,6 +594,10 @@ export function validateContentReferences(
           entity(component.id, component.type, scene.id, `${objectPath}.components[${index}]`),
         );
       });
+      // Root and attached tracks share one scene-local identity namespace
+      scene.audio?.forEach((value, index) =>
+        entity(value.id, "audio", scene.id, `${path}.audio[${index}]`),
+      );
       scene.hotspots.forEach((value, index) =>
         entity(value.id, "hotspot", scene.id, `${path}.hotspots[${index}]`),
       );
@@ -592,6 +664,9 @@ export function validateContentReferences(
         }
       }
 
+      scene.audio?.forEach((value, index) =>
+        asset(value.assetId, "audio", `${path}.audio[${index}].assetId`),
+      );
       // Model approval does not imply approval of attached media or navigation destinations
       const hotspotObjects = new Set<string>();
       scene.objects.forEach((object, index) => {
@@ -619,7 +694,9 @@ export function validateContentReferences(
       });
       scene.interactions.forEach((value, index) => {
         const actionPath = `${path}.interactions[${index}].do`;
-        if (value.do.type === "navigate-scene") {
+        if (value.do.type === "play-audio" && value.do.mediaId !== undefined) {
+          reference(value.do.mediaId, ["audio"], scene.id, `${actionPath}.mediaId`);
+        } else if (value.do.type === "navigate-scene") {
           reference(value.do.sceneId, ["scene"], null, `${actionPath}.sceneId`);
         } else if (value.do.type === "move-to-viewpoint") {
           reference(value.do.viewpointId, ["viewpoint"], scene.id, `${actionPath}.viewpointId`);

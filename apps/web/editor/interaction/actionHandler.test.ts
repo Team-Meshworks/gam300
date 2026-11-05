@@ -120,3 +120,34 @@ describe("action handler", () => {
     expect(FakeAudio.latest).toBeUndefined();
   });
 });
+
+it("resolves the current scene track by ID and stops playback when preview ends", () => {
+  vi.stubGlobal("Audio", FakeAudio);
+  const resolve = vi.fn((id: string) =>
+    id === "track" ? { url: "/media/bgm.m4a", loop: true, volume: 0.4 } : undefined,
+  );
+  const player = createActionRunner(undefined, resolve);
+  player.run({ type: "play-audio", mediaId: "missing" });
+  expect(FakeAudio.latest).toBeUndefined();
+  player.run({ type: "play-audio", mediaId: "track" });
+  expect(FakeAudio.latest).toMatchObject({ src: "/media/bgm.m4a", loop: true, volume: 0.4 });
+  expect(FakeAudio.latest!.play).toHaveBeenCalledOnce();
+  player.stop();
+  expect(FakeAudio.latest!.pause).toHaveBeenCalledOnce();
+});
+
+it("does not restart an already-playing linked track on repeated hotspot clicks", () => {
+  vi.stubGlobal("Audio", FakeAudio);
+  const player = createActionRunner(undefined, () => ({
+    url: "/media/bgm.m4a",
+    loop: true,
+    volume: 1,
+  }));
+  player.run({ type: "play-audio", mediaId: "track" });
+  const first = FakeAudio.latest!;
+  player.run({ type: "play-audio", mediaId: "track" });
+  expect(FakeAudio.latest).toBe(first);
+  expect(first.play).toHaveBeenCalledOnce();
+  expect(first.pause).not.toHaveBeenCalled();
+  player.stop();
+});

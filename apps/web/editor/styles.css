@@ -1,11 +1,12 @@
 :root {
+  --text: #1f1d1a;
   font-family: "Segoe UI", system-ui, sans-serif;
   line-height: 1.45;
   color: #1f1d1a;
   background: #fffdf3;
   font-synthesis: none;
   --accent: #ae452e;
-  --muted: #77726a;
+  --muted: #686357;
   --line: #dedad0;
   --card: #f2efe6;
   --card-raised: #f8f6f0;
@@ -21,6 +22,275 @@
   --asset-scroll-thumb: #8f8981;
   --asset-scroll-hover: #6f6961;
   --asset-scroll-track: #efede9;
+  --scene-hint-background: #292e29;
+  --scene-hint-text: #f5f7fa;
+}
+
+/* Content forms share the library's warm surface and keep the scene inert until Save or Cancel */
+.content-dialog {
+  width: min(960px, calc(100% - 48px));
+  font-size: 14px;
+  max-height: calc(100dvh - 3rem);
+  padding: 1.25rem;
+  border: 1px solid var(--line);
+  border-radius: 1.75rem;
+  color: inherit;
+  background: var(--pill);
+  box-shadow: var(--picker-shadow);
+  overflow: auto;
+  scrollbar-color: var(--asset-scroll-thumb) transparent;
+  scrollbar-width: thin;
+}
+.content-dialog::backdrop {
+  background: var(--picker-backdrop);
+}
+.content-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+.content-heading h2 {
+  display: flex;
+  gap: 0.65rem;
+  align-items: center;
+  font-size: 1rem;
+}
+.content-heading .icon {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+.content-close {
+  border-radius: 50%;
+  width: 2.5rem;
+  height: 2.5rem;
+  display: grid;
+  place-items: center;
+}
+.content-layout {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 1rem;
+}
+.content-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.content-dialog button {
+  border: 0;
+  border-radius: 1rem;
+  padding: 0.65rem 0.85rem;
+  background: var(--card-raised);
+  font-size: 0.875rem;
+}
+.content-dialog button:hover:not(:disabled),
+.content-dialog button[aria-pressed="true"] {
+  background: var(--button-strong);
+}
+.content-dialog :focus-visible {
+  outline: 2px solid var(--muted);
+  outline-offset: 2px;
+}
+.content-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+}
+.content-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  font-size: 0.875rem;
+}
+.content-fields input:not([type="checkbox"]),
+.content-fields textarea,
+.content-fields select {
+  font: inherit;
+  color: inherit;
+  background: var(--card-raised);
+  border: 1px solid var(--line);
+  border-radius: 0.9rem;
+  padding: 0.7rem 0.9rem;
+  width: 100%;
+  min-width: 0;
+}
+.content-fields select {
+  padding-right: 2rem;
+}
+.content-fields textarea {
+  resize: vertical;
+  min-height: 5rem;
+  line-height: 1.5;
+}
+.content-text-label textarea {
+  height: clamp(220px, 38dvh, 380px);
+  min-height: 180px;
+  resize: none;
+  background: var(--pill);
+  box-shadow: inset 0 1px 4px rgb(64 52 32 / 0.08);
+}
+.content-fields fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.content-fields legend {
+  font-size: 0.875rem;
+  margin-bottom: 0.4rem;
+}
+.content-axes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+.content-items,
+.content-format {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.content-format {
+  align-self: center;
+  border-radius: 2rem;
+  background: var(--card-raised);
+  padding: 0.2rem;
+}
+.content-format button {
+  min-width: 2.5rem;
+}
+.content-text-preview {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding: 0.5rem 0;
+  font-size: 0.875rem;
+}
+.content-media-preview {
+  width: 100%;
+  max-height: 18rem;
+  object-fit: contain;
+  border-radius: 1rem;
+}
+.content-fields .content-check {
+  flex-direction: row;
+  align-items: center;
+}
+.content-remove {
+  align-self: flex-start;
+  color: var(--accent);
+}
+.content-error {
+  color: var(--accent);
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+.content-actions {
+  display: flex;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+.content-actions button:last-child {
+  background: var(--button-strong);
+  min-width: 6rem;
+}
+.content-dialog button:disabled,
+.content-dialog select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.content-inspector-open {
+  margin: 0.75rem;
+  padding: 0.65rem;
+  border-radius: 1rem;
+}
+@media (max-width: 600px) {
+  .content-dialog {
+    padding: 1rem;
+  }
+  .content-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .content-tabs {
+    flex-direction: row;
+    overflow-x: auto;
+  }
+  .content-tabs button {
+    flex-shrink: 0;
+  }
+  .content-text-label textarea {
+    min-height: 10rem;
+  }
+}
+
+/* Match the content sheet's narrow rail and centred title without changing its draft controls */
+.content-heading {
+  position: relative;
+  justify-content: center;
+  min-height: 40px;
+}
+.content-heading h2 {
+  margin: 0;
+  padding: 8px 18px;
+  border-radius: 16px;
+  background: var(--button);
+}
+.content-close {
+  position: absolute;
+  right: 0;
+}
+.content-tabs button {
+  width: 44px;
+  height: 44px;
+  padding: 10px;
+  display: grid;
+  place-items: center;
+}
+.content-tabs .icon {
+  width: 22px;
+  height: 22px;
+}
+.content-tab-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.content-format {
+  margin-top: -64px;
+  margin-bottom: 16px;
+  z-index: 1;
+}
+.content-text-preview[hidden] {
+  display: none;
+}
+.content-dialog-text .content-fields {
+  gap: 14px;
+}
+.content-items button {
+  padding: 5px 12px;
+  font-size: 12px;
+}
+.content-remove {
+  padding: 5px 0 !important;
+  background: transparent !important;
+}
+.content-fields label:has(> textarea[aria-label="Caption"]) textarea {
+  min-height: 44px;
+  height: 44px;
+}
+@media (max-width: 600px) {
+  .content-dialog {
+    width: calc(100% - 24px);
+  }
+  .content-tabs {
+    flex-direction: row;
+  }
+  .content-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 * {
@@ -88,6 +358,11 @@ a {
   flex-shrink: 0;
   width: 1.25rem;
   height: 1.25rem;
+}
+/* Figma exports include padding around their artwork. */
+.figma-tool-icon {
+  display: block;
+  flex-shrink: 0;
 }
 /* Toolbars can change the grey inside the placeholder icons */
 .icon .fill {
@@ -299,7 +574,7 @@ a {
   background: #e3ddcd;
 }
 .pill-button:disabled {
-  color: #9b968d;
+  color: var(--muted);
 }
 .dev-action {
   min-height: 2rem;
@@ -348,7 +623,7 @@ a {
   position: absolute;
   left: 4.25rem;
   width: min(18.5rem, calc(100vw - 7rem));
-  max-height: calc(100% - var(--panel-offset, 0rem) - 3.25rem);
+  max-height: calc(100% - var(--panel-offset, 0rem));
   display: flex;
 }
 /* Each panel open beside its own rail button */
@@ -358,8 +633,7 @@ a {
 .panel-slot.is-tree {
   --panel-offset: 3.5rem;
   top: 3.5rem;
-  /* Expanded content scrolls above the fixed Filters control instead of passing behind it */
-  max-height: calc(100% - var(--panel-offset) - 3.25rem);
+  max-height: calc(100% - var(--panel-offset));
 }
 .panel-slot.is-scenes {
   --panel-offset: 7rem;
@@ -444,10 +718,17 @@ a {
   padding-left: 1.4rem;
 }
 .axis-fields label {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1rem minmax(0, 1fr);
   align-items: center;
   gap: 0.35rem;
   font-size: 0.8125rem;
+}
+.axis-fields label > span {
+  display: grid;
+  place-items: center;
+  height: 1.75rem;
+  line-height: 1;
 }
 .axis-fields input {
   width: 100%;
@@ -460,6 +741,7 @@ a {
   color: inherit;
   font: inherit;
   font-variant-numeric: tabular-nums;
+  line-height: 1.75rem;
   text-align: center;
 }
 .axis-fields input:focus-visible {
@@ -499,6 +781,7 @@ a {
   max-height: none;
 }
 .scene-root {
+  padding-block: 2px;
   position: relative;
   display: flex;
   align-items: center;
@@ -550,6 +833,11 @@ a {
 .object-row[aria-pressed="true"],
 .environment-row[aria-pressed="true"] {
   background: #e2dccb;
+}
+/* Keep keyboard focus inside the row and separate adjacent selected highlights. */
+.scene-tree :focus-visible {
+  outline: 2px solid var(--muted);
+  outline-offset: -2px;
 }
 .scene-tree-delete {
   display: none;
@@ -638,13 +926,14 @@ a {
 }
 .interaction-rule {
   display: grid;
+  align-items: start;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.5rem 1rem;
 }
 /* Label on the left, the action and its target pill stacked on the right */
 .interaction-half {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: 3rem minmax(0, 1fr);
   align-items: center;
   gap: 0.4rem 0.6rem;
 }
@@ -652,14 +941,21 @@ a {
 .interaction-half > .interaction-input {
   grid-column: 2;
 }
+/* Locate belongs below the target so its width cannot stretch the When label column */
+.interaction-half > button {
+  grid-column: 2;
+  justify-self: start;
+}
 .interaction-label {
   grid-row: 1;
+  justify-self: end;
   font-size: 0.875rem;
   font-weight: 650;
 }
+/* Grid removes the select baseline gap so the arrow centres against the field itself */
 .interaction-select {
   position: relative;
-  display: block;
+  display: grid;
   min-width: 0;
 }
 .interaction-select select {
@@ -712,27 +1008,6 @@ a {
 }
 .interaction-add {
   color: var(--muted);
-}
-
-.filter-button {
-  position: absolute;
-  bottom: 0;
-  left: 4.25rem;
-  display: flex;
-  align-items: center;
-  gap: 1.25rem;
-  min-height: 2.6rem;
-  padding: 0.35rem 1.2rem 0.35rem 1.4rem;
-  border: 0;
-  border-radius: 999px;
-  background: var(--button);
-  box-shadow: var(--shadow);
-  font-size: 1rem;
-  font-weight: 650;
-}
-.filter-button .icon {
-  width: 1rem;
-  height: 1rem;
 }
 
 .viewport {
@@ -817,8 +1092,8 @@ a {
   margin: 0;
   padding: 0.4rem 0.8rem;
   border-radius: 999px;
-  background: rgb(41 46 41 / 0.6);
-  color: #f5f7fa;
+  background: var(--scene-hint-background);
+  color: var(--scene-hint-text);
   font-size: 0.8125rem;
   text-align: center;
   translate: -50% 0;
@@ -1204,10 +1479,22 @@ a {
 .mode-bar button[aria-pressed="true"] {
   background: #fff;
 }
-.mode-bar .icon,
-.scene-toolbar .icon {
+.mode-bar .icon {
   width: 1.5rem;
   height: 1.5rem;
+}
+:is(.scene-toolbar, .tool-popup) .icon {
+  width: 1.75rem;
+  height: 1.75rem;
+}
+.scene-toolbar [data-category="audio"] .icon {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+/* The padded exports need a larger box to match the inline icons' visible size. */
+:is(.scene-toolbar, .tool-popup) .figma-tool-icon {
+  width: 2.25rem;
+  height: 2.25rem;
 }
 
 .scene-toolbar {
@@ -1236,6 +1523,7 @@ a {
   flex-shrink: 0;
   width: 2.75rem;
   height: 2.75rem;
+  padding: 0;
   border: 0;
   border-radius: 0.75rem;
   background: transparent;
@@ -1272,6 +1560,7 @@ a {
   flex-shrink: 0;
   width: 2.75rem;
   height: 2.75rem;
+  padding: 0;
   border: 0;
   border-radius: 0.75rem;
   background: transparent;
@@ -1280,10 +1569,6 @@ a {
 .tool-popup button:hover,
 .tool-popup button[aria-pressed="true"] {
   background: #efebe1;
-}
-.tool-popup .icon {
-  width: 1.5rem;
-  height: 1.5rem;
 }
 
 /* Grip is thinner than the tools, hold it to drag the bar to another edge */
@@ -1436,7 +1721,6 @@ a {
 .rail-button:hover {
   box-shadow: 0 6px 18px rgb(64 52 32 / 0.16);
 }
-.filter-button:hover,
 .panel-pill:hover {
   background: #e7e2d6;
 }
@@ -1658,9 +1942,6 @@ a {
   .panel-slot {
     left: 3.5rem;
   }
-  .filter-button {
-    left: 3.5rem;
-  }
   .asset-picker-layer {
     inset: 0 0.75rem;
   }
@@ -1686,9 +1967,8 @@ a {
   .asset-grid {
     columns: 8rem;
   }
-  /* Hide the dev sample button and Filters on phones, else they overlap the dock */
-  .dev-action,
-  .filter-button {
+  /* Keep the dev sample button clear of the phone dock. */
+  .dev-action {
     display: none;
   }
   .pill-button {
@@ -2075,38 +2355,1111 @@ a {
   outline: 2px solid var(--muted);
   outline-offset: -2px;
 }
-/* Match the administrative scrollbar treatment; auto overflow keeps it absent for short lists */
-.asset-grid-scroll,
-.asset-filter-menu {
+/* Share the existing library scrollbar across editor panels and nested lists */
+:is(
+  .asset-grid-scroll,
+  .asset-filter-menu,
+  .editor-panel,
+  .saved-view-menu ol,
+  .scenes-panel ol,
+  .scene-tree
+) {
   scrollbar-width: thin;
   scrollbar-color: var(--asset-scroll-thumb) var(--asset-scroll-track);
 }
-.asset-grid-scroll::-webkit-scrollbar,
-.asset-filter-menu::-webkit-scrollbar {
+:is(
+  .asset-grid-scroll,
+  .asset-filter-menu,
+  .editor-panel,
+  .saved-view-menu ol,
+  .scenes-panel ol,
+  .scene-tree
+)::-webkit-scrollbar {
   width: 8px;
 }
-.asset-grid-scroll::-webkit-scrollbar-track,
-.asset-filter-menu::-webkit-scrollbar-track {
+:is(
+  .asset-grid-scroll,
+  .asset-filter-menu,
+  .editor-panel,
+  .saved-view-menu ol,
+  .scenes-panel ol,
+  .scene-tree
+)::-webkit-scrollbar-track {
   border-radius: 999px;
   background: var(--asset-scroll-track);
 }
-.asset-grid-scroll::-webkit-scrollbar-thumb,
-.asset-filter-menu::-webkit-scrollbar-thumb {
+:is(
+  .asset-grid-scroll,
+  .asset-filter-menu,
+  .editor-panel,
+  .saved-view-menu ol,
+  .scenes-panel ol,
+  .scene-tree
+)::-webkit-scrollbar-thumb {
   border: 2px solid var(--asset-scroll-track);
   border-radius: 999px;
   background: var(--asset-scroll-thumb);
 }
-.asset-grid-scroll::-webkit-scrollbar-thumb:hover,
-.asset-filter-menu::-webkit-scrollbar-thumb:hover {
+:is(
+    .asset-grid-scroll,
+    .asset-filter-menu,
+    .editor-panel,
+    .saved-view-menu ol,
+    .scenes-panel ol,
+    .scene-tree
+  )::-webkit-scrollbar-thumb:hover {
   background: var(--asset-scroll-hover);
 }
-.asset-grid-scroll::-webkit-scrollbar-button,
-.asset-filter-menu::-webkit-scrollbar-button {
+:is(
+  .asset-grid-scroll,
+  .asset-filter-menu,
+  .editor-panel,
+  .saved-view-menu ol,
+  .scenes-panel ol,
+  .scene-tree
+)::-webkit-scrollbar-button {
   display: none;
+}
+/* Chromium otherwise gives scrollbar-color precedence over the existing custom thumb and arrow rules */
+@supports selector(::-webkit-scrollbar) {
+  :is(
+    .asset-grid-scroll,
+    .asset-filter-menu,
+    .editor-panel,
+    .saved-view-menu ol,
+    .scenes-panel ol,
+    .scene-tree
+  ) {
+    scrollbar-width: auto;
+    scrollbar-color: auto;
+  }
 }
 .asset-picker-empty {
   display: flex;
   align-items: center;
   justify-content: center;
   margin: 0;
+}
+
+/* Contextual sheets match the reference's rounded swatches and icon popups. */
+.exhibit-context {
+  position: absolute;
+  inset: 18% 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  z-index: 4;
+  pointer-events: none;
+}
+.exhibit-context > * {
+  pointer-events: auto;
+}
+.exhibit-popup-toolbar,
+.exhibit-swatches {
+  background: #e8e6db;
+  border-radius: 24px;
+  padding: 14px 20px;
+  box-shadow: 0 6px 20px #342b2414;
+}
+.exhibit-popup-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.exhibit-popup-toolbar button {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 14px;
+  background: #fff9;
+  color: #3d3133;
+  cursor: pointer;
+}
+.exhibit-popup-toolbar .icon {
+  width: 24px;
+  height: 24px;
+}
+.exhibit-texture-icon,
+.exhibit-colour-icon {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid #9a9488;
+}
+.exhibit-texture-icon {
+  background: repeating-linear-gradient(35deg, #b3a893 0 2px, #eee6d8 2px 5px);
+}
+.exhibit-swatches {
+  position: relative;
+  width: min(290px, calc(100vw - 36px));
+}
+.exhibit-swatches::after {
+  content: "";
+  position: absolute;
+  left: calc(50% - 16px);
+  bottom: -14px;
+  border: 16px solid transparent;
+  border-top-color: #e8e6db;
+  border-bottom: 0;
+}
+.exhibit-swatch-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+.exhibit-swatch-grid button {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+}
+.exhibit-swatch-grid button[aria-pressed="true"] {
+  outline: 2px solid #3d3133;
+  outline-offset: 2px;
+}
+.exhibit-swatch-grid .swatch-plain {
+  background: #e8e9eb;
+}
+.exhibit-swatch-grid .swatch-wood {
+  background: repeating-linear-gradient(7deg, #bd8a54 0 4px, #89613c 5px, #bd8a54 7px);
+}
+.exhibit-swatch-grid .swatch-glass {
+  background: repeating-linear-gradient(135deg, #a9bcc6 0 9px, #e7eff0 10px 12px, #a9bcc6 14px);
+}
+.exhibit-swatch-grid .swatch-leather {
+  background: radial-gradient(ellipse, #78614d 35%, #40352d 45%, #78614d 65%);
+  background-size: 7px 6px;
+}
+.exhibit-swatch-grid .swatch-marble {
+  background: repeating-linear-gradient(35deg, #f6f4f0 0 8px, #a5a5a5 9px, #f6f4f0 11px);
+}
+.exhibit-swatch-grid .swatch-tile {
+  background:
+    repeating-linear-gradient(0deg, transparent 0 12px, #c5c8c8 13px 14px),
+    repeating-linear-gradient(90deg, #eeefed 0 12px, #c5c8c8 13px 14px);
+}
+.exhibit-swatch-grid .swatch-concrete {
+  background: radial-gradient(#9a9e9b 1px, transparent 1px) #cdd0cf;
+  background-size: 8px 8px;
+}
+.exhibit-swatch-grid .swatch-ceramic {
+  background: radial-gradient(circle at 35% 30%, white, #cfd4d9);
+}
+.exhibit-popup-actions {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+.exhibit-popup-actions button {
+  border: 0;
+  border-radius: 16px;
+  background: #fff9;
+  color: #3d3133;
+  padding: 6px 14px;
+  cursor: pointer;
+}
+.exhibit-context button:focus-visible {
+  outline: 2px solid #3d3133;
+  outline-offset: 3px;
+}
+
+/* Content sheets follow the text/video/image rail and centered pill controls in the reference. */
+.content-dialog .content-tabs[hidden] {
+  display: none;
+}
+.content-dialog-properties .content-layout {
+  grid-template-columns: minmax(0, 1fr);
+}
+.content-dialog .content-close {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+}
+.content-dialog .content-actions button {
+  min-height: 44px;
+  border-radius: 999px;
+  padding: 10px 28px;
+  background: var(--button);
+}
+.content-dialog .content-format {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+}
+.content-dialog .content-format button {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 50%;
+  line-height: 1;
+}
+.content-dialog .content-tabs button {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  padding: 0;
+  border-radius: 50%;
+}
+.content-dialog .content-tabs .icon {
+  width: 28px;
+  height: 28px;
+  margin: 0;
+}
+.exhibit-context {
+  position: fixed;
+  inset: auto;
+  width: max-content;
+  max-width: calc(100% - 24px);
+  transform: translate(-50%, -100%);
+}
+.exhibit-context[hidden] {
+  display: none;
+}
+.exhibit-context .exhibit-popup-toolbar {
+  justify-content: center;
+}
+.exhibit-context .exhibit-popup-toolbar button {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 12px;
+  line-height: 1;
+}
+.exhibit-context .exhibit-popup-actions button {
+  min-height: 38px;
+  padding: 8px 22px;
+  border-radius: 999px;
+  background: var(--button);
+}
+.exhibit-context button:focus-visible,
+.content-dialog button:focus-visible {
+  outline: 2px solid var(--muted);
+  outline-offset: 3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .content-dialog,
+  .exhibit-context,
+  .content-format {
+    animation: none;
+    transition: none;
+  }
+}
+
+/* Reference pages 4-6: one large editable surface, three content tabs, circular close. */
+.content-dialog:not(.content-dialog-properties) {
+  width: min(1440px, calc(100% - 48px));
+  height: min(90dvh, 1000px);
+  max-height: calc(100dvh - 32px);
+  padding: 24px 28px;
+}
+.content-dialog:not(.content-dialog-properties) > form {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.content-dialog:not(.content-dialog-properties) .content-layout {
+  flex: 1;
+  min-height: 0;
+  grid-template-columns: 64px minmax(0, 1fr);
+  margin-top: 24px;
+}
+.content-dialog:not(.content-dialog-properties) .content-tabs {
+  justify-content: center;
+  gap: clamp(24px, 9vh, 110px);
+}
+.content-dialog:not(.content-dialog-properties) .content-fields {
+  min-height: 0;
+  overflow-y: auto;
+}
+.content-dialog .content-items[hidden] {
+  display: none;
+}
+.content-dialog-text .content-text-label {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.content-dialog-text .content-text-label > span {
+  position: absolute;
+  clip-path: inset(50%);
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+.content-text-surface {
+  position: relative;
+  flex: 1;
+  min-height: 220px;
+  border-radius: 24px;
+  background: var(--pill);
+  border: 1px solid var(--line);
+  box-shadow: inset 0 1px 4px var(--picker-backdrop);
+}
+.content-dialog .content-text-surface textarea,
+.content-dialog .content-text-surface .content-text-preview {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: 20px 20px 76px;
+  margin: 0;
+  border: 0;
+  border-radius: 24px;
+  font: inherit;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  box-shadow: none;
+}
+.content-dialog .content-text-surface textarea {
+  z-index: 2;
+  resize: none;
+  background: transparent;
+  color: transparent;
+  caret-color: var(--text);
+}
+.content-dialog .content-text-surface textarea::placeholder {
+  color: var(--muted);
+}
+.content-dialog .content-text-surface .content-text-preview {
+  z-index: 1;
+  pointer-events: none;
+  background: transparent;
+  overflow: hidden;
+}
+.content-dialog-text .content-format {
+  position: relative;
+  flex: none;
+  align-self: center;
+  margin: -68px auto 14px;
+  z-index: 3;
+  padding: 4px 12px;
+  gap: 8px;
+  background: var(--button);
+}
+.content-dialog:not(.content-dialog-properties) .content-actions {
+  flex: none;
+  margin-top: 16px;
+}
+.content-dialog .content-heading h2 {
+  border-radius: 999px;
+  font-size: 18px;
+  padding: 10px 24px;
+}
+.content-dialog .content-close {
+  background: var(--button);
+}
+.content-dialog .content-tabs button {
+  background: transparent;
+}
+.content-dialog .content-tabs button[aria-pressed="true"] {
+  background: var(--button);
+}
+@media (max-width: 600px) {
+  .content-dialog:not(.content-dialog-properties) {
+    width: calc(100% - 24px);
+    height: calc(100dvh - 24px);
+    max-height: calc(100dvh - 24px);
+    padding: 16px;
+  }
+  .content-dialog:not(.content-dialog-properties) .content-layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    margin-top: 16px;
+  }
+  .content-dialog:not(.content-dialog-properties) .content-tabs {
+    flex-direction: row;
+    gap: 12px;
+    justify-content: center;
+  }
+  .content-dialog .content-text-surface textarea,
+  .content-dialog .content-text-surface .content-text-preview {
+    padding: 16px 16px 76px;
+  }
+}
+
+/* Keep the move handle's artwork within its narrower hit area. */
+.scene-toolbar .dock-grip .icon {
+  width: 20px;
+  height: 20px;
+}
+
+/* Project actions use the same spacious rounded treatment as the editor popups. */
+.draft-menu-panel {
+  width: 15.5rem;
+  max-width: calc(100dvw - 7rem);
+  padding: 0.5rem;
+  border-color: var(--line);
+  border-radius: 1.25rem;
+  box-shadow: var(--picker-shadow);
+}
+.draft-menu-panel button {
+  min-height: 2.75rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.75rem;
+  font: inherit;
+  font-weight: 400;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.draft-menu-panel button:hover:not(:disabled) {
+  background: var(--pill);
+}
+.draft-menu-panel button:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: -2px;
+}
+.draft-menu-panel button:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
+}
+.draft-menu-panel #project-save {
+  margin-top: 0.25rem;
+  border-top: 1px solid var(--line);
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+:root {
+  --library-width: 70vw;
+  --library-height: 70dvh;
+  --library-surface: #e9e5db;
+  --library-rail-width: 64px;
+}
+@media (orientation: portrait) {
+  :root {
+    --library-width: 92vw;
+  }
+}
+.asset-picker {
+  --picker-width: var(--library-width);
+  --picker-height: var(--library-height);
+  background: var(--library-surface);
+}
+dialog.content-dialog.pdf-content-dialog,
+dialog.sp-dialog.sp-display-dialog {
+  width: var(--library-width);
+  height: var(--library-height);
+  min-width: 0;
+  max-width: calc(100dvw - 16px);
+  max-height: calc(100dvh - 24px);
+  background: var(--library-surface);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  box-shadow: var(--picker-shadow);
+}
+dialog.content-dialog.pdf-content-dialog::backdrop,
+dialog.sp-dialog.sp-display-dialog::backdrop {
+  background: var(--picker-backdrop);
+}
+:is(.asset-picker, .pdf-content-dialog, .sp-display-dialog) .asset-picker-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 0;
+  margin: 0 0 16px;
+}
+:is(.asset-picker, .pdf-content-dialog, .sp-display-dialog) .asset-picker-title {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex-shrink: 0;
+  margin: 0;
+  min-height: 2.6rem;
+  padding: 0 1.1rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--card-raised);
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 400;
+}
+:is(.asset-picker, .pdf-content-dialog, .sp-display-dialog) .asset-picker-title .icon {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+:is(.asset-picker, .pdf-content-dialog, .sp-display-dialog) .asset-search {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  min-height: 2.6rem;
+  padding: 0 0.3rem 0 0.9rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--card-raised);
+  box-shadow: inset 0 1px 2px var(--picker-backdrop);
+}
+:is(.asset-picker, .pdf-content-dialog, .sp-display-dialog) .asset-search > .icon {
+  width: 1.2rem;
+  height: 1.2rem;
+  flex-shrink: 0;
+}
+:is(.asset-picker, .pdf-content-dialog, .sp-display-dialog) .asset-search input {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+:is(.asset-picker, .pdf-content-dialog, .sp-display-dialog) .asset-search input:focus-visible {
+  outline-offset: -2px;
+  border-radius: 999px;
+}
+:is(.asset-picker, .pdf-content-dialog, .sp-display-dialog) .asset-filter-trigger {
+  min-height: 2rem;
+  padding: 0 2rem 0 1rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--button);
+  color: inherit;
+  font: inherit;
+  font-weight: 400;
+}
+:is(.asset-picker, .pdf-content-dialog, .sp-display-dialog) .asset-picker-close {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 2.6rem;
+  height: 2.6rem;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--card-raised);
+}
+:is(.asset-picker, .pdf-content-dialog, .sp-display-dialog) .asset-picker-close .icon {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+.asset-picker-actions {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  flex-shrink: 0;
+}
+.asset-picker-actions > .asset-picker-add {
+  grid-column: 2;
+}
+.ui-button.pill-button.asset-picker-add {
+  min-width: 6.5rem;
+  min-height: 44px;
+  margin-top: 12px;
+  padding: 0.35rem 1.4rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--button);
+  box-shadow: var(--shadow);
+  color: var(--text);
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 400;
+}
+.ui-button.pill-button.asset-picker-add:hover:not(:disabled) {
+  background: var(--button-strong);
+}
+.ui-button.pill-button.asset-picker-add:disabled {
+  opacity: 1;
+  color: var(--muted);
+  background: var(--button);
+  cursor: not-allowed;
+}
+@media (max-width: 650px) {
+  :is(.pdf-content-dialog, .sp-display-dialog) .asset-picker-head {
+    flex-wrap: wrap;
+  }
+  :is(.pdf-content-dialog, .sp-display-dialog) .asset-search {
+    order: 2;
+    flex-basis: 100%;
+  }
+  :is(.pdf-content-dialog, .sp-display-dialog) .asset-picker-close {
+    margin-left: auto;
+  }
+}
+
+dialog.content-dialog.pdf-content-dialog,
+dialog.sp-dialog.sp-display-dialog {
+  font-size: 1rem;
+}
+
+:is(.asset-picker, .pdf-content-dialog, .sp-display-dialog) .asset-picker-reset {
+  flex-shrink: 0;
+  min-height: 32px;
+  width: auto;
+  padding: 4px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.875rem;
+}
+:is(.asset-picker, .pdf-content-dialog, .sp-display-dialog) .asset-picker-reset:disabled {
+  background: transparent;
+  color: var(--muted);
+}
+:is(.asset-picker, .pdf-content-dialog, .sp-display-dialog) .asset-card-pick,
+:is(.asset-picker, .pdf-content-dialog, .sp-display-dialog)
+  .asset-card-pick:is(:hover, [aria-pressed="true"]) {
+  background: transparent;
+}
+.draft-menu-panel button {
+  min-height: 32px;
+  padding: 4px 10px;
+  line-height: 1.25;
+}
+.editor-panel .scene-tree-empty {
+  margin-top: 10px;
+}
+:root {
+  --library-rail-width: 56px;
+}
+
+:is(.asset-picker, .pdf-content-dialog, .sp-display-dialog) .ui-button.asset-picker-reset:disabled {
+  background: transparent;
+  color: var(--muted);
+}
+
+:is(.asset-picker, .pdf-content-dialog, .sp-display-dialog) .asset-search input {
+  border-radius: 999px;
+}
+
+/* Keep the heart and its round hover target on the same center in every picker. */
+:is(.asset-picker, .pdf-content-dialog, .sp-display-dialog) .asset-favourite {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  min-height: 0;
+  line-height: 1;
+}
+:is(.asset-picker, .pdf-content-dialog, .sp-display-dialog) .asset-favourite .icon {
+  display: block;
+  margin: 0;
+  align-self: center;
+  justify-self: center;
+}
+
+.scene-tree :is(.object-row, .group-row) > span:not(.hotspot-indicator) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Match the secondary editor panels without changing their controls or action order */
+.editor-panel :is(.scenes-panel, .viewpoints) {
+  font-size: 0.875rem;
+}
+.editor-panel :is(.scenes-panel, .viewpoints) h2 {
+  margin: 0 0 12px;
+  font-size: 1rem;
+}
+.editor-panel :is(.scenes-panel, .viewpoints) p {
+  margin: 6px 0 10px;
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.55;
+}
+.editor-panel :is(.scenes-panel, .viewpoints) label {
+  position: relative;
+  gap: 6px;
+  margin: 12px 0 6px;
+  font-size: 0.8125rem;
+}
+.editor-panel :is(.scenes-panel, .viewpoints) :is(input, select, button) {
+  min-height: 36px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card-raised);
+  color: inherit;
+  font: inherit;
+  font-size: 0.8125rem;
+  line-height: 1.35;
+}
+.editor-panel :is(.scenes-panel, .viewpoints) select {
+  padding-right: 30px;
+  appearance: none;
+}
+.editor-panel :is(.scenes-panel, .viewpoints) label:has(> select)::after {
+  content: "";
+  position: absolute;
+  right: 14px;
+  bottom: 15px;
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid var(--muted);
+  border-bottom: 1.5px solid var(--muted);
+  rotate: 45deg;
+  pointer-events: none;
+}
+.editor-panel :is(.scenes-panel, .viewpoints) button:not(:disabled):hover {
+  background: var(--button);
+}
+.editor-panel :is(.scenes-panel, .viewpoints) button[aria-pressed="true"] {
+  background: var(--button-strong);
+  color: inherit;
+}
+.editor-panel :is(.scenes-panel, .viewpoints) button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.editor-panel :is(.scenes-panel, .viewpoints) :focus-visible {
+  outline: 2px solid var(--muted);
+  outline-offset: 2px;
+}
+.editor-panel :is(.scenes-panel, .viewpoints) .viewpoint-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 8px 0;
+}
+.editor-panel :is(.scenes-panel, .viewpoints) .viewpoint-actions button {
+  min-height: 36px;
+}
+.editor-panel :is(.scenes-panel, .viewpoints) ol {
+  margin: 12px 0 16px;
+}
+.editor-panel .view-drag-handle {
+  padding: 8px 6px;
+  color: var(--muted);
+}
+.editor-panel .saved-view-menu {
+  margin-top: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card-raised);
+}
+.editor-panel .viewpoint-cycle {
+  margin: 8px 0;
+}
+.editor-panel .viewpoint-cycle button {
+  width: 36px;
+  padding: 6px;
+}
+/* Keep the empty state and its action together, with setup hints in a quieter footer */
+.interaction-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.interaction-panel h2 {
+  margin: 0;
+}
+.interaction-panel .panel-placeholder {
+  padding: 12px 8px 0;
+  gap: 10px;
+  max-width: 25rem;
+  margin-inline: auto;
+}
+.interaction-panel .panel-placeholder p {
+  margin: 0;
+}
+.interaction-panel .panel-placeholder .panel-empty {
+  line-height: 1.5;
+}
+.interaction-panel .interaction-add {
+  align-self: center;
+  margin: 0;
+  min-height: 36px;
+  font-size: 0.8125rem;
+}
+.interaction-help {
+  display: grid;
+  gap: 8px;
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.interaction-help:empty {
+  display: none;
+}
+.interaction-help p {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.55;
+}
+.interaction-panel .interaction-select select,
+.interaction-panel .interaction-input {
+  min-height: 32px;
+}
+/* Name and capture form one task; keep browsing controls together below it */
+.editor-panel .viewpoints label {
+  margin: 8px 0 6px;
+}
+.editor-panel .viewpoints > p:nth-of-type(2) {
+  margin-bottom: 12px;
+}
+.editor-panel .viewpoints fieldset > button {
+  margin-bottom: 12px;
+}
+.editor-panel .viewpoints .saved-view-picker {
+  margin-top: 0;
+}
+.editor-panel .viewpoints .viewpoint-actions {
+  margin-bottom: 0;
+}
+
+/* Balance the visible artwork, accounting for padding within the existing SVG view boxes */
+.panel-rail .rail-button > .icon {
+  width: 26px;
+  height: 26px;
+  display: block;
+}
+.panel-rail .rail-button[data-panel="position"] > .icon {
+  width: 24px;
+  height: 24px;
+}
+.editor-panel .viewpoints > p:first-of-type {
+  margin-bottom: 3px;
+}
+.editor-panel .viewpoints > p:nth-of-type(2) {
+  margin-top: 0;
+}
+.editor-panel .saved-view-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.saved-view-toggle > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.saved-view-toggle > .icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+.saved-view-toggle[aria-expanded="true"] > .icon {
+  rotate: 180deg;
+}
+.editor-panel .viewpoint-cycle button {
+  display: grid;
+  place-items: center;
+}
+.viewpoint-cycle .icon {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+.viewpoint-previous {
+  display: block;
+  rotate: 180deg;
+}
+/* Keep removal secondary and outside the empty-state composition */
+.interaction-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.interaction-heading h2 {
+  flex: 1;
+  min-width: 0;
+}
+.interaction-remove {
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+.interaction-remove:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+.interaction-panel .panel-placeholder {
+  padding-top: 20px;
+  padding-bottom: 0;
+}
+.interaction-panel .interaction-add {
+  margin-bottom: 8px;
+}
+
+/* Lists should reserve space only when they contain items, keeping help and ordering actions adjacent */
+.editor-panel .saved-view-menu p {
+  margin: 0 0 8px;
+}
+.editor-panel .saved-view-menu ol {
+  margin: 4px 0;
+}
+.editor-panel .saved-view-menu ol:empty {
+  display: none;
+}
+.editor-panel .saved-view-menu .viewpoint-actions {
+  margin-top: 8px;
+  gap: 6px;
+}
+.editor-panel .saved-view-menu .viewpoint-actions button {
+  min-height: 32px;
+}
+.editor-panel .scenes-panel .asset-filter {
+  display: block;
+  min-width: 0;
+}
+.editor-panel .scenes-panel .asset-filter-trigger {
+  width: 100%;
+  text-align: left;
+  padding-right: 32px;
+  font-weight: 400;
+}
+.editor-panel .scenes-panel .asset-filter .icon {
+  width: 14px;
+  height: 14px;
+  right: 12px;
+}
+.editor-panel .scenes-panel .asset-filter-menu {
+  font-size: 0.8125rem;
+}
+.editor-panel .scenes-panel .asset-filter-menu button {
+  width: 100%;
+  border: 0;
+  text-align: left;
+  border-radius: 8px;
+}
+.editor-panel .scenes-panel .asset-filter-menu button[aria-selected="true"] {
+  background: var(--button);
+}
+.editor-panel :is(.scenes-panel, .viewpoints) [role="status"]:empty {
+  display: none;
+}
+
+/* Match stroke weight in the rail without changing the same symbols elsewhere */
+.panel-rail .icon g[stroke="currentColor"] {
+  stroke-width: 1.25;
+}
+.panel-rail .icon g[stroke="currentColor"] > * {
+  vector-effect: non-scaling-stroke;
+}
+.panel-rail [data-panel="position"] .icon path {
+  stroke: none;
+}
+/* Retain native select semantics while styling the open picker to match our rounded menus */
+@supports (appearance: base-select) {
+  .interaction-select select,
+  .interaction-select select::picker(select) {
+    appearance: base-select;
+  }
+  .interaction-select select::picker-icon {
+    display: none;
+  }
+  .interaction-select select::picker(select) {
+    padding: 6px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: var(--card-raised);
+    color: inherit;
+    box-shadow: var(--shadow);
+  }
+  .interaction-select option {
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 0.8125rem;
+  }
+  .interaction-select option:hover,
+  .interaction-select option:checked {
+    background: var(--button);
+  }
+  .interaction-select option::checkmark {
+    display: none;
+  }
+}
+
+/* Padded display exports need optical scaling inside the unchanged hierarchy icon column */
+.scene-tree .object-row > .figma-tool-icon {
+  transform: scale(1.4);
+  transform-origin: center;
+}
+
+/* Centre the empty-state group within its own body; the setup footer does not affect its balance */
+.interaction-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+.interaction-content.is-empty {
+  flex: 1;
+  justify-content: center;
+  padding-block: 24px;
+}
+.interaction-panel .interaction-content.is-empty .panel-placeholder {
+  padding: 0;
+}
+.interaction-panel .interaction-content .interaction-add {
+  margin: 0;
+}
+
+/* Keep long selected labels clear of the arrow without changing native selection behavior */
+.interaction-select select {
+  min-width: 0;
+  color: transparent;
+}
+.interaction-select select:disabled {
+  color: transparent;
+}
+.interaction-select option {
+  color: var(--text, #24221f);
+}
+.interaction-selected-label {
+  position: absolute;
+  inset: 0 1.8rem 0 0.7rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  align-content: center;
+  font-size: 0.8125rem;
+  pointer-events: none;
+}
+.interaction-select:has(select:disabled) .interaction-selected-label {
+  color: var(--muted);
+}
+/* Keep side-panel scrollbars inset, like the scene hierarchy, without changing content alignment. */
+.panel-slot .editor-panel {
+  min-height: 0;
+  border: solid transparent;
+  border-width: 8px 8px 8px 0;
+  padding: calc(1.1rem - 8px) calc(1.1rem - 8px) calc(1.25rem - 8px) 1.1rem;
+}
+.panel-slot :is(.editor-panel, .scene-tree, .saved-view-menu ol, .scenes-panel ol) {
+  scrollbar-width: thin;
+  scrollbar-color: var(--asset-scroll-thumb) transparent;
+}
+.panel-slot
+  :is(.editor-panel, .scene-tree, .saved-view-menu ol, .scenes-panel ol)::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.panel-slot
+  :is(.editor-panel, .scene-tree, .saved-view-menu ol, .scenes-panel ol)::-webkit-scrollbar-track {
+  background: transparent;
+}
+.panel-slot
+  :is(.editor-panel, .scene-tree, .saved-view-menu ol, .scenes-panel ol)::-webkit-scrollbar-thumb {
+  border: 0;
+  border-radius: 999px;
+  background: var(--asset-scroll-thumb);
 }

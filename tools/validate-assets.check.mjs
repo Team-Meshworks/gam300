@@ -61,6 +61,17 @@ try {
   for (const asset of manifest.assets)
     assert.ok(delivery.stdout.includes(`OK: ${asset.assetId} (`));
 
+  for (const kind of ["image", "video"]) {
+    const invalidMedia = structuredClone(manifest);
+    const model = invalidMedia.assets.find(asset => asset.kind === "model");
+    const media = invalidMedia.assets.find(asset => asset.kind === kind);
+    Object.assign(media, {file:model.file, byteSize:model.byteSize, sha256:model.sha256});
+    writeFileSync(fixturePath, JSON.stringify(invalidMedia));
+    const invalid = validate("--delivery-only", fixturePath);
+    assert.equal(invalid.status, 1, invalid.stdout + invalid.stderr);
+    assert.match(invalid.stderr, /Invalid media header or mediaType/);
+  }
+
   const escapedFixture = structuredClone(manifest);
   escapedFixture.assets[0].file = "../README.md";
   writeFileSync(fixturePath, JSON.stringify(escapedFixture));

@@ -1,3 +1,5 @@
+import { AssetFilterSelect } from "./ui/AssetFilterSelect";
+import { Icon } from "./ui/Icon";
 import { useState } from "react";
 import type { ProjectScene } from "../shared/project/project-types";
 import type { CatalogueAsset } from "../shared/asset-runtime/catalogue";
@@ -113,16 +115,19 @@ export function Scenes({
         </label>
         <label>
           New scene environment
-          <select value={newEnvironment} onChange={(e) => setNewEnvironment(e.target.value)}>
-            <option value="">Choose an environment</option>
-            {assets
-              .filter((a) => a.kind === "environment")
-              .map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name}
-                </option>
-              ))}
-          </select>
+          <AssetFilterSelect
+            label="New scene environment"
+            value={newEnvironment}
+            options={[
+              { value: "", label: "Choose an environment" },
+              ...assets
+                .filter((asset) => asset.kind === "environment")
+                .map((asset) => ({ value: asset.id, label: asset.name })),
+            ]}
+            onChange={setNewEnvironment}
+            icon={<Icon name="caretDown" />}
+            minWidth={0}
+          />
         </label>
         <div className="viewpoint-actions">
           <button
@@ -200,23 +205,18 @@ export function Scenes({
         {active && (
           <label>
             Environment
-            <select
+            <AssetFilterSelect
+              label="Environment"
               value={active.environmentAssetId ?? ""}
-              onChange={(e) => {
-                report(
-                  store.setEnvironment(e.target.value),
-                  "Environment updated. Undo is available.",
-                );
-              }}
-            >
-              {assets
-                .filter((a) => a.kind === "environment")
-                .map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name}
-                  </option>
-                ))}
-            </select>
+              options={assets
+                .filter((asset) => asset.kind === "environment")
+                .map((asset) => ({ value: asset.id, label: asset.name }))}
+              onChange={(value) =>
+                report(store.setEnvironment(value), "Environment updated. Undo is available.")
+              }
+              icon={<Icon name="caretDown" />}
+              minWidth={0}
+            />
           </label>
         )}
       </fieldset>
