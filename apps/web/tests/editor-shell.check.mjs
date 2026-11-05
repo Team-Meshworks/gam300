@@ -894,8 +894,53 @@ try {
       .locator(".object-row, .environment-row")
       .evaluateAll((rows) => rows.map((row) => getComputedStyle(row).fontSize));
     assert.equal(new Set(sizes).size, 1, "All tree levels use the parent font size");
-    await addAsset(nested, "Starter room");
-    await nested.locator(".object-row").nth(2).waitFor();
+    // Keep the background recovery write pending while placing a second room
+    // Editing must remain available even when IndexedDB is slow
+    await nested.evaluate(async () => {
+      const database = await new Promise((resolve, reject) => {
+        const request = indexedDB.open("vthere-local-drafts", 2);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      const transaction = database.transaction("session", "readwrite");
+      transaction.oncomplete = () => database.close();
+      transaction.onabort = () => database.close();
+      const session = transaction.objectStore("session");
+      window.releaseRecoveryLock = false;
+      function keepAlive() {
+        if (window.releaseRecoveryLock) return;
+        const request = session.get("fixture-lock");
+        request.onsuccess = keepAlive;
+      }
+      keepAlive();
+      const original = IDBDatabase.prototype.transaction;
+      IDBDatabase.prototype.transaction = function (stores, mode, ...options) {
+        if (this.name === "vthere-local-drafts" && mode === "readwrite") {
+          window.recoveryWriteStarted = true;
+          IDBDatabase.prototype.transaction = original;
+        }
+        return original.call(this, stores, mode, ...options);
+      };
+    });
+    try {
+      // Schedule a fresh backup after installing the lock, even on a slow runner
+      const secondCrate = nested.locator('.object-row[aria-pressed="true"]');
+      await secondCrate.press("F2");
+      const renameCrate = nested.getByRole("textbox", { name: /^Rename / });
+      await renameCrate.fill("Backup test crate");
+      await renameCrate.press("Enter");
+      await nested.waitForFunction(() => window.recoveryWriteStarted, null, { timeout: 10000 });
+      await addAsset(nested, "Starter room");
+      assert.equal(
+        await nested.locator(".object-row").count(),
+        3,
+        "A background recovery backup must not prevent adding a room",
+      );
+    } finally {
+      await nested.evaluate(() => {
+        window.releaseRecoveryLock = true;
+      });
+    }
     // Retain the newly selected room identity across later placements and renaming
     const roomId = await nested
       .locator('.object-row[aria-pressed="true"]')
