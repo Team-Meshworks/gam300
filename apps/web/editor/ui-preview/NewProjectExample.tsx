@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import { formatLocalDeadline, localDeadlineToUnixSeconds } from "../projects/deadline";
 import { NewProjectForm } from "../projects/NewProjectForm";
 import type { NewProjectDraft, ProjectCreationResult } from "../projects/new-project-form";
 import { Button } from "../../shared/ui/Button";
@@ -43,8 +44,8 @@ export function NewProjectExample({
         <p>{draft.description}</p>
         <p>{draft.instructions}</p>
         <dl className="sp-summary">
-          <dt>Due date</dt>
-          <dd>{draft.dueDate}</dd>
+          <dt>Due date and time</dt>
+          <dd>{formatLocalDeadline(localDeadlineToUnixSeconds(draft.dueDate)!)}</dd>
           <dt>Class</dt>
           <dd>{classes.find((item) => item.id === draft.classId)?.label}</dd>
           <dt>Image type</dt>

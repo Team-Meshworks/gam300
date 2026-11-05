@@ -30,6 +30,13 @@ public static partial class ProjectFormat
     // Keep unchanged v1/v2 exports readable by released readers, while retaining authored extensions.
     private static void OmitEmptyInteractionExtensions(JsonTypeInfo info)
     {
+        if (info.Type == typeof(ContentObject))
+        {
+            foreach (var property in info.Properties)
+            {
+                if (property.Name == "appearance") { property.ShouldSerialize = (_, value) => value is not null; }
+            }
+        }
         if (info.Type != typeof(LegacyScene) && info.Type != typeof(ContentScene))
         {
             return;
@@ -246,6 +253,10 @@ public static partial class ProjectFormat
                 foreach (var item in scene.Objects)
                 {
                     Rotation(item.Transform.Rotation);
+                    foreach (var text in item.Components.OfType<TextComponent>())
+                    {
+                        if (text.Placement is not null) { Rotation(text.Placement.Rotation); }
+                    }
                 }
 
                 foreach (var zone in scene.Zones)

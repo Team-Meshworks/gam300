@@ -30,8 +30,19 @@ export function missingProjectCapabilities(
   content.scenes.forEach((scene, sceneIndex) => {
     // Inspect content first, then enabled rules; report locations in the original authored arrays
     const path = `project.scenes[${sceneIndex}]`;
+    if (scene.environmentVisible === false) {
+      need("environment:visibility", `${path}.environmentVisible`);
+    }
+    if (scene.environmentTransform) {
+      need("environment:transform", `${path}.environmentTransform`);
+    }
+    scene.audio?.forEach((_, index) => {
+      need("content:audio", `${path}.audio[${index}]`);
+      need("audio:global", `${path}.audio[${index}].mode`);
+    });
     scene.objects.forEach((object, objectIndex) => {
       const objectPath = `${path}.objects[${objectIndex}]`;
+      if (object.appearance) need("appearance", `${objectPath}.appearance`);
       // Hidden objects need explicit support; visible objects match the baseline player behavior
       if (!object.visible) {
         need("visibility", `${objectPath}.visible`);
@@ -48,6 +59,13 @@ export function missingProjectCapabilities(
 
         // Inspect each text mark without interpreting the authored strings as markup
         if (component.type === "text") {
+          if (component.placement) need("text:placement", `${path}.placement`);
+          if (
+            component.background !== undefined ||
+            component.fontSize !== undefined ||
+            component.color !== undefined
+          )
+            need("text:style", path);
           component.runs.forEach((run, index) => {
             run.marks.forEach((mark, markIndex) =>
               need(`text:${mark}`, `${path}.runs[${index}].marks[${markIndex}]`),
@@ -57,7 +75,11 @@ export function missingProjectCapabilities(
       });
     });
     scene.interactions.forEach((rule, index) => {
-      if (rule.do.type === "navigate-scene" || rule.do.type === "move-to-viewpoint") {
+      if (
+        rule.do.type === "navigate-scene" ||
+        rule.do.type === "move-to-viewpoint" ||
+        (rule.do.type === "play-audio" && rule.do.mediaId !== undefined)
+      ) {
         need(`interaction:${rule.do.type}`, `${path}.interactions[${index}].do`);
       }
     });

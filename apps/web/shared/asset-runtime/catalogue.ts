@@ -11,12 +11,22 @@ export const assetCategories = [
 export type CatalogueAsset = Readonly<{
   id: string;
   name: string;
-  kind: "environment" | "model";
+  kind: "environment" | "model" | "image" | "video" | "audio";
   url: string;
   sha256: string;
   thumbnail: string | null;
   placement?: "bottom-center";
+  displayRole?: "physical" | "digital";
   category?: string;
+  durationSeconds?: number;
+  // Local coordinates after bottom-center model normalization, in metres.
+  displayTop?: number;
+  displaySurface?: Readonly<{
+    position: readonly [number, number, number];
+    rotation: readonly [number, number, number, number];
+    width: number;
+    height: number;
+  }>;
 }>;
 
 export const assetDragType = "application/x-vthere-asset";

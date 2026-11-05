@@ -1,0 +1,183 @@
+/* Hallmark: component scope; theme: supplied Figma PDF; signature: circular swatches in a speech bubble. */
+/* Hallmark · answered F24 · A white edge separates the palette surface while the restrained shadow keeps it readable over the 3D scene. */
+/* Critique: preserve the reference silhouette, centre fixed-size swatches and separate the popup from the scene. */
+/* Hallmark · waive 24b · Toolbar padding was reduced by two pixels at the user's request · Preserve the approved compact toolbar height instead of changing its geometry again. */
+:root {
+  --exhibit-surface: var(--palette-surface);
+  --exhibit-edge: var(--palette-edge);
+  --exhibit-ink: var(--palette-ink);
+  --exhibit-toolbar: #faf9f5;
+  --exhibit-hover: #e7e2d8;
+  --exhibit-tooltip: #3d3133;
+  --exhibit-popup-shadow: var(--palette-shadow);
+}
+.exhibit-context .exhibit-swatches {
+  width: max-content;
+  max-width: 100%;
+  padding: 16px 20px;
+  border: 1px solid var(--exhibit-edge);
+  border-radius: 24px;
+  background: var(--exhibit-surface);
+  box-shadow: var(--exhibit-popup-shadow);
+}
+.exhibit-context .exhibit-swatches::after {
+  border-top-color: var(--exhibit-surface);
+}
+.exhibit-context .exhibit-swatch-grid {
+  grid-template-columns: repeat(4, 44px);
+  justify-content: center;
+  gap: 12px;
+}
+.exhibit-context .exhibit-swatch-grid button {
+  padding: 0;
+  margin: 0;
+  transition: transform 100ms ease;
+}
+.exhibit-context .exhibit-swatch-grid button:hover {
+  outline: 1px solid var(--exhibit-ink);
+  outline-offset: 2px;
+}
+.exhibit-context .exhibit-swatch-grid button:active {
+  transform: scale(0.96);
+}
+.exhibit-context .exhibit-swatch-grid button[aria-pressed="true"] {
+  outline: 2px solid var(--exhibit-ink);
+  outline-offset: 3px;
+}
+.exhibit-context .exhibit-popup-toolbar {
+  background: var(--exhibit-toolbar);
+  border: 1px solid var(--exhibit-edge);
+  padding: 6px 12px;
+  gap: 8px;
+  box-shadow: var(--exhibit-popup-shadow);
+}
+.exhibit-context .exhibit-popup-toolbar button {
+  position: relative;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--exhibit-ink);
+}
+.exhibit-context .exhibit-popup-toolbar button:is(:hover, [aria-expanded="true"]) {
+  background: var(--exhibit-hover);
+}
+.exhibit-context .exhibit-popup-toolbar button:active {
+  transform: scale(0.96);
+}
+.exhibit-context button:focus-visible {
+  outline: 2px solid var(--exhibit-ink);
+  outline-offset: 3px;
+}
+.exhibit-tooltip {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: var(--exhibit-tooltip);
+  color: var(--exhibit-edge);
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 2;
+}
+.exhibit-popup-toolbar button:is(:hover, :focus-visible) .exhibit-tooltip {
+  display: block;
+}
+@media (prefers-reduced-motion: reduce) {
+  .exhibit-context .exhibit-swatch-grid button {
+    transition: none;
+  }
+}
+
+.exhibit-context .exhibit-popup-toolbar [aria-label="Display asset library"] .icon {
+  width: 24px;
+  height: 24px;
+}
+.exhibit-context .exhibit-popup-toolbar [aria-label="Edit text"] .icon {
+  width: 32px;
+  height: 32px;
+}
+.exhibit-context
+  .exhibit-popup-toolbar
+  :is([aria-label="Edit image"], [aria-label="Edit video"])
+  .icon {
+  width: 28px;
+  height: 28px;
+}
+
+.exhibit-context .exhibit-popup-toolbar button {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  line-height: 1;
+}
+.exhibit-context .exhibit-popup-toolbar button > .icon {
+  display: block;
+  margin: 0;
+  align-self: center;
+  justify-self: center;
+}
+.exhibit-context .exhibit-popup-toolbar button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.exhibit-context .exhibit-popup-toolbar button:disabled:hover {
+  background: transparent;
+}
+.exhibit-remove-media-icon {
+  width: 32px;
+  height: 32px;
+  grid-area: 1 / 1;
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+.exhibit-remove-badge {
+  position: absolute;
+  right: -1px;
+  top: -1px;
+  display: grid;
+  place-items: center;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--exhibit-toolbar);
+  font-size: 14px;
+  line-height: 13px;
+  text-align: center;
+}
+
+.exhibit-remove-media-icon > .icon {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 24px;
+  height: 24px;
+  margin: 0;
+}
+.exhibit-remove-badge > svg {
+  display: block;
+}
+
+.exhibit-context .exhibit-popup-toolbar button .icon,
+.exhibit-context :is(.exhibit-texture-icon, .exhibit-colour-icon) {
+  width: 24px;
+  height: 24px;
+  box-sizing: border-box;
+}
+
+.exhibit-context .exhibit-popup-toolbar .exhibit-remove-media-icon > .icon {
+  left: 50%;
+  top: 50%;
+  bottom: auto;
+  transform: translate(-50%, -50%);
+  width: 28px;
+  height: 28px;
+}
+.exhibit-context .exhibit-popup-toolbar [aria-label="Remove text"] .icon {
+  width: 32px;
+  height: 32px;
+}

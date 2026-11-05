@@ -1,4 +1,6 @@
-import { afterEach, assert, it, vi } from "vitest";
+import { serializeProject } from "../shared/project/project-serialization";
+import { deserializeProject } from "../shared/project/project-deserialization";
+import { afterEach, assert, expect, it, vi } from "vitest";
 import type { CatalogueAsset } from "../shared/asset-runtime/catalogue";
 import { createDocumentStore } from "./document-store.ts";
 
@@ -475,8 +477,11 @@ it("snaps rooms to vacant adjoining sides while preserving undo and saved positi
   assert.deepEqual(add([-8, 0, 1]).transform.position, [-10, 0, 0]);
   assert.deepEqual(add([1, 0, 8]).transform.position, [0, 0, 10]);
   assert.deepEqual(add([1, 0, -8]).transform.position, [0, 0, -10]);
-  const next = add([19, 0, 0]);
-  assert.deepEqual(next.transform.position, [20, 0, 0]);
+  const blocked = store.getSnapshot();
+  assert.equal(store.addObject("test-room-module-v1", [19, 0, 0]).ok, false);
+  assert.equal(store.getSnapshot(), blocked);
+  const next = add([9, 0, 9]);
+  assert.deepEqual(next.transform.position, [10, 0, 10]);
   store.undo();
   assert.equal(
     store.getSnapshot().objects.some((object) => object.id === next.id),
@@ -500,14 +505,110 @@ it("snaps rooms to vacant adjoining sides while preserving undo and saved positi
   const before = store.getSnapshot();
   assert.equal(store.addObject("test-room-module-v1", [NaN, 0, 0]).ok, false);
   assert.equal(store.getSnapshot(), before);
-  // A moved and resized room supplies its actual footprint
+  // Previously saved scaled rooms remain readable and still supply their actual footprint.
+  const imported = structuredClone(store.getSnapshot().project!);
+  const existing = imported.scenes[0]!.objects.find((object) => object.id === next.id)!;
+  Object.assign(existing, {
+    transform: { ...existing.transform, position: [50, 0, 0], scale: [2, 1, 1] },
+  });
   assert.equal(
-    store.setTransform(next.id, {
-      ...next.transform,
-      position: [50, 0, 0],
-      scale: [2, 1, 1],
-    }).ok,
+    store.loadProject(
+      JSON.stringify(imported),
+      new Map(assets.map((asset) => [asset.id, asset.kind])),
+    ).ok,
     true,
   );
-  assert.deepEqual(add([65, 0, 0]).transform.position, [65, 0, 0]);
+  assert.deepEqual(
+    store.getSnapshot().objects.find((object) => object.id === next.id)?.transform.position,
+    [50, 0, 0],
+  );
+  assert.equal(store.addObject("test-room-module-v1", [65, 0, 0]).ok, false);
+});
+
+it("rejects room scaling in direct edits and previews while allowing movement and normal object scaling", () => {
+  const assets: CatalogueAsset[] = ["test-room-v1", "test-room-module-v1", "test-crate-v1"].map(
+    (id) => ({
+      id,
+      name: id,
+      kind: id === "test-room-v1" ? "environment" : "model",
+      url: `${id}.glb`,
+      sha256: "0".repeat(64),
+      thumbnail: null,
+    }),
+  );
+  const store = createDocumentStore(assets);
+  store.createProject("test-room-v1");
+  const added = store.addObject("test-room-module-v1", [10, 0, 0]);
+  if (!added.ok) throw new Error(added.error);
+  const room = added.object;
+  const before = store.getSnapshot();
+  assert.equal(store.setTransform(room.id, { ...room.transform, scale: [2, 2, 2] }).ok, false);
+  assert.equal(store.getSnapshot(), before);
+  const edit = store.beginTransform(room.id);
+  if (!edit.ok) throw new Error(edit.error.message);
+  assert.equal(
+    store.previewTransform(edit.value.token, { ...room.transform, scale: [0.5, 0.5, 0.5] }).ok,
+    false,
+  );
+  assert.equal(store.getTransformEdit(), null);
+  assert.equal(store.getSnapshot(), before);
+  assert.equal(store.setTransform(room.id, { ...room.transform, position: [20, 0, 0] }).ok, true);
+  const crate = store.addObject("test-crate-v1", [0, 0, 0]);
+  if (!crate.ok) throw new Error(crate.error);
+  assert.equal(
+    store.setTransform(crate.object.id, { ...crate.object.transform, scale: [2, 2, 2] }).ok,
+    true,
+  );
+});
+
+it("links hotspot playback to scene audio and removes only the hotspot and its rules", () => {
+  // Keep one store-level regression for track removal and atomic restoration of its hotspot links
+  const assets: CatalogueAsset[] = (
+    [
+      { id: "room", kind: "environment" },
+      { id: "object", kind: "model" },
+      { id: "audio", kind: "audio" },
+    ] as const
+  ).map((asset) => ({
+    ...asset,
+    name: asset.id,
+    url: asset.id,
+    sha256: "0".repeat(64),
+    thumbnail: null,
+  }));
+  const store = createDocumentStore(assets);
+  store.createProject("room");
+  const placed = store.addObject("object", [0, 0, 0]);
+  if (!placed.ok) throw Error("Placement failed");
+  store.addAudio("audio", "global", null);
+  const project = store.getSnapshot().project!;
+  if (project.schemaVersion !== 2) throw Error("Expected content project");
+  const mediaId = project.scenes[0]!.audio![0]!.id;
+  const hotspot = store.addHotspot(placed.object.id);
+  if (!hotspot.ok) throw Error("Hotspot failed");
+  const rule = {
+    when: { type: "visitor-clicks-hotspot" as const, targetHotspotId: hotspot.value.id },
+    do: { type: "play-audio" as const, mediaId },
+  };
+  expect(store.setInteractions([rule]).ok).toBe(true);
+  const linked = store.getSnapshot().project!;
+  const registry = new Map(assets.map((asset) => [asset.id, asset.kind]));
+  const saved = serializeProject(linked, registry);
+  if (!saved.ok) throw Error(saved.error.message);
+  const reopened = deserializeProject(saved.value, registry);
+  expect(reopened.ok).toBe(true);
+  if (reopened.ok) expect(reopened.value.scenes[0]!.interactions[0]!.do).toEqual(rule.do);
+  expect(
+    store.setInteractions([{ ...rule, do: { type: "play-audio", mediaId: placed.object.id } }]).ok,
+  ).toBe(false);
+  expect(store.removeAudio(mediaId).ok).toBe(true);
+  expect(store.getSnapshot().project!.scenes[0]!.interactions).toHaveLength(0);
+  expect(store.getSnapshot().project!.scenes[0]!.hotspots).toHaveLength(1);
+  store.undo();
+  expect(store.getSnapshot().project).toEqual(linked);
+  expect(store.deleteHotspot(hotspot.value.id).ok).toBe(true);
+  expect(store.getSnapshot().project!.scenes[0]!.interactions).toHaveLength(0);
+  expect(store.getSnapshot().objects).toHaveLength(1);
+  store.undo();
+  expect(store.getSnapshot().project).toEqual(linked);
 });

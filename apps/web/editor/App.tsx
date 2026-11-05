@@ -1,7 +1,12 @@
+import { roomFitsGrid } from "../shared/project/room-placement";
+import { environmentObject } from "../shared/project/selection-transform";
+import { AudioLibrary, type AudioLibraryMode } from "./ui/AudioLibrary";
+import { ExhibitPopups } from "./ui/ExhibitPopups";
+import type { ContentObject } from "../shared/project/project-content";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { assets } from "virtual:asset-catalogue";
 import { HOTSPOT_ASSET, HOTSPOT_ASSET_ID } from "../shared/asset-runtime/hotspot";
-import type { Vector3Tuple } from "../shared/project/scene-object";
+import type { SceneObject, Vector3Tuple } from "../shared/project/scene-object";
 import type { HotspotDropTarget, ProjectHotspot, Transform } from "../shared/project/project-types";
 import { missingProjectCapabilities } from "../shared/project/project-capabilities";
 import { playUiSound } from "./audio/ui-sounds";
@@ -17,7 +22,10 @@ import type { CameraView, ModeManager, ModeManagerState } from "./graphics/modeM
 import { createActionRunner } from "./interaction/actionHandler";
 import { createPreviewNavigation } from "./interaction/preview-navigation";
 import { createInteractionHandler, type Interaction } from "./interaction/interactionHandler";
+import { DisplayEditor } from "./ui/DisplayEditor";
+import { Button } from "../shared/ui/Button";
 import { BottomBar } from "./ui/BottomBar";
+import { ContentEditor, type ContentKind, type ExhibitFields } from "./ui/ContentEditor";
 import { PreviewTargets } from "./ui/PreviewTargets";
 import { SidePanels } from "./ui/SidePanels";
 import { TopBar } from "./ui/TopBar";
@@ -53,7 +61,51 @@ export function App({ server }: { server?: ServerEditorSession }) {
   const [store] = useState(() => server?.store ?? createDocumentStore(editorAssets));
   const { objects, project, activeSceneId, loadGeneration, canUndo, canRedo } =
     useSyncExternalStore(store.subscribe, store.getSnapshot);
+  const [displayEditing, setDisplayEditing] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Selection belongs to one loaded scene generation and never enters the saved project
+  const [multiSelection, setMultiSelection] = useState<{
+    sceneId: string | null;
+    generation: number;
+    ids: readonly string[];
+  } | null>(null);
+  const selectedIds = useMemo(
+    () =>
+      multiSelection?.sceneId === activeSceneId &&
+      multiSelection.generation === loadGeneration &&
+      selectedId !== null &&
+      multiSelection.ids.includes(selectedId)
+        ? multiSelection.ids
+        : selectedId === null
+          ? []
+          : [selectedId],
+    [multiSelection, activeSceneId, loadGeneration, selectedId],
+  );
+  const selectionRef = useRef(selectedIds);
+  useEffect(() => {
+    selectionRef.current = selectedIds;
+  }, [selectedIds]);
+  const [contentEdit, setContentEdit] = useState<{
+    objectId: string;
+    kind: ContentKind;
+  } | null>(null);
+  const [pendingTextDraft, setPendingText] = useState<{
+    objectId: string;
+    before: SceneObject;
+    fields: ExhibitFields;
+    sceneId: string | null;
+    generation: number;
+  } | null>(null);
+  const pendingText =
+    pendingTextDraft?.sceneId === activeSceneId && pendingTextDraft.generation === loadGeneration
+      ? pendingTextDraft
+      : null;
+  const textPlacement = useMemo(() => {
+    const component = pendingText?.fields.components.find((entry) => entry.type === "text");
+    return pendingText && component?.type === "text"
+      ? { objectId: pendingText.objectId, component }
+      : undefined;
+  }, [pendingText]);
   const [generatedThumbnails, setGeneratedThumbnails] = useState<Record<string, string>>({});
   const onThumbnail = useCallback((id: string, url: string) => {
     setGeneratedThumbnails((previous) => ({ ...previous, [id]: url }));
@@ -62,7 +114,21 @@ export function App({ server }: { server?: ServerEditorSession }) {
     editorAssets.find((asset) => asset.id === id)?.thumbnail ?? generatedThumbnails[id];
   const [status, setStatus] = useState<ViewportStatus>("loading");
   const [attempt, setAttempt] = useState(0);
-  const [dragging, setDragging] = useState(false);
+  const [dragging, setDragging] = useState<string | null>(null);
+  const [audioLibrary, setAudioLibrary] = useState<AudioLibraryMode | null>(null);
+  const [placingAssetId, setPlacingAssetId] = useState<string | null>(null);
+  const [showExhibitTools, setShowExhibitTools] = useState(false);
+
+  useEffect(() => {
+    function cancel(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setPlacingAssetId(null);
+        setPendingText(null);
+      }
+    }
+    window.addEventListener("keydown", cancel);
+    return () => window.removeEventListener("keydown", cancel);
+  }, []);
   const [feedback, setFeedback] = useState({ text: "", sequence: 0 });
   const notice = feedback.text;
   const [error, setError] = useState("");
@@ -77,6 +143,9 @@ export function App({ server }: { server?: ServerEditorSession }) {
     return () => clearTimeout(timer);
   }, [feedback.sequence]);
   const [viewCamera, setViewCamera] = useState<ViewpointCamera | null>(null);
+  useEffect(() => {
+    if (pendingText) viewCamera?.locate(pendingText.objectId);
+  }, [pendingText, viewCamera]);
   const [manager, setManager] = useState<ModeManager | null>(null);
   const [mobileControls, setMobileControls] = useState<FpsMobileControls | null>(null);
   const [modeState, setModeState] = useState<ModeManagerState | null>(null);
@@ -89,13 +158,17 @@ export function App({ server }: { server?: ServerEditorSession }) {
     project?.schemaVersion === 2
       ? (project.scenes.find((scene) => scene.id === activeSceneId)?.groups ?? [])
       : [];
-  const groupSelected = groups.some((group) => group.id === selectedId);
 
   // Room selection uses the scene ID because its asset lives in the environment field
   // Object commands still receive only placed-object IDs
-  const roomSelected = projectScene !== undefined && selectedId === projectScene.id;
+  const roomSelected =
+    projectScene !== undefined &&
+    projectScene.environmentVisible !== false &&
+    selectedId === projectScene.id;
   const [hasDeleted, setHasDeleted] = useState(false);
-  const selectedObject = objects.find((object) => object.id === selection);
+  const selectedObject = roomSelected
+    ? environmentObject(projectScene)
+    : objects.find((object) => object.id === selection);
   const hasChanges = project !== null || objects.length > 0 || hasDeleted;
   const visitor = modeState?.mode === "visitor";
   const mobileDevice = isMobileTouchDevice();
@@ -123,10 +196,26 @@ export function App({ server }: { server?: ServerEditorSession }) {
       createInteractionHandler(
         projectScene?.interactions ?? EMPTY_INTERACTIONS,
         projectScene?.hotspots ?? EMPTY_HOTSPOTS,
-        createActionRunner(navigation),
+        // Resolve linked tracks from the active draft so playback uses current catalogue metadata
+        createActionRunner(navigation, (id) => {
+          const current = store.getSnapshot();
+          const scene =
+            current.project?.schemaVersion === 2
+              ? current.project.scenes.find((entry) => entry.id === current.activeSceneId)
+              : undefined;
+          const audio = [
+            ...(scene?.audio ?? []),
+            ...(scene?.objects.flatMap((object) => object.components) ?? []),
+          ].find((entry) => entry.type === "audio" && entry.id.toLowerCase() === id.toLowerCase());
+          if (audio?.type !== "audio" || audio.mode !== "global") return undefined;
+          const asset = assets.find(
+            (entry) => entry.id === audio.assetId && entry.kind === "audio",
+          );
+          return asset ? { url: asset.url, loop: audio.loop, volume: audio.volume } : undefined;
+        }),
         navigation.beginEvent,
       ),
-    [projectScene, navigation],
+    [projectScene, navigation, store],
   );
   const interactionHandlerRef = useRef(interactionHandler);
   useEffect(() => {
@@ -160,8 +249,10 @@ export function App({ server }: { server?: ServerEditorSession }) {
   useEffect(() => (manager === null ? undefined : manager.subscribe(setModeState)), [manager]);
 
   const onReplace = useCallback(() => {
+    setPlacingAssetId(null);
+    setShowExhibitTools(false);
     setSelectedId(null);
-    setDragging(false);
+    setDragging(null);
     setError("");
     setHasDeleted(false);
   }, []);
@@ -197,10 +288,37 @@ export function App({ server }: { server?: ServerEditorSession }) {
     storageOperation === "import";
 
   const deleteSelection = useCallback(() => {
-    if (selection === null || visitor) {
+    if (visitor) return;
+    const current = store.getSnapshot();
+    const scene =
+      current.project?.schemaVersion === 2
+        ? current.project.scenes.find((entry) => entry.id === current.activeSceneId)
+        : undefined;
+    const audio = [
+      ...(scene?.audio ?? []),
+      ...(scene?.objects.flatMap((object) => object.components) ?? []),
+    ].find((entry) => entry.type === "audio" && entry.id === selectedId);
+    // Audio uses ordinary selection and Delete, without opening its library or deleting its owner
+    if (audio) {
+      const result = store.removeAudio(audio.id);
+      if (!result.ok) {
+        setError(result.error.message);
+        return;
+      }
+      setSelectedId(null);
+      setError("");
+      setNotice("Audio removed. Undo restores it.");
+      playUiSound("delete");
       return;
     }
-    const result = store.deleteObject(selection);
+    const target =
+      selection ??
+      (selectedId === current.activeSceneId ||
+      scene?.groups.some((group) => group.id === selectedId)
+        ? selectedId
+        : null);
+    if (target === null) return;
+    const result = store.deleteObject(target);
     if (!result.ok) {
       setError(result.error.message);
       return;
@@ -210,12 +328,18 @@ export function App({ server }: { server?: ServerEditorSession }) {
     setSelectedId(null);
     setNotice(`Deleted ${result.value.name}. Undo restores it.`);
     playUiSound("delete");
-  }, [store, selection, visitor, setNotice]);
+  }, [store, selection, selectedId, visitor, setNotice]);
 
   useEffect(() => {
     function onHistoryKeyDown(event: KeyboardEvent) {
       // Foreground file operations own the keyboard; background backups must not block edits.
-      if (visitor || (storageOperation !== null && storageOperation !== "backup")) {
+      if (
+        placingAssetId ||
+        audioLibrary ||
+        pendingText ||
+        visitor ||
+        (storageOperation !== null && storageOperation !== "backup")
+      ) {
         return;
       }
       const editingText = event.composedPath().some(isTextEditingTarget);
@@ -267,7 +391,17 @@ export function App({ server }: { server?: ServerEditorSession }) {
     }
     window.addEventListener("keydown", onHistoryKeyDown);
     return () => window.removeEventListener("keydown", onHistoryKeyDown);
-  }, [store, selection, storageOperation, visitor, setNotice, deleteSelection]);
+  }, [
+    store,
+    selection,
+    storageOperation,
+    visitor,
+    setNotice,
+    deleteSelection,
+    placingAssetId,
+    audioLibrary,
+    pendingText,
+  ]);
 
   useEffect(() => {
     // Filename identifies the browser tab; save status stays in the editor
@@ -291,7 +425,16 @@ export function App({ server }: { server?: ServerEditorSession }) {
 
   const onTransform = useCallback(
     (id: string, transform: Transform) => {
-      const result = store.setTransform(id, transform);
+      const snapshot = store.getSnapshot();
+      const ids = selectionRef.current;
+      const result =
+        ids.length > 1 ||
+        id === snapshot.activeSceneId ||
+        snapshot.objects.some(
+          (object) => object.id === id && object.assetId === "test-room-module-v1",
+        )
+          ? store.setSelectionTransform(ids, id, transform)
+          : store.setTransform(id, transform);
       if (!result.ok) {
         setError(result.error);
       } else if (result.changed) {
@@ -302,7 +445,12 @@ export function App({ server }: { server?: ServerEditorSession }) {
     [store, setNotice],
   );
 
-  function place(assetId: string, position: Vector3Tuple, hotspotTarget?: HotspotDropTarget) {
+  function place(
+    assetId: string,
+    position: Vector3Tuple,
+    hotspotTarget?: HotspotDropTarget,
+    roomId: string | null = null,
+  ) {
     if (visitor) {
       return;
     }
@@ -317,10 +465,12 @@ export function App({ server }: { server?: ServerEditorSession }) {
         setNotice("Select an object to attach the hotspot to");
         return;
       }
-      const result = store.addHotspot(
-        objectId,
-        hotspotTarget?.objectId === objectId ? hotspotTarget.localPosition : [0, 0, 0],
-      );
+      const localPosition = viewCamera?.hotspotAnchor(objectId);
+      if (localPosition === undefined) {
+        setNotice("Bring the selected object fully into view before adding a hotspot");
+        return;
+      }
+      const result = store.addHotspot(objectId, localPosition);
       if (!result.ok) {
         setError(result.error.message);
         return;
@@ -333,6 +483,10 @@ export function App({ server }: { server?: ServerEditorSession }) {
     // Choosing the first room turns the grid scene into a saveable project
     // Room placement uses the environment slot so it survives JSON reconstruction
     if (assetKinds.get(assetId) === "environment") {
+      if (!projectScene && !roomFitsGrid(position)) {
+        setError("Keep the whole room inside the grid");
+        return;
+      }
       const creatingDuringInitialRecovery =
         session.busy && session.operation === "recover" && project === null;
       if (session.busy && !creatingDuringInitialRecovery) {
@@ -350,7 +504,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
         } else {
           setError(added.error);
         }
-        setDragging(false);
+        setDragging(null);
         return;
       }
       if (project !== null) {
@@ -361,7 +515,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
           setNotice("Scene environment updated. Undo is available.");
           playUiSound("assetPlace");
         }
-        setDragging(false);
+        setDragging(null);
         return;
       }
       const created = store.createProject(assetId);
@@ -371,7 +525,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
       }
       setError("");
       setSelectedId(created.value.scenes[0]!.id);
-      setDragging(false);
+      setDragging(null);
       if (created.value.scenes[0]?.objects.length === 0) {
         session.markPristine(created.value);
       }
@@ -381,16 +535,12 @@ export function App({ server }: { server?: ServerEditorSession }) {
     }
     // Clicks and drops share this path; room selection starts the project before furnishing it
     if (store.getSnapshot().project === null) {
-      setDragging(false);
+      setDragging(null);
       setError("Choose a room first");
       return;
     }
 
-    const result = store.addObject(
-      assetId,
-      position,
-      roomSelected || groupSelected ? selectedId : selection,
-    );
+    const result = store.addObject(assetId, position, roomId);
     if (!result.ok) {
       setError(result.error);
       return;
@@ -400,6 +550,50 @@ export function App({ server }: { server?: ServerEditorSession }) {
     setNotice(`Added ${result.object.name}`);
     playUiSound("assetPlace");
   }
+
+  function openContent(kind: ContentKind) {
+    const object = store.getSnapshot().objects.find((entry) => entry.id === selectedId);
+    if (!object) {
+      setNotice("Select an exhibit in the scene or scene tree first");
+      return;
+    }
+    if (!assets.find((asset) => asset.id === object.assetId)?.displayRole) {
+      setNotice("Text can only be added to displays");
+      return;
+    }
+    if (
+      kind === "text" &&
+      (object as Partial<ContentObject>).components?.some(
+        (component) => component.type === "image" || component.type === "video",
+      )
+    ) {
+      setNotice("Remove the image or video before adding text");
+      return;
+    }
+    // Capture the selected stable ID so switching controls cannot silently retarget a pending form
+    setContentEdit({ objectId: object.id, kind });
+  }
+  const contentObject = objects.find(
+    (object) =>
+      object.id === contentEdit?.objectId &&
+      !!assets.find((asset) => asset.id === object.assetId)?.displayRole,
+  );
+  const onSceneSelect = useCallback(
+    (id: string | null) => {
+      // Ordinary picks replace the previous range; tree multi-selection supplies its new range afterward
+      setMultiSelection(null);
+      setPendingText(null);
+      setSelectedId(id);
+      setShowExhibitTools(
+        id !== null && store.getSnapshot().objects.some((object) => object.id === id),
+      );
+    },
+    [store],
+  );
+  const popupAnchor = useCallback(
+    () => (selection === null ? null : (viewCamera?.bounds(selection) ?? null)),
+    [viewCamera, selection],
+  );
 
   return (
     <div
@@ -422,7 +616,9 @@ export function App({ server }: { server?: ServerEditorSession }) {
         canRedo={canRedo}
         onUndo={store.undo}
         onRedo={store.redo}
-        canPreview={manager !== null && (!session.busy || storageOperation === "backup")}
+        canPreview={
+          !pendingText && manager !== null && (!session.busy || storageOperation === "backup")
+        }
         onPreview={() => {
           const current = store.getSnapshot().project;
           const unavailable =
@@ -431,12 +627,44 @@ export function App({ server }: { server?: ServerEditorSession }) {
               : missingProjectCapabilities(
                   current,
                   new Set([
+                    "appearance",
                     "multipleScenes",
+                    "content:text",
+                    "content:image",
+                    "content:video",
+                    "content:audio",
+                    "audio:global",
+                    "interaction:play-audio",
+                    "text:placement",
+                    "environment:transform",
+                    "environment:visibility",
+                    "text:style",
+                    "text:bold",
+                    "text:italic",
+                    "text:underline",
                     "interaction:navigate-scene",
                     "interaction:move-to-viewpoint",
                   ]),
                 );
-          if (unavailable.length > 0) {
+          const unsupportedDisplay =
+            current?.schemaVersion === 2 &&
+            current.scenes.some((scene) =>
+              scene.objects.some((object) => {
+                const display = assets.find((asset) => asset.id === object.assetId);
+                const content = object.components.filter((component) =>
+                  ["text", "image", "video"].includes(component.type),
+                );
+                return (
+                  content.length > 0 &&
+                  !display?.displaySurface &&
+                  !(
+                    display?.displayRole === "physical" &&
+                    content.every((component) => component.type === "text")
+                  )
+                );
+              }),
+            );
+          if (unavailable.length > 0 || unsupportedDisplay) {
             setNotice(
               "This preview does not support all the scenes and interactions in this project",
             );
@@ -482,6 +710,17 @@ export function App({ server }: { server?: ServerEditorSession }) {
       )}
       <main className="workspace" inert={switching}>
         <SidePanels
+          assets={assets}
+          sceneAudio={
+            project?.schemaVersion === 2
+              ? (project.scenes.find((scene) => scene.id === activeSceneId)?.audio ?? [])
+              : []
+          }
+          onHotspotRemove={(id) => {
+            const result = store.deleteHotspot(id);
+            if (!result.ok) setNotice(result.error.message);
+          }}
+          onContent={openContent}
           scenes={
             <Scenes
               key={`${loadGeneration}:${project?.projectId ?? "new"}:${activeSceneId}:${projectScene?.name}`}
@@ -492,7 +731,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
               disabled={visitor || switching || status !== "ready"}
               onSwitch={() => {
                 setSelectedId(null);
-                setDragging(false);
+                setDragging(null);
                 setError("");
               }}
             />
@@ -513,7 +752,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
           }
           visitor={visitor}
           room={
-            !projectScene?.environmentAssetId
+            !projectScene?.environmentAssetId || projectScene.environmentVisible === false
               ? undefined
               : {
                   id: projectScene.id,
@@ -541,7 +780,12 @@ export function App({ server }: { server?: ServerEditorSession }) {
             },
           }}
           objects={objects}
-          selectedId={roomSelected ? projectScene.id : groupSelected ? selectedId : selection}
+          selectedId={selectedId}
+          selectedIds={selectedIds}
+          onMultiSelect={(ids, id) => {
+            onSceneSelect(id);
+            setMultiSelection({ sceneId: activeSceneId, generation: loadGeneration, ids });
+          }}
           selectedObject={selectedObject}
           mobileDevice={mobileDevice}
           hotspots={hotspots}
@@ -549,7 +793,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
           projectScenes={project?.scenes ?? []}
           activeSceneId={activeSceneId}
           thumbnailFor={thumbnailFor}
-          onSelect={setSelectedId}
+          onSelect={onSceneSelect}
           onDelete={deleteSelection}
           onTransform={onTransform}
           onInteractionsChange={onInteractionsChange}
@@ -562,6 +806,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
         />
 
         <Viewport
+          selectedIds={selectedIds}
           onCamera={setViewCamera}
           loadGeneration={loadGeneration}
           assets={editorAssets}
@@ -569,19 +814,42 @@ export function App({ server }: { server?: ServerEditorSession }) {
           projectScene={projectScene ?? null}
           selectedId={roomSelected ? projectScene.id : selection}
           dragging={dragging}
+          textPlacement={textPlacement}
+          onTextPlace={(placement) => {
+            if (!pendingText) return;
+            const result = store.editExhibit(pendingText.objectId, pendingText.before, {
+              ...pendingText.fields,
+              components: pendingText.fields.components.map((component) =>
+                component.type === "text" ? { ...component, placement } : component,
+              ),
+            });
+            if (!result.ok) {
+              setError(result.error.message);
+              return;
+            }
+            setPendingText(null);
+            setShowExhibitTools(true);
+          }}
+          placingAssetId={placingAssetId}
+          onPlacementCancel={() => setPlacingAssetId(null)}
           editingEnabled={!switching}
-          navigationTool={navigationTool}
+          navigationTool={pendingText ? "orbit" : navigationTool}
           view={view}
           status={status}
           attempt={attempt}
           onStatus={setStatus}
           onThumbnail={onThumbnail}
-          onSelect={setSelectedId}
+          onSelect={onSceneSelect}
           onTransform={onTransform}
           onObjectClick={onObjectClick}
           onSceneUpdate={onSceneUpdate}
-          onPlace={place}
-          onDragFinish={() => setDragging(false)}
+          onPlace={(...args) => {
+            place(...args);
+            setPlacingAssetId(null);
+          }}
+          onDragFinish={() => {
+            setDragging(null);
+          }}
           onRetry={() => {
             setStatus("loading");
             setAttempt((previous) => previous + 1);
@@ -589,6 +857,65 @@ export function App({ server }: { server?: ServerEditorSession }) {
           onManager={onManager}
           onMobileControls={setMobileControls}
         >
+          {!visitor &&
+            !placingAssetId &&
+            !pendingText &&
+            !contentEdit &&
+            showExhibitTools &&
+            selectedObject && (
+              <ExhibitPopups
+                key={selectedObject.id}
+                object={selectedObject}
+                anchor={popupAnchor}
+                displayRole={
+                  editorAssets.find((asset) => asset.id === selectedObject.assetId)?.displayRole
+                }
+                onEdit={openContent}
+                onLibrary={() => setDisplayEditing(selectedObject.id)}
+                onRemoveText={() => {
+                  const result = store.editExhibit(selectedObject.id, selectedObject, {
+                    name: selectedObject.name,
+                    transform: selectedObject.transform,
+                    components: (
+                      (selectedObject as Partial<ContentObject>).components ?? []
+                    ).filter((component) => component.type !== "text"),
+                  });
+                  if (!result.ok) setError(result.error.message);
+                }}
+                onRemoveMedia={() => {
+                  const result = store.removeDisplayMedia(selectedObject.id);
+                  if (!result.ok) setError(result.error.message);
+                }}
+                onRemoveContent={
+                  assets.find((asset) => asset.id === selectedObject.assetId)?.displayRole ===
+                    "physical" &&
+                  objects.some(
+                    (object) => (object as Partial<ContentObject>).parentId === selectedObject.id,
+                  )
+                    ? () => {
+                        const result = store.removeDisplayedAsset(selectedObject.id);
+                        if (!result.ok) setError(result.error.message);
+                      }
+                    : undefined
+                }
+                onConfirm={(appearance) => store.setAppearance(selectedObject.id, appearance)}
+              />
+            )}
+          {visitor && (
+            <div className="display-media-controls">
+              {objects
+                .filter((object) =>
+                  (object as ContentObject).components?.some(
+                    (component) => component.type === "video",
+                  ),
+                )
+                .map((object) => (
+                  <Button key={object.id} onClick={() => viewCamera?.toggleDisplayMedia(object.id)}>
+                    Play / pause {object.name}
+                  </Button>
+                ))}
+            </div>
+          )}
           {visitor && (
             <PreviewTargets
               objects={objects}
@@ -599,15 +926,40 @@ export function App({ server }: { server?: ServerEditorSession }) {
           )}
           {!visitor && (
             <BottomBar
-              assets={assets}
+              assets={assets.filter((a) => a.kind === "model" || a.kind === "environment")}
               hotspot={HOTSPOT_ASSET}
               ready={status === "ready"}
               thumbnailFor={thumbnailFor}
-              onAdd={(assetId) => place(assetId, [0, 0, 0])}
-              onDragChange={setDragging}
+              onAudio={(mode) => {
+                setPlacingAssetId(null);
+                setAudioLibrary(mode);
+              }}
+              onAdd={(assetId) => {
+                setShowExhibitTools(false);
+                if (assetId === HOTSPOT_ASSET_ID) {
+                  place(assetId, [0, 0, 0]);
+                  return;
+                }
+                if (project === null && assetKinds.get(assetId) !== "environment") {
+                  setError("Choose a room first");
+                  return;
+                }
+                setPlacingAssetId(assetId);
+                setNavigationTool("select");
+              }}
+              onDragChange={(assetId) => {
+                setDragging(assetId);
+                if (assetId !== null) {
+                  setPlacingAssetId(null);
+                  setShowExhibitTools(false);
+                }
+              }}
               tool={navigationTool}
-              onToolChange={setNavigationTool}
-              showCameraTools={view === "third"}
+              onToolChange={(tool) => {
+                setView("third");
+                setNavigationTool(tool);
+              }}
+              showCameraTools={true}
             />
           )}
           {mobileDevice && walking && mobileControls !== null && (
@@ -625,6 +977,62 @@ export function App({ server }: { server?: ServerEditorSession }) {
           )}
         </Viewport>
       </main>
+      {contentEdit && contentObject && (
+        <ContentEditor
+          key={contentEdit.objectId}
+          object={contentObject}
+          initialKind={contentEdit.kind}
+          media={assets
+            .filter((asset) => asset.kind === "image" || asset.kind === "video")
+            .map((asset) => ({ ...asset, kind: asset.kind as "image" | "video" }))}
+          displayMedia={
+            editorAssets.find((asset) => asset.id === contentObject.assetId)?.displayRole ===
+            "digital"
+          }
+          onSave={(before, fields) => {
+            if (
+              assets.find((asset) => asset.id === contentObject.assetId)?.displayRole ===
+                "physical" &&
+              !(before as Partial<ContentObject>).components?.some(
+                (component) => component.type === "text",
+              ) &&
+              fields.components.some(
+                (component) =>
+                  component.type === "text" && component.runs.some((run) => run.text.trim()),
+              )
+            ) {
+              setPendingText({
+                objectId: contentEdit.objectId,
+                before,
+                fields,
+                sceneId: activeSceneId,
+                generation: loadGeneration,
+              });
+              setPlacingAssetId(null);
+              setDragging(null);
+              setView("third");
+              return { ok: true, value: true };
+            }
+            return store.editExhibit(contentEdit.objectId, before, fields);
+          }}
+          onClose={() => setContentEdit(null)}
+        />
+      )}
+      {audioLibrary && (
+        <AudioLibrary
+          assets={assets}
+          mode={audioLibrary}
+          targetName={selectedObject?.name ?? null}
+          onAdd={(id) =>
+            store.addAudio(
+              id,
+              audioLibrary === "background" ? "global" : "spatial",
+              selectedObject?.id ?? null,
+            )
+          }
+          onClose={() => setAudioLibrary(null)}
+        />
+      )}
       <p
         key={`${storageOperation === "recover" || storageOperation === "import" ? storageOperation : "notice"}-${feedback.sequence}`}
         className="draft-feedback"
@@ -636,6 +1044,27 @@ export function App({ server }: { server?: ServerEditorSession }) {
             ? "Reading project file…"
             : notice}
       </p>
+      {displayEditing &&
+        !visitor &&
+        project &&
+        (() => {
+          const object = objects.find((entry) => entry.id === displayEditing);
+          const asset = assets.find((entry) => entry.id === object?.assetId);
+          return object && asset?.displayRole ? (
+            <DisplayEditor
+              key={`${loadGeneration}:${activeSceneId}:${object.id}`}
+              object={object}
+              placementFor={(ownerId, assetId) => viewCamera?.displayPlacement?.(ownerId, assetId)}
+              initialKind="image"
+              asset={asset}
+              assets={assets}
+              project={project}
+              store={store}
+              thumbnailFor={thumbnailFor}
+              onClose={() => setDisplayEditing(null)}
+            />
+          ) : null;
+        })()}
       {session.confirmation && (
         <ProjectConfirmation
           fileName={session.fileName || "Untitled"}

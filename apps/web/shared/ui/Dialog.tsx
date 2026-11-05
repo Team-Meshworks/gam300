@@ -11,7 +11,7 @@ export function Dialog({
   title: string;
   children: ReactNode;
   onClose: () => void;
-  variant?: "account" | "wide";
+  variant?: "account" | "wide" | "display";
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -26,7 +26,7 @@ export function Dialog({
   }, []);
   return (
     <dialog
-      className={`sp-dialog${variant === "account" ? " sp-account-dialog" : variant === "wide" ? " sp-dialog--wide" : ""}`}
+      className={`sp-dialog${variant === "account" ? " sp-account-dialog" : variant === "wide" ? " sp-dialog--wide" : variant === "display" ? " sp-display-dialog" : ""}`}
       ref={ref}
       aria-labelledby={titleId}
       onCancel={(event) => {
@@ -43,7 +43,7 @@ export function Dialog({
         </Button>
       )}
       <div className="sp-dialog-body">{children}</div>
-      {variant !== "account" && <Button onClick={onClose}>Close</Button>}
+      {variant !== "account" && variant !== "display" && <Button onClick={onClose}>Close</Button>}
     </dialog>
   );
 }
