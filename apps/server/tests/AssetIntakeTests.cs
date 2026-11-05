@@ -279,7 +279,7 @@ public sealed class AssetIntakeTests
     }
 
     // Keep API tests independent of Git LFS while exercising the real GLB validator
-    private static byte[] CreateMinimalGlb(string? document = null)
+    internal static byte[] CreateMinimalGlb(string? document = null)
     {
         // Cross the default small JSON-request budget so this also proves the upload route's larger limit applies
         var json = System.Text.Encoding.UTF8.GetBytes(document ?? "{\"asset\":{\"version\":\"2.0\"},\"scene\":0,\"scenes\":[{\"nodes\":[0]}],\"nodes\":[{}],\"extras\":{\"padding\":\"" + new string('x', 32 * 1024) + "\"}}");

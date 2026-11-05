@@ -3,6 +3,7 @@ using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Spatia.ProjectFormat;
 using Spatia.Server.Projects;
+using Spatia.Server.Publications;
 using Spatia.Server.Reviews;
 
 namespace Spatia.Server.Tests;
@@ -49,21 +50,24 @@ public sealed class ReviewAssetManifestTests
     }
 
     [Test]
-    public async Task ReviewAssets_IncludeSceneAudioAndRequireItsResolvedIdentity()
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task AssetManifests_IncludeSceneAudioAndRequireItsResolvedIdentity(bool publication)
     {
         var id = Guid.NewGuid();
         var documents = new ProjectDocumentService(new DevelopmentEnvironment());
         var result = documents.Read(id, ProjectTestDocuments.Create(id, "Review", 2));
         var project = (ContentProject)result.Value!;
         var scene = project.Scenes[0];
-        var required = ReviewAssetManifest.Required(project with
+        var document = project with
         {
             Scenes = [scene with
             {
                 Audio = [new AudioComponent("background", "scene-audio", "", true, 1, AudioMode.Global),
                     new AudioComponent("background-repeat", "scene-audio", "", false, 1, AudioMode.Global)],
             }],
-        });
+        };
+        var required = publication ? PublicationDocumentAssets.Required(document) : ReviewAssetManifest.Required(document);
 
         await Assert.That(required.SetEquals([scene.EnvironmentAssetId, scene.Objects[0].AssetId, "scene-audio"])).IsTrue();
         var resolved = required.Select(assetId => new ReviewAssetReference(assetId, new string('a', 64))).ToArray();

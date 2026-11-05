@@ -27,8 +27,10 @@ public sealed class PublicationMigrationIntegrationTests
             .Where(id => string.CompareOrdinal(id, draftMigration) > 0 &&
                 string.CompareOrdinal(id, currentDevMigration) <= 0).Order(StringComparer.Ordinal))
         {
-            // Reproduce dev's history before either of the unmerged storage features existed.
-            if (migration != publicationMigration && migration != assetMigration)
+            // Reproduce dev before either storage feature and dependent access guards existed
+            if (migration != publicationMigration && migration != assetMigration
+                && !migration.EndsWith("_AddPublicationAccess", StringComparison.Ordinal)
+                && !migration.EndsWith("_HardenPublicationAccess", StringComparison.Ordinal))
             {
                 await PostgresAccountFixture.ExecuteMigrationScriptAsync(database,
                     migrator.GenerateScript(previous, migration, MigrationsSqlGenerationOptions.Idempotent));

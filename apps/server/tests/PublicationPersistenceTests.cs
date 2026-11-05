@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using Spatia.Server.Accounts;
@@ -22,6 +23,95 @@ public sealed class PublicationPersistenceTests
     private static readonly Guid PublicationId = Guid.Parse("33333333-3333-4333-8333-333333333333");
     private static readonly byte[] Digest = Enumerable.Range(0, 32).Select(index => (byte)index).ToArray();
     private static readonly DateTimeOffset DraftTime = new(2026, 10, 29, 0, 0, 0, TimeSpan.Zero);
+
+    [Test]
+    public async Task PublicationDatabase_RuntimeDeleteCannotReplaceAnExistingEdition()
+    {
+        await using var fixture = await PostgresAccountFixture.CreateAsync();
+        await SeedAsync(fixture);
+        await InsertAsync(fixture, Edition());
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var database = Db(scope);
+        var role = "publication_runtime_" + Guid.NewGuid().ToString("N");
+
+        // Give a disposable runtime role ordinary table grants without ownership or trigger privileges
+        // Roll back its creation and grants together so no cluster-wide test role is retained
+        await using (var transaction = await database.Database.BeginTransactionAsync())
+        {
+            // PostgreSQL identifiers cannot be parameters; both names contain only generated GUID hex and fixed prefixes
+            foreach (var sql in new[] {
+                $"CREATE ROLE {role} NOLOGIN", $"GRANT USAGE ON SCHEMA {fixture.SchemaName} TO {role}",
+                $"GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA {fixture.SchemaName} TO {role}", $"SET LOCAL ROLE {role}" })
+            {
+                await using var command = database.Database.GetDbConnection().CreateCommand();
+                command.Transaction = transaction.GetDbTransaction();
+                command.CommandText = sql;
+                await command.ExecuteNonQueryAsync();
+            }
+            var failure = await Assert.ThrowsAsync<PostgresException>(async () =>
+                await database.Database.ExecuteSqlRawAsync("DELETE FROM publications"));
+            await Assert.That(failure!.SqlState).IsEqualTo("23514");
+            await Assert.That(failure.ConstraintName).IsEqualTo("CK_publications_immutable");
+            await transaction.RollbackAsync();
+        }
+        await Assert.That(await database.Publications.CountAsync()).IsEqualTo(1);
+        await AssertJsonAsync((await ReadAsync(fixture)).DocumentJson, Document());
+    }
+
+    [Test]
+    public async Task PublicationDatabase_DeletedPolicyCannotBeResetOrReplaced()
+    {
+        await using var fixture = await PostgresAccountFixture.CreateAsync();
+        await SeedAsync(fixture);
+        await InsertAsync(fixture, Edition());
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var database = Db(scope);
+        database.PublicationAccess.Add(new PublicationAccessState { PublicationId = PublicationId, Deleted = true });
+        await database.SaveChangesAsync();
+
+        // Permanent link deletion survives ordinary updates and policy-row replacement attempts
+        foreach (var sql in new[] { "UPDATE publication_access SET \"Deleted\" = false", "DELETE FROM publication_access" })
+        {
+            var failure = await Assert.ThrowsAsync<PostgresException>(async () => await database.Database.ExecuteSqlRawAsync(sql));
+            await Assert.That(failure!.ConstraintName).IsEqualTo("CK_publication_access_permanent");
+        }
+        await Assert.That((await database.PublicationAccess.AsNoTracking().SingleAsync()).Deleted).IsTrue();
+    }
+
+    [Test]
+    public async Task PublicationDatabase_RuntimePolicyIdentityIsImmutable()
+    {
+        await using var fixture = await PostgresAccountFixture.CreateAsync("20261104191214_ProtectPublicationHistory");
+        await SeedAsync(fixture);
+        await InsertAsync(fixture, Edition());
+        var other = Guid.NewGuid();
+        await InsertAsync(fixture, Edition(other));
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var database = Db(scope);
+        database.PublicationAccess.Add(new PublicationAccessState { PublicationId = PublicationId, Deleted = true });
+        await database.SaveChangesAsync();
+        await database.Database.MigrateAsync();
+        var role = "publication_runtime_" + Guid.NewGuid().ToString("N");
+        await using (var transaction = await database.Database.BeginTransactionAsync())
+        {
+            foreach (var sql in new[] {
+                $"CREATE ROLE {role} NOLOGIN", $"GRANT USAGE ON SCHEMA {fixture.SchemaName} TO {role}",
+                $"GRANT SELECT, UPDATE ON publication_access TO {role}", $"SET LOCAL ROLE {role}" })
+            {
+                await using var command = database.Database.GetDbConnection().CreateCommand();
+                command.Transaction = transaction.GetDbTransaction();
+                command.CommandText = sql;
+                await command.ExecuteNonQueryAsync();
+            }
+            var failure = await Assert.ThrowsAsync<PostgresException>(async () =>
+                await database.Database.ExecuteSqlInterpolatedAsync($"UPDATE publication_access SET \"PublicationId\" = {other} WHERE \"PublicationId\" = {PublicationId}"));
+            await Assert.That(failure!.ConstraintName).IsEqualTo("CK_publication_access_permanent");
+            await transaction.RollbackAsync();
+        }
+        var retained = await database.PublicationAccess.AsNoTracking().SingleAsync();
+        await Assert.That(retained.PublicationId).IsEqualTo(PublicationId);
+        await Assert.That(retained.Deleted).IsTrue();
+    }
 
     [Test]
     [Arguments(1, 0L)]

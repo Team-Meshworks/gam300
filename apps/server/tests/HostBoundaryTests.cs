@@ -85,11 +85,11 @@ public sealed class HostBoundaryTests
     }
 
     [Test]
-    public async Task ProductionRouteInventory_ContainsOnlyReviewedAccountProjectAndClassRoutes()
+    public async Task ProductionRouteInventory_ContainsOnlyReviewedAccountProjectClassAndAssetRoutes()
     {
         await using var app = SpatiaApplication.Build(CreateConfigurationBuilder());
         var endpoints = ((IEndpointRouteBuilder)app).DataSources.SelectMany(source => source.Endpoints).OfType<RouteEndpoint>().ToArray();
-        await Assert.That(endpoints.Length).IsEqualTo(46);
+        await Assert.That(endpoints.Length).IsEqualTo(51);
         var expected = new[] { "GET /api/auth/csrf", "POST /api/auth/login", "GET /api/auth/session", "POST /api/auth/logout", "POST /api/auth/password",
             "POST /api/admin/organizations", "POST /api/admin/users", "POST /api/admin/users/{id:guid}/password",
             "GET /api/admin/users", "GET /api/admin/users/{id:guid}", "GET /api/admin/organizations", "GET /api/admin/organizations/{id:guid}",
@@ -105,9 +105,12 @@ public sealed class HostBoundaryTests
             "POST /api/classes/", "POST /api/classes/{id:guid}/assignments", "PUT /api/classes/{id:guid}/members/{userId:guid}", "DELETE /api/classes/{id:guid}/members/{userId:guid}",
             "GET /api/admin/assets/", "GET /api/admin/assets/{id:guid}/bytes", "POST /api/admin/assets/", "POST /api/admin/assets/{id:guid}/approve",
             "POST /api/admin/assets/{id:guid}/availability", "GET /api/assets", "GET /api/assets/{id:guid}/bytes",
-            "GET /api/projects/{projectId:guid}/assets/{id:guid}/bytes" };
+            "GET /api/projects/{projectId:guid}/assets/{id:guid}/bytes",
+            "GET,HEAD /api/publications/{publicationId}", "GET,HEAD /api/publications/{publicationId}/assets/{assetId}/bytes",
+            "GET /api/publications/{publicationId:guid}/access", "POST /api/publications/{publicationId:guid}/access",
+            "POST /api/projects/{id:guid}/publications" };
         await Assert.That(string.Join(";", endpoints.Select(endpoint =>
-            endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Single() + " " + endpoint.RoutePattern.RawText).Order()))
+            string.Join(",", endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods) + " " + endpoint.RoutePattern.RawText).Order()))
             .IsEqualTo(string.Join(";", expected.Order()));
         foreach (var endpoint in endpoints)
         {
@@ -117,17 +120,19 @@ public sealed class HostBoundaryTests
             var session = path == "/api/auth/session";
             var project = path.StartsWith("/api/projects", StringComparison.Ordinal)
                 || path.StartsWith("/api/assets", StringComparison.Ordinal);
+            var publication = path.StartsWith("/api/publications", StringComparison.Ordinal);
+            var publicationRead = publication && !path.EndsWith("/access", StringComparison.Ordinal) && endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.All(method => method is "GET" or "HEAD");
             var assetBytes = path.EndsWith("/bytes", StringComparison.Ordinal);
             var upload = path == "/api/admin/assets/" && endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Single() == "POST";
             var classroom = path.StartsWith("/api/classes", StringComparison.Ordinal);
-            await Assert.That(endpoint.Metadata.GetMetadata<IAllowAnonymous>() is not null).IsEqualTo(csrf || login);
-            if (!csrf && !login)
+            await Assert.That(endpoint.Metadata.GetMetadata<IAllowAnonymous>() is not null).IsEqualTo(csrf || login || publicationRead);
+            if (!csrf && !login && !publicationRead)
             {
                 await Assert.That(endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>().Any(data =>
                     data.Policy == (path.StartsWith("/api/admin/", StringComparison.Ordinal)
-                        ? SecurityPolicies.Administrator : project || classroom ? SecurityPolicies.FullAccount : SecurityPolicies.CurrentAccount))).IsTrue();
+                        ? SecurityPolicies.Administrator : project || classroom || publication ? SecurityPolicies.FullAccount : SecurityPolicies.CurrentAccount))).IsTrue();
             }
-            var method = endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Single();
+            var method = endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods[0];
             if (assetBytes || (!csrf && !session && method != "GET"
                 && (!(project || classroom) || method is "POST" or "PATCH" || (classroom && method is "PUT" or "DELETE"))))
             {

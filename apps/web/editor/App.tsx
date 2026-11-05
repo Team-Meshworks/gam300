@@ -489,7 +489,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
       }
       const creatingDuringInitialRecovery =
         session.busy && session.operation === "recover" && project === null;
-      if (session.busy && !creatingDuringInitialRecovery) {
+      if (session.busy && session.operation !== "backup" && !creatingDuringInitialRecovery) {
         setNotice("Wait for the project to finish opening, then choose a room");
         return;
       }
