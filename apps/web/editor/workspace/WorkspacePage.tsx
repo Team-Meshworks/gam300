@@ -7,13 +7,14 @@ import { NewProjectForm } from "../projects/NewProjectForm";
 import { ClassAssignmentForm } from "../projects/ClassAssignmentForm";
 import { AccountDirectoryPage } from "../directory/AccountDirectoryPage";
 import { AdminDashboard } from "../admin/AdminDashboard";
+import { ReviewWorkspace } from "../reviews/ReviewWorkspace";
 
 const client = createAccountClient();
 const screens = [
   { id: "admin/dashboard", title: "Dashboard", roles: ["Administrator"] },
   { id: "new-project", title: "New Project", roles: ["Administrator", "Educator", "Creator"] },
   { id: "classes", title: "Class assignments", roles: ["Administrator", "Educator"] },
-  { id: "review", title: "Submission review", roles: ["Administrator", "Educator"] },
+  { id: "review", title: "Submission review", roles: ["Creator", "Educator"] },
   { id: "accounts", title: "Accounts", roles: ["Administrator"] },
 ];
 type Access =
@@ -168,10 +169,7 @@ export function WorkspacePage() {
             </>
           )}
           {screen.id === "review" && (
-            <p role="status">
-              Submissions are currently unavailable. Review and approval will be available when
-              submissions can be loaded.
-            </p>
+            <ReviewWorkspace key={session.userId + ":" + session.orgId} session={session} />
           )}
           {screen.id === "accounts" && <AccountDirectoryPage key={session.userId} />}
         </>

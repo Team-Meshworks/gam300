@@ -219,6 +219,8 @@ jobs:
             path: /ui-preview.html
           - name: server-autosave
             script: test:server-autosave
+          - name: reviews
+            script: test:reviews
     defaults:
       run:
         working-directory: apps/web
