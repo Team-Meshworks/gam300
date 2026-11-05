@@ -58,21 +58,15 @@ export function Viewpoints({
     setMessage(result.ok ? success : result.error.message);
   }
   return (
-    <section className="viewpoints editor-detail-panel" aria-label="Named viewpoints">
+    <section className="viewpoints" aria-label="Named viewpoints">
       <p>Frame the view, give it a name, then capture it.</p>
       <p>Starting view: {startingView?.name ?? "Saved scene camera"}</p>
       <fieldset disabled={disabled || !camera}>
         <label>
           View name
-          <input
-            className="panel-input"
-            maxLength={120}
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
+          <input maxLength={120} value={name} onChange={(e) => setName(e.target.value)} />
         </label>
         <button
-          className="ui-button panel-pill"
           type="button"
           disabled={!name.trim()}
           onClick={() => {
@@ -96,7 +90,7 @@ export function Viewpoints({
         >
           <button
             type="button"
-            className="ui-button saved-view-toggle"
+            className="saved-view-toggle"
             aria-expanded={open}
             aria-controls="saved-view-list"
             onClick={() => {
@@ -164,7 +158,6 @@ export function Viewpoints({
                       {"\u283f"}
                     </span>
                     <button
-                      className="ui-button saved-view-option"
                       type="button"
                       aria-pressed={selected === entry.id}
                       onClick={() => {
@@ -179,7 +172,6 @@ export function Viewpoints({
               </ol>
               <div className="viewpoint-actions">
                 <button
-                  className="ui-button panel-pill"
                   type="button"
                   disabled={!view || views.indexOf(view) === 0}
                   onClick={() => {
@@ -189,7 +181,6 @@ export function Viewpoints({
                   Move up
                 </button>
                 <button
-                  className="ui-button panel-pill"
                   type="button"
                   disabled={!view || views.indexOf(view) === views.length - 1}
                   onClick={() => {
@@ -204,7 +195,6 @@ export function Viewpoints({
         </div>
         <div className="viewpoint-cycle" role="group" aria-label="Browse saved views">
           <button
-            className="ui-button panel-pill"
             type="button"
             aria-label="Previous saved view"
             disabled={views.length === 0}
@@ -218,7 +208,6 @@ export function Viewpoints({
             {view ? `${views.indexOf(view) + 1} / ${views.length}` : `${views.length} saved`}
           </span>
           <button
-            className="ui-button panel-pill"
             type="button"
             aria-label="Next saved view"
             disabled={views.length === 0}
@@ -229,7 +218,6 @@ export function Viewpoints({
         </div>
         <div className="viewpoint-actions">
           <button
-            className="ui-button panel-pill"
             type="button"
             disabled={!view}
             onClick={() => {
@@ -239,7 +227,6 @@ export function Viewpoints({
             Go to view
           </button>
           <button
-            className="ui-button panel-pill"
             type="button"
             disabled={!view || view.id === startingView?.id}
             onClick={() => {
@@ -253,7 +240,6 @@ export function Viewpoints({
             Set as starting view
           </button>
           <button
-            className="ui-button panel-pill"
             type="button"
             disabled={!view || !name.trim()}
             onClick={() => {
@@ -263,7 +249,6 @@ export function Viewpoints({
             Rename
           </button>
           <button
-            className="ui-button panel-pill"
             type="button"
             disabled={!view}
             onClick={() => {

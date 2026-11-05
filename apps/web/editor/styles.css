@@ -978,8 +978,7 @@ a {
   color: var(--muted);
   cursor: default;
 }
-.interaction-input,
-.panel-input {
+.interaction-input {
   width: 100%;
   min-height: 1.75rem;
   padding: 0 0.7rem;
@@ -990,10 +989,8 @@ a {
   color: inherit;
   font: inherit;
   font-size: 0.8125rem;
-  font-weight: 400;
 }
-.interaction-input::placeholder,
-.panel-input::placeholder {
+.interaction-input::placeholder {
   color: var(--muted);
 }
 .interaction-select .icon {
@@ -3065,10 +3062,10 @@ dialog.sp-dialog.sp-display-dialog {
 }
 
 /* Match the secondary editor panels without changing their controls or action order */
-.editor-panel .scenes-panel {
+.editor-panel :is(.scenes-panel, .viewpoints) {
   font-size: 0.875rem;
 }
-.editor-panel .scenes-panel h2 {
+.editor-panel :is(.scenes-panel, .viewpoints) h2 {
   margin: 0 0 12px;
   font-size: 1rem;
 }
@@ -3084,7 +3081,7 @@ dialog.sp-dialog.sp-display-dialog {
   margin: 12px 0 6px;
   font-size: 0.8125rem;
 }
-.editor-panel .scenes-panel :is(input, select, button) {
+.editor-panel :is(.scenes-panel, .viewpoints) :is(input, select, button) {
   min-height: 36px;
   padding: 8px 10px;
   border: 1px solid var(--line);
@@ -3157,35 +3154,13 @@ dialog.sp-dialog.sp-display-dialog {
   padding: 6px;
 }
 /* Keep the empty state and its action together, with setup hints in a quieter footer */
-.editor-detail-panel {
+.interaction-panel {
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
-.editor-detail-panel h2 {
+.interaction-panel h2 {
   margin: 0;
-}
-.editor-detail-panel .panel-pill {
-  min-height: 36px;
-  margin: 0;
-  color: var(--muted);
-  font: inherit;
-  font-size: 0.8125rem;
-  font-weight: 650;
-}
-.editor-detail-panel .panel-pill:disabled {
-  color: var(--muted);
-  cursor: not-allowed;
-}
-.scene-tree-panel .panel-pill {
-  align-self: center;
-}
-.scene-tree-panel .scene-tree {
-  margin: 0;
-}
-.scene-tree-panel :is(.object-row, .group-row, .environment-row) {
-  font: inherit;
-  font-size: 0.8125rem;
 }
 .interaction-panel .panel-placeholder {
   padding: 12px 8px 0;
@@ -3221,39 +3196,18 @@ dialog.sp-dialog.sp-display-dialog {
   line-height: 1.55;
 }
 .interaction-panel .interaction-select select,
-.interaction-panel .interaction-input,
-.editor-panel .viewpoints .panel-input {
+.interaction-panel .interaction-input {
   min-height: 32px;
 }
 /* Name and capture form one task; keep browsing controls together below it */
 .editor-panel .viewpoints label {
   margin: 8px 0 6px;
-  font-size: 0.875rem;
-  font-weight: 650;
-}
-.editor-panel .viewpoints .panel-input {
-  padding: 0 0.7rem;
-}
-.editor-panel .viewpoints :is(.saved-view-toggle, .saved-view-option) {
-  min-height: 32px;
-  padding: 0 0.7rem;
-  border: 0;
-  border-radius: 999px;
-  background: #fff;
-  box-shadow: 0 1px 2px rgb(64 52 32 / 0.12);
-  color: inherit;
-  font: inherit;
-  font-size: 0.8125rem;
-}
-.editor-panel .viewpoints .panel-pill:hover:not(:disabled) {
-  background: #e7e2d6;
 }
 .editor-panel .viewpoints > p:nth-of-type(2) {
   margin-bottom: 12px;
 }
 .editor-panel .viewpoints fieldset > button {
   margin-bottom: 12px;
-  margin-inline: auto;
 }
 .editor-panel .viewpoints .saved-view-picker {
   margin-top: 0;

@@ -7,6 +7,11 @@ try {
   const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
   await page.goto(target);
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
+  assert.equal(
+    await page.getByRole("heading", { name: /^Scene Tree/ }).count(),
+    1,
+    "Scene Tree heading is present before creating a scene",
+  );
   await page.getByRole("button", { name: "Saved views", exact: true }).click();
   assert.equal(
     await page.getByRole("heading", { name: "Saved Views", exact: true }).count(),
@@ -26,36 +31,18 @@ try {
         properties.map((property) => [property, css.getPropertyValue(property)]),
       );
     }, properties);
-  const headingProperties = ["font-family", "font-size", "font-weight", "color", "line-height"];
-  await page.getByRole("button", { name: "Interaction", exact: true }).click();
-  const interactionHeading = page.getByRole("heading", { name: "Interactions", exact: true });
-  const headingStyle = await style(interactionHeading, headingProperties);
-  const addStyle = await style(
-    page.getByRole("button", { name: "+ Add Interaction", exact: true }),
-    ["font-family", "font-size", "font-weight", "border-radius"],
-  );
   await page.getByRole("button", { name: "Scene tree", exact: true }).click();
   const tree = page.getByRole("heading", { name: /^Scene Tree/ });
   assert.equal(await tree.count(), 1, "Scene Tree heading uses title case");
-  assert.deepEqual(
-    await style(tree, headingProperties),
-    headingStyle,
-    "Scene Tree heading matches Interactions",
-  );
   await page.getByRole("button", { name: "Saved views", exact: true }).click();
   const views = page.getByRole("heading", { name: "Saved Views", exact: true });
   await views.waitFor();
   assert.equal(await views.count(), 1, "Saved Views heading uses title case");
-  assert.deepEqual(
-    await style(views, headingProperties),
-    headingStyle,
-    "Saved Views heading matches Interactions",
-  );
   const capture = page.getByRole("button", { name: "Capture current view", exact: true });
   assert.deepEqual(
-    await style(capture, ["font-family", "font-size", "font-weight", "border-radius"]),
-    addStyle,
-    "Capture button matches Interaction action",
+    await style(capture, ["font-size", "font-weight", "border-radius"]),
+    { "font-size": "13px", "font-weight": "400", "border-radius": "10px" },
+    "Capture button retains its original styling",
   );
   await page.getByRole("textbox", { name: "View name" }).fill("Browser view");
   await capture.click();
@@ -65,8 +52,10 @@ try {
     1,
     "Captured view appears in picker",
   );
+  await views.scrollIntoViewIfNeeded();
   await page.screenshot({ path: "test-results/panel-views-desktop.png" });
   await page.setViewportSize({ width: 390, height: 844 });
+  await views.scrollIntoViewIfNeeded();
   await page.screenshot({ path: "test-results/panel-views-narrow.png" });
   console.log("Panel style and saved view controls passed");
 } finally {

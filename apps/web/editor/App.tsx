@@ -151,6 +151,11 @@ export function App({ server }: { server?: ServerEditorSession }) {
     return () => clearTimeout(timer);
   }, [feedback.sequence]);
   const [viewCamera, setViewCamera] = useState<ViewpointCamera | null>(null);
+  const viewCameraRef = useRef<ViewpointCamera | null>(null);
+  const receiveCamera = useCallback((camera: ViewpointCamera | null) => {
+    viewCameraRef.current = camera;
+    setViewCamera(camera);
+  }, []);
   useEffect(() => {
     if (pendingText) viewCamera?.locate(pendingText.objectId);
   }, [pendingText, viewCamera]);
@@ -433,8 +438,17 @@ export function App({ server }: { server?: ServerEditorSession }) {
 
   const onTransform = useCallback(
     (id: string, transform: Transform) => {
+      const resolved = viewCameraRef.current?.resolveTransform?.(id, transform);
+      if (!resolved) {
+        setError("Keep the object inside its room and make sure it fits the display");
+        return;
+      }
+      transform = resolved;
       const snapshot = store.getSnapshot();
       const ids = selectionRef.current;
+      const object = snapshot.objects.find((entry) => entry.id === id);
+      const parentId =
+        object && viewCameraRef.current?.placementParent?.(object.assetId, transform, id);
       const result =
         ids.length > 1 ||
         id === snapshot.activeSceneId ||
@@ -442,7 +456,10 @@ export function App({ server }: { server?: ServerEditorSession }) {
           (object) => object.id === id && object.assetId === "test-room-module-v1",
         )
           ? store.setSelectionTransform(ids, id, transform)
-          : store.setTransform(id, transform);
+          : parentId !== undefined &&
+              parentId !== ((object as ContentObject | undefined)?.parentId ?? null)
+            ? store.setPlacedTransform(id, transform, parentId)
+            : store.setTransform(id, transform);
       if (!result.ok) {
         setError(result.error);
       } else if (result.changed) {
@@ -548,7 +565,13 @@ export function App({ server }: { server?: ServerEditorSession }) {
       return;
     }
 
-    const result = store.addObject(assetId, position, roomId);
+    const resolved = viewCamera?.resolvePlacement?.(assetId, position);
+    if (!resolved) {
+      setError("Keep the whole object inside a room and make sure it fits the display");
+      return;
+    }
+    const parentId = viewCamera?.placementParent?.(assetId, resolved) ?? roomId;
+    const result = store.addObject(assetId, resolved.position, parentId);
     if (!result.ok) {
       setError(result.error);
       return;
@@ -756,9 +779,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
                 store={store}
               />
             ) : (
-              <p className="panel-empty">
-                Create a scene in the Scenes panel to start saving views.
-              </p>
+              <p>Create a scene in the Scenes panel to start saving views.</p>
             )
           }
           visitor={visitor}
@@ -818,7 +839,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
 
         <Viewport
           selectedIds={selectedIds}
-          onCamera={setViewCamera}
+          onCamera={receiveCamera}
           loadGeneration={loadGeneration}
           assets={editorAssets}
           objects={objects}

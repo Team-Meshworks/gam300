@@ -1466,7 +1466,33 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
     },
     commitTransform,
 
-    // Keep the incoming gizmo API, but route it through the shared command history.
+    // Seating and attachment share one edit so undo cannot leave an exhibit on the wrong support
+    setPlacedTransform(id: string, input: unknown, parentId: string | null) {
+      if (parentId === state.activeSceneId) parentId = null;
+      const after = validateTransform(input, "transform");
+      if (!after.ok) return { ok: false, error: after.error.message } as const;
+      if (!project) return { ok: false, error: "Choose a room first" } as const;
+      const scene = toContentProject(project).scenes.find(
+        (entry) => entry.id === state.activeSceneId,
+      )!;
+      const moved = moveAttachedObjects(scene.objects, scene.groups, id, after.value);
+      if (!moved.ok) return { ok: false, error: moved.error.message } as const;
+      const transforms = new Map(moved.value.map((entry) => [entry.id, entry.transform]));
+      const next = {
+        ...scene,
+        objects: scene.objects.map((entry) => ({
+          ...entry,
+          transform: transforms.get(entry.id) ?? entry.transform,
+          ...(entry.id === id ? { parentId } : {}),
+        })),
+      };
+      const changed = JSON.stringify(scene) !== JSON.stringify(next);
+      const result = editHierarchy("Place object", () => next);
+      return result.ok
+        ? ({ ok: true, changed } as const)
+        : ({ ok: false, error: result.error.message } as const);
+    },
+    // Keep the incoming gizmo API, but route it through the shared command history
     setTransform(id: string, after: unknown) {
       const object = objects.find((entry) => entry.id === id);
       if (!object) {
@@ -1705,3 +1731,4 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
     },
   };
 }
+import { moveAttachedObjects } from "../shared/project/attached-transforms";

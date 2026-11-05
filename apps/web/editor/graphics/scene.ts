@@ -4,7 +4,7 @@ import {
   ROOM_TRANSFORM,
 } from "../../shared/project/selection-transform";
 import { createRoomEntrances } from "./room-entrances";
-import { visibleModelBounds, visibleRaycastHit } from "./visible-model-bounds";
+import { visibleModelBounds, visibleRaycastHit, nearestExhibitHit } from "./visible-model-bounds";
 import { textSurfacePlacement } from "./text-placement";
 import {
   snapRoomPlacement,
@@ -12,7 +12,13 @@ import {
   roomLayoutTransform,
 } from "../../shared/project/room-placement";
 import { fitDisplayedObject } from "./fit-displayed-object";
-import { roomAtPosition, type RoomFootprint } from "./room-at-position";
+import { placementBody } from "./placement-body";
+import {
+  resolveObjectPlacement,
+  placementSupport,
+  type PlacementBody,
+} from "./placement-constraints";
+import { roomAtPosition } from "./room-at-position";
 import { createDisplayContent } from "./display-content";
 import { createExhibitAppearance } from "./exhibit-appearance";
 import { createPlacementPreview } from "./placement-preview";
@@ -109,11 +115,15 @@ export interface InitSceneHandle {
   ) => Transform | undefined;
   clearTextPlacement: () => void;
   getDisplayPlacement: (ownerId: string, assetId: string) => Transform | undefined;
+  resolveTransform: (id: string, transform: Transform) => Transform | undefined;
+  resolvePlacement: (assetId: string, position: Vector3Tuple) => Transform | undefined;
+  getPlacementParent: (assetId: string, transform: Transform, objectId?: string) => string | null;
   getRoomAtPosition: (position: Vector3Tuple) => string | null;
   getDropPosition: (
     clientX: number,
     clientY: number,
     outsideGrid?: boolean,
+    assetId?: string,
   ) => Vector3Tuple | undefined;
   showDropPosition: (position: Vector3Tuple | undefined) => void;
   showPlacementPreview: (
@@ -282,6 +292,8 @@ export function initScene(
   }
   const hotspotSprites = new Map<string, THREE.Sprite>();
   const bounds = new Map<string, THREE.Box3>();
+  const placementShapes = new Map<string, { model: THREE.Object3D; shape: PlacementBody }>();
+  const lastValidTransforms = new Map<string, { before: Transform; after: Transform }>();
   const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   let drag:
     | ({
@@ -680,20 +692,6 @@ export function initScene(
         instance.scale.fromArray(object.transform.scale);
         // Bounds read the parent's world matrix, which must reflect this frame's transform.
         instance.updateMatrixWorld(true);
-        if (assets.find((asset) => asset.id === object.assetId)?.displayRole === "physical") {
-          const filled = objects.some(
-            (child) => (child as Partial<ContentObject>).parentId === object.id,
-          );
-          instance.traverse((node) => {
-            if (!(node instanceof THREE.Mesh)) return;
-            const materials = Array.isArray(node.material) ? node.material : [node.material];
-            if (node.userData.displayGlass === undefined)
-              node.userData.displayGlass = materials.every(
-                (material) => material.transparent && material.opacity < 0.9,
-              );
-            if (node.userData.displayGlass) node.visible = !filled;
-          });
-        }
         appearanceRenderer.apply(instance, (object as Partial<ContentObject>).appearance);
         // Exclude attached markers so selection outlines match the model itself.
         const content = instance.children.find((child) => !(child instanceof THREE.Sprite));
@@ -762,15 +760,188 @@ export function initScene(
     return new THREE.Ray(camera.position, point.unproject(camera).sub(camera.position).normalize());
   }
 
+  function bodyFor(id: string, assetId: string, transform: Transform): PlacementBody | undefined {
+    const model = models.get(assetId);
+    const asset = assets.find((entry) => entry.id === assetId);
+    if (!model || !asset) return;
+    let cached = placementShapes.get(assetId);
+    if (cached?.model !== model) {
+      cached = { model, shape: placementBody(assetId, ROOM_TRANSFORM, model, asset) };
+      placementShapes.set(assetId, cached);
+    }
+    return { ...cached.shape, id, transform };
+  }
+
+  function collisionBodies(): PlacementBody[] {
+    const result = objects.flatMap((object) => {
+      if ((object as Partial<ContentObject>).visible === false) return [];
+      const body = bodyFor(object.id, object.assetId, object.transform);
+      return body ? [body] : [];
+    });
+    if (projectScene && projectScene.environmentVisible !== false) {
+      const body = bodyFor(
+        projectScene.id,
+        projectScene.environmentAssetId,
+        projectScene.environmentTransform ?? ROOM_TRANSFORM,
+      );
+      if (body) result.push(body);
+    }
+    return result;
+  }
+
+  function resolveTransform(
+    id: string,
+    proposed: Transform,
+    phase: "drag" | "release" = "release",
+  ): Transform | undefined {
+    if (id === projectScene?.id || findObject(id)?.assetId === "test-room-module-v1")
+      return proposed;
+    const object = findObject(id);
+    const body = object && bodyFor(id, object.assetId, object.transform);
+    if (!body) return;
+    const previous = lastValidTransforms.get(id);
+    if (previous?.before === object.transform) body.previous = previous.after;
+    const bodies = collisionBodies();
+    const moved =
+      projectScene && selectedIds.length > 1
+        ? moveSceneSelection(projectScene as ContentScene, selectedIds, id, proposed, true)
+        : moveAttachedObjects(
+            objects,
+            (projectScene as ContentScene | null)?.groups ?? [],
+            id,
+            proposed,
+          );
+    if (!moved.ok) return;
+    const movedObjects = "objects" in moved.value ? moved.value.objects : moved.value;
+    const moving = new Set(
+      movedObjects
+        .filter(
+          (entry) =>
+            entry.id === id ||
+            entry.transform !== objects.find((original) => original.id === entry.id)?.transform,
+        )
+        .map((entry) => entry.id),
+    );
+    const obstacles = bodies.filter((entry) => !moving.has(entry.id));
+    const result = resolveObjectPlacement(body, proposed, obstacles, phase);
+    if (!result) return;
+    const next =
+      projectScene && selectedIds.length > 1
+        ? moveSceneSelection(projectScene as ContentScene, selectedIds, id, result, true)
+        : moveAttachedObjects(
+            objects,
+            (projectScene as ContentScene | null)?.groups ?? [],
+            id,
+            result,
+          );
+    if (!next.ok) return;
+    const children = "objects" in next.value ? next.value.objects : next.value;
+    for (const child of children) {
+      if (child.id === id || !moving.has(child.id)) continue;
+      const original = objects.find((entry) => entry.id === child.id);
+      const shape = original && bodyFor(child.id, child.assetId, original.transform);
+      if (!shape) return;
+      const checked = resolveObjectPlacement(shape, child.transform, obstacles, "drag");
+      if (
+        !checked ||
+        checked.position.some(
+          (value, index) => Math.abs(value - child.transform.position[index]!) > 1e-5,
+        )
+      )
+        return;
+    }
+    return result;
+  }
+
+  function resolvePlacement(assetId: string, position: Vector3Tuple): Transform | undefined {
+    const transform: Transform = { position, rotation: [0, 0, 0, 1], scale: [1, 1, 1] };
+    const body = bodyFor("new-placement", assetId, transform);
+    if (!body) return;
+    const bodies = collisionBodies();
+    if (!body.room && bodies.some((entry) => entry.room) && !getRoomAtPosition(position)) return;
+    return resolveObjectPlacement(body, transform, bodies, "release");
+  }
+
+  function getRoomAtPosition(position: Vector3Tuple): string | null {
+    return roomAtPosition(
+      position,
+      collisionBodies()
+        .filter((body) => body.room)
+        .map((body) => ({
+          id: body.id,
+          bounds: body.room!,
+          transform: new THREE.Matrix4().compose(
+            new THREE.Vector3(...body.transform.position),
+            new THREE.Quaternion(...body.transform.rotation),
+            new THREE.Vector3(...body.transform.scale),
+          ),
+        })),
+    );
+  }
+
+  function getPlacementParent(
+    assetId: string,
+    transform: Transform,
+    objectId?: string,
+  ): string | null {
+    const body = bodyFor(objectId ?? "new-placement", assetId, transform);
+    if (!body) return null;
+    const support = placementSupport(body, transform, collisionBodies());
+    if (support) return support;
+    const parentId = (objects.find((entry) => entry.id === objectId) as ContentObject | undefined)
+      ?.parentId;
+    const parent = objects.find((entry) => entry.id === parentId);
+    if (
+      parentId &&
+      assets.find((entry) => entry.id === parent?.assetId)?.displayRole !== "physical"
+    )
+      return parentId;
+    const roomId = getRoomAtPosition(transform.position);
+    return roomId === projectScene?.id ? null : roomId;
+  }
+
   function getDropPosition(
     clientX: number,
     clientY: number,
     outsideGrid = false,
+    assetId?: string,
   ): Vector3Tuple | undefined {
     if (!ready || !editingEnabled || modeManager.getState().mode !== "editor") {
       return;
     }
-    const point = screenRay(clientX, clientY).intersectPlane(ground, new THREE.Vector3());
+    const ray = screenRay(clientX, clientY);
+    let point = ray.intersectPlane(ground, new THREE.Vector3());
+    if (assetId && !outsideGrid) {
+      const surfaces: THREE.Object3D[] = [];
+      for (const body of collisionBodies()) {
+        const instance = body.id === projectScene?.id ? environment : instances.get(body.id);
+        if (!instance) continue;
+        if (body.display) surfaces.push(instance);
+        else if (body.room)
+          instance.traverse((node) => {
+            if (node instanceof THREE.Mesh && node.name === "floor") surfaces.push(node);
+          });
+      }
+      const hit = new THREE.Raycaster(ray.origin, ray.direction)
+        .intersectObjects(surfaces, true)
+        .find(visibleRaycastHit);
+      if (hit) {
+        point = hit.point.clone();
+        const stand = collisionBodies().find((body) => {
+          if (!body.display) return false;
+          const instance = instances.get(body.id);
+          for (let node: THREE.Object3D | null = hit.object; node; node = node.parent)
+            if (node === instance) return true;
+          return false;
+        });
+        const instance = stand && instances.get(stand.id);
+        if (stand?.display && instance) {
+          instance.worldToLocal(point);
+          point.y = stand.display.top;
+          instance.localToWorld(point);
+        }
+      }
+    }
     if (
       point === null ||
       !point
@@ -779,7 +950,8 @@ export function initScene(
     ) {
       return;
     }
-    return [point.x, 0, point.z];
+    const position: Vector3Tuple = [point.x, point.y, point.z];
+    return assetId && !outsideGrid ? resolvePlacement(assetId, position)?.position : position;
   }
 
   function showDropPosition(position: Vector3Tuple | undefined) {
@@ -793,6 +965,13 @@ export function initScene(
   function applyPreviewTransform(id: string, transform: Transform, final = false) {
     const instance = instanceFor(id);
     if (instance === undefined) return;
+    const original = findObject(id)?.transform;
+    if (original && transform !== original) {
+      const resolved = resolveTransform(id, transform, final ? "release" : "drag");
+      if (!resolved) return;
+      transform = resolved;
+    }
+    if (original) lastValidTransforms.set(id, { before: original, after: transform });
     // Preview uses the same attachment delta as commit so cancel restores every child too
     const sceneSelection =
       projectScene &&
@@ -844,6 +1023,17 @@ export function initScene(
       applyPreviewTransform(id, authored.transform, true);
       return;
     }
+    const previous = lastValidTransforms.get(id);
+    const resolved =
+      resolveTransform(id, transform) ??
+      (previous?.before === authored?.transform
+        ? resolveTransform(id, previous!.after)
+        : undefined);
+    if (!resolved) {
+      if (authored) applyPreviewTransform(id, authored.transform, true);
+      return;
+    }
+    transform = resolved;
     // A snap back to the original position creates no store update, so restore the live mesh here too.
     applyPreviewTransform(id, transform, true);
     callbacks.onTransform(id, transform);
@@ -1036,20 +1226,15 @@ export function initScene(
     const ray = screenRay(clientX, clientY);
     const raycaster = new THREE.Raycaster(ray.origin, ray.direction);
     raycaster.camera = camera;
-    let nearest =
+    const nearest =
       environment === undefined
         ? Infinity
         : (raycaster.intersectObject(environment, true).find(visibleRaycastHit)?.distance ??
           Infinity);
     // A wall or floor hit selects the room; a closer exhibit can still win the pick
     let id: string | null = Number.isFinite(nearest) ? (projectScene?.id ?? null) : null;
-    for (const [objectId, instance] of instances) {
-      const hit = raycaster.intersectObject(instance, true).find(visibleRaycastHit);
-      if (hit !== undefined && hit.distance < nearest) {
-        nearest = hit.distance;
-        id = objectId;
-      }
-    }
+    const exhibit = pickExhibit(raycaster);
+    if (exhibit && exhibit.distance < nearest) id = exhibit.id;
     return id;
   }
 
@@ -1057,16 +1242,32 @@ export function initScene(
     const ray = screenRay(clientX, clientY);
     const raycaster = new THREE.Raycaster(ray.origin, ray.direction);
     raycaster.camera = camera;
-    let nearest = Infinity;
-    let id: string | undefined;
+    return pickExhibit(raycaster)?.id;
+  }
+
+  function pickExhibit(raycaster: THREE.Raycaster) {
+    const hits = [];
     for (const [objectId, instance] of instances) {
       const hit = raycaster.intersectObject(instance, true).find(visibleRaycastHit);
-      if (hit !== undefined && hit.distance < nearest) {
-        nearest = hit.distance;
-        id = objectId;
-      }
+      if (!hit) continue;
+      const object = objects.find((entry) => entry.id === objectId);
+      const materials =
+        hit.object instanceof THREE.Mesh
+          ? Array.isArray(hit.object.material)
+            ? hit.object.material
+            : [hit.object.material]
+          : [];
+      hits.push({
+        id: objectId,
+        distance: hit.distance,
+        parentId: (object as ContentObject | undefined)?.parentId ?? null,
+        glass:
+          assets.find((entry) => entry.id === object?.assetId)?.displayRole === "physical" &&
+          materials.length > 0 &&
+          materials.every((material) => material.transparent && material.opacity < 0.9),
+      });
     }
-    return id;
+    return nearestExhibitHit(hits);
   }
 
   function getHotspotAnchor(objectId: string): Vector3Tuple | undefined {
@@ -1635,39 +1836,22 @@ export function initScene(
       const caseModel = owner && models.get(owner.assetId);
       const model = models.get(assetId);
       if (!owner || metadata?.displayRole !== "physical" || !caseModel || !model) return;
-      return fitDisplayedObject(
+      const fitted = fitDisplayedObject(
         owner,
         metadata.displayTop ?? 0,
         new THREE.Box3().setFromObject(caseModel),
         new THREE.Box3().setFromObject(model),
+        bodyFor(owner.id, owner.assetId, owner.transform)?.display?.interior,
       );
+      const body = fitted && bodyFor("display-placement", assetId, fitted);
+      return body && fitted
+        ? resolveObjectPlacement(body, fitted, collisionBodies(), "release")
+        : undefined;
     },
-    getRoomAtPosition(position) {
-      const rooms: RoomFootprint[] = [];
-      for (const object of objects) {
-        if (object.assetId !== "test-room-module-v1") continue;
-        const instance = instances.get(object.id);
-        const model = models.get(object.assetId);
-        if (instance && model) {
-          instance.updateWorldMatrix(true, false);
-          rooms.push({
-            id: object.id,
-            bounds: new THREE.Box3().setFromObject(model),
-            transform: instance.matrixWorld,
-          });
-        }
-      }
-      if (projectScene && !environmentBounds.isEmpty())
-        rooms.push({
-          id: projectScene.id,
-          bounds:
-            environment && models.get(projectScene.environmentAssetId)
-              ? new THREE.Box3().setFromObject(models.get(projectScene.environmentAssetId)!)
-              : environmentBounds,
-          ...(environment ? { transform: environment.matrixWorld } : {}),
-        });
-      return roomAtPosition(position, rooms);
-    },
+    getRoomAtPosition,
+    resolveTransform,
+    resolvePlacement,
+    getPlacementParent,
     showDropPosition,
     showPlacementPreview(id, position, ownerId) {
       if (id === "test-room-v1" && projectScene?.environmentAssetId === id)
@@ -1702,6 +1886,9 @@ export function initScene(
           world.y -= (HOTSPOT_SIZE / 2) * scale;
           position = world.toArray() as Vector3Tuple;
         }
+      }
+      if (id && position && !room && id !== HOTSPOT_ASSET_ID) {
+        position = resolvePlacement(id, position)?.position;
       }
       const valid =
         position !== undefined && (!room || (requestedFits && roomFitsGrid(position, rotation)));
@@ -1821,6 +2008,8 @@ export function initScene(
       instances.clear();
       hotspotSprites.clear();
       models.clear();
+      placementShapes.clear();
+      lastValidTransforms.clear();
       disposeModels(scene);
       for (const material of hotspotMaterials) {
         material.map?.dispose();

@@ -81,6 +81,16 @@ try {
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   await mkdir(screenshots, { recursive: true });
   let placed = 0;
+  const placementPoints = [
+    { x: 560, y: 440 },
+    { x: 650, y: 405 },
+    { x: 750, y: 405 },
+    { x: 850, y: 440 },
+    { x: 590, y: 500 },
+    { x: 680, y: 475 },
+    { x: 780, y: 475 },
+    { x: 870, y: 500 },
+  ];
   for (const tray of trays) {
     const trigger = page.getByRole("button", { name: tray.name, exact: true });
     const options = page.getByRole("group", { name: `${tray.name} options`, exact: true });
@@ -141,7 +151,7 @@ try {
         }),
         true,
       );
-      await page.locator(".viewport-stage").click({ position: { x: 500, y: 300 } });
+      await page.locator(".viewport-stage").click({ position: placementPoints[placed] });
       placed += 1;
       await page.waitForFunction(
         (count) => document.querySelectorAll(".object-row").length === count,

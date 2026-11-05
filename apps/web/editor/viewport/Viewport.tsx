@@ -23,6 +23,9 @@ const statusMessages = {
 
 export type ViewpointCamera = {
   displayPlacement?: (ownerId: string, assetId: string) => Transform | undefined;
+  resolveTransform?: (id: string, transform: Transform) => Transform | undefined;
+  resolvePlacement?: (assetId: string, position: Vector3Tuple) => Transform | undefined;
+  placementParent?: (assetId: string, transform: Transform, objectId?: string) => string | null;
   capture: () => CameraPose;
   show: (pose: CameraPose) => void;
   locate: (id: string) => void;
@@ -151,6 +154,9 @@ export function Viewport({
           onMobileControls(scene.mobileControls);
           onCamera({
             displayPlacement: scene.getDisplayPlacement,
+            resolveTransform: scene.resolveTransform,
+            resolvePlacement: scene.resolvePlacement,
+            placementParent: scene.getPlacementParent,
             capture: scene.captureCamera,
             show: scene.showCamera,
             locate: scene.locateObject,
@@ -286,7 +292,12 @@ export function Viewport({
             const scene = sceneRef.current;
             const valid = scene?.showPlacementPreview(
               placingAssetId,
-              scene.getDropPosition(event.clientX, event.clientY, isRoom(placingAssetId)),
+              scene.getDropPosition(
+                event.clientX,
+                event.clientY,
+                isRoom(placingAssetId),
+                placingAssetId,
+              ),
               scene.pickObjectAt(event.clientX, event.clientY),
             );
             event.currentTarget.style.cursor = valid ? "crosshair" : "not-allowed";
@@ -328,6 +339,7 @@ export function Viewport({
             event.clientX,
             event.clientY,
             isRoom(placingAssetId),
+            placingAssetId,
           );
           if (position) {
             if (
@@ -365,6 +377,7 @@ export function Viewport({
             event.clientX,
             event.clientY,
             isRoom(dragging),
+            dragging ?? undefined,
           );
           const valid = sceneRef.current?.showPlacementPreview(dragging ?? undefined, position);
           event.dataTransfer.dropEffect = valid ? "copy" : "none";
@@ -390,6 +403,7 @@ export function Viewport({
                 event.clientX,
                 event.clientY,
                 isRoom(assetId),
+                assetId,
               );
               if (position !== undefined && scene?.showPlacementPreview(assetId, position))
                 onPlace(assetId, position, undefined, scene?.getRoomAtPosition(position) ?? null);
