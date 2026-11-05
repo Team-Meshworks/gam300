@@ -85,9 +85,11 @@ it("retries an uncertain request with the same identity and complete body", asyn
     .fn()
     .mockResolvedValueOnce(session())
     .mockResolvedValueOnce(csrf())
+    .mockResolvedValueOnce(session())
     .mockRejectedValueOnce(new Error("lost response"))
     .mockResolvedValueOnce(session())
     .mockResolvedValueOnce(csrf())
+    .mockResolvedValueOnce(session())
     .mockResolvedValueOnce(
       json({
         assignmentId: "request",
@@ -96,16 +98,17 @@ it("retries an uncertain request with the same identity and complete body", asyn
           { studentId: "bob", projectId: "b" },
         ],
       }),
-    );
+    )
+    .mockResolvedValueOnce(session());
   vi.stubGlobal("fetch", fetchMock);
   expect(await submitAssignment(pending, false)).toEqual({ kind: "unknown" });
   expect(await submitAssignment(pending, true)).toMatchObject({
     kind: "confirmed",
     assignmentId: "request",
   });
-  expect(fetchMock.mock.calls[2]?.[1]?.body).toBe(fetchMock.mock.calls[5]?.[1]?.body);
-  expect(JSON.parse(fetchMock.mock.calls[2]?.[1]?.body as string)).toEqual(pending.body);
-  expect(fetchMock.mock.calls[2]?.[1]?.headers).toMatchObject({
+  expect(fetchMock.mock.calls[3]?.[1]?.body).toBe(fetchMock.mock.calls[7]?.[1]?.body);
+  expect(JSON.parse(fetchMock.mock.calls[3]?.[1]?.body as string)).toEqual(pending.body);
+  expect(fetchMock.mock.calls[3]?.[1]?.headers).toMatchObject({
     "X-CSRF-TOKEN": "token",
     "X-Spatia-Account": "teacher",
   });
@@ -116,9 +119,11 @@ it("keeps malformed success and later rejection uncertain", async () => {
     .fn()
     .mockResolvedValueOnce(session())
     .mockResolvedValueOnce(csrf())
+    .mockResolvedValueOnce(session())
     .mockResolvedValueOnce(new Response("bad json", { status: 201 }))
     .mockResolvedValueOnce(session())
     .mockResolvedValueOnce(csrf())
+    .mockResolvedValueOnce(session())
     .mockResolvedValueOnce(json({}, 422));
   vi.stubGlobal("fetch", fetchMock);
   expect(await submitAssignment(pending, false)).toEqual({ kind: "unknown" });
@@ -130,6 +135,7 @@ it("allows a known first rejection to be corrected and refuses another account",
     .fn()
     .mockResolvedValueOnce(session())
     .mockResolvedValueOnce(csrf())
+    .mockResolvedValueOnce(session())
     .mockResolvedValueOnce(json({}, 422))
     .mockResolvedValueOnce(
       json({ userId: "other", displayName: "Other", role: "Educator", orgId: "school" }),
@@ -137,7 +143,20 @@ it("allows a known first rejection to be corrected and refuses another account",
   vi.stubGlobal("fetch", fetchMock);
   expect(await submitAssignment(pending, false)).toMatchObject({ kind: "rejected" });
   expect(await submitAssignment(pending, false)).toMatchObject({ kind: "rejected" });
-  expect(fetchMock).toHaveBeenCalledTimes(4);
+  expect(fetchMock).toHaveBeenCalledTimes(5);
+});
+
+it("does not submit an assignment after the account switches during CSRF acquisition", async () => {
+  const fetchMock = vi
+    .fn()
+    .mockResolvedValueOnce(session())
+    .mockResolvedValueOnce(csrf())
+    .mockResolvedValueOnce(
+      json({ userId: "other", displayName: "Other", role: "Educator", orgId: "school" }),
+    );
+  vi.stubGlobal("fetch", fetchMock);
+  expect((await submitAssignment(pending, false)).kind).toBe("rejected");
+  expect(fetchMock.mock.calls.every(([, init]) => !init?.method)).toBe(true);
 });
 
 it("uses authorized paginated choices and only enrolled students", async () => {

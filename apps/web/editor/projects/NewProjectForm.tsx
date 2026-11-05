@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faCircleInfo, faImage } from "@fortawesome/free-solid-svg-icons";
 import { Button } from "../../shared/ui/Button";
@@ -25,6 +25,8 @@ const emptyForm = {
   imageType: "Cover image",
 };
 
+export type FormNavigationState = { dirty: boolean; locked: boolean };
+
 export function NewProjectForm({
   organizationName,
   creatorName,
@@ -36,6 +38,7 @@ export function NewProjectForm({
   onCreated,
   onPreview,
   onCancel,
+  onNavigationStateChange,
 }: {
   organizationName: string;
   creatorName: string;
@@ -47,6 +50,7 @@ export function NewProjectForm({
   onCreated?: (projectId: string) => void;
   onPreview?: (draft: NewProjectDraft) => void;
   onCancel?: () => void;
+  onNavigationStateChange?: (state: FormNavigationState) => void;
 }) {
   const [phase, setPhase] = useState<"editing" | "pending" | "created" | "unknown">("editing");
   const [error, setError] = useState("");
@@ -64,18 +68,28 @@ export function NewProjectForm({
   useEffect(() => {
     if (error) errorRef.current?.focus();
   }, [error]);
-  useEffect(() => {
-    if (phase !== "pending") return;
-    const preventLoss = (event: BeforeUnloadEvent) => {
-      event.preventDefault();
-    };
-    window.addEventListener("beforeunload", preventLoss);
-    return () => window.removeEventListener("beforeunload", preventLoss);
-  }, [phase]);
   const [form, setForm] = useState(emptyForm);
   const [selectorReset, setSelectorReset] = useState(0);
   const [selected, setSelected] = useState<readonly string[]>([]);
   const [coverImage, setCoverImage] = useState<File | null>(null);
+  const dirty =
+    phase === "editing" &&
+    (JSON.stringify(form) !== JSON.stringify(emptyForm) ||
+      selected.length > 0 ||
+      coverImage !== null);
+  useLayoutEffect(() => {
+    onNavigationStateChange?.({ dirty, locked: phase === "pending" });
+  }, [dirty, phase, onNavigationStateChange]);
+  useEffect(
+    () => () => onNavigationStateChange?.({ dirty: false, locked: false }),
+    [onNavigationStateChange],
+  );
+  useEffect(() => {
+    if (!dirty && phase !== "pending") return;
+    const preventLoss = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener("beforeunload", preventLoss);
+    return () => window.removeEventListener("beforeunload", preventLoss);
+  }, [dirty, phase]);
   const available = students.filter(
     (student) => !form.classId || student.classIds.includes(form.classId),
   );

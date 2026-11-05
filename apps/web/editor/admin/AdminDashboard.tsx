@@ -328,6 +328,9 @@ export function AdminDashboard({ session }: { session: AccountSession }) {
       <div className="admin-greeting">
         <h1>Welcome Back, {session.displayName}</h1>
         <p>Manage what gets shared, who has access and the assets creators use.</p>
+        <a className="sp-button sp-button--primary" href="/home">
+          Open project workspace
+        </a>
       </div>
       {notice && (
         <p className="admin-notice" role="status">

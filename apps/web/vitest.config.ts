@@ -4,6 +4,6 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     environment: "node",
-    include: ["shared/**/*.test.ts", "editor/**/*.test.ts"],
+    include: ["shared/**/*.test.ts", "editor/**/*.test.ts", "visitor/**/*.test.ts"],
   },
 });

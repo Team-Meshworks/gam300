@@ -4,7 +4,8 @@ import { AudioLibrary, type AudioLibraryMode } from "./ui/AudioLibrary";
 import { ExhibitPopups } from "./ui/ExhibitPopups";
 import type { ContentObject } from "../shared/project/project-content";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { assets } from "virtual:asset-catalogue";
+import { assets as developmentAssets } from "virtual:asset-catalogue";
+import type { CatalogueAsset } from "../shared/asset-runtime/catalogue";
 import { HOTSPOT_ASSET, HOTSPOT_ASSET_ID } from "../shared/asset-runtime/hotspot";
 import type { SceneObject, Vector3Tuple } from "../shared/project/scene-object";
 import type { HotspotDropTarget, ProjectHotspot, Transform } from "../shared/project/project-types";
@@ -40,13 +41,12 @@ import type { FpsMobileControls } from "./graphics/scene";
 import { ProjectConfirmation } from "./ProjectConfirmation";
 import { useProjectSession } from "./persistence/use-project-session";
 
-// Same catalog used by the viewport; saved references need to resolve here too
-const editorAssets = [...assets, HOTSPOT_ASSET];
-const assetKinds = new Map(editorAssets.map((asset) => [asset.id, asset.kind]));
 const EMPTY_INTERACTIONS: readonly Interaction[] = Object.freeze([]);
 const EMPTY_HOTSPOTS: readonly ProjectHotspot[] = Object.freeze([]);
 
 export type ServerEditorSession = {
+  assets: readonly CatalogueAsset[];
+  selectionAssets: readonly CatalogueAsset[];
   store: ReturnType<typeof createDocumentStore>;
   title: string;
   dirty: boolean;
@@ -55,9 +55,17 @@ export type ServerEditorSession = {
   departing: boolean;
   save: (exportFile?: boolean) => Promise<boolean>;
   leave: () => void;
+  publish: () => void;
 };
 
 export function App({ server }: { server?: ServerEditorSession }) {
+  const assets = server?.assets ?? developmentAssets;
+  const selectionAssets = server?.selectionAssets ?? assets;
+  const editorAssets = useMemo(() => [...assets, HOTSPOT_ASSET], [assets]);
+  const assetKinds = useMemo(
+    () => new Map(editorAssets.map((asset) => [asset.id, asset.kind])),
+    [editorAssets],
+  );
   const [store] = useState(() => server?.store ?? createDocumentStore(editorAssets));
   const { objects, project, activeSceneId, loadGeneration, canUndo, canRedo } =
     useSyncExternalStore(store.subscribe, store.getSnapshot);
@@ -215,7 +223,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
         }),
         navigation.beginEvent,
       ),
-    [projectScene, navigation, store],
+    [projectScene, navigation, store, assets],
   );
   const interactionHandlerRef = useRef(interactionHandler);
   useEffect(() => {
@@ -489,7 +497,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
       }
       const creatingDuringInitialRecovery =
         session.busy && session.operation === "recover" && project === null;
-      if (session.busy && !creatingDuringInitialRecovery) {
+      if (session.busy && session.operation !== "backup" && !creatingDuringInitialRecovery) {
         setNotice("Wait for the project to finish opening, then choose a room");
         return;
       }
@@ -607,6 +615,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
         serverMode={!!server}
         serverSaving={server?.saving ?? false}
         onLeave={server?.leave}
+        onPublish={server?.publish}
         hasProject={project !== null}
         hasChanges={hasChanges}
         ready={status === "ready"}
@@ -725,7 +734,8 @@ export function App({ server }: { server?: ServerEditorSession }) {
               key={`${loadGeneration}:${project?.projectId ?? "new"}:${activeSceneId}:${projectScene?.name}`}
               scenes={project?.scenes ?? []}
               activeSceneId={activeSceneId}
-              assets={assets}
+              assets={selectionAssets}
+              existingAssets={assets}
               store={store}
               disabled={visitor || switching || status !== "ready"}
               onSwitch={() => {
@@ -925,7 +935,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
           )}
           {!visitor && (
             <BottomBar
-              assets={assets.filter((a) => a.kind === "model" || a.kind === "environment")}
+              assets={selectionAssets.filter((a) => a.kind === "model" || a.kind === "environment")}
               hotspot={HOTSPOT_ASSET}
               ready={status === "ready"}
               thumbnailFor={thumbnailFor}
@@ -981,7 +991,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
           key={contentEdit.objectId}
           object={contentObject}
           initialKind={contentEdit.kind}
-          media={assets
+          media={selectionAssets
             .filter((asset) => asset.kind === "image" || asset.kind === "video")
             .map((asset) => ({ ...asset, kind: asset.kind as "image" | "video" }))}
           displayMedia={
@@ -1019,7 +1029,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
       )}
       {audioLibrary && (
         <AudioLibrary
-          assets={assets}
+          assets={selectionAssets}
           mode={audioLibrary}
           targetName={selectedObject?.name ?? null}
           onAdd={(id) =>
@@ -1056,7 +1066,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
               placementFor={(ownerId, assetId) => viewCamera?.displayPlacement?.(ownerId, assetId)}
               initialKind="image"
               asset={asset}
-              assets={assets}
+              assets={selectionAssets}
               project={project}
               store={store}
               thumbnailFor={thumbnailFor}

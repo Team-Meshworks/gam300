@@ -15,6 +15,7 @@ let account = alice,
   revision = 7,
   mode = "saved";
 let releaseSave;
+let catalogueUnavailable = true;
 const writes = [],
   errors = [];
 const api = async (route) => {
@@ -34,6 +35,8 @@ const api = async (route) => {
   if (request.headers()["x-spatia-account"] && request.headers()["x-spatia-account"] !== account)
     return json(403, {});
   if (path === "/api/auth/csrf") return json(200, { requestToken: "test-token" });
+  if (path === "/api/assets") return catalogueUnavailable ? json(503, {}) : json(200, []);
+  if (path === `/api/projects/${fixture.projectId}/assets`) return json(200, []);
   if (path === "/api/auth/logout") {
     account = null;
     return route.fulfill({ status: 204 });
@@ -87,6 +90,19 @@ async function saved() {
 }
 try {
   await page.goto(url);
+  await page.getByRole("button", { name: "Retry opening" }).waitFor();
+  assert.equal(await page.locator(".editor-shell").count(), 0);
+  catalogueUnavailable = false;
+  await page.getByRole("button", { name: "Retry opening" }).click();
+  await saved();
+  await page.getByRole("button", { name: "Leave editor" }).focus();
+  await page.keyboard.press("Enter");
+  const departureSave = page.getByRole("button", { name: "Save and continue" });
+  await departureSave.waitFor();
+  assert.equal(await departureSave.evaluate((node) => node === document.activeElement), true);
+  await page.keyboard.press("Enter");
+  await page.waitForURL(`${base}/home`, { timeout: 5000 });
+  await page.goto(url);
   await saved();
   await ready();
   await page.screenshot({ path: ".artifacts/scrum67-editor.png" });
@@ -94,6 +110,25 @@ try {
   await saved();
   assert.equal(document.scenes[0].name, "Autosaved in the real editor");
   assert.equal(writes.length, 1);
+  // Publishing goes through the same preservation choices as leaving the editor.
+  mode = "failed";
+  await edit("Draft before publishing");
+  await status.filter({ hasText: "Save failed" }).waitFor();
+  await page.getByRole("button", { name: "Publish", exact: true }).click();
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  assert.equal(
+    await page.getByLabel("Scene name", { exact: true }).inputValue(),
+    "Draft before publishing",
+  );
+  assert.notEqual(document.scenes[0].name, "Draft before publishing");
+  mode = "saved";
+  await page.getByRole("button", { name: "Publish", exact: true }).click();
+  await page.getByRole("button", { name: "Save and continue", exact: true }).click();
+  await page.waitForURL(`${base}/publish?projectId=${fixture.projectId}`);
+  assert.equal(document.scenes[0].name, "Draft before publishing");
+  await page.goto(url);
+  await saved();
+  await ready();
   // A fresh browser opens the confirmed server content without local recovery.
   const freshContext = await browser.newContext();
   await freshContext.route("**/api/**", api);
@@ -276,14 +311,10 @@ try {
     IDBObjectStore.prototype.put = function (...args) {
       if (this.name === "session" && ++writes === 2) {
         const transaction = this.transaction;
-        transaction.addEventListener(
-          "complete",
-          (event) => {
-            event.stopImmediatePropagation();
-            window.releaseDeparture = () => transaction.oncomplete.call(transaction, event);
-          },
-          { once: true },
-        );
+        const complete = transaction.oncomplete;
+        transaction.oncomplete = (event) => {
+          window.releaseDeparture = () => complete.call(transaction, event);
+        };
       }
       return put.apply(this, args);
     };

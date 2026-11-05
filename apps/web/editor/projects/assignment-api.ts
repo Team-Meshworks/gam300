@@ -5,6 +5,7 @@ export type AssignmentSession = {
   displayName: string;
   role: string;
   orgId: string | null;
+  mustChangePassword?: boolean;
 };
 export type SourceProject = { projectId: string; title: string; revision: number };
 export type AssignmentProject = { studentId: string; projectId: string; studentName?: string };
@@ -39,7 +40,9 @@ async function readJson(path: string, signal?: AbortSignal): Promise<unknown> {
   const response = await fetch(path, {
     credentials: "same-origin",
     cache: "no-store",
-    ...(signal ? { signal } : {}),
+    signal: signal
+      ? AbortSignal.any([signal, AbortSignal.timeout(15000)])
+      : AbortSignal.timeout(15000),
   });
   if (!response.ok) throw new Error("The requested information is unavailable.");
   return response.json();
@@ -90,6 +93,7 @@ export async function assignmentSession(signal?: AbortSignal): Promise<Assignmen
     displayName: value.displayName,
     role: value.role,
     orgId: value.orgId,
+    mustChangePassword: value.mustChangePassword === true,
   };
 }
 
@@ -202,12 +206,21 @@ export async function submitAssignment(
     const csrf = await readJson("/api/auth/csrf");
     if (!record(csrf) || typeof csrf.requestToken !== "string")
       throw new Error("Missing request token.");
+    const current = await assignmentSession();
+    if (current.userId !== pending.actorId || current.mustChangePassword)
+      return previouslyUncertain
+        ? { kind: "unknown" }
+        : {
+            kind: "rejected",
+            message: "The account changed. Reload before creating an assignment.",
+          };
     let response: Response;
     try {
       response = await fetch(`/api/classes/${encodeURIComponent(pending.classId)}/assignments`, {
         method: "POST",
         credentials: "same-origin",
         cache: "no-store",
+        signal: AbortSignal.timeout(15000),
         headers: {
           "Content-Type": "application/json",
           "X-CSRF-TOKEN": csrf.requestToken,
@@ -221,6 +234,7 @@ export async function submitAssignment(
     if (response.status === 200 || response.status === 201) {
       try {
         const projects = receipt(await response.json(), pending);
+        if ((await assignmentSession()).userId !== pending.actorId) return { kind: "unknown" };
         return projects
           ? { kind: "confirmed", assignmentId: pending.body.requestId, projects }
           : { kind: "unknown" };

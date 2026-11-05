@@ -13,8 +13,8 @@ const session = {
 };
 const screens = [
   ["admin/dashboard", "Welcome Back, Test Teacher"],
-  ["new-project", "New Project"],
-  ["classes", "Class assignments"],
+  ["new-project", "New class assignment"],
+  ["classes", "Classes"],
   ["review", "Submission review"],
   ["accounts", "Accounts"],
 ];
@@ -98,90 +98,46 @@ try {
   }
 
   mode = "Educator";
-  await screen("new-project", "New Project");
-  const title = page.getByLabel("Project title");
-  await title.fill("A project title");
-  assert.equal(await title.inputValue(), "A project title");
-  const fileChooser = page.waitForEvent("filechooser");
-  await page.getByRole("button", { name: "Gallery", exact: true }).click();
-  assert.ok(await fileChooser, "Gallery opens the cover image picker");
-  assert.equal(await page.getByRole("button", { name: "Create project" }).isDisabled(), true);
+  await screen("new-project", "New class assignment");
   for (const width of [1440, 768, 390]) {
     await page.setViewportSize({ width, height: 900 });
-    assert.equal(
-      await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
-      true,
-      `Workspace fits viewport at ${width}px`,
-    );
-    assert.equal(await page.getByRole("navigation", { name: "Workspace screens" }).count(), 1);
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    assert.equal(await page.getByRole("navigation", { name: "Workspace", exact: true }).count(), 1);
   }
   await page.setViewportSize({ width: 1440, height: 900 });
-  await screen("classes", "Class assignments");
-  await page.getByRole("link", { name: /new project/i }).click();
-  await page.getByRole("heading", { name: "New Project", exact: true }).waitFor();
-  assert.equal(new URL(page.url()).pathname, "/new-project");
-  await page.getByRole("button", { name: "Cancel", exact: true }).click();
-  await page.getByRole("heading", { name: "Class assignments", exact: true }).waitFor();
-  assert.equal(new URL(page.url()).pathname, "/classes");
-  await page.getByRole("link", { name: "Submission review", exact: true }).click();
-  await page.getByRole("heading", { name: "Submission review", exact: true }).waitFor();
-  await page.getByRole("link", { name: /new project/i }).click();
-  await page.getByRole("button", { name: "Cancel", exact: true }).click();
-  await page.getByRole("heading", { name: "Submission review", exact: true }).waitFor();
-  assert.equal(new URL(page.url()).pathname, "/review");
-  await page.goBack();
-  await page.getByRole("heading", { name: "New Project", exact: true }).waitFor();
-  await page.goForward();
-  await page.getByRole("heading", { name: "Submission review", exact: true }).waitFor();
-  await screen("new-project", "New Project");
-  await page.getByRole("button", { name: "Cancel", exact: true }).click();
-  await page.getByRole("heading", { name: "Class assignments", exact: true }).waitFor();
-  assert.equal(new URL(page.url()).pathname, "/classes");
-  await screen("new-project?from=https%3A%2F%2Fevil.example", "New Project");
-  await page.getByRole("button", { name: "Cancel", exact: true }).click();
-  await page.getByRole("heading", { name: "Class assignments", exact: true }).waitFor();
-  assert.equal(page.url(), `${origin}/classes`);
-
-  for (const path of ["classes", "review", "accounts", "admin/dashboard"]) {
-    mode = "Creator";
-    await page.goto(`${origin}/${path}`);
-    await page
-      .getByText(/not authorized|not authorised|access denied|do not have access/i)
-      .first()
-      .waitFor();
-    const heading = screens.find(([name]) => name === path)[1];
-    assert.equal(await page.getByRole("heading", { name: heading, exact: true }).count(), 0);
+  await page.getByRole("button", { name: "Classes", exact: true }).click();
+  await page.getByRole("heading", { name: "Classes", exact: true }).waitFor();
+  await page.getByRole("button", { name: "New assignment" }).click();
+  await page.getByRole("heading", { name: "New class assignment" }).waitFor();
+  mode = "Creator";
+  for (const path of ["new-project", "accounts", "admin/dashboard"]) {
+    await screen(path, "Access denied");
   }
+  await screen("classes", "Classes");
+  assert.equal(await page.getByRole("button", { name: "New assignment" }).count(), 0);
+  await screen("review", "Submission review");
+  assert.equal(await page.getByRole("link", { name: "New class assignment" }).count(), 0);
   mode = "anonymous";
   await page.goto(`${origin}/classes`);
   await page
-    .getByRole("link", { name: /log in|sign in/i })
+    .getByRole("link", { name: /log\s?in|sign in/i })
     .first()
     .waitFor();
-  assert.equal(
-    await page.getByRole("heading", { name: "Class assignments", exact: true }).count(),
-    0,
-  );
+  assert.equal(await page.getByRole("heading", { name: "Classes", exact: true }).count(), 0);
   mode = "unavailable";
   await page.goto(`${origin}/classes`);
   await page
-    .getByText(/unavailable|try again/i)
+    .getByText(/unavailable|try again|could not be verified/i)
     .first()
     .waitFor();
-  assert.equal(
-    await page.getByRole("heading", { name: "Class assignments", exact: true }).count(),
-    0,
-  );
+  assert.equal(await page.getByRole("heading", { name: "Classes", exact: true }).count(), 0);
   mode = "forced";
   await page.goto(`${origin}/classes`);
   await page
     .getByText(/change.*password|password.*change/i)
     .first()
     .waitFor();
-  assert.equal(
-    await page.getByRole("heading", { name: "Class assignments", exact: true }).count(),
-    0,
-  );
+  assert.equal(await page.getByRole("heading", { name: "Classes", exact: true }).count(), 0);
   assert.deepEqual(errors, []);
   console.log("Workspace route browser checks passed");
 } finally {

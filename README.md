@@ -135,12 +135,13 @@ set the private database passwords and start the combined Compose stack. Open
 [https://localhost:8444/login](https://localhost:8444/login). Caddy uses a local CA, so
 the browser must trust its certificate. Sign-in requires a provisioned username; public
 signup is unavailable. See the [private administrator bootstrap](apps/server/README.md#private-bootstrap-and-administrator-operations-part-4)
-and provisioning instructions in the server guide. A verified session currently shows
-that the project workspace is not yet connected. The separate `/new-project`, `/classes`,
-`/review`, and `/accounts` routes provide session-gated screen shells. Project and class
-lists, creation, assignments, submissions, and the account directory are not connected;
-the shells contain no real records. Role checks in these shells are user-interface gates;
-future data access must also be authorized by the server.
+and provisioning instructions in the server guide. A verified session links to `/home`,
+which loads authorised project and class workflows when their backend contracts are available.
+Server-project opening and blank creation await recovery and an approved asset catalogue.
+The separate `/new-project`, `/classes`, `/review`, and `/accounts` routes provide
+session-gated screen shells; these shells contain no real records and do not connect project
+and class lists, creation, assignments, submissions or the account directory. Role checks
+in these shells are user-interface gates; future data access must also be authorized by the server.
 
 In the editor, add **test-room**, add **test-crate**, move it and try **Undo**.
 Use the project menu's **Save** to save a JSON file. After editing, allow two seconds for

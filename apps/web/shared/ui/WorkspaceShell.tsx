@@ -11,6 +11,7 @@ export function WorkspaceShell({
   name,
   initials,
   onSignOut,
+  onHome,
   homeHref = "#new-project",
   variant,
   children,
@@ -18,6 +19,7 @@ export function WorkspaceShell({
   name: string;
   initials: string;
   onSignOut?: () => void;
+  onHome?: () => void;
   homeHref?: string;
   variant?: "dashboard" | undefined;
   children: ReactNode;
@@ -35,7 +37,19 @@ export function WorkspaceShell({
         alt=""
       />
       <header className="sp-navigation">
-        <a className="sp-brand" href={homeHref} aria-label="Spatia home">
+        <a
+          className="sp-brand"
+          href={onHome ? "/home" : homeHref}
+          aria-label="Spatia home"
+          onClick={
+            onHome
+              ? (event) => {
+                  event.preventDefault();
+                  onHome();
+                }
+              : undefined
+          }
+        >
           <span className="sp-brand-mark">
             <img src={landmark} alt="" />
           </span>
@@ -43,7 +57,9 @@ export function WorkspaceShell({
         </a>
         <div className="sp-account">
           <Avatar name={name} initials={initials} />
-          <span>{name}</span>
+          <span className="sp-account-name" title={name}>
+            {name}
+          </span>
           <Button disabled={!onSignOut} onClick={onSignOut}>
             Log Out
           </Button>

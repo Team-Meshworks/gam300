@@ -7,6 +7,12 @@ import ts from "typescript";
 
 // These are implemented source boundaries, not the future server/player layout
 export const modules = {
+  visitor: {
+    paths: ["visitor/"],
+    uses: ["project", "catalogue", "asset-loading"],
+    packages: ["react", "react-dom", "three"],
+    public: [],
+  },
   project: {
     paths: ["shared/project/"],
     uses: [],
@@ -24,6 +30,7 @@ export const modules = {
       "shared/project/scene-object.ts",
       "shared/project/spatial-validation.ts",
       "shared/project/project-validation.ts",
+      "shared/project/project-structure-validation.ts",
       "shared/project/project-serialization.ts",
       "shared/project/project-deserialization.ts",
       "shared/project/project-limits.ts",
@@ -124,6 +131,7 @@ export const modules = {
   checks: {
     paths: ["tests/"],
     uses: [
+      "visitor",
       "project",
       "catalogue",
       "input",

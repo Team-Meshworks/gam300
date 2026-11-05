@@ -11,6 +11,7 @@ export default defineConfig(({ command, mode }) => {
       ? accountDevelopmentServer({ ...loadEnv(mode, webDirectory, "SPATIA_"), ...process.env })
       : {};
   return {
+    resolve: { alias: { "/visitor": fileURLToPath(new URL("./visitor", import.meta.url)) } },
     server: accountServer,
     preview: accountServer,
     root: fileURLToPath(new URL("./editor", import.meta.url)),
@@ -22,11 +23,13 @@ export default defineConfig(({ command, mode }) => {
         name: "entry-page-routes",
         configureServer(server) {
           server.middlewares.use((request, _response, next) => {
-            if (request.url && /^\/(landing|login)\/?(?:\?|$)/.test(request.url))
+            if (request.url && /^\/p\/[0-9a-f-]{36}\/?(?:\?|$)/i.test(request.url))
+              request.url = "/visitor.html";
+            else if (request.url && /^\/(landing|login|home)\/?(?:\?|$)/.test(request.url))
               request.url = "/entry.html";
             else if (
               request.url &&
-              /^\/(admin\/dashboard|new-project|classes|review|accounts|assets|spaces)\/?(?:\?|$)/.test(
+              /^\/(admin\/dashboard|new-project|classes|review|publish|accounts|assets|spaces)\/?(?:\?|$)/.test(
                 request.url,
               )
             )
@@ -36,11 +39,13 @@ export default defineConfig(({ command, mode }) => {
         },
         configurePreviewServer(server) {
           server.middlewares.use((request, _response, next) => {
-            if (request.url && /^\/(landing|login)\/?(?:\?|$)/.test(request.url))
+            if (request.url && /^\/p\/[0-9a-f-]{36}\/?(?:\?|$)/i.test(request.url))
+              request.url = "/visitor.html";
+            else if (request.url && /^\/(landing|login|home)\/?(?:\?|$)/.test(request.url))
               request.url = "/entry.html";
             else if (
               request.url &&
-              /^\/(admin\/dashboard|new-project|classes|review|accounts|assets|spaces)\/?(?:\?|$)/.test(
+              /^\/(admin\/dashboard|new-project|classes|review|publish|accounts|assets|spaces)\/?(?:\?|$)/.test(
                 request.url,
               )
             )
@@ -59,6 +64,7 @@ export default defineConfig(({ command, mode }) => {
           editor: fileURLToPath(new URL("./editor/index.html", import.meta.url)),
           entry: fileURLToPath(new URL("./editor/entry.html", import.meta.url)),
           workspace: fileURLToPath(new URL("./editor/workspace.html", import.meta.url)),
+          visitor: fileURLToPath(new URL("./editor/visitor.html", import.meta.url)),
         },
         output: {
           codeSplitting: {

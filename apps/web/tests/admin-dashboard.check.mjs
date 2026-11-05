@@ -83,7 +83,8 @@ try {
     }
     if (url.pathname === "/api/projects") {
       projectReads++;
-      assert.equal(request.headers()["x-spatia-account"], userId);
+      if (new URL(request.headers().referer).pathname === "/admin/dashboard")
+        assert.equal(request.headers()["x-spatia-account"], userId);
       if (projectError) return route.fulfill({ status: 503 });
       if (url.searchParams.get("archived") === "true")
         return route.fulfill({
@@ -127,6 +128,20 @@ try {
   await page.getByRole("button", { name: "Change password", exact: true }).click();
   await page.waitForURL(origin + "/admin/dashboard");
   await page.getByRole("heading", { name: "Welcome Back, VThere", exact: true }).waitFor();
+  await page
+    .getByRole("link", { name: "Open project workspace", exact: true })
+    .click({ timeout: 5000 });
+  await page.waitForURL(origin + "/home");
+  await page.getByRole("link", { name: "Accounts", exact: true }).click();
+  await page.waitForURL(origin + "/accounts");
+  await page.getByRole("link", { name: "Home", exact: true }).click();
+  await page.waitForURL(origin + "/home");
+  await page.getByRole("link", { name: "Dashboard", exact: true }).click();
+  await page.waitForURL(origin + "/admin/dashboard");
+  await page.getByRole("link", { name: "Open project workspace", exact: true }).click();
+  await page.waitForURL(origin + "/home");
+  await page.getByRole("button", { name: "Classes", exact: true }).click();
+  await page.goto(origin + "/admin/dashboard");
   await page
     .getByRole("button", { name: `View details for ${projects[0].title}`, exact: true })
     .waitFor();

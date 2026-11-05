@@ -18,6 +18,7 @@ export function TopBar({
   serverMode = false,
   serverSaving = false,
   onLeave,
+  onPublish,
   hasProject,
   hasChanges,
   ready,
@@ -37,6 +38,7 @@ export function TopBar({
   serverMode?: boolean;
   serverSaving?: boolean;
   onLeave?: (() => void) | undefined;
+  onPublish?: (() => void) | undefined;
   hasProject: boolean;
   hasChanges: boolean;
   ready: boolean;
@@ -294,8 +296,9 @@ export function TopBar({
           <button
             className="ui-button pill-button is-primary"
             type="button"
-            aria-disabled="true"
-            title="Publish · coming soon"
+            disabled={!onPublish || !ready || busy}
+            title={onPublish ? "Publish a saved edition" : "Open a server project to publish"}
+            onClick={onPublish}
           >
             Publish
           </button>

@@ -45,6 +45,8 @@ services:
       ConnectionStrings__Spatia: 'Host=postgres;Database=spatia;Username=spatia_api;Password="${SPATIA_API_PASSWORD:?Set a separate hexadecimal API password}"'
       DataProtection__KeyDirectory: /var/lib/spatia/keys
       AllowedHosts: ${SERVER_ALLOWED_HOSTS:-localhost}
+      # Use the externally reachable HTTPS origin; an unset value keeps publishing unavailable
+      Publication__Origin: ${PUBLICATION_ORIGIN:-}
       # Trust only the gateway's fixed address on this isolated application network
       TrustedProxies__0: ${SERVER_NETWORK_PREFIX:-172.30.90}.2
     volumes:

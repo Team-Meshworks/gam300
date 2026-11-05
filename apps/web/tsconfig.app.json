@@ -25,5 +25,5 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["editor", "shared"]
+  "include": ["editor", "shared", "visitor"]
 }

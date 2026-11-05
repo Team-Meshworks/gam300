@@ -209,6 +209,14 @@ jobs:
           - name: assignment-screen
             script: test:assignment-screen
             path: /ui-preview/assignment-test.html
+          - name: home
+            script: test:home
+          - name: project-creation
+            script: test:project-creation
+          - name: project-grants
+            script: test:project-grants
+          - name: workspace-assignments
+            script: test:workspace-assignments
           - name: deadline
             script: test:deadline
             path: /ui-preview.html
@@ -217,6 +225,14 @@ jobs:
             path: /ui-preview.html
           - name: server-autosave
             script: test:server-autosave
+          - name: reviews
+            script: test:reviews
+          - name: publication
+            script: test:publication
+          - name: publication-readiness
+            script: test:publication-readiness
+          - name: visitor
+            script: test:visitor
     defaults:
       run:
         working-directory: apps/web

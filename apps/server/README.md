@@ -176,11 +176,10 @@ This local loopback test does not establish Linux Docker bridge or VM behavior.
 
 The build checks both projects with nullable analysis, style enforcement and warnings
 as errors. The minimum-test option is passed to the test module after `--`, so skipped
-tests do not satisfy it. The test runner uses local named pipes; Codex's restricted
+tests do not satisfy it. The test runner uses local named pipes; a restricted
 Windows sandbox denied those pipes before executing tests and before loading the
-formatter workspace. The formatter and test commands were verified through scoped
-permission to run outside that sandbox. A normal developer shell does not inherit
-that sandbox restriction.
+formatter workspace. The formatter and test commands were verified outside that
+sandbox. A normal developer shell does not inherit that sandbox restriction.
 
 Verified on 9 October 2026 against the working tree: locked restore passed; Release
 build passed with zero warnings/errors; both formatting checks passed; **74 tests
@@ -1832,10 +1831,11 @@ before selecting a new revision. PUT uses the [durable retry contract](#draft-sa
 operation checks the original session cutoff before and after commit; a failure after
 commit can be durable without an acknowledgement.
 
-Publication storage/delivery is not implemented in this slice. The existing backend
-handoff is to deny archived-project publication/asset retrieval without erasing
-snapshots; reopening removes only that restriction and does not undo independent
-revocation/audience policy. The [shared effects matrix](../../docs/project-lifecycle-publication-access.md#shared-publication-access-effects-matrix)
+The SCRUM-66/69 slice did not implement publication storage or delivery. SCRUM-85's
+storage foundation is documented below; publish and visitor routes remain pending.
+The existing backend handoff is to deny archived-project publication/asset retrieval
+without erasing snapshots; reopening removes only that restriction and does not undo
+independent revocation/audience policy. The [shared effects matrix](../../docs/project-lifecycle-publication-access.md#shared-publication-access-effects-matrix)
 records SCRUM-71's confirmation of that rule and the agreed authenticated audience
 and project-scoped management rules. Public/unlisted link continuity, request cutoff,
 class provenance and retention still require owner decisions. The agreements are not
@@ -2097,6 +2097,16 @@ SCRUM-126 project-home UI, SCRUM-67 autosave/recovery integration, publication/a
 delivery, hosted CI and deployment remain separate. Production still has no approved
 asset catalogue. These backend checks do not complete parent Story/Epic acceptance.
 
+## Saved project asset delivery
+
+`GET /api/projects/{projectId}/assets` checks current project read authority and
+returns catalogue metadata for approved assets referenced by the saved server
+document, including hidden or deleted entries unless removed from projects. It
+does not depend on the active catalogue's 1,000-entry limit. Entries use
+project-scoped bytes URLs; those requests recheck project access and the saved
+reference. The list is `private, no-store`, and asset bytes are `no-store`.
+`GET /api/assets` remains the active catalogue for new selections.
+
 ## Immutable publication snapshots (SCRUM-85)
 
 `AddPublicationSnapshots` adds a durable `publications` ledger. Each row holds its
@@ -2133,32 +2143,247 @@ is deliberately no uniqueness constraint on project/revision. Later draft edits 
 newer editions do not replace the older ID's retry record. The global primary key
 also prevents two projects from claiming the same publication ID.
 
-### Storage stack boundary
+The integrated backend exposes protected publication creation and retrieval for a
+bounded initial case. SCRUM-85 acceptance still requires the visitor UI and linked
+browser/device and restart evidence, plus unresolved origin and lifecycle decisions.
+UI, QR, catalogue processing and deployment remain with their owning issues.
+[Draft PR #27](https://github.com/Team-Meshworks/gam300/pull/27) does not complete
+the parent story.
 
-This is the lower SCRUM-85 storage PR, based on dev `60cb053`. It retains the
-original storage implementation and tests from `bfcc5c2`, including the combined
-EF model, the current-dev upgrade regression and the receipt-backfill test fix.
-The upgrade test preserves existing drafts, save receipts, class mappings and
-private review history when adding the older missing publication migration, then
-reapplies the idempotent script without changing that evidence.
+### Publication HTTP contract
 
-The transaction coordinator and exact-revision class-review integration belong to
-[the stacked PR #27](https://github.com/Team-Meshworks/gam300/pull/27). This storage
-layer exposes no publication HTTP route and registers no publishing service.
-SCRUM-71 audience/protected delivery and SCRUM-73 approved retained assets remain
-separate dependencies; this split implements neither and does not complete
-SCRUM-85 acceptance. Production routes, the committed HTTPS URL and linked
-browser/device publishing evidence remain outstanding.
+`GET /api/projects/{id}/publication-readiness` requires a full account and checks
+current publish authority and the saved revision. It returns the revision, readiness
+state and available completion and approval indicators with `private, no-store`.
+Readiness is informational: the publish request rechecks authority, revision and
+dependencies under the project lock. An unset or invalid publication origin reports
+the dependency as unavailable.
 
-Use migrations rather than `EnsureCreated`: the schema includes PostgreSQL
-functions and an immutability trigger. Rolling back the publication migration
-removes publication data and is not a retention operation.
+`GET /api/projects/{id}/publication-viewers` requires a full account and current
+project publish authority. It returns `{items: [{userId, userName}], nextCursor}`
+for active eligible accounts in the active project organization, excluding accounts
+that must change their password. Optional `limit` is 1–20 and `cursor` is a UUID;
+responses are `private, no-store`. The route does not expose class rosters.
 
-Run the canonical server checks above and the publication storage cases:
+`POST /api/projects/{id}/publications` requires a current full account, CSRF token
+and account-write rate limit. The request is bounded to 16 KiB and has the shape:
+
+```json
+{"publicationId":"<uuid>","confirmedRevision":0,"intent":{"audience":"Authenticated","viewerIds":["<uuid>"]}}
+```
+
+The ID is client-generated and nonempty. `confirmedRevision` is the saved project
+revision, including metadata revisions. `viewerIds` contains at most 100 distinct,
+nonempty IDs of eligible active full accounts in the project's organization. The
+intent permits exactly those two fields. The server rechecks current publishing
+authority and, for a known class draft, approval of the exact revision under the
+project lock. This first integration supports schema-v1 class-approved drafts and
+authenticated audiences only. Nonempty hotspots or interactions are rejected because
+the current visitor does not render them. Missing trusted origin evidence, public/unlisted
+creation and unsupported runtime capabilities remain unavailable; a missing class
+mapping does not establish ordinary origin. Audience writes also cannot promote an
+existing edition to public or unlisted while those decisions remain unresolved;
+existing public and unlisted editions retain their read policy. The approved asset resolver pins every
+required asset's immutable identity in the same transaction as snapshot and access
+state. A rejected request commits no partial edition.
+
+Configure `Publication:Origin` as a trusted absolute HTTPS origin with no user
+information, path, query or fragment. Request Host and forwarded headers do not
+choose it. After commit, a new request returns 201 and a replay returns 200 with
+`publicationId`, `projectId`, `sourceRevision`, `createdAt`, `snapshotUrl` and
+`visitorUrl`. The snapshot URL points to the protected JSON API; the visitor URL
+points to `/p/<publicationId>` on the configured origin. The protected
+`GET /api/publications/{id}/manifest` supplies the visitor's asset metadata under
+the same access policy. The server returns
+`private, no-store`; missing or unsafe origin configuration makes publishing
+unavailable. Use the same publication ID, confirmed revision and exact intent bytes
+for an uncertain retry. A changed identity conflicts (409), and a replay rechecks
+current authority and publication state without recreating or restoring access.
+See the coordinator contract below for identity framing and failure behavior.
+
+### Transaction coordinator (Part 2)
+
+`PublicationCoordinator` owns one read-committed transaction. It uses
+`ProjectAccessService.LockAsync(..., Publish)` and the existing project-row lock
+shared by draft saves, assignment changes and archive operations. Publishing checks
+current account, organization membership, session, archive state and `CanPublish`;
+it does not require a creator to have `CanManage` or grant any additional authority.
+Account/stamp/role/session authority is checked again after potentially slow work
+and before commit. The other lock purposes keep their existing behavior and enum
+values.
+
+For a new ID, the confirmed revision must equal the locked draft revision, including
+metadata revisions. Known class drafts use SCRUM-161's retained student mapping and
+SCRUM-164's `ReviewApproval.CheckLockedAsync` under that same lock. The latest
+submission must match the current revision and its latest decision must be approved.
+A missing mapping is unverified origin, not an ordinary-project exemption: the
+private integration must explicitly supply authoritative ordinary-origin evidence.
+No production provider supplies that evidence yet; copy/import policy stays deferred
+to SCRUM-173/175. Asset and audience providers cannot bypass a known class draft's
+approval requirement. The coordinator validates the stored v1/v2 document through
+`ProjectDocumentService` and checks the target player's capabilities, then copies
+the locked draft's jsonb into the snapshot. Stored validation preserves saved numeric
+values and checks the compact document's byte budget without normalizing rotations
+again; PostgreSQL's whitespace and numeric expansion do not count as upload bytes.
+Imports and draft writes retain their existing normalization. It accepts no replacement
+document from a publish caller. Every authored environment, model, image, audio and video ID must appear in
+the complete pinned manifest; an owning resolver may also supply required derived
+resources. Missing, duplicate or incorrectly cased references cannot commit.
+
+`PublicationRequest` is the coordinator input. Its bounded object-valued
+`IntentJson` retains the complete original intent.
+SHA-256 framing is `spatia-publication-v1`, publication UUID, route/project UUID,
+authorized actor UUID, invariant decimal confirmed revision, then the original
+UTF-8 intent, with a newline after each preceding field. Whitespace, key order,
+number spelling and extra fields all participate in retry identity. The HTTP
+integration validates the complete intent schema and rejects unknown fields.
+Public/unlisted creation and unresolved lifecycle choices are not selected here.
+
+The durable ID lookup precedes current-revision and document checks. An exact retry
+can acknowledge its historical edition after later saves or publications, while
+rechecking current project and publication access. It cannot reset revocation,
+stage policy again, request approval of a newer draft or recapture newer assets.
+Changed project, actor, revision or intent returns a bounded ID conflict without
+the conflicting edition's content. `INSERT ... ON CONFLICT (id) DO NOTHING` handles
+simultaneous global ID claims from different project locks without aborting the
+transaction. A subsequent read reconciles the winning row; unrelated constraint
+errors propagate and roll back instead of masquerading as successful retries.
+
+`IPublicationIntegration` has three phases under the
+retained transaction and lock:
+
+- Read-only preparation: validate the whole intent and new-edition policy; resolve
+  approved immutable assets and actual runtime capabilities. Only an authoritative
+  origin contract may set `OrdinaryOriginVerified` for an unmapped project. Missing
+  rows, client content and the development catalogue do not supply that evidence.
+  Class approval is enforced independently by the coordinator before preparation.
+- Stage the new edition's owned policy records after its insert, in the same context
+  and transaction. Persist those writes before returning; never commit independently
+  or emit external side effects. Failure rolls back policy and ledger together.
+- Authorize an existing edition's replay against the current shared policy without
+  restaging or changing history.
+
+The authenticated integration resolves approved retained assets and stages access
+state in the transaction. It provides no trusted ordinary-origin evidence and limits
+creation to the v1 runtime. Review integration tests also exercise real submission
+and decision HTTP endpoints with fixture asset providers. A committed
+acknowledgement contains the persisted ID, project, revision and original timestamp,
+and is constructed only after commit and a final cancellation/session check. A
+failed or canceled commit may already be durable: retry the **same** ID and original
+intent in a new request/context. No visitor URL is returned by this internal layer.
+
+Use the existing disposable PostgreSQL fixture and pinned SDK/tool/dependencies.
+The new migration uses PostgreSQL functions and a trigger, so use migrations rather
+than `EnsureCreated` to create its schema. Migration rollback removes publication
+data and its helper functions; it is not a retention operation and must not be used
+to roll back a live publication rollout without an explicit data-preservation plan.
+After the ordinary build and migration checks above, the focused tests are:
 
 ```powershell
-dotnet test --project tests/Spatia.Server.Tests.csproj -c Release --no-build -- --minimum-expected-tests 1 --treenode-filter '/*/*/*/Publication*'
+dotnet test --project tests/Spatia.Server.Tests.csproj -c Release --no-build --results-directory test-results/scrum85-publication-focused -- --report-trx --minimum-expected-tests 1 --treenode-filter '/*/*/*/Publication*'
 ```
+
+The publication filter includes both storage and coordinator tests. They exercise
+real migration upgrade/reapply/idempotence, fresh-context persistence,
+later draft edits, visibility before/after commit, rollback and failed batches,
+concurrent same-ID claims in both commit/rollback outcomes, cross-project ID
+uniqueness, immutable updates, manifest constraints and retry identity. Coordinator
+tests additionally cover lock waits, concurrent saves/publishes, current account and
+assignment changes, exact revision checks, runtime/asset rejection, atomic policy
+rollback, unrelated database failures, cancellation and lost commit acknowledgements.
+Snapshot regressions use actual saves to verify exact v1/v2 jsonb capture, unchanged
+drafts and retries, and valid 5 MiB documents whose rotations would grow on another
+normalization pass. Malformed, unknown-field, unresolvable-asset and oversized stored
+documents remain rejected before any publication commits.
+The coordinator-focused cases alone do not establish the HTTP or browser behavior.
+On 5 November 2026, 12 publish endpoint cases passed against disposable PostgreSQL,
+including class approval, retries and rollback without partial rows. Five review
+integration cases, including both revocation/publish lock orders, and the route
+inventory case also passed. The new rollback case initially expected 500; the
+corrected assertion checks the existing 503 `storage_unavailable` response and
+absence of both rows. A separate
+HTTPS browser API test passed with verified Chrome 157.0.8103.38 and Node 24.22.1:
+it created a class-approved authenticated edition, retrieved JSON and exact retained
+asset bytes as the educator and named viewer, denied an unrelated account, and
+checked replay and conflicting intent. A rebuilt rerun after the access gate merge
+also rejected public and unlisted promotion of the new edition and confirmed the
+named viewer retained access. Its first attempt failed because the isolated
+worktree lacked Playwright; after linking installed dependencies, it passed. This
+is not visitor UI, API restart or another-device acceptance evidence. Full server
+regression remains relevant because the lock service and migration are shared.
+
+Part 1 local verification on **29 October 2026** passed all **97/97** new tests, with zero
+skipped, plus the Release build, both formatting checks and EF model/migration
+checks. Full backend regression passed **628/629**, with the existing
+`Browser_ProjectListOpenAndAccountSwitchUseCurrentSession` reaching its 30-second
+timeout. An isolated rerun passed **1/1** in 9.481 seconds without changing source
+or timeouts; the original full run is retained as a failure, not reported as clean.
+TRX/HTML evidence is under `test-results/scrum85-part1-focused-corrected/`,
+`test-results/scrum85-part1-full/` and `test-results/scrum85-part1-browser-retry/`.
+
+### 31 October 2026: SCRUM-85 bounded code review
+
+**What this change does:** Stores immutable publication snapshots and coordinates
+permission, revision and retry checks under the shared project lock. The
+integration remains fail-closed and exposes no production publication route.
+
+**Findings:** No actionable defects were found in the reviewed storage and
+coordinator foundation. The review covered the publication migration and
+constraints, manifest and digest handling, authorization and transaction flow,
+shared project-read and duplicate callers, and the existing rollback,
+concurrency and saved-document tests. The expected load is a classroom pilot
+using the server's 64-request global concurrency limit.
+
+[CI run 83](https://github.com/Team-Meshworks/gam300/actions/runs/41089029015)
+now reports success for head `467397934277337916821e43e03aa7e6a3e2548d`.
+The formerly cancelled macOS job passed on the 31 October rerun (job
+`124480059707`); server, web, Windows and shared-format jobs had already
+passed on the same head. The server log reports 734 passed, 0 failed and 0
+skipped. No tests were run locally during this review.
+
+**Verdict:** The reviewed foundation is ready for integration; the PR remains
+draft. Production approval/classification, immutable asset resolution,
+audience/revocation and protected routes are still absent, as are real
+publish/retrieval restart and browser/device acceptance.
+
+### 1 November 2026: current dev and class-review integration
+
+The publication branch now includes dev `60cb053`. Merge resolution preserves both
+the publication ledger and dev's save receipts, classrooms, assignments and review
+history. The combined EF snapshot was regenerated without adding a migration that
+would recreate the existing publication table. An upgrade regression starts with
+dev's applied migrations and retained data, applies the older missing publication
+migration, inserts an edition, reapplies the idempotent script and verifies that the
+draft, receipt, class mapping and review history survive.
+
+The coordinator now calls the real exact-revision review check for known class
+drafts. Integration tests submit and decide through the review HTTP endpoints, then
+exercise the publication coordinator. They cover an unapproved draft, student
+denial, approved publication, revocation, later saves and approvals, and historical
+retry without rewriting or reapproving its snapshot. Two concurrent cases verify
+both orderings of publication and review revocation using PostgreSQL's blocking
+locks. Unknown origin remains unavailable unless an authoritative integration
+explicitly verifies ordinary origin; fixture readiness cannot bypass class review.
+
+Local verification used PostgreSQL **18.6**, the pinned SDK and Caddy **2.11.4**.
+Release build, both formatting checks, the EF pending-model check and idempotent
+migration generation passed. All **206 publication cases** passed. The first full
+run passed **900/902**: one browser check encountered unmaterialized Git LFS assets,
+and the receipt rollback test assumed no migration preceded its backfill. Delivery
+assets were materialized and that assertion now checks the failed receipt migration
+itself. The corrected full run passed **901/902**, with one Windows socket-allocation
+failure opening a test database connection. PostgreSQL remained healthy; all **18**
+cases in the affected administration method passed on a targeted rerun, with no
+source or timeout changes. Neither failed full run is reported as clean. Local
+TRX/HTML evidence is in `.artifacts/scrum85-full/`,
+`.artifacts/scrum85-full-corrected/` and `.artifacts/scrum85-socket-retry/`.
+
+Production asset retention and runtime integration (SCRUM-73), audience/revocation
+and protected delivery policy (SCRUM-71), the publish/retrieval HTTP routes and
+committed HTTPS URL remain outstanding. SCRUM-70/127 must consume that URL and supply
+linked browser/device acceptance. Partner retention/lifecycle decisions and
+SCRUM-173/175's deferred origin policy have not been invented here. PR #27 remains
+draft, and these internal tests do not demonstrate production publication.
 
 ### SCRUM-161 backend review, 30 October 2026
 

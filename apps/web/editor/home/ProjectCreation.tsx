@@ -1,0 +1,310 @@
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import type { AccountSession } from "../accounts/account-client";
+import { createAccountClient } from "../accounts/account-client";
+import { createDirectoryClient, type ManagedOrganization } from "../directory/directory-client";
+import type { FormNavigationState } from "../projects/NewProjectForm";
+import { Button } from "../../shared/ui/Button";
+import { Dialog } from "../../shared/ui/Dialog";
+import { Field } from "../../shared/ui/Field";
+import { createWorkspaceClient, isId, isRecord, projectReceipt } from "./workspace-api";
+
+const api = createWorkspaceClient();
+const accounts = createAccountClient();
+const directory = createDirectoryClient();
+
+export function ProjectCreation({
+  session,
+  active,
+  onNavigationStateChange,
+}: {
+  session: AccountSession;
+  active: boolean;
+  onNavigationStateChange?: ((state: FormNavigationState) => void) | undefined;
+}) {
+  const [spaces, setSpaces] = useState<{ id: string; name: string }[] | null>(null);
+  const [organizations, setOrganizations] = useState<ManagedOrganization[]>([]);
+  const [loadError, setLoadError] = useState("");
+  const [version, setVersion] = useState(0);
+  const [open, setOpen] = useState(false);
+  const [discard, setDiscard] = useState(false);
+  const [title, setTitle] = useState("");
+  const [spaceId, setSpaceId] = useState("");
+  const [orgId, setOrgId] = useState("");
+  const [phase, setPhase] = useState<"ready" | "pending" | "unknown" | "created">("ready");
+  const recoveryKey = `spatia:uncertain-project-creation:${session.userId}`;
+  const [needsCheck, setNeedsCheck] = useState(() => {
+    try {
+      return sessionStorage.getItem(recoveryKey) === "1";
+    } catch {
+      return true;
+    }
+  });
+  const [message, setMessage] = useState("");
+  const [createdId, setCreatedId] = useState<string | null>(null);
+  const busy = useRef(false);
+  const dirty = open && phase === "ready" && Boolean(title || spaceId || orgId);
+  useLayoutEffect(() => {
+    onNavigationStateChange?.({ dirty, locked: phase === "pending" });
+  }, [dirty, phase, onNavigationStateChange]);
+  useEffect(
+    () => () => onNavigationStateChange?.({ dirty: false, locked: false }),
+    [onNavigationStateChange],
+  );
+  useEffect(() => {
+    if (!createdId) return;
+    const frame = requestAnimationFrame(() =>
+      location.assign(`/?projectId=${encodeURIComponent(createdId)}`),
+    );
+    return () => cancelAnimationFrame(frame);
+  }, [createdId]);
+  useEffect(() => {
+    if (!dirty && phase !== "pending") return;
+    const preventLoss = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener("beforeunload", preventLoss);
+    return () => window.removeEventListener("beforeunload", preventLoss);
+  }, [dirty, phase]);
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const [rows, orgs] = await Promise.all([
+          api.read("/api/assets"),
+          session.role === "Administrator" ? directory.organizations() : Promise.resolve([]),
+        ]);
+        if (!Array.isArray(rows)) throw new Error("Invalid catalogue");
+        const environments = rows
+          .filter((row: unknown) => isRecord(row) && row.kind === "environment")
+          .map((row: unknown) => {
+            if (!isRecord(row) || !isId(row.id) || typeof row.name !== "string" || !row.name.trim())
+              throw new Error("Invalid space");
+            return { id: row.id, name: row.name };
+          });
+        const current = await accounts.getSession();
+        if (current?.userId !== session.userId || current.mustChangePassword)
+          throw new Error("Account changed");
+        if (!cancelled) {
+          setSpaces(environments);
+          setOrganizations(orgs.filter((org) => org.isActive));
+          setLoadError("");
+        }
+      } catch {
+        if (!cancelled)
+          setLoadError(
+            "Approved 3D spaces or organisations could not be loaded. Retry before creating a project.",
+          );
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [session.userId, session.role, version]);
+  function close() {
+    if (busy.current) return;
+    if (dirty) {
+      setDiscard(true);
+      return;
+    }
+    setOpen(false);
+  }
+  async function create() {
+    if (
+      !active ||
+      needsCheck ||
+      busy.current ||
+      phase !== "ready" ||
+      !title.trim() ||
+      !spaces?.some((space) => space.id === spaceId) ||
+      (session.role === "Administrator" && !organizations.some((org) => org.id === orgId))
+    )
+      return;
+    try {
+      sessionStorage.setItem(recoveryKey, "1");
+      if (sessionStorage.getItem(recoveryKey) !== "1") throw new Error("Storage unavailable");
+    } catch {
+      setMessage(
+        "The browser could not safely store this request. Check browser storage before creating a project.",
+      );
+      return;
+    }
+    busy.current = true;
+    setPhase("pending");
+    setMessage("");
+    const outcome = await api.write(session.userId, "/api/projects", "POST", {
+      title: title.trim(),
+      environmentAssetId: spaceId,
+      ...(session.role === "Administrator" ? { orgId } : {}),
+    });
+    busy.current = false;
+    if (outcome.kind === "confirmed" && projectReceipt(outcome.value) && isRecord(outcome.value)) {
+      try {
+        sessionStorage.removeItem(recoveryKey);
+        if (sessionStorage.getItem(recoveryKey) !== null) throw new Error("Storage unavailable");
+      } catch {
+        // Retain the warning on the next visit if its marker could not be cleared.
+      }
+      setPhase("created");
+      setCreatedId(String(outcome.value.projectId));
+    } else if (outcome.kind === "rejected") {
+      let cleared = false;
+      try {
+        sessionStorage.removeItem(recoveryKey);
+        if (sessionStorage.getItem(recoveryKey) !== null) throw new Error("Storage unavailable");
+        cleared = true;
+      } catch {
+        setNeedsCheck(true);
+      }
+      setPhase("ready");
+      setMessage(
+        cleared
+          ? outcome.message
+          : "The browser could not clear the recovery warning. Check your projects before trying again.",
+      );
+    } else {
+      setPhase("unknown");
+      setNeedsCheck(true);
+      setMessage(
+        "Creation could not be confirmed. Check your projects before creating another; do not repeat this request.",
+      );
+    }
+  }
+  const unavailable =
+    !active ||
+    needsCheck ||
+    !!loadError ||
+    !spaces?.length ||
+    (session.role === "Administrator" && !organizations.length);
+  return (
+    <div>
+      <Button
+        disabled={unavailable}
+        onClick={() => {
+          setOpen(true);
+          setPhase("ready");
+          setMessage("");
+          setTitle("");
+          setSpaceId("");
+          setOrgId("");
+        }}
+      >
+        New project
+      </Button>
+      {needsCheck && !open && (
+        <p role="alert">
+          {message || "Check your projects for the unconfirmed creation before trying again."}{" "}
+          <Button
+            onClick={() => {
+              try {
+                sessionStorage.removeItem(recoveryKey);
+                if (sessionStorage.getItem(recoveryKey) !== null)
+                  throw new Error("Storage unavailable");
+                setNeedsCheck(false);
+              } catch {
+                setMessage("Your browser could not save this recovery choice.");
+              }
+            }}
+          >
+            I checked my projects
+          </Button>
+        </p>
+      )}
+      {loadError ? (
+        <p role="alert">
+          {loadError} <Button onClick={() => setVersion((value) => value + 1)}>Retry spaces</Button>
+        </p>
+      ) : spaces === null ? (
+        <p role="status">Loading approved 3D spaces…</p>
+      ) : spaces.length === 0 ? (
+        <p role="status">No approved 3D spaces are available yet.</p>
+      ) : session.role === "Administrator" && organizations.length === 0 ? (
+        <p role="status">An active organisation is required to create a project.</p>
+      ) : null}
+      {open && (
+        <Dialog title="New project" onClose={close}>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              void create();
+            }}
+            aria-busy={phase === "pending"}
+          >
+            <p>Start a blank project in an approved 3D space.</p>
+            {message && <p role="alert">{message}</p>}
+            {phase === "pending" && <p role="status">Creating project… Keep this page open.</p>}
+            <fieldset
+              className="sp-home-fields"
+              disabled={!active || needsCheck || phase !== "ready"}
+            >
+              <legend className="sp-sr-only">Project details</legend>
+              <Field id="blank-project-title" label="Project title" required>
+                <input
+                  id="blank-project-title"
+                  required
+                  maxLength={256}
+                  value={title}
+                  onChange={(event) => setTitle(event.target.value)}
+                />
+              </Field>
+              <Field id="blank-project-space" label="3D space" required>
+                <select
+                  id="blank-project-space"
+                  required
+                  value={spaceId}
+                  onChange={(event) => setSpaceId(event.target.value)}
+                >
+                  <option value="">Choose a 3D space</option>
+                  {spaces?.map((space) => (
+                    <option key={space.id} value={space.id}>
+                      {space.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              {session.role === "Administrator" && (
+                <Field id="blank-project-organisation" label="Organisation" required>
+                  <select
+                    id="blank-project-organisation"
+                    required
+                    value={orgId}
+                    onChange={(event) => setOrgId(event.target.value)}
+                  >
+                    <option value="">Choose an organisation</option>
+                    {organizations.map((org) => (
+                      <option key={org.id} value={org.id}>
+                        {org.name}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              )}
+              <Button type="submit" variant="primary">
+                Create project
+              </Button>
+            </fieldset>
+            <Button disabled={phase === "pending"} onClick={close}>
+              {phase === "unknown" ? "Back to projects" : "Cancel"}
+            </Button>
+          </form>
+        </Dialog>
+      )}
+      {discard && (
+        <Dialog title="Discard new project details?" onClose={() => setDiscard(false)}>
+          <p>No project has been created. Your entered details will be discarded.</p>
+          <Button
+            onClick={() => {
+              setDiscard(false);
+              setOpen(false);
+              setTitle("");
+              setSpaceId("");
+              setOrgId("");
+            }}
+          >
+            Discard details
+          </Button>
+          <Button variant="primary" onClick={() => setDiscard(false)}>
+            Keep editing
+          </Button>
+        </Dialog>
+      )}
+    </div>
+  );
+}

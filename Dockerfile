@@ -17,6 +17,7 @@ COPY tools/validate-assets.mjs tools/asset-content-validation.mjs /app/tools/
 RUN node /app/tools/validate-assets.mjs --delivery-only
 RUN if [ "$RUN_BUILD_CHECKS" = true ]; then npm run lint && npm run format:check && npm run test:browser-policy && npm run test:unit; fi
 RUN NODE_ENV="$BUILD_MODE" npm run build:editor -- --mode "$BUILD_MODE"
+RUN NODE_ENV="$BUILD_MODE" npm run build:visitor -- --mode "$BUILD_MODE"
 
 FROM caddy:2.11.4-alpine@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b
 RUN setcap -r /usr/bin/caddy
@@ -26,6 +27,7 @@ LABEL org.opencontainers.image.source="https://github.com/Team-Meshworks/gam300"
       org.opencontainers.image.revision=$REVISION
 COPY deploy/app.Caddyfile /etc/caddy/Caddyfile
 COPY --from=build /app/apps/web/dist/editor/ /srv/
+COPY --from=build /app/apps/web/dist/visitor/ /srv/visit/
 USER 1000:1000
 EXPOSE 8080
 HEALTHCHECK --interval=15s --timeout=3s --start-period=5s --retries=3 \

@@ -18,6 +18,16 @@ import exhibit from "./assets/login-exhibit.png";
 
 const client = createAccountClient();
 
+function publicationReturnPath(): string | null {
+  const values = new URLSearchParams(location.search).getAll("returnTo");
+  const path = values[0];
+  return values.length === 1 &&
+    path &&
+    /^\/p\/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(path)
+    ? path
+    : null;
+}
+
 export function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -60,7 +70,10 @@ export function LoginPage() {
     if (error) errorRef.current?.focus();
   }, [error]);
   useEffect(() => {
-    if (session?.role === "Administrator" && !session.mustChangePassword) {
+    const returnPath = publicationReturnPath();
+    if (session && !session.mustChangePassword && returnPath) {
+      location.replace(returnPath);
+    } else if (session?.role === "Administrator" && !session.mustChangePassword) {
       location.replace("/admin/dashboard");
     } else if (session) statusRef.current?.focus();
   }, [session]);
@@ -158,14 +171,12 @@ export function LoginPage() {
                 <p role="status">
                   Signed in as {session.displayName} · {session.role}
                 </p>
+                <a className="sp-button sp-button--primary" href="/home">
+                  Go to projects
+                </a>
                 {session.role === "Administrator" ? (
                   <a href="/admin/dashboard">Open admin dashboard</a>
-                ) : (
-                  <p>
-                    Your session is verified. The signed-in project workspace is not connected to
-                    this entry screen yet.
-                  </p>
-                )}
+                ) : null}
                 <Button disabled={pending} onClick={() => void signOut()}>
                   {pending ? "Signing out…" : "Log out"}
                 </Button>
