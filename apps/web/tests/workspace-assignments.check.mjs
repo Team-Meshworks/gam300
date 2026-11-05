@@ -182,19 +182,31 @@ try {
     .getByRole("textbox", { name: "Project title", exact: true })
     .fill("Silk Road assignment");
   await page.getByRole("button", { name: "Classes", exact: true }).click();
-  await page.getByRole("dialog", { name: "Leave this assignment?" }).waitFor();
+  await page.getByRole("dialog", { name: "Leave this page?" }).waitFor();
   await page.getByRole("button", { name: "Keep editing", exact: true }).click();
   assert.equal(
     await page.getByRole("textbox", { name: "Project title", exact: true }).inputValue(),
     "Silk Road assignment",
   );
   await page.getByRole("link", { name: "Spatia home" }).click();
-  await page.getByRole("dialog", { name: "Leave this assignment?" }).waitFor();
+  await page.getByRole("dialog", { name: "Leave this page?" }).waitFor();
   await page.getByRole("button", { name: "Keep editing", exact: true }).click();
   assert.equal(
     await page.getByRole("textbox", { name: "Project title", exact: true }).inputValue(),
     "Silk Road assignment",
   );
+  await page.getByRole("button", { name: "Classes", exact: true }).click();
+  await page.getByRole("dialog", { name: "Leave this page?" }).waitFor();
+  await page.getByRole("button", { name: "Discard details and leave", exact: true }).click();
+  await page.getByRole("button", { name: "New assignment", exact: true }).click();
+  assert.equal(
+    await page.getByRole("textbox", { name: "Project title", exact: true }).inputValue(),
+    "",
+  );
+  await page.getByRole("combobox", { name: "Source project", exact: true }).selectOption(source);
+  await page
+    .getByRole("textbox", { name: "Project title", exact: true })
+    .fill("Silk Road assignment");
   await page.getByRole("button", { name: "Log Out", exact: true }).click();
   await page.getByRole("button", { name: "Keep editing", exact: true }).click();
   await page.getByRole("combobox", { name: "Class", exact: true }).selectOption(classId);
