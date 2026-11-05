@@ -53,7 +53,6 @@ export type ProjectHotspot = Readonly<{
 
 export type HotspotDropTarget = Readonly<{
   objectId: EntityId;
-  localPosition: Vector3Tuple;
 }>;
 
 export type InteractionTrigger =
@@ -63,7 +62,7 @@ export type InteractionTrigger =
 
 export type InteractionAction =
   | Readonly<{ type: "open-link"; url?: string }>
-  | Readonly<{ type: "play-audio"; url?: string }>
+  | Readonly<{ type: "play-audio"; url?: string; mediaId?: EntityId }>
   | Readonly<{ type: "print-hi" }>
   | Readonly<{ type: "navigate-scene"; sceneId: EntityId }>
   | Readonly<{ type: "move-to-viewpoint"; viewpointId: EntityId }>;
@@ -82,6 +81,10 @@ export type ProjectScene = Readonly<{
   // One environment can model several connected rooms for uninterrupted walking
   // Additional room modules use placed model objects with their own transforms
   environmentAssetId: AssetId;
+
+  // Optional v2 room placement; v1 readers still reject these fields
+  environmentTransform?: Transform;
+  environmentVisible?: boolean;
   startCamera: CameraPose;
 
   // V2 scenes carry viewpoints; the v1 validator still rejects this field.

@@ -28,7 +28,7 @@ export type AssetAdministrationData = Readonly<{
     extensions: readonly string[];
     maxBytes: number;
     // Null leaves a kind unconfigured; All belongs to browsing and is never saved as a category
-    categories: Readonly<Record<CatalogueAsset["kind"], readonly string[] | null>>;
+    categories: Readonly<Partial<Record<CatalogueAsset["kind"], readonly string[] | null>>>;
     canSubmit: boolean;
     canForceRemove: boolean;
   }>;

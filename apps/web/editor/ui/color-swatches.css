@@ -1,0 +1,108 @@
+/* Hallmark: component scope; supplied display palette, shared by display and text backgrounds. */
+/* Hallmark · answered F24 · Preserve the supplied display palette edge and shadow in both contexts. */
+/* Critique: identical circular swatches, spacing and surface in both contexts. */
+:root {
+  --palette-surface: #e7e6dc;
+  --palette-edge: #fffefa;
+  --palette-ink: #3d3133;
+  --palette-shadow: 0 8px 24px rgb(47 39 31 / 0.2);
+}
+:is(.exhibit-context, dialog.content-dialog.pdf-content-dialog) .color-palette {
+  width: max-content;
+  max-width: 100%;
+  padding: 16px 20px;
+  border: 1px solid var(--palette-edge);
+  border-radius: 24px;
+  background: var(--palette-surface);
+  box-shadow: var(--palette-shadow);
+}
+.color-swatch-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 44px);
+  justify-content: center;
+  gap: 12px;
+}
+.color-swatch-grid button.color-swatch[aria-pressed] {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 50%;
+  transition: transform 100ms ease;
+}
+.color-swatch-grid button.color-swatch:hover {
+  transform: scale(1.06);
+}
+.color-swatch-grid button.color-swatch:active {
+  transform: scale(0.96);
+}
+.color-swatch-grid button.color-swatch[aria-pressed="true"] {
+  outline: 2px solid var(--palette-ink);
+  outline-offset: 3px;
+}
+.color-swatch-grid button.color-swatch:focus-visible {
+  outline: 2px solid var(--palette-ink);
+  outline-offset: 3px;
+}
+.color-swatch-grid.has-background-options button:nth-child(9) {
+  grid-column: 2;
+}
+.color-swatch-grid.has-background-options button:nth-child(10) {
+  grid-column: 3;
+}
+.color-swatch-grid .transparent-swatch-mark {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--palette-ink);
+  border-radius: 50%;
+}
+.color-swatch-grid .transparent-swatch-mark::after {
+  content: "";
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: 50%;
+  height: 1px;
+  background: var(--palette-ink);
+  transform: rotate(-45deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .color-swatch-grid button.color-swatch[aria-pressed] {
+    transition: none;
+  }
+}
+
+:is(.exhibit-context, dialog.content-dialog.pdf-content-dialog) .color-palette.is-compact {
+  padding: 12px;
+  border-radius: 20px;
+}
+.color-swatch-grid.is-compact {
+  grid-template-columns: repeat(4, 36px);
+  gap: 8px;
+}
+.color-swatch-grid.is-compact button.color-swatch[aria-pressed] {
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  min-height: 36px;
+}
+.color-swatch-grid.is-compact button.color-swatch::before {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+}
+.color-swatch-grid button.color-swatch.is-light[aria-pressed] {
+  box-shadow: inset 0 0 0 1px var(--palette-ink);
+}
+.color-swatch-grid.is-compact .transparent-swatch-mark {
+  width: 22px;
+  height: 22px;
+}

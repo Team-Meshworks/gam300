@@ -1,3 +1,4 @@
+import type { CatalogueAsset } from "../../shared/asset-runtime/catalogue";
 import { useState, type ReactNode } from "react";
 import type { SceneObject } from "../../shared/project/scene-object";
 import type {
@@ -12,25 +13,30 @@ import { InteractionPanel } from "./InteractionPanel";
 import { degreesToQuaternion, quaternionToDegrees } from "./rotation-angles";
 
 import { SceneTreePanel, type Room, type HierarchyActions } from "./SceneTreePanel";
-import type { ProjectGroup } from "../../shared/project/project-content";
+import type { ContentObject, ProjectGroup } from "../../shared/project/project-content";
+import type { ContentKind } from "./ContentEditor";
 
 type PanelId = "scenes" | "position" | "tree" | "interaction" | "views";
 
 const railButtons: { id: PanelId; label: string; icon: IconName }[] = [
   { id: "position", label: "Position", icon: "axes" },
   { id: "tree", label: "Scene tree", icon: "tree" },
-  { id: "scenes", label: "Scenes", icon: "library" },
-  { id: "views", label: "Saved views", icon: "tree" },
+  { id: "scenes", label: "Scenes", icon: "scenes" },
+  { id: "views", label: "Saved views", icon: "savedView" },
   { id: "interaction", label: "Interaction", icon: "touch" },
 ];
 
 export function SidePanels({
+  assets = [],
+  onContent,
   visitor,
   savedViews,
   scenes,
   room,
   objects,
   selectedId,
+  selectedIds,
+  onMultiSelect,
   selectedObject,
   mobileDevice,
   hotspots,
@@ -45,7 +51,16 @@ export function SidePanels({
   onLocate,
   groups,
   hierarchy,
+  sceneAudio = [],
+  onHotspotRemove,
 }: {
+  assets?: readonly CatalogueAsset[];
+  sceneAudio?: readonly Extract<
+    import("../../shared/project/project-content").ContentComponent,
+    { type: "audio" }
+  >[];
+  onHotspotRemove?: ((id: string) => void) | undefined;
+  onContent: (kind: ContentKind) => void;
   groups: readonly ProjectGroup[];
   hierarchy: HierarchyActions;
   visitor: boolean;
@@ -54,6 +69,8 @@ export function SidePanels({
   room: Room | undefined;
   objects: readonly SceneObject[];
   selectedId: string | null;
+  selectedIds?: readonly string[];
+  onMultiSelect?: (ids: readonly string[], id: string | null) => void;
   selectedObject: SceneObject | undefined;
   mobileDevice: boolean;
   hotspots: readonly ProjectHotspot[];
@@ -78,6 +95,7 @@ export function SidePanels({
             key={button.id}
             className="ui-button rail-button"
             type="button"
+            data-panel={button.id}
             aria-label={button.label}
             title={button.label}
             aria-pressed={panel === button.id}
@@ -91,22 +109,51 @@ export function SidePanels({
       {panel !== null && (
         <div className={`panel-slot is-${panel}`}>
           {panel === "position" && (
-            <PositionPanel
-              object={selectedObject}
-              onChange={(transform) => {
-                if (selectedObject !== undefined) onTransform(selectedObject.id, transform);
-              }}
-            />
+            <div>
+              <PositionPanel
+                object={selectedObject}
+                onChange={(transform) => {
+                  if (selectedObject !== undefined) onTransform(selectedObject.id, transform);
+                }}
+              />
+              {assets.some(
+                (asset) => asset.id === selectedObject?.assetId && !!asset.displayRole,
+              ) && (
+                <button
+                  className="ui-button content-inspector-open"
+                  type="button"
+                  disabled={!selectedObject}
+                  onClick={() => {
+                    const media = (selectedObject as ContentObject | undefined)?.components?.find(
+                      (component) => component.type === "image" || component.type === "video",
+                    );
+                    onContent(
+                      media?.type === "image"
+                        ? "image"
+                        : media?.type === "video"
+                          ? "video"
+                          : "text",
+                    );
+                  }}
+                >
+                  Edit exhibit information
+                </button>
+              )}
+            </div>
           )}
           {panel === "tree" && (
             <SceneTreePanel
               key={room?.id ?? "draft"}
+              assets={assets}
+              sceneAudio={sceneAudio}
               room={room}
               groups={groups}
               hierarchy={hierarchy}
               objects={objects}
               hotspots={hotspots}
               selectedId={selectedId}
+              selectedIds={selectedIds}
+              onMultiSelect={onMultiSelect}
               onSelect={onSelect}
               onDelete={onDelete}
               mobileDevice={mobileDevice}
@@ -117,6 +164,17 @@ export function SidePanels({
           {panel === "views" && <div className="editor-panel">{savedViews}</div>}
           {panel === "interaction" && (
             <InteractionPanel
+              selectedObjectId={selectedObject?.id}
+              onHotspotRemove={onHotspotRemove}
+              audioTargets={[
+                ...sceneAudio,
+                ...objects.flatMap((object) => (object as Partial<ContentObject>).components ?? []),
+              ]
+                .filter((entry) => entry.type === "audio")
+                .map((entry) => ({
+                  value: entry.id,
+                  label: assets.find((asset) => asset.id === entry.assetId)?.name ?? "Audio",
+                }))}
               interactions={interactions}
               scenes={projectScenes}
               activeSceneId={activeSceneId}
@@ -128,16 +186,6 @@ export function SidePanels({
           )}
         </div>
       )}
-
-      <button
-        className="ui-button filter-button"
-        type="button"
-        aria-disabled="true"
-        title="Filters · coming soon"
-      >
-        Filters
-        <Icon name="caretDown" />
-      </button>
 
       {selectedObject !== undefined && (
         // Browser checks read this without opening the panel
@@ -220,30 +268,32 @@ function TransformFields({
 
   return (
     <div className="transform-fields">
-      {rows.map((row) => (
-        <fieldset key={row.label}>
-          <legend>
-            <Icon name={row.icon} />
-            {row.label}
-          </legend>
-          <div className="axis-fields">
-            {(["X", "Y", "Z"] as const).map((axisName, axis) => (
-              <label key={axisName}>
-                <span>{axisName}</span>
-                <NumberField
-                  label={`${object.name} ${row.label.toLowerCase()} ${axisName} (${row.unit})`}
-                  value={row.values[axis] ?? 0}
-                  onCommit={(value) => {
-                    const next: [number, number, number] = [...row.values];
-                    next[axis] = value;
-                    onChange(row.apply(next));
-                  }}
-                />
-              </label>
-            ))}
-          </div>
-        </fieldset>
-      ))}
+      {rows
+        .filter((row) => row.label !== "Scale" || object.assetId !== "test-room-module-v1")
+        .map((row) => (
+          <fieldset key={row.label}>
+            <legend>
+              <Icon name={row.icon} />
+              {row.label}
+            </legend>
+            <div className="axis-fields">
+              {(["X", "Y", "Z"] as const).map((axisName, axis) => (
+                <label key={axisName}>
+                  <span>{axisName}</span>
+                  <NumberField
+                    label={`${object.name} ${row.label.toLowerCase()} ${axisName} (${row.unit})`}
+                    value={row.values[axis] ?? 0}
+                    onCommit={(value) => {
+                      const next: [number, number, number] = [...row.values];
+                      next[axis] = value;
+                      onChange(row.apply(next));
+                    }}
+                  />
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        ))}
     </div>
   );
 }

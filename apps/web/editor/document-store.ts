@@ -1,4 +1,15 @@
 import {
+  moveSceneSelection,
+  environmentObject,
+  ROOM_TRANSFORM,
+} from "../shared/project/selection-transform";
+import {
+  snapRoomPlacement,
+  roomFitsGrid,
+  roomLayoutTransform,
+} from "../shared/project/room-placement";
+import type { ExhibitAppearance } from "../shared/project/project-appearance";
+import {
   validateCameraPose,
   validatePosition,
   validateTransform,
@@ -6,6 +17,7 @@ import {
 import { freezeValidatedData, invalid } from "../shared/project/validation-helpers";
 import { validateProject } from "../shared/project/project-validation";
 import type {
+  ContentComponent,
   ContentObject,
   ContentProject,
   ContentScene,
@@ -121,62 +133,6 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
   // Choosing a room creates the project; imports can supply one directly
   let project: ProjectDocument | null = null;
   let projectAssets: ReadonlyMap<string, string> = new Map();
-
-  function snapRoom(position: Vector3Tuple): Vector3Tuple | null {
-    // The approved test-room GLB spans -5 to 5 on floor axes and -0.2 to 3 in height
-    // Keep this asset-specific until production rooms supply approved connection points
-    const rooms = objects.filter((object) => object.assetId === "test-room-module-v1");
-    const footprints = rooms.map(({ transform }) => {
-      const [x, y, z, w] = transform.rotation;
-      const [sx, sy, sz] = transform.scale;
-      // Project the transformed room bounds onto the floor, including tilted rooms
-      // Conservative bounds prevent a new room from cutting through existing geometry
-      const xx = 1 - 2 * (y * y + z * z);
-      const xy = 2 * (x * y - z * w);
-      const xz = 2 * (x * z + y * w);
-      const zx = 2 * (x * z - y * w);
-      const zy = 2 * (y * z + x * w);
-      const zz = 1 - 2 * (x * x + y * y);
-      return {
-        x: transform.position[0] + xy * 1.4 * sy,
-        z: transform.position[2] + zy * 1.4 * sy,
-        halfX: Math.abs(xx * sx * 5) + Math.abs(xy * sy * 1.6) + Math.abs(xz * sz * 5),
-        halfZ: Math.abs(zx * sx * 5) + Math.abs(zy * sy * 1.6) + Math.abs(zz * sz * 5),
-      };
-    });
-    // The initial environment has no object transform and always occupies the origin
-    if (activeScene()?.environmentAssetId === "test-room-v1") {
-      footprints.unshift({ x: 0, z: 0, halfX: 5, halfZ: 5 });
-    }
-    if (footprints.length === 0) {
-      return position;
-    }
-
-    // Compare the four adjoining positions on every room, skipping occupied sides
-    // Pointer proximity chooses the side; stable ordering resolves exact ties
-    const candidates: Vector3Tuple[] = footprints.flatMap((room) => [
-      [room.x + room.halfX + 5, 0, room.z],
-      [room.x - room.halfX - 5, 0, room.z],
-      [room.x, 0, room.z + room.halfZ + 5],
-      [room.x, 0, room.z - room.halfZ - 5],
-    ]);
-    const available = candidates.filter(
-      ([x, , z]) =>
-        Math.abs(x) <= 10_000 &&
-        Math.abs(z) <= 10_000 &&
-        footprints.every(
-          (room) =>
-            Math.abs(x - room.x) >= room.halfX + 5 - 1e-8 ||
-            Math.abs(z - room.z) >= room.halfZ + 5 - 1e-8,
-        ),
-    );
-    available.sort(
-      (a, b) =>
-        Math.hypot(a[0] - position[0], a[2] - position[2]) -
-        Math.hypot(b[0] - position[0], b[2] - position[2]),
-    );
-    return available[0] ?? null;
-  }
 
   // Keep history here so the buttons and future edit controls share one undo order.
   type State = Readonly<{ objects: readonly SceneObject[] }> &
@@ -302,12 +258,54 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
     listeners.forEach((listener) => listener());
   }
 
+  // Number assets within their own type while reserving custom names already used in this scene
+  function nextObjectName(asset: CatalogueAsset, excludingId?: string) {
+    const placed = objects.filter(
+      (object) => object.assetId === asset.id && object.id !== excludingId,
+    );
+    const initial =
+      asset.id === "test-room-module-v1" &&
+      activeScene()?.environmentAssetId === "test-room-v1" &&
+      activeScene()?.environmentVisible !== false
+        ? 1
+        : 0;
+    const names = new Set(
+      objects.filter((object) => object.id !== excludingId).map((object) => object.name),
+    );
+    if (placed.length + initial === 0 && !names.has(asset.name)) return asset.name;
+    let number = Math.max(2, placed.length + initial + 1);
+    while (names.has(`${asset.name} ${number}`)) number++;
+    return `${asset.name} ${number}`;
+  }
+
   function commitTransform(
     input: unknown,
   ): ValidationResult<{ changed: boolean; object: SceneObject }> {
     // Carry descendants in the active scene through the same immutable transform command
     const groups = project?.schemaVersion === 2 ? activeGroups() : [];
-    const result = prepareTransformCommand(objects, input, groups);
+    let result = prepareTransformCommand(objects, input, groups);
+    if (result.ok) {
+      const proposed = result.value.object;
+      const before = objects.find((item) => item.id === proposed.id)!;
+      if (
+        proposed.assetId === "test-room-module-v1" &&
+        proposed.transform.scale.some((value, axis) => value !== before.transform.scale[axis])
+      )
+        return invalid("transform.scale", "Rooms cannot be scaled");
+      if (proposed.assetId === "test-room-module-v1" && project) {
+        const scene = toContentProject(project).scenes.find(
+          (entry) => entry.id === state.activeSceneId,
+        )!;
+        const moved = moveSceneSelection(scene, [proposed.id], proposed.id, proposed.transform);
+        if (!moved.ok) return moved;
+        const after = moved.value.objects.find((object) => object.id === proposed.id)!.transform;
+        result = prepareTransformCommand(
+          objects,
+          { objectId: proposed.id, before: before.transform, after },
+          groups,
+        );
+      }
+    }
     if (!result.ok) {
       return result;
     }
@@ -368,7 +366,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
     // Content-free copies retain their authored visibility and parent membership
     const object: SceneObject = Object.freeze({
       id: createId(),
-      name: source.name,
+      name: nextObjectName(asset),
       assetId: source.assetId,
       transform: Object.freeze(transform),
       ...(project?.schemaVersion === 2
@@ -481,7 +479,213 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
   }
 
   return {
-    addAttachedObject(assetId: string, parentId: string, position: Vector3Tuple) {
+    // Route root and attached audio through the same immutable history command
+    addAudio(
+      assetId: string,
+      mode: "global" | "spatial",
+      objectId: string | null,
+      existingId?: string,
+    ) {
+      if (!project) return invalid("project", "Choose a room first");
+      if (projectAssets.get(assetId) !== "audio")
+        return invalid("assetId", "Choose an approved audio clip");
+      if (mode === "spatial" && !objects.some((object) => object.id === objectId))
+        return invalid("objectId", "Select an object for spatial audio");
+      // Replacements retain identity so existing hotspot links still resolve
+      if (existingId) {
+        const scene = toContentProject(project).scenes.find(
+          (entry) => entry.id === state.activeSceneId,
+        )!;
+        const entries =
+          mode === "global"
+            ? (scene.audio ?? [])
+            : (scene.objects.find((object) => object.id === objectId)?.components ?? []);
+        if (!entries.some((entry) => entry.id === existingId && entry.type === "audio"))
+          return invalid("audio", "This audio changed; close and reopen its library");
+      }
+      const audio = {
+        id: existingId ?? crypto.randomUUID(),
+        type: "audio" as const,
+        assetId,
+        caption: "",
+        mode,
+        loop: mode === "global",
+        volume: 1,
+      };
+      return editHierarchy("Add audio", (scene) =>
+        mode === "global"
+          ? {
+              ...scene,
+              audio: existingId
+                ? (scene.audio ?? []).map((item) =>
+                    item.id === existingId ? { ...item, assetId } : item,
+                  )
+                : [...(scene.audio ?? []), audio],
+            }
+          : {
+              ...scene,
+              objects: scene.objects.map((object) =>
+                object.id === objectId
+                  ? {
+                      ...object,
+                      components: existingId
+                        ? object.components.map((item) =>
+                            item.id === existingId && item.type === "audio"
+                              ? { ...item, assetId }
+                              : item,
+                          )
+                        : [...object.components, audio],
+                    }
+                  : object,
+              ),
+            },
+      );
+    },
+    // Reject stale selections before removing the track and its dependent playback rules
+    removeAudio(id: string) {
+      const scene =
+        project?.schemaVersion === 2
+          ? project.scenes.find((entry) => entry.id === state.activeSceneId)
+          : undefined;
+      if (
+        !scene ||
+        !(
+          scene.audio?.some((audio) => audio.id === id) ||
+          scene.objects.some((object) =>
+            object.components.some(
+              (component) => component.type === "audio" && component.id === id,
+            ),
+          )
+        )
+      )
+        return invalid("audio", "This audio no longer exists");
+      return editHierarchy("Remove audio", (scene) => ({
+        ...scene,
+        ...(scene.audio === undefined
+          ? {}
+          : { audio: scene.audio.filter((audio) => audio.id !== id) }),
+        // Removing a track also removes its playback links; Undo restores the complete relationship
+        interactions: scene.interactions.filter(
+          (rule) => rule.do.type !== "play-audio" || rule.do.mediaId !== id,
+        ),
+        objects: scene.objects.map((object) => ({
+          ...object,
+          components: object.components.filter(
+            (component) => component.type !== "audio" || component.id !== id,
+          ),
+        })),
+      }));
+    },
+    removeDisplayMedia(objectId: string) {
+      const object = objects.find((entry) => entry.id === objectId);
+      if (!object || assets.find((asset) => asset.id === object.assetId)?.displayRole !== "digital")
+        return invalid("objectId", "Choose a display panel or stand");
+      return editHierarchy("Remove display media", (scene) => ({
+        ...scene,
+        objects: scene.objects.map((entry) =>
+          entry.id === objectId
+            ? {
+                ...entry,
+                components: entry.components.filter(
+                  (component) => component.type !== "image" && component.type !== "video",
+                ),
+              }
+            : entry,
+        ),
+      }));
+    },
+    setDisplayContent(objectId: string, component: ContentComponent | null) {
+      if (project === null) return invalid("project", "Choose a room first");
+      const target = objects.find((object) => object.id === objectId);
+      if (!target) return invalid("objectId", "Choose a display in the current scene");
+      const asset = assets.find((entry) => entry.id === target.assetId);
+      if (asset?.displayRole !== "digital") {
+        return invalid("objectId", "Choose a digital stand or panel");
+      }
+      if (component && !["text", "image", "video"].includes(component.type)) {
+        return invalid("component", "Choose text, an image or a video");
+      }
+      const content = toContentProject(project);
+      const next = {
+        ...content,
+        scenes: content.scenes.map((scene) =>
+          scene.id !== state.activeSceneId
+            ? scene
+            : {
+                ...scene,
+                objects: scene.objects.map((object) =>
+                  object.id !== target.id
+                    ? object
+                    : {
+                        ...object,
+                        components: [
+                          ...object.components.filter(
+                            (entry) => !["text", "image", "video"].includes(entry.type),
+                          ),
+                          ...(component ? [component] : []),
+                        ],
+                      },
+                ),
+              },
+        ),
+      };
+      return commitProject(
+        next,
+        state.activeSceneId!,
+        component ? "Edit display content" : "Remove display content",
+      );
+    },
+    setAppearance(id: string, appearance: ExhibitAppearance): ValidationResult<true> {
+      if (!objects.some((object) => object.id === id))
+        return invalid("object", "Select an exhibit first");
+      return editHierarchy("Edit exhibit appearance", (scene) => ({
+        ...scene,
+        objects: scene.objects.map((object) =>
+          object.id === id ? { ...object, appearance } : object,
+        ),
+      }));
+    },
+    editExhibit(
+      id: string,
+      before: SceneObject,
+      fields: Readonly<{
+        name: string;
+        transform: Transform;
+        components: readonly ContentComponent[];
+      }>,
+    ): ValidationResult<true> {
+      // Bind a form to the object it opened; external edits must not be overwritten by an old draft
+      const object = objects.find((entry) => entry.id === id);
+      if (!object || JSON.stringify(object) !== JSON.stringify(before)) {
+        return invalid("object", "This exhibit changed; cancel and reopen its properties");
+      }
+      const prepared = prepareTransformCommand(
+        objects,
+        { objectId: id, before: object.transform, after: fields.transform },
+        activeGroups(),
+      );
+      if (!prepared.ok) return prepared;
+
+      // Reuse hierarchy upgrade and full-project validation before one reversible snapshot
+      // Carry attached descendants with the same transform command used by the gizmos
+      return editHierarchy("Edit exhibit", (scene) => {
+        const moved = prepared.value.command?.apply(scene.objects) ?? scene.objects;
+        return {
+          ...scene,
+          objects: scene.objects.map((entry, index) => ({
+            ...entry,
+            ...moved[index],
+            ...(entry.id === id ? fields : {}),
+          })),
+        };
+      });
+    },
+    addAttachedObject(
+      assetId: string,
+      parentId: string,
+      position: Vector3Tuple,
+      fitted?: Transform,
+    ) {
       // A placed case is identified by its object ID, never its asset name or list position
       // The caller supplies the model's display surface in world coordinates
       if (!objects.some((object) => object.id === parentId)) {
@@ -492,7 +696,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
         return { ok: false, error: "Choose a model from this project's catalog" } as const;
       }
       const transform = validateTransform(
-        { position, rotation: [0, 0, 0, 1], scale: [1, 1, 1] },
+        fitted ?? { position, rotation: [0, 0, 0, 1], scale: [1, 1, 1] },
         "transform",
       );
       if (!transform.ok) return { ok: false, error: transform.error.message } as const;
@@ -510,9 +714,9 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       const previous = displayed[0] as ContentObject | undefined;
       const object: ContentObject = {
         id: previous?.id ?? createId(),
-        name: asset.name,
+        name: previous?.assetId === assetId ? previous.name : nextObjectName(asset, previous?.id),
         assetId,
-        transform: previous?.transform ?? transform.value,
+        transform: fitted ? transform.value : (previous?.transform ?? transform.value),
         parentId,
         visible: previous?.visible ?? true,
         components: previous?.components ?? [],
@@ -909,7 +1113,26 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
         clearEdit();
         return result;
       }
-      const after = result.value;
+      let after = result.value;
+      const object = objects.find((item) => item.id === edit!.objectId);
+      if (
+        object?.assetId === "test-room-module-v1" &&
+        after.scale.some((value, axis) => value !== edit!.before.scale[axis])
+      ) {
+        clearEdit();
+        return invalid("transform.scale", "Rooms cannot be scaled");
+      }
+      if (object?.assetId === "test-room-module-v1" && project) {
+        const scene = toContentProject(project).scenes.find(
+          (entry) => entry.id === state.activeSceneId,
+        )!;
+        const moved = moveSceneSelection(scene, [object.id], object.id, after, true);
+        if (!moved.ok) {
+          clearEdit();
+          return moved;
+        }
+        after = moved.value.objects.find((entry) => entry.id === object.id)!.transform;
+      }
       Object.freeze(after.position);
       Object.freeze(after.rotation);
       Object.freeze(after.scale);
@@ -1154,22 +1377,42 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       // Snap before creating the command so saved data, rendering and Redo share one position
       // Other assets keep their chosen coordinates and parent-selection behavior
       if (assetId === "test-room-module-v1" && project !== null) {
-        const snapped = snapRoom(position);
+        if (!roomFitsGrid(position, roomLayoutTransform(objects, activeScene())?.rotation))
+          return { ok: false, error: "Keep the whole room inside the grid" } as const;
+        const snapped = snapRoomPlacement(
+          position,
+          objects,
+          activeScene()?.environmentVisible === false
+            ? undefined
+            : activeScene()?.environmentAssetId,
+          roomLayoutTransform(objects, activeScene()),
+        );
         if (snapped === null) {
           return {
             ok: false,
             error: "No adjoining room position is available inside the scene",
           } as const;
         }
+        if (!roomFitsGrid(snapped, roomLayoutTransform(objects, activeScene())?.rotation))
+          return { ok: false, error: "Keep the whole room inside the grid" } as const;
         position = snapped;
       }
       const object: SceneObject = Object.freeze({
         id: createId(),
-        name: `${asset.name} ${objects.length + 1}`,
+        name: nextObjectName(asset),
         assetId: asset.id,
         transform: Object.freeze({
           position: Object.freeze([...position] as [number, number, number]),
-          rotation: Object.freeze([0, 0, 0, 1] as const),
+          rotation: Object.freeze(
+            assetId === "test-room-module-v1"
+              ? ([...(roomLayoutTransform(objects, activeScene())?.rotation ?? [0, 0, 0, 1])] as [
+                  number,
+                  number,
+                  number,
+                  number,
+                ])
+              : ([0, 0, 0, 1] as const),
+          ),
           scale: Object.freeze([1, 1, 1] as const),
         }),
         ...(project?.schemaVersion === 2
@@ -1204,6 +1447,22 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       clearEdit();
       publish();
       return { ok: true, object } as const;
+    },
+    // Commit a complete selected layout as one history entry after shared transform validation
+    setSelectionTransform(ids: readonly string[], id: string, input: unknown) {
+      if (!project) return { ok: false, error: "Choose a room first" } as const;
+      const after = validateTransform(input, "transform");
+      if (!after.ok) return { ok: false, error: after.error.message } as const;
+      const scene = toContentProject(project).scenes.find(
+        (entry) => entry.id === state.activeSceneId,
+      )!;
+      const moved = moveSceneSelection(scene, ids, id, after.value);
+      if (!moved.ok) return { ok: false, error: moved.error.message } as const;
+      const changed = JSON.stringify(scene) !== JSON.stringify(moved.value);
+      const result = editHierarchy("Transform selection", () => moved.value);
+      return result.ok
+        ? ({ ok: true, changed } as const)
+        : ({ ok: false, error: result.error.message } as const);
     },
     commitTransform,
 
@@ -1311,6 +1570,79 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       return { ok: true, value: interactions } as const;
     },
     deleteObject(objectId: string): ValidationResult<SceneObject> {
+      const scene = project
+        ? toContentProject(project).scenes.find((entry) => entry.id === state.activeSceneId)
+        : undefined;
+      const initial = scene?.id === objectId && scene.environmentVisible !== false;
+      const group = scene?.groups.find((entry) => entry.id === objectId);
+      const target =
+        initial && scene
+          ? environmentObject(scene)
+          : (objects.find((object) => object.id === objectId) ??
+            (group
+              ? { id: group.id, name: group.name, assetId: "", transform: ROOM_TRANSFORM }
+              : undefined));
+      const hasChildren =
+        scene &&
+        [...scene.groups, ...scene.objects].some(
+          (entry) => entry.parentId?.toLowerCase() === objectId.toLowerCase(),
+        );
+      if (
+        scene &&
+        target &&
+        (initial || group || hasChildren || target.assetId === "test-room-module-v1")
+      ) {
+        const removed = new Set([objectId.toLowerCase()]);
+        let changed = true;
+        while (changed) {
+          changed = false;
+          for (const node of [...scene.groups, ...scene.objects]) {
+            const parent =
+              node.parentId ??
+              ("assetId" in node && node.assetId !== "test-room-module-v1" ? scene.id : null);
+            if (
+              parent &&
+              removed.has(parent.toLowerCase()) &&
+              !removed.has(node.id.toLowerCase())
+            ) {
+              removed.add(node.id.toLowerCase());
+              changed = true;
+            }
+          }
+        }
+        for (const object of scene.objects)
+          if (removed.has(object.id.toLowerCase()))
+            for (const component of object.components) removed.add(component.id.toLowerCase());
+        for (const hotspot of scene.hotspots)
+          if (removed.has(hotspot.objectId.toLowerCase())) removed.add(hotspot.id.toLowerCase());
+        const gone = (id: string) => removed.has(id.toLowerCase());
+        const result = editHierarchy("Delete object and contents", (current) => ({
+          ...current,
+          ...(initial ? { environmentVisible: false } : {}),
+          objects: current.objects.filter((object) => !gone(object.id)),
+          groups: current.groups.filter((group) => !gone(group.id)),
+          hotspots: current.hotspots.filter((hotspot) => !gone(hotspot.id)),
+          interactions: current.interactions.filter(
+            (rule) =>
+              !(rule.when.type === "visitor-clicks-hotspot" && gone(rule.when.targetHotspotId)) &&
+              !(rule.do.type === "play-audio" && "mediaId" in rule.do && gone(rule.do.mediaId)),
+          ),
+          rules: current.rules.filter(
+            (rule) =>
+              !(rule.trigger.type === "click" && gone(rule.trigger.targetId)) &&
+              !rule.actions.some((action) =>
+                action.type === "showPanel"
+                  ? gone(action.panelId)
+                  : action.type === "playMedia"
+                    ? gone(action.mediaId)
+                    : action.type === "setVisible"
+                      ? gone(action.objectId)
+                      : false,
+              ),
+          ),
+        }));
+        return result.ok ? { ok: true, value: target } : result;
+      }
       const index = objects.findIndex(
         (object) => object.id.toLowerCase() === objectId.toLowerCase(),
       );

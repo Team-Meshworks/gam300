@@ -18,10 +18,57 @@ public sealed class ProjectDocumentServiceTests
         await Assert.That(development.Read(id, json).Ok).IsTrue();
         await Assert.That(development.Read(id, json.Replace("test-crate-v1", "sample-snowglobe-v1", StringComparison.Ordinal)).Ok).IsTrue();
         await Assert.That(development.Read(id, json.Replace("test-crate-v1", "test-room-module-v1", StringComparison.Ordinal)).Ok).IsTrue();
+        foreach (var standId in new[] { "display-cube-v1", "display-full-glass-case-v1", "display-half-glass-case-v1",
+            "display-one-sided-glass-case-v1", "display-rectangle-stand-v1", "display-rectangle-panel-v1", "display-square-stand-v1", "display-square-panel-v1" })
+        {
+            await Assert.That(development.Read(id, json.Replace("test-crate-v1", standId, StringComparison.Ordinal)).Ok).IsTrue();
+        }
+
         await Assert.That(development.Read(id, json.Replace("test-crate-v1", "demo-image-v1", StringComparison.Ordinal)).Ok).IsFalse();
         await Assert.That(development.Read(id, json.Replace("test-room-v1", "test-crate-v1", StringComparison.Ordinal)).Ok).IsFalse();
+        foreach (var asset in new[] { "display-square-stand-v1", "display-cube-v1" })
+        {
+            var fixture = json.Replace("test-crate-v1", asset, StringComparison.Ordinal);
+            await Assert.That(development.Read(id, fixture).Ok).IsTrue();
+            await Assert.That(Create("Production").Read(id, fixture).Ok).IsFalse();
+        }
         await Assert.That(Create("Production").Read(id, json).Ok).IsFalse();
         await Assert.That(Create("Testing").Read(id, json).Ok).IsFalse();
+    }
+
+    [Test]
+    [Arguments("image", "sample-landscape-image-v1")]
+    [Arguments("image", "sample-coast-image-v1")]
+    [Arguments("video", "sample-coast-video-v1")]
+    [Arguments("image", "sample-dunes-image-v1")]
+    [Arguments("image", "sample-forest-image-v1")]
+    [Arguments("image", "sample-sunset-image-v1")]
+    [Arguments("image", "sample-valley-image-v1")]
+    [Arguments("video", "sample-dunes-video-v1")]
+    [Arguments("video", "sample-forest-video-v1")]
+    [Arguments("video", "sample-sunset-video-v1")]
+    public async Task Documents_SampleMediaRoundTripsOnlyInDevelopment(string kind, string assetId)
+    {
+        var id = Guid.NewGuid();
+        var input = JsonNode.Parse(ProjectTestDocuments.Create(id, "Sample media", 2))!;
+        var components = input["scenes"]![0]!["objects"]![0]!["components"]!.AsArray();
+        components.Add(new JsonObject
+        {
+            ["id"] = Guid.NewGuid().ToString("D"),
+            ["type"] = kind,
+            ["assetId"] = assetId,
+            ["caption"] = "Sample caption",
+        });
+        var component = components.Last()!;
+        if (kind == "image") { component["alt"] = "Sample landscape"; }
+        else { component["loop"] = false; component["volume"] = 1; }
+        var development = Create("Development");
+        var accepted = development.Read(id, input.ToJsonString());
+        await Assert.That(accepted.Ok).IsTrue();
+        var saved = development.Serialize(accepted.Value!);
+        await Assert.That(saved.Ok).IsTrue();
+        await Assert.That(development.Read(id, saved.Value!).Ok).IsTrue();
+        await Assert.That(Create("Production").Read(id, input.ToJsonString()).Ok).IsFalse();
     }
 
     [Test]
@@ -130,6 +177,41 @@ public sealed class ProjectDocumentServiceTests
         var count = reopened.Value is LegacyProject legacy ? legacy.Scenes[0].Hotspots.Length
             : ((ContentProject)reopened.Value!).Scenes[0].Hotspots.Length;
         await Assert.That(count).IsEqualTo(authored ? 1 : 0);
+    }
+
+    [Test]
+    public async Task Documents_PreserveSceneAudioFromTheDevelopmentCatalogue()
+    {
+        var document = JsonNode.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "fixtures", "m1-project.json")))!;
+        document["schemaVersion"] = 2;
+        var scene = document["scenes"]![0]!;
+        foreach (var field in new[] { "groups", "zones", "viewpoints", "rules" }) { scene[field] = new JsonArray(); }
+        foreach (var item in scene["objects"]!.AsArray())
+        {
+            item!["parentId"] = null;
+            item["visible"] = true;
+            item["components"] = new JsonArray();
+        }
+        // Save root audio through the same development catalogue boundary used by the API
+        scene["audio"] = new JsonArray(new JsonObject
+        {
+            ["id"] = Guid.NewGuid().ToString(),
+            ["type"] = "audio",
+            ["mode"] = "global",
+            ["assetId"] = "audio-ethereal-calm-v1",
+            ["caption"] = "",
+            ["loop"] = true,
+            ["volume"] = 1,
+        });
+        var id = Guid.Parse(document["projectId"]!.GetValue<string>());
+        var service = Create("Development");
+        var accepted = service.Read(id, document.ToJsonString());
+        await Assert.That(accepted.Ok).IsTrue();
+        var saved = service.Serialize(accepted.Value!);
+        await Assert.That(saved.Ok).IsTrue();
+        await Assert.That(JsonNode.DeepEquals(JsonNode.Parse(saved.Value!)!["scenes"]![0]!["audio"], scene["audio"])).IsTrue();
+        // Development-only media must still be rejected by the production reader
+        await Assert.That(Create("Production").Read(id, document.ToJsonString()).Ok).IsFalse();
     }
 
     private static ProjectDocumentService Create(string environment) =>

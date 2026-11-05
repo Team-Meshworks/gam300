@@ -13,7 +13,7 @@ const draft: NewProjectDraft = {
   title: "My museum",
   description: "History",
   instructions: "Build exhibits",
-  dueDate: "2028-02-29",
+  dueDate: "2028-02-29T15:30",
   classId: "class-a",
   imageType: "Cover image",
   studentIds: ["a"],
@@ -31,7 +31,7 @@ describe("New Project frontend validation", () => {
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.value.coverImage).toBe(coverImage);
   });
-  it("keeps every entered field and a calendar date without inventing a timezone cutoff", () => {
+  it("keeps every entered field and the device-local date and time", () => {
     expect(validateNewProject(draft, classes, students)).toEqual({ ok: true, value: draft });
   });
   it.each(["title", "description", "instructions"] as const)("rejects blank %s", (field) => {
@@ -40,15 +40,20 @@ describe("New Project frontend validation", () => {
       field,
     });
   });
-  it.each(["2027-02-29", "2026-04-31", "2026-13-01", "2026-00-01", "2026-01-00", "not-a-date"])(
-    "rejects impossible date %s",
-    (dueDate) => {
-      expect(validateNewProject({ ...draft, dueDate }, classes, students)).toMatchObject({
-        ok: false,
-        field: "dueDate",
-      });
-    },
-  );
+  it.each([
+    "2027-02-29T12:00",
+    "2026-04-31T12:00",
+    "2026-13-01T12:00",
+    "2026-00-01T12:00",
+    "2026-01-00T12:00",
+    "2028-02-29",
+    "not-a-date",
+  ])("rejects impossible date %s", (dueDate) => {
+    expect(validateNewProject({ ...draft, dueDate }, classes, students)).toMatchObject({
+      ok: false,
+      field: "dueDate",
+    });
+  });
   it("refuses missing or stale class and student choices", () => {
     expect(validateNewProject({ ...draft, classId: "" }, classes, students)).toMatchObject({
       ok: false,
@@ -65,5 +70,20 @@ describe("New Project frontend validation", () => {
       ok: false,
       field: "studentIds",
     });
+  });
+  it("rejects more than the backend's 20-student limit", () => {
+    const roster = Array.from({ length: 21 }, (_, i) => ({
+      id: String(i),
+      name: `Student ${i}`,
+      account: `student-${i}`,
+      classIds: ["class-a"],
+    }));
+    expect(
+      validateNewProject(
+        { ...draft, studentIds: roster.map((student) => student.id) },
+        classes,
+        roster,
+      ),
+    ).toMatchObject({ ok: false, field: "studentIds" });
   });
 });

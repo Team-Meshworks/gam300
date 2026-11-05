@@ -36,3 +36,19 @@ it("rejects empty, duplicate, removed or cross-class student selections", () => 
     validateClassAssignment(draft, projects, classes, [{ ...students[0]!, classIds: ["b"] }]).ok,
   ).toBe(false);
 });
+it("rejects more than 20 selected students", () => {
+  const roster = Array.from({ length: 21 }, (_, i) => ({
+    id: String(i),
+    name: `Student ${i}`,
+    account: `student-${i}`,
+    classIds: ["a"],
+  }));
+  expect(
+    validateClassAssignment(
+      { ...draft, studentIds: roster.map((student) => student.id) },
+      projects,
+      classes,
+      roster,
+    ).ok,
+  ).toBe(false);
+});

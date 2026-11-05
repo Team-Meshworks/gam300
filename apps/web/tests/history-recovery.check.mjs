@@ -15,9 +15,21 @@ async function openLibrary(page) {
 
 // Clicking a card only picks it, Add is what places it
 async function addAsset(page, name) {
-  await openLibrary(page);
-  await page.locator(".asset-picker").getByRole("button", { name, exact: true }).click();
-  await page.getByRole("button", { name: "Add", exact: true }).click();
+  if (name === "Starter room") {
+    if (await page.locator(".asset-picker").count()) await page.keyboard.press("Escape");
+    const overview = page.getByRole("button", { name: "Third person", exact: true });
+    if ((await overview.getAttribute("aria-pressed")) !== "true") await overview.click();
+    await page.getByRole("button", { name: "Rooms", exact: true }).click();
+    await page
+      .getByRole("group", { name: "Rooms options", exact: true })
+      .getByRole("button", { name, exact: true })
+      .click();
+  } else {
+    await openLibrary(page);
+    await page.locator(".asset-picker").getByRole("button", { name, exact: true }).click();
+    await page.getByRole("button", { name: "Add", exact: true }).click();
+  }
+  await page.locator(".viewport-stage").click({ position: { x: 500, y: 300 } });
 }
 
 try {
@@ -27,8 +39,8 @@ try {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(process.argv[2] ?? "http://127.0.0.1:5173/");
-  await addAsset(page, "test-room");
-  await addAsset(page, "test-crate");
+  await addAsset(page, "Starter room");
+  await addAsset(page, "Sample crate");
   const rows = page.locator(".object-row");
   async function waitForRecovery(count, futureCount, hotspots = 0, interactions = 0) {
     const deadline = Date.now() + 10000;
@@ -61,7 +73,7 @@ try {
 
   // No more move buttons, so nudge through the Position panel then go back to the tree
   await page.getByRole("button", { name: "Position", exact: true }).click();
-  const field = page.getByRole("textbox", { name: "test-crate 1 transform X (m)", exact: true });
+  const field = page.getByRole("textbox", { name: "Sample crate transform X (m)", exact: true });
   await field.fill(String(Number(await field.inputValue()) + 0.25));
   await field.press("Enter");
   await page.getByRole("button", { name: "Scene tree", exact: true }).click();
@@ -90,7 +102,7 @@ try {
   );
   await page.getByRole("button", { name: "Redo", exact: true }).click();
   assert.equal(await rows.count(), 1);
-  await addAsset(page, "test-crate");
+  await addAsset(page, "Sample crate");
   assert.equal(await page.getByRole("button", { name: "Redo", exact: true }).isDisabled(), true);
   await waitForRecovery(2, 0);
 
