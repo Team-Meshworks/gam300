@@ -288,7 +288,7 @@ try {
   // Extra samples expose the same actions and retain changes without affecting their siblings
   await page.getByRole("button", { name: /^All Spaces \(/ }).click();
   const sampleCard = page.locator(".asset-admin-card").filter({
-    has: page.getByRole("heading", { name: "test-room 1", exact: true }),
+    has: page.getByRole("heading", { name: "Starter room 1", exact: true }),
   });
   await sampleCard.getByRole("button").click();
   await dialog.getByRole("button", { name: "Hide", exact: true }).click();
