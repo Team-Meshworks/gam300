@@ -49,6 +49,30 @@ public sealed class ReviewAssetManifestTests
     }
 
     [Test]
+    public async Task ReviewAssets_IncludeSceneAudioAndRequireItsResolvedIdentity()
+    {
+        var id = Guid.NewGuid();
+        var documents = new ProjectDocumentService(new DevelopmentEnvironment());
+        var result = documents.Read(id, ProjectTestDocuments.Create(id, "Review", 2));
+        var project = (ContentProject)result.Value!;
+        var scene = project.Scenes[0];
+        var required = ReviewAssetManifest.Required(project with
+        {
+            Scenes = [scene with
+            {
+                Audio = [new AudioComponent("background", "scene-audio", "", true, 1, AudioMode.Global),
+                    new AudioComponent("background-repeat", "scene-audio", "", false, 1, AudioMode.Global)],
+            }],
+        });
+
+        await Assert.That(required.SetEquals([scene.EnvironmentAssetId, scene.Objects[0].AssetId, "scene-audio"])).IsTrue();
+        var resolved = required.Select(assetId => new ReviewAssetReference(assetId, new string('a', 64))).ToArray();
+        await Assert.That(ReviewAssetManifest.Serialize(required, resolved.Where(row => row.AssetId != "scene-audio").ToArray())).IsNull();
+        using var manifest = JsonDocument.Parse(ReviewAssetManifest.Serialize(required, resolved)!);
+        await Assert.That(manifest.RootElement.EnumerateArray().Count(row => row.GetProperty("assetId").GetString() == "scene-audio")).IsEqualTo(1);
+    }
+
+    [Test]
     public async Task ReviewAssets_RejectMissingDuplicateUnexpectedAndInvalidReferences()
     {
         var required = new HashSet<string>(["room", "object"], StringComparer.Ordinal);
