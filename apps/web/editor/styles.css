@@ -200,11 +200,7 @@
   opacity: 0.6;
   cursor: not-allowed;
 }
-.content-inspector-open {
-  margin: 0.75rem;
-  padding: 0.65rem;
-  border-radius: 1rem;
-}
+
 @media (max-width: 600px) {
   .content-dialog {
     padding: 1rem;
