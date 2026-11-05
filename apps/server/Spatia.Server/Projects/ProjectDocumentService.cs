@@ -1,26 +1,39 @@
 using System.Collections.Frozen;
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
+using Spatia.Server.Assets;
+using Spatia.Server.Persistence;
 using Spatia.ProjectFormat;
 using Format = Spatia.ProjectFormat.ProjectFormat;
 
 namespace Spatia.Server.Projects;
 
 /// <summary>
-/// Validates authored documents against the server's packaged, environment-appropriate catalogue
+/// Validates authored documents against reviewed retained assets and environment-appropriate development samples
 /// </summary>
 public sealed class ProjectDocumentService
 {
     private readonly IReadOnlyDictionary<string, string> _assets;
+    private readonly HashSet<string> _retired = new(StringComparer.Ordinal);
 
     /// <summary>
-    /// Uses the same development catalogue as the editor; other environments fail closed
+    /// Reads approved asset identities for this request and adds packaged samples only in development
     /// </summary>
-    public ProjectDocumentService(IHostEnvironment environment)
+    public ProjectDocumentService(IHostEnvironment environment, ApplicationDbContext? database = null)
     {
-        // shortcut: No production assets are approved yet, add the approved catalogue with its delivery policy
+        // Read one request-scoped catalogue view; retirement prevents new references but preserves stored ones
+        var approved = database?.AssetCandidates.AsNoTracking().Where(asset => asset.Status == "approved")
+            .Select(asset => new { asset.Id, asset.Kind, asset.Hidden, asset.Deleted }).ToArray();
+        var retained = approved?.ToDictionary(asset => asset.Id.ToString(), asset => asset.Kind, StringComparer.Ordinal)
+            ?? new Dictionary<string, string>(StringComparer.Ordinal);
+        if (approved is not null)
+        {
+            foreach (var asset in approved.Where(asset => asset.Hidden || asset.Deleted)) { _retired.Add(asset.Id.ToString()); }
+        }
+        // Retired approved identities remain valid for stored documents and serialization
         if (!environment.IsDevelopment())
         {
-            _assets = FrozenDictionary<string, string>.Empty;
+            _assets = retained.ToFrozenDictionary(StringComparer.Ordinal);
             return;
         }
 
@@ -71,18 +84,32 @@ public sealed class ProjectDocumentService
         {
             throw new InvalidOperationException("The packaged development asset catalogue is incomplete.");
         }
+        foreach (var asset in retained) { assets.Add(asset.Key, asset.Value); }
         _assets = assets.ToFrozenDictionary(StringComparer.Ordinal);
     }
 
     /// <summary>
     /// Checks original upload bytes, complete content, asset references and route identity
     /// </summary>
-    public FormatResult<IAuthoredProject> Read(Guid projectId, string json) => Bind(projectId, Read(json));
+    public FormatResult<IAuthoredProject> Read(Guid projectId, string json, string? existingJson = null)
+    {
+        var parsed = Bind(projectId, Format.Deserialize(json, _assets));
+        if (!parsed.Ok) { return parsed; }
+        // Permit a retired version only when the confirmed saved document already references it
+        var existing = existingJson is null ? new HashSet<string>() : AssetDocumentReferences.Read(existingJson);
+        return AssetDocumentReferences.Read(json).Any(id => _retired.Contains(id) && !existing.Contains(id))
+            ? new(null, new("project", "Retired assets cannot be added to a project")) : parsed;
+    }
 
     /// <summary>
     /// Validates an imported document before creation assigns a new server-owned project identifier
     /// </summary>
-    public FormatResult<IAuthoredProject> Read(string json) => Format.Deserialize(json, _assets);
+    public FormatResult<IAuthoredProject> Read(string json)
+    {
+        var parsed = Format.Deserialize(json, _assets);
+        return parsed.Ok && AssetDocumentReferences.Read(json).Any(_retired.Contains)
+            ? new(null, new("project", "Retired assets cannot be selected for a new project")) : parsed;
+    }
 
     /// <summary>
     /// Validates stored values without renormalizing or treating jsonb expansion as upload bytes

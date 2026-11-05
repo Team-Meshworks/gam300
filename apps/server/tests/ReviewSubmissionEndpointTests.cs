@@ -38,7 +38,8 @@ public sealed class ReviewSubmissionEndpointTests
         if (scenario != "rotation")
         {
             ProjectTestDocuments.PadTitleToBytes(input, Format.MaxProjectBytes);
-            var documents = fixture.App.Services.GetRequiredService<ProjectDocumentService>();
+            await using var documentScope = fixture.App.Services.CreateAsyncScope();
+            var documents = documentScope.ServiceProvider.GetRequiredService<ProjectDocumentService>();
             var accepted = documents.Read(data.ProjectId, input.ToJsonString());
             await Assert.That(accepted.Ok).IsTrue();
             var saved = documents.Serialize(accepted.Value!);

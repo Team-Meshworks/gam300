@@ -12,6 +12,7 @@
 !tools/
 !tools/check-browser.mjs
 !tools/validate-assets.mjs
+!tools/asset-content-validation.mjs
 **/node_modules
 **/dist
 **/test-results

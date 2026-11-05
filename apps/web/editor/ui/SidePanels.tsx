@@ -14,7 +14,6 @@ import { degreesToQuaternion, quaternionToDegrees } from "./rotation-angles";
 
 import { SceneTreePanel, type Room, type HierarchyActions } from "./SceneTreePanel";
 import type { ContentObject, ProjectGroup } from "../../shared/project/project-content";
-import type { ContentKind } from "./ContentEditor";
 
 type PanelId = "scenes" | "position" | "tree" | "interaction" | "views";
 
@@ -28,7 +27,6 @@ const railButtons: { id: PanelId; label: string; icon: IconName }[] = [
 
 export function SidePanels({
   assets = [],
-  onContent,
   visitor,
   savedViews,
   scenes,
@@ -60,7 +58,6 @@ export function SidePanels({
     { type: "audio" }
   >[];
   onHotspotRemove?: ((id: string) => void) | undefined;
-  onContent: (kind: ContentKind) => void;
   groups: readonly ProjectGroup[];
   hierarchy: HierarchyActions;
   visitor: boolean;
@@ -109,37 +106,12 @@ export function SidePanels({
       {panel !== null && (
         <div className={`panel-slot is-${panel}`}>
           {panel === "position" && (
-            <div>
-              <PositionPanel
-                object={selectedObject}
-                onChange={(transform) => {
-                  if (selectedObject !== undefined) onTransform(selectedObject.id, transform);
-                }}
-              />
-              {assets.some(
-                (asset) => asset.id === selectedObject?.assetId && !!asset.displayRole,
-              ) && (
-                <button
-                  className="ui-button content-inspector-open"
-                  type="button"
-                  disabled={!selectedObject}
-                  onClick={() => {
-                    const media = (selectedObject as ContentObject | undefined)?.components?.find(
-                      (component) => component.type === "image" || component.type === "video",
-                    );
-                    onContent(
-                      media?.type === "image"
-                        ? "image"
-                        : media?.type === "video"
-                          ? "video"
-                          : "text",
-                    );
-                  }}
-                >
-                  Edit exhibit information
-                </button>
-              )}
-            </div>
+            <PositionPanel
+              object={selectedObject}
+              onChange={(transform) => {
+                if (selectedObject !== undefined) onTransform(selectedObject.id, transform);
+              }}
+            />
           )}
           {panel === "tree" && (
             <SceneTreePanel

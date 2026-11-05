@@ -20,6 +20,7 @@
     "test:unit": "vitest run",
     "test:content": "node tests/content-editor.check.mjs",
     "test:browser": "node tests/editor-shell.check.mjs",
+    "test:asset-admin": "node tests/asset-administration.check.mjs",
     "test:integration": "node tests/editor-integration.check.mjs",
     "test:first-person-sandbox": "node tests/first-person-sandbox.check.mjs",
     "test:caching": "node tests/caching.check.mjs",

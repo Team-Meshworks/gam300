@@ -357,7 +357,8 @@ public sealed class ProjectReadEndpointTests
         await Assert.That(opened.GetProperty("projectId").GetGuid()).IsEqualTo(project.Id);
         await Assert.That(opened.GetProperty("revision").GetInt64()).IsEqualTo(project.Revision);
         await Assert.That(opened.GetProperty("updatedAt").GetDateTimeOffset()).IsEqualTo(project.UpdatedAt);
-        var documents = fixture.App.Services.GetRequiredService<ProjectDocumentService>();
+        await using var documentScope = fixture.App.Services.CreateAsyncScope();
+        var documents = documentScope.ServiceProvider.GetRequiredService<ProjectDocumentService>();
         using var expected = JsonDocument.Parse(documents.Serialize(documents.Read(project.Id, project.DocumentJson).Value!).Value!);
         await Assert.That(JsonElement.DeepEquals(opened.GetProperty("document"), expected.RootElement)).IsTrue();
         await AssertPermissionsAsync(opened, true, false, true);

@@ -89,7 +89,7 @@ public sealed class HostBoundaryTests
     {
         await using var app = SpatiaApplication.Build(CreateConfigurationBuilder());
         var endpoints = ((IEndpointRouteBuilder)app).DataSources.SelectMany(source => source.Endpoints).OfType<RouteEndpoint>().ToArray();
-        await Assert.That(endpoints.Length).IsEqualTo(38);
+        await Assert.That(endpoints.Length).IsEqualTo(46);
         var expected = new[] { "GET /api/auth/csrf", "POST /api/auth/login", "GET /api/auth/session", "POST /api/auth/logout", "POST /api/auth/password",
             "POST /api/admin/organizations", "POST /api/admin/users", "POST /api/admin/users/{id:guid}/password",
             "GET /api/admin/users", "GET /api/admin/users/{id:guid}", "GET /api/admin/organizations", "GET /api/admin/organizations/{id:guid}",
@@ -102,7 +102,10 @@ public sealed class HostBoundaryTests
             "POST /api/projects/{id:guid}/submissions/{submissionId:guid}/decisions",
             "GET /api/classes/", "GET /api/classes/{id:guid}", "GET /api/classes/{id:guid}/roster", "GET /api/classes/{id:guid}/eligible-students",
             "GET /api/classes/{id:guid}/assignments", "GET /api/classes/{id:guid}/assignments/{assignmentId:guid}",
-            "POST /api/classes/", "POST /api/classes/{id:guid}/assignments", "PUT /api/classes/{id:guid}/members/{userId:guid}", "DELETE /api/classes/{id:guid}/members/{userId:guid}" };
+            "POST /api/classes/", "POST /api/classes/{id:guid}/assignments", "PUT /api/classes/{id:guid}/members/{userId:guid}", "DELETE /api/classes/{id:guid}/members/{userId:guid}",
+            "GET /api/admin/assets/", "GET /api/admin/assets/{id:guid}/bytes", "POST /api/admin/assets/", "POST /api/admin/assets/{id:guid}/approve",
+            "POST /api/admin/assets/{id:guid}/availability", "GET /api/assets", "GET /api/assets/{id:guid}/bytes",
+            "GET /api/projects/{projectId:guid}/assets/{id:guid}/bytes" };
         await Assert.That(string.Join(";", endpoints.Select(endpoint =>
             endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Single() + " " + endpoint.RoutePattern.RawText).Order()))
             .IsEqualTo(string.Join(";", expected.Order()));
@@ -112,7 +115,10 @@ public sealed class HostBoundaryTests
             var csrf = path == "/api/auth/csrf";
             var login = path == "/api/auth/login";
             var session = path == "/api/auth/session";
-            var project = path.StartsWith("/api/projects", StringComparison.Ordinal);
+            var project = path.StartsWith("/api/projects", StringComparison.Ordinal)
+                || path.StartsWith("/api/assets", StringComparison.Ordinal);
+            var assetBytes = path.EndsWith("/bytes", StringComparison.Ordinal);
+            var upload = path == "/api/admin/assets/" && endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Single() == "POST";
             var classroom = path.StartsWith("/api/classes", StringComparison.Ordinal);
             await Assert.That(endpoint.Metadata.GetMetadata<IAllowAnonymous>() is not null).IsEqualTo(csrf || login);
             if (!csrf && !login)
@@ -122,11 +128,11 @@ public sealed class HostBoundaryTests
                         ? SecurityPolicies.Administrator : project || classroom ? SecurityPolicies.FullAccount : SecurityPolicies.CurrentAccount))).IsTrue();
             }
             var method = endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Single();
-            if (!csrf && !session && method != "GET"
-                && (!(project || classroom) || method is "POST" or "PATCH" || (classroom && method is "PUT" or "DELETE")))
+            if (assetBytes || (!csrf && !session && method != "GET"
+                && (!(project || classroom) || method is "POST" or "PATCH" || (classroom && method is "PUT" or "DELETE"))))
             {
                 await Assert.That(endpoint.Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName)
-                    .IsEqualTo(login ? SecurityPolicies.AuthenticationRateLimit : SecurityPolicies.AccountWriteRateLimit);
+                    .IsEqualTo(login ? SecurityPolicies.AuthenticationRateLimit : assetBytes ? "AssetBytes" : upload ? "AssetIntake" : SecurityPolicies.AccountWriteRateLimit);
             }
         }
     }

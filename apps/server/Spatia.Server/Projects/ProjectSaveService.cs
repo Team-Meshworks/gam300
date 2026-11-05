@@ -93,7 +93,8 @@ public sealed class ProjectSaveService(ApplicationDbContext database, ProjectAcc
         }
         else
         {
-            var document = documents.Read(projectId, envelope.UnvalidatedDocumentJson);
+            // Preserve previously saved retired assets when validating a fresh mutation
+            var document = documents.Read(projectId, envelope.UnvalidatedDocumentJson, project.UnvalidatedDocumentJson);
             if (!document.Ok) { return ProjectSaveResult.Invalid(); }
             var serialized = documents.Serialize(document.Value!);
             if (!serialized.Ok) { return ProjectSaveResult.Invalid(); }

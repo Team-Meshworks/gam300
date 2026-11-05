@@ -91,6 +91,18 @@ public static class RequestSecurityExtensions
                     PermitLimit = 64,
                     QueueLimit = 0,
                 }));
+            // Each GLB response can hold 20 MB, so bound concurrent byte delivery separately from small API requests
+            options.AddPolicy("AssetBytes", _ => RateLimitPartition.GetConcurrencyLimiter("asset-bytes", _ => new ConcurrencyLimiterOptions
+            {
+                PermitLimit = 2,
+                QueueLimit = 0,
+            }));
+            // Validation holds bounded upload buffers, so share two intake slots across all administrators
+            options.AddPolicy("AssetIntake", _ => RateLimitPartition.GetConcurrencyLimiter("asset-intake", _ => new ConcurrencyLimiterOptions
+            {
+                PermitLimit = 2,
+                QueueLimit = 0,
+            }));
             options.AddPolicy(SecurityPolicies.AuthenticationRateLimit, context =>
                 RateLimitPartition.GetFixedWindowLimiter(GetIpKey(context), _ => new FixedWindowRateLimiterOptions
                 {

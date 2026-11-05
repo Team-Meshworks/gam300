@@ -57,6 +57,9 @@ public static class ProjectLifecycleEndpoints
             document = new LegacyProject(1, id.ToString("D"), request.Title,
                 [new LegacyScene(Guid.NewGuid().ToString("D"), "Room", request.EnvironmentAssetId!,
                     new CameraPose([12, 16, 18], [-0.29962059992658957, 0.2752183320355054, 0.09071781822041597, 0.9089844021041025], 40), [], [], [])]);
+            // Fresh drafts follow import retirement checks; retained-reference serialization stays unchanged.
+            var serialized = documents.Serialize(document);
+            if (!serialized.Ok || !documents.Read(serialized.Value!).Ok) { return InvalidDocument(context); }
         }
         return await InsertAsync(context, database, documents, transaction, account, organizationId.Value, document, cancellationToken);
     }
