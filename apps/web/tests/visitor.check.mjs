@@ -57,12 +57,21 @@ positions.copy(glb, 28 + padded);
 const hash = createHash("sha256").update(glb).digest("hex");
 let mode = "transient";
 let transientAssetRequests = 0;
+let saturatedAssetRequests = 0;
+let saturationStarted = 0;
 const requests = [];
 const errors = [];
 const browser = await launchBrowser({ target: origin, args: ["--enable-unsafe-swiftshader"] });
 let page;
 try {
   page = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true });
+  await page.addInitScript(() => {
+    const timeout = AbortSignal.timeout.bind(AbortSignal);
+    AbortSignal.timeout = (milliseconds) =>
+      timeout(
+        milliseconds === 300000 && sessionStorage.getItem("shortAssetTimeout") ? 100 : milliseconds,
+      );
+  });
   page.on("pageerror", (error) => errors.push(error.message));
   page.setDefaultTimeout(5000);
   page.on("request", (request) => requests.push(new URL(request.url()).pathname));
@@ -86,6 +95,12 @@ try {
         },
       });
     if (path.endsWith("/bytes")) {
+      if (mode === "timeout") return route.fulfill({ status: 429 });
+      if (mode === "asset-denied") return route.fulfill({ status: 404 });
+      if (mode === "saturated") {
+        saturatedAssetRequests++;
+        if (Date.now() - saturationStarted < 6500) return route.fulfill({ status: 429 });
+      }
       if (mode === "transient" && ++transientAssetRequests === 1)
         return route.fulfill({ status: 429 });
       return route.fulfill({ contentType: "model/gltf-binary", body: glb });
@@ -123,9 +138,41 @@ try {
     requests.some((path) => /^\/editor\//.test(path)),
     false,
   );
+  mode = "asset-denied";
+  await page.reload();
+  await page
+    .getByText("An exhibition asset is unavailable. Your access may have changed.")
+    .waitFor();
+  const failedCanvas = await canvas.elementHandle();
+  assert.equal(await canvas.isVisible(), false);
+  mode = "allowed";
+  await page.getByRole("button", { name: "Retry loading exhibition" }).click();
+  await page.getByRole("status").getByText("Exhibition ready").waitFor();
+  assert.equal(await failedCanvas.evaluate((element) => element.isConnected), false);
+  assert.equal(await canvas.count(), 1);
+
+  mode = "saturated";
+  saturationStarted = Date.now();
+  await page.reload();
+  await page.getByRole("status").getByText("Exhibition ready").waitFor({ timeout: 25000 });
+  assert.ok(saturatedAssetRequests >= 6);
+  assert.ok(Date.now() - saturationStarted > 6000, "saturation lasts over six seconds");
+
+  mode = "timeout";
+  await page.evaluate(() => sessionStorage.setItem("shortAssetTimeout", "yes"));
+  await page.reload();
+  await page.getByText("Loading the exhibition timed out. Please try again.").waitFor();
+  const timedOutCanvas = await canvas.elementHandle();
+  mode = "allowed";
+  await page.evaluate(() => sessionStorage.removeItem("shortAssetTimeout"));
+  await page.getByRole("button", { name: "Retry loading exhibition" }).click();
+  await page.getByRole("status").getByText("Exhibition ready").waitFor();
+  assert.equal(await timedOutCanvas.evaluate((element) => element.isConnected), false);
+
   mode = "bad-hash";
   await page.reload();
   await page.getByText("An exhibition asset could not be verified.").waitFor();
+  assert.equal(await canvas.isVisible(), false);
   mode = "denied";
   await page.reload();
   await page.getByRole("heading", { name: "Exhibition unavailable" }).waitFor();
@@ -136,7 +183,7 @@ try {
   );
   assert.deepEqual(errors, []);
   console.log(
-    "Visitor browser checks passed: canvas, keyboard, scene replacement, mobile, hash rejection and sign-in return.",
+    "Visitor browser checks passed: canvas, keyboard, scene replacement, saturation, retry, timeout, hash rejection and sign-in return.",
   );
 } catch (error) {
   console.error(await page?.locator("body").innerText());

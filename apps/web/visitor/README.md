@@ -5,6 +5,9 @@ loads the protected snapshot and manifest and displays schema-v1 scenes and GLB
 assets. The visitor entry does not import the editor. It checks access on focus
 and periodically, and offers sign-in and retry when the exhibition is unavailable.
 The login return target is limited to a single local publication path.
+Transient 429/503 asset responses retry within a five-minute per-asset budget,
+respecting Retry-After. After a load failure, visitors can retry the exhibition
+without reloading the page; assets remain hidden until the scene verifies.
 
 This is a baseline viewer, not complete visitor-runtime parity: schema-v2 and
 unsupported capabilities remain unavailable. The API controls publication and

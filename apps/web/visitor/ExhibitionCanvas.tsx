@@ -16,7 +16,20 @@ export function ExhibitionCanvas({
   const mount = useRef<HTMLDivElement>(null);
   const reset = useRef<() => void>(() => {});
   const selectView = useRef<(id: string) => void>(() => {});
-  const [status, setStatus] = useState("Loading exhibition…");
+  const [attempt, setAttempt] = useState(0);
+  const [result, setResult] = useState<{
+    exhibition: PublishedExhibition;
+    sceneIndex: number;
+    attempt: number;
+    message: string;
+    failed: boolean;
+  } | null>(null);
+  const current =
+    result?.exhibition === exhibition &&
+    result.sceneIndex === sceneIndex &&
+    result.attempt === attempt
+      ? result
+      : null;
   useEffect(() => {
     const host = mount.current;
     const source = exhibition.document.scenes[sceneIndex];
@@ -27,12 +40,18 @@ export function ExhibitionCanvas({
     try {
       renderer = new THREE.WebGLRenderer({ antialias: true });
     } catch {
-      queueMicrotask(() =>
-        setStatus(
-          "This browser cannot display the 3D exhibition. Try a browser with WebGL enabled.",
-        ),
-      );
-      return;
+      queueMicrotask(() => {
+        if (!controller.signal.aborted)
+          setResult({
+            exhibition,
+            sceneIndex,
+            attempt,
+            message:
+              "This browser cannot display the 3D exhibition. Try a browser with WebGL enabled.",
+            failed: true,
+          });
+      });
+      return () => controller.abort();
     }
     renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     renderer.domElement.setAttribute("aria-label", "Exhibition view");
@@ -133,14 +152,24 @@ export function ExhibitionCanvas({
         }
         scene.add(root);
       }
-      if (!controller.signal.aborted) setStatus("Exhibition ready");
+      if (!controller.signal.aborted)
+        setResult({ exhibition, sceneIndex, attempt, message: "Exhibition ready", failed: false });
     })().catch((failure: unknown) => {
       if (!controller.signal.aborted) {
         disposeModels(scene);
         scene.clear();
-        setStatus(
-          failure instanceof Error ? failure.message : "The exhibition could not be loaded.",
-        );
+        setResult({
+          exhibition,
+          sceneIndex,
+          attempt,
+          message:
+            failure instanceof DOMException && failure.name === "TimeoutError"
+              ? "Loading the exhibition timed out. Please try again."
+              : failure instanceof Error
+                ? failure.message
+                : "The exhibition could not be loaded.",
+          failed: true,
+        });
       }
     });
     return () => {
@@ -155,10 +184,15 @@ export function ExhibitionCanvas({
       reset.current = () => {};
       selectView.current = () => {};
     };
-  }, [exhibition, sceneIndex]);
+  }, [exhibition, sceneIndex, attempt]);
   return (
     <section aria-label="Exhibition viewer">
-      <p role="status">{status}</p>
+      <p role="status">{current?.message ?? "Loading exhibition…"}</p>
+      {current?.failed && (
+        <button onClick={() => setAttempt((previous) => previous + 1)}>
+          Retry loading exhibition
+        </button>
+      )}
       <p>
         Drag to look around, scroll or pinch to zoom. Focus the view and use the arrow keys to move.
       </p>
@@ -168,7 +202,11 @@ export function ExhibitionCanvas({
           {view.name}
         </button>
       ))}
-      <div className="visitor-canvas" ref={mount} />
+      <div
+        className="visitor-canvas"
+        ref={mount}
+        style={{ visibility: current && !current.failed ? "visible" : "hidden" }}
+      />
     </section>
   );
 }
