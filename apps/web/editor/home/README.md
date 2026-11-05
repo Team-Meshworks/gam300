@@ -1,5 +1,24 @@
 # M2 workspace integration
 
+## 5 November 2026 dev integration
+
+PR #34 is integrated with `dev` at `e921576`, including the merged class screens.
+The home and administration flows remain a bounded SCRUM-126 implementation, not
+full story acceptance. SCRUM-69 remains in progress and formally blocks SCRUM-126;
+SCRUM-73 still owns approved production assets and environments. New project
+creation remains clearly unavailable until an approved environment is available.
+The editor opens editable authorised projects; archived projects must first be reopened.
+SCRUM-67's server recovery coordinator is now complete and is invoked on departure.
+
+On the merged source, 774 web unit tests, typecheck, lint, formatting, static and
+isolated architecture checks, and the production build passed. Secure Chrome fixture
+checks covered the home, project access, class assignments, dashboard, UI foundation
+and server recovery. Two real HTTPS browser/API tests passed with synthetic accounts,
+an isolated PostgreSQL database and a Development fixture catalogue; they do not
+establish production asset approval or full accessibility and story acceptance.
+The workflow runs on pushes to `main`/`dev` or manual dispatch; it does not run
+automatically for a feature-branch pull request.
+
 The production `/home` route uses the existing account client and UI foundation. `/login`
 links here after a verified sign-in or mandatory password change. Vite and the Caddy
 entry route both serve it. Editable authorised server projects open through the existing
