@@ -138,6 +138,13 @@ Do not print resolved Compose configuration or commit credentials.
 `API_IMAGE` and `MIGRATION_IMAGE` select prebuilt API and migration images; local builds
 default to `spatia-api:local` and `spatia-migrations:local`.
 
+To enable publication, set `PUBLICATION_ORIGIN` to the externally reachable HTTPS
+origin, for example `https://localhost:8444` for this local stack. Use only an origin:
+no credentials, path, query or fragment. Compose passes it to the API as
+`Publication__Origin`; if it is unset or invalid, publishing remains unavailable.
+For another device, configure the actual HTTPS origin reachable and trusted by that
+device. Request headers do not choose the returned publication URL.
+
 From the repository root:
 
 ```sh

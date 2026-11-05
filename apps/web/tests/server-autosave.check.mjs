@@ -15,6 +15,7 @@ let account = alice,
   revision = 7,
   mode = "saved";
 let releaseSave;
+let catalogueUnavailable = true;
 const writes = [],
   errors = [];
 const api = async (route) => {
@@ -34,6 +35,7 @@ const api = async (route) => {
   if (request.headers()["x-spatia-account"] && request.headers()["x-spatia-account"] !== account)
     return json(403, {});
   if (path === "/api/auth/csrf") return json(200, { requestToken: "test-token" });
+  if (path === "/api/assets") return catalogueUnavailable ? json(503, {}) : json(200, []);
   if (path === "/api/auth/logout") {
     account = null;
     return route.fulfill({ status: 204 });
@@ -87,6 +89,10 @@ async function saved() {
 }
 try {
   await page.goto(url);
+  await page.getByRole("button", { name: "Retry opening" }).waitFor();
+  assert.equal(await page.locator(".editor-shell").count(), 0);
+  catalogueUnavailable = false;
+  await page.getByRole("button", { name: "Retry opening" }).click();
   await saved();
   await page.getByRole("button", { name: "Leave editor" }).click();
   await page.getByRole("button", { name: "Save and continue" }).click();

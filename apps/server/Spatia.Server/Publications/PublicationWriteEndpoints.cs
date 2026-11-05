@@ -9,6 +9,23 @@ internal static class PublicationWriteEndpoints
 {
     internal static void MapPublicationWrites(this IEndpointRouteBuilder endpoints)
     {
+        endpoints.MapGet("/api/projects/{id:guid}/publication-readiness", async (Guid id,
+            PublicationCoordinator coordinator, HttpContext context, IConfiguration configuration, CancellationToken token) =>
+        {
+            var result = await coordinator.ReadinessAsync(context, id, token);
+            if (result.AccessFailure is { } failure) { return ProjectHttpResults.FromAccessFailure(context, failure); }
+            var rejection = TryOrigin(configuration, out _) ? result.Rejection : PublicationRejection.DependencyUnavailable;
+            context.Response.Headers.CacheControl = "private, no-store";
+            return Results.Ok(new
+            {
+                projectId = id,
+                result.Revision,
+                state = rejection?.ToString() ?? "Ready",
+                result.CompletionConfirmed,
+                result.Approved
+            });
+        }).RequireAuthorization(SecurityPolicies.FullAccount);
+
         endpoints.MapPost("/api/projects/{id:guid}/publications", async (Guid id, PublishSnapshotRequest input,
             PublicationCoordinator coordinator, HttpContext context, IConfiguration configuration, CancellationToken token) =>
         {
@@ -17,9 +34,7 @@ internal static class PublicationWriteEndpoints
                 || input.Intent.ValueKind != JsonValueKind.Object)
             { return ApiProblems.Create(context, 400, "invalid_publication", "Check the publication request."); }
             // Only trusted configuration defines links; neither Host nor forwarded headers select a public origin
-            if (!Uri.TryCreate(configuration["Publication:Origin"], UriKind.Absolute, out var origin)
-                || origin.Scheme != Uri.UriSchemeHttps || origin.UserInfo.Length != 0 || origin.AbsolutePath != "/"
-                || origin.Query.Length != 0 || origin.Fragment.Length != 0)
+            if (!TryOrigin(configuration, out var origin))
             { return ApiProblems.Create(context, 503, "publication_unavailable", "Publication is not configured."); }
             PublicationRequest request;
             try { request = new(publicationId, revision, input.Intent.GetRawText()); }
@@ -29,8 +44,8 @@ internal static class PublicationWriteEndpoints
             if (result.AccessFailure is { } accessFailure) { return ProjectHttpResults.FromAccessFailure(context, accessFailure); }
             if (result.Acknowledgement is { } ack)
             {
-                var snapshotUrl = new Uri(origin, $"api/publications/{ack.PublicationId:D}").AbsoluteUri;
-                var visitorUrl = new Uri(origin, $"p/{ack.PublicationId:D}").AbsoluteUri;
+                var snapshotUrl = new Uri(origin!, $"api/publications/{ack.PublicationId:D}").AbsoluteUri;
+                var visitorUrl = new Uri(origin!, $"p/{ack.PublicationId:D}").AbsoluteUri;
                 var body = new { ack.PublicationId, ack.ProjectId, ack.SourceRevision, ack.CreatedAt, snapshotUrl, visitorUrl };
                 context.Response.Headers.CacheControl = "private, no-store";
                 return result.IsReplay ? Results.Ok(body) : Results.Created(snapshotUrl, body);
@@ -59,4 +74,8 @@ internal static class PublicationWriteEndpoints
         }).RequireAuthorization(SecurityPolicies.FullAccount).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit)
             .WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(16 * 1024));
     }
+    private static bool TryOrigin(IConfiguration configuration, out Uri? origin) =>
+        Uri.TryCreate(configuration["Publication:Origin"], UriKind.Absolute, out origin)
+        && origin.Scheme == Uri.UriSchemeHttps && origin.UserInfo.Length == 0 && origin.AbsolutePath == "/"
+        && origin.Query.Length == 0 && origin.Fragment.Length == 0;
 }

@@ -9,6 +9,8 @@ import { SearchField } from "../../shared/ui/SearchField";
 import { Tabs } from "../../shared/ui/Tabs";
 import { createWorkspaceClient, projectReceipt, type ProjectSummary } from "./workspace-api";
 import { ProjectGrantEditor } from "./ProjectGrantEditor";
+import { ProjectCreation } from "./ProjectCreation";
+import type { FormNavigationState } from "../projects/NewProjectForm";
 
 const api = createWorkspaceClient();
 const accounts = createAccountClient();
@@ -17,10 +19,12 @@ export function ProjectHome({
   session,
   active,
   onOpenProject,
+  onNavigationStateChange,
 }: {
   session: AccountSession;
   active: boolean;
   onOpenProject: (projectId: string) => void;
+  onNavigationStateChange?: (state: FormNavigationState) => void;
 }) {
   const [tab, setTab] = useState<"active" | "archived">("active");
   const [search, setSearch] = useState("");
@@ -111,9 +115,11 @@ export function ProjectHome({
           <h1>Projects</h1>
           <p>Explore your projects and continue your classroom’s work.</p>
         </div>
-        <Button disabled title="No approved 3D spaces are available yet">
-          New project
-        </Button>
+        <ProjectCreation
+          session={session}
+          active={active}
+          onNavigationStateChange={onNavigationStateChange}
+        />
       </div>
       <div className="sp-home-toolbar">
         <Tabs

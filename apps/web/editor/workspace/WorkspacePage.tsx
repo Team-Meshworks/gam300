@@ -1,10 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createAccountClient, type AccountSession } from "../accounts/account-client";
-import { leaveWithUiSound } from "../audio/ui-sounds";
 import { WorkspaceShell } from "../../shared/ui/WorkspaceShell";
 import { Button } from "../../shared/ui/Button";
-import { NewProjectForm } from "../projects/NewProjectForm";
-import { ClassAssignmentForm } from "../projects/ClassAssignmentForm";
+import { HomePage } from "../home/HomePage";
 import { AccountDirectoryPage } from "../directory/AccountDirectoryPage";
 import { AdminDashboard } from "../admin/AdminDashboard";
 import { ReviewWorkspace } from "../reviews/ReviewWorkspace";
@@ -18,7 +16,7 @@ const screens = [
   { id: "assets", title: "3D Assets", roles: ["Administrator"] },
   { id: "spaces", title: "3D Spaces", roles: ["Administrator"] },
   { id: "admin/dashboard", title: "Dashboard", roles: ["Administrator"] },
-  { id: "new-project", title: "New Project", roles: ["Administrator", "Educator", "Creator"] },
+  { id: "new-project", title: "New class assignment", roles: ["Administrator", "Educator"] },
   { id: "classes", title: "Class assignments", roles: ["Administrator", "Educator"] },
   { id: "review", title: "Submission review", roles: ["Creator", "Educator"] },
   { id: "accounts", title: "Accounts", roles: ["Administrator"] },
@@ -30,6 +28,12 @@ type Access =
 
 // Route visibility follows the session; each screen's API enforces access to its records.
 export function WorkspacePage() {
+  const path = location.pathname.replace(/\/$/, "");
+  if (path === "/classes" || path === "/new-project") return <HomePage />;
+  return <OtherWorkspacePage />;
+}
+
+function OtherWorkspacePage() {
   const [access, setAccess] = useState<Access>({ kind: "loading" });
   const assetService = useMemo(
     () =>
@@ -111,8 +115,6 @@ export function WorkspacePage() {
         ? "/landing"
         : "/classes";
   const dashboard = screen?.id === "admin/dashboard" && session.role === "Administrator";
-  const from = new URLSearchParams(location.search).get("from");
-  const cancelTarget = permitted.find((item) => item.id === from && item.id !== "new-project");
   async function signOut() {
     if (signingOut.current) return;
     signingOut.current = true;
@@ -168,32 +170,6 @@ export function WorkspacePage() {
             />
           )}
           {dashboard && <AdminDashboard key={session.userId} session={session} />}
-          {screen.id === "new-project" && (
-            <>
-              <p role="status">
-                Project creation and class lists are currently unavailable. You can enter details
-                and choose a cover image, but cannot save them yet.
-              </p>
-              <NewProjectForm
-                organizationName="Unavailable"
-                creatorName={session.displayName}
-                classes={[]}
-                students={[]}
-                onCancel={() =>
-                  leaveWithUiSound("goingBack", cancelTarget ? `/${cancelTarget.id}` : fallback)
-                }
-              />
-            </>
-          )}
-          {screen.id === "classes" && (
-            <>
-              <p role="status">
-                Class and project lists are currently unavailable. Assignments cannot be changed
-                yet.
-              </p>
-              <ClassAssignmentForm projects={[]} classes={[]} students={[]} />
-            </>
-          )}
           {screen.id === "review" && (
             <ReviewWorkspace key={session.userId + ":" + session.orgId} session={session} />
           )}

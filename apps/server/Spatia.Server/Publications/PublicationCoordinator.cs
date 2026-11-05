@@ -18,6 +18,27 @@ internal sealed class PublicationCoordinator(ApplicationDbContext database, Proj
 {
     private readonly IPublicationIntegration _integration = integration ?? new UnavailablePublicationIntegration();
 
+    // Report prerequisites through the same authority and preparation checks used at commit
+    // This read never stages a publication or promises that a later write will still be authorised
+    internal async Task<PublicationReadinessResult> ReadinessAsync(HttpContext context, Guid projectId,
+        CancellationToken token)
+    {
+        await using var transaction = await database.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, token);
+        var authorization = await access.LockAsync(context, projectId, ProjectLockPurpose.Publish, token);
+        if (authorization.Failure is { } failure) { return new(0, null, null, null, failure); }
+        var project = authorization.Snapshot!;
+        var request = new PublicationRequest(Guid.NewGuid(), project.Revision, """{"audience":"Authenticated","viewerIds":[]}""");
+        var prepared = await PrepareNewAsync(project, request, token);
+        var approval = await ReviewApproval.CheckLockedAsync(database, project, token);
+        bool? completed = approval == ReviewApprovalState.UnverifiedOrigin ? null
+            : await database.ReviewSubmissions.AnyAsync(row => row.ProjectId == projectId && row.SourceRevision == project.Revision, token);
+        bool? approved = approval == ReviewApprovalState.UnverifiedOrigin ? null : approval == ReviewApprovalState.Approved;
+        var current = await access.LockAsync(context, projectId, ProjectLockPurpose.Publish, token);
+        if (current.Failure is { } changed) { return new(0, null, null, null, changed); }
+        if (HasExpired(context)) { return new(0, null, null, null, ProjectAccessFailure.AuthenticationRequired); }
+        return new(project.Revision, prepared.Failure, completed, approved);
+    }
+
     public async Task<PublicationResult> PublishAsync(HttpContext context, Guid projectId, PublicationRequest request,
         CancellationToken cancellationToken = default)
     {
@@ -47,41 +68,9 @@ internal sealed class PublicationCoordinator(ApplicationDbContext database, Proj
             {
                 return PublicationResult.Rejected(PublicationRejection.RevisionConflict, project.Revision);
             }
-            var approval = await ReviewApproval.CheckLockedAsync(database, project, cancellationToken);
-            if (approval == ReviewApprovalState.ApprovalRequired)
-            {
-                return PublicationResult.Rejected(PublicationRejection.ApprovalRequired);
-            }
-            if (approval == ReviewApprovalState.StaleProject)
-            {
-                return PublicationResult.Rejected(PublicationRejection.DependencyUnavailable);
-            }
-            var parsed = documents.ReadStored(projectId, project.SchemaVersion, project.UnvalidatedDocumentJson);
-            if (!parsed.Ok) { return PublicationResult.Rejected(PublicationRejection.InvalidDocument); }
-            var requiredAssets = PublicationDocumentAssets.Required(parsed.Value!);
-            var prepared = await _integration.PrepareAsync(database, project, request, parsed.Value!, cancellationToken);
+            var prepared = await PrepareNewAsync(project, request, cancellationToken);
             if (prepared.Failure is { } preparationFailure) { return PublicationResult.Rejected(preparationFailure); }
-            if (approval == ReviewApprovalState.UnverifiedOrigin && !prepared.OrdinaryOriginVerified)
-            {
-                return PublicationResult.Rejected(PublicationRejection.DependencyUnavailable);
-            }
-            if (ProjectCapabilities.Missing(parsed.Value!, prepared.SupportedCapabilities).Count != 0)
-            {
-                return PublicationResult.Rejected(PublicationRejection.UnsupportedRuntime);
-            }
-            string manifest;
-            try
-            {
-                manifest = PublicationAssetManifest.Serialize(prepared.References);
-            }
-            catch (ArgumentException)
-            {
-                return PublicationResult.Rejected(PublicationRejection.InvalidAssets);
-            }
-            if (!requiredAssets.IsSubsetOf(prepared.References.Select(reference => reference.AssetId)))
-            {
-                return PublicationResult.Rejected(PublicationRejection.InvalidAssets);
-            }
+            var manifest = prepared.Manifest!;
             if (HasExpired(context)) { return PublicationResult.Denied(ProjectAccessFailure.AuthenticationRequired); }
 
             // Target only the global ID constraint. Other database errors propagate and roll back;
@@ -127,6 +116,28 @@ internal sealed class PublicationCoordinator(ApplicationDbContext database, Proj
         return HasExpired(context)
             ? PublicationResult.Denied(ProjectAccessFailure.AuthenticationRequired)
             : PublicationResult.Committed(edition!, replay);
+    }
+
+    private async Task<(PublicationRejection? Failure, string? Manifest)> PrepareNewAsync(
+        ProjectAccessSnapshot project, PublicationRequest request, CancellationToken token)
+    {
+        var approval = await ReviewApproval.CheckLockedAsync(database, project, token);
+        if (approval == ReviewApprovalState.ApprovalRequired) { return (PublicationRejection.ApprovalRequired, null); }
+        if (approval == ReviewApprovalState.StaleProject) { return (PublicationRejection.DependencyUnavailable, null); }
+        var parsed = documents.ReadStored(project.ProjectId, project.SchemaVersion, project.UnvalidatedDocumentJson);
+        if (!parsed.Ok) { return (PublicationRejection.InvalidDocument, null); }
+        var requiredAssets = PublicationDocumentAssets.Required(parsed.Value!);
+        var prepared = await _integration.PrepareAsync(database, project, request, parsed.Value!, token);
+        if (prepared.Failure is { } failure) { return (failure, null); }
+        if (approval == ReviewApprovalState.UnverifiedOrigin && !prepared.OrdinaryOriginVerified)
+        { return (PublicationRejection.DependencyUnavailable, null); }
+        if (ProjectCapabilities.Missing(parsed.Value!, prepared.SupportedCapabilities).Count != 0)
+        { return (PublicationRejection.UnsupportedRuntime, null); }
+        string manifest;
+        try { manifest = PublicationAssetManifest.Serialize(prepared.References); }
+        catch (ArgumentException) { return (PublicationRejection.InvalidAssets, null); }
+        return requiredAssets.IsSubsetOf(prepared.References.Select(reference => reference.AssetId))
+            ? (null, manifest) : (PublicationRejection.InvalidAssets, null);
     }
 
     private Task<Publication?> FindAsync(Guid id, CancellationToken cancellationToken) =>

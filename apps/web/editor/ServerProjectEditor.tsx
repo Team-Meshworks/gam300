@@ -1,10 +1,15 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import type { CatalogueAsset } from "../shared/asset-runtime/catalogue";
 import { assets } from "virtual:asset-catalogue";
 import { App } from "./App";
 import { HOTSPOT_ASSET } from "../shared/asset-runtime/hotspot";
 import { createDocumentStore } from "./document-store";
 import { createAccountClient } from "./accounts/account-client";
-import { readServerProject, type OpenedServerProject } from "./persistence/server-project-read";
+import {
+  readServerAssets,
+  readServerProject,
+  type OpenedServerProject,
+} from "./persistence/server-project-read";
 import { connectServerProjectSession } from "./persistence/server-project-session";
 import { loadRecoverySession, type RecoverySession } from "./persistence/local-drafts";
 import {
@@ -16,8 +21,6 @@ import {
 import { serializeProject } from "../shared/project/project-serialization";
 import type { ServerSaveStatus } from "./persistence/server-autosave";
 
-const editorAssets = [...assets, HOTSPOT_ASSET];
-const kinds = new Map(editorAssets.map((asset) => [asset.id, asset.kind]));
 const accounts = createAccountClient();
 type Candidate = {
   opened: OpenedServerProject;
@@ -74,6 +77,59 @@ function ChoiceDialog({
 
 // SCRUM-126 can open /?projectId=<id>; this boundary owns only the editor's save/recovery session.
 export function ServerProjectEditor({ projectId }: { projectId: string }) {
+  const [catalogue, setCatalogue] = useState<readonly CatalogueAsset[] | null>(null);
+  const [error, setError] = useState("");
+  const [attempt, setAttempt] = useState(0);
+  useEffect(() => {
+    const controller = new AbortController();
+    void (async () => {
+      try {
+        setError("");
+        const identity = await accounts.getSession();
+        if (!identity || identity.mustChangePassword)
+          throw new Error("Sign in before opening this project.");
+        const approved = await readServerAssets(identity.userId, controller.signal);
+        const current = await accounts.getSession();
+        if (current?.userId !== identity.userId || current.mustChangePassword)
+          throw new Error("The account changed. Sign in again.");
+        if (!controller.signal.aborted) setCatalogue([...assets, ...approved]);
+      } catch (cause) {
+        if (!controller.signal.aborted)
+          setError(cause instanceof Error ? cause.message : "Approved assets could not be loaded.");
+      }
+    })();
+    return () => controller.abort();
+  }, [attempt, projectId]);
+  if (!catalogue)
+    return (
+      <main>
+        <h1>Open project</h1>
+        {error ? (
+          <>
+            <p role="alert">{error}</p>
+            <button onClick={() => setAttempt((value) => value + 1)}>Retry opening</button>{" "}
+            <a href="/home">Home</a>
+          </>
+        ) : (
+          <p role="status">Loading approved assets…</p>
+        )}
+      </main>
+    );
+  return <ServerProjectSession projectId={projectId} catalogue={catalogue} />;
+}
+
+function ServerProjectSession({
+  projectId,
+  catalogue,
+}: {
+  projectId: string;
+  catalogue: readonly CatalogueAsset[];
+}) {
+  const editorAssets = useMemo(() => [...catalogue, HOTSPOT_ASSET], [catalogue]);
+  const kinds = useMemo(
+    () => new Map(editorAssets.map((asset) => [asset.id, asset.kind])),
+    [editorAssets],
+  );
   const [store] = useState(() => createDocumentStore(editorAssets));
   const [active, setActive] = useState<Active | null>(null);
   const current = useRef<Active | null>(null);
@@ -355,6 +411,7 @@ export function ServerProjectEditor({ projectId }: { projectId: string }) {
       {active ? (
         <App
           server={{
+            assets: catalogue,
             store,
             title: active.title,
             dirty: status !== "saved",

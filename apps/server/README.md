@@ -2142,6 +2142,13 @@ the parent story.
 
 ### Publication HTTP contract
 
+`GET /api/projects/{id}/publication-readiness` requires a full account and checks
+current publish authority and the saved revision. It returns the revision, readiness
+state and available completion and approval indicators with `private, no-store`.
+Readiness is informational: the publish request rechecks authority, revision and
+dependencies under the project lock. An unset or invalid publication origin reports
+the dependency as unavailable.
+
 `POST /api/projects/{id}/publications` requires a current full account, CSRF token
 and account-write rate limit. The request is bounded to 16 KiB and has the shape:
 

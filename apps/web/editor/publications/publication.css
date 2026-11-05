@@ -51,3 +51,12 @@
   justify-items: start;
   gap: 8px;
 }
+.sp-publication section[aria-label="Publication prerequisites"] {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+  padding: 18px;
+  border: 1px solid var(--sp-border);
+  border-radius: 16px;
+  background: var(--sp-surface);
+}

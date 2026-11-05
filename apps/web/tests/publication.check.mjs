@@ -28,6 +28,10 @@ try {
     const path = new URL(request.url()).pathname;
     if (path === "/api/auth/session") return route.fulfill({ json: currentSession });
     if (path === "/api/auth/csrf") return route.fulfill({ json: { requestToken: "test" } });
+    if (path === `/api/projects/${projectId}/publication-readiness`)
+      return route.fulfill({
+        json: { projectId, revision: 4, state: "Ready", completionConfirmed: true, approved: true },
+      });
     if (path === `/api/projects/${projectId}`)
       return route.fulfill({
         json: {

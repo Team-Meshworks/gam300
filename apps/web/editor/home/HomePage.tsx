@@ -117,7 +117,15 @@ function HomeWorkspace({
   active: boolean;
   onSignOut: () => void;
 }) {
-  const [view, setView] = useState<"projects" | "classes" | "assignment">("projects");
+  const [view, setView] = useState<"projects" | "classes" | "assignment" | "denied">(() => {
+    const path = location.pathname.replace(/\/$/, "");
+    if (path === "/classes") return "classes";
+    if (path === "/new-project")
+      return session.role === "Administrator" || session.role === "Educator"
+        ? "assignment"
+        : "denied";
+    return "projects";
+  });
   const [navigation, setNavigation] = useState<FormNavigationState>({
     dirty: false,
     locked: false,
@@ -202,7 +210,12 @@ function HomeWorkspace({
         )}
       </nav>
       {view === "projects" ? (
-        <ProjectHome session={session} active={active} onOpenProject={openProject} />
+        <ProjectHome
+          session={session}
+          active={active}
+          onOpenProject={openProject}
+          onNavigationStateChange={setNavigation}
+        />
       ) : view === "classes" ? (
         <ClassHome
           session={session}
@@ -210,6 +223,8 @@ function HomeWorkspace({
           onCreateAssignment={() => setView("assignment")}
           onOpenProject={openProject}
         />
+      ) : view === "denied" ? (
+        <h1>Access denied</h1>
       ) : (
         <>
           <div className="sp-page-heading">
@@ -228,7 +243,7 @@ function HomeWorkspace({
         </>
       )}
       {leave && active && (
-        <Dialog title="Leave this assignment?" onClose={() => setLeave(null)}>
+        <Dialog title="Leave this page?" onClose={() => setLeave(null)}>
           <p>
             Your unsent details will be discarded. Stay here to finish or keep a copy before
             leaving.

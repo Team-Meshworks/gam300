@@ -15,6 +15,38 @@ namespace Spatia.Server.Tests;
 public sealed class PublicationEndpointTests
 {
     [Test]
+    [Arguments(true)]
+    [Arguments(false)]
+    public async Task PublishReadiness_ReportsSavedRevisionPrerequisitesWithoutCreatingAnEdition(bool approved)
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync();
+        var (data, _) = await PrepareAsync(fixture, approve: approved);
+        using var response = await fixture.Client.GetAsync($"/api/projects/{data.ProjectId}/publication-readiness");
+        await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        await Assert.That(response.Headers.CacheControl?.NoStore).IsTrue();
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        await Assert.That(body.GetProperty("projectId").GetGuid()).IsEqualTo(data.ProjectId);
+        await Assert.That(body.GetProperty("revision").GetInt64()).IsEqualTo(0);
+        await Assert.That(body.GetProperty("state").GetString()).IsEqualTo(approved ? "Ready" : "ApprovalRequired");
+        await Assert.That(body.GetProperty("completionConfirmed").GetBoolean()).IsTrue();
+        await Assert.That(body.GetProperty("approved").GetBoolean()).IsEqualTo(approved);
+        await using var scope = fixture.App.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await Assert.That(await database.Publications.CountAsync()).IsEqualTo(0);
+        await Assert.That(await database.PublicationAccess.CountAsync()).IsEqualTo(0);
+        await database.Projects.Where(row => row.Id == data.ProjectId)
+            .ExecuteUpdateAsync(set => set.SetProperty(row => row.Revision, 1));
+        using var changed = await fixture.Client.GetAsync($"/api/projects/{data.ProjectId}/publication-readiness");
+        var stale = await changed.Content.ReadFromJsonAsync<JsonElement>();
+        await Assert.That(stale.GetProperty("state").GetString()).IsEqualTo("ApprovalRequired");
+        await Assert.That(stale.GetProperty("completionConfirmed").GetBoolean()).IsFalse();
+        await Assert.That(stale.GetProperty("approved").GetBoolean()).IsFalse();
+        await fixture.SignInAsync(data.OtherStudent);
+        using var denied = await fixture.Client.GetAsync($"/api/projects/{data.ProjectId}/publication-readiness");
+        await Assert.That(denied.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+    }
+
+    [Test]
     public async Task Publish_ApprovedClassEditionCommitsPolicyBytesAndRetryWithoutChangingDraft()
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync();

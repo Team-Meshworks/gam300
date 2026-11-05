@@ -9,6 +9,7 @@ const required = [
   "SPATIA_TEST_OUTSIDER",
   "SPATIA_TEST_CLASS",
   "SPATIA_TEST_SOURCE",
+  "SPATIA_TEST_ENVIRONMENT",
 ];
 for (const name of required) assert.ok(process.env[name], `Missing ${name}`);
 const server = await createServer({ server: { port: 0 }, logLevel: "silent" });
@@ -32,6 +33,72 @@ try {
     timezoneId: "Asia/Singapore",
   });
   const page = await login(teacher, process.env.SPATIA_TEST_EDUCATOR);
+  const catalogue = await teacher.request.get(`${origin}/api/assets`);
+  assert.equal(
+    catalogue.status(),
+    200,
+    "Approved space catalogue must be available to the educator",
+  );
+  const spaces = await catalogue.json();
+  assert.ok(
+    spaces.some(
+      (space) => space.id === process.env.SPATIA_TEST_ENVIRONMENT && space.kind === "environment",
+    ),
+    "The seeded approved space must be returned by the actual API",
+  );
+  try {
+    await page
+      .getByRole("button", { name: "New project", exact: true })
+      .waitFor({ state: "visible" });
+    await page.waitForFunction(() =>
+      [...document.querySelectorAll("button")].some(
+        (button) => button.textContent.trim() === "New project" && !button.disabled,
+      ),
+    );
+  } catch (error) {
+    const status = await page.locator('[role="alert"], [role="status"]').allTextContents();
+    throw new Error(`New project remained unavailable. Visible status: ${status.join(" | ")}`, {
+      cause: error,
+    });
+  }
+  await page.getByRole("button", { name: "New project", exact: true }).click();
+  const createDialog = page.getByRole("dialog", { name: "New project" });
+  await createDialog.getByLabel("Project title").fill("Live blank project");
+  await createDialog.getByLabel("3D space").selectOption(process.env.SPATIA_TEST_ENVIRONMENT);
+  const createdResponse = page.waitForResponse(
+    (item) => item.url().endsWith("/api/projects") && item.request().method() === "POST",
+  );
+  const environmentResponse = page.waitForResponse(
+    (item) =>
+      new URL(item.url()).pathname.endsWith(
+        `/assets/${process.env.SPATIA_TEST_ENVIRONMENT}/bytes`,
+      ) && item.request().method() === "GET",
+    { timeout: 30000 },
+  );
+  await createDialog.getByRole("button", { name: "Create project" }).click();
+  const created = await createdResponse;
+  assert.equal(created.status(), 201);
+  const blank = await created.json();
+  await page.waitForURL(`**/?projectId=${blank.projectId}`);
+  const environment = await environmentResponse;
+  assert.equal(environment.status(), 200, "The editor loads the approved environment bytes");
+  assert.ok((await environment.body()).length > 0, "The environment response contains GLB bytes");
+  await page.waitForFunction(() =>
+    [...document.querySelectorAll('.viewport [role="status"]')].some(
+      (status) => status.textContent === "Scene ready",
+    ),
+  );
+  try {
+    await page.getByRole("button", { name: "Leave editor" }).click();
+  } catch (error) {
+    const status = await page.locator('[role="alert"], [role="status"]').allTextContents();
+    throw new Error(`Created editor did not open. Visible status: ${status.join(" | ")}`, {
+      cause: error,
+    });
+  }
+  await page.getByRole("button", { name: "Save and continue" }).click();
+  await page.waitForURL(`${origin}/home`);
+  await page.getByRole("heading", { name: "Live blank project" }).waitFor();
   await page.getByRole("button", { name: "Classes", exact: true }).click();
   await page.getByRole("button", { name: "New assignment", exact: true }).click();
   await page.getByLabel("Source project").selectOption(process.env.SPATIA_TEST_SOURCE);

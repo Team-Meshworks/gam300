@@ -117,7 +117,31 @@ try {
   await page.reload();
   await page.getByRole("heading", { name: "Change your password to continue" }).waitFor();
   account = session;
-  if (process.argv[3] === "admin") {
+  if (process.argv[3] === "legacy-routes") {
+    await page.goto(origin + "/classes");
+    await page.getByRole("button", { name: "New assignment" }).waitFor();
+    await page.goto(origin + "/new-project");
+    await page.getByRole("heading", { name: "New class assignment" }).waitFor();
+    await page.getByLabel("Project title").fill("Unsent assignment");
+    await page.getByRole("button", { name: "Classes", exact: true }).click();
+    await page.getByRole("dialog", { name: "Leave this page?" }).waitFor();
+    await page.getByRole("button", { name: "Keep editing" }).click();
+    assert.equal(await page.getByLabel("Project title").inputValue(), "Unsent assignment");
+    account = { ...session, role: "Creator" };
+    await page.reload();
+    await page.getByRole("heading", { name: "Access denied" }).waitFor();
+    assert.equal(await page.getByLabel("Project title").count(), 0);
+    await page.goto(origin + "/classes");
+    await page.getByRole("heading", { name: "Classes", exact: true }).waitFor();
+    assert.equal(await page.getByRole("button", { name: "New assignment" }).count(), 0);
+    await page.goto(origin + "/review");
+    await page.getByRole("heading", { name: "Submission review" }).waitFor();
+    assert.equal(
+      await page.getByRole("link", { name: "New class assignment", exact: true }).count(),
+      0,
+    );
+    console.log("Legacy class and assignment routes use the guarded workspace");
+  } else if (process.argv[3] === "admin") {
     account = { ...session, role: "Administrator", orgId: null };
     await page.goto(origin + "/home");
     await page.getByRole("button", { name: "Classes", exact: true }).click();
@@ -156,11 +180,11 @@ try {
     await page.getByRole("button", { name: "New assignment" }).click();
     await page.getByLabel("Project title").fill("Unsent assignment");
     await page.getByRole("button", { name: "Projects", exact: true }).click();
-    await page.getByRole("dialog", { name: "Leave this assignment?" }).waitFor();
+    await page.getByRole("dialog", { name: "Leave this page?" }).waitFor();
     account = { ...session, mustChangePassword: true };
     await page.evaluate(() => window.dispatchEvent(new Event("focus")));
     await page.getByRole("heading", { name: "Change your password to continue" }).waitFor();
-    assert.equal(await page.getByRole("dialog", { name: "Leave this assignment?" }).count(), 0);
+    assert.equal(await page.getByRole("dialog", { name: "Leave this page?" }).count(), 0);
     await page.getByRole("link", { name: "Go to login" }).evaluate((link) => {
       link.addEventListener("click", (event) => event.preventDefault(), { once: true });
     });
@@ -267,7 +291,7 @@ try {
 }
 
 if (!process.argv[3]) {
-  for (const scenario of ["gate", "open-project", "admin"]) {
+  for (const scenario of ["gate", "open-project", "admin", "legacy-routes"]) {
     const result = spawnSync(process.execPath, [fileURLToPath(import.meta.url), origin, scenario], {
       stdio: "inherit",
       env: process.env,

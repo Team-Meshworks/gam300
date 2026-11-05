@@ -4,7 +4,8 @@ import { AudioLibrary, type AudioLibraryMode } from "./ui/AudioLibrary";
 import { ExhibitPopups } from "./ui/ExhibitPopups";
 import type { ContentObject } from "../shared/project/project-content";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { assets } from "virtual:asset-catalogue";
+import { assets as developmentAssets } from "virtual:asset-catalogue";
+import type { CatalogueAsset } from "../shared/asset-runtime/catalogue";
 import { HOTSPOT_ASSET, HOTSPOT_ASSET_ID } from "../shared/asset-runtime/hotspot";
 import type { SceneObject, Vector3Tuple } from "../shared/project/scene-object";
 import type { HotspotDropTarget, ProjectHotspot, Transform } from "../shared/project/project-types";
@@ -40,13 +41,11 @@ import type { FpsMobileControls } from "./graphics/scene";
 import { ProjectConfirmation } from "./ProjectConfirmation";
 import { useProjectSession } from "./persistence/use-project-session";
 
-// Same catalog used by the viewport; saved references need to resolve here too
-const editorAssets = [...assets, HOTSPOT_ASSET];
-const assetKinds = new Map(editorAssets.map((asset) => [asset.id, asset.kind]));
 const EMPTY_INTERACTIONS: readonly Interaction[] = Object.freeze([]);
 const EMPTY_HOTSPOTS: readonly ProjectHotspot[] = Object.freeze([]);
 
 export type ServerEditorSession = {
+  assets: readonly CatalogueAsset[];
   store: ReturnType<typeof createDocumentStore>;
   title: string;
   dirty: boolean;
@@ -59,6 +58,12 @@ export type ServerEditorSession = {
 };
 
 export function App({ server }: { server?: ServerEditorSession }) {
+  const assets = server?.assets ?? developmentAssets;
+  const editorAssets = useMemo(() => [...assets, HOTSPOT_ASSET], [assets]);
+  const assetKinds = useMemo(
+    () => new Map(editorAssets.map((asset) => [asset.id, asset.kind])),
+    [editorAssets],
+  );
   const [store] = useState(() => server?.store ?? createDocumentStore(editorAssets));
   const { objects, project, activeSceneId, loadGeneration, canUndo, canRedo } =
     useSyncExternalStore(store.subscribe, store.getSnapshot);
@@ -216,7 +221,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
         }),
         navigation.beginEvent,
       ),
-    [projectScene, navigation, store],
+    [projectScene, navigation, store, assets],
   );
   const interactionHandlerRef = useRef(interactionHandler);
   useEffect(() => {

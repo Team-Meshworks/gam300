@@ -209,6 +209,8 @@ jobs:
             path: /ui-preview/assignment-test.html
           - name: home
             script: test:home
+          - name: project-creation
+            script: test:project-creation
           - name: project-grants
             script: test:project-grants
           - name: workspace-assignments
@@ -225,6 +227,8 @@ jobs:
             script: test:reviews
           - name: publication
             script: test:publication
+          - name: publication-readiness
+            script: test:publication-readiness
           - name: visitor
             script: test:visitor
     defaults:

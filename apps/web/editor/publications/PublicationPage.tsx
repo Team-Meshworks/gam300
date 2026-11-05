@@ -16,6 +16,18 @@ const api = createWorkspaceClient();
 const accounts = createAccountClient();
 const reviews = createReviewClient();
 type Saved = { title: string; revision: number; canPublish: boolean };
+type Readiness = { state: string; completionConfirmed: boolean | null; approved: boolean | null };
+const readinessMessages: Record<string, string> = {
+  Ready: "The saved revision is ready. Publishing checks these prerequisites again.",
+  ApprovalRequired: "Educator approval of this saved revision is required before publishing.",
+  UnsupportedRuntime:
+    "This project's content cannot be published by the current visitor application.",
+  InvalidDocument: "The saved project's content is invalid and cannot be published.",
+  InvalidAssets: "The saved project's assets are unavailable for publication.",
+  DependencyUnavailable:
+    "Publishing is unavailable for this project until its origin and required services can be verified.",
+  PolicyDenied: "Publication is unavailable under the current project policy.",
+};
 type ViewerGroup = { classroom: Classroom; students: Student[] };
 const problems = {
   revision_conflict:
@@ -72,6 +84,8 @@ export function PublicationPage({ session }: { session: AccountSession }) {
     : null;
   const [pending] = useState(() => pendingRequest(storageKey));
   const [saved, setSaved] = useState<Saved | null>(null);
+  const [readiness, setReadiness] = useState<Readiness | null>(null);
+  const [readinessError, setReadinessError] = useState("");
   const [loading, setLoading] = useState(Boolean(projectId));
   const [error, setError] = useState(
     pending.error ? storageMessage : pending.request ? uncertainMessage : "",
@@ -110,12 +124,49 @@ export function PublicationPage({ session }: { session: AccountSession }) {
           typeof value.permissions.canPublish !== "boolean"
         )
           throw new Error("The saved project could not be verified. Refresh before continuing.");
-        if (!cancelled)
+        if (!cancelled) {
           setSaved({
             title: value.document.title,
             revision: value.revision as number,
             canPublish: value.permissions.canPublish,
           });
+          if (value.permissions.canPublish) {
+            try {
+              const status = await api.read(
+                `/api/projects/${encodeURIComponent(projectId)}/publication-readiness`,
+              );
+              const latestSession = await accounts.getSession();
+              if (
+                latestSession?.userId !== session.userId ||
+                latestSession.mustChangePassword ||
+                !isRecord(status) ||
+                status.projectId !== projectId ||
+                status.revision !== value.revision ||
+                typeof status.state !== "string" ||
+                !Object.hasOwn(readinessMessages, status.state) ||
+                !(
+                  status.completionConfirmed === null ||
+                  typeof status.completionConfirmed === "boolean"
+                ) ||
+                !(status.approved === null || typeof status.approved === "boolean") ||
+                (status.state === "Ready" &&
+                  (status.approved === false || status.completionConfirmed === false))
+              )
+                throw new Error("Readiness changed");
+              if (!cancelled)
+                setReadiness({
+                  state: status.state,
+                  completionConfirmed: status.completionConfirmed,
+                  approved: status.approved,
+                });
+            } catch {
+              if (!cancelled)
+                setReadinessError(
+                  "Publication readiness could not be verified. Refresh the saved revision before publishing.",
+                );
+            }
+          }
+        }
       } catch (failure) {
         if (!cancelled)
           setError(
@@ -164,7 +215,7 @@ export function PublicationPage({ session }: { session: AccountSession }) {
       !saved ||
       !projectId ||
       !saved.canPublish ||
-      (!retry && (!confirmed || phase !== "ready")) ||
+      (!retry && (!confirmed || phase !== "ready" || readiness?.state !== "Ready")) ||
       (retry && (phase !== "unknown" || !request))
     )
       return;
@@ -265,6 +316,47 @@ export function PublicationPage({ session }: { session: AccountSession }) {
         <>
           <h2>{saved.title}</h2>
           <p>Saved revision {saved.revision}</p>
+          {saved.canPublish && phase !== "success" && (
+            <section aria-label="Publication prerequisites">
+              <h3>Publication prerequisites</h3>
+              {loading && <p role="status">Checking publication readiness…</p>}
+              {readinessError && <p role="alert">{readinessError}</p>}
+              {readiness && (
+                <>
+                  {readiness.completionConfirmed !== null && (
+                    <p>
+                      Completion:{" "}
+                      {readiness.completionConfirmed
+                        ? "confirmed for this saved revision"
+                        : "confirm completion and submit this saved revision"}
+                      .
+                    </p>
+                  )}
+                  {readiness.approved !== null && (
+                    <p>
+                      Approval:{" "}
+                      {readiness.approved
+                        ? "approved for this saved revision"
+                        : "not approved for this saved revision"}
+                      .
+                    </p>
+                  )}
+                  <p>{readinessMessages[readiness.state]}</p>
+                  {readiness.state === "ApprovalRequired" && session.role !== "Administrator" && (
+                    <a href={`/review?projectId=${encodeURIComponent(projectId!)}`}>
+                      Open submissions and reviews
+                    </a>
+                  )}
+                </>
+              )}
+              <Button
+                disabled={phase === "pending" || phase === "unknown"}
+                onClick={() => location.reload()}
+              >
+                Refresh saved revision
+              </Button>
+            </section>
+          )}
           {!saved.canPublish ? (
             <p>You do not have permission to publish this project.</p>
           ) : phase === "success" && ack ? (
@@ -336,12 +428,24 @@ export function PublicationPage({ session }: { session: AccountSession }) {
               ) : (
                 <Button
                   variant="primary"
-                  disabled={phase !== "ready" || !confirmed || viewersLoading}
+                  disabled={
+                    phase !== "ready" ||
+                    !confirmed ||
+                    viewersLoading ||
+                    loading ||
+                    readiness?.state !== "Ready"
+                  }
                   onClick={() => void publish()}
                 >
                   {phase === "pending" ? "Publishing…" : "Publish"}
                 </Button>
               )}
+              <Button
+                disabled={phase === "pending" || phase === "unknown"}
+                onClick={() => location.assign("/home")}
+              >
+                Cancel
+              </Button>
             </>
           )}
         </>

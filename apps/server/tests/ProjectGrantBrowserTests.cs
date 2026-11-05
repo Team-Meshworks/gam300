@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Spatia.Server.Accounts;
+using Spatia.Server.Assets;
 using Spatia.Server.Classes;
 using Spatia.Server.Persistence;
 using Spatia.Server.Projects;
@@ -20,11 +21,30 @@ public sealed class ProjectGrantBrowserTests
         var outsider = await fixture.CreateAccountAsync();
         var classroom = Guid.NewGuid();
         var source = Guid.NewGuid();
+        var environment = Guid.NewGuid();
         await using (var scope = fixture.App.Services.CreateAsyncScope())
         {
             var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             var organization = await database.OrganizationMemberships.Where(row => row.UserId == educator)
                 .Select(row => row.OrganizationId).SingleAsync();
+            var bytes = AssetIntakeTests.CreateMinimalGlb();
+            database.AssetCandidates.Add(new AssetCandidate
+            {
+                Id = environment,
+                Name = "Approved browser room",
+                Kind = "environment",
+                Bytes = bytes,
+                Sha256 = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(bytes)),
+                Status = "approved",
+                Hidden = false,
+                ValidationJson = "{}",
+                Source = "Synthetic fixture",
+                License = "Synthetic test only",
+                ReviewNotes = "Fixture approval",
+                SubmittedBy = educator,
+                ReviewedBy = educator,
+                CreatedAt = DateTimeOffset.UtcNow,
+            });
             await database.OrganizationMemberships.Where(row => row.UserId == student || row.UserId == outsider)
                 .ExecuteUpdateAsync(set => set.SetProperty(row => row.OrganizationId, organization));
             database.Classrooms.Add(new Classroom { Id = classroom, OrganizationId = organization, Name = "Live class" });
@@ -69,12 +89,13 @@ public sealed class ProjectGrantBrowserTests
         start.Environment["SPATIA_TEST_OUTSIDER"] = await AuthTestRequests.UserNameAsync(fixture, outsider);
         start.Environment["SPATIA_TEST_CLASS"] = classroom.ToString("D");
         start.Environment["SPATIA_TEST_SOURCE"] = source.ToString("D");
+        start.Environment["SPATIA_TEST_ENVIRONMENT"] = environment.ToString("D");
         start.Environment.Remove("SPATIA_TEST_DATABASE_CONNECTION");
         start.Environment.Remove("ConnectionStrings__Spatia");
         using var process = Process.Start(start)!;
         var output = process.StandardOutput.ReadToEndAsync();
         var error = process.StandardError.ReadToEndAsync();
-        try { await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(120)); }
+        try { await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(180)); }
         catch { process.Kill(entireProcessTree: true); await process.WaitForExitAsync(); throw; }
         await Assert.That(process.ExitCode).IsEqualTo(0).Because(await output + await error);
         await using var verify = fixture.App.Services.CreateAsyncScope();
@@ -82,6 +103,9 @@ public sealed class ProjectGrantBrowserTests
         var assignment = await databaseAfter.ClassAssignments.SingleAsync();
         await Assert.That(assignment.Title).IsEqualTo("Live class assignment");
         await Assert.That(await databaseAfter.ClassAssignmentStudents.CountAsync()).IsEqualTo(1);
+        var documents = await databaseAfter.Projects.Select(row => row.DocumentJson).ToArrayAsync();
+        await Assert.That(documents.Count(json => System.Text.Json.Nodes.JsonNode.Parse(json)!["title"]!.GetValue<string>()
+            == "Live blank project")).IsEqualTo(1);
     }
 
     [Test]
