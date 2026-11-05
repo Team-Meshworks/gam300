@@ -176,11 +176,10 @@ This local loopback test does not establish Linux Docker bridge or VM behavior.
 
 The build checks both projects with nullable analysis, style enforcement and warnings
 as errors. The minimum-test option is passed to the test module after `--`, so skipped
-tests do not satisfy it. The test runner uses local named pipes; Codex's restricted
+tests do not satisfy it. The test runner uses local named pipes; a restricted
 Windows sandbox denied those pipes before executing tests and before loading the
-formatter workspace. The formatter and test commands were verified through scoped
-permission to run outside that sandbox. A normal developer shell does not inherit
-that sandbox restriction.
+formatter workspace. The formatter and test commands were verified outside that
+sandbox. A normal developer shell does not inherit that sandbox restriction.
 
 Verified on 9 October 2026 against the working tree: locked restore passed; Release
 build passed with zero warnings/errors; both formatting checks passed; **74 tests
