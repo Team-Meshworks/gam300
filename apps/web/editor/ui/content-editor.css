@@ -550,7 +550,7 @@ dialog.content-dialog.pdf-content-dialog
   .content-tabs
   button:not([aria-pressed="true"]):is(:hover, :focus-visible)
   .content-tab-background {
-  background: var(--card-raised);
+  background: var(--button);
 }
 
 dialog.content-dialog.pdf-content-dialog .content-format {
@@ -758,4 +758,12 @@ dialog.content-dialog.pdf-content-dialog .content-font-size .asset-filter-trigge
   width: 12px;
   height: 12px;
   flex-shrink: 0;
+}
+
+/* Disabled tabs mute their icon without painting a rectangle behind the curved hover. */
+dialog.content-dialog.pdf-content-dialog .content-tabs button:disabled {
+  background: transparent;
+}
+dialog.content-dialog.pdf-content-dialog .content-tabs button:disabled .content-tab-icon {
+  opacity: 0.4;
 }

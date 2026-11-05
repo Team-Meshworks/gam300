@@ -68,26 +68,67 @@ const ack = {
 };
 
 describe("review HTTP contract", () => {
+  it.each(["before token", "after token"])(
+    "rejects an account switch %s without writing as the replacement account",
+    async (timing) => {
+      let active = timing === "before token" ? studentId : educatorId;
+      let decisions = 0;
+      const request = vi.fn<typeof fetch>(async (path, init) => {
+        const expected = new Headers(init?.headers).get("X-Spatia-Account");
+        if (expected && expected !== active) return json({ code: "account_changed" }, 403);
+        if (path === "/api/auth/csrf") {
+          active = studentId;
+          return json({ requestToken: "replacement-token" });
+        }
+        decisions++;
+        return json(
+          {
+            submissionId,
+            decisionId,
+            sequence: 1,
+            outcome: decide.outcome,
+            feedback: decide.feedback,
+            decidedAt: stamp,
+          },
+          201,
+        );
+      });
+      expect(await createReviewClient(request).execute(decide, educatorId)).toMatchObject({
+        kind: "rejected",
+        error: { code: "account_changed" },
+      });
+      expect(decisions).toBe(0);
+      expect(new Headers(request.mock.calls[0]?.[1]?.headers).get("X-Spatia-Account")).toBe(
+        educatorId,
+      );
+    },
+  );
   it("uses CSRF, same-origin credentials and an exact saved revision", async () => {
     const request = vi
       .fn<typeof fetch>()
       .mockResolvedValueOnce(json({ requestToken: "token" }))
       .mockResolvedValueOnce(json(ack, 201));
-    expect(await createReviewClient(request).execute(submit)).toEqual({ kind: "confirmed" });
+    expect(await createReviewClient(request).execute(submit, studentId)).toEqual({
+      kind: "confirmed",
+    });
     expect(request.mock.calls[1]).toEqual([
       "/api/projects/" + projectId + "/submissions",
       expect.objectContaining({
         method: "POST",
         credentials: "same-origin",
         cache: "no-store",
-        headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": "token" },
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-TOKEN": "token",
+          "X-Spatia-Account": studentId,
+        },
         body: JSON.stringify({ submissionId, expectedRevision: 7, completionConfirmed: true }),
       }),
     ]);
   });
   it("does not send a mutation when CSRF acquisition fails", async () => {
     const request = vi.fn<typeof fetch>().mockResolvedValue(json({ code: "auth" }, 401));
-    expect((await createReviewClient(request).execute(submit)).kind).toBe("rejected");
+    expect((await createReviewClient(request).execute(submit, studentId)).kind).toBe("rejected");
     expect(request).toHaveBeenCalledTimes(1);
   });
   it("reports unavailable retained assets as a known rejection", async () => {
@@ -95,7 +136,7 @@ describe("review HTTP contract", () => {
       .fn<typeof fetch>()
       .mockResolvedValueOnce(json({ requestToken: "token" }))
       .mockResolvedValueOnce(json({ code: "review_assets_unavailable" }, 503));
-    expect(await createReviewClient(request).execute(submit)).toMatchObject({
+    expect(await createReviewClient(request).execute(submit, studentId)).toMatchObject({
       kind: "rejected",
       error: { code: "review_assets_unavailable" },
     });
@@ -105,7 +146,9 @@ describe("review HTTP contract", () => {
       .fn<typeof fetch>()
       .mockResolvedValueOnce(json({ requestToken: "token" }))
       .mockResolvedValueOnce(json({}, status));
-    expect(await createReviewClient(request).execute(submit)).toEqual({ kind: "unknown" });
+    expect(await createReviewClient(request).execute(submit, studentId)).toEqual({
+      kind: "unknown",
+    });
   });
   it("reuses the same decision ID and feedback after a lost response", async () => {
     const request = vi
@@ -127,8 +170,8 @@ describe("review HTTP contract", () => {
         ),
       );
     const client = createReviewClient(request);
-    expect(await client.execute(decide)).toEqual({ kind: "unknown" });
-    expect(await client.execute(decide)).toEqual({ kind: "confirmed" });
+    expect(await client.execute(decide, educatorId)).toEqual({ kind: "unknown" });
+    expect(await client.execute(decide, educatorId)).toEqual({ kind: "confirmed" });
     expect(request.mock.calls[1]?.[1]?.body).toEqual(request.mock.calls[3]?.[1]?.body);
   });
   it.each([
@@ -140,7 +183,9 @@ describe("review HTTP contract", () => {
       .fn<typeof fetch>()
       .mockResolvedValueOnce(json({ requestToken: "token" }))
       .mockResolvedValueOnce(json(badAck));
-    expect(await createReviewClient(request).execute(submit)).toEqual({ kind: "unknown" });
+    expect(await createReviewClient(request).execute(submit, studentId)).toEqual({
+      kind: "unknown",
+    });
   });
   it("rejects HTML fallback and mismatched project content", async () => {
     await expect(

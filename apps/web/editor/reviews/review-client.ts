@@ -116,6 +116,7 @@ function review(v: unknown, projectId: string, submissionId: string): Review {
   };
 }
 const problemMessages: Record<string, string> = {
+  account_changed: "The account changed. Reload before continuing. Your feedback is preserved.",
   review_assets_unavailable:
     "Submission is unavailable because the project's assets are not ready for review. Your saved project is unchanged.",
   review_decision_conflict:
@@ -183,10 +184,16 @@ export function createReviewClient(request: typeof fetch = fetch) {
       id(submissionId),
     );
   }
-  async function execute(intent: ReviewIntent): Promise<WriteResult> {
+  async function execute(intent: ReviewIntent, actorId: string): Promise<WriteResult> {
     let token: string;
     try {
-      token = string(record(await get("/api/auth/csrf")).requestToken);
+      token = string(
+        record(
+          await read(
+            await send("/api/auth/csrf", { headers: { "X-Spatia-Account": id(actorId) } }),
+          ),
+        ).requestToken,
+      );
       if (!token) throw invalid();
     } catch (error) {
       return { kind: "rejected", error: error instanceof ReviewError ? error : invalid() };
@@ -211,7 +218,11 @@ export function createReviewClient(request: typeof fetch = fetch) {
     try {
       response = await send(path, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": token },
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-TOKEN": token,
+          "X-Spatia-Account": id(actorId),
+        },
         body: JSON.stringify(body),
       });
     } catch {

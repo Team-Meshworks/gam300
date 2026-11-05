@@ -15,6 +15,66 @@ namespace Spatia.Server.Tests;
 public sealed class PublicationEndpointTests
 {
     [Test]
+    public async Task Publish_UnsupportedLegacyInteractionsAreRejectedBeforeCommitting()
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync();
+        var (data, _) = await PrepareAsync(fixture, interactions: true);
+        using var readiness = await fixture.Client.GetAsync($"/api/projects/{data.ProjectId}/publication-readiness");
+        var state = await readiness.Content.ReadFromJsonAsync<JsonElement>();
+        await Assert.That(state.GetProperty("state").GetString()).IsEqualTo("UnsupportedRuntime");
+        using var response = await PublishAsync(fixture, data.ProjectId, Guid.NewGuid());
+        await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.UnprocessableEntity);
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+        await Assert.That(problem.GetProperty("code").GetString()).IsEqualTo("unsupported_publication_runtime");
+        await using var scope = fixture.App.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await Assert.That(await database.Publications.CountAsync()).IsEqualTo(0);
+        await Assert.That(await database.PublicationAccess.CountAsync()).IsEqualTo(0);
+    }
+
+    [Test]
+    public async Task PublicationViewers_OnlyCurrentPublishersCanPageEligibleOrganizationAccounts()
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync();
+        var (data, _) = await PrepareAsync(fixture);
+        await using var scope = fixture.App.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await database.ProjectAssignments.Where(row => row.ProjectId == data.ProjectId && row.UserId == data.Student)
+            .ExecuteUpdateAsync(set => set.SetProperty(row => row.CanPublish, true));
+        var foreign = await fixture.CreateAccountAsync();
+        await fixture.SignInAsync(data.Student);
+        using var roster = await fixture.Client.GetAsync($"/api/classes/{data.ClassroomId}/roster");
+        await Assert.That(roster.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+        var viewers = new List<Guid>();
+        string? cursor = null;
+        do
+        {
+            using var response = await fixture.Client.GetAsync($"/api/projects/{data.ProjectId}/publication-viewers?limit=1" + (cursor is null ? "" : "&cursor=" + cursor));
+            await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.OK);
+            await Assert.That(response.Headers.CacheControl?.NoStore).IsTrue();
+            var page = await response.Content.ReadFromJsonAsync<JsonElement>();
+            foreach (var item in page.GetProperty("items").EnumerateArray())
+            {
+                viewers.Add(item.GetProperty("userId").GetGuid());
+                await Assert.That(string.IsNullOrWhiteSpace(item.GetProperty("userName").GetString())).IsFalse();
+            }
+            cursor = page.GetProperty("nextCursor").GetString();
+            await Assert.That(viewers.Count <= 3).IsTrue();
+        } while (cursor is not null);
+        await Assert.That(viewers.Contains(data.OtherStudent)).IsTrue();
+        await Assert.That(viewers.Contains(data.Educator)).IsTrue();
+        await Assert.That(viewers.Contains(foreign)).IsFalse();
+        await database.Users.Where(row => row.Id == data.OtherStudent).ExecuteUpdateAsync(set => set.SetProperty(row => row.MustChangePassword, true));
+        using var restricted = await fixture.Client.GetAsync($"/api/projects/{data.ProjectId}/publication-viewers");
+        var eligible = await restricted.Content.ReadFromJsonAsync<JsonElement>();
+        await Assert.That(eligible.GetProperty("items").EnumerateArray().Any(row => row.GetProperty("userId").GetGuid() == data.OtherStudent)).IsFalse();
+        await database.ProjectAssignments.Where(row => row.ProjectId == data.ProjectId && row.UserId == data.Student)
+            .ExecuteUpdateAsync(set => set.SetProperty(row => row.CanPublish, false));
+        using var denied = await fixture.Client.GetAsync($"/api/projects/{data.ProjectId}/publication-viewers");
+        await Assert.That(denied.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+    }
+
+    [Test]
     [Arguments(true)]
     [Arguments(false)]
     public async Task PublishReadiness_ReportsSavedRevisionPrerequisitesWithoutCreatingAnEdition(bool approved)
@@ -240,7 +300,7 @@ public sealed class PublicationEndpointTests
     }
 
     internal static async Task<(ReviewSubmissionEndpointTests.Seeded Data, AssetCandidate Asset)> PrepareAsync(
-        HttpsApplicationFixture fixture, bool approve = true)
+        HttpsApplicationFixture fixture, bool approve = true, bool interactions = false)
     {
         fixture.App.Configuration["Publication:Origin"] = "https://publications.example.test";
         var data = await ReviewSubmissionEndpointTests.SeedAsync(fixture, false);
@@ -269,6 +329,7 @@ public sealed class PublicationEndpointTests
             var document = JsonNode.Parse(project.DocumentJson)!;
             document["scenes"]![0]!["environmentAssetId"] = asset.Id.ToString();
             document["scenes"]![0]!["objects"] = new JsonArray();
+            if (interactions) { document["scenes"]![0]!["interactions"] = JsonNode.Parse("""[{"when":{"type":"scene-starts"},"do":{"type":"open-link","url":"https://example.com/"}}]"""); }
             project.DocumentJson = document.ToJsonString();
             await database.SaveChangesAsync();
         }

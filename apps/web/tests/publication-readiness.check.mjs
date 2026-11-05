@@ -48,7 +48,8 @@ try {
               approved: state === "Ready",
             },
           });
-    if (path === "/api/classes") return route.fulfill({ json: { items: [], nextCursor: null } });
+    if (path === `/api/projects/${projectId}/publication-viewers`)
+      return route.fulfill({ json: { items: [], nextCursor: null } });
     if (path === `/api/projects/${projectId}/publications`) {
       writes.push(request.postDataJSON());
       if (loseResponse) return route.abort();

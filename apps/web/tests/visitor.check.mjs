@@ -55,7 +55,8 @@ glb.writeUInt32LE(positions.length, 20 + padded);
 glb.writeUInt32LE(0x004e4942, 24 + padded);
 positions.copy(glb, 28 + padded);
 const hash = createHash("sha256").update(glb).digest("hex");
-let mode = "allowed";
+let mode = "transient";
+let transientAssetRequests = 0;
 const requests = [];
 const errors = [];
 const browser = await launchBrowser({ target: origin, args: ["--enable-unsafe-swiftshader"] });
@@ -84,13 +85,18 @@ try {
           ],
         },
       });
-    if (path.endsWith("/bytes"))
+    if (path.endsWith("/bytes")) {
+      if (mode === "transient" && ++transientAssetRequests === 1)
+        return route.fulfill({ status: 429 });
       return route.fulfill({ contentType: "model/gltf-binary", body: glb });
+    }
     return route.fulfill({ json: snapshot });
   });
   await page.goto(`${origin}/p/${publicationId}`);
   await page.getByRole("heading", { name: "Visitor test exhibition" }).waitFor();
   await page.getByRole("status").getByText("Exhibition ready").waitFor();
+  assert.equal(transientAssetRequests, 2);
+  mode = "allowed";
   const canvas = page.locator("canvas[aria-label='Exhibition view']");
   assert.equal(await canvas.count(), 1);
   assert.ok(await canvas.evaluate((element) => element.width > 0 && element.height > 0));

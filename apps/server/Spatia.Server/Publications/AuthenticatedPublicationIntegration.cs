@@ -16,7 +16,8 @@ internal sealed class AuthenticatedPublicationIntegration : IPublicationIntegrat
         var intent = ReadIntent(request);
         if (intent.Failure is { } failure) { return PublicationPreparation.Denied(failure); }
         // The protected snapshot contract covers baseline exhibits; a visitor runtime capability contract is separate
-        if (document is not LegacyProject { SchemaVersion: 1 })
+        if (document is not LegacyProject { SchemaVersion: 1 } legacy
+            || legacy.Scenes.Any(scene => scene.Interactions.Length != 0 || scene.Hotspots.Length != 0))
         {
             return PublicationPreparation.Denied(PublicationRejection.UnsupportedRuntime);
         }

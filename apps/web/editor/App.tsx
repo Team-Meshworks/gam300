@@ -729,7 +729,6 @@ export function App({ server }: { server?: ServerEditorSession }) {
             const result = store.deleteHotspot(id);
             if (!result.ok) setNotice(result.error.message);
           }}
-          onContent={openContent}
           scenes={
             <Scenes
               key={`${loadGeneration}:${project?.projectId ?? "new"}:${activeSceneId}:${projectScene?.name}`}

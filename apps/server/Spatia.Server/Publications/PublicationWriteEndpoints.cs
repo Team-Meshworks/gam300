@@ -1,4 +1,7 @@
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
+using Spatia.Server.Classes;
+using Spatia.Server.Persistence;
 using Spatia.Server.Hosting;
 using Spatia.Server.Projects;
 using Spatia.Server.Security;
@@ -9,6 +12,28 @@ internal static class PublicationWriteEndpoints
 {
     internal static void MapPublicationWrites(this IEndpointRouteBuilder endpoints)
     {
+        endpoints.MapGet("/api/projects/{id:guid}/publication-viewers", async (Guid id,
+            HttpContext context, ApplicationDbContext database, ProjectAccessService access, CancellationToken token) =>
+        {
+            if (!ClassroomEndpoints.TryPage(context, out var limit, out var cursor))
+            { return ApiProblems.Create(context, 400, "invalid_query", "Check the page size and cursor"); }
+            var authorized = await access.ReadAsync(context, id, token);
+            if (authorized.Failure is { } failure) { return ProjectHttpResults.FromAccessFailure(context, failure); }
+            if (authorized.Snapshot is not { CanPublish: true } project)
+            { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.NotFound); }
+            // Expose only eligible names and IDs in this publisher's project organization
+            var query = from member in database.OrganizationMemberships.AsNoTracking()
+                        join user in database.Users.AsNoTracking() on member.UserId equals user.Id
+                        where member.OrganizationId == project.OrganizationId && user.IsActive && !user.MustChangePassword
+                            && database.Organizations.Any(org => org.Id == member.OrganizationId && org.IsActive)
+                            && database.UserRoles.Any(role => role.UserId == member.UserId && role.RoleId == member.RoleId)
+                        select new { userId = user.Id, userName = user.UserName };
+            if (cursor is { } after) { query = query.Where(row => row.userId.CompareTo(after) > 0); }
+            var rows = await query.OrderBy(row => row.userId).Take(limit + 1).ToListAsync(token);
+            context.Response.Headers.CacheControl = "private, no-store";
+            return Results.Ok(new { items = rows.Take(limit).ToArray(), nextCursor = rows.Count > limit ? rows[limit - 1].userId : (Guid?)null });
+        }).RequireAuthorization(SecurityPolicies.FullAccount);
+
         endpoints.MapGet("/api/projects/{id:guid}/publication-readiness", async (Guid id,
             PublicationCoordinator coordinator, HttpContext context, IConfiguration configuration, CancellationToken token) =>
         {

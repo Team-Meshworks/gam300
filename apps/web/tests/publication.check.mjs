@@ -9,7 +9,7 @@ const student = "9ea0882b-9365-4b9c-b8b8-e5ee113ad07e";
 const classId = "aea0882b-9365-4b9c-b8b8-e5ee113ad07e";
 const session = {
   userId: actor,
-  role: "Educator",
+  role: "Creator",
   displayName: "Teacher",
   orgId: classId,
   mustChangePassword: false,
@@ -20,6 +20,7 @@ let canPublish = true;
 let rosterAvailable = true;
 let largeRoster = false;
 let currentSession = session;
+let classRequests = 0;
 try {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   page.setDefaultTimeout(5000);
@@ -41,25 +42,25 @@ try {
           permissions: { canPublish },
         },
       });
-    if (path === "/api/classes")
+    if (path === `/api/projects/${projectId}/publication-viewers`) {
+      if (!rosterAvailable) return route.fulfill({ status: 503 });
+      const cursor = new URL(request.url()).searchParams.get("cursor");
+      const items = largeRoster
+        ? Array.from({ length: 101 }, (_, index) => ({
+            userId: `9ea0882b-9365-4b9c-b8b8-${String(index + 1).padStart(12, "0")}`,
+            userName: `Student ${index + 1}`,
+          }))
+        : [{ userId: student, userName: "Aisyah" }];
       return route.fulfill({
-        json: { items: [{ id: classId, name: "Class A" }], nextCursor: null },
+        json: cursor
+          ? { items: items.slice(1), nextCursor: null }
+          : { items: items.slice(0, 1), nextCursor: student },
       });
-    if (path === `/api/classes/${classId}/roster`)
-      return rosterAvailable
-        ? route.fulfill({
-            json: {
-              items: largeRoster
-                ? Array.from({ length: 101 }, (_, index) => ({
-                    userId: `9ea0882b-9365-4b9c-b8b8-${String(index + 1).padStart(12, "0")}`,
-                    userName: `Student ${index + 1}`,
-                    accountActive: true,
-                  }))
-                : [{ userId: student, userName: "Aisyah", accountActive: true }],
-              nextCursor: null,
-            },
-          })
-        : route.fulfill({ status: 403 });
+    }
+    if (path.startsWith("/api/classes")) {
+      classRequests += 1;
+      return route.fulfill({ status: 403 });
+    }
     if (path === `/api/projects/${projectId}/publications`) {
       assert.equal(request.headers()["x-spatia-account"], actor);
       const body = request.postDataJSON();
@@ -95,6 +96,7 @@ try {
   assert.equal(await page.getByRole("link", { name: /open publication/i }).count(), 0);
   assert.deepEqual(requests[0].intent, { audience: "Authenticated", viewerIds: [student] });
   assert.equal(requests[0].confirmedRevision, 4);
+  assert.equal(classRequests, 0);
   await page.reload();
   await page.getByText(/could not be confirmed/i).waitFor();
   assert.equal(await page.getByRole("link", { name: /open publication/i }).count(), 0);

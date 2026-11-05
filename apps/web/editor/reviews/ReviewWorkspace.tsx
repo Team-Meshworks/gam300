@@ -251,6 +251,7 @@ function ClassReviews({
           studentName={studentName(selectedProject.studentId)}
           className={className}
           role={session.role}
+          actorId={session.userId}
           onGuard={onGuard}
         />
       )}

@@ -2,8 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import type { AccountSession } from "../accounts/account-client";
 import { createAccountClient } from "../accounts/account-client";
 import { createWorkspaceClient, isId, isRecord } from "../home/workspace-api";
-import { allPages, createReviewClient } from "../reviews/review-client";
-import type { Classroom, Student } from "../reviews/review-types";
 import { Button } from "../../shared/ui/Button";
 import {
   publicationAcknowledgement,
@@ -14,7 +12,6 @@ import "./publication.css";
 
 const api = createWorkspaceClient();
 const accounts = createAccountClient();
-const reviews = createReviewClient();
 type Saved = { title: string; revision: number; canPublish: boolean };
 type Readiness = { state: string; completionConfirmed: boolean | null; approved: boolean | null };
 const readinessMessages: Record<string, string> = {
@@ -28,7 +25,7 @@ const readinessMessages: Record<string, string> = {
     "Publishing is unavailable for this project until its origin and required services can be verified.",
   PolicyDenied: "Publication is unavailable under the current project policy.",
 };
-type ViewerGroup = { classroom: Classroom; students: Student[] };
+type Viewer = { userId: string; userName: string };
 const problems = {
   revision_conflict:
     "The saved project has changed. Refresh and confirm the latest revision before publishing.",
@@ -90,7 +87,7 @@ export function PublicationPage({ session }: { session: AccountSession }) {
   const [error, setError] = useState(
     pending.error ? storageMessage : pending.request ? uncertainMessage : "",
   );
-  const [groups, setGroups] = useState<ViewerGroup[]>([]);
+  const [viewers, setViewers] = useState<Viewer[]>([]);
   const [viewersLoading, setViewersLoading] = useState(true);
   const [viewersError, setViewersError] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
@@ -178,19 +175,28 @@ export function PublicationPage({ session }: { session: AccountSession }) {
     })();
     void (async () => {
       try {
-        const classes = await allPages((cursor) => reviews.classrooms(cursor));
-        const rows = await Promise.all(
-          classes.map(async (classroom) => ({
-            classroom,
-            students: (await allPages((cursor) => reviews.roster(classroom.id, cursor))).filter(
-              (student) => student.accountActive && student.userId !== session.userId,
-            ),
-          })),
+        const rows = await api.pages(
+          `/api/projects/${encodeURIComponent(projectId)}/publication-viewers`,
         );
+        const seen = new Set<string>();
+        const eligible = rows
+          .map((row) => {
+            if (
+              !isRecord(row) ||
+              !isId(row.userId) ||
+              typeof row.userName !== "string" ||
+              !row.userName.trim() ||
+              seen.has(row.userId)
+            )
+              throw new Error("The viewer list could not be verified.");
+            seen.add(row.userId);
+            return { userId: row.userId, userName: row.userName };
+          })
+          .filter((viewer) => viewer.userId !== session.userId);
         const current = await accounts.getSession();
         if (current?.userId !== session.userId || current.mustChangePassword)
           throw new Error("Account changed");
-        if (!cancelled) setGroups(rows);
+        if (!cancelled) setViewers(eligible);
       } catch {
         if (!cancelled) setViewersError(true);
       } finally {
@@ -382,38 +388,26 @@ export function PublicationPage({ session }: { session: AccountSession }) {
                 {viewersError && (
                   <p>Viewers could not be loaded. You can publish for yourself only.</p>
                 )}
-                {!viewersLoading &&
-                  !viewersError &&
-                  groups.every((group) => group.students.length === 0) && (
-                    <p>No other viewers are available to select.</p>
-                  )}
-                {groups.map(
-                  ({ classroom, students }) =>
-                    students.length > 0 && (
-                      <div key={classroom.id}>
-                        <h3>{classroom.name}</h3>
-                        {students.map((student) => (
-                          <label key={student.userId}>
-                            <input
-                              type="checkbox"
-                              checked={selected.includes(student.userId)}
-                              disabled={
-                                selected.length >= 100 && !selected.includes(student.userId)
-                              }
-                              onChange={(event) =>
-                                setSelected((previous) =>
-                                  event.target.checked
-                                    ? [...new Set([...previous, student.userId])]
-                                    : previous.filter((id) => id !== student.userId),
-                                )
-                              }
-                            />{" "}
-                            {student.userName}
-                          </label>
-                        ))}
-                      </div>
-                    ),
+                {!viewersLoading && !viewersError && viewers.length === 0 && (
+                  <p>No other viewers are available to select.</p>
                 )}
+                {viewers.map((viewer) => (
+                  <label key={viewer.userId}>
+                    <input
+                      type="checkbox"
+                      checked={selected.includes(viewer.userId)}
+                      disabled={selected.length >= 100 && !selected.includes(viewer.userId)}
+                      onChange={(event) =>
+                        setSelected((previous) =>
+                          event.target.checked
+                            ? [...previous, viewer.userId]
+                            : previous.filter((id) => id !== viewer.userId),
+                        )
+                      }
+                    />{" "}
+                    {viewer.userName}
+                  </label>
+                ))}
                 <label>
                   <input
                     type="checkbox"

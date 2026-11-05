@@ -22,8 +22,8 @@ try {
   let loginRequests = 0;
   let passwordRequests = 0;
   let releaseLogin;
-  let notifyLogin;
   let pendingLogin;
+  let loginStarted;
   await page.route("**/api/auth/**", async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
@@ -47,7 +47,7 @@ try {
         : route.fulfill({ status: 401 });
     if (path === "/api/auth/login") {
       loginRequests += 1;
-      notifyLogin?.();
+      loginStarted?.();
       assert.equal(request.headers()["x-csrf-token"], "browser-test-token");
       assert.deepEqual(request.postDataJSON(), {
         userName: "teacher",
@@ -173,17 +173,21 @@ try {
   pendingLogin = new Promise((resolve) => {
     releaseLogin = resolve;
   });
-  const loginStarted = new Promise((resolve) => {
-    notifyLogin = resolve;
-  });
   const submit = page.getByRole("button", { name: /log in/i });
+  const receivedLogin = new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error("Login request was not received")), 5000);
+    loginStarted = () => {
+      clearTimeout(timeout);
+      resolve();
+    };
+  });
   await submit.click();
   await page.waitForFunction(() => document.querySelector("fieldset")?.disabled);
-  await loginStarted;
+  await receivedLogin;
+  loginStarted = undefined;
   assert.equal(loginRequests, 1);
   releaseLogin();
   pendingLogin = undefined;
-  notifyLogin = undefined;
   await page.getByText(/username or password could not be accepted/i).waitFor();
   assert.equal(loginRequests, 1);
   assert.equal(

@@ -37,6 +37,7 @@ export function ProjectReview({
   studentName,
   className,
   role,
+  actorId,
   onGuard,
 }: {
   client: ReviewClient;
@@ -45,6 +46,7 @@ export function ProjectReview({
   studentName: string;
   className: string;
   role: AccountRole;
+  actorId: string;
   onGuard: (guard: LeaveGuard) => void;
 }) {
   const [project, setProject] = useState<SavedProject | null>(null);
@@ -190,7 +192,7 @@ export function ProjectReview({
     setPhase("sending");
     setError("");
     setNotice("");
-    const result = await client.execute(sent);
+    const result = await client.execute(sent, actorId);
     if (!mounted.current) return;
     busy.current = false;
     if (result.kind === "confirmed") {

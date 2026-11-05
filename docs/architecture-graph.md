@@ -7,6 +7,7 @@ Vite/ESLint/Vitest configuration and architecture tooling.
 
 ```mermaid
 graph TD
+  visitor["visitor"]
   project["project"]
   catalogue["catalogue"]
   asset-loading["asset-loading"]
@@ -18,6 +19,9 @@ graph TD
   editor["editor"]
   build["build"]
   checks["checks"]
+  visitor --> asset-loading
+  visitor --> catalogue
+  visitor --> project
   asset-loading --> catalogue
   document --> catalogue
   document --> project
@@ -44,6 +48,7 @@ graph TD
   checks --> persistence
   checks --> project
   checks --> rendering
+  checks --> visitor
 ```
 
 Full file/line/import evidence and source hashes: [architecture-graph.json](architecture-graph.json).

@@ -4,6 +4,7 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { disposeModels } from "../shared/asset-runtime/ModelCache";
 import type { PublishedExhibition } from "./publication";
+import { fetchPublicationAsset } from "./publication-asset";
 
 export function ExhibitionCanvas({
   exhibition,
@@ -110,11 +111,7 @@ export function ExhibitionCanvas({
       for (const object of objects) {
         const asset = exhibition.assets.find((row) => row.id === object.assetId);
         if (!asset) throw new Error("An exhibition asset is missing.");
-        const response = await fetch(asset.url, {
-          signal: controller.signal,
-          credentials: "same-origin",
-          cache: "no-store",
-        });
+        const response = await fetchPublicationAsset(asset.url, controller.signal);
         if (!response.ok)
           throw new Error("An exhibition asset is unavailable. Your access may have changed.");
         const bytes = await response.arrayBuffer();
