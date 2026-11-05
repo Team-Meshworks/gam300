@@ -67,10 +67,12 @@ async function addAsset(page, name, position = { x: 500, y: 300 }) {
   // Wait for React to arm placement before clicking; the room centre stays valid across viewport sizes
   const stage = page.locator(".viewport-stage[data-placing-asset]");
   await stage.waitFor();
+  await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   const bounds = await stage.boundingBox();
   await stage.click({
     position: name === "Starter room" ? { x: bounds.width / 2, y: bounds.height / 2 } : position,
   });
+  await stage.waitFor({ state: "hidden" });
 }
 
 try {
