@@ -175,6 +175,8 @@ jobs:
             script: test:browser
           - name: integration
             script: test:integration
+          - name: first-person-sandbox
+            script: test:first-person-sandbox
           - name: caching
             script: test:caching
           - name: recovery

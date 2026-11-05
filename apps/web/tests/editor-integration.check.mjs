@@ -566,6 +566,7 @@ try {
       handle,
       manager,
       object,
+      savedScene: fixture.scenes[0],
       toScreen,
       reset(selected = object.id) {
         state.commits = 0;
@@ -599,6 +600,8 @@ try {
         scale: instance.scale.x,
         position: instance.position.toArray(),
         camera: camera.position.toArray(),
+        cameraRotation: camera.quaternion.toArray(),
+        gizmoVisible: gizmo.visible,
         gizmoTip: gizmo.children[1].scale.x,
       }),
     };
@@ -793,6 +796,73 @@ try {
     handle.showCamera({ position: [0, 2, 10], rotation: [0, 0, 0, 1], fovDegrees: 40 });
   });
   assert.deepEqual((await read()).camera, [0, 2, 10], "First person keeps a restored pose");
+  const rolledPose = {
+    position: [0, 0.25, 6],
+    rotation: [0, 0, Math.sin(Math.PI / 12), Math.cos(Math.PI / 12)],
+    fovDegrees: 40,
+  };
+  await touchPage.evaluate((pose) => window.harness.handle.showCamera(pose), rolledPose);
+  let restored = await read();
+  assert.deepEqual(
+    restored.camera,
+    rolledPose.position,
+    "Restoring preserves a low authored height",
+  );
+  assert.ok(
+    Math.abs(
+      restored.cameraRotation.reduce(
+        (sum, value, index) => sum + value * rolledPose.rotation[index],
+        0,
+      ),
+    ) > 0.99999,
+    "Restoring preserves authored roll",
+  );
+  await touchPage.evaluate((pose) => {
+    const h = window.harness;
+    h.handle.update([h.object], h.object.id, { ...h.savedScene, startCamera: pose }, 123);
+  }, rolledPose);
+  restored = await read();
+  assert.deepEqual(
+    restored.camera,
+    rolledPose.position,
+    "Reopening preserves the low starting position",
+  );
+  assert.ok(
+    Math.abs(
+      restored.cameraRotation.reduce(
+        (sum, value, index) => sum + value * rolledPose.rotation[index],
+        0,
+      ),
+    ) > 0.99999,
+    "Reopening preserves authored roll",
+  );
+  const verticalPose = {
+    position: [0, 0.25, 6],
+    rotation: [Math.SQRT1_2, 0, 0, Math.SQRT1_2],
+    fovDegrees: 40,
+  };
+  await touchPage.evaluate((pose) => window.harness.handle.showCamera(pose), verticalPose);
+  const vertical = await read();
+  assert.ok(
+    Math.abs(
+      vertical.cameraRotation.reduce(
+        (sum, value, index) => sum + value * verticalPose.rotation[index],
+        0,
+      ),
+    ) > 0.99999,
+    "An authored vertical view remains exact until the user looks",
+  );
+
+  await touchPage.evaluate(() =>
+    window.harness.handle.showCamera({
+      position: [0, 0.9, 6],
+      rotation: [0, 1, 0, 0],
+      fovDegrees: 40,
+    }),
+  );
+  assert.equal((await read()).gizmoVisible, false, "Gizmo hides behind the first-person camera");
+  await touchPage.evaluate(() => window.harness.handle.mobileControls.setLook(Math.PI / 0.002, 0));
+  assert.equal((await read()).gizmoVisible, true, "Turning toward selection reveals the gizmo");
   await touchPage.evaluate(() => {
     window.harness.handle.showCamera({
       position: [0, 0.9, 6],

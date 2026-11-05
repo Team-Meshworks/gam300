@@ -458,9 +458,9 @@ try {
   await page.keyboard.down("s");
   await page.waitForTimeout(600);
   await page.keyboard.up("s");
-  // Let the walk glide to a stop, a click while still moving is allowed to carry
-  await page.waitForTimeout(250);
+  // A stationary click immediately after walking must not carry residual velocity.
   await page.mouse.down();
+  await page.waitForTimeout(100);
   await page.mouse.up();
   assert.equal(await rows.first().getAttribute("aria-pressed"), "true", "Crosshair picks");
   assert.equal(await position.textContent(), initialPosition, "A plain click carries nothing");

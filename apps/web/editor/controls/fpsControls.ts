@@ -13,6 +13,7 @@ const LOOK_SPEED = 0.002;
 const MAX_LOOK_STEP = 100;
 const MAX_PITCH = Math.PI / 2 - 0.01;
 const PHYSICS_DT = 1 / 240;
+const LOCK_RETRY_MS = 2000;
 
 // C goes down instead of Ctrl, Ctrl+W closes the tab and Ctrl is kept for snapping
 const HANDLED_KEYS = new Set([
@@ -50,6 +51,8 @@ export class FpsControls {
   private flying = false;
   private lastSpace = -Infinity;
   private captured = false;
+  private capturePending = false;
+  private releasedAt = -Infinity;
   private ignoreNextCapturedMove = false;
   // Embedded browsers can refuse the lock for good, then dragging is how you look around
   private lockable: boolean;
@@ -98,6 +101,7 @@ export class FpsControls {
     document.addEventListener("mousemove", this.onPointerMove);
     document.addEventListener("mouseup", this.onPointerUp);
     document.addEventListener("pointerlockchange", this.onLockChange);
+    document.addEventListener("pointerlockerror", this.onLockError);
   }
 
   engage(): void {
@@ -115,14 +119,11 @@ export class FpsControls {
 
   // Pick up from wherever the camera is now. Starting in the air means flying, so nothing drops
   sync(): void {
-    this.velocity.set(0, 0, 0);
-    this.physicsPosition.copy(this.camera.position);
-    this.previousPhysics.copy(this.camera.position);
-    this.accumulated = 0;
+    this.stopMotion();
     this.flying = this.camera.position.y > EYE_HEIGHT + 1e-4;
     this._euler.setFromQuaternion(this.camera.quaternion, "YXZ");
     this.yaw = this._euler.y;
-    this.pitch = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, this._euler.x));
+    this.pitch = this._euler.x;
     this.roll = this._euler.z;
     // Below eye height is an authored low viewpoint, stand there rather than jump up
     this.minimumHeight = Math.min(EYE_HEIGHT, this.camera.position.y);
@@ -138,6 +139,14 @@ export class FpsControls {
     // Turning to face something is always upright
     this.roll = 0;
     this.applyRotation();
+  }
+
+  // A new manipulation drops old inertia but keeps deliberately held movement input
+  stopMotion(): void {
+    this.velocity.set(0, 0, 0);
+    this.physicsPosition.copy(this.camera.position);
+    this.previousPhysics.copy(this.camera.position);
+    this.accumulated = 0;
   }
 
   // A plain left click on the scene grabs the mouse instead of doing anything else
@@ -177,6 +186,7 @@ export class FpsControls {
   disengage(): void {
     if (!this.engaged) return;
     this.engaged = false;
+    this.capturePending = false;
     this.dragging = false;
     this.altFreed = false;
     this.keys.clear();
@@ -195,6 +205,7 @@ export class FpsControls {
     document.removeEventListener("mousemove", this.onPointerMove);
     document.removeEventListener("mouseup", this.onPointerUp);
     document.removeEventListener("pointerlockchange", this.onLockChange);
+    document.removeEventListener("pointerlockerror", this.onLockError);
   }
 
   update(delta: number): void {
@@ -269,16 +280,31 @@ export class FpsControls {
   }
 
   private capture(): void {
-    // Keep the legacy request for browsers that silently fail the options form.
-    // Delta validation below provides the safety against bogus movement events.
-    Promise.resolve(this.domElement.requestPointerLock()).catch((error: unknown) => {
-      // Chrome refuses for a moment after Esc; other refusals mean this page cannot lock.
-      if (error instanceof DOMException && error.name !== "SecurityError") {
-        this.lockable = false;
-        this.onCaptureChange();
-      }
-    });
+    if (!this.engaged || !this.lockable || this.capturePending) return;
+    this.capturePending = true;
+    // Some browsers return nothing, others a promise that rejects when the lock is refused
+    try {
+      Promise.resolve(this.domElement.requestPointerLock()).catch(this.onCaptureFailure);
+    } catch (error) {
+      this.onCaptureFailure(error);
+    }
   }
+
+  private readonly onCaptureFailure = (error?: unknown) => {
+    if (!this.capturePending) return;
+    this.capturePending = false;
+    if (!this.engaged) return;
+    // Escape temporarily refuses recapture; an initial sandbox denial must enable drag fallback
+    if (
+      performance.now() - this.releasedAt < LOCK_RETRY_MS &&
+      (error === undefined || (error instanceof DOMException && error.name === "SecurityError"))
+    )
+      return;
+    this.lockable = false;
+    this.onCaptureChange();
+  };
+
+  private readonly onLockError = () => this.onCaptureFailure();
 
   private readonly onPointerDown = (event: MouseEvent) => {
     if (!this.engaged || event.button !== 0) return;
@@ -317,6 +343,8 @@ export class FpsControls {
     const captured = document.pointerLockElement === this.domElement;
     if (captured === this.captured) return;
     this.captured = captured;
+    if (captured) this.capturePending = false;
+    else this.releasedAt = performance.now();
     this.dragging = false;
     this.ignoreNextCapturedMove = captured;
     this.onCaptureChange();
@@ -389,8 +417,11 @@ export class FpsControls {
 
   private applyRotation(): void {
     this.yaw -= this.mobileLookX * LOOK_SPEED;
-    this.pitch -= this.mobileLookY * LOOK_SPEED;
-    this.pitch = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, this.pitch));
+    // Clamp deliberate look input, never an untouched authored vertical pose
+    if (this.mobileLookY !== 0) {
+      this.pitch -= this.mobileLookY * LOOK_SPEED;
+      this.pitch = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, this.pitch));
+    }
     this.mobileLookX = 0;
     this.mobileLookY = 0;
     this.camera.rotation.set(this.pitch, this.yaw, this.roll, "YXZ");

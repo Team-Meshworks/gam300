@@ -1,7 +1,7 @@
 import { assert, it, vi } from "vitest";
 import * as THREE from "three";
 import type { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { EYE_HEIGHT, type FpsControls } from "../controls/fpsControls";
+import { EYE_HEIGHT, FpsControls } from "../controls/fpsControls";
 import { ModeManager } from "./modeManager";
 
 // Only the parts ModeManager touches, the real controls need a DOM
@@ -22,6 +22,7 @@ function setup() {
       engaged = false;
     },
     sync: vi.fn(),
+    syncFromCamera: vi.fn(),
     lookAt: (target: THREE.Vector3) => camera.lookAt(target),
     update: vi.fn(),
   };
@@ -52,7 +53,7 @@ it("restoring a saved camera in first person keeps its pose", () => {
   assert.deepEqual(context.camera.position.toArray(), [...savedPosition]);
   assert.ok(context.camera.quaternion.equals(savedRotation));
   // The walking controller has to pick the pose up, or its next update overwrites it
-  assert.equal(context.fps.sync.mock.calls.length, 1);
+  assert.equal(context.fps.syncFromCamera.mock.calls.length, 1);
   assert.ok(context.fps.isEngaged());
 });
 
@@ -87,6 +88,34 @@ it("restoring a camera in third person leaves the orbit camera alone", () => {
 
   restoreSavedCamera(context);
 
-  assert.equal(context.fps.sync.mock.calls.length, 0);
+  assert.equal(context.fps.syncFromCamera.mock.calls.length, 0);
   assert.equal(context.fps.isEngaged(), false);
+});
+
+it("restoring a saved first-person pose drops movement from the old view", () => {
+  const events = new EventTarget();
+  vi.stubGlobal("document", new EventTarget());
+  vi.stubGlobal("addEventListener", events.addEventListener.bind(events));
+  vi.stubGlobal("removeEventListener", events.removeEventListener.bind(events));
+  const camera = new THREE.PerspectiveCamera();
+  camera.position.set(0, 2, 10);
+  const orbit = { enabled: true, target: new THREE.Vector3(), update() {} };
+  const fps = new FpsControls(camera, new EventTarget() as HTMLElement);
+  const manager = new ModeManager(camera, orbit as unknown as OrbitControls, fps);
+  try {
+    manager.initializeView("first");
+    const before = camera.position.clone();
+    fps.mobileControls.setMove(1, 0);
+    manager.update(0.1);
+    assert.ok(camera.position.distanceTo(before) > 0.1);
+    camera.position.fromArray(savedPosition);
+    camera.quaternion.copy(savedRotation);
+    manager.resetView();
+    for (let i = 0; i < 60; i++) manager.update(1 / 60);
+    assert.ok(camera.position.distanceTo(new THREE.Vector3(...savedPosition)) < 1e-9);
+    assert.ok(camera.quaternion.angleTo(savedRotation) < 1e-6);
+  } finally {
+    fps.dispose();
+    vi.unstubAllGlobals();
+  }
 });

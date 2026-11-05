@@ -940,6 +940,7 @@ export function initScene(
     const hit = new THREE.Raycaster(ray.origin, ray.direction).intersectObject(instance, true)[0];
     if (hit === undefined) return;
     const finger = event.pointerType === "touch" ? aim : undefined;
+    fpsControls.stopMotion();
     beginDrag(event, {
       id: object.id,
       pointerId: event.pointerId,
