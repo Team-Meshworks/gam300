@@ -177,6 +177,8 @@ jobs:
             script: test:asset-admin
           - name: integration
             script: test:integration
+          - name: first-person-sandbox
+            script: test:first-person-sandbox
           - name: caching
             script: test:caching
           - name: recovery

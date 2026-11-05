@@ -298,6 +298,7 @@ export function initScene(
             geometry: {
               distance: number;
               offset: THREE.Vector3;
+              cameraPosition: THREE.Vector3;
               moving: boolean;
               // Touch carries under the finger, the mouse under the crosshair
               finger: { x: number; y: number } | undefined;
@@ -750,6 +751,8 @@ export function initScene(
   }
 
   function screenRay(clientX: number, clientY: number) {
+    // Physics can move the camera before this frame is rendered.
+    camera.updateMatrixWorld(true);
     const rect = renderer.domElement.getBoundingClientRect();
     const point = new THREE.Vector3(
       ((clientX - rect.left) / rect.width) * 2 - 1,
@@ -952,6 +955,7 @@ export function initScene(
         offset: new THREE.Vector3()
           .fromArray(object.transform.position)
           .sub(carryAim(hit.distance, finger)),
+        cameraPosition: camera.position.clone(),
         moving: false,
         finger,
       },
@@ -977,6 +981,12 @@ export function initScene(
   function carry() {
     const held = drag;
     if (held?.currentMode !== "carry") return;
+    // A pending click cannot turn gravity or leftover walking inertia into an object edit
+    // Rebase the grab point without changing the camera's physics or interpolation
+    if (!held.geometry.moving && !fpsControls.hasMovementInput()) {
+      held.geometry.offset.sub(camera.position.clone().sub(held.geometry.cameraPosition));
+    }
+    held.geometry.cameraPosition.copy(camera.position);
     const position = carryAim(held.geometry.distance, held.geometry.finger).add(
       held.geometry.offset,
     );

@@ -243,7 +243,7 @@
     "architecture.check.mjs": "7056958085076fb9a6f14992dded7faf21aedd9d78a48ae5484704020a25cfb7",
     "architecture.mjs": "fe2344a85b2daa9c2b0c1f2d79a9a46a2059fcbb9017b6d23336295cf3bc6a37",
     "asset-catalogue-plugin.ts": "510957e04b7e92e171d5dd47655c58e80ae7327a1532a59791e51388f061c924",
-    "editor/App.tsx": "bf95c0ea44aeb3d54e70712423592f88e13301e746752473529fad50a0236e9b",
+    "editor/App.tsx": "3da159d58239359d92126d12f648aa952faba90c8876eddced4d31803d8df326",
     "editor/OlderSceneImport.tsx": "9ab5f31f2ac60a12bfb5931592c54ed566140baac1bb38f3358fa0bd0ca93397",
     "editor/ProjectConfirmation.tsx": "07a0fedf8fbf88865b3b8232c8665c139348fc64ebce478ea01e55eb7fd14eff",
     "editor/Scenes.tsx": "83b06f9b5b2e07b53cfb6de08bb051f0a970d391b7599442e556d7ca791bbdbf",
@@ -265,8 +265,8 @@
     "editor/audio/ui-sounds.ts": "4cc6288694e652328a4794949cbdc88ebf555322ce4bdba215afd4ebd93bb494",
     "editor/command-history.test.ts": "783c026523513ea5520cde04e61502aba13ca3a612b509a904c2a50e50be2d1f",
     "editor/command-history.ts": "e243335582ab03da9d131bd80edef7b908e3eb0a751d6ebfa7deb77750fc54ad",
-    "editor/controls/fpsControls.test.ts": "cbd1846abe8e90e5c4d0c703ed07297f89153bc6901a757d46231ac80e28b831",
-    "editor/controls/fpsControls.ts": "6afe8f61f1d40ecd51550ce6e590ec8977ea24eeab6d50efbc0cd2c5953b4ae4",
+    "editor/controls/fpsControls.test.ts": "999d24eff03c267d19b6ac646d3e3411365e1b170c8eb1c17ca313a744ab6b5d",
+    "editor/controls/fpsControls.ts": "66775e4931daac5799ecbfca6d277d381d8362c0f84d8752c819c80688736b06",
     "editor/directory/AccountDialog.tsx": "252a33524213bea4422d6924091af632d7a21bbee2cc788fd096287cad63cb75",
     "editor/directory/AccountDirectoryPage.tsx": "8da9a3ff026ca8fb2cac9e9bad78052a0a28ec67ee36a910ba828747ee77447a",
     "editor/directory/AccountList.tsx": "a13ebd1917e4de800d12db5a7cdcd6e4864c0192de8890fd12298b534e87c5f0",
@@ -295,8 +295,8 @@
     "editor/graphics/fit-displayed-object.ts": "4fab49fb6d3dbd516659da3fb4baf185c7a094e7457cfa6239f644576468d33f",
     "editor/graphics/hotspot-anchor.test.ts": "e8e32db1e7a34f161d532efe7ecc19f866bc852d685fb85d4d21803ba1f44ff4",
     "editor/graphics/hotspot-anchor.ts": "7c9c40970d541352a3005dcb04db28dabbffd09c653a14908ca354749ef67dab",
-    "editor/graphics/modeManager.test.ts": "e7ea10b5d517dce2902ee093a8cd26d63b0b8c000b80e2f36586a13f02c00d16",
-    "editor/graphics/modeManager.ts": "a71b4638a356463eab7b6bb749d0454f5d800fe8b5eb40601aada41a293632bc",
+    "editor/graphics/modeManager.test.ts": "541792061d8bc911a1d67f2ae5dfaea50baeb24edcff0e8f1317ec0e69336799",
+    "editor/graphics/modeManager.ts": "cad03d49313db6244d082d93219af72195c2ff9964c693ec2aac770d5ff05e2c",
     "editor/graphics/placement-preview.test.ts": "0751dfefc5c31597c9d33e02c4cb4479f8458855db887090f0b5b4a4207fa467",
     "editor/graphics/placement-preview.ts": "9865bd8a31b79de8be8f2e27cc668a9488571898b63ddb28a71407988e6c1e4d",
     "editor/graphics/room-at-position.test.ts": "e28247e40b49694eafb7b09b753d1494846b721a2c74dc5ed2d28f03d11ddf6b",
@@ -307,7 +307,7 @@
     "editor/graphics/rotation.ts": "d847162644716d2b36e8b3e4f1ad190360527a46351cb2969d411dbe76ea96d3",
     "editor/graphics/scaling.test.ts": "346b243798597de2a5b00384904bdf04f9f3826a8753bcde3282e5356b0ceb0a",
     "editor/graphics/scaling.ts": "0277d21b28d246ddb2f94216fe29afb24ebbc8e257dd3510eca91bb176867da1",
-    "editor/graphics/scene.ts": "9a3013c9e0dac49a89968ddb3df6fac2c792eb5cdfc6fe0e33f2cdc42b6ec0d8",
+    "editor/graphics/scene.ts": "263c39a97d6c6141ae8b26d9a1d41978a954e36be9503ffa745b821d98b8d04d",
     "editor/graphics/text-placement.test.ts": "6725b6c884938884042c6e7ae01fb9e9556188df8bb6f640b2bc51af094daca9",
     "editor/graphics/text-placement.ts": "fc51a66844b92dfeb74b23d535419d872a5afa755cc6b0abcf2c0b731224551e",
     "editor/graphics/translation.test.ts": "b4a888b963437ca3508c04cc3e933ab215d301908384ea9af37ee8aabd6fae2c",
@@ -491,9 +491,10 @@
     "tests/display-editor.check.mjs": "ee423a82798e5cb3b77081d4764fde2dc2e8c245f7fb890abb9f43f275b0a64c",
     "tests/display-tools.check.mjs": "8ea1944de545d5ee95712d65a5d4c640c3566d40c9b54af9c0cc2a4b955c53ab",
     "tests/editor-build.check.mjs": "33f3746db22c60b0500e912f8cb41cc58a9849e03f6e65efb7c1bc7f06ad3f1c",
-    "tests/editor-integration.check.mjs": "58968598b530594f294b9d4dc819d95b0c159517fc8ab03656ab6bc18285be8c",
-    "tests/editor-shell.check.mjs": "e30cc181fdf2def0c51515582e4d88ea311f506f1030e6d6a7e012d9ccd9490a",
-    "tests/entry.check.mjs": "e63ff3adfaca3fde6a5da9f134ea7fda317b83b84ea4c9b16e1d438710c5f777",
+    "tests/editor-integration.check.mjs": "c73c633b5ce6b5a0c23c652a3080d1915a70cad38df7dd78e71b854ab7d9becf",
+    "tests/editor-shell.check.mjs": "cb7b309bde5bc140fc9bf09b4394f28a9d9014bf296cea83c1f3ec63a7ccd599",
+    "tests/entry.check.mjs": "b0b5c22d2a5891703c105ff15ba4ecc0a96beaf3e0cf6b2ff50cba9b97ff6f60",
+    "tests/first-person-sandbox.check.mjs": "af705a9d1ed6c973be794d7f81d07f8d7039a1cf5bc0d5e36223c312b4530e7d",
     "tests/history-recovery.check.mjs": "eddd7aaab4952578e7a22969fc2928bf1bce5ee9f432f23f8b431072aacb2312",
     "tests/hotspot-placement.check.mjs": "a190990e03afacd5da85c73e718952b2f2f73127a589f762a434a9fc81025f3c",
     "tests/hotspot-rendering.check.mjs": "c42c9400bdf09cb1f7a7c52441d0503935a0eabb131f4ab3c85b676da3f8f77d",
@@ -3800,7 +3801,7 @@
     },
     {
       "file": "editor/graphics/scene.ts",
-      "line": 520,
+      "line": 521,
       "kind": "type-query",
       "specifier": "../../shared/project/project-types",
       "target": "shared/project/project-types.ts",
@@ -11385,7 +11386,7 @@
     },
     {
       "file": "tests/editor-integration.check.mjs",
-      "line": 911,
+      "line": 1033,
       "kind": "dynamic",
       "specifier": "/graphics/scene.ts",
       "target": "editor/graphics/scene.ts",
@@ -11394,7 +11395,7 @@
     },
     {
       "file": "tests/editor-integration.check.mjs",
-      "line": 912,
+      "line": 1034,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -11442,7 +11443,7 @@
     },
     {
       "file": "tests/editor-shell.check.mjs",
-      "line": 184,
+      "line": 186,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -11451,7 +11452,7 @@
     },
     {
       "file": "tests/editor-shell.check.mjs",
-      "line": 809,
+      "line": 811,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -11460,7 +11461,7 @@
     },
     {
       "file": "tests/editor-shell.check.mjs",
-      "line": 844,
+      "line": 846,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -11495,6 +11496,53 @@
         "package": "node:*"
       },
       "from": "checks"
+    },
+    {
+      "file": "tests/first-person-sandbox.check.mjs",
+      "line": 1,
+      "kind": "static",
+      "specifier": "node:assert/strict",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/first-person-sandbox.check.mjs",
+      "line": 2,
+      "kind": "static",
+      "specifier": "node:fs",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/first-person-sandbox.check.mjs",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./browser-security.mjs",
+      "target": "tests/browser-security.mjs",
+      "from": "checks",
+      "to": "checks"
+    },
+    {
+      "file": "tests/first-person-sandbox.check.mjs",
+      "line": 29,
+      "kind": "dynamic",
+      "specifier": "/graphics/scene.ts",
+      "target": "editor/graphics/scene.ts",
+      "from": "checks",
+      "to": "rendering"
+    },
+    {
+      "file": "tests/first-person-sandbox.check.mjs",
+      "line": 30,
+      "kind": "dynamic",
+      "specifier": "/@id/__x00__virtual:asset-catalogue",
+      "target": "shared/asset-runtime/catalogue.ts",
+      "from": "checks",
+      "to": "catalogue"
     },
     {
       "file": "tests/history-recovery.check.mjs",
