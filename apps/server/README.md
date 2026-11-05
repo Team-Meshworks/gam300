@@ -2097,6 +2097,69 @@ SCRUM-126 project-home UI, SCRUM-67 autosave/recovery integration, publication/a
 delivery, hosted CI and deployment remain separate. Production still has no approved
 asset catalogue. These backend checks do not complete parent Story/Epic acceptance.
 
+## Immutable publication snapshots (SCRUM-85)
+
+`AddPublicationSnapshots` adds a durable `publications` ledger. Each row holds its
+stable publication ID, source project and exact source revision, publishing actor,
+schema version, complete jsonb document, jsonb asset-reference manifest, 32-byte
+server-derived request digest and database-generated timestamp. The document and
+manifest share one row and one transaction: the asset list cannot become visible
+partly populated or be extended after the edition commits.
+
+`PublicationAssetManifest` serializes exact, case-sensitive asset IDs with lowercase
+SHA-256 byte identities in deterministic ordinal order. Each ID appears once. This
+is a storage representation, not an asset catalogue or a grant of access. The
+coordinator must obtain approved immutable references from SCRUM-73 and verify
+complete document coverage; structural validity alone proves neither approval nor
+availability/retention of the bytes. No mutable file path or delivery URL is stored
+as an immutable identity.
+
+PostgreSQL checks document/project/schema agreement, bounded source revisions,
+complete manifest entries, distinct asset IDs, finite timestamps, required fields
+and digest length. The additive `ProtectPublicationHistory` migration extends
+`TR_publications_immutable` to reject **every UPDATE and DELETE**, including direct
+SQL, manifest replacement and request-identity changes. This prevents a runtime
+role from deleting an edition and replacing it under the same ID. Foreign keys
+restrict deletion of referenced projects/accounts instead of cascading into
+publication history. There is no runtime purge or bypass, expiry rule or approved
+retention policy in this change.
+Audience and revocation state belong to SCRUM-71 and must remain separate from the
+immutable snapshot.
+
+`PublicationRetryPolicy` compares an ID's persisted project, actor, source revision
+and request digest. The exact identity replays; changed identity conflicts. A new
+ID requires a new insert. Different IDs may refer to the same saved revision; there
+is deliberately no uniqueness constraint on project/revision. Later draft edits or
+newer editions do not replace the older ID's retry record. The global primary key
+also prevents two projects from claiming the same publication ID.
+
+### Storage stack boundary
+
+This is the lower SCRUM-85 storage PR, based on dev `60cb053`. It retains the
+original storage implementation and tests from `bfcc5c2`, including the combined
+EF model, the current-dev upgrade regression and the receipt-backfill test fix.
+The upgrade test preserves existing drafts, save receipts, class mappings and
+private review history when adding the older missing publication migration, then
+reapplies the idempotent script without changing that evidence.
+
+The transaction coordinator and exact-revision class-review integration belong to
+[the stacked PR #27](https://github.com/Team-Meshworks/gam300/pull/27). This storage
+layer exposes no publication HTTP route and registers no publishing service.
+SCRUM-71 audience/protected delivery and SCRUM-73 approved retained assets remain
+separate dependencies; this split implements neither and does not complete
+SCRUM-85 acceptance. Production routes, the committed HTTPS URL and linked
+browser/device publishing evidence remain outstanding.
+
+Use migrations rather than `EnsureCreated`: the schema includes PostgreSQL
+functions and an immutability trigger. Rolling back the publication migration
+removes publication data and is not a retention operation.
+
+Run the canonical server checks above and the publication storage cases:
+
+```powershell
+dotnet test --project tests/Spatia.Server.Tests.csproj -c Release --no-build -- --minimum-expected-tests 1 --treenode-filter '/*/*/*/Publication*'
+```
+
 ### SCRUM-161 backend review, 30 October 2026
 
 The live Jira criteria were refreshed and still specify backend class/roster access,
