@@ -17,13 +17,13 @@ public sealed class ProjectDocumentServiceTests
         var development = Create("Development");
         await Assert.That(development.Read(id, json).Ok).IsTrue();
         await Assert.That(development.Read(id, json.Replace("test-crate-v1", "sample-snowglobe-v1", StringComparison.Ordinal)).Ok).IsTrue();
+        await Assert.That(development.Read(id, json.Replace("test-crate-v1", "test-room-module-v1", StringComparison.Ordinal)).Ok).IsTrue();
         foreach (var standId in new[] { "display-cube-v1", "display-full-glass-case-v1", "display-half-glass-case-v1",
             "display-one-sided-glass-case-v1", "display-rectangle-stand-v1", "display-rectangle-panel-v1", "display-square-stand-v1", "display-square-panel-v1" })
         {
             await Assert.That(development.Read(id, json.Replace("test-crate-v1", standId, StringComparison.Ordinal)).Ok).IsTrue();
         }
 
-        await Assert.That(development.Read(id, json.Replace("test-crate-v1", "test-room-module-v1", StringComparison.Ordinal)).Ok).IsTrue();
         await Assert.That(development.Read(id, json.Replace("test-crate-v1", "demo-image-v1", StringComparison.Ordinal)).Ok).IsFalse();
         await Assert.That(development.Read(id, json.Replace("test-room-v1", "test-crate-v1", StringComparison.Ordinal)).Ok).IsFalse();
         foreach (var asset in new[] { "display-square-stand-v1", "display-cube-v1" })

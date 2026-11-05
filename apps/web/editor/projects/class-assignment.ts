@@ -34,12 +34,14 @@ export function validateClassAssignment(
   );
   if (
     !draft.studentIds.length ||
+    draft.studentIds.length > 20 ||
     new Set(draft.studentIds).size !== draft.studentIds.length ||
     draft.studentIds.some((id) => !eligibleIds.has(id))
   )
     return {
       ok: false,
-      message: "Select students available in the chosen class. The roster may have changed.",
+      message:
+        "Select up to 20 students available in the chosen class. The roster may have changed.",
     };
   return { ok: true, value: { ...draft, studentIds: [...draft.studentIds] } };
 }
