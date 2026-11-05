@@ -2159,6 +2159,12 @@ Readiness is informational: the publish request rechecks authority, revision and
 dependencies under the project lock. An unset or invalid publication origin reports
 the dependency as unavailable.
 
+`GET /api/projects/{id}/publication-viewers` requires a full account and current
+project publish authority. It returns `{items: [{userId, userName}], nextCursor}`
+for active eligible accounts in the active project organization, excluding accounts
+that must change their password. Optional `limit` is 1–20 and `cursor` is a UUID;
+responses are `private, no-store`. The route does not expose class rosters.
+
 `POST /api/projects/{id}/publications` requires a current full account, CSRF token
 and account-write rate limit. The request is bounded to 16 KiB and has the shape:
 
@@ -2172,7 +2178,8 @@ nonempty IDs of eligible active full accounts in the project's organization. The
 intent permits exactly those two fields. The server rechecks current publishing
 authority and, for a known class draft, approval of the exact revision under the
 project lock. This first integration supports schema-v1 class-approved drafts and
-authenticated audiences only. Missing trusted origin evidence, public/unlisted
+authenticated audiences only. Nonempty hotspots or interactions are rejected because
+the current visitor does not render them. Missing trusted origin evidence, public/unlisted
 creation and unsupported runtime capabilities remain unavailable; a missing class
 mapping does not establish ordinary origin. Audience writes also cannot promote an
 existing edition to public or unlisted while those decisions remain unresolved;
