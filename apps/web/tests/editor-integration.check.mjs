@@ -566,6 +566,7 @@ try {
       handle,
       manager,
       object,
+      savedScene: fixture.scenes[0],
       toScreen,
       reset(selected = object.id) {
         state.commits = 0;
@@ -599,6 +600,8 @@ try {
         scale: instance.scale.x,
         position: instance.position.toArray(),
         camera: camera.position.toArray(),
+        cameraRotation: camera.quaternion.toArray(),
+        gizmoVisible: gizmo.visible,
         gizmoTip: gizmo.children[1].scale.x,
       }),
     };
@@ -786,6 +789,58 @@ try {
   assert.equal(cancelledHandover.scale, 1);
   assert.equal(cancelledHandover.commits, 0, "Cancelling a handed-over pinch creates no edit");
 
+  // A stationary touch on the crate must not interrupt the camera's jump or fall.
+  async function jumpInterval(delay, click) {
+    await touchPage.evaluate(() => {
+      const h = window.harness;
+      h.manager.setView("first");
+      h.handle.showCamera({ position: [0, 0.9, 6], rotation: [0, 0, 0, 1], fovDegrees: 40 });
+      h.reset(null);
+      h.state.followSelection = true;
+      h.handle.mobileControls.jump();
+    });
+    await touchPage.waitForTimeout(delay);
+    const before = await read();
+    if (click) {
+      const point = await touchPage.evaluate(() => window.harness.toScreen([0, 0.5, 0]));
+      await touch("touchStart", { ...point, id: 9 });
+    }
+    await touchPage.waitForTimeout(100);
+    if (click) await touch("touchEnd");
+    const after = await read();
+    return { displacement: after.camera[1] - before.camera[1], before, after };
+  }
+  for (const [label, delay] of [
+    ["descent", 430],
+    ["ascent", 80],
+  ]) {
+    const baseline = await jumpInterval(delay, false);
+    const clicked = await jumpInterval(delay, true);
+    assert.ok(
+      label === "ascent" ? baseline.displacement > 0 : baseline.displacement < 0,
+      `Baseline is ${label}`,
+    );
+    assert.equal(
+      clicked.after.selected,
+      await touchPage.evaluate(() => window.harness.object.id),
+      `The ${label} click hits the crate`,
+    );
+    assert.ok(
+      Math.abs(clicked.displacement - baseline.displacement) < 0.08,
+      `A stationary click preserves ${label}: ${JSON.stringify({ baseline, clicked })}`,
+    );
+    assert.equal(
+      clicked.after.commits,
+      clicked.before.commits,
+      `A click creates no ${label} history`,
+    );
+    assert.deepEqual(
+      clicked.after.position,
+      clicked.before.position,
+      `A click creates no ${label} transform`,
+    );
+  }
+
   // A saved camera keeps its pose in first person, walking starts from there
   await touchPage.evaluate(() => {
     const { handle, manager } = window.harness;
@@ -793,6 +848,73 @@ try {
     handle.showCamera({ position: [0, 2, 10], rotation: [0, 0, 0, 1], fovDegrees: 40 });
   });
   assert.deepEqual((await read()).camera, [0, 2, 10], "First person keeps a restored pose");
+  const rolledPose = {
+    position: [0, 0.25, 6],
+    rotation: [0, 0, Math.sin(Math.PI / 12), Math.cos(Math.PI / 12)],
+    fovDegrees: 40,
+  };
+  await touchPage.evaluate((pose) => window.harness.handle.showCamera(pose), rolledPose);
+  let restored = await read();
+  assert.deepEqual(
+    restored.camera,
+    rolledPose.position,
+    "Restoring preserves a low authored height",
+  );
+  assert.ok(
+    Math.abs(
+      restored.cameraRotation.reduce(
+        (sum, value, index) => sum + value * rolledPose.rotation[index],
+        0,
+      ),
+    ) > 0.99999,
+    "Restoring preserves authored roll",
+  );
+  await touchPage.evaluate((pose) => {
+    const h = window.harness;
+    h.handle.update([h.object], h.object.id, { ...h.savedScene, startCamera: pose }, 123);
+  }, rolledPose);
+  restored = await read();
+  assert.deepEqual(
+    restored.camera,
+    rolledPose.position,
+    "Reopening preserves the low starting position",
+  );
+  assert.ok(
+    Math.abs(
+      restored.cameraRotation.reduce(
+        (sum, value, index) => sum + value * rolledPose.rotation[index],
+        0,
+      ),
+    ) > 0.99999,
+    "Reopening preserves authored roll",
+  );
+  const verticalPose = {
+    position: [0, 0.25, 6],
+    rotation: [Math.SQRT1_2, 0, 0, Math.SQRT1_2],
+    fovDegrees: 40,
+  };
+  await touchPage.evaluate((pose) => window.harness.handle.showCamera(pose), verticalPose);
+  const vertical = await read();
+  assert.ok(
+    Math.abs(
+      vertical.cameraRotation.reduce(
+        (sum, value, index) => sum + value * verticalPose.rotation[index],
+        0,
+      ),
+    ) > 0.99999,
+    "An authored vertical view remains exact until the user looks",
+  );
+
+  await touchPage.evaluate(() =>
+    window.harness.handle.showCamera({
+      position: [0, 0.9, 6],
+      rotation: [0, 1, 0, 0],
+      fovDegrees: 40,
+    }),
+  );
+  assert.equal((await read()).gizmoVisible, false, "Gizmo hides behind the first-person camera");
+  await touchPage.evaluate(() => window.harness.handle.mobileControls.setLook(Math.PI / 0.002, 0));
+  assert.equal((await read()).gizmoVisible, true, "Turning toward selection reveals the gizmo");
   await touchPage.evaluate(() => {
     window.harness.handle.showCamera({
       position: [0, 0.9, 6],

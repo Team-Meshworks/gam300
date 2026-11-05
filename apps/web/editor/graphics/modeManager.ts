@@ -89,7 +89,7 @@ export class ModeManager {
       this.savedPosition.copy(this.camera.position);
       this.savedQuaternion.copy(this.camera.quaternion);
       this.savedTarget.copy(this.orbit.target);
-      this.fps.sync();
+      this.fps.syncFromCamera();
     }
   }
 
