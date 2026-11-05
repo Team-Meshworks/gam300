@@ -19,4 +19,9 @@ public enum ProjectLockPurpose
     /// Requires management permission and allows either current archive state
     /// </summary>
     ChangeArchiveState,
+
+    /// <summary>
+    /// Requires existing publishing permission on an unarchived project
+    /// </summary>
+    Publish,
 }

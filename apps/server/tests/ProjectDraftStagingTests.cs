@@ -16,7 +16,8 @@ public sealed class ProjectDraftStagingTests
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
         var userId = await fixture.CreateAccountAsync();
-        var documents = fixture.App.Services.GetRequiredService<ProjectDocumentService>();
+        await using var documentScope = fixture.App.Services.CreateAsyncScope();
+        var documents = documentScope.ServiceProvider.GetRequiredService<ProjectDocumentService>();
         await using var scope = fixture.Database.Services.CreateAsyncScope();
         var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var organizationId = await database.OrganizationMemberships.Where(row => row.UserId == userId)

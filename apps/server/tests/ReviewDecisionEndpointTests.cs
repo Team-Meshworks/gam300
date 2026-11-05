@@ -431,7 +431,7 @@ public sealed class ReviewDecisionEndpointTests
         return await ReviewApproval.CheckLockedAsync(database, snapshot);
     }
 
-    private static async Task WaitBlockedAsync(HttpsApplicationFixture fixture, int waiter, int blocker)
+    internal static async Task WaitBlockedAsync(HttpsApplicationFixture fixture, int waiter, int blocker)
     {
         await using var scope = fixture.Database.Services.CreateAsyncScope();
         var observer = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -440,7 +440,7 @@ public sealed class ReviewDecisionEndpointTests
         { await Task.Delay(10, timeout.Token); }
     }
 
-    private sealed class ProjectLockProbe : DbCommandInterceptor
+    internal sealed class ProjectLockProbe : DbCommandInterceptor
     {
         private int _armed;
         public TaskCompletionSource<int> Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);

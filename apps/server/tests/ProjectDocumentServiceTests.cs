@@ -23,6 +23,7 @@ public sealed class ProjectDocumentServiceTests
             await Assert.That(development.Read(id, json.Replace("test-crate-v1", standId, StringComparison.Ordinal)).Ok).IsTrue();
         }
 
+        await Assert.That(development.Read(id, json.Replace("test-crate-v1", "test-room-module-v1", StringComparison.Ordinal)).Ok).IsTrue();
         await Assert.That(development.Read(id, json.Replace("test-crate-v1", "demo-image-v1", StringComparison.Ordinal)).Ok).IsFalse();
         await Assert.That(development.Read(id, json.Replace("test-room-v1", "test-crate-v1", StringComparison.Ordinal)).Ok).IsFalse();
         foreach (var asset in new[] { "display-square-stand-v1", "display-cube-v1" })
