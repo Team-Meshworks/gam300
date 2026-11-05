@@ -44,7 +44,8 @@ public sealed class ProjectSaveEndpointTests
         using var reopened = await fixture.Client.GetAsync(Path(project.Id));
         await Assert.That(reopened.StatusCode).IsEqualTo(HttpStatusCode.OK);
         var response = await reopened.Content.ReadFromJsonAsync<JsonElement>();
-        var documents = fixture.App.Services.GetRequiredService<ProjectDocumentService>();
+        await using var documentScope = fixture.App.Services.CreateAsyncScope();
+        var documents = documentScope.ServiceProvider.GetRequiredService<ProjectDocumentService>();
         var accepted = documents.Read(project.Id, response.GetProperty("document").GetRawText());
         await Assert.That(accepted.Ok).IsTrue();
         var content = (Spatia.ProjectFormat.ContentProject)accepted.Value!;
@@ -74,7 +75,8 @@ public sealed class ProjectSaveEndpointTests
         using var reopened = await fixture.Client.GetAsync(Path(project.Id));
         await Assert.That(reopened.StatusCode).IsEqualTo(HttpStatusCode.OK);
         var opened = await reopened.Content.ReadFromJsonAsync<JsonElement>();
-        var documents = fixture.App.Services.GetRequiredService<ProjectDocumentService>();
+        await using var documentScope = fixture.App.Services.CreateAsyncScope();
+        var documents = documentScope.ServiceProvider.GetRequiredService<ProjectDocumentService>();
         using var expected = JsonDocument.Parse(documents.Serialize(documents.Read(project.Id, document).Value!).Value!);
         await Assert.That(JsonElement.DeepEquals(opened.GetProperty("document"), expected.RootElement)).IsTrue();
         await Assert.That(opened.GetProperty("revision").GetInt64()).IsEqualTo(1L);

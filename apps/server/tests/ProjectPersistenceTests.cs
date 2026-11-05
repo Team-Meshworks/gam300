@@ -59,7 +59,7 @@ public sealed class ProjectPersistenceTests
     [Test]
     public async Task ProjectDatabase_ReceiptUpgradeRejectsPopulatedRevisionZeroWithoutPartialMigration()
     {
-        await using var fixture = await PostgresAccountFixture.CreateAsync("20261018091152_AddProjectDraftStorage");
+        await using var fixture = await PostgresAccountFixture.CreateAsync("20261029094707_AddPublicationSnapshots");
         await using var scope = fixture.Services.CreateAsyncScope();
         var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var project = await SeedProjectAsync(database);
@@ -74,8 +74,7 @@ public sealed class ProjectPersistenceTests
         var stored = await database.Projects.AsNoTracking().SingleAsync();
         await Assert.That(stored.Revision).IsEqualTo(0L);
         await Assert.That(stored.LastMutationId).IsEqualTo((Guid?)MutationId);
-        // Earlier migrations may commit before the receipt backfill fails.
-        await Assert.That((await database.Database.GetAppliedMigrationsAsync()).Contains("20261029122111_AddProjectSaveReceipts")).IsFalse();
+        await Assert.That((await database.Database.GetAppliedMigrationsAsync()).Last()).IsEqualTo("20261029094707_AddPublicationSnapshots");
     }
 
     [Test]

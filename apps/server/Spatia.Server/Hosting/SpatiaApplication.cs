@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Npgsql;
 using Spatia.Server.Accounts;
+using Spatia.Server.Assets;
 using Spatia.Server.Classes;
 using Spatia.Server.Persistence;
 using Spatia.Server.Projects;
@@ -130,9 +131,11 @@ public static class SpatiaApplication
         builder.Services.AddScoped<AccountAdministrationService>();
         builder.Services.AddScoped<AccountSessionService>();
         builder.Services.AddScoped<ProjectAccessService>();
-        builder.Services.AddSingleton<ProjectDocumentService>();
+        builder.Services.AddScoped<AssetUploadValidator>();
+        builder.Services.AddScoped<AssetAdministrationService>();
+        builder.Services.AddScoped<ProjectDocumentService>();
         builder.Services.AddScoped<ProjectSaveService>();
-        builder.Services.TryAddScoped<IReviewAssetResolver, UnavailableReviewAssetResolver>();
+        builder.Services.TryAddScoped<IReviewAssetResolver, ApprovedReviewAssetResolver>();
         builder.Services.AddSpatiaAccounts(connectionString);
         builder.Services.AddSpatiaRequestSecurity();
         builder.Services.AddDataProtection()
@@ -225,6 +228,8 @@ public static class SpatiaApplication
             return Results.Ok(new { requestToken = tokens.RequestToken });
         }).AllowAnonymous();
         app.MapAccountAdministration();
+        app.MapAssetAdministration();
+        app.MapAssetDelivery();
         app.MapAccountDirectory();
         app.MapAccountSessions();
         app.MapProjectReads();
