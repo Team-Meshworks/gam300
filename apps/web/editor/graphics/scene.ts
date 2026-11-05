@@ -822,6 +822,14 @@ export function initScene(
         )
         .map((entry) => entry.id),
     );
+    // The initial room moves with the selection but is stored outside the object list
+    if (
+      projectScene &&
+      "objects" in moved.value &&
+      moved.value.environmentTransform !== projectScene.environmentTransform
+    ) {
+      moving.add(projectScene.id);
+    }
     const obstacles = bodies.filter((entry) => !moving.has(entry.id));
     const result = resolveObjectPlacement(body, proposed, obstacles, phase);
     if (!result) return;
