@@ -79,6 +79,41 @@ public sealed class PublicationPersistenceTests
     }
 
     [Test]
+    public async Task PublicationDatabase_RuntimePolicyIdentityIsImmutable()
+    {
+        await using var fixture = await PostgresAccountFixture.CreateAsync("20261104191214_ProtectPublicationHistory");
+        await SeedAsync(fixture);
+        await InsertAsync(fixture, Edition());
+        var other = Guid.NewGuid();
+        await InsertAsync(fixture, Edition(other));
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var database = Db(scope);
+        database.PublicationAccess.Add(new PublicationAccessState { PublicationId = PublicationId, Deleted = true });
+        await database.SaveChangesAsync();
+        await database.Database.MigrateAsync();
+        var role = "publication_runtime_" + Guid.NewGuid().ToString("N");
+        await using (var transaction = await database.Database.BeginTransactionAsync())
+        {
+            foreach (var sql in new[] {
+                $"CREATE ROLE {role} NOLOGIN", $"GRANT USAGE ON SCHEMA {fixture.SchemaName} TO {role}",
+                $"GRANT SELECT, UPDATE ON publication_access TO {role}", $"SET LOCAL ROLE {role}" })
+            {
+                await using var command = database.Database.GetDbConnection().CreateCommand();
+                command.Transaction = transaction.GetDbTransaction();
+                command.CommandText = sql;
+                await command.ExecuteNonQueryAsync();
+            }
+            var failure = await Assert.ThrowsAsync<PostgresException>(async () =>
+                await database.Database.ExecuteSqlInterpolatedAsync($"UPDATE publication_access SET \"PublicationId\" = {other} WHERE \"PublicationId\" = {PublicationId}"));
+            await Assert.That(failure!.ConstraintName).IsEqualTo("CK_publication_access_permanent");
+            await transaction.RollbackAsync();
+        }
+        var retained = await database.PublicationAccess.AsNoTracking().SingleAsync();
+        await Assert.That(retained.PublicationId).IsEqualTo(PublicationId);
+        await Assert.That(retained.Deleted).IsTrue();
+    }
+
+    [Test]
     [Arguments(1, 0L)]
     [Arguments(2, Project.MaxRevision)]
     public async Task PublicationDatabase_FreshMigrationRoundTripsCompleteEditionInANewContext(int version, long revision)
