@@ -789,6 +789,58 @@ try {
   assert.equal(cancelledHandover.scale, 1);
   assert.equal(cancelledHandover.commits, 0, "Cancelling a handed-over pinch creates no edit");
 
+  // A stationary touch on the crate must not interrupt the camera's jump or fall.
+  async function jumpInterval(delay, click) {
+    await touchPage.evaluate(() => {
+      const h = window.harness;
+      h.manager.setView("first");
+      h.handle.showCamera({ position: [0, 0.9, 6], rotation: [0, 0, 0, 1], fovDegrees: 40 });
+      h.reset(null);
+      h.state.followSelection = true;
+      h.handle.mobileControls.jump();
+    });
+    await touchPage.waitForTimeout(delay);
+    const before = await read();
+    if (click) {
+      const point = await touchPage.evaluate(() => window.harness.toScreen([0, 0.5, 0]));
+      await touch("touchStart", { ...point, id: 9 });
+    }
+    await touchPage.waitForTimeout(100);
+    if (click) await touch("touchEnd");
+    const after = await read();
+    return { displacement: after.camera[1] - before.camera[1], before, after };
+  }
+  for (const [label, delay] of [
+    ["descent", 430],
+    ["ascent", 80],
+  ]) {
+    const baseline = await jumpInterval(delay, false);
+    const clicked = await jumpInterval(delay, true);
+    assert.ok(
+      label === "ascent" ? baseline.displacement > 0 : baseline.displacement < 0,
+      `Baseline is ${label}`,
+    );
+    assert.equal(
+      clicked.after.selected,
+      await touchPage.evaluate(() => window.harness.object.id),
+      `The ${label} click hits the crate`,
+    );
+    assert.ok(
+      Math.abs(clicked.displacement - baseline.displacement) < 0.08,
+      `A stationary click preserves ${label}: ${JSON.stringify({ baseline, clicked })}`,
+    );
+    assert.equal(
+      clicked.after.commits,
+      clicked.before.commits,
+      `A click creates no ${label} history`,
+    );
+    assert.deepEqual(
+      clicked.after.position,
+      clicked.before.position,
+      `A click creates no ${label} transform`,
+    );
+  }
+
   // A saved camera keeps its pose in first person, walking starts from there
   await touchPage.evaluate(() => {
     const { handle, manager } = window.harness;

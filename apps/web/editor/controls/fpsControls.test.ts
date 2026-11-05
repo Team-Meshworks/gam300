@@ -4,7 +4,7 @@ import { FpsControls } from "./fpsControls";
 
 afterEach(() => vi.unstubAllGlobals());
 
-it("drops residual motion without dropping deliberately held movement", () => {
+it("distinguishes held movement from inertia without changing the camera trajectory", () => {
   const events = new EventTarget();
   vi.stubGlobal("document", new EventTarget());
   vi.stubGlobal("addEventListener", events.addEventListener.bind(events));
@@ -14,17 +14,19 @@ it("drops residual motion without dropping deliberately held movement", () => {
   const controls = new FpsControls(camera, new EventTarget() as HTMLElement);
   controls.engage();
   controls.mobileControls.setMove(1, 0);
+  expect(controls.hasMovementInput()).toBe(true);
   for (let i = 0; i < 36; i++) controls.update(1 / 60);
   expect(camera.position.x).toBeGreaterThan(1);
   controls.mobileControls.setMove(0, 0);
-  controls.stopMotion();
-  const stopped = camera.position.clone();
+  expect(controls.hasMovementInput()).toBe(false);
+  const released = camera.position.clone();
   for (let i = 0; i < 6; i++) controls.update(1 / 60);
-  expect(camera.position.distanceTo(stopped)).toBeLessThan(1e-9);
+  expect(camera.position.distanceTo(released)).toBeGreaterThan(0.05);
+  expect(controls.hasMovementInput()).toBe(false);
   controls.mobileControls.setMove(1, 0);
-  controls.stopMotion();
+  expect(controls.hasMovementInput()).toBe(true);
   for (let i = 0; i < 6; i++) controls.update(1 / 60);
-  expect(camera.position.distanceTo(stopped)).toBeGreaterThan(0.1);
+  expect(camera.position.distanceTo(released)).toBeGreaterThan(0.1);
   controls.dispose();
 });
 

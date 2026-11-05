@@ -141,12 +141,19 @@ export class FpsControls {
     this.applyRotation();
   }
 
-  // A new manipulation drops old inertia but keeps deliberately held movement input
-  stopMotion(): void {
+  // Pose restoration resets physics; selecting or manipulating an object must not
+  private stopMotion(): void {
     this.velocity.set(0, 0, 0);
     this.physicsPosition.copy(this.camera.position);
     this.previousPhysics.copy(this.camera.position);
     this.accumulated = 0;
+  }
+
+  // Ballistic jump/fall and decaying velocity are not deliberate carry input
+  hasMovementInput(): boolean {
+    const x = (this.keys.has("KeyD") ? 1 : 0) - (this.keys.has("KeyA") ? 1 : 0) + this.mobileMoveX;
+    const z = (this.keys.has("KeyW") ? 1 : 0) - (this.keys.has("KeyS") ? 1 : 0) + this.mobileMoveZ;
+    return x !== 0 || z !== 0 || (this.flying && (this.keys.has("Space") || this.keys.has("KeyC")));
   }
 
   // A plain left click on the scene grabs the mouse instead of doing anything else
