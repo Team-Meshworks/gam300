@@ -18,9 +18,23 @@ async function openLibrary(page) {
 
 // Clicking a card only picks it, Add is what places it
 async function addAsset(page, name) {
+  // Rooms use their own tray and the existing viewport placement gesture
+  if (name === "Starter room") {
+    if (await page.locator(".asset-picker").count()) await page.keyboard.press("Escape");
+    const overview = page.getByRole("button", { name: "Third person", exact: true });
+    if ((await overview.getAttribute("aria-pressed")) !== "true") await overview.click();
+    await page.getByRole("button", { name: "Rooms", exact: true }).click();
+    await page
+      .getByRole("group", { name: "Rooms options", exact: true })
+      .getByRole("button", { name, exact: true })
+      .click();
+    await page.locator(".viewport-stage").click({ position: { x: 500, y: 300 } });
+    return;
+  }
   await openLibrary(page);
   await page.locator(".asset-picker").getByRole("button", { name, exact: true }).click();
   await page.getByRole("button", { name: "Add", exact: true }).click();
+  await page.locator(".viewport-stage").click({ position: { x: 500, y: 300 } });
 }
 
 try {
@@ -55,7 +69,7 @@ try {
   assert.equal(await page.locator("canvas").count(), 0, "Shell renders before Three.js arrives");
   const asset = page
     .locator(".asset-picker")
-    .getByRole("button", { name: "test-crate", exact: true });
+    .getByRole("button", { name: "Sample crate", exact: true });
   await openLibrary(page);
   assert.equal(await asset.isDisabled(), true);
   releaseCore();
@@ -63,8 +77,8 @@ try {
   assert.ok((await snowglobeResponse).ok(), "The manifest snowglobe still loads");
   assert.equal(await page.locator("canvas").count(), 1);
   // Packaged builds follow the same room-first authoring flow as the local editor
-  await addAsset(page, "test-room");
-  await addAsset(page, "test-crate");
+  await addAsset(page, "Starter room");
+  await addAsset(page, "Sample crate");
   assert.equal(await page.locator(".object-row").count(), 1);
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   assert.equal(await page.locator(".object-row").count(), 0);
@@ -96,7 +110,7 @@ try {
     assert.equal(await page.getByRole("dialog").count(), 0);
 
     // A remaining edit must still prompt; Cancel keeps it and Don't Save discards it.
-    await addAsset(page, "test-crate");
+    await addAsset(page, "Sample crate");
     assert.equal(await page.locator(".object-row").count(), 3);
     await sample.click();
     await page.getByRole("dialog").getByRole("button", { name: "Cancel", exact: true }).click();

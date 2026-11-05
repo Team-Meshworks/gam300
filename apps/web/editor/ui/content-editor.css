@@ -1,0 +1,761 @@
+/* Hallmark: component scope; theme: supplied Figma PDF pages 4–6; signature: the rail blends into the selected sheet. */
+/* Critique: one uninterrupted writing surface, quiet white edges and the reference's curved selected tabs. */
+:root {
+  --content-screen: #fffaf0;
+  --content-sheet: #e5e2db;
+  --content-paper: #e2ded6;
+  --content-rail: #f5f4f2;
+  --content-ink: #3d3133;
+  --content-edge: #fffefa;
+  --content-muted: #696267;
+  --content-hover: #d7cfc2;
+  --content-white: #fff;
+  --content-glaze: rgb(255 255 255 / 0.12);
+  --content-disabled-fill: #dedad1;
+  --content-disabled-ink: #625b54;
+  --content-shadow: 0 12px 40px rgb(47 39 31 / 0.18);
+}
+dialog.content-dialog.pdf-content-dialog {
+  position: fixed;
+  width: min(1440px, calc(100% - 32px));
+  height: min(94dvh, 1024px);
+  max-height: calc(100dvh - 24px);
+  padding: 0;
+  border: 0;
+  border-radius: 24px;
+  background: var(--content-sheet);
+  color: var(--content-ink);
+  box-shadow: var(--content-shadow);
+  overflow: hidden;
+}
+dialog.content-dialog.pdf-content-dialog > form {
+  height: 100%;
+  padding: 32px 60px 24px 140px;
+  display: flex;
+  flex-direction: column;
+}
+dialog.content-dialog.pdf-content-dialog .content-heading {
+  min-height: 52px;
+  gap: 24px;
+  margin: 0 0 24px;
+}
+dialog.content-dialog.pdf-content-dialog .content-heading h2 {
+  flex-shrink: 0;
+  min-width: 145px;
+  margin: 0;
+  padding: 12px 24px;
+  font-size: 22px;
+  border: 1px solid var(--content-edge);
+  border-radius: 24px;
+  background: var(--content-glaze);
+  box-shadow: inset 0 0 12px var(--content-glaze);
+}
+dialog.content-dialog.pdf-content-dialog.content-dialog-text .content-heading h2 {
+  margin-inline: auto;
+}
+dialog.content-dialog.pdf-content-dialog .content-close {
+  position: static;
+  flex-shrink: 0;
+  width: 52px;
+  height: 52px;
+  border: 1px solid var(--content-edge);
+  background: var(--content-glaze);
+}
+dialog.content-dialog.pdf-content-dialog .content-layout {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+}
+dialog.content-dialog.pdf-content-dialog .content-tabs {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 80px;
+  padding: 0;
+  background: var(--content-rail);
+  justify-content: center;
+  align-items: stretch;
+  gap: 40px;
+  overflow: visible;
+}
+dialog.content-dialog.pdf-content-dialog .content-tabs button {
+  position: relative;
+  flex-shrink: 0;
+  width: 80px;
+  height: 100px;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+}
+dialog.content-dialog.pdf-content-dialog .content-tabs .content-selected-tab {
+  display: block;
+  position: absolute;
+  right: 0;
+  width: 80px;
+  height: 100px;
+}
+dialog.content-dialog.pdf-content-dialog .content-tab-icon {
+  position: relative;
+}
+dialog.content-dialog.pdf-content-dialog .content-tabs button:hover {
+  filter: brightness(0.95);
+}
+dialog.content-dialog.pdf-content-dialog .content-fields {
+  position: relative;
+  width: 100%;
+  gap: 12px;
+}
+dialog.content-dialog.pdf-content-dialog .content-text-surface {
+  min-height: 180px;
+  background: var(--content-paper);
+  border: 1px solid var(--content-edge);
+  box-shadow: inset 0 0 12px var(--content-glaze);
+  border-radius: 24px;
+}
+dialog.content-dialog.pdf-content-dialog .content-text-surface textarea,
+dialog.content-dialog.pdf-content-dialog .content-text-surface .content-text-preview {
+  padding: 24px 24px 88px;
+  font-size: var(--content-font-size, 24px);
+  line-height: 1.5;
+}
+dialog.content-dialog.pdf-content-dialog .content-text-surface textarea::placeholder {
+  color: var(--content-muted);
+}
+dialog.content-dialog.pdf-content-dialog .content-format {
+  padding: 4px 12px;
+  margin: -76px auto 20px;
+  border: 1px solid var(--content-edge);
+  border-radius: 28px;
+  background: var(--content-rail);
+  gap: 8px;
+}
+dialog.content-dialog.pdf-content-dialog .content-format button {
+  background: transparent;
+  border-radius: 12px;
+  font-size: 20px;
+}
+dialog.content-dialog.pdf-content-dialog .content-format button[aria-pressed="true"] {
+  background: var(--content-hover);
+}
+dialog.content-dialog.pdf-content-dialog .content-actions {
+  margin: 32px 0 0;
+}
+dialog.content-dialog.pdf-content-dialog .content-actions button {
+  min-width: 128px;
+  min-height: 52px;
+  line-height: 1;
+  padding: 12px 32px;
+  border: 1px solid var(--content-edge);
+  border-radius: 24px;
+  background: var(--content-glaze);
+  font-size: 22px;
+  font-weight: 600;
+}
+dialog.content-dialog.pdf-content-dialog button:hover:not(:disabled) {
+  background-color: var(--content-hover);
+}
+dialog.content-dialog.pdf-content-dialog button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+dialog.content-dialog.pdf-content-dialog button:disabled {
+  opacity: 1;
+  background: var(--content-disabled-fill);
+  color: var(--content-disabled-ink);
+  cursor: not-allowed;
+}
+dialog.content-dialog.pdf-content-dialog :is(button, input, textarea):focus-visible {
+  outline: 2px solid var(--content-ink);
+  outline-offset: 3px;
+}
+.content-media-search {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 20px;
+  border: 1px solid var(--content-edge);
+  border-radius: 24px;
+  background: var(--content-glaze);
+}
+.content-media-search input {
+  border: 0;
+  outline: 0;
+  width: 100%;
+  min-width: 0;
+  background: transparent;
+  font: inherit;
+  color: var(--content-ink);
+}
+dialog.content-dialog.pdf-content-dialog .content-media-preview {
+  align-self: center;
+  width: min(320px, 100%);
+  max-height: 150px;
+}
+dialog.content-dialog.pdf-content-dialog
+  .content-fields
+  label:has(> textarea[aria-label="Caption"]) {
+  padding: 16px 20px;
+  border: 1px solid var(--content-edge);
+  border-radius: 24px;
+  background: var(--content-paper);
+}
+dialog.content-dialog.pdf-content-dialog
+  .content-fields
+  label:has(> textarea[aria-label="Caption"])
+  textarea {
+  min-height: 68px;
+  max-height: 120px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+dialog.content-dialog.pdf-content-dialog .content-alt {
+  max-width: 360px;
+}
+dialog.content-dialog.pdf-content-dialog .content-items {
+  flex-shrink: 0;
+}
+@media (max-width: 700px) {
+  dialog.content-dialog.pdf-content-dialog > form {
+    padding: 16px 16px 16px 80px;
+  }
+  dialog.content-dialog.pdf-content-dialog .content-tabs {
+    width: 64px;
+    gap: 12px;
+  }
+  dialog.content-dialog.pdf-content-dialog .content-tabs button {
+    width: 64px;
+  }
+  dialog.content-dialog.pdf-content-dialog .content-heading {
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+  }
+  dialog.content-dialog.pdf-content-dialog .content-heading h2 {
+    min-width: 0;
+    font-size: 18px;
+    padding: 12px 16px;
+  }
+  dialog.content-dialog.pdf-content-dialog .content-close {
+    width: 44px;
+    height: 44px;
+    margin-left: auto;
+  }
+  .content-media-search {
+    order: 3;
+    flex-basis: 100%;
+  }
+  dialog.content-dialog.pdf-content-dialog .content-actions {
+    margin-top: 16px;
+  }
+  dialog.content-dialog.pdf-content-dialog .content-text-surface textarea,
+  dialog.content-dialog.pdf-content-dialog .content-text-surface .content-text-preview {
+    padding: 16px 16px 80px;
+  }
+  dialog.content-dialog.pdf-content-dialog .content-format {
+    gap: 0;
+    padding: 2px;
+  }
+  dialog.content-dialog.pdf-content-dialog .content-format button {
+    width: 36px;
+    min-width: 36px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  dialog.content-dialog.pdf-content-dialog,
+  dialog.content-dialog.pdf-content-dialog * {
+    animation: none;
+    transition: none;
+  }
+}
+
+/* Keep field focus inside the surface so the scroll container cannot crop its outline. */
+dialog.content-dialog.pdf-content-dialog .content-text-surface textarea:focus-visible {
+  outline-offset: -3px;
+}
+dialog.content-dialog.pdf-content-dialog .content-fields :is(input, textarea):focus-visible {
+  outline-offset: -3px;
+}
+
+dialog.content-dialog.pdf-content-dialog .content-heading h2,
+dialog.content-dialog.pdf-content-dialog .content-actions button {
+  font-weight: 400;
+}
+.sp-display-dialog .display-editor-head h3,
+.sp-display-dialog .display-editor-add {
+  font-weight: 400 !important;
+}
+
+/* The main sheet has the same footprint and card treatment as the asset library, plus its rail. */
+dialog.content-dialog.pdf-content-dialog {
+  width: 70%;
+  height: 70dvh;
+}
+dialog.content-dialog.pdf-content-dialog > form {
+  padding: 16px 20px 16px 100px;
+}
+dialog.content-dialog.pdf-content-dialog .content-heading {
+  gap: 12px;
+  margin-bottom: 16px;
+}
+dialog.content-dialog.pdf-content-dialog .content-heading h2 {
+  font-size: 18px;
+  min-width: 110px;
+  padding: 12px 16px;
+}
+dialog.content-dialog.pdf-content-dialog .content-close {
+  width: 44px;
+  height: 44px;
+}
+dialog.content-dialog.pdf-content-dialog .asset-card-pick {
+  padding: 0;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+}
+dialog.content-dialog.pdf-content-dialog .asset-card-pick:hover:not(:disabled),
+dialog.content-dialog.pdf-content-dialog .asset-card-pick[aria-pressed="true"] {
+  background: transparent;
+}
+dialog.content-dialog.pdf-content-dialog .asset-card-pick:focus-visible {
+  outline-offset: -2px;
+}
+dialog.content-dialog.pdf-content-dialog .asset-favourite {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+}
+dialog.content-dialog.pdf-content-dialog .asset-favourite:hover {
+  background: var(--pill);
+}
+dialog.content-dialog.pdf-content-dialog .asset-favourite:focus-visible {
+  outline-offset: -2px;
+}
+dialog.content-dialog.pdf-content-dialog .asset-favourite[aria-pressed="true"] {
+  color: var(--accent);
+  background: transparent;
+}
+dialog.content-dialog.pdf-content-dialog .content-media-search .asset-filter {
+  flex-shrink: 0;
+}
+dialog.content-dialog.pdf-content-dialog .content-media-search .asset-filter-trigger {
+  padding: 8px 24px 8px 12px;
+  font-weight: 400;
+}
+@media (max-width: 700px) {
+  dialog.content-dialog.pdf-content-dialog {
+    width: calc(100% - 16px);
+    height: calc(100dvh - 24px);
+  }
+  dialog.content-dialog.pdf-content-dialog > form {
+    padding: 16px 16px 16px 80px;
+  }
+  dialog.content-dialog.pdf-content-dialog .content-heading {
+    flex-wrap: wrap;
+  }
+}
+
+dialog.content-dialog.pdf-content-dialog .content-heading h2 {
+  text-wrap: balance;
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+dialog.content-dialog.pdf-content-dialog .content-tabs {
+  flex-direction: column;
+}
+dialog.content-dialog.pdf-content-dialog .asset-grid {
+  display: grid;
+  columns: auto;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+dialog.content-dialog.pdf-content-dialog .asset-card {
+  margin-bottom: 0;
+}
+@media (max-width: 1200px) {
+  dialog.content-dialog.pdf-content-dialog .asset-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+@media (max-width: 900px) {
+  dialog.content-dialog.pdf-content-dialog .asset-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 700px) {
+  dialog.content-dialog.pdf-content-dialog .asset-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 450px) {
+  dialog.content-dialog.pdf-content-dialog .asset-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Fill media previews without letterboxing; retain the shared card dimensions. */
+dialog.content-dialog.pdf-content-dialog .asset-art img {
+  object-fit: cover;
+}
+
+/* The Video export is only the curved background, not the full 80px tab slot. */
+dialog.content-dialog.pdf-content-dialog .content-tabs .content-tab-background,
+dialog.content-dialog.pdf-content-dialog .content-hover-tab {
+  position: absolute;
+  right: 0;
+  width: 58.5px;
+  height: 98px;
+}
+dialog.content-dialog.pdf-content-dialog .content-hover-tab {
+  display: none;
+}
+dialog.content-dialog.pdf-content-dialog
+  .content-tabs
+  button:is(:hover, :active, [aria-pressed="true"]):not(:disabled) {
+  background: transparent;
+  filter: none;
+  transform: none;
+}
+dialog.content-dialog.pdf-content-dialog
+  .content-tabs
+  button[aria-pressed="false"]:is(:hover, :focus-visible)
+  .content-hover-tab {
+  display: block;
+}
+dialog.content-dialog.pdf-content-dialog
+  .content-tabs
+  button:is([aria-pressed="true"], :hover, :focus-visible)
+  .content-tab-icon {
+  transform: translateX(11px);
+}
+
+@media (max-width: 40rem) {
+  dialog.content-dialog.pdf-content-dialog,
+  .sp-dialog.sp-display-dialog {
+    width: 92%;
+    height: 70dvh;
+  }
+}
+
+@media (orientation: portrait) {
+  dialog.content-dialog.pdf-content-dialog,
+  .sp-dialog.sp-display-dialog {
+    width: 92%;
+  }
+}
+
+/* Keep the reference's narrow rail; use one identical curved mask for every tab state. */
+dialog.content-dialog.pdf-content-dialog > form {
+  padding: 1rem 1.25rem 1.1rem calc(var(--library-rail-width) + 1.25rem);
+}
+dialog.content-dialog.pdf-content-dialog .content-tabs {
+  width: var(--library-rail-width);
+}
+dialog.content-dialog.pdf-content-dialog .content-tabs button {
+  width: var(--library-rail-width);
+}
+dialog.content-dialog.pdf-content-dialog .content-tabs .content-tab-background {
+  display: none;
+  position: absolute;
+  top: 1px;
+  right: 0;
+  width: 58.5px;
+  height: 98px;
+  background: var(--library-surface);
+  mask-size: 100% 100%;
+  mask-repeat: no-repeat;
+}
+dialog.content-dialog.pdf-content-dialog
+  .content-tabs
+  button:is([aria-pressed="true"], :hover, :focus-visible)
+  .content-tab-background {
+  display: block;
+}
+dialog.content-dialog.pdf-content-dialog
+  .content-tabs
+  button:is([aria-pressed="true"], :hover, :focus-visible)
+  .content-tab-icon {
+  transform: translateX(3px);
+}
+dialog.content-dialog.pdf-content-dialog.content-dialog-text .asset-picker-title {
+  margin-inline: auto;
+}
+
+dialog.content-dialog.pdf-content-dialog .content-rich-input {
+  position: absolute;
+  inset: 0;
+  padding: 24px 24px 88px;
+  color: var(--content-ink);
+  caret-color: var(--content-ink);
+  cursor: text;
+  background: transparent;
+  font: inherit;
+  font-size: var(--content-font-size, 24px);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  overflow-y: auto;
+  border-radius: 24px;
+  outline-offset: -3px;
+}
+dialog.content-dialog.pdf-content-dialog .content-rich-input[data-empty="true"]::before {
+  content: attr(data-placeholder);
+  font-size: inherit;
+  position: absolute;
+  top: 24px;
+  left: 24px;
+  right: 24px;
+  color: var(--content-muted);
+  pointer-events: none;
+}
+dialog.content-dialog.pdf-content-dialog .content-rich-input:focus-visible {
+  outline: 2px solid var(--content-hover);
+  outline-offset: -3px;
+}
+dialog.content-dialog.pdf-content-dialog .content-tab-icon {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+}
+dialog.content-dialog.pdf-content-dialog .content-tabs .content-tab-background {
+  width: 44px;
+  height: auto;
+  aspect-ratio: 58.5 / 98;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+dialog.content-dialog.pdf-content-dialog .content-tabs button .content-tab-icon,
+dialog.content-dialog.pdf-content-dialog
+  .content-tabs
+  button:is(:hover, :focus-visible, [aria-pressed="true"], [aria-selected="true"])
+  .content-tab-icon {
+  position: absolute;
+  left: 62%;
+  top: 50%;
+  display: block;
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  transform: translate(-50%, -50%);
+}
+
+dialog.content-dialog.pdf-content-dialog
+  .content-tabs
+  button:not([aria-pressed="true"]):is(:hover, :focus-visible)
+  .content-tab-background {
+  background: var(--card-raised);
+}
+
+dialog.content-dialog.pdf-content-dialog .content-format {
+  flex-wrap: wrap;
+  max-width: calc(100% - 32px);
+}
+dialog.content-dialog.pdf-content-dialog .content-font-size {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+dialog.content-dialog.pdf-content-dialog .content-background-icon {
+  display: block;
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--content-ink);
+  border-radius: 5px;
+}
+dialog.content-dialog.pdf-content-dialog .content-background-palette {
+  position: absolute;
+  bottom: calc(100% + 12px);
+  left: 50%;
+  transform: translateX(-50%);
+}
+dialog.content-dialog.pdf-content-dialog .content-format .content-background-control {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: auto;
+  min-width: 44px;
+  padding: 0;
+  font-size: 14px;
+  font-weight: 400;
+}
+dialog.content-dialog.pdf-content-dialog .content-font-size .asset-filter-trigger {
+  width: auto;
+  min-width: 60px;
+  min-height: 40px;
+  padding: 4px 8px;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  border-radius: 20px;
+}
+@media (max-width: 40rem) {
+  dialog.content-dialog.pdf-content-dialog .content-rich-input {
+    padding-bottom: 128px;
+  }
+}
+
+dialog.content-dialog.pdf-content-dialog .content-font-size .asset-filter-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 64px;
+  height: 44px;
+  background: var(--button);
+}
+dialog.content-dialog.pdf-content-dialog .content-font-size .asset-filter .icon {
+  position: static;
+  inset: auto;
+  translate: none;
+  width: 10px;
+  height: 10px;
+}
+dialog.content-dialog.pdf-content-dialog .content-font-size .asset-filter-menu button {
+  display: block;
+  width: 100%;
+  height: auto;
+  min-height: 36px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: 16px;
+  line-height: 1.25;
+  text-align: center;
+}
+dialog.content-dialog.pdf-content-dialog .content-text-color-icon {
+  display: grid;
+  place-items: center;
+  border-bottom: 3px solid currentColor;
+}
+dialog.content-dialog.pdf-content-dialog .content-text-color-icon .icon {
+  display: block;
+  width: 20px;
+  height: 20px;
+}
+@media (max-width: 40rem) {
+  dialog.content-dialog.pdf-content-dialog .content-rich-input {
+    padding-bottom: 176px;
+  }
+}
+
+dialog.content-dialog.pdf-content-dialog .content-format button {
+  position: relative;
+}
+.content-control-tooltip {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  width: max-content;
+  max-width: 240px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: var(--exhibit-tooltip);
+  color: var(--exhibit-edge);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.4;
+  white-space: nowrap;
+  pointer-events: none;
+}
+dialog.content-dialog.pdf-content-dialog
+  button:is(:hover, :focus-visible)
+  > .content-control-tooltip {
+  display: block;
+}
+dialog.content-dialog.pdf-content-dialog button[aria-expanded="true"] > .content-control-tooltip {
+  display: none;
+}
+
+dialog.content-dialog.pdf-content-dialog .content-color-control {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+dialog.content-dialog.pdf-content-dialog .content-text-color-icon {
+  color: var(--content-ink);
+}
+dialog.content-dialog.pdf-content-dialog
+  .content-font-size
+  .asset-filter-menu
+  button:is([aria-selected="true"], :hover) {
+  background: var(--button);
+}
+
+dialog.content-dialog.pdf-content-dialog .content-format .content-background-control {
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 50%;
+}
+dialog.content-dialog.pdf-content-dialog .content-background-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+}
+dialog.content-dialog.pdf-content-dialog .content-color-control .color-palette {
+  max-width: none;
+}
+
+dialog.content-dialog.pdf-content-dialog .content-format > button,
+dialog.content-dialog.pdf-content-dialog .content-format > .content-color-control > button {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border-radius: 50%;
+}
+dialog.content-dialog.pdf-content-dialog .content-font-size .asset-filter-trigger {
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0 4px;
+  gap: 4px;
+  font-size: 16px;
+  border-radius: 50%;
+  background: transparent;
+}
+dialog.content-dialog.pdf-content-dialog .content-format > button:hover:not([aria-pressed="true"]),
+dialog.content-dialog.pdf-content-dialog .content-format > .content-color-control > button:hover,
+dialog.content-dialog.pdf-content-dialog
+  .content-font-size
+  .asset-filter-trigger:is(:hover, [aria-expanded="true"]) {
+  background: var(--pill);
+}
+
+/* Formatting controls share the editor's rounded-corner button shape. */
+dialog.content-dialog.pdf-content-dialog .content-format > button,
+dialog.content-dialog.pdf-content-dialog .content-format > .content-color-control > button,
+dialog.content-dialog.pdf-content-dialog .content-font-size .asset-filter-trigger {
+  border-radius: 12px;
+}
+dialog.content-dialog.pdf-content-dialog .content-font-size .asset-filter-trigger {
+  width: 44px;
+  min-width: 44px;
+  padding: 0 2px;
+  gap: 4px;
+}
+
+dialog.content-dialog.pdf-content-dialog .content-format {
+  gap: 0;
+  padding-inline: 16px;
+}
+
+dialog.content-dialog.pdf-content-dialog .content-font-size .asset-filter-trigger .icon {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+}

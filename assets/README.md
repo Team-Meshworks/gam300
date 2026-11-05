@@ -48,3 +48,24 @@ at most three idle entries and a 30-second expiry. New bytes require a new immut
 ID/hash. Invalidation retires lookups without destroying active borrowers. From `apps/web/`,
 run `npm run test:caching` for resource-lifetime checks or `npm run measure:caching`
 to record comparable baseline/cached timings.
+
+## Stands and displays (November 2026)
+
+Eight user-supplied GLBs are preserved unchanged in `source/stands-displays/` and
+`delivery/stands-displays/`, with immutable versioned IDs and hashes in the manifest.
+Their original filenames and unconfirmed provenance are recorded there. They are
+explicitly allowlisted development assets, not approved production distributions.
+Generated thumbnails use the actual model renderer.
+
+The four physical cases/plinths expose `displayRole: physical` and a `displayTop`
+height relative to the bottom-centred model. Glass cases use their interior base,
+not the top of the outer glass bounds. The four digital stands/panels expose
+`displayRole: digital` and `displaySurface` (local position, quaternion, width and
+height in metres). Surface positions were measured from transformed GLB vertex
+positions, with an inset border and a small offset to prevent z-fighting. Raw
+exports contain large modelling offsets; existing bottom-centre normalization
+removes those offsets without changing the source geometry.
+
+Run `node tools/validate-stands.mjs` for the eight-asset catalogue/source/delivery
+contract and `node tools/validate-assets.mjs` for hashes and Khronos validation.
+Browser verification remains necessary for appearance and authored media.

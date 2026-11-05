@@ -1,3 +1,5 @@
+import { LibraryRail } from "./LibraryRail";
+import { useDragImage } from "./use-drag-image";
 import { useState } from "react";
 import { assetDragType, type CatalogueAsset } from "../../shared/asset-runtime/catalogue";
 import { playUiSound } from "../audio/ui-sounds";
@@ -26,9 +28,10 @@ export function AssetPicker({
   ready: boolean;
   thumbnailFor: (assetId: string) => string | undefined;
   onAdd: (assetId: string) => void;
-  onDragChange: (dragging: boolean) => void;
+  onDragChange: (assetId: string | null) => void;
   onClose: () => void;
 }) {
+  const setDragImage = useDragImage();
   const [chosen, setChosen] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<AssetFilter>("all");
@@ -47,7 +50,12 @@ export function AssetPicker({
   }
 
   return (
-    <section className="asset-picker" id="asset-panel" aria-labelledby="assets-heading">
+    <section
+      className="asset-picker has-library-rail"
+      id="asset-panel"
+      aria-labelledby="assets-heading"
+    >
+      <LibraryRail icon="library" label="Asset library" />
       <div className="asset-picker-head">
         <h2 id="assets-heading" className="asset-picker-title">
           <Icon name="info" />
@@ -120,10 +128,11 @@ export function AssetPicker({
                     onDragStart={(event) => {
                       event.dataTransfer.setData(assetDragType, asset.id);
                       event.dataTransfer.effectAllowed = "copy";
-                      onDragChange(true);
+                      setDragImage(event.dataTransfer);
+                      onDragChange(asset.id);
                     }}
                     onDragEnd={(event) => {
-                      onDragChange(false);
+                      onDragChange(null);
                       // Only close when it really landed in the scene, a cancelled drag keep it open
                       if (event.dataTransfer.dropEffect !== "none") onClose();
                     }}

@@ -26,6 +26,109 @@ function setup() {
 }
 
 describe("content document preservation in the existing editor", () => {
+  it("saves name, transform and all typed content as one reversible edit with stable targets", () => {
+    const store = setup();
+    const before = store.getSnapshot().project as ContentProject;
+    const object = before.scenes[0]!.objects[0]!;
+    const components = object.components.map((entry) =>
+      entry.type === "text"
+        ? {
+            ...entry,
+            caption: "Updated caption",
+            runs: [{ text: "Literal <script>🏺</script>", marks: ["bold" as const] }],
+          }
+        : entry,
+    );
+    expect(
+      store.editExhibit(object.id, object, {
+        name: "Edited exhibit",
+        transform: {
+          ...object.transform,
+          position: [2, 0, 1],
+        },
+        components,
+      }).ok,
+    ).toBe(true);
+    const after = store.getSnapshot().project as ContentProject;
+    expect(after.scenes[0]!.objects[0]!.components.map((entry) => entry.id)).toEqual(
+      object.components.map((entry) => entry.id),
+    );
+    const json = serializeProject(after, kinds);
+    expect(json.ok).toBe(true);
+    if (!json.ok) throw new Error(json.error.message);
+    const reopened = createDocumentStore(assets);
+    expect(reopened.loadProject(json.value, kinds).ok).toBe(true);
+    expect(reopened.getSnapshot().project).toEqual(after);
+    store.undo();
+    expect(store.getSnapshot().project).toEqual(before);
+    store.redo();
+    expect(store.getSnapshot().project).toEqual(after);
+  });
+
+  it("rejects stale forms, wrong media and deletion of referenced panels without changing history", () => {
+    const store = setup();
+    const before = store.getSnapshot();
+    const object = before.objects[0]! as import("../shared/project/project-content").ContentObject;
+    const fields = {
+      name: object.name,
+      transform: object.transform,
+      components: object.components,
+    };
+    const wrongMedia = object.components.map((entry) =>
+      entry.type === "image" ? { ...entry, assetId: "test-crate-v1" } : entry,
+    );
+    expect(store.editExhibit(object.id, object, { ...fields, components: wrongMedia }).ok).toBe(
+      false,
+    );
+    expect(
+      store.editExhibit(object.id, object, {
+        ...fields,
+        components: object.components.filter((entry) => entry.type !== "text"),
+      }).ok,
+    ).toBe(false);
+    expect(
+      store.editExhibit(object.id, object, {
+        ...fields,
+        transform: { ...object.transform, scale: [0, 1, 1] },
+      }).ok,
+    ).toBe(false);
+    expect(store.getSnapshot()).toBe(before);
+    store.renameObject(object.id, "Changed elsewhere");
+    const changed = store.getSnapshot();
+    expect(store.editExhibit(object.id, object, fields).ok).toBe(false);
+    expect(store.getSnapshot()).toBe(changed);
+  });
+
+  it("upgrades a released object for content editing and preserves placement undo", () => {
+    const store = createDocumentStore(assets);
+    expect(store.createProject("test-room-v1").ok).toBe(true);
+    const added = store.addObject("test-crate-v1", [0, 0, 0]);
+    if (!added.ok) throw new Error(added.error);
+    expect(
+      store.editExhibit(added.object.id, added.object, {
+        name: added.object.name,
+        transform: added.object.transform,
+        components: [
+          {
+            id: crypto.randomUUID(),
+            type: "text",
+            runs: [{ text: "A story", marks: [] }],
+            caption: "",
+          },
+        ],
+      }).ok,
+    ).toBe(true);
+    store.undo();
+    expect(
+      (store.getSnapshot().objects[0] as import("../shared/project/project-content").ContentObject)
+        .components,
+    ).toEqual([]);
+    store.undo();
+    expect(store.getSnapshot().objects).toEqual([]);
+    store.redo();
+    store.redo();
+    expect(serializeProject(store.getSnapshot().project, kinds).ok).toBe(true);
+  });
   it("returns New to room selection without carrying objects or undo into the next project", () => {
     const store = setup();
     const id = store.getSnapshot().objects[0]!.id;
@@ -162,4 +265,23 @@ it("rejects deleting referenced scenes and viewpoints without changing document 
   const referenced = project.scenes[0]!.viewpoints[0]!;
   expect(store.deleteViewpoint(referenced.id).ok).toBe(false);
   expect(store.getSnapshot()).toBe(before);
+});
+
+it("confirms appearance as one reversible edit and preserves it through save and reopen", () => {
+  const store = setup();
+  const before = store.getSnapshot().project;
+  const id = store.getSnapshot().objects[0]!.id;
+  expect(store.setAppearance(id, { color: "#bd2949", material: "wood" }).ok).toBe(true);
+  const saved = serializeProject(store.getSnapshot().project, kinds);
+  if (!saved.ok) throw Error(saved.error.message);
+  const target = createDocumentStore(assets);
+  expect(target.loadProject(saved.value, kinds).ok).toBe(true);
+  expect(
+    (target.getSnapshot().objects[0] as ContentProject["scenes"][number]["objects"][number])
+      .appearance,
+  ).toEqual({ color: "#bd2949", material: "wood" });
+  store.undo();
+  expect(store.getSnapshot().project).toEqual(before);
+  store.redo();
+  expect(store.setAppearance(id, { color: "url(x)", material: "wood" }).ok).toBe(false);
 });
