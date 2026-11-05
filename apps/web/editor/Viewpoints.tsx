@@ -1,6 +1,8 @@
+import { Icon } from "./ui/Icon";
 import { getStartingView } from "../shared/project/starting-view";
 import { useState } from "react";
 import type { NamedViewpoint } from "../shared/project/project-types";
+import { playUiSound } from "./audio/ui-sounds";
 import type { createDocumentStore } from "./document-store";
 import type { ViewpointCamera } from "./viewport/Viewport";
 
@@ -97,7 +99,8 @@ export function Viewpoints({
               setOpen(!open);
             }}
           >
-            {view?.name ?? "Choose a saved view"} {open ? "\u25b4" : "\u25be"}
+            <span>{view?.name ?? "Choose a saved view"}</span>
+            <Icon name="caretDown" />
           </button>
           {open && (
             <div id="saved-view-list" className="saved-view-menu">
@@ -198,7 +201,9 @@ export function Viewpoints({
             disabled={views.length === 0}
             onClick={() => cycleView(-1)}
           >
-            {"\u2190"}
+            <span className="viewpoint-previous">
+              <Icon name="chevronRight" />
+            </span>
           </button>
           <span aria-live="polite">
             {view ? `${views.indexOf(view) + 1} / ${views.length}` : `${views.length} saved`}
@@ -209,7 +214,7 @@ export function Viewpoints({
             disabled={views.length === 0}
             onClick={() => cycleView(1)}
           >
-            {"\u2192"}
+            <Icon name="chevronRight" />
           </button>
         </div>
         <div className="viewpoint-actions">
@@ -248,7 +253,10 @@ export function Viewpoints({
             type="button"
             disabled={!view}
             onClick={() => {
-              if (view) report(store.deleteViewpoint(view.id), "View deleted. Undo restores it.");
+              if (!view) return;
+              const result = store.deleteViewpoint(view.id);
+              if (result.ok) playUiSound("delete");
+              report(result, "View deleted. Undo restores it.");
             }}
           >
             Delete view

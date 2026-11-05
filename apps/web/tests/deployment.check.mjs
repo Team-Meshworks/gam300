@@ -1,13 +1,13 @@
+import { launchBrowser } from "./browser-security.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { chromium } from "playwright";
 
 const url = process.argv[2] ?? "http://127.0.0.1:8081/";
 const useFileTransfer = () => {
   window.showOpenFilePicker = undefined;
   window.showSaveFilePicker = undefined;
 };
-const browser = await chromium.launch({ args: ["--enable-unsafe-swiftshader"] });
+const browser = await launchBrowser({ target: url, args: ["--enable-unsafe-swiftshader"] });
 // Asset library is a pop up now. Only open it when closed, since the button toggles it
 async function openLibrary(page) {
   if ((await page.locator(".asset-picker").count()) === 0) {
@@ -17,9 +17,23 @@ async function openLibrary(page) {
 
 // Clicking a card only picks it, Add is what places it
 async function addAsset(page, name) {
+  // Rooms use their own tray and the existing viewport placement gesture
+  if (name === "Starter room") {
+    if (await page.locator(".asset-picker").count()) await page.keyboard.press("Escape");
+    const overview = page.getByRole("button", { name: "Third person", exact: true });
+    if ((await overview.getAttribute("aria-pressed")) !== "true") await overview.click();
+    await page.getByRole("button", { name: "Rooms", exact: true }).click();
+    await page
+      .getByRole("group", { name: "Rooms options", exact: true })
+      .getByRole("button", { name, exact: true })
+      .click();
+    await page.locator(".viewport-stage").click({ position: { x: 500, y: 300 } });
+    return;
+  }
   await openLibrary(page);
   await page.locator(".asset-picker").getByRole("button", { name, exact: true }).click();
   await page.getByRole("button", { name: "Add", exact: true }).click();
+  await page.locator(".viewport-stage").click({ position: { x: 500, y: 300 } });
 }
 
 try {
@@ -36,22 +50,28 @@ try {
   assert.equal(response.status(), 200);
   assert.ok(response.headers()["content-security-policy"], "The real server applies its policy");
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
+  await page.getByRole("button", { name: "Third person", exact: true }).click();
   assert.equal(await page.locator("canvas").count(), 1);
   await openLibrary(page);
   assert.ok(
     await page
       .locator(".asset-card", {
-        has: page.getByRole("button", { name: "test-crate", exact: true }),
+        has: page.getByRole("button", { name: "Sample crate", exact: true }),
       })
       .locator("img")
-      .evaluate((image) => image.complete && image.naturalWidth > 0),
+      .evaluate(async (image) => {
+        await image.decode();
+        return image.complete && image.naturalWidth > 0;
+      }),
   );
   // Fresh projects require an environment before model placement can change the document
-  await addAsset(page, "test-crate");
+  await addAsset(page, "Sample crate");
   assert.equal(await page.locator(".object-row").count(), 0);
   await page.getByRole("alert").filter({ hasText: "Choose a room first" }).waitFor();
-  await addAsset(page, "test-room");
-  await addAsset(page, "test-crate");
+  // Cancel the rejected placement before switching to the room tray
+  await page.keyboard.press("Escape");
+  await addAsset(page, "Starter room");
+  await addAsset(page, "Sample crate");
   assert.equal(await page.locator(".object-row").count(), 1);
   if (process.env.CHECK_SCREENSHOT) {
     await page.screenshot({ path: process.env.CHECK_SCREENSHOT });
@@ -59,7 +79,7 @@ try {
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   assert.equal(await page.locator(".object-row").count(), 0);
   // Undo only took the crate away, the room is still there
-  await addAsset(page, "test-crate");
+  await addAsset(page, "Sample crate");
   const originalPosition = await page.getByLabel("Selected position").textContent();
   // No more move buttons, so nudge through the Position panel then go back to the tree
   await page.getByRole("button", { name: "Position", exact: true }).click();
@@ -93,7 +113,11 @@ try {
   const project = JSON.parse(bytes.toString("utf8"));
   assert.equal(project.scenes[0].environmentAssetId, "test-room-v1");
   assert.equal(project.scenes[0].objects.length, 1);
-  assert.deepEqual(project.scenes[0].objects[0].transform.position, expectedPosition);
+  // Position fields show two decimals while saved coordinates retain full precision
+  assert.deepEqual(
+    project.scenes[0].objects[0].transform.position.map((value) => Number(value.toFixed(2))),
+    expectedPosition,
+  );
   // Save finishes its recovery write before restoring the file-status label
   await page.getByText("Not saved", { exact: true }).waitFor();
   await page.reload();

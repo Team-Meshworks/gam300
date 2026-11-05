@@ -34,7 +34,7 @@ jobs:
       - name: Install locked browser-reader tooling
         working-directory: apps/web
         run: |
-          npm install --global npm@11.17.0
+          npm install --global npm@11.21.1
           npm ci --no-audit --no-fund
       - name: Validate the shared fixtures and server round trips
         run: dotnet run --project apps/server/project-format-checks/Spatia.ProjectFormat.Checks.csproj -c Release
@@ -66,13 +66,15 @@ jobs:
           cache-dependency-path: apps/web/package-lock.json
       - name: Install and check the native toolchain
         run: |
-          npm install --global npm@11.17.0
+          npm install --global npm@11.21.1
           npm ci --no-audit --no-fund
           node ../../tools/setup.check.mjs
           npm run check:architecture
       - name: Run native unit tests
         # Keep the console output and a report we can download after a failure
-        run: npm run test:unit -- --reporter=default --reporter=junit --outputFile=test-results/unit.xml
+        run: |
+          npm run test:browser-policy
+          npm run test:unit -- --reporter=default --reporter=junit --outputFile=test-results/unit.xml
       - name: Build on the native platform
         run: npm run build
       - name: Retain native test reports
@@ -143,10 +145,12 @@ jobs:
           cache-dependency-path: apps/web/package-lock.json
       - name: Install locked tooling
         run: |
-          npm install --global npm@11.17.0
+          npm install --global npm@11.21.1
           npm ci --no-audit --no-fund
-      - name: Install pinned browser
-        run: npx playwright install --with-deps chromium
+      - name: Install and verify patched Chrome
+        run: |
+          npm run browser:install
+          npm run browser:verify
       - name: Prove architecture enforcement and isolated module removal
         run: npm run test:architecture
       - name: Retain architecture evidence
@@ -177,8 +181,38 @@ jobs:
             script: test:recovery
           - name: history
             script: test:history
+          - name: interactions
+            script: test:interactions
           - name: workspace
             script: test:workspace
+          - name: accounts
+            script: test:accounts
+          - name: admin-dashboard
+            script: test:admin-dashboard
+          - name: sounds
+            script: test:sounds
+          - name: entry
+            script: test:entry
+          - name: ui
+            script: test:ui
+            path: /ui-preview.html
+          - name: new-project
+            script: test:new-project
+            path: /ui-preview.html#new-project
+          - name: classes
+            script: test:classes
+            path: /ui-preview.html
+          - name: assignment-screen
+            script: test:assignment-screen
+            path: /ui-preview/assignment-test.html
+          - name: deadline
+            script: test:deadline
+            path: /ui-preview.html
+          - name: review-directory
+            script: test:review-directory
+            path: /ui-preview.html
+          - name: server-autosave
+            script: test:server-autosave
     defaults:
       run:
         working-directory: apps/web
@@ -195,10 +229,12 @@ jobs:
           cache-dependency-path: apps/web/package-lock.json
       - name: Install locked tooling
         run: |
-          npm install --global npm@11.17.0
+          npm install --global npm@11.21.1
           npm ci --no-audit --no-fund
-      - name: Install pinned browser
-        run: npx playwright install --with-deps chromium
+      - name: Install and verify patched Chrome
+        run: |
+          npm run browser:install
+          npm run browser:verify
       - name: Start Vite server
         run: |
           mkdir -p test-results
@@ -210,7 +246,7 @@ jobs:
       - name: Run fixture check
         env:
           CHECK_SCREENSHOT: test-results/${{ matrix.name }}.png
-        run: npm run ${{ matrix.script }} -- http://127.0.0.1:5173 | tee test-results/${{ matrix.name }}.log
+        run: npm run ${{ matrix.script }} -- "http://127.0.0.1:5173${{ matrix.path }}" | tee test-results/${{ matrix.name }}.log
       - name: Stop Vite server
         if: always()
         run: |
@@ -250,7 +286,7 @@ jobs:
           cache-dependency-path: apps/web/package-lock.json
       - name: Install locked tooling
         run: |
-          npm install --global npm@11.17.0
+          npm install --global npm@11.21.1
           npm ci --no-audit --no-fund
       - name: Check source and assets
         run: |
@@ -258,14 +294,21 @@ jobs:
           npm run lint
           npm run format:check
           npm run test:entry-config
+          npm run test:browser-policy
           node ../../tools/validate-assets.check.mjs
           node ../../tools/setup.check.mjs
           bash ../../deploy/deploy.test.sh
           node --test ../../deploy/verify-release.test.mjs
       - name: Run unit tests
         run: npm run test:unit -- --reporter=default --reporter=junit --outputFile=test-results/unit.xml
-      - name: Install pinned browser
-        run: npx playwright install --with-deps chromium
+      - name: Install and verify patched Chrome
+        run: |
+          npm run browser:install
+          npm run browser:verify
+      - name: Check browser isolation and real HTTP cache
+        run: npm run test:browser-security
+      - name: Verify cache measurement with HTTP revalidation
+        run: npm run measure:caching
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       # Source checks have passed above; keep the final Caddy-image browser checks below
       - name: Build the runnable image
@@ -291,6 +334,7 @@ jobs:
           test "$(curl --fail --silent http://127.0.0.1:4173/version.txt)" = "$GITHUB_SHA"
           npm run test:deployment -- http://127.0.0.1:4173/
           npm run test:workspace -- http://127.0.0.1:4173
+          CHECK_SCREENSHOT=test-results/admin-dashboard.png npm run test:admin-dashboard -- http://127.0.0.1:4173
           if [[ -f tests/editor-build.check.mjs ]]; then
             node tests/editor-build.check.mjs http://127.0.0.1:4173/
           fi
@@ -404,10 +448,11 @@ jobs:
       - name: Install the existing browser test dependencies
         working-directory: apps/web
         run: |
-          npm install --global npm@11.17.0
+          npm install --global npm@11.21.1
           npm ci --no-audit --no-fund
-          # Server browser checks use chromium.launch() with the default headless shell.
-          npx --no-install playwright install --with-deps --only-shell chromium
+          # The shared policy verifies full Chrome, including chrome://sandbox.
+          npm run browser:install
+          npm run browser:verify
       - name: Build, check and test the server
         env:
           SPATIA_TEST_DATABASE_CONNECTION: Host=127.0.0.1;Port=${{ job.services.postgres.ports['5432'] }};Database=spatia_scrum45_test;Username=spatia_test;Password=spatia_ci_only

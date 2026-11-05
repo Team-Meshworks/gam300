@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json.Nodes;
 
 namespace Spatia.Server.Tests;
@@ -38,7 +39,26 @@ internal static class ProjectTestDocuments
                 }
             }
         }
+        // Match the canonical wire shape while leaving every authored collection intact.
+        // Empty extensions are optional; writers omit them for released-reader compatibility.
+        foreach (var scene in document["scenes"]!.AsArray())
+        {
+            foreach (var name in new[] { "hotspots", "interactions" })
+            {
+                if (scene![name] is JsonArray { Count: 0 })
+                {
+                    scene.AsObject().Remove(name);
+                }
+            }
+        }
         return document.ToJsonString();
     }
 
+    public static void PadTitleToBytes(JsonNode document, int bytes)
+    {
+        // Budget the exact representation that will be uploaded, not a separately serialized copy.
+        var padding = bytes - Encoding.UTF8.GetByteCount(document.ToJsonString());
+        if (padding < 0) { throw new ArgumentOutOfRangeException(nameof(bytes)); }
+        document["title"] = document["title"]!.GetValue<string>() + new string('x', padding);
+    }
 }

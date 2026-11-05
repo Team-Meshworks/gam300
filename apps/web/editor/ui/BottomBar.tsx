@@ -1,3 +1,5 @@
+import type { AudioLibraryMode } from "./AudioLibrary";
+import { useDragImage } from "./use-drag-image";
 import {
   useEffect,
   useRef,
@@ -7,11 +9,13 @@ import {
   type MouseEvent,
   type PointerEvent,
 } from "react";
-import type { CatalogueAsset } from "../../shared/asset-runtime/catalogue";
+import { assetDragType, type CatalogueAsset } from "../../shared/asset-runtime/catalogue";
+import { playUiSound } from "../audio/ui-sounds";
 import type { NavigationTool } from "../graphics/scene";
 import { AssetPicker } from "./AssetPicker";
 import { dockEdges, loadDockEdge, nearestEdge, saveDockEdge, type DockEdge } from "./dock-edge";
 import { Icon, type IconName } from "./Icon";
+import { displayPanelTools, displayCaseTools } from "./display-tools";
 
 const cameraTools: { id: NavigationTool; label: string; hint: string; icon: IconName }[] = [
   { id: "select", label: "Select", hint: "Select · click objects to edit them", icon: "select" },
@@ -20,9 +24,9 @@ const cameraTools: { id: NavigationTool; label: string; hint: string; icon: Icon
   { id: "zoom", label: "Zoom", hint: "Zoom · drag up or down", icon: "zoom" },
 ];
 
-type Category = "furniture" | "panels" | "cases" | "audio";
-type SceneTool = "library" | "hotspot" | Category;
-type Item = { label: string; icon: IconName };
+type Category = "rooms" | "furniture" | "panels" | "cases" | "audio";
+type SceneTool = "library" | Category;
+type Item = { label: string; icon: IconName; assetId?: string };
 type PopupId = Category | "dock";
 
 const edgeLabels: Record<DockEdge, string> = {
@@ -38,46 +42,63 @@ function place(point: { x: number; y: number }, name: "popup" | "tip") {
 }
 
 // First item is what the bar show until something else is picked
-const categories: { id: Category; label: string; items: [Item, ...Item[]] }[] = [
+const baseCategories: { id: Category; label: string; items: Item[] }[] = [
+  { id: "rooms", label: "Rooms", items: [{ label: "Room", icon: "door" }] },
   { id: "furniture", label: "Furniture", items: [{ label: "Chair", icon: "chair" }] },
+  { id: "panels", label: "Display panels", items: displayPanelTools },
+  { id: "cases", label: "Display cases", items: displayCaseTools },
   {
-    id: "panels",
-    label: "Display panels",
+    id: "audio",
+    label: "Audio",
     items: [
-      { label: "Panel with stand", icon: "panelStanding" },
-      { label: "Small panel with stand", icon: "panelSmall" },
-      { label: "Vertical panel", icon: "panelPortrait" },
-      { label: "Horizontal panel", icon: "panelLandscape" },
+      { label: "BGM", icon: "audioMusic" },
+      { label: "Sound effects", icon: "audioSpeaker" },
+      { label: "Payphone audio", icon: "audioPhone" },
     ],
   },
-  { id: "cases", label: "Display cases", items: [{ label: "Display case", icon: "caseClosed" }] },
-  { id: "audio", label: "Audio", items: [{ label: "Background music", icon: "music" }] },
 ];
 
 export function BottomBar({
   assets,
+  hotspot,
   ready,
   thumbnailFor,
   onAdd,
+  onAudio,
   onDragChange,
   tool,
   onToolChange,
   showCameraTools,
 }: {
   assets: readonly CatalogueAsset[];
+  hotspot: CatalogueAsset;
   ready: boolean;
   thumbnailFor: (assetId: string) => string | undefined;
   onAdd: (assetId: string) => void;
-  onDragChange: (dragging: boolean) => void;
+  onAudio: (mode: AudioLibraryMode) => void;
+  onDragChange: (assetId: string | null) => void;
   tool: NavigationTool;
   onToolChange: (tool: NavigationTool) => void;
-  // Camera tools only make sense for the orbit camera, so third person only
+  // Available while editing; choosing a camera tool switches to third person
   showCameraTools: boolean;
 }) {
+  const setDragImage = useDragImage();
+  const categories = baseCategories.map((category) =>
+    category.id === "rooms"
+      ? {
+          ...category,
+          items: assets
+            .filter((asset) => asset.kind === "environment")
+            .map((asset): Item => ({ label: asset.name, icon: "door", assetId: asset.id })),
+        }
+      : category,
+  );
   // Only one tool selected at a time. Library start closed now since its a big pop up
   const [selected, setSelected] = useState<SceneTool | null>(null);
   const libraryOpen = selected === "library";
+  const [draggingAsset, setDraggingAsset] = useState(false);
   const [picked, setPicked] = useState<Record<Category, number>>({
+    rooms: 0,
     furniture: 0,
     panels: 0,
     cases: 0,
@@ -114,20 +135,25 @@ export function BottomBar({
 
   useEffect(() => {
     if (!libraryOpen) return;
-    // Same for the asset library, clicks on the bar itself are left for its own buttons
-    function closeOutside(event: globalThis.PointerEvent) {
+    // Keep background controls inactive without blocking the existing drag-and-drop placement path
+    function blockOutside(event: Event) {
       const inside = [picker.current, dock.current].some(
         (element) => event.target instanceof Node && element?.contains(event.target),
       );
-      if (!inside) setSelected(null);
+      if (!inside) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
     }
     function closeOnEscape(event: KeyboardEvent) {
       if (event.key === "Escape") setSelected(null);
     }
-    document.addEventListener("pointerdown", closeOutside);
+    document.addEventListener("pointerdown", blockOutside, true);
+    document.addEventListener("click", blockOutside, true);
     document.addEventListener("keydown", closeOnEscape);
     return () => {
-      document.removeEventListener("pointerdown", closeOutside);
+      document.removeEventListener("pointerdown", blockOutside, true);
+      document.removeEventListener("click", blockOutside, true);
       document.removeEventListener("keydown", closeOnEscape);
     };
   }, [libraryOpen]);
@@ -144,10 +170,10 @@ export function BottomBar({
     if (anchor !== undefined) setPopup({ id, x: box.left - anchor.left, y: box.top - anchor.top });
   }
 
-  // First click select the category, click it again to open or close its pop up
+  // Display tools open their concrete choices immediately; selecting one uses normal placement.
   function chooseCategory(event: MouseEvent<HTMLButtonElement>, id: Category) {
-    if (selected !== id) return select(id);
-    if (popup !== null) return setPopup(null);
+    if (popup?.id === id) return setPopup(null);
+    setSelected(id);
     openPopup(event.currentTarget, id);
   }
 
@@ -209,13 +235,25 @@ export function BottomBar({
     <>
       {libraryOpen && (
         // Outside the dock so it can be big and centred in the scene, not squeezed into the bar
-        <div className="asset-picker-layer" ref={picker}>
+        <div
+          className="asset-picker-layer"
+          ref={picker}
+          style={draggingAsset ? { visibility: "hidden" } : undefined}
+        >
           <AssetPicker
-            assets={assets}
+            assets={assets.filter(
+              (asset) =>
+                asset.id !== "test-room-module-v1" &&
+                asset.kind !== "environment" &&
+                !asset.displayRole,
+            )}
             ready={ready}
             thumbnailFor={thumbnailFor}
             onAdd={onAdd}
-            onDragChange={onDragChange}
+            onDragChange={(assetId) => {
+              setDraggingAsset(assetId !== null);
+              onDragChange(assetId);
+            }}
             onClose={() => select(null)}
           />
         </div>
@@ -229,9 +267,9 @@ export function BottomBar({
         }
       >
         {showCameraTools && (
-          <div className="tool-tip-anchor">
+          <div className="tool-tip-anchor" hidden={popup !== null || libraryOpen}>
             {cameraTip.bubble}
-            <div className="mode-bar" role="group" aria-label="Camera tools">
+            <div className="mode-bar" role="group" aria-label="Camera tools" inert={libraryOpen}>
               {cameraTools.map((cameraTool) => (
                 <button
                   key={cameraTool.id}
@@ -250,7 +288,7 @@ export function BottomBar({
         )}
 
         <div className="tool-tip-anchor">
-          {popup === null && toolTip.bubble}
+          {toolTip.bubble}
           {popup !== null && (
             // Outside the toolbar so its scroll wont cut the pop up off
             <div className="tool-popup-anchor" style={place(popup, "popup")}>
@@ -274,7 +312,11 @@ export function BottomBar({
                     ))}
                   </div>
                 ) : (
-                  <div className="tool-popup" role="group" aria-label={`${open.label} options`}>
+                  <div
+                    className={`tool-popup${open.id === "audio" ? " audio-tool-popup" : ""}`}
+                    role="group"
+                    aria-label={`${open.label} options`}
+                  >
                     {open.items.map((item, index) => (
                       <button
                         key={item.label}
@@ -282,11 +324,41 @@ export function BottomBar({
                         type="button"
                         aria-label={item.label}
                         aria-pressed={picked[open.id] === index}
-                        onClick={() => {
-                          setPicked((previous) => ({ ...previous, [open.id]: index }));
+                        aria-disabled={open.id === "audio" && index !== 0}
+                        title={open.id === "audio" && index !== 0 ? "Coming soon" : item.label}
+                        disabled={
+                          item.assetId !== undefined &&
+                          (!ready || !assets.some((asset) => asset.id === item.assetId))
+                        }
+                        draggable={
+                          item.assetId !== undefined &&
+                          ready &&
+                          assets.some((asset) => asset.id === item.assetId)
+                        }
+                        onDragStart={(event) => {
+                          if (!item.assetId) return;
+                          event.dataTransfer.setData(assetDragType, item.assetId);
+                          event.dataTransfer.effectAllowed = "copy";
+                          setDragImage(event.dataTransfer);
+                          onDragChange(item.assetId);
+                        }}
+                        onDragEnd={() => {
+                          onDragChange(null);
                           setPopup(null);
                         }}
-                        {...popupTip.handlers(item.label)}
+                        onClick={() => {
+                          // Keep future audio types visible without opening an unsupported authoring flow
+                          if (open.id === "audio" && index !== 0) return;
+                          setPicked((previous) => ({ ...previous, [open.id]: index }));
+                          setPopup(null);
+                          playUiSound("assetSelect");
+                          if (open.id === "audio")
+                            onAudio((["background", "spatial", "narration"] as const)[index]!);
+                          else if (item.assetId) onAdd(item.assetId);
+                        }}
+                        {...popupTip.handlers(
+                          open.id === "audio" && index !== 0 ? "Coming soon" : item.label,
+                        )}
                       >
                         <Icon name={item.icon} />
                       </button>
@@ -322,10 +394,19 @@ export function BottomBar({
             <button
               className="ui-button"
               type="button"
-              aria-label="Hotspot"
-              aria-pressed={selected === "hotspot"}
-              onClick={() => select("hotspot")}
-              {...toolTip.handlers("Hotspot")}
+              draggable={ready && !libraryOpen}
+              disabled={!ready || libraryOpen}
+              aria-label={`Add ${hotspot.name}`}
+              title="Drag into the scene, or click to add"
+              onClick={() => onAdd(hotspot.id)}
+              onDragStart={(event) => {
+                event.dataTransfer.setData(assetDragType, hotspot.id);
+                event.dataTransfer.effectAllowed = "copy";
+                setDragImage(event.dataTransfer);
+                onDragChange(hotspot.id);
+              }}
+              onDragEnd={() => onDragChange(null)}
+              {...toolTip.handlers(hotspot.name)}
             >
               <Icon name="hotspot" />
             </button>
@@ -336,12 +417,15 @@ export function BottomBar({
                 className="ui-button"
                 type="button"
                 aria-label={category.label}
+                data-category={category.id}
                 aria-pressed={selected === category.id}
                 aria-expanded={popup?.id === category.id}
                 onClick={(event) => chooseCategory(event, category.id)}
                 {...toolTip.handlers(category.label)}
               >
-                <Icon name={(category.items[picked[category.id]] ?? category.items[0]).icon} />
+                <Icon
+                  name={(category.items[picked[category.id]] ?? category.items[0])?.icon ?? "door"}
+                />
               </button>
             ))}
           </div>

@@ -13,7 +13,7 @@ public sealed class ProjectDocumentService
     private readonly IReadOnlyDictionary<string, string> _assets;
 
     /// <summary>
-    /// Uses the same three development samples as the editor; other environments fail closed
+    /// Uses the same development catalogue as the editor; other environments fail closed
     /// </summary>
     public ProjectDocumentService(IHostEnvironment environment)
     {
@@ -34,18 +34,40 @@ public sealed class ProjectDocumentService
         foreach (var entry in manifest.RootElement.GetProperty("assets").EnumerateArray())
         {
             var id = entry.GetProperty("assetId").GetString()!;
-            if (id is not ("test-room-v1" or "test-crate-v1" or "sample-snowglobe-v1"))
+            // Repeated rooms reuse the room bytes as model instances; keep their manifest identity saveable
+            if (id is not ("test-room-v1" or "test-room-module-v1" or "test-crate-v1" or "sample-snowglobe-v1"
+                or "display-cube-v1" or "display-full-glass-case-v1" or "display-half-glass-case-v1"
+                or "display-one-sided-glass-case-v1" or "display-rectangle-stand-v1"
+                or "display-rectangle-panel-v1" or "display-square-stand-v1" or "display-square-panel-v1" or "sample-landscape-image-v1" or "sample-coast-image-v1" or "sample-coast-video-v1"
+                or "sample-dunes-image-v1" or "sample-forest-image-v1" or "sample-sunset-image-v1" or "sample-valley-image-v1" or "sample-dunes-video-v1" or "sample-forest-video-v1" or "sample-sunset-video-v1"
+                or "audio-ethereal-calm-v1"
+                or "audio-mystic-harp-v1"
+                or "audio-calm-piano-v1"
+                or "audio-mysterious-piano-v1"
+                or "audio-reflective-piano-v1"
+                or "audio-classical-piano-v1"
+                or "audio-octave-piano-loop-v1"
+                or "audio-museum-hall-v1"
+                or "audio-museum-hall-conversation-v1"
+                or "audio-washroom-room-tone-v1"
+                or "audio-wooden-cabin-at-night-v1"
+                or "audio-outdoor-restaurant-v1"
+                or "audio-quiet-crowd-v1"))
             {
                 continue;
             }
             var kind = entry.GetProperty("kind").GetString()!;
+            var expectedKind = id is "audio-ethereal-calm-v1" or "audio-mystic-harp-v1" or "audio-calm-piano-v1" or "audio-mysterious-piano-v1" or "audio-reflective-piano-v1" or "audio-classical-piano-v1" or "audio-octave-piano-loop-v1" or "audio-museum-hall-v1" or "audio-museum-hall-conversation-v1" or "audio-washroom-room-tone-v1" or "audio-wooden-cabin-at-night-v1" or "audio-outdoor-restaurant-v1" or "audio-quiet-crowd-v1" ? "audio"
+                : id is "sample-landscape-image-v1" or "sample-coast-image-v1" or "sample-dunes-image-v1" or "sample-forest-image-v1" or "sample-sunset-image-v1" or "sample-valley-image-v1" ? "image"
+                : id is "sample-coast-video-v1" or "sample-dunes-video-v1" or "sample-forest-video-v1" or "sample-sunset-video-v1" ? "video"
+                : id == "test-room-v1" ? "environment" : "model";
             if (entry.GetProperty("access").GetString() != "development-only"
-                || kind != (id == "test-room-v1" ? "environment" : "model") || !assets.TryAdd(id, kind))
+                || kind != expectedKind || !assets.TryAdd(id, kind))
             {
                 throw new InvalidOperationException("Invalid packaged development asset catalogue.");
             }
         }
-        if (assets.Count != 3)
+        if (assets.Count != 35)
         {
             throw new InvalidOperationException("The packaged development asset catalogue is incomplete.");
         }

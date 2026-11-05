@@ -4,12 +4,13 @@ using Microsoft.EntityFrameworkCore;
 using Spatia.Server.Accounts;
 using Spatia.Server.Classes;
 using Spatia.Server.Projects;
+using Spatia.Server.Publications;
 using Spatia.Server.Reviews;
 
 namespace Spatia.Server.Persistence;
 
 /// <summary>
-/// Stores Identity accounts, organization memberships and project drafts with their access assignments
+/// Stores accounts, organizations, project drafts with access assignments and immutable publication editions
 /// </summary>
 /// <param name="options">The database provider and context configuration</param>
 public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
@@ -62,17 +63,24 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<ReviewDecision> ReviewDecisions => Set<ReviewDecision>();
 
     /// <summary>
+    /// Gets immutable publication editions; current audience and lifecycle authorization must be checked separately
+    /// </summary>
+    public DbSet<Publication> Publications => Set<Publication>();
+
+    /// <summary>
     /// Configures account, organization and project mappings, constraints and fixed role seeds
     /// </summary>
     /// <param name="builder">The model builder receiving the database mappings</param>
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+        builder.ApplyConfiguration(new PublicationConfiguration());
 
         builder.Entity<ApplicationUser>(user =>
         {
             user.Property(account => account.UserName).IsRequired();
             user.Property(account => account.NormalizedUserName).IsRequired();
+            user.Property(account => account.DisplayName).HasMaxLength(256);
         });
 
         builder.Entity<IdentityRole<Guid>>().HasData(

@@ -2,14 +2,14 @@
   "assets": [
     {
       "assetId": "test-room-v1",
-      "name": "test-room",
+      "name": "Starter room",
       "kind": "environment",
       "mediaType": "model/gltf-binary",
       "file": "delivery/test-room.glb",
       "sourceFile": "source/test-room.blend",
       "byteSize": 7864,
       "sha256": "121c9d86eefb1961a697a390967dfeface3ce1f612334d2fbc447551ddfd88d1",
-      "category": "test-assets",
+      "category": "Architecture",
       "thumbnail": "delivery/thumbnails/test-room.png",
       "access": "development-only",
       "license": {
@@ -37,14 +37,14 @@
     },
     {
       "assetId": "test-crate-v1",
-      "name": "test-crate",
+      "name": "Sample crate",
       "kind": "model",
       "mediaType": "model/gltf-binary",
       "file": "delivery/test-crate.glb",
       "sourceFile": "source/test-crate.blend",
       "byteSize": 1952,
       "sha256": "b8ecc4ef7611af4c07a0c0b9eafdb39de080a05098e18f064ac7a26ebb04a28a",
-      "category": "test-assets",
+      "category": "Objects",
       "thumbnail": "delivery/thumbnails/test-crate.png",
       "access": "development-only",
       "license": {
@@ -79,7 +79,7 @@
       "sourceFile": "source/snowglobe.glb",
       "byteSize": 619712,
       "sha256": "725c40d8821852604a781a8bb3500db884804be6c7ce6594a8244718f48ab4ee",
-      "category": "test-assets",
+      "category": "Objects",
       "thumbnail": null,
       "thumbnailMode": "generated",
       "placement": "bottom-center",
@@ -90,6 +90,687 @@
         "provenance": "Existing teammate-provided snowglobe GLB, preserved unchanged from web/editor/public/models/snowglobe.glb. Licensing implementation belongs to the VThere team."
       },
       "reviewNotes": "Original GLB contains animation; editor does not play animations. Preserve existing bottom-center placement and generated thumbnail. Bounds verification remains pending."
+    },
+    {
+      "assetId": "test-room-module-v1",
+      "name": "Starter room",
+      "kind": "model",
+      "mediaType": "model/gltf-binary",
+      "file": "delivery/test-room.glb",
+      "sourceFile": "source/test-room.blend",
+      "byteSize": 7864,
+      "sha256": "121c9d86eefb1961a697a390967dfeface3ce1f612334d2fbc447551ddfd88d1",
+      "category": "Architecture",
+      "thumbnail": "delivery/thumbnails/test-room.png",
+      "access": "development-only",
+      "license": {
+        "status": "pending-team-confirmation",
+        "provenance": "Created by the contributor in Blender during the room/crate walkthrough; redistribution terms not yet selected."
+      },
+      "boundsMeters": {
+        "max": [
+          5,
+          3,
+          5
+        ],
+        "min": [
+          -5,
+          -0.2,
+          -5
+        ]
+      },
+      "pivotMeters": [
+        0,
+        0,
+        0
+      ],
+      "reviewNotes": "Bounds rounded from GLB metadata.Floor top corrected to 0m. Browser verification pending."
+    },
+    {
+      "assetId": "display-cube-v1",
+      "name": "Display plinth",
+      "kind": "model",
+      "mediaType": "model/gltf-binary",
+      "file": "delivery/stands-displays/display-cube-v1.glb",
+      "sourceFile": "source/stands-displays/display-cube-v1.glb",
+      "byteSize": 8832,
+      "sha256": "50c2f051b5fd07fbb0e02c6b4ab7100b623dddaddf2bda918ebb86774ad441b5",
+      "category": "Furniture",
+      "thumbnail": null,
+      "thumbnailMode": "generated",
+      "placement": "bottom-center",
+      "displayRole": "physical",
+      "access": "development-only",
+      "license": {
+        "status": "pending-team-confirmation",
+        "provenance": "User-supplied cube.glb, provided for Meshworks stands and displays on 2026-11-03. Original bytes preserved. Authorship and redistribution rights remain unconfirmed."
+      },
+      "reviewNotes": "GLB source contains exporter offsets; runtime bottom-center normalization preserves shape and puts its base at the placement origin. Display metadata measured from transformed GLB vertex positions in metres; media rectangles inset from panel edges. Browser verification required.",
+      "displayTop": 1.2
+    },
+    {
+      "assetId": "display-full-glass-case-v1",
+      "name": "Full glass display case",
+      "kind": "model",
+      "mediaType": "model/gltf-binary",
+      "file": "delivery/stands-displays/display-full-glass-case-v1.glb",
+      "sourceFile": "source/stands-displays/display-full-glass-case-v1.glb",
+      "byteSize": 6308,
+      "sha256": "c9c865cff3aad313f66f26c8a5cebbbadfaf8561175820731d149c2e90d94662",
+      "category": "Furniture",
+      "thumbnail": null,
+      "thumbnailMode": "generated",
+      "placement": "bottom-center",
+      "displayRole": "physical",
+      "access": "development-only",
+      "license": {
+        "status": "pending-team-confirmation",
+        "provenance": "User-supplied full glass display case.glb, provided for Meshworks stands and displays on 2026-11-03. Original bytes preserved. Authorship and redistribution rights remain unconfirmed."
+      },
+      "reviewNotes": "GLB source contains exporter offsets; runtime bottom-center normalization preserves shape and puts its base at the placement origin. Display metadata measured from transformed GLB vertex positions in metres; media rectangles inset from panel edges. Browser verification required.",
+      "displayTop": 0.2
+    },
+    {
+      "assetId": "display-half-glass-case-v1",
+      "name": "Half glass display case",
+      "kind": "model",
+      "mediaType": "model/gltf-binary",
+      "file": "delivery/stands-displays/display-half-glass-case-v1.glb",
+      "sourceFile": "source/stands-displays/display-half-glass-case-v1.glb",
+      "byteSize": 5296,
+      "sha256": "6e87a702862fbc3011e269ee12d090b1ec23039987367199fabf986b057c4adf",
+      "category": "Furniture",
+      "thumbnail": null,
+      "thumbnailMode": "generated",
+      "placement": "bottom-center",
+      "displayRole": "physical",
+      "access": "development-only",
+      "license": {
+        "status": "pending-team-confirmation",
+        "provenance": "User-supplied half glass dislay case.glb, provided for Meshworks stands and displays on 2026-11-03. Original bytes preserved. Authorship and redistribution rights remain unconfirmed."
+      },
+      "reviewNotes": "GLB source contains exporter offsets; runtime bottom-center normalization preserves shape and puts its base at the placement origin. Display metadata measured from transformed GLB vertex positions in metres; media rectangles inset from panel edges. Browser verification required.",
+      "displayTop": 1.2
+    },
+    {
+      "assetId": "display-one-sided-glass-case-v1",
+      "name": "One-sided glass display case",
+      "kind": "model",
+      "mediaType": "model/gltf-binary",
+      "file": "delivery/stands-displays/display-one-sided-glass-case-v1.glb",
+      "sourceFile": "source/stands-displays/display-one-sided-glass-case-v1.glb",
+      "byteSize": 13444,
+      "sha256": "c66419e457b38537f7440ef45540811e482d452842a98031a14d806b30eb527c",
+      "category": "Furniture",
+      "thumbnail": null,
+      "thumbnailMode": "generated",
+      "placement": "bottom-center",
+      "displayRole": "physical",
+      "access": "development-only",
+      "license": {
+        "status": "pending-team-confirmation",
+        "provenance": "User-supplied one sided  full glass display caseglb.glb, provided for Meshworks stands and displays on 2026-11-03. Original bytes preserved. Authorship and redistribution rights remain unconfirmed."
+      },
+      "reviewNotes": "GLB source contains exporter offsets; runtime bottom-center normalization preserves shape and puts its base at the placement origin. Display metadata measured from transformed GLB vertex positions in metres; media rectangles inset from panel edges. Browser verification required.",
+      "displayTop": 0.2
+    },
+    {
+      "assetId": "display-rectangle-stand-v1",
+      "name": "Landscape media stand",
+      "kind": "model",
+      "mediaType": "model/gltf-binary",
+      "file": "delivery/stands-displays/display-rectangle-stand-v1.glb",
+      "sourceFile": "source/stands-displays/display-rectangle-stand-v1.glb",
+      "byteSize": 21792,
+      "sha256": "74cdcb81fa381cf6bb7754c657a2bf1341d3db0934c732e893f79fd3d2939998",
+      "category": "Furniture",
+      "thumbnail": null,
+      "thumbnailMode": "generated",
+      "placement": "bottom-center",
+      "displayRole": "digital",
+      "access": "development-only",
+      "license": {
+        "status": "pending-team-confirmation",
+        "provenance": "User-supplied rectangle display stand.glb, provided for Meshworks stands and displays on 2026-11-03. Original bytes preserved. Authorship and redistribution rights remain unconfirmed."
+      },
+      "reviewNotes": "GLB source contains exporter offsets; runtime bottom-center normalization preserves shape and puts its base at the placement origin. Display metadata measured from transformed GLB vertex positions in metres; media rectangles inset from panel edges. Browser verification required.",
+      "displaySurface": {
+        "position": [
+          0,
+          1.425375,
+          0.05181
+        ],
+        "rotation": [
+          -0.3826834324,
+          0,
+          0,
+          0.9238795325
+        ],
+        "width": 1.1,
+        "height": 0.63
+      }
+    },
+    {
+      "assetId": "display-rectangle-panel-v1",
+      "name": "Landscape media panel",
+      "kind": "model",
+      "mediaType": "model/gltf-binary",
+      "file": "delivery/stands-displays/display-rectangle-panel-v1.glb",
+      "sourceFile": "source/stands-displays/display-rectangle-panel-v1.glb",
+      "byteSize": 7352,
+      "sha256": "a08937ad228596109f5e5e5670b06b95dcf923ba6dc09abc23c47dd2fcc8fc53",
+      "category": "Furniture",
+      "thumbnail": null,
+      "thumbnailMode": "generated",
+      "placement": "bottom-center",
+      "displayRole": "digital",
+      "access": "development-only",
+      "license": {
+        "status": "pending-team-confirmation",
+        "provenance": "User-supplied rectangle display.glb, provided for Meshworks stands and displays on 2026-11-03. Original bytes preserved. Authorship and redistribution rights remain unconfirmed."
+      },
+      "reviewNotes": "GLB source contains exporter offsets; runtime bottom-center normalization preserves shape and puts its base at the placement origin. Display metadata measured from transformed GLB vertex positions in metres; media rectangles inset from panel edges. Browser verification required.",
+      "displaySurface": {
+        "position": [
+          0,
+          0.5,
+          0.054
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "width": 1.92,
+        "height": 0.91
+      }
+    },
+    {
+      "assetId": "display-square-stand-v1",
+      "name": "Square media stand",
+      "kind": "model",
+      "mediaType": "model/gltf-binary",
+      "file": "delivery/stands-displays/display-square-stand-v1.glb",
+      "sourceFile": "source/stands-displays/display-square-stand-v1.glb",
+      "byteSize": 19816,
+      "sha256": "512419de40e96047255cd0f09aed367ce5d4ff549633d02fd607077d9ea9e2cd",
+      "category": "Furniture",
+      "thumbnail": null,
+      "thumbnailMode": "generated",
+      "placement": "bottom-center",
+      "displayRole": "digital",
+      "access": "development-only",
+      "license": {
+        "status": "pending-team-confirmation",
+        "provenance": "User-supplied square display stand.glb, provided for Meshworks stands and displays on 2026-11-03. Original bytes preserved. Authorship and redistribution rights remain unconfirmed."
+      },
+      "reviewNotes": "GLB source contains exporter offsets; runtime bottom-center normalization preserves shape and puts its base at the placement origin. Display metadata measured from transformed GLB vertex positions in metres; media rectangles inset from panel edges. Browser verification required.",
+      "displaySurface": {
+        "position": [
+          0,
+          1.404902,
+          0.064541
+        ],
+        "rotation": [
+          -0.3826834324,
+          0,
+          0,
+          0.9238795325
+        ],
+        "width": 0.61,
+        "height": 0.61
+      }
+    },
+    {
+      "assetId": "display-square-panel-v1",
+      "name": "Square media panel",
+      "kind": "model",
+      "mediaType": "model/gltf-binary",
+      "file": "delivery/stands-displays/display-square-panel-v1.glb",
+      "sourceFile": "source/stands-displays/display-square-panel-v1.glb",
+      "byteSize": 7292,
+      "sha256": "fdd9139e74ba98d5a1eee8652076353130ba51bbfafb7528c7e71c42c965f167",
+      "category": "Furniture",
+      "thumbnail": null,
+      "thumbnailMode": "generated",
+      "placement": "bottom-center",
+      "displayRole": "digital",
+      "access": "development-only",
+      "license": {
+        "status": "pending-team-confirmation",
+        "provenance": "User-supplied square display.glb, provided for Meshworks stands and displays on 2026-11-04. Original bytes preserved. Authorship and redistribution rights remain unconfirmed."
+      },
+      "reviewNotes": "Transformed mesh measures 1 x 1 x 0.1 metres after bottom-center normalization. Surface is inset 45 mm from edges and sits 4 mm ahead of the positive-Z face. Toolbar uses the exact supplied Figma Vertical Panel icon; the delivered model is square.",
+      "displaySurface": {
+        "position": [
+          0,
+          0.5,
+          0.054
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "width": 0.91,
+        "height": 0.91
+      }
+    },
+    {
+      "assetId": "sample-landscape-image-v1",
+      "name": "Sample landscape",
+      "kind": "image",
+      "mediaType": "image/webp",
+      "file": "delivery/sample-media/sample-landscape.webp",
+      "byteSize": 3650,
+      "sha256": "2dbc4f0eefa1d408266170da525cb1afaaf14b81c298a868b50b8f368177079a",
+      "category": "Sample media",
+      "thumbnail": "delivery/sample-media/sample-landscape.webp",
+      "access": "development-only",
+      "license": {
+        "status": "approved",
+        "provenance": "Procedural landscape illustration created for this project as a lightweight testing fixture. Silent video is a three-second pan of the coast image; no external footage.",
+        "spdx": "CC0-1.0"
+      },
+      "sourceFile": "delivery/sample-media/sample-landscape.webp"
+    },
+    {
+      "assetId": "sample-coast-image-v1",
+      "name": "Sample coast",
+      "kind": "image",
+      "mediaType": "image/webp",
+      "file": "delivery/sample-media/sample-coast.webp",
+      "byteSize": 3370,
+      "sha256": "44527b273891c781c5e4d31cdedfa3e1aed52f47e902f75b92ef1aeed9f807c7",
+      "category": "Sample media",
+      "thumbnail": "delivery/sample-media/sample-coast.webp",
+      "access": "development-only",
+      "license": {
+        "status": "approved",
+        "provenance": "Procedural landscape illustration created for this project as a lightweight testing fixture. Silent video is a three-second pan of the coast image; no external footage.",
+        "spdx": "CC0-1.0"
+      },
+      "sourceFile": "delivery/sample-media/sample-coast.webp"
+    },
+    {
+      "assetId": "sample-coast-video-v1",
+      "name": "Sample coast motion (3 seconds)",
+      "kind": "video",
+      "mediaType": "video/webm",
+      "file": "delivery/sample-media/sample-coast-motion.webm",
+      "byteSize": 9880,
+      "sha256": "dcbb4aac579ff2ba69dcba1bf139dc06fd319c026f8579f0f74b3aae161b0a89",
+      "category": "Sample media",
+      "thumbnail": "delivery/sample-media/sample-coast.webp",
+      "access": "development-only",
+      "license": {
+        "status": "approved",
+        "provenance": "Procedural landscape illustration created for this project as a lightweight testing fixture. Silent video is a three-second pan of the coast image; no external footage.",
+        "spdx": "CC0-1.0"
+      },
+      "sourceFile": "delivery/sample-media/sample-coast-motion.webm"
+    },
+    {
+      "assetId": "sample-dunes-image-v1",
+      "name": "Sample dunes",
+      "kind": "image",
+      "mediaType": "image/webp",
+      "file": "delivery/sample-media/sample-dunes.webp",
+      "sourceFile": "delivery/sample-media/sample-dunes.webp",
+      "byteSize": 3302,
+      "sha256": "de2d1dc3e1625c0720f6f7a65f09bce5bf0c23130834ecc74450680266b9b01c",
+      "category": "Sample media",
+      "thumbnail": "delivery/sample-media/sample-dunes.webp",
+      "access": "development-only",
+      "license": {
+        "status": "approved",
+        "spdx": "CC0-1.0",
+        "provenance": "Procedural landscape illustration created for this project as a lightweight testing fixture. Silent three-second video derived from the matching image; no external footage."
+      }
+    },
+    {
+      "assetId": "sample-forest-image-v1",
+      "name": "Sample forest",
+      "kind": "image",
+      "mediaType": "image/webp",
+      "file": "delivery/sample-media/sample-forest.webp",
+      "sourceFile": "delivery/sample-media/sample-forest.webp",
+      "byteSize": 3422,
+      "sha256": "0ffa89735518be434b74c4e8877428546be82d7271f9e44d3333fa423eceb638",
+      "category": "Sample media",
+      "thumbnail": "delivery/sample-media/sample-forest.webp",
+      "access": "development-only",
+      "license": {
+        "status": "approved",
+        "spdx": "CC0-1.0",
+        "provenance": "Procedural landscape illustration created for this project as a lightweight testing fixture. Silent three-second video derived from the matching image; no external footage."
+      }
+    },
+    {
+      "assetId": "sample-sunset-image-v1",
+      "name": "Sample sunset",
+      "kind": "image",
+      "mediaType": "image/webp",
+      "file": "delivery/sample-media/sample-sunset.webp",
+      "sourceFile": "delivery/sample-media/sample-sunset.webp",
+      "byteSize": 3364,
+      "sha256": "a39e3ab47f215af710e84f3cd2792e119ea17c8d3b6109edce014a99e6a4de95",
+      "category": "Sample media",
+      "thumbnail": "delivery/sample-media/sample-sunset.webp",
+      "access": "development-only",
+      "license": {
+        "status": "approved",
+        "spdx": "CC0-1.0",
+        "provenance": "Procedural landscape illustration created for this project as a lightweight testing fixture. Silent three-second video derived from the matching image; no external footage."
+      }
+    },
+    {
+      "assetId": "sample-valley-image-v1",
+      "name": "Sample valley",
+      "kind": "image",
+      "mediaType": "image/webp",
+      "file": "delivery/sample-media/sample-valley.webp",
+      "sourceFile": "delivery/sample-media/sample-valley.webp",
+      "byteSize": 3104,
+      "sha256": "4f7067b50e00ace2cc5c478a80978057f522f5875d3b1af720de08a49e1a3b7a",
+      "category": "Sample media",
+      "thumbnail": "delivery/sample-media/sample-valley.webp",
+      "access": "development-only",
+      "license": {
+        "status": "approved",
+        "spdx": "CC0-1.0",
+        "provenance": "Procedural landscape illustration created for this project as a lightweight testing fixture. Silent three-second video derived from the matching image; no external footage."
+      }
+    },
+    {
+      "assetId": "sample-dunes-video-v1",
+      "name": "Sample dunes motion (3 seconds)",
+      "kind": "video",
+      "mediaType": "video/webm",
+      "file": "delivery/sample-media/sample-dunes-motion.webm",
+      "sourceFile": "delivery/sample-media/sample-dunes-motion.webm",
+      "byteSize": 9220,
+      "sha256": "6841cd9ac1921f882322d10540a7d2bae6501de90b96e3e641ad0a88fc6a7c4a",
+      "category": "Sample media",
+      "thumbnail": "delivery/sample-media/sample-dunes.webp",
+      "access": "development-only",
+      "license": {
+        "status": "approved",
+        "spdx": "CC0-1.0",
+        "provenance": "Procedural landscape illustration created for this project as a lightweight testing fixture. Silent three-second video derived from the matching image; no external footage."
+      }
+    },
+    {
+      "assetId": "sample-forest-video-v1",
+      "name": "Sample forest motion (3 seconds)",
+      "kind": "video",
+      "mediaType": "video/webm",
+      "file": "delivery/sample-media/sample-forest-motion.webm",
+      "sourceFile": "delivery/sample-media/sample-forest-motion.webm",
+      "byteSize": 10004,
+      "sha256": "f89f995869962c97ed77756f7240b7b165c1c2e6067044f8068330fdbaba8026",
+      "category": "Sample media",
+      "thumbnail": "delivery/sample-media/sample-forest.webp",
+      "access": "development-only",
+      "license": {
+        "status": "approved",
+        "spdx": "CC0-1.0",
+        "provenance": "Procedural landscape illustration created for this project as a lightweight testing fixture. Silent three-second video derived from the matching image; no external footage."
+      }
+    },
+    {
+      "assetId": "sample-sunset-video-v1",
+      "name": "Sample sunset motion (3 seconds)",
+      "kind": "video",
+      "mediaType": "video/webm",
+      "file": "delivery/sample-media/sample-sunset-motion.webm",
+      "sourceFile": "delivery/sample-media/sample-sunset-motion.webm",
+      "byteSize": 9627,
+      "sha256": "5cfa121571d8e268a8a4b7e5a7b1d929a8452ee35a2c5152d5af8e14b7e249b4",
+      "category": "Sample media",
+      "thumbnail": "delivery/sample-media/sample-sunset.webp",
+      "access": "development-only",
+      "license": {
+        "status": "approved",
+        "spdx": "CC0-1.0",
+        "provenance": "Procedural landscape illustration created for this project as a lightweight testing fixture. Silent three-second video derived from the matching image; no external footage."
+      }
+    },
+    {
+      "assetId": "audio-ethereal-calm-v1",
+      "name": "Ethereal Calm",
+      "kind": "audio",
+      "mediaType": "audio/mp4",
+      "file": "delivery/audio/ethereal-calm.m4a",
+      "sourceFile": "delivery/audio/ethereal-calm.m4a",
+      "byteSize": 389389,
+      "sha256": "120b1162ae5ec42ab36e797d98e86d7bbc0a45ce72157c18ff664ac55904bffa",
+      "category": "BGM",
+      "thumbnail": "delivery/audio/thumbnails/ethereal-calm.svg",
+      "access": "development-only",
+      "durationSeconds": 24.0,
+      "license": {
+        "status": "pending-team-confirmation",
+        "provenance": "User supplied BGM/Musical, Loop, Ethereal, Beautiful, Calm, Creepy SND91105.wav. Original retained in project asset folder; browser delivery converted to 44.1 kHz AAC, 128 kbit/s. Original SHA-256: b7b35f888f58d9cff0fc8c41196af253063cab823d8a7de0eb07b002e8d3301d"
+      }
+    },
+    {
+      "assetId": "audio-mystic-harp-v1",
+      "name": "Mystic Harp",
+      "kind": "audio",
+      "mediaType": "audio/mp4",
+      "file": "delivery/audio/mystic-harp.m4a",
+      "sourceFile": "delivery/audio/mystic-harp.m4a",
+      "byteSize": 974770,
+      "sha256": "364c9dec2b0b5787611126b0c0884f997cf078aef37b298e887ee16612d9c225",
+      "category": "BGM",
+      "thumbnail": "delivery/audio/thumbnails/mystic-harp.svg",
+      "access": "development-only",
+      "durationSeconds": 60.0,
+      "license": {
+        "status": "pending-team-confirmation",
+        "provenance": "User supplied BGM/Musical, Loop, Harp, Mystic, Calm SND77330.wav. Original retained in project asset folder; browser delivery converted to 44.1 kHz AAC, 128 kbit/s. Original SHA-256: ca3a85964eca0ae95e3418793c00027625fa298600ef3c55fd7bc2d474cd045f"
+      }
+    },
+    {
+      "assetId": "audio-calm-piano-v1",
+      "name": "Calm Piano",
+      "kind": "audio",
+      "mediaType": "audio/mp4",
+      "file": "delivery/audio/calm-piano.m4a",
+      "sourceFile": "delivery/audio/calm-piano.m4a",
+      "byteSize": 199719,
+      "sha256": "4158474c19c5ace3c710f088a247b9a9a1ab98218781ff893b9ee52e6e75b1ad",
+      "category": "BGM",
+      "thumbnail": "delivery/audio/thumbnails/calm-piano.svg",
+      "access": "development-only",
+      "durationSeconds": 12.12,
+      "license": {
+        "status": "pending-team-confirmation",
+        "provenance": "User supplied BGM/Musical, Loop, Logo, Calm, Piano 01 SND112672.wav. Original retained in project asset folder; browser delivery converted to 44.1 kHz AAC, 128 kbit/s. Original SHA-256: 9d568fd62422a0c8807a100e8f8cf319020d329d0b925783718d3b2d564ceec7"
+      }
+    },
+    {
+      "assetId": "audio-mysterious-piano-v1",
+      "name": "Mysterious Piano",
+      "kind": "audio",
+      "mediaType": "audio/mp4",
+      "file": "delivery/audio/mysterious-piano.m4a",
+      "sourceFile": "delivery/audio/mysterious-piano.m4a",
+      "byteSize": 780586,
+      "sha256": "fc49caa7cbc68c0e00910296fdd2fe950f9f525d0edd0c54805cf86c4b10d4ba",
+      "category": "BGM",
+      "thumbnail": "delivery/audio/thumbnails/mysterious-piano.svg",
+      "access": "development-only",
+      "durationSeconds": 48.0,
+      "license": {
+        "status": "pending-team-confirmation",
+        "provenance": "User supplied BGM/Musical, Loop, Piano, Mysterious, Calm, Quiet SND91079.wav. Original retained in project asset folder; browser delivery converted to 44.1 kHz AAC, 128 kbit/s. Original SHA-256: 4be1ed5909c2d5156c24bc998cfaa9fe1040f9f93cc529b783f84471895e2368"
+      }
+    },
+    {
+      "assetId": "audio-reflective-piano-v1",
+      "name": "Reflective Piano",
+      "kind": "audio",
+      "mediaType": "audio/mp4",
+      "file": "delivery/audio/reflective-piano.m4a",
+      "sourceFile": "delivery/audio/reflective-piano.m4a",
+      "byteSize": 624515,
+      "sha256": "a6b6248f2711839afe2a7a4988282dcbfadba795d82456940e35f1d33581d135",
+      "category": "BGM",
+      "thumbnail": "delivery/audio/thumbnails/reflective-piano.svg",
+      "access": "development-only",
+      "durationSeconds": 38.4,
+      "license": {
+        "status": "pending-team-confirmation",
+        "provenance": "User supplied BGM/Musical, Loop, Piano, Sad, Calm 01 SND96659.wav. Original retained in project asset folder; browser delivery converted to 44.1 kHz AAC, 128 kbit/s. Original SHA-256: bdb65d13604e89985f988b22401b2e5e45dc4d793e3a1a54af4d370ba628fa30"
+      }
+    },
+    {
+      "assetId": "audio-classical-piano-v1",
+      "name": "Classical Piano",
+      "kind": "audio",
+      "mediaType": "audio/mp4",
+      "file": "delivery/audio/classical-piano.m4a",
+      "sourceFile": "delivery/audio/classical-piano.m4a",
+      "byteSize": 1297545,
+      "sha256": "f7596c6c67ca4ebf6b1307ee8b667c79499f182eda9e217fc8865245b0ee4d44",
+      "category": "BGM",
+      "thumbnail": "delivery/audio/thumbnails/classical-piano.svg",
+      "access": "development-only",
+      "durationSeconds": 80.0,
+      "license": {
+        "status": "pending-team-confirmation",
+        "provenance": "User supplied BGM/Musical, Sample, Classical, Piano, Happy, Beautiful, Calm SND94339.wav. Original retained in project asset folder; browser delivery converted to 44.1 kHz AAC, 128 kbit/s. Original SHA-256: d7897ab23887af8ffe5624ce4d51ab916efc2ddee7017f75bce5166cc759fcb1"
+      }
+    },
+    {
+      "assetId": "audio-octave-piano-loop-v1",
+      "name": "Octave Piano Loop",
+      "kind": "audio",
+      "mediaType": "audio/mp4",
+      "file": "delivery/audio/octave-piano-loop.m4a",
+      "sourceFile": "delivery/audio/octave-piano-loop.m4a",
+      "byteSize": 2112096,
+      "sha256": "464d3ecf78c11451938cf11797d8e1cddb17940dd8eb06b7759ac420892dd4a4",
+      "category": "BGM",
+      "thumbnail": "delivery/audio/thumbnails/octave-piano-loop.svg",
+      "access": "development-only",
+      "durationSeconds": 130.0,
+      "license": {
+        "status": "pending-team-confirmation",
+        "provenance": "User supplied BGM/Piano Loops 212 Octave Down Long Loop 120 Bpm by josefpres Id-871863.wav. Original retained in project asset folder; browser delivery converted to 44.1 kHz AAC, 128 kbit/s. Original SHA-256: 14ff6a8cfd08db78222cb3fc50d1c933fe69233c1bef2dcd22c4d0e46d601dcc"
+      }
+    },
+    {
+      "assetId": "audio-museum-hall-v1",
+      "name": "Museum Hall",
+      "kind": "audio",
+      "mediaType": "audio/mp4",
+      "file": "delivery/audio/museum-hall.m4a",
+      "sourceFile": "delivery/audio/museum-hall.m4a",
+      "byteSize": 3361536,
+      "sha256": "5d69c5952816466f636b0d32824d87792be316af7d284e273ff9d39677de4825",
+      "category": "Ambience",
+      "thumbnail": "delivery/audio/thumbnails/museum-hall.svg",
+      "access": "development-only",
+      "durationSeconds": 206.86,
+      "license": {
+        "status": "pending-team-confirmation",
+        "provenance": "User supplied SFX/Ambience, Public Place, Museum, Medium Hall, People Talk Quietly, Lima, Peru 01 SND167538.wav. Original retained in project asset folder; browser delivery converted to 44.1 kHz AAC, 128 kbit/s. Original SHA-256: dfd39cf96b08ab268e5763f88ed27f4349f1354761500b212c7e0a4e3c284a45"
+      }
+    },
+    {
+      "assetId": "audio-museum-hall-conversation-v1",
+      "name": "Museum Hall Conversation",
+      "kind": "audio",
+      "mediaType": "audio/mp4",
+      "file": "delivery/audio/museum-hall-conversation.m4a",
+      "sourceFile": "delivery/audio/museum-hall-conversation.m4a",
+      "byteSize": 2734667,
+      "sha256": "297d2fd3a1769a39397835e6b4b2d552c2dea9c37eedd0d8ed871f3a1f7a63b7",
+      "category": "Ambience",
+      "thumbnail": "delivery/audio/thumbnails/museum-hall-conversation.svg",
+      "access": "development-only",
+      "durationSeconds": 168.086,
+      "license": {
+        "status": "pending-team-confirmation",
+        "provenance": "User supplied SFX/Ambience, Public Place, Museum, Medium Hall, People Talk Quietly, Lima, Peru 02 SND167432.wav. Original retained in project asset folder; browser delivery converted to 44.1 kHz AAC, 128 kbit/s. Original SHA-256: e66a6277558ab355b59cffa0cbbc123f896525983e58418780253a7ae7e1aaba"
+      }
+    },
+    {
+      "assetId": "audio-washroom-room-tone-v1",
+      "name": "Washroom Room Tone",
+      "kind": "audio",
+      "mediaType": "audio/mp4",
+      "file": "delivery/audio/washroom-room-tone.m4a",
+      "sourceFile": "delivery/audio/washroom-room-tone.m4a",
+      "byteSize": 1319991,
+      "sha256": "2a6d326d9d3ff2d33b70b78ecfe9080410886dab9b2eac15ec2294571e9cb9d8",
+      "category": "Ambience",
+      "thumbnail": "delivery/audio/thumbnails/washroom-room-tone.svg",
+      "access": "development-only",
+      "durationSeconds": 81.34,
+      "license": {
+        "status": "pending-team-confirmation",
+        "provenance": "User supplied SFX/Ambience, Room Tone, Washroom (40) SND112384.wav. Original retained in project asset folder; browser delivery converted to 44.1 kHz AAC, 128 kbit/s. Original SHA-256: 91e15a9e0a1445520d9013aa5e3ec5a7e33eb1e8f572853339b405259e1e0717"
+      }
+    },
+    {
+      "assetId": "audio-wooden-cabin-at-night-v1",
+      "name": "Wooden Cabin at Night",
+      "kind": "audio",
+      "mediaType": "audio/mp4",
+      "file": "delivery/audio/wooden-cabin-at-night.m4a",
+      "sourceFile": "delivery/audio/wooden-cabin-at-night.m4a",
+      "byteSize": 2245075,
+      "sha256": "aea55bb07b7e5f54bcae7371dbcd40442496cc7693599ec6d1d0151df550d0ce",
+      "category": "Ambience",
+      "thumbnail": "delivery/audio/thumbnails/wooden-cabin-at-night.svg",
+      "access": "development-only",
+      "durationSeconds": 138.446,
+      "license": {
+        "status": "pending-team-confirmation",
+        "provenance": "User supplied SFX/Ambience, Room Tone, Wooden Cabin, Night, Very Quiet, Air SND138993.wav. Original retained in project asset folder; browser delivery converted to 44.1 kHz AAC, 128 kbit/s. Original SHA-256: f581841f6314aca4529631e87e8a8bcff49e0dfee63211cdcc8f55d39afd4b97"
+      }
+    },
+    {
+      "assetId": "audio-outdoor-restaurant-v1",
+      "name": "Outdoor Restaurant",
+      "kind": "audio",
+      "mediaType": "audio/mp4",
+      "file": "delivery/audio/outdoor-restaurant.m4a",
+      "sourceFile": "delivery/audio/outdoor-restaurant.m4a",
+      "byteSize": 3457865,
+      "sha256": "0602769f6f3c848ced4df8b67e7a63a307b5e282c10e4dc2a8f5ee7837c08bf6",
+      "category": "Ambience",
+      "thumbnail": "delivery/audio/thumbnails/outdoor-restaurant.svg",
+      "access": "development-only",
+      "durationSeconds": 212.546,
+      "license": {
+        "status": "pending-team-confirmation",
+        "provenance": "User supplied SFX/Crowds, Conversation, Small Mixed Crowd, Dominican Spanish, American, Norwegian, Outdoor Island Restaurant, Cabarete, Dominican Republic SND128719.wav. Original retained in project asset folder; browser delivery converted to 44.1 kHz AAC, 128 kbit/s. Original SHA-256: a850e8718c4b3b569fad78491240dd7773a0a70c620c61d37c5a71835c1ea224"
+      }
+    },
+    {
+      "assetId": "audio-quiet-crowd-v1",
+      "name": "Quiet Crowd",
+      "kind": "audio",
+      "mediaType": "audio/mp4",
+      "file": "delivery/audio/quiet-crowd.m4a",
+      "sourceFile": "delivery/audio/quiet-crowd.m4a",
+      "byteSize": 2442817,
+      "sha256": "34cefe0b6430cd7ef260d30410c55965c5d99ed112f6dc273b7a6e2abd063434",
+      "category": "Ambience",
+      "thumbnail": "delivery/audio/thumbnails/quiet-crowd.svg",
+      "access": "development-only",
+      "durationSeconds": 150.0,
+      "license": {
+        "status": "pending-team-confirmation",
+        "provenance": "User supplied SFX/Crowds, Quiet, Quiet Chatting Before Presentation, Central Europe SND124022.wav. Original retained in project asset folder; browser delivery converted to 44.1 kHz AAC, 128 kbit/s. Original SHA-256: bd3fd8ef0c9e41cf7900e5fb44b720cda87d12fd9927781b60929469a9f21a83"
+      }
     }
   ],
   "coordinateSystem": "glTF Y-up, metres",

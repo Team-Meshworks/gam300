@@ -5,6 +5,9 @@ namespace Spatia.Server.Accounts;
 /// </summary>
 public sealed class ProvisionAccountRequest
 {
+    /// <summary>Gets the person's name; older callers may omit it to use the username.</summary>
+    public string? DisplayName { get; init; }
+
     /// <summary>
     /// Gets the requested account username
     /// </summary>

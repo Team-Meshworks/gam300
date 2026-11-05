@@ -3,6 +3,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faCircleInfo, faImage } from "@fortawesome/free-solid-svg-icons";
 import { Button } from "../../shared/ui/Button";
 import { Field } from "../../shared/ui/Field";
+import { playUiSound } from "../audio/ui-sounds";
 import { StudentSelector } from "./StudentSelector";
 import { ClassSelect } from "./ClassSelect";
 import { CoverImagePicker } from "./CoverImagePicker";
@@ -29,6 +30,8 @@ export function NewProjectForm({
   creatorName,
   classes,
   students,
+  showImageOptions = true,
+  onClassChange,
   onSubmit,
   onCreated,
   onPreview,
@@ -38,6 +41,8 @@ export function NewProjectForm({
   creatorName: string;
   classes: readonly ProjectClass[];
   students: readonly EligibleStudent[];
+  showImageOptions?: boolean;
+  onClassChange?: (classId: string) => void;
   onSubmit?: (draft: NewProjectDraft) => Promise<ProjectCreationResult>;
   onCreated?: (projectId: string) => void;
   onPreview?: (draft: NewProjectDraft) => void;
@@ -110,6 +115,7 @@ export function NewProjectForm({
       setError(result.message);
     } else if (result.kind === "created" && result.projectId) {
       setPhase("created");
+      playUiSound("save");
       try {
         onCreated?.(result.projectId);
       } catch {
@@ -193,61 +199,66 @@ export function NewProjectForm({
                   update("classId", value);
                   setSelected([]);
                   setSelectorReset((count) => count + 1);
+                  onClassChange?.(value);
                 }}
               />
-              <Field id="project-due" label="Due date" required>
+              <Field id="project-due" label="Due date and time" required>
                 <input
                   id="project-due"
-                  type="date"
+                  type="datetime-local"
                   required
                   value={form.dueDate}
                   onChange={(event) => update("dueDate", event.target.value)}
                 />
               </Field>
             </div>
-            <fieldset className="sp-image-options">
-              <legend>Project image type</legend>
-              <div>
-                {["Cover image", "Gallery", "360°"].map((type) =>
-                  type === "Gallery" ? (
-                    <Button
-                      key={type}
-                      className="sp-gallery-button"
-                      onClick={() => {
-                        update("imageType", "Cover image");
-                        coverInputRef.current?.click();
-                      }}
-                    >
-                      <FontAwesomeIcon icon={faImage} aria-hidden="true" />
-                      <span>Gallery</span>
-                    </Button>
-                  ) : (
-                    <label key={type}>
-                      <input
-                        type="radio"
-                        name="image-type"
-                        value={type}
-                        checked={form.imageType === type}
-                        onChange={() => update("imageType", type)}
-                      />
-                      <FontAwesomeIcon icon={faImage} aria-hidden="true" />
-                      <span>{type}</span>
-                    </label>
-                  ),
-                )}
-              </div>
-              <p className="sp-hint">
-                Select a cover picture from your device. The 360° viewer is not connected yet.
-              </p>
-            </fieldset>
-            <div hidden={form.imageType !== "Cover image"}>
-              <CoverImagePicker
-                key={selectorReset}
-                file={coverImage}
-                onChange={setCoverImage}
-                inputRef={coverInputRef}
-              />
-            </div>
+            {showImageOptions && (
+              <>
+                <fieldset className="sp-image-options">
+                  <legend>Project image type</legend>
+                  <div>
+                    {["Cover image", "Gallery", "360°"].map((type) =>
+                      type === "Gallery" ? (
+                        <Button
+                          key={type}
+                          className="sp-gallery-button"
+                          onClick={() => {
+                            update("imageType", "Cover image");
+                            coverInputRef.current?.click();
+                          }}
+                        >
+                          <FontAwesomeIcon icon={faImage} aria-hidden="true" />
+                          <span>Gallery</span>
+                        </Button>
+                      ) : (
+                        <label key={type}>
+                          <input
+                            type="radio"
+                            name="image-type"
+                            value={type}
+                            checked={form.imageType === type}
+                            onChange={() => update("imageType", type)}
+                          />
+                          <FontAwesomeIcon icon={faImage} aria-hidden="true" />
+                          <span>{type}</span>
+                        </label>
+                      ),
+                    )}
+                  </div>
+                  <p className="sp-hint">
+                    Select a cover picture from your device. The 360° viewer is not connected yet.
+                  </p>
+                </fieldset>
+                <div hidden={form.imageType !== "Cover image"}>
+                  <CoverImagePicker
+                    key={selectorReset}
+                    file={coverImage}
+                    onChange={setCoverImage}
+                    inputRef={coverInputRef}
+                  />
+                </div>
+              </>
+            )}
             <Field id="project-description" label="Project description" required>
               <textarea
                 id="project-description"
@@ -275,8 +286,8 @@ export function NewProjectForm({
               />
             </Field>
             <p className="sp-hint">
-              <FontAwesomeIcon icon={faCircleInfo} aria-hidden="true" /> You can edit project
-              details, students and the due date later.
+              <FontAwesomeIcon icon={faCircleInfo} aria-hidden="true" /> Each selected student
+              receives an independent draft with these instructions.
             </p>
           </div>
           <StudentSelector
@@ -292,7 +303,7 @@ export function NewProjectForm({
               {selected.length} {selected.length === 1 ? "student" : "students"} selected
             </strong>
             <p className="sp-hint">
-              Check your project details and selected students before creating.
+              Check your project details and select up to 20 students before creating.
             </p>
           </div>
           <div className="sp-actions">

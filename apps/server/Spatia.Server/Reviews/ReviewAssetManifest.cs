@@ -42,6 +42,7 @@ internal static class ReviewAssetManifest
                 foreach (var scene in content.Scenes)
                 {
                     ids.Add(scene.EnvironmentAssetId);
+                    foreach (var audio in (scene.Audio ?? []).OfType<AudioComponent>()) { ids.Add(audio.AssetId); }
                     foreach (var item in scene.Objects)
                     {
                         ids.Add(item.AssetId);

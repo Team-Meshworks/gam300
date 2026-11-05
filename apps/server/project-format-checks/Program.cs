@@ -27,7 +27,14 @@ if (args is ["--exchange"])
         // Only accepted documents reach the writer; rejection retains its original field path
         var read = Format.Deserialize(input, assets);
         var saved = read.Ok ? Format.Serialize(read.Value, assets) : new FormatResult<string>(null, read.Error);
-        return new { ok = saved.Ok, json = saved.Value, path = saved.Error?.Path };
+
+        // Compare all missing capabilities with the browser for the same validated document
+        // An empty supported set exposes every requirement without choosing a player's feature set
+        var capabilities = read.Ok
+            ? ProjectCapabilities.Missing(read.Value!, new HashSet<string>(StringComparer.Ordinal))
+                .Select(issue => new { path = issue.Path, capability = issue.Capability }).ToArray()
+            : null;
+        return new { ok = saved.Ok, json = saved.Value, path = saved.Error?.Path, capabilities };
     });
 
     // Emit one response array and stop before the human-readable fixture summary reaches stdout
@@ -213,9 +220,15 @@ static void Equivalent(JsonElement source, JsonElement result, string path)
     {
         // Check both field count and names so round trips cannot quietly discard unknown content
         case JsonValueKind.Object:
-            Check(source.EnumerateObject().Count() == result.EnumerateObject().Count(),
+            // Empty interaction extensions are omitted to preserve released scene contracts.
+            var scene = source.TryGetProperty("environmentAssetId", out _);
+            bool Included(JsonProperty property) => !(scene
+                && property.Name is "hotspots" or "interactions"
+                && property.Value.ValueKind == JsonValueKind.Array
+                && property.Value.GetArrayLength() == 0);
+            Check(source.EnumerateObject().Count(Included) == result.EnumerateObject().Count(Included),
                 $"{path}: lost or added fields");
-            foreach (var property in source.EnumerateObject())
+            foreach (var property in source.EnumerateObject().Where(Included))
             {
                 Check(result.TryGetProperty(property.Name, out var found), $"{path}.{property.Name}: missing field");
                 Equivalent(property.Value, found, $"{path}.{property.Name}");

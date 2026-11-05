@@ -3,6 +3,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faUserPlus } from "@fortawesome/free-solid-svg-icons";
 import { Button } from "../../shared/ui/Button";
 import { Field } from "../../shared/ui/Field";
+import { playUiSound } from "../audio/ui-sounds";
 import { ClassSelect } from "./ClassSelect";
 import { StudentSelector } from "./StudentSelector";
 import type { EligibleStudent, ProjectClass } from "./new-project-form";
@@ -81,6 +82,7 @@ export function ClassAssignmentForm({
       setError(result.message);
     } else if (result.kind === "assigned") {
       setPhase("assigned");
+      playUiSound("save");
       try {
         onAssigned?.(checked.value);
       } catch {
@@ -177,7 +179,7 @@ export function ClassAssignmentForm({
             )}
             <p className="sp-hint">
               {selected.length} {selected.length === 1 ? "student" : "students"} selected. Only the
-              selected students will be assigned.
+              selected students will be assigned, up to 20 at a time.
             </p>
             <Button type="submit" disabled={!onAssign}>
               {phase === "pending" ? "Assigning…" : "Assign class"}

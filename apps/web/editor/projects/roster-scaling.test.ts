@@ -15,7 +15,7 @@ it.each(["creation", "assignment"])(
       account: `@student${i}`,
       classIds: ["a"],
     }));
-    const studentIds = students.map((student) => student.id);
+    const studentIds = students.slice(0, 20).map((student) => student.id);
     idReads = 0;
     const classes = [{ id: "a", label: "A" }];
     const result =
@@ -25,7 +25,7 @@ it.each(["creation", "assignment"])(
               title: "Museum",
               description: "History",
               instructions: "Build",
-              dueDate: "2028-02-29",
+              dueDate: "2028-02-29T15:30",
               classId: "a",
               imageType: "Cover image",
               studentIds,

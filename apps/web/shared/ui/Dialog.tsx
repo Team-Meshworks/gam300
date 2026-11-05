@@ -6,10 +6,12 @@ export function Dialog({
   title,
   children,
   onClose,
+  variant,
 }: {
   title: string;
   children: ReactNode;
   onClose: () => void;
+  variant?: "account" | "wide" | "display";
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -24,17 +26,24 @@ export function Dialog({
   }, []);
   return (
     <dialog
-      className="sp-dialog"
+      className={`sp-dialog${variant === "account" ? " sp-account-dialog" : variant === "wide" ? " sp-dialog--wide" : variant === "display" ? " sp-display-dialog" : ""}`}
       ref={ref}
       aria-labelledby={titleId}
       onCancel={(event) => {
         event.preventDefault();
+        // React propagates cancel through nested dialogs even though the native event does not bubble.
+        event.stopPropagation();
         onClose();
       }}
     >
       <h2 id={titleId}>{title}</h2>
+      {variant === "account" && (
+        <Button className="sp-dialog-dismiss" aria-label="Close dialog" onClick={onClose}>
+          ×
+        </Button>
+      )}
       <div className="sp-dialog-body">{children}</div>
-      <Button onClick={onClose}>Close</Button>
+      {variant !== "account" && variant !== "display" && <Button onClick={onClose}>Close</Button>}
     </dialog>
   );
 }

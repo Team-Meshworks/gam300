@@ -1,42 +1,88 @@
+import type { CatalogueAsset } from "../../shared/asset-runtime/catalogue";
 import { useState, type ReactNode } from "react";
 import type { SceneObject } from "../../shared/project/scene-object";
-import type { Transform, Vector3Tuple } from "../../shared/project/project-types";
+import type {
+  ProjectHotspot,
+  ProjectScene,
+  Transform,
+  Vector3Tuple,
+} from "../../shared/project/project-types";
 import { Icon, type IconName } from "./Icon";
+import type { Interaction } from "../interaction/interactionHandler";
+import { InteractionPanel } from "./InteractionPanel";
 import { degreesToQuaternion, quaternionToDegrees } from "./rotation-angles";
 
+import { SceneTreePanel, type Room, type HierarchyActions } from "./SceneTreePanel";
+import type { ContentObject, ProjectGroup } from "../../shared/project/project-content";
+import type { ContentKind } from "./ContentEditor";
+
 type PanelId = "scenes" | "position" | "tree" | "interaction" | "views";
-type Room = { id: string; name: string; thumbnail: string | undefined };
 
 const railButtons: { id: PanelId; label: string; icon: IconName }[] = [
   { id: "position", label: "Position", icon: "axes" },
   { id: "tree", label: "Scene tree", icon: "tree" },
-  { id: "scenes", label: "Scenes", icon: "library" },
-  { id: "views", label: "Saved views", icon: "tree" },
+  { id: "scenes", label: "Scenes", icon: "scenes" },
+  { id: "views", label: "Saved views", icon: "savedView" },
   { id: "interaction", label: "Interaction", icon: "touch" },
 ];
 
 export function SidePanels({
+  assets = [],
+  onContent,
   visitor,
   savedViews,
   scenes,
   room,
   objects,
   selectedId,
+  selectedIds,
+  onMultiSelect,
   selectedObject,
+  mobileDevice,
+  hotspots,
+  interactions,
+  projectScenes,
+  activeSceneId,
   thumbnailFor,
   onSelect,
+  onDelete,
   onTransform,
+  onInteractionsChange,
+  onLocate,
+  groups,
+  hierarchy,
+  sceneAudio = [],
+  onHotspotRemove,
 }: {
+  assets?: readonly CatalogueAsset[];
+  sceneAudio?: readonly Extract<
+    import("../../shared/project/project-content").ContentComponent,
+    { type: "audio" }
+  >[];
+  onHotspotRemove?: ((id: string) => void) | undefined;
+  onContent: (kind: ContentKind) => void;
+  groups: readonly ProjectGroup[];
+  hierarchy: HierarchyActions;
   visitor: boolean;
   savedViews: ReactNode;
   scenes: ReactNode;
   room: Room | undefined;
   objects: readonly SceneObject[];
   selectedId: string | null;
+  selectedIds?: readonly string[];
+  onMultiSelect?: (ids: readonly string[], id: string | null) => void;
   selectedObject: SceneObject | undefined;
+  mobileDevice: boolean;
+  hotspots: readonly ProjectHotspot[];
+  interactions: readonly Interaction[];
+  projectScenes: readonly ProjectScene[];
+  activeSceneId: string | null;
   thumbnailFor: (assetId: string) => string | undefined;
   onSelect: (id: string) => void;
+  onDelete: () => void;
   onTransform: (id: string, transform: Transform) => void;
+  onLocate: (id: string) => void;
+  onInteractionsChange: (next: Interaction[]) => void;
 }) {
   // Open the tree first so new project can see whats inside
   const [panel, setPanel] = useState<PanelId | null>("tree");
@@ -49,6 +95,7 @@ export function SidePanels({
             key={button.id}
             className="ui-button rail-button"
             type="button"
+            data-panel={button.id}
             aria-label={button.label}
             title={button.label}
             aria-pressed={panel === button.id}
@@ -62,40 +109,83 @@ export function SidePanels({
       {panel !== null && (
         <div className={`panel-slot is-${panel}`}>
           {panel === "position" && (
-            <PositionPanel
-              object={selectedObject}
-              onChange={(transform) => {
-                if (selectedObject !== undefined) onTransform(selectedObject.id, transform);
-              }}
-            />
+            <div>
+              <PositionPanel
+                object={selectedObject}
+                onChange={(transform) => {
+                  if (selectedObject !== undefined) onTransform(selectedObject.id, transform);
+                }}
+              />
+              {assets.some(
+                (asset) => asset.id === selectedObject?.assetId && !!asset.displayRole,
+              ) && (
+                <button
+                  className="ui-button content-inspector-open"
+                  type="button"
+                  disabled={!selectedObject}
+                  onClick={() => {
+                    const media = (selectedObject as ContentObject | undefined)?.components?.find(
+                      (component) => component.type === "image" || component.type === "video",
+                    );
+                    onContent(
+                      media?.type === "image"
+                        ? "image"
+                        : media?.type === "video"
+                          ? "video"
+                          : "text",
+                    );
+                  }}
+                >
+                  Edit exhibit information
+                </button>
+              )}
+            </div>
           )}
           {panel === "tree" && (
             <SceneTreePanel
+              key={room?.id ?? "draft"}
+              assets={assets}
+              sceneAudio={sceneAudio}
               room={room}
+              groups={groups}
+              hierarchy={hierarchy}
               objects={objects}
+              hotspots={hotspots}
               selectedId={selectedId}
+              selectedIds={selectedIds}
+              onMultiSelect={onMultiSelect}
               onSelect={onSelect}
+              onDelete={onDelete}
+              mobileDevice={mobileDevice}
               thumbnailFor={thumbnailFor}
             />
           )}
           {panel === "scenes" && <div className="editor-panel">{scenes}</div>}
           {panel === "views" && <div className="editor-panel">{savedViews}</div>}
           {panel === "interaction" && (
-            // No hotspots in the project format yet, so nothing selected is one
-            <InteractionPanel hotspotName={undefined} />
+            <InteractionPanel
+              selectedObjectId={selectedObject?.id}
+              onHotspotRemove={onHotspotRemove}
+              audioTargets={[
+                ...sceneAudio,
+                ...objects.flatMap((object) => (object as Partial<ContentObject>).components ?? []),
+              ]
+                .filter((entry) => entry.type === "audio")
+                .map((entry) => ({
+                  value: entry.id,
+                  label: assets.find((asset) => asset.id === entry.assetId)?.name ?? "Audio",
+                }))}
+              interactions={interactions}
+              scenes={projectScenes}
+              activeSceneId={activeSceneId}
+              hotspots={hotspots}
+              objects={objects}
+              onChange={onInteractionsChange}
+              onLocate={onLocate}
+            />
           )}
         </div>
       )}
-
-      <button
-        className="ui-button filter-button"
-        type="button"
-        aria-disabled="true"
-        title="Filters · coming soon"
-      >
-        Filters
-        <Icon name="caretDown" />
-      </button>
 
       {selectedObject !== undefined && (
         // Browser checks read this without opening the panel
@@ -178,30 +268,32 @@ function TransformFields({
 
   return (
     <div className="transform-fields">
-      {rows.map((row) => (
-        <fieldset key={row.label}>
-          <legend>
-            <Icon name={row.icon} />
-            {row.label}
-          </legend>
-          <div className="axis-fields">
-            {(["X", "Y", "Z"] as const).map((axisName, axis) => (
-              <label key={axisName}>
-                <span>{axisName}</span>
-                <NumberField
-                  label={`${object.name} ${row.label.toLowerCase()} ${axisName} (${row.unit})`}
-                  value={row.values[axis] ?? 0}
-                  onCommit={(value) => {
-                    const next: [number, number, number] = [...row.values];
-                    next[axis] = value;
-                    onChange(row.apply(next));
-                  }}
-                />
-              </label>
-            ))}
-          </div>
-        </fieldset>
-      ))}
+      {rows
+        .filter((row) => row.label !== "Scale" || object.assetId !== "test-room-module-v1")
+        .map((row) => (
+          <fieldset key={row.label}>
+            <legend>
+              <Icon name={row.icon} />
+              {row.label}
+            </legend>
+            <div className="axis-fields">
+              {(["X", "Y", "Z"] as const).map((axisName, axis) => (
+                <label key={axisName}>
+                  <span>{axisName}</span>
+                  <NumberField
+                    label={`${object.name} ${row.label.toLowerCase()} ${axisName} (${row.unit})`}
+                    value={row.values[axis] ?? 0}
+                    onCommit={(value) => {
+                      const next: [number, number, number] = [...row.values];
+                      next[axis] = value;
+                      onChange(row.apply(next));
+                    }}
+                  />
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        ))}
     </div>
   );
 }
@@ -240,132 +332,5 @@ function NumberField({
         }
       }}
     />
-  );
-}
-
-function SceneTreePanel({
-  room,
-  objects,
-  selectedId,
-  onSelect,
-  thumbnailFor,
-}: {
-  room: Room | undefined;
-  objects: readonly SceneObject[];
-  selectedId: string | null;
-  onSelect: (id: string) => void;
-  thumbnailFor: (assetId: string) => string | undefined;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const count = objects.length + (room === undefined ? 0 : 1);
-  return (
-    <section className="editor-panel" aria-labelledby="objects-heading">
-      <PanelHeading id="objects-heading">
-        Scene Tree <span className="panel-count">{count}</span>
-      </PanelHeading>
-      {count === 0 ? (
-        <p className="panel-empty">Add a room from the asset library to start.</p>
-      ) : (
-        <>
-          <ul role="list" className={`scene-tree${expanded ? " is-expanded" : ""}`}>
-            {room !== undefined && (
-              <li>
-                <button
-                  className="environment-row"
-                  type="button"
-                  aria-pressed={selectedId === room.id}
-                  onClick={() => onSelect(room.id)}
-                >
-                  <img src={room.thumbnail} alt="" draggable={false} />
-                  <span>{room.name}</span>
-                </button>
-              </li>
-            )}
-            {objects.map((object) => (
-              <li key={object.id}>
-                <button
-                  className="object-row"
-                  type="button"
-                  aria-pressed={selectedId === object.id}
-                  data-object-id={object.id}
-                  onClick={() => onSelect(object.id)}
-                >
-                  <img src={thumbnailFor(object.assetId)} alt="" draggable={false} />
-                  <span>{object.name}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-          {count > 6 && (
-            <button
-              className="ui-button panel-pill"
-              type="button"
-              aria-expanded={expanded}
-              onClick={() => setExpanded((previous) => !previous)}
-            >
-              {expanded ? "Show less" : "View all"}
-            </button>
-          )}
-        </>
-      )}
-    </section>
-  );
-}
-
-const interactionSteps = [
-  { label: "Do", value: "Content type" },
-  { label: "Target", value: "Content" },
-];
-
-function InteractionPanel({ hotspotName }: { hotspotName: string | undefined }) {
-  return (
-    <section className="editor-panel" aria-labelledby="interaction-heading">
-      <PanelHeading id="interaction-heading">Interaction</PanelHeading>
-      {hotspotName === undefined ? (
-        // Only hotspots got interactions, other objects dont show the form
-        <div className="panel-placeholder">
-          <span className="panel-placeholder-icon" aria-hidden="true">
-            <Icon name="touch" />
-          </span>
-          <p>
-            <strong>Select a hotspot first</strong>
-          </p>
-          <p className="panel-empty">
-            Place a hotspot in the scene and select it to choose what happens when visitors interact
-            with it.
-          </p>
-        </div>
-      ) : (
-        <>
-          <div className="interaction-form" role="group" aria-label="New interaction">
-            <div className="interaction-step">
-              <span className="interaction-label">When</span>
-              <span className="panel-select is-fixed">{hotspotName}</span>
-            </div>
-            {interactionSteps.map((step) => (
-              <div key={step.label} className="interaction-step">
-                <span className="interaction-arrow">
-                  <Icon name="arrowDown" />
-                </span>
-                <span className="interaction-label">{step.label}</span>
-                <button
-                  className="ui-button panel-select"
-                  type="button"
-                  aria-label={`${step.label}: ${step.value} (coming soon)`}
-                  aria-disabled="true"
-                >
-                  {step.value}
-                  <Icon name="chevronRight" />
-                </button>
-              </div>
-            ))}
-            <button className="ui-button panel-pill" type="button" aria-disabled="true">
-              Add
-            </button>
-          </div>
-          <p className="panel-empty">Interactions you add will be listed here.</p>
-        </>
-      )}
-    </section>
   );
 }
