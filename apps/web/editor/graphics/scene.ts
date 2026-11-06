@@ -34,6 +34,7 @@ import type {
 import { getStartingCamera } from "../../shared/project/starting-view";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { ROOM_GRID_HALF_SIZE } from "../../shared/project/room-bounds";
 import {
   ModelCache,
   ModelRequestError,
@@ -43,7 +44,10 @@ import {
 import {
   isStarterRoomEnvironment,
   isStarterRoomModel,
-  starterRoomCompanion,
+  isRoomModel as isCatalogueRoomModel,
+  isRoomEnvironment,
+  roomCompanion,
+  roomFootprint,
   type CatalogueAsset,
 } from "../../shared/asset-runtime/catalogue";
 import { HOTSPOT_ASSET_ID } from "../../shared/asset-runtime/hotspot";
@@ -179,7 +183,8 @@ export function initScene(
   },
   modelCache: ModelCache = editorModelCache,
 ): InitSceneHandle | undefined {
-  const isRoomModel = (id: string) => isStarterRoomModel(assets, id);
+  const isRoomModel = (id: string) => isCatalogueRoomModel(assets, id);
+  const footprint = (id: string) => roomFootprint(assets, id);
   let renderer: THREE.WebGLRenderer;
   try {
     const canvas = document.createElement("canvas");
@@ -229,7 +234,12 @@ export function initScene(
   const fill = new THREE.DirectionalLight(0xffffff, 0.8);
   fill.position.set(-3, 1, -3);
   scene.add(ambient, sun, fill);
-  const grid = new THREE.GridHelper(40, 40, 0xaeb8aa, 0xcdd4c8);
+  const grid = new THREE.GridHelper(
+    ROOM_GRID_HALF_SIZE * 2,
+    ROOM_GRID_HALF_SIZE * 2,
+    0xaeb8aa,
+    0xcdd4c8,
+  );
   grid.position.y = -0.01;
   scene.add(grid);
 
@@ -296,7 +306,7 @@ export function initScene(
       ...(isStarterRoomEnvironment(assets, environmentId) && environment ? [environment] : []),
       ...objects.flatMap((object) => {
         const instance = instances.get(object.id);
-        return isRoomModel(object.assetId) && instance ? [instance] : [];
+        return isStarterRoomModel(assets, object.assetId) && instance ? [instance] : [];
       }),
     ]);
   }
@@ -807,7 +817,10 @@ export function initScene(
     if (!model || !asset) return;
     let cached = placementShapes.get(assetId);
     if (cached?.model !== model) {
-      cached = { model, shape: placementBody(assetId, ROOM_TRANSFORM, model, asset) };
+      cached = {
+        model,
+        shape: placementBody(assetId, ROOM_TRANSFORM, model, asset, isRoomModel(assetId)),
+      };
       placementShapes.set(assetId, cached);
     }
     return { ...cached.shape, id, transform };
@@ -835,24 +848,47 @@ export function initScene(
     proposed: Transform,
     phase: "drag" | "release" = "release",
   ): Transform | undefined {
-    if (id === projectScene?.id || isStarterRoomModel(assets, findObject(id)?.assetId))
-      return proposed;
     const object = findObject(id);
     const body = object && bodyFor(id, object.assetId, object.transform);
     if (!body) return;
+    if (
+      phase === "release" &&
+      projectScene &&
+      (id === projectScene.id || isRoomModel(object.assetId))
+    ) {
+      const snapped = moveSceneSelection(
+        projectScene as ContentScene,
+        selectedIds,
+        id,
+        proposed,
+        false,
+        isRoomEnvironment(assets, projectScene.environmentAssetId),
+        isRoomModel,
+        footprint,
+      );
+      if (!snapped.ok) return;
+      const final =
+        id === projectScene.id
+          ? snapped.value.environmentTransform
+          : snapped.value.objects.find((entry) => entry.id === id)?.transform;
+      if (!final) return;
+      proposed = final;
+    }
     const previous = lastValidTransforms.get(id);
     if (previous?.before === object.transform) body.previous = previous.after;
     const bodies = collisionBodies();
     const moved =
-      projectScene && selectedIds.length > 1
+      projectScene &&
+      (id === projectScene.id || isRoomModel(object.assetId) || selectedIds.length > 1)
         ? moveSceneSelection(
             projectScene as ContentScene,
             selectedIds,
             id,
             proposed,
             true,
-            isStarterRoomEnvironment(assets, projectScene.environmentAssetId),
+            isRoomEnvironment(assets, projectScene.environmentAssetId),
             isRoomModel,
+            footprint,
           )
         : moveAttachedObjects(
             objects,
@@ -883,15 +919,17 @@ export function initScene(
     const result = resolveObjectPlacement(body, proposed, obstacles, phase);
     if (!result) return;
     const next =
-      projectScene && selectedIds.length > 1
+      projectScene &&
+      (id === projectScene.id || isRoomModel(object.assetId) || selectedIds.length > 1)
         ? moveSceneSelection(
             projectScene as ContentScene,
             selectedIds,
             id,
             result,
             true,
-            isStarterRoomEnvironment(assets, projectScene.environmentAssetId),
+            isRoomEnvironment(assets, projectScene.environmentAssetId),
             isRoomModel,
+            footprint,
           )
         : moveAttachedObjects(
             objects,
@@ -1011,7 +1049,11 @@ export function initScene(
       point === null ||
       !point
         .toArray()
-        .every((value) => Number.isFinite(value) && Math.abs(value) <= (outsideGrid ? 10_000 : 20))
+        .every(
+          (value) =>
+            Number.isFinite(value) &&
+            Math.abs(value) <= (outsideGrid ? 10_000 : ROOM_GRID_HALF_SIZE),
+        )
     ) {
       return;
     }
@@ -1041,7 +1083,7 @@ export function initScene(
     const sceneSelection =
       projectScene &&
       (id === projectScene.id ||
-        isStarterRoomModel(assets, findObject(id)?.assetId) ||
+        (!!findObject(id) && isRoomModel(findObject(id)!.assetId)) ||
         selectedIds.length > 1)
         ? moveSceneSelection(
             projectScene as ContentScene,
@@ -1049,8 +1091,9 @@ export function initScene(
             id,
             transform,
             !final,
-            isStarterRoomEnvironment(assets, projectScene.environmentAssetId),
+            isRoomEnvironment(assets, projectScene.environmentAssetId),
             isRoomModel,
+            footprint,
           )
         : null;
     if (sceneSelection && !sceneSelection.ok) {
@@ -1953,15 +1996,15 @@ export function initScene(
     showPlacementPreview(id, position, ownerId) {
       // Whole layouts replace the environment at its current frame, not at the drop cursor.
       const layout =
+        !projectScene &&
         assets.some((asset) => asset.id === id && asset.kind === "environment") &&
         !isStarterRoomEnvironment(assets, id);
       if (layout && position) position = projectScene?.environmentTransform?.position ?? [0, 0, 0];
-      if (
-        projectScene &&
-        isStarterRoomEnvironment(assets, id) &&
-        isStarterRoomEnvironment(assets, projectScene.environmentAssetId)
-      ) {
-        const companion = starterRoomCompanion(callbacks.selectableAssets ?? assets);
+      if (projectScene && assets.some((asset) => asset.id === id && asset.kind === "environment")) {
+        const companion = roomCompanion(
+          callbacks.selectableAssets ?? assets,
+          assets.find((asset) => asset.id === id),
+        );
         if (!companion) {
           placementPreview.show(undefined, undefined);
           render();
@@ -1973,25 +2016,27 @@ export function initScene(
         void prepareAsset(id);
         return false;
       }
-      const room = isStarterRoomEnvironment(assets, id) || isStarterRoomModel(assets, id);
+      const room = isStarterRoomEnvironment(assets, id) || (!!id && isRoomModel(id));
       const rotation =
         id && isRoomModel(id)
           ? roomLayoutTransform(objects, projectScene, isRoomModel)?.rotation
           : layout
             ? projectScene?.environmentTransform?.rotation
             : undefined;
-      const requestedFits = position !== undefined && (!room || roomFitsGrid(position, rotation));
+      const requestedFits =
+        position !== undefined && (!room || roomFitsGrid(position, rotation, footprint(id!)));
       if (id && isRoomModel(id) && position && requestedFits)
         position =
           snapRoomPlacement(
             position,
             objects,
-            projectScene?.environmentVisible !== false &&
-              isStarterRoomEnvironment(assets, projectScene?.environmentAssetId)
-              ? "test-room-v1"
+            projectScene?.environmentVisible !== false
+              ? projectScene?.environmentAssetId
               : undefined,
             roomLayoutTransform(objects, projectScene, isRoomModel),
             isRoomModel,
+            footprint,
+            id,
           ) ?? undefined;
       let scale = 1;
       if (id === HOTSPOT_ASSET_ID && position !== undefined) {
@@ -2011,8 +2056,19 @@ export function initScene(
       if (id && position && !room && id !== HOTSPOT_ASSET_ID) {
         position = resolvePlacement(id, position)?.position;
       }
+      if (id && position && room && projectScene) {
+        const transform: Transform = {
+          position,
+          rotation: rotation ?? [0, 0, 0, 1],
+          scale: [1, 1, 1],
+        };
+        const body = bodyFor("new-placement", id, transform);
+        if (!body || !resolveObjectPlacement(body, transform, collisionBodies(), "release"))
+          position = undefined;
+      }
       const valid =
-        position !== undefined && (!room || (requestedFits && roomFitsGrid(position, rotation)));
+        position !== undefined &&
+        (!room || (requestedFits && roomFitsGrid(position, rotation, footprint(id!))));
       placementPreview.show(id, position, scale, rotation, valid);
       render();
       return valid;

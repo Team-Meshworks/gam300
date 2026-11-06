@@ -87,8 +87,31 @@ try {
     if (path === `/api/v1/admin/users/${userId}`) return route.fulfill({ json: rows[0] });
     return route.fulfill({ status: 404 });
   });
-  await page.goto(`${origin}/accounts`);
+  await page.goto(`${origin}/organisations`);
+  await page.getByRole("heading", { name: "All Organisations", level: 1, exact: true }).waitFor();
+  assert.equal(await page.getByRole("navigation", { name: "Workspace" }).count(), 0);
+  assert.equal(await page.getByRole("heading", { name: "Accounts", exact: true }).count(), 0);
+  assert.equal(await page.getByText("Manage accounts within an organisation.").count(), 0);
+  assert.equal(await page.getByRole("button", { name: "Refresh directory" }).count(), 0);
   await page.getByRole("button", { name: "Open Ridgeview Secondary School" }).click();
+  const identity = page.getByRole("heading", { name: "Ridgeview Secondary School", exact: true });
+  const projects = page.getByRole("heading", { name: "All Projects", exact: true });
+  await projects.waitFor();
+  assert.equal(
+    await identity.evaluate((node) =>
+      node
+        .closest("section")
+        ?.contains(
+          [...document.querySelectorAll("h2, h3, h4")].find(
+            (heading) => heading.textContent === "All Projects",
+          ),
+        ),
+    ),
+    false,
+    "Organisation identity and projects occupy separate sections",
+  );
+  assert.equal(await page.getByRole("navigation", { name: "Workspace" }).count(), 0);
+  assert.equal(await page.getByRole("button", { name: "Refresh directory" }).count(), 0);
   await page.getByRole("button", { name: "+ Add Accounts", exact: true }).focus();
   await page.keyboard.press("Enter");
   let dialog = page.getByRole("dialog");
@@ -185,7 +208,9 @@ try {
   });
   await page.getByRole("button", { name: "All organisations", exact: true }).click();
   assert.equal(
-    await page.getByRole("heading", { name: "Organisations", exact: true }).isVisible(),
+    await page
+      .getByRole("heading", { name: "All Organisations", level: 1, exact: true })
+      .isVisible(),
     true,
   );
   assert.deepEqual(
@@ -203,47 +228,29 @@ try {
   rows[0].displayName = "Aisyah Refreshed";
   await page.getByRole("button", { name: "Open Ridgeview Secondary School" }).click();
   await page.getByRole("button", { name: "View account for Aisyah Refreshed" }).waitFor();
-  // A failed directory refresh unmounts the child. Retry must retain the selected
-  // organisation and reload both panes, including when opening that same ID again.
+  // A failed initial directory load remains recoverable.
   failOrganizations = true;
-  await page.getByRole("button", { name: "Refresh directory", exact: true }).click();
+  await page.reload();
   await page.getByRole("alert").filter({ hasText: "directory request failed" }).waitFor();
-  const beforeRecovery = { ...reads };
-  rows[0].displayName = "Aisyah Recovered";
-  projectTitle = "Recovered project";
   failOrganizations = false;
   await page.getByRole("button", { name: "Retry", exact: true }).click();
-  await page.getByRole("button", { name: "View account for Aisyah Recovered" }).waitFor();
-  await page.getByRole("heading", { name: projectTitle, exact: true }).waitFor();
-  assert.equal(
-    await page.getByRole("button", { name: "Refresh directory", exact: true }).isEnabled(),
-    true,
-  );
-  assert.equal(
-    await page
-      .getByRole("status")
-      .filter({ hasText: /Loading/ })
-      .count(),
-    0,
-  );
-  assert.ok(reads.accounts > beforeRecovery.accounts && reads.projects > beforeRecovery.projects);
+  await page.getByRole("button", { name: "Open Ridgeview Secondary School" }).click();
+  await page.getByRole("button", { name: "View account for Aisyah Refreshed" }).waitFor();
   const beforeReopen = { ...reads };
+  rows[0].displayName = "Aisyah Recovered";
+  projectTitle = "Recovered project";
   await page.getByRole("button", { name: "All organisations", exact: true }).click();
   await page.getByRole("button", { name: "Open Ridgeview Secondary School" }).click();
   await page.getByRole("button", { name: "View account for Aisyah Recovered" }).waitFor();
   await page.getByRole("heading", { name: projectTitle, exact: true }).waitFor();
   assert.ok(reads.accounts > beforeReopen.accounts && reads.projects > beforeReopen.projects);
-  assert.equal(
-    await page.getByRole("button", { name: "Refresh directory", exact: true }).isEnabled(),
-    true,
-  );
   const storage = await page.evaluate(() =>
     JSON.stringify({ local: { ...localStorage }, session: { ...sessionStorage } }),
   );
   assert.ok(!storage.includes("password1") && !storage.includes("password2"));
   assert.deepEqual(errors, []);
   console.log(
-    "Account directory browser checks passed: create, override, errors, reload, filters, lifecycle, mobile, return navigation, failed-refresh recovery and sound.",
+    "Account directory browser checks passed: create, override, errors, reload, filters, lifecycle, mobile, return navigation, failed-load recovery and sound.",
   );
 } finally {
   await browser.close();

@@ -187,7 +187,7 @@ try {
         await page.waitForTimeout(100);
       }
       throw new Error(
-        `Room document did not retain ${environmentAssetId} with ${count} added rooms`,
+        `Room document did not retain ${environmentAssetId} with ${count} added rooms: ${JSON.stringify(await document())}; ${(await page.locator('[role="alert"], [role="status"]').allTextContents()).join(" | ")}`,
       );
     };
     return { page, choose, select, document, waitForDocument };
@@ -231,11 +231,9 @@ try {
   const before = await unrelatedPicker.waitForDocument(unrelatedId, 0);
   await unrelatedPicker.select("Different room");
   assert.equal(await unrelatedPicker.page.locator(".scene-tree .object-row").count(), 0);
-  assert.equal(
-    await unrelatedPicker.page.getByText(/another copy of this room is not supported/i).count(),
-    0,
-    "A complete layout may be reselected",
-  );
+  await unrelatedPicker.page
+    .getByText("An approved room model is required to add an adjoining room.")
+    .waitFor();
   const reselected = await unrelatedPicker.waitForDocument(unrelatedId, 0);
   assert.equal(reselected.projectId, before.projectId);
   await unrelatedPicker.page.locator(".environment-row").click();
@@ -245,13 +243,6 @@ try {
     0,
     (scene) => scene.environmentVisible === false,
   );
-  await unrelatedPicker.select("Different room");
-  const restored = await unrelatedPicker.waitForDocument(
-    unrelatedId,
-    0,
-    (scene) => scene.environmentVisible !== false,
-  );
-  assert.equal(restored.projectId, before.projectId, "Restoring a layout keeps the same project");
   await unrelatedPicker.page.close();
 
   console.log("Approved room rendering:", JSON.stringify(measured));
@@ -335,6 +326,25 @@ try {
   await choose();
   await stage.click({ position: { x: 600, y: 350 } });
   let doc = await saved(0);
+  // Back the actual editor camera away so the enlarged 80 m grid edge is visible.
+  await page.evaluate(() => {
+    let mesh;
+    window.roomRoots.at(-1).traverse((node) => {
+      if (node.isMesh) mesh = node;
+    });
+    mesh.onBeforeRender = (_renderer, _scene, camera) => {
+      window.edgeCamera = camera;
+    };
+  });
+  await page.waitForFunction(() => window.edgeCamera);
+  await page.evaluate(() => {
+    const camera = window.edgeCamera;
+    window.edgeCameraPose = {
+      position: camera.position.toArray(),
+      quaternion: camera.quaternion.toArray(),
+    };
+    camera.position.multiplyScalar(4);
+  });
   await choose();
   let outside;
   const diagnostics = [];
@@ -392,6 +402,10 @@ try {
     "Returning to the grid restores the grey preview",
   );
   await page.keyboard.press("Escape");
+  await page.evaluate(() => {
+    window.edgeCamera.position.fromArray(window.edgeCameraPose.position);
+    window.edgeCamera.quaternion.fromArray(window.edgeCameraPose.quaternion);
+  });
   for (let count = 1; count <= 2; count++) {
     await choose();
     await stage.hover({ position: { x: 600, y: 350 } });

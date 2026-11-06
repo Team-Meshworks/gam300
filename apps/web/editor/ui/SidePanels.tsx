@@ -1,4 +1,4 @@
-import { isStarterRoomModel, type CatalogueAsset } from "../../shared/asset-runtime/catalogue";
+import { isRoomModel, type CatalogueAsset } from "../../shared/asset-runtime/catalogue";
 import { useState, type ReactNode } from "react";
 import type { SceneObject } from "../../shared/project/scene-object";
 import type {
@@ -108,10 +108,7 @@ export function SidePanels({
           {panel === "position" && (
             <PositionPanel
               object={selectedObject}
-              room={
-                selectedObject?.id === room?.id ||
-                isStarterRoomModel(assets, selectedObject?.assetId)
-              }
+              room={selectedObject?.id === room?.id || isRoomModel(assets, selectedObject?.assetId)}
               onChange={(transform) => {
                 if (selectedObject !== undefined) onTransform(selectedObject.id, transform);
               }}

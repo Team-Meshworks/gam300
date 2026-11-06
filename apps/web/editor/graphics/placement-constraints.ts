@@ -98,12 +98,23 @@ export function resolveObjectPlacement(
   bodies: readonly PlacementBody[],
   phase: "drag" | "release",
 ): Transform | undefined {
-  if (body.room) return proposed;
   if (
     ![...proposed.position, ...proposed.rotation, ...proposed.scale].every(Number.isFinite) ||
     proposed.scale.some((value) => value <= 0)
   )
     return;
+  if (body.room) {
+    const interior = body.bounds.clone().expandByScalar(-EPSILON);
+    if (
+      bodies.some((entry) => {
+        if (entry.id === body.id) return false;
+        const other = relativePlacementBounds(entry.bounds, entry.transform, proposed);
+        return interior.intersectsBox(other) || crossesSolid(body, proposed, entry, entry.bounds);
+      })
+    )
+      return;
+    return proposed;
+  }
   const rooms = bodies.filter((entry) => entry.id !== body.id && entry.room);
   const room = rooms.find((entry) =>
     insideFootprint(

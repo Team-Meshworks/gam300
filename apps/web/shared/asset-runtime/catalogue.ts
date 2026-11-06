@@ -1,3 +1,5 @@
+export { knownRoomGeometry } from "./known-room-geometry";
+
 // Approved 3D categories are shared by filtering and its consuming picker
 export const assetCategories = [
   "All",
@@ -49,6 +51,68 @@ export function isStarterRoomModel(assets: readonly CatalogueAsset[], id: string
   return (
     id === "test-room-module-v1" ||
     assets.some((asset) => asset.id === id && isStarterRoomModelAsset(asset))
+  );
+}
+
+export function isRoomModelAsset(asset: CatalogueAsset) {
+  return (
+    isStarterRoomModelAsset(asset) ||
+    (asset.kind === "model" && /^room-(?:space1|doors-[1-4](?:-[1-4])*)-module-v1$/.test(asset.id))
+  );
+}
+
+export function isRoomModel(assets: readonly CatalogueAsset[], id: string | undefined) {
+  const model = assets.find((asset) => asset.id === id && asset.kind === "model");
+  return (
+    id === "test-room-module-v1" ||
+    (!!model &&
+      (isRoomModelAsset(model) ||
+        (!/^0{64}$/.test(model.sha256) &&
+          assets.some(
+            (asset) =>
+              asset.kind === "environment" &&
+              !!asset.boundsMeters &&
+              asset.sha256.toLowerCase() === model.sha256.toLowerCase(),
+          ))))
+  );
+}
+
+export function roomCompanion(
+  assets: readonly CatalogueAsset[],
+  environment: CatalogueAsset | undefined,
+) {
+  if (!environment || environment.kind !== "environment") return undefined;
+  if (!environment.boundsMeters && !isStarterRoomEnvironment([environment], environment.id))
+    return undefined;
+  if (/^0{64}$/.test(environment.sha256)) return undefined;
+  return assets.find(
+    (asset) =>
+      asset.kind === "model" && asset.sha256.toLowerCase() === environment.sha256.toLowerCase(),
+  );
+}
+
+export function roomFootprint(assets: readonly CatalogueAsset[], id: string) {
+  const selected = assets.find((asset) => asset.id === id);
+  const bounds =
+    selected?.boundsMeters ??
+    assets.find(
+      (asset) =>
+        asset.boundsMeters &&
+        selected &&
+        asset.sha256.toLowerCase() === selected.sha256.toLowerCase(),
+    )?.boundsMeters;
+  return bounds
+    ? {
+        halfWidth: (bounds.max[0] - bounds.min[0]) / 2,
+        halfDepth: (bounds.max[2] - bounds.min[2]) / 2,
+      }
+    : { halfWidth: 5, halfDepth: 5 };
+}
+
+export function isRoomEnvironment(assets: readonly CatalogueAsset[], id: string | undefined) {
+  return (
+    isStarterRoomEnvironment(assets, id) ||
+    assets.some((asset) => asset.id === id && asset.kind === "environment" && !!asset.boundsMeters)
   );
 }
 

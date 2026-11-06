@@ -11,7 +11,7 @@ import {
 } from "react";
 import {
   assetDragType,
-  isStarterRoomModelAsset,
+  isRoomModel,
   type CatalogueAsset,
 } from "../../shared/asset-runtime/catalogue";
 import { playUiSound } from "../audio/ui-sounds";
@@ -253,11 +253,10 @@ export function BottomBar({
           <AssetPicker
             key={roomsOpen ? "rooms" : "assets"}
             mode={roomsOpen ? "rooms" : "assets"}
-            canAddAdjoiningRooms={assets.some(isStarterRoomModelAsset)}
             assets={assets.filter((asset) =>
               roomsOpen
                 ? asset.kind === "environment"
-                : !isStarterRoomModelAsset(asset) &&
+                : !isRoomModel(assets, asset.id) &&
                   asset.kind !== "environment" &&
                   !asset.displayRole &&
                   !furnitureTools.some((tool) => tool.assetId === asset.id),
