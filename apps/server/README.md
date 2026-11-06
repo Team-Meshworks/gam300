@@ -1,5 +1,22 @@
 # Server persistence, accounts and security
 
+## HTTP API versioning
+
+Use `/api/v1/...` for new clients. Existing `/api/...` routes remain v1 aliases
+served by the same handlers without redirects. Responses containing API asset URLs
+follow the requested route family, so legacy clients continue to receive `/api/...`
+URLs. Both families retain the same authorization, CSRF, request limits and error
+behavior. Unknown API paths and unsupported versions return a no-store 404
+`application/problem+json` response with code `api_not_found`.
+
+The path is the version selector; query parameters and headers do not negotiate a
+version. Keep v1 compatible as it evolves; introduce a separately supported version
+for breaking HTTP contract changes. API versions are independent of stored project
+schema versions. Visitor links under `/p/{publicationId}`, `/healthz`, and
+`/version.txt` are unchanged. Historical examples below may use the legacy aliases.
+Deploy a v1-capable API before v1 clients, and keep web and API versions compatible
+when rolling back. Legacy clients remain supported by the aliases.
+
 Administrator account and organization directory reads and reversible lifecycle
 operations are described in the [directory API contract](../../docs/account-directory.md),
 including authorization, fields, pagination, safeguards and session effects.

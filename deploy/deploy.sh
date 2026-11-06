@@ -112,8 +112,8 @@ healthy() {
   [[ "$(curl --fail --silent --show-error --max-time 30 "$url/version.txt")" == "$revision" ]] || return 1
   if $server; then
     # Check the local application stack; anonymous session requests must remain unauthorized
-    curl --fail --silent --show-error --retry 12 --retry-delay 1 --retry-connrefused --max-time 5 --retry-max-time 60 -H "Host: $host" -H 'X-Forwarded-Proto: https' --output /dev/null "http://127.0.0.1:$port/api/auth/csrf" || return 1
-    [[ "$(curl --silent --show-error --max-time 10 -H "Host: $host" -H 'X-Forwarded-Proto: https' --output /dev/null --write-out '%{http_code}' "http://127.0.0.1:$port/api/auth/session")" == 401 ]] || return 1
+    curl --fail --silent --show-error --retry 12 --retry-delay 1 --retry-connrefused --max-time 5 --retry-max-time 60 -H "Host: $host" -H 'X-Forwarded-Proto: https' --output /dev/null "http://127.0.0.1:$port/api/v1/auth/csrf" || return 1
+    [[ "$(curl --silent --show-error --max-time 10 -H "Host: $host" -H 'X-Forwarded-Proto: https' --output /dev/null --write-out '%{http_code}' "http://127.0.0.1:$port/api/v1/auth/session")" == 401 ]] || return 1
   fi
 }
 

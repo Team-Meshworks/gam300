@@ -16,7 +16,7 @@ it("recovers transient saturation while preserving authenticated delivery", asyn
     .mockResolvedValueOnce(new Response("retained bytes"));
   vi.stubGlobal("fetch", request);
   const pending = fetchPublicationAsset(
-    "/api/publications/test/assets/test/bytes",
+    "/api/v1/publications/test/assets/test/bytes",
     new AbortController().signal,
   );
   await vi.advanceTimersByTimeAsync(999);

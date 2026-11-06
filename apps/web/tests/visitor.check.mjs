@@ -75,7 +75,7 @@ try {
   page.on("pageerror", (error) => errors.push(error.message));
   page.setDefaultTimeout(5000);
   page.on("request", (request) => requests.push(new URL(request.url()).pathname));
-  await page.route("**/api/publications/**", async (route) => {
+  await page.route("**/api/v1/publications/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
     if (mode === "denied") return route.fulfill({ status: 404 });
     if (path.endsWith("/manifest"))
@@ -89,7 +89,7 @@ try {
               id: assetId,
               kind: "environment",
               sha256: mode === "bad-hash" ? "0".repeat(64) : hash,
-              url: `/api/publications/${publicationId}/assets/${assetId}/bytes`,
+              url: `/api/v1/publications/${publicationId}/assets/${assetId}/bytes`,
             },
           ],
         },

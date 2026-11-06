@@ -16,7 +16,7 @@ public static class AccountAdministrationEndpoints
     /// <returns>The supplied route builder for further endpoint registration</returns>
     public static IEndpointRouteBuilder MapAccountAdministration(this IEndpointRouteBuilder endpoints)
     {
-        var group = endpoints.MapGroup("/api/admin")
+        var group = endpoints.MapGroup("/admin")
             .RequireAuthorization(SecurityPolicies.Administrator)
             .RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
         group.MapPost("/organizations", async (CreateOrganizationRequest request, AccountAdministrationService administration,

@@ -70,7 +70,7 @@ try {
   await page.getByRole("button", { name: "Select all", exact: true }).click();
   const attempts = [];
   let assignmentId;
-  await context.route(`**/api/classes/${data.classId}/assignments`, async (route) => {
+  await context.route(`**/api/v1/classes/${data.classId}/assignments`, async (route) => {
     if (route.request().method() !== "POST") return route.continue();
     const body = route.request().postDataJSON();
     attempts.push(body);
@@ -93,7 +93,7 @@ try {
   assert.equal(attempts.length, 2);
   assert.deepEqual(attempts[0], attempts[1]);
   const teacherDetailsResponse = await context.request.get(
-    `${origin}/api/classes/${data.classId}/assignments/${assignmentId}`,
+    `${origin}/api/v1/classes/${data.classId}/assignments/${assignmentId}`,
   );
   assert.equal(teacherDetailsResponse.status(), 200);
   const teacherDetails = await teacherDetailsResponse.json();
@@ -113,14 +113,19 @@ try {
   );
   assert.equal(await page.getByRole("region", { name: "Class roster", exact: true }).count(), 0);
   const studentDetails = await (
-    await context.request.get(`${origin}/api/classes/${data.classId}/assignments/${assignmentId}`)
+    await context.request.get(
+      `${origin}/api/v1/classes/${data.classId}/assignments/${assignmentId}`,
+    )
   ).json();
   assert.equal(studentDetails.projects.length, 1);
   assert.equal(studentDetails.projects[0].studentId, data.aliceId);
   const bobProject = teacherDetails.projects.find((row) => row.studentId === data.bobId).projectId;
-  assert.equal((await context.request.get(`${origin}/api/projects/${bobProject}`)).status(), 404);
   assert.equal(
-    (await context.request.get(`${origin}/api/classes/${data.classId}/roster`)).status(),
+    (await context.request.get(`${origin}/api/v1/projects/${bobProject}`)).status(),
+    404,
+  );
+  assert.equal(
+    (await context.request.get(`${origin}/api/v1/classes/${data.classId}/roster`)).status(),
     404,
   );
   await page.setViewportSize({ width: 390, height: 900 });

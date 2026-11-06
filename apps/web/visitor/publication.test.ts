@@ -11,7 +11,7 @@ const value = {
       id: asset,
       kind: "model",
       sha256: "a".repeat(64),
-      url: `/api/publications/${id}/assets/${asset}/bytes`,
+      url: `/api/v1/publications/${id}/assets/${asset}/bytes`,
     },
   ],
 };
@@ -20,8 +20,8 @@ it("uses only assets bound to the requested publication", () => {
 });
 it.each([
   "https://elsewhere.test/asset.glb",
-  `/api/assets/${asset}/bytes`,
-  `/api/publications/${asset}/assets/${asset}/bytes`,
+  `/api/v1/assets/${asset}/bytes`,
+  `/api/v1/publications/${asset}/assets/${asset}/bytes`,
 ])("rejects an unrelated asset URL", (url) => {
   expect(() =>
     readPublicationManifest({ ...value, assets: [{ ...value.assets[0], url }] }, id),

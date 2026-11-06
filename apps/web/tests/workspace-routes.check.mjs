@@ -27,7 +27,7 @@ try {
   await page.route("**/api/**", async (route) => {
     const request = route.request();
     assert.equal(request.method(), "GET", "Workspace routes must not mutate the API");
-    if (new URL(request.url()).pathname === "/api/auth/session") {
+    if (new URL(request.url()).pathname === "/api/v1/auth/session") {
       if (mode === "anonymous") return route.fulfill({ status: 401 });
       if (mode === "unavailable") return route.fulfill({ status: 503 });
       return route.fulfill({
@@ -58,7 +58,7 @@ try {
   // Use the mounted screen and authenticated intake adapter, not its local preview.
   mode = "Administrator";
   let assetReads = 0;
-  await page.route("**/api/admin/assets", (route) => {
+  await page.route("**/api/v1/admin/assets", (route) => {
     assetReads++;
     return route.fulfill({
       json: {

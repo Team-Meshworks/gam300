@@ -24,7 +24,7 @@ describe("publication acknowledgement", () => {
     { sourceRevision: 8 },
     { projectId: publicationId },
     { publicationId: projectId },
-    { visitorUrl: `https://spatia.test/api/publications/${publicationId}` },
+    { visitorUrl: `https://spatia.test/api/v1/publications/${publicationId}` },
     { visitorUrl: `javascript:alert(1)` },
     { createdAt: "invalid" },
     { visitorUrl: `https://user:password@spatia.test/p/${publicationId}` },

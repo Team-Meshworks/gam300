@@ -25,7 +25,7 @@ const sessionHeaders = { Cookie: "spatia-test=session" };
 let authStatus = 204;
 let authReads = 0;
 const api = createServer((request, response) => {
-  if (request.url === "/api/auth/asset-access") {
+  if (request.url === "/api/v1/auth/asset-access") {
     authReads++;
     assert.equal(request.method, "GET");
     assert.equal(request.headers["x-forwarded-proto"], "https");

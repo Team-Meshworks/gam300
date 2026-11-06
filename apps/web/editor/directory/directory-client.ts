@@ -109,7 +109,7 @@ export function createDirectoryClient(request: typeof fetch = fetch, accountId?:
     }
   }
   async function write(path: string, method: string, body: object) {
-    const csrf = await send("/api/auth/csrf");
+    const csrf = await send("/api/v1/auth/csrf");
     if (!record(csrf) || typeof csrf.requestToken !== "string" || !csrf.requestToken)
       throw new Error("Your session could not be verified. Sign in again.");
     return send(path, {
@@ -141,7 +141,7 @@ export function createDirectoryClient(request: typeof fetch = fetch, accountId?:
   }
   return {
     deletion: async (orgId: string): Promise<OrganizationDeletion> => {
-      const value = await send(`/api/admin/organizations/${encodeURIComponent(orgId)}/deletion`);
+      const value = await send(`/api/v1/admin/organizations/${encodeURIComponent(orgId)}/deletion`);
       if (
         !record(value) ||
         value.id !== orgId ||
@@ -161,11 +161,11 @@ export function createDirectoryClient(request: typeof fetch = fetch, accountId?:
       return value as unknown as OrganizationDeletion;
     },
     deleteOrganization: (orgId: string, confirmationName: string) =>
-      write(`/api/admin/organizations/${encodeURIComponent(orgId)}`, "DELETE", {
+      write(`/api/v1/admin/organizations/${encodeURIComponent(orgId)}`, "DELETE", {
         confirmationName,
       }),
     organizations: () =>
-      list("/api/admin/organizations", (value): ManagedOrganization => {
+      list("/api/v1/admin/organizations", (value): ManagedOrganization => {
         if (
           !record(value) ||
           !id(value.id) ||
@@ -176,10 +176,10 @@ export function createDirectoryClient(request: typeof fetch = fetch, accountId?:
         return value as unknown as ManagedOrganization;
       }),
     accounts: (orgId: string) =>
-      list(`/api/admin/users?orgId=${encodeURIComponent(orgId)}`, account),
+      list(`/api/v1/admin/users?orgId=${encodeURIComponent(orgId)}`, account),
     projects: (orgId: string) =>
       list(
-        `/api/admin/organizations/${encodeURIComponent(orgId)}/projects`,
+        `/api/v1/admin/organizations/${encodeURIComponent(orgId)}/projects`,
         (value): ManagedProject => {
           if (
             !record(value) ||
@@ -193,7 +193,7 @@ export function createDirectoryClient(request: typeof fetch = fetch, accountId?:
         20,
       ),
     getAccount: async (userId: string) =>
-      account(await send(`/api/admin/users/${encodeURIComponent(userId)}`)),
+      account(await send(`/api/v1/admin/users/${encodeURIComponent(userId)}`)),
     create: async (
       orgId: string,
       values: {
@@ -202,10 +202,10 @@ export function createDirectoryClient(request: typeof fetch = fetch, accountId?:
         role: "Creator" | "Educator";
         initialPassword: string;
       },
-    ) => account(await write("/api/admin/users", "POST", { ...values, orgId })),
+    ) => account(await write("/api/v1/admin/users", "POST", { ...values, orgId })),
     update: async (userId: string, values: AccountChanges) =>
-      account(await write(`/api/admin/users/${encodeURIComponent(userId)}`, "PATCH", values)),
+      account(await write(`/api/v1/admin/users/${encodeURIComponent(userId)}`, "PATCH", values)),
     setActive: (userId: string, isActive: boolean) =>
-      write(`/api/admin/users/${encodeURIComponent(userId)}/active`, "PATCH", { isActive }),
+      write(`/api/v1/admin/users/${encodeURIComponent(userId)}/active`, "PATCH", { isActive }),
   };
 }

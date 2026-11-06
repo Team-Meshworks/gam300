@@ -41,7 +41,7 @@ export async function readServerProject(
     // Recheck the cookie-backed account around the read to reject a switch during loading
     // The application must still abort this signal immediately on logout or account change
     const sameAccount = async () => {
-      const response = await fetcher("/api/auth/session", options);
+      const response = await fetcher("/api/v1/auth/session", options);
       if (!response.ok) {
         return false;
       }
@@ -53,7 +53,7 @@ export async function readServerProject(
     if (cancelled.aborted || !(await sameAccount())) {
       return invalid("session", "Sign in with the original account before opening this project");
     }
-    const response = await fetcher(`/api/projects/${encodeURIComponent(projectId)}`, options);
+    const response = await fetcher(`/api/v1/projects/${encodeURIComponent(projectId)}`, options);
     if (!response.ok) {
       return invalid("project", "Project could not be opened; the current draft was kept");
     }

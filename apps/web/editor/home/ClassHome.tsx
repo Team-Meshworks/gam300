@@ -135,13 +135,13 @@ export function ClassHome({
     setNotice("");
     const result =
       dialog === "create"
-        ? await api.write(session.userId, "/api/classes", "POST", {
+        ? await api.write(session.userId, "/api/v1/classes", "POST", {
             name: name.trim(),
             ...(session.role === "Administrator" ? { orgId: organizationId } : {}),
           })
         : await api.write(
             session.userId,
-            `/api/classes/${encodeURIComponent(classId)}/members/${encodeURIComponent(dialog.userId)}`,
+            `/api/v1/classes/${encodeURIComponent(classId)}/members/${encodeURIComponent(dialog.userId)}`,
             dialog.enrolled ? "DELETE" : "PUT",
           );
     busy.current = false;

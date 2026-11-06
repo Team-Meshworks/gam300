@@ -72,7 +72,7 @@ export function ProjectHome({
     const { project, kind } = action;
     const outcome = await api.write(
       session.userId,
-      `/api/projects/${encodeURIComponent(project.projectId)}/${kind === "duplicate" ? "duplicate" : "archive"}`,
+      `/api/v1/projects/${encodeURIComponent(project.projectId)}/${kind === "duplicate" ? "duplicate" : "archive"}`,
       kind === "duplicate" ? "POST" : "PATCH",
       kind === "duplicate"
         ? { expectedRevision: project.revision, title: title.trim() }

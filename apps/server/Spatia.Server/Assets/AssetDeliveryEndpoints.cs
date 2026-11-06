@@ -12,8 +12,10 @@ public static class AssetDeliveryEndpoints
     public static IEndpointRouteBuilder MapAssetDelivery(this IEndpointRouteBuilder endpoints)
     {
         // New selections see only active reviewed versions; retained project reads use a separate route below
-        endpoints.MapGet("/api/assets", async (ApplicationDbContext database, CancellationToken token) =>
-            Results.Ok(await database.AssetCandidates.AsNoTracking()
+        endpoints.MapGet("/assets", async (HttpContext context, ApplicationDbContext database, CancellationToken token) =>
+        {
+            var prefix = ApiV1Endpoints.PrefixFor(context);
+            return Results.Ok(await database.AssetCandidates.AsNoTracking()
                 .Where(asset => asset.Status == "approved" && !asset.Hidden && !asset.Deleted && !asset.RemovedFromProjects)
                 .Select(asset => new
                 {
@@ -21,12 +23,13 @@ public static class AssetDeliveryEndpoints
                     asset.Name,
                     asset.Kind,
                     asset.Category,
-                    url = "/api/assets/" + asset.Id + "/bytes",
+                    url = prefix + "/assets/" + asset.Id + "/bytes",
                     asset.Sha256,
                     thumbnail = (string?)null
                 })
-                .Take(1000).ToArrayAsync(token))).RequireAuthorization(SecurityPolicies.FullAccount);
-        endpoints.MapGet("/api/projects/{projectId:guid}/assets", async (Guid projectId, HttpContext context,
+                .Take(1000).ToArrayAsync(token));
+        }).RequireAuthorization(SecurityPolicies.FullAccount);
+        endpoints.MapGet("/projects/{projectId:guid}/assets", async (Guid projectId, HttpContext context,
             ApplicationDbContext database, ProjectAccessService access, ProjectDocumentService documents, CancellationToken token) =>
         {
             var authorization = await access.ReadAsync(context, projectId, token);
@@ -38,6 +41,7 @@ public static class AssetDeliveryEndpoints
             // Project-scoped delivery retains its existing access and removal checks on every byte read.
             var ids = AssetDocumentReferences.Read(project.UnvalidatedDocumentJson)
                 .Where(value => Guid.TryParse(value, out _)).Select(Guid.Parse).ToArray();
+            var prefix = ApiV1Endpoints.PrefixFor(context);
             var rows = await database.AssetCandidates.AsNoTracking()
                 .Where(asset => ids.Contains(asset.Id) && asset.Status == "approved" && !asset.RemovedFromProjects)
                 .Select(asset => new
@@ -46,7 +50,7 @@ public static class AssetDeliveryEndpoints
                     asset.Name,
                     asset.Kind,
                     asset.Category,
-                    url = "/api/projects/" + projectId + "/assets/" + asset.Id + "/bytes",
+                    url = prefix + "/projects/" + projectId + "/assets/" + asset.Id + "/bytes",
                     asset.Sha256,
                     thumbnail = (string?)null
                 }).ToArrayAsync(token);
@@ -55,14 +59,14 @@ public static class AssetDeliveryEndpoints
             context.Response.Headers.CacheControl = "private, no-store";
             return Results.Ok(rows);
         }).RequireAuthorization(SecurityPolicies.FullAccount);
-        endpoints.MapGet("/api/assets/{id:guid}/bytes", async (Guid id, HttpContext context,
+        endpoints.MapGet("/assets/{id:guid}/bytes", async (Guid id, HttpContext context,
             ApplicationDbContext database, CancellationToken token) =>
         {
             var asset = await database.AssetCandidates.AsNoTracking().SingleOrDefaultAsync(asset => asset.Id == id
                 && asset.Status == "approved" && !asset.Hidden && !asset.Deleted && !asset.RemovedFromProjects, token);
             return Bytes(context, asset);
         }).RequireAuthorization(SecurityPolicies.FullAccount).RequireRateLimiting("AssetBytes");
-        endpoints.MapGet("/api/projects/{projectId:guid}/assets/{id:guid}/bytes", async (Guid projectId, Guid id,
+        endpoints.MapGet("/projects/{projectId:guid}/assets/{id:guid}/bytes", async (Guid projectId, Guid id,
             HttpContext context, ApplicationDbContext database, ProjectAccessService access, ProjectDocumentService documents,
             CancellationToken token) =>
         {

@@ -159,7 +159,7 @@ volume at `/data/caddy/pki/authorities/local/root.crt`; use that certificate wit
 test client's CA option without installing it in the operating system trust store.
 Browsers show a certificate warning for this local CA by default.
 Keep TLS verification enabled in integration checks. Check the editor, `/healthz` and
-`/api/auth/session`; an anonymous session request must return 401.
+`/api/v1/auth/session`; an anonymous session request must return 401.
 
 Startup applies migrations before granting the API restricted database access. The
 database has no host port; the running API receives its own password and persists
@@ -302,7 +302,7 @@ and forwarding behavior in the target Linux Docker environment before deployment
 and UI bundles are public. Project data, administration data and the bundled development
 catalogue require an authenticated API session. Both build modes emit catalogue media and
 thumbnails under `/restricted-assets/`; the image moves them to `/srv-restricted`, outside
-the public `/srv` file root. `server.Caddyfile` checks `/api/auth/asset-access` before
+the public `/srv` file root. `server.Caddyfile` checks `/api/v1/auth/asset-access` before
 forwarding any catalogue request to the web service's private port 8081. Anonymous,
 expired, disabled and password-change-only sessions cannot read those bytes. All catalogue
 responses use `Cache-Control: private, no-store`, including HEAD and range requests.

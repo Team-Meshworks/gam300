@@ -106,7 +106,7 @@ directory operations are To Do. SCRUM-171 owns the separate directory screens.
 | SCRUM-162 assignment lists/details            | Mounted in `/home`, teacher/student views, device-local deadline display, authorised roster names including after retry recovery                                                            | Editor opening as above; image/360-degree controls stay hidden because the assignment API does not persist them                                                          |
 
 `AccountAdministrationEndpoints` currently exposes provisioning writes without an authorised
-organisation/account directory. `PATCH /api/projects/{id}/assignments` replaces the full grant
+organisation/account directory. `PATCH /api/v1/projects/{id}/assignments` replaces the full grant
 set, but project reads do not expose that set. Do not build replacement-grant forms using
 empty defaults or ask users to guess account IDs. SCRUM-170 owns authorised directory
 reads and SCRUM-171 owns directory screens; agree the current-grant read contract before

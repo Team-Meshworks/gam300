@@ -40,7 +40,7 @@ try {
     const req = route.request(),
       path = new URL(req.url()).pathname;
     const reply = (body, status = 200) => route.fulfill({ status, json: body });
-    if (path === "/api/auth/session")
+    if (path === "/api/v1/auth/session")
       return reply({
         userId: role === "Creator" ? studentId : educatorId,
         role,
@@ -48,8 +48,8 @@ try {
         displayName: role === "Creator" ? "Student One" : "Teacher One",
         mustChangePassword: false,
       });
-    if (path === "/api/auth/csrf") return reply({ requestToken: "test-csrf" });
-    if (path === "/api/classes")
+    if (path === "/api/v1/auth/csrf") return reply({ requestToken: "test-csrf" });
+    if (path === "/api/v1/classes")
       return reply({ items: [{ id: classId, name: "History class" }], nextCursor: null });
     if (path.endsWith("/assignments"))
       return reply({
@@ -69,7 +69,7 @@ try {
         nextCursor: null,
       });
     if (denied) return reply({ code: "project_not_found" }, 404);
-    if (path === "/api/projects/" + projectId)
+    if (path === "/api/v1/projects/" + projectId)
       return reply({
         projectId,
         revision,

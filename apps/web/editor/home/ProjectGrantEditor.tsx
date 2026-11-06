@@ -116,7 +116,7 @@ export function ProjectGrantEditor({
     try {
       const result = await api.write(
         session.userId,
-        `/api/projects/${encodeURIComponent(project.projectId)}/assignments`,
+        `/api/v1/projects/${encodeURIComponent(project.projectId)}/assignments`,
         "PATCH",
         body,
       );

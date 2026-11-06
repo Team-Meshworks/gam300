@@ -22,7 +22,7 @@ const api = async (route) => {
   const request = route.request(),
     path = new URL(request.url()).pathname;
   const json = (status, body) => route.fulfill({ status, json: body });
-  if (path === "/api/auth/session")
+  if (path === "/api/v1/auth/session")
     return account
       ? json(200, {
           userId: account,
@@ -34,14 +34,14 @@ const api = async (route) => {
       : json(401, {});
   if (request.headers()["x-spatia-account"] && request.headers()["x-spatia-account"] !== account)
     return json(403, {});
-  if (path === "/api/auth/csrf") return json(200, { requestToken: "test-token" });
-  if (path === "/api/assets") return catalogueUnavailable ? json(503, {}) : json(200, []);
-  if (path === `/api/projects/${fixture.projectId}/assets`) return json(200, []);
-  if (path === "/api/auth/logout") {
+  if (path === "/api/v1/auth/csrf") return json(200, { requestToken: "test-token" });
+  if (path === "/api/v1/assets") return catalogueUnavailable ? json(503, {}) : json(200, []);
+  if (path === `/api/v1/projects/${fixture.projectId}/assets`) return json(200, []);
+  if (path === "/api/v1/auth/logout") {
     account = null;
     return route.fulfill({ status: 204 });
   }
-  if (path === `/api/projects/${fixture.projectId}`) {
+  if (path === `/api/v1/projects/${fixture.projectId}`) {
     if (request.method() === "GET")
       return json(200, {
         projectId: fixture.projectId,

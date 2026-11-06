@@ -31,7 +31,7 @@ export function classroom(value: unknown): Classroom {
 export function createClassroomClient(request: typeof fetch = fetch) {
   const api = createWorkspaceClient(request);
   async function classes(signal?: AbortSignal): Promise<Classroom[]> {
-    const rows = (await api.pages("/api/classes", signal)).map(classroom);
+    const rows = (await api.pages("/api/v1/classes", signal)).map(classroom);
     if (new Set(rows.map((row) => row.id)).size !== rows.length)
       throw new Error("The class list is inconsistent.");
     return rows;
@@ -40,7 +40,7 @@ export function createClassroomClient(request: typeof fetch = fetch) {
     classId: string,
     signal?: AbortSignal,
   ): Promise<{ members: ClassMember[]; eligible: EligibleStudent[] }> {
-    const path = `/api/classes/${encodeURIComponent(classId)}`;
+    const path = `/api/v1/classes/${encodeURIComponent(classId)}`;
     const [members, eligible] = await Promise.all([
       api.pages(`${path}/roster`, signal),
       api.pages(`${path}/eligible-students`, signal),

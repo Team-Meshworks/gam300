@@ -27,7 +27,7 @@ export function readPublicationManifest(value: unknown, publicationId: string) {
       (asset.kind !== "model" && asset.kind !== "environment") ||
       typeof asset.sha256 !== "string" ||
       !/^[a-f0-9]{64}$/.test(asset.sha256) ||
-      asset.url !== `/api/publications/${publicationId}/assets/${asset.id}/bytes`
+      asset.url !== `/api/v1/publications/${publicationId}/assets/${asset.id}/bytes`
     )
       throw new Error("The exhibition assets could not be verified.");
     seen.add(asset.id);
@@ -46,8 +46,8 @@ export function readPublicationManifest(value: unknown, publicationId: string) {
 export async function loadPublication(publicationId: string, signal: AbortSignal) {
   const options = { signal, credentials: "same-origin", cache: "no-store" } as const;
   const [metadata, snapshot] = await Promise.all([
-    fetch(`/api/publications/${publicationId}/manifest`, options),
-    fetch(`/api/publications/${publicationId}`, options),
+    fetch(`/api/v1/publications/${publicationId}/manifest`, options),
+    fetch(`/api/v1/publications/${publicationId}`, options),
   ]);
   if (!metadata.ok || !snapshot.ok)
     throw new Error("This exhibition is unavailable or your account does not have access.");

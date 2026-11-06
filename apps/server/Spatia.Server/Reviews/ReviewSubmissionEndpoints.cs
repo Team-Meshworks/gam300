@@ -21,14 +21,14 @@ public static class ReviewSubmissionEndpoints
     /// <summary>Adds the authorized, retry-safe student submission route.</summary>
     public static IEndpointRouteBuilder MapReviewSubmissions(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapPost("/api/projects/{id:guid}/submissions", SubmitAsync)
+        endpoints.MapPost("/projects/{id:guid}/submissions", SubmitAsync)
             .RequireAuthorization(SecurityPolicies.FullAccount)
             .RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
-        endpoints.MapGet("/api/projects/{id:guid}/submissions", ReviewReads.ListAsync)
+        endpoints.MapGet("/projects/{id:guid}/submissions", ReviewReads.ListAsync)
             .RequireAuthorization(SecurityPolicies.FullAccount);
-        endpoints.MapGet("/api/projects/{id:guid}/submissions/{submissionId:guid}", ReviewReads.GetAsync)
+        endpoints.MapGet("/projects/{id:guid}/submissions/{submissionId:guid}", ReviewReads.GetAsync)
             .RequireAuthorization(SecurityPolicies.FullAccount);
-        endpoints.MapPost("/api/projects/{id:guid}/submissions/{submissionId:guid}/decisions", ReviewDecisions.DecideAsync)
+        endpoints.MapPost("/projects/{id:guid}/submissions/{submissionId:guid}/decisions", ReviewDecisions.DecideAsync)
             .RequireAuthorization(SecurityPolicies.FullAccount)
             .RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
         return endpoints;

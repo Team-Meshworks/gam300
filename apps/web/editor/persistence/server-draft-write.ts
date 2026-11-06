@@ -29,7 +29,7 @@ export async function writeServerDraft(
   try {
     // Cookies stay in the browser; the request token goes in the header required by SCRUM-66
     // Fetch a fresh token so login changes cannot leave an old one cached here
-    const csrf = await fetcher("/api/auth/csrf", {
+    const csrf = await fetcher("/api/v1/auth/csrf", {
       credentials: "same-origin",
       cache: "no-store",
       redirect: "error",
@@ -42,7 +42,7 @@ export async function writeServerDraft(
     if (!isRecord(token) || typeof token.requestToken !== "string" || !token.requestToken)
       return { kind: "failed" };
 
-    const response = await fetcher(`/api/projects/${encodeURIComponent(request.projectId)}`, {
+    const response = await fetcher(`/api/v1/projects/${encodeURIComponent(request.projectId)}`, {
       method: "PUT",
       credentials: "same-origin",
       cache: "no-store",

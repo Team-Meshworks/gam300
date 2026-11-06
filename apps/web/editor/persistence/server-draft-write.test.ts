@@ -22,7 +22,7 @@ describe("server draft transport", () => {
   it("sends the captured body with the server's CSRF token and same-origin cookies", async () => {
     const fetcher = responses(Response.json(receipt));
     expect(await writeServerDraft(request, signal, fetcher)).toEqual({ kind: "saved", receipt });
-    expect(fetcher).toHaveBeenLastCalledWith("/api/projects/project-a", {
+    expect(fetcher).toHaveBeenLastCalledWith("/api/v1/projects/project-a", {
       method: "PUT",
       credentials: "same-origin",
       cache: "no-store",

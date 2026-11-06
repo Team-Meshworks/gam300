@@ -114,7 +114,7 @@ try {
     (request) =>
       request.method() === "POST" &&
       new URL(request.url()).pathname ===
-        `/api/projects/${data.projectId}/publications`,
+        `/api/v1/projects/${data.projectId}/publications`,
   );
   await educator.getByRole("button", { name: "Publish", exact: true }).click();
   const request = (await posted).postDataJSON();
@@ -161,7 +161,7 @@ try {
     await viewer.locator("canvas[aria-label='Exhibition view']").count(),
     1,
   );
-  const snapshot = `/api/publications/${request.publicationId}`;
+  const snapshot = `/api/v1/publications/${request.publicationId}`;
   const assetPath = `${snapshot}/assets/${data.assetId}/bytes`;
   const read = (page, route) =>
     page.evaluate(async (route) => {
@@ -174,7 +174,7 @@ try {
   const write = (page, route, body) =>
     page.evaluate(
       async ({ route, body }) => {
-        const token = (await (await fetch("/api/auth/csrf")).json())
+        const token = (await (await fetch("/api/v1/auth/csrf")).json())
           .requestToken;
         const response = await fetch(route, {
           method: "POST",
@@ -193,14 +193,14 @@ try {
     );
   const replay = await write(
     educator,
-    `/api/projects/${data.projectId}/publications`,
+    `/api/v1/projects/${data.projectId}/publications`,
     request,
   );
   assert.equal(replay.status, 200);
   assert.equal(replay.body.visitorUrl, linkValue);
   assert.equal(
     (
-      await write(educator, `/api/projects/${data.projectId}/publications`, {
+      await write(educator, `/api/v1/projects/${data.projectId}/publications`, {
         ...request,
         intent: { audience: "Authenticated", viewerIds: [] },
       })
@@ -220,7 +220,7 @@ try {
     );
   assert.equal((await read(educator, snapshot)).status, 200);
   assert.equal(
-    (await read(viewer, `/api/projects/${data.projectId}`)).status,
+    (await read(viewer, `/api/v1/projects/${data.projectId}`)).status,
     404,
   );
   const asset = await read(viewer, assetPath);

@@ -27,13 +27,13 @@ try {
   await page.route("**/api/**", async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
-    if (path === "/api/auth/session") return route.fulfill({ json: currentSession });
-    if (path === "/api/auth/csrf") return route.fulfill({ json: { requestToken: "test" } });
-    if (path === `/api/projects/${projectId}/publication-readiness`)
+    if (path === "/api/v1/auth/session") return route.fulfill({ json: currentSession });
+    if (path === "/api/v1/auth/csrf") return route.fulfill({ json: { requestToken: "test" } });
+    if (path === `/api/v1/projects/${projectId}/publication-readiness`)
       return route.fulfill({
         json: { projectId, revision: 4, state: "Ready", completionConfirmed: true, approved: true },
       });
-    if (path === `/api/projects/${projectId}`)
+    if (path === `/api/v1/projects/${projectId}`)
       return route.fulfill({
         json: {
           projectId,
@@ -42,7 +42,7 @@ try {
           permissions: { canPublish },
         },
       });
-    if (path === `/api/projects/${projectId}/publication-viewers`) {
+    if (path === `/api/v1/projects/${projectId}/publication-viewers`) {
       if (!rosterAvailable) return route.fulfill({ status: 503 });
       const cursor = new URL(request.url()).searchParams.get("cursor");
       const items = largeRoster
@@ -57,11 +57,11 @@ try {
           : { items: items.slice(0, 1), nextCursor: student },
       });
     }
-    if (path.startsWith("/api/classes")) {
+    if (path.startsWith("/api/v1/classes")) {
       classRequests += 1;
       return route.fulfill({ status: 403 });
     }
-    if (path === `/api/projects/${projectId}/publications`) {
+    if (path === `/api/v1/projects/${projectId}/publications`) {
       assert.equal(request.headers()["x-spatia-account"], actor);
       const body = request.postDataJSON();
       requests.push(body);

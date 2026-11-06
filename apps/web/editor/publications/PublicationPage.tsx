@@ -105,7 +105,7 @@ export function PublicationPage({ session }: { session: AccountSession }) {
     if (!projectId) return;
     void (async () => {
       try {
-        const value = await api.read(`/api/projects/${encodeURIComponent(projectId)}`);
+        const value = await api.read(`/api/v1/projects/${encodeURIComponent(projectId)}`);
         const current = await accounts.getSession();
         if (current?.userId !== session.userId || current.mustChangePassword)
           throw new Error("Your account changed. Sign in again before continuing.");
@@ -130,7 +130,7 @@ export function PublicationPage({ session }: { session: AccountSession }) {
           if (value.permissions.canPublish) {
             try {
               const status = await api.read(
-                `/api/projects/${encodeURIComponent(projectId)}/publication-readiness`,
+                `/api/v1/projects/${encodeURIComponent(projectId)}/publication-readiness`,
               );
               const latestSession = await accounts.getSession();
               if (
@@ -176,7 +176,7 @@ export function PublicationPage({ session }: { session: AccountSession }) {
     void (async () => {
       try {
         const rows = await api.pages(
-          `/api/projects/${encodeURIComponent(projectId)}/publication-viewers`,
+          `/api/v1/projects/${encodeURIComponent(projectId)}/publication-viewers`,
         );
         const seen = new Set<string>();
         const eligible = rows
@@ -249,7 +249,7 @@ export function PublicationPage({ session }: { session: AccountSession }) {
     setError("");
     const result = await api.write(
       session.userId,
-      `/api/projects/${encodeURIComponent(projectId)}/publications`,
+      `/api/v1/projects/${encodeURIComponent(projectId)}/publications`,
       "POST",
       payload,
       problems,

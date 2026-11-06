@@ -111,10 +111,11 @@ public sealed class HostBoundaryTests
             "POST /api/projects/{id:guid}/publications", "GET /api/projects/{id:guid}/publication-readiness", "GET /api/projects/{id:guid}/publication-viewers" };
         await Assert.That(string.Join(";", endpoints.Select(endpoint =>
             endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Single() + " " + endpoint.RoutePattern.RawText).Order()))
-            .IsEqualTo(string.Join(";", expected.Order()));
+            .IsEqualTo(string.Join(";", expected.Concat(expected.Select(route =>
+                route.Replace("/api/", "/api/v1/", StringComparison.Ordinal))).Order()));
         foreach (var endpoint in endpoints)
         {
-            var path = endpoint.RoutePattern.RawText!;
+            var path = endpoint.RoutePattern.RawText!.Replace("/api/v1/", "/api/", StringComparison.Ordinal);
             var csrf = path == "/api/auth/csrf";
             var login = path == "/api/auth/login";
             var session = path == "/api/auth/session";

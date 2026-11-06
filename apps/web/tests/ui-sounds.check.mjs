@@ -48,7 +48,7 @@ try {
   // Entry pages
   const entry = await context.newPage();
   entry.on("pageerror", (error) => errors.push(error.message));
-  await entry.route("**/api/auth/session", (route) => route.fulfill({ status: 401 }));
+  await entry.route("**/api/v1/auth/session", (route) => route.fulfill({ status: 401 }));
   await entry.goto(`${origin}/login`);
   await entry.getByRole("link", { name: /back to home/i }).click();
   await entry.waitForURL("**/landing");

@@ -175,7 +175,7 @@ export function createReviewClient(request: typeof fetch = fetch) {
   function paged(path: string, after?: string | null) {
     return path + "?limit=20" + (after ? "&cursor=" + id(after) : "");
   }
-  const projectPath = (projectId: string) => "/api/projects/" + id(projectId);
+  const projectPath = (projectId: string) => "/api/v1/projects/" + id(projectId);
   const submissionsPath = (projectId: string) => projectPath(projectId) + "/submissions";
   async function getReview(projectId: string, submissionId: string, after?: string | null) {
     return review(
@@ -190,7 +190,7 @@ export function createReviewClient(request: typeof fetch = fetch) {
       token = string(
         record(
           await read(
-            await send("/api/auth/csrf", { headers: { "X-Spatia-Account": id(actorId) } }),
+            await send("/api/v1/auth/csrf", { headers: { "X-Spatia-Account": id(actorId) } }),
           ),
         ).requestToken,
       );
@@ -305,27 +305,30 @@ export function createReviewClient(request: typeof fetch = fetch) {
     reconcile,
     getReview,
     async classrooms(after?: string | null) {
-      return page(await get(paged("/api/classes", after)), (v) => {
+      return page(await get(paged("/api/v1/classes", after)), (v) => {
         const r = record(v);
         return { id: id(r.id), name: string(r.name) } satisfies Classroom;
       });
     },
     async assignments(classId: string, after?: string | null) {
-      return page(await get(paged("/api/classes/" + id(classId) + "/assignments", after)), (v) => {
-        const r = record(v);
-        return {
-          assignmentId: id(r.assignmentId),
-          title: string(r.title),
-          dueAtUnixSeconds: integer(r.dueAtUnixSeconds),
-          projects: array(r.projects, (p) => {
-            const row = record(p);
-            return { studentId: id(row.studentId), projectId: id(row.projectId) };
-          }),
-        } satisfies Assignment;
-      });
+      return page(
+        await get(paged("/api/v1/classes/" + id(classId) + "/assignments", after)),
+        (v) => {
+          const r = record(v);
+          return {
+            assignmentId: id(r.assignmentId),
+            title: string(r.title),
+            dueAtUnixSeconds: integer(r.dueAtUnixSeconds),
+            projects: array(r.projects, (p) => {
+              const row = record(p);
+              return { studentId: id(row.studentId), projectId: id(row.projectId) };
+            }),
+          } satisfies Assignment;
+        },
+      );
     },
     async roster(classId: string, after?: string | null) {
-      return page(await get(paged("/api/classes/" + id(classId) + "/roster", after)), (v) => {
+      return page(await get(paged("/api/v1/classes/" + id(classId) + "/roster", after)), (v) => {
         const r = record(v);
         return {
           userId: id(r.userId),

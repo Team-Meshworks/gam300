@@ -16,7 +16,7 @@ public static class ClassroomEndpoints
     /// <summary>Adds bounded class reads and organization-scoped roster writes.</summary>
     public static IEndpointRouteBuilder MapClassrooms(this IEndpointRouteBuilder endpoints)
     {
-        var group = endpoints.MapGroup("/api/classes").RequireAuthorization(SecurityPolicies.FullAccount);
+        var group = endpoints.MapGroup("/classes").RequireAuthorization(SecurityPolicies.FullAccount);
         group.MapGet("", ListAsync);
         group.MapGet("/{id:guid}", GetAsync);
         group.MapGet("/{id:guid}/roster", RosterAsync);

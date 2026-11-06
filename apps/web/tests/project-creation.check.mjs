@@ -26,7 +26,7 @@ try {
       name: "Gallery",
       kind: "environment",
       category: null,
-      url: `/api/assets/${assetId}/bytes`,
+      url: `/api/v1/assets/${assetId}/bytes`,
       sha256: "a".repeat(64),
       thumbnail: null,
     },
@@ -39,17 +39,18 @@ try {
   await page.route("**/api/**", async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
-    if (path === "/api/auth/session") return route.fulfill({ json: account });
-    if (path === "/api/auth/csrf") return route.fulfill({ json: { requestToken: "test-token" } });
-    if (path === "/api/assets")
+    if (path === "/api/v1/auth/session") return route.fulfill({ json: account });
+    if (path === "/api/v1/auth/csrf")
+      return route.fulfill({ json: { requestToken: "test-token" } });
+    if (path === "/api/v1/assets")
       return failAssets ? route.fulfill({ status: 503 }) : route.fulfill({ json: assets });
-    if (path === "/api/admin/organizations")
+    if (path === "/api/v1/admin/organizations")
       return route.fulfill({
         json: { items: [{ id: orgId, name: "Active school", isActive: true }], nextCursor: null },
       });
-    if (path === "/api/projects" && request.method() === "GET")
+    if (path === "/api/v1/projects" && request.method() === "GET")
       return route.fulfill({ json: { items: [], nextCursor: null } });
-    if (path === "/api/projects" && request.method() === "POST") {
+    if (path === "/api/v1/projects" && request.method() === "POST") {
       assert.equal(request.headers()["x-csrf-token"], "test-token");
       writes.push(request.postDataJSON());
       if (holdPending) await new Promise((resolve) => (releasePending = resolve));
@@ -92,7 +93,8 @@ try {
   await page.route(`**/?projectId=${projectId}`, (route) => route.fulfill({ body: "editor" }));
   holdPending = true;
   const pendingRequest = page.waitForRequest(
-    (request) => new URL(request.url()).pathname === "/api/projects" && request.method() === "POST",
+    (request) =>
+      new URL(request.url()).pathname === "/api/v1/projects" && request.method() === "POST",
   );
   await dialog.getByRole("button", { name: "Create project" }).click();
   await pendingRequest;
@@ -177,7 +179,8 @@ try {
   await dialog.getByLabel("Organisation").selectOption(orgId);
   holdPending = true;
   const interrupted = page.waitForRequest(
-    (request) => new URL(request.url()).pathname === "/api/projects" && request.method() === "POST",
+    (request) =>
+      new URL(request.url()).pathname === "/api/v1/projects" && request.method() === "POST",
   );
   await dialog.getByRole("button", { name: "Create project" }).click();
   await interrupted;

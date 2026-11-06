@@ -210,8 +210,9 @@ local Caddy root certificate described in the deployment guide. Vite serves HTTP
 proxies `/api` to that origin with certificate verification enabled. Keep these paths and
 private keys out of source control; the settings use `SPATIA_`, not `VITE_`, and are not
 client configuration. Without an API origin, `/api` returns a 503 response. The existing
-account API handles cookies and CSRF. See the [server guide](apps/server/README.md) for
-account setup.
+account API handles cookies and CSRF. New clients use `/api/v1/...`; existing `/api/...`
+routes remain compatible v1 aliases. See the [server guide](apps/server/README.md#http-api-versioning)
+for versioning and account setup.
 Individual maintenance commands below run from `apps/web/`:
 
 | Command                                             | Purpose                                                               |

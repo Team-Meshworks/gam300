@@ -19,7 +19,7 @@ public static class ProjectReadEndpoints
     /// </summary>
     public static IEndpointRouteBuilder MapProjectReads(this IEndpointRouteBuilder endpoints)
     {
-        var group = endpoints.MapGroup("/api/projects").RequireAuthorization(SecurityPolicies.FullAccount);
+        var group = endpoints.MapGroup("/projects").RequireAuthorization(SecurityPolicies.FullAccount);
         group.MapGet("/{id:guid}/assignments", ReadAssignmentsAsync);
         group.MapGet("", async (HttpContext context, ProjectAccessService access, ProjectDocumentService documents,
             CancellationToken cancellationToken) =>

@@ -16,7 +16,7 @@ public static class ProjectLifecycleEndpoints
     /// <summary>Adds protected create, duplicate, assignment and archive/reopen routes</summary>
     public static IEndpointRouteBuilder MapProjectLifecycle(this IEndpointRouteBuilder endpoints)
     {
-        var group = endpoints.MapGroup("/api/projects").RequireAuthorization(SecurityPolicies.FullAccount)
+        var group = endpoints.MapGroup("/projects").RequireAuthorization(SecurityPolicies.FullAccount)
             .RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
         group.MapPost("/", CreateAsync).WithMetadata(new RequestSizeLimitAttribute(SaveEnvelopeReader.MaxRequestBytes));
         group.MapPost("/{id:guid}/duplicate", DuplicateAsync);

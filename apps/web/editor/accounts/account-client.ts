@@ -43,14 +43,17 @@ export function createAccountClient(request: typeof fetch = fetch) {
   }
   async function csrf(accountId?: string) {
     const value = await readJson(
-      await send("/api/auth/csrf", accountId ? { headers: { "X-Spatia-Account": accountId } } : {}),
+      await send(
+        "/api/v1/auth/csrf",
+        accountId ? { headers: { "X-Spatia-Account": accountId } } : {},
+      ),
     );
     if (!isRecord(value) || typeof value.requestToken !== "string" || !value.requestToken)
       throw new Error("The account service is unavailable. Please reload and try again.");
     return value.requestToken;
   }
   async function getSession(): Promise<AccountSession | null> {
-    const response = await send("/api/auth/session");
+    const response = await send("/api/v1/auth/session");
     if (response.status === 401) return null;
     const value = await readJson(response);
     if (
@@ -74,7 +77,7 @@ export function createAccountClient(request: typeof fetch = fetch) {
   }
   async function signIn(userName: string, password: string): Promise<AccountSession> {
     const token = await csrf();
-    const response = await send("/api/auth/login", {
+    const response = await send("/api/v1/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": token },
       body: JSON.stringify({ userName, password }),
@@ -116,14 +119,14 @@ export function createAccountClient(request: typeof fetch = fetch) {
     await csrf();
   }
   async function changePassword(currentPassword: string, newPassword: string) {
-    await accountWrite("/api/auth/password", { currentPassword, newPassword });
+    await accountWrite("/api/v1/auth/password", { currentPassword, newPassword });
     const session = await getSession();
     if (!session || session.mustChangePassword)
       throw new Error("The updated session could not be confirmed. Please sign in again.");
     return session;
   }
   async function signOut(accountId?: string) {
-    await accountWrite("/api/auth/logout", undefined, accountId);
+    await accountWrite("/api/v1/auth/logout", undefined, accountId);
     if (await getSession()) throw new Error("Sign-out could not be confirmed. Please try again.");
   }
   return { getSession, signIn, changePassword, signOut };

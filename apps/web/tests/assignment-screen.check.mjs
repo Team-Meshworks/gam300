@@ -12,19 +12,19 @@ try {
     const path = new URL(request.url()).pathname;
     const json = (body, status = 200) =>
       route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
-    if (path === "/api/auth/session")
+    if (path === "/api/v1/auth/session")
       return json({ userId: "teacher", displayName: "Teacher", role: "Educator", orgId: "school" });
-    if (path === "/api/auth/csrf") return json({ requestToken: "token" });
-    if (path === "/api/classes")
+    if (path === "/api/v1/auth/csrf") return json({ requestToken: "token" });
+    if (path === "/api/v1/classes")
       return json({ items: [{ id: "class", name: "Class" }], nextCursor: null });
-    if (path === "/api/projects")
+    if (path === "/api/v1/projects")
       return json({
         items: [
           { projectId: "source", title: "Source", revision: 3, permissions: { canManage: true } },
         ],
         nextCursor: null,
       });
-    if (path === "/api/classes/class/eligible-students")
+    if (path === "/api/v1/classes/class/eligible-students")
       return json({
         items: [
           { userId: "alice", userName: "Alice", enrolled: true },
@@ -33,7 +33,7 @@ try {
         ],
         nextCursor: null,
       });
-    if (path === "/api/classes/class/assignments" && request.method() === "POST") {
+    if (path === "/api/v1/classes/class/assignments" && request.method() === "POST") {
       requests.push(request.postDataJSON());
       if (!saved) {
         saved = requests[0];
@@ -48,7 +48,7 @@ try {
         ],
       });
     }
-    if (saved && path === `/api/classes/class/assignments/${saved.requestId}`)
+    if (saved && path === `/api/v1/classes/class/assignments/${saved.requestId}`)
       return json({
         assignmentId: saved.requestId,
         title: saved.title,
@@ -113,17 +113,17 @@ async function recoveryScenario(kind) {
       const path = new URL(request.url()).pathname;
       const json = (body, status = 200) =>
         route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
-      if (path === "/api/auth/session")
+      if (path === "/api/v1/auth/session")
         return json({
           userId: "teacher",
           displayName: "Teacher",
           role: "Educator",
           orgId: "school",
         });
-      if (path === "/api/auth/csrf") return json({ requestToken: "token" });
-      if (path === "/api/classes")
+      if (path === "/api/v1/auth/csrf") return json({ requestToken: "token" });
+      if (path === "/api/v1/classes")
         return json({ items: [{ id: "class", name: "Class" }], nextCursor: null });
-      if (path === "/api/projects")
+      if (path === "/api/v1/projects")
         return projectsFail
           ? json({}, 503)
           : json({
@@ -137,12 +137,12 @@ async function recoveryScenario(kind) {
               ],
               nextCursor: null,
             });
-      if (path === "/api/classes/class/eligible-students")
+      if (path === "/api/v1/classes/class/eligible-students")
         return json({
           items: [{ userId: "alice", userName: "Alice", enrolled: true }],
           nextCursor: null,
         });
-      if (path === "/api/classes/class/assignments" && request.method() === "POST") {
+      if (path === "/api/v1/classes/class/assignments" && request.method() === "POST") {
         posts.push(request.postDataJSON());
         if (!initial && posts.length === 1) return route.abort("failed");
         return json({}, status);
@@ -209,7 +209,7 @@ async function returningEducator() {
     await isolated.route("**/api/**", async (route) => {
       const path = new URL(route.request().url()).pathname;
       const json = (body) => route.fulfill({ json: body });
-      if (path === "/api/auth/session")
+      if (path === "/api/v1/auth/session")
         return json({
           userId: "teacher",
           displayName: "Teacher",
@@ -224,9 +224,9 @@ async function returningEducator() {
         dueAtUnixSeconds: 1796110200,
         projects: [{ studentId: "alice", studentName, projectId: "a" }],
       };
-      if (path === "/api/classes/class/assignments")
+      if (path === "/api/v1/classes/class/assignments")
         return json({ items: [assignment], nextCursor: null });
-      if (path === "/api/classes/class/assignments/assignment") return json(assignment);
+      if (path === "/api/v1/classes/class/assignments/assignment") return json(assignment);
       throw new Error(`Unexpected API request: ${path}`);
     });
     const page = await isolated.newPage();

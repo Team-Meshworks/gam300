@@ -48,8 +48,8 @@ port=${url#*://}
 port=${port#*:}
 port=${port%%/*}
 case "$url" in
-  */api/auth/csrf) [[ "${FAKE_FAIL_API:-0}" == 0 ]] ;;
-  */api/auth/session) printf '%s' "${FAKE_SESSION_STATUS:-401}" ;;
+  */api/v1/auth/csrf) [[ "${FAKE_FAIL_API:-0}" == 0 ]] ;;
+  */api/v1/auth/session) printf '%s' "${FAKE_SESSION_STATUS:-401}" ;;
   *) cat "$FAKE_STATE/$port" ;;
 esac
 MOCK

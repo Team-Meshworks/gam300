@@ -35,8 +35,8 @@ it("reads enrolled and eligible students from their distinct authorised routes",
     eligible: [{ userId: studentId, userName: "Alice", enrolled: true }],
   });
   expect(request.mock.calls.map(([path]) => path)).toEqual([
-    `/api/classes/${classId}/roster?limit=20`,
-    `/api/classes/${classId}/eligible-students?limit=20`,
+    `/api/v1/classes/${classId}/roster?limit=20`,
+    `/api/v1/classes/${classId}/eligible-students?limit=20`,
   ]);
 });
 it("does not manufacture roster permissions from an unknown role or invalid enrolment", async () => {
