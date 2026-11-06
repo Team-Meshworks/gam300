@@ -4,6 +4,7 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Builder;
@@ -31,6 +32,8 @@ internal sealed class HttpsApplicationFixture : IAsyncDisposable
 {
     public string CookieName => App.Services.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>()
         .Get(IdentityConstants.ApplicationScheme).Cookie.Name!;
+    public string AntiforgeryCookieName => App.Services.GetRequiredService<IOptions<AntiforgeryOptions>>()
+        .Value.Cookie.Name!;
     public const string AbsoluteExpiryKey = "spatia.absoluteExpiresUtc";
     public const string SecretSentinel = "part3-secret-sentinel-do-not-log";
     private readonly X509Certificate2 _certificate;
