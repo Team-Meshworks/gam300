@@ -34,11 +34,12 @@ public static class AccountSessionEndpoints
                 ? Results.NoContent()
                 : ApiProblems.Create(context, 401, "login_failed", "The sign-in details could not be accepted.");
         }).AllowAnonymous().RequireRateLimiting(SecurityPolicies.AuthenticationRateLimit);
-        group.MapGet("/session", (HttpContext context) =>
+        group.MapGet("/session", (HttpContext context, IHostEnvironment environment) =>
         {
             var account = context.Features.Get<CurrentAccount>()!;
             return Results.Ok(new SessionResponse(
-                account.UserId, account.DisplayName ?? account.UserName, account.Role, account.OrganizationId, account.MustChangePassword));
+                account.UserId, account.DisplayName ?? account.UserName, account.Role, account.OrganizationId, account.MustChangePassword,
+                environment.IsDevelopment()));
         }).RequireAuthorization(SecurityPolicies.CurrentAccount);
         // The private catalogue listener is reached only after this session check succeeds.
         // CurrentAccount also rejects forced-password sessions outside the recovery routes.

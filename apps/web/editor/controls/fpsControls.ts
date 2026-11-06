@@ -242,9 +242,10 @@ export class FpsControls {
     while (this.accumulated >= PHYSICS_DT) {
       this.previousPhysics.copy(this.physicsPosition);
       this.step(PHYSICS_DT);
+      // Consume a queued tap only after a physics step
+      this.mobileJump = false;
       this.accumulated -= PHYSICS_DT;
     }
-    this.mobileJump = false;
 
     this.camera.position
       .copy(this.previousPhysics)

@@ -162,6 +162,7 @@ jobs:
           - name: graphics
             checks: |
               furniture-tools
+              display-editor
               viewpoints
               placement-collision
               moving-room-collision

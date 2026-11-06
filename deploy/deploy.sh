@@ -34,11 +34,22 @@ flock -w 300 9
 recovery_guard="$directory/server-recovery-required"
 release_identity=$(printf '%s\n' "$revision" "$image" "$api_image" "$migration_image")
 recovering=false
+reviewed_recovery=false
 if [[ -e "$recovery_guard" ]]; then
   recovering=true
   if ! $server || [[ "$(cat "$recovery_guard")" != "$release_identity" ]]; then
-    echo "Server recovery is pending. Retry the exact candidate release or obtain an operator compatibility review before deploying a different release." >&2
-    exit 1
+    mapfile -t guarded < "$recovery_guard"
+    valid_guard=true
+    [[ ${#guarded[@]} == 4 && "${guarded[0]}" =~ ^[a-f0-9]{40}$ ]] || valid_guard=false
+    for digest in "${guarded[@]:1}"; do
+      [[ "$digest" =~ ^ghcr\.io/team-meshworks/gam300@sha256:[a-f0-9]{64}$ ]] || valid_guard=false
+    done
+    if ! $server || ! $valid_guard ||
+       [[ "${RECOVERY_FROM_REVISION:-}" != "${guarded[0]:-}" || -z "${RECOVERY_REVIEW:-}" ]]; then
+      echo "Server recovery is pending. Retry the exact candidate release or supply its full revision and a compatibility review through the recovery workflow inputs." >&2
+      exit 1
+    fi
+    reviewed_recovery=true
   fi
 fi
 if ! $server && [[ -f "$directory/current/compose.server.yaml" ]]; then
@@ -51,6 +62,28 @@ cp -- "$bundle/compose.yaml" "$candidate/compose.yaml"
 printf 'APP_IMAGE=%s\nAPP_PORT=%s\nREVISION=%s\n' "$image" "$port" "$revision" > "$candidate/.env"
 compose=(docker compose --project-name "vthere-$environment")
 url=${APP_URL:-http://127.0.0.1:$port}
+
+# Optional outer-gateway credentials; never persist them in release files or curl argv.
+basic_user=${DEPLOY_BASIC_AUTH_USERNAME:-}
+basic_password=${DEPLOY_BASIC_AUTH_PASSWORD:-}
+if [[ -n "$basic_user" || -n "$basic_password" ]]; then
+  [[ -n "$basic_user" && -n "$basic_password" && "$url" == https://* &&
+     "$basic_user" != *:* && "$basic_user$basic_password" != *$'\n'* &&
+     "$basic_user$basic_password" != *$'\r'* ]] || {
+    echo "Basic probe authentication requires HTTPS and a complete, single-line credential pair (username cannot contain a colon)." >&2
+    exit 1
+  }
+fi
+public_curl() {
+  if [[ -n "$basic_user" ]]; then
+    local credentials="$basic_user:$basic_password"
+    credentials=${credentials//\\/\\\\}
+    credentials=${credentials//\"/\\\"}
+    printf 'user = "%s"\nbasic\n' "$credentials" | curl -q --config - "$@"
+  else
+    curl -q "$@"
+  fi
+}
 
 # Keep all commands on the exact release files, including rollback
 run_release() {
@@ -87,6 +120,18 @@ fi
 # Pull failure leaves the running release untouched
 if $server; then run_release "$candidate" pull; else run_release "$candidate" pull web; fi
 
+# Preserve the original guard until pulls and shutdown have succeeded.
+if $reviewed_recovery; then
+  run_release "$candidate" stop api gateway || {
+    echo "Could not confirm API/gateway shutdown; recovery guard retained." >&2; exit 1;
+  }
+  mkdir -p "$directory/recovery-records"
+  record=$(mktemp -d "$directory/recovery-records/review.XXXXXX")
+  cp -- "$recovery_guard" "$record/previous-guard"
+  printf '%s\n' "$release_identity" > "$record/replacement"
+  printf '%s\n' "$RECOVERY_REVIEW" > "$record/review"
+fi
+
 # A runtime rollback never reverses schema changes, so keep a private database backup
 if $server && ! $recovering && [[ -f "$directory/current/compose.server.yaml" ]]; then
   mkdir -p -- "$directory/backups"
@@ -109,12 +154,13 @@ if $server; then
 fi
 
 healthy() {
-  [[ "$(curl --fail --silent --show-error --max-time 30 "$url/version.txt")" == "$revision" ]] || return 1
+  [[ "$(public_curl --fail --silent --show-error --max-time 30 "$url/version.txt")" == "$revision" ]] || return 1
   if $server; then
-    # The public login must be reachable without a second HTTP Basic password gate.
-    # Checking only loopback misses stale configuration in the separate host gateway.
-    curl --fail --silent --show-error --max-time 15 --output /dev/null "$url/login" || return 1
-    curl --fail --silent --show-error --max-time 15 --output /dev/null "$url/api/v1/auth/csrf" || return 1
+    # Pass the optional outer Basic gate without signing into the application.
+    public_curl --fail --silent --show-error --max-time 15 --output /dev/null "$url/login" || return 1
+    public_curl --fail --silent --show-error --max-time 15 --output /dev/null "$url/api/v1/auth/csrf" || return 1
+    # Basic authentication must not grant an application session.
+    [[ "$(public_curl --silent --show-error --max-time 15 --output /dev/null --write-out '%{http_code}' "$url/api/v1/auth/session")" == 401 ]] || return 1
     # Check the local application stack; anonymous session requests must remain unauthorized
     curl --fail --silent --show-error --retry 12 --retry-delay 1 --retry-connrefused --max-time 5 --retry-max-time 60 -H "Host: $host" -H 'X-Forwarded-Proto: https' --output /dev/null "http://127.0.0.1:$port/api/v1/auth/csrf" || return 1
     [[ "$(curl --silent --show-error --max-time 10 -H "Host: $host" -H 'X-Forwarded-Proto: https' --output /dev/null --write-out '%{http_code}' "http://127.0.0.1:$port/api/v1/auth/session")" == 401 ]] || return 1

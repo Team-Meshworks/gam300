@@ -793,23 +793,31 @@ try {
   assert.equal(cancelledHandover.scale, 1);
   assert.equal(cancelledHandover.commits, 0, "Cancelling a handed-over pinch creates no edit");
 
-  // A stationary touch on the crate must not interrupt the camera's jump or fall.
+  // Advance both samples by the same physics time while real touch events still reach the scene
+  await touchPage.evaluate(() => {
+    const h = window.harness;
+    h.normalUpdate = h.manager.update;
+    h.advance = (delta) => h.normalUpdate.call(h.manager, delta);
+    h.manager.update = () => {};
+  });
   async function jumpInterval(delay, click) {
-    await touchPage.evaluate(() => {
+    await touchPage.evaluate((steps) => {
       const h = window.harness;
       h.manager.setView("first");
       h.handle.showCamera({ position: [0, 0.9, 6], rotation: [0, 0, 0, 1], fovDegrees: 40 });
       h.reset(null);
       h.state.followSelection = true;
       h.handle.mobileControls.jump();
-    });
-    await touchPage.waitForTimeout(delay);
+      for (let i = 0; i < steps; i++) h.advance(0.01);
+    }, delay / 10);
     const before = await read();
     if (click) {
       const point = await touchPage.evaluate(() => window.harness.toScreen([0, 0.5, 0]));
       await touch("touchStart", { ...point, id: 9 });
     }
-    await touchPage.waitForTimeout(100);
+    await touchPage.evaluate(() => {
+      for (let i = 0; i < 10; i++) window.harness.advance(0.01);
+    });
     if (click) await touch("touchEnd");
     const after = await read();
     return { displacement: after.camera[1] - before.camera[1], before, after };
@@ -830,7 +838,7 @@ try {
       `The ${label} click hits the crate`,
     );
     assert.ok(
-      Math.abs(clicked.displacement - baseline.displacement) < 0.08,
+      Math.abs(clicked.displacement - baseline.displacement) < 1e-6,
       `A stationary click preserves ${label}: ${JSON.stringify({ baseline, clicked })}`,
     );
     assert.equal(
@@ -844,6 +852,13 @@ try {
       `A click creates no ${label} transform`,
     );
   }
+
+  await touchPage.evaluate(() => {
+    const h = window.harness;
+    h.manager.update = h.normalUpdate;
+    delete h.normalUpdate;
+    delete h.advance;
+  });
 
   // A saved camera keeps its pose in first person, walking starts from there
   await touchPage.evaluate(() => {

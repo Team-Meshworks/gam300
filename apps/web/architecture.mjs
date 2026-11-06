@@ -48,10 +48,10 @@ export const modules = {
     public: ["shared/asset-runtime/catalogue.ts", "shared/asset-runtime/hotspot.ts"],
   },
   "asset-loading": {
-    paths: ["shared/asset-runtime/ModelCache.ts"],
+    paths: ["shared/asset-runtime/ModelCache.ts", "shared/asset-runtime/room-entrances.ts"],
     uses: ["catalogue"],
     packages: ["three"],
-    public: ["shared/asset-runtime/ModelCache.ts"],
+    public: ["shared/asset-runtime/ModelCache.ts", "shared/asset-runtime/room-entrances.ts"],
   },
   input: {
     paths: ["editor/history-shortcuts.ts"],
@@ -157,7 +157,7 @@ export function moduleOf(file) {
     file.startsWith("tests/")
   )
     return "checks";
-  if (file === "shared/asset-runtime/ModelCache.ts") return "asset-loading";
+  if (modules["asset-loading"].paths.includes(file)) return "asset-loading";
   for (const [name, rule] of Object.entries(modules)) {
     if (rule.paths.some((path) => (path.endsWith("/") ? file.startsWith(path) : file === path))) {
       return name;

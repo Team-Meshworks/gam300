@@ -1,6 +1,7 @@
 using System.Data.Common;
 using System.Net;
 using System.Net.Http.Json;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -9,6 +10,7 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using Spatia.Server.Accounts;
+using Spatia.Server.Assets;
 using Spatia.Server.Persistence;
 using Spatia.Server.Projects;
 
@@ -50,6 +52,93 @@ public sealed class ProjectSaveEndpointTests
         await Assert.That(accepted.Ok).IsTrue();
         var content = (Spatia.ProjectFormat.ContentProject)accepted.Value!;
         await Assert.That(content.Scenes[0].Objects.Count(item => item.AssetId == "test-room-module-v1")).IsEqualTo(2);
+    }
+
+    [Test]
+    public async Task ProjectPut_ApprovedStarterRoomInstancesSaveAndReopenInProduction()
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Production");
+        await fixture.SignInAsync(await fixture.CreateAccountAsync(ApplicationRoles.Administrator));
+        var bytes = await File.ReadAllBytesAsync(System.IO.Path.GetFullPath(
+            "../../../../../../assets/delivery/test-room.glb", AppContext.BaseDirectory));
+        var hash = Convert.ToHexStringLower(SHA256.HashData(bytes));
+        using var manifest = JsonDocument.Parse(typeof(ProjectDocumentService).Assembly.GetManifestResourceStream("Spatia.Assets.Manifest")!);
+        foreach (var id in new[] { "test-room-v1", "test-room-module-v1" })
+        {
+            var entry = manifest.RootElement.GetProperty("assets").EnumerateArray()
+                .Single(asset => asset.GetProperty("assetId").GetString() == id);
+            await Assert.That(entry.GetProperty("sha256").GetString()).IsEqualTo(hash);
+        }
+
+        async Task<AssetAdministrationRecord> ApproveAsync(string kind)
+        {
+            var category = kind == "model" ? "&category=Architecture" : "";
+            using var upload = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/admin/assets?name=starter-{kind}.glb&kind={kind}{category}");
+            upload.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync());
+            upload.Content = new ByteArrayContent(bytes);
+            upload.Content.Headers.ContentType = new("model/gltf-binary");
+            using var submitted = await fixture.Client.SendAsync(upload);
+            await Assert.That(submitted.StatusCode).IsEqualTo(HttpStatusCode.Created);
+            var candidate = (await submitted.Content.ReadFromJsonAsync<AssetAdministrationRecord>())!;
+            await Assert.That(candidate.Status).IsEqualTo("pending");
+            await Assert.That(candidate.Sha256).IsEqualTo(hash);
+            using var reviewed = await AuthTestRequests.PostAsync(fixture, $"/api/v1/admin/assets/{candidate.Id}/approve",
+                new AssetReviewRequest("Synthetic test fixture", "Synthetic test fixture", "Approved for test"));
+            await Assert.That(reviewed.StatusCode).IsEqualTo(HttpStatusCode.OK);
+            var approved = (await reviewed.Content.ReadFromJsonAsync<AssetAdministrationRecord>())!;
+            await Assert.That(approved.Status).IsEqualTo("approved");
+            await Assert.That(approved.Hidden).IsFalse();
+            return approved;
+        }
+
+        var environment = await ApproveAsync("environment");
+        var model = await ApproveAsync("model");
+        await Assert.That(environment.Id).IsNotEqualTo(model.Id);
+        await fixture.SignInAsync(await fixture.CreateAccountAsync());
+        using var catalogue = await fixture.Client.GetAsync("/api/v1/assets");
+        await Assert.That(catalogue.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        var entries = await catalogue.Content.ReadFromJsonAsync<JsonElement>();
+        foreach (var asset in new[] { environment, model })
+        {
+            var row = entries.EnumerateArray().Single(item => item.GetProperty("id").GetGuid() == asset.Id);
+            await Assert.That(row.GetProperty("kind").GetString()).IsEqualTo(asset.Kind);
+            await Assert.That(row.GetProperty("sha256").GetString()).IsEqualTo(hash);
+        }
+
+        using var created = await AuthTestRequests.PostAsync(fixture, "/api/v1/projects/",
+            new { title = "Production Starter rooms", environmentAssetId = environment.Id.ToString() });
+        await Assert.That(created.StatusCode).IsEqualTo(HttpStatusCode.Created);
+        var projectId = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("projectId").GetGuid();
+        var json = ProjectTestDocuments.Create(projectId, "Production Starter rooms", 2)
+            .Replace("test-room-v1", environment.Id.ToString(), StringComparison.Ordinal)
+            .Replace("test-crate-v1", model.Id.ToString(), StringComparison.Ordinal);
+        var document = JsonNode.Parse(json)!;
+        var objects = document["scenes"]![0]!["objects"]!.AsArray();
+        var room = objects[0]!.DeepClone();
+        var firstId = Guid.NewGuid();
+        room["id"] = firstId.ToString();
+        room["parentId"] = null;
+        room["components"] = new JsonArray();
+        objects.Add(room);
+        var second = room.DeepClone();
+        var secondId = Guid.NewGuid();
+        second["id"] = secondId.ToString();
+        objects.Add(second);
+        using var saved = await PutAsync(fixture, projectId, Envelope(document.ToJsonString(), Guid.NewGuid()));
+        await Assert.That(saved.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        await Assert.That((await saved.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("revision").GetInt64()).IsEqualTo(1L);
+
+        using var reopened = await fixture.Client.GetAsync(Path(projectId));
+        await Assert.That(reopened.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        var response = await reopened.Content.ReadFromJsonAsync<JsonElement>();
+        await Assert.That(response.GetProperty("revision").GetInt64()).IsEqualTo(1L);
+        var scene = response.GetProperty("document").GetProperty("scenes")[0];
+        await Assert.That(scene.GetProperty("environmentAssetId").GetGuid()).IsEqualTo(environment.Id);
+        foreach (var instanceId in new[] { firstId, secondId })
+        {
+            var instance = scene.GetProperty("objects").EnumerateArray().Single(item => item.GetProperty("id").GetGuid() == instanceId);
+            await Assert.That(instance.GetProperty("assetId").GetGuid()).IsEqualTo(model.Id);
+        }
     }
 
     [Test]

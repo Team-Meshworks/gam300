@@ -232,6 +232,11 @@ public sealed class HostBoundaryTests
         {
             request.Headers.TransferEncodingChunked = true;
         }
+        else if (status == HttpStatusCode.RequestEntityTooLarge)
+        {
+            // Receive the size rejection before uploading a declared oversized body
+            request.Headers.ExpectContinue = true;
+        }
         using var response = await fixture.Client.SendAsync(request);
         await Assert.That(response.StatusCode).IsEqualTo(status);
         await Assert.That(fixture.Writes).IsEqualTo(status == HttpStatusCode.NoContent ? 1 : 0);
@@ -239,6 +244,47 @@ public sealed class HostBoundaryTests
         {
             await AssertProblemAsync(response, status, "request_too_large");
         }
+    }
+
+    [Test]
+    public async Task RequestBody_OrdinaryOversizedUploadNeverReachesWrite()
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync();
+        await fixture.SignInAsync(await fixture.CreateAccountAsync());
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/_test/write")
+        {
+            Version = HttpVersion.Version11,
+            VersionPolicy = HttpVersionPolicy.RequestVersionExact,
+            Content = new ByteArrayContent(new byte[17 * 1024]),
+        };
+        request.Content.Headers.ContentType = new("application/json");
+        request.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync());
+        try
+        {
+            using var response = await fixture.Client.SendAsync(request);
+            await AssertProblemAsync(response, HttpStatusCode.RequestEntityTooLarge, "request_too_large");
+        }
+        catch (HttpRequestException error) when (
+            error.HttpRequestError == HttpRequestError.ResponseEnded
+            || error.InnerException is IOException
+            {
+                InnerException: SocketException
+                {
+                    SocketErrorCode: SocketError.ConnectionReset or SocketError.ConnectionAborted
+                }
+            })
+        {
+            // Kestrel may close a connection while an oversized body is already being sent
+        }
+
+        // A transport reset is acceptable only after the server actually rejects the request
+        const string rejection = "request_completed POST /_test/write 413 ";
+        for (var attempt = 0; attempt < 100 && !fixture.Logs.Messages.Contains(rejection, StringComparison.Ordinal); attempt++)
+        {
+            await Task.Delay(10);
+        }
+        await Assert.That(fixture.Logs.Messages.Contains(rejection, StringComparison.Ordinal)).IsTrue();
+        await Assert.That(fixture.Writes).IsEqualTo(0);
     }
 
     [Test]
