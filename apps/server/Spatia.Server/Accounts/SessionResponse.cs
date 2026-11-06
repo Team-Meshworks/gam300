@@ -8,9 +8,11 @@ namespace Spatia.Server.Accounts;
 /// <param name="Role">The currently validated fixed role name</param>
 /// <param name="OrgId">The organization identifier, or null for an administrator</param>
 /// <param name="MustChangePassword">Whether a password change is required before full account access</param>
+/// <param name="DevelopmentAssetsAllowed">Whether packaged development assets are accepted by this server</param>
 public sealed record SessionResponse(
     Guid UserId,
     string DisplayName,
     string Role,
     Guid? OrgId,
-    bool MustChangePassword);
+    bool MustChangePassword,
+    bool DevelopmentAssetsAllowed);

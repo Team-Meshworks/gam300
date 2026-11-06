@@ -89,6 +89,12 @@ try {
     first.scenes[0].startCamera.position[0] > 30,
     "Initial overview fits the full-size room",
   );
+  await choose("All 4 Doors");
+  assert.equal(
+    await page.getByText(/another copy of this room is not supported/i).count(),
+    0,
+    "Selecting a complete layout again should not report an error",
+  );
 
   // Capture the actual rendered environment roots, beyond the normalized cached model.
   await page.evaluate(async () => {

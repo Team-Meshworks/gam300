@@ -30,6 +30,73 @@ const trays = [
 const screenshots = fileURLToPath(new URL("../test-results/display-tools/", import.meta.url));
 
 try {
+  // Duplicate room names must retain their distinct catalogue identities
+  const roomPage = await browser.newPage();
+  const duplicateKeys = [];
+  roomPage.on("console", (message) => {
+    if (message.type() === "error" && message.text().includes("same key")) {
+      duplicateKeys.push(message.text());
+    }
+  });
+  const origin = new URL(process.argv[2] ?? "http://127.0.0.1:5173/").origin;
+  await roomPage.route("**/__room-options-test", (route) =>
+    route.fulfill({
+      contentType: "text/html",
+      body: `<div id="root"></div><script type="importmap">{"imports":{"react":"/@id/react","react-dom/client":"/@id/react-dom/client"}}</script><script type="module">
+        import RefreshRuntime from "/@react-refresh";
+        RefreshRuntime.injectIntoGlobalHook(window);
+        window.$RefreshReg$ = () => {};
+        window.$RefreshSig$ = () => (type) => type;
+        window.__vite_plugin_react_preamble_installed__ = true;
+      </script>`,
+    }),
+  );
+  await roomPage.goto(origin + "/__room-options-test");
+  await roomPage.waitForFunction(() => window.__vite_plugin_react_preamble_installed__);
+  await roomPage.evaluate(async () => {
+    const React = (await import("react")).default;
+    const { createRoot } = (await import("react-dom/client")).default;
+    const { BottomBar } = await import("/ui/BottomBar.tsx");
+    const assets = ["room-a", "room-b"].map((id) => ({
+      id,
+      name: "Shared room",
+      kind: "environment",
+      url: "/room.glb",
+      sha256: "a".repeat(64),
+      thumbnail: null,
+    }));
+    window.selectedRoomIds = [];
+    createRoot(document.getElementById("root")).render(
+      React.createElement(BottomBar, {
+        assets,
+        hotspot: { ...assets[0], id: "hotspot", name: "Hotspot" },
+        ready: true,
+        thumbnailFor: () => undefined,
+        onAdd: (id) => window.selectedRoomIds.push(id),
+        onAudio: () => {},
+        onDragChange: () => {},
+        tool: "select",
+        onToolChange: () => {},
+        showCameraTools: false,
+      }),
+    );
+  });
+  const roomButton = roomPage.getByRole("button", { name: "Rooms", exact: true });
+  for (const [index, id] of ["room-a", "room-b"].entries()) {
+    await roomButton.focus();
+    await roomButton.press("Enter");
+    const options = roomPage
+      .getByRole("group", { name: "Rooms options" })
+      .getByRole("button", { name: "Shared room", exact: true });
+    await options.first().waitFor();
+    assert.equal(await options.count(), 2);
+    await options.nth(index).focus();
+    await options.nth(index).press("Enter");
+    assert.equal((await roomPage.evaluate(() => window.selectedRoomIds)).at(-1), id);
+  }
+  assert.deepEqual(duplicateKeys, [], "Room options must use unique React keys");
+  await roomPage.close();
+
   const page = await browser.newPage({ viewport: { width: 1440, height: 1024 } });
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));

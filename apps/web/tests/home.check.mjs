@@ -27,6 +27,25 @@ const project = {
 };
 const screenshotDirectory = "../../.artifacts/home-check";
 await mkdir(screenshotDirectory, { recursive: true });
+
+async function textContrast(locator) {
+  return locator.evaluate((element) => {
+    const { color, backgroundColor } = getComputedStyle(element);
+    const luminance = (value) => {
+      const [red, green, blue] = value
+        .match(/\d+/g)
+        .slice(0, 3)
+        .map((channel) => {
+          const srgb = Number(channel) / 255;
+          return srgb <= 0.04045 ? srgb / 12.92 : ((srgb + 0.055) / 1.055) ** 2.4;
+        });
+      return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+    };
+    const levels = [color, backgroundColor].map(luminance).sort((a, b) => a - b);
+    return (levels[1] + 0.05) / (levels[0] + 0.05);
+  });
+}
+
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
   page.setDefaultTimeout(7000);
@@ -204,6 +223,52 @@ try {
     console.log("Assignment survives same-actor gate and stays hidden from other actors");
     process.exitCode = 0;
   } else {
+    await page.goto(origin + "/home");
+    const navigation = page.getByRole("navigation", { name: "Workspace" });
+    for (const label of ["Projects", "Classes"]) {
+      const button = navigation.getByRole("button", { name: label, exact: true });
+      await button.click();
+      await page.mouse.move(0, 0);
+      assert.equal(await button.getAttribute("aria-current"), "page");
+      const normal = await textContrast(button);
+      assert.ok(normal >= 4.5, `Selected ${label} contrast is ${normal.toFixed(2)}:1`);
+      await button.hover();
+      const hovered = await textContrast(button);
+      assert.ok(hovered >= 4.5, `Selected ${label} hover contrast is ${hovered.toFixed(2)}:1`);
+    }
+
+    // Touch can retain hover after the selection changes
+    const touchPage = await browser.newPage({
+      viewport: { width: 390, height: 844 },
+      isMobile: true,
+      hasTouch: true,
+    });
+    await touchPage.route("**/api/v1/**", (route) => {
+      const path = new URL(route.request().url()).pathname;
+      if (path === "/api/v1/auth/session") return route.fulfill({ json: session });
+      if (path === "/api/v1/projects" || path === "/api/v1/classes")
+        return route.fulfill({ json: { items: [], nextCursor: null } });
+      return route.fulfill({ status: 404 });
+    });
+    await touchPage.goto(origin + "/home");
+    const touchClasses = touchPage
+      .getByRole("navigation", { name: "Workspace" })
+      .getByRole("button", { name: "Classes", exact: true });
+    await touchClasses.tap();
+    assert.equal(await touchClasses.getAttribute("aria-current"), "page");
+    const touched = await textContrast(touchClasses);
+    assert.ok(touched >= 4.5, `Selected Classes after touch contrast is ${touched.toFixed(2)}:1`);
+    await touchPage.close();
+
+    await page.goto(origin + "/review");
+    const reviews = page
+      .getByRole("navigation", { name: "Workspace" })
+      .getByRole("link", { name: "Submissions and reviews", exact: true });
+    assert.equal(await reviews.getAttribute("aria-current"), "page");
+    await reviews.hover();
+    const reviewed = await textContrast(reviews);
+    assert.ok(reviewed >= 4.5, `Selected reviews hover contrast is ${reviewed.toFixed(2)}:1`);
+
     for (const width of [1440, 1024, 768, 390]) {
       await page.setViewportSize({ width, height: 1000 });
       await page.goto(origin + "/home");

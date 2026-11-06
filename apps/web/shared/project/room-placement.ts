@@ -1,13 +1,17 @@
 import type { ProjectScene } from "./project-types";
 import type { SceneObject, Vector3Tuple } from "./scene-object";
 
+export type RoomModelPredicate = (assetId: string) => boolean;
+export const isPackagedRoomModel: RoomModelPredicate = (id) => id === "test-room-module-v1";
+
 // Keep the remaining room as the layout reference when the initial environment was deleted
 export function roomLayoutTransform(
   objects: readonly SceneObject[],
   scene: ProjectScene | null | undefined,
+  isRoomModel: RoomModelPredicate = isPackagedRoomModel,
 ) {
   return scene?.environmentVisible === false
-    ? objects.find((object) => object.assetId === "test-room-module-v1")?.transform
+    ? objects.find((object) => isRoomModel(object.assetId))?.transform
     : scene?.environmentTransform;
 }
 
@@ -16,11 +20,11 @@ export function snapRoomPlacement(
   objects: readonly SceneObject[],
   environmentAssetId?: string,
   environmentTransform?: SceneObject["transform"],
+  isRoomModel: RoomModelPredicate = isPackagedRoomModel,
 ): Vector3Tuple | null {
   // Compare room footprints in the layout frame so rotated layouts keep their adjoining sides
   const frame =
-    environmentTransform ??
-    objects.find((object) => object.assetId === "test-room-module-v1")?.transform;
+    environmentTransform ?? objects.find((object) => isRoomModel(object.assetId))?.transform;
   const [qx, qy, qz, qw] = frame?.rotation ?? [0, 0, 0, 1];
   const angle = Math.atan2(2 * (qw * qy + qx * qz), 1 - 2 * (qy * qy + qz * qz));
   const cosine = Math.cos(angle),
@@ -35,7 +39,7 @@ export function snapRoomPlacement(
   const requested = toFrame(position);
   // Approved Starter room geometry spans -5 to 5 on floor axes and -0.2 to 3 in height
   // Keep this asset-specific until production rooms supply approved connection points
-  const rooms = objects.filter((object) => object.assetId === "test-room-module-v1");
+  const rooms = objects.filter((object) => isRoomModel(object.assetId));
   if (environmentAssetId === "test-room-v1")
     rooms.unshift({
       id: "environment",

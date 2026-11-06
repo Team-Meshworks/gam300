@@ -5,7 +5,12 @@ import { ExhibitPopups } from "./ui/ExhibitPopups";
 import type { ContentObject } from "../shared/project/project-content";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { assets as developmentAssets } from "virtual:asset-catalogue";
-import type { CatalogueAsset } from "../shared/asset-runtime/catalogue";
+import {
+  isStarterRoomEnvironment,
+  isStarterRoomModel,
+  starterRoomCompanion,
+  type CatalogueAsset,
+} from "../shared/asset-runtime/catalogue";
 import { HOTSPOT_ASSET, HOTSPOT_ASSET_ID } from "../shared/asset-runtime/hotspot";
 import type { SceneObject, Vector3Tuple } from "../shared/project/scene-object";
 import type { HotspotDropTarget, ProjectHotspot, Transform } from "../shared/project/project-types";
@@ -464,7 +469,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
         ids.length > 1 ||
         id === snapshot.activeSceneId ||
         snapshot.objects.some(
-          (object) => object.id === id && object.assetId === "test-room-module-v1",
+          (object) => object.id === id && isStarterRoomModel(assets, object.assetId),
         )
           ? store.setSelectionTransform(ids, id, transform)
           : parentId !== undefined &&
@@ -478,7 +483,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
         setNotice("Updated object. Undo is available.");
       }
     },
-    [store, setNotice],
+    [assets, store, setNotice],
   );
 
   function place(
@@ -519,7 +524,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
     // Choosing the first room turns the grid scene into a saveable project
     // Room placement uses the environment slot so it survives JSON reconstruction
     if (assetKinds.get(assetId) === "environment") {
-      if (assetId === "test-room-v1" && !projectScene && !roomFitsGrid(position)) {
+      if (isStarterRoomEnvironment(assets, assetId) && !projectScene && !roomFitsGrid(position)) {
         setError("Keep the whole room inside the grid");
         return;
       }
@@ -532,9 +537,20 @@ export function App({ server }: { server?: ServerEditorSession }) {
 
       // The same room tile creates the environment first and independent room instances afterward
       // Keep the model reference used by saved room instances behind this one catalogue choice
-      if (assetId === "test-room-v1" && projectScene?.environmentAssetId === assetId) {
-        const added = store.addObject("test-room-module-v1", position);
+      if (
+        projectScene &&
+        isStarterRoomEnvironment(assets, projectScene.environmentAssetId) &&
+        isStarterRoomEnvironment(assets, assetId)
+      ) {
+        const companion = starterRoomCompanion(selectionAssets);
+        if (!companion) {
+          setError("An approved Starter room model is required to add an adjoining room.");
+          setDragging(null);
+          return;
+        }
+        const added = store.addObject(companion.id, position);
         if (added.ok) {
+          setError("");
           setSelectedId(added.object.id);
           setNotice(`Added ${added.object.name}`);
         } else {
@@ -866,6 +882,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
           onCamera={receiveCamera}
           loadGeneration={loadGeneration}
           assets={editorAssets}
+          selectableAssets={selectionAssets}
           objects={objects}
           projectScene={projectScene ?? null}
           selectedId={roomSelected ? projectScene.id : selection}
@@ -992,15 +1009,23 @@ export function App({ server }: { server?: ServerEditorSession }) {
               }}
               onAdd={async (assetId) => {
                 const before = store.getSnapshot();
-                const modelId =
-                  assetId === "test-room-v1" && projectScene?.environmentAssetId === assetId
-                    ? "test-room-module-v1"
-                    : assetId;
+                const adjoiningRoom =
+                  projectScene &&
+                  isStarterRoomEnvironment(assets, projectScene.environmentAssetId) &&
+                  isStarterRoomEnvironment(assets, assetId);
+                const modelId = adjoiningRoom ? starterRoomCompanion(selectionAssets)?.id : assetId;
+                if (!modelId) {
+                  setError("An approved Starter room model is required to add an adjoining room.");
+                  return;
+                }
                 if (!(await viewCamera?.prepareAsset(modelId)) || store.getSnapshot() !== before)
                   return;
                 setShowExhibitTools(false);
                 // Supplied rooms are complete environment layouts, selected at the scene origin.
-                if (assetKinds.get(assetId) === "environment" && assetId !== "test-room-v1") {
+                if (
+                  assetKinds.get(assetId) === "environment" &&
+                  !isStarterRoomEnvironment(assets, assetId)
+                ) {
                   setPlacingAssetId(null);
                   place(assetId, [0, 0, 0]);
                   return;
@@ -1017,6 +1042,17 @@ export function App({ server }: { server?: ServerEditorSession }) {
                 setNavigationTool("select");
               }}
               onDragChange={(assetId) => {
+                if (
+                  assetId &&
+                  projectScene &&
+                  isStarterRoomEnvironment(assets, projectScene.environmentAssetId) &&
+                  isStarterRoomEnvironment(assets, assetId) &&
+                  !starterRoomCompanion(selectionAssets)
+                ) {
+                  setError("An approved Starter room model is required to add an adjoining room.");
+                  setDragging(null);
+                  return;
+                }
                 setDragging(assetId);
                 if (assetId !== null) {
                   setPlacingAssetId(null);

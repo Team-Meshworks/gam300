@@ -51,6 +51,12 @@ public sealed class ProjectDocumentService
             if (id is not ("test-room-v1" or "test-room-module-v1" or "test-crate-v1" or "sample-snowglobe-v1"
                 or "display-cube-v1" or "display-full-glass-case-v1" or "display-half-glass-case-v1"
                 or "display-one-sided-glass-case-v1" or "display-rectangle-stand-v1"
+                or "furniture-modern-bench-1-v1" or "furniture-modern-bench-2-v1" or "library-untitled-v1"
+                or "room-space1-v1" or "room-doors-1-v1" or "room-doors-2-v1" or "room-doors-3-v1" or "room-doors-4-v1"
+                or "room-doors-1-2-v1" or "room-doors-1-3-v1" or "room-doors-1-4-v1"
+                or "room-doors-2-3-v1" or "room-doors-2-4-v1" or "room-doors-3-4-v1"
+                or "room-doors-1-2-3-v1" or "room-doors-1-2-4-v1" or "room-doors-1-3-4-v1"
+                or "room-doors-2-3-4-v1" or "room-doors-1-2-3-4-v1"
                 or "display-rectangle-panel-v1" or "display-square-stand-v1" or "display-square-panel-v1" or "sample-landscape-image-v1" or "sample-coast-image-v1" or "sample-coast-video-v1"
                 or "sample-dunes-image-v1" or "sample-forest-image-v1" or "sample-sunset-image-v1" or "sample-valley-image-v1" or "sample-dunes-video-v1" or "sample-forest-video-v1" or "sample-sunset-video-v1"
                 or "audio-ethereal-calm-v1"
@@ -73,14 +79,16 @@ public sealed class ProjectDocumentService
             var expectedKind = id is "audio-ethereal-calm-v1" or "audio-mystic-harp-v1" or "audio-calm-piano-v1" or "audio-mysterious-piano-v1" or "audio-reflective-piano-v1" or "audio-classical-piano-v1" or "audio-octave-piano-loop-v1" or "audio-museum-hall-v1" or "audio-museum-hall-conversation-v1" or "audio-washroom-room-tone-v1" or "audio-wooden-cabin-at-night-v1" or "audio-outdoor-restaurant-v1" or "audio-quiet-crowd-v1" ? "audio"
                 : id is "sample-landscape-image-v1" or "sample-coast-image-v1" or "sample-dunes-image-v1" or "sample-forest-image-v1" or "sample-sunset-image-v1" or "sample-valley-image-v1" ? "image"
                 : id is "sample-coast-video-v1" or "sample-dunes-video-v1" or "sample-forest-video-v1" or "sample-sunset-video-v1" ? "video"
-                : id == "test-room-v1" ? "environment" : "model";
+                : id is "test-room-v1" or "room-space1-v1" or "room-doors-1-v1" or "room-doors-2-v1" or "room-doors-3-v1" or "room-doors-4-v1"
+                    or "room-doors-1-2-v1" or "room-doors-1-3-v1" or "room-doors-1-4-v1" or "room-doors-2-3-v1" or "room-doors-2-4-v1" or "room-doors-3-4-v1"
+                    or "room-doors-1-2-3-v1" or "room-doors-1-2-4-v1" or "room-doors-1-3-4-v1" or "room-doors-2-3-4-v1" or "room-doors-1-2-3-4-v1" ? "environment" : "model";
             if (entry.GetProperty("access").GetString() != "development-only"
                 || kind != expectedKind || !assets.TryAdd(id, kind))
             {
                 throw new InvalidOperationException("Invalid packaged development asset catalogue.");
             }
         }
-        if (assets.Count != 35)
+        if (assets.Count != 54)
         {
             throw new InvalidOperationException("The packaged development asset catalogue is incomplete.");
         }

@@ -30,6 +30,7 @@ const api = async (route) => {
           role: "Creator",
           orgId: bob,
           mustChangePassword: false,
+          developmentAssetsAllowed: true,
         })
       : json(401, {});
   if (request.headers()["x-spatia-account"] && request.headers()["x-spatia-account"] !== account)
@@ -88,7 +89,232 @@ async function saved() {
       document.querySelector('.server-session [role="status"]')?.textContent === "Saved to server",
   );
 }
+
+async function catalogueScenario(capability, revokeDuringRead = false, companion = "none") {
+  const approvedId = "22222222-2222-4222-8222-222222222222";
+  const retainedId = "33333333-3333-4333-8333-333333333333";
+  const modelId = "44444444-4444-4444-8444-444444444444";
+  const manifest = JSON.parse(
+    readFileSync(new URL("../../../assets/manifest.json", import.meta.url), "utf8"),
+  );
+  const hash = manifest.assets.find((asset) => asset.assetId === "test-room-module-v1").sha256;
+  const approved = {
+    id: approvedId,
+    name: "Approved Starter room",
+    kind: "environment",
+    url: `/api/v1/assets/${approvedId}/bytes`,
+    sha256: hash,
+    thumbnail: null,
+    category: null,
+  };
+  const retained = {
+    id: retainedId,
+    name: "Retained object",
+    kind: "model",
+    url: `/api/v1/projects/${fixture.projectId}/assets/${retainedId}/bytes`,
+    sha256: "b".repeat(64),
+    thumbnail: null,
+    category: null,
+  };
+  const approvedModel = {
+    ...retained,
+    id: modelId,
+    name: "Approved Starter model",
+    url: `/api/v1/assets/${modelId}/bytes`,
+    sha256: hash,
+  };
+  let serverDocument = structuredClone(fixture);
+  serverDocument.scenes[0].environmentAssetId = approvedId;
+  serverDocument.scenes[0].objects = [
+    { ...serverDocument.scenes[0].objects[0], assetId: retainedId },
+  ];
+  let currentCapability = capability,
+    serverRevision = 1;
+  const captured = [];
+  const isolated = await browser.newContext();
+  try {
+    await isolated.route("**/api/v1/**", async (route) => {
+      const request = route.request();
+      const path = new URL(request.url()).pathname;
+      const json = (status, body) => route.fulfill({ status, json: body });
+      if (path === "/api/v1/auth/session")
+        return json(200, {
+          userId: alice,
+          displayName: "Student",
+          role: "Creator",
+          orgId: bob,
+          mustChangePassword: false,
+          ...(currentCapability === undefined
+            ? {}
+            : { developmentAssetsAllowed: currentCapability }),
+        });
+      if (path === "/api/v1/auth/csrf") return json(200, { requestToken: "test-token" });
+      if (path === "/api/v1/assets") {
+        if (revokeDuringRead) currentCapability = false;
+        return json(200, [approved, ...(companion === "approved" ? [approvedModel] : [])]);
+      }
+      if (path === `/api/v1/projects/${fixture.projectId}/assets`)
+        return json(200, [
+          retained,
+          ...(companion === "retained"
+            ? [
+                {
+                  ...approvedModel,
+                  url: `/api/v1/projects/${fixture.projectId}/assets/${modelId}/bytes`,
+                },
+              ]
+            : []),
+        ]);
+      if (path === `/api/v1/projects/${fixture.projectId}`) {
+        if (request.method() === "GET")
+          return json(200, {
+            projectId: fixture.projectId,
+            revision: serverRevision,
+            document: serverDocument,
+            permissions: { canEdit: true },
+          });
+        const body = request.postDataJSON();
+        captured.push(body);
+        serverDocument = body.document;
+        return json(200, {
+          projectId: fixture.projectId,
+          clientMutationId: body.clientMutationId,
+          revision: ++serverRevision,
+        });
+      }
+      return json(404, {});
+    });
+    const scenario = await isolated.newPage();
+    scenario.setDefaultTimeout(15000);
+    const scenarioErrors = [];
+    scenario.on("pageerror", (error) => scenarioErrors.push(error.message));
+    await scenario.route("**/viewport/Viewport.tsx*", async (route) => {
+      const original = await (await route.fetch()).text();
+      const react = original.match(/import __vite__cjsImport\d+_react from "([^"]+)"/)[1];
+      await route.fulfill({
+        contentType: "text/javascript",
+        body: `import React from ${JSON.stringify(react)};
+          export function Viewport(props) {
+            React.useEffect(() => {
+              props.onCamera({
+                prepareAsset: async (id) => { (window.preparedAssets ??= []).push(id); return true; },
+                capture: () => ({position: [0, 1, 0], rotation: [0, 0, 0, 1], fovDegrees: 40}),
+                show() {}, locate() {}, toggleDisplayMedia() {}, hotspotAnchor() {}, bounds() { return null; },
+              });
+              props.onStatus("ready");
+              return () => props.onCamera(null);
+            }, []);
+            return React.createElement("div", null, React.createElement("button", {
+              className: "viewport-stage",
+              "data-placing-asset": props.placingAssetId ?? "",
+              onClick: () => props.onPlace(props.placingAssetId, [7.46, 0, -5.35]),
+            }, "Place"), props.children);
+          }`,
+      });
+    });
+    await scenario.goto(url);
+    if (revokeDuringRead) {
+      await scenario
+        .getByRole("alert")
+        .getByText(/account changed/i)
+        .waitFor();
+      assert.equal(await scenario.locator(".editor-shell").count(), 0);
+      return;
+    }
+    await scenario
+      .getByRole("button", { name: "Rooms", exact: true })
+      .waitFor()
+      .catch(async (error) => {
+        console.error(scenarioErrors, await scenario.locator("body").innerText());
+        throw error;
+      });
+    await scenario.getByRole("button", { name: "Asset library", exact: true }).click();
+    assert.equal(
+      await scenario
+        .locator(".asset-picker")
+        .getByRole("button", { name: "Retained object", exact: true })
+        .count(),
+      0,
+      "Retained references can open the project without becoming new choices",
+    );
+    assert.equal(
+      await scenario
+        .locator(".asset-picker")
+        .getByRole("button", { name: "Approved Starter model", exact: true })
+        .count(),
+      0,
+      "Room companions are offered through Rooms, not as ordinary objects",
+    );
+    await scenario.getByRole("button", { name: "Close asset library" }).click();
+    await scenario.getByRole("button", { name: "Rooms", exact: true }).click();
+    const rooms = scenario.getByRole("group", { name: "Rooms options", exact: true });
+    assert.equal(
+      await rooms.getByRole("button", { name: "Starter room", exact: true }).count(),
+      capability === true ? 1 : 0,
+      "Bundled Starter room requires explicit development capability",
+    );
+    assert.equal(
+      await rooms.getByRole("button", { name: "All 4 Doors", exact: true }).count(),
+      capability === true ? 1 : 0,
+      "Bundled room layouts require explicit development capability",
+    );
+    assert.equal(
+      (await rooms.locator(".room-picker-hint").innerText()).includes(
+        "Starter room adds adjoining rooms.",
+      ),
+      capability === true || companion === "approved",
+    );
+    await rooms.getByRole("button", { name: "Approved Starter room", exact: true }).click();
+    if (capability === true || companion === "approved") {
+      await scenario.waitForFunction(
+        (id) =>
+          document.querySelector(".viewport-stage")?.getAttribute("data-placing-asset") === id,
+        approvedId,
+      );
+      assert.equal(
+        await scenario.locator(".viewport-stage").getAttribute("data-placing-asset"),
+        approvedId,
+      );
+      assert.deepEqual(await scenario.evaluate(() => window.preparedAssets), [
+        capability === true ? "test-room-module-v1" : modelId,
+      ]);
+      await scenario.locator(".viewport-stage").click();
+    } else {
+      await scenario
+        .getByRole("alert")
+        .filter({ hasText: /approved.*room.*model/i })
+        .waitFor();
+      assert.deepEqual(await scenario.evaluate(() => window.preparedAssets ?? []), []);
+    }
+    const name = `Catalogue capability ${String(capability)}`;
+    await scenario.getByRole("button", { name: "Scenes", exact: true }).click();
+    await scenario.getByLabel("Scene name", { exact: true }).fill(name);
+    await scenario.getByRole("button", { name: "Rename scene", exact: true }).click();
+    const deadline = Date.now() + 15000;
+    while (!captured.some((entry) => entry.document.scenes[0].name === name)) {
+      if (Date.now() >= deadline) throw new Error("The approved-room project did not save");
+      await scenario.waitForTimeout(100);
+    }
+    const written = captured.find((entry) => entry.document.scenes[0].name === name).document;
+    assert.equal(written.scenes[0].environmentAssetId, approvedId);
+    assert.deepEqual(
+      written.scenes[0].objects.map((object) => object.assetId),
+      capability === true
+        ? [retainedId, "test-room-module-v1"]
+        : companion === "approved"
+          ? [retainedId, modelId]
+          : [retainedId],
+      "Production uses the active approved model UUID and never inserts a bundled module",
+    );
+  } finally {
+    await isolated.close();
+  }
+}
 try {
+  await catalogueScenario(false, false, "approved");
+  for (const capability of [false, undefined, true]) await catalogueScenario(capability);
+  await catalogueScenario(false, false, "retained");
+  await catalogueScenario(true, true);
   await page.goto(url);
   await page.getByRole("button", { name: "Retry opening" }).waitFor();
   assert.equal(await page.locator(".editor-shell").count(), 0);

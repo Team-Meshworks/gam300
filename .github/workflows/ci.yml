@@ -181,6 +181,8 @@ jobs:
             script: test:furniture-tools
           - name: panel-style
             script: test:panel-style
+          - name: display-editor
+            script: test:display-editor
           - name: placement-collision
             script: test:placement-collision
           - name: moving-room-collision

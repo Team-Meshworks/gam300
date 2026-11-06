@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { STARTER_ROOM_SHA256 } from "../shared/asset-runtime/catalogue";
 import { disposeModels } from "../shared/asset-runtime/ModelCache";
+import { createRoomEntrances } from "../shared/asset-runtime/room-entrances";
 import type { PublishedExhibition } from "./publication";
 import { fetchPublicationAsset } from "./publication-asset";
 
@@ -126,6 +128,8 @@ export function ExhibitionCanvas({
       return url;
     });
     const loader = new GLTFLoader(manager);
+    const entrances = createRoomEntrances();
+    const rooms: THREE.Group[] = [];
     void (async () => {
       for (const object of objects) {
         const asset = exhibition.assets.find((row) => row.id === object.assetId);
@@ -151,11 +155,15 @@ export function ExhibitionCanvas({
           root.scale.fromArray(object.transform.scale);
         }
         scene.add(root);
+        if (digest === STARTER_ROOM_SHA256) rooms.push(root);
       }
-      if (!controller.signal.aborted)
+      if (!controller.signal.aborted) {
+        entrances.sync(rooms);
         setResult({ exhibition, sceneIndex, attempt, message: "Exhibition ready", failed: false });
+      }
     })().catch((failure: unknown) => {
       if (!controller.signal.aborted) {
+        entrances.dispose();
         disposeModels(scene);
         scene.clear();
         setResult({
@@ -178,6 +186,7 @@ export function ExhibitionCanvas({
       renderer.setAnimationLoop(null);
       renderer.domElement.removeEventListener("keydown", keys);
       controls.dispose();
+      entrances.dispose();
       disposeModels(scene);
       renderer.dispose();
       renderer.domElement.remove();
