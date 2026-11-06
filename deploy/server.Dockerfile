@@ -18,10 +18,17 @@ RUN dotnet restore tests/Spatia.Server.Tests.csproj --locked-mode \
     && dotnet build tests/Spatia.Server.Tests.csproj -c Release --no-restore \
     && dotnet publish Spatia.Server/Spatia.Server.csproj -c Release --no-restore -o /out
 
-# Run once before the API starts; a failed migration must stop startup
-# The existing design-time factory reads ConnectionStrings__Spatia
-FROM build AS migrations
-ENTRYPOINT ["dotnet", "ef", "database", "update", "--project", "Spatia.Server", "--startup-project", "tests", "--configuration", "Release", "--no-build"]
+FROM build AS migration-bundle
+# Bundle generation creates the context without opening a database connection.
+RUN ConnectionStrings__Spatia='Host=localhost;Database=bundle_build;Username=unused' \
+    dotnet ef migrations bundle --project Spatia.Server --startup-project tests --configuration Release --no-build --output /migrations/efbundle
+
+# Ship only the migration executable; the design-time factory reads ConnectionStrings__Spatia.
+FROM mcr.microsoft.com/dotnet/aspnet:10.0.12@sha256:222759b391a1aaf241166672c8f99b2d4ada452e7b5319f3c6e8f265a37b5ad4 AS migrations
+WORKDIR /app
+COPY --from=migration-bundle /migrations/efbundle ./
+USER app
+ENTRYPOINT ["./efbundle"]
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0.12@sha256:222759b391a1aaf241166672c8f99b2d4ada452e7b5319f3c6e8f265a37b5ad4 AS api
 WORKDIR /app

@@ -355,7 +355,10 @@ jobs:
           test "$(curl --silent --show-error --cacert test-results/server-root.crt --output /dev/null --write-out '%{http_code}' https://localhost:8444/api/v1/auth/session)" = 401
           model=$(node -e "console.log(require('node:fs').readdirSync('test-results/packaged-restricted').find(name => name.endsWith('.glb')))")
           test "$(curl --silent --show-error --cacert test-results/server-root.crt --output /dev/null --write-out '%{http_code}' "https://localhost:8444/restricted-assets/$model")" = 401
-          test "$("${stack[@]}" exec -T postgres psql -U spatia -d spatia -tAc 'SELECT count(*) FROM public."__EFMigrationsHistory"')" -ge 2
+          migrations=$("${stack[@]}" exec -T postgres psql -U spatia -d spatia -tAc 'SELECT count(*) FROM public."__EFMigrationsHistory"')
+          test "$migrations" -ge 2
+          "${stack[@]}" run --rm --no-deps migrate
+          test "$("${stack[@]}" exec -T postgres psql -U spatia -d spatia -tAc 'SELECT count(*) FROM public."__EFMigrationsHistory"')" = "$migrations"
           test "$("${stack[@]}" exec -T postgres psql -U spatia -d spatia -tAc "SELECT rolsuper, rolcreatedb, rolcreaterole FROM pg_roles WHERE rolname = 'spatia_api'")" = 'f|f|f'
       - name: Capture container diagnostics
         if: always()
@@ -536,13 +539,18 @@ jobs:
         run: |
           docker load -i ci-artifacts/image.tar
           tag="ghcr.io/${GITHUB_REPOSITORY,,}:$GITHUB_REF_NAME-$GITHUB_SHA-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
-          docker tag "vthere-ci:$GITHUB_SHA" "$tag"
-          docker push "$tag"
-          image=$(docker inspect --format '{{index .RepoDigests 0}}' "$tag")
-          for component in api migrations; do
-            docker tag "vthere-$component-ci:$GITHUB_SHA" "$tag-$component"
-            docker push "$tag-$component"
+          pids=()
+          for suffix in '' -api -migrations; do
+            docker tag "vthere$suffix-ci:$GITHUB_SHA" "$tag$suffix"
+            docker push "$tag$suffix" &
+            pids+=("$!")
           done
+          failed=0
+          for pid in "${pids[@]}"; do
+            wait "$pid" || failed=1
+          done
+          test "$failed" -eq 0
+          image=$(docker inspect --format '{{index .RepoDigests 0}}' "$tag")
           api_image=$(docker inspect --format '{{index .RepoDigests 0}}' "$tag-api")
           migration_image=$(docker inspect --format '{{index .RepoDigests 0}}' "$tag-migrations")
           jq -n --arg image "$image" --arg apiImage "$api_image" --arg migrationImage "$migration_image" \

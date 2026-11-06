@@ -216,19 +216,21 @@ see the [server setup](../apps/server/README.md).
 
 The check job has no package-write permission. After a successful push or manual run on
 `dev` or `main`, and after the web, native compatibility and server jobs pass, a separate
-publishing job pushes the exact tested image to the private GHCR package
+publishing job pushes the exact tested images to the private GHCR package
 `ghcr.io/team-meshworks/gam300`. Each release records its immutable digest, source commit,
 branch and CI run ID. The short-lived image-transfer artifact is retained for two days;
 test/web artifacts for 14 days and the small release bundle for 90 days. Retain registry
 images and release bundles needed for reviewed recovery; old images may become unavailable.
-Feature branches do not run these checks in Actions; run the relevant checks locally
-before requesting review.
+Feature branches can run validation through manual dispatch; run the relevant checks
+locally before requesting review.
 
 Superseded CI runs are cancelled. Deployments are serialized per environment, and a VM
 file lock also prevents concurrent changes to the same deployment.
 
 The web check also starts the editor/API/PostgreSQL stack and verifies HTTPS,
 CSRF bootstrap, anonymous access denial, migrations and the restricted database role.
+The migration image runs a framework-dependent EF bundle on the pinned ASP.NET runtime;
+the check reruns it against the same database and verifies migration history is unchanged.
 Failure logs are retained; disposable CI volumes are removed after the check.
 Releases include the tested editor, API and migration images, both Compose
 configurations and the gateway configuration. `release.json` records the image
