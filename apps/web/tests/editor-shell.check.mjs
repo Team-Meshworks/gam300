@@ -1147,7 +1147,15 @@ try {
       : route.fulfill({ status: 503, body: "Unavailable" });
   });
   await page.reload();
-  await page.getByRole("status").filter({ hasText: "Couldn't load the 3D view" }).waitFor();
+  const loadError = page.getByRole("status").filter({ hasText: "Couldn't load the 3D view" });
+  await Promise.race([ready.waitFor(), loadError.waitFor()]);
+  // A recovered empty scene has no model requests. Select a model to exercise its failure.
+  if (!(await loadError.isVisible())) {
+    await openLibrary(page);
+    await asset.click();
+    await add.click();
+  }
+  await loadError.waitFor();
   await openLibrary(page);
   assert.equal(await asset.isDisabled(), true);
   await page.unroute(samplePath);
