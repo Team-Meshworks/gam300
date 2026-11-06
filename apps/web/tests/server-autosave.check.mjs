@@ -208,7 +208,9 @@ try {
   await status.filter({ hasText: "Save failed" }).waitFor();
   account = null;
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
-  await page.waitForURL(`${base}/login`);
+  await page.waitForURL(
+    `${base}/login?returnTo=${encodeURIComponent(`/?projectId=${fixture.projectId}`)}`,
+  );
   await page.getByRole("heading", { name: "Welcome back.", exact: true }).waitFor();
   account = alice;
   mode = "saved";
