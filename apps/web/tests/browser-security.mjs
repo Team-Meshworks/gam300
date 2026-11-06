@@ -4,10 +4,10 @@ import path from "node:path";
 import { chromium } from "playwright";
 import { createLoopbackProxy, validateLoopbackURL } from "./browser-network.mjs";
 
-// Chrome's 2026-10-27 stable security release. Keep this floor under review;
+// Chrome's 2026-11-03 stable security release. Keep this floor under review;
 // passing it establishes coverage for that release, not immunity to future CVEs.
-// https://chromereleases.googleblog.com/2026/10/stable-channel-update-for-desktop_0562499947.html
-export const MINIMUM_CHROME_VERSION = "156.0.8078.73";
+// https://chromereleases.googleblog.com/2026/11/stable-channel-update-for-desktop.html
+export const MINIMUM_CHROME_VERSION = "157.0.8103.38";
 
 export function validateChromeVersion(output) {
   const match = String(output)

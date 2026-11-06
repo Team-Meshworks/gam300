@@ -1,5 +1,5 @@
-import { useId, useRef, useState, type KeyboardEvent } from "react";
-import type { CatalogueAsset } from "../../shared/asset-runtime/catalogue";
+import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
+import { isStarterRoomModelAsset, type CatalogueAsset } from "../../shared/asset-runtime/catalogue";
 import type {
   ContentComponent,
   ContentObject,
@@ -86,10 +86,21 @@ export function DisplayEditor({
   const [favourites, setFavourites] = useState(loadFavourites);
   const [error, setError] = useState("");
   const saving = useRef(false);
+  const lifetime = useRef<object | null>(null);
+  useLayoutEffect(() => {
+    lifetime.current = {};
+    return () => {
+      lifetime.current = null;
+    };
+  }, []);
+  function close() {
+    lifetime.current = null;
+    onClose();
+  }
   const [pending, setPending] = useState(false);
   const candidates = assets.filter((a) =>
     physical
-      ? a.kind === "model" && !a.displayRole && a.id !== "test-room-module-v1"
+      ? a.kind === "model" && !a.displayRole && !isStarterRoomModelAsset(a)
       : a.kind === type,
   );
   const shown = filterAssets(candidates, filter, favourites, query);
@@ -105,7 +116,8 @@ export function DisplayEditor({
     return true;
   }
   async function save() {
-    if (saving.current) return;
+    const operation = lifetime.current;
+    if (!operation || saving.current) return;
     saving.current = true;
     setPending(true);
     try {
@@ -113,6 +125,7 @@ export function DisplayEditor({
       if (physical) {
         if (!chosen) return;
         const fitted = await placementFor(object.id, chosen.id);
+        if (lifetime.current !== operation) return;
         if (!current()) return;
         if (!fitted) {
           setError("This object does not fit the display. Choose a smaller object.");
@@ -167,10 +180,12 @@ export function DisplayEditor({
           return;
         }
       }
-      onClose();
+      if (lifetime.current === operation) close();
     } finally {
-      saving.current = false;
-      setPending(false);
+      if (lifetime.current === operation) {
+        saving.current = false;
+        setPending(false);
+      }
     }
   }
   function selectTab(kind: Kind) {
@@ -195,7 +210,7 @@ export function DisplayEditor({
   return (
     <Dialog
       title={physical ? "Place an object on this display" : "Edit display content"}
-      onClose={onClose}
+      onClose={close}
       variant="display"
     >
       <div className={`display-editor${textMode ? " is-text" : ""}`}>
@@ -287,7 +302,7 @@ export function DisplayEditor({
               type="button"
               className="ui-button asset-picker-close"
               aria-label="Close display editor"
-              onClick={onClose}
+              onClick={close}
             >
               <Icon name="close" />
             </button>

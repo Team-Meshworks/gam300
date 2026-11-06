@@ -107,16 +107,23 @@ export function ServerProjectEditor({ projectId }: { projectId: string }) {
           setSignedOut(true);
           return;
         }
-        if (current.userId !== identity.userId || current.mustChangePassword)
+        if (
+          current.userId !== identity.userId ||
+          current.orgId !== identity.orgId ||
+          current.role !== identity.role ||
+          current.mustChangePassword ||
+          current.developmentAssetsAllowed !== identity.developmentAssetsAllowed
+        )
           throw new Error("The account changed. Sign in again.");
+        const developmentAssets = current.developmentAssetsAllowed === true ? assets : [];
         if (!controller.signal.aborted)
           setCatalogue({
             all: [
               ...new Map(
-                [...assets, ...approved, ...retained].map((asset) => [asset.id, asset]),
+                [...developmentAssets, ...approved, ...retained].map((asset) => [asset.id, asset]),
               ).values(),
             ],
-            available: [...assets, ...approved],
+            available: [...developmentAssets, ...approved],
           });
       } catch (cause) {
         if (!controller.signal.aborted)
@@ -285,7 +292,7 @@ function ServerProjectSession({
       if (closing) void closing.session.dispose();
     };
     // A fresh attempt owns its own cancellation boundary; install uses only that candidate and the stable store.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks-js/exhaustive-deps
   }, [projectId, attempt, store]);
 
   useEffect(() => {

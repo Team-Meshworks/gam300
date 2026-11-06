@@ -31,16 +31,6 @@ umask 077
 mkdir -p -- "$directory"
 exec 9>"$directory/deploy.lock"
 flock -w 300 9
-recovery_guard="$directory/server-recovery-required"
-release_identity=$(printf '%s\n' "$revision" "$image" "$api_image" "$migration_image")
-recovering=false
-if [[ -e "$recovery_guard" ]]; then
-  recovering=true
-  if ! $server || [[ "$(cat "$recovery_guard")" != "$release_identity" ]]; then
-    echo "Server recovery is pending. Retry the exact candidate release or obtain an operator compatibility review before deploying a different release." >&2
-    exit 1
-  fi
-fi
 if ! $server && [[ -f "$directory/current/compose.server.yaml" ]]; then
   echo "Choose a release with API and migration images; an editor-only release cannot replace this server stack" >&2
   exit 1
@@ -51,6 +41,28 @@ cp -- "$bundle/compose.yaml" "$candidate/compose.yaml"
 printf 'APP_IMAGE=%s\nAPP_PORT=%s\nREVISION=%s\n' "$image" "$port" "$revision" > "$candidate/.env"
 compose=(docker compose --project-name "vthere-$environment")
 url=${APP_URL:-http://127.0.0.1:$port}
+
+# Optional outer-gateway credentials; never persist them in release files or curl argv.
+basic_user=${DEPLOY_BASIC_AUTH_USERNAME:-}
+basic_password=${DEPLOY_BASIC_AUTH_PASSWORD:-}
+if [[ -n "$basic_user" || -n "$basic_password" ]]; then
+  [[ -n "$basic_user" && -n "$basic_password" && "$url" == https://* &&
+     "$basic_user" != *:* && "$basic_user$basic_password" != *$'\n'* &&
+     "$basic_user$basic_password" != *$'\r'* ]] || {
+    echo "Basic probe authentication requires HTTPS and a complete, single-line credential pair (username cannot contain a colon)." >&2
+    exit 1
+  }
+fi
+public_curl() {
+  if [[ -n "$basic_user" ]]; then
+    local credentials="$basic_user:$basic_password"
+    credentials=${credentials//\\/\\\\}
+    credentials=${credentials//\"/\\\"}
+    printf 'user = "%s"\nbasic\n' "$credentials" | curl -q --config - "$@"
+  else
+    curl -q "$@"
+  fi || { echo "Public deployment probe failed: ${!#}" >&2; return 1; }
+}
 
 # Keep all commands on the exact release files, including rollback
 run_release() {
@@ -87,34 +99,29 @@ fi
 # Pull failure leaves the running release untouched
 if $server; then run_release "$candidate" pull; else run_release "$candidate" pull web; fi
 
-# A runtime rollback never reverses schema changes, so keep a private database backup
-if $server && ! $recovering && [[ -f "$directory/current/compose.server.yaml" ]]; then
+# Back up the retained database before every attempt, including failed-rollout retries
+if $server; then
+  run_release "$candidate" stop api gateway || {
+    echo "Could not confirm API/gateway shutdown; deployment stopped." >&2; exit 1;
+  }
+  run_release "$candidate" up -d --no-build --wait --wait-timeout 120 postgres
   mkdir -p -- "$directory/backups"
   backup=$(mktemp "$directory/backups/before-$revision.XXXXXX.dump")
-  run_release "$directory/current" stop api
-  if ! run_release "$directory/current" exec -T postgres pg_dump -U spatia -d spatia -Fc > "$backup"; then
+  if ! run_release "$candidate" exec -T postgres pg_dump -U spatia -d spatia -Fc > "$backup"; then
     rm -f -- "$backup"
-    run_release "$directory/current" up -d --no-build --no-deps api
-    echo "Database backup failed; the existing API was restarted without applying migrations" >&2
+    echo "Database backup failed; API and gateway remain stopped without applying migrations" >&2
     exit 1
   fi
 fi
 
-# Persist before migrations or candidate requests can change authorization state
-# After an interruption, only this exact release may retry without an operator review
-if $server; then
-  guard_candidate=$(mktemp "$directory/.server-recovery.XXXXXX")
-  printf '%s\n' "$release_identity" > "$guard_candidate"
-  mv -- "$guard_candidate" "$recovery_guard"
-fi
-
 healthy() {
-  [[ "$(curl --fail --silent --show-error --max-time 30 "$url/version.txt")" == "$revision" ]] || return 1
+  [[ "$(public_curl --fail --silent --show-error --max-time 30 "$url/version.txt")" == "$revision" ]] || return 1
   if $server; then
-    # The public login must be reachable without a second HTTP Basic password gate.
-    # Checking only loopback misses stale configuration in the separate host gateway.
-    curl --fail --silent --show-error --max-time 15 --output /dev/null "$url/login" || return 1
-    curl --fail --silent --show-error --max-time 15 --output /dev/null "$url/api/v1/auth/csrf" || return 1
+    # Pass the optional outer Basic gate without signing into the application.
+    public_curl --fail --silent --show-error --max-time 15 --output /dev/null "$url/login" || return 1
+    public_curl --fail --silent --show-error --max-time 15 --output /dev/null "$url/api/v1/auth/csrf" || return 1
+    # Basic authentication must not grant an application session.
+    [[ "$(public_curl --silent --show-error --max-time 15 --output /dev/null --write-out '%{http_code}' "$url/api/v1/auth/session")" == 401 ]] || return 1
     # Check the local application stack; anonymous session requests must remain unauthorized
     curl --fail --silent --show-error --retry 12 --retry-delay 1 --retry-connrefused --max-time 5 --retry-max-time 60 -H "Host: $host" -H 'X-Forwarded-Proto: https' --output /dev/null "http://127.0.0.1:$port/api/v1/auth/csrf" || return 1
     [[ "$(curl --silent --show-error --max-time 10 -H "Host: $host" -H 'X-Forwarded-Proto: https' --output /dev/null --write-out '%{http_code}' "http://127.0.0.1:$port/api/v1/auth/session")" == 401 ]] || return 1
@@ -127,16 +134,16 @@ if run_release "$candidate" up -d --no-build --wait --wait-timeout 120 && health
     mv -- "$directory/current" "$directory/previous"
   fi
   mv -- "$candidate" "$directory/current"
-  if $server; then rm -- "$recovery_guard"; fi
+  if $server; then rm -f -- "$directory/server-recovery-required"; fi
   printf 'Deployed %s: %s (%s)\n' "$environment" "$revision" "$image"
 else
   run_release "$candidate" logs --tail 50 || true
   if $server; then
     if ! run_release "$candidate" stop api gateway; then
-      echo "Could not confirm API/gateway shutdown. Recovery guard retained; inspect the running services before proceeding." >&2
+      echo "Could not confirm API/gateway shutdown. Inspect the running services before retrying." >&2
       exit 1
     fi
-    echo "Server deployment failed; API and gateway remain stopped. Older binaries must not serve the retained database. Retry this exact release or follow the reviewed recovery procedure." >&2
+    echo "Server deployment failed; API and gateway remain stopped. Correct the failure and rerun Deploy for the current branch commit." >&2
     if [[ -n "${backup:-}" ]]; then echo "Database backup retained at $backup; schema changes were not reversed" >&2; fi
     exit 1
   fi

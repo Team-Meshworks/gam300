@@ -10,7 +10,7 @@ using Spatia.Server.Security;
 
 namespace Spatia.Server.Tests;
 
-[NotInParallel]
+[NotInParallel("Browser")]
 public sealed class ProxyChainTests
 {
     [Test]

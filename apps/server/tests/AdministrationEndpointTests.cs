@@ -12,7 +12,7 @@ using Spatia.Server.Persistence;
 
 namespace Spatia.Server.Tests;
 
-[NotInParallel]
+[NotInParallel(nameof(AdministrationEndpointTests))]
 public sealed class AdministrationEndpointTests
 {
     private const string InitialPassword = "Synthetic initial password 1!";

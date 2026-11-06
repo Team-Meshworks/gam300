@@ -9,7 +9,7 @@ using Spatia.Server.Projects;
 
 namespace Spatia.Server.Tests;
 
-[NotInParallel]
+[NotInParallel(nameof(ProjectRequestBoundaryTests))]
 public sealed class ProjectRequestBoundaryTests
 {
     private const string ProjectId = "11111111-1111-4111-8111-111111111111";

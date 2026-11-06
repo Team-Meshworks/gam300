@@ -14,7 +14,7 @@ using Spatia.Server.Projects;
 
 namespace Spatia.Server.Tests;
 
-[NotInParallel]
+[NotInParallel(nameof(OrganizationDeletionTests))]
 public sealed class OrganizationDeletionTests
 {
     [Test]

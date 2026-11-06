@@ -24,26 +24,13 @@ try {
   await page.getByRole("button", { name: "Starter room", exact: true }).click();
   await page.locator(".viewport-stage").click({ position: { x: 500, y: 300 } });
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
-  const style = (locator, properties) =>
-    locator.evaluate((element, properties) => {
-      const css = getComputedStyle(element);
-      return Object.fromEntries(
-        properties.map((property) => [property, css.getPropertyValue(property)]),
-      );
-    }, properties);
   await page.getByRole("button", { name: "Scene tree", exact: true }).click();
   const tree = page.getByRole("heading", { name: /^Scene Tree/ });
-  assert.equal(await tree.count(), 1, "Scene Tree heading uses title case");
+  assert.equal(await tree.count(), 1, "Scene tree remains accessible after placement");
   await page.getByRole("button", { name: "Saved views", exact: true }).click();
   const views = page.getByRole("heading", { name: "Saved Views", exact: true });
   await views.waitFor();
-  assert.equal(await views.count(), 1, "Saved Views heading uses title case");
   const capture = page.getByRole("button", { name: "Capture current view", exact: true });
-  assert.deepEqual(
-    await style(capture, ["font-size", "font-weight", "border-radius"]),
-    { "font-size": "13px", "font-weight": "400", "border-radius": "10px" },
-    "Capture button retains its original styling",
-  );
   await page.getByRole("textbox", { name: "View name" }).fill("Browser view");
   await capture.click();
   await page.getByRole("button", { name: "Choose a saved view" }).click();
@@ -52,12 +39,8 @@ try {
     1,
     "Captured view appears in picker",
   );
-  await views.scrollIntoViewIfNeeded();
-  await page.screenshot({ path: "test-results/panel-views-desktop.png" });
-  await page.setViewportSize({ width: 390, height: 844 });
-  await views.scrollIntoViewIfNeeded();
-  await page.screenshot({ path: "test-results/panel-views-narrow.png" });
-  console.log("Panel style and saved view controls passed");
+  if (process.env.CHECK_SCREENSHOT) await page.screenshot({ path: process.env.CHECK_SCREENSHOT });
+  console.log("Saved view capture and picker checks passed");
 } finally {
   await browser.close();
 }

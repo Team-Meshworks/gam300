@@ -61,6 +61,7 @@ let saturatedAssetRequests = 0;
 let saturationStarted = 0;
 const requests = [];
 const errors = [];
+const duplicateRoots = [];
 const browser = await launchBrowser({ target: origin, args: ["--enable-unsafe-swiftshader"] });
 let page;
 try {
@@ -73,6 +74,13 @@ try {
       );
   });
   page.on("pageerror", (error) => errors.push(error.message));
+  page.on("console", (message) => {
+    if (
+      message.type() === "error" &&
+      message.text().includes("You are calling ReactDOMClient.createRoot() on a container")
+    )
+      duplicateRoots.push(message.text());
+  });
   page.setDefaultTimeout(5000);
   page.on("request", (request) => requests.push(new URL(request.url()).pathname));
   await page.route("**/api/v1/publications/**", async (route) => {
@@ -182,6 +190,7 @@ try {
     `/login?returnTo=${encodeURIComponent(`/p/${publicationId}`)}`,
   );
   assert.deepEqual(errors, []);
+  assert.deepEqual(duplicateRoots, [], "Visitor root should only be mounted once per page");
   console.log(
     "Visitor browser checks passed: canvas, keyboard, scene replacement, saturation, retry, timeout, hash rejection and sign-in return.",
   );
@@ -191,3 +200,5 @@ try {
 } finally {
   await browser.close();
 }
+
+await import("./visitor-rooms.check.mjs");

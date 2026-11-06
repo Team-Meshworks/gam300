@@ -9,7 +9,11 @@ import {
   type MouseEvent,
   type PointerEvent,
 } from "react";
-import { assetDragType, type CatalogueAsset } from "../../shared/asset-runtime/catalogue";
+import {
+  assetDragType,
+  isStarterRoomModelAsset,
+  type CatalogueAsset,
+} from "../../shared/asset-runtime/catalogue";
 import { playUiSound } from "../audio/ui-sounds";
 import type { NavigationTool } from "../graphics/scene";
 import { AssetPicker } from "./AssetPicker";
@@ -249,10 +253,11 @@ export function BottomBar({
           <AssetPicker
             key={roomsOpen ? "rooms" : "assets"}
             mode={roomsOpen ? "rooms" : "assets"}
+            canAddAdjoiningRooms={assets.some(isStarterRoomModelAsset)}
             assets={assets.filter((asset) =>
               roomsOpen
                 ? asset.kind === "environment"
-                : asset.id !== "test-room-module-v1" &&
+                : !isStarterRoomModelAsset(asset) &&
                   asset.kind !== "environment" &&
                   !asset.displayRole &&
                   !furnitureTools.some((tool) => tool.assetId === asset.id),
@@ -329,7 +334,7 @@ export function BottomBar({
                   >
                     {open.items.map((item, index) => (
                       <button
-                        key={item.label}
+                        key={item.assetId ?? item.label}
                         className="ui-button"
                         type="button"
                         aria-label={item.label}

@@ -188,7 +188,7 @@ save shortcuts are inactive while visiting; movement stops when the window loses
 | 3D rendering          | Three.js with custom translation controls             |
 | Server                | ASP.NET Core 10, Identity, EF Core/Npgsql, PostgreSQL |
 | Development and build | Vite 8, Node.js 24, npm                               |
-| Quality checks        | ESLint, Prettier, Vitest, Playwright, TUnit           |
+| Quality checks        | Oxlint, Oxfmt, Vitest, Playwright, TUnit              |
 | Delivery              | Docker, Caddy, GitHub Actions, Git LFS                |
 
 The server is developed and tested separately; it is not required to run the current editor.
@@ -223,7 +223,7 @@ Individual maintenance commands below run from `apps/web/`:
 | `npm run check:architecture`                        | Check source dependency boundaries                                    |
 | `npm run test:architecture`                         | Test architecture enforcement                                         |
 | `npm run typecheck`                                 | Check TypeScript types                                                |
-| `npm run lint`                                      | Run ESLint with zero warnings allowed                                 |
+| `npm run lint`                                      | Run Oxlint with zero warnings allowed                                 |
 | `npm run format:check`                              | Check formatting                                                      |
 | `npm run format`                                    | Apply formatting                                                      |
 | `npm run test:unit`                                 | Run the Vitest suite                                                  |
@@ -231,21 +231,25 @@ Individual maintenance commands below run from `apps/web/`:
 | `npm run test:integration`                          | Check visitor isolation, loaded cameras, gizmos and edit cancellation |
 | `npm run test:recovery`                             | Check place–move–undo–save–reload, file transfer and failure recovery |
 | `npm run test:history`                              | Check recovered undo/redo and damaged-history handling                |
-| `npm run test:panel-style`                          | Check Scene Tree and Saved Views panel styling                        |
+| `npm run test:viewpoints`                           | Check saved-view heading, capture and picker behavior                 |
 | `npm run test:furniture-tools`                      | Check furniture placement, history and recovery                       |
 | `npm run test:placement-collision`                  | Check room bounds and display placement collisions                    |
 | `npm run test:moving-room-collision`                | Check room and object movement with collision constraints             |
 | `npm run test:deployment -- http://localhost:8081/` | Check the running container build                                     |
 
+Oxlint runs the upstream React Hooks JavaScript plugin to retain its compiler checks.
+That plugin retains ESLint as an npm peer; `npm run lint` itself runs Oxlint. Validate
+plugin compatibility when updating the lint configuration or dependencies.
+
 Browser checks require a non-root user and official Google Chrome (or Chrome for
-Testing) at least **156.0.8078.73**, the 27 October 2026 security-release floor.
+Testing) at least **157.0.8103.38**, the 3 November 2026 security-release floor.
 From `apps/web/`, run `npm run browser:install` to install current official stable
 Chrome and its system libraries, then `npm run browser:verify`. Installation may
 keep an already-installed local Chrome. For updates, use Chrome's normal updater
 or explicitly run `npm run browser:update` (this replaces the installed Chrome),
 then repeat verification and the browser regression suite. The minimum floor is
 not a promise of protection from future vulnerabilities. Release reference:
-[Chrome stable security update](https://chromereleases.googleblog.com/2026/10/stable-channel-update-for-desktop_0562499947.html).
+[Chrome stable security update](https://chromereleases.googleblog.com/2026/11/stable-channel-update-for-desktop.html).
 
 A custom official Chrome for Testing binary can be selected with `CHROME_PATH`.
 An explicitly selected missing, stale or unrecognized binary fails closed; bundled
@@ -258,7 +262,7 @@ If the host cannot support that sandbox, use a sandbox-capable non-root host. Do
 add `--no-sandbox`, privileged containers, or weaken host security settings.
 
 Keep `npm run dev` running in one terminal, then run `test:browser`, `test:integration`,
-`test:recovery`, `test:history`, `test:panel-style`, `test:furniture-tools`,
+`test:recovery`, `test:history`, `test:viewpoints`, `test:furniture-tools`,
 `test:placement-collision` and `test:moving-room-collision` with `npm run` in another.
 All accept a loopback server URL, for example `npm run test:recovery -- http://127.0.0.1:5186/`.
 Each browser is restricted to its explicitly selected local test origin through a
@@ -301,7 +305,7 @@ blocks the `.ps1` launchers.
 | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Windows 11                 | Fresh-clone native build and all browser checks passed on build 26200; launcher failure/startup checks also passed. Host Node was preinstalled for that native test.         |
 | Ubuntu 24.04               | Clean GitHub Actions build/test/container checks; [baseline CI](https://github.com/Team-Meshworks/gam300/actions/runs/36964933555). Check the push run for the integrated commit on `dev` or `main`. |
-| macOS Tahoe                | The workflow runs native setup, architecture, unit and build checks on `macos-26`; lint and formatting run on Ubuntu. Refer to the relevant `dev` or `main` push run for its actual result; no physical Mac test is claimed.        |
+| macOS Tahoe                | The workflow runs native setup, architecture, browser-policy and build checks on `macos-26`; lint, formatting and unit tests run on Ubuntu. Refer to the relevant `dev` or `main` push run for its actual result; no physical Mac test is claimed.        |
 | Local Ubuntu 26.04 / WSL 2 | Root launcher passed with no native Node/npm, a fresh checkout and an empty isolated Docker build cache. Git LFS was configured in the test directory.                       |
 
 For a clean reproduction, clone into a new directory and run the root launcher.

@@ -15,7 +15,7 @@ using Spatia.Server.Publications;
 
 namespace Spatia.Server.Tests;
 
-[NotInParallel]
+[NotInParallel("Browser")]
 public sealed class PublicationAccessEndpointTests
 {
     [Test]

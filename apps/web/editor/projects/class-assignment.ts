@@ -12,7 +12,9 @@ export type ClassAssignmentDraft = Readonly<{
   studentIds: readonly string[];
 }>;
 export type ClassAssignmentResult =
-  { kind: "assigned" } | { kind: "rejected"; message: string } | { kind: "unknown" };
+  | { kind: "assigned" }
+  | { kind: "rejected"; message: string }
+  | { kind: "unknown" };
 
 export function validateClassAssignment(
   draft: ClassAssignmentDraft,

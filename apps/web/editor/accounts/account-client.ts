@@ -5,6 +5,7 @@ export interface AccountSession {
   role: AccountRole;
   orgId: string | null;
   mustChangePassword: boolean;
+  developmentAssetsAllowed?: boolean;
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -73,6 +74,7 @@ export function createAccountClient(request: typeof fetch = fetch) {
       role: value.role as AccountRole,
       orgId: value.orgId as string | null,
       mustChangePassword: value.mustChangePassword,
+      developmentAssetsAllowed: value.developmentAssetsAllowed === true,
     };
   }
   async function signIn(userName: string, password: string): Promise<AccountSession> {

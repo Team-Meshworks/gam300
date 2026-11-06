@@ -15,7 +15,7 @@ using Spatia.Server.Reviews;
 
 namespace Spatia.Server.Tests;
 
-[NotInParallel]
+[NotInParallel(nameof(ProjectLifecycleTests))]
 public sealed class ProjectLifecycleTests
 {
     private const string Marker = "private-lifecycle-document-not-for-errors-or-logs";

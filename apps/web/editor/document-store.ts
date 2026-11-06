@@ -39,7 +39,11 @@ import {
   isHierarchyState,
   type HistoryState,
 } from "./recovery-history";
-import type { CatalogueAsset } from "../shared/asset-runtime/catalogue.ts";
+import {
+  isStarterRoomEnvironment,
+  isStarterRoomModel,
+  type CatalogueAsset,
+} from "../shared/asset-runtime/catalogue.ts";
 import type { SceneObject, Vector3Tuple } from "../shared/project/scene-object.ts";
 import { deserializeProject } from "../shared/project/project-deserialization";
 import type { Interaction, ProjectDocument } from "../shared/project/project-types";
@@ -127,6 +131,7 @@ export type TransformSession = Readonly<{
 }>;
 
 export function createDocumentStore(assets: readonly CatalogueAsset[]) {
+  const isRoomModel = (id: string) => isStarterRoomModel(assets, id);
   let objects: readonly SceneObject[] = Object.freeze([]);
 
   // The current grid-only editor has no environment-backed project at startup
@@ -264,8 +269,8 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       (object) => object.assetId === asset.id && object.id !== excludingId,
     );
     const initial =
-      asset.id === "test-room-module-v1" &&
-      activeScene()?.environmentAssetId === "test-room-v1" &&
+      isRoomModel(asset.id) &&
+      isStarterRoomEnvironment(assets, activeScene()?.environmentAssetId) &&
       activeScene()?.environmentVisible !== false
         ? 1
         : 0;
@@ -288,15 +293,23 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       const proposed = result.value.object;
       const before = objects.find((item) => item.id === proposed.id)!;
       if (
-        proposed.assetId === "test-room-module-v1" &&
+        isRoomModel(proposed.assetId) &&
         proposed.transform.scale.some((value, axis) => value !== before.transform.scale[axis])
       )
         return invalid("transform.scale", "Rooms cannot be scaled");
-      if (proposed.assetId === "test-room-module-v1" && project) {
+      if (isRoomModel(proposed.assetId) && project) {
         const scene = toContentProject(project).scenes.find(
           (entry) => entry.id === state.activeSceneId,
         )!;
-        const moved = moveSceneSelection(scene, [proposed.id], proposed.id, proposed.transform);
+        const moved = moveSceneSelection(
+          scene,
+          [proposed.id],
+          proposed.id,
+          proposed.transform,
+          false,
+          isStarterRoomEnvironment(assets, scene.environmentAssetId),
+          isRoomModel,
+        );
         if (!moved.ok) return moved;
         const after = moved.value.objects.find((object) => object.id === proposed.id)!.transform;
         result = prepareTransformCommand(
@@ -686,6 +699,8 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       position: Vector3Tuple,
       fitted?: Transform,
     ) {
+      if (isRoomModel(assetId))
+        return { ok: false, error: "Rooms must remain at the scene root" } as const;
       // A placed case is identified by its object ID, never its asset name or list position
       // The caller supplies the model's display surface in world coordinates
       if (!objects.some((object) => object.id === parentId)) {
@@ -800,7 +815,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       // Rooms are independent spaces; reject nesting at the command boundary for every caller
       if (
         parentId !== null &&
-        objects.some((object) => object.id === id && object.assetId === "test-room-module-v1")
+        objects.some((object) => object.id === id && isRoomModel(object.assetId))
       ) {
         return invalid("parentId", "Rooms must remain at the scene root");
       }
@@ -1124,17 +1139,26 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       let after = result.value;
       const object = objects.find((item) => item.id === edit!.objectId);
       if (
-        object?.assetId === "test-room-module-v1" &&
+        object &&
+        isRoomModel(object.assetId) &&
         after.scale.some((value, axis) => value !== edit!.before.scale[axis])
       ) {
         clearEdit();
         return invalid("transform.scale", "Rooms cannot be scaled");
       }
-      if (object?.assetId === "test-room-module-v1" && project) {
+      if (object && isRoomModel(object.assetId) && project) {
         const scene = toContentProject(project).scenes.find(
           (entry) => entry.id === state.activeSceneId,
         )!;
-        const moved = moveSceneSelection(scene, [object.id], object.id, after, true);
+        const moved = moveSceneSelection(
+          scene,
+          [object.id],
+          object.id,
+          after,
+          true,
+          isStarterRoomEnvironment(assets, scene.environmentAssetId),
+          isRoomModel,
+        );
         if (!moved.ok) {
           clearEdit();
           return moved;
@@ -1364,7 +1388,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       };
     },
     addObject(assetId: string, position: Vector3Tuple, parentId: string | null = null) {
-      if (assetId === "test-room-module-v1" && parentId !== null) {
+      if (isRoomModel(assetId) && parentId !== null) {
         return { ok: false, error: "Rooms must remain at the scene root" } as const;
       }
 
@@ -1389,16 +1413,23 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       }
       // Snap before creating the command so saved data, rendering and Redo share one position
       // Other assets keep their chosen coordinates and parent-selection behavior
-      if (assetId === "test-room-module-v1" && project !== null) {
-        if (!roomFitsGrid(position, roomLayoutTransform(objects, activeScene())?.rotation))
+      if (isRoomModel(assetId) && project !== null) {
+        if (
+          !roomFitsGrid(
+            position,
+            roomLayoutTransform(objects, activeScene(), isRoomModel)?.rotation,
+          )
+        )
           return { ok: false, error: "Keep the whole room inside the grid" } as const;
         const snapped = snapRoomPlacement(
           position,
           objects,
-          activeScene()?.environmentVisible === false
-            ? undefined
-            : activeScene()?.environmentAssetId,
-          roomLayoutTransform(objects, activeScene()),
+          activeScene()?.environmentVisible !== false &&
+            isStarterRoomEnvironment(assets, activeScene()?.environmentAssetId)
+            ? "test-room-v1"
+            : undefined,
+          roomLayoutTransform(objects, activeScene(), isRoomModel),
+          isRoomModel,
         );
         if (snapped === null) {
           return {
@@ -1406,7 +1437,9 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
             error: "No adjoining room position is available inside the scene",
           } as const;
         }
-        if (!roomFitsGrid(snapped, roomLayoutTransform(objects, activeScene())?.rotation))
+        if (
+          !roomFitsGrid(snapped, roomLayoutTransform(objects, activeScene(), isRoomModel)?.rotation)
+        )
           return { ok: false, error: "Keep the whole room inside the grid" } as const;
         position = snapped;
       }
@@ -1417,13 +1450,12 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
         transform: Object.freeze({
           position: Object.freeze([...position] as [number, number, number]),
           rotation: Object.freeze(
-            assetId === "test-room-module-v1"
-              ? ([...(roomLayoutTransform(objects, activeScene())?.rotation ?? [0, 0, 0, 1])] as [
-                  number,
-                  number,
-                  number,
-                  number,
-                ])
+            isRoomModel(assetId)
+              ? ([
+                  ...(roomLayoutTransform(objects, activeScene(), isRoomModel)?.rotation ?? [
+                    0, 0, 0, 1,
+                  ]),
+                ] as [number, number, number, number])
               : ([0, 0, 0, 1] as const),
           ),
           scale: Object.freeze([1, 1, 1] as const),
@@ -1469,7 +1501,15 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       const scene = toContentProject(project).scenes.find(
         (entry) => entry.id === state.activeSceneId,
       )!;
-      const moved = moveSceneSelection(scene, ids, id, after.value);
+      const moved = moveSceneSelection(
+        scene,
+        ids,
+        id,
+        after.value,
+        false,
+        isStarterRoomEnvironment(assets, scene.environmentAssetId),
+        isRoomModel,
+      );
       if (!moved.ok) return { ok: false, error: moved.error.message } as const;
       const changed = JSON.stringify(scene) !== JSON.stringify(moved.value);
       const result = editHierarchy("Transform selection", () => moved.value);
@@ -1482,6 +1522,12 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
     // Seating and attachment share one edit so undo cannot leave an exhibit on the wrong support
     setPlacedTransform(id: string, input: unknown, parentId: string | null) {
       if (parentId === state.activeSceneId) parentId = null;
+      const object = objects.find((entry) => entry.id === id);
+      if (object && isRoomModel(object.assetId)) {
+        if (parentId !== null)
+          return { ok: false, error: "Rooms must remain at the scene root" } as const;
+        return this.setSelectionTransform([id], id, input);
+      }
       const after = validateTransform(input, "transform");
       if (!after.ok) return { ok: false, error: after.error.message } as const;
       if (!project) return { ok: false, error: "Choose a room first" } as const;
@@ -1626,11 +1672,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
         [...scene.groups, ...scene.objects].some(
           (entry) => entry.parentId?.toLowerCase() === objectId.toLowerCase(),
         );
-      if (
-        scene &&
-        target &&
-        (initial || group || hasChildren || target.assetId === "test-room-module-v1")
-      ) {
+      if (scene && target && (initial || group || hasChildren || isRoomModel(target.assetId))) {
         const removed = new Set([objectId.toLowerCase()]);
         let changed = true;
         while (changed) {
@@ -1638,7 +1680,9 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
           for (const node of [...scene.groups, ...scene.objects]) {
             const parent =
               node.parentId ??
-              ("assetId" in node && node.assetId !== "test-room-module-v1" ? scene.id : null);
+              ("assetId" in node && typeof node.assetId === "string" && !isRoomModel(node.assetId)
+                ? scene.id
+                : null);
             if (
               parent &&
               removed.has(parent.toLowerCase()) &&

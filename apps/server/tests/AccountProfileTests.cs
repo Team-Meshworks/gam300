@@ -11,7 +11,7 @@ using Spatia.Server.Projects;
 
 namespace Spatia.Server.Tests;
 
-[NotInParallel]
+[NotInParallel(nameof(AccountProfileTests))]
 public sealed class AccountProfileTests
 {
     [Test]

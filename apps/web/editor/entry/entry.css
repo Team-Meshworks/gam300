@@ -8,7 +8,7 @@
 .entry-page p {
   margin: 0;
 }
-.entry-page a {
+:where(.entry-page) a {
   color: inherit;
   text-decoration: none;
 }

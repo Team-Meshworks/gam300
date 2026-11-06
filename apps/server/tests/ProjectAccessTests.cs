@@ -17,7 +17,7 @@ using Spatia.Server.Projects;
 
 namespace Spatia.Server.Tests;
 
-[NotInParallel]
+[NotInParallel(nameof(ProjectAccessTests))]
 public sealed class ProjectAccessTests
 {
     private const string BodyMarker = "private-project-body-not-for-denied-readers";

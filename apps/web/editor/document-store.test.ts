@@ -513,6 +513,238 @@ it("deleting a hotspot keeps unrelated interactions", () => {
   assert.equal(store.deleteHotspot(hotspot.value.id).ok, false);
 });
 
+it("snaps a module beside an approved Starter room and keeps its server identity", () => {
+  const hash = "121c9d86eefb1961a697a390967dfeface3ce1f612334d2fbc447551ddfd88d1";
+  const approvedId = "22222222-2222-4222-8222-222222222222";
+  const assets: CatalogueAsset[] = [
+    {
+      id: approvedId,
+      name: "Starter room",
+      kind: "environment",
+      url: "room.glb",
+      sha256: hash.toUpperCase(),
+      thumbnail: null,
+    },
+    {
+      id: "test-room-module-v1",
+      name: "Starter room",
+      kind: "model",
+      url: "room.glb",
+      sha256: hash,
+      thumbnail: null,
+    },
+  ];
+  const kinds = new Map(assets.map((asset) => [asset.id, asset.kind]));
+  const store = createDocumentStore(assets);
+  expect(store.createProject(approvedId).ok).toBe(true);
+  const added = store.addObject("test-room-module-v1", [7.46, 0, -5.35]);
+  expect(added.ok).toBe(true);
+  if (!added.ok) throw new Error(added.error);
+  expect(added.object.transform.position).toEqual([10, 0, 0]);
+  expect(added.object.name).toBe("Starter room 2");
+  expect(store.getSnapshot().project!.scenes[0]!.environmentAssetId).toBe(approvedId);
+  const saved = serializeProject(store.getSnapshot().project!, kinds);
+  expect(saved.ok).toBe(true);
+  if (!saved.ok) throw new Error(saved.error.message);
+  store.undo();
+  expect(store.getSnapshot().objects).toHaveLength(0);
+  store.redo();
+  expect(store.getSnapshot().objects[0]!.transform.position).toEqual([10, 0, 0]);
+  const reopened = createDocumentStore(assets);
+  expect(reopened.loadProject(saved.value, kinds).ok).toBe(true);
+  expect(reopened.getSnapshot().project!.scenes[0]!.environmentAssetId).toBe(approvedId);
+  expect(reopened.getSnapshot().objects[0]!.transform.position).toEqual([10, 0, 0]);
+  const older = JSON.parse(saved.value);
+  older.scenes[0].objects[0].transform.position = [7.46, 0, -5.35];
+  expect(reopened.loadProject(JSON.stringify(older), kinds).ok).toBe(true);
+  expect(reopened.getSnapshot().objects[0]!.transform.position).toEqual([7.46, 0, -5.35]);
+
+  const sceneId = store.getSnapshot().activeSceneId!;
+  expect(
+    store.setSelectionTransform([sceneId, added.object.id], sceneId, {
+      position: [2, 0, 3],
+      rotation: [0, 0, 0, 1],
+      scale: [1, 1, 1],
+    }).ok,
+  ).toBe(true);
+  expect(store.getSnapshot().project!.scenes[0]!.environmentAssetId).toBe(approvedId);
+  expect(store.getSnapshot().objects[0]!.transform.position).toEqual([12, 0, 3]);
+
+  const hidden = createDocumentStore(assets);
+  expect(hidden.createProject(approvedId).ok).toBe(true);
+  expect(hidden.deleteObject(hidden.getSnapshot().activeSceneId!).ok).toBe(true);
+  const alone = hidden.addObject("test-room-module-v1", [7.46, 0, -5.35]);
+  expect(alone.ok).toBe(true);
+  if (alone.ok) expect(alone.object.transform.position).toEqual([7.46, 0, -5.35]);
+});
+
+it("reconnects an approved Starter room and its module when either moves", () => {
+  const hash = "121c9d86eefb1961a697a390967dfeface3ce1f612334d2fbc447551ddfd88d1";
+  const approvedId = "22222222-2222-4222-8222-222222222222";
+  const assets: CatalogueAsset[] = [
+    {
+      id: approvedId,
+      name: "Starter room",
+      kind: "environment",
+      url: "room.glb",
+      sha256: hash,
+      thumbnail: null,
+    },
+    {
+      id: "test-room-module-v1",
+      name: "Starter room",
+      kind: "model",
+      url: "room.glb",
+      sha256: hash,
+      thumbnail: null,
+    },
+  ];
+  function layout() {
+    const store = createDocumentStore(assets);
+    expect(store.createProject(approvedId).ok).toBe(true);
+    const room = store.addObject("test-room-module-v1", [10, 0, 0]);
+    if (!room.ok) throw Error(room.error);
+    return { store, room: room.object, first: store.getSnapshot().activeSceneId! };
+  }
+  const moduleMove = layout();
+  expect(
+    moduleMove.store.setTransform(moduleMove.room.id, {
+      ...moduleMove.room.transform,
+      position: [-4, 0, 8],
+    }).ok,
+  ).toBe(true);
+  expect(moduleMove.store.getSnapshot().objects[0]!.transform.position).toEqual([0, 0, 10]);
+
+  const gesture = layout();
+  const edit = gesture.store.beginTransform(gesture.room.id);
+  if (!edit.ok) throw Error(edit.error.message);
+  const preview = gesture.store.previewTransform(edit.value.token, {
+    ...gesture.room.transform,
+    position: [-4, 0, 8],
+  });
+  expect(preview.ok && preview.value.after.position).toEqual([-4, 0, 8]);
+  expect(gesture.store.commitTransformEdit(edit.value.token).ok).toBe(true);
+  expect(gesture.store.getSnapshot().objects[0]!.transform.position).toEqual([0, 0, 10]);
+
+  const initialMove = layout();
+  expect(
+    initialMove.store.setSelectionTransform([initialMove.first], initialMove.first, {
+      position: [7, 0, 8],
+      rotation: [0, 0, 0, 1],
+      scale: [1, 1, 1],
+    }).ok,
+  ).toBe(true);
+  expect(
+    initialMove.store.getSnapshot().project!.scenes[0]!.environmentTransform!.position,
+  ).toEqual([10, 0, 10]);
+  expect(initialMove.store.getSnapshot().project!.scenes[0]!.environmentAssetId).toBe(approvedId);
+
+  const different = createDocumentStore([{ ...assets[0]!, sha256: "b".repeat(64) }, assets[1]!]);
+  expect(different.createProject(approvedId).ok).toBe(true);
+  const unrelatedRoom = different.addObject("test-room-module-v1", [10, 0, 0]);
+  if (!unrelatedRoom.ok) throw Error(unrelatedRoom.error);
+  expect(
+    different.setTransform(unrelatedRoom.object.id, {
+      ...unrelatedRoom.object.transform,
+      position: [-4, 0, 8],
+    }).ok,
+  ).toBe(true);
+  expect(different.getSnapshot().objects[0]!.transform.position).toEqual([-4, 0, 8]);
+});
+
+it("places and moves an approved Starter model without changing its UUID", () => {
+  const hash = "121c9d86eefb1961a697a390967dfeface3ce1f612334d2fbc447551ddfd88d1";
+  const environmentId = "22222222-2222-4222-8222-222222222222";
+  const modelId = "33333333-3333-4333-8333-333333333333";
+  const objectId = "44444444-4444-4444-8444-444444444444";
+  const assets: CatalogueAsset[] = [
+    {
+      id: environmentId,
+      name: "Starter room",
+      kind: "environment",
+      url: "room.glb",
+      sha256: hash,
+      thumbnail: null,
+    },
+    {
+      id: modelId,
+      name: "Starter room",
+      kind: "model",
+      url: "room.glb",
+      sha256: hash,
+      thumbnail: null,
+    },
+    {
+      id: objectId,
+      name: "Exhibit",
+      kind: "model",
+      url: "exhibit.glb",
+      sha256: "b".repeat(64),
+      thumbnail: null,
+    },
+  ];
+  const store = createDocumentStore(assets);
+  expect(store.createProject(environmentId).ok).toBe(true);
+  const added = store.addObject(modelId, [7.46, 0, -5.35]);
+  if (!added.ok) throw Error(added.error);
+  expect(added.object.assetId).toBe(modelId);
+  expect(added.object.transform.position).toEqual([10, 0, 0]);
+  expect(added.object.name).toBe("Starter room 2");
+  expect(store.addObject(modelId, [0, 0, 0], added.object.id).ok).toBe(false);
+  const child = store.addObject(objectId, [11, 0, 1], added.object.id);
+  if (!child.ok) throw Error(child.error);
+  expect(store.reparent(added.object.id, child.object.id).ok).toBe(false);
+  expect(store.addAttachedObject(modelId, child.object.id, [1, 0, 1]).ok).toBe(false);
+  expect(
+    store.setPlacedTransform(added.object.id, added.object.transform, child.object.id).ok,
+  ).toBe(false);
+  expect(
+    store.setPlacedTransform(added.object.id, { ...added.object.transform, scale: [2, 2, 2] }, null)
+      .ok,
+  ).toBe(false);
+  expect(
+    store.setTransform(added.object.id, { ...added.object.transform, scale: [2, 2, 2] }).ok,
+  ).toBe(false);
+  expect(
+    store.setTransform(added.object.id, { ...added.object.transform, position: [-4, 0, 8] }).ok,
+  ).toBe(true);
+  expect(store.getSnapshot().objects[0]!.transform.position).toEqual([0, 0, 10]);
+  expect(store.getSnapshot().objects[1]!.transform.position).toEqual([1, 0, 11]);
+  expect(store.getSnapshot().objects[1]).toMatchObject({ parentId: added.object.id });
+  store.undo();
+  expect(store.getSnapshot().objects[0]!.transform.position).toEqual([10, 0, 0]);
+  store.redo();
+  const kinds = new Map(assets.map((asset) => [asset.id, asset.kind]));
+  const saved = serializeProject(store.getSnapshot().project!, kinds);
+  if (!saved.ok) throw Error(saved.error.message);
+  const reopened = createDocumentStore(assets);
+  expect(reopened.loadProject(saved.value, kinds).ok).toBe(true);
+  expect(reopened.getSnapshot().project!.scenes[0]!.environmentAssetId).toBe(environmentId);
+  expect(reopened.getSnapshot().objects[0]!.assetId).toBe(modelId);
+  expect(reopened.getSnapshot().objects[0]!.transform.position).toEqual([0, 0, 10]);
+
+  const hidden = createDocumentStore(assets);
+  expect(hidden.createProject(environmentId).ok).toBe(true);
+  const remaining = hidden.addObject(modelId, [10, 0, 0]);
+  if (!remaining.ok) throw Error(remaining.error);
+  expect(hidden.deleteObject(hidden.getSnapshot().activeSceneId!).ok).toBe(true);
+  const rotation = [0, Math.sin(Math.PI / 8), 0, Math.cos(Math.PI / 8)] as const;
+  expect(
+    hidden.setTransform(remaining.object.id, { ...remaining.object.transform, rotation }).ok,
+  ).toBe(true);
+  const next = hidden.addObject(modelId, [3, 0, 7]);
+  if (!next.ok) throw Error(next.error);
+  expect(next.object.transform.rotation).toEqual(
+    hidden.getSnapshot().objects[0]!.transform.rotation,
+  );
+  expect(
+    Math.hypot(
+      next.object.transform.position[0] - remaining.object.transform.position[0],
+      next.object.transform.position[2] - remaining.object.transform.position[2],
+    ),
+  ).toBeCloseTo(10);
+});
+
 it("snaps rooms to vacant adjoining sides while preserving undo and saved positions", () => {
   const assets: CatalogueAsset[] = ["test-room-v1", "test-room-module-v1", "test-crate-v1"].map(
     (id) => ({

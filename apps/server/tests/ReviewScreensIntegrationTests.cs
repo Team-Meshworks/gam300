@@ -5,7 +5,7 @@ using Spatia.Server.Accounts;
 
 namespace Spatia.Server.Tests;
 
-[NotInParallel]
+[NotInParallel("Browser")]
 public sealed class ReviewScreensIntegrationTests
 {
     [Test]

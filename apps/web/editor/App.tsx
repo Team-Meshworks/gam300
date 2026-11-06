@@ -5,12 +5,17 @@ import { ExhibitPopups } from "./ui/ExhibitPopups";
 import type { ContentObject } from "../shared/project/project-content";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { assets as developmentAssets } from "virtual:asset-catalogue";
-import type { CatalogueAsset } from "../shared/asset-runtime/catalogue";
+import {
+  isStarterRoomEnvironment,
+  isStarterRoomModel,
+  starterRoomCompanion,
+  type CatalogueAsset,
+} from "../shared/asset-runtime/catalogue";
 import { HOTSPOT_ASSET, HOTSPOT_ASSET_ID } from "../shared/asset-runtime/hotspot";
 import type { SceneObject, Vector3Tuple } from "../shared/project/scene-object";
 import type { HotspotDropTarget, ProjectHotspot, Transform } from "../shared/project/project-types";
 import { missingProjectCapabilities } from "../shared/project/project-capabilities";
-import { playUiSound } from "./audio/ui-sounds";
+import { playUiSound, setUiSoundVolume } from "./audio/ui-sounds";
 import { createDocumentStore } from "./document-store";
 import {
   handleDeleteShortcut,
@@ -28,8 +33,10 @@ import { Button } from "../shared/ui/Button";
 import { BottomBar } from "./ui/BottomBar";
 import { ContentEditor, type ContentKind, type ExhibitFields } from "./ui/ContentEditor";
 import { PreviewTargets } from "./ui/PreviewTargets";
+import { SettingsPanel } from "./ui/SettingsPanel";
 import { SidePanels } from "./ui/SidePanels";
 import { TopBar } from "./ui/TopBar";
+import { applyTheme, loadSettings, saveSettings, type UserSettings } from "./ui/user-settings";
 import { OlderSceneImport } from "./OlderSceneImport";
 import { Scenes } from "./Scenes";
 import { Viewpoints } from "./Viewpoints";
@@ -162,6 +169,15 @@ export function App({ server }: { server?: ServerEditorSession }) {
   const [manager, setManager] = useState<ModeManager | null>(null);
   const [mobileControls, setMobileControls] = useState<FpsMobileControls | null>(null);
   const [modeState, setModeState] = useState<ModeManagerState | null>(null);
+  const [settings, setSettings] = useState<UserSettings>(loadSettings);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  // Saved settings apply straight away and are remembered in this browser
+  useEffect(() => {
+    saveSettings(settings);
+    setUiSoundVolume(settings.volume);
+    applyTheme(settings.theme);
+  }, [settings]);
+  const closeSettings = useCallback(() => setSettingsOpen(false), []);
   const selection = objects.some((object) => object.id === selectedId) ? selectedId : null;
   const projectScene = useMemo(
     () => project?.scenes.find((scene) => scene.id === activeSceneId),
@@ -453,7 +469,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
         ids.length > 1 ||
         id === snapshot.activeSceneId ||
         snapshot.objects.some(
-          (object) => object.id === id && object.assetId === "test-room-module-v1",
+          (object) => object.id === id && isStarterRoomModel(assets, object.assetId),
         )
           ? store.setSelectionTransform(ids, id, transform)
           : parentId !== undefined &&
@@ -467,7 +483,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
         setNotice("Updated object. Undo is available.");
       }
     },
-    [store, setNotice],
+    [assets, store, setNotice],
   );
 
   function place(
@@ -508,7 +524,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
     // Choosing the first room turns the grid scene into a saveable project
     // Room placement uses the environment slot so it survives JSON reconstruction
     if (assetKinds.get(assetId) === "environment") {
-      if (assetId === "test-room-v1" && !projectScene && !roomFitsGrid(position)) {
+      if (isStarterRoomEnvironment(assets, assetId) && !projectScene && !roomFitsGrid(position)) {
         setError("Keep the whole room inside the grid");
         return;
       }
@@ -521,9 +537,20 @@ export function App({ server }: { server?: ServerEditorSession }) {
 
       // The same room tile creates the environment first and independent room instances afterward
       // Keep the model reference used by saved room instances behind this one catalogue choice
-      if (assetId === "test-room-v1" && projectScene?.environmentAssetId === assetId) {
-        const added = store.addObject("test-room-module-v1", position);
+      if (
+        projectScene &&
+        isStarterRoomEnvironment(assets, projectScene.environmentAssetId) &&
+        isStarterRoomEnvironment(assets, assetId)
+      ) {
+        const companion = starterRoomCompanion(selectionAssets);
+        if (!companion) {
+          setError("An approved Starter room model is required to add an adjoining room.");
+          setDragging(null);
+          return;
+        }
+        const added = store.addObject(companion.id, position);
         if (added.ok) {
+          setError("");
           setSelectedId(added.object.id);
           setNotice(`Added ${added.object.name}`);
         } else {
@@ -714,6 +741,19 @@ export function App({ server }: { server?: ServerEditorSession }) {
         }}
         view={view}
         onToggleView={() => setView((previous) => (previous === "first" ? "third" : "first"))}
+        settingsPanel={
+          settingsOpen ? (
+            <SettingsPanel
+              settings={settings}
+              onSave={(next) => {
+                setSettings(next);
+                setSettingsOpen(false);
+              }}
+              onClose={closeSettings}
+            />
+          ) : null
+        }
+        onSettings={() => setSettingsOpen((open) => !open)}
       />
       {/* Reset the input so choosing the same file again still fires a change */}
       {!server && (
@@ -842,6 +882,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
           onCamera={receiveCamera}
           loadGeneration={loadGeneration}
           assets={editorAssets}
+          selectableAssets={selectionAssets}
           objects={objects}
           projectScene={projectScene ?? null}
           selectedId={roomSelected ? projectScene.id : selection}
@@ -968,15 +1009,23 @@ export function App({ server }: { server?: ServerEditorSession }) {
               }}
               onAdd={async (assetId) => {
                 const before = store.getSnapshot();
-                const modelId =
-                  assetId === "test-room-v1" && projectScene?.environmentAssetId === assetId
-                    ? "test-room-module-v1"
-                    : assetId;
+                const adjoiningRoom =
+                  projectScene &&
+                  isStarterRoomEnvironment(assets, projectScene.environmentAssetId) &&
+                  isStarterRoomEnvironment(assets, assetId);
+                const modelId = adjoiningRoom ? starterRoomCompanion(selectionAssets)?.id : assetId;
+                if (!modelId) {
+                  setError("An approved Starter room model is required to add an adjoining room.");
+                  return;
+                }
                 if (!(await viewCamera?.prepareAsset(modelId)) || store.getSnapshot() !== before)
                   return;
                 setShowExhibitTools(false);
                 // Supplied rooms are complete environment layouts, selected at the scene origin.
-                if (assetKinds.get(assetId) === "environment" && assetId !== "test-room-v1") {
+                if (
+                  assetKinds.get(assetId) === "environment" &&
+                  !isStarterRoomEnvironment(assets, assetId)
+                ) {
                   setPlacingAssetId(null);
                   place(assetId, [0, 0, 0]);
                   return;
@@ -993,6 +1042,17 @@ export function App({ server }: { server?: ServerEditorSession }) {
                 setNavigationTool("select");
               }}
               onDragChange={(assetId) => {
+                if (
+                  assetId &&
+                  projectScene &&
+                  isStarterRoomEnvironment(assets, projectScene.environmentAssetId) &&
+                  isStarterRoomEnvironment(assets, assetId) &&
+                  !starterRoomCompanion(selectionAssets)
+                ) {
+                  setError("An approved Starter room model is required to add an adjoining room.");
+                  setDragging(null);
+                  return;
+                }
                 setDragging(assetId);
                 if (assetId !== null) {
                   setPlacingAssetId(null);
@@ -1014,9 +1074,13 @@ export function App({ server }: { server?: ServerEditorSession }) {
             <>
               {captured && <span className="crosshair" aria-hidden="true" />}
               <p className="walk-hint">
-                {captured
-                  ? `${visitor ? "" : "Click selects what's under the + · Hold the click to carry it, scroll to push or pull · Hold right click to turn it · "}Hold Alt for the mouse · Esc to stop`
-                  : `${canCapture ? "Click the scene" : "Drag"} to look around · WASD to walk · Space to jump, double tap to fly · C to go down`}
+                {visitor
+                  ? captured
+                    ? "Preview mode · Left click to interact · Hold Alt for the mouse · Esc to stop"
+                    : `Preview mode · ${canCapture ? "Click the scene" : "Drag"} to look around · WASD to walk · Space to jump`
+                  : captured
+                    ? "Click selects what's under the + · Hold the click to carry it, scroll to push or pull · Hold right click to turn it · Hold Alt for the mouse · Esc to stop"
+                    : `${canCapture ? "Click the scene" : "Drag"} to look around · WASD to walk · Space to jump, double tap to fly · C to go down`}
               </p>
             </>
           )}

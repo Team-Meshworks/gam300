@@ -14,7 +14,7 @@ using Spatia.Server.Projects;
 
 namespace Spatia.Server.Tests;
 
-[NotInParallel]
+[NotInParallel(nameof(ClassAssignmentCoordinatorTests))]
 public sealed class ClassAssignmentCoordinatorTests
 {
     [Test]
@@ -256,8 +256,12 @@ public sealed class ClassAssignmentCoordinatorTests
         })
         {
             message.Headers.Add("X-CSRF-TOKEN", token);
+            // Let the server reject the declared size before the body is sent
+            message.Headers.ExpectContinue = true;
             using var rejected = await fixture.Client.SendAsync(message);
             await Assert.That(rejected.StatusCode).IsEqualTo(HttpStatusCode.RequestEntityTooLarge);
+            var problem = await rejected.Content.ReadFromJsonAsync<JsonElement>();
+            await Assert.That(problem.GetProperty("code").GetString()).IsEqualTo("request_too_large");
         }
         await using var scope = fixture.Database.Services.CreateAsyncScope();
         var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();

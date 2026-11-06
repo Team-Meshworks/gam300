@@ -9,7 +9,7 @@ using Spatia.Server.Projects;
 
 namespace Spatia.Server.Tests;
 
-[NotInParallel]
+[NotInParallel("Browser")]
 public sealed class ProjectGrantBrowserTests
 {
     [Test]

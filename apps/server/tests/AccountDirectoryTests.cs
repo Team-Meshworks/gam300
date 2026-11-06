@@ -8,7 +8,7 @@ using Spatia.Server.Persistence;
 
 namespace Spatia.Server.Tests;
 
-[NotInParallel]
+[NotInParallel(nameof(AccountDirectoryTests))]
 public sealed class AccountDirectoryTests
 {
     [Test]

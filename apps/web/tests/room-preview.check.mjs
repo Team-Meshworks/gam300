@@ -1,11 +1,279 @@
 import assert from "node:assert/strict";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { launchBrowser } from "./browser-security.mjs";
 const browser = await launchBrowser({
   target: process.argv[2] ?? "http://127.0.0.1:5185/",
   args: ["--enable-unsafe-swiftshader"],
 });
 try {
+  // The server may give the packaged Starter room a different asset ID
+  const renderer = await browser.newPage();
+  await renderer.route("**/approved-room-harness.html", (route) =>
+    route.fulfill({
+      contentType: "text/html",
+      body: '<div id="host" style="width:800px;height:600px"></div>',
+    }),
+  );
+  const origin = process.argv[2] ?? "http://127.0.0.1:5185/";
+  await renderer.goto(new URL("approved-room-harness.html", origin).href);
+  const fixture = JSON.parse(
+    await readFile(new URL("../shared/project/fixtures/m1-project.json", import.meta.url), "utf8"),
+  );
+  const measured = await renderer.evaluate(async (fixture) => {
+    const { editorModelCache, initScene } = await import("/graphics/scene.ts");
+    const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
+    const starter = assets.find((asset) => asset.id === "test-room-v1");
+    const module = assets.find((asset) => asset.id === "test-room-module-v1");
+    const approved = { ...starter, id: "22222222-2222-4222-8222-222222222222" };
+    const approvedModel = { ...module, id: "33333333-3333-4333-8333-333333333333" };
+    const unrelated = {
+      ...starter,
+      id: "11111111-1111-4111-8111-111111111111",
+      sha256: "b".repeat(64),
+    };
+    const lease = await editorModelCache.acquire(starter, new AbortController().signal);
+    const prototype = Object.getPrototypeOf(Object.getPrototypeOf(lease.value.model));
+    const add = prototype.add;
+    let scene;
+    prototype.add = function (...nodes) {
+      if (this.isScene) scene = this;
+      return add.apply(this, nodes);
+    };
+    const { promise: ready, resolve } = Promise.withResolvers();
+    let handle;
+    try {
+      handle = initScene(document.getElementById("host"), [approved, unrelated, approvedModel], {
+        onStatus: (status) => resolve(status),
+        onThumbnail() {},
+        onSelect() {},
+        onTransform() {},
+        onObjectClick() {},
+        onUpdate() {},
+      });
+    } finally {
+      prototype.add = add;
+      lease.release();
+    }
+    const status = await ready;
+    if (status !== "ready") throw new Error("Room renderer did not start: " + status);
+    try {
+      for (const id of [approved.id, approvedModel.id, unrelated.id]) {
+        if (!(await handle.prepareAsset(id))) throw new Error("Could not load room asset: " + id);
+      }
+      const base = { ...fixture.scenes[0], environmentAssetId: approved.id, objects: [] };
+      handle.update([], null, base, 1);
+      handle.showPlacementPreview(approved.id, [7.46, 0, -5.35]);
+      const ghost = scene.getObjectByName("placement-preview");
+      const preview = ghost?.visible ? ghost.position.toArray() : null;
+      const placed = {
+        ...fixture.scenes[0].objects[0],
+        assetId: approvedModel.id,
+        transform: { position: [10, 0, 0], rotation: [0, 0, 0, 1], scale: [1, 1, 1] },
+      };
+      const openedWalls = () => {
+        let count = 0;
+        scene.traverse((node) => {
+          if (node.name.startsWith("Wall_") && node.geometry?.attributes.position.count > 24)
+            count++;
+        });
+        return count;
+      };
+      handle.update([placed], null, base, 1);
+      const approvedOpenings = openedWalls();
+      const roomAtPosition = handle.getRoomAtPosition([10, 0, 0]);
+      const movedBase = {
+        ...base,
+        environmentTransform: { position: [2, 0, 3], rotation: [0, 0, 0, 1], scale: [1, 1, 1] },
+      };
+      const movedRoom = { ...placed, transform: { ...placed.transform, position: [12, 0, 3] } };
+      handle.update([movedRoom], base.id, movedBase, 1, [base.id]);
+      const movedOpenings = openedWalls();
+      handle.update([], base.id, movedBase, 1, [base.id]);
+      handle.showPlacementPreview(approved.id, [9.46, 0, -2.35]);
+      const movedGhost = scene.getObjectByName("placement-preview");
+      const movedPreview = movedGhost?.visible ? movedGhost.position.toArray() : null;
+      handle.update([placed], null, { ...base, environmentAssetId: unrelated.id }, 1);
+      return {
+        preview,
+        approvedOpenings,
+        roomAtPosition,
+        movedPreview,
+        movedOpenings,
+        unrelatedOpenings: openedWalls(),
+      };
+    } finally {
+      handle.dispose();
+    }
+  }, fixture);
+  await renderer.close();
+  // Exercise both catalogue choices without starting a second 3D renderer
+  async function roomPickerPage() {
+    const page = await browser.newPage({ viewport: { width: 1440, height: 1024 } });
+    page.setDefaultTimeout(5000);
+    await page.route("**/viewport/Viewport.tsx*", async (route) => {
+      const original = await (await route.fetch()).text();
+      const react = original.match(/import __vite__cjsImport\d+_react from "([^"]+)"/)[1];
+      await route.fulfill({
+        contentType: "text/javascript",
+        body: `import React from ${JSON.stringify(react)};
+          export function Viewport(props) {
+            React.useEffect(() => {
+              props.onCamera({
+                prepareAsset: async (id) => { (window.preparedAssets ??= []).push(id); return true; },
+                capture: () => ({position: [0, 1, 0], rotation: [0, 0, 0, 1], fovDegrees: 40}),
+                show() {}, locate() {}, toggleDisplayMedia() {}, hotspotAnchor() {}, bounds() { return null; },
+              });
+              props.onStatus("ready");
+              return () => props.onCamera(null);
+            }, []);
+            return React.createElement("div", null, React.createElement("button", {
+              className: "viewport-stage",
+              "data-placing-asset": props.placingAssetId ?? "",
+              onClick: () => props.onPlace(props.placingAssetId, [7.46, 0, -5.35]),
+            }, "Place"), props.children);
+          }`,
+      });
+    });
+    await page.route("**/@id/__x00__virtual:asset-catalogue*", async (route) => {
+      const response = await route.fetch();
+      const script = await response.text();
+      await route.fulfill({
+        response,
+        body:
+          script +
+          `\nconst starter = assets.find((asset) => asset.id === "test-room-v1");
+          assets.push({...starter, id: "22222222-2222-4222-8222-222222222222", name: "Approved Starter room"});
+          assets.push({...starter, id: "11111111-1111-4111-8111-111111111111", name: "Different room", sha256: "b".repeat(64)});`,
+      });
+    });
+    await page.goto(origin);
+    await page.getByRole("button", { name: "Rooms", exact: true }).waitFor();
+    const select = async (name) => {
+      await page.getByRole("button", { name: "Rooms", exact: true }).click();
+      await page
+        .getByRole("group", { name: "Rooms options" })
+        .getByRole("button", { name, exact: true })
+        .click();
+    };
+    const choose = async (name, expectedId) => {
+      await select(name);
+      await page.waitForFunction(
+        (id) =>
+          document.querySelector(".viewport-stage")?.getAttribute("data-placing-asset") === id,
+        expectedId,
+      );
+      await page.locator(".viewport-stage").click();
+    };
+    const document = () =>
+      page.evaluate(async () => {
+        const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
+        const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
+        const saved = await loadRecoverySession(
+          new Map(assets.map((asset) => [asset.id, asset.kind])),
+        );
+        return saved.ok ? saved.value?.document : null;
+      });
+    const waitForDocument = async (environmentAssetId, count, matches = () => true) => {
+      const deadline = Date.now() + 5000;
+      while (Date.now() < deadline) {
+        const saved = await document();
+        const scene = saved?.scenes[0];
+        if (
+          scene?.environmentAssetId === environmentAssetId &&
+          scene.objects.length === count &&
+          matches(scene)
+        )
+          return saved;
+        await page.waitForTimeout(100);
+      }
+      throw new Error(
+        `Room document did not retain ${environmentAssetId} with ${count} added rooms`,
+      );
+    };
+    return { page, choose, select, document, waitForDocument };
+  }
+
+  const approvedPicker = await roomPickerPage();
+  const approvedId = "22222222-2222-4222-8222-222222222222";
+  await approvedPicker.select("Approved Starter room");
+  await approvedPicker.page.waitForFunction(
+    (id) => document.querySelector(".viewport-stage")?.getAttribute("data-placing-asset") === id,
+    approvedId,
+  );
+  assert.equal(
+    await approvedPicker.page.locator(".viewport-stage").getAttribute("data-placing-asset"),
+    approvedId,
+    "An approved Starter room uses the same positionable placement as the packaged Starter",
+  );
+  await approvedPicker.page.locator(".viewport-stage").click();
+  const initial = await approvedPicker.waitForDocument(approvedId, 0);
+  await approvedPicker.choose("Starter room", "test-room-v1");
+  const packaged = await approvedPicker.waitForDocument(approvedId, 1);
+  assert.equal(packaged.projectId, initial.projectId);
+  assert.deepEqual(packaged.scenes[0].objects[0].transform.position, [10, 0, 0]);
+  await approvedPicker.choose("Approved Starter room", approvedId);
+  const duplicated = await approvedPicker.waitForDocument(approvedId, 2);
+  assert.equal(duplicated.projectId, initial.projectId);
+  assert.deepEqual(
+    duplicated.scenes[0].objects.map((object) => object.assetId),
+    ["test-room-module-v1", "test-room-module-v1"],
+  );
+  assert.deepEqual(await approvedPicker.page.evaluate(() => window.preparedAssets), [
+    approvedId,
+    "test-room-module-v1",
+    "test-room-module-v1",
+  ]);
+  await approvedPicker.page.close();
+
+  const unrelatedPicker = await roomPickerPage();
+  const unrelatedId = "11111111-1111-4111-8111-111111111111";
+  await unrelatedPicker.select("Different room");
+  const before = await unrelatedPicker.waitForDocument(unrelatedId, 0);
+  await unrelatedPicker.select("Different room");
+  assert.equal(await unrelatedPicker.page.locator(".scene-tree .object-row").count(), 0);
+  assert.equal(
+    await unrelatedPicker.page.getByText(/another copy of this room is not supported/i).count(),
+    0,
+    "A complete layout may be reselected",
+  );
+  const reselected = await unrelatedPicker.waitForDocument(unrelatedId, 0);
+  assert.equal(reselected.projectId, before.projectId);
+  await unrelatedPicker.page.locator(".environment-row").click();
+  await unrelatedPicker.page.keyboard.press("Delete");
+  await unrelatedPicker.waitForDocument(
+    unrelatedId,
+    0,
+    (scene) => scene.environmentVisible === false,
+  );
+  await unrelatedPicker.select("Different room");
+  const restored = await unrelatedPicker.waitForDocument(
+    unrelatedId,
+    0,
+    (scene) => scene.environmentVisible !== false,
+  );
+  assert.equal(restored.projectId, before.projectId, "Restoring a layout keeps the same project");
+  await unrelatedPicker.page.close();
+
+  console.log("Approved room rendering:", JSON.stringify(measured));
+  assert.deepEqual(
+    measured.preview,
+    [10, 0, 0],
+    "Approved room preview snaps beside its initial room",
+  );
+  assert.equal(measured.approvedOpenings, 2, "Both shared Starter room walls open");
+  assert.equal(
+    measured.roomAtPosition,
+    fixture.scenes[0].objects[0].id,
+    "Objects dropped into an approved room are assigned to that room",
+  );
+  assert.deepEqual(measured.movedPreview, [12, 0, 3], "Preview follows the moved initial room");
+  assert.equal(measured.movedOpenings, 2, "Entrances follow the moved initial room");
+  assert.equal(
+    measured.unrelatedOpenings,
+    0,
+    "Different room geometry does not receive Starter room openings",
+  );
+
   const page = await browser.newPage({ viewport: { width: 1440, height: 1024 } });
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));

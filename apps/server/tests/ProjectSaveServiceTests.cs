@@ -19,7 +19,7 @@ using Format = Spatia.ProjectFormat.ProjectFormat;
 
 namespace Spatia.Server.Tests;
 
-[NotInParallel]
+[NotInParallel(nameof(ProjectSaveServiceTests))]
 public sealed class ProjectSaveServiceTests
 {
     private const string BodyMarker = "private-save-body-not-for-denied-readers";

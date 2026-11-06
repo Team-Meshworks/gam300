@@ -129,7 +129,9 @@ const problemMessages: Record<string, string> = {
   invalid_submission_input: "Confirm completion of the saved revision before submitting.",
 };
 export type WriteResult =
-  { kind: "confirmed" } | { kind: "rejected"; error: ReviewError } | { kind: "unknown" };
+  | { kind: "confirmed" }
+  | { kind: "rejected"; error: ReviewError }
+  | { kind: "unknown" };
 
 export function createReviewClient(request: typeof fetch = fetch) {
   async function send(path: string, init: RequestInit = {}) {
