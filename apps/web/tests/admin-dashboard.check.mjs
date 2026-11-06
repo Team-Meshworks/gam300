@@ -275,11 +275,12 @@ try {
   }
   authenticated = false;
   await page.goto(origin + "/admin/dashboard");
-  await page.getByRole("heading", { name: "Log in to continue", exact: true }).waitFor();
+  await page.waitForURL(origin + "/login");
+  await page.getByRole("heading", { name: "Welcome back.", exact: true }).waitFor();
   authenticated = true;
   role = "Administrator";
   forced = true;
-  await page.reload();
+  await page.goto(origin + "/admin/dashboard");
   await page.getByRole("heading", { name: "Password change required", exact: true }).waitFor();
   await page.goto(origin + "/landing");
   await page.getByRole("heading", { name: /Build immersive/ }).waitFor();

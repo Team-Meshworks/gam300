@@ -1357,6 +1357,38 @@
         ]
       },
       "reviewNotes": "Complete room layout, not an adjoining Starter room module. Bounds measured from transformed GLB vertices. Runtime bottom-center placement removes exporter offsets while preserving metre scale. Door numbers follow the supplied reference image."
+    },
+    {
+      "assetId": "library-untitled-v1",
+      "name": "Untitled",
+      "kind": "model",
+      "mediaType": "model/gltf-binary",
+      "file": "delivery/library/untitled-v1.glb",
+      "sourceFile": "source/library/untitled-v1.glb",
+      "byteSize": 93690356,
+      "sha256": "11c4fa8b06299c1fc4ce26a25594556d7a3e48ee67aa6d68f986742468f871bf",
+      "category": "Architecture",
+      "thumbnail": null,
+      "thumbnailMode": "generated",
+      "placement": "bottom-center",
+      "access": "development-only",
+      "license": {
+        "status": "pending-team-confirmation",
+        "provenance": "User-supplied Untitled.glb from Telegram Desktop. Full-size original retained byte-for-byte; source SHA-256: 17c30b2fe8301a0cf533720930691681a415c3375e8760ad861ff51330e8ca07. Distribution rights remain unconfirmed."
+      },
+      "boundsMeters": {
+        "min": [
+          -1.1886047268282982,
+          -0.044277277037501506,
+          -0.7581834098657566
+        ],
+        "max": [
+          1.3416862734282375,
+          1.046154141011223,
+          2.353223182941253
+        ]
+      },
+      "reviewNotes": "Complete textured interior presented as a placeable architectural model in Asset library. Delivery adds a uniform 1:10 parent transform, yielding approximately 2.53 x 1.09 x 3.11 metres. Original geometry, materials, embedded textures and binary data are unchanged. Bottom-center normalization handles the exported pivot. Source bounds measured from transformed vertices."
     }
   ],
   "coordinateSystem": "glTF Y-up, metres",

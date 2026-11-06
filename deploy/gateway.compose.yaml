@@ -6,8 +6,6 @@ services:
     restart: unless-stopped
     environment:
       SITE_IP: ${SITE_IP:?Set the public VM IP}
-      SITE_USER: ${SITE_USER:?Set the team login name}
-      SITE_PASSWORD_HASH: ${SITE_PASSWORD_HASH:?Generate a Caddy password hash}
     volumes:
       - ./gateway.Caddyfile:/etc/caddy/Caddyfile:ro
       - certificates:/data

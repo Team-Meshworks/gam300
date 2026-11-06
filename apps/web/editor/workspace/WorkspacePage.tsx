@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createAccountClient, type AccountSession } from "../accounts/account-client";
+import { LoginRedirect } from "../accounts/LoginRedirect";
 import { WorkspaceShell } from "../../shared/ui/WorkspaceShell";
 import { Button } from "../../shared/ui/Button";
 import { HomePage } from "../home/HomePage";
@@ -94,15 +95,17 @@ function OtherWorkspacePage() {
       </main>
     );
   const session = access.session;
-  if (!session || session.mustChangePassword)
+  if (!session)
     return (
       <main className="sp-workspace">
-        <h1>{session ? "Password change required" : "Log in to continue"}</h1>
-        <p>
-          {session
-            ? "Change your password before opening your workspace."
-            : "Sign in to open your workspace."}
-        </p>
+        <LoginRedirect />
+      </main>
+    );
+  if (session.mustChangePassword)
+    return (
+      <main className="sp-workspace">
+        <h1>Password change required</h1>
+        <p>Change your password before opening your workspace.</p>
         <a href="/login">Log in</a>
       </main>
     );

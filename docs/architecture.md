@@ -94,7 +94,7 @@ HTTPS; that direct connection is described here to avoid a line through the play
 
 CI uses Ubuntu and produces a tested Docker image plus its release descriptor.
 Manual deployment selects the exact image digest for development or production.
-Caddy serves the app and GLBs behind the team access gate. The planned API uses
+Caddy serves the static app and GLBs; account data uses Spatia's authenticated API. The planned API uses
 ASP.NET Core/Identity and EF Core/Npgsql; the shared player serves both editor preview
 and the separate visitor application.
 

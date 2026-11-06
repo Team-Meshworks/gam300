@@ -36,6 +36,7 @@ const allowedIds = new Set([
   "test-room-v1",
   "test-crate-v1",
   "sample-snowglobe-v1",
+  "library-untitled-v1",
   "test-room-module-v1",
   "room-space1-v1",
   "room-doors-1-v1",

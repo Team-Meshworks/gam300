@@ -21,7 +21,8 @@ CI builds `dev` with `NODE_ENV=development` and Vite's `development` mode, inclu
 **Open sample project** and framework development diagnostics. `main` uses
 `NODE_ENV=production` and `production` mode. Manual runs use the selected supported
 branch's mode. Both images contain built static files served by Caddy, with the same
-health checks and access gate. Recovery depends on whether the release includes the
+health checks. Account access is handled by Spatia's login and API session checks.
+Recovery depends on whether the release includes the
 server stack; see [Deploy and recover](#deploy-and-recover).
 Existing images keep their original build mode. After these workflow changes reach
 `dev` or `main`, deploy a new successful CI run to apply the branch's build mode.
@@ -286,8 +287,8 @@ bypass these controls, or blindly restore a backup: migrations are not reversed 
 restoring a backup can discard later writes. Database restoration requires a reviewed
 procedure during downtime. Keep backups outside the VM as well.
 
-The existing HTTPS gateway and team login remain in place. API and database services
-are not exposed directly.
+The existing HTTPS gateway remains in place. Spatia accounts provide sign-in, and API
+and database services are not exposed directly.
 
 The application Caddy HTTP listener accepts forwarded headers only from the explicit
 application bridge gateway address (`SERVER_NETWORK_PREFIX`.1/32); it resolves the
@@ -297,18 +298,11 @@ HTTPS listener does not trust forwarded client headers. Preserve the outer gatew
 header sanitization and the loopback-only port binding; verify the observed bridge peer
 and forwarding behavior in the target Linux Docker environment before deployment.
 
-`/healthz` and `/version.txt` expose only liveness and the deployed commit. The rest of both
-sites initially requires a team login because the current asset catalogue is explicitly
-development-only and distribution rights remain unconfirmed. Keep this gate until that
-review is resolved. This gate is not the future application account system.
-
-The initial login is stored only on the VM in an owner-readable file. Retrieve it in your
-own SSH terminal; do not paste it into GitHub or chat:
-
-```sh
-ssh team32@51.79.242.181
-cat ~/vthere-access.txt
-```
+`/healthz` and `/version.txt` expose only liveness and the deployed commit. The login page
+and static frontend files are public; protected project and administration data require
+an authenticated API session. The old shared team HTTP Basic login is no longer used.
+Removing that gateway login does not approve the development catalogue for redistribution;
+review bundled assets before publishing a release that contains them.
 
 ## VM setup
 
@@ -325,14 +319,25 @@ and [Caddy TLS configuration](https://caddyserver.com/docs/caddyfile/directives/
 
 Create a private gateway directory on the VM and copy `deploy/gateway.compose.yaml`,
 `deploy/gateway.Caddyfile` and `deploy/.env.example` there. Rename the example to `.env`,
-set the address/login and generate the password hash with the pinned Caddy image's
-`caddy hash-password` command. Preserve single quotes around the hash in `.env` so Compose
-does not interpolate its dollar signs. Keep the password outside Git and restrict the file
-to its owner. Start the gateway from that directory:
+set `SITE_IP` and restrict the file to its owner. The app's `/login` page handles
+sign-in; the gateway does not add HTTP Basic authentication. Protected account
+pages redirect confirmed signed-out sessions to `/login`, while API requests retain
+their normal 401/403 responses. Start the gateway from that directory:
 
 ```sh
 docker compose -f gateway.compose.yaml up -d
 ```
+
+When upgrading a gateway that used `SITE_USER` and `SITE_PASSWORD_HASH`, copy both
+updated gateway files to this directory and recreate only the gateway service:
+
+```sh
+docker compose -f gateway.compose.yaml up -d --force-recreate gateway
+```
+
+The ordinary app deployment does not update this separate host gateway. Deploy the
+matching frontend and API release as well; updating frontend code alone cannot
+remove an HTTP Basic prompt served by an older gateway configuration.
 
 Use a dedicated `vthere-runner` account for the self-hosted runner, with Docker access and
 the custom `vthere-deploy` label. Install it as a system service using GitHub's runner setup

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createAccountClient, type AccountSession } from "../accounts/account-client";
+import { LoginRedirect } from "../accounts/LoginRedirect";
 import { WorkspaceShell } from "../../shared/ui/WorkspaceShell";
 import { Button } from "../../shared/ui/Button";
 import { Dialog } from "../../shared/ui/Dialog";
@@ -91,8 +92,14 @@ export function HomePage() {
       )}
       {!checking && !error && (!session || session.mustChangePassword) && (
         <div className="sp-home-gate">
-          <h1>{session ? "Change your password to continue" : "Log in to your workspace"}</h1>
-          <a href="/login">Go to login</a>
+          {session ? (
+            <>
+              <h1>Change your password to continue</h1>
+              <a href="/login">Go to login</a>
+            </>
+          ) : (
+            <LoginRedirect />
+          )}
         </div>
       )}
       {workspaceSession && (
