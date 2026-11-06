@@ -124,6 +124,8 @@ export const modules = {
       "@fortawesome/fontawesome-svg-core",
       "@fortawesome/free-solid-svg-icons",
       "@fontsource/inter",
+      "qrcode.react",
+      "jsqr",
     ],
     public: [],
   },

@@ -3,6 +3,7 @@ import type { AccountSession } from "../accounts/account-client";
 import { createAccountClient } from "../accounts/account-client";
 import { createWorkspaceClient, isId, isRecord } from "../home/workspace-api";
 import { Button } from "../../shared/ui/Button";
+import { PublicationShare } from "./PublicationShare";
 import {
   publicationAcknowledgement,
   type PublicationAcknowledgement,
@@ -97,7 +98,6 @@ export function PublicationPage({ session }: { session: AccountSession }) {
   >(pending.error ? "storage-error" : pending.request ? "unknown" : "ready");
   const [request, setRequest] = useState<PublicationRequest | null>(pending.request);
   const [ack, setAck] = useState<PublicationAcknowledgement | null>(null);
-  const [copyStatus, setCopyStatus] = useState("");
   const inFlight = useRef(false);
 
   useEffect(() => {
@@ -298,16 +298,6 @@ export function PublicationPage({ session }: { session: AccountSession }) {
     }
   }
 
-  async function copyLink() {
-    if (!ack) return;
-    try {
-      await navigator.clipboard.writeText(ack.visitorUrl);
-      setCopyStatus("Link copied.");
-    } catch {
-      setCopyStatus("Copy the link from the field below.");
-    }
-  }
-
   return (
     <section className="sp-publication" aria-label="Publication settings">
       {!projectId && <p role="alert">Choose a valid project before publishing.</p>}
@@ -369,15 +359,7 @@ export function PublicationPage({ session }: { session: AccountSession }) {
             <div>
               <p role="status">Published saved revision {ack.sourceRevision}.</p>
               <a href={ack.visitorUrl}>Open publication</a>
-              <label htmlFor="publication-link">Publication link</label>
-              <input
-                id="publication-link"
-                readOnly
-                value={ack.visitorUrl}
-                onFocus={(event) => event.currentTarget.select()}
-              />
-              <Button onClick={() => void copyLink()}>Copy link</Button>
-              <p role="status">{copyStatus}</p>
+              <PublicationShare url={ack.visitorUrl} />
             </div>
           ) : (
             <>
