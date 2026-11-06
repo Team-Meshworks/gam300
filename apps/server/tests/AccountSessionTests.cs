@@ -39,11 +39,12 @@ public sealed class AccountSessionTests
         await Assert.That(session.StatusCode).IsEqualTo(HttpStatusCode.OK);
         var json = await session.Content.ReadFromJsonAsync<JsonElement>();
         await Assert.That(json.EnumerateObject().Select(property => property.Name).Order().SequenceEqual(
-            new[] { "displayName", "mustChangePassword", "orgId", "role", "userId" })).IsTrue();
+            new[] { "developmentAssetsAllowed", "displayName", "mustChangePassword", "orgId", "role", "userId" })).IsTrue();
         await Assert.That(json.GetProperty("userId").GetGuid()).IsEqualTo(id);
         await Assert.That(json.GetProperty("displayName").GetString()).IsEqualTo(name);
         await Assert.That(json.GetProperty("role").GetString()).IsEqualTo(role);
         await Assert.That(json.GetProperty("mustChangePassword").GetBoolean()).IsEqualTo(forced);
+        await Assert.That(json.GetProperty("developmentAssetsAllowed").GetBoolean()).IsFalse();
         await Assert.That(json.GetProperty("orgId").ValueKind == JsonValueKind.Null).IsEqualTo(role == ApplicationRoles.Administrator);
         if (role != ApplicationRoles.Administrator)
         {
@@ -54,6 +55,21 @@ public sealed class AccountSessionTests
         }
         await Assert.That(session.Headers.CacheControl?.NoStore == true).IsTrue();
         await AuthTestRequests.AssertSafeAsync(fixture, session);
+    }
+
+    [Test]
+    [Arguments("Development", true)]
+    [Arguments("Production", false)]
+    [Arguments("Testing", false)]
+    public async Task Session_DevelopmentAssetCapabilityMatchesServerEnvironment(string environment, bool expected)
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: environment);
+        await fixture.SignInAsync(await fixture.CreateAccountAsync());
+        using var response = await fixture.Client.GetAsync("/api/auth/session");
+        await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        var json = await response.Content.ReadFromJsonAsync<JsonElement>();
+        await Assert.That(json.TryGetProperty("developmentAssetsAllowed", out var allowed)).IsTrue();
+        await Assert.That(allowed.GetBoolean()).IsEqualTo(expected);
     }
 
     [Test]

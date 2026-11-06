@@ -24,6 +24,7 @@ export function AssetPicker({
   onDragChange,
   onClose,
   mode = "assets",
+  canAddAdjoiningRooms = false,
 }: {
   assets: readonly CatalogueAsset[];
   ready: boolean;
@@ -32,6 +33,7 @@ export function AssetPicker({
   onDragChange: (assetId: string | null) => void;
   onClose: () => void;
   mode?: "assets" | "rooms";
+  canAddAdjoiningRooms?: boolean;
 }) {
   const rooms = mode === "rooms";
   const setDragImage = useDragImage();
@@ -103,8 +105,8 @@ export function AssetPicker({
 
       {rooms && (
         <p className="room-picker-hint">
-          Choose a layout to replace the current room. Existing exhibits stay in place. Starter room
-          adds adjoining rooms.
+          Choose a layout to replace the current room. Existing exhibits stay in place.{" "}
+          {canAddAdjoiningRooms && "Starter room adds adjoining rooms."}
         </p>
       )}
 

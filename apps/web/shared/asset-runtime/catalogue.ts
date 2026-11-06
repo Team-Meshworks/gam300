@@ -34,6 +34,42 @@ export type CatalogueAsset = Readonly<{
   }>;
 }>;
 
+// This geometry has known ten-metre footprints and named walls for adjoining doors.
+export const STARTER_ROOM_SHA256 =
+  "121c9d86eefb1961a697a390967dfeface3ce1f612334d2fbc447551ddfd88d1";
+
+export function isStarterRoomModelAsset(asset: CatalogueAsset) {
+  return (
+    asset.kind === "model" &&
+    (asset.id === "test-room-module-v1" || asset.sha256.toLowerCase() === STARTER_ROOM_SHA256)
+  );
+}
+
+export function isStarterRoomModel(assets: readonly CatalogueAsset[], id: string | undefined) {
+  return (
+    id === "test-room-module-v1" ||
+    assets.some((asset) => asset.id === id && isStarterRoomModelAsset(asset))
+  );
+}
+
+// New room instances may use only a model in the selectable catalogue.
+export function starterRoomCompanion(assets: readonly CatalogueAsset[]) {
+  return (
+    assets.find((asset) => asset.id === "test-room-module-v1" && isStarterRoomModelAsset(asset)) ??
+    assets.find(isStarterRoomModelAsset)
+  );
+}
+
+// Match server identities only when they refer to the known packaged room geometry.
+export function isStarterRoomEnvironment(
+  assets: readonly CatalogueAsset[],
+  id: string | undefined,
+) {
+  if (id === "test-room-v1") return true;
+  const environment = assets.find((asset) => asset.id === id && asset.kind === "environment");
+  return !!environment && environment.sha256.toLowerCase() === STARTER_ROOM_SHA256;
+}
+
 export const assetDragType = "application/x-vthere-asset";
 
 // Keep the catalogue order and asset IDs used by placement

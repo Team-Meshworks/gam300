@@ -30,6 +30,26 @@ it("distinguishes held movement from inertia without changing the camera traject
   controls.dispose();
 });
 
+it("keeps a mobile jump until a physics step can consume it", () => {
+  const events = new EventTarget();
+  vi.stubGlobal("document", new EventTarget());
+  vi.stubGlobal("addEventListener", events.addEventListener.bind(events));
+  vi.stubGlobal("removeEventListener", events.removeEventListener.bind(events));
+  const camera = new THREE.PerspectiveCamera();
+  camera.position.y = 0.9;
+  const controls = new FpsControls(camera, new EventTarget() as HTMLElement);
+  controls.engage();
+  controls.mobileControls.jump();
+  controls.update(0);
+  for (let i = 0; i < 4; i++) controls.update(1 / 1000);
+  expect(camera.position.y).toBeCloseTo(0.9);
+  controls.update(1 / 60);
+  expect(camera.position.y).toBeGreaterThan(0.9);
+  for (let i = 0; i < 120; i++) controls.update(1 / 60);
+  expect(camera.position.y).toBeCloseTo(0.9);
+  controls.dispose();
+});
+
 it("keeps pointer-lock retry available immediately after releasing a successful lock", async () => {
   const documentEvents = Object.assign(new EventTarget(), {
     pointerLockElement: null as EventTarget | null,

@@ -10,6 +10,22 @@ const session = {
 };
 const json = (value: unknown) =>
   new Response(JSON.stringify(value), { headers: { "Content-Type": "application/json" } });
+
+it.each([
+  [true, true],
+  [false, false],
+  [undefined, false],
+  ["true", false],
+  [null, false],
+])("permits bundled assets only for a literal true capability (%s)", async (value, expected) => {
+  const response = {
+    ...session,
+    ...(value === undefined ? {} : { developmentAssetsAllowed: value }),
+  };
+  const client = createAccountClient(vi.fn<typeof fetch>().mockResolvedValue(json(response)));
+  expect(await client.getSession()).toMatchObject({ developmentAssetsAllowed: expected });
+});
+
 it("signs in with CSRF and verifies the session after rotating the request token", async () => {
   const request = vi
     .fn<typeof fetch>()
@@ -18,7 +34,10 @@ it("signs in with CSRF and verifies the session after rotating the request token
     .mockResolvedValueOnce(json({ requestToken: "account-token" }))
     .mockResolvedValueOnce(json(session));
   const client = createAccountClient(request);
-  expect(await client.signIn("teacher", " password unchanged ")).toEqual(session);
+  expect(await client.signIn("teacher", " password unchanged ")).toEqual({
+    ...session,
+    developmentAssetsAllowed: false,
+  });
   expect(request.mock.calls.map(([url]) => url)).toEqual([
     "/api/auth/csrf",
     "/api/auth/login",
@@ -78,7 +97,7 @@ it("changes a forced password then fetches authoritative session state", async (
     .mockResolvedValueOnce(json(session));
   expect(
     await createAccountClient(request).changePassword("old password value", "new password value"),
-  ).toEqual(session);
+  ).toEqual({ ...session, developmentAssetsAllowed: false });
   expect(request.mock.calls[1]).toEqual([
     "/api/auth/password",
     expect.objectContaining({

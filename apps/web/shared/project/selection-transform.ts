@@ -1,7 +1,7 @@
 import type { ContentObject, ContentScene } from "./project-content";
 import type { Transform } from "./project-types";
 import { moveAttachedObjects } from "./attached-transforms";
-import { snapRoomPlacement } from "./room-placement";
+import { isPackagedRoomModel, snapRoomPlacement, type RoomModelPredicate } from "./room-placement";
 import { invalid, type ValidationResult } from "./validation-helpers";
 
 export const ROOM_TRANSFORM: Transform = Object.freeze({
@@ -64,8 +64,14 @@ export function moveSceneSelection(
   anchorId: string,
   proposed: Transform,
   preview = false,
+  starterEnvironment = false,
+  isRoomModel: RoomModelPredicate = isPackagedRoomModel,
 ): ValidationResult<ContentScene> {
   const environment = environmentObject(scene);
+  const isStarterRoom = (object: ContentObject) =>
+    object.id === scene.id
+      ? starterEnvironment || scene.environmentAssetId === "test-room-v1"
+      : isRoomModel(object.assetId);
   const all =
     scene.environmentVisible === false ? [...scene.objects] : [environment, ...scene.objects];
   const anchor = all.find((object) => object.id === anchorId);
@@ -78,7 +84,7 @@ export function moveSceneSelection(
     [...(scene.groups ?? []), ...scene.objects].map((node) => [
       node.id.toLowerCase(),
       node.parentId?.toLowerCase() ??
-        ("assetId" in node && node.assetId !== "test-room-module-v1"
+        ("assetId" in node && typeof node.assetId === "string" && !isRoomModel(node.assetId)
           ? scene.id.toLowerCase()
           : null),
     ]),
@@ -100,18 +106,14 @@ export function moveSceneSelection(
   if (
     !preview &&
     all.some(
-      (object) =>
-        moving.has(object.id) &&
-        (object.id === scene.id || object.assetId === "test-room-module-v1"),
+      (object) => moving.has(object.id) && (object.id === scene.id || isRoomModel(object.assetId)),
     ) &&
     proposed.scale.some((value, axis) => value !== anchor.transform.scale[axis])
   )
     return invalid("transform.scale", "Rooms cannot be scaled");
   // A selected room owns snapping even when its furnishing is the active transform pivot
-  const movingRoom = all.find(
-    (object) => moving.has(object.id) && object.assetId === "test-room-module-v1",
-  );
-  if (anchor.assetId !== "test-room-module-v1" && movingRoom) {
+  const movingRoom = all.find((object) => moving.has(object.id) && isStarterRoom(object));
+  if (!isStarterRoom(anchor) && movingRoom) {
     const attached: ContentObject[] = [
       { ...anchor, parentId: null },
       { ...movingRoom, parentId: anchorId },
@@ -124,22 +126,32 @@ export function moveSceneSelection(
       movingRoom.id,
       candidate.value[1]!.transform,
       preview,
+      starterEnvironment,
+      isRoomModel,
     );
   }
   let after = proposed;
-  if (anchor.assetId === "test-room-module-v1") {
+  if (isStarterRoom(anchor)) {
     // Shared walls require parallel edges. A free layout can rotate as a whole;
     // individual rooms align their yaw to the stationary layout's nearest wall direction
     const [x, y, z, w] = after.rotation;
     const requestedYaw = Math.atan2(2 * (w * y + x * z), 1 - 2 * (y * y + z * z));
     const stationary = all.filter((object) => !moving.has(object.id));
-    const reference = stationary.find((object) => object.assetId === "test-room-module-v1");
+    const reference = stationary.find(isStarterRoom);
     const [rx, ry, rz, rw] = reference?.transform.rotation ?? [0, 0, 0, 1];
     const referenceYaw = Math.atan2(2 * (rw * ry + rx * rz), 1 - 2 * (ry * ry + rz * rz));
     const yaw = reference
       ? referenceYaw + (Math.round((requestedYaw - referenceYaw) / (Math.PI / 2)) * Math.PI) / 2
       : requestedYaw;
-    const snapped = reference ? snapRoomPlacement(after.position, stationary) : null;
+    const snapped = reference
+      ? snapRoomPlacement(
+          after.position,
+          stationary,
+          undefined,
+          undefined,
+          (id) => isRoomModel(id) || (isStarterRoom(environment) && id === environment.assetId),
+        )
+      : null;
     // Preview follows the handle; release must reconnect to the stationary layout
     const position = preview ? after.position : (snapped ?? after.position);
     after = { ...after, position, rotation: [0, Math.sin(yaw / 2), 0, Math.cos(yaw / 2)] };
@@ -155,7 +167,7 @@ export function moveSceneSelection(
   const first = transforms.get(scene.id)!;
   // Reject final overlaps while allowing free preview feedback during the gesture
   const roomObjects = all
-    .filter((object) => object.assetId === "test-room-module-v1")
+    .filter(isStarterRoom)
     .map((object) => ({ ...object, transform: transforms.get(object.id)! }));
   for (const room of roomObjects.filter((object) => moving.has(object.id))) {
     if (!preview && roomObjects.some((other) => !moving.has(other.id) && roomsOverlap(room, other)))
@@ -174,9 +186,7 @@ export function moveSceneSelection(
     const transform = result.value[1]!.transform;
     return { ...camera, position: transform.position, rotation: transform.rotation };
   };
-  const layoutRooms = all.filter(
-    (object) => object.id === scene.id || object.assetId === "test-room-module-v1",
-  );
+  const layoutRooms = all.filter((object) => object.id === scene.id || isRoomModel(object.assetId));
   const wholeLayout =
     layoutRooms.length > 0 && layoutRooms.every((object) => moving.has(object.id));
   return {
