@@ -26,6 +26,68 @@ function setup() {
 }
 
 describe("content document preservation in the existing editor", () => {
+  it("deletes a referenced scene atomically and restores its references through recovery undo", () => {
+    const store = setup();
+    const before = store.getSnapshot().project as ContentProject;
+    const destination = before.scenes[1]!;
+    expect(store.deleteScene(destination.id).ok).toBe(true);
+    const after = store.getSnapshot().project as ContentProject;
+    expect(after.scenes).toHaveLength(1);
+    expect(after.scenes[0]!.objects[0]!.components.some((c) => c.type === "navigationPoint")).toBe(
+      false,
+    );
+    expect(
+      after.scenes[0]!.rules.some((rule) =>
+        rule.actions.some((action) => action.type === "navigateScene"),
+      ),
+    ).toBe(false);
+    const saved = serializeProject(after, kinds);
+    expect(saved.ok).toBe(true);
+    if (!saved.ok) throw Error(saved.error.message);
+    const reopened = createDocumentStore(assets);
+    expect(
+      reopened.loadProject(
+        saved.value,
+        kinds,
+        JSON.parse(JSON.stringify(store.getRecoveryHistory())),
+      ).ok,
+    ).toBe(true);
+    reopened.undo();
+    expect(reopened.getSnapshot().project).toEqual(before);
+    reopened.redo();
+    expect(reopened.getSnapshot().project).toEqual(after);
+  });
+
+  it("removes rules triggered by a deleted navigation point but retains unrelated rules", () => {
+    const document = structuredClone(m2);
+    const scene = document.scenes[0]!;
+    const point = scene.objects[0]!.components.find(
+      (component) => component.type === "navigationPoint",
+    )!;
+    const related = {
+      id: crypto.randomUUID(),
+      enabled: false,
+      trigger: { type: "click", targetId: point.id },
+      actions: [{ type: "openLink", url: "https://example.com" }],
+    };
+    const store = createDocumentStore(assets);
+    expect(
+      store.loadProject(
+        JSON.stringify({
+          ...document,
+          scenes: [{ ...scene, rules: [...scene.rules, related] }, ...document.scenes.slice(1)],
+        }),
+        kinds,
+      ).ok,
+    ).toBe(true);
+    const before = store.getSnapshot().project as ContentProject;
+    expect(store.deleteScene(document.scenes[1]!.id).ok).toBe(true);
+    const rules = (store.getSnapshot().project as ContentProject).scenes[0]!.rules;
+    expect(rules.some((rule) => rule.id === related.id)).toBe(false);
+    expect(rules.some((rule) => rule.id === scene.rules[0]!.id)).toBe(true);
+    store.undo();
+    expect(store.getSnapshot().project).toEqual(before);
+  });
   it("saves name, transform and all typed content as one reversible edit with stable targets", () => {
     const store = setup();
     const before = store.getSnapshot().project as ContentProject;
@@ -256,12 +318,10 @@ it("edits the active second scene without overwriting the first or losing media 
   expect(target.getSnapshot().project).toEqual(original);
   expect(target.getSnapshot().activeSceneId).toBe(second.id);
 });
-it("rejects deleting referenced scenes and viewpoints without changing document or history", () => {
+it("rejects deleting a referenced viewpoint without changing document or history", () => {
   const store = setup();
   const before = store.getSnapshot();
   const project = before.project as ContentProject;
-  expect(store.deleteScene(project.scenes[1]!.id).ok).toBe(false);
-  expect(store.getSnapshot()).toBe(before);
   const referenced = project.scenes[0]!.viewpoints[0]!;
   expect(store.deleteViewpoint(referenced.id).ok).toBe(false);
   expect(store.getSnapshot()).toBe(before);

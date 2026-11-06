@@ -115,7 +115,7 @@ it("allows scene and viewpoint edits while an interaction link is unfinished, bu
   expect(serializeProject(restored.getSnapshot().project, kinds).ok).toBe(true);
 });
 
-it("retains navigation targets through rename, reorder, undo and recovery; protects referenced destinations", () => {
+it("retains navigation targets through rename, reorder, undo and recovery", () => {
   const { store, hotspot } = setup();
   const firstId = active(store).id;
   expect(store.addViewpoint("Gallery detail", active(store).startCamera).ok).toBe(true);
@@ -154,7 +154,10 @@ it("retains navigation targets through rename, reorder, undo and recovery; prote
   expect(store.moveScene(secondId, 0).ok).toBe(true);
   expect(store.switchScene(firstId).ok).toBe(true);
   expect(store.deleteViewpoint(viewId).ok).toBe(false);
-  expect(store.deleteScene(secondId).ok).toBe(false);
+  expect(store.deleteScene(secondId).ok).toBe(true);
+  expect(active(store).interactions).toEqual([rules[1]]);
+  store.undo();
+  expect(active(store).interactions).toEqual(rules);
   expect(
     store.setInteractions([
       { ...rules[0]!, do: { type: "navigate-scene", sceneId: crypto.randomUUID() } },

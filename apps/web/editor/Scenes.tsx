@@ -188,7 +188,8 @@ export function Scenes({
           <div role="group" aria-label="Confirm scene deletion">
             <p>
               Delete “{active.name}” and its {active.objects.length} objects and{" "}
-              {active.viewpoints?.length ?? 0} saved views? Undo restores everything.
+              {active.viewpoints?.length ?? 0} saved views? Navigation links to this scene and their
+              associated rules will also be deleted. Undo restores everything.
             </p>
             <button
               type="button"
@@ -199,7 +200,7 @@ export function Scenes({
                   playUiSound("delete");
                   onSwitch();
                 }
-                report(result, "Scene deleted. Undo restores it.");
+                report(result, "Scene and related navigation links deleted. Undo restores everything.");
               }}
             >
               Confirm delete scene

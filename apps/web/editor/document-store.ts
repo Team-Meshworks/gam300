@@ -947,22 +947,63 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       if (!project || index < 0) return invalid("scene", "This scene no longer exists");
       if (project.scenes.length === 1)
         return invalid("scene", "Keep at least one scene in the project");
-      if (
-        project.scenes.some(
-          (scene) =>
-            scene.id !== id &&
-            scene.interactions.some(
+      const targetId = id.toLowerCase();
+      if (project.schemaVersion !== 2) {
+        const remaining = project.scenes
+          .filter((scene) => scene.id !== id)
+          .map((scene) => ({
+            ...scene,
+            interactions: scene.interactions.filter(
               (rule) =>
-                rule.do.type === "navigate-scene" &&
-                rule.do.sceneId.toLowerCase() === id.toLowerCase(),
+                rule.do.type !== "navigate-scene" || rule.do.sceneId.toLowerCase() !== targetId,
             ),
-        )
-      )
-        return invalid(
-          "scene",
-          "Change or remove interactions targeting this scene before deleting it",
-        );
-      const remaining = project.scenes.filter((s) => s.id !== id);
+          }));
+        const active =
+          state.activeSceneId === id
+            ? remaining[Math.min(index, remaining.length - 1)]!.id
+            : state.activeSceneId!;
+        return commitProject({ ...project, scenes: remaining }, active, "Delete scene");
+      }
+      const remaining = project.scenes
+        .filter((s) => s.id !== id)
+        .map((scene) => {
+          const interactions = scene.interactions.filter(
+            (rule) =>
+              rule.do.type !== "navigate-scene" || rule.do.sceneId.toLowerCase() !== targetId,
+          );
+          const removedComponents = new Set(
+            scene.objects.flatMap((object) =>
+              object.components
+                .filter(
+                  (component) =>
+                    component.type === "navigationPoint" &&
+                    component.sceneId.toLowerCase() === targetId,
+                )
+                .map((component) => component.id.toLowerCase()),
+            ),
+          );
+          return {
+            ...scene,
+            objects: scene.objects.map((object) => ({
+              ...object,
+              components: object.components.filter(
+                (component) => !removedComponents.has(component.id.toLowerCase()),
+              ),
+            })),
+            interactions,
+            rules: scene.rules.filter(
+              (rule) =>
+                !(
+                  (rule.trigger.type === "click" || rule.trigger.type === "gaze") &&
+                  removedComponents.has(rule.trigger.targetId.toLowerCase())
+                ) &&
+                !rule.actions.some(
+                  (action) =>
+                    action.type === "navigateScene" && action.sceneId.toLowerCase() === targetId,
+                ),
+            ),
+          };
+        });
       const active =
         state.activeSceneId === id
           ? remaining[Math.min(index, remaining.length - 1)]!.id
