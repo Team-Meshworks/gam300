@@ -520,6 +520,7 @@ jobs:
           path: |
             apps/server/test-results/ci/
             apps/server/.artifacts/scrum45-browser-version.txt
+            apps/server/.artifacts/scrum45-part7-browser-version.txt
           retention-days: 14
           overwrite: true
 

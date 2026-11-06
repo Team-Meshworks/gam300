@@ -1,68 +1,53 @@
 import assert from "node:assert/strict";
-import { readdir, readFile } from "node:fs/promises";
-import { join, relative } from "node:path";
+import { createHash } from "node:crypto";
 
 // Called inside the existing disposable HTTPS/PostgreSQL fixture. Only static editor
-// files are supplied by this test; login, reads, saves and conflicts use the real API.
+// files are built into its private static directory; login, reads, saves and
+// conflicts use the real API. No asset bodies cross Playwright's DevTools pipe.
 export async function checkServerEditor(
   browser,
   origin,
   accounts,
   build,
   webRoot,
+  editorDirectory,
 ) {
   const built = await build({
     configFile: webRoot + "vite.config.ts",
     logLevel: "silent",
-    build: { write: false },
+    build: { write: true, outDir: editorDirectory, emptyOutDir: false },
   });
   const output = (Array.isArray(built) ? built[0] : built).output;
-  const files = new Map(
-    output.map((file) => [
-      "/" + file.fileName,
-      file.type === "chunk" ? file.code : file.source,
-    ]),
+  const largest = output
+    .filter((file) => file.type === "asset" && file.fileName.endsWith(".glb"))
+    .sort(
+      (a, b) => Buffer.byteLength(b.source) - Buffer.byteLength(a.source),
+    )[0];
+  assert.ok(
+    largest,
+    "The actual catalogue must be present in the editor build",
   );
-  // Vite copies public files separately; write:false omits them from the bundle.
-  const publicDirectory = webRoot + "editor/public";
-  for (const entry of await readdir(publicDirectory, {
-    recursive: true,
-    withFileTypes: true,
-  })) {
-    if (!entry.isFile()) continue;
-    const path = join(entry.parentPath, entry.name);
-    files.set(
-      "/" + relative(publicDirectory, path).replaceAll("\\", "/"),
-      await readFile(path),
-    );
-  }
+  const asset = {
+    path: "/" + largest.fileName,
+    bytes: Buffer.byteLength(largest.source),
+    sha256: createHash("sha256").update(largest.source).digest("hex"),
+  };
   const contexts = [];
-  const open = async (account) => {
+  const open = async (account, verifyTransport = false) => {
     const context = await browser.newContext({ ignoreHTTPSErrors: true });
     contexts.push(context);
-    await context.route("**/*", async (route) => {
-      const url = new URL(route.request().url());
-      if (url.origin !== origin) return route.abort();
-      const path =
-        url.pathname === "/_test/editor" ? "/index.html" : url.pathname;
-      const file = files.get(path);
-      if (file === undefined) return route.continue();
-      const extension = path.split(".").at(-1);
-      return route.fulfill({
-        body: file,
-        contentType:
-          {
-            html: "text/html",
-            js: "text/javascript",
-            css: "text/css",
-            svg: "image/svg+xml",
-            png: "image/png",
-            woff2: "font/woff2",
-          }[extension] ?? "application/octet-stream",
-      });
-    });
+    // The shared browser launcher already limits networking to this exact local origin.
     const page = await context.newPage();
     await page.goto(origin + "/_test/browser");
+    if (verifyTransport) {
+      assert.equal(
+        await page.evaluate(
+          async (path) => (await fetch(path, { method: "HEAD" })).status,
+          asset.path,
+        ),
+        401,
+      );
+    }
     const login = await page.evaluate(async (userName) => {
       const csrf = (await (await fetch("/api/auth/csrf")).json()).requestToken;
       return (
@@ -77,13 +62,44 @@ export async function checkServerEditor(
       ).status;
     }, account.userName);
     assert.equal(login, 204);
+    if (verifyTransport) {
+      // Return only byte counts/digests to the driver, never the large response body.
+      const delivered = await page.evaluate(async (path) => {
+        const response = await fetch(path);
+        const bytes = await response.arrayBuffer();
+        const hash = await crypto.subtle.digest("SHA-256", bytes);
+        const partial = await fetch(path, { headers: { Range: "bytes=0-11" } });
+        const header = new DataView(await partial.arrayBuffer());
+        return {
+          status: response.status,
+          bytes: bytes.byteLength,
+          sha256: Array.from(new Uint8Array(hash), (value) =>
+            value.toString(16).padStart(2, "0"),
+          ).join(""),
+          rangeStatus: partial.status,
+          range: partial.headers.get("content-range"),
+          magic: header.getUint32(0, true),
+          declaredBytes: header.getUint32(8, true),
+        };
+      }, asset.path);
+      assert.equal(delivered.status, 200);
+      assert.equal(delivered.bytes, asset.bytes);
+      assert.equal(delivered.sha256, asset.sha256);
+      assert.equal(delivered.rangeStatus, 206);
+      assert.equal(delivered.range, `bytes 0-11/${asset.bytes}`);
+      assert.equal(delivered.magic, 0x46546c67);
+      assert.equal(delivered.declaredBytes, asset.bytes);
+      console.log(
+        `largest catalogue asset streamed over HTTPS: ${asset.bytes} bytes; full hash and range verified`,
+      );
+    }
     await page.goto(origin + "/_test/editor?projectId=" + account.projectId);
     await page.getByText("Scene ready", { exact: true }).waitFor();
     await page.getByRole("button", { name: "Scenes", exact: true }).click();
     return page;
   };
   try {
-    const page = await open(accounts[0]);
+    const page = await open(accounts[0], true);
     await page
       .getByLabel("Scene name", { exact: true })
       .fill("SCRUM-67 actual editor save");
