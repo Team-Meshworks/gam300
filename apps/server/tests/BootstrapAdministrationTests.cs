@@ -13,7 +13,7 @@ using Spatia.Server.Persistence;
 
 namespace Spatia.Server.Tests;
 
-[NotInParallel]
+[NotInParallel(nameof(BootstrapAdministrationTests))]
 public sealed class BootstrapAdministrationTests
 {
     private const string Password = "Private synthetic bootstrap password!";

@@ -10,7 +10,7 @@ using Spatia.Server.Persistence;
 
 namespace Spatia.Server.Tests;
 
-[NotInParallel]
+[NotInParallel(nameof(AccountProvisioningConcurrencyTests))]
 public sealed class AccountProvisioningConcurrencyTests
 {
     [Test]

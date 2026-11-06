@@ -7,7 +7,7 @@ using Spatia.Server.Persistence;
 
 namespace Spatia.Server.Tests;
 
-[NotInParallel]
+[NotInParallel(nameof(AccountPersistenceTests))]
 public sealed class AccountPersistenceTests
 {
     private const string TestPassword = "Initial-example1!";

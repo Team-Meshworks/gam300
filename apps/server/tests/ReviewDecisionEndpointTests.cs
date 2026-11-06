@@ -16,7 +16,7 @@ using static Spatia.Server.Tests.ReviewSubmissionEndpointTests;
 
 namespace Spatia.Server.Tests;
 
-[NotInParallel]
+[NotInParallel(nameof(ReviewDecisionEndpointTests))]
 public sealed class ReviewDecisionEndpointTests
 {
     [Test]

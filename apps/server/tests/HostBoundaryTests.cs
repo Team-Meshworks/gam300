@@ -18,7 +18,7 @@ using Spatia.Server.Persistence;
 
 namespace Spatia.Server.Tests;
 
-[NotInParallel]
+[NotInParallel(nameof(HostBoundaryTests))]
 public sealed class HostBoundaryTests
 {
     [Test]

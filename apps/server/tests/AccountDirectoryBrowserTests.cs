@@ -8,7 +8,7 @@ using Spatia.Server.Projects;
 
 namespace Spatia.Server.Tests;
 
-[NotInParallel]
+[NotInParallel("Browser")]
 public sealed class AccountDirectoryBrowserTests
 {
     [Test]

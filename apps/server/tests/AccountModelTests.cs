@@ -7,6 +7,7 @@ using Spatia.Server.Persistence;
 
 namespace Spatia.Server.Tests;
 
+// These tests change process-wide configuration read by other fixtures.
 [NotInParallel]
 public sealed class AccountModelTests
 {

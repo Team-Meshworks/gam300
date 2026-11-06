@@ -15,7 +15,7 @@ using Format = Spatia.ProjectFormat.ProjectFormat;
 
 namespace Spatia.Server.Tests;
 
-[NotInParallel]
+[NotInParallel(nameof(ReviewSubmissionEndpointTests))]
 public sealed class ReviewSubmissionEndpointTests
 {
     [Test]

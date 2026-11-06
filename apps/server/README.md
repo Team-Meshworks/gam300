@@ -176,6 +176,13 @@ server assembly referenced by the running test build, including Debug builds. Th
 standalone cold-restart acceptance below still targets an explicitly prebuilt Release
 application and is not part of the CI job.
 
+The TUnit assembly limiter caps concurrent tests at four. Tests with the same
+`NotInParallel` key remain exclusive: database-backed classes use class-specific keys,
+while browser-launching classes and `ProxyChainTests` share `Browser`. The unkeyed
+`AccountModelTests` exclusion remains global because those tests change environment variables.
+CI runs proxy preparation, restore/build, formatting, migrations and tests as separate
+steps in the same server job.
+
 The full suite includes `ProxyChainTests`, which starts two Caddy processes and a
 local ASP.NET test host. Provide the pinned Caddy **2.11.4** executable through
 `CADDY_BINARY` (or as `caddy` on `PATH`) and Node 24.22.2 on `PATH`;

@@ -9,7 +9,7 @@ using Spatia.Server.Publications;
 
 namespace Spatia.Server.Tests;
 
-[NotInParallel]
+[NotInParallel(nameof(PublicationCoordinatorTests))]
 public sealed partial class PublicationCoordinatorTests
 {
     private const string Intent = "{\"fixtureAudience\":\"private-test-only\",\"contract\":1}";

@@ -12,7 +12,7 @@ using Spatia.Server.Projects;
 
 namespace Spatia.Server.Tests;
 
-[NotInParallel]
+[NotInParallel(nameof(AssetIntakeTests))]
 public sealed class AssetIntakeTests
 {
     [Test]
