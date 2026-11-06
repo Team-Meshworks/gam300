@@ -1,4 +1,4 @@
 namespace Spatia.Server.Assets;
 
-/// <summary>Records an explicit human review without treating validator success as redistribution permission</summary>
-public sealed record AssetReviewRequest(string Source, string License, string ReviewNotes);
+/// <summary>Records an explicit administrator approval with optional supporting details</summary>
+public sealed record AssetReviewRequest(string? Source = null, string? License = null, string? ReviewNotes = null);

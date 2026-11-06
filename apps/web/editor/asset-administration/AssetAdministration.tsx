@@ -595,27 +595,28 @@ function AssetAdministrationScreen({ service, kind, onClose }: Props) {
                   )}
                 </div>
               )}
-              {selected?.status === "approved" && selected.source && (
-                <dl className="asset-admin-review">
-                  <div>
-                    <dt>Source or provenance</dt>
-                    <dd>{selected.source}</dd>
-                  </div>
-                  <div>
-                    <dt>Redistribution licence</dt>
-                    <dd>{selected.license}</dd>
-                  </div>
-                  <div>
-                    <dt>Content review notes</dt>
-                    <dd>{selected.reviewNotes}</dd>
-                  </div>
-                </dl>
-              )}
+              {selected?.status === "approved" &&
+                (selected.source || selected.license || selected.reviewNotes) && (
+                  <dl className="asset-admin-review">
+                    <div>
+                      <dt>Source or provenance</dt>
+                      <dd>{selected.source || "Not provided"}</dd>
+                    </div>
+                    <div>
+                      <dt>Redistribution licence</dt>
+                      <dd>{selected.license || "Not provided"}</dd>
+                    </div>
+                    <div>
+                      <dt>Content review notes</dt>
+                      <dd>{selected.reviewNotes || "Not provided"}</dd>
+                    </div>
+                  </dl>
+                )}
               {/* Keep review statements separate from technical validation and retain them after a failed request */}
               {selected && !selected.deleted && selected.status === "pending" && !confirmation && (
                 <fieldset className="asset-admin-review" disabled={busy}>
                   <legend>Approval review</legend>
-                  <p>Confirm content quality and redistribution rights before approval</p>
+                  <p>These details are optional. You can approve without filling them in.</p>
                   {(
                     [
                       ["source", "Source or provenance"],
@@ -624,7 +625,7 @@ function AssetAdministrationScreen({ service, kind, onClose }: Props) {
                     ] as const
                   ).map(([field, label]) => (
                     <label className="asset-admin-select" key={field}>
-                      <span>{label}</span>
+                      <span>{label} (optional)</span>
                       <input
                         value={review[field]}
                         maxLength={2000}
@@ -638,14 +639,6 @@ function AssetAdministrationScreen({ service, kind, onClose }: Props) {
                     type="button"
                     className="asset-admin-primary"
                     onClick={() => {
-                      if (Object.values(review).some((value) => !value.trim())) {
-                        setNotice({
-                          kind: "invalid",
-                          message:
-                            "Complete the source, licence and content review before approval",
-                        });
-                        return;
-                      }
                       void mutate((signal) => service.review(selected.id, review, signal));
                     }}
                   >

@@ -198,6 +198,8 @@ try {
 
   // Only the adapter's confirmed pending result enters the list after successful submission
   await choose("Test response", "Normal");
+  // Keep the preview controls from covering cards near the bottom of the longer room catalogue
+  await page.getByText("Local preview controls", { exact: true }).click();
   await page.getByRole("button", { name: "+ Add 3D Space", exact: true }).click();
   await dialog.getByLabel("Choose asset file").setInputFiles({
     name: "new-room.glb",
@@ -213,20 +215,13 @@ try {
     .getByRole("button")
     .click();
   await dialog.getByText("Pending validation", { exact: true }).waitFor();
-  // Approval needs explicit source, rights and content statements and applies only after confirmation
-  await dialog.getByRole("button", { name: "Approve", exact: true }).click();
-  await dialog
-    .getByText("Complete the source, licence and content review before approval")
-    .waitFor();
-  await dialog
-    .getByRole("textbox", { name: "Source or provenance" })
-    .fill("Synthetic local preview");
-  await dialog
-    .getByRole("textbox", { name: "Redistribution licence" })
-    .fill("Synthetic fixture only");
-  await dialog
-    .getByRole("textbox", { name: "Content review notes" })
-    .fill("Preview review flow checked");
+  // An administrator can approve with all three optional review fields left blank
+  for (const label of ["Source or provenance", "Redistribution licence", "Content review notes"]) {
+    assert.equal(
+      await dialog.getByRole("textbox", { name: `${label} (optional)`, exact: true }).inputValue(),
+      "",
+    );
+  }
   await page.screenshot({ path: "test-results/scrum168/review.png", fullPage: true });
   // Long approval forms keep their footer reachable within the modal's own scroll area
   const reviewFooter = dialog.locator(".asset-admin-actions");
@@ -236,12 +231,16 @@ try {
   assert.ok(footerBounds.y + footerBounds.height <= reviewBounds.y + reviewBounds.height);
   await page.screenshot({ path: "test-results/scrum168/review-footer.png", fullPage: true });
   await dialog.getByRole("button", { name: "Approve", exact: true }).click();
+  await dialog.waitFor({ state: "hidden" });
+  await page.getByText("new-room.glb: available", { exact: true }).waitFor();
   await page
     .locator(".asset-admin-card")
     .filter({ has: page.getByRole("heading", { name: "new-room.glb", exact: true }) })
     .getByRole("button")
     .click();
 
+  assert.equal(await dialog.locator(".asset-admin-review").count(), 0);
+  assert.equal(await dialog.getByRole("button", { name: "Approve", exact: true }).count(), 0);
   await dialog.getByRole("button", { name: "Delete", exact: true }).click();
   await dialog.getByRole("button", { name: "Confirm Delete", exact: true }).waitFor();
   assert.equal(

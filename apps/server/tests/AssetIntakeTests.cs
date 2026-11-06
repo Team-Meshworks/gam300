@@ -78,6 +78,56 @@ public sealed class AssetIntakeTests
     }
 
     [Test]
+    [Arguments("{}")]
+    [Arguments("{\"source\":\"\",\"license\":\"\",\"reviewNotes\":\"\"}")]
+    [Arguments("{\"source\":null,\"license\":null,\"reviewNotes\":null}")]
+    [Arguments("{\"source\":\"Synthetic source\"}")]
+    [Arguments("{\"license\":\"Synthetic rights\"}")]
+    [Arguments("{\"reviewNotes\":\"Reviewed room\"}")]
+    public async Task Intake_OptionalApprovalDetailsPersistAndMakeRoomAvailableToTeachers(string reviewJson)
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
+        var admin = await fixture.CreateAccountAsync(ApplicationRoles.Administrator);
+        await fixture.SignInAsync(admin);
+        using var upload = new HttpRequestMessage(HttpMethod.Post, "/api/admin/assets?name=room.glb&kind=environment");
+        upload.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync());
+        upload.Content = new ByteArrayContent(CreateMinimalGlb());
+        upload.Content.Headers.ContentType = new("model/gltf-binary");
+        using var submitted = await fixture.Client.SendAsync(upload);
+        await Assert.That(submitted.StatusCode).IsEqualTo(HttpStatusCode.Created);
+        var candidate = (await submitted.Content.ReadFromJsonAsync<AssetAdministrationRecord>())!;
+        await Assert.That(candidate.Status).IsEqualTo("pending");
+
+        using var details = JsonDocument.Parse(reviewJson);
+        using var approved = await AuthTestRequests.PostAsync(fixture, $"/api/admin/assets/{candidate.Id}/approve", details.RootElement);
+        await Assert.That(approved.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        var record = (await approved.Content.ReadFromJsonAsync<AssetAdministrationRecord>())!;
+        var expected = JsonSerializer.Deserialize<AssetReviewRequest>(reviewJson, new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+        await Assert.That(record.Status).IsEqualTo("approved");
+        await Assert.That(record.Hidden).IsFalse();
+        await Assert.That(record.Source).IsEqualTo(expected.Source ?? "");
+        await Assert.That(record.License).IsEqualTo(expected.License ?? "");
+        await Assert.That(record.ReviewNotes).IsEqualTo(expected.ReviewNotes ?? "");
+        await using (var scope = fixture.Database.Services.CreateAsyncScope())
+        {
+            var stored = await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().AssetCandidates.AsNoTracking().SingleAsync();
+            await Assert.That(stored.ReviewedBy).IsEqualTo((Guid?)admin);
+            await Assert.That(stored.Source).IsEqualTo(record.Source);
+            await Assert.That(stored.License).IsEqualTo(record.License);
+            await Assert.That(stored.ReviewNotes).IsEqualTo(record.ReviewNotes);
+        }
+
+        await fixture.SignInAsync(await fixture.CreateAccountAsync(ApplicationRoles.Educator));
+        using var catalogue = await fixture.Client.GetAsync("/api/assets");
+        await Assert.That(catalogue.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        var entries = await catalogue.Content.ReadFromJsonAsync<JsonElement>();
+        await Assert.That(entries.EnumerateArray().Any(entry => entry.GetProperty("id").GetString() == candidate.Id.ToString())).IsTrue();
+        using var created = await AuthTestRequests.PostAsync(fixture, "/api/projects/",
+            new { title = "Teacher project", environmentAssetId = candidate.Id.ToString() });
+        await Assert.That(created.StatusCode).IsEqualTo(HttpStatusCode.Created);
+    }
+
+    [Test]
     public async Task Intake_PrivateCandidatePersistsAcrossScopesAndDeletionRetainsExactReviewedBytes()
     {
         // Follow one upload through private validation, explicit approval and retained project delivery
@@ -228,6 +278,16 @@ public sealed class AssetIntakeTests
         malformed.Content.Headers.ContentType = new("model/gltf-binary");
         using var rejected = await fixture.Client.SendAsync(malformed);
         await Assert.That(rejected.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
+        // Optional review details still enforce the existing text limits when supplied
+        foreach (var field in new[] { "source", "license", "reviewNotes" })
+        {
+            foreach (var value in new[] { new string('x', 2001), "invalid\ntext" })
+            {
+                using var invalidReview = await AuthTestRequests.PostAsync(fixture, $"/api/admin/assets/{Guid.NewGuid()}/approve",
+                    new Dictionary<string, string> { [field] = value });
+                await Assert.That(invalidReview.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
+            }
+        }
         // Reject an oversized body before validation or persistence, even with a valid administrator token
         using var oversized = new HttpRequestMessage(HttpMethod.Post, "/api/admin/assets?name=room.glb&kind=environment");
         oversized.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync());

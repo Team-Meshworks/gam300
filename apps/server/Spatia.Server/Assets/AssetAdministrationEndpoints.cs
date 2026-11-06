@@ -123,7 +123,7 @@ public static class AssetAdministrationEndpoints
 
     private static bool ValidReview(AssetReviewRequest request) =>
         new[] { request.Source, request.License, request.ReviewNotes }
-            .All(value => !string.IsNullOrWhiteSpace(value) && value.Length <= 2000 && !value.Any(char.IsControl));
+            .All(value => value is null || (value.Length <= 2000 && !value.Any(char.IsControl)));
 
     private static IResult Invalid(HttpContext context) => ApiProblems.Create(context, 400, "invalid_asset_input", "Check the asset file and metadata");
 }
