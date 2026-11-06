@@ -1,4 +1,5 @@
 import type { MouseEvent } from "react";
+import { loadSettings } from "../ui/user-settings";
 import assetPlace from "./sounds/asset-place.wav";
 import assetSelect from "./sounds/asset-select.wav";
 import deleted from "./sounds/delete.wav";
@@ -22,7 +23,8 @@ const sounds = {
 
 export type UiSound = keyof typeof sounds;
 
-const volume = 0.5;
+// Settings pop up changes this, every page starts from what was saved
+let volume = loadSettings().volume;
 // Long enough to hear the sound start, short enough that leaving still feel instant
 const leaveDelayMs = 150;
 
@@ -44,6 +46,11 @@ export function preloadUiSounds(...names: UiSound[]) {
   for (const name of names) playerFor(name).preload = "auto";
 }
 
+// Sounds already made change too, not only new ones
+export function setUiSoundVolume(next: number) {
+  volume = next;
+  for (const player of players.values()) player.volume = next;
+}
 export function playUiSound(name: UiSound) {
   const player = playerFor(name);
   player.currentTime = 0;

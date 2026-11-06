@@ -2,6 +2,9 @@ import * as THREE from "three";
 import type { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { EYE_HEIGHT, type FpsControls } from "../controls/fpsControls";
 
+// Wider than the saved 40° lens while walking, the narrow view made people feel sick
+const WALKING_FOV = 70;
+
 export type EditorMode = "editor" | "visitor";
 // First person walks while editing, third person is the orbit camera with the camera tools
 export type CameraView = "first" | "third";
@@ -26,6 +29,8 @@ export class ModeManager {
   private readonly previewPosition = new THREE.Vector3();
   private readonly previewQuaternion = new THREE.Quaternion();
   private previewFov: number | undefined;
+  // Walking swaps in its own lens, third person goes back to this saved one
+  private lensFov: number | undefined;
   private state: ModeManagerState;
 
   constructor(camera: THREE.Camera, orbit: OrbitControls, fps: FpsControls) {
@@ -90,6 +95,9 @@ export class ModeManager {
       this.savedQuaternion.copy(this.camera.quaternion);
       this.savedTarget.copy(this.orbit.target);
       this.fps.syncFromCamera();
+      // The saved camera brought its own lens, walking still uses the wider one
+      if (this.camera instanceof THREE.PerspectiveCamera) this.lensFov = this.camera.fov;
+      this.setFov(WALKING_FOV);
     }
   }
 
@@ -106,12 +114,16 @@ export class ModeManager {
     this.previewQuaternion.copy(this.camera.quaternion);
     // Viewpoints in Preview can change the lens, so leaving puts the editor's back
     if (this.camera instanceof THREE.PerspectiveCamera) this.previewFov = this.camera.fov;
-    if (this.state.view === "third") this.startWalking(false);
+    // A visitor walks on the floor and cant fly, so preview starts standing there too
+    if (this.state.view === "third") this.startWalking(true);
+    else this.standOnFloor();
+    this.fps.setFlightAllowed(false);
     this.setState({ mode: "visitor" });
   }
 
   private exitVisitor(): void {
     if (this.state.mode !== "visitor") return;
+    this.fps.setFlightAllowed(true);
     if (this.camera instanceof THREE.PerspectiveCamera && this.previewFov !== undefined) {
       this.camera.fov = this.previewFov;
       this.camera.updateProjectionMatrix();
@@ -126,6 +138,8 @@ export class ModeManager {
   // From the orbit camera. The editor stand you on the floor where the camera was looking,
   // preview keep the camera where it is (flying) like before
   private startWalking(onFloor: boolean): void {
+    if (this.camera instanceof THREE.PerspectiveCamera) this.lensFov = this.camera.fov;
+    this.setFov(WALKING_FOV);
     this.savedPosition.copy(this.camera.position);
     this.savedQuaternion.copy(this.camera.quaternion);
     this.savedTarget.copy(this.orbit.target);
@@ -144,7 +158,28 @@ export class ModeManager {
     }
   }
 
+  // Flying in first person, then stand where the view meets the floor. Looking at the sky or
+  // far off drops straight down instead
+  private standOnFloor(): void {
+    if (this.camera.position.y <= EYE_HEIGHT + 1e-4) return;
+    const forward = this.camera.getWorldDirection(new THREE.Vector3());
+    const facing = forward.clone().setY(0);
+    if (facing.lengthSq() < 1e-8) facing.set(0, 0, -1);
+    const reach = -this.camera.position.y / forward.y;
+    if (forward.y < -1e-4 && reach < 50) this.camera.position.addScaledVector(forward, reach);
+    this.camera.position.y = EYE_HEIGHT;
+    this.fps.syncFromCamera();
+    this.fps.lookAt(this.camera.position.clone().add(facing));
+  }
+
+  private setFov(fov: number | undefined): void {
+    if (fov === undefined || !(this.camera instanceof THREE.PerspectiveCamera)) return;
+    this.camera.fov = fov;
+    this.camera.updateProjectionMatrix();
+  }
+
   private stopWalking(): void {
+    this.setFov(this.lensFov);
     this.fps.disengage();
     this.camera.position.copy(this.savedPosition);
     this.camera.quaternion.copy(this.savedQuaternion);

@@ -10,7 +10,7 @@ import { HOTSPOT_ASSET, HOTSPOT_ASSET_ID } from "../shared/asset-runtime/hotspot
 import type { SceneObject, Vector3Tuple } from "../shared/project/scene-object";
 import type { HotspotDropTarget, ProjectHotspot, Transform } from "../shared/project/project-types";
 import { missingProjectCapabilities } from "../shared/project/project-capabilities";
-import { playUiSound } from "./audio/ui-sounds";
+import { playUiSound, setUiSoundVolume } from "./audio/ui-sounds";
 import { createDocumentStore } from "./document-store";
 import {
   handleDeleteShortcut,
@@ -28,8 +28,10 @@ import { Button } from "../shared/ui/Button";
 import { BottomBar } from "./ui/BottomBar";
 import { ContentEditor, type ContentKind, type ExhibitFields } from "./ui/ContentEditor";
 import { PreviewTargets } from "./ui/PreviewTargets";
+import { SettingsPanel } from "./ui/SettingsPanel";
 import { SidePanels } from "./ui/SidePanels";
 import { TopBar } from "./ui/TopBar";
+import { applyTheme, loadSettings, saveSettings, type UserSettings } from "./ui/user-settings";
 import { OlderSceneImport } from "./OlderSceneImport";
 import { Scenes } from "./Scenes";
 import { Viewpoints } from "./Viewpoints";
@@ -162,6 +164,15 @@ export function App({ server }: { server?: ServerEditorSession }) {
   const [manager, setManager] = useState<ModeManager | null>(null);
   const [mobileControls, setMobileControls] = useState<FpsMobileControls | null>(null);
   const [modeState, setModeState] = useState<ModeManagerState | null>(null);
+  const [settings, setSettings] = useState<UserSettings>(loadSettings);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  // Saved settings apply straight away and are remembered in this browser
+  useEffect(() => {
+    saveSettings(settings);
+    setUiSoundVolume(settings.volume);
+    applyTheme(settings.theme);
+  }, [settings]);
+  const closeSettings = useCallback(() => setSettingsOpen(false), []);
   const selection = objects.some((object) => object.id === selectedId) ? selectedId : null;
   const projectScene = useMemo(
     () => project?.scenes.find((scene) => scene.id === activeSceneId),
@@ -714,6 +725,19 @@ export function App({ server }: { server?: ServerEditorSession }) {
         }}
         view={view}
         onToggleView={() => setView((previous) => (previous === "first" ? "third" : "first"))}
+        settingsPanel={
+          settingsOpen ? (
+            <SettingsPanel
+              settings={settings}
+              onSave={(next) => {
+                setSettings(next);
+                setSettingsOpen(false);
+              }}
+              onClose={closeSettings}
+            />
+          ) : null
+        }
+        onSettings={() => setSettingsOpen((open) => !open)}
       />
       {/* Reset the input so choosing the same file again still fires a change */}
       {!server && (
@@ -1007,9 +1031,13 @@ export function App({ server }: { server?: ServerEditorSession }) {
             <>
               {captured && <span className="crosshair" aria-hidden="true" />}
               <p className="walk-hint">
-                {captured
-                  ? `${visitor ? "" : "Click selects what's under the + · Hold the click to carry it, scroll to push or pull · Hold right click to turn it · "}Hold Alt for the mouse · Esc to stop`
-                  : `${canCapture ? "Click the scene" : "Drag"} to look around · WASD to walk · Space to jump, double tap to fly · C to go down`}
+                {visitor
+                  ? captured
+                    ? "Preview mode · Left click to interact · Hold Alt for the mouse · Esc to stop"
+                    : `Preview mode · ${canCapture ? "Click the scene" : "Drag"} to look around · WASD to walk · Space to jump`
+                  : captured
+                    ? "Click selects what's under the + · Hold the click to carry it, scroll to push or pull · Hold right click to turn it · Hold Alt for the mouse · Esc to stop"
+                    : `${canCapture ? "Click the scene" : "Drag"} to look around · WASD to walk · Space to jump, double tap to fly · C to go down`}
               </p>
             </>
           )}

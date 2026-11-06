@@ -2,8 +2,9 @@ import * as THREE from "three";
 import { isTextEditingTarget } from "../history-shortcuts";
 
 export const EYE_HEIGHT = 0.9;
-const WALK_SPEED = 5;
-const SPRINT_SPEED = 12;
+// Slower than before, 5 and 12 m/s made people feel sick
+const WALK_SPEED = 3;
+const SPRINT_SPEED = 7;
 const ACCELERATION = 60;
 const GRAVITY = 20;
 const JUMP_SPEED = 6;
@@ -60,6 +61,8 @@ export class FpsControls {
   private altFreed = false;
   // Turning a held object uses the mouse, so the camera doesnt look around meanwhile
   private lookHeld = false;
+  // Preview walks like a visitor, double tapping Space doesnt start flying there
+  private flightAllowed = true;
   private readonly _euler = new THREE.Euler(0, 0, 0, "YXZ");
   private readonly physicsPosition = new THREE.Vector3();
   private readonly previousPhysics = new THREE.Vector3();
@@ -81,7 +84,7 @@ export class FpsControls {
     },
     jump: () => {
       const now = performance.now();
-      if (now - this.lastMobileJump < DOUBLE_TAP_MS) {
+      if (this.flightAllowed && now - this.lastMobileJump < DOUBLE_TAP_MS) {
         this.flying = !this.flying;
         this.velocity.y = 0;
         this.lastMobileJump = -Infinity;
@@ -182,6 +185,10 @@ export class FpsControls {
 
   holdLook(held: boolean): void {
     this.lookHeld = held;
+  }
+
+  setFlightAllowed(allowed: boolean): void {
+    this.flightAllowed = allowed;
   }
 
   // A viewpoint or saved camera just moved the camera, carry on from exactly that pose
@@ -381,7 +388,7 @@ export class FpsControls {
     if (!HANDLED_KEYS.has(event.code)) return;
     event.preventDefault();
     if (event.code === "Space" && !event.repeat) {
-      if (event.timeStamp - this.lastSpace < DOUBLE_TAP_MS) {
+      if (this.flightAllowed && event.timeStamp - this.lastSpace < DOUBLE_TAP_MS) {
         this.flying = !this.flying;
         this.velocity.y = 0;
         this.lastSpace = -Infinity;

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import sampleProject from "../../shared/project/fixtures/m1-project.json";
 import type { CameraView } from "../graphics/modeManager";
 import type { useProjectSession } from "../persistence/use-project-session";
@@ -33,6 +33,8 @@ export function TopBar({
   onExitPreview,
   view,
   onToggleView,
+  settingsPanel,
+  onSettings,
 }: {
   session: ReturnType<typeof useProjectSession>;
   serverMode?: boolean;
@@ -53,6 +55,9 @@ export function TopBar({
   onExitPreview: () => void;
   view: CameraView;
   onToggleView: () => void;
+  // The open settings panel, or null while it is closed
+  settingsPanel: ReactNode;
+  onSettings: () => void;
 }) {
   const menu = useRef<HTMLDetailsElement>(null);
   useEffect(() => {
@@ -276,6 +281,23 @@ export function TopBar({
           >
             <Icon name="overview" />
           </button>
+        )}
+        {!visitor && (
+          // The panel drops down right under the button
+          <div className="settings-anchor">
+            <button
+              className="ui-button icon-button"
+              type="button"
+              aria-label="Settings"
+              aria-expanded={settingsPanel !== null}
+              aria-controls="settings-panel"
+              title="Settings"
+              onClick={onSettings}
+            >
+              <Icon name="settings" />
+            </button>
+            {settingsPanel}
+          </div>
         )}
         {visitor ? (
           <button className="ui-button pill-button" type="button" onClick={onExitPreview}>
