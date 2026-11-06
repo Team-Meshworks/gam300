@@ -1,4 +1,5 @@
 import { launchBrowser } from "./browser-security.mjs";
+import { placeAtRoomCenter } from "./placement-fixture.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import * as THREE from "three";
@@ -49,7 +50,7 @@ async function openLibrary(page) {
 }
 
 // Clicking a card only picks it, Add is what places it
-async function addAsset(page, name, position = { x: 500, y: 300 }) {
+async function addAsset(page, name, position) {
   if (name === "Starter room") {
     if (await page.locator(".asset-picker").count()) await page.keyboard.press("Escape");
     const overview = page.getByRole("button", { name: "Third person", exact: true });
@@ -64,14 +65,15 @@ async function addAsset(page, name, position = { x: 500, y: 300 }) {
     await page.locator(".asset-picker").getByRole("button", { name, exact: true }).click();
     await page.getByRole("button", { name: "Add", exact: true }).click();
   }
-  // Wait for React to arm placement before clicking; the room centre stays valid across viewport sizes
+  // Wait for React to arm placement before clicking
   const stage = page.locator(".viewport-stage[data-placing-asset]");
-  await stage.waitFor();
-  await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
-  const bounds = await stage.boundingBox();
-  await stage.click({
-    position: name === "Starter room" ? { x: bounds.width / 2, y: bounds.height / 2 } : position,
-  });
+  if (position) {
+    await stage.waitFor();
+    await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
+    await stage.click({ position });
+  } else {
+    await placeAtRoomCenter(page);
+  }
   await stage.waitFor({ state: "hidden" });
 }
 
@@ -184,6 +186,7 @@ try {
   const filterMenu = page.getByRole("listbox", { name: "Filter assets" });
   const availableCategories = await page.evaluate(async () => {
     const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
+    const { furnitureTools } = await import("/ui/furniture-tools.ts");
     return [
       ...new Set(
         assets
@@ -191,6 +194,7 @@ try {
             (item) =>
               item.displayRole === undefined &&
               item.kind === "model" &&
+              !furnitureTools.some((tool) => tool.assetId === item.id) &&
               item.id !== "test-room-module-v1" &&
               item.id !== "test-room-v1",
           )
@@ -363,8 +367,13 @@ try {
   assert.equal(await page.locator(".walk-hint").count(), 0);
   const stageBox = await stage.boundingBox();
   assert.ok(stageBox);
-  const dropPoint = await dropPointBesideLibrary();
-  await asset.dragTo(stage, { targetPosition: dropPoint });
+  await openLibrary(page);
+  const dropPoint = { x: stageBox.width / 2 + 100, y: stageBox.height / 2 };
+  // Dragging hides the library that initially covers this valid room position
+  await asset.dragTo(stage, {
+    targetPosition: dropPoint,
+    force: true,
+  });
   assert.equal(await rows.count(), 2, "One completed drop creates one object");
   assert.equal(await picker.count(), 0, "A finished drop closes the library");
   const secondId = await rows.nth(1).getAttribute("data-object-id");
@@ -952,7 +961,7 @@ try {
     await roomInstance.click();
     await addAsset(nested, "Sample crate");
     // Placement follows the room under the pointer; explicit nesting remains a tree drop.
-    await nested.locator("[data-object-id]").last().dragTo(roomInstance);
+    await nested.locator('.object-row[aria-pressed="true"]').dragTo(roomInstance);
     assert.equal(await roomInstance.locator("../..").locator("[data-object-id]").count(), 2);
     const child = roomInstance.locator("../..").locator("[data-object-id]").last();
     const movedId = await child.getAttribute("data-object-id");

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { launchBrowser } from "./browser-security.mjs";
+import { placeAtRoomCenter } from "./placement-fixture.mjs";
 
 const browser = await launchBrowser({
   target: process.argv[2] ?? "http://127.0.0.1:5173/",
@@ -22,7 +23,7 @@ try {
   await library.getByRole("button", { name: "Close asset library", exact: true }).click();
   await page.getByRole("button", { name: "Rooms", exact: true }).click();
   await page.getByRole("button", { name: "Starter room", exact: true }).click();
-  await page.locator(".viewport-stage").click({ position: { x: 500, y: 300 } });
+  await placeAtRoomCenter(page);
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   const screenshots = fileURLToPath(new URL("../test-results/furniture-tools/", import.meta.url));
   await mkdir(screenshots, { recursive: true });
@@ -38,7 +39,7 @@ try {
     assert.equal(await icon.getAttribute("alt"), "");
     if (index === 0) await page.screenshot({ path: `${screenshots}/furniture-options.png` });
     await option.click();
-    await page.locator(".viewport-stage").click({ position: { x: 500 + index * 400, y: 300 } });
+    await placeAtRoomCenter(page);
     await page.waitForFunction(
       (count) => document.querySelectorAll(".object-row").length === count,
       index + 1,
@@ -49,7 +50,7 @@ try {
   await page
     .getByRole("group", { name: "Furniture options" })
     .getByRole("button", { name: "Modern bench 1", exact: true })
-    .dragTo(page.locator(".viewport-stage"), { targetPosition: { x: 600, y: 350 } });
+    .dragTo(page.locator(".viewport-stage"));
   await page.waitForFunction(() => document.querySelectorAll(".object-row").length === 3);
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   await page.waitForFunction(() => document.querySelectorAll(".object-row").length === 2);

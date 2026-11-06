@@ -1,4 +1,5 @@
 import { launchBrowser } from "./browser-security.mjs";
+import { placeAtRoomCenter } from "./placement-fixture.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
@@ -18,7 +19,7 @@ async function add(page, name) {
       .getByRole("group", { name: "Rooms options", exact: true })
       .getByRole("button", { name, exact: true })
       .click();
-    await page.locator(".viewport-stage").click({ position: { x: 500, y: 300 } });
+    await placeAtRoomCenter(page);
     return;
   }
 
@@ -26,7 +27,7 @@ async function add(page, name) {
     await page.getByRole("button", { name: "Asset library", exact: true }).click();
   await page.locator(".asset-picker").getByRole("button", { name, exact: true }).click();
   await page.getByRole("button", { name: "Add", exact: true }).click();
-  await page.locator(".viewport-stage").click({ position: { x: 500, y: 300 } });
+  await placeAtRoomCenter(page);
 }
 async function backup(page, expectedUrl, count) {
   const deadline = Date.now() + 12000;

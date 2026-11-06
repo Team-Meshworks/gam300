@@ -177,6 +177,14 @@ jobs:
             script: test:asset-admin
           - name: integration
             script: test:integration
+          - name: furniture-tools
+            script: test:furniture-tools
+          - name: panel-style
+            script: test:panel-style
+          - name: placement-collision
+            script: test:placement-collision
+          - name: moving-room-collision
+            script: test:moving-room-collision
           - name: first-person-sandbox
             script: test:first-person-sandbox
           - name: caching

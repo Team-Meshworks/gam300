@@ -1,4 +1,5 @@
 import { launchBrowser, launchPersistentBrowser } from "./browser-security.mjs";
+import { placeAtRoomCenter } from "./placement-fixture.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
@@ -34,14 +35,14 @@ async function addAsset(page, name) {
       .getByRole("group", { name: "Rooms options", exact: true })
       .getByRole("button", { name, exact: true })
       .click();
-    await page.locator(".viewport-stage").click({ position: { x: 500, y: 300 } });
+    await placeAtRoomCenter(page);
     return;
   }
 
   await openLibrary(page);
   await page.locator(".asset-picker").getByRole("button", { name, exact: true }).click();
   await page.getByRole("button", { name: "Add", exact: true }).click();
-  await page.locator(".viewport-stage").click({ position: { x: 500, y: 300 } });
+  await placeAtRoomCenter(page);
 }
 
 try {
@@ -435,7 +436,7 @@ try {
     await dialog.accept();
   });
   await legacyPage.goto(process.argv[2] ?? "http://127.0.0.1:5173/");
-  await legacyPage.waitForFunction(() => !document.querySelector(".workspace").inert);
+  await legacyPage.waitForFunction(() => document.querySelector(".workspace")?.inert === false);
   const legacyResult = await legacyPage.evaluate(async (fixture) => {
     const { saveLocalDraft, loadLatestLocalDraft } = await import("/persistence/local-drafts.ts");
     const { assets } = await import("/@id/__x00__virtual:asset-catalogue");

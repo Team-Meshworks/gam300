@@ -1,3 +1,4 @@
+import { placeAtRoomCenter } from "./placement-fixture.mjs";
 import { launchBrowser } from "./browser-security.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -28,13 +29,13 @@ async function addAsset(page, name) {
       .getByRole("group", { name: "Rooms options", exact: true })
       .getByRole("button", { name, exact: true })
       .click();
-    await page.locator(".viewport-stage").click({ position: { x: 500, y: 300 } });
+    await placeAtRoomCenter(page);
     return;
   }
   await openLibrary(page);
   await page.locator(".asset-picker").getByRole("button", { name, exact: true }).click();
   await page.getByRole("button", { name: "Add", exact: true }).click();
-  await page.locator(".viewport-stage").click({ position: { x: 500, y: 300 } });
+  await placeAtRoomCenter(page);
 }
 
 try {

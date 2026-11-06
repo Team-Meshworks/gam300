@@ -230,6 +230,10 @@ Individual maintenance commands below run from `apps/web/`:
 | `npm run test:integration`                          | Check visitor isolation, loaded cameras, gizmos and edit cancellation |
 | `npm run test:recovery`                             | Check place–move–undo–save–reload, file transfer and failure recovery |
 | `npm run test:history`                              | Check recovered undo/redo and damaged-history handling                |
+| `npm run test:panel-style`                          | Check Scene Tree and Saved Views panel styling                        |
+| `npm run test:furniture-tools`                      | Check furniture placement, history and recovery                       |
+| `npm run test:placement-collision`                  | Check room bounds and display placement collisions                    |
+| `npm run test:moving-room-collision`                | Check room and object movement with collision constraints             |
 | `npm run test:deployment -- http://localhost:8081/` | Check the running container build                                     |
 
 Browser checks require a non-root user and official Google Chrome (or Chrome for
@@ -253,8 +257,9 @@ If the host cannot support that sandbox, use a sandbox-capable non-root host. Do
 add `--no-sandbox`, privileged containers, or weaken host security settings.
 
 Keep `npm run dev` running in one terminal, then run `test:browser`, `test:integration`,
-`test:recovery` and `test:history` with `npm run` in another. All accept a loopback
-server URL, for example `npm run test:recovery -- http://127.0.0.1:5186/`.
+`test:recovery`, `test:history`, `test:panel-style`, `test:furniture-tools`,
+`test:placement-collision` and `test:moving-room-collision` with `npm run` in another.
+All accept a loopback server URL, for example `npm run test:recovery -- http://127.0.0.1:5186/`.
 Each browser is restricted to its explicitly selected local test origin through a
 forwarding proxy, including redirects, popups and WebSockets; service workers are
 blocked. Existing disposable HTTPS fixtures retain their local-only TLS exception.
