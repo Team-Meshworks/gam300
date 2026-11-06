@@ -27,7 +27,7 @@ public sealed class AdministrationEndpointTests
         await using var fixture = await AdministratorFixtureAsync();
         var organizationId = role == ApplicationRoles.Administrator ? (Guid?)null : await CreateOrganizationAsync(fixture);
         var userName = "account-" + Guid.NewGuid().ToString("N");
-        using var response = await SendAsync(fixture, "/api/admin/users", new
+        using var response = await SendAsync(fixture, "/api/v1/admin/users", new
         {
             userName,
             initialPassword = InitialPassword,
@@ -76,7 +76,7 @@ public sealed class AdministrationEndpointTests
         {
             name = " " + new string('a', 254) + " ";
         }
-        using var response = await SendAsync(fixture, "/api/admin/organizations", new { name });
+        using var response = await SendAsync(fixture, "/api/v1/admin/organizations", new { name });
         await Assert.That(response.StatusCode).IsEqualTo(valid ? HttpStatusCode.Created : HttpStatusCode.BadRequest);
         await using var scope = fixture.Database.Services.CreateAsyncScope();
         var organizations = await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().Organizations.ToArrayAsync();
@@ -99,7 +99,7 @@ public sealed class AdministrationEndpointTests
     public async Task Provision_UserNameBounds_AreEnforcedBeforeCommit(int length, bool valid)
     {
         await using var fixture = await AdministratorFixtureAsync();
-        using var response = await SendAsync(fixture, "/api/admin/users", new
+        using var response = await SendAsync(fixture, "/api/v1/admin/users", new
         {
             userName = new string('a', length),
             initialPassword = InitialPassword,
@@ -126,7 +126,7 @@ public sealed class AdministrationEndpointTests
         await using var fixture = await AdministratorFixtureAsync();
         var target = await fixture.CreateAccountAsync();
         var password = new string('a', length);
-        var path = operation == "reset" ? $"/api/admin/users/{target:D}/password" : "/api/admin/users";
+        var path = operation == "reset" ? $"/api/v1/admin/users/{target:D}/password" : "/api/v1/admin/users";
         object body = operation == "reset" ? new { newTemporaryPassword = password } : new
         {
             userName = "length-test",
@@ -197,8 +197,8 @@ public sealed class AdministrationEndpointTests
             "null" => "{" + JsonSerializer.Serialize(field) + ":null" + tail + "}",
             _ => "{" + JsonSerializer.Serialize(field) + ":42" + tail + "}",
         };
-        var path = operation == "organization" ? "/api/admin/organizations" : operation == "user"
-            ? "/api/admin/users" : $"/api/admin/users/{target:D}/password";
+        var path = operation == "organization" ? "/api/v1/admin/organizations" : operation == "user"
+            ? "/api/v1/admin/users" : $"/api/v1/admin/users/{target:D}/password";
         using var response = await SendRawAsync(fixture, path, json);
         await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
         await Assert.That(await database.Users.CountAsync()).IsEqualTo(2);
@@ -213,7 +213,7 @@ public sealed class AdministrationEndpointTests
             await Assert.That(user.LockoutEnd).IsEqualTo(before.LockoutEnd);
             await Assert.That(user.LockoutEnabled).IsEqualTo(before.LockoutEnabled);
             await Assert.That(response.Headers.Contains("Set-Cookie")).IsFalse();
-            using var existing = await targetClient!.GetAsync("/api/auth/session");
+            using var existing = await targetClient!.GetAsync("/api/v1/auth/session");
             await Assert.That(existing.StatusCode).IsEqualTo(HttpStatusCode.OK);
             var current = await existing.Content.ReadFromJsonAsync<JsonElement>();
             await Assert.That(current.GetProperty("userId").GetGuid()).IsEqualTo(target);
@@ -240,7 +240,7 @@ public sealed class AdministrationEndpointTests
             await update.ServiceProvider.GetRequiredService<ApplicationDbContext>().Organizations.Where(org => org.Id == orgId)
                 .ExecuteUpdateAsync(setters => setters.SetProperty(org => org.IsActive, false));
         }
-        using var response = await SendAsync(fixture, "/api/admin/users", new
+        using var response = await SendAsync(fixture, "/api/v1/admin/users", new
         {
             userName = "rejected-account",
             initialPassword = InitialPassword,
@@ -259,7 +259,7 @@ public sealed class AdministrationEndpointTests
     public async Task Organization_EmbeddedNul_IsRejectedAtInputBoundary()
     {
         await using var fixture = await AdministratorFixtureAsync();
-        using var response = await SendAsync(fixture, "/api/admin/organizations", new { name = "invalid\0organization" });
+        using var response = await SendAsync(fixture, "/api/v1/admin/organizations", new { name = "invalid\0organization" });
         await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
         await using var scope = fixture.Database.Services.CreateAsyncScope();
         await Assert.That(await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().Organizations.CountAsync()).IsEqualTo(0);
@@ -307,7 +307,7 @@ public sealed class AdministrationEndpointTests
                 await transaction.CommitAsync();
             }
         }
-        foreach (var path in new[] { "/api/admin/organizations", "/api/admin/users", $"/api/admin/users/{Guid.NewGuid():D}/password" })
+        foreach (var path in new[] { "/api/v1/admin/organizations", "/api/v1/admin/users", $"/api/v1/admin/users/{Guid.NewGuid():D}/password" })
         {
             using var response = await SendRawAsync(fixture, path, "{}", token);
             await Assert.That((int)response.StatusCode).IsEqualTo(status);
@@ -319,21 +319,21 @@ public sealed class AdministrationEndpointTests
     public async Task Administration_RequiresCsrfAndNamedWriteRateLimit()
     {
         await using var fixture = await AdministratorFixtureAsync();
-        using var missing = await fixture.Client.PostAsJsonAsync("/api/admin/organizations", new { name = "missing token" });
+        using var missing = await fixture.Client.PostAsJsonAsync("/api/v1/admin/organizations", new { name = "missing token" });
         await Assert.That(missing.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
         var token = await fixture.GetCsrfAsync();
         var stranger = fixture.CreateClient();
         await fixture.SignInAsync(await fixture.CreateAccountAsync(), stranger);
         var otherToken = await fixture.GetCsrfAsync(stranger);
-        using var wrong = await SendAsync(fixture, "/api/admin/organizations", new { name = "wrong token" }, otherToken);
+        using var wrong = await SendAsync(fixture, "/api/v1/admin/organizations", new { name = "wrong token" }, otherToken);
         await Assert.That(wrong.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
         // CSRF failures have already consumed two of this account's twenty write permits
         for (var index = 0; index < 18; index++)
         {
-            using var accepted = await SendAsync(fixture, "/api/admin/organizations", new { name = "bounded organization " + index }, token);
+            using var accepted = await SendAsync(fixture, "/api/v1/admin/organizations", new { name = "bounded organization " + index }, token);
             await Assert.That(accepted.StatusCode).IsEqualTo(HttpStatusCode.Created);
         }
-        using var rejected = await SendAsync(fixture, "/api/admin/organizations", new { name = "over limit" }, token);
+        using var rejected = await SendAsync(fixture, "/api/v1/admin/organizations", new { name = "over limit" }, token);
         await Assert.That(rejected.StatusCode).IsEqualTo(HttpStatusCode.TooManyRequests);
         await Assert.That(rejected.Headers.RetryAfter is not null).IsTrue();
     }
@@ -348,7 +348,7 @@ public sealed class AdministrationEndpointTests
         var orgId = await CreateOrganizationAsync(fixture);
         var token = await fixture.GetCsrfAsync();
         barrier.Arm();
-        var tasks = new[] { "ConcurrentAccount", "concurrentaccount" }.Select(userName => SendAsync(fixture, "/api/admin/users", new
+        var tasks = new[] { "ConcurrentAccount", "concurrentaccount" }.Select(userName => SendAsync(fixture, "/api/v1/admin/users", new
         {
             userName,
             initialPassword = InitialPassword,
@@ -360,7 +360,7 @@ public sealed class AdministrationEndpointTests
         {
             await Assert.That(responses.Count(response => response.StatusCode == HttpStatusCode.Created)).IsEqualTo(1);
             await Assert.That(responses.Count(response => response.StatusCode == HttpStatusCode.Conflict)).IsEqualTo(1);
-            using var sequential = await SendAsync(fixture, "/api/admin/users", new
+            using var sequential = await SendAsync(fixture, "/api/v1/admin/users", new
             {
                 userName = "CONCURRENTACCOUNT",
                 initialPassword = InitialPassword,
@@ -395,7 +395,7 @@ public sealed class AdministrationEndpointTests
         await using var fixture = await AdministratorFixtureAsync(interceptor);
         var orgId = await CreateOrganizationAsync(fixture);
         interceptor.Arm();
-        using var response = await SendAsync(fixture, "/api/admin/users", new
+        using var response = await SendAsync(fixture, "/api/v1/admin/users", new
         {
             userName = "rollback-account",
             initialPassword = InitialPassword,
@@ -438,7 +438,7 @@ public sealed class AdministrationEndpointTests
                 .Select(member => member.OrganizationId).SingleAsync();
             await database.SaveChangesAsync();
         }
-        using var response = await SendAsync(fixture, $"/api/admin/users/{id:D}/password", new { newTemporaryPassword = ReplacementPassword });
+        using var response = await SendAsync(fixture, $"/api/v1/admin/users/{id:D}/password", new { newTemporaryPassword = ReplacementPassword });
         await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
         await Assert.That(response.Headers.Contains("Set-Cookie")).IsFalse();
         await Assert.That((await response.Content.ReadAsByteArrayAsync()).Length).IsEqualTo(0);
@@ -471,7 +471,7 @@ public sealed class AdministrationEndpointTests
     {
         await using var fixture = await AdministratorFixtureAsync();
         var id = Guid.Parse(fixture.ReadTicket().Principal.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
-        using var response = await SendAsync(fixture, $"/api/admin/users/{id:D}/password", new { newTemporaryPassword = ReplacementPassword });
+        using var response = await SendAsync(fixture, $"/api/v1/admin/users/{id:D}/password", new { newTemporaryPassword = ReplacementPassword });
         await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
         await Assert.That(response.Headers.Contains("Set-Cookie")).IsFalse();
         using var next = await fixture.Client.GetAsync("/_test/admin");
@@ -500,7 +500,7 @@ public sealed class AdministrationEndpointTests
             concurrency = user.ConcurrencyStamp!;
         }
         interceptor.Arm();
-        using var response = await SendAsync(fixture, $"/api/admin/users/{id:D}/password", new { newTemporaryPassword = ReplacementPassword });
+        using var response = await SendAsync(fixture, $"/api/v1/admin/users/{id:D}/password", new { newTemporaryPassword = ReplacementPassword });
         await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.InternalServerError);
         await using (var after = fixture.Database.Services.CreateAsyncScope())
         {
@@ -524,7 +524,7 @@ public sealed class AdministrationEndpointTests
         var token = await fixture.GetCsrfAsync();
         var passwords = new[] { "Concurrent reset password A", "Concurrent reset password B" };
         barrier.Arm();
-        var responses = await Task.WhenAll(passwords.Select(password => SendAsync(fixture, $"/api/admin/users/{id:D}/password",
+        var responses = await Task.WhenAll(passwords.Select(password => SendAsync(fixture, $"/api/v1/admin/users/{id:D}/password",
             new { newTemporaryPassword = password }, token)));
         try
         {
@@ -553,7 +553,7 @@ public sealed class AdministrationEndpointTests
     public async Task Reset_MissingTarget_Is404OnlyAfterAdministratorAuthorization()
     {
         await using var fixture = await AdministratorFixtureAsync();
-        using var response = await SendAsync(fixture, $"/api/admin/users/{Guid.NewGuid():D}/password", new { newTemporaryPassword = ReplacementPassword });
+        using var response = await SendAsync(fixture, $"/api/v1/admin/users/{Guid.NewGuid():D}/password", new { newTemporaryPassword = ReplacementPassword });
         await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
     }
 
@@ -562,7 +562,7 @@ public sealed class AdministrationEndpointTests
     {
         await using var fixture = await AdministratorFixtureAsync();
         const string password = "  unchanged password  ";
-        using var response = await SendAsync(fixture, "/api/admin/users", new
+        using var response = await SendAsync(fixture, "/api/v1/admin/users", new
         {
             userName = "raw-name",
             initialPassword = password,
@@ -576,7 +576,7 @@ public sealed class AdministrationEndpointTests
         var user = await manager.FindByIdAsync(id.ToString("D")) ?? throw new InvalidOperationException("Missing raw password target.");
         await Assert.That(await manager.CheckPasswordAsync(user, password)).IsTrue();
         await Assert.That(await manager.CheckPasswordAsync(user, password.Trim())).IsFalse();
-        using var spaced = await SendAsync(fixture, "/api/admin/users", new
+        using var spaced = await SendAsync(fixture, "/api/v1/admin/users", new
         {
             userName = " raw-name ",
             initialPassword = password,
@@ -593,7 +593,7 @@ public sealed class AdministrationEndpointTests
     public async Task Organization_MalformedUnicodeOrEscapedDuplicate_IsFixed400(string json)
     {
         await using var fixture = await AdministratorFixtureAsync();
-        using var response = await SendRawAsync(fixture, "/api/admin/organizations", json);
+        using var response = await SendRawAsync(fixture, "/api/v1/admin/organizations", json);
         await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
         await AssertSafeAsync(fixture, response, HttpsApplicationFixture.SecretSentinel);
     }
@@ -602,7 +602,7 @@ public sealed class AdministrationEndpointTests
     public async Task Organization_InvalidRawUtf8_IsFixed400()
     {
         await using var fixture = await AdministratorFixtureAsync();
-        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/admin/organizations")
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/admin/organizations")
         {
             Content = new ByteArrayContent([123, 34, 110, 97, 109, 101, 34, 58, 34, 0xC3, 0x28, 34, 125]),
         };
@@ -620,7 +620,7 @@ public sealed class AdministrationEndpointTests
             builder.Services.AddSingleton<IUserValidator<ApplicationUser>>(validator));
         await fixture.SignInAsync(await fixture.CreateAccountAsync(ApplicationRoles.Administrator));
         var orgId = await CreateOrganizationAsync(fixture);
-        using var response = await SendAsync(fixture, "/api/admin/users", new
+        using var response = await SendAsync(fixture, "/api/v1/admin/users", new
         {
             userName = "identity-rollback",
             initialPassword = InitialPassword,
@@ -644,7 +644,7 @@ public sealed class AdministrationEndpointTests
         var id = Guid.Parse(before.Principal.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
         var token = await fixture.GetCsrfAsync();
         fixture.Clock.Advance(TimeSpan.FromMinutes(5) + TimeSpan.FromSeconds(1));
-        using var response = await SendAsync(fixture, $"/api/admin/users/{id:D}/password",
+        using var response = await SendAsync(fixture, $"/api/v1/admin/users/{id:D}/password",
             new { newTemporaryPassword = ReplacementPassword }, token);
         await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
         var after = fixture.ReadTicket();
@@ -664,7 +664,7 @@ public sealed class AdministrationEndpointTests
     public async Task Provision_NullableOrganizationKeyIsStillRequired()
     {
         await using var fixture = await AdministratorFixtureAsync();
-        using var response = await SendAsync(fixture, "/api/admin/users", new
+        using var response = await SendAsync(fixture, "/api/v1/admin/users", new
         {
             userName = "missing-org-key",
             initialPassword = InitialPassword,
@@ -692,7 +692,7 @@ public sealed class AdministrationEndpointTests
 
     private static async Task<Guid> CreateOrganizationAsync(HttpsApplicationFixture fixture)
     {
-        using var response = await SendAsync(fixture, "/api/admin/organizations", new { name = "Synthetic admin organization" });
+        using var response = await SendAsync(fixture, "/api/v1/admin/organizations", new { name = "Synthetic admin organization" });
         if (response.StatusCode != HttpStatusCode.Created)
         {
             throw new InvalidOperationException("Expected a synthetic organization to be created.");

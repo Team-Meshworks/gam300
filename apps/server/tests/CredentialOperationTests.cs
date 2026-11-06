@@ -39,7 +39,7 @@ public sealed class CredentialOperationTests
         var token = await fixture.GetCsrfAsync(client);
         var name = await AuthTestRequests.UserNameAsync(fixture, target);
         barrier.Arm(target);
-        var request = AuthTestRequests.PostAsync(fixture, "/api/auth/login", new
+        var request = AuthTestRequests.PostAsync(fixture, "/api/v1/auth/login", new
         {
             userName = name,
             password = AuthTestRequests.CurrentPassword,
@@ -52,7 +52,7 @@ public sealed class CredentialOperationTests
         await AuthTestRequests.AssertProblemAsync(response, HttpStatusCode.Unauthorized, "login_failed");
         await Assert.That(response.Headers.Contains("Set-Cookie")).IsFalse();
         await AssertResetWonAsync(fixture, target);
-        using var session = await client.GetAsync("/api/auth/session");
+        using var session = await client.GetAsync("/api/v1/auth/session");
         await Assert.That(session.StatusCode).IsEqualTo(HttpStatusCode.Unauthorized);
         await AssertSafeAsync(fixture, response);
     }
@@ -70,7 +70,7 @@ public sealed class CredentialOperationTests
         var token = await fixture.GetCsrfAsync();
         fixture.Clock.Advance(TimeSpan.FromMinutes(5) + TimeSpan.FromSeconds(1));
         gate.Arm(target);
-        var request = AuthTestRequests.PostAsync(fixture, "/api/auth/password", new
+        var request = AuthTestRequests.PostAsync(fixture, "/api/v1/auth/password", new
         {
             currentPassword = AuthTestRequests.CurrentPassword,
             newPassword = AuthTestRequests.NewPassword,
@@ -82,7 +82,7 @@ public sealed class CredentialOperationTests
         }, () => gate.Release.TrySetResult());
         await AuthTestRequests.AssertProblemAsync(response, HttpStatusCode.Conflict, "account_conflict");
         await AssertResetWonAsync(fixture, target);
-        using var stale = await fixture.Client.GetAsync("/api/auth/session");
+        using var stale = await fixture.Client.GetAsync("/api/v1/auth/session");
         await Assert.That(stale.StatusCode).IsEqualTo(HttpStatusCode.Unauthorized);
         await AssertSafeAsync(fixture, response);
     }
@@ -113,7 +113,7 @@ public sealed class CredentialOperationTests
         await fixture.SignInAsync(await fixture.CreateAccountAsync(ApplicationRoles.Administrator), administratorClient);
         var token = await fixture.GetCsrfAsync();
         gate.Arm(target);
-        var request = AuthTestRequests.PostAsync(fixture, "/api/auth/password", new
+        var request = AuthTestRequests.PostAsync(fixture, "/api/v1/auth/password", new
         {
             currentPassword = AuthTestRequests.CurrentPassword,
             newPassword = AuthTestRequests.NewPassword,
@@ -133,7 +133,7 @@ public sealed class CredentialOperationTests
         await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
         await Assert.That(fixture.ReadTicket().Properties.Items[HttpsApplicationFixture.AbsoluteExpiryKey]).IsEqualTo(originalCutoff);
         await AssertResetWonAsync(fixture, target);
-        using var stale = await fixture.Client.GetAsync("/api/auth/session");
+        using var stale = await fixture.Client.GetAsync("/api/v1/auth/session");
         await Assert.That(stale.StatusCode).IsEqualTo(HttpStatusCode.Unauthorized);
         await AssertSafeAsync(fixture, response);
     }
@@ -148,14 +148,14 @@ public sealed class CredentialOperationTests
         await fixture.SignInAsync(target);
         var before = await SnapshotAsync(fixture, target);
         interceptor.Arm();
-        using var response = await AuthTestRequests.PostAsync(fixture, "/api/auth/password", new
+        using var response = await AuthTestRequests.PostAsync(fixture, "/api/v1/auth/password", new
         {
             currentPassword = AuthTestRequests.CurrentPassword,
             newPassword = AuthTestRequests.NewPassword,
         });
         await AuthTestRequests.AssertProblemAsync(response, HttpStatusCode.InternalServerError, "internal_error");
         await Assert.That(await SnapshotAsync(fixture, target) == before).IsTrue();
-        using var session = await fixture.Client.GetAsync("/api/auth/session");
+        using var session = await fixture.Client.GetAsync("/api/v1/auth/session");
         await Assert.That(session.StatusCode).IsEqualTo(HttpStatusCode.OK);
         await AssertSafeAsync(fixture, response);
     }
@@ -261,7 +261,7 @@ public sealed class CredentialOperationTests
         await Assert.That(fixture.Logs.Messages.Contains(ResetPassword, StringComparison.Ordinal)).IsFalse();
     }
     private static Task<HttpResponseMessage> ResetAsync(HttpsApplicationFixture fixture, Guid id, HttpClient? client = null)
-        => AuthTestRequests.PostAsync(fixture, $"/api/admin/users/{id:D}/password", new { newTemporaryPassword = ResetPassword }, client);
+        => AuthTestRequests.PostAsync(fixture, $"/api/v1/admin/users/{id:D}/password", new { newTemporaryPassword = ResetPassword }, client);
 
     private static async Task<(string? Hash, string? Stamp, string? ConcurrencyStamp, bool Forced)> SnapshotAsync(HttpsApplicationFixture fixture, Guid id)
     {

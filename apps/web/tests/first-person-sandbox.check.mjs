@@ -53,6 +53,7 @@ try {
       },
     );
     await ready;
+    await handle.prepareAsset(object.assetId);
     handle.modeManager.initializeView("first");
     handle.setEditingEnabled(true);
     handle.update([object], null);

@@ -88,13 +88,13 @@ public sealed class ProjectLifecycleTests
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
         await fixture.SignInAsync(await fixture.CreateAccountAsync(ApplicationRoles.Administrator));
-        using var organizationResponse = await AuthTestRequests.PostAsync(fixture, "/api/admin/organizations", new { name = "Class" });
+        using var organizationResponse = await AuthTestRequests.PostAsync(fixture, "/api/v1/admin/organizations", new { name = "Class" });
         await Assert.That(organizationResponse.StatusCode).IsEqualTo(HttpStatusCode.Created);
         var organization = (await organizationResponse.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
         var students = new List<Guid>();
         foreach (var name in new[] { "student-one", "student-two" })
         {
-            using var provisioned = await AuthTestRequests.PostAsync(fixture, "/api/admin/users", new
+            using var provisioned = await AuthTestRequests.PostAsync(fixture, "/api/v1/admin/users", new
             { userName = name, initialPassword = AuthTestRequests.CurrentPassword, role = ApplicationRoles.Creator, orgId = organization });
             await Assert.That(provisioned.StatusCode).IsEqualTo(HttpStatusCode.Created);
             students.Add((await provisioned.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("userId").GetGuid());
@@ -106,9 +106,9 @@ public sealed class ProjectLifecycleTests
         using var secondClient = fixture.CreateClient();
         foreach (var (name, client) in new[] { ("student-one", firstClient), ("student-two", secondClient) })
         {
-            using var login = await AuthTestRequests.PostAsync(fixture, "/api/auth/login", new { userName = name, password = AuthTestRequests.CurrentPassword }, client);
+            using var login = await AuthTestRequests.PostAsync(fixture, "/api/v1/auth/login", new { userName = name, password = AuthTestRequests.CurrentPassword }, client);
             await Assert.That(login.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
-            using var password = await AuthTestRequests.PostAsync(fixture, "/api/auth/password", new { currentPassword = AuthTestRequests.CurrentPassword, newPassword = AuthTestRequests.NewPassword }, client);
+            using var password = await AuthTestRequests.PostAsync(fixture, "/api/v1/auth/password", new { currentPassword = AuthTestRequests.CurrentPassword, newPassword = AuthTestRequests.NewPassword }, client);
             await Assert.That(password.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
         }
         await Assert.That((await OpenAsync(fixture, project, firstClient)).GetProperty("permissions").GetProperty("canPublish").GetBoolean()).IsTrue();
@@ -118,8 +118,8 @@ public sealed class ProjectLifecycleTests
         await MetadataAsync(reassigned, HttpStatusCode.OK, 2);
         using var removed = await firstClient.GetAsync(Path(project));
         await ProblemAsync(fixture, removed, HttpStatusCode.NotFound, "project_not_found");
-        using var firstList = await firstClient.GetAsync("/api/projects");
-        using var secondList = await secondClient.GetAsync("/api/projects");
+        using var firstList = await firstClient.GetAsync("/api/v1/projects");
+        using var secondList = await secondClient.GetAsync("/api/v1/projects");
         await Assert.That((await firstList.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("items").GetArrayLength()).IsEqualTo(0);
         await Assert.That((await secondList.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("items")[0].GetProperty("projectId").GetGuid()).IsEqualTo(project);
         await Assert.That((await OpenAsync(fixture, project, secondClient)).GetProperty("permissions").GetProperty("canPublish").GetBoolean()).IsFalse();
@@ -321,7 +321,7 @@ public sealed class ProjectLifecycleTests
             ("{\"title\":\"" + new string('x', 6 * 1024 * 1024) + "\"}", HttpStatusCode.RequestEntityTooLarge, "request_too_large")
         })
         {
-            using var response = await SendRawAsync(fixture, HttpMethod.Post, "/api/projects", body);
+            using var response = await SendRawAsync(fixture, HttpMethod.Post, "/api/v1/projects", body);
             await ProblemAsync(fixture, response, status, code);
         }
         await using var scope = fixture.Database.Services.CreateAsyncScope();
@@ -354,7 +354,7 @@ public sealed class ProjectLifecycleTests
             _ => new { expectedRevision = 0, archived = true }
         };
         using var response = await SendAsync(fixture, operation is "create" or "duplicate" ? HttpMethod.Post : HttpMethod.Patch,
-            operation == "create" ? "/api/projects" : Path(id, "/" + operation), body, token: csrf);
+            operation == "create" ? "/api/v1/projects" : Path(id, "/" + operation), body, token: csrf);
         await ProblemAsync(fixture, response, HttpStatusCode.ServiceUnavailable, "storage_unavailable");
         var after = await ReadAsync(fixture, id);
         await Assert.That(after.DocumentJson).IsEqualTo(before.DocumentJson);
@@ -475,7 +475,7 @@ public sealed class ProjectLifecycleTests
         var id = Guid.NewGuid();
         foreach (var (method, path, body) in new[]
         {
-            (HttpMethod.Post, "/api/projects", (object)new { title = "New", environmentAssetId = "test-room-v1" }),
+            (HttpMethod.Post, "/api/v1/projects", (object)new { title = "New", environmentAssetId = "test-room-v1" }),
             (HttpMethod.Post, Path(id, "/duplicate"), new { expectedRevision = 0, title = "New" }),
             (HttpMethod.Patch, Path(id, "/archive"), new { expectedRevision = 0, archived = true }),
             (HttpMethod.Patch, Path(id, "/assignments"), Assignments(0, []))
@@ -506,7 +506,7 @@ public sealed class ProjectLifecycleTests
         var token = await fixture.GetCsrfAsync();
         insert.Armed = storageFailure;
         if (!storageFailure) { save.After = () => fixture.Clock.Advance(TimeSpan.FromHours(9)); }
-        using var response = await SendAsync(fixture, HttpMethod.Post, "/api/projects", new { title = Marker, environmentAssetId = "test-room-v1" }, token: token);
+        using var response = await SendAsync(fixture, HttpMethod.Post, "/api/v1/projects", new { title = Marker, environmentAssetId = "test-room-v1" }, token: token);
         await ProblemAsync(fixture, response, storageFailure ? HttpStatusCode.ServiceUnavailable : HttpStatusCode.Unauthorized,
             storageFailure ? "storage_unavailable" : "authentication_required");
         await using var scope = fixture.Database.Services.CreateAsyncScope();
@@ -515,7 +515,7 @@ public sealed class ProjectLifecycleTests
         await Assert.That(await database.ProjectAssignments.CountAsync()).IsEqualTo(0);
     }
 
-    private static string Path(Guid id, string suffix = "") => "/api/projects/" + id.ToString("D") + suffix;
+    private static string Path(Guid id, string suffix = "") => "/api/v1/projects/" + id.ToString("D") + suffix;
     private static object Assignments(long revision, Guid[] creators, Guid[]? managers = null, Guid[]? publish = null) =>
         new { expectedRevision = revision, managedByUserIds = managers ?? [], assignedCreatorIds = creators, canPublishUserIds = publish ?? [] };
     private static object Save(Guid id, string title, long revision, int version = 1)
@@ -526,7 +526,7 @@ public sealed class ProjectLifecycleTests
 
     private static async Task<Guid> CreateAsync(HttpsApplicationFixture fixture, object body)
     {
-        using var response = await SendAsync(fixture, HttpMethod.Post, "/api/projects", body);
+        using var response = await SendAsync(fixture, HttpMethod.Post, "/api/v1/projects", body);
         return (await MetadataAsync(response, HttpStatusCode.Created, 0)).GetProperty("projectId").GetGuid();
     }
     private static async Task<Guid> OrganizationAsync(HttpsApplicationFixture fixture, Guid actor)

@@ -13,7 +13,7 @@ public static class AssetAdministrationEndpoints
     {
 
         // Use the current administrator session for every route and reuse the application's write protections
-        var group = endpoints.MapGroup("/api/admin/assets").RequireAuthorization(SecurityPolicies.Administrator)
+        var group = endpoints.MapGroup("/admin/assets").RequireAuthorization(SecurityPolicies.Administrator)
             .RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
 
         // Return current server capabilities with the list so the screen never guesses which writes are available

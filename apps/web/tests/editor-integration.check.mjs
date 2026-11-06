@@ -218,6 +218,7 @@ try {
     }
     await ready;
     try {
+      await handle.prepareAsset("test-crate-v1");
       const manager = handle.modeManager;
       const camera = manager.camera;
       const object = {
@@ -550,6 +551,7 @@ try {
       THREE.Object3D.prototype.add = originalAdd;
     }
     await ready;
+    await handle.prepareAsset(object.assetId);
     const manager = handle.modeManager;
     const camera = manager.camera;
     manager.initializeView("third");

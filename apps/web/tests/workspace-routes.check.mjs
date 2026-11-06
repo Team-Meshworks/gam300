@@ -24,10 +24,10 @@ try {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   let mode = "Educator";
-  await page.route("**/api/**", async (route) => {
+  await page.route("**/api/v1/**", async (route) => {
     const request = route.request();
     assert.equal(request.method(), "GET", "Workspace routes must not mutate the API");
-    if (new URL(request.url()).pathname === "/api/auth/session") {
+    if (new URL(request.url()).pathname === "/api/v1/auth/session") {
       if (mode === "anonymous") return route.fulfill({ status: 401 });
       if (mode === "unavailable") return route.fulfill({ status: 503 });
       return route.fulfill({
@@ -58,7 +58,7 @@ try {
   // Use the mounted screen and authenticated intake adapter, not its local preview.
   mode = "Administrator";
   let assetReads = 0;
-  await page.route("**/api/admin/assets", (route) => {
+  await page.route("**/api/v1/admin/assets", (route) => {
     assetReads++;
     return route.fulfill({
       json: {
@@ -131,7 +131,10 @@ try {
     "?projectId=aefea67c-caca-4300-923c-937f1c785578",
   ]) {
     await page.goto(`${origin}/${path}`);
-    await page.waitForURL(`${origin}/login`);
+    const destination = path.startsWith("?projectId=")
+      ? `${origin}/login?returnTo=${encodeURIComponent("/" + path)}`
+      : `${origin}/login`;
+    await page.waitForURL(destination);
     await page.getByRole("heading", { name: "Welcome back.", exact: true }).waitFor();
     assert.equal(await page.locator(".sp-workspace, .editor-shell").count(), 0);
   }

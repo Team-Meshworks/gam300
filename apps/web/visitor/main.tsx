@@ -26,7 +26,7 @@ function Visitor() {
       });
     const recheck = () => {
       if (document.hidden) return;
-      void fetch(`/api/publications/${publicationId}/manifest`, {
+      void fetch(`/api/v1/publications/${publicationId}/manifest`, {
         signal: controller.signal,
         cache: "no-store",
         credentials: "same-origin",

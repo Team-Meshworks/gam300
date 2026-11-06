@@ -41,7 +41,7 @@ try {
   await student.getByRole("button", { name: "Submit for review", exact: true }).click();
   await student.getByRole("button", { name: "Cancel", exact: true }).click();
   const before = await student.evaluate(
-    async (id) => (await (await fetch("/api/projects/" + id + "/submissions")).json()).items,
+    async (id) => (await (await fetch("/api/v1/projects/" + id + "/submissions")).json()).items,
     projectId,
   );
   assert.equal(before.length, 0, "Cancellation creates no database submission");
@@ -50,7 +50,7 @@ try {
   if (unavailable) {
     await student.getByRole("alert").filter({ hasText: "assets are not ready" }).waitFor();
     const after = await student.evaluate(
-      async (id) => (await (await fetch("/api/projects/" + id + "/submissions")).json()).items,
+      async (id) => (await (await fetch("/api/v1/projects/" + id + "/submissions")).json()).items,
       projectId,
     );
     assert.equal(after.length, 0);
@@ -73,9 +73,9 @@ try {
       true,
     );
     const saveStatus = await student.evaluate(async (id) => {
-      const saved = await (await fetch("/api/projects/" + id)).json();
-      const token = await (await fetch("/api/auth/csrf")).json();
-      const response = await fetch("/api/projects/" + id, {
+      const saved = await (await fetch("/api/v1/projects/" + id)).json();
+      const token = await (await fetch("/api/v1/auth/csrf")).json();
+      const response = await fetch("/api/v1/projects/" + id, {
         method: "PUT",
         headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": token.requestToken },
         body: JSON.stringify({

@@ -31,7 +31,7 @@ async function freePort() {
   await new Promise((resolve) => server.close(resolve));
   return port;
 }
-function get(port, source, headers = {}, tls = true, path = "/api/probe") {
+function get(port, source, headers = {}, tls = true, path = "/api/v1/probe") {
   return new Promise((resolve, reject) => {
     const request = (tls ? httpsRequest : httpRequest)(
       {
@@ -165,7 +165,7 @@ try {
   if (process.env.SPATIA_PROXY_TEST_API_PORT) {
     for (let count = 0; count < 60; count++) {
       assert.equal(
-        (await get(outer, "127.0.0.2", {}, true, "/api/rate")).status,
+        (await get(outer, "127.0.0.2", {}, true, "/api/v1/rate")).status,
         204,
       );
     }
@@ -176,14 +176,14 @@ try {
           "127.0.0.2",
           { "X-Forwarded-For": "203.0.113.99" },
           true,
-          "/api/rate",
+          "/api/v1/rate",
         )
       ).status,
       429,
       "Forged addresses cannot bypass the API login limit",
     );
     assert.equal(
-      (await get(outer, "127.0.0.3", {}, true, "/api/rate")).status,
+      (await get(outer, "127.0.0.3", {}, true, "/api/v1/rate")).status,
       204,
       "A second client must retain its separate API login budget",
     );

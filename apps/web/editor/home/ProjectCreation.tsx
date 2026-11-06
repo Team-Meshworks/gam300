@@ -68,7 +68,7 @@ export function ProjectCreation({
     void (async () => {
       try {
         const [rows, orgs] = await Promise.all([
-          api.read("/api/assets"),
+          api.read("/api/v1/assets"),
           session.role === "Administrator" ? directory.organizations() : Promise.resolve([]),
         ]);
         if (!Array.isArray(rows)) throw new Error("Invalid catalogue");
@@ -129,7 +129,7 @@ export function ProjectCreation({
     busy.current = true;
     setPhase("pending");
     setMessage("");
-    const outcome = await api.write(session.userId, "/api/projects", "POST", {
+    const outcome = await api.write(session.userId, "/api/v1/projects", "POST", {
       title: title.trim(),
       environmentAssetId: spaceId,
       ...(session.role === "Administrator" ? { orgId } : {}),

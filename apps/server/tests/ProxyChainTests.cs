@@ -32,12 +32,12 @@ public sealed class ProxyChainTests
             builder.Logging.ClearProviders();
             builder.WebHost.ConfigureKestrel(options => options.Listen(IPAddress.Loopback, 0));
             await using var app = SpatiaApplication.Build(builder);
-            app.MapGet("/api/probe", (HttpContext context) => Results.Json(new
+            app.MapGet("/api/v1/probe", (HttpContext context) => Results.Json(new
             {
                 address = context.Connection.RemoteIpAddress?.ToString(),
                 scheme = context.Request.Scheme,
             })).AllowAnonymous();
-            app.MapGet("/api/rate", () => Results.NoContent()).AllowAnonymous()
+            app.MapGet("/api/v1/rate", () => Results.NoContent()).AllowAnonymous()
                 .RequireRateLimiting(SecurityPolicies.AuthenticationRateLimit);
             await app.StartAsync();
             try

@@ -114,7 +114,7 @@ it("binds deletion and its fresh CSRF token to the administrator who opened the 
     headers: { "X-Spatia-Account": user.userId },
   });
   expect(request.mock.calls[1]).toEqual([
-    `/api/admin/organizations/${user.orgId}`,
+    `/api/v1/admin/organizations/${user.orgId}`,
     expect.objectContaining({
       method: "DELETE",
       headers: {

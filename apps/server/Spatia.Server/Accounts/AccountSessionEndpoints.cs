@@ -16,7 +16,7 @@ public static class AccountSessionEndpoints
     /// <returns>The supplied route builder for further endpoint registration</returns>
     public static IEndpointRouteBuilder MapAccountSessions(this IEndpointRouteBuilder endpoints)
     {
-        var group = endpoints.MapGroup("/api/auth");
+        var group = endpoints.MapGroup("/auth");
         group.MapPost("/login", async (LoginRequest request, AccountSessionService sessions, HttpContext context,
             CancellationToken cancellationToken) =>
         {

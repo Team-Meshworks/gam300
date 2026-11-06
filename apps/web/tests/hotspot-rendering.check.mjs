@@ -44,7 +44,10 @@ try {
         document.getElementById("host"),
         [...assets.filter((a) => a.id === "test-crate-v1"), HOTSPOT_ASSET],
         {
-          onStatus: (status) => (status === "ready" ? resolve() : reject(new Error(status))),
+          onStatus: (status) => {
+            if (status === "ready") resolve();
+            else if (status !== "loading") reject(new Error(status));
+          },
           onThumbnail() {},
           onSelect() {},
           onTransform() {},
@@ -56,6 +59,10 @@ try {
       THREE.Object3D.prototype.add = originalAdd;
     }
     await promise;
+    await Promise.all([
+      handle.prepareAsset("test-crate-v1"),
+      handle.prepareAsset(HOTSPOT_ASSET.id),
+    ]);
     const object = {
       ...fixture.scenes[0].objects[0],
       transform: { position: [0, 0, 0], rotation: [0, 0, 0, 1], scale: [1, 1, 1] },

@@ -159,7 +159,7 @@ volume at `/data/caddy/pki/authorities/local/root.crt`; use that certificate wit
 test client's CA option without installing it in the operating system trust store.
 Browsers show a certificate warning for this local CA by default.
 Keep TLS verification enabled in integration checks. Check the editor, `/healthz` and
-`/api/auth/session`; an anonymous session request must return 401.
+`/api/v1/auth/session`; an anonymous session request must return 401.
 
 Startup applies migrations before granting the API restricted database access. The
 database has no host port; the running API receives its own password and persists
@@ -302,7 +302,7 @@ and forwarding behavior in the target Linux Docker environment before deployment
 and UI bundles are public. Project data, administration data and the bundled development
 catalogue require an authenticated API session. Both build modes emit catalogue media and
 thumbnails under `/restricted-assets/`; the image moves them to `/srv-restricted`, outside
-the public `/srv` file root. `server.Caddyfile` checks `/api/auth/asset-access` before
+the public `/srv` file root. `server.Caddyfile` checks `/api/v1/auth/asset-access` before
 forwarding any catalogue request to the web service's private port 8081. Anonymous,
 expired, disabled and password-change-only sessions cannot read those bytes. All catalogue
 responses use `Cache-Control: private, no-store`, including HEAD and range requests.
@@ -355,6 +355,23 @@ docker compose -f gateway.compose.yaml up -d --force-recreate gateway
 The ordinary app deployment does not update this separate host gateway. Do not remove
 the shared gate while an older image still serves catalogue files from public `/assets/`.
 Updating frontend redirects alone cannot protect bytes or remove an older gateway's prompt.
+
+When only development has the authenticated catalogue stack, replace only the `:8443`
+site's import with its TLS configuration and `reverse_proxy 127.0.0.1:8082`; retain the
+existing `:443` gate until production is upgraded. Back up and validate the gateway
+configuration before restarting it. Public `/login` and `/api/v1/auth/csrf` must return
+200 without a Basic challenge; anonymous catalogue requests must still return 401.
+The deployment health check now checks public login as well as the private API ingress.
+
+Built editors (including the development build) check the Spatia session before opening
+the local-file editor at `/`. Sign-in returns to that editor without clearing browser
+recovery. Session and CSRF cookie names include the environment because browser cookies
+are shared across ports on the VM IP. Upgrading these cookie names requires one fresh
+application sign-in. Models load when referenced by the active scene or selected for
+placement; failed requests retain the scene and expose Retry, with a separate sign-in
+link for expired sessions. The packaged `editor-session-loading.check.mjs` regression
+covers this flow using real GLBs and a simulated account API; the server HTTPS suite
+provides real Identity/database coverage.
 
 Use a dedicated `vthere-runner` account for the self-hosted runner, with Docker access and
 the custom `vthere-deploy` label. Install it as a system service using GitHub's runner setup

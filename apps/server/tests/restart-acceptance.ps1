@@ -209,7 +209,7 @@ function Start-Api([hashtable] $Configuration) {
         do {
             if ($api.Process.HasExited) { throw 'The production API exited during startup.' }
             try {
-                $response = $client.GetAsync($origin + '/api/auth/csrf').GetAwaiter().GetResult()
+                $response = $client.GetAsync($origin + '/api/v1/auth/csrf').GetAwaiter().GetResult()
                 try { if ($response.IsSuccessStatusCode) { return [pscustomobject]@{ Child = $api; Origin = $origin } } }
                 finally { $response.Dispose() }
             }

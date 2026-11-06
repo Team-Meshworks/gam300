@@ -63,16 +63,12 @@ try {
     await route.continue();
   });
   const coreRequest = page.waitForRequest(corePath);
-  const modelRequest = page.waitForRequest((request) =>
-    new URL(request.url()).pathname.endsWith(".glb"),
-  );
   const snowglobeResponse = page.waitForResponse(
     (response) => new URL(response.url()).pathname === `/restricted-assets/${snowglobeHash}.glb`,
   );
   await page.goto(url);
   await page.getByRole("heading", { name: "Spatia", exact: true }).waitFor();
   await coreRequest;
-  await modelRequest;
   assert.equal(await page.locator("canvas").count(), 0, "Shell renders before Three.js arrives");
   const asset = page
     .locator(".asset-picker")
@@ -81,9 +77,6 @@ try {
   assert.equal(await asset.isDisabled(), true);
   releaseCore();
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
-  const snowglobe = await snowglobeResponse;
-  assert.ok(snowglobe.ok(), "The manifest snowglobe still loads");
-  assert.match(snowglobe.headers()["cache-control"], /private, no-store/);
   assert.equal(await page.locator("canvas").count(), 1);
   // Packaged builds follow the same room-first authoring flow as the local editor
   await addAsset(page, "Starter room");
@@ -92,6 +85,9 @@ try {
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   assert.equal(await page.locator(".object-row").count(), 0);
   await addAsset(page, "Snow globe");
+  const snowglobe = await snowglobeResponse;
+  assert.ok(snowglobe.ok(), "The selected manifest snowglobe loads on demand");
+  assert.match(snowglobe.headers()["cache-control"], /private, no-store/);
   assert.equal(await page.locator(".object-row").count(), 1);
   // A collapsed tree must restore the same selected object when reopened
   const placedObjectId = await page.locator(".object-row").getAttribute("data-object-id");

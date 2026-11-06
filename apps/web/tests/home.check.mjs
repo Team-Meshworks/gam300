@@ -37,14 +37,15 @@ try {
   let writes = 0;
   let lostResponse = false;
   let rejectList = false;
-  await page.route("**/api/**", async (route) => {
+  await page.route("**/api/v1/**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
     const path = url.pathname;
-    if (path === "/api/auth/session")
+    if (path === "/api/v1/auth/session")
       return route.fulfill(account ? { json: account } : { status: 401 });
-    if (path === "/api/auth/csrf") return route.fulfill({ json: { requestToken: "test-token" } });
-    if (path === "/api/admin/organizations")
+    if (path === "/api/v1/auth/csrf")
+      return route.fulfill({ json: { requestToken: "test-token" } });
+    if (path === "/api/v1/admin/organizations")
       return route.fulfill({
         json: {
           items: [
@@ -54,19 +55,19 @@ try {
           nextCursor: null,
         },
       });
-    if (path === "/api/classes" && request.method() === "POST") {
+    if (path === "/api/v1/classes" && request.method() === "POST") {
       assert.deepEqual(request.postDataJSON(), { name: "First class", orgId });
       return route.fulfill({
         status: 201,
         json: { id: copyId, name: "First class", organizationId: orgId },
       });
     }
-    if (path === "/api/classes") return route.fulfill({ json: { items: [], nextCursor: null } });
-    if (path === "/api/auth/logout") {
+    if (path === "/api/v1/classes") return route.fulfill({ json: { items: [], nextCursor: null } });
+    if (path === "/api/v1/auth/logout") {
       account = null;
       return route.fulfill({ status: 204 });
     }
-    if (path === "/api/projects")
+    if (path === "/api/v1/projects")
       return route.fulfill(
         rejectList
           ? { status: 403 }
@@ -79,7 +80,7 @@ try {
               },
             },
       );
-    if (path === `/api/projects/${projectId}/duplicate`) {
+    if (path === `/api/v1/projects/${projectId}/duplicate`) {
       writes++;
       assert.equal(request.headers()["x-csrf-token"], "test-token");
       assert.deepEqual(request.postDataJSON(), { expectedRevision: 3, title: "Silk Road copy" });
@@ -90,7 +91,7 @@ try {
         json: { projectId: copyId, revision: 0, updatedAt: project.updatedAt, archived: false },
       });
     }
-    if (path === `/api/projects/${projectId}/archive`) {
+    if (path === `/api/v1/projects/${projectId}/archive`) {
       writes++;
       assert.equal(request.headers()["x-csrf-token"], "test-token");
       const body = request.postDataJSON();

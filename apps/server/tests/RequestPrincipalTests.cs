@@ -60,7 +60,7 @@ public sealed class RequestPrincipalTests
         }
         using var response = await fixture.Client.GetAsync("/_test/probe");
         await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.Unauthorized);
-        await Assert.That(fixture.Cookies.GetCookies(fixture.Address)[HttpsApplicationFixture.CookieName] is null).IsTrue();
+        await Assert.That(fixture.Cookies.GetCookies(fixture.Address)[fixture.CookieName] is null).IsTrue();
     }
 
     [Test]
@@ -148,18 +148,18 @@ public sealed class RequestPrincipalTests
         using var administrator = await fixture.Client.GetAsync("/_test/admin");
         await Assert.That(administrator.StatusCode).IsEqualTo(HttpStatusCode.Forbidden);
         using var arbitraryCurrent = await fixture.Client.GetAsync("/_test/current");
-        using var session = await fixture.Client.GetAsync("/api/auth/session");
+        using var session = await fixture.Client.GetAsync("/api/v1/auth/session");
         await Assert.That(ordinary.StatusCode).IsEqualTo(HttpStatusCode.Forbidden);
         await Assert.That(arbitraryCurrent.StatusCode).IsEqualTo(HttpStatusCode.Forbidden);
         await Assert.That(session.StatusCode).IsEqualTo(HttpStatusCode.OK);
         var sessionJson = await session.Content.ReadFromJsonAsync<JsonElement>();
         await Assert.That(sessionJson.GetProperty("mustChangePassword").GetBoolean()).IsTrue();
         var token = await fixture.GetCsrfAsync();
-        using var wrongVerb = new HttpRequestMessage(HttpMethod.Put, "/api/auth/logout");
+        using var wrongVerb = new HttpRequestMessage(HttpMethod.Put, "/api/v1/auth/logout");
         wrongVerb.Headers.Add("X-CSRF-TOKEN", token);
         using var rejected = await fixture.Client.SendAsync(wrongVerb);
         await Assert.That(rejected.StatusCode).IsEqualTo(HttpStatusCode.Forbidden);
-        using var allowed = new HttpRequestMessage(HttpMethod.Post, "/api/auth/logout");
+        using var allowed = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/logout");
         allowed.Headers.Add("X-CSRF-TOKEN", token);
         using var allowedResponse = await fixture.Client.SendAsync(allowed);
         await Assert.That(allowedResponse.StatusCode).IsEqualTo(HttpStatusCode.NoContent);

@@ -4,6 +4,7 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Builder;
@@ -29,7 +30,10 @@ namespace Spatia.Server.Tests;
 
 internal sealed class HttpsApplicationFixture : IAsyncDisposable
 {
-    public const string CookieName = "__Host-Spatia.Application";
+    public string CookieName => App.Services.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>()
+        .Get(IdentityConstants.ApplicationScheme).Cookie.Name!;
+    public string AntiforgeryCookieName => App.Services.GetRequiredService<IOptions<AntiforgeryOptions>>()
+        .Value.Cookie.Name!;
     public const string AbsoluteExpiryKey = "spatia.absoluteExpiresUtc";
     public const string SecretSentinel = "part3-secret-sentinel-do-not-log";
     private readonly X509Certificate2 _certificate;
@@ -203,7 +207,7 @@ internal sealed class HttpsApplicationFixture : IAsyncDisposable
 
     public async Task<string> GetCsrfAsync(HttpClient? client = null)
     {
-        using var response = await (client ?? Client).GetAsync("/api/auth/csrf");
+        using var response = await (client ?? Client).GetAsync("/api/v1/auth/csrf");
         response.EnsureSuccessStatusCode();
         var json = await response.Content.ReadFromJsonAsync<JsonElement>();
         return json.GetProperty("requestToken").GetString()
@@ -212,10 +216,10 @@ internal sealed class HttpsApplicationFixture : IAsyncDisposable
 
     public AuthenticationTicket ReadTicket()
     {
-        var cookie = Cookies.GetCookies(Address)[CookieName]?.Value
-            ?? throw new InvalidOperationException("Expected a synthetic session cookie.");
         var options = App.Services.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>()
             .Get(IdentityConstants.ApplicationScheme);
+        var cookie = Cookies.GetCookies(Address)[options.Cookie.Name!]?.Value
+            ?? throw new InvalidOperationException("Expected a synthetic session cookie.");
         return options.TicketDataFormat.Unprotect(cookie)
             ?? throw new InvalidOperationException("Expected a readable synthetic ticket.");
     }
@@ -224,7 +228,7 @@ internal sealed class HttpsApplicationFixture : IAsyncDisposable
     {
         var options = App.Services.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>()
             .Get(IdentityConstants.ApplicationScheme);
-        Cookies.Add(Address, new Cookie(CookieName, options.TicketDataFormat.Protect(ticket), "/") { Secure = true });
+        Cookies.Add(Address, new Cookie(options.Cookie.Name!, options.TicketDataFormat.Protect(ticket), "/") { Secure = true });
     }
 
     public async ValueTask DisposeAsync()
@@ -340,7 +344,7 @@ internal sealed class HttpsApplicationFixture : IAsyncDisposable
         app.MapGet("/_test/admin", () => Results.NoContent()).RequireAuthorization(SecurityPolicies.Administrator);
 
         app.MapGet("/_test/current", () => Results.NoContent()).RequireAuthorization(SecurityPolicies.CurrentAccount);
-        app.MapPut("/api/auth/logout", () => Results.NoContent()).RequireAuthorization(SecurityPolicies.CurrentAccount);
+        app.MapPut("/api/v1/auth/logout", () => Results.NoContent()).RequireAuthorization(SecurityPolicies.CurrentAccount);
         app.MapPost("/_test/write", async (HttpContext context) =>
         {
             await context.Request.Body.CopyToAsync(Stream.Null, context.RequestAborted);

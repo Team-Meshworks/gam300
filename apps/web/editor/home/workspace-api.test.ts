@@ -28,7 +28,7 @@ it("reads all authorised pages without caching and rejects a cyclic cursor", asy
     .mockResolvedValueOnce(json({ items: [], nextCursor: null }));
   expect(await createWorkspaceClient(request).projects(false)).toEqual([row]);
   expect(request.mock.calls[1]).toMatchObject([
-    `/api/projects?archived=false&limit=20&cursor=${id}`,
+    `/api/v1/projects?archived=false&limit=20&cursor=${id}`,
     { credentials: "same-origin", cache: "no-store" },
   ]);
   request.mockReset().mockImplementation(async () => json({ items: [row], nextCursor: id }));
@@ -54,7 +54,7 @@ it("rechecks identity after obtaining CSRF, without submitting another account's
     .mockResolvedValueOnce(json({ ...session, userId: id }));
   expect(
     (
-      await createWorkspaceClient(request).write(actor, `/api/projects/${id}/archive`, "PATCH", {
+      await createWorkspaceClient(request).write(actor, `/api/v1/projects/${id}/archive`, "PATCH", {
         expectedRevision: 3,
         archived: true,
       })
@@ -72,7 +72,7 @@ it("sends the exact revision with CSRF and verifies the resulting account", asyn
     .mockResolvedValueOnce(json(receipt))
     .mockResolvedValueOnce(json(session));
   expect(
-    await createWorkspaceClient(request).write(actor, `/api/projects/${id}/archive`, "PATCH", {
+    await createWorkspaceClient(request).write(actor, `/api/v1/projects/${id}/archive`, "PATCH", {
       expectedRevision: 3,
       archived: true,
     }),
@@ -93,7 +93,9 @@ it("does not turn post-send failures or expired sessions into a safe retry", asy
       .mockResolvedValueOnce(json({ requestToken: "token" }))
       .mockResolvedValueOnce(json(session))
       .mockResolvedValueOnce(new Response(null, { status }));
-    expect(await createWorkspaceClient(request).write(actor, "/api/projects", "POST", {})).toEqual({
+    expect(
+      await createWorkspaceClient(request).write(actor, "/api/v1/projects", "POST", {}),
+    ).toEqual({
       kind: "unknown",
     });
     expect(request).toHaveBeenCalledTimes(4);
@@ -104,9 +106,11 @@ it("does not turn post-send failures or expired sessions into a safe retry", asy
     .mockResolvedValueOnce(json({ requestToken: "token" }))
     .mockResolvedValueOnce(json(session))
     .mockRejectedValueOnce(new Error("connection lost"));
-  expect(await createWorkspaceClient(request).write(actor, "/api/projects", "POST", {})).toEqual({
-    kind: "unknown",
-  });
+  expect(await createWorkspaceClient(request).write(actor, "/api/v1/projects", "POST", {})).toEqual(
+    {
+      kind: "unknown",
+    },
+  );
 });
 it("checks receipts against the requested project, revision and archive state", () => {
   const receipt = { projectId: id, revision: 4, archived: true, updatedAt: row.updatedAt };

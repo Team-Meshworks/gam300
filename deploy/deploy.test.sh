@@ -48,8 +48,9 @@ port=${url#*://}
 port=${port#*:}
 port=${port%%/*}
 case "$url" in
-  */api/auth/csrf) [[ "${FAKE_FAIL_API:-0}" == 0 ]] ;;
-  */api/auth/session) printf '%s' "${FAKE_SESSION_STATUS:-401}" ;;
+  */login) [[ "${FAKE_BASIC_GATE:-0}" == 0 ]] ;;
+  */api/v1/auth/csrf) [[ "${FAKE_FAIL_API:-0}" == 0 ]] ;;
+  */api/v1/auth/session) printf '%s' "${FAKE_SESSION_STATUS:-401}" ;;
   *) cat "$FAKE_STATE/$port" ;;
 esac
 MOCK
@@ -95,6 +96,10 @@ export APP_URL=https://127.0.0.1:8082
 # Failed server rollout preserves the release record but never starts older binaries
 if FAKE_FAIL_API=1 "${deploy[@]}" dev "$image" "$first" "$api" "$migration"; then exit 1; fi
 grep -qx "REVISION=$third" "$DEPLOY_ROOT/development/current/.env"
+[[ -f "$DEPLOY_ROOT/development/server-recovery-required" ]]
+
+# A stale public Basic gate must not be accepted as a healthy application release.
+if FAKE_BASIC_GATE=1 "${deploy[@]}" dev "$image" "$first" "$api" "$migration"; then exit 1; fi
 [[ -f "$DEPLOY_ROOT/development/server-recovery-required" ]]
 
 "${deploy[@]}" dev "$image" "$first" "$api" "$migration"

@@ -42,7 +42,7 @@ describe("authenticated project opening", () => {
     });
     // Project reads use the current same-origin session and never reuse a cached response
     expect(fetcher.mock.calls[1]).toEqual([
-      `/api/projects/${fixture.projectId}`,
+      `/api/v1/projects/${fixture.projectId}`,
       expect.objectContaining({ credentials: "same-origin", cache: "no-store", redirect: "error" }),
     ]);
   });

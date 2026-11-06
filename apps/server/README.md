@@ -1,5 +1,20 @@
 # Server persistence, accounts and security
 
+## HTTP API versioning
+
+Use `/api/v1/...` for all HTTP API clients. Unversioned `/api/...` routes have been
+removed and return a no-store 404 `application/problem+json` response with code
+`api_not_found`, without redirects. Unknown API paths and unsupported versions return
+the same 404. API asset URLs use `/api/v1/...`; authorization, CSRF, request limits
+and error behavior continue to apply.
+
+The path is the version selector; query parameters and headers do not negotiate a
+version. Keep v1 compatible as it evolves; introduce a separately supported version
+for breaking HTTP contract changes. API versions are independent of stored project
+schema versions. Visitor links under `/p/{publicationId}`, `/healthz`, and
+`/version.txt` are unchanged. Upgrade clients and server together and keep them
+compatible during rollback: older clients using unversioned routes will stop working.
+
 Administrator account and organization directory reads and reversible lifecycle
 operations are described in the [directory API contract](../../docs/account-directory.md),
 including authorization, fields, pagination, safeguards and session effects.
@@ -388,7 +403,7 @@ The owned disposable container and configuration are retained for later verifica
 
 `Hosting.SpatiaApplication.Build(WebApplicationBuilder)` composes the real Kestrel
 host. `Program` builds and runs it; no automatic schema migration or account
-provisioning happens at startup. `GET /api/auth/csrf` returns `{requestToken}` and an
+provisioning happens at startup. `GET /api/v1/auth/csrf` returns `{requestToken}` and an
 ASP.NET antiforgery cookie. All browser JSON writes require a single `X-CSRF-TOKEN`
 header; bootstrap again after the authenticated principal changes. The administration
 and account-session routes below extend the original Part 3 boundary. No project
@@ -579,9 +594,9 @@ CSRF header and the `AccountWrite` rate policy:
 
 | Route | Required JSON | Result |
 | --- | --- | --- |
-| `POST /api/admin/organizations` | `name` | 201 `{id,name,isActive}` |
-| `POST /api/admin/users` | `userName,initialPassword,role,orgId` | 201 `{userId,userName,role,orgId,isActive,mustChangePassword}` |
-| `POST /api/admin/users/{id}/password` | `newTemporaryPassword` | 204 |
+| `POST /api/v1/admin/organizations` | `name` | 201 `{id,name,isActive}` |
+| `POST /api/v1/admin/users` | `userName,initialPassword,role,orgId` | 201 `{userId,userName,role,orgId,isActive,mustChangePassword}` |
+| `POST /api/v1/admin/users/{id}/password` | `newTemporaryPassword` | 204 |
 
 Username and organization name are preserved unchanged, 1-256 characters and not
 whitespace-only; username also follows standard Identity allowed-character rules.
@@ -668,10 +683,10 @@ logging and body-limit boundaries:
 
 | Route | Required JSON / authority | Success |
 | --- | --- | --- |
-| `POST /api/auth/login` | `userName,password`; anonymous or current full actor; CSRF; `Authentication` rate | 204 and a nonpersistent session cookie |
-| `GET /api/auth/session` | `CurrentAccount`, including forced sessions | 200 `{userId,displayName,role,orgId,mustChangePassword}` |
-| `POST /api/auth/logout` | `CurrentAccount`; CSRF; `AccountWrite` rate | 204 and application-cookie deletion |
-| `POST /api/auth/password` | `currentPassword,newPassword`; `CurrentAccount`; CSRF; `AccountWrite` rate | 204 and refreshed same-account cookie |
+| `POST /api/v1/auth/login` | `userName,password`; anonymous or current full actor; CSRF; `Authentication` rate | 204 and a nonpersistent session cookie |
+| `GET /api/v1/auth/session` | `CurrentAccount`, including forced sessions | 200 `{userId,displayName,role,orgId,mustChangePassword}` |
+| `POST /api/v1/auth/logout` | `CurrentAccount`; CSRF; `AccountWrite` rate | 204 and application-cookie deletion |
+| `POST /api/v1/auth/password` | `currentPassword,newPassword`; `CurrentAccount`; CSRF; `AccountWrite` rate | 204 and refreshed same-account cookie |
 
 Login username is unchanged, 1-256 characters, not whitespace-only and contains no
 NUL. Password inputs are unchanged 12-128 characters; strict JSON rejects extra,
@@ -710,7 +725,7 @@ that could authorize the new stamp. A lost response can still mean a committed
 credential change: try the submitted new password before requesting an explicit
 administrator reset for recovery.
 
-Fetch a new `/api/auth/csrf` token in a separate request after login, account switch,
+Fetch a new `/api/v1/auth/csrf` token in a separate request after login, account switch,
 password completion and logout. Anonymous/principal-change tokens do not interchange.
 A same-user password change does not inherently invalidate an old CSRF token because
 the standard binding uses identity rather than the security stamp. Logout requires a
@@ -1640,7 +1655,7 @@ claimed by this part; those acceptance gates remain separate.
 
 ## SCRUM-45 Part 7: authorized project list and open
 
-The production host maps `GET /api/projects` and `GET /api/projects/{id}` under
+The production host maps `GET /api/v1/projects` and `GET /api/v1/projects/{id}` under
 the existing `FullAccount` policy. Both recheck current Identity, organization and
 project assignment authority through `ProjectAccessService`. They use the Part 5d
 document boundary, with no schema, dependency or asset-approval change.
@@ -1731,7 +1746,7 @@ Protected asset delivery and the SCRUM-126/SCRUM-67 frontend work remain separat
 
 ## SCRUM-69: current project grants
 
-`GET /api/projects/{id}/assignments` returns a current grant snapshot to a global
+`GET /api/v1/projects/{id}/assignments` returns a current grant snapshot to a global
 Administrator or an assigned same-organization Educator manager, including on an
 archived project. For a class draft the manager also needs active class membership.
 The response contains all stored rows and flags in user-ID order, including disabled
@@ -1781,10 +1796,10 @@ Four lifecycle routes share FullAccount, CSRF and AccountWrite protection:
 
 | Route | Request and result |
 | --- | --- |
-| `POST /api/projects` | Required bounded `title`, exactly one of `environmentAssetId` or complete `document`, and optional `orgId`; returns 201 metadata. |
-| `POST /api/projects/{id}/duplicate` | Required integer `expectedRevision` and bounded `title`; returns 201 independent-copy metadata. |
-| `PATCH /api/projects/{id}/assignments` | Required integer `expectedRevision`, `managedByUserIds`, `assignedCreatorIds`, `canPublishUserIds`; replaces the complete assignment set and returns 200 metadata. |
-| `PATCH /api/projects/{id}/archive` | Required integer `expectedRevision` and boolean `archived`; true archives, false reopens; returns 200 metadata. |
+| `POST /api/v1/projects` | Required bounded `title`, exactly one of `environmentAssetId` or complete `document`, and optional `orgId`; returns 201 metadata. |
+| `POST /api/v1/projects/{id}/duplicate` | Required integer `expectedRevision` and bounded `title`; returns 201 independent-copy metadata. |
+| `PATCH /api/v1/projects/{id}/assignments` | Required integer `expectedRevision`, `managedByUserIds`, `assignedCreatorIds`, `canPublishUserIds`; replaces the complete assignment set and returns 200 metadata. |
+| `PATCH /api/v1/projects/{id}/archive` | Required integer `expectedRevision` and boolean `archived`; true archives, false reopens; returns 200 metadata. |
 
 Metadata is exactly `{projectId,revision,updatedAt,archived}`. Titles are raw,
 non-whitespace, 1–256 UTF-16 units without NUL. Native required JSON binding rejects
@@ -1886,20 +1901,20 @@ organization when created. Database foreign keys bind each member to that same
 organization and the member's existing Identity role. Removal marks a membership
 inactive rather than deleting its history.
 
-`POST /api/classes` creates a class with a bounded `name`, optional `orgId` and
+`POST /api/v1/classes` creates a class with a bounded `name`, optional `orgId` and
 optional `managedByUserIds`. An educator's organization is derived from the current
 account and that educator becomes a manager. An administrator supplies an active
 organization and may select active educators in it. The response contains the new
 class ID, organization ID and name. Class creation is not idempotent; reconcile an
 uncertain response before retrying.
 
-`GET /api/classes` and `GET /api/classes/{id}` expose classes only to current
+`GET /api/v1/classes` and `GET /api/v1/classes/{id}` expose classes only to current
 managers, active enrolled students or an administrator. Only managers and
 administrators can read `/roster` and `/eligible-students`. The latter returns
 active creators in the class organization and whether each is enrolled. List routes
 use an exclusive UUID `cursor`, default `limit=10` and maximum `limit=20`.
 
-`PUT /api/classes/{id}/members/{userId}` adds or reactivates an active educator or
+`PUT /api/v1/classes/{id}/members/{userId}` adds or reactivates an active educator or
 creator from the class organization. `DELETE` on the same route deactivates the
 membership; both operations are idempotent. Writes lock the class row and recheck
 the caller's current authority after waiting. Unknown or unauthorized class IDs
@@ -1982,7 +1997,7 @@ If the commit succeeds but its response is lost, retrying the identical request 
 returns the original draft IDs; reusing it with changed details returns a conflict.
 Assignment metadata remains outside project JSON.
 
-`POST /api/classes/{id}/assignments` exposes this coordinator to an authorized
+`POST /api/v1/classes/{id}/assignments` exposes this coordinator to an authorized
 class manager or administrator. It accepts `requestId`, `sourceProjectId`,
 `sourceRevision`, `dueAtUnixSeconds`, `title`, `description`, `instructions` and
 `studentIds`. A source project in the same organization must be manageable by the
@@ -1999,9 +2014,9 @@ to enforce either. The independent draft, retry and roster checks run against
 this production route. Fourteen focused assignment cases, the production-route
 inventory, the Release build and both formatting checks passed on 30 October 2026.
 
-`GET /api/classes/{id}/assignments` lists visible assignments using an exclusive
+`GET /api/v1/classes/{id}/assignments` lists visible assignments using an exclusive
 UUID `cursor`, default `limit=10` and maximum `limit=20`. `GET` on
-`/api/classes/{id}/assignments/{assignmentId}` returns one visible assignment.
+`/api/v1/classes/{id}/assignments/{assignmentId}` returns one visible assignment.
 Each result includes its title, description, instructions, Unix-second deadline
 and visible student/project mappings; source projects and request digests are not
 returned. Students see only their own mapped project when their edit grant and
@@ -2099,13 +2114,13 @@ asset catalogue. These backend checks do not complete parent Story/Epic acceptan
 
 ## Saved project asset delivery
 
-`GET /api/projects/{projectId}/assets` checks current project read authority and
+`GET /api/v1/projects/{projectId}/assets` checks current project read authority and
 returns catalogue metadata for approved assets referenced by the saved server
 document, including hidden or deleted entries unless removed from projects. It
 does not depend on the active catalogue's 1,000-entry limit. Entries use
 project-scoped bytes URLs; those requests recheck project access and the saved
 reference. The list is `private, no-store`, and asset bytes are `no-store`.
-`GET /api/assets` remains the active catalogue for new selections.
+`GET /api/v1/assets` remains the active catalogue for new selections.
 
 ## Immutable publication snapshots (SCRUM-85)
 
@@ -2152,20 +2167,20 @@ the parent story.
 
 ### Publication HTTP contract
 
-`GET /api/projects/{id}/publication-readiness` requires a full account and checks
+`GET /api/v1/projects/{id}/publication-readiness` requires a full account and checks
 current publish authority and the saved revision. It returns the revision, readiness
 state and available completion and approval indicators with `private, no-store`.
 Readiness is informational: the publish request rechecks authority, revision and
 dependencies under the project lock. An unset or invalid publication origin reports
 the dependency as unavailable.
 
-`GET /api/projects/{id}/publication-viewers` requires a full account and current
+`GET /api/v1/projects/{id}/publication-viewers` requires a full account and current
 project publish authority. It returns `{items: [{userId, userName}], nextCursor}`
 for active eligible accounts in the active project organization, excluding accounts
 that must change their password. Optional `limit` is 1–20 and `cursor` is a UUID;
 responses are `private, no-store`. The route does not expose class rosters.
 
-`POST /api/projects/{id}/publications` requires a current full account, CSRF token
+`POST /api/v1/projects/{id}/publications` requires a current full account, CSRF token
 and account-write rate limit. The request is bounded to 16 KiB and has the shape:
 
 ```json
@@ -2193,7 +2208,7 @@ choose it. After commit, a new request returns 201 and a replay returns 200 with
 `publicationId`, `projectId`, `sourceRevision`, `createdAt`, `snapshotUrl` and
 `visitorUrl`. The snapshot URL points to the protected JSON API; the visitor URL
 points to `/p/<publicationId>` on the configured origin. The protected
-`GET /api/publications/{id}/manifest` supplies the visitor's asset metadata under
+`GET /api/v1/publications/{id}/manifest` supplies the visitor's asset metadata under
 the same access policy. The server returns
 `private, no-store`; missing or unsafe origin configuration makes publishing
 unavailable. Use the same publication ID, confirmed revision and exact intent bytes
@@ -2477,7 +2492,7 @@ return, revocation or project revision removes eligibility for a new publication
 An unmapped project returns unverified origin rather than an ordinary-project
 exemption. Existing published editions are not changed by this check.
 
-`POST /api/projects/{id}/submissions` accepts a student-confirmed saved revision
+`POST /api/v1/projects/{id}/submissions` accepts a student-confirmed saved revision
 and a unique submission ID. It stores the saved document and its deadline under
 the project lock. An identical retry returns the original submission; changed
 intent or a stale revision is rejected. The response includes the recorded due
@@ -2513,10 +2528,10 @@ decisions. Administrator directory powers do not grant review access.
 
 | Route | Request | Successful response |
 | --- | --- | --- |
-| `POST /api/projects/{id}/submissions` | `{submissionId, expectedRevision, completionConfirmed: true}` | 201 for a new submission, 200 for an identical retry: `{submissionId, projectId, revision, submittedAt, dueAtUnixSeconds, isLate}`. |
-| `GET /api/projects/{id}/submissions` | Optional `limit` (default 10, maximum 20) and exclusive UUID `cursor` | `{items, nextCursor}`; each item has `submissionId`, `revision`, `sequence`, `submittedAt`, `dueAtUnixSeconds`, `isLate`, `isCurrentSubmission`. |
-| `GET /api/projects/{id}/submissions/{submissionId}` | Same pagination parameters, applied to decision history | Submission detail described below, including the saved document and latest decision. |
-| `POST /api/projects/{id}/submissions/{submissionId}/decisions` | `{decisionId, expectedRevision, outcome, feedback}` | 201 for a new decision, 200 for an identical retry: `{decisionId, submissionId, sequence, outcome, feedback, decidedAt}`. |
+| `POST /api/v1/projects/{id}/submissions` | `{submissionId, expectedRevision, completionConfirmed: true}` | 201 for a new submission, 200 for an identical retry: `{submissionId, projectId, revision, submittedAt, dueAtUnixSeconds, isLate}`. |
+| `GET /api/v1/projects/{id}/submissions` | Optional `limit` (default 10, maximum 20) and exclusive UUID `cursor` | `{items, nextCursor}`; each item has `submissionId`, `revision`, `sequence`, `submittedAt`, `dueAtUnixSeconds`, `isLate`, `isCurrentSubmission`. |
+| `GET /api/v1/projects/{id}/submissions/{submissionId}` | Same pagination parameters, applied to decision history | Submission detail described below, including the saved document and latest decision. |
+| `POST /api/v1/projects/{id}/submissions/{submissionId}/decisions` | `{decisionId, expectedRevision, outcome, feedback}` | 201 for a new decision, 200 for an identical retry: `{decisionId, submissionId, sequence, outcome, feedback, decidedAt}`. |
 
 Write IDs must be nonempty UUIDs, and `expectedRevision` is an integer JSON number
 in `0..9007199254740991`. `outcome` is `approved`, `returned` or `revoked`;

@@ -35,10 +35,10 @@ async function api(route) {
   const request = route.request();
   const path = new URL(request.url()).pathname;
   const method = request.method();
-  if (path === "/api/auth/session") return route.fulfill({ json: account });
-  if (path === "/api/auth/csrf") return route.fulfill({ json: { requestToken: "test-token" } });
+  if (path === "/api/v1/auth/session") return route.fulfill({ json: account });
+  if (path === "/api/v1/auth/csrf") return route.fulfill({ json: { requestToken: "test-token" } });
   if (method !== "GET") assert.equal(request.headers()["x-csrf-token"], "test-token");
-  if (path === "/api/projects")
+  if (path === "/api/v1/projects")
     return route.fulfill({
       json: {
         items: [
@@ -58,7 +58,7 @@ async function api(route) {
         nextCursor: null,
       },
     });
-  if (path === "/api/classes" && method === "POST") {
+  if (path === "/api/v1/classes" && method === "POST") {
     const body = request.postDataJSON();
     assert.deepEqual(body, { name: "Geography" });
     const row = {
@@ -69,7 +69,8 @@ async function api(route) {
     classes.push(row);
     return route.fulfill({ status: 201, json: row });
   }
-  if (path === "/api/classes") return route.fulfill({ json: { items: classes, nextCursor: null } });
+  if (path === "/api/v1/classes")
+    return route.fulfill({ json: { items: classes, nextCursor: null } });
   if (/\/members\//.test(path)) {
     const id = path.split("/").at(-1);
     const student = students.find((row) => row.userId === id);
@@ -95,7 +96,7 @@ async function api(route) {
       },
     });
   }
-  if (path === `/api/classes/${classId}/assignments` && method === "POST") {
+  if (path === `/api/v1/classes/${classId}/assignments` && method === "POST") {
     const body = request.postDataJSON();
     attempts.push(body);
     assert.equal(body.sourceProjectId, source);
@@ -145,7 +146,7 @@ try {
     locale: "en-US",
     viewport: { width: 1440, height: 1100 },
   });
-  await context.route("**/api/**", api);
+  await context.route("**/api/v1/**", api);
   const page = await context.newPage();
   page.setDefaultTimeout(7000);
   page.on("pageerror", (error) => errors.push(error.message));
@@ -267,7 +268,7 @@ try {
     locale: "en-US",
     viewport: { width: 390, height: 900 },
   });
-  await localContext.route("**/api/**", api);
+  await localContext.route("**/api/v1/**", api);
   const local = await localContext.newPage();
   local.on("pageerror", (error) => errors.push(error.message));
   await local.goto(origin + "/home");

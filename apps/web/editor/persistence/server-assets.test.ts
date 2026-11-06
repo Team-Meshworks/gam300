@@ -6,18 +6,18 @@ const asset = {
   id,
   name: "Approved room",
   kind: "environment",
-  url: `/api/assets/${id}/bytes`,
+  url: `/api/v1/assets/${id}/bytes`,
   sha256: "a".repeat(64),
   thumbnail: null,
   category: null,
 };
 it("loads retained references independently of the active catalogue using project-scoped bytes", async () => {
   const projectId = "22222222-2222-4222-8222-222222222222";
-  const retained = { ...asset, url: `/api/projects/${projectId}/assets/${id}/bytes` };
+  const retained = { ...asset, url: `/api/v1/projects/${projectId}/assets/${id}/bytes` };
   const fetcher = vi
     .fn<typeof fetch>()
     .mockImplementation(async (url) =>
-      Response.json(url === `/api/projects/${projectId}/assets` ? [retained] : []),
+      Response.json(url === `/api/v1/projects/${projectId}/assets` ? [retained] : []),
     );
   expect(await readServerAssets("alice", new AbortController().signal, fetcher, projectId)).toEqual(
     [{ ...retained, category: undefined }],
@@ -29,7 +29,7 @@ it("loads approved server identities and uses authenticated uncached requests", 
     { ...asset, category: undefined },
   ]);
   expect(fetcher).toHaveBeenCalledWith(
-    "/api/assets",
+    "/api/v1/assets",
     expect.objectContaining({
       credentials: "same-origin",
       cache: "no-store",

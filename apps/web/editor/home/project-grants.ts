@@ -122,7 +122,7 @@ export async function readProjectGrantEditor(
   };
   const api = createWorkspaceClient(bound);
   const snapshot = parseProjectGrants(
-    await api.read(`/api/projects/${encodeURIComponent(projectId)}/assignments`, signal),
+    await api.read(`/api/v1/projects/${encodeURIComponent(projectId)}/assignments`, signal),
     projectId,
   );
   const directory = createDirectoryClient(bound);

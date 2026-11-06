@@ -966,7 +966,14 @@ export function App({ server }: { server?: ServerEditorSession }) {
                 setPlacingAssetId(null);
                 setAudioLibrary(mode);
               }}
-              onAdd={(assetId) => {
+              onAdd={async (assetId) => {
+                const before = store.getSnapshot();
+                const modelId =
+                  assetId === "test-room-v1" && projectScene?.environmentAssetId === assetId
+                    ? "test-room-module-v1"
+                    : assetId;
+                if (!(await viewCamera?.prepareAsset(modelId)) || store.getSnapshot() !== before)
+                  return;
                 setShowExhibitTools(false);
                 // Supplied rooms are complete environment layouts, selected at the scene origin.
                 if (assetKinds.get(assetId) === "environment" && assetId !== "test-room-v1") {

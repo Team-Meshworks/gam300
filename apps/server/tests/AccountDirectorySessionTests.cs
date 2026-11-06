@@ -35,10 +35,10 @@ public sealed class AccountDirectorySessionTests
         await fixture.SignInAsync(actor);
         var cutoff = new DateTimeOffset(long.Parse(
             fixture.ReadTicket().Properties.Items[HttpsApplicationFixture.AbsoluteExpiryKey]!, CultureInfo.InvariantCulture), TimeSpan.Zero);
-        var detailPath = $"/api/admin/{resource}/{id:D}";
+        var detailPath = $"/api/v1/admin/{resource}/{id:D}";
         var mutation = operation == "active";
         using var request = new HttpRequestMessage(mutation ? HttpMethod.Patch : HttpMethod.Get,
-            operation == "list" ? $"/api/admin/{resource}" : detailPath + (mutation ? "/active" : ""));
+            operation == "list" ? $"/api/v1/admin/{resource}" : detailPath + (mutation ? "/active" : ""));
         if (mutation)
         {
             request.Content = JsonContent.Create(new { isActive = false });

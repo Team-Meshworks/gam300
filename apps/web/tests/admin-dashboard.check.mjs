@@ -38,10 +38,10 @@ try {
   let projectError = false;
   let projectReads = 0;
   let creations = 0;
-  await page.route("**/api/**", async (route) => {
+  await page.route("**/api/v1/**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
-    if (url.pathname === "/api/auth/session")
+    if (url.pathname === "/api/v1/auth/session")
       return authenticated
         ? route.fulfill({
             json: {
@@ -53,24 +53,25 @@ try {
             },
           })
         : route.fulfill({ status: 401 });
-    if (url.pathname === "/api/auth/csrf") return route.fulfill({ json: { requestToken: "csrf" } });
+    if (url.pathname === "/api/v1/auth/csrf")
+      return route.fulfill({ json: { requestToken: "csrf" } });
     if (request.method() === "POST") {
       assert.equal(request.headers()["x-csrf-token"], "csrf");
-      if (url.pathname === "/api/auth/login") {
+      if (url.pathname === "/api/v1/auth/login") {
         if (rejectLogin) return route.fulfill({ status: 401 });
         authenticated = true;
         return route.fulfill({ status: 204 });
       }
-      if (url.pathname === "/api/auth/password") {
+      if (url.pathname === "/api/v1/auth/password") {
         forced = false;
         return route.fulfill({ status: 204 });
       }
-      if (url.pathname === "/api/auth/logout") {
+      if (url.pathname === "/api/v1/auth/logout") {
         assert.equal(request.headers()["x-spatia-account"], userId);
         authenticated = false;
         return route.fulfill({ status: 204 });
       }
-      if (url.pathname === "/api/admin/organizations") {
+      if (url.pathname === "/api/v1/admin/organizations") {
         assert.equal(request.headers()["x-spatia-account"], userId);
         assert.deepEqual(request.postDataJSON(), { name: "New School" });
         creations++;
@@ -81,7 +82,7 @@ try {
         });
       }
     }
-    if (url.pathname === "/api/projects") {
+    if (url.pathname === "/api/v1/projects") {
       projectReads++;
       if (new URL(request.headers().referer).pathname === "/admin/dashboard")
         assert.equal(request.headers()["x-spatia-account"], userId);
@@ -96,7 +97,7 @@ try {
         : projects.slice(0, url.searchParams.get("limit") === "3" ? 3 : 2);
       return route.fulfill({ json: { items, nextCursor: cursor ? null : items.at(-1).projectId } });
     }
-    if (url.pathname === "/api/admin/organizations")
+    if (url.pathname === "/api/v1/admin/organizations")
       return route.fulfill({
         json: {
           items: [{ id: orgId, name: "Ridgeview Secondary School", isActive: true }],

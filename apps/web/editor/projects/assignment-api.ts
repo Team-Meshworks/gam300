@@ -79,7 +79,7 @@ async function pages(path: string, signal?: AbortSignal): Promise<unknown[]> {
 }
 
 export async function assignmentSession(signal?: AbortSignal): Promise<AssignmentSession> {
-  const value = await readJson("/api/auth/session", signal);
+  const value = await readJson("/api/v1/auth/session", signal);
   if (
     !record(value) ||
     typeof value.userId !== "string" ||
@@ -101,8 +101,8 @@ export async function assignmentChoices(
   signal?: AbortSignal,
 ): Promise<{ classes: ProjectClass[]; projects: SourceProject[] }> {
   const [classes, projects] = await Promise.all([
-    pages("/api/classes", signal),
-    pages("/api/projects", signal),
+    pages("/api/v1/classes", signal),
+    pages("/api/v1/projects", signal),
   ]);
   if (
     classes.some(
@@ -139,7 +139,10 @@ export async function enrolledStudents(
   classId: string,
   signal?: AbortSignal,
 ): Promise<EligibleStudent[]> {
-  const rows = await pages(`/api/classes/${encodeURIComponent(classId)}/eligible-students`, signal);
+  const rows = await pages(
+    `/api/v1/classes/${encodeURIComponent(classId)}/eligible-students`,
+    signal,
+  );
   if (
     rows.some(
       (row) =>
@@ -203,7 +206,7 @@ export async function submitAssignment(
             kind: "rejected",
             message: "The account changed. Reload before creating an assignment.",
           };
-    const csrf = await readJson("/api/auth/csrf");
+    const csrf = await readJson("/api/v1/auth/csrf");
     if (!record(csrf) || typeof csrf.requestToken !== "string")
       throw new Error("Missing request token.");
     const current = await assignmentSession();
@@ -216,7 +219,7 @@ export async function submitAssignment(
           };
     let response: Response;
     try {
-      response = await fetch(`/api/classes/${encodeURIComponent(pending.classId)}/assignments`, {
+      response = await fetch(`/api/v1/classes/${encodeURIComponent(pending.classId)}/assignments`, {
         method: "POST",
         credentials: "same-origin",
         cache: "no-store",
@@ -289,7 +292,7 @@ export async function listAssignments(
   classId: string,
   signal?: AbortSignal,
 ): Promise<AssignmentDetails[]> {
-  return (await pages(`/api/classes/${encodeURIComponent(classId)}/assignments`, signal)).map(
+  return (await pages(`/api/v1/classes/${encodeURIComponent(classId)}/assignments`, signal)).map(
     assignmentDetails,
   );
 }
@@ -301,7 +304,7 @@ export async function readAssignment(
 ): Promise<AssignmentDetails> {
   const value = assignmentDetails(
     await readJson(
-      `/api/classes/${encodeURIComponent(classId)}/assignments/${encodeURIComponent(assignmentId)}`,
+      `/api/v1/classes/${encodeURIComponent(classId)}/assignments/${encodeURIComponent(assignmentId)}`,
       signal,
     ),
   );

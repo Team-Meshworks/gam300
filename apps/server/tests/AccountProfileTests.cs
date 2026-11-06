@@ -41,7 +41,7 @@ public sealed class AccountProfileTests
             }
             await database.SaveChangesAsync();
         }
-        var path = $"/api/admin/organizations/{organizationId}/projects";
+        var path = $"/api/v1/admin/organizations/{organizationId}/projects";
         var page = await fixture.Client.GetFromJsonAsync<JsonElement>(path + "?limit=1");
         await Assert.That(page.GetProperty("items").GetArrayLength()).IsEqualTo(1);
         await Assert.That(page.GetProperty("items")[0].GetProperty("title").GetString()).IsEqualTo("Visible project");
@@ -50,7 +50,7 @@ public sealed class AccountProfileTests
         await Assert.That(next.GetProperty("nextCursor").ValueKind).IsEqualTo(JsonValueKind.Null);
         using var unbounded = await fixture.Client.GetAsync(path + "?limit=21");
         await Assert.That(unbounded.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
-        using var missing = await fixture.Client.GetAsync($"/api/admin/organizations/{Guid.NewGuid()}/projects");
+        using var missing = await fixture.Client.GetAsync($"/api/v1/admin/organizations/{Guid.NewGuid()}/projects");
         await Assert.That(missing.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
         using var member = fixture.CreateClient();
         await fixture.SignInAsync(first, member);
@@ -79,11 +79,11 @@ public sealed class AccountProfileTests
         await Assert.That(account.Role).IsEqualTo("Educator");
         await Assert.That(account.MustChangePassword).IsTrue();
         await AuthTestRequests.AssertSafeAsync(fixture, response);
-        using var oldSession = await oldClient.GetAsync("/api/auth/session");
+        using var oldSession = await oldClient.GetAsync("/api/v1/auth/session");
         await Assert.That(oldSession.StatusCode).IsEqualTo(HttpStatusCode.Unauthorized);
-        using var reloaded = await fixture.Client.GetAsync($"/api/admin/users/{target}");
+        using var reloaded = await fixture.Client.GetAsync($"/api/v1/admin/users/{target}");
         await Assert.That(await reloaded.Content.ReadFromJsonAsync<ProvisionedAccount>()).IsEqualTo(account);
-        using var search = await fixture.Client.GetAsync("/api/admin/users?q=ABDULLAH");
+        using var search = await fixture.Client.GetAsync("/api/v1/admin/users?q=ABDULLAH");
         var page = await search.Content.ReadFromJsonAsync<JsonElement>();
         await Assert.That(page.GetProperty("items").GetArrayLength()).IsEqualTo(1);
         await using var scope = fixture.App.Services.CreateAsyncScope();
@@ -93,9 +93,9 @@ public sealed class AccountProfileTests
         await Assert.That(await users.CheckPasswordAsync(user, AuthTestRequests.CurrentPassword)).IsFalse();
         var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         await Assert.That((await database.OrganizationMemberships.SingleAsync(row => row.UserId == target)).RoleId).IsEqualTo(ApplicationRoles.EducatorId);
-        using var login = await AuthTestRequests.PostAsync(fixture, "/api/auth/login", new { userName = "aisyah.updated", password = AuthTestRequests.NewPassword }, oldClient);
+        using var login = await AuthTestRequests.PostAsync(fixture, "/api/v1/auth/login", new { userName = "aisyah.updated", password = AuthTestRequests.NewPassword }, oldClient);
         await Assert.That(login.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
-        using var session = await oldClient.GetAsync("/api/auth/session");
+        using var session = await oldClient.GetAsync("/api/v1/auth/session");
         var details = await session.Content.ReadFromJsonAsync<JsonElement>();
         await Assert.That(details.GetProperty("displayName").GetString()).IsEqualTo("Aisyah Abdullah");
         await Assert.That(details.GetProperty("role").GetString()).IsEqualTo("Educator");
@@ -173,7 +173,7 @@ public sealed class AccountProfileTests
         var admin = await fixture.CreateAccountAsync(ApplicationRoles.Administrator);
         await fixture.SignInAsync(admin);
         var target = await fixture.CreateAccountAsync();
-        using var missingCsrf = await fixture.Client.PatchAsJsonAsync($"/api/admin/users/{target}", new { displayName = "Denied" });
+        using var missingCsrf = await fixture.Client.PatchAsJsonAsync($"/api/v1/admin/users/{target}", new { displayName = "Denied" });
         await Assert.That(missingCsrf.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
         using var escalation = await PatchAsync(fixture, target, new { role = "Administrator" });
         await Assert.That(escalation.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
@@ -184,7 +184,7 @@ public sealed class AccountProfileTests
     }
 
     private static async Task<ProvisionedAccount> ReadAsync(HttpsApplicationFixture fixture, Guid id) =>
-        (await fixture.Client.GetFromJsonAsync<ProvisionedAccount>($"/api/admin/users/{id}"))!;
+        (await fixture.Client.GetFromJsonAsync<ProvisionedAccount>($"/api/v1/admin/users/{id}"))!;
 
     private sealed class RejectProfilePassword : IPasswordValidator<ApplicationUser>
     {
@@ -195,7 +195,7 @@ public sealed class AccountProfileTests
 
     private static async Task<HttpResponseMessage> PatchAsync(HttpsApplicationFixture fixture, Guid id, object body)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Patch, $"/api/admin/users/{id}") { Content = JsonContent.Create(body) };
+        using var request = new HttpRequestMessage(HttpMethod.Patch, $"/api/v1/admin/users/{id}") { Content = JsonContent.Create(body) };
         request.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync());
         return await fixture.Client.SendAsync(request);
     }

@@ -33,7 +33,7 @@ public sealed class AccountDirectoryTests
             await database.SaveChangesAsync();
         }
 
-        using var userResponse = await fixture.Client.GetAsync($"/api/admin/users/{userId:D}");
+        using var userResponse = await fixture.Client.GetAsync($"/api/v1/admin/users/{userId:D}");
         await Assert.That(userResponse.StatusCode).IsEqualTo(HttpStatusCode.OK);
         var account = await userResponse.Content.ReadFromJsonAsync<JsonElement>();
         await Assert.That(account.EnumerateObject().Select(property => property.Name).Order().SequenceEqual(
@@ -46,24 +46,24 @@ public sealed class AccountDirectoryTests
         await Assert.That(account.GetProperty("mustChangePassword").GetBoolean()).IsTrue();
         await Assert.That(userResponse.Headers.CacheControl?.NoStore).IsTrue();
 
-        var filtered = await GetJsonAsync(fixture, $"/api/admin/users?role=Creator&orgId={orgId:D}&isActive=false&q={userName.ToUpperInvariant()}");
+        var filtered = await GetJsonAsync(fixture, $"/api/v1/admin/users?role=Creator&orgId={orgId:D}&isActive=false&q={userName.ToUpperInvariant()}");
         await Assert.That(filtered.GetProperty("items").GetArrayLength()).IsEqualTo(1);
         await Assert.That(filtered.GetProperty("items")[0].GetProperty("userId").GetGuid()).IsEqualTo(userId);
         await Assert.That(filtered.GetProperty("nextCursor").ValueKind).IsEqualTo(JsonValueKind.Null);
-        var empty = await GetJsonAsync(fixture, $"/api/admin/users?role=Educator&orgId={orgId:D}");
+        var empty = await GetJsonAsync(fixture, $"/api/v1/admin/users?role=Educator&orgId={orgId:D}");
         await Assert.That(empty.GetProperty("items").GetArrayLength()).IsEqualTo(0);
 
-        var organizationJson = await GetJsonAsync(fixture, $"/api/admin/organizations/{orgId:D}");
+        var organizationJson = await GetJsonAsync(fixture, $"/api/v1/admin/organizations/{orgId:D}");
         await Assert.That(organizationJson.EnumerateObject().Select(property => property.Name).Order().SequenceEqual(
             new[] { "id", "isActive", "name" })).IsTrue();
         await Assert.That(organizationJson.GetProperty("id").GetGuid()).IsEqualTo(orgId);
         await Assert.That(organizationJson.GetProperty("name").GetString()).IsEqualTo("Synthetic 100%_\\ Organization");
         await Assert.That(organizationJson.GetProperty("isActive").GetBoolean()).IsFalse();
-        var organizations = await GetJsonAsync(fixture, "/api/admin/organizations?isActive=false&q="
+        var organizations = await GetJsonAsync(fixture, "/api/v1/admin/organizations?isActive=false&q="
             + Uri.EscapeDataString("100%_\\ ORGANIZATION"));
         await Assert.That(organizations.GetProperty("items").GetArrayLength()).IsEqualTo(1);
         await Assert.That(organizations.GetProperty("items")[0].GetProperty("id").GetGuid()).IsEqualTo(orgId);
-        var literal = await GetJsonAsync(fixture, "/api/admin/users?q=%25");
+        var literal = await GetJsonAsync(fixture, "/api/v1/admin/users?q=%25");
         await Assert.That(literal.GetProperty("items").GetArrayLength()).IsEqualTo(0);
     }
 
@@ -76,19 +76,19 @@ public sealed class AccountDirectoryTests
         await fixture.SignInAsync(await fixture.CreateAccountAsync(ApplicationRoles.Administrator));
         await fixture.CreateAccountAsync();
         await fixture.CreateAccountAsync(ApplicationRoles.Educator);
-        var first = await GetJsonAsync(fixture, $"/api/admin/{resource}?limit=1");
+        var first = await GetJsonAsync(fixture, $"/api/v1/admin/{resource}?limit=1");
         var firstId = first.GetProperty("items")[0].GetProperty(idField).GetGuid();
         await Assert.That(first.GetProperty("nextCursor").GetGuid()).IsEqualTo(firstId);
-        var remaining = await GetJsonAsync(fixture, $"/api/admin/{resource}?limit=100&cursor={firstId:D}");
+        var remaining = await GetJsonAsync(fixture, $"/api/v1/admin/{resource}?limit=100&cursor={firstId:D}");
         var remainingIds = remaining.GetProperty("items").EnumerateArray().Select(row => row.GetProperty(idField).GetGuid()).ToArray();
         await Assert.That(remainingIds.Length).IsEqualTo(resource == "users" ? 2 : 1);
         await Assert.That(remainingIds.All(id => id.CompareTo(firstId) > 0)).IsTrue();
         await Assert.That(remainingIds.SequenceEqual(remainingIds.Order())).IsTrue();
         await Assert.That(remaining.GetProperty("nextCursor").ValueKind).IsEqualTo(JsonValueKind.Null);
-        var all = await GetJsonAsync(fixture, $"/api/admin/{resource}");
+        var all = await GetJsonAsync(fixture, $"/api/v1/admin/{resource}");
         await Assert.That(all.GetProperty("items").EnumerateArray().Select(row => row.GetProperty(idField).GetGuid())
             .SequenceEqual(new[] { firstId }.Concat(remainingIds))).IsTrue();
-        using var missing = await fixture.Client.GetAsync($"/api/admin/{resource}/{Guid.NewGuid():D}");
+        using var missing = await fixture.Client.GetAsync($"/api/v1/admin/{resource}/{Guid.NewGuid():D}");
         await Assert.That(missing.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
     }
 
@@ -108,7 +108,7 @@ public sealed class AccountDirectoryTests
         await fixture.SignInAsync(await fixture.CreateAccountAsync(ApplicationRoles.Administrator));
         foreach (var resource in new[] { "users", "organizations" })
         {
-            using var response = await fixture.Client.GetAsync($"/api/admin/{resource}?{query}");
+            using var response = await fixture.Client.GetAsync($"/api/v1/admin/{resource}?{query}");
             await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
             var json = await response.Content.ReadFromJsonAsync<JsonElement>();
             await Assert.That(json.GetProperty("code").GetString()).IsEqualTo("invalid_directory_query");
@@ -123,10 +123,10 @@ public sealed class AccountDirectoryTests
         foreach (var path in new[] { "users?role=administrator", "users?orgId=invalid", "organizations?role=Creator",
             "users?q=" + new string('a', 257), "organizations?q=" + new string('a', 257) })
         {
-            using var response = await fixture.Client.GetAsync("/api/admin/" + path);
+            using var response = await fixture.Client.GetAsync("/api/v1/admin/" + path);
             await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
         }
-        var valid = await GetJsonAsync(fixture, "/api/admin/users?q=" + new string('a', 256));
+        var valid = await GetJsonAsync(fixture, "/api/v1/admin/users?q=" + new string('a', 256));
         await Assert.That(valid.GetProperty("items").GetArrayLength()).IsEqualTo(0);
     }
 
@@ -154,7 +154,7 @@ public sealed class AccountDirectoryTests
         }
         foreach (var path in new[] { "users", $"users/{target:D}", "organizations", $"organizations/{Guid.NewGuid():D}" })
         {
-            using var response = await fixture.Client.GetAsync("/api/admin/" + path);
+            using var response = await fixture.Client.GetAsync("/api/v1/admin/" + path);
             await Assert.That((int)response.StatusCode).IsEqualTo(status);
             await Assert.That((await response.Content.ReadAsStringAsync()).Contains(target.ToString("D"), StringComparison.Ordinal)).IsFalse();
         }

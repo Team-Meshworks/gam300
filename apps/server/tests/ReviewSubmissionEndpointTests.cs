@@ -76,7 +76,7 @@ public sealed class ReviewSubmissionEndpointTests
         await fixture.App.StopAsync();
         await using var restarted = await fixture.CreateSiblingAsync(_ => { });
         await restarted.SignInAsync(data.Educator);
-        using var detail = await restarted.Client.GetAsync($"/api/projects/{data.ProjectId:D}/submissions/{submissionId:D}");
+        using var detail = await restarted.Client.GetAsync($"/api/v1/projects/{data.ProjectId:D}/submissions/{submissionId:D}");
         await Assert.That(detail.StatusCode).IsEqualTo(HttpStatusCode.OK);
         var history = await detail.Content.ReadFromJsonAsync<JsonElement>();
         using var expected = JsonDocument.Parse(savedJson);
@@ -274,7 +274,7 @@ public sealed class ReviewSubmissionEndpointTests
         long revision, bool confirmed, HttpClient? client = null, string? token = null)
     {
         client ??= fixture.Client;
-        using var message = new HttpRequestMessage(HttpMethod.Post, $"/api/projects/{projectId:D}/submissions")
+        using var message = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/projects/{projectId:D}/submissions")
         {
             Content = JsonContent.Create(new { submissionId, expectedRevision = revision, completionConfirmed = confirmed }),
         };
@@ -286,7 +286,7 @@ public sealed class ReviewSubmissionEndpointTests
         long revision = 0, string? json = null)
     {
         using var document = JsonDocument.Parse(json ?? ProjectTestDocuments.Create(projectId, "Newer draft"));
-        using var message = new HttpRequestMessage(HttpMethod.Put, $"/api/projects/{projectId:D}")
+        using var message = new HttpRequestMessage(HttpMethod.Put, $"/api/v1/projects/{projectId:D}")
         {
             Content = JsonContent.Create(new { expectedRevision = revision, clientMutationId = Guid.NewGuid(), document = document.RootElement }),
         };

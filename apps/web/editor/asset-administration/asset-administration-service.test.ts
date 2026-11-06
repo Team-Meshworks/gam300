@@ -18,6 +18,30 @@ const candidate = {
   actions: ["hide", "delete"],
 };
 
+it.each([
+  [`/api/v1/admin/assets/${actor}/bytes`, true],
+  [`/api/admin/assets/${actor}/bytes`, false],
+  [`/api/v2/admin/assets/${actor}/bytes`, false],
+  [`https://elsewhere.test/api/v1/admin/assets/${actor}/bytes`, false],
+])("validates the version and origin of inspection URL %s", async (inspectionUrl, accepted) => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string) =>
+      Response.json(
+        url === "/api/v1/auth/csrf"
+          ? { requestToken: "current-token" }
+          : { ...candidate, id: actor, inspectionUrl },
+      ),
+    ),
+  );
+  const result = await createAssetAdministrationService(actor).changeAvailability(
+    actor,
+    "hide",
+    new AbortController().signal,
+  );
+  expect(result.ok).toBe(accepted);
+});
+
 it("sends an explicit destructive opt-in with the current CSRF token on the same origin", async () => {
   // Capture the token request before the mutation to prove writes use the current account session
   const calls: { url: string; init: RequestInit | undefined }[] = [];
@@ -26,7 +50,7 @@ it("sends an explicit destructive opt-in with the current CSRF token on the same
     vi.fn(async (url: string, init?: RequestInit) => {
       calls.push({ url, init });
       return Response.json(
-        url === "/api/auth/csrf"
+        url === "/api/v1/auth/csrf"
           ? { requestToken: "current-token" }
           : { ...candidate, hidden: true, deleted: true, removedFromProjects: true, actions: [] },
       );
@@ -40,8 +64,8 @@ it("sends an explicit destructive opt-in with the current CSRF token on the same
   );
   expect(result.ok).toBe(true);
   expect(calls.map((call) => call.url)).toEqual([
-    "/api/auth/csrf",
-    "/api/admin/assets/asset-1/availability",
+    "/api/v1/auth/csrf",
+    "/api/v1/admin/assets/asset-1/availability",
   ]);
   expect(calls[1]?.init?.credentials).toBe("same-origin");
   for (const call of calls) {
@@ -90,5 +114,5 @@ it("binds catalogue reads and stops a queued write when its original account is 
     await service.changeAvailability(candidate.id, "hide", new AbortController().signal),
   ).toMatchObject({ ok: false, kind: "denied" });
   expect(fetcher).toHaveBeenCalledTimes(1);
-  expect(fetcher.mock.calls[0]?.[0]).toBe("/api/auth/csrf");
+  expect(fetcher.mock.calls[0]?.[0]).toBe("/api/v1/auth/csrf");
 });
