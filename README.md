@@ -242,14 +242,14 @@ That plugin retains ESLint as an npm peer; `npm run lint` itself runs Oxlint. Va
 plugin compatibility when updating the lint configuration or dependencies.
 
 Browser checks require a non-root user and official Google Chrome (or Chrome for
-Testing) at least **156.0.8078.73**, the 27 October 2026 security-release floor.
+Testing) at least **157.0.8103.38**, the 3 November 2026 security-release floor.
 From `apps/web/`, run `npm run browser:install` to install current official stable
 Chrome and its system libraries, then `npm run browser:verify`. Installation may
 keep an already-installed local Chrome. For updates, use Chrome's normal updater
 or explicitly run `npm run browser:update` (this replaces the installed Chrome),
 then repeat verification and the browser regression suite. The minimum floor is
 not a promise of protection from future vulnerabilities. Release reference:
-[Chrome stable security update](https://chromereleases.googleblog.com/2026/10/stable-channel-update-for-desktop_0562499947.html).
+[Chrome stable security update](https://chromereleases.googleblog.com/2026/11/stable-channel-update-for-desktop.html).
 
 A custom official Chrome for Testing binary can be selected with `CHROME_PATH`.
 An explicitly selected missing, stale or unrecognized binary fails closed; bundled
