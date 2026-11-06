@@ -197,6 +197,8 @@ failure and fails overall. Workspace routes and the admin dashboard run against 
 Caddy application. The caching check verifies GLB HTTP revalidation; `npm run measure:caching`
 remains an on-demand benchmark. Publishing waits for every fixture job and all required build/test
 jobs; the architecture proof may be skipped only when its selector reports it unnecessary.
+CI reuses the runner's Chrome only when browser verification passes the existing version
+and sandbox policy; otherwise it installs an official patched Chrome and verifies it again.
 
 The recovery check includes place–move–undo–save–reload and JSON transfer into a fresh
 browser context. Its output and the editor check output are retained under `apps/web/test-results/`.
@@ -205,7 +207,7 @@ The server job uses the SDK pinned in `apps/server/global.json`, locked NuGet re
 Release build, both C# format checks, migration checks and the complete TUnit suite.
 Its disposable PostgreSQL 18.6 service publishes only to loopback and uses synthetic
 test credentials. The suite applies migrations in isolated schemas and includes the
-existing Chromium account flow. Test reports and browser-version evidence are retained
+existing Chrome account flow. Test reports and browser-version evidence are retained
 for 14 days. The separate account cold-restart acceptance remains a local operator check;
 see the [server setup](../apps/server/README.md).
 
