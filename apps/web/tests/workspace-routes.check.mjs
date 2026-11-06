@@ -16,7 +16,7 @@ const screens = [
   ["new-project", "New class assignment"],
   ["classes", "Classes"],
   ["review", "Submission review"],
-  ["accounts", "Accounts"],
+  ["organisations", "All Organisations"],
 ];
 try {
   const page = await browser.newPage();
@@ -40,19 +40,33 @@ try {
         },
       });
     }
+    if (new URL(request.url()).pathname === "/api/v1/admin/organizations")
+      return route.fulfill({ json: { items: [], nextCursor: null } });
     return route.fulfill({ status: 503 });
   });
 
   async function screen(path, heading) {
     await page.goto(`${origin}/${path}`);
-    await page.getByRole("heading", { name: heading, exact: true }).waitFor();
+    await page
+      .getByRole("heading", {
+        name: heading,
+        level: heading === "All Organisations" ? 1 : undefined,
+        exact: true,
+      })
+      .waitFor();
     assert.equal(await page.getByText(/development preview|simulation|ms tan/i).count(), 0);
   }
   for (const [path, heading] of screens) {
-    mode = path === "accounts" || path === "admin/dashboard" ? "Administrator" : "Educator";
+    mode = path === "organisations" || path === "admin/dashboard" ? "Administrator" : "Educator";
     await screen(`${path}/?source=check`, heading);
     await page.reload();
-    await page.getByRole("heading", { name: heading, exact: true }).waitFor();
+    await page
+      .getByRole("heading", {
+        name: heading,
+        level: heading === "All Organisations" ? 1 : undefined,
+        exact: true,
+      })
+      .waitFor();
   }
 
   // Use the mounted screen and authenticated intake adapter, not its local preview.
@@ -110,7 +124,7 @@ try {
   await page.getByRole("button", { name: "New assignment" }).click();
   await page.getByRole("heading", { name: "New class assignment" }).waitFor();
   mode = "Creator";
-  for (const path of ["new-project", "accounts", "admin/dashboard"]) {
+  for (const path of ["new-project", "organisations", "admin/dashboard"]) {
     await screen(path, "Access denied");
   }
   await screen("classes", "Classes");
@@ -124,7 +138,7 @@ try {
     "new-project",
     "review",
     "publish",
-    "accounts",
+    "organisations",
     "assets",
     "spaces",
     "admin/dashboard",

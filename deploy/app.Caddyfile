@@ -21,7 +21,7 @@
 	rewrite @entry /entry.html
 	@visitor path /p/*
 	rewrite @visitor /visit/index.html
-	@workspace path /admin/dashboard /admin/dashboard/ /assets /assets/ /spaces /spaces/ /new-project /new-project/ /classes /classes/ /review /review/ /publish /publish/ /accounts /accounts/
+	@workspace path /admin/dashboard /admin/dashboard/ /assets /assets/ /spaces /spaces/ /new-project /new-project/ /classes /classes/ /review /review/ /publish /publish/ /organisations /organisations/
 	rewrite @workspace /workspace.html
 	file_server
 }

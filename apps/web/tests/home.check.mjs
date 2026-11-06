@@ -175,8 +175,8 @@ try {
     await page.getByRole("button", { name: "Confirm", exact: true }).click();
     await page.getByText("Class change confirmed.").waitFor();
     assert.equal(
-      await page.getByRole("link", { name: "Accounts" }).getAttribute("href"),
-      "/accounts",
+      await page.getByRole("link", { name: "Organisations" }).getAttribute("href"),
+      "/organisations",
     );
     assert.equal(
       await page.getByRole("link", { name: "Dashboard" }).getAttribute("href"),

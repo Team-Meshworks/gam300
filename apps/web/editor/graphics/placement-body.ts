@@ -9,10 +9,11 @@ export function placementBody(
   transform: Transform,
   model: THREE.Object3D,
   asset: CatalogueAsset,
+  roomModel = isStarterRoomModelAsset(asset),
 ): PlacementBody {
   const bounds = visibleModelBounds(model);
   const body: PlacementBody = { id, transform, bounds };
-  if (asset.kind === "environment" || isStarterRoomModelAsset(asset)) {
+  if (asset.kind === "environment" || roomModel) {
     const interior = bounds.clone();
     model.traverse((node) => {
       if (!(node instanceof THREE.Mesh)) return;

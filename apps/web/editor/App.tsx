@@ -7,8 +7,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { assets as developmentAssets } from "virtual:asset-catalogue";
 import {
   isStarterRoomEnvironment,
-  isStarterRoomModel,
-  starterRoomCompanion,
+  isRoomModel,
+  roomCompanion,
   type CatalogueAsset,
 } from "../shared/asset-runtime/catalogue";
 import { HOTSPOT_ASSET, HOTSPOT_ASSET_ID } from "../shared/asset-runtime/hotspot";
@@ -468,9 +468,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
       const result =
         ids.length > 1 ||
         id === snapshot.activeSceneId ||
-        snapshot.objects.some(
-          (object) => object.id === id && isStarterRoomModel(assets, object.assetId),
-        )
+        snapshot.objects.some((object) => object.id === id && isRoomModel(assets, object.assetId))
           ? store.setSelectionTransform(ids, id, transform)
           : parentId !== undefined &&
               parentId !== ((object as ContentObject | undefined)?.parentId ?? null)
@@ -537,14 +535,13 @@ export function App({ server }: { server?: ServerEditorSession }) {
 
       // The same room tile creates the environment first and independent room instances afterward
       // Keep the model reference used by saved room instances behind this one catalogue choice
-      if (
-        projectScene &&
-        isStarterRoomEnvironment(assets, projectScene.environmentAssetId) &&
-        isStarterRoomEnvironment(assets, assetId)
-      ) {
-        const companion = starterRoomCompanion(selectionAssets);
+      if (projectScene) {
+        const companion = roomCompanion(
+          selectionAssets,
+          assets.find((asset) => asset.id === assetId),
+        );
         if (!companion) {
-          setError("An approved Starter room model is required to add an adjoining room.");
+          setError("An approved room model is required to add an adjoining room.");
           setDragging(null);
           return;
         }
@@ -1009,13 +1006,15 @@ export function App({ server }: { server?: ServerEditorSession }) {
               }}
               onAdd={async (assetId) => {
                 const before = store.getSnapshot();
-                const adjoiningRoom =
-                  projectScene &&
-                  isStarterRoomEnvironment(assets, projectScene.environmentAssetId) &&
-                  isStarterRoomEnvironment(assets, assetId);
-                const modelId = adjoiningRoom ? starterRoomCompanion(selectionAssets)?.id : assetId;
+                const adjoiningRoom = projectScene && assetKinds.get(assetId) === "environment";
+                const modelId = adjoiningRoom
+                  ? roomCompanion(
+                      selectionAssets,
+                      assets.find((asset) => asset.id === assetId),
+                    )?.id
+                  : assetId;
                 if (!modelId) {
-                  setError("An approved Starter room model is required to add an adjoining room.");
+                  setError("An approved room model is required to add an adjoining room.");
                   return;
                 }
                 if (!(await viewCamera?.prepareAsset(modelId)) || store.getSnapshot() !== before)
@@ -1024,7 +1023,8 @@ export function App({ server }: { server?: ServerEditorSession }) {
                 // Supplied rooms are complete environment layouts, selected at the scene origin.
                 if (
                   assetKinds.get(assetId) === "environment" &&
-                  !isStarterRoomEnvironment(assets, assetId)
+                  !isStarterRoomEnvironment(assets, assetId) &&
+                  !projectScene
                 ) {
                   setPlacingAssetId(null);
                   place(assetId, [0, 0, 0]);
@@ -1045,11 +1045,13 @@ export function App({ server }: { server?: ServerEditorSession }) {
                 if (
                   assetId &&
                   projectScene &&
-                  isStarterRoomEnvironment(assets, projectScene.environmentAssetId) &&
-                  isStarterRoomEnvironment(assets, assetId) &&
-                  !starterRoomCompanion(selectionAssets)
+                  assetKinds.get(assetId) === "environment" &&
+                  !roomCompanion(
+                    selectionAssets,
+                    assets.find((asset) => asset.id === assetId),
+                  )
                 ) {
-                  setError("An approved Starter room model is required to add an adjoining room.");
+                  setError("An approved room model is required to add an adjoining room.");
                   setDragging(null);
                   return;
                 }

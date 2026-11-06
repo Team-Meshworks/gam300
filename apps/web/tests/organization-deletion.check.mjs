@@ -83,7 +83,7 @@ try {
       return route.fulfill({ json: { items: [], nextCursor: null } });
     return route.fulfill({ status: 404 });
   });
-  await page.goto(`${origin}/accounts`);
+  await page.goto(`${origin}/organisations`);
   await page.getByRole("button", { name: `Open ${name}` }).click();
   const open = page.getByRole("button", { name: "Delete organisation", exact: true });
   await open.click();

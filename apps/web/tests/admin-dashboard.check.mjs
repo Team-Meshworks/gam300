@@ -129,20 +129,22 @@ try {
   await page.getByRole("button", { name: "Change password", exact: true }).click();
   await page.waitForURL(origin + "/admin/dashboard");
   await page.getByRole("heading", { name: "Welcome Back, VThere", exact: true }).waitFor();
-  await page
-    .getByRole("link", { name: "Open project workspace", exact: true })
-    .click({ timeout: 5000 });
+  assert.equal(
+    await page.getByRole("link", { name: "Open project workspace", exact: true }).count(),
+    0,
+  );
+  await page.getByRole("link", { name: "View All Projects", exact: true }).click();
   await page.waitForURL(origin + "/home");
-  await page.getByRole("link", { name: "Accounts", exact: true }).click();
-  await page.waitForURL(origin + "/accounts");
-  await page.getByRole("link", { name: "Projects", exact: true }).click();
-  await page.waitForURL(origin + "/home");
-  await page.getByRole("link", { name: "Dashboard", exact: true }).click();
+  await page.getByRole("heading", { name: "All Projects", exact: true }).waitFor();
+  await page.getByRole("link", { name: "Organisations", exact: true }).click();
+  await page.waitForURL(origin + "/organisations");
+  await page.getByRole("link", { name: "Close organisations", exact: true }).click();
   await page.waitForURL(origin + "/admin/dashboard");
-  await page.getByRole("link", { name: "Open project workspace", exact: true }).click();
+  await page.getByRole("link", { name: "View All Projects", exact: true }).click();
   await page.waitForURL(origin + "/home");
   await page.getByRole("button", { name: "Classes", exact: true }).click();
-  await page.goto(origin + "/admin/dashboard");
+  await page.getByRole("link", { name: "Dashboard", exact: true }).click();
+  await page.waitForURL(origin + "/admin/dashboard");
   await page
     .getByRole("button", { name: `View details for ${projects[0].title}`, exact: true })
     .waitFor();
@@ -162,51 +164,8 @@ try {
       }));
     assert.deepEqual(geometry, { width, height, loaded: true });
   }
-  await page.getByRole("button", { name: "View All Projects", exact: true }).click();
-  let dialog = page.getByRole("dialog", { name: "All Projects", exact: true });
-  await dialog.getByRole("button", { name: "Load more projects", exact: true }).click();
-  await dialog
-    .getByRole("button", { name: "View details for Ancient China", exact: true })
-    .waitFor();
-  await dialog.getByLabel("Search loaded projects").fill("Rome");
-  assert.equal(await dialog.locator(".admin-project-card").count(), 1);
-  async function escapeProjectDetails(archived) {
-    const trigger = dialog.getByRole("button", {
-      name: "View details for Life in Ancient Rome",
-      exact: true,
-    });
-    const readsBefore = projectReads;
-    await trigger.click();
-    const details = page.getByRole("dialog", { name: "Project details", exact: true });
-    await details.waitFor();
-    assert.equal(
-      await details.locator("dd").first().textContent(),
-      archived ? "Archived" : "Draft",
-    );
-    await page.keyboard.press("Escape");
-    await details.waitFor({ state: "detached" });
-    assert.equal(await dialog.isVisible(), true, "Escape closes only the nested details dialog");
-    assert.equal(await dialog.getByLabel("Search loaded projects").inputValue(), "Rome");
-    assert.equal(await dialog.getByLabel("Project status").inputValue(), String(archived));
-    assert.equal(await trigger.evaluate((node) => node === document.activeElement), true);
-    assert.equal(projectReads, readsBefore, "Returning to the list does not reload its pages");
-  }
-  await escapeProjectDetails(false);
-  await dialog.getByLabel("Search loaded projects").fill("");
-  assert.equal(await dialog.locator(".admin-project-card").count(), 4, "Loaded pages are retained");
-  assert.equal(await dialog.getByRole("button", { name: "Load more projects" }).count(), 0);
-  await dialog.getByLabel("Project status").selectOption("true");
-  await dialog.getByRole("button", { name: "View details for Life in Ancient Rome" }).waitFor();
-  await dialog.getByLabel("Search loaded projects").fill("Rome");
-  await escapeProjectDetails(true);
-  await dialog.getByLabel("Search loaded projects").fill("no matching project");
-  await dialog.getByRole("status").filter({ hasText: "No matching projects" }).waitFor();
-  // A focused search input consumes Escape to clear its value; test the dialog itself.
-  await dialog.getByRole("button", { name: "Close", exact: true }).focus();
-  await page.keyboard.press("Escape");
-  await dialog.waitFor({ state: "detached" });
   await page.getByRole("button", { name: "+ Add Organisations", exact: true }).click();
-  dialog = page.getByRole("dialog", { name: "Add organisation", exact: true });
+  let dialog = page.getByRole("dialog", { name: "Add organisation", exact: true });
   await dialog.getByLabel("Organisation name").fill(" New School ");
   await dialog
     .getByRole("button", { name: "Create organisation", exact: true })
@@ -288,7 +247,7 @@ try {
   assert.equal(new URL(page.url()).pathname, "/landing");
   assert.deepEqual(errors, []);
   console.log(
-    "Admin dashboard checks passed: login routing, forced password change, sessions, access control, organisation creation, project pagination, nested-dialog Escape, assets, account navigation, error recovery and responsive layout.",
+    "Admin dashboard checks passed: login routing, forced password change, sessions, access control, organisation creation, project navigation, assets, account navigation, error recovery and responsive layout.",
   );
 } finally {
   await browser.close();
