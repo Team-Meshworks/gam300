@@ -3,7 +3,7 @@
 
 An arrow means imports, including type-only and dynamic imports. Checks are consumer
 tests, including tests co-located with their implementation. Build is the existing
-Vite/ESLint/Vitest configuration and architecture tooling.
+Vite/Oxlint/Vitest configuration and architecture tooling.
 
 ```mermaid
 graph TD

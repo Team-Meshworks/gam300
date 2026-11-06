@@ -11,6 +11,45 @@ try {
   const page = await browser.newPage();
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
+  // Check real GLB revalidation before Playwright routing disables the HTTP cache.
+  await page.goto(new URL("/@vite/client", url).href);
+  const modelUrl = await page.evaluate(async () => {
+    const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
+    return new URL(assets.find((asset) => asset.id === "test-crate-v1").url, location.href).href;
+  });
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Network.enable");
+  const modelRequests = new Set();
+  let httpCacheHit = false;
+  cdp.on("Network.requestWillBeSent", ({ requestId, request }) => {
+    if (request.url === modelUrl) modelRequests.add(requestId);
+  });
+  cdp.on("Network.responseReceivedExtraInfo", ({ requestId, statusCode }) => {
+    if (modelRequests.has(requestId) && statusCode === 304) httpCacheHit = true;
+  });
+  cdp.on("Network.responseReceived", ({ response }) => {
+    if (response.url === modelUrl && response.fromDiskCache) httpCacheHit = true;
+  });
+  await page.evaluate(async () => {
+    const source = await (await fetch("/graphics/scene.ts")).text();
+    const cachePath = source.match(/from "([^"]*ModelCache[^\"]*)"/)[1];
+    const { ModelCache } = await import(cachePath);
+    const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
+    const asset = assets.find((asset) => asset.id === "test-crate-v1");
+    const cache = new ModelCache();
+    for (let request = 0; request < 2; request++) {
+      const lease = await cache.acquire(asset, new AbortController().signal);
+      try {
+        if (lease.value.model.children.length === 0)
+          throw new Error("GLB cache probe did not load the real model");
+      } finally {
+        lease.release();
+        cache.invalidate();
+      }
+    }
+  });
+  assert.equal(httpCacheHit, true, "Reloading an invalidated model must reuse cached GLB bytes");
+  await cdp.detach();
   await page.route("**/caching-harness.html", (route) =>
     route.fulfill({
       contentType: "text/html",

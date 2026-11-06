@@ -84,7 +84,12 @@ if (import.meta.hot) {
 }
 
 export type ViewportStatus =
-  "loading" | "ready" | "error" | "download-error" | "unsupported" | "authentication-required";
+  | "loading"
+  | "ready"
+  | "error"
+  | "download-error"
+  | "unsupported"
+  | "authentication-required";
 
 export interface FpsMeter {
   tick(now: number): void;
@@ -265,7 +270,8 @@ export function initScene(
   let appliedCamera: CameraPose | null = null;
   let appliedLoadGeneration: number | undefined;
   let previewOrigin:
-    { sceneId: string | undefined; loadGeneration: number | undefined } | undefined;
+    | { sceneId: string | undefined; loadGeneration: number | undefined }
+    | undefined;
   let pendingPreviewReturn: typeof previewOrigin;
   let environment: THREE.Group | undefined;
   let environmentId: string | undefined;
@@ -332,7 +338,8 @@ export function initScene(
   let dragLocked = false;
   // Scroll that is shown but not yet saved.
   let wheelEdit:
-    { id: string; transform: Transform; current: Transform; timer: number } | undefined;
+    | { id: string; transform: Transform; current: Transform; timer: number }
+    | undefined;
   let previewFrame: number | undefined;
   let pendingPreview: { id: string; transform: Transform } | undefined;
   const touchPoints = new Map<number, { x: number; y: number }>();

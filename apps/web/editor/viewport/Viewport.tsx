@@ -48,7 +48,8 @@ type ViewportProps = {
   dragging: string | null;
   placingAssetId?: string | null;
   textPlacement?:
-    { objectId: string; component: Extract<ContentComponent, { type: "text" }> } | undefined;
+    | { objectId: string; component: Extract<ContentComponent, { type: "text" }> }
+    | undefined;
   onTextPlace?: (placement: Transform) => void;
   editingEnabled: boolean;
   navigationTool: NavigationTool;

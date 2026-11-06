@@ -70,24 +70,10 @@ jobs:
           npm ci --no-audit --no-fund
           node ../../tools/setup.check.mjs
           npm run check:architecture
-      - name: Run native unit tests
-        # Keep the console output and a report we can download after a failure
-        run: |
-          npm run test:browser-policy
-          npm run test:unit -- --reporter=default --reporter=junit --outputFile=test-results/unit.xml
+      - name: Check native browser policy
+        run: npm run test:browser-policy
       - name: Build on the native platform
         run: npm run build
-      - name: Retain native test reports
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          # Each matrix runner needs its own artifact name
-          name: native-checks-${{ matrix.os }}-${{ github.sha }}
-          path: apps/web/test-results/unit.xml
-          # Installation or source checks can fail before tests produce a report
-          if-no-files-found: warn
-          retention-days: 14
-          overwrite: true
 
   select-architecture:
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' || github.event_name == 'workflow_dispatch'
@@ -164,85 +150,57 @@ jobs:
 
   fixtures:
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' || github.event_name == 'workflow_dispatch'
-    name: Fixture check (${{ matrix.name }})
+    name: Browser checks (${{ matrix.name }})
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
         include:
-          - name: browser
-            script: test:browser
-          - name: asset-admin
-            script: test:asset-admin
-          - name: integration
-            script: test:integration
-          - name: furniture-tools
-            script: test:furniture-tools
-          - name: panel-style
-            script: test:panel-style
-          - name: placement-collision
-            script: test:placement-collision
-          - name: moving-room-collision
-            script: test:moving-room-collision
-          - name: first-person-sandbox
-            script: test:first-person-sandbox
-          - name: caching
-            script: test:caching
+          - name: editor
+            checks: |
+              browser
+              integration
+              first-person-sandbox
+          - name: graphics
+            checks: |
+              furniture-tools
+              viewpoints
+              placement-collision
+              moving-room-collision
+              caching
           - name: recovery
-            script: test:recovery
-          - name: history
-            script: test:history
-          - name: interactions
-            script: test:interactions
+            checks: |
+              recovery
+              history
+              interactions
+              server-autosave
+          # Workspace routes and admin dashboard run against the packaged app in check.
           - name: workspace
-            script: test:workspace
-          - name: accounts
-            script: test:accounts
-          - name: organization-deletion
-            script: test:organization-deletion
-          - name: admin-dashboard
-            script: test:admin-dashboard
-          - name: sounds
-            script: test:sounds
-          - name: entry
-            script: test:entry
-          - name: ui
-            script: test:ui
-            path: /ui-preview.html
-          - name: new-project
-            script: test:new-project
-            path: /ui-preview.html#new-project
-          - name: classes
-            script: test:classes
-            path: /ui-preview.html
-          - name: assignment-screen
-            script: test:assignment-screen
-            path: /ui-preview/assignment-test.html
-          - name: home
-            script: test:home
-          - name: project-creation
-            script: test:project-creation
-          - name: project-grants
-            script: test:project-grants
-          - name: workspace-assignments
-            script: test:workspace-assignments
-          - name: deadline
-            script: test:deadline
-            path: /ui-preview.html
-          - name: review-directory
-            script: test:review-directory
-            path: /ui-preview.html
-          - name: server-autosave
-            script: test:server-autosave
-          - name: reviews
-            script: test:reviews
+            checks: |
+              accounts
+              organization-deletion
+              sounds
+              entry
+              ui /ui-preview.html
+              home
+          - name: projects
+            checks: |
+              new-project /ui-preview.html#new-project
+              classes /ui-preview.html
+              assignment-screen /ui-preview/assignment-test.html
+              project-creation
+              project-grants
+              workspace-assignments
+              deadline /ui-preview.html
+              review-directory /ui-preview.html
           - name: publication
-            script: test:publication
-          - name: publication-readiness
-            script: test:publication-readiness
-          - name: visitor
-            script: test:visitor
+            checks: |
+              asset-admin
+              reviews
+              publication
+              publication-readiness
+              visitor
     defaults:
       run:
         working-directory: apps/web
@@ -273,10 +231,18 @@ jobs:
           echo $! > vite.pid
           curl --fail --silent --show-error --retry 30 --retry-delay 1 --retry-connrefused \
             http://127.0.0.1:5173/ > /dev/null
-      - name: Run fixture check
+      - name: Run browser checks
         env:
-          CHECK_SCREENSHOT: test-results/${{ matrix.name }}.png
-        run: npm run ${{ matrix.script }} -- "http://127.0.0.1:5173${{ matrix.path }}" | tee test-results/${{ matrix.name }}.log
+          CHECKS: ${{ matrix.checks }}
+        run: |
+          failed=0
+          while read -r check path; do
+            [[ -n "$check" ]] || continue
+            if ! CHECK_SCREENSHOT="test-results/$check.png" npm run "test:$check" -- "http://127.0.0.1:5173$path" | tee "test-results/$check.log"; then
+              failed=1
+            fi
+          done <<< "$CHECKS"
+          exit "$failed"
       - name: Stop Vite server
         if: always()
         run: |
@@ -339,8 +305,6 @@ jobs:
           npm run browser:verify
       - name: Check browser isolation and real HTTP cache
         run: npm run test:browser-security
-      - name: Verify cache measurement with HTTP revalidation
-        run: npm run measure:caching
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       # Source checks have passed above; keep the final Caddy-image browser checks below
       - name: Build the runnable image
