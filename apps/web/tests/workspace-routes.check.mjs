@@ -131,7 +131,10 @@ try {
     "?projectId=aefea67c-caca-4300-923c-937f1c785578",
   ]) {
     await page.goto(`${origin}/${path}`);
-    await page.waitForURL(`${origin}/login`);
+    const destination = path.startsWith("?projectId=")
+      ? `${origin}/login?returnTo=${encodeURIComponent("/" + path)}`
+      : `${origin}/login`;
+    await page.waitForURL(destination);
     await page.getByRole("heading", { name: "Welcome back.", exact: true }).waitFor();
     assert.equal(await page.locator(".sp-workspace, .editor-shell").count(), 0);
   }
