@@ -1,5 +1,6 @@
 import { launchBrowser } from "./browser-security.mjs";
 import { placeAtRoomCenter } from "./placement-fixture.mjs";
+import { checkDisplayPlacementCancellation } from "./display-placement-cancellation.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import * as THREE from "three";
@@ -1185,6 +1186,7 @@ try {
   await openLibrary(page);
   assert.equal(await asset.isDisabled(), true);
   assert.deepEqual(pageErrors, [], "No uncaught page errors in any flow");
+  await checkDisplayPlacementCancellation(browser, process.argv[2] ?? "http://127.0.0.1:5173/");
   console.log(
     "PASS: placement, hotspot, preview keyboard activation, single-pointer movement, cancellation, hierarchy, room occlusion, project loading, undo/redo, keyboard, resizing, retry and WebGL fallback",
   );
