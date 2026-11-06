@@ -92,6 +92,8 @@ services:
 
   web:
     # Reuse the editor build, health check and security settings from compose.yaml
+    # Port 8081 serves restricted assets only to the gateway after API authorization.
+    # Neither web listener is published to the host.
     networks: [application]
     ports: !reset []
 

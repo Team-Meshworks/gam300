@@ -299,10 +299,23 @@ header sanitization and the loopback-only port binding; verify the observed brid
 and forwarding behavior in the target Linux Docker environment before deployment.
 
 `/healthz` and `/version.txt` expose only liveness and the deployed commit. The login page
-and static frontend files are public; protected project and administration data require
-an authenticated API session. The old shared team HTTP Basic login is no longer used.
-Removing that gateway login does not approve the development catalogue for redistribution;
-review bundled assets before publishing a release that contains them.
+and UI bundles are public. Project data, administration data and the bundled development
+catalogue require an authenticated API session. Both build modes emit catalogue media and
+thumbnails under `/restricted-assets/`; the image moves them to `/srv-restricted`, outside
+the public `/srv` file root. `server.Caddyfile` checks `/api/auth/asset-access` before
+forwarding any catalogue request to the web service's private port 8081. Anonymous,
+expired, disabled and password-change-only sessions cannot read those bytes. All catalogue
+responses use `Cache-Control: private, no-store`, including HEAD and range requests.
+
+Keep the web service's port 8081 unpublished. The standalone `compose.yaml` stack exposes
+only public UI files and cannot serve the catalogue; use `compose.server.yaml` for signed-in
+asset access. Vite's local development/preview server is not the deployment access boundary.
+Run `node apps/web/tests/restricted-catalogue.check.mjs` to check both build modes, and after
+an editor build run `CADDY_BINARY=/path/to/caddy node deploy/restricted-assets.check.mjs` to
+verify direct byte denial and authenticated delivery with the pinned Caddy version.
+CI also checks the real image's separate roots and an anonymous GLB request against the
+API stack. These access controls do not approve redistribution: SCRUM-73 still requires
+redistribution-ready replacements before the development catalogue is publication-ready.
 
 ## VM setup
 
@@ -328,16 +341,20 @@ their normal 401/403 responses. Start the gateway from that directory:
 docker compose -f gateway.compose.yaml up -d
 ```
 
-When upgrading a gateway that used `SITE_USER` and `SITE_PASSWORD_HASH`, copy both
-updated gateway files to this directory and recreate only the gateway service:
+When upgrading a gateway that used `SITE_USER` and `SITE_PASSWORD_HASH`, first deploy
+the matching web image, API and `server.Caddyfile` with restricted catalogue access.
+Verify through the application gateway that a signed-out direct
+`/restricted-assets/<hash>.glb` request returns 401 without a `WWW-Authenticate` challenge,
+an authenticated request succeeds, and the response has `private, no-store`. Only then copy
+both updated outer gateway files to this directory and recreate the gateway service:
 
 ```sh
 docker compose -f gateway.compose.yaml up -d --force-recreate gateway
 ```
 
-The ordinary app deployment does not update this separate host gateway. Deploy the
-matching frontend and API release as well; updating frontend code alone cannot
-remove an HTTP Basic prompt served by an older gateway configuration.
+The ordinary app deployment does not update this separate host gateway. Do not remove
+the shared gate while an older image still serves catalogue files from public `/assets/`.
+Updating frontend redirects alone cannot protect bytes or remove an older gateway's prompt.
 
 Use a dedicated `vthere-runner` account for the self-hosted runner, with Docker access and
 the custom `vthere-deploy` label. Install it as a system service using GitHub's runner setup

@@ -1,6 +1,6 @@
 import { readFileSync, realpathSync } from "node:fs";
 import { createHash } from "node:crypto";
-import { dirname, isAbsolute, relative, resolve } from "node:path";
+import { dirname, extname, isAbsolute, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { normalizePath, type Plugin } from "vite";
 
@@ -198,8 +198,12 @@ export function assetCataloguePlugin(): Plugin {
   if (seen.size !== allowedIds.size) {
     throw new Error("All approved sample assets must exist in the manifest");
   }
+  let building = false;
   return {
     name: "local-asset-catalogue",
+    configResolved(config) {
+      building = config.command === "build";
+    },
     config() {
       return {
         server: {
@@ -232,21 +236,36 @@ export function assetCataloguePlugin(): Plugin {
         return;
       }
       this.addWatchFile(manifestPath);
+      // Both deployment modes keep development-only bytes outside the public static root.
+      // Emit explicitly so Vite cannot inline a small image or copy it into /assets/.
+      const emitted = new Map<string, string>();
+      const restrictedUrl = (file: string) => {
+        this.addWatchFile(file);
+        const source = readFileSync(file);
+        const hash = createHash("sha256").update(source).digest("hex");
+        const fileName = `restricted-assets/${hash}${extname(file).toLowerCase()}`;
+        let reference = emitted.get(fileName);
+        if (!reference) {
+          reference = this.emitFile({ type: "asset", fileName, source });
+          emitted.set(fileName, reference);
+        }
+        return `import.meta.ROLLUP_FILE_URL_${reference}`;
+      };
       const imports = files
         .map(
           (file, index) =>
-            "import model" +
-            index +
-            " from " +
-            JSON.stringify(file.model + "?url") +
-            ";\n" +
+            (building
+              ? `const model${index} = ${restrictedUrl(file.model)};\n`
+              : `import model${index} from ${JSON.stringify(file.model + "?url")};\n`) +
             (file.thumbnail === null
               ? "const thumbnail" + index + " = null;"
-              : "import thumbnail" +
-                index +
-                " from " +
-                JSON.stringify(file.thumbnail + "?url") +
-                ";"),
+              : building
+                ? `const thumbnail${index} = ${restrictedUrl(file.thumbnail)};`
+                : "import thumbnail" +
+                  index +
+                  " from " +
+                  JSON.stringify(file.thumbnail + "?url") +
+                  ";"),
         )
         .join("\n");
       const catalogue = entries

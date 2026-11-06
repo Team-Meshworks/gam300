@@ -27,6 +27,8 @@ LABEL org.opencontainers.image.source="https://github.com/Team-Meshworks/gam300"
       org.opencontainers.image.revision=$REVISION
 COPY deploy/app.Caddyfile /etc/caddy/Caddyfile
 COPY --from=build /app/apps/web/dist/editor/ /srv/
+# Never place development-only catalogue bytes under the public file_server root.
+RUN mv /srv/restricted-assets /srv-restricted
 COPY --from=build /app/apps/web/dist/visitor/ /srv/visit/
 USER 1000:1000
 EXPOSE 8080

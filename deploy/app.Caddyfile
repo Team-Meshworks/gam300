@@ -25,3 +25,18 @@
 	rewrite @workspace /workspace.html
 	file_server
 }
+
+# The application gateway uses this unpublished listener after checking the session.
+# Catalogue bytes are physically outside /srv, so the public listener cannot serve them.
+:8081 {
+	root * /srv-restricted
+	header {
+		-Server
+		X-Content-Type-Options nosniff
+		Cache-Control "private, no-store"
+	}
+	handle_path /restricted-assets/* {
+		file_server
+	}
+	respond 404
+}

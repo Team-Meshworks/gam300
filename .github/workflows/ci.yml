@@ -328,7 +328,9 @@ jobs:
           bash ../../deploy/deploy.test.sh
           node --test ../../deploy/verify-release.test.mjs
       - name: Run unit tests
-        run: npm run test:unit -- --reporter=default --reporter=junit --outputFile=test-results/unit.xml
+        run: |
+          npm run test:unit -- --reporter=default --reporter=junit --outputFile=test-results/unit.xml
+          node tests/restricted-catalogue.check.mjs
       - name: Install and verify patched Chrome
         run: |
           npm run browser:install
@@ -360,12 +362,16 @@ jobs:
         run: |
           docker compose -f ../../compose.yaml -p vthere-ci up -d --no-build --wait --wait-timeout 90
           test "$(curl --fail --silent http://127.0.0.1:4173/version.txt)" = "$GITHUB_SHA"
-          npm run test:deployment -- http://127.0.0.1:4173/
-          npm run test:workspace -- http://127.0.0.1:4173
-          CHECK_SCREENSHOT=test-results/admin-dashboard.png npm run test:admin-dashboard -- http://127.0.0.1:4173
-          if [[ -f tests/editor-build.check.mjs ]]; then
-            node tests/editor-build.check.mjs http://127.0.0.1:4173/
-          fi
+          # Test files from the actual image, including the separate private catalogue root.
+          # The Caddy harness first proves anonymous byte denial, then provides a synthetic
+          # full session for the existing authoring browser checks.
+          mkdir -p test-results/packaged-public test-results/packaged-restricted
+          web=$(docker compose -f ../../compose.yaml -p vthere-ci ps -q web)
+          docker cp "$web:/srv/." test-results/packaged-public/
+          docker cp "$web:/srv-restricted/." test-results/packaged-restricted/
+          docker run --rm --entrypoint /bin/cat caddy:2.11.4-alpine@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b /usr/bin/caddy > "$RUNNER_TEMP/spatia-caddy"
+          chmod +x "$RUNNER_TEMP/spatia-caddy"
+          CADDY_BINARY="$RUNNER_TEMP/spatia-caddy" node ../../deploy/restricted-assets.check.mjs test-results/packaged-public test-results/packaged-restricted --browser
           mkdir -p dist/editor
           docker cp "$(docker compose -f ../../compose.yaml -p vthere-ci ps -q web):/srv/." dist/editor/
       - name: Check the editor API and database together
@@ -389,6 +395,8 @@ jobs:
           curl --fail --silent --show-error --cacert test-results/server-root.crt --output /dev/null https://localhost:8444/
           curl --fail --silent --show-error --retry 12 --retry-delay 1 --retry-connrefused --max-time 5 --retry-max-time 60 --cacert test-results/server-root.crt --output /dev/null https://localhost:8444/api/auth/csrf
           test "$(curl --silent --show-error --cacert test-results/server-root.crt --output /dev/null --write-out '%{http_code}' https://localhost:8444/api/auth/session)" = 401
+          model=$(node -e "console.log(require('node:fs').readdirSync('test-results/packaged-restricted').find(name => name.endsWith('.glb')))")
+          test "$(curl --silent --show-error --cacert test-results/server-root.crt --output /dev/null --write-out '%{http_code}' "https://localhost:8444/restricted-assets/$model")" = 401
           test "$("${stack[@]}" exec -T postgres psql -U spatia -d spatia -tAc 'SELECT count(*) FROM public."__EFMigrationsHistory"')" -ge 2
           test "$("${stack[@]}" exec -T postgres psql -U spatia -d spatia -tAc "SELECT rolsuper, rolcreatedb, rolcreaterole FROM pg_roles WHERE rolname = 'spatia_api'")" = 'f|f|f'
       - name: Capture container diagnostics

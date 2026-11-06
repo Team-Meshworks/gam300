@@ -9,6 +9,12 @@ const browser = await launchBrowser({
 });
 const url = process.argv[2] ?? "http://127.0.0.1:4173/";
 const isDevelopment = process.env.BUILD_MODE === "development";
+const manifest = JSON.parse(
+  readFileSync(new URL("../../../assets/manifest.json", import.meta.url), "utf8"),
+);
+const snowglobeHash = manifest.assets.find(
+  (asset) => asset.assetId === "sample-snowglobe-v1",
+).sha256;
 
 // Asset library is a pop up now. Only open it when closed, since the button toggles it
 async function openLibrary(page) {
@@ -60,8 +66,8 @@ try {
   const modelRequest = page.waitForRequest((request) =>
     new URL(request.url()).pathname.endsWith(".glb"),
   );
-  const snowglobeResponse = page.waitForResponse((response) =>
-    /\/assets\/snowglobe-[^/]+\.glb$/.test(new URL(response.url()).pathname),
+  const snowglobeResponse = page.waitForResponse(
+    (response) => new URL(response.url()).pathname === `/restricted-assets/${snowglobeHash}.glb`,
   );
   await page.goto(url);
   await page.getByRole("heading", { name: "Spatia", exact: true }).waitFor();
@@ -75,7 +81,9 @@ try {
   assert.equal(await asset.isDisabled(), true);
   releaseCore();
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
-  assert.ok((await snowglobeResponse).ok(), "The manifest snowglobe still loads");
+  const snowglobe = await snowglobeResponse;
+  assert.ok(snowglobe.ok(), "The manifest snowglobe still loads");
+  assert.match(snowglobe.headers()["cache-control"], /private, no-store/);
   assert.equal(await page.locator("canvas").count(), 1);
   // Packaged builds follow the same room-first authoring flow as the local editor
   await addAsset(page, "Starter room");

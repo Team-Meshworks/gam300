@@ -89,7 +89,7 @@ public sealed class HostBoundaryTests
     {
         await using var app = SpatiaApplication.Build(CreateConfigurationBuilder());
         var endpoints = ((IEndpointRouteBuilder)app).DataSources.SelectMany(source => source.Endpoints).OfType<RouteEndpoint>().ToArray();
-        var expected = new[] { "GET /api/auth/csrf", "POST /api/auth/login", "GET /api/auth/session", "POST /api/auth/logout", "POST /api/auth/password",
+        var expected = new[] { "GET /api/auth/csrf", "POST /api/auth/login", "GET /api/auth/session", "GET /api/auth/asset-access", "POST /api/auth/logout", "POST /api/auth/password",
             "POST /api/admin/organizations", "POST /api/admin/users", "POST /api/admin/users/{id:guid}/password",
             "GET /api/admin/users", "GET /api/admin/users/{id:guid}", "GET /api/admin/organizations", "GET /api/admin/organizations/{id:guid}",
             "PATCH /api/admin/users/{id:guid}/active",

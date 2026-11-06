@@ -40,6 +40,10 @@ public static class AccountSessionEndpoints
             return Results.Ok(new SessionResponse(
                 account.UserId, account.DisplayName ?? account.UserName, account.Role, account.OrganizationId, account.MustChangePassword));
         }).RequireAuthorization(SecurityPolicies.CurrentAccount);
+        // The private catalogue listener is reached only after this session check succeeds.
+        // CurrentAccount also rejects forced-password sessions outside the recovery routes.
+        group.MapGet("/asset-access", () => Results.NoContent())
+            .RequireAuthorization(SecurityPolicies.CurrentAccount);
         group.MapPost("/logout", async (SignInManager<ApplicationUser> signIn) =>
         {
             await signIn.SignOutAsync();
