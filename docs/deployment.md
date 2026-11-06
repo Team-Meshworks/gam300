@@ -268,36 +268,22 @@ Server deployments require a release containing all three images. The supported 
 does not deploy older runs, including as a rollback. A failed image pull leaves the existing
 release running. Releases may briefly interrupt service.
 
-Development and production use separate databases and credentials. Before updating,
-the deployment backs up the database to `backups/`; a failed backup stops the update.
-Database volumes are preserved after failures.
+Development and production use separate databases and credentials. After pulling the
+candidate images, a server deployment stops the API and application gateway, starts
+PostgreSQL only and takes a fresh private backup of the actual retained database in
+`backups/` before candidate startup. Every attempt, including a retry, takes a new
+backup. Database volumes are preserved after failures.
 
-Before candidate startup, the deploy script records the revision and all three image
-digests in `server-recovery-required` under the environment directory. A failed or
-interrupted attempt leaves that guard in place; after a reported startup or health
-failure, the API and application gateway are stopped. The same release can be retried;
-the guarded retry skips a new backup and does not restart the old API. A successful
-retry promotes the release and clears the guard. If backup fails before candidate startup,
-the unchanged API is restarted. Editor-only releases retain their prior runtime rollback.
-An interrupted process may leave candidate services running; inspect their state and stop
-the API and application gateway before a reviewed recovery if they are still running.
+A failed backup, startup or health check leaves the API and application gateway stopped;
+the deployment does not restart an older API against the retained database. A subsequent
+successful CI release for the current branch head can be deployed normally. A successful
+rollout removes an obsolete `server-recovery-required` marker; existing recovery records
+and backups are retained. Editor-only releases retain their runtime rollback. An interrupted
+process may leave candidate services running; inspect their state before recovery.
 
-For a server recovery, keep the guard and use the current deploy procedure to retry the
-exact recorded revision and image digests while that revision remains the branch head;
-do not clear the guard manually for an exact retry. If a different release is needed,
-an operator must first review its schema and authorization compatibility with the actual
-retained database, including data written after the backup, and prepare a safe recovery
-plan. Keep the API and gateway unavailable through that review. Once the plan is approved,
-run Deploy for a successful CI release of the current branch with
-`recovery_from_revision` set to the full revision in the guard and `recovery_review`
-set to the approved compatibility review reference or rationale. The script validates
-the guard, pulls the new images, stops the API and gateway, and archives the old guard,
-replacement identity and review under `recovery-records/`. It retains the old guard
-if pulling or stopping fails; candidate startup records the new guard. These inputs
-are an explicit operator approval, not an automated compatibility assessment. Do not invoke an older deploy script, rewind the branch to
-bypass these controls, or blindly restore a backup: migrations are not reversed and
-restoring a backup can discard later writes. Database restoration requires a reviewed
-procedure during downtime. Keep backups outside the VM as well.
+Do not blindly restore a backup: migrations are not reversed and restoring a backup can
+discard later writes. Database restoration requires a reviewed procedure during downtime.
+Keep backups outside the VM as well.
 
 The existing HTTPS gateway remains in place. Spatia accounts provide sign-in, and API
 and database services are not exposed directly.
@@ -363,10 +349,9 @@ on stdin, without storing them in release files or command arguments. Login and 
 must succeed through the gate, while a request without a Spatia session must still
 return 401. Private loopback API probes receive no Basic credentials.
 
-These secrets must be configured before attempting a gated deployment. A missing or
-incorrect pair fails the probes; it does not disable either login layer. A failed
-server rollout retains its recovery guard: a new release still requires the documented
-operator compatibility review rather than clearing that guard automatically.
+These secrets must be configured before attempting a gated deployment. Store them as
+environment secrets, not variables. Development currently requires both names above.
+A missing or incorrect pair fails the probes; it does not disable either login layer.
 
 Built editors (including the development build) check the Spatia session before opening
 the local-file editor at `/`. Sign-in returns to that editor without clearing browser
