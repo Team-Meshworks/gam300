@@ -63,7 +63,7 @@ try {
   page = await browser.newPage({ viewport: { width: 1000, height: 800 } });
   page.setDefaultTimeout(10000);
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.route("**/api/publications/**", async (route) => {
+  await page.route("**/api/v1/publications/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
     const bytesFor = (id) => {
       if (id === crateId) return crate;
@@ -88,7 +88,7 @@ try {
             id,
             kind,
             sha256: mode === "bad-hash" && id === moduleId ? sha(starter) : sha(bytesFor(id)),
-            url: `/api/publications/${publicationId}/assets/${id}/bytes`,
+            url: `/api/v1/publications/${publicationId}/assets/${id}/bytes`,
           })),
         },
       });

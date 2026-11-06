@@ -67,7 +67,7 @@ public sealed class PublicationAccessEndpointTests
         await fixture.SignInAsync(data.GetProperty("actors").GetProperty("publisher").GetProperty("userId").GetGuid());
         foreach (var audience in new[] { "Public", "Unlisted" })
         {
-            using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/publications/{publication}/access")
+            using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/publications/{publication}/access")
             {
                 Content = JsonContent.Create(new { audience, viewerIds = Array.Empty<Guid>(), action = "audience" }),
             };
@@ -81,7 +81,7 @@ public sealed class PublicationAccessEndpointTests
         await Assert.That(state.Audience).IsEqualTo(3);
         await Assert.That(state.ViewerIds.Length).IsEqualTo(1);
         using var anonymous = fixture.CreateClient();
-        using var denied = await anonymous.GetAsync($"/api/publications/{publication}");
+        using var denied = await anonymous.GetAsync($"/api/v1/publications/{publication}");
         await Assert.That(denied.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
     }
 
@@ -101,7 +101,7 @@ public sealed class PublicationAccessEndpointTests
         await database.Database.SqlQuery<Guid>($"SELECT id AS \"Value\" FROM projects WHERE id = {projectId} FOR UPDATE").ToListAsync();
 
         // Force the HTTP request to wait after its preliminary permission check
-        using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/publications/{publicationId}/access");
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/publications/{publicationId}/access");
         request.Headers.Add("X-CSRF-TOKEN", csrf);
         request.Content = JsonContent.Create(new { audience = "Public", viewerIds = Array.Empty<Guid>(), action = "audience" });
         var pending = fixture.Client.SendAsync(request);

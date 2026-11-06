@@ -30,7 +30,7 @@ try {
   }
   async function session(page) {
     return page.evaluate(async () => {
-      const response = await fetch("/api/auth/session");
+      const response = await fetch("/api/v1/auth/session");
       return { status: response.status, body: response.ok ? await response.json() : null };
     });
   }
@@ -75,7 +75,9 @@ try {
     assert.equal(cookie.path, "/");
   }
   assert.equal(
-    await page.evaluate(async () => (await fetch("/api/auth/logout", { method: "POST" })).status),
+    await page.evaluate(
+      async () => (await fetch("/api/v1/auth/logout", { method: "POST" })).status,
+    ),
     400,
   );
   assert.equal((await session(page)).status, 200);

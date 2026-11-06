@@ -14,7 +14,7 @@ public sealed class ProjectRequestBoundaryTests
 {
     private const string ProjectId = "11111111-1111-4111-8111-111111111111";
     private const string BodyMarker = "private-envelope-body-not-for-logs";
-    private const string SavePath = "/api/projects/" + ProjectId;
+    private const string SavePath = "/api/v1/projects/" + ProjectId;
     private const int RequestLimit = 6 * 1024 * 1024;
     private const int DocumentLimit = 5 * 1024 * 1024;
     private static readonly string Document = ProjectTestDocuments.Create(Guid.Parse(ProjectId), BodyMarker);
@@ -94,9 +94,9 @@ public sealed class ProjectRequestBoundaryTests
     }
 
     [Test]
-    [Arguments("POST", "/api/auth/login")]
+    [Arguments("POST", "/api/v1/auth/login")]
     [Arguments("POST", SavePath)]
-    [Arguments("PUT", "/api/projects/not-a-project-id")]
+    [Arguments("PUT", "/api/v1/projects/not-a-project-id")]
     public async Task RequestLimits_AccountWrongMethodAndUnmappedPathKeepTheSixteenKiBDefault(string method, string path)
     {
         await using var fixture = await CreateFixtureAsync();

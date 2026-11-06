@@ -66,7 +66,7 @@ public sealed class ApprovedReviewAssetResolverTests
         using var replay = await ReviewSubmissionEndpointTests.SubmitAsync(fixture, student.ProjectId, submissionId, 0, true);
         await Assert.That(replay.StatusCode).IsEqualTo(HttpStatusCode.OK);
         await fixture.SignInAsync(student.Educator);
-        using var detail = await fixture.Client.GetAsync($"/api/projects/{student.ProjectId}/submissions/{submissionId}");
+        using var detail = await fixture.Client.GetAsync($"/api/v1/projects/{student.ProjectId}/submissions/{submissionId}");
         await Assert.That(detail.StatusCode).IsEqualTo(HttpStatusCode.OK);
         var response = await detail.Content.ReadFromJsonAsync<JsonElement>();
         using var expected = JsonDocument.Parse(original);

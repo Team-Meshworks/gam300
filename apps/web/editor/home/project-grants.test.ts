@@ -139,13 +139,13 @@ it("loads current grants and complete authorized choices under the captured admi
   const request = vi.fn<typeof fetch>(async (input, init) => {
     expect(new Headers(init?.headers).get("X-Spatia-Account")).toBe(actorId);
     const path = String(input);
-    if (path === `/api/projects/${projectId}/assignments`) return json(snapshot);
-    if (path.startsWith("/api/admin/organizations"))
+    if (path === `/api/v1/projects/${projectId}/assignments`) return json(snapshot);
+    if (path.startsWith("/api/v1/admin/organizations"))
       return json({ items: [{ id: orgId, name: "School", isActive: true }], nextCursor: null });
     if (path.includes("cursor=")) return json({ items: [accounts[1]], nextCursor: null });
-    if (path.startsWith("/api/admin/users"))
+    if (path.startsWith("/api/v1/admin/users"))
       return json({ items: [accounts[0]], nextCursor: teacherId });
-    if (path === "/api/auth/session")
+    if (path === "/api/v1/auth/session")
       return json({
         userId: actorId,
         displayName: "Admin",
@@ -165,13 +165,14 @@ it("rejects a changed account or inactive organisation after loading choices", a
   for (const changedAccount of [true, false]) {
     const request = vi.fn<typeof fetch>(async (input) => {
       const path = String(input);
-      if (path === `/api/projects/${projectId}/assignments`) return json(snapshot);
-      if (path.startsWith("/api/admin/organizations"))
+      if (path === `/api/v1/projects/${projectId}/assignments`) return json(snapshot);
+      if (path.startsWith("/api/v1/admin/organizations"))
         return json({
           items: [{ id: orgId, name: "School", isActive: changedAccount }],
           nextCursor: null,
         });
-      if (path.startsWith("/api/admin/users")) return json({ items: accounts, nextCursor: null });
+      if (path.startsWith("/api/v1/admin/users"))
+        return json({ items: accounts, nextCursor: null });
       return json({
         userId: projectId,
         displayName: "Other",
@@ -190,10 +191,10 @@ it("rejects a changed account or inactive organisation after loading choices", a
 it("refuses ambiguous duplicate account choices", async () => {
   const request = vi.fn<typeof fetch>(async (input) => {
     const path = String(input);
-    if (path === `/api/projects/${projectId}/assignments`) return json(snapshot);
-    if (path.startsWith("/api/admin/organizations"))
+    if (path === `/api/v1/projects/${projectId}/assignments`) return json(snapshot);
+    if (path.startsWith("/api/v1/admin/organizations"))
       return json({ items: [{ id: orgId, name: "School", isActive: true }], nextCursor: null });
-    if (path.startsWith("/api/admin/users"))
+    if (path.startsWith("/api/v1/admin/users"))
       return json({ items: [...accounts, accounts[0]], nextCursor: null });
     return json({
       userId: actorId,

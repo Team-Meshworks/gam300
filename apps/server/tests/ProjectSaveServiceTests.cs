@@ -31,7 +31,7 @@ public sealed class ProjectSaveServiceTests
     {
         await using var fixture = await CreateFixtureAsync();
         var seeded = await SeedAsync(fixture);
-        using var login = await AuthTestRequests.PostAsync(fixture, "/api/auth/login", new
+        using var login = await AuthTestRequests.PostAsync(fixture, "/api/v1/auth/login", new
         {
             userName = await AuthTestRequests.UserNameAsync(fixture, seeded.ActorId),
             password = AuthTestRequests.CurrentPassword,

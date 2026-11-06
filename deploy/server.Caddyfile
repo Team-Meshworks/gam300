@@ -16,7 +16,7 @@
 		# Check the current account for every GET, HEAD and range request before reading bytes.
 		header >Cache-Control "private, no-store"
 		forward_auth api:8080 {
-			uri /api/auth/asset-access
+			uri /api/v1/auth/asset-access
 			header_up X-Forwarded-Proto https
 			header_up X-Forwarded-For {client_ip}
 		}

@@ -10,7 +10,8 @@ const browser = await launchBrowser({
 try {
   const cancellation = await browser.newPage({ viewport: { width: 1440, height: 1024 } });
   cancellation.setDefaultTimeout(8000);
-  cancellation.on("pageerror", (error) => console.error("Cancellation fixture:", error.message));
+  const cancellationErrors = [];
+  cancellation.on("pageerror", (error) => cancellationErrors.push(error.message));
   const origin = new URL(process.argv[2] ?? "http://127.0.0.1:5185/").origin;
   const componentSource = await (
     await cancellation.request.get(origin + "/ui/DisplayEditor.tsx")
@@ -133,6 +134,7 @@ try {
     assert.equal(await cancellation.evaluate(() => window.displayTest.added.length), index + 1);
     if (index < 2) await cancellation.evaluate(() => window.openDisplay());
   }
+  assert.deepEqual(cancellationErrors, [], "Cancelled placement must not raise browser errors");
   await cancellation.close();
 
   const page = await browser.newPage({ viewport: { width: 1440, height: 1024 } });

@@ -26,13 +26,13 @@ let releaseWrite;
 try {
   const page = await browser.newPage();
   page.setDefaultTimeout(5000);
-  await page.route("**/api/**", async (route) => {
+  await page.route("**/api/v1/**", async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
     const json = (body, status = 200) => route.fulfill({ status, json: body });
-    if (path === "/api/auth/session") return json(actor);
-    if (path === "/api/auth/csrf") return json({ requestToken: "token" });
-    if (path === "/api/projects")
+    if (path === "/api/v1/auth/session") return json(actor);
+    if (path === "/api/v1/auth/csrf") return json({ requestToken: "token" });
+    if (path === "/api/v1/projects")
       return json({
         items: [
           {
@@ -46,7 +46,7 @@ try {
         ],
         nextCursor: null,
       });
-    if (path === `/api/projects/${project}/assignments`) {
+    if (path === `/api/v1/projects/${project}/assignments`) {
       assert.equal(request.headers()["x-spatia-account"], administrator);
       if (request.method() === "PATCH") {
         writes++;
@@ -83,12 +83,12 @@ try {
         ],
       });
     }
-    if (path === "/api/admin/organizations")
+    if (path === "/api/v1/admin/organizations")
       return json({
         items: [{ id: organization, name: "School", isActive: true }],
         nextCursor: null,
       });
-    if (path === "/api/admin/users")
+    if (path === "/api/v1/admin/users")
       return json({
         items: [
           {

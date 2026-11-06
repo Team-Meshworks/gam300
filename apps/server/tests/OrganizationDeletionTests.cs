@@ -97,11 +97,11 @@ public sealed class OrganizationDeletionTests
         await Assert.That(await db.Users.AnyAsync(row => row.Id == admin)).IsTrue();
         await Assert.That(await db.Users.AnyAsync(row => row.Id == other.Student)).IsTrue();
         await Assert.That(await db.Projects.Where(row => row.Id == other.ProjectId).Select(row => row.DocumentJson).SingleAsync()).IsEqualTo(otherDocument);
-        using var oldSession = await memberClient.GetAsync("/api/auth/session");
+        using var oldSession = await memberClient.GetAsync("/api/v1/auth/session");
         await Assert.That(oldSession.StatusCode).IsEqualTo(HttpStatusCode.Unauthorized);
         foreach (var suffix in new[] { "", "/manifest", $"/assets/{asset.Id}/bytes" })
         {
-            using var oldLink = await fixture.Client.GetAsync($"/api/publications/{publication}{suffix}");
+            using var oldLink = await fixture.Client.GetAsync($"/api/v1/publications/{publication}{suffix}");
             await Assert.That(oldLink.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
         }
         using var reused = await PublishAsync(fixture, other.ProjectId, publication);
@@ -336,7 +336,7 @@ public sealed class OrganizationDeletionTests
         }
     }
 
-    private static string Path(Guid org) => $"/api/admin/organizations/{org:D}";
+    private static string Path(Guid org) => $"/api/v1/admin/organizations/{org:D}";
     private static async Task<HttpResponseMessage> DeleteAsync(HttpsApplicationFixture fixture, Guid org,
         string name = "Synthetic organization", string? token = null, HttpClient? client = null)
     {
@@ -346,7 +346,7 @@ public sealed class OrganizationDeletionTests
         return await client.SendAsync(request);
     }
     private static Task<HttpResponseMessage> PublishAsync(HttpsApplicationFixture fixture, Guid project, Guid publication) =>
-        AuthTestRequests.PostAsync(fixture, $"/api/projects/{project}/publications", new
+        AuthTestRequests.PostAsync(fixture, $"/api/v1/projects/{project}/publications", new
         {
             publicationId = publication,
             confirmedRevision = 0,

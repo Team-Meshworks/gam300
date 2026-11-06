@@ -24,10 +24,10 @@ try {
   page.setDefaultTimeout(10000);
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.route("**/api/**", async (route) => {
+  await page.route("**/api/v1/**", async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
-    if (path === "/api/auth/session")
+    if (path === "/api/v1/auth/session")
       return route.fulfill({
         json: {
           userId: admin,
@@ -38,9 +38,9 @@ try {
         },
       });
     assert.equal(request.headers()["x-spatia-account"], admin);
-    if (path === "/api/auth/csrf") return route.fulfill({ json: { requestToken: "test-csrf" } });
+    if (path === "/api/v1/auth/csrf") return route.fulfill({ json: { requestToken: "test-csrf" } });
     if (request.method() === "DELETE") {
-      assert.equal(path, `/api/admin/organizations/${orgId}`);
+      assert.equal(path, `/api/v1/admin/organizations/${orgId}`);
       assert.equal(request.headers()["x-csrf-token"], "test-csrf");
       assert.deepEqual(request.postDataJSON(), { confirmationName: name });
       deletes++;
@@ -53,7 +53,7 @@ try {
       return route.fulfill({ status: 204 });
     }
     assert.equal(request.method(), "GET");
-    if (path === `/api/admin/organizations/${orgId}/deletion`)
+    if (path === `/api/v1/admin/organizations/${orgId}/deletion`)
       return failPreview
         ? route.fulfill({ status: 503, json: {} })
         : route.fulfill({
@@ -69,7 +69,7 @@ try {
               publications: 1,
             },
           });
-    if (path === "/api/admin/organizations")
+    if (path === "/api/v1/admin/organizations")
       return route.fulfill({
         json: {
           items: [
@@ -79,7 +79,7 @@ try {
           nextCursor: null,
         },
       });
-    if (path === "/api/admin/users" || path.endsWith("/projects"))
+    if (path === "/api/v1/admin/users" || path.endsWith("/projects"))
       return route.fulfill({ json: { items: [], nextCursor: null } });
     return route.fulfill({ status: 404 });
   });

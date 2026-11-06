@@ -383,7 +383,7 @@ public sealed class ProjectReadEndpointTests
         await Assert.That(JsonElement.DeepEquals(opened.GetProperty("document"), expected.RootElement)).IsTrue();
         await AssertPermissionsAsync(opened, true, false, true);
 
-        var page = await GetAsync(fixture.Client, "/api/projects");
+        var page = await GetAsync(fixture.Client, "/api/v1/projects");
         await AssertFieldsAsync(page, "items", "nextCursor");
         var summary = page.GetProperty("items").EnumerateArray().Single();
         await AssertFieldsAsync(summary, "projectId", "title", "revision", "updatedAt", "archived", "permissions");
@@ -432,7 +432,7 @@ public sealed class ProjectReadEndpointTests
             (fixture.Client, firstProject.Id, secondProject.Id), (secondClient, secondProject.Id, firstProject.Id),
         })
         {
-            await AssertIdsAsync(await GetAsync(client, "/api/projects"), own);
+            await AssertIdsAsync(await GetAsync(client, "/api/v1/projects"), own);
             await Assert.That((await GetAsync(client, Path(own))).GetProperty("projectId").GetGuid()).IsEqualTo(own);
             using var denied = await client.GetAsync(Path(other));
             using var missing = await client.GetAsync(Path(Guid.NewGuid()));
@@ -444,7 +444,7 @@ public sealed class ProjectReadEndpointTests
             }
         }
         await fixture.SignInAsync(first, forgedRole: ApplicationRoles.Administrator);
-        await AssertIdsAsync(await GetAsync(fixture.Client, "/api/projects"), firstProject.Id);
+        await AssertIdsAsync(await GetAsync(fixture.Client, "/api/v1/projects"), firstProject.Id);
         foreach (var id in new[] { secondProject.Id, foreignProject.Id, corrupt.Id })
         {
             using var denied = await fixture.Client.GetAsync(Path(id));
@@ -468,9 +468,9 @@ public sealed class ProjectReadEndpointTests
         await fixture.SignInAsync(actor);
 
         var expected = role == ApplicationRoles.Administrator ? new[] { own.Id, otherProject.Id } : [own.Id];
-        await AssertIdsAsync(await GetAsync(fixture.Client, "/api/projects"), expected.Order().ToArray());
+        await AssertIdsAsync(await GetAsync(fixture.Client, "/api/v1/projects"), expected.Order().ToArray());
         await AssertPermissionsAsync(await GetAsync(fixture.Client, Path(own.Id)), true, true, true);
-        var archivedPage = await GetAsync(fixture.Client, "/api/projects?archived=true");
+        var archivedPage = await GetAsync(fixture.Client, "/api/v1/projects?archived=true");
         await AssertIdsAsync(archivedPage, archived.Id);
         var summary = archivedPage.GetProperty("items")[0];
         await Assert.That(summary.GetProperty("archived").GetBoolean()).IsTrue();
@@ -483,7 +483,7 @@ public sealed class ProjectReadEndpointTests
                 .Where(row => row.ProjectId == own.Id).ExecuteUpdateAsync(set => set.SetProperty(row => row.CanManage, false));
             using var revoked = await fixture.Client.GetAsync(Path(own.Id));
             await ProblemAsync(revoked, HttpStatusCode.NotFound, "project_not_found");
-            await AssertIdsAsync(await GetAsync(fixture.Client, "/api/projects"));
+            await AssertIdsAsync(await GetAsync(fixture.Client, "/api/v1/projects"));
         }
     }
 
@@ -500,17 +500,17 @@ public sealed class ProjectReadEndpointTests
         }
         var hidden = await SeedAsync(fixture, other, id: Guid.Parse("00000002-0000-4000-8000-000000000000"));
         await fixture.SignInAsync(actor);
-        var defaultPage = await GetAsync(fixture.Client, "/api/projects");
+        var defaultPage = await GetAsync(fixture.Client, "/api/v1/projects");
         await AssertIdsAsync(defaultPage, ids.Take(10).ToArray());
         await Assert.That(defaultPage.GetProperty("nextCursor").GetGuid()).IsEqualTo(ids[9]);
-        var firstPage = await GetAsync(fixture.Client, "/api/projects?limit=20&archived=false");
+        var firstPage = await GetAsync(fixture.Client, "/api/v1/projects?limit=20&archived=false");
         await AssertIdsAsync(firstPage, ids.Take(20).ToArray());
         await Assert.That(firstPage.GetProperty("nextCursor").GetGuid()).IsEqualTo(ids[19]);
-        var nextPath = "/api/projects?limit=20&cursor=" + firstPage.GetProperty("nextCursor").GetString();
+        var nextPath = "/api/v1/projects?limit=20&cursor=" + firstPage.GetProperty("nextCursor").GetString();
         var secondPage = await GetAsync(fixture.Client, nextPath);
         await AssertIdsAsync(secondPage, ids[20]);
         await Assert.That(secondPage.GetProperty("nextCursor").ValueKind).IsEqualTo(JsonValueKind.Null);
-        await AssertIdsAsync(await GetAsync(fixture.Client, "/api/projects?limit=1&cursor=" + hidden.Id), ids[1]);
+        await AssertIdsAsync(await GetAsync(fixture.Client, "/api/v1/projects?limit=1&cursor=" + hidden.Id), ids[1]);
         await using (var scope = fixture.Database.Services.CreateAsyncScope())
         {
             await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().ProjectAssignments
@@ -524,7 +524,7 @@ public sealed class ProjectReadEndpointTests
             "cursor=" + ids[0] + "&cursor=" + ids[1], "archived=TRUE", "archived=true&archived=false", "ownerId=private-query-sentinel",
         })
         {
-            using var response = await fixture.Client.GetAsync("/api/projects?" + query);
+            using var response = await fixture.Client.GetAsync("/api/v1/projects?" + query);
             var problem = await ProblemAsync(response, HttpStatusCode.BadRequest, "invalid_project_query");
             await Assert.That(problem.GetRawText().Contains("private-query-sentinel", StringComparison.Ordinal)).IsFalse();
         }
@@ -555,7 +555,7 @@ public sealed class ProjectReadEndpointTests
         {
             fixture.Clock.Advance(TimeSpan.FromDays(1));
         }
-        foreach (var path in new[] { "/api/projects", Path(project.Id) })
+        foreach (var path in new[] { "/api/v1/projects", Path(project.Id) })
         {
             using var response = await fixture.Client.GetAsync(path);
             await ProblemAsync(response, status, code);
@@ -579,7 +579,7 @@ public sealed class ProjectReadEndpointTests
                 .ExecuteUpdateAsync(set => set.SetProperty(row => row.DocumentJson, invalid));
         }
         await fixture.SignInAsync(actor);
-        foreach (var path in new[] { "/api/projects", Path(project.Id) })
+        foreach (var path in new[] { "/api/v1/projects", Path(project.Id) })
         {
             using var response = await fixture.Client.GetAsync(path);
             await ProblemAsync(response, HttpStatusCode.ServiceUnavailable, "project_unavailable");
@@ -601,7 +601,7 @@ public sealed class ProjectReadEndpointTests
         var actor = await fixture.CreateAccountAsync();
         var project = await SeedAsync(fixture, actor);
         await fixture.SignInAsync(actor);
-        var path = list ? "/api/projects" : Path(project.Id);
+        var path = list ? "/api/v1/projects" : Path(project.Id);
         gate.Arm();
         var pending = fixture.Client.GetAsync(path);
         try
@@ -695,7 +695,7 @@ public sealed class ProjectReadEndpointTests
 
     private static async Task LoginAsync(HttpsApplicationFixture fixture, Guid actor, HttpClient client)
     {
-        using var login = await AuthTestRequests.PostAsync(fixture, "/api/auth/login", new
+        using var login = await AuthTestRequests.PostAsync(fixture, "/api/v1/auth/login", new
         {
             userName = await AuthTestRequests.UserNameAsync(fixture, actor),
             password = AuthTestRequests.CurrentPassword,
@@ -703,7 +703,7 @@ public sealed class ProjectReadEndpointTests
         await Assert.That(login.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
     }
 
-    private static string Path(Guid id) => "/api/projects/" + id.ToString("D");
+    private static string Path(Guid id) => "/api/v1/projects/" + id.ToString("D");
 
     private static async Task<JsonElement> GetAsync(HttpClient client, string path)
     {

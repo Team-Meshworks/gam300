@@ -73,7 +73,7 @@ public sealed class ProjectSaveEndpointTests
         async Task<AssetAdministrationRecord> ApproveAsync(string kind)
         {
             var category = kind == "model" ? "&category=Architecture" : "";
-            using var upload = new HttpRequestMessage(HttpMethod.Post, $"/api/admin/assets?name=starter-{kind}.glb&kind={kind}{category}");
+            using var upload = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/admin/assets?name=starter-{kind}.glb&kind={kind}{category}");
             upload.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync());
             upload.Content = new ByteArrayContent(bytes);
             upload.Content.Headers.ContentType = new("model/gltf-binary");
@@ -82,7 +82,7 @@ public sealed class ProjectSaveEndpointTests
             var candidate = (await submitted.Content.ReadFromJsonAsync<AssetAdministrationRecord>())!;
             await Assert.That(candidate.Status).IsEqualTo("pending");
             await Assert.That(candidate.Sha256).IsEqualTo(hash);
-            using var reviewed = await AuthTestRequests.PostAsync(fixture, $"/api/admin/assets/{candidate.Id}/approve",
+            using var reviewed = await AuthTestRequests.PostAsync(fixture, $"/api/v1/admin/assets/{candidate.Id}/approve",
                 new AssetReviewRequest("Synthetic test fixture", "Synthetic test fixture", "Approved for test"));
             await Assert.That(reviewed.StatusCode).IsEqualTo(HttpStatusCode.OK);
             var approved = (await reviewed.Content.ReadFromJsonAsync<AssetAdministrationRecord>())!;
@@ -95,7 +95,7 @@ public sealed class ProjectSaveEndpointTests
         var model = await ApproveAsync("model");
         await Assert.That(environment.Id).IsNotEqualTo(model.Id);
         await fixture.SignInAsync(await fixture.CreateAccountAsync());
-        using var catalogue = await fixture.Client.GetAsync("/api/assets");
+        using var catalogue = await fixture.Client.GetAsync("/api/v1/assets");
         await Assert.That(catalogue.StatusCode).IsEqualTo(HttpStatusCode.OK);
         var entries = await catalogue.Content.ReadFromJsonAsync<JsonElement>();
         foreach (var asset in new[] { environment, model })
@@ -105,7 +105,7 @@ public sealed class ProjectSaveEndpointTests
             await Assert.That(row.GetProperty("sha256").GetString()).IsEqualTo(hash);
         }
 
-        using var created = await AuthTestRequests.PostAsync(fixture, "/api/projects/",
+        using var created = await AuthTestRequests.PostAsync(fixture, "/api/v1/projects/",
             new { title = "Production Starter rooms", environmentAssetId = environment.Id.ToString() });
         await Assert.That(created.StatusCode).IsEqualTo(HttpStatusCode.Created);
         var projectId = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("projectId").GetGuid();
@@ -437,7 +437,7 @@ public sealed class ProjectSaveEndpointTests
         await AssertUnchangedAsync(await ReadAsync(fixture), before);
     }
 
-    private static string Path(Guid id) => "/api/projects/" + id.ToString("D");
+    private static string Path(Guid id) => "/api/v1/projects/" + id.ToString("D");
     private static string Envelope(string document, Guid mutation, long revision = 0) =>
         $$"""{"expectedRevision":{{revision}},"clientMutationId":"{{mutation:D}}","document":{{document}}}""";
 

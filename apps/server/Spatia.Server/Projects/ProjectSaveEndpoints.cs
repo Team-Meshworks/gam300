@@ -14,7 +14,7 @@ public static class ProjectSaveEndpoints
     /// </summary>
     public static IEndpointRouteBuilder MapProjectSaves(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapPut("/api/projects/{id:guid}", async (HttpContext context, Guid id, ProjectSaveService saves,
+        endpoints.MapPut("/projects/{id:guid}", async (HttpContext context, Guid id, ProjectSaveService saves,
             CancellationToken cancellationToken) =>
         {
             var parsed = await SaveEnvelopeReader.ReadAsync(context.Request, id, cancellationToken);

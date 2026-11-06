@@ -61,7 +61,7 @@ export function createWorkspaceClient(request: typeof fetch = fetch) {
     return items;
   }
   async function projects(archived: boolean, signal?: AbortSignal): Promise<ProjectSummary[]> {
-    const rows = await pages(`/api/projects?archived=${archived}`, signal);
+    const rows = await pages(`/api/v1/projects?archived=${archived}`, signal);
     const ids = new Set<string>();
     return rows.map((row) => {
       if (
@@ -96,7 +96,7 @@ export function createWorkspaceClient(request: typeof fetch = fetch) {
     try {
       if ((await accounts.getSession())?.userId !== actorId)
         return { kind: "rejected", message: "The account changed. Reload before continuing." };
-      const token = await read("/api/auth/csrf");
+      const token = await read("/api/v1/auth/csrf");
       if (!isRecord(token) || typeof token.requestToken !== "string" || !token.requestToken)
         throw new Error("Missing request token");
       const current = await accounts.getSession();

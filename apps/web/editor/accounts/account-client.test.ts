@@ -39,10 +39,10 @@ it("signs in with CSRF and verifies the session after rotating the request token
     developmentAssetsAllowed: false,
   });
   expect(request.mock.calls.map(([url]) => url)).toEqual([
-    "/api/auth/csrf",
-    "/api/auth/login",
-    "/api/auth/csrf",
-    "/api/auth/session",
+    "/api/v1/auth/csrf",
+    "/api/v1/auth/login",
+    "/api/v1/auth/csrf",
+    "/api/v1/auth/session",
   ]);
   expect(request.mock.calls[1]?.[1]).toMatchObject({
     method: "POST",
@@ -99,7 +99,7 @@ it("changes a forced password then fetches authoritative session state", async (
     await createAccountClient(request).changePassword("old password value", "new password value"),
   ).toEqual({ ...session, developmentAssetsAllowed: false });
   expect(request.mock.calls[1]).toEqual([
-    "/api/auth/password",
+    "/api/v1/auth/password",
     expect.objectContaining({
       body: JSON.stringify({
         currentPassword: "old password value",
@@ -117,22 +117,22 @@ it("only confirms logout after a fresh session check returns signed out", async 
     .mockResolvedValueOnce(new Response(null, { status: 401 }));
   await expect(createAccountClient(request).signOut()).resolves.toBeUndefined();
   expect(request.mock.calls.map(([url]) => url)).toEqual([
-    "/api/auth/csrf",
-    "/api/auth/logout",
-    "/api/auth/csrf",
-    "/api/auth/session",
+    "/api/v1/auth/csrf",
+    "/api/v1/auth/logout",
+    "/api/v1/auth/csrf",
+    "/api/v1/auth/session",
   ]);
 });
 
 it("binds logout token and mutation to the original account across a cookie switch", async () => {
   let cookie = session.userId;
   const request = vi.fn<typeof fetch>().mockImplementation(async (url, init) => {
-    if (url === "/api/auth/csrf") {
+    if (url === "/api/v1/auth/csrf") {
       expect(new Headers(init?.headers).get("X-Spatia-Account")).toBe(session.userId);
       cookie = "another-account";
       return json({ requestToken: "old-token" });
     }
-    expect(url).toBe("/api/auth/logout");
+    expect(url).toBe("/api/v1/auth/logout");
     expect(new Headers(init?.headers).get("X-Spatia-Account")).not.toBe(cookie);
     return new Response(null, { status: 403 });
   });

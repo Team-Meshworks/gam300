@@ -22,10 +22,10 @@ try {
   page.setDefaultTimeout(10000);
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.route("**/api/**", async (route) => {
+  await page.route("**/api/v1/**", async (route) => {
     const req = route.request();
     const path = new URL(req.url()).pathname;
-    if (path === "/api/auth/session")
+    if (path === "/api/v1/auth/session")
       return route.fulfill({
         json: {
           userId,
@@ -35,7 +35,7 @@ try {
           mustChangePassword: false,
         },
       });
-    if (path === "/api/auth/csrf") return route.fulfill({ json: { requestToken: "test-csrf" } });
+    if (path === "/api/v1/auth/csrf") return route.fulfill({ json: { requestToken: "test-csrf" } });
     if (req.method() !== "GET") {
       assert.equal(req.headers()["x-csrf-token"], "test-csrf");
       const body = req.postDataJSON();
@@ -62,9 +62,9 @@ try {
       }
       return route.fulfill({ status: req.method() === "POST" ? 201 : 200, json: rows[0] });
     }
-    if (path === "/api/admin/organizations" && failOrganizations)
+    if (path === "/api/v1/admin/organizations" && failOrganizations)
       return route.fulfill({ status: 503, json: { code: "directory_unavailable" } });
-    if (path === "/api/admin/organizations")
+    if (path === "/api/v1/admin/organizations")
       return route.fulfill({
         json: {
           items: [{ id: orgId, name: "Ridgeview Secondary School", isActive: true }],
@@ -80,11 +80,11 @@ try {
         },
       });
     }
-    if (path === "/api/admin/users") {
+    if (path === "/api/v1/admin/users") {
       reads.accounts++;
       return route.fulfill({ json: { items: rows, nextCursor: null } });
     }
-    if (path === `/api/admin/users/${userId}`) return route.fulfill({ json: rows[0] });
+    if (path === `/api/v1/admin/users/${userId}`) return route.fulfill({ json: rows[0] });
     return route.fulfill({ status: 404 });
   });
   await page.goto(`${origin}/accounts`);

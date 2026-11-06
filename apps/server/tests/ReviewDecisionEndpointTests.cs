@@ -53,7 +53,7 @@ public sealed class ReviewDecisionEndpointTests
         await fixture.SignInAsync(data.OtherStudent, other);
         using (var denied = await other.GetAsync(DetailPath(data.ProjectId, submissionId)))
         { await Assert.That(denied.StatusCode).IsEqualTo(HttpStatusCode.NotFound); }
-        using (var denied = await other.GetAsync($"/api/projects/{data.ProjectId:D}/submissions"))
+        using (var denied = await other.GetAsync($"/api/v1/projects/{data.ProjectId:D}/submissions"))
         { await Assert.That(denied.StatusCode).IsEqualTo(HttpStatusCode.NotFound); }
         var administrator = await fixture.CreateAccountAsync(ApplicationRoles.Administrator);
         using var admin = fixture.CreateClient();
@@ -258,7 +258,7 @@ public sealed class ReviewDecisionEndpointTests
         { await Assert.That(approved.StatusCode).IsEqualTo(HttpStatusCode.Created); }
         using (var revoked = await DecideAsync(fixture, educator, data.ProjectId, second, Guid.NewGuid(), 0, "revoked", "Revoked"))
         { await Assert.That(revoked.StatusCode).IsEqualTo(HttpStatusCode.Created); }
-        var listPath = $"/api/projects/{data.ProjectId:D}/submissions";
+        var listPath = $"/api/v1/projects/{data.ProjectId:D}/submissions";
         using var pageOne = await educator.GetAsync(listPath + "?limit=1");
         var one = await pageOne.Content.ReadFromJsonAsync<JsonElement>();
         using var pageTwo = await educator.GetAsync(listPath + "?limit=1&cursor=" + one.GetProperty("nextCursor").GetString());
@@ -406,7 +406,7 @@ public sealed class ReviewDecisionEndpointTests
         await Assert.That((await caller.Projects.AsNoTracking().SingleAsync(row => row.Id == data.ProjectId)).Revision).IsEqualTo(0L);
     }
 
-    private static string DetailPath(Guid project, Guid submission) => $"/api/projects/{project:D}/submissions/{submission:D}";
+    private static string DetailPath(Guid project, Guid submission) => $"/api/v1/projects/{project:D}/submissions/{submission:D}";
 
     internal static async Task<HttpResponseMessage> DecideAsync(HttpsApplicationFixture fixture, HttpClient client, Guid project,
         Guid submission, Guid decision, long revision, string outcome, string feedback, string? token = null)

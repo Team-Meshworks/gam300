@@ -17,7 +17,7 @@ export function createAssetAdministrationService(actorId: string): AssetAdminist
       headers.set("X-Spatia-Account", actorId);
       if (init?.method) {
         // Bind both token acquisition and the write to the account that opened this screen.
-        const csrf = await fetch("/api/auth/csrf", {
+        const csrf = await fetch("/api/v1/auth/csrf", {
           credentials: "same-origin",
           headers: { "X-Spatia-Account": actorId },
           signal,
@@ -83,7 +83,7 @@ export function createAssetAdministrationService(actorId: string): AssetAdminist
   }
 
   // Encode identities and upload metadata separately from bytes; the server owns validation and approval
-  const base = "/api/admin/assets";
+  const base = "/api/v1/admin/assets";
   return {
     load: (signal) => request<AssetAdministrationData>(base, signal),
     submit: ({ file, kind, category }, signal) => {
@@ -139,7 +139,7 @@ function isCandidate(value: unknown): value is AssetCandidate {
     (value.inspectionUrl === undefined ||
       value.inspectionUrl === null ||
       (typeof value.inspectionUrl === "string" &&
-        /^\/api\/admin\/assets\/[a-f0-9-]{36}\/bytes$/.test(value.inspectionUrl))) &&
+        /^\/api\/v1\/admin\/assets\/[a-f0-9-]{36}\/bytes$/.test(value.inspectionUrl))) &&
     ["source", "license", "reviewNotes"].every(
       (field) =>
         value[field] === undefined || value[field] === null || typeof value[field] === "string",

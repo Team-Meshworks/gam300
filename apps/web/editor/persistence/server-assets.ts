@@ -9,7 +9,7 @@ export async function readServerAssets(
 ): Promise<readonly CatalogueAsset[]> {
   if (projectId !== undefined && !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(projectId))
     throw new Error("Invalid project identity.");
-  const path = projectId ? `/api/projects/${projectId}/assets` : "/api/assets";
+  const path = projectId ? `/api/v1/projects/${projectId}/assets` : "/api/v1/assets";
   const response = await fetcher(path, {
     headers: { "X-Spatia-Account": accountId },
     credentials: "same-origin",

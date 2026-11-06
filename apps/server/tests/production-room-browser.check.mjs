@@ -30,7 +30,7 @@ let page;
 const errors = [];
 const failedResponses = [];
 const consoleErrors = [];
-const projectPath = `/api/projects/${projectId}`;
+const projectPath = `/api/v1/projects/${projectId}`;
 
 async function openEditor() {
   const context = await browser.newContext({
@@ -57,7 +57,7 @@ async function openEditor() {
   await next.getByRole("button", { name: "Log in", exact: true }).click();
   await next.getByRole("link", { name: "Go to projects", exact: true }).waitFor();
   const session = await next.evaluate(async () => {
-    const response = await fetch("/api/auth/session", { cache: "no-store" });
+    const response = await fetch("/api/v1/auth/session", { cache: "no-store" });
     return { status: response.status, value: await response.json() };
   });
   assert.equal(session.status, 200);
@@ -69,7 +69,7 @@ async function openEditor() {
 
 async function readProject(current) {
   const response = await current.evaluate(async (id) => {
-    const result = await fetch(`/api/projects/${encodeURIComponent(id)}`, { cache: "no-store" });
+    const result = await fetch(`/api/v1/projects/${encodeURIComponent(id)}`, { cache: "no-store" });
     return { status: result.status, value: await result.json() };
   }, projectId);
   assert.equal(response.status, 200);

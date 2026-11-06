@@ -2,7 +2,6 @@ using System.Diagnostics;
 using System.Net;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.HostFiltering;
 using Microsoft.AspNetCore.Http.Features;
@@ -14,7 +13,6 @@ using Npgsql;
 using Spatia.Server.Accounts;
 using Spatia.Server.Assets;
 using Spatia.Server.Publications;
-using Spatia.Server.Classes;
 using Spatia.Server.Persistence;
 using Spatia.Server.Projects;
 using Spatia.Server.Reviews;
@@ -212,6 +210,16 @@ public static class SpatiaApplication
         });
         app.UseAuthentication();
         app.UseRateLimiter();
+        app.Use(async (context, next) =>
+        {
+            if (context.GetEndpoint() is null && context.Request.Path.StartsWithSegments("/api"))
+            {
+                await ApiProblems.Create(context, 404, "api_not_found", "The API endpoint was not found").ExecuteAsync(context);
+                return;
+            }
+
+            await next(context);
+        });
         app.UseAuthorization();
         // Optional actor binding prevents a queued browser request from crossing an account switch
         // It grants no authority; the authenticated cookie account must already match the captured owner
@@ -227,23 +235,7 @@ public static class SpatiaApplication
             await next(context);
         });
         app.UseSpatiaAntiforgery();
-        app.MapGet("/api/auth/csrf", (HttpContext context, IAntiforgery antiforgery) =>
-        {
-            var tokens = antiforgery.GetAndStoreTokens(context);
-            return Results.Ok(new { requestToken = tokens.RequestToken });
-        }).AllowAnonymous();
-        app.MapAssetAdministration();
-        app.MapAssetDelivery();
-        app.MapPublicationDelivery();
-        app.MapPublicationWrites();
-        app.MapAccountAdministration();
-        app.MapAccountDirectory();
-        app.MapAccountSessions();
-        app.MapProjectReads();
-        app.MapProjectSaves();
-        app.MapProjectLifecycle();
-        app.MapClassrooms();
-        app.MapReviewSubmissions();
+        app.MapGroup(ApiV1Endpoints.Prefix).MapApiV1();
         return app;
     }
 

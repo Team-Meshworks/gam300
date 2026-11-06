@@ -73,7 +73,7 @@ try {
   await page.getByRole("button", { name: "View account for Browser Updated" }).waitFor();
   // Exercise recovery against the real API, failing only the organisation refresh.
   let failOrganizations = true;
-  await page.route(/\/api\/admin\/organizations(?:\?|$)/, (route) =>
+  await page.route(/\/api\/v1\/admin\/organizations(?:\?|$)/, (route) =>
     failOrganizations
       ? route.fulfill({ status: 503, json: { code: "directory_unavailable" } })
       : route.continue(),
@@ -105,7 +105,7 @@ try {
   await login.getByLabel("Password", { exact: true }).fill("Browser-replacement2!");
   await login.getByRole("button", { name: "Log in", exact: true }).click();
   await login.getByRole("heading", { name: "Change your password." }).waitFor();
-  const session = await login.evaluate(async () => (await fetch("/api/auth/session")).json());
+  const session = await login.evaluate(async () => (await fetch("/api/v1/auth/session")).json());
   assert.equal(session.displayName, "Browser Updated");
   assert.equal(session.role, "Educator");
   assert.equal(session.mustChangePassword, true);

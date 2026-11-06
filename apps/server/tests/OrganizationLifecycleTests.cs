@@ -28,7 +28,7 @@ public sealed class OrganizationLifecycleTests
         await fixture.SignInAsync(member, memberClient);
         await fixture.SignInAsync(administrator);
         var captured = cookies.GetCookies(fixture.Address)[fixture.CookieName]!.Value;
-        using var created = await AuthTestRequests.PostAsync(fixture, "/api/projects",
+        using var created = await AuthTestRequests.PostAsync(fixture, "/api/v1/projects",
             new { title = "Retained project", environmentAssetId = "test-room-v1" }, memberClient);
         await Assert.That(created.StatusCode).IsEqualTo(HttpStatusCode.Created);
         var projectId = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("projectId").GetGuid();
@@ -40,29 +40,29 @@ public sealed class OrganizationLifecycleTests
         using var disabled = await PatchAsync(fixture, orgId, false);
         await Assert.That(disabled.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
         await Assert.That((await database.Organizations.AsNoTracking().SingleAsync(row => row.Id == orgId)).IsActive).IsFalse();
-        using var memberRead = await memberClient.GetAsync($"/api/projects/{projectId:D}");
+        using var memberRead = await memberClient.GetAsync($"/api/v1/projects/{projectId:D}");
         await Assert.That(memberRead.StatusCode).IsEqualTo(HttpStatusCode.Unauthorized);
         using var loginClient = fixture.CreateClient();
-        using var deniedLogin = await AuthTestRequests.PostAsync(fixture, "/api/auth/login",
+        using var deniedLogin = await AuthTestRequests.PostAsync(fixture, "/api/v1/auth/login",
             new { userName = userBefore.UserName, password = AuthTestRequests.CurrentPassword }, loginClient);
         await Assert.That(deniedLogin.StatusCode).IsEqualTo(HttpStatusCode.Unauthorized);
-        using var adminRead = await fixture.Client.GetAsync($"/api/projects/{projectId:D}");
+        using var adminRead = await fixture.Client.GetAsync($"/api/v1/projects/{projectId:D}");
         await Assert.That(adminRead.StatusCode).IsEqualTo(HttpStatusCode.OK);
         using var again = await PatchAsync(fixture, orgId, false);
         await Assert.That(again.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
-        using var directory = await fixture.Client.GetAsync($"/api/admin/organizations/{orgId:D}");
+        using var directory = await fixture.Client.GetAsync($"/api/v1/admin/organizations/{orgId:D}");
         await Assert.That((await directory.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("isActive").GetBoolean()).IsFalse();
         using var enabled = await PatchAsync(fixture, orgId, true);
         await Assert.That(enabled.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
         var replayCookies = new CookieContainer();
         replayCookies.Add(fixture.Address, new Cookie(fixture.CookieName, captured, "/") { Secure = true });
         using var replay = fixture.CreateClient(replayCookies);
-        using var restoredSession = await replay.GetAsync($"/api/projects/{projectId:D}");
+        using var restoredSession = await replay.GetAsync($"/api/v1/projects/{projectId:D}");
         await Assert.That(restoredSession.StatusCode).IsEqualTo(HttpStatusCode.OK);
-        using var acceptedLogin = await AuthTestRequests.PostAsync(fixture, "/api/auth/login",
+        using var acceptedLogin = await AuthTestRequests.PostAsync(fixture, "/api/v1/auth/login",
             new { userName = userBefore.UserName, password = AuthTestRequests.CurrentPassword }, loginClient);
         await Assert.That(acceptedLogin.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
-        using var freshRead = await loginClient.GetAsync($"/api/projects/{projectId:D}");
+        using var freshRead = await loginClient.GetAsync($"/api/v1/projects/{projectId:D}");
         await Assert.That(freshRead.StatusCode).IsEqualTo(HttpStatusCode.OK);
         var userAfter = await database.Users.AsNoTracking().SingleAsync(row => row.Id == member);
         await Assert.That(userAfter.IsActive).IsTrue();
@@ -202,7 +202,7 @@ public sealed class OrganizationLifecycleTests
         await AuthTestRequests.AssertSafeAsync(fixture, response);
     }
 
-    private static string Path(Guid id) => $"/api/admin/organizations/{id:D}/active";
+    private static string Path(Guid id) => $"/api/v1/admin/organizations/{id:D}/active";
 
     private static async Task<Guid> OrganizationIdAsync(HttpsApplicationFixture fixture, Guid userId)
     {

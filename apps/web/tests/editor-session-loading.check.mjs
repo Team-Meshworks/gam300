@@ -26,14 +26,14 @@ try {
   page.on("request", (request) => {
     if (request.url().endsWith(".glb")) requested.add(new URL(request.url()).pathname);
   });
-  await page.route("**/api/auth/**", async (route) => {
+  await page.route("**/api/v1/auth/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
-    if (path === "/api/auth/csrf") return route.fulfill({ json: { requestToken: "test-csrf" } });
-    if (path === "/api/auth/login") {
+    if (path === "/api/v1/auth/csrf") return route.fulfill({ json: { requestToken: "test-csrf" } });
+    if (path === "/api/v1/auth/login") {
       signedIn = true;
       return route.fulfill({ status: 204 });
     }
-    if (path === "/api/auth/session")
+    if (path === "/api/v1/auth/session")
       return route.fulfill(
         signedIn
           ? {

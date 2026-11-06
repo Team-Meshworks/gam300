@@ -54,9 +54,9 @@ try {
   await creatorPage.getByRole("button", { name: "Log in", exact: true }).click();
   await creatorPage.getByRole("link", { name: "Go to projects" }).waitFor();
   const denial = await creatorPage.evaluate(async (projectId) => {
-    const path = `/api/projects/${projectId}/assignments`;
+    const path = `/api/v1/projects/${projectId}/assignments`;
     const read = await fetch(path);
-    const csrf = await (await fetch("/api/auth/csrf")).json();
+    const csrf = await (await fetch("/api/v1/auth/csrf")).json();
     const write = await fetch(path, {
       method: "PATCH",
       headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": csrf.requestToken },

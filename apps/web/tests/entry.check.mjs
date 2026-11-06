@@ -24,10 +24,10 @@ try {
   let releaseLogin;
   let pendingLogin;
   let loginStarted;
-  await page.route("**/api/auth/**", async (route) => {
+  await page.route("**/api/v1/auth/**", async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
-    if (path === "/api/auth/csrf") {
+    if (path === "/api/v1/auth/csrf") {
       if (mode === "unavailable")
         return route.fulfill({
           status: 200,
@@ -36,16 +36,16 @@ try {
         });
       return route.fulfill({ status: 200, json: { requestToken: "browser-test-token" } });
     }
-    if (path === "/api/auth/session" && mode === "unavailable")
+    if (path === "/api/v1/auth/session" && mode === "unavailable")
       return route.fulfill({ status: 503 });
-    if (path === "/api/auth/session")
+    if (path === "/api/v1/auth/session")
       return mode === "signed-in" || mode === "forced"
         ? route.fulfill({
             status: 200,
             json: { ...session, mustChangePassword: mode === "forced" },
           })
         : route.fulfill({ status: 401 });
-    if (path === "/api/auth/login") {
+    if (path === "/api/v1/auth/login") {
       loginRequests += 1;
       loginStarted?.();
       assert.equal(request.headers()["x-csrf-token"], "browser-test-token");
@@ -58,12 +58,12 @@ try {
       mode = mode === "next-forced" ? "forced" : "signed-in";
       return route.fulfill({ status: 204 });
     }
-    if (path === "/api/auth/logout") {
+    if (path === "/api/v1/auth/logout") {
       assert.equal(request.headers()["x-csrf-token"], "browser-test-token");
       mode = "anonymous";
       return route.fulfill({ status: 204 });
     }
-    if (path === "/api/auth/password") {
+    if (path === "/api/v1/auth/password") {
       passwordRequests += 1;
       assert.equal(request.headers()["x-csrf-token"], "browser-test-token");
       assert.deepEqual(request.postDataJSON(), {
@@ -252,14 +252,14 @@ try {
     const visitorPage = await browser.newPage({ viewport: { width: 390, height: 844 } });
     let visitorSession = null;
     let forcePassword = role === "Creator";
-    await visitorPage.route("**/api/auth/**", async (route) => {
+    await visitorPage.route("**/api/v1/auth/**", async (route) => {
       const path = new URL(route.request().url()).pathname;
-      if (path === "/api/auth/csrf") return route.fulfill({ json: { requestToken: "test" } });
-      if (path === "/api/auth/session")
+      if (path === "/api/v1/auth/csrf") return route.fulfill({ json: { requestToken: "test" } });
+      if (path === "/api/v1/auth/session")
         return visitorSession
           ? route.fulfill({ json: visitorSession })
           : route.fulfill({ status: 401 });
-      if (path === "/api/auth/login") {
+      if (path === "/api/v1/auth/login") {
         visitorSession = {
           ...session,
           role,
@@ -268,7 +268,7 @@ try {
         };
         return route.fulfill({ status: 204 });
       }
-      if (path === "/api/auth/password") {
+      if (path === "/api/v1/auth/password") {
         forcePassword = false;
         visitorSession = { ...visitorSession, mustChangePassword: false };
         return route.fulfill({ status: 204 });
@@ -298,7 +298,7 @@ try {
   }
   for (const role of ["Educator", "Creator"]) {
     const rolePage = await browser.newPage({ viewport: { width: 390, height: 844 } });
-    await rolePage.route("**/api/auth/session", (route) =>
+    await rolePage.route("**/api/v1/auth/session", (route) =>
       route.fulfill({ json: { ...session, role } }),
     );
     await rolePage.route("**/home", (route) =>
@@ -361,18 +361,18 @@ try {
   const initial = new Promise((resolve) => {
     releaseInitial = resolve;
   });
-  await racePage.route("**/api/auth/**", async (route) => {
+  await racePage.route("**/api/v1/auth/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
-    if (path === "/api/auth/session") {
+    if (path === "/api/v1/auth/session") {
       if (!raceSignedIn) {
         await initial;
         return route.fulfill({ status: 401 });
       }
       return route.fulfill({ status: 200, json: session });
     }
-    if (path === "/api/auth/csrf")
+    if (path === "/api/v1/auth/csrf")
       return route.fulfill({ status: 200, json: { requestToken: "race-token" } });
-    if (path === "/api/auth/login") {
+    if (path === "/api/v1/auth/login") {
       raceSignedIn = true;
       return route.fulfill({ status: 204 });
     }
@@ -384,7 +384,7 @@ try {
   await racePage.getByRole("button", { name: "Log in" }).click();
   await racePage.getByRole("heading", { name: /You.re signed in/ }).waitFor();
   const initialResponse = racePage.waitForResponse(
-    (response) => response.url().endsWith("/api/auth/session") && response.status() === 401,
+    (response) => response.url().endsWith("/api/v1/auth/session") && response.status() === 401,
   );
   releaseInitial();
   await initialResponse;

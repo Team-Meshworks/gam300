@@ -60,7 +60,7 @@ export function createDashboardClient(accountId: string, request: typeof fetch =
     ): Promise<ProjectPage> {
       const query = new URLSearchParams({ limit: String(limit), archived: String(archived) });
       if (cursor) query.set("cursor", cursor);
-      const page = await send(`/api/projects?${query}`);
+      const page = await send(`/api/v1/projects?${query}`);
       if (
         !record(page) ||
         !Array.isArray(page.items) ||
@@ -87,10 +87,10 @@ export function createDashboardClient(accountId: string, request: typeof fetch =
       return page as unknown as ProjectPage;
     },
     async createOrganization(name: string): Promise<void> {
-      const csrf = await send("/api/auth/csrf");
+      const csrf = await send("/api/v1/auth/csrf");
       if (!record(csrf) || typeof csrf.requestToken !== "string" || !csrf.requestToken)
         throw new Error("Your session could not be verified. Sign in again.");
-      const result = await send("/api/admin/organizations", {
+      const result = await send("/api/v1/admin/organizations", {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": csrf.requestToken },
         body: JSON.stringify({ name: name.trim() }),

@@ -37,7 +37,7 @@ public sealed class AccountLifecycleTests
         await Assert.That(afterDisable.IsActive).IsFalse();
         await Assert.That(afterDisable.SecurityStamp != before.SecurityStamp).IsTrue();
         await Assert.That(afterDisable.ConcurrencyStamp != before.ConcurrencyStamp).IsTrue();
-        using var lostAccess = await targetClient.GetAsync("/api/auth/session");
+        using var lostAccess = await targetClient.GetAsync("/api/v1/auth/session");
         await Assert.That(lostAccess.StatusCode).IsEqualTo(HttpStatusCode.Unauthorized);
         using var again = await PatchAsync(fixture, target, false);
         await Assert.That(again.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
@@ -59,7 +59,7 @@ public sealed class AccountLifecycleTests
         var replayCookies = new CookieContainer();
         replayCookies.Add(fixture.Address, new Cookie(fixture.CookieName, captured, "/") { Secure = true });
         using var replay = fixture.CreateClient(replayCookies);
-        using var oldCookie = await replay.GetAsync("/api/auth/session");
+        using var oldCookie = await replay.GetAsync("/api/v1/auth/session");
         await Assert.That(oldCookie.StatusCode).IsEqualTo(HttpStatusCode.Unauthorized);
         await using var check = fixture.Database.Services.CreateAsyncScope();
         var database = check.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -174,7 +174,7 @@ public sealed class AccountLifecycleTests
             await AuthTestRequests.AssertProblemAsync(loser, HttpStatusCode.Conflict, "last_administrator");
             await Assert.That((await ReadUserAsync(fixture, firstId)).IsActive).IsFalse();
             await Assert.That((await ReadUserAsync(fixture, secondId)).IsActive).IsTrue();
-            using var retained = await secondClient.GetAsync("/api/admin/users");
+            using var retained = await secondClient.GetAsync("/api/v1/admin/users");
             await Assert.That(retained.StatusCode).IsEqualTo(HttpStatusCode.OK);
         }
         finally
@@ -243,7 +243,7 @@ public sealed class AccountLifecycleTests
         await AuthTestRequests.AssertSafeAsync(fixture, response);
     }
 
-    private static string Path(Guid id) => $"/api/admin/users/{id:D}/active";
+    private static string Path(Guid id) => $"/api/v1/admin/users/{id:D}/active";
 
     private static async Task<HttpResponseMessage> PatchAsync(HttpsApplicationFixture fixture, Guid id, bool active,
         HttpClient? client = null, string? token = null)

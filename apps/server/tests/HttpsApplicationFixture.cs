@@ -207,7 +207,7 @@ internal sealed class HttpsApplicationFixture : IAsyncDisposable
 
     public async Task<string> GetCsrfAsync(HttpClient? client = null)
     {
-        using var response = await (client ?? Client).GetAsync("/api/auth/csrf");
+        using var response = await (client ?? Client).GetAsync("/api/v1/auth/csrf");
         response.EnsureSuccessStatusCode();
         var json = await response.Content.ReadFromJsonAsync<JsonElement>();
         return json.GetProperty("requestToken").GetString()
@@ -344,7 +344,7 @@ internal sealed class HttpsApplicationFixture : IAsyncDisposable
         app.MapGet("/_test/admin", () => Results.NoContent()).RequireAuthorization(SecurityPolicies.Administrator);
 
         app.MapGet("/_test/current", () => Results.NoContent()).RequireAuthorization(SecurityPolicies.CurrentAccount);
-        app.MapPut("/api/auth/logout", () => Results.NoContent()).RequireAuthorization(SecurityPolicies.CurrentAccount);
+        app.MapPut("/api/v1/auth/logout", () => Results.NoContent()).RequireAuthorization(SecurityPolicies.CurrentAccount);
         app.MapPost("/_test/write", async (HttpContext context) =>
         {
             await context.Request.Body.CopyToAsync(Stream.Null, context.RequestAborted);

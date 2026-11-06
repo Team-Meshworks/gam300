@@ -22,7 +22,7 @@ const api = async (route) => {
   const request = route.request(),
     path = new URL(request.url()).pathname;
   const json = (status, body) => route.fulfill({ status, json: body });
-  if (path === "/api/auth/session")
+  if (path === "/api/v1/auth/session")
     return account
       ? json(200, {
           userId: account,
@@ -35,14 +35,14 @@ const api = async (route) => {
       : json(401, {});
   if (request.headers()["x-spatia-account"] && request.headers()["x-spatia-account"] !== account)
     return json(403, {});
-  if (path === "/api/auth/csrf") return json(200, { requestToken: "test-token" });
-  if (path === "/api/assets") return catalogueUnavailable ? json(503, {}) : json(200, []);
-  if (path === `/api/projects/${fixture.projectId}/assets`) return json(200, []);
-  if (path === "/api/auth/logout") {
+  if (path === "/api/v1/auth/csrf") return json(200, { requestToken: "test-token" });
+  if (path === "/api/v1/assets") return catalogueUnavailable ? json(503, {}) : json(200, []);
+  if (path === `/api/v1/projects/${fixture.projectId}/assets`) return json(200, []);
+  if (path === "/api/v1/auth/logout") {
     account = null;
     return route.fulfill({ status: 204 });
   }
-  if (path === `/api/projects/${fixture.projectId}`) {
+  if (path === `/api/v1/projects/${fixture.projectId}`) {
     if (request.method() === "GET")
       return json(200, {
         projectId: fixture.projectId,
@@ -69,7 +69,7 @@ const api = async (route) => {
   }
   return json(404, {});
 };
-await context.route("**/api/**", api);
+await context.route("**/api/v1/**", api);
 const page = await context.newPage();
 page.on("pageerror", (error) => errors.push(error.message));
 page.on("dialog", (dialog) => dialog.accept());
@@ -102,7 +102,7 @@ async function catalogueScenario(capability, revokeDuringRead = false, companion
     id: approvedId,
     name: "Approved Starter room",
     kind: "environment",
-    url: `/api/assets/${approvedId}/bytes`,
+    url: `/api/v1/assets/${approvedId}/bytes`,
     sha256: hash,
     thumbnail: null,
     category: null,
@@ -111,7 +111,7 @@ async function catalogueScenario(capability, revokeDuringRead = false, companion
     id: retainedId,
     name: "Retained object",
     kind: "model",
-    url: `/api/projects/${fixture.projectId}/assets/${retainedId}/bytes`,
+    url: `/api/v1/projects/${fixture.projectId}/assets/${retainedId}/bytes`,
     sha256: "b".repeat(64),
     thumbnail: null,
     category: null,
@@ -120,7 +120,7 @@ async function catalogueScenario(capability, revokeDuringRead = false, companion
     ...retained,
     id: modelId,
     name: "Approved Starter model",
-    url: `/api/assets/${modelId}/bytes`,
+    url: `/api/v1/assets/${modelId}/bytes`,
     sha256: hash,
   };
   let serverDocument = structuredClone(fixture);
@@ -133,11 +133,11 @@ async function catalogueScenario(capability, revokeDuringRead = false, companion
   const captured = [];
   const isolated = await browser.newContext();
   try {
-    await isolated.route("**/api/**", async (route) => {
+    await isolated.route("**/api/v1/**", async (route) => {
       const request = route.request();
       const path = new URL(request.url()).pathname;
       const json = (status, body) => route.fulfill({ status, json: body });
-      if (path === "/api/auth/session")
+      if (path === "/api/v1/auth/session")
         return json(200, {
           userId: alice,
           displayName: "Student",
@@ -148,24 +148,24 @@ async function catalogueScenario(capability, revokeDuringRead = false, companion
             ? {}
             : { developmentAssetsAllowed: currentCapability }),
         });
-      if (path === "/api/auth/csrf") return json(200, { requestToken: "test-token" });
-      if (path === "/api/assets") {
+      if (path === "/api/v1/auth/csrf") return json(200, { requestToken: "test-token" });
+      if (path === "/api/v1/assets") {
         if (revokeDuringRead) currentCapability = false;
         return json(200, [approved, ...(companion === "approved" ? [approvedModel] : [])]);
       }
-      if (path === `/api/projects/${fixture.projectId}/assets`)
+      if (path === `/api/v1/projects/${fixture.projectId}/assets`)
         return json(200, [
           retained,
           ...(companion === "retained"
             ? [
                 {
                   ...approvedModel,
-                  url: `/api/projects/${fixture.projectId}/assets/${modelId}/bytes`,
+                  url: `/api/v1/projects/${fixture.projectId}/assets/${modelId}/bytes`,
                 },
               ]
             : []),
         ]);
-      if (path === `/api/projects/${fixture.projectId}`) {
+      if (path === `/api/v1/projects/${fixture.projectId}`) {
         if (request.method() === "GET")
           return json(200, {
             projectId: fixture.projectId,
@@ -357,7 +357,7 @@ try {
   await ready();
   // A fresh browser opens the confirmed server content without local recovery.
   const freshContext = await browser.newContext();
-  await freshContext.route("**/api/**", api);
+  await freshContext.route("**/api/v1/**", api);
   const fresh = await freshContext.newPage();
   await fresh.goto(url);
   await fresh.getByRole("button", { name: "Scenes", exact: true }).click();

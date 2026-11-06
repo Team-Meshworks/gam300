@@ -35,7 +35,7 @@ try {
     timezoneId: "Asia/Singapore",
   });
   const page = await login(teacher, process.env.SPATIA_TEST_EDUCATOR);
-  const catalogue = await teacher.request.get(`${origin}/api/assets`);
+  const catalogue = await teacher.request.get(`${origin}/api/v1/assets`);
   assert.equal(
     catalogue.status(),
     200,
@@ -68,7 +68,7 @@ try {
   await createDialog.getByLabel("Project title").fill("Live blank project");
   await createDialog.getByLabel("3D space").selectOption(process.env.SPATIA_TEST_ENVIRONMENT);
   const createdResponse = page.waitForResponse(
-    (item) => item.url().endsWith("/api/projects") && item.request().method() === "POST",
+    (item) => item.url().endsWith("/api/v1/projects") && item.request().method() === "POST",
   );
   const environmentResponse = page.waitForResponse(
     (item) =>
@@ -105,7 +105,8 @@ try {
   const retainedAsset = process.env.SPATIA_TEST_RETAINED_ASSET;
   const retainedBytes = page.waitForResponse(
     (item) =>
-      new URL(item.url()).pathname === `/api/projects/${retainedId}/assets/${retainedAsset}/bytes`,
+      new URL(item.url()).pathname ===
+      `/api/v1/projects/${retainedId}/assets/${retainedAsset}/bytes`,
     { timeout: 30000 },
   );
   await page
@@ -146,8 +147,8 @@ try {
   );
   const retainedSave = page.waitForResponse(
     (item) =>
-      new URL(item.url()).pathname.toLowerCase() === `/api/projects/${retainedId}`.toLowerCase() &&
-      item.request().method() === "PUT",
+      new URL(item.url()).pathname.toLowerCase() ===
+        `/api/v1/projects/${retainedId}`.toLowerCase() && item.request().method() === "PUT",
   );
   await page.getByRole("button", { name: "Rename scene", exact: true }).click();
   let savedRetained;
@@ -208,7 +209,8 @@ try {
   await student.getByRole("button", { name: "Scenes", exact: true }).click();
   await student.getByLabel("Scene name", { exact: true }).fill("Saved by student");
   const savedResponse = student.waitForResponse(
-    (item) => item.url().endsWith(`/api/projects/${project}`) && item.request().method() === "PUT",
+    (item) =>
+      item.url().endsWith(`/api/v1/projects/${project}`) && item.request().method() === "PUT",
   );
   await student.getByRole("button", { name: "Rename scene", exact: true }).click();
   assert.equal((await savedResponse).status(), 200);
@@ -219,11 +221,11 @@ try {
   const outsiderContext = await browser.newContext({ ignoreHTTPSErrors: true });
   await login(outsiderContext, process.env.SPATIA_TEST_OUTSIDER);
   assert.equal(
-    (await outsiderContext.request.get(`${origin}/api/projects/${retainedId}/assets`)).status(),
+    (await outsiderContext.request.get(`${origin}/api/v1/projects/${retainedId}/assets`)).status(),
     404,
   );
   assert.equal(
-    (await outsiderContext.request.get(`${origin}/api/projects/${project}`)).status(),
+    (await outsiderContext.request.get(`${origin}/api/v1/projects/${project}`)).status(),
     404,
   );
   const freshContext = await browser.newContext({ ignoreHTTPSErrors: true });

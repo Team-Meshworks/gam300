@@ -154,12 +154,14 @@ public static class RequestSecurityExtensions
             return false;
         }
 
+        context.Request.Path.StartsWithSegments(ApiV1Endpoints.Prefix, out var remaining);
+        var path = remaining.Value?.TrimEnd('/');
         return HttpMethods.IsGet(context.Request.Method)
-            ? context.Request.Path.Equals("/api/auth/csrf", StringComparison.OrdinalIgnoreCase)
-                || context.Request.Path.Equals("/api/auth/session", StringComparison.OrdinalIgnoreCase)
+            ? string.Equals(path, "/auth/csrf", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(path, "/auth/session", StringComparison.OrdinalIgnoreCase)
             : HttpMethods.IsPost(context.Request.Method)
-                && (context.Request.Path.Equals("/api/auth/password", StringComparison.OrdinalIgnoreCase)
-                    || context.Request.Path.Equals("/api/auth/logout", StringComparison.OrdinalIgnoreCase));
+                && (string.Equals(path, "/auth/password", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(path, "/auth/logout", StringComparison.OrdinalIgnoreCase));
     }
 
     private static string GetIpKey(HttpContext context)

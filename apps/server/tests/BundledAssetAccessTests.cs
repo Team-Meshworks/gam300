@@ -36,7 +36,7 @@ public sealed class BundledAssetAccessTests
                 fixture.Clock.Set(fixture.Clock.GetUtcNow().AddHours(9));
             }
         }
-        using var response = await fixture.Client.GetAsync("/api/auth/asset-access");
+        using var response = await fixture.Client.GetAsync("/api/v1/auth/asset-access");
         await Assert.That((int)response.StatusCode).IsEqualTo(expected);
         await Assert.That(response.Headers.CacheControl?.NoStore).IsTrue();
         await Assert.That(response.Headers.WwwAuthenticate.Count).IsEqualTo(0);

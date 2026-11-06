@@ -57,8 +57,8 @@ it.each([403, 404])(
     vi.stubGlobal(
       "fetch",
       vi.fn(async (path: string) => {
-        if (path === "/api/auth/session") return session();
-        if (path === "/api/auth/csrf") return csrf();
+        if (path === "/api/v1/auth/session") return session();
+        if (path === "/api/v1/auth/csrf") return csrf();
         return json({}, status);
       }),
     );
@@ -71,8 +71,8 @@ it("allows correction after an initial oversized request but preserves an uncert
   vi.stubGlobal(
     "fetch",
     vi.fn(async (path: string) => {
-      if (path === "/api/auth/session") return session();
-      if (path === "/api/auth/csrf") return csrf();
+      if (path === "/api/v1/auth/session") return session();
+      if (path === "/api/v1/auth/csrf") return csrf();
       return json({}, 413);
     }),
   );
@@ -163,7 +163,7 @@ it("uses authorized paginated choices and only enrolled students", async () => {
   vi.stubGlobal(
     "fetch",
     vi.fn(async (path: string) => {
-      if (path.startsWith("/api/classes/class/eligible-students"))
+      if (path.startsWith("/api/v1/classes/class/eligible-students"))
         return json({
           items: [
             { userId: "a", userName: "Alice", enrolled: true },
@@ -171,7 +171,7 @@ it("uses authorized paginated choices and only enrolled students", async () => {
           ],
           nextCursor: null,
         });
-      if (path.startsWith("/api/classes"))
+      if (path.startsWith("/api/v1/classes"))
         return json({ items: [{ id: "class", name: "Class" }], nextCursor: null });
       if (path.includes("cursor=next"))
         return json({

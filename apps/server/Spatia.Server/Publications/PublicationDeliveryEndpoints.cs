@@ -12,7 +12,7 @@ internal static class PublicationDeliveryEndpoints
 {
     internal static void MapPublicationDelivery(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapGet("/api/publications/{publicationId}/manifest", async (string publicationId,
+        endpoints.MapGet("/publications/{publicationId}/manifest", async (string publicationId,
             HttpContext context, ApplicationDbContext database, CancellationToken token) =>
         {
             var id = Guid.Parse(publicationId);
@@ -36,13 +36,13 @@ internal static class PublicationDeliveryEndpoints
                     id = asset.Id.ToString("D"),
                     kind = asset.Kind,
                     sha256 = asset.Sha256,
-                    url = $"/api/publications/{id:D}/assets/{asset.Id:D}/bytes",
+                    url = $"{ApiV1Endpoints.Prefix}/publications/{id:D}/assets/{asset.Id:D}/bytes",
                 }),
             });
         }).RequirePublicationRead(PublicationReadKind.Snapshot);
 
         // Let the shared filter explain malformed IDs before reading the captured edition
-        endpoints.MapGet("/api/publications/{publicationId}", async (string publicationId,
+        endpoints.MapGet("/publications/{publicationId}", async (string publicationId,
             ApplicationDbContext database, CancellationToken token) =>
         {
             var id = Guid.Parse(publicationId);
@@ -50,7 +50,7 @@ internal static class PublicationDeliveryEndpoints
             return Results.Content(edition.DocumentJson, "application/json");
         }).RequirePublicationRead(PublicationReadKind.Snapshot);
 
-        endpoints.MapGet("/api/publications/{publicationId}/assets/{assetId}/bytes", async (string assetId,
+        endpoints.MapGet("/publications/{publicationId}/assets/{assetId}/bytes", async (string assetId,
             HttpContext context, ApplicationDbContext database, CancellationToken token) =>
         {
             // Recheck removal at byte loading too; never let a stale policy lookup bypass global removal
@@ -62,7 +62,7 @@ internal static class PublicationDeliveryEndpoints
         }).RequirePublicationRead(PublicationReadKind.Asset).RequireRateLimiting("AssetBytes");
 
         // Management metadata explains the current audience without granting visitor or draft access
-        endpoints.MapGet("/api/publications/{publicationId:guid}/access", async (Guid publicationId,
+        endpoints.MapGet("/publications/{publicationId:guid}/access", async (Guid publicationId,
             HttpContext context, ApplicationDbContext database, ProjectAccessService access, CancellationToken token) =>
         {
             var edition = await database.Publications.AsNoTracking().SingleOrDefaultAsync(row => row.Id == publicationId, token);
@@ -95,7 +95,7 @@ internal static class PublicationDeliveryEndpoints
             });
         }).RequireAuthorization(SecurityPolicies.FullAccount);
 
-        endpoints.MapPost("/api/publications/{publicationId:guid}/access", async (Guid publicationId,
+        endpoints.MapPost("/publications/{publicationId:guid}/access", async (Guid publicationId,
             PublicationAccessRequest request, HttpContext context, ApplicationDbContext database,
             ProjectAccessService access, CancellationToken token) =>
         {

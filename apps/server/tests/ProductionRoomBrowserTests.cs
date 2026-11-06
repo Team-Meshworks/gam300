@@ -49,7 +49,7 @@ public sealed class ProductionRoomBrowserTests
 
         var administrator = await fixture.CreateAccountAsync(ApplicationRoles.Administrator);
         var adminName = await AuthTestRequests.UserNameAsync(fixture, administrator);
-        using (var login = await AuthTestRequests.PostAsync(fixture, "/api/auth/login",
+        using (var login = await AuthTestRequests.PostAsync(fixture, "/api/v1/auth/login",
             new { userName = adminName, password = AuthTestRequests.CurrentPassword }))
         {
             await Assert.That(login.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
@@ -68,25 +68,25 @@ public sealed class ProductionRoomBrowserTests
         var environment = await ApproveAsync(fixture, "environment", bytes, hash);
         var model = await ApproveAsync(fixture, "model", bytes, hash);
         await Assert.That(environment.Id).IsNotEqualTo(model.Id);
-        using (var logout = await AuthTestRequests.PostAsync(fixture, "/api/auth/logout", null))
+        using (var logout = await AuthTestRequests.PostAsync(fixture, "/api/v1/auth/logout", null))
         {
             await Assert.That(logout.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
         }
 
         var creator = await fixture.CreateAccountAsync();
         var userName = await AuthTestRequests.UserNameAsync(fixture, creator);
-        using (var login = await AuthTestRequests.PostAsync(fixture, "/api/auth/login",
+        using (var login = await AuthTestRequests.PostAsync(fixture, "/api/v1/auth/login",
             new { userName, password = AuthTestRequests.CurrentPassword }))
         {
             await Assert.That(login.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
         }
-        using (var session = await fixture.Client.GetAsync("/api/auth/session"))
+        using (var session = await fixture.Client.GetAsync("/api/v1/auth/session"))
         {
             await Assert.That(session.StatusCode).IsEqualTo(HttpStatusCode.OK);
             var account = await session.Content.ReadFromJsonAsync<JsonElement>();
             await Assert.That(account.GetProperty("developmentAssetsAllowed").GetBoolean()).IsFalse();
         }
-        using var created = await AuthTestRequests.PostAsync(fixture, "/api/projects/",
+        using var created = await AuthTestRequests.PostAsync(fixture, "/api/v1/projects/",
             new { title = "Production adjoining rooms", environmentAssetId = environment.Id.ToString() });
         await Assert.That(created.StatusCode).IsEqualTo(HttpStatusCode.Created);
         var projectId = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("projectId").GetGuid();
@@ -148,7 +148,7 @@ public sealed class ProductionRoomBrowserTests
         var name = kind == "environment" ? "Approved%20Starter%20room.glb" : "Approved%20Starter%20model.glb";
         var category = kind == "model" ? "&category=Architecture" : "";
         using var upload = new HttpRequestMessage(
-            HttpMethod.Post, $"/api/admin/assets?name={name}&kind={kind}{category}");
+            HttpMethod.Post, $"/api/v1/admin/assets?name={name}&kind={kind}{category}");
         upload.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync());
         upload.Content = new ByteArrayContent(bytes);
         upload.Content.Headers.ContentType = new("model/gltf-binary");
@@ -157,7 +157,7 @@ public sealed class ProductionRoomBrowserTests
         var candidate = (await submitted.Content.ReadFromJsonAsync<AssetAdministrationRecord>())!;
         await Assert.That(candidate.Status).IsEqualTo("pending");
         await Assert.That(candidate.Sha256).IsEqualTo(hash);
-        using var reviewed = await AuthTestRequests.PostAsync(fixture, $"/api/admin/assets/{candidate.Id}/approve",
+        using var reviewed = await AuthTestRequests.PostAsync(fixture, $"/api/v1/admin/assets/{candidate.Id}/approve",
             new AssetReviewRequest("Synthetic browser fixture", "Synthetic test only", "Approved for browser test"));
         await Assert.That(reviewed.StatusCode).IsEqualTo(HttpStatusCode.OK);
         var approved = (await reviewed.Content.ReadFromJsonAsync<AssetAdministrationRecord>())!;

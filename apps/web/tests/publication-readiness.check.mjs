@@ -22,12 +22,12 @@ try {
   await mkdir("../../.artifacts/publication-readiness", { recursive: true });
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   page.setDefaultTimeout(7000);
-  await page.route("**/api/**", async (route) => {
+  await page.route("**/api/v1/**", async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
-    if (path === "/api/auth/session") return route.fulfill({ json: session });
-    if (path === "/api/auth/csrf") return route.fulfill({ json: { requestToken: "test" } });
-    if (path === `/api/projects/${projectId}`)
+    if (path === "/api/v1/auth/session") return route.fulfill({ json: session });
+    if (path === "/api/v1/auth/csrf") return route.fulfill({ json: { requestToken: "test" } });
+    if (path === `/api/v1/projects/${projectId}`)
       return route.fulfill({
         json: {
           projectId,
@@ -36,7 +36,7 @@ try {
           permissions: { canPublish: true },
         },
       });
-    if (path === `/api/projects/${projectId}/publication-readiness`)
+    if (path === `/api/v1/projects/${projectId}/publication-readiness`)
       return failRead
         ? route.fulfill({ status: 503 })
         : route.fulfill({
@@ -48,9 +48,9 @@ try {
               approved: state === "Ready",
             },
           });
-    if (path === `/api/projects/${projectId}/publication-viewers`)
+    if (path === `/api/v1/projects/${projectId}/publication-viewers`)
       return route.fulfill({ json: { items: [], nextCursor: null } });
-    if (path === `/api/projects/${projectId}/publications`) {
+    if (path === `/api/v1/projects/${projectId}/publications`) {
       writes.push(request.postDataJSON());
       if (loseResponse) return route.abort();
       return route.fulfill({

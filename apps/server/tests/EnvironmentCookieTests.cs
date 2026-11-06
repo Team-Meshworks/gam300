@@ -13,7 +13,7 @@ public sealed class EnvironmentCookieTests
     public async Task EnvironmentsOnDifferentPortsUseDistinctCookieNames()
     {
         var names = new HashSet<string>();
-        foreach (var environment in new[] { "Development", "Production" })
+        foreach (var (environment, suffix) in new[] { ("Development", ".Development"), ("Production", ".Production"), ("Testing", "") })
         {
             var services = new ServiceCollection();
             services.AddLogging();
@@ -24,8 +24,8 @@ public sealed class EnvironmentCookieTests
             var csrf = provider.GetRequiredService<IOptions<AntiforgeryOptions>>().Value.Cookie;
             await Assert.That(names.Add(session.Name!)).IsTrue();
             await Assert.That(names.Add(csrf.Name!)).IsTrue();
-            await Assert.That(session.Name!.EndsWith("." + environment, StringComparison.Ordinal)).IsTrue();
-            await Assert.That(csrf.Name!.EndsWith("." + environment, StringComparison.Ordinal)).IsTrue();
+            await Assert.That(session.Name).IsEqualTo("__Host-Spatia.Application" + suffix);
+            await Assert.That(csrf.Name).IsEqualTo("__Host-Spatia.Antiforgery" + suffix);
             await Assert.That(session.Path).IsEqualTo("/");
         }
     }

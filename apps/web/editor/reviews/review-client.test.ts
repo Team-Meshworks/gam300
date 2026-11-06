@@ -76,7 +76,7 @@ describe("review HTTP contract", () => {
       const request = vi.fn<typeof fetch>(async (path, init) => {
         const expected = new Headers(init?.headers).get("X-Spatia-Account");
         if (expected && expected !== active) return json({ code: "account_changed" }, 403);
-        if (path === "/api/auth/csrf") {
+        if (path === "/api/v1/auth/csrf") {
           active = studentId;
           return json({ requestToken: "replacement-token" });
         }
@@ -112,7 +112,7 @@ describe("review HTTP contract", () => {
       kind: "confirmed",
     });
     expect(request.mock.calls[1]).toEqual([
-      "/api/projects/" + projectId + "/submissions",
+      "/api/v1/projects/" + projectId + "/submissions",
       expect.objectContaining({
         method: "POST",
         credentials: "same-origin",

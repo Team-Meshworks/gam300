@@ -19,7 +19,7 @@ public static partial class AccountDirectoryEndpoints
     /// </summary>
     public static IEndpointRouteBuilder MapAccountDirectory(this IEndpointRouteBuilder endpoints)
     {
-        var group = endpoints.MapGroup("/api/admin").RequireAuthorization(SecurityPolicies.Administrator);
+        var group = endpoints.MapGroup("/admin").RequireAuthorization(SecurityPolicies.Administrator);
         group.MapGet("/users", ListUsersAsync);
         group.MapGet("/users/{id:guid}", GetUserAsync);
         group.MapGet("/organizations", ListOrganizationsAsync);

@@ -12,7 +12,7 @@ internal static class PublicationWriteEndpoints
 {
     internal static void MapPublicationWrites(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapGet("/api/projects/{id:guid}/publication-viewers", async (Guid id,
+        endpoints.MapGet("/projects/{id:guid}/publication-viewers", async (Guid id,
             HttpContext context, ApplicationDbContext database, ProjectAccessService access, CancellationToken token) =>
         {
             if (!ClassroomEndpoints.TryPage(context, out var limit, out var cursor))
@@ -34,7 +34,7 @@ internal static class PublicationWriteEndpoints
             return Results.Ok(new { items = rows.Take(limit).ToArray(), nextCursor = rows.Count > limit ? rows[limit - 1].userId : (Guid?)null });
         }).RequireAuthorization(SecurityPolicies.FullAccount);
 
-        endpoints.MapGet("/api/projects/{id:guid}/publication-readiness", async (Guid id,
+        endpoints.MapGet("/projects/{id:guid}/publication-readiness", async (Guid id,
             PublicationCoordinator coordinator, HttpContext context, IConfiguration configuration, CancellationToken token) =>
         {
             var result = await coordinator.ReadinessAsync(context, id, token);
@@ -51,7 +51,7 @@ internal static class PublicationWriteEndpoints
             });
         }).RequireAuthorization(SecurityPolicies.FullAccount);
 
-        endpoints.MapPost("/api/projects/{id:guid}/publications", async (Guid id, PublishSnapshotRequest input,
+        endpoints.MapPost("/projects/{id:guid}/publications", async (Guid id, PublishSnapshotRequest input,
             PublicationCoordinator coordinator, HttpContext context, IConfiguration configuration, CancellationToken token) =>
         {
             if (id == Guid.Empty || input.PublicationId is not { } publicationId || publicationId == Guid.Empty
@@ -69,7 +69,7 @@ internal static class PublicationWriteEndpoints
             if (result.AccessFailure is { } accessFailure) { return ProjectHttpResults.FromAccessFailure(context, accessFailure); }
             if (result.Acknowledgement is { } ack)
             {
-                var snapshotUrl = new Uri(origin!, $"api/publications/{ack.PublicationId:D}").AbsoluteUri;
+                var snapshotUrl = new Uri(origin!, $"{ApiV1Endpoints.Prefix}/publications/{ack.PublicationId:D}").AbsoluteUri;
                 var visitorUrl = new Uri(origin!, $"p/{ack.PublicationId:D}").AbsoluteUri;
                 var body = new { ack.PublicationId, ack.ProjectId, ack.SourceRevision, ack.CreatedAt, snapshotUrl, visitorUrl };
                 context.Response.Headers.CacheControl = "private, no-store";

@@ -27,7 +27,7 @@ try {
   await server.listen();
   const address = server.httpServer.address();
   assert.ok(address && typeof address !== "string");
-  for (const path of ["/api", "/api/auth/session", "/api?check=1"]) {
+  for (const path of ["/api", "/api/v1/auth/session", "/api?check=1"]) {
     const response = await fetch(`http://127.0.0.1:${address.port}${path}`);
     assert.equal(response.status, 503);
     assert.equal(response.headers.get("cache-control"), "no-store");
