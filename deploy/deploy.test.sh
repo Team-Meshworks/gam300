@@ -11,7 +11,7 @@ cp "$source_directory/../compose.server.yaml" "$temporary/bundle/"
 cp "$source_directory/server.Caddyfile" "$temporary/bundle/deploy/"
 export DEPLOY_ROOT="$temporary/deployments" FAKE_STATE="$temporary/state"
 export PATH="$temporary/bin:$PATH"
-unset APP_URL DEPLOY_BASIC_AUTH_USERNAME DEPLOY_BASIC_AUTH_PASSWORD
+unset APP_URL DEPLOY_BASIC_AUTH_USERNAME DEPLOY_BASIC_AUTH_PASSWORD RECOVERY_FROM_REVISION RECOVERY_REVIEW
 
 cat > "$temporary/bin/docker" <<'MOCK'
 #!/usr/bin/env bash
@@ -178,3 +178,24 @@ if cmp -s "$DEPLOY_ROOT/development/server.env" "$DEPLOY_ROOT/production/server.
 if "${deploy[@]}" main "$image" "$first"; then exit 1; fi
 [[ "$(cat "$FAKE_STATE/8081")" == "$third" ]]
 echo 'PASS: server validation, private settings, API health, backups and fail-closed guarded recovery'
+
+# Explicit reviewed recovery replaces a blocked release without starting old binaries.
+export APP_URL=https://127.0.0.1:8082
+if FAKE_FAIL_API=1 "${deploy[@]}" dev "$image" "$third" "$api" "$migration"; then exit 1; fi
+cp "$DEPLOY_ROOT/development/server-recovery-required" "$temporary/review-guard"
+call_count=$(wc -l < "$FAKE_STATE/calls")
+if RECOVERY_FROM_REVISION="$first" RECOVERY_REVIEW=approved "${deploy[@]}" dev "$image" "$first" "$api" "$migration"; then exit 1; fi
+if RECOVERY_FROM_REVISION="$third" "${deploy[@]}" dev "$image" "$first" "$api" "$migration"; then exit 1; fi
+[[ "$(wc -l < "$FAKE_STATE/calls")" == "$call_count" ]]
+for failure in FAKE_FAIL_PULL FAKE_FAIL_STOP; do
+  if env "$failure=1" RECOVERY_FROM_REVISION="$third" RECOVERY_REVIEW=approved "${deploy[@]}" dev "$image" "$first" "$api" "$migration"; then exit 1; fi
+  cmp "$temporary/review-guard" "$DEPLOY_ROOT/development/server-recovery-required"
+done
+RECOVERY_FROM_REVISION="$third" RECOVERY_REVIEW='Reviewed deployment-only change' "${deploy[@]}" dev "$image" "$first" "$api" "$migration"
+[[ ! -e "$DEPLOY_ROOT/development/server-recovery-required" ]]
+records=("$DEPLOY_ROOT/development/recovery-records"/review.*)
+[[ ${#records[@]} == 1 ]]
+cmp "$temporary/review-guard" "${records[0]}/previous-guard"
+grep -qx 'Reviewed deployment-only change' "${records[0]}/review"
+[[ "$(head -n 1 "${records[0]}/replacement")" == "$first" ]]
+echo 'PASS: reviewed recovery validates identity, retains guards on failure and archives approval'

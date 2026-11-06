@@ -281,8 +281,13 @@ do not clear the guard manually for an exact retry. If a different release is ne
 an operator must first review its schema and authorization compatibility with the actual
 retained database, including data written after the backup, and prepare a safe recovery
 plan. Keep the API and gateway unavailable through that review. Once the plan is approved,
-archive the guard as part of the recovery record, then deploy a successful CI release for
-the new current branch commit. Do not invoke an older deploy script, rewind the branch to
+run Deploy for a successful CI release of the current branch with
+`recovery_from_revision` set to the full revision in the guard and `recovery_review`
+set to the approved compatibility review reference or rationale. The script validates
+the guard, pulls the new images, stops the API and gateway, and archives the old guard,
+replacement identity and review under `recovery-records/`. It retains the old guard
+if pulling or stopping fails; candidate startup records the new guard. These inputs
+are an explicit operator approval, not an automated compatibility assessment. Do not invoke an older deploy script, rewind the branch to
 bypass these controls, or blindly restore a backup: migrations are not reversed and
 restoring a backup can discard later writes. Database restoration requires a reviewed
 procedure during downtime. Keep backups outside the VM as well.
