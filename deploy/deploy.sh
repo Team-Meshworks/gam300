@@ -34,11 +34,22 @@ flock -w 300 9
 recovery_guard="$directory/server-recovery-required"
 release_identity=$(printf '%s\n' "$revision" "$image" "$api_image" "$migration_image")
 recovering=false
+reviewed_recovery=false
 if [[ -e "$recovery_guard" ]]; then
   recovering=true
   if ! $server || [[ "$(cat "$recovery_guard")" != "$release_identity" ]]; then
-    echo "Server recovery is pending. Retry the exact candidate release or obtain an operator compatibility review before deploying a different release." >&2
-    exit 1
+    mapfile -t guarded < "$recovery_guard"
+    valid_guard=true
+    [[ ${#guarded[@]} == 4 && "${guarded[0]}" =~ ^[a-f0-9]{40}$ ]] || valid_guard=false
+    for digest in "${guarded[@]:1}"; do
+      [[ "$digest" =~ ^ghcr\.io/team-meshworks/gam300@sha256:[a-f0-9]{64}$ ]] || valid_guard=false
+    done
+    if ! $server || ! $valid_guard ||
+       [[ "${RECOVERY_FROM_REVISION:-}" != "${guarded[0]:-}" || -z "${RECOVERY_REVIEW:-}" ]]; then
+      echo "Server recovery is pending. Retry the exact candidate release or supply its full revision and a compatibility review through the recovery workflow inputs." >&2
+      exit 1
+    fi
+    reviewed_recovery=true
   fi
 fi
 if ! $server && [[ -f "$directory/current/compose.server.yaml" ]]; then
@@ -108,6 +119,18 @@ fi
 
 # Pull failure leaves the running release untouched
 if $server; then run_release "$candidate" pull; else run_release "$candidate" pull web; fi
+
+# Preserve the original guard until pulls and shutdown have succeeded.
+if $reviewed_recovery; then
+  run_release "$candidate" stop api gateway || {
+    echo "Could not confirm API/gateway shutdown; recovery guard retained." >&2; exit 1;
+  }
+  mkdir -p "$directory/recovery-records"
+  record=$(mktemp -d "$directory/recovery-records/review.XXXXXX")
+  cp -- "$recovery_guard" "$record/previous-guard"
+  printf '%s\n' "$release_identity" > "$record/replacement"
+  printf '%s\n' "$RECOVERY_REVIEW" > "$record/review"
+fi
 
 # A runtime rollback never reverses schema changes, so keep a private database backup
 if $server && ! $recovering && [[ -f "$directory/current/compose.server.yaml" ]]; then

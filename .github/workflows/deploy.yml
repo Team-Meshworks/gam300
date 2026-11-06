@@ -8,6 +8,15 @@ on:
         required: true
         type: string
 
+      recovery_from_revision:
+        description: Optional full failed revision; use only after reviewing retained database compatibility
+        required: false
+        type: string
+      recovery_review:
+        description: Optional approved recovery review reference or rationale (required with recovery revision)
+        required: false
+        type: string
+
 permissions:
   contents: read
   actions: read
@@ -82,6 +91,8 @@ jobs:
           EXPECTED_COMMIT: ${{ needs.release.outputs.commit }}
           CI_RUN_ID: ${{ inputs.ci_run_id }}
           APP_URL: ${{ vars.APP_URL }}
+          RECOVERY_FROM_REVISION: ${{ inputs.recovery_from_revision }}
+          RECOVERY_REVIEW: ${{ inputs.recovery_review }}
           DEPLOY_BASIC_AUTH_USERNAME: ${{ secrets.DEPLOY_BASIC_AUTH_USERNAME }}
           DEPLOY_BASIC_AUTH_PASSWORD: ${{ secrets.DEPLOY_BASIC_AUTH_PASSWORD }}
           DEPLOY_ENVIRONMENT: ${{ needs.release.outputs.environment }}
