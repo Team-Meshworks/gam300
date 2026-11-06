@@ -556,6 +556,10 @@
   gap: 20px;
   line-height: 26px;
 }
+.login-confirmation .sp-button {
+  font: inherit;
+  text-align: center;
+}
 @media (min-width: 1600px) {
   .landing-hero-content,
   .landing-card-grid,
