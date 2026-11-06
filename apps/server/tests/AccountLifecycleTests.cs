@@ -23,7 +23,7 @@ public sealed class AccountLifecycleTests
         var cookies = new CookieContainer();
         using var targetClient = fixture.CreateClient(cookies);
         await fixture.SignInAsync(target, targetClient);
-        var captured = cookies.GetCookies(fixture.Address)[HttpsApplicationFixture.CookieName]!.Value;
+        var captured = cookies.GetCookies(fixture.Address)[fixture.CookieName]!.Value;
         await using (var scope = fixture.Database.Services.CreateAsyncScope())
         {
             await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().Users.Where(row => row.Id == target)
@@ -57,7 +57,7 @@ public sealed class AccountLifecycleTests
         await Assert.That(after.LockoutEnd).IsEqualTo(before.LockoutEnd);
         await Assert.That(after.LockoutEnabled).IsEqualTo(before.LockoutEnabled);
         var replayCookies = new CookieContainer();
-        replayCookies.Add(fixture.Address, new Cookie(HttpsApplicationFixture.CookieName, captured, "/") { Secure = true });
+        replayCookies.Add(fixture.Address, new Cookie(fixture.CookieName, captured, "/") { Secure = true });
         using var replay = fixture.CreateClient(replayCookies);
         using var oldCookie = await replay.GetAsync("/api/auth/session");
         await Assert.That(oldCookie.StatusCode).IsEqualTo(HttpStatusCode.Unauthorized);

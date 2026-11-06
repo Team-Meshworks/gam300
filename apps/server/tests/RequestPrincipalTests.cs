@@ -60,7 +60,7 @@ public sealed class RequestPrincipalTests
         }
         using var response = await fixture.Client.GetAsync("/_test/probe");
         await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.Unauthorized);
-        await Assert.That(fixture.Cookies.GetCookies(fixture.Address)[HttpsApplicationFixture.CookieName] is null).IsTrue();
+        await Assert.That(fixture.Cookies.GetCookies(fixture.Address)[fixture.CookieName] is null).IsTrue();
     }
 
     [Test]

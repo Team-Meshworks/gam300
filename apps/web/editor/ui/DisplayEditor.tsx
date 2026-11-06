@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type KeyboardEvent } from "react";
+import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import { isStarterRoomModelAsset, type CatalogueAsset } from "../../shared/asset-runtime/catalogue";
 import type {
   ContentComponent,
@@ -86,6 +86,13 @@ export function DisplayEditor({
   const [favourites, setFavourites] = useState(loadFavourites);
   const [error, setError] = useState("");
   const saving = useRef(false);
+  const active = useRef(true);
+  useLayoutEffect(() => {
+    active.current = true;
+    return () => {
+      active.current = false;
+    };
+  }, []);
   const [pending, setPending] = useState(false);
   const candidates = assets.filter((a) =>
     physical
@@ -97,6 +104,10 @@ export function DisplayEditor({
   const chosen = candidates.find((a) => a.id === choices[choiceKey]);
   const textMode = !physical && type === "text";
   const title = physical ? "Assets" : labels[type];
+  function close() {
+    active.current = false;
+    onClose();
+  }
   function current() {
     if (store.getSnapshot().project !== openedProject) {
       setError("The project changed. Close this editor and select the display again.");
@@ -113,7 +124,7 @@ export function DisplayEditor({
       if (physical) {
         if (!chosen) return;
         const fitted = await placementFor(object.id, chosen.id);
-        if (!current()) return;
+        if (!active.current || !current()) return;
         if (!fitted) {
           setError("This object does not fit the display. Choose a smaller object.");
           return;
@@ -167,10 +178,12 @@ export function DisplayEditor({
           return;
         }
       }
-      onClose();
+      close();
     } finally {
-      saving.current = false;
-      setPending(false);
+      if (active.current) {
+        saving.current = false;
+        setPending(false);
+      }
     }
   }
   function selectTab(kind: Kind) {
@@ -195,7 +208,7 @@ export function DisplayEditor({
   return (
     <Dialog
       title={physical ? "Place an object on this display" : "Edit display content"}
-      onClose={onClose}
+      onClose={close}
       variant="display"
     >
       <div className={`display-editor${textMode ? " is-text" : ""}`}>
@@ -287,7 +300,7 @@ export function DisplayEditor({
               type="button"
               className="ui-button asset-picker-close"
               aria-label="Close display editor"
-              onClick={onClose}
+              onClick={close}
             >
               <Icon name="close" />
             </button>

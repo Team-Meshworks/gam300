@@ -269,7 +269,7 @@
     "architecture.check.mjs": "7056958085076fb9a6f14992dded7faf21aedd9d78a48ae5484704020a25cfb7",
     "architecture.mjs": "936c1f9a6fbfec8b4a37ecf9556826dc8c96c388c1bd607b5b49d37456d69045",
     "asset-catalogue-plugin.ts": "1886aeaebac4fd2627b0c2f4849179990b073c418609b2f6ef578eb868dbdd7d",
-    "editor/App.tsx": "e2c423d41e10ebe44ea950173b3bd33abe7ccfacd3ef476e7c430cc727afe33f",
+    "editor/App.tsx": "bb971ff8a9a9d9d595e6c997fbc04d8b34b24cc3e16ebc2ee736c3821232a5f3",
     "editor/OlderSceneImport.tsx": "9ab5f31f2ac60a12bfb5931592c54ed566140baac1bb38f3358fa0bd0ca93397",
     "editor/ProjectConfirmation.tsx": "07a0fedf8fbf88865b3b8232c8665c139348fc64ebce478ea01e55eb7fd14eff",
     "editor/Scenes.tsx": "e5eb470e538e6000ef4df0b539639ee2d3d637ea6eb0f6faf641651ed8c73557",
@@ -451,7 +451,7 @@
     "editor/ui/BottomBar.tsx": "111de59da5a4348be0d47dd69b848d7f107845eda871cb3f5171d7c80b0288c9",
     "editor/ui/ColorSwatches.tsx": "9d5add9ed67436ed70e201257935852ba44b822b303f25eb0e0a123856b7fe55",
     "editor/ui/ContentEditor.tsx": "fb51c304eb7815dbe55f53cd1b5ebac87e6683f14deb77b5a1273c8852798340",
-    "editor/ui/DisplayEditor.tsx": "2dd2b30b9a6a9a0eafef33676117a75357789a0ad7e4bc0f16b0359f4e9b686e",
+    "editor/ui/DisplayEditor.tsx": "94fe7067397ea2ec1d5065eb400a0f36db29d3d6d2c1060d1c0de1e06af05626",
     "editor/ui/ExhibitPopups.tsx": "bb85bfd0f131c19365e296b23cf3cfc7eae97e65f80618058115692517e3c31f",
     "editor/ui/Icon.tsx": "14b92ab3c88d92db15308337d164a6c46db8ee00e479990139d193bf8be3101e",
     "editor/ui/InteractionPanel.tsx": "7537c30d1fe681a8a7743025f461363cbf9e2e6d23fe959bd3881df3f88bf348",
@@ -551,7 +551,7 @@
     "tests/content-editor.check.mjs": "0177b81acd70a06ff2abbe5a5ae6d736ec6c05903b6c9d07ba295426b40ea50b",
     "tests/deadline.check.mjs": "d73aebf0cffbaff8dc00ea6f14ea1d823555551d3ada0a76496bb4e7e27459a5",
     "tests/deployment.check.mjs": "01a264ea0d0a820a16b34d82b473f7ab7c4170e1a17b3ee356f9c10f81360f1a",
-    "tests/display-editor.check.mjs": "d1cdc2d14e75ea084e3dea6aa8d4a05b9de350a9f72c8a511ba562a3e7fd0886",
+    "tests/display-editor.check.mjs": "acf75a96cb95c8da259b9b64a4648c025b2298716741c5e3e8f0cf4d82fb3853",
     "tests/display-tools.check.mjs": "1ffc6038e6742fa7e26b889409437c4261292c5656001516c0cf9858977e1824",
     "tests/editor-build.check.mjs": "1bee815b980f69459630b08590452412d343dd8398d6e00e83c27dd023bae3ee",
     "tests/editor-integration.check.mjs": "7b5079c1f223905763f3319ad7d0b07dc22757e244434e23a5f0545a3830d86f",
@@ -585,8 +585,8 @@
     "tests/review-real-api.check.mjs": "b6583b6645f42bcbf9ad122d6d23a98e259b22cda7180deee2e48dfca58315ce",
     "tests/review-workflow.check.mjs": "2e604da8cfe10123ae98b9dea46f3ed0d5f68cf7f14b1dbe930e41cdb8f8c272",
     "tests/room-layouts.check.mjs": "a8ebe75d3c9f8913ebc90b474c4e8ac72bb1d1bc141cb4709f6e325e9baf9203",
-    "tests/room-preview.check.mjs": "56277df10149201fe89db73e2ca8959e846d977c6b72239df3df05c35793351e",
-    "tests/server-autosave.check.mjs": "d30899176f18b1f881bd3f072df1ed9e0d6b35c8fc606272d62cda72288da434",
+    "tests/room-preview.check.mjs": "aa5d9c0bc0ab6c1e1818a29c4066a038e4546e554323c9ac6b17ca6e22d74cb5",
+    "tests/server-autosave.check.mjs": "4aa178e848132ae320085f964d5e85b0f6187e8e55657b010232a764219dcc1d",
     "tests/text-placement.check.mjs": "3c4fe95cd7e00329846423c527cf4a901b9fd4f11c82daadd5b1d2249085224a",
     "tests/ui-foundation.check.mjs": "d7ba03b1591b5973cc7103176961f5564a4082b4fd46a7d9e93d8d668c96b32c",
     "tests/ui-sounds.check.mjs": "f55dd5581ed96e8f7ebfa31d51dd7338553999ba79dab949e974721b9d71c4c5",
@@ -12934,6 +12934,35 @@
       "to": "checks"
     },
     {
+      "file": "tests/display-editor.check.mjs",
+      "line": 39,
+      "kind": "dynamic",
+      "specifier": "react",
+      "target": {
+        "package": "react"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/display-editor.check.mjs",
+      "line": 40,
+      "kind": "dynamic",
+      "specifier": "react-dom/client",
+      "target": {
+        "package": "react-dom"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/display-editor.check.mjs",
+      "line": 41,
+      "kind": "dynamic",
+      "specifier": "/ui/DisplayEditor.tsx",
+      "target": "editor/ui/DisplayEditor.tsx",
+      "from": "checks",
+      "to": "editor"
+    },
+    {
       "file": "tests/display-tools.check.mjs",
       "line": 1,
       "kind": "static",
@@ -14770,7 +14799,7 @@
     },
     {
       "file": "tests/room-preview.check.mjs",
-      "line": 153,
+      "line": 169,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -14779,7 +14808,7 @@
     },
     {
       "file": "tests/room-preview.check.mjs",
-      "line": 154,
+      "line": 170,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -14788,7 +14817,7 @@
     },
     {
       "file": "tests/room-preview.check.mjs",
-      "line": 269,
+      "line": 294,
       "kind": "dynamic",
       "specifier": "/graphics/scene.ts",
       "target": "editor/graphics/scene.ts",
@@ -14797,7 +14826,7 @@
     },
     {
       "file": "tests/room-preview.check.mjs",
-      "line": 270,
+      "line": 295,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -14806,7 +14835,7 @@
     },
     {
       "file": "tests/room-preview.check.mjs",
-      "line": 299,
+      "line": 324,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -14815,7 +14844,7 @@
     },
     {
       "file": "tests/room-preview.check.mjs",
-      "line": 300,
+      "line": 325,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
