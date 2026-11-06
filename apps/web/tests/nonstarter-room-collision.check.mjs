@@ -217,8 +217,14 @@ try {
   await page.locator(".draft-menu summary").click();
   await page.getByRole("button", { name: "Open", exact: true }).click();
   const discard = page.getByRole("dialog").getByRole("button", { name: "Don’t Save", exact: true });
-  await discard.click();
-  await page.getByRole("dialog").waitFor({ state: "hidden" });
+  const outcome = await page.waitForFunction(() => {
+    if (document.querySelector("dialog.project-confirmation[open]")) return "confirmation";
+    return document.querySelector(".project-name")?.textContent === "collision.json" && "opened";
+  });
+  if ((await outcome.jsonValue()) === "confirmation") {
+    await discard.click();
+    await page.getByRole("dialog").waitFor({ state: "hidden" });
+  }
   await page.getByRole("button", { name: "Third person", exact: true }).click();
   await page.getByRole("button", { name: "Scene tree", exact: true }).click();
   await page
