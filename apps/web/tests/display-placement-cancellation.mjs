@@ -8,9 +8,16 @@ export async function checkDisplayPlacementCancellation(browser, origin) {
     page.on("pageerror", (error) => errors.push(error.message));
     try {
       await page.goto(origin);
+      // Resolve browser packages through Vite while preserving ordinary imports for the graph.
+      await page.addScriptTag({
+        type: "importmap",
+        content: JSON.stringify({
+          imports: { react: "/@id/react", "react-dom/client": "/@id/react-dom/client" },
+        }),
+      });
       await page.evaluate(async () => {
-        const react = await import("/@id/react");
-        const reactDOM = await import("/@id/react-dom/client");
+        const react = await import("react");
+        const reactDOM = await import("react-dom/client");
         const { createElement, StrictMode } = react.default ?? react;
         const { createRoot } = reactDOM.default ?? reactDOM;
         const { DisplayEditor } = await import("/ui/DisplayEditor.tsx");
