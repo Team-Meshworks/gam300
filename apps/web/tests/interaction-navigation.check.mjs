@@ -187,6 +187,15 @@ try {
     pose(-5).position,
     "Visitor physics must retain the selected view",
   );
+  // Preview cant fly: holding Space at a raised view drops to the floor instead of climbing
+  await page.evaluate(() => document.activeElement?.blur());
+  await page.keyboard.down("Space");
+  await page.waitForTimeout(1000);
+  await page.keyboard.up("Space");
+  assert.ok(
+    (await page.evaluate(() => window.navigationCamera)).position[1] < pose(-5).position[1],
+    "Preview never flies above a saved view",
+  );
   const canvas = await page.locator(".viewport-stage canvas").elementHandle();
   await targets.getByRole("button", { name: "Next room", exact: true }).click();
   await targets.getByRole("button", { name: "Back to first", exact: true }).waitFor();

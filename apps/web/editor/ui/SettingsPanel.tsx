@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { playUiSound, setUiSoundVolume } from "../audio/ui-sounds";
 import { Icon } from "./Icon";
 import { applyTheme, type UserSettings } from "./user-settings";
@@ -31,6 +31,25 @@ export function SettingsPanel({
   useEffect(() => {
     show(draft);
   }, [draft]);
+
+  // Lined up with the button it can run off the left on a phone, Preview and Publish sit to its
+  // right, so nudge it back inside the window
+  useLayoutEffect(() => {
+    const element = panel.current;
+    if (element === null) return;
+    function fit() {
+      if (element === null) return;
+      element.style.translate = "";
+      const box = element.getBoundingClientRect();
+      const margin = 16;
+      const shift =
+        Math.max(margin - box.left, 0) + Math.min(window.innerWidth - margin - box.right, 0);
+      element.style.translate = shift === 0 ? "" : `${shift}px 0`;
+    }
+    fit();
+    window.addEventListener("resize", fit);
+    return () => window.removeEventListener("resize", fit);
+  }, []);
 
   // Cancel, Esc, clicking away or the Settings button all close it, every way undoes the try out
   useEffect(

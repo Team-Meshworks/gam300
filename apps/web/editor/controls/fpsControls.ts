@@ -61,8 +61,10 @@ export class FpsControls {
   private altFreed = false;
   // Turning a held object uses the mouse, so the camera doesnt look around meanwhile
   private lookHeld = false;
-  // Preview walks like a visitor, double tapping Space doesnt start flying there
+  // Preview walks like a visitor, nothing starts flying there
   private flightAllowed = true;
+  // Preview holds a saved camera above the floor until the visitor moves, then they drop down
+  private perched = false;
   private readonly _euler = new THREE.Euler(0, 0, 0, "YXZ");
   private readonly physicsPosition = new THREE.Vector3();
   private readonly previousPhysics = new THREE.Vector3();
@@ -120,10 +122,13 @@ export class FpsControls {
     document.addEventListener("visibilitychange", this.onVisibilityChange);
   }
 
-  // Pick up from wherever the camera is now. Starting in the air means flying, so nothing drops
+  // Pick up from wherever the camera is now. Starting in the air means flying, so nothing drops.
+  // Preview cant fly, so a raised camera is held there instead
   sync(): void {
     this.stopMotion();
-    this.flying = this.camera.position.y > EYE_HEIGHT + 1e-4;
+    const raised = this.camera.position.y > EYE_HEIGHT + 1e-4;
+    this.flying = raised && this.flightAllowed;
+    this.perched = raised && !this.flightAllowed;
     this._euler.setFromQuaternion(this.camera.quaternion, "YXZ");
     this.yaw = this._euler.y;
     this.pitch = this._euler.x;
@@ -189,6 +194,12 @@ export class FpsControls {
 
   setFlightAllowed(allowed: boolean): void {
     this.flightAllowed = allowed;
+    if (allowed) {
+      this.perched = false;
+    } else if (this.flying) {
+      this.flying = false;
+      this.perched = true;
+    }
   }
 
   // A viewpoint or saved camera just moved the camera, carry on from exactly that pose
@@ -244,6 +255,15 @@ export class FpsControls {
     const sprint = this.keys.has("ShiftLeft") || this.keys.has("ShiftRight");
     const space = this.keys.has("Space") || this.mobileJump;
     const maxSpeed = sprint ? SPRINT_SPEED : WALK_SPEED;
+    if (!this.flightAllowed) this.flying = false;
+    if (this.perched) {
+      // Stay on the saved view until any movement, which leaves it and falls to the floor
+      if (!space && !this.hasMovementInput()) {
+        this.velocity.set(0, 0, 0);
+        return;
+      }
+      this.perched = false;
+    }
 
     const inputZ =
       (this.keys.has("KeyW") ? 1 : 0) - (this.keys.has("KeyS") ? 1 : 0) + this.mobileMoveZ;
