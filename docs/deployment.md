@@ -281,8 +281,13 @@ do not clear the guard manually for an exact retry. If a different release is ne
 an operator must first review its schema and authorization compatibility with the actual
 retained database, including data written after the backup, and prepare a safe recovery
 plan. Keep the API and gateway unavailable through that review. Once the plan is approved,
-archive the guard as part of the recovery record, then deploy a successful CI release for
-the new current branch commit. Do not invoke an older deploy script, rewind the branch to
+run Deploy for a successful CI release of the current branch with
+`recovery_from_revision` set to the full revision in the guard and `recovery_review`
+set to the approved compatibility review reference or rationale. The script validates
+the guard, pulls the new images, stops the API and gateway, and archives the old guard,
+replacement identity and review under `recovery-records/`. It retains the old guard
+if pulling or stopping fails; candidate startup records the new guard. These inputs
+are an explicit operator approval, not an automated compatibility assessment. Do not invoke an older deploy script, rewind the branch to
 bypass these controls, or blindly restore a backup: migrations are not reversed and
 restoring a backup can discard later writes. Database restoration requires a reviewed
 procedure during downtime. Keep backups outside the VM as well.
@@ -341,27 +346,20 @@ their normal 401/403 responses. Start the gateway from that directory:
 docker compose -f gateway.compose.yaml up -d
 ```
 
-When upgrading a gateway that used `SITE_USER` and `SITE_PASSWORD_HASH`, first deploy
-the matching web image, API and `server.Caddyfile` with restricted catalogue access.
-Verify through the application gateway that a signed-out direct
-`/restricted-assets/<hash>.glb` request returns 401 without a `WWW-Authenticate` challenge,
-an authenticated request succeeds, and the response has `private, no-store`. Only then copy
-both updated outer gateway files to this directory and recreate the gateway service:
+Existing outer gateways may retain HTTP Basic authentication in addition to Spatia's
+application login. Ordinary app deployment does not change that separate gateway.
+For a gated environment, set GitHub environment secrets `DEPLOY_BASIC_AUTH_USERNAME`
+and `DEPLOY_BASIC_AUTH_PASSWORD` to its existing Basic username and plaintext password
+(not the Caddy password hash). Leave both unset for an ungated environment.
+The workflow passes these only to public HTTPS health probes using curl configuration
+on stdin, without storing them in release files or command arguments. Login and CSRF
+must succeed through the gate, while a request without a Spatia session must still
+return 401. Private loopback API probes receive no Basic credentials.
 
-```sh
-docker compose -f gateway.compose.yaml up -d --force-recreate gateway
-```
-
-The ordinary app deployment does not update this separate host gateway. Do not remove
-the shared gate while an older image still serves catalogue files from public `/assets/`.
-Updating frontend redirects alone cannot protect bytes or remove an older gateway's prompt.
-
-When only development has the authenticated catalogue stack, replace only the `:8443`
-site's import with its TLS configuration and `reverse_proxy 127.0.0.1:8082`; retain the
-existing `:443` gate until production is upgraded. Back up and validate the gateway
-configuration before restarting it. Public `/login` and `/api/v1/auth/csrf` must return
-200 without a Basic challenge; anonymous catalogue requests must still return 401.
-The deployment health check now checks public login as well as the private API ingress.
+These secrets must be configured before attempting a gated deployment. A missing or
+incorrect pair fails the probes; it does not disable either login layer. A failed
+server rollout retains its recovery guard: a new release still requires the documented
+operator compatibility review rather than clearing that guard automatically.
 
 Built editors (including the development build) check the Spatia session before opening
 the local-file editor at `/`. Sign-in returns to that editor without clearing browser

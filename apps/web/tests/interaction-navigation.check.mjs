@@ -142,9 +142,8 @@ try {
   // Frame A differently from its starting view before entering preview.
   await page.getByRole("button", { name: "Saved views", exact: true }).click();
   await page.getByRole("button", { name: "Next saved view", exact: true }).click();
-  await page.waitForFunction(
-    () => window.navigationCamera?.position[0] === 10 && window.navigationCamera?.fov === 45,
-  );
+  // Walking keeps its own wider lens, so the saved view arrives by position only
+  await page.waitForFunction(() => window.navigationCamera?.position[0] === 10);
   await page.waitForTimeout(350);
   const editingCamera = await page.evaluate(() => window.navigationCamera);
   assert.notDeepEqual(editingCamera.position, first.startCamera.position);
@@ -188,6 +187,15 @@ try {
     pose(-5).position,
     "Visitor physics must retain the selected view",
   );
+  // Preview cant fly: holding Space at a raised view drops to the floor instead of climbing
+  await page.evaluate(() => document.activeElement?.blur());
+  await page.keyboard.down("Space");
+  await page.waitForTimeout(1000);
+  await page.keyboard.up("Space");
+  assert.ok(
+    (await page.evaluate(() => window.navigationCamera)).position[1] < pose(-5).position[1],
+    "Preview never flies above a saved view",
+  );
   const canvas = await page.locator(".viewport-stage canvas").elementHandle();
   await targets.getByRole("button", { name: "Next room", exact: true }).click();
   await targets.getByRole("button", { name: "Back to first", exact: true }).waitFor();
@@ -217,14 +225,11 @@ try {
   await assertEditingCamera();
   // Restoration must not suppress the next ordinary editor scene change.
   await page.getByRole("button", { name: "Scenes", exact: true }).click();
+  // Editor walking keeps its wider lens, each scene's start camera arrives by position
   await page.getByRole("button", { name: "2. Gallery", exact: true }).click();
-  await page.waitForFunction(
-    () => window.navigationCamera?.position[0] === 20 && window.navigationCamera?.fov === 70,
-  );
+  await page.waitForFunction(() => window.navigationCamera?.position[0] === 20);
   await page.getByRole("button", { name: "1. Gallery", exact: true }).click();
-  await page.waitForFunction(
-    () => window.navigationCamera?.position[0] === 0 && window.navigationCamera?.fov === 60,
-  );
+  await page.waitForFunction(() => window.navigationCamera?.position[0] === 0);
   assert.deepEqual(errors, []);
   console.log(
     "PASS: destination controls, undo/redo, reload, rendered viewpoint persistence, scene-start, scene return, editing camera restoration and normal editor navigation",

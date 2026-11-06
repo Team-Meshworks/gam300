@@ -86,13 +86,17 @@ export function DisplayEditor({
   const [favourites, setFavourites] = useState(loadFavourites);
   const [error, setError] = useState("");
   const saving = useRef(false);
-  const active = useRef(true);
+  const lifetime = useRef<object | null>(null);
   useLayoutEffect(() => {
-    active.current = true;
+    lifetime.current = {};
     return () => {
-      active.current = false;
+      lifetime.current = null;
     };
   }, []);
+  function close() {
+    lifetime.current = null;
+    onClose();
+  }
   const [pending, setPending] = useState(false);
   const candidates = assets.filter((a) =>
     physical
@@ -104,10 +108,6 @@ export function DisplayEditor({
   const chosen = candidates.find((a) => a.id === choices[choiceKey]);
   const textMode = !physical && type === "text";
   const title = physical ? "Assets" : labels[type];
-  function close() {
-    active.current = false;
-    onClose();
-  }
   function current() {
     if (store.getSnapshot().project !== openedProject) {
       setError("The project changed. Close this editor and select the display again.");
@@ -116,7 +116,8 @@ export function DisplayEditor({
     return true;
   }
   async function save() {
-    if (saving.current) return;
+    const operation = lifetime.current;
+    if (!operation || saving.current) return;
     saving.current = true;
     setPending(true);
     try {
@@ -124,7 +125,8 @@ export function DisplayEditor({
       if (physical) {
         if (!chosen) return;
         const fitted = await placementFor(object.id, chosen.id);
-        if (!active.current || !current()) return;
+        if (lifetime.current !== operation) return;
+        if (!current()) return;
         if (!fitted) {
           setError("This object does not fit the display. Choose a smaller object.");
           return;
@@ -178,9 +180,9 @@ export function DisplayEditor({
           return;
         }
       }
-      close();
+      if (lifetime.current === operation) close();
     } finally {
-      if (active.current) {
+      if (lifetime.current === operation) {
         saving.current = false;
         setPending(false);
       }

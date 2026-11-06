@@ -269,7 +269,7 @@
     "architecture.check.mjs": "7056958085076fb9a6f14992dded7faf21aedd9d78a48ae5484704020a25cfb7",
     "architecture.mjs": "936c1f9a6fbfec8b4a37ecf9556826dc8c96c388c1bd607b5b49d37456d69045",
     "asset-catalogue-plugin.ts": "1886aeaebac4fd2627b0c2f4849179990b073c418609b2f6ef578eb868dbdd7d",
-    "editor/App.tsx": "bb971ff8a9a9d9d595e6c997fbc04d8b34b24cc3e16ebc2ee736c3821232a5f3",
+    "editor/App.tsx": "b85f5318d75b75f9014b6f0b2dcf9d9ead16a6b8ac67e443c9ac341a6f257035",
     "editor/OlderSceneImport.tsx": "9ab5f31f2ac60a12bfb5931592c54ed566140baac1bb38f3358fa0bd0ca93397",
     "editor/ProjectConfirmation.tsx": "07a0fedf8fbf88865b3b8232c8665c139348fc64ebce478ea01e55eb7fd14eff",
     "editor/Scenes.tsx": "e5eb470e538e6000ef4df0b539639ee2d3d637ea6eb0f6faf641651ed8c73557",
@@ -290,11 +290,11 @@
     "editor/asset-administration/asset-administration.ts": "f1c21c496e466dfa82d29f0a4fd8ad1b1794522583e7f1052172aa32f72d8207",
     "editor/asset-library.test.ts": "151e34c1351105624a159e8039749a9698de6ec621edc7fb305c05f11ff1d388",
     "editor/asset-library.ts": "cbd913ba31c9e34a004b4da074d18b5bcfdf59ecf0a30f934423574971518885",
-    "editor/audio/ui-sounds.ts": "4cc6288694e652328a4794949cbdc88ebf555322ce4bdba215afd4ebd93bb494",
+    "editor/audio/ui-sounds.ts": "374413ef6c0a216e1d9838cb049b23861cd4caa7df0c7c1104a853e0ca300743",
     "editor/command-history.test.ts": "783c026523513ea5520cde04e61502aba13ca3a612b509a904c2a50e50be2d1f",
     "editor/command-history.ts": "e243335582ab03da9d131bd80edef7b908e3eb0a751d6ebfa7deb77750fc54ad",
     "editor/controls/fpsControls.test.ts": "a33b3f7e191f730ee031973ebad3d5bc29bd46b613365ad7e5054af048529769",
-    "editor/controls/fpsControls.ts": "118e05c233dea5324a4b8a0f51ff7fe81101ec81a62f1c82649396a2bac08a63",
+    "editor/controls/fpsControls.ts": "62c872a0ab058e8bb3a9825253439b8a86e3c8b62bef9e5ea53d7d183da4c661",
     "editor/directory/AccountDialog.tsx": "252a33524213bea4422d6924091af632d7a21bbee2cc788fd096287cad63cb75",
     "editor/directory/AccountDirectoryPage.tsx": "8db0ad8aa8b85b25ec2f81395d574aa7dbe592401e452cf713ae7e3db3a94359",
     "editor/directory/AccountList.tsx": "a13ebd1917e4de800d12db5a7cdcd6e4864c0192de8890fd12298b534e87c5f0",
@@ -326,7 +326,7 @@
     "editor/graphics/hotspot-anchor.test.ts": "e8e32db1e7a34f161d532efe7ecc19f866bc852d685fb85d4d21803ba1f44ff4",
     "editor/graphics/hotspot-anchor.ts": "7c9c40970d541352a3005dcb04db28dabbffd09c653a14908ca354749ef67dab",
     "editor/graphics/modeManager.test.ts": "541792061d8bc911a1d67f2ae5dfaea50baeb24edcff0e8f1317ec0e69336799",
-    "editor/graphics/modeManager.ts": "cad03d49313db6244d082d93219af72195c2ff9964c693ec2aac770d5ff05e2c",
+    "editor/graphics/modeManager.ts": "37515a42c7f229ad57c2b9c7b0c606e33550c02c1739ccc987ad660ece1e058d",
     "editor/graphics/model-load-queue.test.ts": "4de0b8d896c4adc28aaddd9a69d516b8add7a5fabe6862499fa80dad2bd6601d",
     "editor/graphics/model-load-queue.ts": "df63b8c1781d532f37d1bd97109da127128bfeb24c882ad7b089e2f5a174381c",
     "editor/graphics/placement-body.test.ts": "1f14ef5394040e073639585bda0d69ebb350e1fdf9da370205648735c665178d",
@@ -451,16 +451,17 @@
     "editor/ui/BottomBar.tsx": "111de59da5a4348be0d47dd69b848d7f107845eda871cb3f5171d7c80b0288c9",
     "editor/ui/ColorSwatches.tsx": "9d5add9ed67436ed70e201257935852ba44b822b303f25eb0e0a123856b7fe55",
     "editor/ui/ContentEditor.tsx": "fb51c304eb7815dbe55f53cd1b5ebac87e6683f14deb77b5a1273c8852798340",
-    "editor/ui/DisplayEditor.tsx": "94fe7067397ea2ec1d5065eb400a0f36db29d3d6d2c1060d1c0de1e06af05626",
+    "editor/ui/DisplayEditor.tsx": "07a3ef535705125b0b501a06c34531698b9781f8fbb22292831a22792572475f",
     "editor/ui/ExhibitPopups.tsx": "bb85bfd0f131c19365e296b23cf3cfc7eae97e65f80618058115692517e3c31f",
-    "editor/ui/Icon.tsx": "14b92ab3c88d92db15308337d164a6c46db8ee00e479990139d193bf8be3101e",
+    "editor/ui/Icon.tsx": "513b5d86e9ba74115c74272cc69060fb0a13bbb84128ca71a545a081fa8279a0",
     "editor/ui/InteractionPanel.tsx": "7537c30d1fe681a8a7743025f461363cbf9e2e6d23fe959bd3881df3f88bf348",
     "editor/ui/LibraryRail.tsx": "ffb582a25b6b0a84d0ca2a7c2cb8f79470e647474530d4b6a37b8ab3f4b3497f",
     "editor/ui/PreviewTargets.tsx": "d49499d2e889781f42239cfe9cdd17a174691baed6dc86815a2d3e577af00884",
     "editor/ui/RichTextInput.tsx": "9f91e1ddd1eabd3051ab9de4081ce1d9c302659d709711ff5570880758c31183",
     "editor/ui/SceneTreePanel.tsx": "d9742bff0cb7b2cc1d43096baf502e4187db73f2150a439333f65c18c89f1b1b",
+    "editor/ui/SettingsPanel.tsx": "716f439d365914a82a30dfc99df7a3156eeb86a6f2af608bdd7f95da1102718a",
     "editor/ui/SidePanels.tsx": "a3924091d191cd8079b096d6c88731e9bb04c74c81c7166d58c13d9bc65ba3d6",
-    "editor/ui/TopBar.tsx": "bb487e6756d09cb873bd5a928a45bab67883fbe3dc443331e1fbfa7e77b6ae23",
+    "editor/ui/TopBar.tsx": "460e21fec25f5f38d45a1f9eb4a9023dea60027bbd35de58f11e48961a8314fa",
     "editor/ui/asset-filters.test.ts": "0b88a68d514d283e155ceb0838d4951c1b4fd5867459df2e8c6ab8780c65f858",
     "editor/ui/asset-filters.ts": "5e08299dbfc2543f41017306fdff78d7ba3161e2242186877a315e3ea75fa8cc",
     "editor/ui/display-tools.test.ts": "0d3bbf80d257166b47079c432d1e9965d414559ba71e0d82e94e31ae8682815c",
@@ -474,6 +475,8 @@
     "editor/ui/text-runs.test.ts": "f3121e18d4a62b9714a489bd6085a505a6fa3114cc9592491c9cadbcb8ca80d8",
     "editor/ui/text-runs.ts": "39c5f4ed97420ff1f75eb7d5e1642216ca20cd731580918589b3a6402f2d783f",
     "editor/ui/use-drag-image.ts": "c109ad3337c28ad964da475b87c258cdf092f9f90591ecefcd2aea91a7af8699",
+    "editor/ui/user-settings.test.ts": "32e755c027b86d03f26e85e7acfbd48857ff264f21b18b857799fb48b6b714e0",
+    "editor/ui/user-settings.ts": "7476a683154bc14d7050e09f693f34576c420b8842d03f4ae3c39033abe4933d",
     "editor/viewpoints-style.test.ts": "940f1dc94efbd78944fac47a686887551015685806bd36946975e4db8373ce2a",
     "editor/viewpoints.test.ts": "383d49fc0c57b158b739781160ada8bef63d23e5b6fa03a7a5a605032a812da9",
     "editor/viewport/MobileControls.tsx": "f3f37136f19839fe7e1348c80581ae866e4bf19e9cda98aaf92718955f67d5bb",
@@ -552,11 +555,12 @@
     "tests/deadline.check.mjs": "d73aebf0cffbaff8dc00ea6f14ea1d823555551d3ada0a76496bb4e7e27459a5",
     "tests/deployment.check.mjs": "01a264ea0d0a820a16b34d82b473f7ab7c4170e1a17b3ee356f9c10f81360f1a",
     "tests/display-editor.check.mjs": "842733846fb5a2b3c3cdd7e4baa825d5c04b9bcb471fd2390497db5dcf48b2f5",
+    "tests/display-placement-cancellation.mjs": "b1a5524cdbc190a6e536efd2e5c0fe7433391a6081058cd367b99c5feb5f7708",
     "tests/display-tools.check.mjs": "1ffc6038e6742fa7e26b889409437c4261292c5656001516c0cf9858977e1824",
-    "tests/editor-build.check.mjs": "1bee815b980f69459630b08590452412d343dd8398d6e00e83c27dd023bae3ee",
+    "tests/editor-build.check.mjs": "4a98ceadc236d0a52bc1957059c6833701ee534138ebe5dacf56610138186043",
     "tests/editor-integration.check.mjs": "7b5079c1f223905763f3319ad7d0b07dc22757e244434e23a5f0545a3830d86f",
     "tests/editor-session-loading.check.mjs": "cc5debf9e1f8c3422d3b678374aff45ac59ffc72a9b9ac672de328655227c777",
-    "tests/editor-shell.check.mjs": "08a8635b9c76ddeaae94aa34c84c4cd4b89ac12281d8cb52a3af7ff7bf9d579f",
+    "tests/editor-shell.check.mjs": "3a7a94e56c7b4d5e1a6278db83f7c24052925bf8e0166fe7d3c36890d1f68c3f",
     "tests/entry.check.mjs": "03e3717bd24066ad2ec76bdbe9025d9fcdf0f0e6168917022c909f73654cec02",
     "tests/first-person-sandbox.check.mjs": "1105127c48ab22754d93c53365f024a556c7cd513a401fd71466f4876d58357a",
     "tests/furniture-tools.check.mjs": "7ae10989d8281d76484858b95674b2aa0ce000b39826818977a876e2967eca37",
@@ -564,7 +568,7 @@
     "tests/home.check.mjs": "cfa49cbb958b873e883aa68a35e790418c42c89c6bd7a1bcf789ad9572115392",
     "tests/hotspot-placement.check.mjs": "a190990e03afacd5da85c73e718952b2f2f73127a589f762a434a9fc81025f3c",
     "tests/hotspot-rendering.check.mjs": "a8dfef8c40b58bbf3c8955f2a0d312db754b7fdafa79ab4a5d74e1423a4c3b26",
-    "tests/interaction-navigation.check.mjs": "ef080b60235cf85d8741e48f87516fb7271f610679e649fe6f16e6d88176b353",
+    "tests/interaction-navigation.check.mjs": "b69adfc119713aaaec82d8b5ca90ff29a6b47716a346c4d6c7f43944fcd782d1",
     "tests/interaction-review.check.mjs": "28368ff4a75e85c84d88ab92266a6caf096fc602b5778d36d4268559575c6c15",
     "tests/local-drafts.check.mjs": "97e013fc95e2d7851cb3f97e64474068b24daad0d0a6c0f8896d32fe8633362d",
     "tests/login-real-api.check.mjs": "4caae5f3d000e4494f6857d09003bb6c3ff3068b02a1d675ce41c4285c9f0af2",
@@ -633,7 +637,7 @@
     "shared/project/fixtures/project-format-cases.json": "16bb431943ce0590088374afc47ca12a2c6d021b41aecf9b261c807f110210d2",
     "editor/home/home.css": "bd9b3f781d41d0bc3f585f9ca9f8b96623bd5f367c9d09c928c724da574b6d7b",
     "editor/home/workspace-navigation.css": "e2bc5c4a284f1ccd16abe705d20679321ad93598ac296762fea8d4ea2942309c",
-    "editor/styles.css": "44af46a3d0722f7991485317ebfaa68504f3556213ceeaae880585b9815d4f30",
+    "editor/styles.css": "e4a834c1cb5fc9f6a10c474061f455c4d9497270993e127676beb12644274a03",
     "editor/fixtures/asset-pipeline-document-history.json": "4fe51cba770226d856f37cbbc2afbe0b3fe393e5990b8f761b794b7b5bf5380d",
     "editor/fixtures/asset-pipeline-view-history.json": "d33e208ca99c5fb1e816a9e0b79aebb987c79ef354179d8c06e430b382cf4f59",
     "editor/projects/assignment-screens.css": "0a59c46a9a56cf6b6f613d57ab0fab1125cd8fe370a0212a0b904352916edad7",
@@ -670,6 +674,7 @@
     "editor/ui/assets/saved-views.svg": "8b29b3a40cfbf0a2e8f73d8ce0cd618b2ce9c25d9fce51ce17955136e8ad6651",
     "editor/ui/assets/room-door.svg": "f22e3554a605115c81b2fbf6c56867384a816b410747d2893712c2dcac38037e",
     "editor/ui/library-rail.css": "c3aac7297e68b4e79528174123b0da6304ce80fc1f25be5695469f28e3241974",
+    "editor/ui/settings-panel.css": "66b50d117c6d8ad29477b9ad65bfa6ad66aa9bd6597a50c7b0738955cfed47f5",
     "editor/workspace/workspace.css": "db47caae28b45fcb41cfdfeb0d4a966d31b9ff0ba16c73e160f1c5053cf022dc",
     "shared/ui/assets/landmark.svg": "955e9305808f5a6ec562703feca8b81963f6ca198f9913aa8557cd2c0687b864",
     "shared/ui/assets/ambient-left.svg": "51054c252a837e4480db62f01f80d6cdd3c1ab8dd93910c57afc8540424cbe31",
@@ -1137,6 +1142,15 @@
       "file": "editor/App.tsx",
       "line": 36,
       "kind": "static",
+      "specifier": "./ui/SettingsPanel",
+      "target": "editor/ui/SettingsPanel.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/App.tsx",
+      "line": 37,
+      "kind": "static",
       "specifier": "./ui/SidePanels",
       "target": "editor/ui/SidePanels.tsx",
       "from": "editor",
@@ -1144,7 +1158,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 37,
+      "line": 38,
       "kind": "static",
       "specifier": "./ui/TopBar",
       "target": "editor/ui/TopBar.tsx",
@@ -1153,7 +1167,16 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 38,
+      "line": 39,
+      "kind": "static",
+      "specifier": "./ui/user-settings",
+      "target": "editor/ui/user-settings.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/App.tsx",
+      "line": 40,
       "kind": "static",
       "specifier": "./OlderSceneImport",
       "target": "editor/OlderSceneImport.tsx",
@@ -1162,7 +1185,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 39,
+      "line": 41,
       "kind": "static",
       "specifier": "./Scenes",
       "target": "editor/Scenes.tsx",
@@ -1171,7 +1194,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 40,
+      "line": 42,
       "kind": "static",
       "specifier": "./Viewpoints",
       "target": "editor/Viewpoints.tsx",
@@ -1180,7 +1203,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 41,
+      "line": 43,
       "kind": "static",
       "specifier": "./viewport/Viewport",
       "target": "editor/viewport/Viewport.tsx",
@@ -1189,7 +1212,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 42,
+      "line": 44,
       "kind": "static",
       "specifier": "./viewport/MobileControls",
       "target": "editor/viewport/MobileControls.tsx",
@@ -1198,7 +1221,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 43,
+      "line": 45,
       "kind": "static",
       "specifier": "./viewport/mobile-device",
       "target": "editor/viewport/mobile-device.ts",
@@ -1207,7 +1230,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 44,
+      "line": 46,
       "kind": "type",
       "specifier": "./graphics/scene",
       "target": "editor/graphics/scene.ts",
@@ -1216,7 +1239,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 46,
+      "line": 48,
       "kind": "static",
       "specifier": "./ProjectConfirmation",
       "target": "editor/ProjectConfirmation.tsx",
@@ -1225,7 +1248,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 47,
+      "line": 49,
       "kind": "static",
       "specifier": "./persistence/use-project-session",
       "target": "editor/persistence/use-project-session.ts",
@@ -1234,7 +1257,7 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 646,
+      "line": 657,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -2123,6 +2146,15 @@
       "file": "editor/audio/ui-sounds.ts",
       "line": 2,
       "kind": "static",
+      "specifier": "../ui/user-settings",
+      "target": "editor/ui/user-settings.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/audio/ui-sounds.ts",
+      "line": 3,
+      "kind": "static",
       "specifier": "./sounds/asset-place.wav",
       "target": "editor/audio/sounds/asset-place.wav",
       "from": "editor",
@@ -2130,7 +2162,7 @@
     },
     {
       "file": "editor/audio/ui-sounds.ts",
-      "line": 3,
+      "line": 4,
       "kind": "static",
       "specifier": "./sounds/asset-select.wav",
       "target": "editor/audio/sounds/asset-select.wav",
@@ -2139,7 +2171,7 @@
     },
     {
       "file": "editor/audio/ui-sounds.ts",
-      "line": 4,
+      "line": 5,
       "kind": "static",
       "specifier": "./sounds/delete.wav",
       "target": "editor/audio/sounds/delete.wav",
@@ -2148,7 +2180,7 @@
     },
     {
       "file": "editor/audio/ui-sounds.ts",
-      "line": 5,
+      "line": 6,
       "kind": "static",
       "specifier": "./sounds/enter-preview.wav",
       "target": "editor/audio/sounds/enter-preview.wav",
@@ -2157,7 +2189,7 @@
     },
     {
       "file": "editor/audio/ui-sounds.ts",
-      "line": 6,
+      "line": 7,
       "kind": "static",
       "specifier": "./sounds/going-back.wav",
       "target": "editor/audio/sounds/going-back.wav",
@@ -2166,7 +2198,7 @@
     },
     {
       "file": "editor/audio/ui-sounds.ts",
-      "line": 7,
+      "line": 8,
       "kind": "static",
       "specifier": "./sounds/publish-success.wav",
       "target": "editor/audio/sounds/publish-success.wav",
@@ -2175,7 +2207,7 @@
     },
     {
       "file": "editor/audio/ui-sounds.ts",
-      "line": 8,
+      "line": 9,
       "kind": "static",
       "specifier": "./sounds/save.wav",
       "target": "editor/audio/sounds/save.wav",
@@ -2184,7 +2216,7 @@
     },
     {
       "file": "editor/audio/ui-sounds.ts",
-      "line": 9,
+      "line": 10,
       "kind": "static",
       "specifier": "./sounds/warning.wav",
       "target": "editor/audio/sounds/warning.wav",
@@ -9618,6 +9650,62 @@
       "from": "editor"
     },
     {
+      "file": "editor/ui/SettingsPanel.tsx",
+      "line": 1,
+      "kind": "static",
+      "specifier": "react",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/ui/SettingsPanel.tsx",
+      "line": 2,
+      "kind": "static",
+      "specifier": "../audio/ui-sounds",
+      "target": "editor/audio/ui-sounds.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/SettingsPanel.tsx",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./Icon",
+      "target": "editor/ui/Icon.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/SettingsPanel.tsx",
+      "line": 4,
+      "kind": "static",
+      "specifier": "./user-settings",
+      "target": "editor/ui/user-settings.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/SettingsPanel.tsx",
+      "line": 5,
+      "kind": "static",
+      "specifier": "./settings-panel.css",
+      "target": "editor/ui/settings-panel.css",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/ui/SettingsPanel.tsx",
+      "line": 85,
+      "kind": "implicit-jsx",
+      "specifier": "react/jsx-runtime",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
       "file": "editor/ui/SidePanels.tsx",
       "line": 1,
       "kind": "static",
@@ -9775,7 +9863,7 @@
     },
     {
       "file": "editor/ui/TopBar.tsx",
-      "line": 85,
+      "line": 90,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -10100,6 +10188,25 @@
         "package": "react"
       },
       "from": "editor"
+    },
+    {
+      "file": "editor/ui/user-settings.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/ui/user-settings.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "./user-settings",
+      "target": "editor/ui/user-settings.ts",
+      "from": "checks",
+      "to": "editor"
     },
     {
       "file": "editor/viewpoints-style.test.ts",
@@ -12963,6 +13070,45 @@
       "to": "editor"
     },
     {
+      "file": "tests/display-placement-cancellation.mjs",
+      "line": 1,
+      "kind": "static",
+      "specifier": "node:assert/strict",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/display-placement-cancellation.mjs",
+      "line": 19,
+      "kind": "dynamic",
+      "specifier": "react",
+      "target": {
+        "package": "react"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/display-placement-cancellation.mjs",
+      "line": 20,
+      "kind": "dynamic",
+      "specifier": "react-dom/client",
+      "target": {
+        "package": "react-dom"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/display-placement-cancellation.mjs",
+      "line": 23,
+      "kind": "dynamic",
+      "specifier": "/ui/DisplayEditor.tsx",
+      "target": "editor/ui/DisplayEditor.tsx",
+      "from": "checks",
+      "to": "editor"
+    },
+    {
       "file": "tests/display-tools.check.mjs",
       "line": 1,
       "kind": "static",
@@ -13304,17 +13450,16 @@
       "file": "tests/editor-shell.check.mjs",
       "line": 3,
       "kind": "static",
-      "specifier": "node:assert/strict",
-      "target": {
-        "package": "node:*"
-      },
-      "from": "checks"
+      "specifier": "./display-placement-cancellation.mjs",
+      "target": "tests/display-placement-cancellation.mjs",
+      "from": "checks",
+      "to": "checks"
     },
     {
       "file": "tests/editor-shell.check.mjs",
       "line": 4,
       "kind": "static",
-      "specifier": "node:fs",
+      "specifier": "node:assert/strict",
       "target": {
         "package": "node:*"
       },
@@ -13324,6 +13469,16 @@
       "file": "tests/editor-shell.check.mjs",
       "line": 5,
       "kind": "static",
+      "specifier": "node:fs",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/editor-shell.check.mjs",
+      "line": 6,
+      "kind": "static",
       "specifier": "three",
       "target": {
         "package": "three"
@@ -13332,7 +13487,7 @@
     },
     {
       "file": "tests/editor-shell.check.mjs",
-      "line": 188,
+      "line": 189,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -13341,7 +13496,7 @@
     },
     {
       "file": "tests/editor-shell.check.mjs",
-      "line": 189,
+      "line": 190,
       "kind": "dynamic",
       "specifier": "/ui/furniture-tools.ts",
       "target": "editor/ui/furniture-tools.ts",
@@ -13350,7 +13505,7 @@
     },
     {
       "file": "tests/editor-shell.check.mjs",
-      "line": 820,
+      "line": 821,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",
@@ -13359,7 +13514,7 @@
     },
     {
       "file": "tests/editor-shell.check.mjs",
-      "line": 855,
+      "line": 856,
       "kind": "dynamic",
       "specifier": "/persistence/local-drafts.ts",
       "target": "editor/persistence/local-drafts.ts",

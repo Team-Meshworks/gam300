@@ -2,8 +2,9 @@ import * as THREE from "three";
 import { isTextEditingTarget } from "../history-shortcuts";
 
 export const EYE_HEIGHT = 0.9;
-const WALK_SPEED = 5;
-const SPRINT_SPEED = 12;
+// Slower than before, 5 and 12 m/s made people feel sick
+const WALK_SPEED = 3;
+const SPRINT_SPEED = 7;
 const ACCELERATION = 60;
 const GRAVITY = 20;
 const JUMP_SPEED = 6;
@@ -60,6 +61,10 @@ export class FpsControls {
   private altFreed = false;
   // Turning a held object uses the mouse, so the camera doesnt look around meanwhile
   private lookHeld = false;
+  // Preview walks like a visitor, nothing starts flying there
+  private flightAllowed = true;
+  // Preview holds a saved camera above the floor until the visitor moves, then they drop down
+  private perched = false;
   private readonly _euler = new THREE.Euler(0, 0, 0, "YXZ");
   private readonly physicsPosition = new THREE.Vector3();
   private readonly previousPhysics = new THREE.Vector3();
@@ -81,7 +86,7 @@ export class FpsControls {
     },
     jump: () => {
       const now = performance.now();
-      if (now - this.lastMobileJump < DOUBLE_TAP_MS) {
+      if (this.flightAllowed && now - this.lastMobileJump < DOUBLE_TAP_MS) {
         this.flying = !this.flying;
         this.velocity.y = 0;
         this.lastMobileJump = -Infinity;
@@ -117,10 +122,13 @@ export class FpsControls {
     document.addEventListener("visibilitychange", this.onVisibilityChange);
   }
 
-  // Pick up from wherever the camera is now. Starting in the air means flying, so nothing drops
+  // Pick up from wherever the camera is now. Starting in the air means flying, so nothing drops.
+  // Preview cant fly, so a raised camera is held there instead
   sync(): void {
     this.stopMotion();
-    this.flying = this.camera.position.y > EYE_HEIGHT + 1e-4;
+    const raised = this.camera.position.y > EYE_HEIGHT + 1e-4;
+    this.flying = raised && this.flightAllowed;
+    this.perched = raised && !this.flightAllowed;
     this._euler.setFromQuaternion(this.camera.quaternion, "YXZ");
     this.yaw = this._euler.y;
     this.pitch = this._euler.x;
@@ -184,6 +192,16 @@ export class FpsControls {
     this.lookHeld = held;
   }
 
+  setFlightAllowed(allowed: boolean): void {
+    this.flightAllowed = allowed;
+    if (allowed) {
+      this.perched = false;
+    } else if (this.flying) {
+      this.flying = false;
+      this.perched = true;
+    }
+  }
+
   // A viewpoint or saved camera just moved the camera, carry on from exactly that pose
   syncFromCamera(): void {
     this.clearInput();
@@ -238,6 +256,15 @@ export class FpsControls {
     const sprint = this.keys.has("ShiftLeft") || this.keys.has("ShiftRight");
     const space = this.keys.has("Space") || this.mobileJump;
     const maxSpeed = sprint ? SPRINT_SPEED : WALK_SPEED;
+    if (!this.flightAllowed) this.flying = false;
+    if (this.perched) {
+      // Stay on the saved view until any movement, which leaves it and falls to the floor
+      if (!space && !this.hasMovementInput()) {
+        this.velocity.set(0, 0, 0);
+        return;
+      }
+      this.perched = false;
+    }
 
     const inputZ =
       (this.keys.has("KeyW") ? 1 : 0) - (this.keys.has("KeyS") ? 1 : 0) + this.mobileMoveZ;
@@ -382,7 +409,7 @@ export class FpsControls {
     if (!HANDLED_KEYS.has(event.code)) return;
     event.preventDefault();
     if (event.code === "Space" && !event.repeat) {
-      if (event.timeStamp - this.lastSpace < DOUBLE_TAP_MS) {
+      if (this.flightAllowed && event.timeStamp - this.lastSpace < DOUBLE_TAP_MS) {
         this.flying = !this.flying;
         this.velocity.y = 0;
         this.lastSpace = -Infinity;

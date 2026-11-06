@@ -44,6 +44,31 @@ async function addAsset(page, name) {
   await placeAtRoomCenter(page);
 }
 
+async function importProject(page, name, content, errors) {
+  await page.getByLabel("Project options", { exact: true }).click();
+  // Open is enabled only after project recovery finishes, independently of scene readiness.
+  await page.getByRole("button", { name: "Open", exact: true }).click({ trial: true });
+  await page.locator("#project-import").setInputFiles({
+    name,
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(content)),
+  });
+  try {
+    await page.locator(".object-row").filter({ hasText: "First crate" }).waitFor();
+  } catch (error) {
+    const messages = await page
+      .locator('[role="status"], [role="alert"]')
+      .allTextContents()
+      .catch(() => []);
+    console.error("Project import did not open the expected scene", {
+      name,
+      messages: messages.slice(0, 10).map((message) => message.trim().slice(0, 500)),
+      errors: errors.slice(-10).map((message) => message.slice(0, 500)),
+    });
+    throw error;
+  }
+}
+
 try {
   const legacyModel = await fetch(new URL("models/snowglobe.glb", url));
   assert.notEqual(
@@ -170,12 +195,7 @@ try {
       },
     ];
   });
-  await contentPage.locator("#project-import").setInputFiles({
-    name: "two-scene.json",
-    mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify(content)),
-  });
-  await contentPage.locator(".object-row").filter({ hasText: "First crate" }).waitFor();
+  await importProject(contentPage, "two-scene.json", content, errors);
   await contentPage.getByRole("button", { name: "Preview", exact: true }).click();
   await contentPage.locator(".editor-shell.is-previewing").waitFor();
   const targets = contentPage.getByRole("navigation", { name: "Interactive objects" });
@@ -209,12 +229,7 @@ try {
   unsupportedPage.on("pageerror", (error) => errors.push(error.message));
   await unsupportedPage.goto(url);
   await unsupportedPage.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
-  await unsupportedPage.locator("#project-import").setInputFiles({
-    name: "unsupported-rule.json",
-    mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify(unsupported)),
-  });
-  await unsupportedPage.locator(".object-row").filter({ hasText: "First crate" }).waitFor();
+  await importProject(unsupportedPage, "unsupported-rule.json", unsupported, errors);
   await unsupportedPage.getByRole("button", { name: "Preview", exact: true }).click();
   await unsupportedPage
     .getByRole("status")
