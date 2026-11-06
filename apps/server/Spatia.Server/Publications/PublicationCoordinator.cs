@@ -1,5 +1,6 @@
 using System.Data;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using Spatia.ProjectFormat;
 using Spatia.Server.Persistence;
 using Spatia.Server.Projects;
@@ -55,6 +56,11 @@ internal sealed class PublicationCoordinator(ApplicationDbContext database, Proj
         var authorization = await access.LockAsync(context, projectId, ProjectLockPurpose.Publish, cancellationToken);
         if (authorization.Failure is { } failure) { return PublicationResult.Denied(failure); }
         var project = authorization.Snapshot!;
+        if (await database.Database.SqlQuery<Guid>($"SELECT id AS \"Value\" FROM retired_publication_ids WHERE id = {request.PublicationId}")
+            .AnyAsync(cancellationToken))
+        {
+            return PublicationResult.Rejected(PublicationRejection.IdConflict);
+        }
         var digest = request.Digest(projectId, project.ActorId);
         var edition = await FindAsync(request.PublicationId, cancellationToken);
         var decision = PublicationRetryPolicy.Decide(edition, request.PublicationId, projectId, project.ActorId,
@@ -75,13 +81,21 @@ internal sealed class PublicationCoordinator(ApplicationDbContext database, Proj
 
             // Target only the global ID constraint. Other database errors propagate and roll back;
             // ON CONFLICT avoids poisoning the transaction when another project's lock is involved.
-            var inserted = await database.Database.ExecuteSqlInterpolatedAsync($"""
+            int inserted;
+            try
+            {
+                inserted = await database.Database.ExecuteSqlInterpolatedAsync($"""
                 INSERT INTO publications (id, project_id, published_by_id, source_revision, schema_version,
                     document, asset_references, request_digest)
                 VALUES ({request.PublicationId}, {projectId}, {project.ActorId}, {project.Revision}, {project.SchemaVersion},
                     CAST({project.UnvalidatedDocumentJson} AS jsonb), CAST({manifest} AS jsonb), {digest})
                 ON CONFLICT (id) DO NOTHING
                 """, cancellationToken);
+            }
+            catch (PostgresException exception) when (exception.ConstraintName == "CK_publication_id_retired")
+            {
+                return PublicationResult.Rejected(PublicationRejection.IdConflict);
+            }
             edition = await FindAsync(request.PublicationId, cancellationToken)
                 ?? throw new InvalidOperationException("The publication insert produced no durable identity.");
             if (PublicationRetryPolicy.Decide(edition, request.PublicationId, projectId, project.ActorId,

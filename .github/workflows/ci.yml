@@ -199,6 +199,8 @@ jobs:
             script: test:workspace
           - name: accounts
             script: test:accounts
+          - name: organization-deletion
+            script: test:organization-deletion
           - name: admin-dashboard
             script: test:admin-dashboard
           - name: sounds

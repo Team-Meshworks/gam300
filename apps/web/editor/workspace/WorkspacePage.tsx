@@ -179,7 +179,9 @@ function OtherWorkspacePage() {
           {screen.id === "review" && (
             <ReviewWorkspace key={session.userId + ":" + session.orgId} session={session} />
           )}
-          {screen.id === "accounts" && <AccountDirectoryPage key={session.userId} />}
+          {screen.id === "accounts" && (
+            <AccountDirectoryPage key={session.userId} accountId={session.userId} />
+          )}
           {screen.id === "publish" && <PublicationPage key={session.userId} session={session} />}
         </>
       )}

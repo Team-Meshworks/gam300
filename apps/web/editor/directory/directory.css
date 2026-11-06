@@ -258,3 +258,9 @@
     align-items: flex-start;
   }
 }
+.sp-directory .sp-button--danger,
+.sp-dialog .sp-button--danger {
+  color: #a51f24;
+  border-color: #d9b4b6;
+  background: #fff4f4;
+}

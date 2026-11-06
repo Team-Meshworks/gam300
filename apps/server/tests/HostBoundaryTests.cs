@@ -95,6 +95,7 @@ public sealed class HostBoundaryTests
             "PATCH /api/admin/users/{id:guid}/active",
             "PATCH /api/admin/users/{id:guid}", "GET /api/admin/organizations/{id:guid}/projects",
             "PATCH /api/admin/organizations/{id:guid}/active",
+            "GET /api/admin/organizations/{id:guid}/deletion", "DELETE /api/admin/organizations/{id:guid}",
             "GET /api/projects/", "GET /api/projects/{id:guid}", "GET /api/projects/{id:guid}/assignments", "PUT /api/projects/{id:guid}",
             "POST /api/projects/", "POST /api/projects/{id:guid}/duplicate", "POST /api/projects/{id:guid}/submissions", "PATCH /api/projects/{id:guid}/assignments", "PATCH /api/projects/{id:guid}/archive",
             "GET /api/projects/{id:guid}/submissions", "GET /api/projects/{id:guid}/submissions/{submissionId:guid}",

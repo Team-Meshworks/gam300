@@ -3,6 +3,7 @@ import { Button } from "../../shared/ui/Button";
 import { Dialog } from "../../shared/ui/Dialog";
 import { AccountDialog, type NewAccount } from "./AccountDialog";
 import { OrganizationDirectory } from "./OrganizationDirectory";
+import { DeleteOrganizationDialog } from "./DeleteOrganizationDialog";
 import {
   createDirectoryClient,
   type AccountChanges,
@@ -11,10 +12,10 @@ import {
   type ManagedProject,
 } from "./directory-client";
 
-const client = createDirectoryClient();
 const message = (error: unknown) =>
   error instanceof Error ? error.message : "The directory could not be loaded.";
-export function AccountDirectoryPage() {
+export function AccountDirectoryPage({ accountId }: { accountId: string }) {
+  const [client] = useState(() => createDirectoryClient(fetch, accountId));
   const [organizations, setOrganizations] = useState<ManagedOrganization[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [accounts, setAccounts] = useState<ManagedAccount[]>([]);
@@ -30,6 +31,7 @@ export function AccountDirectoryPage() {
   const [modal, setModal] = useState<ManagedAccount | "create" | null>(null);
   const [preview, setPreview] = useState<{ title: string; body: ReactNode } | null>(null);
   const [toggle, setToggle] = useState<ManagedAccount | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
   const pending = useRef(false);
   const selection = useRef(selected);
   useEffect(() => {
@@ -51,7 +53,7 @@ export function AccountDirectoryPage() {
     return () => {
       disposed = true;
     };
-  }, [attempt]);
+  }, [attempt, client]);
   useEffect(() => {
     if (!selected) return;
     let disposed = false;
@@ -74,7 +76,7 @@ export function AccountDirectoryPage() {
     return () => {
       disposed = true;
     };
-  }, [selected, attempt]);
+  }, [selected, attempt, client]);
   function select(id: string | null) {
     selection.current = id;
     setSelected(id);
@@ -86,6 +88,7 @@ export function AccountDirectoryPage() {
     setNotice("");
     setModal(null);
     setToggle(null);
+    setDeleting(null);
   }
   function refresh() {
     setError("");
@@ -183,6 +186,7 @@ export function AccountDirectoryPage() {
         }))}
         selectedId={selected}
         onSelect={select}
+        onDelete={setDeleting}
         loading={detailLoading}
         detailError={detailError}
         projectError={projectError}
@@ -196,6 +200,18 @@ export function AccountDirectoryPage() {
         }}
       />
       {(detailError || projectError) && <Button onClick={refresh}>Retry organisation</Button>}
+      {deleting && (
+        <DeleteOrganizationDialog
+          organizationId={deleting}
+          client={client}
+          onClose={() => setDeleting(null)}
+          onDeleted={(name) => {
+            setOrganizations((items) => items.filter((item) => item.id !== deleting));
+            select(null);
+            setNotice(`${name} and its accounts and workspace data were deleted.`);
+          }}
+        />
+      )}
       {modal && organization && (
         <AccountDialog
           account={modal === "create" ? undefined : modal}

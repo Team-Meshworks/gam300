@@ -17,6 +17,7 @@ export function OrganizationDirectory({
   onPreview,
   selectedId,
   onSelect,
+  onDelete,
   accountActions,
   loading,
   detailError,
@@ -26,6 +27,7 @@ export function OrganizationDirectory({
   onPreview: (title: string, body: ReactNode) => void;
   selectedId: string | null;
   onSelect: (id: string | null) => void;
+  onDelete?: (id: string) => void;
   accountActions?: AccountActions;
   loading?: boolean;
   detailError?: string;
@@ -53,6 +55,11 @@ export function OrganizationDirectory({
               <h2>{organization.name}</h2>
             </div>
             <p>{organization.description}</p>
+            {onDelete && (
+              <Button className="sp-button--danger" onClick={() => onDelete(organization.id)}>
+                Delete organisation
+              </Button>
+            )}
             {!accountActions && (
               <dl className="sp-summary">
                 <dt>Projects</dt>
