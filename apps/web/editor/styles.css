@@ -26,6 +26,87 @@
   --scene-hint-text: #f5f7fa;
 }
 
+/* Dark mode from the Settings pop up swaps the shared colours. The 3D scene keeps its own */
+:root[data-theme="dark"] {
+  --text: #f1ede4;
+  color: #f1ede4;
+  background: #1f1c19;
+  color-scheme: dark;
+  --accent: #e0846b;
+  --muted: #b3ab9c;
+  --line: #4a433d;
+  --card: #2b2723;
+  --card-raised: #36302b;
+  --pill: #3a342f;
+  --button: #3a342f;
+  --button-strong: #4d433a;
+  --shadow: 0 4px 18px rgb(0 0 0 / 0.4);
+  --picker-backdrop: rgb(0 0 0 / 0.45);
+  --picker-shadow: 0 18px 56px rgb(0 0 0 / 0.55);
+  --asset-preview: #3d3934;
+  --asset-card: #2f2b27;
+  --asset-tag: #4a453f;
+  --asset-scroll-thumb: #7a736b;
+  --asset-scroll-hover: #9a928a;
+  --asset-scroll-track: #2f2b27;
+  --library-surface: #2b2723;
+}
+/* These parts have their own fixed colours further down, so they need a dark version too */
+:root[data-theme="dark"] :is(.mode-bar, .scene-toolbar) {
+  border-color: rgb(255 255 255 / 0.12);
+  background: rgb(20 18 16 / 0.6);
+}
+:root[data-theme="dark"] :is(.mode-bar, .scene-toolbar) button {
+  color: var(--text);
+}
+:root[data-theme="dark"] :is(.mode-bar, .scene-toolbar) .figma-tool-icon {
+  filter: invert(0.9);
+}
+:root[data-theme="dark"]
+  :is(
+    .mode-bar button,
+    .scene-toolbar button,
+    .rail-button,
+    .view-toggle,
+    .group-row,
+    .object-row,
+    .environment-row,
+    .tool-popup button,
+    .dock-menu button
+  )[aria-pressed="true"] {
+  background: var(--button-strong);
+}
+:root[data-theme="dark"] .dev-action {
+  border-color: var(--line);
+  background: rgb(43 39 35 / 0.75);
+}
+:root[data-theme="dark"] .dock-menu {
+  background: rgb(43 39 35 / 0.95);
+}
+/* Only while switching, so normal hovers stay as quick as before */
+.theme-changing,
+.theme-changing *,
+.theme-changing *::before,
+.theme-changing *::after {
+  /* left and padding keep the settings toggle's knob sliding during the switch */
+  transition:
+    background-color 200ms ease,
+    color 200ms ease,
+    border-color 200ms ease,
+    box-shadow 200ms ease,
+    filter 200ms ease,
+    left 200ms ease,
+    padding 200ms ease !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .theme-changing,
+  .theme-changing *,
+  .theme-changing *::before,
+  .theme-changing *::after {
+    transition: none !important;
+  }
+}
+
 /* Content forms share the library's warm surface and keep the scene inert until Save or Cancel */
 .content-dialog {
   width: min(960px, calc(100% - 48px));
@@ -537,6 +618,18 @@ a {
 }
 .history-controls button:disabled {
   color: #aaa69d;
+}
+/* Centred undo and redo would slide over the right hand buttons, so let it sit between them.
+   The project card shrinks a little instead of the buttons wrapping */
+@media (max-width: 72rem) {
+  .history-controls {
+    position: static;
+    margin-top: 1.25rem;
+    transform: none;
+  }
+  .mode-actions {
+    flex-shrink: 0;
+  }
 }
 
 .mode-actions {
