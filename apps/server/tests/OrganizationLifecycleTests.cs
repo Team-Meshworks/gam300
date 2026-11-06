@@ -27,7 +27,7 @@ public sealed class OrganizationLifecycleTests
         using var memberClient = fixture.CreateClient(cookies);
         await fixture.SignInAsync(member, memberClient);
         await fixture.SignInAsync(administrator);
-        var captured = cookies.GetCookies(fixture.Address)[HttpsApplicationFixture.CookieName]!.Value;
+        var captured = cookies.GetCookies(fixture.Address)[fixture.CookieName]!.Value;
         using var created = await AuthTestRequests.PostAsync(fixture, "/api/projects",
             new { title = "Retained project", environmentAssetId = "test-room-v1" }, memberClient);
         await Assert.That(created.StatusCode).IsEqualTo(HttpStatusCode.Created);
@@ -55,7 +55,7 @@ public sealed class OrganizationLifecycleTests
         using var enabled = await PatchAsync(fixture, orgId, true);
         await Assert.That(enabled.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
         var replayCookies = new CookieContainer();
-        replayCookies.Add(fixture.Address, new Cookie(HttpsApplicationFixture.CookieName, captured, "/") { Secure = true });
+        replayCookies.Add(fixture.Address, new Cookie(fixture.CookieName, captured, "/") { Secure = true });
         using var replay = fixture.CreateClient(replayCookies);
         using var restoredSession = await replay.GetAsync($"/api/projects/{projectId:D}");
         await Assert.That(restoredSession.StatusCode).IsEqualTo(HttpStatusCode.OK);

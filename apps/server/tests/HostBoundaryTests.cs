@@ -320,7 +320,7 @@ public sealed class HostBoundaryTests
         });
         await fixture.SignInAsync(await fixture.CreateAccountAsync());
         var token = await fixture.GetCsrfAsync();
-        var cookie = fixture.Cookies.GetCookies(fixture.Address)[HttpsApplicationFixture.CookieName]?.Value
+        var cookie = fixture.Cookies.GetCookies(fixture.Address)[fixture.CookieName]?.Value
             ?? throw new InvalidOperationException("Expected the synthetic session cookie.");
         using var request = new HttpRequestMessage(HttpMethod.Get, "/_test/error?secret=" + HttpsApplicationFixture.SecretSentinel);
         request.Headers.Add("X-Synthetic-Secret", HttpsApplicationFixture.SecretSentinel);
@@ -375,7 +375,7 @@ public sealed class HostBoundaryTests
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync();
         await fixture.SignInAsync(await fixture.CreateAccountAsync());
-        var originalCookie = fixture.Cookies.GetCookies(fixture.Address)[HttpsApplicationFixture.CookieName]?.Value
+        var originalCookie = fixture.Cookies.GetCookies(fixture.Address)[fixture.CookieName]?.Value
             ?? throw new InvalidOperationException("Expected the synthetic session cookie.");
         await using var scope = fixture.Database.Services.CreateAsyncScope();
         var connection = new NpgsqlConnectionStringBuilder(scope.ServiceProvider.GetRequiredService<ApplicationDbContext>()
@@ -393,9 +393,9 @@ public sealed class HostBoundaryTests
         var outageClient = unavailable.CreateClient(fixture.Cookies);
         using var failure = await outageClient.GetAsync("/_test/probe");
         await AssertProblemAsync(failure, HttpStatusCode.ServiceUnavailable, "storage_unavailable");
-        await Assert.That(fixture.Cookies.GetCookies(fixture.Address)[HttpsApplicationFixture.CookieName]?.Value == originalCookie).IsTrue();
+        await Assert.That(fixture.Cookies.GetCookies(fixture.Address)[fixture.CookieName]?.Value == originalCookie).IsTrue();
         await Assert.That(!failure.Headers.TryGetValues("Set-Cookie", out var headers)
-            || !headers.Any(header => header.StartsWith(HttpsApplicationFixture.CookieName + "=", StringComparison.Ordinal))).IsTrue();
+            || !headers.Any(header => header.StartsWith(fixture.CookieName + "=", StringComparison.Ordinal))).IsTrue();
         await Assert.That(unavailable.Logs.Messages.Contains("request_failure storage_unavailable", StringComparison.Ordinal)).IsTrue();
         await Assert.That(unavailable.Logs.Messages.Contains(HttpsApplicationFixture.SecretSentinel, StringComparison.Ordinal)).IsFalse();
         using var live = await fixture.Client.GetAsync("/_test/probe");

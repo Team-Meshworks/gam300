@@ -66,7 +66,7 @@ public sealed class RequestSecurityTests
         var otherCookies = new CookieContainer();
         var other = fixture.CreateClient(otherCookies);
         await fixture.SignInAsync(await fixture.CreateAccountAsync(), other);
-        var originalCookie = fixture.Cookies.GetCookies(fixture.Address)["__Host-Spatia.Antiforgery"]
+        var originalCookie = fixture.Cookies.GetCookies(fixture.Address)[fixture.AntiforgeryCookieName]
             ?? throw new InvalidOperationException("Expected an antiforgery cookie.");
         otherCookies.Add(fixture.Address, new Cookie(originalCookie.Name, originalCookie.Value, "/") { Secure = true, HttpOnly = true });
         var otherToken = await fixture.GetCsrfAsync(other);
