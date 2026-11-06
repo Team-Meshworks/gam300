@@ -39,6 +39,19 @@ it("prevents a moving room from overlapping another room or cutting through a lo
   ).toEqual(pose([-15, 0, 0]));
 });
 
+it("allows a room to snap to the opposite side of another room without overlapping it", () => {
+  const moving = { ...room, id: "moving", transform: pose([10, 0, 0]) };
+  const stationary = { ...room, id: "stationary" };
+  expect(resolveObjectPlacement(moving, pose([-10, 0, 0]), [stationary], "release")).toEqual(
+    pose([-10, 0, 0]),
+  );
+  expect(resolveObjectPlacement(moving, pose([-10, 0, 0]), [stationary], "drag")).toBeUndefined();
+  const looseObject = { ...object, transform: pose([0, 1, 0]) };
+  expect(
+    resolveObjectPlacement(moving, pose([-10, 0, 0]), [looseObject], "release"),
+  ).toBeUndefined();
+});
+
 it("keeps the complete object inside every room side, floor and ceiling", () => {
   const constrained = resolveObjectPlacement(object, pose([50, -2, -50]), [room], "drag")!;
   expect(constrained.position[0]).toBeCloseTo(4.7);

@@ -109,7 +109,11 @@ export function resolveObjectPlacement(
       bodies.some((entry) => {
         if (entry.id === body.id) return false;
         const other = relativePlacementBounds(entry.bounds, entry.transform, proposed);
-        return interior.intersectsBox(other) || crossesSolid(body, proposed, entry, entry.bounds);
+        return (
+          interior.intersectsBox(other) ||
+          (!(phase === "release" && entry.room) &&
+            crossesSolid(body, proposed, entry, entry.bounds))
+        );
       })
     )
       return;
