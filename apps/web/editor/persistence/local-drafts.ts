@@ -354,7 +354,7 @@ export async function applySaveToLocalDraft(
 export type RecoverySession = Readonly<{
   revision: number;
 
-  // Null records the room-selection screen so discarded work stays discarded after reload
+  // Null records local room selection or an account-scoped cleared cache with its revision
   document: ProjectDocument | null;
   fileName: string;
   savedJson: string | null;
@@ -459,6 +459,23 @@ export async function getRecoverySession(
     });
     if (raw === undefined) {
       return { ok: true, value: null };
+    }
+    if (scope !== undefined && isRecord(raw) && raw.cleared === true) {
+      const fields = checkFields(raw, ["revision", "cleared"], "recovery");
+      if (!fields.ok) return fields;
+      if (!isCounter(raw.revision) || raw.revision < 1) {
+        return invalid("storage", "Cleared recovery revision is invalid; the stored copy was kept");
+      }
+      return {
+        ok: true,
+        value: {
+          revision: raw.revision,
+          document: null,
+          fileName: "",
+          savedJson: null,
+          pristine: true,
+        },
+      };
     }
     if (
       !isRecord(raw) ||
@@ -808,7 +825,7 @@ export async function clearConfirmedServerRecovery(
   return new Promise((resolve) => {
     let removed = false;
     try {
-      // Compare and delete in one transaction so a newer tab's edits survive cleanup
+      // Compare and clear in one transaction so a newer tab's edits survive cleanup
       const tx = connection.transaction("session", "readwrite");
       const store = tx.objectStore("session");
       const read = store.get(key);
@@ -826,6 +843,8 @@ export async function clearConfirmedServerRecovery(
         // Missing metadata or newer local edits leave the backup in place
         if (
           !isRecord(raw) ||
+          !isCounter(raw.revision) ||
+          raw.revision < 1 ||
           !isRecord(raw.serverSave) ||
           raw.serverSave.pending !== null ||
           typeof raw.document !== "string" ||
@@ -833,7 +852,8 @@ export async function clearConfirmedServerRecovery(
         )
           return;
         try {
-          store.delete(key);
+          // Keep the revision so another tab cannot reuse an old counter after cleanup
+          store.put({ revision: raw.revision, cleared: true }, key);
           removed = true;
         } catch {
           tx.abort();
