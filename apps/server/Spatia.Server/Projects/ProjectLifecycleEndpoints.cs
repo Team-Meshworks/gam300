@@ -28,7 +28,7 @@ public static class ProjectLifecycleEndpoints
     private static async Task<IResult> CreateAsync(CreateProjectRequest request, HttpContext context,
         ApplicationDbContext database, ProjectAccessService access, ProjectDocumentService documents, CancellationToken cancellationToken)
     {
-        if (!ValidTitle(request.Title) || (request.Document is null) == (request.EnvironmentAssetId is null))
+        if (!ValidTitle(request.Title) || (request.Document is not null && request.EnvironmentAssetId is not null))
         {
             return InvalidInput(context);
         }
@@ -51,6 +51,13 @@ public static class ProjectLifecycleEndpoints
             var parsed = documents.Read(imported.GetRawText());
             if (!parsed.Ok) { return InvalidDocument(context); }
             document = Copy(parsed.Value!, id, request.Title);
+        }
+        else if (request.EnvironmentAssetId is null)
+        {
+            document = new ContentProject(2, id.ToString("D"), request.Title,
+                [new ContentScene(Guid.NewGuid().ToString("D"), "Scene", null,
+                    new CameraPose([12, 16, 18], [-0.29962059992658957, 0.2752183320355054, 0.09071781822041597, 0.9089844021041025], 40),
+                    [], [], [], [], [], [], [])]);
         }
         else
         {

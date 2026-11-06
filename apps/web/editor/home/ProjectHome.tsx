@@ -109,10 +109,25 @@ export function ProjectHome({
     project.title.toLocaleLowerCase().includes(search.toLocaleLowerCase()),
   );
   return (
-    <section className="sp-home-projects" aria-label="Projects">
+    <section
+      className={`sp-home-projects sp-home-projects--${session.role.toLowerCase()}`}
+      aria-label="Projects"
+    >
+      {session.role !== "Administrator" && (
+        <div className={`sp-home-welcome sp-home-welcome--${session.role.toLowerCase()}`}>
+          <h1>Welcome Back, {session.displayName}</h1>
+          {session.role === "Educator" && (
+            <p>A space to spark ideas, guide student work and curate what gets shared.</p>
+          )}
+        </div>
+      )}
       <div className="sp-page-heading sp-between">
         <div>
-          <h1>{session.role === "Administrator" ? "All Projects" : "Projects"}</h1>
+          {session.role === "Administrator" ? (
+            <h1>All Projects</h1>
+          ) : (
+            <h2>{session.role === "Educator" ? "All Projects" : "Projects"}</h2>
+          )}
           <p>Explore your projects and continue your classroom’s work.</p>
         </div>
         <ProjectCreation
@@ -143,7 +158,6 @@ export function ProjectHome({
         />
         <Button onClick={() => setVersion((value) => value + 1)}>Refresh</Button>
       </div>
-      <p className="sp-hint sp-home-notice">New projects require an approved 3D space.</p>
       {message && !action && (
         <p role="status" className="sp-home-notice">
           {message}
@@ -166,6 +180,9 @@ export function ProjectHome({
           <ul className="sp-home-project-list">
             {items.map((project) => (
               <li key={project.projectId} className="sp-home-project-card">
+                {session.role !== "Administrator" && (
+                  <div className="sp-home-project-preview">Preview unavailable</div>
+                )}
                 <div className="sp-home-project-copy">
                   <h2>{project.title}</h2>
                   <p className="sp-muted">Updated {new Date(project.updatedAt).toLocaleString()}</p>

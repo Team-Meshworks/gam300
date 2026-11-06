@@ -3,8 +3,48 @@ import { deserializeProject } from "../shared/project/project-deserialization";
 import { afterEach, assert, expect, it, vi } from "vitest";
 import type { CatalogueAsset } from "../shared/asset-runtime/catalogue";
 import { createDocumentStore } from "./document-store.ts";
+import m2 from "../shared/project/fixtures/m2-project.json";
 
 afterEach(() => vi.restoreAllMocks());
+
+it("opens an empty scene and can add and undo an approved environment", () => {
+  const room: CatalogueAsset = {
+    id: "room",
+    name: "Room",
+    kind: "environment",
+    url: "room.glb",
+    sha256: "0".repeat(64),
+    thumbnail: null,
+  };
+  const kinds = new Map([[room.id, room.kind]]);
+  const scene = m2.scenes[0]!;
+  const empty = {
+    ...m2,
+    scenes: [
+      {
+        ...scene,
+        environmentAssetId: null,
+        objects: [],
+        groups: [],
+        zones: [],
+        viewpoints: [],
+        rules: [],
+        hotspots: [],
+        interactions: [],
+      },
+    ],
+  };
+  const store = createDocumentStore([room]);
+  expect(store.loadProject(JSON.stringify(empty), kinds).ok).toBe(true);
+  expect(store.setEnvironment(room.id).ok).toBe(true);
+  expect(store.getSnapshot().project!.scenes[0]!.environmentAssetId).toBe(room.id);
+  store.undo();
+  expect(store.getSnapshot().project!.scenes[0]!.environmentAssetId).toBeNull();
+  const saved = serializeProject(store.getSnapshot().project!, kinds);
+  expect(saved.ok).toBe(true);
+  if (!saved.ok) throw new Error(saved.error.message);
+  expect(deserializeProject(saved.value, kinds).ok).toBe(true);
+});
 
 it("places a different sized room beside the starter and preserves it through save and reopen", () => {
   const assets: CatalogueAsset[] = [

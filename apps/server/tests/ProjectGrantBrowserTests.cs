@@ -13,6 +13,62 @@ namespace Spatia.Server.Tests;
 public sealed class ProjectGrantBrowserTests
 {
     [Test]
+    public async Task Educator_AssignsEmptyProjectThroughRealBrowserAndApi()
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
+        var educator = await fixture.CreateAccountAsync(ApplicationRoles.Educator);
+        var student = await fixture.CreateAccountAsync();
+        var outsider = await fixture.CreateAccountAsync();
+        var classroom = Guid.NewGuid();
+        await using (var scope = fixture.App.Services.CreateAsyncScope())
+        {
+            var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var organization = await database.OrganizationMemberships.Where(row => row.UserId == educator)
+                .Select(row => row.OrganizationId).SingleAsync();
+            await database.OrganizationMemberships.Where(row => row.UserId == student || row.UserId == outsider)
+                .ExecuteUpdateAsync(set => set.SetProperty(row => row.OrganizationId, organization));
+            database.Classrooms.Add(new Classroom { Id = classroom, OrganizationId = organization, Name = "Empty project class" });
+            database.ClassroomMembers.AddRange(
+                new ClassroomMember { ClassroomId = classroom, OrganizationId = organization, UserId = educator, RoleId = ApplicationRoles.EducatorId },
+                new ClassroomMember { ClassroomId = classroom, OrganizationId = organization, UserId = student, RoleId = ApplicationRoles.CreatorId });
+            await database.SaveChangesAsync();
+        }
+        var files = fixture.WritePemFiles();
+        var root = new DirectoryInfo(AppContext.BaseDirectory);
+        while (root is not null && !File.Exists(Path.Combine(root.FullName, "apps", "web", "vite.config.ts"))) { root = root.Parent; }
+        var start = new ProcessStartInfo(Environment.GetEnvironmentVariable("SPATIA_TEST_NODE") ?? "node")
+        {
+            WorkingDirectory = Path.Combine(root!.FullName, "apps", "web"),
+            RedirectStandardError = true,
+            RedirectStandardOutput = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        };
+        start.ArgumentList.Add("tests/empty-project-real-api.check.mjs");
+        start.Environment["SPATIA_API_ORIGIN"] = fixture.Address.GetLeftPart(UriPartial.Authority);
+        start.Environment["SPATIA_DEV_TLS_CERT"] = files.Certificate;
+        start.Environment["SPATIA_DEV_TLS_KEY"] = files.Key;
+        start.Environment["SPATIA_API_CA"] = files.Certificate;
+        start.Environment["SPATIA_TEST_EDUCATOR"] = await AuthTestRequests.UserNameAsync(fixture, educator);
+        start.Environment["SPATIA_TEST_STUDENT"] = await AuthTestRequests.UserNameAsync(fixture, student);
+        start.Environment["SPATIA_TEST_OUTSIDER"] = await AuthTestRequests.UserNameAsync(fixture, outsider);
+        start.Environment["SPATIA_TEST_CLASS"] = classroom.ToString("D");
+        start.Environment.Remove("SPATIA_TEST_DATABASE_CONNECTION");
+        start.Environment.Remove("ConnectionStrings__Spatia");
+        using var process = Process.Start(start) ?? throw new InvalidOperationException("Could not start the browser check");
+        var output = process.StandardOutput.ReadToEndAsync();
+        var error = process.StandardError.ReadToEndAsync();
+        try { await process.WaitForExitAsync().WaitAsync(TimeSpan.FromMinutes(4)); }
+        catch { process.Kill(entireProcessTree: true); await process.WaitForExitAsync(); throw; }
+        await Assert.That(process.ExitCode).IsEqualTo(0).Because(await output + await error);
+        await using var verify = fixture.App.Services.CreateAsyncScope();
+        var databaseAfter = verify.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await Assert.That(await databaseAfter.AssetCandidates.CountAsync()).IsEqualTo(0);
+        await Assert.That(await databaseAfter.ClassAssignmentStudents.CountAsync()).IsEqualTo(1);
+        await Assert.That(await databaseAfter.Projects.CountAsync()).IsEqualTo(2);
+    }
+
+    [Test]
     public async Task EducatorAndStudent_CompleteAssignmentThroughRealBrowserAndApi()
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");

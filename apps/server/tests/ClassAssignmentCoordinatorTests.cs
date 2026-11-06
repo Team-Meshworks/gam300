@@ -18,6 +18,35 @@ namespace Spatia.Server.Tests;
 public sealed class ClassAssignmentCoordinatorTests
 {
     [Test]
+    public async Task AssignmentCoordinator_EmptyProjectCanBeAssignedWithoutAnEnvironment()
+    {
+        await using var fixture = await CreateFixtureAsync();
+        var data = await SeedAsync(fixture);
+        using var create = new HttpRequestMessage(HttpMethod.Post, "/api/v1/projects")
+        {
+            Content = JsonContent.Create(new { title = "Empty source" }),
+        };
+        create.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync());
+        using var response = await fixture.Client.SendAsync(create);
+        await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.Created);
+        var source = (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("projectId").GetGuid();
+        var request = Request(data) with { SourceProjectId = source };
+        using var assigned = await SendAsync(fixture, data.ClassroomId, request);
+        await Assert.That(assigned.StatusCode).IsEqualTo(HttpStatusCode.Created);
+        var projects = (await assigned.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("projects").EnumerateArray().ToArray();
+        var ownId = projects.Single(row => row.GetProperty("studentId").GetGuid() == data.FirstStudent).GetProperty("projectId").GetGuid();
+        var otherId = projects.Single(row => row.GetProperty("studentId").GetGuid() == data.SecondStudent).GetProperty("projectId").GetGuid();
+        using var student = fixture.CreateClient();
+        await fixture.SignInAsync(data.FirstStudent, student);
+        using var own = await student.GetAsync($"/api/v1/projects/{ownId:D}");
+        await Assert.That(own.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        var document = (await own.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("document");
+        await Assert.That(document.GetProperty("scenes")[0].GetProperty("environmentAssetId").ValueKind).IsEqualTo(JsonValueKind.Null);
+        using var denied = await student.GetAsync($"/api/v1/projects/{otherId:D}");
+        await Assert.That(denied.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+    }
+
+    [Test]
     public async Task AssignmentCoordinator_CreatesIndependentDraftsAndReconcilesIdenticalRetries()
     {
         await using var fixture = await CreateFixtureAsync();

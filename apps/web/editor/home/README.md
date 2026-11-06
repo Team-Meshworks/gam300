@@ -1,5 +1,20 @@
 # M2 workspace integration
 
+## Current project creation and opening
+
+An organisation member can create a project without selecting a 3D space. The home
+form offers approved environments as an optional selection and still offers empty
+creation when there are no approved environments or the catalogue is unavailable.
+An empty project is a schema-v2 scene with `environmentAssetId: null`; selecting an
+approved environment creates a legacy v1 room. Current active organisation authority
+is still required, and an Administrator explicitly selects an active organisation.
+
+If the asset catalogue is unavailable when opening a project, the editor uses its
+fallback only when the saved project validates against an empty asset map. It warns
+about the outage and preserves recovery. The current visitor/publisher rejects v2
+until runtime support is available. This current behaviour supersedes the creation
+availability claim in the historical 5 November integration note below.
+
 ## Login and publishing integration
 
 The project home and review flow can open `/publish?projectId=<id>`; the editor
@@ -9,7 +24,7 @@ visitor route. See [publishing](../publications/README.md) and the separate
 [visitor application](../../visitor/README.md). These integrations do not remove
 the production catalogue or broader acceptance limits below.
 
-## 5 November 2026 dev integration
+## Historical 5 November 2026 dev integration
 
 PR #34 is integrated with `dev` at `e921576`, including the merged class screens.
 The home and administration flows remain a bounded SCRUM-126 implementation, not

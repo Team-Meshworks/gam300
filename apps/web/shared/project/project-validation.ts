@@ -78,6 +78,8 @@ export function validateProject(
     if (!sceneId.ok) {
       return sceneId;
     }
+    if (scene.environmentAssetId === null)
+      return invalid(`${path}.environmentAssetId`, "Choose an environment");
     const environment = checkAsset(
       scene.environmentAssetId,
       "environment",

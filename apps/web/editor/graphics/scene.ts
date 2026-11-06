@@ -673,7 +673,9 @@ export function initScene(
     appliedLoadGeneration = loadGeneration;
 
     const nextEnvironmentId =
-      projectScene?.environmentVisible === false ? undefined : projectScene?.environmentAssetId;
+      projectScene?.environmentVisible === false
+        ? undefined
+        : (projectScene?.environmentAssetId ?? undefined);
     if (
       ready &&
       (environmentId !== nextEnvironmentId ||
@@ -811,7 +813,12 @@ export function initScene(
     return new THREE.Ray(camera.position, point.unproject(camera).sub(camera.position).normalize());
   }
 
-  function bodyFor(id: string, assetId: string, transform: Transform): PlacementBody | undefined {
+  function bodyFor(
+    id: string,
+    assetId: string | null,
+    transform: Transform,
+  ): PlacementBody | undefined {
+    if (assetId === null) return;
     const model = models.get(assetId);
     const asset = assets.find((entry) => entry.id === assetId);
     if (!model || !asset) return;
