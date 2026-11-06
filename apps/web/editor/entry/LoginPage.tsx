@@ -171,7 +171,7 @@ export function LoginPage() {
                 <p role="status">
                   Signed in as {session.displayName} · {session.role}
                 </p>
-                <a className="sp-button sp-button--primary" href="/home">
+                <a className="sp-button sp-button--secondary" href="/home">
                   Go to projects
                 </a>
                 {session.role === "Administrator" ? (

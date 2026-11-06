@@ -300,7 +300,7 @@ public sealed class PublicationEndpointTests
     }
 
     internal static async Task<(ReviewSubmissionEndpointTests.Seeded Data, AssetCandidate Asset)> PrepareAsync(
-        HttpsApplicationFixture fixture, bool approve = true, bool interactions = false)
+        HttpsApplicationFixture fixture, bool approve = true, bool interactions = false, Guid? assetOwner = null)
     {
         fixture.App.Configuration["Publication:Origin"] = "https://publications.example.test";
         var data = await ReviewSubmissionEndpointTests.SeedAsync(fixture, false);
@@ -317,8 +317,8 @@ public sealed class PublicationEndpointTests
             Source = "Synthetic fixture",
             License = "Synthetic test only",
             ReviewNotes = "Fixture approval",
-            SubmittedBy = data.Educator,
-            ReviewedBy = data.Educator,
+            SubmittedBy = assetOwner ?? data.Educator,
+            ReviewedBy = assetOwner ?? data.Educator,
             CreatedAt = DateTimeOffset.UtcNow,
         };
         await using (var scope = fixture.App.Services.CreateAsyncScope())

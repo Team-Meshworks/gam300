@@ -91,20 +91,6 @@
 .sp-home-notice {
   margin: 16px 0;
 }
-.sp-home-navigation {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-bottom: 30px;
-}
-.sp-home-navigation button[aria-current="page"] {
-  background: var(--sp-ink);
-  color: white;
-}
-.sp-home-navigation a {
-  color: var(--sp-ink);
-  text-decoration: none;
-}
 .sp-class-home .sp-page-heading {
   flex-wrap: wrap;
 }

@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createAccountClient, type AccountSession } from "../accounts/account-client";
+import { LoginRedirect } from "../accounts/LoginRedirect";
 import { WorkspaceShell } from "../../shared/ui/WorkspaceShell";
 import { Button } from "../../shared/ui/Button";
 import { HomePage } from "../home/HomePage";
+import { WorkspaceNavigation } from "../home/WorkspaceNavigation";
 import { AccountDirectoryPage } from "../directory/AccountDirectoryPage";
 import { AdminDashboard } from "../admin/AdminDashboard";
 import { ReviewWorkspace } from "../reviews/ReviewWorkspace";
@@ -16,8 +18,7 @@ const screens = [
   { id: "assets", title: "3D Assets", roles: ["Administrator"] },
   { id: "spaces", title: "3D Spaces", roles: ["Administrator"] },
   { id: "admin/dashboard", title: "Dashboard", roles: ["Administrator"] },
-  { id: "new-project", title: "New class assignment", roles: ["Administrator", "Educator"] },
-  { id: "classes", title: "Class assignments", roles: ["Administrator", "Educator"] },
+  { id: "classes", title: "Classes", roles: ["Administrator", "Educator"] },
   { id: "review", title: "Submission review", roles: ["Creator", "Educator"] },
   { id: "accounts", title: "Accounts", roles: ["Administrator"] },
 ];
@@ -94,15 +95,17 @@ function OtherWorkspacePage() {
       </main>
     );
   const session = access.session;
-  if (!session || session.mustChangePassword)
+  if (!session)
     return (
       <main className="sp-workspace">
-        <h1>{session ? "Password change required" : "Log in to continue"}</h1>
-        <p>
-          {session
-            ? "Change your password before opening your workspace."
-            : "Sign in to open your workspace."}
-        </p>
+        <LoginRedirect />
+      </main>
+    );
+  if (session.mustChangePassword)
+    return (
+      <main className="sp-workspace">
+        <h1>Password change required</h1>
+        <p>Change your password before opening your workspace.</p>
         <a href="/login">Log in</a>
       </main>
     );
@@ -115,6 +118,7 @@ function OtherWorkspacePage() {
         ? "/landing"
         : "/classes";
   const dashboard = screen?.id === "admin/dashboard" && session.role === "Administrator";
+  const review = screen?.id === "review" && permitted.includes(screen);
   async function signOut() {
     if (signingOut.current) return;
     signingOut.current = true;
@@ -132,32 +136,34 @@ function OtherWorkspacePage() {
     <WorkspaceShell
       name={session.displayName}
       initials={session.displayName.slice(0, 2).toUpperCase()}
-      homeHref={fallback}
+      homeHref={review ? "/home" : fallback}
       variant={dashboard ? "dashboard" : undefined}
       onSignOut={() => void signOut()}
     >
-      {!dashboard && (
+      {review ? (
+        <WorkspaceNavigation role={session.role} current="reviews" />
+      ) : !dashboard ? (
         <nav className="sp-workspace-links" aria-label="Workspace screens">
-          <a href="/home">Home</a>
+          <a href="/home">Projects</a>
           {permitted
             .filter((item) => item.id !== "publish")
             .map((item) => (
               <a
                 key={item.id}
                 aria-current={screen === item ? "page" : undefined}
-                href={`/${item.id}${item.id === "new-project" && screen && screen.id !== "new-project" ? `?from=${screen.id}` : ""}`}
+                href={`/${item.id}`}
               >
                 {item.title}
               </a>
             ))}
         </nav>
-      )}
+      ) : null}
       {logoutError && <p role="alert">{logoutError}</p>}
       {!screen || !permitted.includes(screen) ? (
         <h1>Access denied</h1>
       ) : (
         <>
-          {!dashboard && screen.id !== "assets" && screen.id !== "spaces" && (
+          {!dashboard && !review && screen.id !== "assets" && screen.id !== "spaces" && (
             <h1 className="sp-page-heading">{screen.title}</h1>
           )}
           {assetService && (screen.id === "assets" || screen.id === "spaces") && (
@@ -173,7 +179,9 @@ function OtherWorkspacePage() {
           {screen.id === "review" && (
             <ReviewWorkspace key={session.userId + ":" + session.orgId} session={session} />
           )}
-          {screen.id === "accounts" && <AccountDirectoryPage key={session.userId} />}
+          {screen.id === "accounts" && (
+            <AccountDirectoryPage key={session.userId} accountId={session.userId} />
+          )}
           {screen.id === "publish" && <PublicationPage key={session.userId} session={session} />}
         </>
       )}

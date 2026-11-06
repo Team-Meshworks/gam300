@@ -1,5 +1,37 @@
 # Asset pipeline baseline
 
+## Untitled architectural model (November 2026)
+
+The supplied `Untitled.glb` is available as **Untitled** in Asset library under
+Architecture, with stable ID `library-untitled-v1`. Its full-size original is
+preserved byte-for-byte at `source/library/untitled-v1.glb`. The delivery copy adds
+a uniform 1:10 parent transform so the complete interior can be placed as a
+2.53 × 1.09 × 3.11 metre model inside the Starter room. Geometry, materials and all
+ten embedded textures are unchanged. Bottom-centre placement removes its export
+offset, and the editor renders its thumbnail from the model.
+
+The GLB is approximately 93.7 MB, including ten 4096 × 4096 textures. It follows
+the existing development-only catalogue and pending provenance convention.
+
+## Room layouts (November 2026)
+
+The 16 user-supplied room GLBs are preserved byte-for-byte under `source/rooms/`
+and `delivery/rooms/`. `Space1` and every combination of Doors 1–4 have separate
+versioned environment IDs. The supplied numbering guide is `source/rooms/door-reference.png`.
+They appear in the editor's Rooms picker with generated elevated model previews.
+Selecting a layout replaces the scene environment and retains authored exhibits;
+Starter room keeps its existing adjoining-module placement behavior.
+
+Bounds in the manifest were measured from transformed vertices. Bottom-centre
+normalization removes export offsets without rescaling; the environment placement
+root preserves this normalization under scene transforms. These are complete
+layouts, not Starter room modules, and do not use its 10-metre snapping or automatic
+door cutting. They use the existing development-only catalogue and retain pending
+provenance status. Validate using `node tools/validate-assets.mjs` and, with Vite
+running, `node tests/room-layouts.check.mjs http://127.0.0.1:5185/` from `apps/web/`.
+
+## Baseline validation
+
 Run from the repository root:
 
 ```powershell

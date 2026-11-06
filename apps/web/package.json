@@ -58,6 +58,7 @@
     "test:deadline": "node tests/deadline.check.mjs",
     "test:review-directory": "node tests/review-directory.check.mjs",
     "test:accounts": "node tests/account-directory.check.mjs",
+    "test:organization-deletion": "node tests/organization-deletion.check.mjs",
     "test:admin-dashboard": "node tests/admin-dashboard.check.mjs",
     "test:sounds": "node tests/ui-sounds.check.mjs",
     "browser:install": "playwright install --with-deps chrome",

@@ -5,6 +5,7 @@ import { App } from "./App";
 import { HOTSPOT_ASSET } from "../shared/asset-runtime/hotspot";
 import { createDocumentStore } from "./document-store";
 import { createAccountClient } from "./accounts/account-client";
+import { LoginRedirect } from "./accounts/LoginRedirect";
 import {
   readServerAssets,
   readServerProject,
@@ -77,6 +78,7 @@ function ChoiceDialog({
 
 // SCRUM-126 can open /?projectId=<id>; this boundary owns only the editor's save/recovery session.
 export function ServerProjectEditor({ projectId }: { projectId: string }) {
+  const [signedOut, setSignedOut] = useState(false);
   const [catalogue, setCatalogue] = useState<{
     all: readonly CatalogueAsset[];
     available: readonly CatalogueAsset[];
@@ -89,14 +91,23 @@ export function ServerProjectEditor({ projectId }: { projectId: string }) {
       try {
         setError("");
         const identity = await accounts.getSession();
-        if (!identity || identity.mustChangePassword)
-          throw new Error("Sign in before opening this project.");
+        if (controller.signal.aborted) return;
+        if (!identity) {
+          setSignedOut(true);
+          return;
+        }
+        if (identity.mustChangePassword) throw new Error("Sign in before opening this project.");
         const [approved, retained] = await Promise.all([
           readServerAssets(identity.userId, controller.signal),
           readServerAssets(identity.userId, controller.signal, fetch, projectId),
         ]);
         const current = await accounts.getSession();
-        if (current?.userId !== identity.userId || current.mustChangePassword)
+        if (controller.signal.aborted) return;
+        if (!current) {
+          setSignedOut(true);
+          return;
+        }
+        if (current.userId !== identity.userId || current.mustChangePassword)
           throw new Error("The account changed. Sign in again.");
         if (!controller.signal.aborted)
           setCatalogue({
@@ -114,6 +125,7 @@ export function ServerProjectEditor({ projectId }: { projectId: string }) {
     })();
     return () => controller.abort();
   }, [attempt, projectId]);
+  if (signedOut) return <LoginRedirect />;
   if (!catalogue)
     return (
       <main>
@@ -154,6 +166,7 @@ function ServerProjectSession({
   );
   const [store] = useState(() => createDocumentStore(editorAssets));
   const [active, setActive] = useState<Active | null>(null);
+  const [signedOut, setSignedOut] = useState(false);
   const current = useRef<Active | null>(null);
   const retained = useRef<{ accountId: string; recovery: RecoverySession } | null>(null);
   const [candidate, setCandidate] = useState<Candidate | null>(null);
@@ -217,6 +230,10 @@ function ServerProjectSession({
       try {
         const identity = await accounts.getSession();
         if (controller.signal.aborted) return;
+        if (!identity && !retained.current) {
+          setSignedOut(true);
+          return;
+        }
         if (!identity || identity.mustChangePassword)
           throw new Error("Sign in before opening this project.");
         if (retained.current && identity.userId !== retained.current.accountId)
@@ -294,6 +311,8 @@ function ServerProjectSession({
             ? null
             : { accountId: owner.accountId, recovery: owner.session.getRecovery() };
           setLoading(false);
+          // Redirect only after the account-scoped recovery copy is safely stored.
+          if (!identity && preserved?.ok) setSignedOut(true);
           setError(
             preserved?.ok
               ? "Your account changed or expired. Sign in with the original account to reopen your retained draft."
@@ -428,6 +447,7 @@ function ServerProjectSession({
     });
   }
 
+  if (signedOut) return <LoginRedirect />;
   return (
     <div className="server-editor-shell">
       {active ? (

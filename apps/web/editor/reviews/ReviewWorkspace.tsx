@@ -50,65 +50,74 @@ export function ReviewWorkspace({ session }: { session: AccountSession }) {
     );
   }
   return (
-    <div className="sp-reviews">
-      <p>
-        {session.role === "Creator"
-          ? "Submit a saved class project and read your educator’s feedback."
-          : "Choose a class and student to review their submitted revision."}
-      </p>
-      {error && (
-        <div role="alert">
-          <p>{error}</p>
-          <Button
-            onClick={() => {
-              setError("");
-              setLoading(true);
-              setAttempt((a) => a + 1);
-            }}
-          >
-            Retry class list
-          </Button>
-        </div>
-      )}
-      {loading ? (
-        <p role="status">Loading your classes…</p>
-      ) : !error && classes.length === 0 ? (
-        <p>No classes are available to your account.</p>
-      ) : (
-        <Field id="review-class" label="Class">
-          <select
-            id="review-class"
-            value={classId}
-            disabled={guard.pending || !!error}
-            onChange={(e) => {
-              if (canLeave()) {
-                setGuard(emptyGuard);
-                setClassId(e.target.value);
-              }
-            }}
-          >
-            <option value="">Choose a class</option>
-            {classes.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        </Field>
-      )}
-      {classId && (
-        <ClassReviews
-          key={classId}
-          client={client}
-          classId={classId}
-          session={session}
-          className={classes.find((c) => c.id === classId)?.name ?? ""}
-          guard={guard}
-          canLeave={canLeave}
-          onGuard={setGuard}
-        />
-      )}
-    </div>
+    <section className="sp-review-workspace" aria-label="Submissions and reviews">
+      <div className="sp-page-heading">
+        <h1>Submission review</h1>
+        <p>
+          {session.role === "Creator"
+            ? "Submit a saved class project and read your educator’s feedback."
+            : "Choose a class and student to review their submitted revision."}
+        </p>
+      </div>
+      <div className="sp-reviews">
+        {error && (
+          <div role="alert">
+            <p>{error}</p>
+            <Button
+              onClick={() => {
+                setError("");
+                setLoading(true);
+                setAttempt((a) => a + 1);
+              }}
+            >
+              Retry class list
+            </Button>
+          </div>
+        )}
+        {loading ? (
+          <p className="sp-list-empty" role="status">
+            Loading your classes…
+          </p>
+        ) : !error && classes.length === 0 ? (
+          <p className="sp-list-empty" role="status">
+            No classes are available to your account.
+          </p>
+        ) : (
+          <Field id="review-class" label="Class">
+            <select
+              id="review-class"
+              value={classId}
+              disabled={guard.pending || !!error}
+              onChange={(e) => {
+                if (canLeave()) {
+                  setGuard(emptyGuard);
+                  setClassId(e.target.value);
+                }
+              }}
+            >
+              <option value="">Choose a class</option>
+              {classes.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+        )}
+        {classId && (
+          <ClassReviews
+            key={classId}
+            client={client}
+            classId={classId}
+            session={session}
+            className={classes.find((c) => c.id === classId)?.name ?? ""}
+            guard={guard}
+            canLeave={canLeave}
+            onGuard={setGuard}
+          />
+        )}
+      </div>
+    </section>
   );
 }
 

@@ -21,7 +21,8 @@ CI builds `dev` with `NODE_ENV=development` and Vite's `development` mode, inclu
 **Open sample project** and framework development diagnostics. `main` uses
 `NODE_ENV=production` and `production` mode. Manual runs use the selected supported
 branch's mode. Both images contain built static files served by Caddy, with the same
-health checks and access gate. Recovery depends on whether the release includes the
+health checks. Account access is handled by Spatia's login and API session checks.
+Recovery depends on whether the release includes the
 server stack; see [Deploy and recover](#deploy-and-recover).
 Existing images keep their original build mode. After these workflow changes reach
 `dev` or `main`, deploy a new successful CI run to apply the branch's build mode.
@@ -286,8 +287,8 @@ bypass these controls, or blindly restore a backup: migrations are not reversed 
 restoring a backup can discard later writes. Database restoration requires a reviewed
 procedure during downtime. Keep backups outside the VM as well.
 
-The existing HTTPS gateway and team login remain in place. API and database services
-are not exposed directly.
+The existing HTTPS gateway remains in place. Spatia accounts provide sign-in, and API
+and database services are not exposed directly.
 
 The application Caddy HTTP listener accepts forwarded headers only from the explicit
 application bridge gateway address (`SERVER_NETWORK_PREFIX`.1/32); it resolves the
@@ -297,18 +298,24 @@ HTTPS listener does not trust forwarded client headers. Preserve the outer gatew
 header sanitization and the loopback-only port binding; verify the observed bridge peer
 and forwarding behavior in the target Linux Docker environment before deployment.
 
-`/healthz` and `/version.txt` expose only liveness and the deployed commit. The rest of both
-sites initially requires a team login because the current asset catalogue is explicitly
-development-only and distribution rights remain unconfirmed. Keep this gate until that
-review is resolved. This gate is not the future application account system.
+`/healthz` and `/version.txt` expose only liveness and the deployed commit. The login page
+and UI bundles are public. Project data, administration data and the bundled development
+catalogue require an authenticated API session. Both build modes emit catalogue media and
+thumbnails under `/restricted-assets/`; the image moves them to `/srv-restricted`, outside
+the public `/srv` file root. `server.Caddyfile` checks `/api/auth/asset-access` before
+forwarding any catalogue request to the web service's private port 8081. Anonymous,
+expired, disabled and password-change-only sessions cannot read those bytes. All catalogue
+responses use `Cache-Control: private, no-store`, including HEAD and range requests.
 
-The initial login is stored only on the VM in an owner-readable file. Retrieve it in your
-own SSH terminal; do not paste it into GitHub or chat:
-
-```sh
-ssh team32@51.79.242.181
-cat ~/vthere-access.txt
-```
+Keep the web service's port 8081 unpublished. The standalone `compose.yaml` stack exposes
+only public UI files and cannot serve the catalogue; use `compose.server.yaml` for signed-in
+asset access. Vite's local development/preview server is not the deployment access boundary.
+Run `node apps/web/tests/restricted-catalogue.check.mjs` to check both build modes, and after
+an editor build run `CADDY_BINARY=/path/to/caddy node deploy/restricted-assets.check.mjs` to
+verify direct byte denial and authenticated delivery with the pinned Caddy version.
+CI also checks the real image's separate roots and an anonymous GLB request against the
+API stack. These access controls do not approve redistribution: SCRUM-73 still requires
+redistribution-ready replacements before the development catalogue is publication-ready.
 
 ## VM setup
 
@@ -325,14 +332,29 @@ and [Caddy TLS configuration](https://caddyserver.com/docs/caddyfile/directives/
 
 Create a private gateway directory on the VM and copy `deploy/gateway.compose.yaml`,
 `deploy/gateway.Caddyfile` and `deploy/.env.example` there. Rename the example to `.env`,
-set the address/login and generate the password hash with the pinned Caddy image's
-`caddy hash-password` command. Preserve single quotes around the hash in `.env` so Compose
-does not interpolate its dollar signs. Keep the password outside Git and restrict the file
-to its owner. Start the gateway from that directory:
+set `SITE_IP` and restrict the file to its owner. The app's `/login` page handles
+sign-in; the gateway does not add HTTP Basic authentication. Protected account
+pages redirect confirmed signed-out sessions to `/login`, while API requests retain
+their normal 401/403 responses. Start the gateway from that directory:
 
 ```sh
 docker compose -f gateway.compose.yaml up -d
 ```
+
+When upgrading a gateway that used `SITE_USER` and `SITE_PASSWORD_HASH`, first deploy
+the matching web image, API and `server.Caddyfile` with restricted catalogue access.
+Verify through the application gateway that a signed-out direct
+`/restricted-assets/<hash>.glb` request returns 401 without a `WWW-Authenticate` challenge,
+an authenticated request succeeds, and the response has `private, no-store`. Only then copy
+both updated outer gateway files to this directory and recreate the gateway service:
+
+```sh
+docker compose -f gateway.compose.yaml up -d --force-recreate gateway
+```
+
+The ordinary app deployment does not update this separate host gateway. Do not remove
+the shared gate while an older image still serves catalogue files from public `/assets/`.
+Updating frontend redirects alone cannot protect bytes or remove an older gateway's prompt.
 
 Use a dedicated `vthere-runner` account for the self-hosted runner, with Docker access and
 the custom `vthere-deploy` label. Install it as a system service using GitHub's runner setup

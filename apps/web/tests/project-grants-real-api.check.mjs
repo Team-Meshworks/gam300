@@ -26,7 +26,7 @@ try {
   await page.waitForURL(`${origin}/home`);
   await page.getByRole("link", { name: "Accounts", exact: true }).click();
   await page.waitForURL(`${origin}/accounts`);
-  await page.getByRole("link", { name: "Home", exact: true }).click();
+  await page.getByRole("link", { name: "Projects", exact: true }).click();
   await page.waitForURL(`${origin}/home`);
   await page.getByRole("link", { name: "Dashboard", exact: true }).click();
   await page.waitForURL(`${origin}/admin/dashboard`);

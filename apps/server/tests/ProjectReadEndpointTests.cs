@@ -4,9 +4,13 @@ using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.FileProviders;
 using Spatia.Server.Accounts;
 using Spatia.Server.Persistence;
 using Spatia.Server.Projects;
@@ -278,7 +282,21 @@ public sealed class ProjectReadEndpointTests
     [Test]
     public async Task Browser_ProjectListOpenAndAccountSwitchUseCurrentSession()
     {
-        await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
+        await using var fixture = await HttpsApplicationFixture.CreateAsync(map: app =>
+        {
+            // Stream the built editor over the fixture's HTTPS origin. Sending large GLBs
+            // through Playwright route.fulfill exceeds Chrome's DevTools message capacity.
+            // This child directory is private to this test and cleaned up with the fixture.
+            var editorDirectory = System.IO.Path.Combine(app.Configuration["DataProtection:KeyDirectory"]!, "editor-static");
+            Directory.CreateDirectory(editorDirectory);
+            var files = new PhysicalFileProvider(editorDirectory);
+            app.Lifetime.ApplicationStopped.Register(files.Dispose);
+            var contentTypes = new FileExtensionContentTypeProvider();
+            contentTypes.Mappings[".glb"] = "model/gltf-binary";
+            // The application's real session authorization runs before this middleware.
+            app.UseStaticFiles(new StaticFileOptions { FileProvider = files, ContentTypeProvider = contentTypes });
+            app.MapGet("/_test/editor", () => Results.File(System.IO.Path.Combine(editorDirectory, "index.html"), "text/html"));
+        }, environmentName: "Development");
         var first = await fixture.CreateAccountAsync();
         var second = await fixture.CreateAccountAsync();
         var firstProject = await SeedAsync(fixture, first);
@@ -318,6 +336,7 @@ public sealed class ProjectReadEndpointTests
         }));
         start.ArgumentList.Add(JsonSerializer.Serialize(new
         { userName = await AuthTestRequests.UserNameAsync(fixture, manager), userId = manager, organizationId = firstProject.OrganizationId }));
+        start.ArgumentList.Add(System.IO.Path.Combine(fixture.KeyDirectory, "editor-static"));
         using var process = Process.Start(start) ?? throw new InvalidOperationException("Could not start the project browser check.");
         var output = process.StandardOutput.ReadToEndAsync();
         var error = process.StandardError.ReadToEndAsync();
@@ -337,6 +356,7 @@ public sealed class ProjectReadEndpointTests
         }
         var browserOutput = await output;
         await Assert.That(browserOutput.Contains("browser project list/open/session switch passed", StringComparison.Ordinal)).IsTrue();
+        await Assert.That(browserOutput.Contains("largest catalogue asset streamed over HTTPS", StringComparison.Ordinal)).IsTrue();
         await Assert.That(string.IsNullOrWhiteSpace(await error)).IsTrue();
         await File.WriteAllTextAsync(System.IO.Path.Combine(serverDirectory, ".artifacts/scrum45-part7-browser-version.txt"), browserOutput);
     }

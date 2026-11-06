@@ -12,6 +12,17 @@ export interface ManagedOrganization {
   name: string;
   isActive: boolean;
 }
+export interface OrganizationDeletion {
+  id: string;
+  name: string;
+  accounts: number;
+  classes: number;
+  assignments: number;
+  projects: number;
+  submissions: number;
+  reviews: number;
+  publications: number;
+}
 export interface ManagedProject {
   id: string;
   title: string;
@@ -41,26 +52,35 @@ function account(value: unknown): ManagedAccount {
     throw new Error("The account service returned an invalid account.");
   return value as unknown as ManagedAccount;
 }
-export function createDirectoryClient(request: typeof fetch = fetch) {
+export function createDirectoryClient(request: typeof fetch = fetch, accountId?: string) {
   async function send(path: string, init: RequestInit = {}): Promise<unknown> {
     let response: Response;
     try {
       response = await request(path, {
         ...init,
+        ...(accountId ? { headers: { ...init.headers, "X-Spatia-Account": accountId } } : {}),
         credentials: "same-origin",
         cache: "no-store",
         signal: AbortSignal.timeout(15000),
       });
     } catch {
       throw new Error(
-        init.method
-          ? "The save could not be confirmed. Close this window and refresh the directory before trying again."
-          : "The directory could not be reached. Please try again.",
+        init.method === "DELETE"
+          ? "Deletion could not be confirmed. Close this window and refresh the directory before trying again."
+          : init.method
+            ? "The save could not be confirmed. Close this window and refresh the directory before trying again."
+            : "The directory could not be reached. Please try again.",
       );
     }
     if (!response.ok) {
       const problem: unknown = await response.json().catch(() => null);
       const messages: Record<string, string> = {
+        organization_confirmation_required:
+          "Enter the organisation name exactly as shown to confirm deletion.",
+        organization_not_found:
+          "This organisation no longer exists. Close this window and refresh the directory.",
+        organization_delete_conflict:
+          "Nothing was deleted. Records changed or are linked outside this organisation. Refresh the directory before trying again.",
         username_taken: "That username is already taken. Choose another username.",
         account_role_in_use:
           "This account has class or assignment history, so its account type cannot be changed.",
@@ -120,6 +140,30 @@ export function createDirectoryClient(request: typeof fetch = fetch) {
     return items;
   }
   return {
+    deletion: async (orgId: string): Promise<OrganizationDeletion> => {
+      const value = await send(`/api/admin/organizations/${encodeURIComponent(orgId)}/deletion`);
+      if (
+        !record(value) ||
+        value.id !== orgId ||
+        typeof value.name !== "string" ||
+        !value.name ||
+        ![
+          "accounts",
+          "classes",
+          "assignments",
+          "projects",
+          "submissions",
+          "reviews",
+          "publications",
+        ].every((key) => Number.isSafeInteger(value[key]) && (value[key] as number) >= 0)
+      )
+        throw new Error("The deletion details could not be verified. Refresh before trying again.");
+      return value as unknown as OrganizationDeletion;
+    },
+    deleteOrganization: (orgId: string, confirmationName: string) =>
+      write(`/api/admin/organizations/${encodeURIComponent(orgId)}`, "DELETE", {
+        confirmationName,
+      }),
     organizations: () =>
       list("/api/admin/organizations", (value): ManagedOrganization => {
         if (

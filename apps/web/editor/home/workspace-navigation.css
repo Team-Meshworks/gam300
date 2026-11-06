@@ -1,0 +1,15 @@
+.sp-home-navigation {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 30px;
+}
+.sp-home-navigation a {
+  color: var(--sp-ink);
+  text-decoration: none;
+  text-align: center;
+}
+.sp-home-navigation .sp-button[aria-current="page"] {
+  background: var(--sp-ink);
+  color: white;
+}

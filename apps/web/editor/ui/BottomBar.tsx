@@ -96,7 +96,8 @@ export function BottomBar({
   );
   // Only one tool selected at a time. Library start closed now since its a big pop up
   const [selected, setSelected] = useState<SceneTool | null>(null);
-  const libraryOpen = selected === "library";
+  const roomsOpen = selected === "rooms";
+  const libraryOpen = selected === "library" || roomsOpen;
   const [draggingAsset, setDraggingAsset] = useState(false);
   const [picked, setPicked] = useState<Record<Category, number>>({
     rooms: 0,
@@ -173,6 +174,10 @@ export function BottomBar({
 
   // Display tools open their concrete choices immediately; selecting one uses normal placement.
   function chooseCategory(event: MouseEvent<HTMLButtonElement>, id: Category) {
+    if (id === "rooms") {
+      select(roomsOpen ? null : "rooms");
+      return;
+    }
     if (popup?.id === id) return setPopup(null);
     setSelected(id);
     openPopup(event.currentTarget, id);
@@ -242,12 +247,15 @@ export function BottomBar({
           style={draggingAsset ? { visibility: "hidden" } : undefined}
         >
           <AssetPicker
-            assets={assets.filter(
-              (asset) =>
-                asset.id !== "test-room-module-v1" &&
-                asset.kind !== "environment" &&
-                !asset.displayRole &&
-                !furnitureTools.some((tool) => tool.assetId === asset.id),
+            key={roomsOpen ? "rooms" : "assets"}
+            mode={roomsOpen ? "rooms" : "assets"}
+            assets={assets.filter((asset) =>
+              roomsOpen
+                ? asset.kind === "environment"
+                : asset.id !== "test-room-module-v1" &&
+                  asset.kind !== "environment" &&
+                  !asset.displayRole &&
+                  !furnitureTools.some((tool) => tool.assetId === asset.id),
             )}
             ready={ready}
             thumbnailFor={thumbnailFor}
@@ -386,10 +394,10 @@ export function BottomBar({
               className="ui-button"
               type="button"
               aria-label="Asset library"
-              aria-pressed={libraryOpen}
+              aria-pressed={selected === "library"}
               aria-controls="asset-panel"
-              onClick={() => select(libraryOpen ? null : "library")}
-              {...toolTip.handlers(libraryOpen ? "Hide asset library" : "Asset library")}
+              onClick={() => select(selected === "library" ? null : "library")}
+              {...toolTip.handlers(selected === "library" ? "Hide asset library" : "Asset library")}
             >
               <Icon name="library" />
             </button>
@@ -421,7 +429,7 @@ export function BottomBar({
                 aria-label={category.label}
                 data-category={category.id}
                 aria-pressed={selected === category.id}
-                aria-expanded={popup?.id === category.id}
+                aria-expanded={category.id === "rooms" ? roomsOpen : popup?.id === category.id}
                 onClick={(event) => chooseCategory(event, category.id)}
                 {...toolTip.handlers(category.label)}
               >

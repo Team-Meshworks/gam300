@@ -111,10 +111,11 @@ try {
   });
   account = null;
   await page.goto(origin + "/home");
-  await page.getByRole("heading", { name: "Log in to your workspace" }).waitFor();
-  assert.equal(await page.getByRole("heading", { name: "The Silk Road" }).count(), 0);
+  await page.waitForURL(origin + "/login");
+  await page.getByRole("heading", { name: "Welcome back." }).waitFor();
+  assert.equal(await page.locator(".sp-home-project-card").count(), 0);
   account = { ...session, mustChangePassword: true };
-  await page.reload();
+  await page.goto(origin + "/home");
   await page.getByRole("heading", { name: "Change your password to continue" }).waitFor();
   account = session;
   if (process.argv[3] === "legacy-routes") {
@@ -279,7 +280,8 @@ try {
     await page.getByRole("button", { name: "Retry", exact: true }).click();
     await page.getByRole("heading", { name: "Student draft" }).waitFor();
     await page.getByRole("button", { name: "Log Out", exact: true }).click();
-    await page.getByRole("heading", { name: "Log in to your workspace" }).waitFor();
+    await page.waitForURL(origin + "/login");
+    await page.getByRole("heading", { name: "Welcome back." }).waitFor();
     assert.equal(await page.getByRole("heading", { name: "Student draft" }).count(), 0);
     assert.deepEqual(errors, []);
     console.log(

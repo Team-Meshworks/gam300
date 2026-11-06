@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { createAccountClient, type AccountSession } from "../accounts/account-client";
+import { LoginRedirect } from "../accounts/LoginRedirect";
 import { WorkspaceShell } from "../../shared/ui/WorkspaceShell";
 import { Button } from "../../shared/ui/Button";
 import { Dialog } from "../../shared/ui/Dialog";
 import { ProjectHome } from "./ProjectHome";
 import { ClassHome } from "./ClassHome";
+import { WorkspaceNavigation } from "./WorkspaceNavigation";
 import { AssignmentCreationScreen } from "../projects/AssignmentScreens";
 import type { FormNavigationState } from "../projects/NewProjectForm";
 import "./home.css";
@@ -90,8 +92,14 @@ export function HomePage() {
       )}
       {!checking && !error && (!session || session.mustChangePassword) && (
         <div className="sp-home-gate">
-          <h1>{session ? "Change your password to continue" : "Log in to your workspace"}</h1>
-          <a href="/login">Go to login</a>
+          {session ? (
+            <>
+              <h1>Change your password to continue</h1>
+              <a href="/login">Go to login</a>
+            </>
+          ) : (
+            <LoginRedirect />
+          )}
         </div>
       )}
       {workspaceSession && (
@@ -155,60 +163,14 @@ function HomeWorkspace({
       onHome={() => navigate(() => setView("projects"))}
       onSignOut={() => navigate(onSignOut)}
     >
-      <nav aria-label="Workspace" className="sp-home-navigation">
-        <Button
-          disabled={navigation.locked}
-          aria-current={view === "projects" ? "page" : undefined}
-          onClick={() => navigate(() => setView("projects"))}
-        >
-          Projects
-        </Button>
-        <Button
-          disabled={navigation.locked}
-          aria-current={view === "classes" ? "page" : undefined}
-          onClick={() => navigate(() => setView("classes"))}
-        >
-          Classes
-        </Button>
-        {session.role === "Administrator" && (
-          <>
-            <a
-              className="sp-button"
-              href="/accounts"
-              aria-disabled={navigation.locked}
-              onClick={(event) => {
-                event.preventDefault();
-                navigate(() => location.assign("/accounts"));
-              }}
-            >
-              Accounts
-            </a>
-            <a
-              className="sp-button"
-              href="/admin/dashboard"
-              aria-disabled={navigation.locked}
-              onClick={(event) => {
-                event.preventDefault();
-                navigate(() => location.assign("/admin/dashboard"));
-              }}
-            >
-              Dashboard
-            </a>
-          </>
-        )}
-        {session.role !== "Administrator" && (
-          <a
-            className="sp-button"
-            href="/review"
-            onClick={(event) => {
-              event.preventDefault();
-              navigate(() => location.assign("/review"));
-            }}
-          >
-            Submissions and reviews
-          </a>
-        )}
-      </nav>
+      <WorkspaceNavigation
+        role={session.role}
+        current={view}
+        locked={navigation.locked}
+        onNavigate={navigate}
+        onProjects={() => setView("projects")}
+        onClasses={() => setView("classes")}
+      />
       {view === "projects" ? (
         <ProjectHome
           session={session}

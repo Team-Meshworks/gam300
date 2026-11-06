@@ -16,9 +16,9 @@
 		reverse_proxy {args[0]}
 	}
 	handle {
-		basic_auth {
-			{$SITE_USER} {$SITE_PASSWORD_HASH}
-		}
+		# Spatia's /login and authenticated API own account access.
+		# An extra HTTP Basic challenge would show the browser's password popup.
+		# server.Caddyfile also authorizes restricted catalogue bytes before serving them.
 		reverse_proxy {args[0]}
 	}
 }

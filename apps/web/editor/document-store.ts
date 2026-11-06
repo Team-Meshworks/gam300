@@ -994,7 +994,15 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
         {
           ...project,
           scenes: project.scenes.map((s) =>
-            s.id === state.activeSceneId ? { ...s, environmentAssetId: assetId } : s,
+            s.id === state.activeSceneId
+              ? {
+                  ...s,
+                  environmentAssetId: assetId,
+                  ...(s.environmentVisible === false && assetId !== null
+                    ? { environmentVisible: true }
+                    : {}),
+                }
+              : s,
           ),
         },
         state.activeSceneId!,
@@ -1200,6 +1208,12 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
         };
       }
       const kinds = new Map(assets.map((asset) => [asset.id, asset.kind]));
+      // Keep the complete supplied layout visible at its original metre scale.
+      const bounds =
+        environment.placement === "bottom-center" ? environment.boundsMeters : undefined;
+      const overviewScale = bounds
+        ? Math.max(1, (bounds.max[0] - bounds.min[0]) / 10, (bounds.max[2] - bounds.min[2]) / 10)
+        : 1;
 
       // Fresh IDs keep this scene separate from earlier projects and their browser backups
       const candidate: ProjectDocument = {
@@ -1212,10 +1226,9 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
             name: environment.name,
             environmentAssetId,
 
-            // Same elevated overview used by the sample project
-            // Environments sit at the origin; the format has no movable room transform
+            // Scale the sample's elevated overview to the normalized environment footprint.
             startCamera: {
-              position: [12, 16, 18],
+              position: [12 * overviewScale, 16 * overviewScale, 18 * overviewScale],
               rotation: [
                 -0.29962059992658957, 0.2752183320355054, 0.09071781822041597, 0.9089844021041025,
               ],

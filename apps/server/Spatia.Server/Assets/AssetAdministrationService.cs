@@ -84,11 +84,11 @@ public sealed class AssetAdministrationService(ApplicationDbContext database, As
     public async Task<AssetAdministrationRecord?> ReviewAsync(Guid id, AssetReviewRequest review, Guid actor, CancellationToken token)
     {
 
-        // A successful parser never substitutes for the explicit source, rights and content review
+        // Record the explicit administrator decision; omitted details use empty strings for the stored approval contract
         var changed = await database.AssetCandidates.Where(asset => asset.Id == id && !asset.Deleted && asset.Status == "pending")
             .ExecuteUpdateAsync(update => update.SetProperty(asset => asset.Status, "approved")
-                .SetProperty(asset => asset.Hidden, false).SetProperty(asset => asset.Source, review.Source)
-                .SetProperty(asset => asset.License, review.License).SetProperty(asset => asset.ReviewNotes, review.ReviewNotes)
+                .SetProperty(asset => asset.Hidden, false).SetProperty(asset => asset.Source, review.Source ?? "")
+                .SetProperty(asset => asset.License, review.License ?? "").SetProperty(asset => asset.ReviewNotes, review.ReviewNotes ?? "")
                 .SetProperty(asset => asset.ReviewedBy, actor), token);
 
         // Return the persisted record so the client replaces its state only after the database accepts review

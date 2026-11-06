@@ -79,3 +79,68 @@ it("does not retry an unconfirmed write automatically", async () => {
   ).rejects.toThrow("refresh the directory");
   expect(request).toHaveBeenCalledTimes(2);
 });
+
+const deletion = {
+  id: user.orgId,
+  name: "Ridgeview",
+  accounts: 3,
+  classes: 1,
+  assignments: 2,
+  projects: 4,
+  submissions: 2,
+  reviews: 1,
+  publications: 1,
+};
+it("loads deletion counts and requires a valid summary for the selected organisation", async () => {
+  const request = vi.fn<typeof fetch>().mockResolvedValue(json(deletion));
+  expect(await createDirectoryClient(request).deletion(user.orgId)).toEqual(deletion);
+  for (const invalid of [
+    { ...deletion, id: user.userId },
+    { ...deletion, accounts: -1 },
+    { ...deletion, projects: 0.5 },
+    { ...deletion, publications: null },
+  ]) {
+    request.mockResolvedValueOnce(json(invalid));
+    await expect(createDirectoryClient(request).deletion(user.orgId)).rejects.toThrow();
+  }
+});
+it("binds deletion and its fresh CSRF token to the administrator who opened the screen", async () => {
+  const request = vi
+    .fn<typeof fetch>()
+    .mockResolvedValueOnce(json({ requestToken: "csrf" }))
+    .mockResolvedValueOnce(new Response(null, { status: 204 }));
+  await createDirectoryClient(request, user.userId).deleteOrganization(user.orgId, deletion.name);
+  expect(request.mock.calls[0]?.[1]).toMatchObject({
+    headers: { "X-Spatia-Account": user.userId },
+  });
+  expect(request.mock.calls[1]).toEqual([
+    `/api/admin/organizations/${user.orgId}`,
+    expect.objectContaining({
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRF-TOKEN": "csrf",
+        "X-Spatia-Account": user.userId,
+      },
+      body: JSON.stringify({ confirmationName: deletion.name }),
+      credentials: "same-origin",
+      cache: "no-store",
+    }),
+  ]);
+});
+it("reports deletion conflicts and never retries an uncertain delete", async () => {
+  const request = vi
+    .fn<typeof fetch>()
+    .mockResolvedValueOnce(json({ requestToken: "csrf" }))
+    .mockResolvedValueOnce(json({ code: "organization_delete_conflict" }, 409))
+    .mockResolvedValueOnce(json({ requestToken: "csrf" }))
+    .mockRejectedValueOnce(new Error("network"));
+  const client = createDirectoryClient(request);
+  await expect(client.deleteOrganization(user.orgId, deletion.name)).rejects.toThrow(
+    "Nothing was deleted",
+  );
+  await expect(client.deleteOrganization(user.orgId, deletion.name)).rejects.toThrow(
+    "Deletion could not be confirmed",
+  );
+  expect(request).toHaveBeenCalledTimes(4);
+});

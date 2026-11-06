@@ -16,6 +16,11 @@ export type CatalogueAsset = Readonly<{
   sha256: string;
   thumbnail: string | null;
   placement?: "bottom-center";
+  // Measured source bounds; normalized environments use their size for the initial overview.
+  boundsMeters?: Readonly<{
+    min: readonly [number, number, number];
+    max: readonly [number, number, number];
+  }>;
   displayRole?: "physical" | "digital";
   category?: string;
   durationSeconds?: number;

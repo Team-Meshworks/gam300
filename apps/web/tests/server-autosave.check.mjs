@@ -202,6 +202,26 @@ try {
   await saved();
   assert.equal(document.scenes[0].name, "Newer edit while saving");
 
+  // Expiry redirects only after preserving unsynced edits for the original account.
+  mode = "failed";
+  await edit("Draft retained after sign-out");
+  await status.filter({ hasText: "Save failed" }).waitFor();
+  account = null;
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await page.waitForURL(`${base}/login`);
+  await page.getByRole("heading", { name: "Welcome back.", exact: true }).waitFor();
+  account = alice;
+  mode = "saved";
+  await page.goto(url);
+  await page.getByRole("button", { name: "Recover my edits", exact: true }).click();
+  await ready();
+  assert.equal(
+    await page.getByLabel("Scene name", { exact: true }).inputValue(),
+    "Draft retained after sign-out",
+  );
+  await saved();
+  assert.equal(document.scenes[0].name, "Draft retained after sign-out");
+
   // A failed local checkpoint blocks both saving and recovery-based departure.
   await page.evaluate(() => {
     const put = IDBObjectStore.prototype.put;
@@ -234,7 +254,7 @@ try {
   });
   await edit("Only live draft after expiry");
   await status.filter({ hasText: "Save failed" }).waitFor();
-  account = bob;
+  account = null;
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
   await page.getByRole("alert").filter({ hasText: "recovery storage failed" }).waitFor();
   assert.equal(
@@ -248,7 +268,8 @@ try {
 
   assert.equal(await page.locator(".editor-shell").count(), 0);
   await page.getByRole("button", { name: "Retry opening" }).click();
-  await page.getByRole("alert").filter({ hasText: "original account" }).waitFor();
+  await page.getByRole("alert").filter({ hasText: "Sign in before opening" }).waitFor();
+  assert.equal(page.url(), url, "A failed recovery write must keep the only draft in this tab");
   assert.equal(await page.locator(".editor-shell").count(), 0);
   account = alice;
   await page.evaluate(() => {
@@ -330,7 +351,7 @@ try {
   assert.equal(account, null);
   assert.deepEqual(errors, []);
   console.log(
-    "Actual editor autosave, fresh open, retry identity, conflict/recovery choices, cancelled export/logout, delayed acknowledgements, storage failure, successful logout and account isolation passed.",
+    "Actual editor autosave, fresh open, retry identity, conflict/recovery choices, cancelled export/logout, delayed acknowledgements, expiry redirects with draft recovery, storage failure, successful logout and account isolation passed.",
   );
 } finally {
   await browser.close();

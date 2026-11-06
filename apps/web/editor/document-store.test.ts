@@ -6,6 +6,66 @@ import { createDocumentStore } from "./document-store.ts";
 
 afterEach(() => vi.restoreAllMocks());
 
+it("preserves whole-room variants, exhibits and transforms through replacement, undo and reload", () => {
+  const assets: CatalogueAsset[] = ["room-space1-v1", "room-doors-1-v1", "test-crate-v1"].map(
+    (id) => ({
+      id,
+      name: id,
+      kind: id === "test-crate-v1" ? "model" : "environment",
+      url: `${id}.glb`,
+      sha256: "0".repeat(64),
+      thumbnail: null,
+      ...(id.startsWith("room-")
+        ? {
+            placement: "bottom-center" as const,
+            boundsMeters: { min: [7, 0, -57] as const, max: [37, 4, -33] as const },
+          }
+        : {}),
+    }),
+  );
+  const store = createDocumentStore(assets);
+  assert.equal(store.createProject("room-space1-v1").ok, true);
+  assert.deepEqual(store.getSnapshot().project!.scenes[0]!.startCamera.position, [36, 48, 54]);
+  const id = store.getSnapshot().activeSceneId!;
+  const crate = store.addObject("test-crate-v1", [1, 0, 2]);
+  if (!crate.ok) throw Error(crate.error);
+  assert.equal(
+    store.setSelectionTransform([id], id, {
+      position: [3, 0, 4],
+      rotation: [0, 0, 0, 1],
+      scale: [1, 1, 1],
+    }).ok,
+    true,
+  );
+  const before = store.getSnapshot().project!;
+  assert.deepEqual(before.scenes[0]!.objects[0]!.transform.position, [4, 0, 6]);
+  assert.equal(
+    store.setSelectionTransform([id], id, {
+      position: [3, 0, 4],
+      rotation: [0, 0, 0, 1],
+      scale: [2, 2, 2],
+    }).ok,
+    false,
+  );
+  assert.equal(store.setEnvironment("room-doors-1-v1").ok, true);
+  const changed = store.getSnapshot().project!;
+  assert.deepEqual(changed.scenes[0]!.objects, before.scenes[0]!.objects);
+  assert.deepEqual(changed.scenes[0]!.environmentTransform, before.scenes[0]!.environmentTransform);
+  store.undo();
+  assert.equal(store.getSnapshot().project!.scenes[0]!.environmentAssetId, "room-space1-v1");
+  store.redo();
+  const kinds = new Map(assets.map((asset) => [asset.id, asset.kind]));
+  const saved = serializeProject(store.getSnapshot().project!, kinds);
+  if (!saved.ok) throw Error(saved.error.message);
+  const restored = createDocumentStore(assets);
+  assert.equal(restored.loadProject(saved.value, kinds).ok, true);
+  assert.deepEqual(restored.getSnapshot().project, changed);
+  assert.equal(store.deleteObject(id).ok, true);
+  assert.equal(store.getSnapshot().project!.scenes[0]!.environmentVisible, false);
+  assert.equal(store.setEnvironment("room-space1-v1").ok, true);
+  assert.equal(store.getSnapshot().project!.scenes[0]!.environmentVisible, true);
+});
+
 it.each([
   [0, "00000000-0000-7cc3-98c4-dc0c0c07398f"],
   // RFC 9562 Appendix A.6 test vector

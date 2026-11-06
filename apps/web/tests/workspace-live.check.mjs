@@ -101,7 +101,8 @@ try {
   assert.notEqual(teacherDetails.projects[0].projectId, teacherDetails.projects[1].projectId);
   await page.screenshot({ path: `${snapshots}/live-teacher-assignment.png`, fullPage: true });
   await page.getByRole("button", { name: "Log Out", exact: true }).click();
-  await page.getByRole("heading", { name: "Log in to your workspace" }).waitFor();
+  await page.waitForURL(`${origin}/login`);
+  await page.getByRole("heading", { name: "Welcome back." }).waitFor();
   await login(data.alice);
   await page.getByRole("button", { name: "Classes", exact: true }).click();
   await page.getByRole("button", { name: "Live class assignment", exact: true }).click();

@@ -118,12 +118,34 @@ try {
   await screen("review", "Submission review");
   assert.equal(await page.getByRole("link", { name: "New class assignment" }).count(), 0);
   mode = "anonymous";
-  await page.goto(`${origin}/classes`);
-  await page
-    .getByRole("link", { name: /log\s?in|sign in/i })
-    .first()
-    .waitFor();
-  assert.equal(await page.getByRole("heading", { name: "Classes", exact: true }).count(), 0);
+  for (const path of [
+    "home",
+    "classes",
+    "new-project",
+    "review",
+    "publish",
+    "accounts",
+    "assets",
+    "spaces",
+    "admin/dashboard",
+    "?projectId=aefea67c-caca-4300-923c-937f1c785578",
+  ]) {
+    await page.goto(`${origin}/${path}`);
+    await page.waitForURL(`${origin}/login`);
+    await page.getByRole("heading", { name: "Welcome back.", exact: true }).waitFor();
+    assert.equal(await page.locator(".sp-workspace, .editor-shell").count(), 0);
+  }
+  // Expiry on a mounted workspace redirects too, and Back skips the protected page.
+  mode = "Educator";
+  await screen("home", "Projects");
+  mode = "anonymous";
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await page.waitForURL(`${origin}/login`);
+  await page.goto(`${origin}/landing`);
+  await page.goto(`${origin}/home`);
+  await page.waitForURL(`${origin}/login`);
+  await page.goBack();
+  await page.waitForURL(`${origin}/landing`);
   mode = "unavailable";
   await page.goto(`${origin}/classes`);
   await page

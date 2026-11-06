@@ -7,6 +7,8 @@ assert.equal(target.protocol, "https:");
 assert.equal(target.hostname, "127.0.0.1");
 const accounts = JSON.parse(process.argv[3]);
 const manager = JSON.parse(process.argv[4]);
+const editorDirectory = process.argv[5];
+assert.ok(editorDirectory, "The HTTPS fixture must supply its private editor build directory");
 const origin = target.origin;
 // Bundle the actual editor coordinator into the existing authenticated browser fixture
 // No alternate saver or mock API is involved in this cross-browser recovery check
@@ -343,7 +345,7 @@ try {
   process.stdout.write("browser offline backup and durable historical retry passed\n");
   process.stdout.write("browser project list/open/session switch passed\n");
   const { checkServerEditor } = await import("./server-editor-browser.check.mjs");
-  await checkServerEditor(browser, origin, accounts, build, webRoot);
+  await checkServerEditor(browser, origin, accounts, build, webRoot, editorDirectory);
 } finally {
   await browser.close();
 }
