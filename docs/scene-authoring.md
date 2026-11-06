@@ -26,7 +26,7 @@ A recognized older browser session offers Import older browser backup. Reading i
 
 ## Deleting scenes and viewpoints
 
-Scene deletion requires confirmation, keeps at least one scene and removes the complete scene in one undo step. Undo restores its IDs, content, ordering and starting camera. If a rule references the scene or viewpoint, deletion is rejected rather than silently breaking the rule. Compound removal/restoration of dependent rules is a separate future task.
+Scene deletion requires confirmation, keeps at least one scene and removes the complete scene along with navigation links to it and their associated rules in one undo step. Undo restores the scene's IDs, content, ordering and starting camera, as well as those links and rules. Deleting a saved view also requires confirmation and removes its associated navigation points and rules; Undo restores them together.
 
 ## Manual check
 
@@ -36,4 +36,4 @@ Scene deletion requires confirmation, keeps at least one scene and removes the c
 4. Rename and reorder scenes and views. Choose a starting view; reorder again and verify the starting camera stays unchanged.
 5. Refresh after browser backup and check undo/redo. Save and reopen; check both scenes and starting cameras.
 6. Import an older scene file, choose any missing environments and save the conversion separately.
-7. Cancel scene deletion, then confirm it and test undo/redo. A referenced destination must reject deletion.
+7. Create navigation links and rules to a scene and a saved view. Cancel each deletion and verify everything remains. Confirm each deletion and verify its related links or navigation points and rules are removed; test Undo and Redo to verify they are restored and removed together.

@@ -65,6 +65,24 @@ export type ServerEditorSession = {
   publish: () => void;
 };
 
+function countSceneRules(
+  snapshot: ReturnType<ReturnType<typeof createDocumentStore>["getSnapshot"]>,
+): number {
+  const scene = snapshot.project?.scenes.find((entry) => entry.id === snapshot.activeSceneId);
+  const canonical =
+    snapshot.project?.schemaVersion === 2
+      ? (snapshot.project.scenes.find((entry) => entry.id === snapshot.activeSceneId)?.rules
+          .length ?? 0)
+      : 0;
+  return (scene?.interactions.length ?? 0) + canonical;
+}
+
+function removalNotice(label: string, removedRules: number): string {
+  return removedRules > 0
+    ? `${label} and ${removedRules} related ${removedRules === 1 ? "rule" : "rules"}. Undo restores everything.`
+    : `${label}. Undo restores it.`;
+}
+
 export function App({ server }: { server?: ServerEditorSession }) {
   const assets = server?.assets ?? developmentAssets;
   const selectionAssets = server?.selectionAssets ?? assets;
@@ -151,6 +169,13 @@ export function App({ server }: { server?: ServerEditorSession }) {
     // Every new message gets its own fade, even when the text repeats
     setFeedback((previous) => ({ text, sequence: previous.sequence + 1 }));
   }, []);
+  const reportRuleRemoval = (before: ReturnType<typeof store.getSnapshot>, label: string) => {
+    const removed = countSceneRules(before) - countSceneRules(store.getSnapshot());
+    if (removed > 0)
+      setNotice(
+        `${label}. Removed ${removed} related ${removed === 1 ? "rule" : "rules"}. Undo restores everything.`,
+      );
+  };
   useEffect(() => {
     const timer = setTimeout(() => {
       setFeedback((previous) => (previous.text ? { ...previous, text: "" } : previous));
@@ -336,7 +361,12 @@ export function App({ server }: { server?: ServerEditorSession }) {
       }
       setSelectedId(null);
       setError("");
-      setNotice("Audio removed. Undo restores it.");
+      setNotice(
+        removalNotice(
+          "Removed audio",
+          countSceneRules(current) - countSceneRules(store.getSnapshot()),
+        ),
+      );
       playUiSound("delete");
       return;
     }
@@ -352,28 +382,11 @@ export function App({ server }: { server?: ServerEditorSession }) {
       setError(result.error.message);
       return;
     }
-    const updated = store.getSnapshot().project;
-    const priorScene = current.project?.scenes.find((entry) => entry.id === current.activeSceneId);
-    const updatedScene = updated?.scenes.find((entry) => entry.id === current.activeSceneId);
-    const updatedRules =
-      updated?.schemaVersion === 2
-        ? (updated.scenes.find((entry) => entry.id === current.activeSceneId)?.rules.length ?? 0)
-        : 0;
-    const removedRules =
-      priorScene && updatedScene
-        ? priorScene.interactions.length +
-          (scene?.rules.length ?? 0) -
-          updatedScene.interactions.length -
-          updatedRules
-        : 0;
+    const removedRules = countSceneRules(current) - countSceneRules(store.getSnapshot());
     setError("");
     setHasDeleted(true);
     setSelectedId(null);
-    setNotice(
-      removedRules > 0
-        ? `Deleted ${result.value.name} and ${removedRules} related ${removedRules === 1 ? "rule" : "rules"}. Undo restores everything.`
-        : `Deleted ${result.value.name}. Undo restores it.`,
-    );
+    setNotice(removalNotice(`Deleted ${result.value.name}`, removedRules));
     playUiSound("delete");
   }, [store, selection, selectedId, visitor, setNotice]);
 
@@ -807,8 +820,16 @@ export function App({ server }: { server?: ServerEditorSession }) {
               : []
           }
           onHotspotRemove={(id) => {
+            const before = store.getSnapshot();
             const result = store.deleteHotspot(id);
             if (!result.ok) setNotice(result.error.message);
+            else
+              setNotice(
+                removalNotice(
+                  "Removed hotspot",
+                  countSceneRules(before) - countSceneRules(store.getSnapshot()),
+                ),
+              );
           }}
           scenes={
             <Scenes
@@ -908,6 +929,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
           textPlacement={textPlacement}
           onTextPlace={(placement) => {
             if (!pendingText) return;
+            const before = store.getSnapshot();
             const result = store.editExhibit(pendingText.objectId, pendingText.before, {
               ...pendingText.fields,
               components: pendingText.fields.components.map((component) =>
@@ -918,6 +940,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
               setError(result.error.message);
               return;
             }
+            reportRuleRemoval(before, "Updated content");
             setPendingText(null);
             setShowExhibitTools(true);
           }}
@@ -964,6 +987,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
                 onEdit={openContent}
                 onLibrary={() => setDisplayEditing(selectedObject.id)}
                 onRemoveText={() => {
+                  const before = store.getSnapshot();
                   const result = store.editExhibit(selectedObject.id, selectedObject, {
                     name: selectedObject.name,
                     transform: selectedObject.transform,
@@ -972,10 +996,25 @@ export function App({ server }: { server?: ServerEditorSession }) {
                     ).filter((component) => component.type !== "text"),
                   });
                   if (!result.ok) setError(result.error.message);
+                  else
+                    setNotice(
+                      removalNotice(
+                        "Removed text",
+                        countSceneRules(before) - countSceneRules(store.getSnapshot()),
+                      ),
+                    );
                 }}
                 onRemoveMedia={() => {
+                  const before = store.getSnapshot();
                   const result = store.removeDisplayMedia(selectedObject.id);
                   if (!result.ok) setError(result.error.message);
+                  else
+                    setNotice(
+                      removalNotice(
+                        "Removed media",
+                        countSceneRules(before) - countSceneRules(store.getSnapshot()),
+                      ),
+                    );
                 }}
                 onRemoveContent={
                   assets.find((asset) => asset.id === selectedObject.assetId)?.displayRole ===
@@ -984,8 +1023,16 @@ export function App({ server }: { server?: ServerEditorSession }) {
                     (object) => (object as Partial<ContentObject>).parentId === selectedObject.id,
                   )
                     ? () => {
+                        const before = store.getSnapshot();
                         const result = store.removeDisplayedAsset(selectedObject.id);
                         if (!result.ok) setError(result.error.message);
+                        else
+                          setNotice(
+                            removalNotice(
+                              "Removed displayed object",
+                              countSceneRules(before) - countSceneRules(store.getSnapshot()),
+                            ),
+                          );
                       }
                     : undefined
                 }
@@ -1140,7 +1187,10 @@ export function App({ server }: { server?: ServerEditorSession }) {
               setView("third");
               return { ok: true, value: true };
             }
-            return store.editExhibit(contentEdit.objectId, before, fields);
+            const previous = store.getSnapshot();
+            const result = store.editExhibit(contentEdit.objectId, before, fields);
+            if (result.ok) reportRuleRemoval(previous, "Updated content");
+            return result;
           }}
           onClose={() => setContentEdit(null)}
         />

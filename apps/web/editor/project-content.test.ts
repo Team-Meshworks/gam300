@@ -127,7 +127,7 @@ describe("content document preservation in the existing editor", () => {
     expect(store.getSnapshot().project).toEqual(after);
   });
 
-  it("rejects stale forms, wrong media and deletion of referenced panels without changing history", () => {
+  it("rejects stale forms and wrong media without changing history", () => {
     const store = setup();
     const before = store.getSnapshot();
     const object = before.objects[0]! as import("../shared/project/project-content").ContentObject;
@@ -145,12 +145,6 @@ describe("content document preservation in the existing editor", () => {
     expect(
       store.editExhibit(object.id, object, {
         ...fields,
-        components: object.components.filter((entry) => entry.type !== "text"),
-      }).ok,
-    ).toBe(false);
-    expect(
-      store.editExhibit(object.id, object, {
-        ...fields,
         transform: { ...object.transform, scale: [0, 1, 1] },
       }).ok,
     ).toBe(false);
@@ -159,6 +153,156 @@ describe("content document preservation in the existing editor", () => {
     const changed = store.getSnapshot();
     expect(store.editExhibit(object.id, object, fields).ok).toBe(false);
     expect(store.getSnapshot()).toBe(changed);
+  });
+
+  it("removes a referenced panel and its rules as one reversible edit", () => {
+    const store = setup();
+    const before = store.getSnapshot().project as ContentProject;
+    const object = before.scenes[0]!.objects[0]!;
+    const panel = object.components.find((component) => component.type === "text")!;
+    expect(
+      store.editExhibit(object.id, object, {
+        name: object.name,
+        transform: object.transform,
+        components: object.components.filter((component) => component.id !== panel.id),
+      }).ok,
+    ).toBe(true);
+    const after = store.getSnapshot().project as ContentProject;
+    expect(
+      after.scenes[0]!.objects[0]!.components.some((component) => component.id === panel.id),
+    ).toBe(false);
+    expect(
+      after.scenes[0]!.rules.some(
+        (rule) =>
+          (rule.trigger.type === "panelClose" && rule.trigger.panelId === panel.id) ||
+          rule.actions.some((action) => action.type === "showPanel" && action.panelId === panel.id),
+      ),
+    ).toBe(false);
+    expect(serializeProject(after, kinds).ok).toBe(true);
+    store.undo();
+    expect(store.getSnapshot().project).toEqual(before);
+    store.redo();
+    expect(store.getSnapshot().project).toEqual(after);
+  });
+
+  it("removes a hotspot and canonical rules that reference it with undo", () => {
+    const source = structuredClone(m2);
+    const scene = source.scenes[0]!;
+    const hotspot = {
+      id: crypto.randomUUID(),
+      objectId: scene.objects[0]!.id,
+      position: [0, 0, 0],
+    };
+    const rule = {
+      id: crypto.randomUUID(),
+      enabled: false,
+      trigger: { type: "click", targetId: hotspot.id },
+      actions: [{ type: "openLink", url: "https://example.com" }],
+    };
+    const store = createDocumentStore(assets);
+    expect(
+      store.loadProject(
+        JSON.stringify({
+          ...source,
+          scenes: [
+            { ...scene, hotspots: [hotspot], rules: [...scene.rules, rule] },
+            ...source.scenes.slice(1),
+          ],
+        }),
+        kinds,
+      ).ok,
+    ).toBe(true);
+    const before = store.getSnapshot().project;
+    expect(store.deleteHotspot(hotspot.id.toUpperCase()).ok).toBe(true);
+    const after = store.getSnapshot().project as ContentProject;
+    expect(after.scenes[0]!.hotspots).toEqual([]);
+    expect(after.scenes[0]!.rules.some((entry) => entry.id === rule.id)).toBe(false);
+    store.undo();
+    expect(store.getSnapshot().project).toEqual(before);
+  });
+
+  it("duplicates canonical rules sourced by a legacy hotspot", () => {
+    const source = structuredClone(m2);
+    const scene = source.scenes[0]!;
+    const hotspot = {
+      id: crypto.randomUUID(),
+      objectId: scene.objects[0]!.id,
+      position: [0, 0, 0],
+    };
+    const rule = {
+      id: crypto.randomUUID(),
+      enabled: true,
+      trigger: { type: "click", targetId: hotspot.id },
+      actions: [{ type: "openLink", url: "https://example.com" }],
+    };
+    const store = createDocumentStore(assets);
+    expect(
+      store.loadProject(
+        JSON.stringify({
+          ...source,
+          scenes: [
+            { ...scene, hotspots: [hotspot], rules: [...scene.rules, rule] },
+            ...source.scenes.slice(1),
+          ],
+        }),
+        kinds,
+      ).ok,
+    ).toBe(true);
+    const copy = store.duplicateObject(scene.objects[0]!.id);
+    expect(copy.ok).toBe(true);
+    if (!copy.ok) throw Error(copy.error.message);
+    const copiedScene = (store.getSnapshot().project as ContentProject).scenes[0]!;
+    const copiedHotspot = copiedScene.hotspots.find((entry) => entry.objectId === copy.value.id)!;
+    expect(copiedHotspot.id).not.toBe(hotspot.id);
+    expect(
+      copiedScene.rules.some(
+        (entry) =>
+          entry.id !== rule.id &&
+          entry.trigger.type === "click" &&
+          entry.trigger.targetId === copiedHotspot.id,
+      ),
+    ).toBe(true);
+  });
+
+  it.each(["remove", "replace"])("%s display content and its affected rules atomically", (mode) => {
+    const displayAssets = assets.map((asset) =>
+      asset.id === "test-crate-v1" ? { ...asset, displayRole: "digital" as const } : asset,
+    );
+    const store = createDocumentStore(displayAssets);
+    expect(store.loadProject(JSON.stringify(m2), kinds).ok).toBe(true);
+    const before = store.getSnapshot().project as ContentProject;
+    const object = before.scenes[0]!.objects[0]!;
+    const removed = object.components.filter((component) =>
+      mode === "remove"
+        ? component.type === "image" || component.type === "video"
+        : ["text", "image", "video"].includes(component.type),
+    );
+    const result =
+      mode === "remove"
+        ? store.removeDisplayMedia(object.id)
+        : store.setDisplayContent(object.id, {
+            id: crypto.randomUUID(),
+            type: "text",
+            caption: "Replacement",
+            runs: [],
+          });
+    expect(result.ok).toBe(true);
+    const after = store.getSnapshot().project as ContentProject;
+    const removedIds = new Set(removed.map((component) => component.id));
+    expect(
+      after.scenes[0]!.rules.some(
+        (rule) =>
+          (rule.trigger.type === "panelClose" && removedIds.has(rule.trigger.panelId)) ||
+          rule.actions.some((action) =>
+            action.type === "showPanel"
+              ? removedIds.has(action.panelId)
+              : action.type === "playMedia" && removedIds.has(action.mediaId),
+          ),
+      ),
+    ).toBe(false);
+    expect(serializeProject(after, kinds).ok).toBe(true);
+    store.undo();
+    expect(store.getSnapshot().project).toEqual(before);
   });
 
   it("upgrades a released object for content editing and preserves placement undo", () => {
@@ -261,6 +405,30 @@ describe("content document preservation in the existing editor", () => {
     expect(restored.getSnapshot().project).toEqual(before);
     restored.redo();
     expect(restored.getSnapshot().project).toEqual(after);
+  });
+
+  it("removes an audio component and its playback rules together", () => {
+    const store = setup();
+    const before = store.getSnapshot().project as ContentProject;
+    const audio = before.scenes[0]!.objects[0]!.components.find(
+      (component) => component.type === "audio",
+    )!;
+    expect(store.removeAudio(audio.id.toUpperCase()).ok).toBe(true);
+    const after = store.getSnapshot().project as ContentProject;
+    expect(
+      after.scenes[0]!.objects[0]!.components.some((component) => component.id === audio.id),
+    ).toBe(false);
+    expect(
+      after.scenes[0]!.rules.some((rule) =>
+        rule.actions.some((action) => action.type === "playMedia" && action.mediaId === audio.id),
+      ),
+    ).toBe(false);
+    expect(after.scenes[0]!.rules.length).toBe(before.scenes[0]!.rules.length - 1);
+    expect(serializeProject(after, kinds).ok).toBe(true);
+    store.undo();
+    expect(store.getSnapshot().project).toEqual(before);
+    store.redo();
+    expect(store.getSnapshot().project).toEqual(after);
   });
 
   it("duplicates attached content and rules with independent IDs and restores them on redo", () => {

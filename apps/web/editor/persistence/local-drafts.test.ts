@@ -207,6 +207,16 @@ function recoverySession(): Omit<RecoverySession, "revision" | "historyWarning">
 }
 
 describe("getLocalDraft", () => {
+  it("recovers the draft and warns when saved undo history is invalid", async () => {
+    const raw = { ...storedDraft(serializedFixture()), history: { past: [null], future: [] } };
+    const database = new FakeDraftDatabase({ ok: true, value: raw });
+    const result = await getLocalDraft(projectId, assets, database);
+    expect(result.ok).toBe(true);
+    if (!result.ok || !result.value) throw Error("Expected recovered draft");
+    expect(result.value.document).toEqual(fixture);
+    expect(result.value.history).toBeUndefined();
+    expect(result.value.historyWarning).toMatch(/undo history.*invalid/i);
+  });
   it("rejects an invalid project ID without reading the database", async () => {
     const database = new FakeDraftDatabase({ ok: true, value: null });
 

@@ -72,6 +72,32 @@ function freezeHotspots(hotspots: readonly ProjectHotspot[]): readonly ProjectHo
   );
 }
 
+function withoutComponentReferences(
+  scene: ContentScene,
+  removed: ReadonlySet<string>,
+): ContentScene {
+  const gone = (id: string) => removed.has(id.toLowerCase());
+  return {
+    ...scene,
+    interactions: scene.interactions.filter(
+      (rule) => rule.do.type !== "play-audio" || !rule.do.mediaId || !gone(rule.do.mediaId),
+    ),
+    rules: scene.rules.filter(
+      (rule) =>
+        !(
+          (rule.trigger.type === "click" || rule.trigger.type === "gaze") &&
+          gone(rule.trigger.targetId)
+        ) &&
+        !(rule.trigger.type === "panelClose" && gone(rule.trigger.panelId)) &&
+        !rule.actions.some((action) =>
+          action.type === "showPanel"
+            ? gone(action.panelId)
+            : action.type === "playMedia" && gone(action.mediaId),
+        ),
+    ),
+  };
+}
+
 function toContentProject(project: ProjectDocument): ContentProject {
   if (project.schemaVersion === 2) return project;
   return {
@@ -358,6 +384,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
     const hotspots = sceneState().hotspots.filter(
       (hotspot) => hotspot.objectId.toLowerCase() === object.id.toLowerCase(),
     );
+    for (const hotspot of hotspots) ids.add(hotspot.id.toLowerCase());
     const hotspotIds = new Set(hotspots.map((hotspot) => hotspot.id.toLowerCase()));
     return structuredClone({
       object,
@@ -684,6 +711,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
     },
     // Reject stale selections before removing the track and its dependent playback rules
     removeAudio(id: string) {
+      const matches = (candidate: string) => candidate.toLowerCase() === id.toLowerCase();
       const scene =
         project?.schemaVersion === 2
           ? project.scenes.find((entry) => entry.id === state.activeSceneId)
@@ -691,28 +719,24 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       if (
         !scene ||
         !(
-          scene.audio?.some((audio) => audio.id === id) ||
+          scene.audio?.some((audio) => matches(audio.id)) ||
           scene.objects.some((object) =>
             object.components.some(
-              (component) => component.type === "audio" && component.id === id,
+              (component) => component.type === "audio" && matches(component.id),
             ),
           )
         )
       )
         return invalid("audio", "This audio no longer exists");
       return editHierarchy("Remove audio", (scene) => ({
-        ...scene,
+        ...withoutComponentReferences(scene, new Set([id.toLowerCase()])),
         ...(scene.audio === undefined
           ? {}
-          : { audio: scene.audio.filter((audio) => audio.id !== id) }),
-        // Removing a track also removes its playback links; Undo restores the complete relationship
-        interactions: scene.interactions.filter(
-          (rule) => rule.do.type !== "play-audio" || rule.do.mediaId !== id,
-        ),
+          : { audio: scene.audio.filter((audio) => !matches(audio.id)) }),
         objects: scene.objects.map((object) => ({
           ...object,
           components: object.components.filter(
-            (component) => component.type !== "audio" || component.id !== id,
+            (component) => component.type !== "audio" || !matches(component.id),
           ),
         })),
       }));
@@ -722,7 +746,17 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       if (!object || assets.find((asset) => asset.id === object.assetId)?.displayRole !== "digital")
         return invalid("objectId", "Choose a display panel or stand");
       return editHierarchy("Remove display media", (scene) => ({
-        ...scene,
+        ...withoutComponentReferences(
+          scene,
+          new Set(
+            scene.objects
+              .find((entry) => entry.id === objectId)!
+              .components.filter(
+                (component) => component.type === "image" || component.type === "video",
+              )
+              .map((component) => component.id.toLowerCase()),
+          ),
+        ),
         objects: scene.objects.map((entry) =>
           entry.id === objectId
             ? {
@@ -753,7 +787,23 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
           scene.id !== state.activeSceneId
             ? scene
             : {
-                ...scene,
+                ...withoutComponentReferences(
+                  scene,
+                  new Set(
+                    scene.objects
+                      .find((entry) => entry.id === target.id)!
+                      .components.filter(
+                        (entry) =>
+                          ["text", "image", "video"].includes(entry.type) &&
+                          !(
+                            component &&
+                            entry.id.toLowerCase() === component.id.toLowerCase() &&
+                            entry.type === component.type
+                          ),
+                      )
+                      .map((entry) => entry.id.toLowerCase()),
+                  ),
+                ),
                 objects: scene.objects.map((object) =>
                   object.id !== target.id
                     ? object
@@ -811,8 +861,20 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       // Carry attached descendants with the same transform command used by the gizmos
       return editHierarchy("Edit exhibit", (scene) => {
         const moved = prepared.value.command?.apply(scene.objects) ?? scene.objects;
+        const removed = new Set(
+          ((object as ContentObject).components ?? [])
+            .filter(
+              (component) =>
+                !fields.components.some(
+                  (next) =>
+                    next.id.toLowerCase() === component.id.toLowerCase() &&
+                    next.type === component.type,
+                ),
+            )
+            .map((component) => component.id.toLowerCase()),
+        );
         return {
-          ...scene,
+          ...withoutComponentReferences(scene, removed),
           objects: scene.objects.map((entry, index) => ({
             ...entry,
             ...moved[index],
@@ -1811,6 +1873,18 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       }
       if (!scene.hotspots.some((hotspot) => hotspot.id.toLowerCase() === hotspotId.toLowerCase())) {
         return invalid("hotspotId", "This hotspot is no longer in the scene");
+      }
+      if (project.schemaVersion === 2) {
+        const gone = hotspotId.toLowerCase();
+        return editHierarchy("Delete hotspot", (current) => ({
+          ...withoutComponentReferences(current, new Set([gone])),
+          hotspots: current.hotspots.filter((hotspot) => hotspot.id.toLowerCase() !== gone),
+          interactions: current.interactions.filter(
+            (rule) =>
+              rule.when.type !== "visitor-clicks-hotspot" ||
+              rule.when.targetHotspotId.toLowerCase() !== gone,
+          ),
+        }));
       }
       const next = {
         ...sceneState(),
