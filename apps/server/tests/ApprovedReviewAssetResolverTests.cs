@@ -12,7 +12,7 @@ using Spatia.Server.Reviews;
 
 namespace Spatia.Server.Tests;
 
-[NotInParallel]
+[NotInParallel(nameof(ApprovedReviewAssetResolverTests))]
 public sealed class ApprovedReviewAssetResolverTests
 {
     [Test]

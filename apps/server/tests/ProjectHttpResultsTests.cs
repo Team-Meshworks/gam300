@@ -9,7 +9,7 @@ using Spatia.Server.Projects;
 
 namespace Spatia.Server.Tests;
 
-[NotInParallel]
+[NotInParallel(nameof(ProjectHttpResultsTests))]
 public sealed class ProjectHttpResultsTests
 {
     private const string PrivateMarker = "http-result-private-document-and-digest";

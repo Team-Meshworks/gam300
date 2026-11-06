@@ -184,17 +184,24 @@ that the sample control loads its project in development and is absent in produc
 The Docker build includes TypeScript checking. Both build modes retain the 500 kB
 JavaScript chunk-budget check.
 
-Lint and formatting run once on Linux. Native Windows and macOS jobs retain setup,
-dependency-boundary, unit and build checks. Module-removal experiments run when
+Lint, formatting and the full web unit suite run once on Linux. Native Windows and macOS jobs retain setup,
+dependency-boundary, browser-policy and build checks. Module-removal experiments run when
 architecture tooling, package manifests, compiler/build configuration or CI changes,
 and on manual runs. Every run still checks live imports for forbidden dependencies
 and cycles. CI generates the detailed architecture graph as a test artifact; comment
 and line-number changes do not require regenerating a tracked graph to pass.
 
-Browser, integration, caching, recovery, history and workspace checks run in separate
-fixture jobs against Vite. The workspace routes are also checked against the packaged
-Caddy application. Publishing waits for every fixture job and all required build/test
+Browser, integration, caching, recovery and history checks run in six grouped fixture jobs
+against Vite. Each script retains its own URL and evidence; a group continues after a script
+failure and fails overall. Workspace routes and the admin dashboard run against the packaged
+Caddy application. The caching check verifies GLB HTTP revalidation; `npm run measure:caching`
+remains an on-demand benchmark. Publishing waits for every fixture job and all required build/test
 jobs; the architecture proof may be skipped only when its selector reports it unnecessary.
+CI reuses the runner's Chrome only when browser verification passes the version and
+sandbox policy. Otherwise it restores or downloads the pinned official Chrome `.deb`,
+checks its SHA-256, installs it and verifies the browser again. Package absence, hash
+mismatch or installation failure fails the job. Update the browser policy floor and the
+action's package version and hash together when raising the security floor.
 
 The recovery check includes place–move–undo–save–reload and JSON transfer into a fresh
 browser context. Its output and the editor check output are retained under `apps/web/test-results/`.
@@ -203,7 +210,7 @@ The server job uses the SDK pinned in `apps/server/global.json`, locked NuGet re
 Release build, both C# format checks, migration checks and the complete TUnit suite.
 Its disposable PostgreSQL 18.6 service publishes only to loopback and uses synthetic
 test credentials. The suite applies migrations in isolated schemas and includes the
-existing Chromium account flow. Test reports and browser-version evidence are retained
+existing Chrome account flow. Test reports and browser-version evidence are retained
 for 14 days. The separate account cold-restart acceptance remains a local operator check;
 see the [server setup](../apps/server/README.md).
 

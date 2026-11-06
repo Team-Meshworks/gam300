@@ -9,7 +9,7 @@ using Spatia.Server.Projects;
 
 namespace Spatia.Server.Tests;
 
-[NotInParallel]
+[NotInParallel(nameof(ProjectPersistenceTests))]
 public sealed class ProjectPersistenceTests
 {
     private static readonly Guid ProjectId = Guid.Parse("abcdefab-abcd-4abc-8abc-abcdefabcdef");

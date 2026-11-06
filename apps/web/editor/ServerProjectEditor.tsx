@@ -292,7 +292,7 @@ function ServerProjectSession({
       if (closing) void closing.session.dispose();
     };
     // A fresh attempt owns its own cancellation boundary; install uses only that candidate and the stable store.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks-js/exhaustive-deps
   }, [projectId, attempt, store]);
 
   useEffect(() => {

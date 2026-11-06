@@ -20,6 +20,8 @@ test("reject stale, malformed and unofficial browsers before launch", () => {
     "Chromium 156.0.8078.80",
     "Google Chrome 153.0.8010.12",
     "Google Chrome 156.0.8078.4",
+    "Google Chrome 156.0.8078.79",
+    "Google Chrome 157.0.8103.37",
     "156.0.8078.80",
     "Google Chrome 156.0.8078.80 extra",
   ]) {
@@ -29,8 +31,11 @@ test("reject stale, malformed and unofficial browsers before launch", () => {
     validateChromeVersion(`Google Chrome ${MINIMUM_CHROME_VERSION}`),
     MINIMUM_CHROME_VERSION,
   );
-  assert.equal(validateChromeVersion("Google Chrome for Testing 156.0.8078.80\n"), "156.0.8078.80");
-  assert.equal(validateChromeVersion("Google Chrome 157.0.0.1"), "157.0.0.1");
+  assert.equal(
+    validateChromeVersion(`Google Chrome for Testing ${MINIMUM_CHROME_VERSION}\n`),
+    MINIMUM_CHROME_VERSION,
+  );
+  assert.equal(validateChromeVersion("Google Chrome 158.0.0.1"), "158.0.0.1");
 });
 
 test("explicit browser path never falls back to bundled or system browsers", () => {

@@ -14,7 +14,7 @@ using Spatia.Server.Projects;
 
 namespace Spatia.Server.Tests;
 
-[NotInParallel]
+[NotInParallel(nameof(ClassAssignmentCoordinatorTests))]
 public sealed class ClassAssignmentCoordinatorTests
 {
     [Test]

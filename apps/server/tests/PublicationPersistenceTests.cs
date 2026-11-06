@@ -13,7 +13,7 @@ using Spatia.Server.Publications;
 
 namespace Spatia.Server.Tests;
 
-[NotInParallel]
+[NotInParallel(nameof(PublicationPersistenceTests))]
 public sealed class PublicationPersistenceTests
 {
     private const string DraftMigration = "20261018091152_AddProjectDraftStorage";

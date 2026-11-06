@@ -9,7 +9,7 @@ using Spatia.Server.Persistence;
 
 namespace Spatia.Server.Tests;
 
-[NotInParallel]
+[NotInParallel(nameof(PostgresAccountFixtureTests))]
 public sealed class PostgresAccountFixtureTests
 {
     [Test]
@@ -46,8 +46,10 @@ public sealed class PostgresAccountFixtureTests
         await using var migrated = await PostgresAccountFixture.CreateAsync();
         var organizationId = Guid.NewGuid();
         string disposedSchema;
-        await using (var application = await PostgresAccountFixture.CreateForApplicationAsync())
+        NpgsqlDataSource applicationPool;
+        await using (var host = await HttpsApplicationFixture.CreateAsync())
         {
+            var application = host.Database;
             disposedSchema = application.SchemaName;
             await Assert.That(application.SchemaName).IsNotEqualTo(migrated.SchemaName);
             await Assert.That(await ReadCatalogAsync(application)).IsEqualTo(await ReadCatalogAsync(migrated));
@@ -67,10 +69,32 @@ public sealed class PostgresAccountFixtureTests
                 database.Organizations.Add(new Organization { Id = organizationId, Name = "Application schema" });
                 await database.SaveChangesAsync();
             }
-            await using var reopened = application.Services.CreateAsyncScope();
-            var persisted = reopened.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            await Assert.That((await persisted.Organizations.SingleAsync()).Name).IsEqualTo("Application schema");
+            var directPid = await ReadOrganizationAsync(application.Services, "Application schema", disposedSchema);
+            await Assert.That(await ReadOrganizationAsync(application.Services, "Application schema", disposedSchema))
+                .IsNotEqualTo(directPid);
+
+            applicationPool = host.App.Services.GetRequiredService<NpgsqlDataSource>();
+            var hostPid = await ReadOrganizationAsync(host.App.Services, "Application schema", disposedSchema);
+            await Assert.That(await ReadOrganizationAsync(host.App.Services, "Application schema", disposedSchema))
+                .IsEqualTo(hostPid);
+            NpgsqlDataSource siblingPool;
+            await using (var sibling = await host.CreateSiblingAsync(_ => { }))
+            {
+                siblingPool = sibling.App.Services.GetRequiredService<NpgsqlDataSource>();
+                await Assert.That(await ReadOrganizationAsync(sibling.App.Services, "Application schema", disposedSchema))
+                    .IsNotEqualTo(hostPid);
+            }
+            await Assert.ThrowsAsync<ObjectDisposedException>(async () =>
+            {
+                await using var closed = await siblingPool.OpenConnectionAsync();
+            });
+            await Assert.That(await ReadOrganizationAsync(host.App.Services, "Application schema", disposedSchema))
+                .IsEqualTo(hostPid);
         }
+        await Assert.ThrowsAsync<ObjectDisposedException>(async () =>
+        {
+            await using var closed = await applicationPool.OpenConnectionAsync();
+        });
 
         // Disposing one schema must leave the other schema and its same-ID record intact
         await using var verification = migrated.Services.CreateAsyncScope();
@@ -81,6 +105,17 @@ public sealed class PostgresAccountFixtureTests
             (NpgsqlConnection)remaining.Database.GetDbConnection());
         schema.Parameters.AddWithValue("schema", disposedSchema);
         await Assert.That((bool)(await schema.ExecuteScalarAsync())!).IsFalse();
+    }
+
+    private static async Task<int> ReadOrganizationAsync(IServiceProvider services, string name, string schema)
+    {
+        await using var scope = services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await database.Database.OpenConnectionAsync();
+        await Assert.That((await database.Organizations.SingleAsync()).Name).IsEqualTo(name);
+        await Assert.That(await database.Database.SqlQuery<string>($"SELECT current_schema() AS \"Value\"").SingleAsync())
+            .IsEqualTo(schema);
+        return ((NpgsqlConnection)database.Database.GetDbConnection()).ProcessID;
     }
 
     private static async Task<string> ReadCatalogAsync(PostgresAccountFixture fixture)

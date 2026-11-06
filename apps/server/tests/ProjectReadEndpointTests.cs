@@ -17,7 +17,7 @@ using Spatia.Server.Projects;
 
 namespace Spatia.Server.Tests;
 
-[NotInParallel]
+[NotInParallel("Browser")]
 public sealed class ProjectReadEndpointTests
 {
     private const string BodyMarker = "private-read-document-sentinel";

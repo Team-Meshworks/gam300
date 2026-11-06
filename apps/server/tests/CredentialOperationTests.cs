@@ -10,7 +10,7 @@ using Spatia.Server.Security;
 
 namespace Spatia.Server.Tests;
 
-[NotInParallel]
+[NotInParallel(nameof(CredentialOperationTests))]
 public sealed class CredentialOperationTests
 {
     private const string ResetPassword = "Concurrent administrator reset 3!";

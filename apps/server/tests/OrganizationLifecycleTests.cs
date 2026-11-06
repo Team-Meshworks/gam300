@@ -12,7 +12,7 @@ using Spatia.Server.Persistence;
 
 namespace Spatia.Server.Tests;
 
-[NotInParallel]
+[NotInParallel(nameof(OrganizationLifecycleTests))]
 public sealed class OrganizationLifecycleTests
 {
     [Test]

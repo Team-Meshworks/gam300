@@ -16,7 +16,7 @@ using Spatia.Server.Projects;
 
 namespace Spatia.Server.Tests;
 
-[NotInParallel]
+[NotInParallel(nameof(ProjectSaveEndpointTests))]
 public sealed class ProjectSaveEndpointTests
 {
     private const string BodyMarker = "private-put-document-not-for-errors-or-logs";

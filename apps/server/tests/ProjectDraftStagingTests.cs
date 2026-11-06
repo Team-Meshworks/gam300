@@ -6,7 +6,7 @@ using Spatia.Server.Projects;
 
 namespace Spatia.Server.Tests;
 
-[NotInParallel]
+[NotInParallel(nameof(ProjectDraftStagingTests))]
 public sealed class ProjectDraftStagingTests
 {
     [Test]

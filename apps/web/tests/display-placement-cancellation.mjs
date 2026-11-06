@@ -87,7 +87,7 @@ export async function checkDisplayPlacementCancellation(browser, origin) {
       }
       if (dismissal !== "unmount") await dialog.waitFor({ state: "hidden" });
       await page.evaluate(() => window.displayCancellation.open("B"));
-      await dialog.getByRole("button", { name: "Deferred crate", exact: true }).waitFor();
+      await dialog.getByText("B", { exact: true }).waitFor();
       await page.evaluate(() => window.displayCancellation.finish(0));
       assert.deepEqual(await page.evaluate(() => window.displayCancellation.writes), [], dismissal);
       assert.deepEqual(
