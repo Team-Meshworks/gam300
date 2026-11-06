@@ -8,7 +8,7 @@ using Spatia.Server.Reviews;
 
 namespace Spatia.Server.Hosting;
 
-/// <summary>Registers the v1 contract under its canonical prefix or its legacy alias</summary>
+/// <summary>Registers the v1 HTTP contract</summary>
 public static class ApiV1Endpoints
 {
     public const string Prefix = "/api/v1";
@@ -33,8 +33,4 @@ public static class ApiV1Endpoints
         endpoints.MapClassrooms();
         endpoints.MapReviewSubmissions();
     }
-
-    // Legacy clients validate returned asset URLs against their unversioned request paths
-    internal static string PrefixFor(HttpContext context) =>
-        context.Request.Path.StartsWithSegments(Prefix, StringComparison.OrdinalIgnoreCase) ? Prefix : "/api";
 }

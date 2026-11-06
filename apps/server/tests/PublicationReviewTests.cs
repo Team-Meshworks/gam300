@@ -173,6 +173,6 @@ public sealed class PublicationReviewTests
 
     internal static Task<HttpResponseMessage> DecideAsync(HttpsApplicationFixture fixture, HttpClient educator,
         Guid project, Guid submission, long revision, string outcome) => AuthTestRequests.PostAsync(fixture,
-        $"/api/projects/{project:D}/submissions/{submission:D}/decisions",
+        $"/api/v1/projects/{project:D}/submissions/{submission:D}/decisions",
         new { decisionId = Guid.NewGuid(), expectedRevision = revision, outcome, feedback = "Reviewed" }, educator);
 }

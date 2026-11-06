@@ -72,26 +72,26 @@ try {
       return { status: response.status, body: await response.json(), cache: response.headers.get("cache-control") };
     };
     const post = async (path, body) => {
-      const csrf = (await (await fetch("/api/auth/csrf")).json()).requestToken;
+      const csrf = (await (await fetch("/api/v1/auth/csrf")).json()).requestToken;
       return (await fetch(path, { method: "POST", headers: {
         "Content-Type": "application/json", "X-CSRF-TOKEN": csrf,
       }, ...(body ? { body: JSON.stringify(body) } : {}) })).status;
     };
-    const anonymous = await get("/api/projects");
+    const anonymous = await get("/api/v1/projects");
     const sessions = [];
     for (let index = 0; index < accounts.length; index++) {
       const account = accounts[index];
-      const login = await post("/api/auth/login", { userName: account.userName, password: "Synthetic-long-password1!" });
-      sessions.push({ login, list: await get("/api/projects"), open: await get("/api/projects/" + account.projectId),
-        denied: await get("/api/projects/" + accounts[1 - index].projectId),
-        grants: await get("/api/projects/" + account.projectId + "/assignments") });
+      const login = await post("/api/v1/auth/login", { userName: account.userName, password: "Synthetic-long-password1!" });
+      sessions.push({ login, list: await get("/api/v1/projects"), open: await get("/api/v1/projects/" + account.projectId),
+        denied: await get("/api/v1/projects/" + accounts[1 - index].projectId),
+        grants: await get("/api/v1/projects/" + account.projectId + "/assignments") });
     }
-    const managerLogin = await post("/api/auth/login", { userName: manager.userName, password: "Synthetic-long-password1!" });
-    const grants = await get("/api/projects/" + accounts[0].projectId + "/assignments");
-    const logout = await post("/api/auth/logout");
+    const managerLogin = await post("/api/v1/auth/login", { userName: manager.userName, password: "Synthetic-long-password1!" });
+    const grants = await get("/api/v1/projects/" + accounts[0].projectId + "/assignments");
+    const logout = await post("/api/v1/auth/logout");
     return { anonymous, sessions, managerLogin, grants, logout,
-      afterLogout: await get("/api/projects/" + accounts[1].projectId),
-      grantsAfterLogout: await get("/api/projects/" + accounts[0].projectId + "/assignments") };
+      afterLogout: await get("/api/v1/projects/" + accounts[1].projectId),
+      grantsAfterLogout: await get("/api/v1/projects/" + accounts[0].projectId + "/assignments") };
   }, { accounts, manager });
   assert.equal(flow.anonymous.status, 401);
   for (const [index, session] of flow.sessions.entries()) {
@@ -135,12 +135,12 @@ try {
 
   const fresh = await openPage();
   const reopened = await fresh.evaluate(async (account) => {
-    const absent = await fetch("/api/projects/" + account.projectId);
-    const csrf = (await (await fetch("/api/auth/csrf")).json()).requestToken;
-    const login = await fetch("/api/auth/login", { method: "POST", headers: {
+    const absent = await fetch("/api/v1/projects/" + account.projectId);
+    const csrf = (await (await fetch("/api/v1/auth/csrf")).json()).requestToken;
+    const login = await fetch("/api/v1/auth/login", { method: "POST", headers: {
       "Content-Type": "application/json", "X-CSRF-TOKEN": csrf,
     }, body: JSON.stringify({ userName: account.userName, password: "Synthetic-long-password1!" }) });
-    const open = await fetch("/api/projects/" + account.projectId);
+    const open = await fetch("/api/v1/projects/" + account.projectId);
     return { absent: absent.status, login: login.status, open: open.status, body: await open.json() };
   }, accounts[0]);
   assert.equal(reopened.absent, 401);
@@ -149,7 +149,7 @@ try {
   assert.deepEqual(reopened.body, flow.sessions[0].open.body);
   // Save through the real coordinator, then reopen from a separate authenticated browser
   const saved = await fresh.evaluate(async (projectId) => {
-    const account = await (await fetch("/api/auth/session")).json();
+    const account = await (await fetch("/api/v1/auth/session")).json();
     const assets = new Map([
       ["test-room-v1", "environment"],
       ["test-crate-v1", "model"],
@@ -188,8 +188,8 @@ try {
   // A fresh browser reopens the server revision without the first browser cache
   const otherBrowser = await openPage();
   const independentlyOpened = await otherBrowser.evaluate(async (account) => {
-    const token = (await (await fetch("/api/auth/csrf")).json()).requestToken;
-    await fetch("/api/auth/login", {
+    const token = (await (await fetch("/api/v1/auth/csrf")).json()).requestToken;
+    await fetch("/api/v1/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": token },
       body: JSON.stringify({
@@ -197,7 +197,7 @@ try {
         password: "Synthetic-long-password1!",
       }),
     });
-    const identity = await (await fetch("/api/auth/session")).json();
+    const identity = await (await fetch("/api/v1/auth/session")).json();
     return serverRecoveryTest.readServerProject(
       account.projectId,
       identity.userId,
@@ -231,9 +231,9 @@ try {
       signal: new AbortController().signal,
       onStatus() {},
     });
-    const token = (await (await fetch("/api/auth/csrf")).json()).requestToken;
+    const token = (await (await fetch("/api/v1/auth/csrf")).json()).requestToken;
     // A second writer advances the server before this stale editor saves
-    const winner = await fetch("/api/projects/" + opened.document.projectId, {
+    const winner = await fetch("/api/v1/projects/" + opened.document.projectId, {
       method: "PUT",
       headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": token },
       body: JSON.stringify({
@@ -251,7 +251,7 @@ try {
     // Keep the stale draft locally without changing the winning server copy
     const recovery = await session.prepareToLeave("recovery");
     const current = await (
-      await fetch("/api/projects/" + opened.document.projectId)
+      await fetch("/api/v1/projects/" + opened.document.projectId)
     ).json();
     return {
       winner: winner.status,
@@ -270,11 +270,11 @@ try {
   // Keep this fixture on the shared coordinator rather than adding recovery state to a teammate's screen
   const retryPage = await openPage();
   await retryPage.evaluate(async (account) => {
-    const token = (await (await fetch("/api/auth/csrf")).json()).requestToken;
-    await fetch("/api/auth/login", { method: "POST", headers: {
+    const token = (await (await fetch("/api/v1/auth/csrf")).json()).requestToken;
+    await fetch("/api/v1/auth/login", { method: "POST", headers: {
       "Content-Type": "application/json", "X-CSRF-TOKEN": token,
     }, body: JSON.stringify({ userName: account.userName, password: "Synthetic-long-password1!" }) });
-    const identity = await (await fetch("/api/auth/session")).json();
+    const identity = await (await fetch("/api/v1/auth/session")).json();
     const assets = new Map([["test-room-v1", "environment"], ["test-crate-v1", "model"]]);
     const controller = new AbortController();
     const opened = await serverRecoveryTest.readServerProject(account.projectId, identity.userId, assets, controller.signal);
@@ -321,9 +321,9 @@ try {
     // Reconnect commits the pending request, then loses only its acknowledgement
     await session.flush();
     const uncertain = session.getStatus();
-    const path = "/api/projects/" + opened.document.projectId;
+    const path = "/api/v1/projects/" + opened.document.projectId;
     const committed = await (await fetch(path)).json();
-    const token = (await (await fetch("/api/auth/csrf")).json()).requestToken;
+    const token = (await (await fetch("/api/v1/auth/csrf")).json()).requestToken;
     const newer = await fetch(path, { method: "PUT", headers: {
       "Content-Type": "application/json", "X-CSRF-TOKEN": token,
     }, body: JSON.stringify({ expectedRevision: committed.revision, clientMutationId: crypto.randomUUID(),

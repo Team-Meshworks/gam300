@@ -348,7 +348,7 @@ public sealed class ProjectSaveEndpointTests
         await AssertUnchangedAsync(await ReadAsync(fixture), before);
     }
 
-    private static string Path(Guid id) => "/api/projects/" + id.ToString("D");
+    private static string Path(Guid id) => "/api/v1/projects/" + id.ToString("D");
     private static string Envelope(string document, Guid mutation, long revision = 0) =>
         $$"""{"expectedRevision":{{revision}},"clientMutationId":"{{mutation:D}}","document":{{document}}}""";
 

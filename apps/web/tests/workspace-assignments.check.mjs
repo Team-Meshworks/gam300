@@ -146,7 +146,7 @@ try {
     locale: "en-US",
     viewport: { width: 1440, height: 1100 },
   });
-  await context.route("**/api/**", api);
+  await context.route("**/api/v1/**", api);
   const page = await context.newPage();
   page.setDefaultTimeout(7000);
   page.on("pageerror", (error) => errors.push(error.message));
@@ -268,7 +268,7 @@ try {
     locale: "en-US",
     viewport: { width: 390, height: 900 },
   });
-  await localContext.route("**/api/**", api);
+  await localContext.route("**/api/v1/**", api);
   const local = await localContext.newPage();
   local.on("pageerror", (error) => errors.push(error.message));
   await local.goto(origin + "/home");

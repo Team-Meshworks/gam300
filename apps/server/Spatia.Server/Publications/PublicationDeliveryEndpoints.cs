@@ -36,7 +36,7 @@ internal static class PublicationDeliveryEndpoints
                     id = asset.Id.ToString("D"),
                     kind = asset.Kind,
                     sha256 = asset.Sha256,
-                    url = $"{ApiV1Endpoints.PrefixFor(context)}/publications/{id:D}/assets/{asset.Id:D}/bytes",
+                    url = $"{ApiV1Endpoints.Prefix}/publications/{id:D}/assets/{asset.Id:D}/bytes",
                 }),
             });
         }).RequirePublicationRead(PublicationReadKind.Snapshot);

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { launchBrowser } from "./browser-security.mjs";
+import { placeAtRoomCenter } from "./placement-fixture.mjs";
 await mkdir("test-results/display-editor", { recursive: true });
 const browser = await launchBrowser({
   target: process.argv[2] ?? "http://127.0.0.1:5185/",
@@ -69,10 +70,12 @@ try {
     .getByRole("group", { name: "Rooms options", exact: true })
     .getByRole("button", { name: "Starter room", exact: true })
     .click();
-  await page.locator(".viewport-stage").click({ position: { x: 600, y: 350 } });
+  await page.getByText("Scene ready", { exact: true }).waitFor();
+  await placeAtRoomCenter(page);
   await page.getByRole("button", { name: "Display panels", exact: true }).click();
   await page.getByRole("button", { name: "Square media stand", exact: true }).click();
-  await page.locator(".viewport-stage").click({ position: { x: 600, y: 350 } });
+  await page.getByText("Scene ready", { exact: true }).waitFor();
+  await placeAtRoomCenter(page);
   await page.locator(".object-row").first().click();
   assert.equal(
     await page.getByRole("button", { name: "Display asset library", exact: true }).count(),
@@ -212,7 +215,7 @@ try {
     await library.getByRole("button", { name: "Remove content", exact: true }).count(),
     0,
   );
-  assert.equal(await library.locator(".asset-card").count(), 2);
+  assert.equal(await library.locator(".asset-card").count(), 5);
   await library.getByRole("button", { name: "Sample crate", exact: true }).click();
   await library.screenshot({ path: "test-results/display-editor/physical-library.png" });
   await library.getByRole("button", { name: "Add", exact: true }).click();

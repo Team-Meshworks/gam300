@@ -17,9 +17,9 @@ public static class AssetAdministrationEndpoints
             .RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
 
         // Return current server capabilities with the list so the screen never guesses which writes are available
-        group.MapGet("", async (HttpContext context, AssetAdministrationService service, AssetUploadValidator validator, CancellationToken token) => Results.Ok(new
+        group.MapGet("", async (AssetAdministrationService service, AssetUploadValidator validator, CancellationToken token) => Results.Ok(new
         {
-            assets = (await service.ListAsync(token)).Select(record => WithApiPrefix(record, context)),
+            assets = await service.ListAsync(token),
             policy = new
             {
                 extensions = new[] { ".glb" },
@@ -55,7 +55,7 @@ public static class AssetAdministrationEndpoints
             // Bind approval to the authenticated reviewer rather than accepting an actor from request JSON
             var actor = context.Features.Get<CurrentAccount>()!.UserId;
             var record = await service.ReviewAsync(id, request, actor, token);
-            return record is null ? ApiProblems.Create(context, 409, "asset_conflict", "Reload the asset before reviewing it") : Results.Ok(WithApiPrefix(record, context));
+            return record is null ? ApiProblems.Create(context, 409, "asset_conflict", "Reload the asset before reviewing it") : Results.Ok(record);
         }).WithMetadata(new RequestSizeLimitAttribute(40 * 1024));
         group.MapPost("/{id:guid}/availability", async (Guid id, AssetAvailabilityRequest request, HttpContext context,
             AssetAdministrationService service, CancellationToken token) =>
@@ -74,7 +74,7 @@ public static class AssetAdministrationEndpoints
                 return ApiProblems.Create(context, 503, "asset_removal_unavailable", "Removal from existing projects and exhibitions is unavailable");
             }
             var record = await service.ChangeAsync(id, request.Action, token);
-            return record is null ? ApiProblems.Create(context, 409, "asset_conflict", "Reload the asset before changing it") : Results.Ok(WithApiPrefix(record, context));
+            return record is null ? ApiProblems.Create(context, 409, "asset_conflict", "Reload the asset before changing it") : Results.Ok(record);
         });
         return endpoints;
     }
@@ -118,11 +118,8 @@ public static class AssetAdministrationEndpoints
         // Validation or storage unavailability leaves no approved entry and must remain retryable to the client
         var record = await service.SubmitAsync(name, kind, category, buffer.ToArray(), actor, token);
         return record is null ? ApiProblems.Create(context, 503, "asset_intake_unavailable", "Asset validation or storage is unavailable")
-            : Results.Json(WithApiPrefix(record, context), statusCode: StatusCodes.Status201Created);
+            : Results.Json(record, statusCode: StatusCodes.Status201Created);
     }
-
-    private static AssetAdministrationRecord WithApiPrefix(AssetAdministrationRecord record, HttpContext context) =>
-        record with { InspectionUrl = $"{ApiV1Endpoints.PrefixFor(context)}/admin/assets/{record.Id}/bytes" };
 
     private static bool ValidReview(AssetReviewRequest request) =>
         new[] { request.Source, request.License, request.ReviewNotes }

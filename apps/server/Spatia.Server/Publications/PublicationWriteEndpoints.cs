@@ -69,7 +69,7 @@ internal static class PublicationWriteEndpoints
             if (result.AccessFailure is { } accessFailure) { return ProjectHttpResults.FromAccessFailure(context, accessFailure); }
             if (result.Acknowledgement is { } ack)
             {
-                var snapshotUrl = new Uri(origin!, $"api/publications/{ack.PublicationId:D}").AbsoluteUri;
+                var snapshotUrl = new Uri(origin!, $"{ApiV1Endpoints.Prefix}/publications/{ack.PublicationId:D}").AbsoluteUri;
                 var visitorUrl = new Uri(origin!, $"p/{ack.PublicationId:D}").AbsoluteUri;
                 var body = new { ack.PublicationId, ack.ProjectId, ack.SourceRevision, ack.CreatedAt, snapshotUrl, visitorUrl };
                 context.Response.Headers.CacheControl = "private, no-store";

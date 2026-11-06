@@ -126,7 +126,7 @@ public sealed class ProjectHttpResultsTests
         services.AddProblemDetails();
         using var provider = services.BuildServiceProvider();
         var context = new DefaultHttpContext { RequestServices = provider, TraceIdentifier = TraceId };
-        context.Request.Path = "/api/projects/" + PrivateProjectId;
+        context.Request.Path = "/api/v1/projects/" + PrivateProjectId;
         context.Request.QueryString = new QueryString("?private=" + PrivateMarker);
         context.Request.Headers.Cookie = "private=" + PrivateMarker;
         using var requestBody = new MemoryStream(Encoding.UTF8.GetBytes(PrivateMarker));

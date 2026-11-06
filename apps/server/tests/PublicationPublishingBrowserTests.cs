@@ -64,13 +64,13 @@ public sealed class PublicationPublishingBrowserTests
         await fixture.App.StopAsync();
         await using var restarted = await fixture.CreateSiblingAsync(_ => { });
         await restarted.SignInAsync(data.OtherStudent);
-        using var snapshot = await restarted.Client.GetAsync($"/api/publications/{edition.Id:D}");
+        using var snapshot = await restarted.Client.GetAsync($"/api/v1/publications/{edition.Id:D}");
         await Assert.That(snapshot.StatusCode).IsEqualTo(HttpStatusCode.OK);
         await Assert.That(JsonNode.DeepEquals(JsonNode.Parse(edition.DocumentJson),
             JsonNode.Parse(await snapshot.Content.ReadAsStringAsync()))).IsTrue();
-        using var manifest = await restarted.Client.GetAsync($"/api/publications/{edition.Id:D}/manifest");
+        using var manifest = await restarted.Client.GetAsync($"/api/v1/publications/{edition.Id:D}/manifest");
         await Assert.That(manifest.StatusCode).IsEqualTo(HttpStatusCode.OK);
-        using var bytes = await restarted.Client.GetAsync($"/api/publications/{edition.Id:D}/assets/{asset.Id:D}/bytes");
+        using var bytes = await restarted.Client.GetAsync($"/api/v1/publications/{edition.Id:D}/assets/{asset.Id:D}/bytes");
         await Assert.That(bytes.StatusCode).IsEqualTo(HttpStatusCode.OK);
         await Assert.That(Convert.ToHexStringLower(SHA256.HashData(await bytes.Content.ReadAsByteArrayAsync())))
             .IsEqualTo(asset.Sha256);

@@ -49,9 +49,9 @@ export async function checkServerEditor(
       );
     }
     const login = await page.evaluate(async (userName) => {
-      const csrf = (await (await fetch("/api/auth/csrf")).json()).requestToken;
+      const csrf = (await (await fetch("/api/v1/auth/csrf")).json()).requestToken;
       return (
-        await fetch("/api/auth/login", {
+        await fetch("/api/v1/auth/login", {
           method: "POST",
           headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": csrf },
           body: JSON.stringify({

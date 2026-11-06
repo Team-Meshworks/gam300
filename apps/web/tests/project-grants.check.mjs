@@ -26,7 +26,7 @@ let releaseWrite;
 try {
   const page = await browser.newPage();
   page.setDefaultTimeout(5000);
-  await page.route("**/api/**", async (route) => {
+  await page.route("**/api/v1/**", async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
     const json = (body, status = 200) => route.fulfill({ status, json: body });

@@ -38,7 +38,7 @@ try {
   let projectError = false;
   let projectReads = 0;
   let creations = 0;
-  await page.route("**/api/**", async (route) => {
+  await page.route("**/api/v1/**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
     if (url.pathname === "/api/v1/auth/session")

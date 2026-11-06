@@ -37,7 +37,7 @@ try {
   let writes = 0;
   let lostResponse = false;
   let rejectList = false;
-  await page.route("**/api/**", async (route) => {
+  await page.route("**/api/v1/**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
     const path = url.pathname;

@@ -44,7 +44,7 @@ try {
   async function write(name, path, body, method = "POST") {
     return pages[name].evaluate(
       async ({ path, body, method }) => {
-        const token = (await (await fetch("/api/auth/csrf")).json())
+        const token = (await (await fetch("/api/v1/auth/csrf")).json())
           .requestToken;
         const response = await fetch(path, {
           method,
@@ -61,13 +61,13 @@ try {
     );
   }
   async function login(name) {
-    const result = await write(name, "/api/auth/login", {
+    const result = await write(name, "/api/v1/auth/login", {
       userName: data.actors[name].userName,
       password: "Synthetic-long-password1!",
     });
     assert.equal(result.status, 204, name + " login");
   }
-  const path = (id) => `/api/publications/${id ?? data.publicationId}`;
+  const path = (id) => `/api/v1/publications/${id ?? data.publicationId}`;
   const asset = (id) => `${path(id)}/assets/${data.assetId}/bytes`;
   const viewers = [data.actors.viewer.userId];
   async function policy(
@@ -144,14 +144,14 @@ try {
   assert.equal((await policy("viewer", "Public")).status, 404);
   assert.equal((await policy("publisher", "Public", "hide")).status, 404);
   assert.equal(
-    (await get("viewer", `/api/projects/${data.projectId}`)).status,
+    (await get("viewer", `/api/v1/projects/${data.projectId}`)).status,
     404,
   );
   assert.equal(
     (
       await write(
         "viewer",
-        `/api/projects/${data.projectId}`,
+        `/api/v1/projects/${data.projectId}`,
         {
           expectedRevision: 0,
           clientMutationId: crypto.randomUUID(),
@@ -164,11 +164,11 @@ try {
   );
   assert.equal((await write("viewer", path(), original, "PUT")).status, 405);
   assert.equal(
-    (await get("viewer", `/api/assets/${data.assetId}/bytes`)).status,
+    (await get("viewer", `/api/v1/assets/${data.assetId}/bytes`)).status,
     404,
   );
   assert.equal(
-    (await get("anonymous", `/api/assets/${data.assetId}/bytes`)).status,
+    (await get("anonymous", `/api/v1/assets/${data.assetId}/bytes`)).status,
     401,
   );
   assert.equal(
@@ -185,7 +185,7 @@ try {
     (
       await write(
         "admin",
-        `/api/admin/users/${data.actors.viewer.userId}/active`,
+        `/api/v1/admin/users/${data.actors.viewer.userId}/active`,
         { isActive: false },
         "PATCH",
       )
@@ -201,7 +201,7 @@ try {
     (
       await write(
         "admin",
-        `/api/admin/users/${data.actors.viewer.userId}/active`,
+        `/api/v1/admin/users/${data.actors.viewer.userId}/active`,
         { isActive: true },
         "PATCH",
       )
@@ -216,10 +216,10 @@ try {
   await pair("viewer", 200);
 
   async function archive(archived) {
-    const project = await get("admin", `/api/projects/${data.projectId}`);
+    const project = await get("admin", `/api/v1/projects/${data.projectId}`);
     const result = await write(
       "admin",
-      `/api/projects/${data.projectId}/archive`,
+      `/api/v1/projects/${data.projectId}/archive`,
       { expectedRevision: project.body.revision, archived },
       "PATCH",
     );
@@ -232,12 +232,12 @@ try {
   await pair("viewer", 200);
 
   // Reassignment removes permission-derived publisher access without transferring publisher identity
-  let draft = (await get("admin", `/api/projects/${data.projectId}`)).body;
+  let draft = (await get("admin", `/api/v1/projects/${data.projectId}`)).body;
   assert.equal(
     (
       await write(
         "admin",
-        `/api/projects/${data.projectId}/assignments`,
+        `/api/v1/projects/${data.projectId}/assignments`,
         {
           expectedRevision: draft.revision,
           managedByUserIds: [data.actors.manager.userId],
@@ -260,13 +260,13 @@ try {
   // Public-link continuity after publisher disablement remains an owner decision.
 
   // Later draft edits do not alter the captured edition or its protected asset identity
-  draft = (await get("admin", `/api/projects/${data.projectId}`)).body;
+  draft = (await get("admin", `/api/v1/projects/${data.projectId}`)).body;
   draft.document.title = "Changed draft after publication";
   assert.equal(
     (
       await write(
         "admin",
-        `/api/projects/${data.projectId}`,
+        `/api/v1/projects/${data.projectId}`,
         {
           expectedRevision: draft.revision,
           clientMutationId: crypto.randomUUID(),

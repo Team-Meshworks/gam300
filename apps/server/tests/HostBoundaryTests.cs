@@ -89,48 +89,47 @@ public sealed class HostBoundaryTests
     {
         await using var app = SpatiaApplication.Build(CreateConfigurationBuilder());
         var endpoints = ((IEndpointRouteBuilder)app).DataSources.SelectMany(source => source.Endpoints).OfType<RouteEndpoint>().ToArray();
-        var expected = new[] { "GET /api/auth/csrf", "POST /api/auth/login", "GET /api/auth/session", "GET /api/auth/asset-access", "POST /api/auth/logout", "POST /api/auth/password",
-            "POST /api/admin/organizations", "POST /api/admin/users", "POST /api/admin/users/{id:guid}/password",
-            "GET /api/admin/users", "GET /api/admin/users/{id:guid}", "GET /api/admin/organizations", "GET /api/admin/organizations/{id:guid}",
-            "PATCH /api/admin/users/{id:guid}/active",
-            "PATCH /api/admin/users/{id:guid}", "GET /api/admin/organizations/{id:guid}/projects",
-            "PATCH /api/admin/organizations/{id:guid}/active",
-            "GET /api/admin/organizations/{id:guid}/deletion", "DELETE /api/admin/organizations/{id:guid}",
-            "GET /api/projects/", "GET /api/projects/{id:guid}", "GET /api/projects/{id:guid}/assignments", "PUT /api/projects/{id:guid}",
-            "POST /api/projects/", "POST /api/projects/{id:guid}/duplicate", "POST /api/projects/{id:guid}/submissions", "PATCH /api/projects/{id:guid}/assignments", "PATCH /api/projects/{id:guid}/archive",
-            "GET /api/projects/{id:guid}/submissions", "GET /api/projects/{id:guid}/submissions/{submissionId:guid}",
-            "POST /api/projects/{id:guid}/submissions/{submissionId:guid}/decisions",
-            "GET /api/classes/", "GET /api/classes/{id:guid}", "GET /api/classes/{id:guid}/roster", "GET /api/classes/{id:guid}/eligible-students",
-            "GET /api/classes/{id:guid}/assignments", "GET /api/classes/{id:guid}/assignments/{assignmentId:guid}",
-            "POST /api/classes/", "POST /api/classes/{id:guid}/assignments", "PUT /api/classes/{id:guid}/members/{userId:guid}", "DELETE /api/classes/{id:guid}/members/{userId:guid}",
-            "GET /api/admin/assets/", "GET /api/admin/assets/{id:guid}/bytes", "POST /api/admin/assets/", "POST /api/admin/assets/{id:guid}/approve",
-            "POST /api/admin/assets/{id:guid}/availability", "GET /api/assets", "GET /api/assets/{id:guid}/bytes",
-            "GET /api/projects/{projectId:guid}/assets/{id:guid}/bytes", "GET /api/projects/{projectId:guid}/assets",
-            "GET /api/publications/{publicationId}", "GET /api/publications/{publicationId}/manifest", "GET /api/publications/{publicationId}/assets/{assetId}/bytes",
-            "GET /api/publications/{publicationId:guid}/access", "POST /api/publications/{publicationId:guid}/access",
-            "POST /api/projects/{id:guid}/publications", "GET /api/projects/{id:guid}/publication-readiness", "GET /api/projects/{id:guid}/publication-viewers" };
+        var expected = new[] { "GET /api/v1/auth/csrf", "POST /api/v1/auth/login", "GET /api/v1/auth/session", "GET /api/v1/auth/asset-access", "POST /api/v1/auth/logout", "POST /api/v1/auth/password",
+            "POST /api/v1/admin/organizations", "POST /api/v1/admin/users", "POST /api/v1/admin/users/{id:guid}/password",
+            "GET /api/v1/admin/users", "GET /api/v1/admin/users/{id:guid}", "GET /api/v1/admin/organizations", "GET /api/v1/admin/organizations/{id:guid}",
+            "PATCH /api/v1/admin/users/{id:guid}/active",
+            "PATCH /api/v1/admin/users/{id:guid}", "GET /api/v1/admin/organizations/{id:guid}/projects",
+            "PATCH /api/v1/admin/organizations/{id:guid}/active",
+            "GET /api/v1/admin/organizations/{id:guid}/deletion", "DELETE /api/v1/admin/organizations/{id:guid}",
+            "GET /api/v1/projects/", "GET /api/v1/projects/{id:guid}", "GET /api/v1/projects/{id:guid}/assignments", "PUT /api/v1/projects/{id:guid}",
+            "POST /api/v1/projects/", "POST /api/v1/projects/{id:guid}/duplicate", "POST /api/v1/projects/{id:guid}/submissions", "PATCH /api/v1/projects/{id:guid}/assignments", "PATCH /api/v1/projects/{id:guid}/archive",
+            "GET /api/v1/projects/{id:guid}/submissions", "GET /api/v1/projects/{id:guid}/submissions/{submissionId:guid}",
+            "POST /api/v1/projects/{id:guid}/submissions/{submissionId:guid}/decisions",
+            "GET /api/v1/classes/", "GET /api/v1/classes/{id:guid}", "GET /api/v1/classes/{id:guid}/roster", "GET /api/v1/classes/{id:guid}/eligible-students",
+            "GET /api/v1/classes/{id:guid}/assignments", "GET /api/v1/classes/{id:guid}/assignments/{assignmentId:guid}",
+            "POST /api/v1/classes/", "POST /api/v1/classes/{id:guid}/assignments", "PUT /api/v1/classes/{id:guid}/members/{userId:guid}", "DELETE /api/v1/classes/{id:guid}/members/{userId:guid}",
+            "GET /api/v1/admin/assets/", "GET /api/v1/admin/assets/{id:guid}/bytes", "POST /api/v1/admin/assets/", "POST /api/v1/admin/assets/{id:guid}/approve",
+            "POST /api/v1/admin/assets/{id:guid}/availability", "GET /api/v1/assets", "GET /api/v1/assets/{id:guid}/bytes",
+            "GET /api/v1/projects/{projectId:guid}/assets/{id:guid}/bytes", "GET /api/v1/projects/{projectId:guid}/assets",
+            "GET /api/v1/publications/{publicationId}", "GET /api/v1/publications/{publicationId}/manifest", "GET /api/v1/publications/{publicationId}/assets/{assetId}/bytes",
+            "GET /api/v1/publications/{publicationId:guid}/access", "POST /api/v1/publications/{publicationId:guid}/access",
+            "POST /api/v1/projects/{id:guid}/publications", "GET /api/v1/projects/{id:guid}/publication-readiness", "GET /api/v1/projects/{id:guid}/publication-viewers" };
         await Assert.That(string.Join(";", endpoints.Select(endpoint =>
             endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Single() + " " + endpoint.RoutePattern.RawText).Order()))
-            .IsEqualTo(string.Join(";", expected.Concat(expected.Select(route =>
-                route.Replace("/api/", "/api/v1/", StringComparison.Ordinal))).Order()));
+            .IsEqualTo(string.Join(";", expected.Order()));
         foreach (var endpoint in endpoints)
         {
-            var path = endpoint.RoutePattern.RawText!.Replace("/api/v1/", "/api/", StringComparison.Ordinal);
-            var csrf = path == "/api/auth/csrf";
-            var login = path == "/api/auth/login";
-            var session = path == "/api/auth/session";
-            var project = path.StartsWith("/api/projects", StringComparison.Ordinal)
-                || path.StartsWith("/api/assets", StringComparison.Ordinal);
-            var publication = path.StartsWith("/api/publications", StringComparison.Ordinal);
+            var path = endpoint.RoutePattern.RawText!;
+            var csrf = path == "/api/v1/auth/csrf";
+            var login = path == "/api/v1/auth/login";
+            var session = path == "/api/v1/auth/session";
+            var project = path.StartsWith("/api/v1/projects", StringComparison.Ordinal)
+                || path.StartsWith("/api/v1/assets", StringComparison.Ordinal);
+            var publication = path.StartsWith("/api/v1/publications", StringComparison.Ordinal);
             var publicationRead = publication && !path.EndsWith("/access", StringComparison.Ordinal) && endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Single() == "GET";
             var assetBytes = path.EndsWith("/bytes", StringComparison.Ordinal);
-            var upload = path == "/api/admin/assets/" && endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Single() == "POST";
-            var classroom = path.StartsWith("/api/classes", StringComparison.Ordinal);
+            var upload = path == "/api/v1/admin/assets/" && endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Single() == "POST";
+            var classroom = path.StartsWith("/api/v1/classes", StringComparison.Ordinal);
             await Assert.That(endpoint.Metadata.GetMetadata<IAllowAnonymous>() is not null).IsEqualTo(csrf || login || publicationRead);
             if (!csrf && !login && !publicationRead)
             {
                 await Assert.That(endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>().Any(data =>
-                    data.Policy == (path.StartsWith("/api/admin/", StringComparison.Ordinal)
+                    data.Policy == (path.StartsWith("/api/v1/admin/", StringComparison.Ordinal)
                         ? SecurityPolicies.Administrator : project || classroom || publication ? SecurityPolicies.FullAccount : SecurityPolicies.CurrentAccount))).IsTrue();
             }
             var method = endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Single();
@@ -146,7 +145,7 @@ public sealed class HostBoundaryTests
     public async Task PublicRegistrationPaths_DoNotRegisterOrRedirect()
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync();
-        foreach (var path in new[] { "/register", "/api/register", "/api/auth/register" })
+        foreach (var path in new[] { "/register", "/api/v1/register", "/api/v1/auth/register" })
         {
             using var response = await fixture.Client.PostAsJsonAsync(path, new
             {
@@ -203,7 +202,7 @@ public sealed class HostBoundaryTests
     public async Task Transport_UnexpectedHost_ReturnsFixedEmptyBadRequest()
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync();
-        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/auth/csrf");
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/auth/csrf");
         request.Headers.Host = "attacker.example";
         using var response = await fixture.Client.SendAsync(request);
         await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
@@ -321,7 +320,7 @@ public sealed class HostBoundaryTests
         });
         await fixture.SignInAsync(await fixture.CreateAccountAsync());
         var token = await fixture.GetCsrfAsync();
-        var cookie = fixture.Cookies.GetCookies(fixture.Address)[HttpsApplicationFixture.CookieName]?.Value
+        var cookie = fixture.Cookies.GetCookies(fixture.Address)[fixture.CookieName]?.Value
             ?? throw new InvalidOperationException("Expected the synthetic session cookie.");
         using var request = new HttpRequestMessage(HttpMethod.Get, "/_test/error?secret=" + HttpsApplicationFixture.SecretSentinel);
         request.Headers.Add("X-Synthetic-Secret", HttpsApplicationFixture.SecretSentinel);
@@ -376,7 +375,7 @@ public sealed class HostBoundaryTests
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync();
         await fixture.SignInAsync(await fixture.CreateAccountAsync());
-        var originalCookie = fixture.Cookies.GetCookies(fixture.Address)[HttpsApplicationFixture.CookieName]?.Value
+        var originalCookie = fixture.Cookies.GetCookies(fixture.Address)[fixture.CookieName]?.Value
             ?? throw new InvalidOperationException("Expected the synthetic session cookie.");
         await using var scope = fixture.Database.Services.CreateAsyncScope();
         var connection = new NpgsqlConnectionStringBuilder(scope.ServiceProvider.GetRequiredService<ApplicationDbContext>()
@@ -394,9 +393,9 @@ public sealed class HostBoundaryTests
         var outageClient = unavailable.CreateClient(fixture.Cookies);
         using var failure = await outageClient.GetAsync("/_test/probe");
         await AssertProblemAsync(failure, HttpStatusCode.ServiceUnavailable, "storage_unavailable");
-        await Assert.That(fixture.Cookies.GetCookies(fixture.Address)[HttpsApplicationFixture.CookieName]?.Value == originalCookie).IsTrue();
+        await Assert.That(fixture.Cookies.GetCookies(fixture.Address)[fixture.CookieName]?.Value == originalCookie).IsTrue();
         await Assert.That(!failure.Headers.TryGetValues("Set-Cookie", out var headers)
-            || !headers.Any(header => header.StartsWith(HttpsApplicationFixture.CookieName + "=", StringComparison.Ordinal))).IsTrue();
+            || !headers.Any(header => header.StartsWith(fixture.CookieName + "=", StringComparison.Ordinal))).IsTrue();
         await Assert.That(unavailable.Logs.Messages.Contains("request_failure storage_unavailable", StringComparison.Ordinal)).IsTrue();
         await Assert.That(unavailable.Logs.Messages.Contains(HttpsApplicationFixture.SecretSentinel, StringComparison.Ordinal)).IsFalse();
         using var live = await fixture.Client.GetAsync("/_test/probe");

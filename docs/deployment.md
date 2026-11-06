@@ -356,6 +356,23 @@ The ordinary app deployment does not update this separate host gateway. Do not r
 the shared gate while an older image still serves catalogue files from public `/assets/`.
 Updating frontend redirects alone cannot protect bytes or remove an older gateway's prompt.
 
+When only development has the authenticated catalogue stack, replace only the `:8443`
+site's import with its TLS configuration and `reverse_proxy 127.0.0.1:8082`; retain the
+existing `:443` gate until production is upgraded. Back up and validate the gateway
+configuration before restarting it. Public `/login` and `/api/v1/auth/csrf` must return
+200 without a Basic challenge; anonymous catalogue requests must still return 401.
+The deployment health check now checks public login as well as the private API ingress.
+
+Built editors (including the development build) check the Spatia session before opening
+the local-file editor at `/`. Sign-in returns to that editor without clearing browser
+recovery. Session and CSRF cookie names include the environment because browser cookies
+are shared across ports on the VM IP. Upgrading these cookie names requires one fresh
+application sign-in. Models load when referenced by the active scene or selected for
+placement; failed requests retain the scene and expose Retry, with a separate sign-in
+link for expired sessions. The packaged `editor-session-loading.check.mjs` regression
+covers this flow using real GLBs and a simulated account API; the server HTTPS suite
+provides real Identity/database coverage.
+
 Use a dedicated `vthere-runner` account for the self-hosted runner, with Docker access and
 the custom `vthere-deploy` label. Install it as a system service using GitHub's runner setup
 instructions. This runner executes manual deployment jobs only; CI checks run on

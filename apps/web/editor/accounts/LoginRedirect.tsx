@@ -7,7 +7,12 @@ export function LoginRedirect() {
     // StrictMode can replay this effect while the first navigation is still pending.
     if (redirecting.current) return;
     redirecting.current = true;
-    location.replace("/login");
+    const id = new URLSearchParams(location.search).get("projectId");
+    const returnTo =
+      location.pathname === "/" && id && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id)
+        ? "/?projectId=" + id
+        : null;
+    location.replace(returnTo ? "/login?returnTo=" + encodeURIComponent(returnTo) : "/login");
   }, []);
 
   return (

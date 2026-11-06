@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -20,27 +21,32 @@ namespace Spatia.Server.Tests;
 public sealed class ApiVersioningTests
 {
     [Test]
-    public async Task Routes_V1AndLegacyPreserveBodyLimits()
+    public async Task Routes_OnlyV1RetainsReviewedBodyLimits()
     {
         await using var app = Build();
         var endpoints = ((IEndpointRouteBuilder)app).DataSources.SelectMany(source => source.Endpoints)
             .OfType<RouteEndpoint>().ToArray();
-        var versioned = endpoints.Where(endpoint => endpoint.RoutePattern.RawText!.StartsWith("/api/v1/", StringComparison.Ordinal)).ToArray();
-        await Assert.That(versioned.Length).IsGreaterThan(0);
-        foreach (var endpoint in versioned)
+        await Assert.That(endpoints.Length).IsEqualTo(58);
+        foreach (var endpoint in endpoints)
         {
-            var legacyPath = endpoint.RoutePattern.RawText!.Replace("/api/v1/", "/api/", StringComparison.Ordinal);
+            await Assert.That(endpoint.RoutePattern.RawText!.StartsWith("/api/v1/", StringComparison.Ordinal)).IsTrue();
             var method = endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Single();
-            var legacy = endpoints.Single(candidate => candidate.RoutePattern.RawText == legacyPath
-                && candidate.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Single() == method);
+            long? expected = (method, endpoint.RoutePattern.RawText) switch
+            {
+                ("POST", "/api/v1/projects/") or ("PUT", "/api/v1/projects/{id:guid}") => 6 * 1024 * 1024,
+                ("POST", "/api/v1/admin/assets/") => 20 * 1024 * 1024,
+                ("POST", "/api/v1/admin/assets/{id:guid}/approve") => 40 * 1024,
+                ("POST", "/api/v1/projects/{id:guid}/publications") or ("POST", "/api/v1/publications/{publicationId:guid}/access") => 16 * 1024,
+                _ => null,
+            };
             await Assert.That(endpoint.Metadata.GetMetadata<IRequestSizeLimitMetadata>()?.MaxRequestBodySize)
-                .IsEqualTo(legacy.Metadata.GetMetadata<IRequestSizeLimitMetadata>()?.MaxRequestBodySize);
+                .IsEqualTo(expected);
         }
     }
 
     [Test]
-    [Arguments("/api")]
     [Arguments("/api/v1")]
+    [Arguments("/API/V1")]
     public async Task ForcedPasswordSession_RetainsOnlyItsRecoveryRoutes(string prefix)
     {
         await using var app = Build();
@@ -56,7 +62,7 @@ public sealed class ApiVersioningTests
             ("GET", "/auth/asset-access", false), ("GET", "/projects/", false),
         })
         {
-            var endpoint = endpoints.Single(endpoint => endpoint.RoutePattern.RawText == prefix + path
+            var endpoint = endpoints.Single(endpoint => endpoint.RoutePattern.RawText == "/api/v1" + path
                 && endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Single() == method);
             var policy = await AuthorizationPolicy.CombineAsync(policies, endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>())
                 ?? throw new InvalidOperationException("Expected an explicit authorization policy.");
@@ -73,12 +79,12 @@ public sealed class ApiVersioningTests
     }
 
     [Test]
-    public async Task Http_V1AndLegacyPreserveSecurityAndRejectUnknownVersions()
+    public async Task Http_V1PreservesSecurityAndRejectsUnknownVersions()
     {
         await using var app = Build();
         await app.StartAsync();
         using var client = CreateClient(app);
-        foreach (var prefix in new[] { "/api", "/api/v1" })
+        foreach (var prefix in new[] { "/api/v1", "/API/V1" })
         {
             using var csrf = await client.GetAsync(prefix + "/auth/csrf");
             await Assert.That(csrf.StatusCode).IsEqualTo(HttpStatusCode.OK);
@@ -113,7 +119,7 @@ public sealed class ApiVersioningTests
                 await AssertProblemAsync(protectedResponse, HttpStatusCode.Unauthorized, "authentication_required");
             }
         }
-        foreach (var path in new[] { "/api/v2/auth/csrf", "/api/v0/auth/csrf", "/api/v01/auth/csrf",
+        foreach (var path in new[] { "/api", "/api/", "/api/v1", "/api/v1/", "/api/v2/auth/csrf", "/api/v0/auth/csrf", "/api/v01/auth/csrf",
             "/api/v1.0/auth/csrf", "/api/v10/auth/csrf", "/api/v1/missing", "/api/v1/v1/auth/csrf" })
         {
             using var get = await client.GetAsync(path);
@@ -124,14 +130,38 @@ public sealed class ApiVersioningTests
     }
 
     [Test]
-    public async Task LoginRateLimit_IsSharedByV1AndLegacy()
+    public async Task Http_AllUnversionedRoutesReturnNotFoundWithoutRedirects()
+    {
+        await using var app = Build();
+        var endpoints = ((IEndpointRouteBuilder)app).DataSources.SelectMany(source => source.Endpoints)
+            .OfType<RouteEndpoint>().Where(endpoint => endpoint.RoutePattern.RawText!.StartsWith("/api/v1/", StringComparison.Ordinal)).ToArray();
+        await Assert.That(endpoints.Length).IsEqualTo(58);
+        await app.StartAsync();
+        using var client = CreateClient(app);
+        foreach (var endpoint in endpoints)
+        {
+            var path = Regex.Replace(endpoint.RoutePattern.RawText!, @"\{[^}]+\}", "11111111-1111-4111-8111-111111111111")
+                .Replace("/api/v1/", "/api/", StringComparison.Ordinal);
+            var method = new HttpMethod(endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Single());
+            foreach (var suffix in new[] { "", "/" })
+            {
+                using var request = new HttpRequestMessage(method, path.TrimEnd('/') + suffix);
+                using var response = await client.SendAsync(request);
+                await AssertProblemAsync(response, HttpStatusCode.NotFound, "api_not_found");
+                await Assert.That(response.Headers.Location is null).IsTrue();
+            }
+        }
+    }
+
+    [Test]
+    public async Task LoginRateLimit_IsSharedAcrossV1PathCasingAndTrailingSlashes()
     {
         await using var app = Build();
         await app.StartAsync();
         using var client = CreateClient(app);
         for (var index = 0; index < 60; index++)
         {
-            using var response = await client.PostAsJsonAsync(index % 2 == 0 ? "/api/auth/login" : "/api/v1/auth/login", new { });
+            using var response = await client.PostAsJsonAsync(index % 2 == 0 ? "/api/v1/auth/login" : "/API/V1/auth/login/", new { });
             await AssertProblemAsync(response, HttpStatusCode.BadRequest, "csrf_invalid");
         }
         using var rejected = await client.PostAsJsonAsync("/api/v1/auth/login", new { });
@@ -157,7 +187,8 @@ public sealed class ApiVersioningTests
 
     private static HttpClient CreateClient(WebApplication app)
     {
-        var client = new HttpClient { BaseAddress = new Uri(app.Urls.Single()), Timeout = TimeSpan.FromSeconds(15) };
+        var client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false })
+        { BaseAddress = new Uri(app.Urls.Single()), Timeout = TimeSpan.FromSeconds(15) };
         client.DefaultRequestHeaders.Add("X-Forwarded-Proto", "https");
         client.DefaultRequestHeaders.ExpectContinue = true;
         return client;

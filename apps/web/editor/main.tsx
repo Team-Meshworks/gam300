@@ -1,6 +1,8 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
+import { EditorSessionGate } from "./accounts/EditorSessionGate";
+import { packaged } from "virtual:asset-catalogue";
 import { ServerProjectEditor } from "./ServerProjectEditor";
 import { preloadUiSounds } from "./audio/ui-sounds";
 import "./styles.css";
@@ -35,8 +37,12 @@ if (import.meta.env.DEV && new URLSearchParams(location.search).has("asset-admin
         <ServerProjectEditor
           projectId={new URLSearchParams(location.search).get("projectId") ?? ""}
         />
-      ) : (
+      ) : !packaged ? (
         <App />
+      ) : (
+        <EditorSessionGate>
+          <App />
+        </EditorSessionGate>
       )}
     </StrictMode>,
   );

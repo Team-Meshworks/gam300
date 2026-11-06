@@ -1,3 +1,4 @@
+import { createModelLoadQueue } from "./model-load-queue";
 import {
   environmentObject,
   moveSceneSelection,
@@ -33,7 +34,12 @@ import type {
 import { getStartingCamera } from "../../shared/project/starting-view";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { ModelCache, disposeModels, type ModelLease } from "../../shared/asset-runtime/ModelCache";
+import {
+  ModelCache,
+  ModelRequestError,
+  disposeModels,
+  type ModelLease,
+} from "../../shared/asset-runtime/ModelCache";
 import type { CatalogueAsset } from "../../shared/asset-runtime/catalogue";
 import { HOTSPOT_ASSET_ID } from "../../shared/asset-runtime/hotspot";
 import type { SceneObject, Vector3Tuple } from "../../shared/project/scene-object";
@@ -77,7 +83,8 @@ if (import.meta.hot) {
   import.meta.hot.dispose(() => editorModelCache.invalidate());
 }
 
-export type ViewportStatus = "loading" | "ready" | "error" | "download-error" | "unsupported";
+export type ViewportStatus =
+  "loading" | "ready" | "error" | "download-error" | "unsupported" | "authentication-required";
 
 export interface FpsMeter {
   tick(now: number): void;
@@ -100,6 +107,7 @@ const cursors: Record<NavigationTool, string> = {
 };
 
 export interface InitSceneHandle {
+  prepareAsset: (id: string) => Promise<boolean>;
   update: (
     nextObjects: readonly SceneObject[],
     nextSelectedId: string | null,
@@ -114,7 +122,7 @@ export interface InitSceneHandle {
     clientY: number,
   ) => Transform | undefined;
   clearTextPlacement: () => void;
-  getDisplayPlacement: (ownerId: string, assetId: string) => Transform | undefined;
+  getDisplayPlacement: (ownerId: string, assetId: string) => Promise<Transform | undefined>;
   resolveTransform: (id: string, transform: Transform) => Transform | undefined;
   resolvePlacement: (assetId: string, position: Vector3Tuple) => Transform | undefined;
   getPlacementParent: (assetId: string, transform: Transform, objectId?: string) => string | null;
@@ -249,7 +257,7 @@ export function initScene(
   const models = new Map<string, THREE.Group>();
   const leases: ModelLease[] = [];
   const hotspotMaterials = new Set<THREE.SpriteMaterial>();
-  let ready = false;
+  const ready = true;
   let editingEnabled = true;
   let objects: readonly SceneObject[] = [];
   let selectedId: string | null = null;
@@ -642,7 +650,11 @@ export function initScene(
 
     const nextEnvironmentId =
       projectScene?.environmentVisible === false ? undefined : projectScene?.environmentAssetId;
-    if (ready && environmentId !== nextEnvironmentId) {
+    if (
+      ready &&
+      (environmentId !== nextEnvironmentId ||
+        (!environment && nextEnvironmentId && models.has(nextEnvironmentId)))
+    ) {
       // A placement root preserves the cached model's normalization under authored transforms.
       // Removed instances borrow resources from this viewport's cache leases
       if (environment !== undefined) scene.remove(environment);
@@ -720,6 +732,9 @@ export function initScene(
     }
     updateGizmo();
     render();
+    if (nextEnvironmentId) void prepareAsset(nextEnvironmentId);
+    for (const object of objects) void prepareAsset(object.assetId);
+    if (projectScene?.hotspots?.length) void prepareAsset(HOTSPOT_ASSET_ID);
   }
 
   function getSelectionBounds(): THREE.Box3 | undefined {
@@ -1698,81 +1713,98 @@ export function initScene(
   observer.observe(host);
   resize();
 
-  async function loadAssets() {
-    try {
-      for (const asset of assets) {
-        if (asset.kind !== "model" && asset.kind !== "environment") continue;
-        if (asset.id === HOTSPOT_ASSET_ID) {
-          const texture = await new THREE.TextureLoader().loadAsync(asset.url);
-          if (disposed || controller.signal.aborted) {
-            texture.dispose();
-            return;
-          }
-          texture.colorSpace = THREE.SRGBColorSpace;
-          const material = new THREE.SpriteMaterial({
-            map: texture,
-            transparent: true,
-            // Editor annotations stay readable even through the owner's geometry.
-            depthTest: false,
-            depthWrite: false,
-          });
-          hotspotMaterials.add(material);
-          const sprite = new THREE.Sprite(material);
-          sprite.renderOrder = 1000;
-          sprite.scale.setScalar(HOTSPOT_SIZE);
-          sprite.position.y = HOTSPOT_SIZE / 2;
-          const model = new THREE.Group();
-          model.add(sprite);
-          models.set(asset.id, model);
-          continue;
-        }
-        const lease = await modelCache.acquire(asset, controller.signal);
-        if (disposed) {
-          lease.release();
-          return;
-        }
-        leases.push(lease);
-        const { model } = lease.value;
-        if (asset.thumbnail === null && lease.value.thumbnail === undefined) {
-          const box = new THREE.Box3().setFromObject(model);
-          const size = box.getSize(new THREE.Vector3());
-          const center = box.getCenter(new THREE.Vector3());
-          const thumbnailScene = new THREE.Scene();
-          thumbnailScene.add(ambient.clone(), sun.clone(), fill.clone(), model.clone(true));
-          const thumbnailCamera = new THREE.PerspectiveCamera(35, 1, 0.01, 1000);
-          const distance =
-            (Math.max(size.length(), 0.1) / 2 / Math.sin((35 * Math.PI) / 360)) * 1.05;
-          const offset =
-            asset.kind === "environment"
-              ? new THREE.Vector3(0.7, 1.3, 1).normalize().multiplyScalar(distance)
-              : new THREE.Vector3(0, size.y * 0.1, distance);
-          thumbnailCamera.position.copy(center).add(offset);
-          thumbnailCamera.lookAt(center);
-          renderer.setPixelRatio(1);
-          renderer.setSize(320, 320, false);
-          renderer.setClearColor(0, 0);
-          renderer.render(thumbnailScene, thumbnailCamera);
-          lease.value.thumbnail = renderer.domElement.toDataURL("image/png");
-          renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-          resize();
-        }
-        if (asset.thumbnail === null && lease.value.thumbnail !== undefined) {
-          callbacks.onThumbnail(asset.id, lease.value.thumbnail);
-        }
-        // Preserve exported units and pivots for manifest assets
-        models.set(asset.id, model);
-      }
-      ready = true;
-      update(objects, selectedId, projectScene, appliedLoadGeneration ?? 0, selectedIds);
-      callbacks.onStatus("ready");
-    } catch (error) {
-      if (!disposed) {
-        console.error("Failed to load the asset library", error);
-        callbacks.onStatus("error");
-      }
-    }
+  function loadingChanged() {
+    if (disposed) return;
+    const failures = [...modelLoads.errors.values()];
+    callbacks.onStatus(
+      failures.some(
+        (error) => error instanceof ModelRequestError && [401, 403].includes(error.status),
+      )
+        ? "authentication-required"
+        : modelLoads.pending
+          ? "loading"
+          : failures.length
+            ? "error"
+            : "ready",
+    );
   }
-  void loadAssets();
+  const modelLoads = createModelLoadQueue(async (id) => {
+    if (disposed) return;
+    const asset = assets.find((asset) => asset.id === id);
+    if (!asset) throw new Error("Missing model: " + id);
+    await loadAsset(asset);
+    if (!disposed)
+      update(objects, selectedId, projectScene, appliedLoadGeneration ?? 0, selectedIds);
+  }, loadingChanged);
+  function prepareAsset(id: string): Promise<boolean> {
+    if (disposed) return Promise.resolve(false);
+    const asset = assets.find((asset) => asset.id === id);
+    if (asset && asset.kind !== "model" && asset.kind !== "environment")
+      return Promise.resolve(true);
+    return modelLoads.request(id);
+  }
+  async function loadAsset(asset: CatalogueAsset) {
+    if (asset.id === HOTSPOT_ASSET_ID) {
+      const texture = await new THREE.TextureLoader().loadAsync(asset.url);
+      if (disposed || controller.signal.aborted) {
+        texture.dispose();
+        return;
+      }
+      texture.colorSpace = THREE.SRGBColorSpace;
+      const material = new THREE.SpriteMaterial({
+        map: texture,
+        transparent: true,
+        // Editor annotations stay readable even through the owner's geometry.
+        depthTest: false,
+        depthWrite: false,
+      });
+      hotspotMaterials.add(material);
+      const sprite = new THREE.Sprite(material);
+      sprite.renderOrder = 1000;
+      sprite.scale.setScalar(HOTSPOT_SIZE);
+      sprite.position.y = HOTSPOT_SIZE / 2;
+      const model = new THREE.Group();
+      model.add(sprite);
+      models.set(asset.id, model);
+      return;
+    }
+    const lease = await modelCache.acquire(asset, controller.signal);
+    if (disposed) {
+      lease.release();
+      return;
+    }
+    leases.push(lease);
+    const { model } = lease.value;
+    if (asset.thumbnail === null && lease.value.thumbnail === undefined) {
+      const box = new THREE.Box3().setFromObject(model);
+      const size = box.getSize(new THREE.Vector3());
+      const center = box.getCenter(new THREE.Vector3());
+      const thumbnailScene = new THREE.Scene();
+      thumbnailScene.add(ambient.clone(), sun.clone(), fill.clone(), model.clone(true));
+      const thumbnailCamera = new THREE.PerspectiveCamera(35, 1, 0.01, 1000);
+      const distance = (Math.max(size.length(), 0.1) / 2 / Math.sin((35 * Math.PI) / 360)) * 1.05;
+      const offset =
+        asset.kind === "environment"
+          ? new THREE.Vector3(0.7, 1.3, 1).normalize().multiplyScalar(distance)
+          : new THREE.Vector3(0, size.y * 0.1, distance);
+      thumbnailCamera.position.copy(center).add(offset);
+      thumbnailCamera.lookAt(center);
+      renderer.setPixelRatio(1);
+      renderer.setSize(320, 320, false);
+      renderer.setClearColor(0, 0);
+      renderer.render(thumbnailScene, thumbnailCamera);
+      lease.value.thumbnail = renderer.domElement.toDataURL("image/png");
+      renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+      resize();
+    }
+    if (asset.thumbnail === null && lease.value.thumbnail !== undefined) {
+      callbacks.onThumbnail(asset.id, lease.value.thumbnail);
+    }
+    // Preserve exported units and pivots for manifest assets
+    models.set(asset.id, model);
+  }
+  // Defer until the caller has supplied the recovered scene; an empty project downloads no models.
+  queueMicrotask(loadingChanged);
 
   const placementPreview = createPlacementPreview(scene, models);
   const textPreview = createDisplayContent(assets, render, models);
@@ -1852,10 +1884,12 @@ export function initScene(
 
   return {
     update,
+    prepareAsset,
     showTextPlacement,
     clearTextPlacement,
     getDropPosition,
-    getDisplayPlacement(ownerId, assetId) {
+    async getDisplayPlacement(ownerId, assetId) {
+      if (!(await prepareAsset(assetId)) || disposed) return;
       const owner = objects.find((object) => object.id === ownerId);
       const metadata = assets.find((asset) => asset.id === owner?.assetId);
       const caseModel = owner && models.get(owner.assetId);
@@ -1886,6 +1920,10 @@ export function initScene(
       if (layout && position) position = projectScene?.environmentTransform?.position ?? [0, 0, 0];
       if (id === "test-room-v1" && projectScene?.environmentAssetId === id)
         id = "test-room-module-v1";
+      if (id && !models.has(id)) {
+        void prepareAsset(id);
+        return false;
+      }
       const room = id === "test-room-v1" || id === "test-room-module-v1";
       const rotation =
         id === "test-room-module-v1"

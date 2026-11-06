@@ -33,7 +33,7 @@ public sealed class AccountProvisioningConcurrencyTests
         var blocker = ((NpgsqlConnection)gate.Database.GetDbConnection()).ProcessID;
         probe.Arm();
 
-        Task<HttpResponseMessage> ProvisionAsync() => AuthTestRequests.PostAsync(fixture, "/api/admin/users", new
+        Task<HttpResponseMessage> ProvisionAsync() => AuthTestRequests.PostAsync(fixture, "/api/v1/admin/users", new
         {
             userName = "concurrent-account",
             initialPassword = AuthTestRequests.CurrentPassword,
@@ -42,7 +42,7 @@ public sealed class AccountProvisioningConcurrencyTests
         }, token: token);
         async Task<HttpResponseMessage> RenameAsync()
         {
-            using var request = new HttpRequestMessage(HttpMethod.Patch, $"/api/admin/users/{target}")
+            using var request = new HttpRequestMessage(HttpMethod.Patch, $"/api/v1/admin/users/{target}")
             {
                 Content = JsonContent.Create(new { userName = "CONCURRENT-ACCOUNT" }),
             };

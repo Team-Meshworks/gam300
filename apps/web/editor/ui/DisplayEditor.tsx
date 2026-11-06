@@ -52,7 +52,7 @@ export function DisplayEditor({
   project: ProjectDocument;
   store: ReturnType<typeof createDocumentStore>;
   thumbnailFor: (assetId: string) => string | undefined;
-  placementFor: (ownerId: string, assetId: string) => Transform | undefined;
+  placementFor: (ownerId: string, assetId: string) => Promise<Transform | undefined> | undefined;
   onClose: () => void;
 }) {
   const id = useId();
@@ -85,6 +85,8 @@ export function DisplayEditor({
   const [filter, setFilter] = useState("all");
   const [favourites, setFavourites] = useState(loadFavourites);
   const [error, setError] = useState("");
+  const saving = useRef(false);
+  const [pending, setPending] = useState(false);
   const candidates = assets.filter((a) =>
     physical
       ? a.kind === "model" && !a.displayRole && a.id !== "test-room-module-v1"
@@ -102,65 +104,74 @@ export function DisplayEditor({
     }
     return true;
   }
-  function save() {
-    if (!current()) return;
-    if (physical) {
-      if (!chosen) return;
-      const fitted = placementFor(object.id, chosen.id);
-      if (!fitted) {
-        setError("This object does not fit the display. Choose a smaller object.");
-        return;
-      }
-      const result = store.addAttachedObject(
-        chosen.id,
-        object.id,
-        displayPosition(object, asset.displayTop ?? 0),
-        fitted,
-      );
-      if (!result.ok) {
-        setError(result.error);
-        return;
-      }
-    } else {
-      const componentId = existing?.id ?? crypto.randomUUID();
-      if (!textMode && !chosen) return;
-      const component: ContentComponent =
-        type === "text"
-          ? {
-              id: componentId,
-              type,
-              runs:
-                existing?.type === "text" && text === initialText && !formatChanged
-                  ? existing.runs
-                  : [{ text, marks }],
-              caption,
-            }
-          : type === "image"
+  async function save() {
+    if (saving.current) return;
+    saving.current = true;
+    setPending(true);
+    try {
+      if (!current()) return;
+      if (physical) {
+        if (!chosen) return;
+        const fitted = await placementFor(object.id, chosen.id);
+        if (!current()) return;
+        if (!fitted) {
+          setError("This object does not fit the display. Choose a smaller object.");
+          return;
+        }
+        const result = store.addAttachedObject(
+          chosen.id,
+          object.id,
+          displayPosition(object, asset.displayTop ?? 0),
+          fitted,
+        );
+        if (!result.ok) {
+          setError(result.error);
+          return;
+        }
+      } else {
+        const componentId = existing?.id ?? crypto.randomUUID();
+        if (!textMode && !chosen) return;
+        const component: ContentComponent =
+          type === "text"
             ? {
                 id: componentId,
                 type,
-                assetId: chosen!.id,
+                runs:
+                  existing?.type === "text" && text === initialText && !formatChanged
+                    ? existing.runs
+                    : [{ text, marks }],
                 caption,
-                alt:
-                  existing?.type === "image" && existing.assetId === chosen!.id
-                    ? existing.alt
-                    : caption,
               }
-            : {
-                id: componentId,
-                type,
-                assetId: chosen!.id,
-                caption,
-                loop: existing?.type === "video" ? existing.loop : false,
-                volume: existing?.type === "video" ? existing.volume : 1,
-              };
-      const result = store.setDisplayContent(object.id, component);
-      if (!result.ok) {
-        setError(result.error.message);
-        return;
+            : type === "image"
+              ? {
+                  id: componentId,
+                  type,
+                  assetId: chosen!.id,
+                  caption,
+                  alt:
+                    existing?.type === "image" && existing.assetId === chosen!.id
+                      ? existing.alt
+                      : caption,
+                }
+              : {
+                  id: componentId,
+                  type,
+                  assetId: chosen!.id,
+                  caption,
+                  loop: existing?.type === "video" ? existing.loop : false,
+                  volume: existing?.type === "video" ? existing.volume : 1,
+                };
+        const result = store.setDisplayContent(object.id, component);
+        if (!result.ok) {
+          setError(result.error.message);
+          return;
+        }
       }
+      onClose();
+    } finally {
+      saving.current = false;
+      setPending(false);
     }
-    onClose();
   }
   function selectTab(kind: Kind) {
     setType(kind);
@@ -419,7 +430,7 @@ export function DisplayEditor({
             <button
               type="button"
               className="ui-button pill-button asset-picker-add"
-              disabled={textMode ? !text.trim() : !chosen}
+              disabled={pending || (textMode ? !text.trim() : !chosen)}
               onClick={save}
             >
               Add

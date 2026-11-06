@@ -140,7 +140,7 @@ public static class SpatiaApplication
         builder.Services.AddScoped<ProjectSaveService>();
         builder.Services.TryAddScoped<IReviewAssetResolver, ApprovedReviewAssetResolver>();
         builder.Services.AddSpatiaAccounts(connectionString);
-        builder.Services.AddSpatiaRequestSecurity();
+        builder.Services.AddSpatiaRequestSecurity(builder.Environment.EnvironmentName);
         builder.Services.AddDataProtection()
             .PersistKeysToFileSystem(new DirectoryInfo(keyDirectory))
             .SetApplicationName($"Spatia:{builder.Environment.EnvironmentName}");
@@ -236,7 +236,6 @@ public static class SpatiaApplication
         });
         app.UseSpatiaAntiforgery();
         app.MapGroup(ApiV1Endpoints.Prefix).MapApiV1();
-        app.MapGroup("/api").MapApiV1();
         return app;
     }
 

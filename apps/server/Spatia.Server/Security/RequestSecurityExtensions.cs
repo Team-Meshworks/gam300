@@ -19,8 +19,10 @@ public static class RequestSecurityExtensions
     /// </summary>
     /// <param name="services">The service collection receiving the security registrations</param>
     /// <returns>The supplied service collection for additional registrations</returns>
-    public static IServiceCollection AddSpatiaRequestSecurity(this IServiceCollection services)
+    public static IServiceCollection AddSpatiaRequestSecurity(this IServiceCollection services, string? environmentName = null)
     {
+        // Cookies are scoped by host, not port. Dev and production share the VM IP.
+        var cookieSuffix = environmentName is "Development" or "Production" ? "." + environmentName : "";
         services.AddIdentityCore<ApplicationUser>().AddSignInManager()
             .AddTokenProvider<DataProtectorTokenProvider<ApplicationUser>>(TokenOptions.DefaultProvider);
         services.AddAuthentication(options =>
@@ -33,7 +35,7 @@ public static class RequestSecurityExtensions
         services.AddScoped<CurrentAccountCookieEvents>();
         services.ConfigureApplicationCookie(options =>
         {
-            options.Cookie.Name = "__Host-Spatia.Application";
+            options.Cookie.Name = "__Host-Spatia.Application" + cookieSuffix;
             options.Cookie.Path = "/";
             options.Cookie.HttpOnly = true;
             options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
@@ -60,7 +62,7 @@ public static class RequestSecurityExtensions
         services.AddAntiforgery(options =>
         {
             options.HeaderName = "X-CSRF-TOKEN";
-            options.Cookie.Name = "__Host-Spatia.Antiforgery";
+            options.Cookie.Name = "__Host-Spatia.Antiforgery" + cookieSuffix;
             options.Cookie.Path = "/";
             options.Cookie.HttpOnly = true;
             options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
@@ -152,7 +154,7 @@ public static class RequestSecurityExtensions
             return false;
         }
 
-        context.Request.Path.StartsWithSegments(ApiV1Endpoints.PrefixFor(context), out var remaining);
+        context.Request.Path.StartsWithSegments(ApiV1Endpoints.Prefix, out var remaining);
         var path = remaining.Value?.TrimEnd('/');
         return HttpMethods.IsGet(context.Request.Method)
             ? string.Equals(path, "/auth/csrf", StringComparison.OrdinalIgnoreCase)

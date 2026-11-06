@@ -24,7 +24,7 @@ try {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   let mode = "Educator";
-  await page.route("**/api/**", async (route) => {
+  await page.route("**/api/v1/**", async (route) => {
     const request = route.request();
     assert.equal(request.method(), "GET", "Workspace routes must not mutate the API");
     if (new URL(request.url()).pathname === "/api/v1/auth/session") {
@@ -131,7 +131,10 @@ try {
     "?projectId=aefea67c-caca-4300-923c-937f1c785578",
   ]) {
     await page.goto(`${origin}/${path}`);
-    await page.waitForURL(`${origin}/login`);
+    const destination = path.startsWith("?projectId=")
+      ? `${origin}/login?returnTo=${encodeURIComponent("/" + path)}`
+      : `${origin}/login`;
+    await page.waitForURL(destination);
     await page.getByRole("heading", { name: "Welcome back.", exact: true }).waitFor();
     assert.equal(await page.locator(".sp-workspace, .editor-shell").count(), 0);
   }

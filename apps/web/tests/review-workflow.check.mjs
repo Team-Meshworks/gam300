@@ -36,7 +36,7 @@ try {
   const writes = [];
   let denied = false,
     canPublish = true;
-  await page.route("**/api/**", async (route) => {
+  await page.route("**/api/v1/**", async (route) => {
     const req = route.request(),
       path = new URL(req.url()).pathname;
     const reply = (body, status = 200) => route.fulfill({ status, json: body });

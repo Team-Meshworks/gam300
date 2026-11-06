@@ -63,7 +63,7 @@ public sealed class ClassroomEndpointTests
         using (var other = await otherClient.GetAsync(ClassPath(id))) { await Assert.That(other.StatusCode).IsEqualTo(HttpStatusCode.NotFound); }
         using (var forged = await foreignClient.GetAsync(ClassPath(id))) { await Assert.That(forged.StatusCode).IsEqualTo(HttpStatusCode.NotFound); }
         using (var noSession = await anonymous.GetAsync(ClassPath(id))) { await Assert.That(noSession.StatusCode).IsEqualTo(HttpStatusCode.Unauthorized); }
-        using var ownList = await studentClient.GetAsync("/api/classes");
+        using var ownList = await studentClient.GetAsync("/api/v1/classes");
         var ownItems = (await ownList.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("items").EnumerateArray().ToArray();
         await Assert.That(ownItems.Length).IsEqualTo(1);
         await Assert.That(ownItems[0].GetProperty("id").GetGuid()).IsEqualTo(id);
@@ -82,13 +82,13 @@ public sealed class ClassroomEndpointTests
         await MoveToOrganizationAsync(fixture, organization, student);
         await fixture.SignInAsync(educator);
 
-        using (var invalid = await AuthTestRequests.PostAsync(fixture, "/api/classes", new { name = " ", managedByUserIds = Array.Empty<Guid>() }))
+        using (var invalid = await AuthTestRequests.PostAsync(fixture, "/api/v1/classes", new { name = " ", managedByUserIds = Array.Empty<Guid>() }))
         { await Assert.That(invalid.StatusCode).IsEqualTo(HttpStatusCode.BadRequest); }
-        using (var crossOrg = await AuthTestRequests.PostAsync(fixture, "/api/classes", new { name = "Foreign", orgId = foreignOrganization }))
+        using (var crossOrg = await AuthTestRequests.PostAsync(fixture, "/api/v1/classes", new { name = "Foreign", orgId = foreignOrganization }))
         { await Assert.That(crossOrg.StatusCode).IsEqualTo(HttpStatusCode.Forbidden); }
-        using (var invalidManager = await AuthTestRequests.PostAsync(fixture, "/api/classes", new { name = "Foreign", managedByUserIds = new[] { foreignEducator } }))
+        using (var invalidManager = await AuthTestRequests.PostAsync(fixture, "/api/v1/classes", new { name = "Foreign", managedByUserIds = new[] { foreignEducator } }))
         { await Assert.That(invalidManager.StatusCode).IsEqualTo(HttpStatusCode.UnprocessableEntity); }
-        using (var duplicateManager = await AuthTestRequests.PostAsync(fixture, "/api/classes", new { name = "Duplicate", managedByUserIds = new[] { educator, educator } }))
+        using (var duplicateManager = await AuthTestRequests.PostAsync(fixture, "/api/v1/classes", new { name = "Duplicate", managedByUserIds = new[] { educator, educator } }))
         { await Assert.That(duplicateManager.StatusCode).IsEqualTo(HttpStatusCode.BadRequest); }
 
         var id = await CreateAsync(fixture, "Allowed", []);
@@ -96,11 +96,11 @@ public sealed class ClassroomEndpointTests
         { await Assert.That(foreignMember.StatusCode).IsEqualTo(HttpStatusCode.UnprocessableEntity); }
         using (var missingCsrf = await fixture.Client.PutAsync(MemberPath(id, student), null))
         { await Assert.That(missingCsrf.StatusCode).IsEqualTo(HttpStatusCode.BadRequest); }
-        using (var malformedPage = await fixture.Client.GetAsync("/api/classes?limit=21"))
+        using (var malformedPage = await fixture.Client.GetAsync("/api/v1/classes?limit=21"))
         { await Assert.That(malformedPage.StatusCode).IsEqualTo(HttpStatusCode.BadRequest); }
         using var studentClient = fixture.CreateClient();
         await fixture.SignInAsync(student, studentClient);
-        using (var create = await AuthTestRequests.PostAsync(fixture, "/api/classes", new { name = "Student class" }, studentClient))
+        using (var create = await AuthTestRequests.PostAsync(fixture, "/api/v1/classes", new { name = "Student class" }, studentClient))
         { await Assert.That(create.StatusCode).IsEqualTo(HttpStatusCode.Forbidden); }
         using (var add = await SendAsync(fixture, HttpMethod.Put, MemberPath(id, student), studentClient))
         { await Assert.That(add.StatusCode).IsEqualTo(HttpStatusCode.NotFound); }
@@ -157,7 +157,7 @@ public sealed class ClassroomEndpointTests
                 .ExecuteUpdateAsync(set => set.SetProperty(row => row.IsActive, false));
         }
         await fixture.SignInAsync(administrator);
-        using var created = await AuthTestRequests.PostAsync(fixture, "/api/classes", new
+        using var created = await AuthTestRequests.PostAsync(fixture, "/api/v1/classes", new
         {
             name = "Admin class",
             orgId = organization,
@@ -234,11 +234,11 @@ public sealed class ClassroomEndpointTests
             await database.SaveChangesAsync();
         }
         await fixture.SignInAsync(educator);
-        using var first = await fixture.Client.GetAsync("/api/classes?limit=20");
+        using var first = await fixture.Client.GetAsync("/api/v1/classes?limit=20");
         var firstPage = await first.Content.ReadFromJsonAsync<JsonElement>();
         await Assert.That(firstPage.GetProperty("items").GetArrayLength()).IsEqualTo(20);
         var cursor = firstPage.GetProperty("nextCursor").GetGuid();
-        using var second = await fixture.Client.GetAsync("/api/classes?limit=20&cursor=" + cursor.ToString("D"));
+        using var second = await fixture.Client.GetAsync("/api/v1/classes?limit=20&cursor=" + cursor.ToString("D"));
         var secondPage = await second.Content.ReadFromJsonAsync<JsonElement>();
         await Assert.That(secondPage.GetProperty("items").GetArrayLength()).IsEqualTo(1);
         await Assert.That(secondPage.GetProperty("nextCursor").ValueKind).IsEqualTo(JsonValueKind.Null);
@@ -281,7 +281,7 @@ public sealed class ClassroomEndpointTests
 
     private static async Task<Guid> CreateAsync(HttpsApplicationFixture fixture, string name, Guid[] managers)
     {
-        using var response = await AuthTestRequests.PostAsync(fixture, "/api/classes", new { name, managedByUserIds = managers });
+        using var response = await AuthTestRequests.PostAsync(fixture, "/api/v1/classes", new { name, managedByUserIds = managers });
         await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.Created);
         return (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
     }
@@ -310,7 +310,7 @@ public sealed class ClassroomEndpointTests
         return await client.SendAsync(request);
     }
 
-    private static string ClassPath(Guid id, string suffix = "") => "/api/classes/" + id.ToString("D") + suffix;
+    private static string ClassPath(Guid id, string suffix = "") => "/api/v1/classes/" + id.ToString("D") + suffix;
     private static string MemberPath(Guid id, Guid userId) => ClassPath(id, "/members/" + userId.ToString("D"));
 
     private static async Task WaitBlockedAsync(HttpsApplicationFixture fixture, int waiter, int blocker)

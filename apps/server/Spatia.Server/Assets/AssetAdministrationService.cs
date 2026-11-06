@@ -2,6 +2,7 @@ using System.Data;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Spatia.Server.Hosting;
 using Spatia.Server.Persistence;
 
 namespace Spatia.Server.Assets;
@@ -114,5 +115,5 @@ public sealed class AssetAdministrationService(ApplicationDbContext database, As
         asset.Status, asset.Hidden, asset.Deleted, asset.RemovedFromProjects, null,
         JsonSerializer.Deserialize<string[]>(asset.ValidationJson) ?? [],
         asset.Deleted ? (asset.RemovedFromProjects ? [] : ["remove"])
-            : asset.Status == "approved" ? [asset.Hidden ? "show" : "hide", "delete"] : ["delete"], asset.Sha256, asset.Source, asset.License, asset.ReviewNotes, $"/api/admin/assets/{asset.Id}/bytes");
+            : asset.Status == "approved" ? [asset.Hidden ? "show" : "hide", "delete"] : ["delete"], asset.Sha256, asset.Source, asset.License, asset.ReviewNotes, $"{ApiV1Endpoints.Prefix}/admin/assets/{asset.Id}/bytes");
 }

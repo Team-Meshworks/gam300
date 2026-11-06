@@ -68,7 +68,7 @@ const api = async (route) => {
   }
   return json(404, {});
 };
-await context.route("**/api/**", api);
+await context.route("**/api/v1/**", api);
 const page = await context.newPage();
 page.on("pageerror", (error) => errors.push(error.message));
 page.on("dialog", (dialog) => dialog.accept());
@@ -131,7 +131,7 @@ try {
   await ready();
   // A fresh browser opens the confirmed server content without local recovery.
   const freshContext = await browser.newContext();
-  await freshContext.route("**/api/**", api);
+  await freshContext.route("**/api/v1/**", api);
   const fresh = await freshContext.newPage();
   await fresh.goto(url);
   await fresh.getByRole("button", { name: "Scenes", exact: true }).click();
@@ -208,7 +208,9 @@ try {
   await status.filter({ hasText: "Save failed" }).waitFor();
   account = null;
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
-  await page.waitForURL(`${base}/login`);
+  await page.waitForURL(
+    `${base}/login?returnTo=${encodeURIComponent(`/?projectId=${fixture.projectId}`)}`,
+  );
   await page.getByRole("heading", { name: "Welcome back.", exact: true }).waitFor();
   account = alice;
   mode = "saved";

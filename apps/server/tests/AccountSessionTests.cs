@@ -27,7 +27,7 @@ public sealed class AccountSessionTests
         await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
         await Assert.That((await response.Content.ReadAsByteArrayAsync()).Length).IsEqualTo(0);
         var cookieHeaders = response.Headers.GetValues("Set-Cookie").ToArray();
-        await Assert.That(cookieHeaders.Any(header => header.StartsWith(HttpsApplicationFixture.CookieName + "=", StringComparison.Ordinal)
+        await Assert.That(cookieHeaders.Any(header => header.StartsWith(fixture.CookieName + "=", StringComparison.Ordinal)
             && header.Contains("secure", StringComparison.OrdinalIgnoreCase) && header.Contains("httponly", StringComparison.OrdinalIgnoreCase)
             && header.Contains("samesite=lax", StringComparison.OrdinalIgnoreCase) && !header.Contains("expires=", StringComparison.OrdinalIgnoreCase)
             && !header.Contains("max-age=", StringComparison.OrdinalIgnoreCase))).IsTrue();
@@ -35,7 +35,7 @@ public sealed class AccountSessionTests
         await Assert.That(ticket.Properties.IsPersistent).IsFalse();
         await Assert.That(ticket.Properties.Items[HttpsApplicationFixture.AbsoluteExpiryKey])
             .IsEqualTo(start.AddHours(8).UtcTicks.ToString(System.Globalization.CultureInfo.InvariantCulture));
-        using var session = await fixture.Client.GetAsync("/api/auth/session");
+        using var session = await fixture.Client.GetAsync("/api/v1/auth/session");
         await Assert.That(session.StatusCode).IsEqualTo(HttpStatusCode.OK);
         var json = await session.Content.ReadFromJsonAsync<JsonElement>();
         await Assert.That(json.EnumerateObject().Select(property => property.Name).Order().SequenceEqual(
@@ -97,7 +97,7 @@ public sealed class AccountSessionTests
         await Assert.That(failure.GetProperty("title").GetString()).IsEqualTo("The sign-in details could not be accepted.");
         await Assert.That(!failure.TryGetProperty("detail", out var detail) || detail.ValueKind == JsonValueKind.Null).IsTrue();
         await Assert.That(response.Headers.Contains("Set-Cookie")).IsFalse();
-        using var session = await fixture.Client.GetAsync("/api/auth/session");
+        using var session = await fixture.Client.GetAsync("/api/v1/auth/session");
         await Assert.That(session.StatusCode).IsEqualTo(HttpStatusCode.Unauthorized);
         await AuthTestRequests.AssertSafeAsync(fixture, response);
     }
@@ -191,7 +191,7 @@ public sealed class AccountSessionTests
             .SetProperty(user => user.AccessFailedCount, 2)
             .SetProperty(user => user.LockoutEnd, DateTimeOffset.UtcNow.AddMinutes(-1)));
         var before = await database.Users.AsNoTracking().SingleAsync();
-        var cookie = fixture.Cookies.GetCookies(fixture.Address)[HttpsApplicationFixture.CookieName]?.Value;
+        var cookie = fixture.Cookies.GetCookies(fixture.Address)[fixture.CookieName]?.Value;
         var key = operation == "login" ? "userName" : "currentPassword";
         var first = JsonSerializer.Serialize(key) + ":" + JsonSerializer.Serialize(operation == "login" ? name : AuthTestRequests.CurrentPassword);
         var tail = operation == "login" ? ",\"password\":" + JsonSerializer.Serialize(AuthTestRequests.CurrentPassword)
@@ -204,7 +204,7 @@ public sealed class AccountSessionTests
             "missing" => "{" + tail[1..] + "}",
             _ => "{" + JsonSerializer.Serialize(key) + ":null" + tail + "}",
         };
-        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/auth/" + operation)
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/" + operation)
         {
             Content = new StringContent(json, Encoding.UTF8, "application/json"),
         };
@@ -219,8 +219,8 @@ public sealed class AccountSessionTests
         await Assert.That(after.LockoutEnd).IsEqualTo(before.LockoutEnd);
         await Assert.That(after.LockoutEnabled).IsEqualTo(before.LockoutEnabled);
         await Assert.That(response.Headers.Contains("Set-Cookie")).IsFalse();
-        await Assert.That(fixture.Cookies.GetCookies(fixture.Address)[HttpsApplicationFixture.CookieName]?.Value == cookie).IsTrue();
-        using var session = await fixture.Client.GetAsync("/api/auth/session");
+        await Assert.That(fixture.Cookies.GetCookies(fixture.Address)[fixture.CookieName]?.Value == cookie).IsTrue();
+        using var session = await fixture.Client.GetAsync("/api/v1/auth/session");
         await Assert.That(session.StatusCode).IsEqualTo(operation == "login" ? HttpStatusCode.Unauthorized : HttpStatusCode.OK);
         if (operation == "password")
         {
@@ -241,26 +241,26 @@ public sealed class AccountSessionTests
         await Assert.That(login.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
         var original = fixture.ReadTicket().Properties.Items[HttpsApplicationFixture.AbsoluteExpiryKey];
         var oldCookies = new CookieContainer();
-        var originalCookie = fixture.Cookies.GetCookies(fixture.Address)[HttpsApplicationFixture.CookieName]!;
+        var originalCookie = fixture.Cookies.GetCookies(fixture.Address)[fixture.CookieName]!;
         oldCookies.Add(fixture.Address, new Cookie(originalCookie.Name, originalCookie.Value, "/") { Secure = true });
         var oldClient = fixture.CreateClient(oldCookies);
         fixture.Clock.Advance(TimeSpan.FromMinutes(5) + TimeSpan.FromSeconds(1));
-        using var renewed = await fixture.Client.GetAsync("/api/auth/session");
+        using var renewed = await fixture.Client.GetAsync("/api/v1/auth/session");
         await Assert.That(renewed.StatusCode).IsEqualTo(HttpStatusCode.OK);
         await Assert.That(fixture.ReadTicket().Properties.Items[HttpsApplicationFixture.AbsoluteExpiryKey]).IsEqualTo(original);
         fixture.Clock.Set(start.AddHours(8).AddMinutes(-1));
-        using var changed = await AuthTestRequests.PostAsync(fixture, "/api/auth/password", new
+        using var changed = await AuthTestRequests.PostAsync(fixture, "/api/v1/auth/password", new
         {
             currentPassword = AuthTestRequests.CurrentPassword,
             newPassword = AuthTestRequests.NewPassword,
         });
         await Assert.That(changed.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
         await Assert.That(fixture.ReadTicket().Properties.Items[HttpsApplicationFixture.AbsoluteExpiryKey]).IsEqualTo(original);
-        using var session = await fixture.Client.GetAsync("/api/auth/session");
+        using var session = await fixture.Client.GetAsync("/api/v1/auth/session");
         await Assert.That((await session.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("mustChangePassword").GetBoolean()).IsFalse();
         using var ordinary = await fixture.Client.GetAsync("/_test/probe");
         await Assert.That(ordinary.StatusCode).IsEqualTo(HttpStatusCode.OK);
-        using var stale = await oldClient.GetAsync("/api/auth/session");
+        using var stale = await oldClient.GetAsync("/api/v1/auth/session");
         await Assert.That(stale.StatusCode).IsEqualTo(HttpStatusCode.Unauthorized);
         await using (var scope = fixture.App.Services.CreateAsyncScope())
         {
@@ -271,7 +271,7 @@ public sealed class AccountSessionTests
             await Assert.That(user.MustChangePassword).IsFalse();
         }
         fixture.Clock.Set(start.AddHours(8));
-        using var expired = await fixture.Client.GetAsync("/api/auth/session");
+        using var expired = await fixture.Client.GetAsync("/api/v1/auth/session");
         await Assert.That(expired.StatusCode).IsEqualTo(HttpStatusCode.Unauthorized);
     }
 
@@ -295,7 +295,7 @@ public sealed class AccountSessionTests
             stamp = user.SecurityStamp!;
             hash = user.PasswordHash!;
         }
-        using var response = await AuthTestRequests.PostAsync(fixture, "/api/auth/password", new
+        using var response = await AuthTestRequests.PostAsync(fixture, "/api/v1/auth/password", new
         {
             currentPassword = scenario == "wrong-current" ? "Wrong synthetic password!" : AuthTestRequests.CurrentPassword,
             newPassword = scenario == "same" ? AuthTestRequests.CurrentPassword : scenario == "short" ? new string('a', 11)
@@ -309,7 +309,7 @@ public sealed class AccountSessionTests
             await Assert.That(user.MustChangePassword).IsTrue();
             await Assert.That(user.AccessFailedCount).IsEqualTo(0);
         }
-        using var session = await fixture.Client.GetAsync("/api/auth/session");
+        using var session = await fixture.Client.GetAsync("/api/v1/auth/session");
         await Assert.That(session.StatusCode).IsEqualTo(HttpStatusCode.OK);
         await Assert.That(fixture.ReadTicket().Properties.Items[HttpsApplicationFixture.AbsoluteExpiryKey])
             .IsEqualTo(ticket.Properties.Items[HttpsApplicationFixture.AbsoluteExpiryKey]);
@@ -326,7 +326,7 @@ public sealed class AccountSessionTests
         using var login = await LoginAsync(fixture, await AuthTestRequests.UserNameAsync(fixture, id));
         await Assert.That(login.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
         var replacement = new string('a', length);
-        using var response = await AuthTestRequests.PostAsync(fixture, "/api/auth/password", new
+        using var response = await AuthTestRequests.PostAsync(fixture, "/api/v1/auth/password", new
         {
             currentPassword = AuthTestRequests.CurrentPassword,
             newPassword = replacement,
@@ -347,13 +347,13 @@ public sealed class AccountSessionTests
         using var login = await LoginAsync(fixture, name);
         await Assert.That(login.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
         const string replacement = "  preserved password  ";
-        using var response = await AuthTestRequests.PostAsync(fixture, "/api/auth/password", new
+        using var response = await AuthTestRequests.PostAsync(fixture, "/api/v1/auth/password", new
         {
             currentPassword = AuthTestRequests.CurrentPassword,
             newPassword = replacement,
         });
         await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
-        using var logout = await AuthTestRequests.PostAsync(fixture, "/api/auth/logout", null);
+        using var logout = await AuthTestRequests.PostAsync(fixture, "/api/v1/auth/logout", null);
         await Assert.That(logout.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
         using var trimmed = await LoginAsync(fixture, name, replacement.Trim());
         await AuthTestRequests.AssertProblemAsync(trimmed, HttpStatusCode.Unauthorized, "login_failed");
@@ -371,13 +371,13 @@ public sealed class AccountSessionTests
         await Assert.That(first.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
         using var switchAttempt = await LoginAsync(fixture, await AuthTestRequests.UserNameAsync(fixture, other));
         await AuthTestRequests.AssertProblemAsync(switchAttempt, HttpStatusCode.Forbidden, "access_denied");
-        using var session = await fixture.Client.GetAsync("/api/auth/session");
+        using var session = await fixture.Client.GetAsync("/api/v1/auth/session");
         await Assert.That((await session.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("userId").GetGuid()).IsEqualTo(forced);
         using var ordinary = await fixture.Client.GetAsync("/_test/probe");
         await Assert.That(ordinary.StatusCode).IsEqualTo(HttpStatusCode.Forbidden);
-        using var logout = await AuthTestRequests.PostAsync(fixture, "/api/auth/logout", null);
+        using var logout = await AuthTestRequests.PostAsync(fixture, "/api/v1/auth/logout", null);
         await Assert.That(logout.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
-        using var gone = await fixture.Client.GetAsync("/api/auth/session");
+        using var gone = await fixture.Client.GetAsync("/api/v1/auth/session");
         await Assert.That(gone.StatusCode).IsEqualTo(HttpStatusCode.Unauthorized);
     }
 
@@ -392,21 +392,21 @@ public sealed class AccountSessionTests
         var oldToken = await fixture.GetCsrfAsync();
         using var failed = await LoginAsync(fixture, await AuthTestRequests.UserNameAsync(fixture, second), AuthTestRequests.NewPassword, oldToken);
         await AuthTestRequests.AssertProblemAsync(failed, HttpStatusCode.Unauthorized, "login_failed");
-        using (var stillFirst = await fixture.Client.GetAsync("/api/auth/session"))
+        using (var stillFirst = await fixture.Client.GetAsync("/api/v1/auth/session"))
         {
             await Assert.That((await stillFirst.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("userId").GetGuid()).IsEqualTo(first);
         }
         using var switched = await LoginAsync(fixture, await AuthTestRequests.UserNameAsync(fixture, second), token: oldToken);
         await Assert.That(switched.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
-        using var stale = await AuthTestRequests.PostAsync(fixture, "/api/auth/password", new
+        using var stale = await AuthTestRequests.PostAsync(fixture, "/api/v1/auth/password", new
         {
             currentPassword = AuthTestRequests.CurrentPassword,
             newPassword = AuthTestRequests.NewPassword,
         }, token: oldToken);
         await Assert.That(stale.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
-        using var session = await fixture.Client.GetAsync("/api/auth/session");
+        using var session = await fixture.Client.GetAsync("/api/v1/auth/session");
         await Assert.That((await session.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("userId").GetGuid()).IsEqualTo(second);
-        using var logout = await AuthTestRequests.PostAsync(fixture, "/api/auth/logout", null);
+        using var logout = await AuthTestRequests.PostAsync(fixture, "/api/v1/auth/logout", null);
         await Assert.That(logout.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
         using var anonymousOldToken = await LoginAsync(fixture, await AuthTestRequests.UserNameAsync(fixture, first), token: oldToken);
         await Assert.That(anonymousOldToken.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
@@ -429,12 +429,12 @@ public sealed class AccountSessionTests
             await Assert.That(login.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
         }
         var before = await SnapshotAsync(fixture, id);
-        using var response = await fixture.Client.PostAsJsonAsync("/api/auth/" + operation,
+        using var response = await fixture.Client.PostAsJsonAsync("/api/v1/auth/" + operation,
             operation == "login" ? (object)new { userName = name, password = AuthTestRequests.CurrentPassword }
                 : new { currentPassword = AuthTestRequests.CurrentPassword, newPassword = AuthTestRequests.NewPassword });
         await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
         await Assert.That(await SnapshotAsync(fixture, id) == before).IsTrue();
-        using var session = await fixture.Client.GetAsync("/api/auth/session");
+        using var session = await fixture.Client.GetAsync("/api/v1/auth/session");
         await Assert.That(session.StatusCode).IsEqualTo(operation == "login" ? HttpStatusCode.Unauthorized : HttpStatusCode.OK);
     }
 
@@ -442,21 +442,21 @@ public sealed class AccountSessionTests
     public async Task Logout_RequiresCurrentAccountAndDeletesCookieWithoutRevokingCopiedTicket()
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync();
-        using var anonymous = await AuthTestRequests.PostAsync(fixture, "/api/auth/logout", null);
+        using var anonymous = await AuthTestRequests.PostAsync(fixture, "/api/v1/auth/logout", null);
         await Assert.That(anonymous.StatusCode).IsEqualTo(HttpStatusCode.Unauthorized);
         var id = await fixture.CreateAccountAsync();
         using var login = await LoginAsync(fixture, await AuthTestRequests.UserNameAsync(fixture, id));
         await Assert.That(login.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
         var copiedCookies = new CookieContainer();
-        var cookie = fixture.Cookies.GetCookies(fixture.Address)[HttpsApplicationFixture.CookieName]!;
+        var cookie = fixture.Cookies.GetCookies(fixture.Address)[fixture.CookieName]!;
         copiedCookies.Add(fixture.Address, new Cookie(cookie.Name, cookie.Value, "/") { Secure = true });
         var copiedClient = fixture.CreateClient(copiedCookies);
-        using var logout = await AuthTestRequests.PostAsync(fixture, "/api/auth/logout", null);
+        using var logout = await AuthTestRequests.PostAsync(fixture, "/api/v1/auth/logout", null);
         await Assert.That(logout.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
-        await Assert.That(logout.Headers.GetValues("Set-Cookie").Any(header => header.StartsWith(HttpsApplicationFixture.CookieName + "=;", StringComparison.Ordinal))).IsTrue();
-        using var gone = await fixture.Client.GetAsync("/api/auth/session");
+        await Assert.That(logout.Headers.GetValues("Set-Cookie").Any(header => header.StartsWith(fixture.CookieName + "=;", StringComparison.Ordinal))).IsTrue();
+        using var gone = await fixture.Client.GetAsync("/api/v1/auth/session");
         await Assert.That(gone.StatusCode).IsEqualTo(HttpStatusCode.Unauthorized);
-        using var copied = await copiedClient.GetAsync("/api/auth/session");
+        using var copied = await copiedClient.GetAsync("/api/v1/auth/session");
         await Assert.That(copied.StatusCode).IsEqualTo(HttpStatusCode.OK);
     }
 
@@ -468,5 +468,5 @@ public sealed class AccountSessionTests
     }
     private static Task<HttpResponseMessage> LoginAsync(HttpsApplicationFixture fixture, string userName,
         string password = AuthTestRequests.CurrentPassword, string? token = null)
-        => AuthTestRequests.PostAsync(fixture, "/api/auth/login", new { userName, password }, token: token);
+        => AuthTestRequests.PostAsync(fixture, "/api/v1/auth/login", new { userName, password }, token: token);
 }

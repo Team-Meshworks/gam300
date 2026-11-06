@@ -7,7 +7,7 @@ const context = await browser.newContext({ timezoneId: "Asia/Singapore", locale:
 let saved;
 const requests = [];
 try {
-  await context.route("**/api/**", async (route) => {
+  await context.route("**/api/v1/**", async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
     const json = (body, status = 200) =>
@@ -108,7 +108,7 @@ async function recoveryScenario(kind) {
   const status = kind.endsWith("403") ? 403 : kind.endsWith("404") ? 404 : 413;
   const initial = kind.startsWith("initial-");
   try {
-    await isolated.route("**/api/**", async (route) => {
+    await isolated.route("**/api/v1/**", async (route) => {
       const request = route.request();
       const path = new URL(request.url()).pathname;
       const json = (body, status = 200) =>
@@ -206,7 +206,7 @@ async function returningEducator() {
   const isolated = await browser.newContext();
   let studentName = "Alice";
   try {
-    await isolated.route("**/api/**", async (route) => {
+    await isolated.route("**/api/v1/**", async (route) => {
       const path = new URL(route.request().url()).pathname;
       const json = (body) => route.fulfill({ json: body });
       if (path === "/api/v1/auth/session")

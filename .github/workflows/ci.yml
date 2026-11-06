@@ -395,8 +395,8 @@ jobs:
           # Compose waits for running containers; Caddy still needs to start TLS and issue its certificate.
           curl --fail --silent --show-error --retry 12 --retry-delay 1 --retry-all-errors --max-time 5 --retry-max-time 60 --cacert test-results/server-root.crt https://localhost:8444/healthz
           curl --fail --silent --show-error --cacert test-results/server-root.crt --output /dev/null https://localhost:8444/
-          curl --fail --silent --show-error --retry 12 --retry-delay 1 --retry-connrefused --max-time 5 --retry-max-time 60 --cacert test-results/server-root.crt --output /dev/null https://localhost:8444/api/auth/csrf
-          test "$(curl --silent --show-error --cacert test-results/server-root.crt --output /dev/null --write-out '%{http_code}' https://localhost:8444/api/auth/session)" = 401
+          curl --fail --silent --show-error --retry 12 --retry-delay 1 --retry-connrefused --max-time 5 --retry-max-time 60 --cacert test-results/server-root.crt --output /dev/null https://localhost:8444/api/v1/auth/csrf
+          test "$(curl --silent --show-error --cacert test-results/server-root.crt --output /dev/null --write-out '%{http_code}' https://localhost:8444/api/v1/auth/session)" = 401
           model=$(node -e "console.log(require('node:fs').readdirSync('test-results/packaged-restricted').find(name => name.endsWith('.glb')))")
           test "$(curl --silent --show-error --cacert test-results/server-root.crt --output /dev/null --write-out '%{http_code}' "https://localhost:8444/restricted-assets/$model")" = 401
           test "$("${stack[@]}" exec -T postgres psql -U spatia -d spatia -tAc 'SELECT count(*) FROM public."__EFMigrationsHistory"')" -ge 2

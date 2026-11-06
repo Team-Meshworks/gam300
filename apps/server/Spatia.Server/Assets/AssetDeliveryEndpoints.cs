@@ -12,10 +12,8 @@ public static class AssetDeliveryEndpoints
     public static IEndpointRouteBuilder MapAssetDelivery(this IEndpointRouteBuilder endpoints)
     {
         // New selections see only active reviewed versions; retained project reads use a separate route below
-        endpoints.MapGet("/assets", async (HttpContext context, ApplicationDbContext database, CancellationToken token) =>
-        {
-            var prefix = ApiV1Endpoints.PrefixFor(context);
-            return Results.Ok(await database.AssetCandidates.AsNoTracking()
+        endpoints.MapGet("/assets", async (ApplicationDbContext database, CancellationToken token) =>
+            Results.Ok(await database.AssetCandidates.AsNoTracking()
                 .Where(asset => asset.Status == "approved" && !asset.Hidden && !asset.Deleted && !asset.RemovedFromProjects)
                 .Select(asset => new
                 {
@@ -23,12 +21,11 @@ public static class AssetDeliveryEndpoints
                     asset.Name,
                     asset.Kind,
                     asset.Category,
-                    url = prefix + "/assets/" + asset.Id + "/bytes",
+                    url = ApiV1Endpoints.Prefix + "/assets/" + asset.Id + "/bytes",
                     asset.Sha256,
                     thumbnail = (string?)null
                 })
-                .Take(1000).ToArrayAsync(token));
-        }).RequireAuthorization(SecurityPolicies.FullAccount);
+                .Take(1000).ToArrayAsync(token))).RequireAuthorization(SecurityPolicies.FullAccount);
         endpoints.MapGet("/projects/{projectId:guid}/assets", async (Guid projectId, HttpContext context,
             ApplicationDbContext database, ProjectAccessService access, ProjectDocumentService documents, CancellationToken token) =>
         {
@@ -41,7 +38,6 @@ public static class AssetDeliveryEndpoints
             // Project-scoped delivery retains its existing access and removal checks on every byte read.
             var ids = AssetDocumentReferences.Read(project.UnvalidatedDocumentJson)
                 .Where(value => Guid.TryParse(value, out _)).Select(Guid.Parse).ToArray();
-            var prefix = ApiV1Endpoints.PrefixFor(context);
             var rows = await database.AssetCandidates.AsNoTracking()
                 .Where(asset => ids.Contains(asset.Id) && asset.Status == "approved" && !asset.RemovedFromProjects)
                 .Select(asset => new
@@ -50,7 +46,7 @@ public static class AssetDeliveryEndpoints
                     asset.Name,
                     asset.Kind,
                     asset.Category,
-                    url = prefix + "/projects/" + projectId + "/assets/" + asset.Id + "/bytes",
+                    url = ApiV1Endpoints.Prefix + "/projects/" + projectId + "/assets/" + asset.Id + "/bytes",
                     asset.Sha256,
                     thumbnail = (string?)null
                 }).ToArrayAsync(token);
