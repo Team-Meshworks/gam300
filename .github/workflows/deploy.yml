@@ -82,6 +82,8 @@ jobs:
           EXPECTED_COMMIT: ${{ needs.release.outputs.commit }}
           CI_RUN_ID: ${{ inputs.ci_run_id }}
           APP_URL: ${{ vars.APP_URL }}
+          DEPLOY_BASIC_AUTH_USERNAME: ${{ secrets.DEPLOY_BASIC_AUTH_USERNAME }}
+          DEPLOY_BASIC_AUTH_PASSWORD: ${{ secrets.DEPLOY_BASIC_AUTH_PASSWORD }}
           DEPLOY_ENVIRONMENT: ${{ needs.release.outputs.environment }}
         shell: bash
         run: |
