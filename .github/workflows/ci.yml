@@ -133,12 +133,7 @@ jobs:
         run: |
           npm install --global npm@11.21.1
           npm ci --no-audit --no-fund
-      - name: Verify runner Chrome or install a patched version
-        run: |
-          if ! npm run browser:verify; then
-            npm run browser:install
-            npm run browser:verify
-          fi
+      - uses: ./.github/actions/setup-chrome
       - name: Prove architecture enforcement and isolated module removal
         run: npm run test:architecture
       - name: Retain architecture evidence
@@ -221,12 +216,7 @@ jobs:
         run: |
           npm install --global npm@11.21.1
           npm ci --no-audit --no-fund
-      - name: Verify runner Chrome or install a patched version
-        run: |
-          if ! npm run browser:verify; then
-            npm run browser:install
-            npm run browser:verify
-          fi
+      - uses: ./.github/actions/setup-chrome
       - name: Start Vite server
         run: |
           mkdir -p test-results
@@ -303,12 +293,7 @@ jobs:
         run: |
           npm run test:unit -- --reporter=default --reporter=junit --outputFile=test-results/unit.xml
           node tests/restricted-catalogue.check.mjs
-      - name: Verify runner Chrome or install a patched version
-        run: |
-          if ! npm run browser:verify; then
-            npm run browser:install
-            npm run browser:verify
-          fi
+      - uses: ./.github/actions/setup-chrome
       - name: Check browser isolation and real HTTP cache
         run: npm run test:browser-security
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
@@ -460,11 +445,7 @@ jobs:
         run: |
           npm install --global npm@11.21.1
           npm ci --no-audit --no-fund
-          # The shared policy verifies full Chrome, including chrome://sandbox.
-          if ! npm run browser:verify; then
-            npm run browser:install
-            npm run browser:verify
-          fi
+      - uses: ./.github/actions/setup-chrome
       - name: Prepare the proxy test binary
         run: |
           # Exercise the actual pinned proxy binary with the production ASP.NET middleware

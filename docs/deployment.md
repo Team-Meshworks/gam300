@@ -197,8 +197,11 @@ failure and fails overall. Workspace routes and the admin dashboard run against 
 Caddy application. The caching check verifies GLB HTTP revalidation; `npm run measure:caching`
 remains an on-demand benchmark. Publishing waits for every fixture job and all required build/test
 jobs; the architecture proof may be skipped only when its selector reports it unnecessary.
-CI reuses the runner's Chrome only when browser verification passes the existing version
-and sandbox policy; otherwise it installs an official patched Chrome and verifies it again.
+CI reuses the runner's Chrome only when browser verification passes the version and
+sandbox policy. Otherwise it restores or downloads the pinned official Chrome `.deb`,
+checks its SHA-256, installs it and verifies the browser again. Package absence, hash
+mismatch or installation failure fails the job. Update the browser policy floor and the
+action's package version and hash together when raising the security floor.
 
 The recovery check includes place–move–undo–save–reload and JSON transfer into a fresh
 browser context. Its output and the editor check output are retained under `apps/web/test-results/`.
