@@ -138,7 +138,9 @@ try {
   await page.getByRole("heading", { name: "All Projects", exact: true }).waitFor();
   await page.getByRole("link", { name: "Organisations", exact: true }).click();
   await page.waitForURL(origin + "/organisations");
-  await page.goBack();
+  await page.getByRole("link", { name: "Close organisations", exact: true }).click();
+  await page.waitForURL(origin + "/admin/dashboard");
+  await page.getByRole("link", { name: "View All Projects", exact: true }).click();
   await page.waitForURL(origin + "/home");
   await page.getByRole("button", { name: "Classes", exact: true }).click();
   await page.getByRole("link", { name: "Dashboard", exact: true }).click();

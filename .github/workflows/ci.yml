@@ -166,6 +166,7 @@ jobs:
               viewpoints
               placement-collision
               moving-room-collision
+              starter-room-transform
               nonstarter-room-collision
               caching
           - name: recovery

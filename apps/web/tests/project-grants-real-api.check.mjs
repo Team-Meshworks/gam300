@@ -24,11 +24,9 @@ try {
   await page.waitForURL(`${origin}/admin/dashboard`);
   await page.getByRole("link", { name: "View All Projects", exact: true }).click();
   await page.waitForURL(`${origin}/home`);
-  await page.getByRole("link", { name: "Accounts", exact: true }).click();
+  await page.getByRole("link", { name: "Organisations", exact: true }).click();
   await page.waitForURL(`${origin}/organisations`);
-  await page.getByRole("link", { name: "Projects", exact: true }).click();
-  await page.waitForURL(`${origin}/home`);
-  await page.getByRole("link", { name: "Dashboard", exact: true }).click();
+  await page.getByRole("link", { name: "Close organisations", exact: true }).click();
   await page.waitForURL(`${origin}/admin/dashboard`);
   await page.getByRole("link", { name: "View All Projects", exact: true }).click();
   await page.waitForURL(`${origin}/home`);

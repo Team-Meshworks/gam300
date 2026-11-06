@@ -849,7 +849,13 @@ export function initScene(
     phase: "drag" | "release" = "release",
   ): Transform | undefined {
     const object = findObject(id);
-    const body = object && bodyFor(id, object.assetId, object.transform);
+    const body =
+      object &&
+      bodyFor(
+        id,
+        id === projectScene?.id ? projectScene.environmentAssetId : object.assetId,
+        object.transform,
+      );
     if (!body) return;
     if (
       phase === "release" &&
