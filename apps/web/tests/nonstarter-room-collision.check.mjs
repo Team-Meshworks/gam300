@@ -217,7 +217,8 @@ try {
   await page.locator(".draft-menu summary").click();
   await page.getByRole("button", { name: "Open", exact: true }).click();
   const discard = page.getByRole("dialog").getByRole("button", { name: "Don’t Save", exact: true });
-  if (await discard.isVisible()) await discard.click();
+  await discard.click();
+  await page.getByRole("dialog").waitFor({ state: "hidden" });
   await page.getByRole("button", { name: "Third person", exact: true }).click();
   await page.getByRole("button", { name: "Scene tree", exact: true }).click();
   await page
