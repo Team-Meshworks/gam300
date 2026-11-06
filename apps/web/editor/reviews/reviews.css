@@ -1,3 +1,7 @@
+.sp-review-workspace > .sp-page-heading h1 {
+  font-size: 38px;
+  letter-spacing: -1px;
+}
 .sp-reviews {
   display: grid;
   gap: 18px;
@@ -5,18 +9,6 @@
 }
 .sp-reviews > .sp-field {
   max-width: 640px;
-}
-.sp-reviews select,
-.sp-reviews textarea {
-  width: 100%;
-  min-width: 0;
-  border: 1px solid var(--sp-border);
-  border-radius: 8px;
-  padding: 12px;
-  background: var(--sp-surface);
-}
-.sp-reviews textarea {
-  resize: vertical;
 }
 .sp-review-heading {
   display: flex;
@@ -81,4 +73,9 @@
   white-space: normal;
   max-width: 100%;
   overflow-wrap: anywhere;
+}
+@media (max-width: 600px) {
+  .sp-review-workspace > .sp-page-heading h1 {
+    font-size: 30px;
+  }
 }
