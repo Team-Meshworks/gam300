@@ -180,6 +180,8 @@ try {
           },
         );
         handle.update(fixture.scenes[0].objects, null, fixture.scenes[0]);
+        // Compare the same catalogue workload even though the current editor normally loads on demand.
+        for (const asset of assets) void handle.prepareAsset?.(asset.id);
         const setupMs = performance.now() - started;
         try {
           await promise;

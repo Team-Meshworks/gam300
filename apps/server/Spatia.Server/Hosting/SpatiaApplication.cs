@@ -142,7 +142,7 @@ public static class SpatiaApplication
         builder.Services.AddScoped<ProjectSaveService>();
         builder.Services.TryAddScoped<IReviewAssetResolver, ApprovedReviewAssetResolver>();
         builder.Services.AddSpatiaAccounts(connectionString);
-        builder.Services.AddSpatiaRequestSecurity();
+        builder.Services.AddSpatiaRequestSecurity(builder.Environment.EnvironmentName);
         builder.Services.AddDataProtection()
             .PersistKeysToFileSystem(new DirectoryInfo(keyDirectory))
             .SetApplicationName($"Spatia:{builder.Environment.EnvironmentName}");

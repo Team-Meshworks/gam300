@@ -57,6 +57,7 @@ try {
       transform: { position: [3, 1.4, 2], rotation: [0, 0, 0, 1], scale: [0.15, 0.15, 0.15] },
       components: [],
     };
+    await Promise.all([renderer.prepareAsset(owner.assetId), renderer.prepareAsset(child.assetId)]);
     renderer.update([owner, child], owner.id);
     const roots = outline.parent.children.filter(
       (node) =>

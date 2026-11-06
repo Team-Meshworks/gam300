@@ -86,7 +86,7 @@ try {
           {
             onStatus(status) {
               statuses.push(status);
-              resolve(status);
+              if (status !== "loading") resolve(status);
             },
             onThumbnail(id, data) {
               thumbnails.push({ id, data });
@@ -102,6 +102,8 @@ try {
         THREE.Object3D.prototype.add = originalAdd;
       }
       check(handle !== undefined, "WebGL unavailable");
+      // This cache fixture intentionally exercises every fixture model; the editor itself loads on demand.
+      for (const asset of library) void handle.prepareAsset(asset.id);
       return {
         handle,
         scene,
@@ -250,7 +252,7 @@ try {
     await new Promise((resolve) => setTimeout(resolve, 0));
     check(delayedResources.disposed(), "Late parse leaked");
     check(
-      stale.statuses.length === 0 && stale.thumbnails.length === 0,
+      stale.statuses.every((status) => status === "loading") && stale.thumbnails.length === 0,
       "Stale result reached disposed viewport",
     );
     replacement.dispose();

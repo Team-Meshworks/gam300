@@ -300,7 +300,14 @@ export function assetCataloguePlugin(): Plugin {
             "}",
         )
         .join(",");
-      return imports + "\nexport const assets = [" + catalogue + "];";
+      return (
+        imports +
+        "\nexport const packaged = " +
+        building +
+        ";\nexport const assets = [" +
+        catalogue +
+        "];"
+      );
     },
   };
 }

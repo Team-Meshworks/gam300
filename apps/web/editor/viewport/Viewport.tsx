@@ -19,10 +19,13 @@ const statusMessages = {
   error: "Couldn't load the 3D view. Check your connection and retry.",
   "download-error": "Couldn't start the 3D view. Reload the editor to try again.",
   unsupported: "The 3D view needs WebGL 2. Check your browser's graphics settings and retry.",
+  "authentication-required":
+    "Sign in to load rooms and objects, then retry. Your scene is still here.",
 };
 
 export type ViewpointCamera = {
-  displayPlacement?: (ownerId: string, assetId: string) => Transform | undefined;
+  prepareAsset: (id: string) => Promise<boolean>;
+  displayPlacement?: (ownerId: string, assetId: string) => Promise<Transform | undefined>;
   resolveTransform?: (id: string, transform: Transform) => Transform | undefined;
   resolvePlacement?: (assetId: string, position: Vector3Tuple) => Transform | undefined;
   placementParent?: (assetId: string, transform: Transform, objectId?: string) => string | null;
@@ -153,6 +156,7 @@ export function Viewport({
           onManager(scene.modeManager);
           onMobileControls(scene.mobileControls);
           onCamera({
+            prepareAsset: scene.prepareAsset,
             displayPlacement: scene.getDisplayPlacement,
             resolveTransform: scene.resolveTransform,
             resolvePlacement: scene.resolvePlacement,
@@ -222,6 +226,7 @@ export function Viewport({
   ]);
 
   useEffect(() => {
+    if (dragging) void sceneRef.current?.prepareAsset(dragging);
     if (!dragging && !placingAssetId) {
       sceneRef.current?.showPlacementPreview(undefined, undefined);
       if (hostRef.current) hostRef.current.style.cursor = "";
@@ -267,11 +272,9 @@ export function Viewport({
 
   return (
     <section className="viewport" id="viewport" tabIndex={-1} aria-label="Scene">
-      {assets.map((asset) => (
-        <link key={asset.id} rel="preload" as="fetch" href={asset.url} crossOrigin="anonymous" />
-      ))}
       <div
         className={`viewport-stage${dragging ? " is-dragging" : ""}`}
+        style={{ pointerEvents: status === "loading" ? "none" : undefined }}
         ref={hostRef}
         data-placing-text={textPlacement?.objectId}
         data-placing-asset={placingAssetId ?? undefined}
@@ -427,7 +430,14 @@ export function Viewport({
       )}
       <div className={status === "ready" ? "sr-only" : "viewport-feedback"}>
         <p role="status">{statusMessages[status]}</p>
-        {(status === "error" || status === "unsupported") && (
+        {status === "authentication-required" && (
+          <a href="/login?returnTo=%2F" target="_blank" rel="noopener noreferrer">
+            Sign in in another tab
+          </a>
+        )}
+        {(status === "error" ||
+          status === "unsupported" ||
+          status === "authentication-required") && (
           <button className="retry-button" type="button" onClick={onRetry}>
             Retry
           </button>

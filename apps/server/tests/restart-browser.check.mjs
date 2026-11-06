@@ -5,7 +5,7 @@ import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { createInterface } from "node:readline";
 
-const applicationCookie = "__Host-Spatia.Application";
+const applicationCookie = "__Host-Spatia.Application.Development";
 const administratorTemporary = "Synthetic restart administrator password 1!";
 const administratorPermanent = "Synthetic restart administrator password 2!";
 const creatorTemporary = "Synthetic restart creator password 3!";
@@ -73,7 +73,7 @@ const storageIsEmpty = async (page) => {
 
 const checkCookies = async (context) => {
   const cookies = await context.cookies();
-  for (const name of [applicationCookie, "__Host-Spatia.Antiforgery"]) {
+  for (const name of [applicationCookie, "__Host-Spatia.Antiforgery.Development"]) {
     const cookie = cookies.find((candidate) => candidate.name === name);
     assert.ok(cookie);
     assert.equal(cookie.secure, true);

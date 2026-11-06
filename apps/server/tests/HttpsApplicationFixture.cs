@@ -212,10 +212,10 @@ internal sealed class HttpsApplicationFixture : IAsyncDisposable
 
     public AuthenticationTicket ReadTicket()
     {
-        var cookie = Cookies.GetCookies(Address)[CookieName]?.Value
-            ?? throw new InvalidOperationException("Expected a synthetic session cookie.");
         var options = App.Services.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>()
             .Get(IdentityConstants.ApplicationScheme);
+        var cookie = Cookies.GetCookies(Address)[options.Cookie.Name!]?.Value
+            ?? throw new InvalidOperationException("Expected a synthetic session cookie.");
         return options.TicketDataFormat.Unprotect(cookie)
             ?? throw new InvalidOperationException("Expected a readable synthetic ticket.");
     }
@@ -224,7 +224,7 @@ internal sealed class HttpsApplicationFixture : IAsyncDisposable
     {
         var options = App.Services.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>()
             .Get(IdentityConstants.ApplicationScheme);
-        Cookies.Add(Address, new Cookie(CookieName, options.TicketDataFormat.Protect(ticket), "/") { Secure = true });
+        Cookies.Add(Address, new Cookie(options.Cookie.Name!, options.TicketDataFormat.Protect(ticket), "/") { Secure = true });
     }
 
     public async ValueTask DisposeAsync()

@@ -25,6 +25,22 @@ const sessionHeaders = { Cookie: "spatia-test=session" };
 let authStatus = 204;
 let authReads = 0;
 const api = createServer((request, response) => {
+  if (request.url === "/api/auth/session" && browserSession) {
+    response.writeHead(200, {
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store",
+    });
+    response.end(
+      JSON.stringify({
+        userId: "11111111-1111-4111-8111-111111111111",
+        displayName: "Packaged browser fixture",
+        role: "Creator",
+        orgId: "22222222-2222-4222-8222-222222222222",
+        mustChangePassword: false,
+      }),
+    );
+    return;
+  }
   if (request.url === "/api/auth/asset-access") {
     authReads++;
     assert.equal(request.method, "GET");
@@ -232,6 +248,7 @@ http://127.0.0.1:${outer} {
       "workspace-routes",
       "admin-dashboard",
       "editor-build",
+      "editor-session-loading",
     ]) {
       const child = spawn(
         process.execPath,

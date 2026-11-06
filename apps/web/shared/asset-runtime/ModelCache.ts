@@ -129,10 +129,21 @@ export class ModelCache {
   }
 }
 
+export class ModelRequestError extends Error {
+  readonly status: number;
+  constructor(name: string, status: number) {
+    super(name + " request failed (" + status + ")");
+    this.status = status;
+  }
+}
+
 async function loadModel(asset: CatalogueAsset, signal: AbortSignal): Promise<LoadedModel> {
-  const response = await fetch(asset.url, { signal });
+  const response = await fetch(asset.url, {
+    signal: AbortSignal.any([signal, AbortSignal.timeout(120_000)]),
+    credentials: "same-origin",
+  });
   if (!response.ok) {
-    throw new Error(asset.name + " request failed (" + response.status + ")");
+    throw new ModelRequestError(asset.name, response.status);
   }
   const bytes = await response.arrayBuffer();
   signal.throwIfAborted();
