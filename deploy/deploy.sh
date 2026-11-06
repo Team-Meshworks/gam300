@@ -31,27 +31,6 @@ umask 077
 mkdir -p -- "$directory"
 exec 9>"$directory/deploy.lock"
 flock -w 300 9
-recovery_guard="$directory/server-recovery-required"
-release_identity=$(printf '%s\n' "$revision" "$image" "$api_image" "$migration_image")
-recovering=false
-reviewed_recovery=false
-if [[ -e "$recovery_guard" ]]; then
-  recovering=true
-  if ! $server || [[ "$(cat "$recovery_guard")" != "$release_identity" ]]; then
-    mapfile -t guarded < "$recovery_guard"
-    valid_guard=true
-    [[ ${#guarded[@]} == 4 && "${guarded[0]}" =~ ^[a-f0-9]{40}$ ]] || valid_guard=false
-    for digest in "${guarded[@]:1}"; do
-      [[ "$digest" =~ ^ghcr\.io/team-meshworks/gam300@sha256:[a-f0-9]{64}$ ]] || valid_guard=false
-    done
-    if ! $server || ! $valid_guard ||
-       [[ "${RECOVERY_FROM_REVISION:-}" != "${guarded[0]:-}" || -z "${RECOVERY_REVIEW:-}" ]]; then
-      echo "Server recovery is pending. Retry the exact candidate release or supply its full revision and a compatibility review through the recovery workflow inputs." >&2
-      exit 1
-    fi
-    reviewed_recovery=true
-  fi
-fi
 if ! $server && [[ -f "$directory/current/compose.server.yaml" ]]; then
   echo "Choose a release with API and migration images; an editor-only release cannot replace this server stack" >&2
   exit 1
@@ -82,7 +61,7 @@ public_curl() {
     printf 'user = "%s"\nbasic\n' "$credentials" | curl -q --config - "$@"
   else
     curl -q "$@"
-  fi
+  fi || { echo "Public deployment probe failed: ${!#}" >&2; return 1; }
 }
 
 # Keep all commands on the exact release files, including rollback
@@ -120,37 +99,19 @@ fi
 # Pull failure leaves the running release untouched
 if $server; then run_release "$candidate" pull; else run_release "$candidate" pull web; fi
 
-# Preserve the original guard until pulls and shutdown have succeeded.
-if $reviewed_recovery; then
+# Back up the retained database before every attempt, including failed-rollout retries
+if $server; then
   run_release "$candidate" stop api gateway || {
-    echo "Could not confirm API/gateway shutdown; recovery guard retained." >&2; exit 1;
+    echo "Could not confirm API/gateway shutdown; deployment stopped." >&2; exit 1;
   }
-  mkdir -p "$directory/recovery-records"
-  record=$(mktemp -d "$directory/recovery-records/review.XXXXXX")
-  cp -- "$recovery_guard" "$record/previous-guard"
-  printf '%s\n' "$release_identity" > "$record/replacement"
-  printf '%s\n' "$RECOVERY_REVIEW" > "$record/review"
-fi
-
-# A runtime rollback never reverses schema changes, so keep a private database backup
-if $server && ! $recovering && [[ -f "$directory/current/compose.server.yaml" ]]; then
+  run_release "$candidate" up -d --no-build --wait --wait-timeout 120 postgres
   mkdir -p -- "$directory/backups"
   backup=$(mktemp "$directory/backups/before-$revision.XXXXXX.dump")
-  run_release "$directory/current" stop api
-  if ! run_release "$directory/current" exec -T postgres pg_dump -U spatia -d spatia -Fc > "$backup"; then
+  if ! run_release "$candidate" exec -T postgres pg_dump -U spatia -d spatia -Fc > "$backup"; then
     rm -f -- "$backup"
-    run_release "$directory/current" up -d --no-build --no-deps api
-    echo "Database backup failed; the existing API was restarted without applying migrations" >&2
+    echo "Database backup failed; API and gateway remain stopped without applying migrations" >&2
     exit 1
   fi
-fi
-
-# Persist before migrations or candidate requests can change authorization state
-# After an interruption, only this exact release may retry without an operator review
-if $server; then
-  guard_candidate=$(mktemp "$directory/.server-recovery.XXXXXX")
-  printf '%s\n' "$release_identity" > "$guard_candidate"
-  mv -- "$guard_candidate" "$recovery_guard"
 fi
 
 healthy() {
@@ -173,16 +134,16 @@ if run_release "$candidate" up -d --no-build --wait --wait-timeout 120 && health
     mv -- "$directory/current" "$directory/previous"
   fi
   mv -- "$candidate" "$directory/current"
-  if $server; then rm -- "$recovery_guard"; fi
+  if $server; then rm -f -- "$directory/server-recovery-required"; fi
   printf 'Deployed %s: %s (%s)\n' "$environment" "$revision" "$image"
 else
   run_release "$candidate" logs --tail 50 || true
   if $server; then
     if ! run_release "$candidate" stop api gateway; then
-      echo "Could not confirm API/gateway shutdown. Recovery guard retained; inspect the running services before proceeding." >&2
+      echo "Could not confirm API/gateway shutdown. Inspect the running services before retrying." >&2
       exit 1
     fi
-    echo "Server deployment failed; API and gateway remain stopped. Older binaries must not serve the retained database. Retry this exact release or follow the reviewed recovery procedure." >&2
+    echo "Server deployment failed; API and gateway remain stopped. Correct the failure and rerun Deploy for the current branch commit." >&2
     if [[ -n "${backup:-}" ]]; then echo "Database backup retained at $backup; schema changes were not reversed" >&2; fi
     exit 1
   fi
