@@ -176,7 +176,8 @@ export function initScene(
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0xe9ece7);
-  scene.fog = new THREE.Fog(0xe9ece7, 35, 70);
+  const fog = new THREE.Fog(0xe9ece7, 35, 70);
+  scene.fog = fog;
   const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 100);
   camera.position.set(12, 16, 18);
   camera.lookAt(0, 0, 0);
@@ -265,7 +266,7 @@ export function initScene(
   const roomEntrances = createRoomEntrances();
   let selectedIds: readonly string[] = [];
   function findObject(id: string | null) {
-    return id === projectScene?.id && projectScene.environmentAssetId === "test-room-v1"
+    return id === projectScene?.id && projectScene.environmentAssetId
       ? environmentObject(projectScene as ContentScene)
       : objects.find((object) => object.id === id);
   }
@@ -642,12 +643,13 @@ export function initScene(
     const nextEnvironmentId =
       projectScene?.environmentVisible === false ? undefined : projectScene?.environmentAssetId;
     if (ready && environmentId !== nextEnvironmentId) {
-      // Environment stays at its exported origin, outside the placed-object list
+      // A placement root preserves the cached model's normalization under authored transforms.
       // Removed instances borrow resources from this viewport's cache leases
       if (environment !== undefined) scene.remove(environment);
       environmentId = nextEnvironmentId;
-      environment =
-        environmentId === undefined ? undefined : models.get(environmentId)?.clone(true);
+      const model = environmentId === undefined ? undefined : models.get(environmentId);
+      environment = model ? new THREE.Group() : undefined;
+      if (model && environment) environment.add(model.clone(true));
       environmentBounds.makeEmpty();
       if (environment !== undefined) {
         scene.add(environment);
@@ -657,6 +659,16 @@ export function initScene(
     if (environment && projectScene) {
       applyTransform(environment, projectScene.environmentTransform ?? ROOM_TRANSFORM);
       environmentBounds.copy(visibleModelBounds(environment));
+    }
+    // Full-size layouts need the same visible depth as the Starter room's overview.
+    const roomSize = environmentBounds.getSize(new THREE.Vector3());
+    const viewScale = Math.max(1, roomSize.x / 10, roomSize.z / 10);
+    fog.near = 35 * viewScale;
+    fog.far = 70 * viewScale;
+    const far = 100 * viewScale;
+    if (camera.far !== far) {
+      camera.far = far;
+      camera.updateProjectionMatrix();
     }
     // Keep grid lines above the floor without cutting across thin display bases.
     grid.position.y = projectScene === null ? -0.01 : 0.0001;
@@ -1025,7 +1037,8 @@ export function initScene(
     const authored = findObject(id);
     // Room resizing is visual feedback only; release restores its original size and attached contents
     if (
-      authored?.assetId === "test-room-module-v1" &&
+      authored &&
+      (id === projectScene?.id || authored.assetId === "test-room-module-v1") &&
       transform.scale.some((value, axis) => value !== authored.transform.scale[axis])
     ) {
       applyPreviewTransform(id, authored.transform, true);
@@ -1729,7 +1742,11 @@ export function initScene(
           const thumbnailCamera = new THREE.PerspectiveCamera(35, 1, 0.01, 1000);
           const distance =
             (Math.max(size.length(), 0.1) / 2 / Math.sin((35 * Math.PI) / 360)) * 1.05;
-          thumbnailCamera.position.copy(center).add(new THREE.Vector3(0, size.y * 0.1, distance));
+          const offset =
+            asset.kind === "environment"
+              ? new THREE.Vector3(0.7, 1.3, 1).normalize().multiplyScalar(distance)
+              : new THREE.Vector3(0, size.y * 0.1, distance);
+          thumbnailCamera.position.copy(center).add(offset);
           thumbnailCamera.lookAt(center);
           renderer.setPixelRatio(1);
           renderer.setSize(320, 320, false);
@@ -1862,13 +1879,20 @@ export function initScene(
     getPlacementParent,
     showDropPosition,
     showPlacementPreview(id, position, ownerId) {
+      // Whole layouts replace the environment at its current frame, not at the drop cursor.
+      const layout =
+        assets.some((asset) => asset.id === id && asset.kind === "environment") &&
+        id !== "test-room-v1";
+      if (layout && position) position = projectScene?.environmentTransform?.position ?? [0, 0, 0];
       if (id === "test-room-v1" && projectScene?.environmentAssetId === id)
         id = "test-room-module-v1";
       const room = id === "test-room-v1" || id === "test-room-module-v1";
       const rotation =
         id === "test-room-module-v1"
           ? roomLayoutTransform(objects, projectScene)?.rotation
-          : undefined;
+          : layout
+            ? projectScene?.environmentTransform?.rotation
+            : undefined;
       const requestedFits = position !== undefined && (!room || roomFitsGrid(position, rotation));
       if (id === "test-room-module-v1" && position && requestedFits)
         position =

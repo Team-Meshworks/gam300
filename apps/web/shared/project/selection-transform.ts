@@ -11,12 +11,16 @@ export const ROOM_TRANSFORM: Transform = Object.freeze({
 });
 // Treat the initial environment as a selectable room without inserting a duplicate saved object
 export function environmentObject(
-  scene: Pick<ContentScene, "id" | "name" | "environmentTransform">,
+  scene: Pick<ContentScene, "id" | "name" | "environmentTransform"> &
+    Partial<Pick<ContentScene, "environmentAssetId">>,
 ): ContentObject {
   return {
     id: scene.id,
     name: scene.name,
-    assetId: "test-room-module-v1",
+    assetId:
+      scene.environmentAssetId && scene.environmentAssetId !== "test-room-v1"
+        ? scene.environmentAssetId
+        : "test-room-module-v1",
     transform: scene.environmentTransform ?? ROOM_TRANSFORM,
     parentId: null,
     visible: true,
@@ -95,7 +99,11 @@ export function moveSceneSelection(
   );
   if (
     !preview &&
-    all.some((object) => moving.has(object.id) && object.assetId === "test-room-module-v1") &&
+    all.some(
+      (object) =>
+        moving.has(object.id) &&
+        (object.id === scene.id || object.assetId === "test-room-module-v1"),
+    ) &&
     proposed.scale.some((value, axis) => value !== anchor.transform.scale[axis])
   )
     return invalid("transform.scale", "Rooms cannot be scaled");
@@ -166,8 +174,11 @@ export function moveSceneSelection(
     const transform = result.value[1]!.transform;
     return { ...camera, position: transform.position, rotation: transform.rotation };
   };
+  const layoutRooms = all.filter(
+    (object) => object.id === scene.id || object.assetId === "test-room-module-v1",
+  );
   const wholeLayout =
-    roomObjects.length > 0 && roomObjects.every((object) => moving.has(object.id));
+    layoutRooms.length > 0 && layoutRooms.every((object) => moving.has(object.id));
   return {
     ok: true,
     value: {

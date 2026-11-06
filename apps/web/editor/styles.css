@@ -1244,6 +1244,34 @@ a {
   gap: 0.75rem;
   margin-bottom: 1rem;
 }
+.room-picker-hint {
+  margin: 0 0 1rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.room-picker .asset-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 1rem;
+  columns: auto;
+}
+.room-picker .asset-card {
+  margin: 0;
+}
+.room-picker .asset-art {
+  aspect-ratio: 1;
+}
+.room-picker .asset-favourite {
+  top: calc(100cqw + 0.35rem);
+}
+.scene-toolbar .figma-tool-icon[data-icon="door"] {
+  width: 35px;
+  height: 35px;
+}
+.room-picker .library-rail .figma-tool-icon[data-icon="door"] {
+  width: 35px;
+  height: 35px;
+}
 .asset-picker-title {
   display: flex;
   flex-shrink: 0;

@@ -34,3 +34,10 @@ The `editor-*.svg` assets are unchanged exports returned by Figma design context
 for text `152:62374`, image `152:62291`, video `152:62332`, and physical `160:64163`.
 They retain their intrinsic sizes. Reference thumbnail photographs are not included:
 the picker uses the real catalogue's model previews and explicitly empty media tabs.
+
+## Rooms
+
+`room-door.svg` is the unmodified 35 × 35 export of `584:6329` in the
+[M2 editor toolbar](https://www.figma.com/design/QNpdfKb2Ge7vO8uG8HphxB?node-id=576-5879).
+The current design supplies the door button, but no Rooms popup or prototype action.
+The implementation reuses the asset picker with room thumbnails and direct selection.

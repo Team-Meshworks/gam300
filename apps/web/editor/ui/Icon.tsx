@@ -13,6 +13,7 @@ import clearCuboidDisplayCase from "./assets/clear-cuboid-display-case.svg?no-in
 import cuboidDisplayCase from "./assets/cuboid-display-case.svg?no-inline";
 import furnitureBench from "./assets/furniture-bench.svg?no-inline";
 import savedViews from "./assets/saved-views.svg?no-inline";
+import roomDoor from "./assets/room-door.svg?no-inline";
 
 type IconShape = { viewBox: string; body: ReactNode };
 
@@ -65,15 +66,7 @@ const tick =
   "M4.22581 0.137088C4.31359 0.224979 4.3629 0.344118 4.3629 0.468338C4.3629 0.592557 4.31359 0.711697 4.22581 0.799587L2.03831 2.98709C1.95042 3.07487 1.83128 3.12418 1.70706 3.12418C1.58284 3.12418 1.4637 3.07487 1.37581 2.98709L0.125808 1.73709C0.0430078 1.64823 -0.00206961 1.5307 7.30287e-05 1.40926C0.00221566 1.28782 0.0514111 1.17196 0.137294 1.08607C0.223177 1.00019 0.339043 0.950996 0.460481 0.948853C0.58192 0.94671 0.699448 0.991788 0.788307 1.07459L1.70706 1.99334L3.56331 0.137088C3.6512 0.0493062 3.77034 0 3.89456 0C4.01878 0 4.13792 0.0493062 4.22581 0.137088Z";
 
 const icons = {
-  door: {
-    viewBox: "0 0 24 32",
-    body: (
-      <g stroke="currentColor" strokeWidth="1.2">
-        <path fill="currentColor" fillOpacity="0.5" d="M2 30V12a10 10 0 0 1 20 0v18H2Z" />
-        <circle cx="17" cy="17" r="1.6" fill="#fff" />
-      </g>
-    ),
-  },
+  door: { src: roomDoor },
   removeDisplayObject: drawn(
     <>
       <path d="m3 9 7-4 7 4v9l-7 4-7-4V9Zm0 0 7 4 7-4M10 13v9" />
@@ -332,8 +325,8 @@ export function Icon({ name }: { name: IconName }) {
         className="figma-tool-icon"
         data-icon={name}
         src={icon.src}
-        width={40}
-        height={40}
+        width={name === "door" ? 35 : 40}
+        height={name === "door" ? 35 : 40}
         alt=""
         aria-hidden="true"
         draggable={false}

@@ -23,6 +23,7 @@ export function AssetPicker({
   onAdd,
   onDragChange,
   onClose,
+  mode = "assets",
 }: {
   assets: readonly CatalogueAsset[];
   ready: boolean;
@@ -30,7 +31,9 @@ export function AssetPicker({
   onAdd: (assetId: string) => void;
   onDragChange: (assetId: string | null) => void;
   onClose: () => void;
+  mode?: "assets" | "rooms";
 }) {
+  const rooms = mode === "rooms";
   const setDragImage = useDragImage();
   const [chosen, setChosen] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -51,22 +54,24 @@ export function AssetPicker({
 
   return (
     <section
-      className="asset-picker has-library-rail"
+      className={`asset-picker has-library-rail${rooms ? " room-picker" : ""}`}
       id="asset-panel"
-      aria-labelledby="assets-heading"
+      role={rooms ? "group" : undefined}
+      aria-label={rooms ? "Rooms options" : undefined}
+      aria-labelledby={rooms ? undefined : "assets-heading"}
     >
-      <LibraryRail icon="library" label="Asset library" />
+      <LibraryRail icon={rooms ? "door" : "library"} label={rooms ? "Rooms" : "Asset library"} />
       <div className="asset-picker-head">
         <h2 id="assets-heading" className="asset-picker-title">
           <Icon name="info" />
-          Assets
+          {rooms ? "Rooms" : "Assets"}
         </h2>
         <div className="asset-search">
           <Icon name="search" />
           <input
             type="search"
-            placeholder="Search for something…"
-            aria-label="Search assets"
+            placeholder={rooms ? "Search room layouts…" : "Search for something…"}
+            aria-label={rooms ? "Search rooms" : "Search assets"}
             value={query}
             onChange={(event) => setQuery(event.currentTarget.value)}
           />
@@ -88,13 +93,20 @@ export function AssetPicker({
         <button
           className="ui-button asset-picker-close"
           type="button"
-          aria-label="Close asset library"
+          aria-label={rooms ? "Close rooms" : "Close asset library"}
           title="Close"
           onClick={onClose}
         >
           <Icon name="close" />
         </button>
       </div>
+
+      {rooms && (
+        <p className="room-picker-hint">
+          Choose a layout to replace the current room. Existing exhibits stay in place. Starter room
+          adds adjoining rooms.
+        </p>
+      )}
 
       {shown.length === 0 ? (
         <p className="panel-empty asset-picker-empty">
@@ -120,8 +132,18 @@ export function AssetPicker({
                     disabled={!ready}
                     aria-label={asset.name}
                     aria-pressed={chosen === asset.id}
-                    title="Pick it then press Add, or drag it into the scene"
+                    title={
+                      rooms
+                        ? "Choose this room layout"
+                        : "Pick it then press Add, or drag it into the scene"
+                    }
                     onClick={() => {
+                      if (rooms) {
+                        playUiSound("assetSelect");
+                        onAdd(asset.id);
+                        onClose();
+                        return;
+                      }
                       setChosen(asset.id);
                       playUiSound("assetSelect");
                     }}
@@ -168,22 +190,24 @@ export function AssetPicker({
             : `Selected: ${chosenAsset.name}`}
         </p>
       )}
-      <button
-        className="ui-button pill-button asset-picker-add"
-        type="button"
-        aria-describedby={chosenAsset !== undefined ? "asset-picker-selection" : undefined}
-        disabled={chosen === null || !ready}
-        onClick={() => {
-          if (chosen === null) return;
-          try {
-            onAdd(chosen);
-          } finally {
-            onClose();
-          }
-        }}
-      >
-        Add
-      </button>
+      {!rooms && (
+        <button
+          className="ui-button pill-button asset-picker-add"
+          type="button"
+          aria-describedby={chosenAsset !== undefined ? "asset-picker-selection" : undefined}
+          disabled={chosen === null || !ready}
+          onClick={() => {
+            if (chosen === null) return;
+            try {
+              onAdd(chosen);
+            } finally {
+              onClose();
+            }
+          }}
+        >
+          Add
+        </button>
+      )}
     </section>
   );
 }

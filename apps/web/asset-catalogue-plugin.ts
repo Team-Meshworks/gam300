@@ -37,6 +37,22 @@ const allowedIds = new Set([
   "test-crate-v1",
   "sample-snowglobe-v1",
   "test-room-module-v1",
+  "room-space1-v1",
+  "room-doors-1-v1",
+  "room-doors-2-v1",
+  "room-doors-3-v1",
+  "room-doors-4-v1",
+  "room-doors-1-2-v1",
+  "room-doors-1-3-v1",
+  "room-doors-1-4-v1",
+  "room-doors-2-3-v1",
+  "room-doors-2-4-v1",
+  "room-doors-3-4-v1",
+  "room-doors-1-2-3-v1",
+  "room-doors-1-2-4-v1",
+  "room-doors-1-3-4-v1",
+  "room-doors-2-3-4-v1",
+  "room-doors-1-2-3-4-v1",
   "display-cube-v1",
   "display-full-glass-case-v1",
   "display-half-glass-case-v1",
@@ -57,6 +73,10 @@ type Entry = {
   thumbnail: string | null;
   thumbnailMode?: "generated";
   placement?: "bottom-center";
+  boundsMeters?: {
+    min: readonly [number, number, number];
+    max: readonly [number, number, number];
+  };
   displayRole?: "physical" | "digital";
   displayTop?: number;
   displaySurface?: {
@@ -102,6 +122,20 @@ export function assetCataloguePlugin(): Plugin {
       (entry.thumbnail === null && entry.thumbnailMode !== "generated")
     ) {
       throw new Error("Invalid or non-development catalogue entry: " + entry.assetId);
+    }
+    if (entry.boundsMeters !== undefined) {
+      const { min, max } = entry.boundsMeters;
+      if (
+        !Array.isArray(min) ||
+        !Array.isArray(max) ||
+        min.length !== 3 ||
+        max.length !== 3 ||
+        !min.every(Number.isFinite) ||
+        !max.every(Number.isFinite) ||
+        min.some((value, axis) => value >= max[axis]!)
+      ) {
+        throw new Error("Invalid model bounds: " + entry.assetId);
+      }
     }
     // Audio cards use checked duration metadata instead of loading every track for its length
     if (
@@ -241,6 +275,8 @@ export function assetCataloguePlugin(): Plugin {
             JSON.stringify(entry.displaySurface) +
             ",placement:" +
             JSON.stringify(entry.placement ?? null) +
+            ",boundsMeters:" +
+            JSON.stringify(entry.boundsMeters) +
             "}",
         )
         .join(",");

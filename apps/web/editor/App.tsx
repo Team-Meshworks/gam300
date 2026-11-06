@@ -508,7 +508,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
     // Choosing the first room turns the grid scene into a saveable project
     // Room placement uses the environment slot so it survives JSON reconstruction
     if (assetKinds.get(assetId) === "environment") {
-      if (!projectScene && !roomFitsGrid(position)) {
+      if (assetId === "test-room-v1" && !projectScene && !roomFitsGrid(position)) {
         setError("Keep the whole room inside the grid");
         return;
       }
@@ -521,7 +521,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
 
       // The same room tile creates the environment first and independent room instances afterward
       // Keep the model reference used by saved room instances behind this one catalogue choice
-      if (projectScene?.environmentAssetId === assetId) {
+      if (assetId === "test-room-v1" && projectScene?.environmentAssetId === assetId) {
         const added = store.addObject("test-room-module-v1", position);
         if (added.ok) {
           setSelectedId(added.object.id);
@@ -968,6 +968,12 @@ export function App({ server }: { server?: ServerEditorSession }) {
               }}
               onAdd={(assetId) => {
                 setShowExhibitTools(false);
+                // Supplied rooms are complete environment layouts, selected at the scene origin.
+                if (assetKinds.get(assetId) === "environment" && assetId !== "test-room-v1") {
+                  setPlacingAssetId(null);
+                  place(assetId, [0, 0, 0]);
+                  return;
+                }
                 if (assetId === HOTSPOT_ASSET_ID) {
                   place(assetId, [0, 0, 0]);
                   return;

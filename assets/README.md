@@ -1,5 +1,24 @@
 # Asset pipeline baseline
 
+## Room layouts (November 2026)
+
+The 16 user-supplied room GLBs are preserved byte-for-byte under `source/rooms/`
+and `delivery/rooms/`. `Space1` and every combination of Doors 1–4 have separate
+versioned environment IDs. The supplied numbering guide is `source/rooms/door-reference.png`.
+They appear in the editor's Rooms picker with generated elevated model previews.
+Selecting a layout replaces the scene environment and retains authored exhibits;
+Starter room keeps its existing adjoining-module placement behavior.
+
+Bounds in the manifest were measured from transformed vertices. Bottom-centre
+normalization removes export offsets without rescaling; the environment placement
+root preserves this normalization under scene transforms. These are complete
+layouts, not Starter room modules, and do not use its 10-metre snapping or automatic
+door cutting. They use the existing development-only catalogue and retain pending
+provenance status. Validate using `node tools/validate-assets.mjs` and, with Vite
+running, `node tests/room-layouts.check.mjs http://127.0.0.1:5185/` from `apps/web/`.
+
+## Baseline validation
+
 Run from the repository root:
 
 ```powershell

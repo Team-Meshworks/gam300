@@ -108,6 +108,7 @@ export function SidePanels({
           {panel === "position" && (
             <PositionPanel
               object={selectedObject}
+              room={selectedObject?.id === room?.id}
               onChange={(transform) => {
                 if (selectedObject !== undefined) onTransform(selectedObject.id, transform);
               }}
@@ -189,9 +190,11 @@ function PanelHeading({ id, children }: { id: string; children: ReactNode }) {
 function PositionPanel({
   object,
   onChange,
+  room,
 }: {
   object: SceneObject | undefined;
   onChange: (transform: Transform) => void;
+  room: boolean;
 }) {
   return (
     <section className="editor-panel" aria-labelledby="position-heading">
@@ -199,7 +202,7 @@ function PositionPanel({
       {object === undefined ? (
         <p className="panel-empty">Select an object to edit its position, rotation and scale.</p>
       ) : (
-        <TransformFields object={object} onChange={onChange} />
+        <TransformFields object={object} onChange={onChange} room={room} />
       )}
     </section>
   );
@@ -208,9 +211,11 @@ function PositionPanel({
 function TransformFields({
   object,
   onChange,
+  room,
 }: {
   object: SceneObject;
   onChange: (transform: Transform) => void;
+  room: boolean;
 }) {
   const { transform } = object;
   const rows: {
@@ -246,7 +251,9 @@ function TransformFields({
   return (
     <div className="transform-fields">
       {rows
-        .filter((row) => row.label !== "Scale" || object.assetId !== "test-room-module-v1")
+        .filter(
+          (row) => row.label !== "Scale" || (!room && object.assetId !== "test-room-module-v1"),
+        )
         .map((row) => (
           <fieldset key={row.label}>
             <legend>
