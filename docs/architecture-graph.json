@@ -561,7 +561,7 @@
     "tests/home.check.mjs": "eb57554c63b9ba32de1fa7046267a76d310924da9f28492aa1d8549fd4203500",
     "tests/hotspot-placement.check.mjs": "a190990e03afacd5da85c73e718952b2f2f73127a589f762a434a9fc81025f3c",
     "tests/hotspot-rendering.check.mjs": "c42c9400bdf09cb1f7a7c52441d0503935a0eabb131f4ab3c85b676da3f8f77d",
-    "tests/interaction-navigation.check.mjs": "ef080b60235cf85d8741e48f87516fb7271f610679e649fe6f16e6d88176b353",
+    "tests/interaction-navigation.check.mjs": "9504cb456913839b5501724fcc4c919cbe4a309a3be2c5a51317cc326ed10f1e",
     "tests/interaction-review.check.mjs": "28368ff4a75e85c84d88ab92266a6caf096fc602b5778d36d4268559575c6c15",
     "tests/local-drafts.check.mjs": "97e013fc95e2d7851cb3f97e64474068b24daad0d0a6c0f8896d32fe8633362d",
     "tests/login-real-api.check.mjs": "fde802b13e8c954736d33d5101e0cf0596f667ddf8a625c85138e5d936273caf",
