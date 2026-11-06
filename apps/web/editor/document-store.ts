@@ -22,6 +22,7 @@ import type {
   ContentProject,
   ContentScene,
   ProjectGroup,
+  ProjectRule,
 } from "../shared/project/project-content";
 import type {
   ProjectHotspot,
@@ -161,7 +162,12 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
 
   // This clipboard belongs to the open editor, not the operating system.
   // Objects are immutable, so later edits won't change the captured copy.
-  let clipboard: SceneObject | null = null;
+  let clipboard: {
+    object: SceneObject;
+    hotspots: readonly ProjectHotspot[];
+    interactions: readonly Interaction[];
+    rules: readonly ProjectRule[];
+  } | null = null;
   let pasteCount = 0;
   const listeners = new Set<() => void>();
 
@@ -338,11 +344,42 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
     return { ok: true, value: { changed: true, object } };
   }
 
-  function insertCopy(source: SceneObject, offset: number): ValidationResult<SceneObject> {
-    // Attached components need their own stable ID and reference remapping
-    if ((source as ContentObject).components?.length) {
-      return invalid("objectId", "This object's attached content cannot be copied safely");
-    }
+  function captureCopy(object: SceneObject): NonNullable<typeof clipboard> {
+    const scene =
+      project?.schemaVersion === 2
+        ? project.scenes.find((entry) => entry.id === state.activeSceneId)
+        : undefined;
+    const ids = new Set([
+      object.id.toLowerCase(),
+      ...((object as ContentObject).components ?? []).map((component) =>
+        component.id.toLowerCase(),
+      ),
+    ]);
+    const hotspots = sceneState().hotspots.filter(
+      (hotspot) => hotspot.objectId.toLowerCase() === object.id.toLowerCase(),
+    );
+    const hotspotIds = new Set(hotspots.map((hotspot) => hotspot.id.toLowerCase()));
+    return structuredClone({
+      object,
+      hotspots,
+      interactions: sceneState().interactions.filter(
+        (rule) =>
+          rule.when.type === "visitor-clicks-hotspot" &&
+          hotspotIds.has(rule.when.targetHotspotId.toLowerCase()),
+      ),
+      rules: (scene?.rules ?? []).filter((rule) =>
+        rule.trigger.type === "click" || rule.trigger.type === "gaze"
+          ? ids.has(rule.trigger.targetId.toLowerCase())
+          : rule.trigger.type === "panelClose" && ids.has(rule.trigger.panelId.toLowerCase()),
+      ),
+    });
+  }
+
+  function insertCopy(
+    graph: NonNullable<typeof clipboard>,
+    offset: number,
+  ): ValidationResult<SceneObject> {
+    const source = graph.object;
     if (
       project?.schemaVersion !== 2 &&
       ((source as ContentObject).parentId != null || (source as ContentObject).visible === false)
@@ -376,20 +413,111 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
     Object.freeze(transform.rotation);
     Object.freeze(transform.scale);
 
-    // Content-free copies retain their authored visibility and parent membership
+    if (project?.schemaVersion === 2) {
+      const ids = new Map<string, string>([[source.id.toLowerCase(), createId()]]);
+      for (const component of (source as ContentObject).components ?? [])
+        ids.set(component.id.toLowerCase(), createId());
+      for (const hotspot of graph.hotspots) ids.set(hotspot.id.toLowerCase(), createId());
+      const remap = (id: string) => ids.get(id.toLowerCase()) ?? id;
+      const copy: ContentObject = {
+        ...(source as ContentObject),
+        id: remap(source.id),
+        name: nextObjectName(asset),
+        transform,
+        components: ((source as ContentObject).components ?? []).map((component) => ({
+          ...structuredClone(component),
+          id: remap(component.id),
+        })),
+      };
+      const rules = graph.rules.map((rule): ProjectRule => ({
+        ...structuredClone(rule),
+        id: createId(),
+        trigger:
+          rule.trigger.type === "click" || rule.trigger.type === "gaze"
+            ? { ...rule.trigger, targetId: remap(rule.trigger.targetId) }
+            : rule.trigger.type === "panelClose"
+              ? { ...rule.trigger, panelId: remap(rule.trigger.panelId) }
+              : rule.trigger,
+        actions: rule.actions.map((action) =>
+          action.type === "showPanel"
+            ? { ...action, panelId: remap(action.panelId) }
+            : action.type === "playMedia"
+              ? { ...action, mediaId: remap(action.mediaId) }
+              : action.type === "setVisible"
+                ? { ...action, objectId: remap(action.objectId) }
+                : { ...action },
+        ),
+      }));
+      const result = editHierarchy("Copy object", (scene) => ({
+        ...scene,
+        objects: [...scene.objects, copy],
+        hotspots: [
+          ...scene.hotspots,
+          ...graph.hotspots.map((hotspot) => ({
+            ...hotspot,
+            id: remap(hotspot.id),
+            objectId: remap(hotspot.objectId),
+          })),
+        ],
+        interactions: [
+          ...scene.interactions,
+          ...graph.interactions.map((rule) => ({
+            ...rule,
+            when:
+              rule.when.type === "visitor-clicks-hotspot"
+                ? { ...rule.when, targetHotspotId: remap(rule.when.targetHotspotId) }
+                : rule.when,
+            do:
+              rule.do.type === "play-audio" && rule.do.mediaId
+                ? { ...rule.do, mediaId: remap(rule.do.mediaId) }
+                : rule.do,
+          })),
+        ],
+        rules: [...scene.rules, ...rules],
+      }));
+      if (!result.ok) return result;
+      return { ok: true, value: objects.find((entry) => entry.id === copy.id)! };
+    }
     const object: SceneObject = Object.freeze({
       id: createId(),
       name: nextObjectName(asset),
       assetId: source.assetId,
       transform: Object.freeze(transform),
-      ...(project?.schemaVersion === 2
-        ? {
-            parentId: (source as ContentObject).parentId ?? null,
-            visible: (source as ContentObject).visible ?? true,
-            components: Object.freeze([]),
-          }
-        : {}),
     });
+    if (graph.hotspots.length > 0) {
+      const ids = new Map(graph.hotspots.map((hotspot) => [hotspot.id.toLowerCase(), createId()]));
+      const current = sceneState();
+      const next: SceneEdit = {
+        objects: Object.freeze([...objects, object]),
+        hotspots: freezeHotspots([
+          ...current.hotspots,
+          ...graph.hotspots.map((hotspot) => ({
+            ...hotspot,
+            id: ids.get(hotspot.id.toLowerCase())!,
+            objectId: object.id,
+          })),
+        ]),
+        interactions: freezeInteractions([
+          ...current.interactions,
+          ...graph.interactions.map((rule) => ({
+            ...rule,
+            when:
+              rule.when.type === "visitor-clicks-hotspot"
+                ? {
+                    ...rule.when,
+                    targetHotspotId: ids.get(rule.when.targetHotspotId.toLowerCase())!,
+                  }
+                : rule.when,
+          })),
+        ]),
+      };
+      const valid = checkScene(next);
+      if (!valid.ok) return valid;
+      executeScene("Copy object", next);
+      clearEdit();
+      publish();
+      return { ok: true, value: object };
+    }
     // Confirm the copied parent and all remaining references still form a valid document
     const validCopy = checkContentObjects([...objects, object]);
     if (!validCopy.ok) {
@@ -1155,7 +1283,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       if (!object) {
         return invalid("objectId", "Select an object to copy");
       }
-      clipboard = object;
+      clipboard = captureCopy(object);
       pasteCount = 0;
       return { ok: true, value: object };
     },
@@ -1176,7 +1304,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       if (!object) {
         return invalid("objectId", "Select an object to duplicate");
       }
-      return insertCopy(object, 0.5);
+      return insertCopy(captureCopy(object), 0.5);
     },
     getTransformEdit: () => edit,
     subscribeTransformEdit(listener: () => void) {
@@ -1734,12 +1862,15 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       const scene = project
         ? toContentProject(project).scenes.find((entry) => entry.id === state.activeSceneId)
         : undefined;
-      const initial = scene?.id === objectId && scene.environmentVisible !== false;
-      const group = scene?.groups.find((entry) => entry.id === objectId);
+      const initial =
+        scene?.id.toLowerCase() === objectId.toLowerCase() && scene.environmentVisible !== false;
+      const group = scene?.groups.find(
+        (entry) => entry.id.toLowerCase() === objectId.toLowerCase(),
+      );
       const target =
         initial && scene
           ? environmentObject(scene)
-          : (objects.find((object) => object.id === objectId) ??
+          : (objects.find((object) => object.id.toLowerCase() === objectId.toLowerCase()) ??
             (group
               ? { id: group.id, name: group.name, assetId: "", transform: ROOM_TRANSFORM }
               : undefined));
@@ -1748,7 +1879,15 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
         [...scene.groups, ...scene.objects].some(
           (entry) => entry.parentId?.toLowerCase() === objectId.toLowerCase(),
         );
-      if (scene && target && (initial || group || hasChildren || isRoomModel(target.assetId))) {
+      if (
+        scene &&
+        target &&
+        (project?.schemaVersion === 2 ||
+          initial ||
+          group ||
+          hasChildren ||
+          isRoomModel(target.assetId))
+      ) {
         const removed = new Set([objectId.toLowerCase()]);
         let changed = true;
         while (changed) {
@@ -1788,7 +1927,11 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
           ),
           rules: current.rules.filter(
             (rule) =>
-              !(rule.trigger.type === "click" && gone(rule.trigger.targetId)) &&
+              !(
+                (rule.trigger.type === "click" || rule.trigger.type === "gaze") &&
+                gone(rule.trigger.targetId)
+              ) &&
+              !(rule.trigger.type === "panelClose" && gone(rule.trigger.panelId)) &&
               !rule.actions.some((action) =>
                 action.type === "showPanel"
                   ? gone(action.panelId)

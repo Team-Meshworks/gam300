@@ -238,18 +238,113 @@ describe("content document preservation in the existing editor", () => {
     expect(reopened.getSnapshot().project).toEqual(edited);
   });
 
-  it("rejects dangling-reference deletion and unsafe content copying without touching history", () => {
+  it("removes an exhibit, attached content and referencing rules in one recoverable edit", () => {
     const store = setup();
-    const before = store.getSnapshot();
+    const before = store.getSnapshot().project as ContentProject;
+    const id = before.scenes[0]!.objects[0]!.id;
+    expect(store.deleteObject(id.toUpperCase()).ok).toBe(true);
+    const after = store.getSnapshot().project as ContentProject;
+    expect(after.scenes[0]!.objects).toHaveLength(0);
+    expect(after.scenes[0]!.rules.map((rule) => rule.id)).toEqual([before.scenes[0]!.rules[2]!.id]);
+    expect(after.scenes[1]).toEqual(before.scenes[1]);
+    const saved = serializeProject(after, kinds);
+    if (!saved.ok) throw Error(saved.error.message);
+    const restored = createDocumentStore(assets);
+    expect(
+      restored.loadProject(
+        saved.value,
+        kinds,
+        JSON.parse(JSON.stringify(store.getRecoveryHistory())),
+      ).ok,
+    ).toBe(true);
+    restored.undo();
+    expect(restored.getSnapshot().project).toEqual(before);
+    restored.redo();
+    expect(restored.getSnapshot().project).toEqual(after);
+  });
 
-    // Failed commands must preserve the exact published snapshot as well as undo history
-    const id = before.objects[0]!.id;
-    expect(store.deleteObject(id).ok).toBe(false);
-    expect(store.duplicateObject(id).ok).toBe(false);
-    expect(store.getSnapshot()).toBe(before);
-    expect(store.copyObject(id).ok).toBe(true);
-    expect(store.pasteObject().ok).toBe(false);
-    expect(store.getSnapshot()).toBe(before);
+  it("duplicates attached content and rules with independent IDs and restores them on redo", () => {
+    const store = setup();
+    const before = store.getSnapshot().project as ContentProject;
+    const scene = before.scenes[0]!;
+    const original = scene.objects[0]!;
+    const result = store.duplicateObject(original.id);
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw Error(result.error.message);
+    const after = store.getSnapshot().project as ContentProject;
+    const duplicate = after.scenes[0]!.objects.find((object) => object.id === result.value.id)!;
+    expect(duplicate.id).not.toBe(original.id);
+    expect(duplicate.components).toHaveLength(original.components.length);
+    expect(duplicate.components.map((component) => component.id)).not.toEqual(
+      original.components.map((component) => component.id),
+    );
+    const oldHotspot = original.components.find((component) => component.type === "hotspot")!;
+    const newHotspot = duplicate.components.find((component) => component.type === "hotspot")!;
+    const oldRule = scene.rules.find(
+      (rule) => rule.trigger.type === "click" && rule.trigger.targetId === oldHotspot.id,
+    )!;
+    const newRule = after.scenes[0]!.rules.find(
+      (rule) => rule.trigger.type === "click" && rule.trigger.targetId === newHotspot.id,
+    )!;
+    expect(newRule.id).not.toBe(oldRule.id);
+    const oldPanel = original.components.find((component) => component.type === "text")!;
+    const newPanel = duplicate.components.find((component) => component.type === "text")!;
+    expect(newRule.actions).toContainEqual({ type: "showPanel", panelId: newPanel.id });
+    expect(oldRule.actions).toContainEqual({ type: "showPanel", panelId: oldPanel.id });
+    const saved = serializeProject(after, kinds);
+    if (!saved.ok) throw Error(saved.error.message);
+    const restored = createDocumentStore(assets);
+    expect(
+      restored.loadProject(
+        saved.value,
+        kinds,
+        JSON.parse(JSON.stringify(store.getRecoveryHistory())),
+      ).ok,
+    ).toBe(true);
+    restored.undo();
+    expect(restored.getSnapshot().project).toEqual(before);
+    restored.redo();
+    expect(restored.getSnapshot().project).toEqual(after);
+  });
+
+  it("copies a committed rule graph and preserves external targets while remapping self targets", () => {
+    const fixture = structuredClone(m2);
+    const scene = fixture.scenes[0]!;
+    const source = scene.objects[0]!;
+    const external = scene.objects[1]!;
+    const rule = {
+      id: crypto.randomUUID(),
+      enabled: true,
+      trigger: { type: "click", targetId: source.id },
+      actions: [
+        { type: "setVisible", objectId: source.id, visible: false },
+        { type: "setVisible", objectId: external.id, visible: false },
+      ],
+    };
+    const store = createDocumentStore(assets);
+    expect(
+      store.loadProject(
+        JSON.stringify({
+          ...fixture,
+          scenes: [{ ...scene, rules: [...scene.rules, rule] }, ...fixture.scenes.slice(1)],
+        }),
+        kinds,
+      ).ok,
+    ).toBe(true);
+    expect(store.copyObject(source.id).ok).toBe(true);
+    const copied = store.pasteObject();
+    expect(copied.ok).toBe(true);
+    if (!copied.ok) throw Error(copied.error.message);
+    const project = store.getSnapshot().project as ContentProject;
+    const cloned = project.scenes[0]!.rules.find(
+      (entry) => entry.trigger.type === "click" && entry.trigger.targetId === copied.value.id,
+    )!;
+    expect(cloned.actions).toEqual([
+      { type: "setVisible", objectId: copied.value.id, visible: false },
+      { type: "setVisible", objectId: external.id, visible: false },
+    ]);
+    expect(cloned.id).not.toBe(rule.id);
+    expect(serializeProject(project, kinds).ok).toBe(true);
   });
 
   it("adds valid model objects and restores their exact IDs through undo and redo", () => {

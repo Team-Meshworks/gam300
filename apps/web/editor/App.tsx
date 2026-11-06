@@ -352,10 +352,28 @@ export function App({ server }: { server?: ServerEditorSession }) {
       setError(result.error.message);
       return;
     }
+    const updated = store.getSnapshot().project;
+    const priorScene = current.project?.scenes.find((entry) => entry.id === current.activeSceneId);
+    const updatedScene = updated?.scenes.find((entry) => entry.id === current.activeSceneId);
+    const updatedRules =
+      updated?.schemaVersion === 2
+        ? (updated.scenes.find((entry) => entry.id === current.activeSceneId)?.rules.length ?? 0)
+        : 0;
+    const removedRules =
+      priorScene && updatedScene
+        ? priorScene.interactions.length +
+          (scene?.rules.length ?? 0) -
+          updatedScene.interactions.length -
+          updatedRules
+        : 0;
     setError("");
     setHasDeleted(true);
     setSelectedId(null);
-    setNotice(`Deleted ${result.value.name}. Undo restores it.`);
+    setNotice(
+      removedRules > 0
+        ? `Deleted ${result.value.name} and ${removedRules} related ${removedRules === 1 ? "rule" : "rules"}. Undo restores everything.`
+        : `Deleted ${result.value.name}. Undo restores it.`,
+    );
     playUiSound("delete");
   }, [store, selection, selectedId, visitor, setNotice]);
 

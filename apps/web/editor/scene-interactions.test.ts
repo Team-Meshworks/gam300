@@ -37,6 +37,25 @@ function setup() {
   return { store, object: object.object, hotspot: hotspot.value };
 }
 
+it("duplicates an attached hotspot and its interaction with independent identities", () => {
+  const { store, object, hotspot } = setup();
+  const before = store.getSnapshot().project;
+  const result = store.duplicateObject(object.id);
+  expect(result.ok).toBe(true);
+  if (!result.ok) throw Error(result.error.message);
+  const scene = active(store);
+  const duplicate = scene.hotspots.find((entry) => entry.objectId === result.value.id)!;
+  expect(duplicate.id).not.toBe(hotspot.id);
+  expect(scene.interactions).toContainEqual({
+    when: { type: "visitor-clicks-hotspot", targetHotspotId: duplicate.id },
+    do: { type: "print-hi" },
+  });
+  store.undo();
+  expect(store.getSnapshot().project).toEqual(before);
+  store.redo();
+  expect(active(store).hotspots).toContainEqual(duplicate);
+});
+
 it("retains hotspots and rules through viewpoint upgrades, scene edits, recovery and undo", () => {
   const { store, object, hotspot } = setup();
   const original = active(store);
