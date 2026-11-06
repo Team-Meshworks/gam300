@@ -1,3 +1,4 @@
+import { placeAtRoomCenter } from "./placement-fixture.mjs";
 import { launchBrowser } from "./browser-security.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -16,7 +17,7 @@ async function openLibrary(page) {
 }
 
 // Clicking a card only picks it, Add is what places it
-async function addAsset(page, name) {
+async function addAsset(page, name, { withoutRoom = false } = {}) {
   // Rooms use their own tray and the existing viewport placement gesture
   if (name === "Starter room") {
     if (await page.locator(".asset-picker").count()) await page.keyboard.press("Escape");
@@ -27,13 +28,17 @@ async function addAsset(page, name) {
       .getByRole("group", { name: "Rooms options", exact: true })
       .getByRole("button", { name, exact: true })
       .click();
-    await page.locator(".viewport-stage").click({ position: { x: 500, y: 300 } });
+    await placeAtRoomCenter(page);
     return;
   }
   await openLibrary(page);
   await page.locator(".asset-picker").getByRole("button", { name, exact: true }).click();
   await page.getByRole("button", { name: "Add", exact: true }).click();
-  await page.locator(".viewport-stage").click({ position: { x: 500, y: 300 } });
+  if (withoutRoom) {
+    await page.locator(".viewport-stage").click({ position: { x: 500, y: 300 } });
+  } else {
+    await placeAtRoomCenter(page);
+  }
 }
 
 try {
@@ -65,7 +70,7 @@ try {
       }),
   );
   // Fresh projects require an environment before model placement can change the document
-  await addAsset(page, "Sample crate");
+  await addAsset(page, "Sample crate", { withoutRoom: true });
   assert.equal(await page.locator(".object-row").count(), 0);
   await page.getByRole("alert").filter({ hasText: "Choose a room first" }).waitFor();
   // Cancel the rejected placement before switching to the room tray

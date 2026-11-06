@@ -46,6 +46,33 @@ function setup() {
   return { store, object: result.object };
 }
 describe("display authoring", () => {
+  it("treats the initial room as the scene root when detaching an exhibit", () => {
+    const { store, object } = setup();
+    const position = { ...object.transform, position: [1, 0, 0] as const };
+    expect(
+      store.setPlacedTransform(object.id, position, store.getSnapshot().activeSceneId),
+    ).toMatchObject({ ok: true });
+    expect(store.getSnapshot().objects[0]).toMatchObject({ parentId: null, transform: position });
+  });
+  it("seats and attaches a dragged object in one reversible edit", () => {
+    const { store, object: stand } = setup();
+    const added = store.addObject("stand", [2, 0, 0]);
+    if (!added.ok) throw new Error(added.error);
+    const before = added.object.transform;
+    const seated = { ...before, position: [0, 1.2, 0] as const };
+    expect(store.setPlacedTransform(added.object.id, seated, stand.id)).toMatchObject({ ok: true });
+    expect(store.getSnapshot().objects.find((entry) => entry.id === added.object.id)).toMatchObject(
+      { parentId: stand.id, transform: seated },
+    );
+    store.undo();
+    const restored = store.getSnapshot().objects.find((entry) => entry.id === added.object.id)!;
+    expect(restored.transform).toEqual(before);
+    expect((restored as ContentObject).parentId ?? null).toBeNull();
+    store.redo();
+    expect(store.getSnapshot().objects.find((entry) => entry.id === added.object.id)).toMatchObject(
+      { parentId: stand.id, transform: seated },
+    );
+  });
   it("stores literal formatted text and restores it with undo and redo", () => {
     const { store, object } = setup();
     const before = store.getSnapshot().project;

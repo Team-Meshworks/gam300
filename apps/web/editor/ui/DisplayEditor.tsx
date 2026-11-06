@@ -108,7 +108,7 @@ export function DisplayEditor({
       if (!chosen) return;
       const fitted = placementFor(object.id, chosen.id);
       if (!fitted) {
-        setError("The models are still loading. Try adding the object again.");
+        setError("This object does not fit the display. Choose a smaller object.");
         return;
       }
       const result = store.addAttachedObject(

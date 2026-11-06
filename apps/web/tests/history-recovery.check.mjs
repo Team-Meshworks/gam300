@@ -1,4 +1,5 @@
 import { launchBrowser } from "./browser-security.mjs";
+import { placeAtRoomCenter } from "./placement-fixture.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
@@ -29,7 +30,8 @@ async function addAsset(page, name) {
     await page.locator(".asset-picker").getByRole("button", { name, exact: true }).click();
     await page.getByRole("button", { name: "Add", exact: true }).click();
   }
-  await page.locator(".viewport-stage").click({ position: { x: 500, y: 300 } });
+  await placeAtRoomCenter(page);
+  await page.locator(".viewport-stage[data-placing-asset]").waitFor({ state: "hidden" });
 }
 
 try {

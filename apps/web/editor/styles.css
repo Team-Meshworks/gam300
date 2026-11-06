@@ -3217,7 +3217,7 @@ dialog.sp-dialog.sp-display-dialog {
 }
 
 /* Balance the visible artwork, accounting for padding within the existing SVG view boxes */
-.panel-rail .rail-button > .icon {
+.panel-rail .rail-button > :is(.icon, .figma-tool-icon) {
   width: 26px;
   height: 26px;
   display: block;

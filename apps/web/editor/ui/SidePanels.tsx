@@ -133,7 +133,12 @@ export function SidePanels({
             />
           )}
           {panel === "scenes" && <div className="editor-panel">{scenes}</div>}
-          {panel === "views" && <div className="editor-panel">{savedViews}</div>}
+          {panel === "views" && (
+            <section className="editor-panel" aria-labelledby="saved-views-heading">
+              <h2 id="saved-views-heading">Saved Views</h2>
+              {savedViews}
+            </section>
+          )}
           {panel === "interaction" && (
             <InteractionPanel
               selectedObjectId={selectedObject?.id}
@@ -294,6 +299,8 @@ function NumberField({
           event.currentTarget.value = shown;
         } else if (next !== Number(shown)) {
           onCommit(next);
+          // Rejected or unchanged edits keep the authored value; accepted edits remount with their result
+          event.currentTarget.value = shown;
         }
       }}
       onKeyDown={(event) => {

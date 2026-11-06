@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import * as THREE from "three";
-import { visibleModelBounds, visibleRaycastHit } from "./visible-model-bounds";
+import { visibleModelBounds, visibleRaycastHit, nearestExhibitHit } from "./visible-model-bounds";
 
 it("fits visible case geometry while excluding hidden covers and their descendants", () => {
   const root = new THREE.Group();
@@ -36,4 +36,11 @@ it("picks visible content through hidden covers and ignores hidden ancestors", (
   expect(hits.find(visibleRaycastHit)!.object).toBe(exhibit);
   cover.visible = true;
   expect(hits.find(visibleRaycastHit)!.object).toBe(hidden);
+});
+it("lets an exhibit be picked through its case glass while retaining empty-case picking", () => {
+  const cover = { id: "case", distance: 2, glass: true, parentId: null };
+  const item = { id: "item", distance: 2.2, glass: false, parentId: "case" };
+  expect(nearestExhibitHit([cover, item])?.id).toBe("item");
+  expect(nearestExhibitHit([cover])?.id).toBe("case");
+  expect(nearestExhibitHit([{ ...cover, glass: false }, item])?.id).toBe("case");
 });

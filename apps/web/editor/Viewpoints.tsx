@@ -59,7 +59,6 @@ export function Viewpoints({
   }
   return (
     <section className="viewpoints" aria-label="Named viewpoints">
-      <h2>Saved views</h2>
       <p>Frame the view, give it a name, then capture it.</p>
       <p>Starting view: {startingView?.name ?? "Saved scene camera"}</p>
       <fieldset disabled={disabled || !camera}>

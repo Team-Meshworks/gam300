@@ -1,3 +1,4 @@
+import { placeAtRoomCenter } from "./placement-fixture.mjs";
 import { launchPersistentBrowser } from "./browser-security.mjs";
 import assert from "node:assert/strict";
 
@@ -80,7 +81,7 @@ try {
     .getByRole("button", { name: "Starter room", exact: true })
     .click();
   await forget(page);
-  await page.locator(".viewport-stage").click({ position: { x: 500, y: 300 } });
+  await placeAtRoomCenter(page);
   await played(page, ["asset-place.wav"], "Placing a room plays Asset Place");
 
   await page.getByRole("button", { name: "Asset library", exact: true }).click();
@@ -90,7 +91,7 @@ try {
     .click();
   await page.getByRole("button", { name: "Add", exact: true }).click();
   await played(page, ["asset-select.wav"], "Picking an object card plays Asset Select");
-  await page.locator(".viewport-stage").click({ position: { x: 500, y: 300 } });
+  await placeAtRoomCenter(page);
   await played(page, ["asset-place.wav"], "Placing an object plays Asset Place");
   await forget(page);
 
@@ -128,7 +129,7 @@ try {
     .click();
   await page.getByRole("button", { name: "Add", exact: true }).click();
   await played(page, ["asset-select.wav"], "Picking an object card plays Asset Select");
-  await page.locator(".viewport-stage").click({ position: { x: 500, y: 300 } });
+  await placeAtRoomCenter(page);
   await played(page, ["asset-place.wav"], "Placing an object plays Asset Place");
   await forget(page);
   await menu("New");

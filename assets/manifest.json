@@ -771,6 +771,80 @@
         "status": "pending-team-confirmation",
         "provenance": "User supplied SFX/Crowds, Quiet, Quiet Chatting Before Presentation, Central Europe SND124022.wav. Original retained in project asset folder; browser delivery converted to 44.1 kHz AAC, 128 kbit/s. Original SHA-256: bd3fd8ef0c9e41cf7900e5fb44b720cda87d12fd9927781b60929469a9f21a83"
       }
+    },
+    {
+      "assetId": "furniture-modern-bench-1-v1",
+      "name": "Modern bench 1",
+      "kind": "model",
+      "mediaType": "model/gltf-binary",
+      "file": "delivery/modern-bench-1.glb",
+      "sourceFile": "source/modern-bench-1.glb",
+      "byteSize": 9184792,
+      "sha256": "2f198863038c4aa0a60ebd5bf3bb091f13f77ad99ec9ee5fbdaaacb4c4fce1ea",
+      "category": "Furniture",
+      "thumbnail": null,
+      "thumbnailMode": "generated",
+      "placement": "bottom-center",
+      "access": "development-only",
+      "license": {
+        "status": "pending-team-confirmation",
+        "provenance": "User-supplied modern_bench_1.glb from Telegram Desktop; source retained unchanged. Distribution rights remain unconfirmed."
+      },
+      "boundsMeters": {
+        "min": [
+          -0.6500000808387973,
+          -4.477503510912277e-8,
+          -0.2793589315860786
+        ],
+        "max": [
+          0.6500000808387973,
+          0.4542068000590452,
+          0.2793588078647421
+        ]
+      },
+      "pivotMeters": [
+        0,
+        0,
+        0
+      ],
+      "reviewNotes": "Delivery converted with glTF Transform 4.5.1 metalrough to supported metallic-roughness materials; original specular-glossiness source retained. Runtime bottom-center normalization."
+    },
+    {
+      "assetId": "furniture-modern-bench-2-v1",
+      "name": "Modern bench 2",
+      "kind": "model",
+      "mediaType": "model/gltf-binary",
+      "file": "delivery/modern-bench-2.glb",
+      "sourceFile": "source/modern-bench-2.glb",
+      "byteSize": 6621360,
+      "sha256": "66b2c7a9480686520888770f9d8f6076eee29d5375f0e10d676a953316ff7240",
+      "category": "Furniture",
+      "thumbnail": null,
+      "thumbnailMode": "generated",
+      "placement": "bottom-center",
+      "access": "development-only",
+      "license": {
+        "status": "pending-team-confirmation",
+        "provenance": "User-supplied modern_bench_2.glb from Telegram Desktop; source retained unchanged. Distribution rights remain unconfirmed."
+      },
+      "boundsMeters": {
+        "min": [
+          -1.0700068473815918,
+          2.384185791015625e-7,
+          -0.8486848771572113
+        ],
+        "max": [
+          1.0700068473815918,
+          1.1403900384902954,
+          0.2069104015827179
+        ]
+      },
+      "pivotMeters": [
+        0,
+        0,
+        0
+      ],
+      "reviewNotes": "Original self-contained GLB retained unchanged. Runtime bottom-center normalization."
     }
   ],
   "coordinateSystem": "glTF Y-up, metres",
