@@ -1100,20 +1100,55 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       return editViews(next);
     },
     deleteViewpoint(id: string): ValidationResult<true> {
-      if (!activeScene()?.viewpoints?.some((v) => v.id === id))
+      const scene = activeScene();
+      if (!project || !scene?.viewpoints?.some((v) => v.id === id))
         return invalid("viewpoint", "This viewpoint no longer exists");
-      if (
-        activeScene()?.interactions.some(
-          (rule) =>
-            rule.do.type === "move-to-viewpoint" &&
-            rule.do.viewpointId.toLowerCase() === id.toLowerCase(),
-        )
-      )
-        return invalid(
-          "viewpoint",
-          "Change or remove interactions targeting this viewpoint before deleting it",
+      const targetId = id.toLowerCase();
+      const content = toContentProject(project);
+      const scenes = content.scenes.map((entry) => {
+        const removedComponents = new Set(
+          entry.objects.flatMap((object) =>
+            object.components
+              .filter(
+                (component) =>
+                  component.type === "navigationPoint" &&
+                  component.viewpointId.toLowerCase() === targetId,
+              )
+              .map((component) => component.id.toLowerCase()),
+          ),
         );
-      return editViews((activeScene()?.viewpoints ?? []).filter((v) => v.id !== id));
+        return {
+          ...entry,
+          viewpoints:
+            entry.id === scene.id
+              ? scene.viewpoints!.filter((view) => view.id !== id)
+              : entry.viewpoints,
+          objects: entry.objects.map((object) => ({
+            ...object,
+            components: object.components.filter(
+              (component) => !removedComponents.has(component.id.toLowerCase()),
+            ),
+          })),
+          interactions: entry.interactions.filter(
+            (rule) =>
+              rule.do.type !== "move-to-viewpoint" ||
+              rule.do.viewpointId.toLowerCase() !== targetId,
+          ),
+          rules: entry.rules.filter(
+            (rule) =>
+              !(
+                (rule.trigger.type === "click" || rule.trigger.type === "gaze") &&
+                removedComponents.has(rule.trigger.targetId.toLowerCase())
+              ) &&
+              !rule.actions.some(
+                (action) =>
+                  (action.type === "moveCamera" || action.type === "navigateScene") &&
+                  action.viewpointId.toLowerCase() === targetId,
+              ),
+          ),
+        };
+      });
+      return commitProject({ ...content, scenes }, scene.id, "Delete viewpoint");
     },
     copyObject(objectId: string): ValidationResult<SceneObject> {
       const object = objects.find((entry) => entry.id === objectId);

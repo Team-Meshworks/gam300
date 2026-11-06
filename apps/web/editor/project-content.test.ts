@@ -318,13 +318,59 @@ it("edits the active second scene without overwriting the first or losing media 
   expect(target.getSnapshot().project).toEqual(original);
   expect(target.getSnapshot().activeSceneId).toBe(second.id);
 });
-it("rejects deleting a referenced viewpoint without changing document or history", () => {
-  const store = setup();
+it("deletes a referenced viewpoint and restores references on undo", () => {
+  const source = structuredClone(m2);
+  const destination = source.scenes[0]!;
+  const origin = source.scenes[1]!;
+  const point = {
+    id: crypto.randomUUID(),
+    type: "navigationPoint",
+    label: "Back",
+    sceneId: destination.id,
+    viewpointId: destination.viewpoints[0]!.id.toUpperCase(),
+  };
+  const related = {
+    id: crypto.randomUUID(),
+    enabled: false,
+    trigger: { type: "click", targetId: point.id },
+    actions: [{ type: "openLink", url: "https://example.com" }],
+  };
+  const document = {
+    ...source,
+    scenes: [
+      destination,
+      {
+        ...origin,
+        objects: [{ ...origin.objects[0]!, components: [point] }],
+        rules: [...origin.rules, related],
+      },
+    ],
+  };
+  const store = createDocumentStore(assets);
+  expect(store.loadProject(JSON.stringify(document), kinds).ok).toBe(true);
   const before = store.getSnapshot();
   const project = before.project as ContentProject;
   const referenced = project.scenes[0]!.viewpoints[0]!;
-  expect(store.deleteViewpoint(referenced.id).ok).toBe(false);
-  expect(store.getSnapshot()).toBe(before);
+  expect(store.deleteViewpoint(referenced.id).ok).toBe(true);
+  const after = store.getSnapshot().project as ContentProject;
+  expect(after.scenes[0]!.viewpoints).toEqual([]);
+  expect(after.scenes[1]!.objects[0]!.components).toEqual([]);
+  expect(after.scenes[1]!.rules.some((rule) => rule.id === related.id)).toBe(false);
+  expect(serializeProject(after, kinds).ok).toBe(true);
+  const saved = serializeProject(after, kinds);
+  if (!saved.ok) throw Error(saved.error.message);
+  const recovered = createDocumentStore(assets);
+  expect(
+    recovered.loadProject(
+      saved.value,
+      kinds,
+      JSON.parse(JSON.stringify(store.getRecoveryHistory())),
+    ).ok,
+  ).toBe(true);
+  recovered.undo();
+  expect(recovered.getSnapshot().project).toEqual(before.project);
+  recovered.redo();
+  expect(recovered.getSnapshot().project).toEqual(after);
 });
 
 it("confirms appearance as one reversible edit and preserves it through save and reopen", () => {

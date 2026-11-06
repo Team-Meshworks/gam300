@@ -153,7 +153,10 @@ it("retains navigation targets through rename, reorder, undo and recovery", () =
   expect(store.renameScene(secondId, "Renamed gallery").ok).toBe(true);
   expect(store.moveScene(secondId, 0).ok).toBe(true);
   expect(store.switchScene(firstId).ok).toBe(true);
-  expect(store.deleteViewpoint(viewId).ok).toBe(false);
+  expect(store.deleteViewpoint(viewId).ok).toBe(true);
+  expect(active(store).interactions).toEqual([rules[0]]);
+  store.undo();
+  expect(active(store).interactions).toEqual(rules);
   expect(store.deleteScene(secondId).ok).toBe(true);
   expect(active(store).interactions).toEqual([rules[1]]);
   store.undo();
