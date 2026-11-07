@@ -6,4 +6,7 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
   </PropertyGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="../../web/shared/project/publication-capabilities.json" LogicalName="Spatia.PublicationCapabilities" />
+  </ItemGroup>
 </Project>
