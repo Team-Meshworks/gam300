@@ -6,7 +6,7 @@ export type ProjectFileHandle = {
   getFile(): Promise<File>;
   queryPermission(options: { mode: "readwrite" }): Promise<PermissionState>;
   requestPermission(options: { mode: "readwrite" }): Promise<PermissionState>;
-  createWritable(): Promise<{
+  createWritable(options: { mode: "exclusive" }): Promise<{
     write(text: string): Promise<void>;
     close(): Promise<void>;
     abort(): Promise<void>;
@@ -55,13 +55,12 @@ export async function writeProjectFile(
   text: string,
   previousText: string,
 ): Promise<void> {
-  // A second editor or another application may have changed the file since we opened it
-  // Refuse a stale overwrite even when the browser still grants write permission
-  if ((await (await handle.getFile()).text()) !== previousText) {
-    throw new Error("This file changed outside the editor; reopen it or use Save As");
-  }
-  const stream = await handle.createWritable();
+  // Hold the browser's writer lock before checking the baseline so two saves cannot both pass
+  const stream = await handle.createWritable({ mode: "exclusive" });
   try {
+    if ((await (await handle.getFile()).text()) !== previousText) {
+      throw new Error("This file changed outside the editor; reopen it or use Save As");
+    }
     await stream.write(text);
     // Closing commits the temporary write; writing bytes alone doesn't confirm a saved file
     await stream.close();

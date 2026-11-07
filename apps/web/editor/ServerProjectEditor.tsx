@@ -41,6 +41,8 @@ const labels: Record<ServerSaveStatus, string> = {
   failed: "Save failed. Your edits are still here. Retry or export a copy.",
   conflict:
     "Another revision was saved. Export your edits or open the server version; nothing will be overwritten automatically.",
+  invalid:
+    "Save needs changes. Check your document and assets, then try again. Your edits are still here.",
   rejected:
     "Saving is unavailable for this account or project. Keep a recovery copy or export your edits before leaving.",
 };
@@ -272,7 +274,7 @@ function ServerProjectSession({
         if (controller.signal.aborted) return;
         if (!recovery.ok) throw new Error(recovery.error.message);
         const next = { opened: result.value, recovery: recovery.value, controller };
-        if (recovery.value) setCandidate(next);
+        if (recovery.value?.document) setCandidate(next);
         else {
           await install(next, false);
           owner = current.current;
@@ -465,7 +467,7 @@ function ServerProjectSession({
             store,
             title: active.title,
             dirty: status !== "saved",
-            failed: ["failed", "conflict", "rejected"].includes(status),
+            failed: ["failed", "conflict", "rejected", "invalid"].includes(status),
             saving: status === "saving",
             departing: departure !== null,
             save,

@@ -116,6 +116,76 @@ describe("server autosave scheduling", () => {
     session.dispose();
   });
 
+  it.each(["during", "after"] as const)(
+    "saves corrections made %s a definite document rejection with a fresh mutation",
+    async (timing) => {
+      const { session, write } = setup();
+      let finish!: (result: ServerDraftResult) => void;
+      write.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve;
+          }),
+      );
+      session.changed(changed("Rejected content"));
+      const saving = session.flush();
+      await vi.advanceTimersByTimeAsync(0);
+      const rejected = JSON.parse(write.mock.calls[0]![0].body);
+      if (timing === "during") session.changed(changed("Corrected content"));
+      finish({ kind: "invalid" });
+      await saving;
+      expect(session.getRecovery().serverSave).toMatchObject({ revision: 3, pending: null });
+      if (timing === "after") {
+        expect(session.getStatus()).toBe("invalid");
+        await vi.advanceTimersByTimeAsync(10_000);
+        expect(write).toHaveBeenCalledTimes(1);
+        session.changed(changed("Corrected content"));
+      }
+      await vi.advanceTimersByTimeAsync(2_000);
+      expect(write).toHaveBeenCalledTimes(2);
+      const corrected = JSON.parse(write.mock.calls[1]![0].body);
+      expect(corrected.clientMutationId).not.toBe(rejected.clientMutationId);
+      expect(corrected).toMatchObject({
+        expectedRevision: 3,
+        document: { title: "Corrected content" },
+      });
+      expect(session.getStatus()).toBe("saved");
+      await session.dispose();
+    },
+  );
+
+  it.each(["conflict", "rejected"] as const)(
+    "keeps %s paused through an invalid local edit and its correction",
+    async (kind) => {
+      const { session, write } = setup();
+      write.mockResolvedValueOnce({ kind });
+      session.changed(changed("Unconfirmed content"));
+      await session.flush();
+      const draft = {
+        ...document,
+        schemaVersion: 1 as const,
+        scenes: document.scenes.map((scene) => ({
+          ...scene,
+          interactions: [
+            {
+              when: { type: "scene-starts" as const },
+              do: { type: "open-link" as const, url: "" },
+            },
+          ],
+        })),
+      };
+      expect(session.changed(draft)).toBe(true);
+      expect(session.getStatus()).toBe(kind);
+      session.changed(changed("Corrected local content"));
+      await session.flush();
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(write).toHaveBeenCalledTimes(1);
+      expect(session.getStatus()).toBe(kind);
+      expect(session.getRecovery().serverSave.pending).not.toBeNull();
+      await session.dispose();
+    },
+  );
+
   it.each(["conflict", "rejected"] as const)(
     "pauses on %s without overwriting or retrying",
     async (kind) => {

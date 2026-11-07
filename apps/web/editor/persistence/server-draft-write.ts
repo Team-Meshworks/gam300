@@ -9,7 +9,7 @@ export type ServerDraftResult =
       kind: "saved";
       receipt: { projectId: string; clientMutationId: string; revision: number };
     }
-  | { kind: "conflict" | "rejected" | "failed" };
+  | { kind: "conflict" | "rejected" | "failed" | "invalid" };
 
 // Only send to the editor's own API origin
 // Keep the captured body unchanged when retrying an uncertain write
@@ -59,6 +59,11 @@ export async function writeServerDraft(
     // Another save may have moved the revision forward
     // Hand the conflict back for a user choice; keep our local work intact
     if (response.status === 409) return { kind: "conflict" };
+    if (response.status === 422) {
+      const problem: unknown = await response.json().catch(() => null);
+      // This application result follows receipt lookup and precedes any write
+      if (isRecord(problem) && problem.code === "invalid_document") return { kind: "invalid" };
+    }
     // These requests need account, permission or document correction before another attempt
     if ([400, 401, 403, 404, 413, 422].includes(response.status)) return { kind: "rejected" };
     if (response.status !== 200) return { kind: "failed" };

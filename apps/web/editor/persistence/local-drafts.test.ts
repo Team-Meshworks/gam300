@@ -643,6 +643,57 @@ describe("persisted server save identity", () => {
     });
   });
 
+  it("does not reuse a cleared storage revision that an older tab can still write", async () => {
+    const database = new FakeDraftDatabase();
+    const serverSave = { revision: 7, confirmedJson: serializedFixture(), pending: null };
+    expect(
+      await applySaveRecoverySession(
+        { ...recoverySession(), serverSave },
+        0,
+        assets,
+        database,
+        undefined,
+        scope,
+      ),
+    ).toEqual({ ok: true, value: 1 });
+    await clearConfirmedServerRecovery(scope, database);
+    const reopened = await getRecoverySession(assets, database, scope);
+    if (!reopened.ok) throw new Error(reopened.error.message);
+    const newer = {
+      ...recoverySession(),
+      document: { ...recoverySession().document, title: "New tab's offline work" },
+    };
+    expect(
+      (
+        await applySaveRecoverySession(
+          { ...newer, serverSave },
+          reopened.value?.revision ?? 0,
+          assets,
+          database,
+          undefined,
+          scope,
+        )
+      ).ok,
+    ).toBe(true);
+    const stale = await applySaveRecoverySession(
+      {
+        ...recoverySession(),
+        document: { ...recoverySession().document, title: "Stale tab" },
+        serverSave,
+      },
+      1,
+      assets,
+      database,
+      undefined,
+      scope,
+    );
+    expect(stale.ok).toBe(false);
+    expect(await getRecoverySession(assets, database, scope)).toMatchObject({
+      ok: true,
+      value: { document: { title: "New tab's offline work" } },
+    });
+  });
+
   it("clears only confirmed cache data and preserves pending or newer local work", async () => {
     // Walk through a confirmed copy, an uncertain request and an unsent edit
     // Only the first record is safe for automatic cleanup
@@ -657,10 +708,14 @@ describe("persisted server save identity", () => {
       scope,
     );
     expect(await clearConfirmedServerRecovery(scope, database)).toEqual({ ok: true, value: true });
-    expect(await getRecoverySession(assets, database, scope)).toEqual({ ok: true, value: null });
+    expect(await getRecoverySession(assets, database, scope)).toMatchObject({
+      ok: true,
+      value: { revision: 1, document: null },
+    });
+    expect([...database.records.values()]).toEqual([{ revision: 1, cleared: true }]);
     await applySaveRecoverySession(
       { ...recoverySession(), serverSave },
-      0,
+      1,
       assets,
       database,
       undefined,
@@ -673,7 +728,7 @@ describe("persisted server save identity", () => {
         document: { ...recoverySession().document, title: "Unsynced" },
         serverSave: confirmed,
       },
-      1,
+      2,
       assets,
       database,
       undefined,
@@ -929,9 +984,11 @@ describe("server project session lifecycle", () => {
       projectId,
     });
     expect(await session.dispose()).toMatchObject({ ok: true, value: true });
-    expect(await getRecoverySession(assets, database, { accountId: "alice", projectId })).toEqual({
+    expect(
+      await getRecoverySession(assets, database, { accountId: "alice", projectId }),
+    ).toMatchObject({
       ok: true,
-      value: null,
+      value: { document: null, revision: 1 },
     });
     expect(
       await getRecoverySession(assets, database, { accountId: "bob", projectId }),
@@ -956,6 +1013,20 @@ it("rejects blank account-scoped recovery without replacing the previous backup"
   );
   expect(await getRecoverySession(assets, database, scope)).toMatchObject({ ok: false });
   expect(database.records.size).toBe(1);
+});
+
+it.each([
+  { revision: 0, cleared: true },
+  { revision: 1, cleared: true, document: null },
+])("rejects malformed cleared recovery metadata: %j", async (record) => {
+  const database = new FakeDraftDatabase();
+  const scope = { accountId: "alice", projectId };
+  database.records.set(
+    `session:${JSON.stringify(["account", scope.accountId, projectId])}`,
+    record,
+  );
+  expect(await getRecoverySession(assets, database, scope)).toMatchObject({ ok: false });
+  expect([...database.records.values()]).toEqual([record]);
 });
 
 it.each([1, 2])(

@@ -9,7 +9,14 @@ import {
   type ServerDraftResult,
 } from "./server-draft-write";
 
-export type ServerSaveStatus = "saved" | "unsaved" | "saving" | "failed" | "conflict" | "rejected";
+export type ServerSaveStatus =
+  | "saved"
+  | "unsaved"
+  | "saving"
+  | "failed"
+  | "conflict"
+  | "rejected"
+  | "invalid";
 
 // Create after opening a confirmed server document
 // Dispose before changing account/project; the existing session still owns local recovery
@@ -45,7 +52,7 @@ export function createServerAutosave(options: {
   let backupQueue = Promise.resolve(true);
   const saveTimer = createServerSaveTimer(() => {
     // Local recovery keeps running while network saves are paused
-    if (running || ["failed", "conflict", "rejected"].includes(status)) {
+    if (running || ["failed", "conflict", "rejected", "invalid"].includes(status)) {
       void backup().then((ok) => {
         if (!ok && !disposed && status !== "conflict" && status !== "rejected") report("failed");
       });
@@ -193,6 +200,18 @@ export function createServerAutosave(options: {
       if (disposed) return;
       report(backedUp ? (progress.getSnapshot().dirty ? "unsaved" : "saved") : "failed");
       if (progress.getSnapshot().dirty) schedule();
+    } else if (result.kind === "invalid") {
+      const rejectedJson = pending?.documentJson;
+      progress.reject();
+      pending = null;
+      request = null;
+      const backedUp = await backup();
+      running = false;
+      if (disposed) return;
+      report(
+        !backedUp ? "failed" : invalidDraft || latestJson === rejectedJson ? "invalid" : "unsaved",
+      );
+      if (status === "unsaved") schedule();
     } else {
       running = false;
       // Conflict resolution requires an explicit reload/choice in the owning session
@@ -214,8 +233,11 @@ export function createServerAutosave(options: {
       const wasInvalid = invalidDraft;
       invalidDraft = !serializeProject(document, options.assetKinds).ok;
       progress.edited();
-      if (invalidDraft) report("failed");
-      else if (status === "saved" || (wasInvalid && status === "failed")) report("unsaved");
+      if (status !== "conflict" && status !== "rejected") {
+        if (invalidDraft) report("failed");
+        else if (status === "saved" || status === "invalid" || (wasInvalid && status === "failed"))
+          report("unsaved");
+      }
       schedule();
       return true;
     },
