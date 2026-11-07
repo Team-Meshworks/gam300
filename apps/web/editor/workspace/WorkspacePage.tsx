@@ -138,12 +138,18 @@ function OtherWorkspacePage() {
       name={session.displayName}
       initials={session.displayName.slice(0, 2).toUpperCase()}
       homeHref={review ? "/home" : fallback}
-      variant={dashboard ? "dashboard" : undefined}
+      variant={
+        dashboard
+          ? "dashboard"
+          : screen?.id === "assets" || screen?.id === "spaces"
+            ? "asset-administration"
+            : undefined
+      }
       onSignOut={() => void signOut()}
     >
       {review ? (
         <WorkspaceNavigation role={session.role} current="reviews" />
-      ) : !dashboard && !organisations ? (
+      ) : !dashboard && !organisations && session.role !== "Administrator" ? (
         <nav className="sp-workspace-links" aria-label="Workspace screens">
           <a href="/home">Projects</a>
           {permitted

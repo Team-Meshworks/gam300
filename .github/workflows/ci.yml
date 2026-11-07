@@ -181,6 +181,7 @@ jobs:
           - name: workspace
             checks: |
               accounts
+              admin-navigation
               organization-deletion
               sounds
               entry

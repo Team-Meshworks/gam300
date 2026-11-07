@@ -150,7 +150,20 @@ try {
   await dialog.getByLabel("Project title").fill("School gallery");
   await dialog.getByLabel("3D space").selectOption(assetId);
   await dialog.getByLabel("Organisation").selectOption(orgId);
+  holdPending = true;
+  const adminPending = page.waitForRequest(
+    (request) =>
+      new URL(request.url()).pathname === "/api/v1/projects" && request.method() === "POST",
+  );
   await dialog.getByRole("button", { name: "Create project" }).click();
+  await adminPending;
+  assert.equal(
+    await page.getByRole("button", { name: "Back to dashboard", includeHidden: true }).isDisabled(),
+    true,
+  );
+  assert.equal(new URL(page.url()).pathname, "/home");
+  releasePending();
+  holdPending = false;
   await page.waitForURL(`**/?projectId=${projectId}`);
   assert.deepEqual(writes[2], { title: "School gallery", environmentAssetId: assetId, orgId });
   assets = [];

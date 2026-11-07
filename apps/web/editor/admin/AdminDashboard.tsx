@@ -1,21 +1,15 @@
 import { useEffect, useRef, useState } from "react";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faImage } from "@fortawesome/free-solid-svg-icons";
-import { assets } from "virtual:asset-catalogue";
 import { Button } from "../../shared/ui/Button";
 import { Dialog } from "../../shared/ui/Dialog";
 import { Field } from "../../shared/ui/Field";
 import { SearchField } from "../../shared/ui/SearchField";
 import { Tabs } from "../../shared/ui/Tabs";
-import type { CatalogueAsset } from "../../shared/asset-runtime/catalogue";
-import { generateLibraryPreviews } from "../graphics/library-previews";
 import type { AccountSession } from "../accounts/account-client";
-import { readServerAssets } from "../persistence/server-assets";
-import { belongsInAssetPicker } from "../ui/asset-selection";
 import { createDashboardClient, type DashboardProject } from "./dashboard-client";
 import organisationIcon from "./assets/organisation.svg";
 import environmentIcon from "./assets/environment.svg";
 import libraryIcon from "./assets/library.svg";
+import defaultProjectImage from "../home/assets/default-project-neutral.jpg";
 import "./dashboard.css";
 
 type Client = ReturnType<typeof createDashboardClient>;
@@ -33,10 +27,7 @@ function ProjectCards({
     <div className="admin-project-grid">
       {projects.map((project) => (
         <article className="admin-project-card" key={project.projectId}>
-          <div className="admin-project-cover">
-            <FontAwesomeIcon icon={faImage} aria-hidden="true" />
-            <span>No cover image</span>
-          </div>
+          <img className="admin-project-cover" src={defaultProjectImage} alt="" />
           <div className="admin-project-info">
             <div className="admin-project-title">
               <h3>{project.title}</h3>
@@ -71,10 +62,7 @@ function ProjectDetails({ project, onClose }: { project: DashboardProject; onClo
       </div>
       <div className="admin-detail-columns">
         <div>
-          <div className="admin-project-cover">
-            <FontAwesomeIcon icon={faImage} aria-hidden="true" />
-            <span>No cover image</span>
-          </div>
+          <img className="admin-project-cover" src={defaultProjectImage} alt="" />
           <h2>{project.title}</h2>
           <dl className="admin-project-metadata">
             <dt>Status</dt>
@@ -218,101 +206,6 @@ function ProjectResults({ client, onClose }: { client: Client; onClose: () => vo
   );
 }
 
-function AssetLibrary({
-  kind,
-  onClose,
-  session,
-}: {
-  kind: "environment" | "model";
-  onClose: () => void;
-  session: AccountSession;
-}) {
-  const [query, setQuery] = useState("");
-  const [catalogue, setCatalogue] = useState<readonly CatalogueAsset[] | null>(null);
-  const [previews, setPreviews] = useState<Record<string, string>>({});
-  const [error, setError] = useState("");
-  const [attempt, setAttempt] = useState(0);
-  useEffect(() => {
-    const controller = new AbortController();
-    void readServerAssets(session.userId, controller.signal).then(
-      (approved) => {
-        if (!controller.signal.aborted)
-          setCatalogue([...(session.developmentAssetsAllowed ? assets : []), ...approved]);
-      },
-      (reason: unknown) => {
-        if (!controller.signal.aborted) setError(errorMessage(reason));
-      },
-    );
-    return () => controller.abort();
-  }, [session.userId, session.developmentAssetsAllowed, attempt]);
-  useEffect(() => {
-    if (!catalogue) return;
-    return generateLibraryPreviews(
-      catalogue.filter((asset) => belongsInAssetPicker(asset, kind === "environment", catalogue)),
-      (id, image) => setPreviews((current) => ({ ...current, [id]: image })),
-    );
-  }, [catalogue, kind]);
-  const entries = (catalogue ?? []).filter(
-    (asset) =>
-      belongsInAssetPicker(asset, kind === "environment", catalogue ?? []) &&
-      asset.name.toLowerCase().includes(query.trim().toLowerCase()),
-  );
-  return (
-    <Dialog
-      title={kind === "environment" ? "3D Environments" : "Physical Asset Library"}
-      variant="wide"
-      onClose={onClose}
-    >
-      <p>Assets currently available to creators.</p>
-      <SearchField
-        label="Search assets"
-        value={query}
-        onChange={setQuery}
-        placeholder="Search by name"
-      />
-      {error && (
-        <>
-          <p role="alert">{error}</p>
-          <Button
-            onClick={() => {
-              setError("");
-              setAttempt((value) => value + 1);
-            }}
-          >
-            Retry assets
-          </Button>
-        </>
-      )}
-      {!catalogue && !error && <p role="status">Loading approved assets…</p>}
-      <div className="admin-project-grid">
-        {entries.map((asset) => (
-          <article className="admin-project-card" key={asset.id}>
-            {asset.thumbnail || previews[asset.id] ? (
-              <img
-                className="admin-asset-cover"
-                src={asset.thumbnail ?? previews[asset.id]}
-                alt=""
-              />
-            ) : (
-              <div className="admin-project-cover">
-                <FontAwesomeIcon icon={faImage} aria-hidden="true" />
-                <span>No preview image</span>
-              </div>
-            )}
-            <div className="admin-project-info">
-              <h3>{asset.name}</h3>
-              <p className="sp-hint">
-                {asset.category ?? (kind === "environment" ? "Environment" : "3D model")}
-              </p>
-            </div>
-          </article>
-        ))}
-      </div>
-      {catalogue && !entries.length && <p role="status">No matching assets.</p>}
-    </Dialog>
-  );
-}
-
 function AddOrganization({
   client,
   onClose,
@@ -382,9 +275,7 @@ export function AdminDashboard({ session }: { session: AccountSession }) {
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
   const [notice, setNotice] = useState("");
-  const [modal, setModal] = useState<"projects" | "organisation" | "environment" | "model" | null>(
-    null,
-  );
+  const [modal, setModal] = useState<"projects" | "organisation" | null>(null);
   const [detail, setDetail] = useState<DashboardProject | null>(null);
   useEffect(() => {
     let disposed = false;
@@ -436,7 +327,7 @@ export function AdminDashboard({ session }: { session: AccountSession }) {
             <p>Browse projects across your organisations.</p>
           </div>
           <a className="sp-button" href="/home">
-            Manage project access
+            Open project workspace
           </a>
           <Button variant="primary" onClick={() => setModal("projects")}>
             View All Projects
@@ -536,7 +427,9 @@ export function AdminDashboard({ session }: { session: AccountSession }) {
                   </div>
                 </div>
                 <div className="admin-entry-actions">
-                  <Button onClick={() => setModal(kind)}>{view}</Button>
+                  <a className="sp-button" href={kind === "environment" ? "/spaces" : "/assets"}>
+                    {view}
+                  </a>
                   <a
                     className="sp-button sp-button--primary"
                     href={kind === "environment" ? "/spaces?add=1" : "/assets?add=1"}
@@ -549,9 +442,6 @@ export function AdminDashboard({ session }: { session: AccountSession }) {
           </div>
         </section>
       </div>
-      {(modal === "environment" || modal === "model") && (
-        <AssetLibrary kind={modal} onClose={() => setModal(null)} session={session} />
-      )}
       {modal === "organisation" && (
         <AddOrganization
           client={client}

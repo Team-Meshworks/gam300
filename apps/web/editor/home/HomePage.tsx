@@ -168,6 +168,18 @@ function HomeWorkspace({
       onHome={() => navigate(() => location.assign("/home"))}
       onSignOut={() => navigate(onSignOut)}
     >
+      {session.role === "Administrator" && (
+        <div className="sp-admin-return">
+          <button
+            type="button"
+            aria-label="Back to dashboard"
+            disabled={navigation.locked}
+            onClick={() => navigate(() => location.assign("/admin/dashboard"))}
+          >
+            ×
+          </button>
+        </div>
+      )}
       {!(session.role === "Educator" && view === "assignment" && newProject) && (
         <WorkspaceNavigation
           role={session.role}

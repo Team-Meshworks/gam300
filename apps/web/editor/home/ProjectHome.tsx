@@ -11,6 +11,7 @@ import { createWorkspaceClient, projectReceipt, type ProjectSummary } from "./wo
 import { ProjectGrantEditor } from "./ProjectGrantEditor";
 import { ProjectCreation } from "./ProjectCreation";
 import type { FormNavigationState } from "../projects/NewProjectForm";
+import defaultProjectImage from "./assets/default-project-neutral.jpg";
 
 const api = createWorkspaceClient();
 const accounts = createAccountClient();
@@ -184,9 +185,7 @@ export function ProjectHome({
           <ul className="sp-home-project-list">
             {items.map((project) => (
               <li key={project.projectId} className="sp-home-project-card">
-                {session.role !== "Administrator" && (
-                  <div className="sp-home-project-preview">Preview unavailable</div>
-                )}
+                <img className="sp-home-project-cover" src={defaultProjectImage} alt="" />
                 <div className="sp-home-project-copy">
                   <h2>{project.title}</h2>
                   <p className="sp-muted">Updated {new Date(project.updatedAt).toLocaleString()}</p>
