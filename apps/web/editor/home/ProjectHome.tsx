@@ -20,11 +20,13 @@ export function ProjectHome({
   active,
   onOpenProject,
   onNavigationStateChange,
+  showCreation = true,
 }: {
   session: AccountSession;
   active: boolean;
   onOpenProject: (projectId: string) => void;
   onNavigationStateChange?: (state: FormNavigationState) => void;
+  showCreation?: boolean;
 }) {
   const [tab, setTab] = useState<"active" | "archived">("active");
   const [search, setSearch] = useState("");
@@ -130,11 +132,13 @@ export function ProjectHome({
           )}
           <p>Explore your projects and continue your classroom’s work.</p>
         </div>
-        <ProjectCreation
-          session={session}
-          active={active}
-          onNavigationStateChange={onNavigationStateChange}
-        />
+        {showCreation && (
+          <ProjectCreation
+            session={session}
+            active={active}
+            onNavigationStateChange={onNavigationStateChange}
+          />
+        )}
       </div>
       <div className="sp-home-toolbar">
         <Tabs

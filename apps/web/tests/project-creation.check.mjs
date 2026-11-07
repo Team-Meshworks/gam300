@@ -43,6 +43,7 @@ try {
     if (path === "/api/v1/auth/session") return route.fulfill({ json: account });
     if (path === "/api/v1/auth/csrf")
       return route.fulfill({ json: { requestToken: "test-token" } });
+    if (path === "/api/v1/classes") return route.fulfill({ json: { items: [], nextCursor: null } });
     if (path === "/api/v1/assets")
       return failAssets ? route.fulfill({ status: 503 }) : route.fulfill({ json: assets });
     if (path === "/api/v1/admin/organizations")
@@ -64,6 +65,7 @@ try {
     return route.fulfill({ status: 404 });
   });
   await page.goto(origin + "/home");
+  await page.getByText("Manage projects and archives", { exact: true }).click();
   const create = page.getByRole("button", { name: "New project", exact: true });
   await create.waitFor();
   await page.waitForFunction(() =>
@@ -121,6 +123,7 @@ try {
   await page.waitForURL(`**/?projectId=${projectId}`);
   assert.deepEqual(writes[0], { title: "My gallery", environmentAssetId: assetId });
   await page.goto(origin + "/home");
+  await page.getByText("Manage projects and archives", { exact: true }).click();
   await create.click();
   await dialog.getByLabel("Project title").fill("Unsent project");
   await dialog.getByRole("button", { name: "Cancel" }).click();
@@ -136,6 +139,7 @@ try {
   await dialog.getByRole("button", { name: "Back to projects" }).click();
   assert.equal(await create.isDisabled(), true);
   await page.reload();
+  await page.getByText("Manage projects and archives", { exact: true }).click();
   await page.getByRole("button", { name: /checked my projects/i }).waitFor();
   assert.equal(await create.isDisabled(), true);
   await page.getByRole("button", { name: /checked my projects/i }).click();

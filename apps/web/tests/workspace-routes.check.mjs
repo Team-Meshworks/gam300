@@ -13,7 +13,7 @@ const session = {
 };
 const screens = [
   ["admin/dashboard", "Welcome Back, Test Teacher"],
-  ["new-project", "New class assignment"],
+  ["new-project", "New Project"],
   ["classes", "Classes"],
   ["review", "Submission review"],
   ["organisations", "All Organisations"],
@@ -167,13 +167,15 @@ try {
   }
 
   mode = "Educator";
-  await screen("new-project", "New class assignment");
+  await screen("new-project", "New Project");
   for (const width of [1440, 768, 390]) {
     await page.setViewportSize({ width, height: 900 });
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
-    assert.equal(await page.getByRole("navigation", { name: "Workspace", exact: true }).count(), 1);
+    assert.equal(await page.getByRole("navigation", { name: "Workspace", exact: true }).count(), 0);
+    assert.equal(await page.getByRole("button", { name: "Close new project" }).isVisible(), true);
   }
   await page.setViewportSize({ width: 1440, height: 900 });
+  await page.getByRole("button", { name: "Close new project" }).click();
   await page.getByRole("button", { name: "Classes", exact: true }).click();
   await page.getByRole("heading", { name: "Classes", exact: true }).waitFor();
   await page.getByRole("button", { name: "New assignment" }).click();

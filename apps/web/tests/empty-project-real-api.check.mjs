@@ -47,22 +47,44 @@ try {
   const catalogue = await teacher.request.get(`${origin}/api/v1/assets`);
   assert.equal(catalogue.status(), 200);
   assert.deepEqual(await catalogue.json(), [], "The fixture has no approved assets");
-  await page.getByRole("button", { name: "New project", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "New project" });
-  await dialog.getByLabel("Project title").fill("Empty source project");
-  assert.equal(await dialog.getByLabel("3D space").inputValue(), "");
+  await page.getByRole("link", { name: /New Project/ }).click();
+  await page.getByRole("heading", { name: "New Project", exact: true }).waitFor();
+  await page.getByLabel("Project title").fill("Empty source project");
+  await page.getByLabel("Project description").fill("Blank source project");
+  await page.getByLabel("Project instructions").fill("Explore the empty scene.");
+  await page.getByLabel("Due date and time").fill("2035-12-01T15:30");
+  await page.getByLabel(/^Class/).selectOption(process.env.SPATIA_TEST_CLASS);
+  await page.getByRole("checkbox", { name: new RegExp(process.env.SPATIA_TEST_STUDENT) }).check();
   const creating = page.waitForResponse(
     (response) =>
       new URL(response.url()).pathname === "/api/v1/projects" &&
       response.request().method() === "POST",
   );
-  await dialog.getByRole("button", { name: "Create project" }).click();
+  const initialAssignment = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname.endsWith("/assignments") &&
+      response.request().method() === "POST",
+  );
+  await page.getByRole("button", { name: "Create project", exact: true }).click();
   const created = await creating;
   assert.equal(created.status(), 201);
   assert.deepEqual(created.request().postDataJSON(), { title: "Empty source project" });
   const receipt = await created.json();
   const sourceId = receipt.projectId;
   assert.ok(sourceId);
+  const initialAssigned = await initialAssignment;
+  assert.equal(initialAssigned.status(), 201);
+  assert.equal(initialAssigned.request().postDataJSON().sourceProjectId, sourceId);
+  assert.equal((await initialAssigned.json()).projects.length, 1);
+  await page.waitForURL(/\/home\?/);
+  await page.getByRole("button", { name: "Close project details" }).click();
+  await page
+    .locator("article")
+    .filter({ has: page.getByRole("heading", { name: "Empty source project", exact: true }) })
+    .last()
+    .getByRole("button", { name: "View Details" })
+    .click();
+  await page.getByRole("button", { name: "Open project", exact: true }).click();
   await page.waitForURL(`**/?projectId=${sourceId}`);
   await sceneReady(page);
   await page.getByRole("button", { name: "Scenes", exact: true }).click();

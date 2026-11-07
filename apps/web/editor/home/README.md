@@ -2,12 +2,14 @@
 
 ## Current project creation and opening
 
-An organisation member can create a project without selecting a 3D space. The home
-form offers approved environments as an optional selection and still offers empty
-creation when there are no approved environments or the catalogue is unavailable.
-An empty project is a schema-v2 scene with `environmentAssetId: null`; selecting an
-approved environment creates a legacy v1 room. Current active organisation authority
-is still required, and an Administrator explicitly selects an active organisation.
+Creators and Administrators can create a project directly from home, optionally
+selecting an approved environment. Empty creation remains available when there are
+no approved environments or the catalogue is unavailable. Educator New Project
+opens a full-page class assignment form that creates an empty source without an
+environment selection. An empty project is a schema-v2 scene with
+`environmentAssetId: null`; selecting an approved environment creates a legacy v1
+room. Current active organisation authority is still required, and an Administrator
+explicitly selects an active organisation.
 
 If the asset catalogue is unavailable when opening a project, the editor uses its
 fallback only when the saved project validates against an empty asset map. It warns
