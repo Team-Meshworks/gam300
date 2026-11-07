@@ -642,9 +642,32 @@ try {
   );
   assert.equal(await editor.title(), "a.json - Spatia");
   assert.equal(await editor.locator(".project-file-name").count(), 0);
+  await waitBackup(2);
+  await editor.evaluate(() => {
+    window.originalOpenPicker = window.showOpenFilePicker;
+    window.showOpenFilePicker = async () => [
+      {
+        getFile: async () => new File([new Uint8Array(5 * 1024 * 1024 + 1)], "oversized.json"),
+      },
+    ];
+  });
   await add();
   await status("Not saved");
   assert.equal(await editor.title(), "a.json - Spatia");
+  await menu("Open");
+  await editor
+    .getByRole("alert")
+    .filter({ hasText: "Project JSON exceeds the 5 MiB file limit" })
+    .waitFor();
+  await editor.evaluate(() => {
+    window.showOpenFilePicker = window.originalOpenPicker;
+  });
+  assert.equal(
+    await editor.title(),
+    "a.json - Spatia",
+    "Rejecting an oversized file keeps the current project",
+  );
+  // The pending edit still needs its recovery backup after the picker releases its reservation.
   const editedA = (await waitBackup(3)).document;
   assert.deepEqual(
     await readFile("a.json"),

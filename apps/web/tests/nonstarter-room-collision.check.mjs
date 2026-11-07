@@ -174,6 +174,60 @@ try {
   await page.getByRole("button", { name: "Position", exact: true }).click();
   const x = page.getByRole("textbox", { name: `${room.name} transform X (m)`, exact: true });
   const z = page.getByRole("textbox", { name: `${room.name} transform Z (m)`, exact: true });
+  // A file picker can stay open while a scheduled recovery backup starts.
+  // Keep that transaction alive until Open has had a chance to process the file.
+  await page.evaluate(() => {
+    const put = IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put = function (...args) {
+      const result = put.apply(this, args);
+      if (this.name === "session" && window.holdRecovery) {
+        window.recoveryStarted = true;
+        const keepAlive = () => {
+          if (window.holdRecovery) this.get("active").onsuccess = keepAlive;
+        };
+        keepAlive();
+      }
+      return result;
+    };
+    const picker = window.showOpenFilePicker;
+    window.showOpenFilePicker = async (...args) => {
+      window.pickerStarted = true;
+      await new Promise((resolve) => {
+        window.releasePicker = resolve;
+      });
+      return picker(...args);
+    };
+    window.holdRecovery = true;
+  });
+  await x.fill("100");
+  await x.press("Enter");
+  await page.locator(".draft-menu summary").click();
+  await page.getByRole("button", { name: "Open", exact: true }).click();
+  await page.waitForFunction(() => window.pickerStarted);
+  await page.waitForTimeout(2500);
+  await page.evaluate(() => window.releasePicker());
+  const confirmation = page.locator("dialog.project-confirmation[open]");
+  const prompted = await confirmation.waitFor({ timeout: 5000 }).then(
+    () => true,
+    () => false,
+  );
+  const recoveryStarted = await page.evaluate(() => {
+    window.holdRecovery = false;
+    return window.recoveryStarted;
+  });
+  assert.ok(
+    prompted,
+    `Open must ask about unsaved work even if recovery starts while the picker is open (recovery started: ${Boolean(recoveryStarted)})`,
+  );
+  await confirmation.getByRole("button", { name: "Cancel", exact: true }).click();
+  await confirmation.waitFor({ state: "hidden" });
+  await page.evaluate(() => {
+    window.showOpenFilePicker = async () => [
+      await (
+        await navigator.storage.getDirectory()
+      ).getFileHandle(window.openRoomFile ?? "rooms.json"),
+    ];
+  });
   await x.fill("100");
   await x.press("Enter");
   assert.ok(Number(await x.inputValue()) < 100, "The room cannot move beyond the grid");

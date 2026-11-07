@@ -168,6 +168,7 @@ jobs:
               moving-room-collision
               starter-room-transform
               nonstarter-room-collision
+              empty-project-room
               caching
           - name: recovery
             checks: |

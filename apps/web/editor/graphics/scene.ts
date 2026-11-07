@@ -2009,11 +2009,14 @@ export function initScene(
     showPlacementPreview(id, position, ownerId) {
       // Whole layouts replace the environment at its current frame, not at the drop cursor.
       const layout =
-        !projectScene &&
+        !projectScene?.environmentAssetId &&
         assets.some((asset) => asset.id === id && asset.kind === "environment") &&
         !isStarterRoomEnvironment(assets, id);
       if (layout && position) position = projectScene?.environmentTransform?.position ?? [0, 0, 0];
-      if (projectScene && assets.some((asset) => asset.id === id && asset.kind === "environment")) {
+      if (
+        projectScene?.environmentAssetId &&
+        assets.some((asset) => asset.id === id && asset.kind === "environment")
+      ) {
         const companion = roomCompanion(
           callbacks.selectableAssets ?? assets,
           assets.find((asset) => asset.id === id),
