@@ -99,6 +99,7 @@ public sealed class HostBoundaryTests
             "GET /api/v1/projects/", "GET /api/v1/projects/{id:guid}", "GET /api/v1/projects/{id:guid}/assignments", "PUT /api/v1/projects/{id:guid}",
             "POST /api/v1/projects/", "POST /api/v1/projects/{id:guid}/duplicate", "POST /api/v1/projects/{id:guid}/submissions", "PATCH /api/v1/projects/{id:guid}/assignments", "PATCH /api/v1/projects/{id:guid}/archive",
             "GET /api/v1/projects/{id:guid}/submissions", "GET /api/v1/projects/{id:guid}/submissions/{submissionId:guid}",
+            "GET /api/v1/projects/{id:guid}/progress-reviews", "POST /api/v1/projects/{id:guid}/progress-reviews",
             "POST /api/v1/projects/{id:guid}/submissions/{submissionId:guid}/decisions",
             "GET /api/v1/classes/", "GET /api/v1/classes/{id:guid}", "GET /api/v1/classes/{id:guid}/roster", "GET /api/v1/classes/{id:guid}/eligible-students",
             "GET /api/v1/classes/{id:guid}/assignments", "GET /api/v1/classes/{id:guid}/assignments/{assignmentId:guid}",
