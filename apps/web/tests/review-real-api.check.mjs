@@ -37,6 +37,49 @@ try {
     return page;
   }
   const student = await login(process.env.SPATIA_REVIEW_STUDENT);
+  let teacher;
+  if (!unavailable) {
+    teacher = await login(process.env.SPATIA_REVIEW_EDUCATOR);
+    const studentId = await student.evaluate(
+      async () => (await (await fetch("/api/v1/auth/session")).json()).userId,
+    );
+    const assignmentId = await teacher.evaluate(async (id) => {
+      const data = await (await fetch(`/api/v1/classes/${id}/assignments?limit=20`)).json();
+      return data.items.find((item) => item.title === "Assignment").assignmentId;
+    }, classId);
+    const returned = new URLSearchParams({
+      classId,
+      assignmentId,
+      reviewProjectId: projectId,
+      studentId,
+    });
+    await teacher.goto(origin + "/home?" + returned);
+    await teacher.getByRole("dialog", { name: "Review submission" }).waitFor();
+    await teacher.getByRole("textbox", { name: "Your review" }).fill("Add a map to the draft.");
+    await teacher.getByRole("button", { name: "Save review" }).click();
+    await teacher.getByRole("textbox", { name: "Your review" }).waitFor({ state: "detached" });
+    await student.goto(origin + "/home");
+    await student.locator(`#student-project-${projectId}`).click();
+    const progressRead = await student.evaluate(async (id) => {
+      const response = await fetch(`/api/v1/projects/${id}/progress-reviews?limit=20`);
+      return { id, status: response.status, body: await response.text() };
+    }, projectId);
+    assert.equal(
+      progressRead.status,
+      200,
+      `Student progress review read: ${JSON.stringify(progressRead)}`,
+    );
+    assert.match(progressRead.body, /Add a map to the draft/);
+    await student
+      .getByRole("region", { name: "Reviews" })
+      .getByText("Add a map to the draft.")
+      .waitFor();
+    await student.goto(origin + "/review");
+    await student.getByLabel("Class", { exact: true }).selectOption(classId);
+    await student.getByLabel("Assignment", { exact: true }).selectOption({ label: "Assignment" });
+    await student.locator("#review-student").selectOption(projectId);
+    await student.getByText("Current server-saved revision:", { exact: false }).waitFor();
+  }
   await student.getByRole("checkbox").check();
   await student.getByRole("button", { name: "Submit for review", exact: true }).click();
   await student.getByRole("button", { name: "Cancel", exact: true }).click();
@@ -56,13 +99,22 @@ try {
     assert.equal(after.length, 0);
   } else {
     await student.getByText("Late submission", { exact: true }).waitFor();
-    const teacher = await login(process.env.SPATIA_REVIEW_EDUCATOR);
+    await teacher.goto(origin + "/review");
+    await teacher.getByLabel("Class", { exact: true }).selectOption(classId);
+    await teacher.getByLabel("Assignment", { exact: true }).selectOption({ label: "Assignment" });
+    await teacher.locator("#review-student").selectOption(projectId);
+    await teacher.getByText("Current server-saved revision:", { exact: false }).waitFor();
     await teacher
       .getByRole("textbox", { name: "Feedback", exact: true })
       .fill("The saved exhibition is ready.");
     await teacher.getByRole("button", { name: "Approve submission", exact: true }).click();
     await teacher.getByRole("button", { name: "Confirm decision", exact: true }).click();
     await teacher.getByText("Approved for this revision", { exact: true }).waitFor();
+    await student.goto(origin + "/review");
+    await student.getByLabel("Class", { exact: true }).selectOption(classId);
+    await student.getByLabel("Assignment", { exact: true }).selectOption({ label: "Assignment" });
+    await student.locator("#review-student").selectOption(projectId);
+    await student.getByText("Current server-saved revision:", { exact: false }).waitFor();
     await student.getByRole("button", { name: "Refresh status", exact: true }).click();
     await student
       .getByRole("region", { name: "Educator feedback" })

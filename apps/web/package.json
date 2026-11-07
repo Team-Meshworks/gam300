@@ -81,7 +81,7 @@
     "test:text-placement": "node tests/text-placement.check.mjs",
     "test:room-preview": "node tests/room-preview.check.mjs",
     "test:audio-library": "node tests/audio-library.check.mjs",
-    "test:reviews": "node tests/review-workflow.check.mjs",
+    "test:reviews": "node tests/reviews-suite.mjs",
     "build:visitor": "vite build --config vite.visitor.config.ts"
   },
   "dependencies": {

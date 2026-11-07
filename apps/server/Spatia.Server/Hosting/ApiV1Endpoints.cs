@@ -32,5 +32,6 @@ public static class ApiV1Endpoints
         endpoints.MapProjectLifecycle();
         endpoints.MapClassrooms();
         endpoints.MapReviewSubmissions();
+        endpoints.MapProgressReviews();
     }
 }

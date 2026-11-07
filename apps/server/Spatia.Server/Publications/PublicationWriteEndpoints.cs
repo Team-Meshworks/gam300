@@ -100,7 +100,7 @@ internal static class PublicationWriteEndpoints
         }).RequireAuthorization(SecurityPolicies.FullAccount).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit)
             .WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(16 * 1024));
     }
-    private static bool TryOrigin(IConfiguration configuration, out Uri? origin) =>
+    internal static bool TryOrigin(IConfiguration configuration, out Uri? origin) =>
         Uri.TryCreate(configuration["Publication:Origin"], UriKind.Absolute, out origin)
         && origin.Scheme == Uri.UriSchemeHttps && origin.UserInfo.Length == 0 && origin.AbsolutePath == "/"
         && origin.Query.Length == 0 && origin.Fragment.Length == 0;

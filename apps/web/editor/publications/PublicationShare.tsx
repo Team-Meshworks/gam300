@@ -2,7 +2,7 @@ import { useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { Button } from "../../shared/ui/Button";
 
-export function PublicationShare({ url }: { url: string }) {
+export function PublicationShare({ url, unlisted = false }: { url: string; unlisted?: boolean }) {
   const [copyStatus, setCopyStatus] = useState("");
 
   async function copyLink() {
@@ -17,7 +17,11 @@ export function PublicationShare({ url }: { url: string }) {
   return (
     <section className="sp-publication-share" aria-label="Share your project">
       <h3>Share your project</h3>
-      <p>You and the selected signed-in viewers can open this publication.</p>
+      <p>
+        {unlisted
+          ? "Anyone with this link can open the published project."
+          : "You and the selected signed-in viewers can open this publication."}
+      </p>
       <QRCodeSVG
         value={url}
         size={208}

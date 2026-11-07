@@ -14,6 +14,7 @@ import {
 } from "./review-types";
 import type { LeaveGuard } from "./ReviewWorkspace";
 import { ReviewDocument } from "./ReviewDocument";
+import { ProgressReviews } from "./ProgressReviews";
 
 const labels = {
   pending: "Awaiting educator review",
@@ -61,6 +62,7 @@ export function ProjectReview({
   const [phase, setPhase] = useState<"ready" | "confirm" | "sending" | "unknown">("ready");
   const [historyError, setHistoryError] = useState("");
   const [historyBusy, setHistoryBusy] = useState(false);
+  const [progressGuard, setProgressGuard] = useState<LeaveGuard>({ pending: false, dirty: false });
   const generation = useRef(0);
   const busy = useRef(false);
   const mounted = useRef(false);
@@ -119,8 +121,8 @@ export function ProjectReview({
       requests.current++;
     };
   }, [load]);
-  const locked = phase === "sending" || phase === "unknown";
-  const dirty = !!feedback || complete || phase === "confirm";
+  const locked = phase === "sending" || phase === "unknown" || progressGuard.pending;
+  const dirty = !!feedback || complete || phase === "confirm" || progressGuard.dirty;
   useEffect(() => {
     onGuard({ pending: locked, dirty });
   }, [onGuard, locked, dirty]);
@@ -283,7 +285,7 @@ export function ProjectReview({
           {studentName} · {className}
         </h2>
         <Button
-          disabled={loading || locked || phase === "confirm"}
+          disabled={loading || locked || phase === "confirm" || progressGuard.dirty}
           onClick={() => {
             setComplete(false);
             void load(review?.submissionId);
@@ -322,12 +324,20 @@ export function ProjectReview({
             This screen uses work saved on the server. Changes in an open editor or downloaded file
             are not submitted by this screen.
           </p>
+          <ProgressReviews
+            key={`${projectId}:${actorId}:${role}`}
+            projectId={projectId}
+            revision={project.revision}
+            actorId={actorId}
+            educator={role === "Educator"}
+            onGuard={setProgressGuard}
+          />
           {submissions.length > 0 && (
             <Field id="review-history" label="Submission">
               <select
                 id="review-history"
                 value={review?.submissionId ?? ""}
-                disabled={loading || locked || phase === "confirm"}
+                disabled={loading || locked || phase === "confirm" || progressGuard.dirty}
                 onChange={(e) => {
                   if (
                     feedback &&
