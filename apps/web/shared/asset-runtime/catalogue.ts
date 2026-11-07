@@ -109,7 +109,10 @@ export function roomFootprint(assets: readonly CatalogueAsset[], id: string) {
     : { halfWidth: 5, halfDepth: 5 };
 }
 
-export function isRoomEnvironment(assets: readonly CatalogueAsset[], id: string | undefined) {
+export function isRoomEnvironment(
+  assets: readonly CatalogueAsset[],
+  id: string | null | undefined,
+) {
   return (
     isStarterRoomEnvironment(assets, id) ||
     assets.some((asset) => asset.id === id && asset.kind === "environment" && !!asset.boundsMeters)
@@ -127,7 +130,7 @@ export function starterRoomCompanion(assets: readonly CatalogueAsset[]) {
 // Match server identities only when they refer to the known packaged room geometry.
 export function isStarterRoomEnvironment(
   assets: readonly CatalogueAsset[],
-  id: string | undefined,
+  id: string | null | undefined,
 ) {
   if (id === "test-room-v1") return true;
   const environment = assets.find((asset) => asset.id === id && asset.kind === "environment");

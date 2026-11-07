@@ -566,7 +566,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
 
       // The same room tile creates the environment first and independent room instances afterward
       // Keep the model reference used by saved room instances behind this one catalogue choice
-      if (projectScene) {
+      if (projectScene?.environmentAssetId) {
         const companion = roomCompanion(
           selectionAssets,
           assets.find((asset) => asset.id === assetId),
@@ -1076,7 +1076,8 @@ export function App({ server }: { server?: ServerEditorSession }) {
               }}
               onAdd={async (assetId) => {
                 const before = store.getSnapshot();
-                const adjoiningRoom = projectScene && assetKinds.get(assetId) === "environment";
+                const adjoiningRoom =
+                  projectScene?.environmentAssetId && assetKinds.get(assetId) === "environment";
                 const modelId = adjoiningRoom
                   ? roomCompanion(
                       selectionAssets,
@@ -1094,7 +1095,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
                 if (
                   assetKinds.get(assetId) === "environment" &&
                   !isStarterRoomEnvironment(assets, assetId) &&
-                  !projectScene
+                  !projectScene?.environmentAssetId
                 ) {
                   setPlacingAssetId(null);
                   place(assetId, [0, 0, 0]);
@@ -1114,7 +1115,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
               onDragChange={(assetId) => {
                 if (
                   assetId &&
-                  projectScene &&
+                  projectScene?.environmentAssetId &&
                   assetKinds.get(assetId) === "environment" &&
                   !roomCompanion(
                     selectionAssets,

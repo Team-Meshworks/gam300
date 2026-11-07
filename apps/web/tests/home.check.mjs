@@ -279,7 +279,7 @@ try {
       );
       assert.equal(
         await page.getByRole("button", { name: "New project", exact: true }).isDisabled(),
-        true,
+        false,
       );
       assert.ok(
         await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),

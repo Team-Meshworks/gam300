@@ -1804,7 +1804,7 @@ Four lifecycle routes share FullAccount, CSRF and AccountWrite protection:
 
 | Route | Request and result |
 | --- | --- |
-| `POST /api/v1/projects` | Required bounded `title`, exactly one of `environmentAssetId` or complete `document`, and optional `orgId`; returns 201 metadata. |
+| `POST /api/v1/projects` | Required bounded `title`, optional `environmentAssetId` or complete `document` (mutually exclusive), and optional `orgId`; returns 201 metadata. |
 | `POST /api/v1/projects/{id}/duplicate` | Required integer `expectedRevision` and bounded `title`; returns 201 independent-copy metadata. |
 | `PATCH /api/v1/projects/{id}/assignments` | Required integer `expectedRevision`, `managedByUserIds`, `assignedCreatorIds`, `canPublishUserIds`; replaces the complete assignment set and returns 200 metadata. |
 | `PATCH /api/v1/projects/{id}/archive` | Required integer `expectedRevision` and boolean `archived`; true archives, false reopens; returns 200 metadata. |
@@ -1819,9 +1819,11 @@ fixed messages, never authored text or account details. Wrapped PostgreSQL inser
 failures now use the existing safe `503 storage_unavailable` mapping.
 
 Create derives organization from current membership; a supplied different organization
-is forbidden. Global Administrators explicitly select an active organization. A blank
-project uses an approved environment asset and the editor's v1 room/camera structure;
-imports preserve supported v1/v2 content. Imported authority is rejected. Server-owned
+is forbidden. Global Administrators explicitly select an active organization. With neither
+`environmentAssetId` nor `document`, creation produces an empty schema-v2 scene with
+`environmentAssetId: null`. An explicitly selected approved environment produces the
+legacy v1 room/camera structure; imports preserve supported v1/v2 content. The two
+inputs are mutually exclusive. Imported authority is rejected. Server-owned
 project IDs, revision 0 and initial assignments commit together. A Creator gets edit
 only; an Educator gets edit/manage/publish; a global Administrator needs no assignment.
 

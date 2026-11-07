@@ -20,7 +20,7 @@ internal static class PublicationDocumentAssets
             case ContentProject { SchemaVersion: 2 } content:
                 foreach (var scene in content.Scenes)
                 {
-                    ids.Add(scene.EnvironmentAssetId);
+                    if (scene.EnvironmentAssetId is { } environmentId) { ids.Add(environmentId); }
                     // Include scene audio in retained references even while its playback remains unavailable
                     foreach (var audio in (scene.Audio ?? []).OfType<AudioComponent>()) { ids.Add(audio.AssetId); }
                     foreach (var item in scene.Objects)

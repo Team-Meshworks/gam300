@@ -154,7 +154,7 @@ try {
   }
   // Expiry on a mounted workspace redirects too, and Back skips the protected page.
   mode = "Educator";
-  await screen("home", "Projects");
+  await screen("home", "Welcome Back, Test Teacher");
   mode = "anonymous";
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
   await page.waitForURL(`${origin}/login`);

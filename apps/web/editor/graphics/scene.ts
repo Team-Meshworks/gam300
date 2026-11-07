@@ -673,7 +673,9 @@ export function initScene(
     appliedLoadGeneration = loadGeneration;
 
     const nextEnvironmentId =
-      projectScene?.environmentVisible === false ? undefined : projectScene?.environmentAssetId;
+      projectScene?.environmentVisible === false
+        ? undefined
+        : (projectScene?.environmentAssetId ?? undefined);
     if (
       ready &&
       (environmentId !== nextEnvironmentId ||
@@ -811,7 +813,12 @@ export function initScene(
     return new THREE.Ray(camera.position, point.unproject(camera).sub(camera.position).normalize());
   }
 
-  function bodyFor(id: string, assetId: string, transform: Transform): PlacementBody | undefined {
+  function bodyFor(
+    id: string,
+    assetId: string | null,
+    transform: Transform,
+  ): PlacementBody | undefined {
+    if (assetId === null) return;
     const model = models.get(assetId);
     const asset = assets.find((entry) => entry.id === assetId);
     if (!model || !asset) return;
@@ -2002,11 +2009,14 @@ export function initScene(
     showPlacementPreview(id, position, ownerId) {
       // Whole layouts replace the environment at its current frame, not at the drop cursor.
       const layout =
-        !projectScene &&
+        !projectScene?.environmentAssetId &&
         assets.some((asset) => asset.id === id && asset.kind === "environment") &&
         !isStarterRoomEnvironment(assets, id);
       if (layout && position) position = projectScene?.environmentTransform?.position ?? [0, 0, 0];
-      if (projectScene && assets.some((asset) => asset.id === id && asset.kind === "environment")) {
+      if (
+        projectScene?.environmentAssetId &&
+        assets.some((asset) => asset.id === id && asset.kind === "environment")
+      ) {
         const companion = roomCompanion(
           callbacks.selectableAssets ?? assets,
           assets.find((asset) => asset.id === id),
