@@ -49,7 +49,7 @@ public sealed class AssetAdministrationService(ApplicationDbContext database, As
             return null;
         }
 
-        // Keep technically valid candidates pending until a separate human review confirms their use
+        // A valid administrator upload is immediately selectable; failed validation stays private
         // Fingerprint the exact uploaded bytes once and retain that version through later retirement
         var asset = new AssetCandidate
         {
@@ -59,7 +59,12 @@ public sealed class AssetAdministrationService(ApplicationDbContext database, As
             Category = category,
             Sha256 = Convert.ToHexStringLower(SHA256.HashData(bytes)),
             Bytes = bytes,
-            Status = validation.Value.Valid ? "pending" : "invalid",
+            Status = validation.Value.Valid ? "approved" : "invalid",
+            Hidden = !validation.Value.Valid,
+            ReviewedBy = validation.Value.Valid ? actor : null,
+            Source = validation.Value.Valid ? "" : null,
+            License = validation.Value.Valid ? "" : null,
+            ReviewNotes = validation.Value.Valid ? "Made available automatically after technical validation." : null,
             ValidationJson = JsonSerializer.Serialize(validation.Value.Messages),
             SubmittedBy = actor,
             CreatedAt = DateTimeOffset.UtcNow,

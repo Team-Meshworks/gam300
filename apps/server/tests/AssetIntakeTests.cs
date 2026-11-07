@@ -16,6 +16,31 @@ namespace Spatia.Server.Tests;
 public sealed class AssetIntakeTests
 {
     [Test]
+    [Arguments("environment", "room.glb", null)]
+    [Arguments("model", "object.glb", "Objects")]
+    public async Task Intake_ValidAdminUploadIsImmediatelyAvailable(string kind, string name, string? category)
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
+        await fixture.SignInAsync(await fixture.CreateAccountAsync(ApplicationRoles.Administrator));
+        var query = $"/api/v1/admin/assets?name={name}&kind={kind}" + (category is null ? "" : $"&category={category}");
+        using var upload = new HttpRequestMessage(HttpMethod.Post, query);
+        upload.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync());
+        upload.Content = new ByteArrayContent(CreateMinimalGlb());
+        upload.Content.Headers.ContentType = new("model/gltf-binary");
+        using var response = await fixture.Client.SendAsync(upload);
+        await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.Created);
+        var asset = (await response.Content.ReadFromJsonAsync<AssetAdministrationRecord>())!;
+        await Assert.That(asset.Status).IsEqualTo("approved");
+        await Assert.That(asset.Hidden).IsFalse();
+        await fixture.SignInAsync(await fixture.CreateAccountAsync(ApplicationRoles.Educator));
+        using var catalogue = await fixture.Client.GetAsync("/api/v1/assets");
+        var entries = await catalogue.Content.ReadFromJsonAsync<JsonElement>();
+        await Assert.That(entries.EnumerateArray().Any(entry => entry.GetProperty("id").GetString() == asset.Id.ToString())).IsTrue();
+        using var bytes = await fixture.Client.GetAsync($"/api/v1/assets/{asset.Id}/bytes");
+        await Assert.That(bytes.StatusCode).IsEqualTo(HttpStatusCode.OK);
+    }
+
+    [Test]
     public async Task IntakePolicy_RejectsPathsRemoteUrlsUnknownKindsAndSpaceCategories()
     {
         foreach (var name in new[] { "../room.glb", "folder/room.glb", "folder\\room.glb", "https://remote/room.glb", "room.gltf", "bad\n.glb", ".glb" })
@@ -96,7 +121,8 @@ public sealed class AssetIntakeTests
         using var submitted = await fixture.Client.SendAsync(upload);
         await Assert.That(submitted.StatusCode).IsEqualTo(HttpStatusCode.Created);
         var candidate = (await submitted.Content.ReadFromJsonAsync<AssetAdministrationRecord>())!;
-        await Assert.That(candidate.Status).IsEqualTo("pending");
+        await Assert.That(candidate.Status).IsEqualTo("approved");
+        candidate = candidate with { Id = await SeedLegacyPendingAsync(fixture, candidate.Id) };
 
         using var details = JsonDocument.Parse(reviewJson);
         using var approved = await AuthTestRequests.PostAsync(fixture, $"/api/v1/admin/assets/{candidate.Id}/approve", details.RootElement);
@@ -110,7 +136,7 @@ public sealed class AssetIntakeTests
         await Assert.That(record.ReviewNotes).IsEqualTo(expected.ReviewNotes ?? "");
         await using (var scope = fixture.Database.Services.CreateAsyncScope())
         {
-            var stored = await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().AssetCandidates.AsNoTracking().SingleAsync();
+            var stored = await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().AssetCandidates.AsNoTracking().SingleAsync(asset => asset.Id == candidate.Id);
             await Assert.That(stored.ReviewedBy).IsEqualTo((Guid?)admin);
             await Assert.That(stored.Source).IsEqualTo(record.Source);
             await Assert.That(stored.License).IsEqualTo(record.License);
@@ -144,12 +170,13 @@ public sealed class AssetIntakeTests
         using var submitted = await fixture.Client.SendAsync(upload);
         await Assert.That(submitted.StatusCode).IsEqualTo(HttpStatusCode.Created);
         var candidate = await submitted.Content.ReadFromJsonAsync<AssetAdministrationRecord>();
-        await Assert.That(candidate!.Status).IsEqualTo("pending");
-        using var inspection = await fixture.Client.GetAsync(candidate.InspectionUrl);
+        await Assert.That(candidate!.Status).IsEqualTo("approved");
+        candidate = candidate with { Id = await SeedLegacyPendingAsync(fixture, candidate.Id) };
+        using var inspection = await fixture.Client.GetAsync($"/api/v1/admin/assets/{candidate.Id}/bytes");
         await Assert.That(inspection.StatusCode).IsEqualTo(HttpStatusCode.OK);
         await Assert.That(inspection.Content.Headers.ContentDisposition!.DispositionType).IsEqualTo("attachment");
         await Assert.That((await inspection.Content.ReadAsByteArrayAsync()).SequenceEqual(bytes)).IsTrue();
-        // Pending bytes never enter the student catalogue even for an unrestricted account
+        // Legacy pending bytes never enter the student catalogue even for an unrestricted account
         using var pending = await fixture.Client.GetAsync($"/api/v1/assets/{candidate.Id}/bytes");
         await Assert.That(pending.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
         using var review = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/admin/assets/{candidate.Id}/approve");
@@ -200,7 +227,7 @@ public sealed class AssetIntakeTests
         await Assert.That(hiddenBytes.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
         await using var scope = fixture.Database.Services.CreateAsyncScope();
         var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var stored = await database.AssetCandidates.AsNoTracking().SingleAsync();
+        var stored = await database.AssetCandidates.AsNoTracking().SingleAsync(asset => asset.Id == candidate.Id);
         await Assert.That(stored.Deleted && stored.Hidden).IsTrue();
         await Assert.That(stored.Bytes.SequenceEqual(bytes)).IsTrue();
         await Assert.That(stored.ReviewedBy).IsEqualTo((Guid?)admin);
@@ -249,7 +276,7 @@ public sealed class AssetIntakeTests
         removal.Content = JsonContent.Create(new AssetAvailabilityRequest("remove", true));
         using var unavailable = await fixture.Client.SendAsync(removal);
         await Assert.That(unavailable.StatusCode).IsEqualTo(HttpStatusCode.ServiceUnavailable);
-        await Assert.That((await database.AssetCandidates.AsNoTracking().SingleAsync()).RemovedFromProjects).IsFalse();
+        await Assert.That((await database.AssetCandidates.AsNoTracking().SingleAsync(asset => asset.Id == candidate.Id)).RemovedFromProjects).IsFalse();
         // Database enforcement prevents later writers from replacing a reviewed version's bytes
         await Assert.ThrowsAsync<Npgsql.PostgresException>(async () => await database.Database.ExecuteSqlRawAsync("UPDATE asset_candidates SET bytes = decode('00', 'hex')"));
         await fixture.SignInAsync(await fixture.CreateAccountAsync());
@@ -315,9 +342,7 @@ public sealed class AssetIntakeTests
         using var submitted = await fixture.Client.SendAsync(upload);
         await Assert.That(submitted.StatusCode).IsEqualTo(HttpStatusCode.Created);
         var candidate = (await submitted.Content.ReadFromJsonAsync<AssetAdministrationRecord>())!;
-        using var reviewed = await AuthTestRequests.PostAsync(fixture, $"/api/v1/admin/assets/{candidate.Id}/approve",
-            new AssetReviewRequest("Synthetic source", "Synthetic rights", "Reviewed room"));
-        await Assert.That(reviewed.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        await Assert.That(candidate.Status).IsEqualTo("approved");
 
         await fixture.SignInAsync(creator);
         using var created = await AuthTestRequests.PostAsync(fixture, "/api/v1/projects/",
@@ -351,6 +376,30 @@ public sealed class AssetIntakeTests
         var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         await Assert.That(await database.Projects.CountAsync()).IsEqualTo(1);
         await Assert.That(await database.ProjectAssignments.CountAsync()).IsEqualTo(1);
+    }
+
+    private static async Task<Guid> SeedLegacyPendingAsync(HttpsApplicationFixture fixture, Guid id)
+    {
+        await using var scope = fixture.Database.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var existing = await database.AssetCandidates.AsNoTracking().SingleAsync(asset => asset.Id == id);
+        var legacy = new AssetCandidate
+        {
+            Id = Guid.NewGuid(),
+            Name = existing.Name,
+            Kind = existing.Kind,
+            Category = existing.Category,
+            Sha256 = existing.Sha256,
+            Bytes = existing.Bytes,
+            Status = "pending",
+            Hidden = true,
+            ValidationJson = existing.ValidationJson,
+            SubmittedBy = existing.SubmittedBy,
+            CreatedAt = existing.CreatedAt
+        };
+        database.AssetCandidates.Add(legacy);
+        await database.SaveChangesAsync();
+        return legacy.Id;
     }
 
     // Keep API tests independent of Git LFS while exercising the real GLB validator

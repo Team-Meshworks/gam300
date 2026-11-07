@@ -155,14 +155,9 @@ public sealed class ProductionRoomBrowserTests
         using var submitted = await fixture.Client.SendAsync(upload);
         await Assert.That(submitted.StatusCode).IsEqualTo(HttpStatusCode.Created);
         var candidate = (await submitted.Content.ReadFromJsonAsync<AssetAdministrationRecord>())!;
-        await Assert.That(candidate.Status).IsEqualTo("pending");
+        await Assert.That(candidate.Status).IsEqualTo("approved");
         await Assert.That(candidate.Sha256).IsEqualTo(hash);
-        using var reviewed = await AuthTestRequests.PostAsync(fixture, $"/api/v1/admin/assets/{candidate.Id}/approve",
-            new AssetReviewRequest("Synthetic browser fixture", "Synthetic test only", "Approved for browser test"));
-        await Assert.That(reviewed.StatusCode).IsEqualTo(HttpStatusCode.OK);
-        var approved = (await reviewed.Content.ReadFromJsonAsync<AssetAdministrationRecord>())!;
-        await Assert.That(approved.Status).IsEqualTo("approved");
-        await Assert.That(approved.Hidden).IsFalse();
-        return approved;
+        await Assert.That(candidate.Hidden).IsFalse();
+        return candidate;
     }
 }
