@@ -6,7 +6,7 @@ using Spatia.Server.Persistence;
 
 namespace Spatia.Server.Tests;
 
-[NotInParallel]
+[NotInParallel(nameof(BundledAssetAccessTests))]
 public sealed class BundledAssetAccessTests
 {
     [Test]

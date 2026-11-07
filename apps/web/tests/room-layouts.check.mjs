@@ -5,7 +5,7 @@ import { launchBrowser } from "./browser-security.mjs";
 const target = process.argv[2] ?? "http://127.0.0.1:5185/";
 const browser = await launchBrowser({ target, args: ["--enable-unsafe-swiftshader"] });
 try {
-  const page = await browser.newPage({ viewport: { width: 1440, height: 1024 } });
+  let page = await browser.newPage({ viewport: { width: 1440, height: 1024 } });
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   page.on("console", (message) => {
@@ -24,7 +24,7 @@ try {
   const layouts = await page.evaluate(async () => {
     const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
     return assets
-      .filter((asset) => asset.id.startsWith("room-"))
+      .filter((asset) => asset.id.startsWith("room-") && asset.kind === "environment")
       .map(({ id, name }) => ({ id, name }));
   });
   assert.equal(layouts.length, 16);
@@ -65,11 +65,6 @@ try {
   }
   const picker = await openRooms();
   assert.equal(await picker.locator(".asset-card").count(), 17);
-  await page.waitForFunction(() =>
-    [...document.querySelectorAll(".room-picker .asset-art img")].every(
-      (img) => img.complete && img.naturalWidth > 0,
-    ),
-  );
   const door = page.locator('.scene-toolbar [data-category="rooms"] img');
   assert.deepEqual(
     await door.evaluate((img) => ({
@@ -89,28 +84,59 @@ try {
     first.scenes[0].startCamera.position[0] > 30,
     "Initial overview fits the full-size room",
   );
+  await choose("All 4 Doors");
+  await page.waitForFunction(
+    () =>
+      document.querySelector(".viewport-stage")?.getAttribute("data-placing-asset") ===
+      "room-doors-1-2-3-4-v1",
+  );
+  await page.keyboard.press("Escape");
+  assert.equal((await saved("room-doors-1-2-3-4-v1")).scenes[0].objects.length, 0);
+  await page.close();
 
   // Capture the actual rendered environment roots, beyond the normalized cached model.
-  await page.evaluate(async () => {
-    const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
-    const { editorModelCache } = await import("/graphics/scene.ts");
-    const lease = await editorModelCache.acquire(
-      assets.find((a) => a.id === "room-space1-v1"),
-      new AbortController().signal,
-    );
-    const prototype = Object.getPrototypeOf(Object.getPrototypeOf(lease.value.model));
-    const add = prototype.add;
-    prototype.add = function (...nodes) {
-      if (this.isScene)
-        for (const node of nodes)
-          if (node.isGroup && node.name !== "placement-preview") window.renderedRoom = node;
-      return add.apply(this, nodes);
-    };
-    lease.release();
-  });
+  const captureRoom = () =>
+    page.evaluate(async () => {
+      const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
+      const { editorModelCache } = await import("/graphics/scene.ts");
+      const lease = await editorModelCache.acquire(
+        assets.find((a) => a.id === "room-space1-v1"),
+        new AbortController().signal,
+      );
+      const prototype = Object.getPrototypeOf(Object.getPrototypeOf(lease.value.model));
+      const add = prototype.add;
+      prototype.add = function (...nodes) {
+        if (this.isScene)
+          for (const node of nodes)
+            if (node.name === "placement-preview") window.roomGhost = node;
+            else if (node.isGroup) window.renderedRoom = node;
+        return add.apply(this, nodes);
+      };
+      lease.release();
+    });
   for (const layout of layouts) {
+    // A fresh context gives every layout its own initial environment.
+    page = await browser.newPage({ viewport: { width: 1440, height: 1024 } });
+    page.on("pageerror", (error) => errors.push(error.message));
+    await page.goto(target);
+    await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor({ timeout: 60000 });
+    await page.getByRole("button", { name: "Third person", exact: true }).click();
+    await captureRoom();
     await choose(layout.name);
     const doc = await saved(layout.id);
+    const loadedPicker = await openRooms();
+    const thumbnail = loadedPicker
+      .getByRole("button", { name: layout.name, exact: true })
+      .locator("img");
+    await thumbnail.waitFor();
+    await page.waitForFunction((name) => {
+      const button = [...document.querySelectorAll(".room-picker .asset-card-pick")].find(
+        (node) => node.getAttribute("aria-label") === name,
+      );
+      const img = button?.querySelector("img");
+      return img?.complete && img.naturalWidth > 0;
+    }, layout.name);
+    await page.keyboard.press("Escape");
     assert.equal(
       doc.scenes[0].objects.length,
       0,
@@ -146,22 +172,41 @@ try {
     assert.ok(Math.abs(bounds.min[1]) < 0.001, `${layout.name} rests on the grid`);
     assert.ok(bounds.max[0] - bounds.min[0] > 18, "Original metre scale is preserved");
     assert.ok(bounds.fogFar > 100, "Fog must not hide complete room layouts at overview distance");
+    await page.close();
   }
-  await choose("All 4 Doors");
-  assert.equal((await saved("room-doors-1-2-3-4-v1")).scenes[0].objects.length, 0);
-  await choose("Door 1");
-  await saved("room-doors-1-v1");
-  await page.getByRole("button", { name: "Undo", exact: true }).click();
-  await saved("room-doors-1-2-3-4-v1");
-  await page.getByRole("button", { name: "Redo", exact: true }).click();
-  await saved("room-doors-1-v1");
+  // Dragging a layout into an empty project also creates the environment.
+  page = await browser.newPage({ viewport: { width: 1440, height: 1024 } });
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.goto(target);
+  await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor({ timeout: 60000 });
+  await page.getByRole("button", { name: "Third person", exact: true }).click();
+  await captureRoom();
   await openRooms();
   const transfer = await page.evaluateHandle(() => new DataTransfer());
   // The picker is intentionally hidden until dragend, so retain its DOM selector.
   const choice = page.locator('.room-picker .asset-card-pick[aria-label="Door 2"]');
   await choice.dispatchEvent("dragstart", { dataTransfer: transfer });
   const stage = page.locator(".viewport-stage");
-  await stage.dispatchEvent("dragover", { clientX: 720, clientY: 500, dataTransfer: transfer });
+  await stage.waitFor({ state: "visible" });
+  await page.waitForFunction(
+    () =>
+      document.querySelector(".viewport-stage")?.getAttribute("data-dragging-asset") ===
+      "room-doors-2-v1",
+  );
+  const dragDeadline = Date.now() + 15000;
+  let validDrop = false;
+  while (Date.now() < dragDeadline && !validDrop) {
+    await stage.dispatchEvent("dragover", { clientX: 720, clientY: 500, dataTransfer: transfer });
+    validDrop = await page.evaluate(() => {
+      let color;
+      window.roomGhost?.traverse((node) => {
+        if (node.isMesh) color = node.material.color.getHexString();
+      });
+      return window.roomGhost?.visible && color === "999999";
+    });
+    if (!validDrop) await page.waitForTimeout(100);
+  }
+  assert.ok(validDrop, "Dragging Door 2 produces a valid placement preview");
   await stage.dispatchEvent("drop", { clientX: 720, clientY: 500, dataTransfer: transfer });
   await choice.dispatchEvent("dragend", { dataTransfer: transfer });
   assert.equal((await saved("room-doors-2-v1")).scenes[0].objects.length, 0);
@@ -169,10 +214,8 @@ try {
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   await saved("room-doors-2-v1");
   await page.getByRole("button", { name: "Third person", exact: true }).click();
-  await choose("All 4 Doors");
-  await saved("room-doors-1-2-3-4-v1");
   await page.screenshot({
-    path: "test-results/room-layouts/all-four-doors.png",
+    path: "test-results/room-layouts/door-two.png",
     animations: "disabled",
   });
   await page.getByRole("button", { name: "Asset library", exact: true }).click();
@@ -194,7 +237,7 @@ try {
   });
   assert.deepEqual(errors, []);
   console.log(
-    "Room layouts passed: 16 originals, previews, search, environment placement, repeat selection, undo/redo and reload.",
+    "Room layouts passed: 16 originals, previews, search, isolated environment placement, repeat placement, drag and reload.",
   );
 } finally {
   await browser.close();

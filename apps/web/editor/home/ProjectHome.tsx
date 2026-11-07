@@ -20,11 +20,13 @@ export function ProjectHome({
   active,
   onOpenProject,
   onNavigationStateChange,
+  showCreation = true,
 }: {
   session: AccountSession;
   active: boolean;
   onOpenProject: (projectId: string) => void;
   onNavigationStateChange?: (state: FormNavigationState) => void;
+  showCreation?: boolean;
 }) {
   const [tab, setTab] = useState<"active" | "archived">("active");
   const [search, setSearch] = useState("");
@@ -108,17 +110,34 @@ export function ProjectHome({
     project.title.toLocaleLowerCase().includes(search.toLocaleLowerCase()),
   );
   return (
-    <section className="sp-home-projects" aria-label="Projects">
+    <section
+      className={`sp-home-projects sp-home-projects--${session.role.toLowerCase()}`}
+      aria-label="Projects"
+    >
+      {session.role !== "Administrator" && (
+        <div className={`sp-home-welcome sp-home-welcome--${session.role.toLowerCase()}`}>
+          <h1>Welcome Back, {session.displayName}</h1>
+          {session.role === "Educator" && (
+            <p>A space to spark ideas, guide student work and curate what gets shared.</p>
+          )}
+        </div>
+      )}
       <div className="sp-page-heading sp-between">
         <div>
-          <h1>Projects</h1>
+          {session.role === "Administrator" ? (
+            <h1>All Projects</h1>
+          ) : (
+            <h2>{session.role === "Educator" ? "All Projects" : "Projects"}</h2>
+          )}
           <p>Explore your projects and continue your classroom’s work.</p>
         </div>
-        <ProjectCreation
-          session={session}
-          active={active}
-          onNavigationStateChange={onNavigationStateChange}
-        />
+        {showCreation && (
+          <ProjectCreation
+            session={session}
+            active={active}
+            onNavigationStateChange={onNavigationStateChange}
+          />
+        )}
       </div>
       <div className="sp-home-toolbar">
         <Tabs
@@ -142,7 +161,6 @@ export function ProjectHome({
         />
         <Button onClick={() => setVersion((value) => value + 1)}>Refresh</Button>
       </div>
-      <p className="sp-hint sp-home-notice">New projects require an approved 3D space.</p>
       {message && !action && (
         <p role="status" className="sp-home-notice">
           {message}

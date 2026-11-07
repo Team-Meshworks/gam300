@@ -13,10 +13,10 @@ const session = {
 };
 const screens = [
   ["admin/dashboard", "Welcome Back, Test Teacher"],
-  ["new-project", "New class assignment"],
+  ["new-project", "New Project"],
   ["classes", "Classes"],
   ["review", "Submission review"],
-  ["accounts", "Accounts"],
+  ["organisations", "All Organisations"],
 ];
 try {
   const page = await browser.newPage();
@@ -40,25 +40,67 @@ try {
         },
       });
     }
+    if (new URL(request.url()).pathname === "/api/v1/auth/csrf")
+      return route.fulfill({ json: { requestToken: "test-token" } });
+    if (new URL(request.url()).pathname === "/api/v1/admin/organizations")
+      return route.fulfill({ json: { items: [], nextCursor: null } });
     return route.fulfill({ status: 503 });
   });
 
   async function screen(path, heading) {
     await page.goto(`${origin}/${path}`);
-    await page.getByRole("heading", { name: heading, exact: true }).waitFor();
+    await page
+      .getByRole("heading", {
+        name: heading,
+        level: heading === "All Organisations" ? 1 : undefined,
+        exact: true,
+      })
+      .waitFor();
     assert.equal(await page.getByText(/development preview|simulation|ms tan/i).count(), 0);
   }
   for (const [path, heading] of screens) {
-    mode = path === "accounts" || path === "admin/dashboard" ? "Administrator" : "Educator";
+    mode = path === "organisations" || path === "admin/dashboard" ? "Administrator" : "Educator";
     await screen(`${path}/?source=check`, heading);
     await page.reload();
-    await page.getByRole("heading", { name: heading, exact: true }).waitFor();
+    await page
+      .getByRole("heading", {
+        name: heading,
+        level: heading === "All Organisations" ? 1 : undefined,
+        exact: true,
+      })
+      .waitFor();
   }
 
   // Use the mounted screen and authenticated intake adapter, not its local preview.
   mode = "Administrator";
   let assetReads = 0;
-  await page.route("**/api/v1/admin/assets", (route) => {
+  let uploadedMetadata;
+  await page.route(/\/api\/v1\/admin\/assets(?:\?.*)?$/, (route) => {
+    if (route.request().method() === "POST") {
+      uploadedMetadata = JSON.parse(
+        Buffer.from(route.request().headers()["x-spatia-asset-metadata"], "base64").toString(
+          "utf8",
+        ),
+      );
+      assert.equal(route.request().headers()["x-csrf-token"], "test-token");
+      return route.fulfill({
+        status: 201,
+        json: {
+          id: "11111111-1111-4111-8111-111111111111",
+          name: "room",
+          kind: "environment",
+          category: null,
+          status: "approved",
+          hidden: false,
+          deleted: false,
+          removedFromProjects: false,
+          thumbnail: null,
+          validation: [],
+          actions: ["hide", "delete"],
+          ...uploadedMetadata,
+        },
+      });
+    }
     assetReads++;
     return route.fulfill({
       json: {
@@ -87,6 +129,33 @@ try {
   await page.setViewportSize({ width: 1440, height: 900 });
   await screen("spaces", "All 3D Spaces");
   assert.ok(assetReads >= 2, "Both admin libraries load the real service route");
+  for (const [path, title] of [
+    ["spaces", "Upload 3D Space"],
+    ["assets", "Upload 3D Model"],
+  ]) {
+    await page.goto(`${origin}/${path}?add=1`);
+    await page
+      .getByRole("dialog")
+      .getByRole("heading", { name: title, exact: true })
+      .waitFor({ timeout: 3000 });
+  }
+  await page.goto(`${origin}/spaces?add=1`);
+  const upload = page.getByRole("dialog");
+  await upload.getByLabel("Choose asset file").setInputFiles({
+    name: "room.glb",
+    mimeType: "model/gltf-binary",
+    buffer: Buffer.from("fixture"),
+  });
+  await upload.getByLabel("Source or provenance (optional)").fill("Museum archive");
+  await upload.getByLabel("Redistribution licence (optional)").fill("CC BY 4.0");
+  await upload.getByLabel("Content review notes (optional)").fill("Rights checked");
+  await upload.getByRole("button", { name: "Save Changes" }).click();
+  await upload.waitFor({ state: "hidden" });
+  assert.deepEqual(uploadedMetadata, {
+    source: "Museum archive",
+    license: "CC BY 4.0",
+    reviewNotes: "Rights checked",
+  });
 
   // Direct creator and educator routes must not fetch intake data.
   for (const role of ["Creator", "Educator"]) {
@@ -98,19 +167,21 @@ try {
   }
 
   mode = "Educator";
-  await screen("new-project", "New class assignment");
+  await screen("new-project", "New Project");
   for (const width of [1440, 768, 390]) {
     await page.setViewportSize({ width, height: 900 });
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
-    assert.equal(await page.getByRole("navigation", { name: "Workspace", exact: true }).count(), 1);
+    assert.equal(await page.getByRole("navigation", { name: "Workspace", exact: true }).count(), 0);
+    assert.equal(await page.getByRole("button", { name: "Close new project" }).isVisible(), true);
   }
   await page.setViewportSize({ width: 1440, height: 900 });
+  await page.getByRole("button", { name: "Close new project" }).click();
   await page.getByRole("button", { name: "Classes", exact: true }).click();
   await page.getByRole("heading", { name: "Classes", exact: true }).waitFor();
   await page.getByRole("button", { name: "New assignment" }).click();
   await page.getByRole("heading", { name: "New class assignment" }).waitFor();
   mode = "Creator";
-  for (const path of ["new-project", "accounts", "admin/dashboard"]) {
+  for (const path of ["new-project", "organisations", "admin/dashboard"]) {
     await screen(path, "Access denied");
   }
   await screen("classes", "Classes");
@@ -124,7 +195,7 @@ try {
     "new-project",
     "review",
     "publish",
-    "accounts",
+    "organisations",
     "assets",
     "spaces",
     "admin/dashboard",
@@ -140,7 +211,7 @@ try {
   }
   // Expiry on a mounted workspace redirects too, and Back skips the protected page.
   mode = "Educator";
-  await screen("home", "Projects");
+  await screen("home", "Welcome Back, Test Teacher");
   mode = "anonymous";
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
   await page.waitForURL(`${origin}/login`);

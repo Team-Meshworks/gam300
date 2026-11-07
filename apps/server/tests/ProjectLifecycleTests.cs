@@ -4,6 +4,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
@@ -15,10 +16,72 @@ using Spatia.Server.Reviews;
 
 namespace Spatia.Server.Tests;
 
-[NotInParallel]
+[NotInParallel(nameof(ProjectLifecycleTests))]
 public sealed class ProjectLifecycleTests
 {
     private const string Marker = "private-lifecycle-document-not-for-errors-or-logs";
+
+    [Test]
+    [Arguments(ApplicationRoles.Educator)]
+    [Arguments(ApplicationRoles.Creator)]
+    public async Task ProjectLifecycle_MemberCanStartWithoutAnAdministratorProvidedSpace(string role)
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
+        var actor = await fixture.CreateAccountAsync(role);
+        await fixture.SignInAsync(actor);
+        var id = await CreateAsync(fixture, new { title = Marker });
+        var opened = await OpenAsync(fixture, id);
+        var scene = opened.GetProperty("document").GetProperty("scenes")[0];
+        await Assert.That(scene.GetProperty("environmentAssetId").ValueKind).IsEqualTo(JsonValueKind.Null);
+        await Assert.That(opened.GetProperty("permissions").GetProperty("canManage").GetBoolean())
+            .IsEqualTo(role == ApplicationRoles.Educator);
+        var edited = JsonNode.Parse(opened.GetProperty("document").GetRawText())!;
+        edited["scenes"]![0]!["name"] = "Edited empty scene";
+        using var saved = await SendAsync(fixture, HttpMethod.Put, $"/api/v1/projects/{id:D}",
+            new { expectedRevision = 0, clientMutationId = Guid.NewGuid(), document = edited });
+        await Assert.That(saved.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        var reopened = await OpenAsync(fixture, id);
+        await Assert.That(reopened.GetProperty("document").GetProperty("scenes")[0].GetProperty("name").GetString())
+            .IsEqualTo("Edited empty scene");
+    }
+
+    [Test]
+    public async Task ProjectLifecycle_EducatorWithoutOrganizationCannotCreateInAnotherOrganization()
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
+        var educator = await fixture.CreateAccountAsync(ApplicationRoles.Educator);
+        var other = await fixture.CreateAccountAsync();
+        var otherOrganization = await OrganizationAsync(fixture, other);
+        await fixture.SignInAsync(educator);
+        await using (var scope = fixture.Database.Services.CreateAsyncScope())
+        {
+            var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            await database.OrganizationMemberships.Where(row => row.UserId == educator).ExecuteDeleteAsync();
+        }
+        using var response = await SendAsync(fixture, HttpMethod.Post, "/api/v1/projects", new { title = Marker, orgId = otherOrganization });
+        await Assert.That(response.StatusCode).IsNotEqualTo(HttpStatusCode.Created);
+        await using var verify = fixture.Database.Services.CreateAsyncScope();
+        await Assert.That(await verify.ServiceProvider.GetRequiredService<ApplicationDbContext>().Projects.CountAsync()).IsEqualTo(0);
+    }
+
+    [Test]
+    public async Task ProjectLifecycle_EducatorCannotCreateWhenOrganizationIsInactive()
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
+        var educator = await fixture.CreateAccountAsync(ApplicationRoles.Educator);
+        var organization = await OrganizationAsync(fixture, educator);
+        await fixture.SignInAsync(educator);
+        await using (var scope = fixture.Database.Services.CreateAsyncScope())
+        {
+            var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            await database.Organizations.Where(row => row.Id == organization)
+                .ExecuteUpdateAsync(set => set.SetProperty(row => row.IsActive, false));
+        }
+        using var response = await SendAsync(fixture, HttpMethod.Post, "/api/v1/projects", new { title = Marker });
+        await Assert.That(response.StatusCode).IsNotEqualTo(HttpStatusCode.Created);
+        await using var verify = fixture.Database.Services.CreateAsyncScope();
+        await Assert.That(await verify.ServiceProvider.GetRequiredService<ApplicationDbContext>().Projects.CountAsync()).IsEqualTo(0);
+    }
 
     [Test]
     [Arguments(ApplicationRoles.Creator)]

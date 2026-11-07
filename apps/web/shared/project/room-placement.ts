@@ -1,26 +1,34 @@
 import type { ProjectScene } from "./project-types";
 import type { SceneObject, Vector3Tuple } from "./scene-object";
+import { ROOM_GRID_HALF_SIZE, snapRoomBounds, type RoomFootprint } from "./room-bounds";
+
+export type RoomModelPredicate = (assetId: string) => boolean;
+export const isPackagedRoomModel: RoomModelPredicate = (id) => id === "test-room-module-v1";
 
 // Keep the remaining room as the layout reference when the initial environment was deleted
 export function roomLayoutTransform(
   objects: readonly SceneObject[],
   scene: ProjectScene | null | undefined,
+  isRoomModel: RoomModelPredicate = isPackagedRoomModel,
 ) {
   return scene?.environmentVisible === false
-    ? objects.find((object) => object.assetId === "test-room-module-v1")?.transform
+    ? objects.find((object) => isRoomModel(object.assetId))?.transform
     : scene?.environmentTransform;
 }
 
 export function snapRoomPlacement(
   position: Vector3Tuple,
   objects: readonly SceneObject[],
-  environmentAssetId?: string,
+  environmentAssetId?: string | null,
   environmentTransform?: SceneObject["transform"],
+  isRoomModel: RoomModelPredicate = isPackagedRoomModel,
+  roomFootprint: (assetId: string) => RoomFootprint = () => ({ halfWidth: 5, halfDepth: 5 }),
+  movingAssetId = "test-room-module-v1",
+  movingFootprint?: RoomFootprint,
 ): Vector3Tuple | null {
   // Compare room footprints in the layout frame so rotated layouts keep their adjoining sides
   const frame =
-    environmentTransform ??
-    objects.find((object) => object.assetId === "test-room-module-v1")?.transform;
+    environmentTransform ?? objects.find((object) => isRoomModel(object.assetId))?.transform;
   const [qx, qy, qz, qw] = frame?.rotation ?? [0, 0, 0, 1];
   const angle = Math.atan2(2 * (qw * qy + qx * qz), 1 - 2 * (qy * qy + qz * qz));
   const cosine = Math.cos(angle),
@@ -33,25 +41,24 @@ export function snapRoomPlacement(
     sine * x + cosine * z,
   ];
   const requested = toFrame(position);
-  // Approved Starter room geometry spans -5 to 5 on floor axes and -0.2 to 3 in height
-  // Keep this asset-specific until production rooms supply approved connection points
-  const rooms = objects.filter((object) => object.assetId === "test-room-module-v1");
-  if (environmentAssetId === "test-room-v1")
+  const rooms = objects.filter((object) => isRoomModel(object.assetId));
+  if (environmentAssetId)
     rooms.unshift({
       id: "environment",
       name: "Room",
-      assetId: "test-room-module-v1",
+      assetId: environmentAssetId,
       transform: environmentTransform ?? {
         position: [0, 0, 0],
         rotation: [0, 0, 0, 1],
         scale: [1, 1, 1],
       },
     });
-  const footprints = rooms.map(({ transform }) => {
+  const footprints = rooms.map(({ transform, assetId }) => {
     const [u, v, a, b] = transform.rotation;
     const [x, y, z, w] = [c * u - s * a, c * v - s * b, c * a + s * u, c * b + s * v];
     const origin = toFrame(transform.position);
     const [sx, sy, sz] = transform.scale;
+    const { halfWidth, halfDepth } = roomFootprint(assetId);
     // Project the transformed room bounds onto the floor, including tilted rooms
     // Conservative bounds prevent a new room from cutting through existing geometry
     const xx = 1 - 2 * (y * y + z * z);
@@ -64,38 +71,26 @@ export function snapRoomPlacement(
       y: transform.position[1],
       x: origin[0] + xy * 1.4 * sy,
       z: origin[2] + zy * 1.4 * sy,
-      halfX: Math.abs(xx * sx * 5) + Math.abs(xy * sy * 1.6) + Math.abs(xz * sz * 5),
-      halfZ: Math.abs(zx * sx * 5) + Math.abs(zy * sy * 1.6) + Math.abs(zz * sz * 5),
+      halfX:
+        Math.abs(xx * sx * halfWidth) + Math.abs(xy * sy * 1.6) + Math.abs(xz * sz * halfDepth),
+      halfZ:
+        Math.abs(zx * sx * halfWidth) + Math.abs(zy * sy * 1.6) + Math.abs(zz * sz * halfDepth),
     };
   });
   if (footprints.length === 0) {
     return position;
   }
 
-  // Compare the four adjoining positions on every room, skipping occupied sides
-  // Pointer proximity chooses the side; stable ordering resolves exact ties
-  const candidates: Vector3Tuple[] = footprints.flatMap((room) => [
-    [room.x + room.halfX + 5, room.y, room.z],
-    [room.x - room.halfX - 5, room.y, room.z],
-    [room.x, room.y, room.z + room.halfZ + 5],
-    [room.x, room.y, room.z - room.halfZ - 5],
-  ]);
-  const available = candidates.filter(
-    ([x, , z]) =>
-      Math.abs(x) <= 10_000 &&
-      Math.abs(z) <= 10_000 &&
-      footprints.every(
-        (room) =>
-          Math.abs(x - room.x) >= room.halfX + 5 - 1e-8 ||
-          Math.abs(z - room.z) >= room.halfZ + 5 - 1e-8,
-      ),
+  const closest = snapRoomBounds(
+    requested,
+    movingFootprint ?? roomFootprint(movingAssetId),
+    footprints.map((room) => ({
+      position: [room.x, room.y, room.z] as const,
+      halfWidth: room.halfX,
+      halfDepth: room.halfZ,
+    })),
+    ROOM_GRID_HALF_SIZE,
   );
-  available.sort(
-    (a, b) =>
-      Math.hypot(a[0] - requested[0], a[2] - requested[2]) -
-      Math.hypot(b[0] - requested[0], b[2] - requested[2]),
-  );
-  const closest = available[0];
   return closest
     ? [
         cosine * closest[0] + sine * closest[2],
@@ -105,17 +100,21 @@ export function snapRoomPlacement(
     : null;
 }
 
-// GridHelper spans forty metres; the entire room footprint must fit inside it
+// The entire room footprint must fit inside the visible placement grid
 export function roomFitsGrid(
   position: Vector3Tuple,
   rotation: readonly [number, number, number, number] = [0, 0, 0, 1],
+  footprint: RoomFootprint = { halfWidth: 5, halfDepth: 5 },
 ): boolean {
   const [x, y, z, w] = rotation;
   const yaw = Math.atan2(2 * (w * y + x * z), 1 - 2 * (y * y + z * z));
-  const half = 5 * (Math.abs(Math.cos(yaw)) + Math.abs(Math.sin(yaw)));
+  const halfX =
+    footprint.halfWidth * Math.abs(Math.cos(yaw)) + footprint.halfDepth * Math.abs(Math.sin(yaw));
+  const halfZ =
+    footprint.halfWidth * Math.abs(Math.sin(yaw)) + footprint.halfDepth * Math.abs(Math.cos(yaw));
   return (
     position.every(Number.isFinite) &&
-    Math.abs(position[0]) + half <= 20 + 1e-8 &&
-    Math.abs(position[2]) + half <= 20 + 1e-8
+    Math.abs(position[0]) + halfX <= ROOM_GRID_HALF_SIZE + 1e-8 &&
+    Math.abs(position[2]) + halfZ <= ROOM_GRID_HALF_SIZE + 1e-8
   );
 }

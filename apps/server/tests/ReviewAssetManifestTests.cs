@@ -10,6 +10,19 @@ namespace Spatia.Server.Tests;
 public sealed class ReviewAssetManifestTests
 {
     [Test]
+    public async Task ReviewAssets_EmptySceneRequiresNoEnvironmentAsset()
+    {
+        var id = Guid.NewGuid();
+        var documents = new ProjectDocumentService(new DevelopmentEnvironment());
+        var result = documents.Read(id, ProjectTestDocuments.Create(id, "Review", 2));
+        var project = (ContentProject)result.Value!;
+        var scene = project.Scenes[0] with { EnvironmentAssetId = null, Objects = [], Audio = [] };
+        var required = ReviewAssetManifest.Required(project with { Scenes = [scene] });
+        await Assert.That(required).IsEmpty();
+        await Assert.That(ReviewAssetManifest.Serialize(required, [])).IsEqualTo("[]");
+    }
+
+    [Test]
     [Arguments(1)]
     [Arguments(2)]
     public async Task ReviewAssets_ResolveEveryReferenceFromAValidatedDocument(int version)
@@ -65,7 +78,7 @@ public sealed class ReviewAssetManifestTests
             }],
         });
 
-        await Assert.That(required.SetEquals([scene.EnvironmentAssetId, scene.Objects[0].AssetId, "scene-audio"])).IsTrue();
+        await Assert.That(required.SetEquals([scene.EnvironmentAssetId ?? throw new InvalidOperationException("Fixture requires an environment"), scene.Objects[0].AssetId, "scene-audio"])).IsTrue();
         var resolved = required.Select(assetId => new ReviewAssetReference(assetId, new string('a', 64))).ToArray();
         await Assert.That(ReviewAssetManifest.Serialize(required, resolved.Where(row => row.AssetId != "scene-audio").ToArray())).IsNull();
         using var manifest = JsonDocument.Parse(ReviewAssetManifest.Serialize(required, resolved)!);

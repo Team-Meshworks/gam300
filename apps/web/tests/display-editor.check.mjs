@@ -8,6 +8,135 @@ const browser = await launchBrowser({
   args: ["--enable-unsafe-swiftshader"],
 });
 try {
+  const cancellation = await browser.newPage({ viewport: { width: 1440, height: 1024 } });
+  cancellation.setDefaultTimeout(8000);
+  const cancellationErrors = [];
+  cancellation.on("pageerror", (error) => cancellationErrors.push(error.message));
+  const origin = new URL(process.argv[2] ?? "http://127.0.0.1:5185/").origin;
+  const componentSource = await (
+    await cancellation.request.get(origin + "/ui/DisplayEditor.tsx")
+  ).text();
+  const mainSource = await (await cancellation.request.get(origin + "/main.tsx")).text();
+  const react = componentSource.match(/import __vite__cjsImport\d+_react from "([^"]+)"/)?.[1];
+  const reactDom = mainSource.match(
+    /import __vite__cjsImport\d+_reactDom_client from "([^"]+)"/,
+  )?.[1];
+  assert.ok(react && reactDom, "Resolve the editor's React modules");
+  await cancellation.route("**/__display-cancellation-test", (route) =>
+    route.fulfill({
+      contentType: "text/html",
+      body: `<link rel="stylesheet" href="/styles.css"><div id="root"></div><script type="importmap">${JSON.stringify({ imports: { react, "react-dom/client": reactDom } })}</script><script type="module">
+        import RefreshRuntime from "/@react-refresh";
+        RefreshRuntime.injectIntoGlobalHook(window);
+        window.$RefreshReg$ = () => {};
+        window.$RefreshSig$ = () => (type) => type;
+        window.__vite_plugin_react_preamble_installed__ = true;
+      </script>`,
+    }),
+  );
+  await cancellation.goto(origin + "/__display-cancellation-test");
+  await cancellation.waitForFunction(() => window.__vite_plugin_react_preamble_installed__);
+  await cancellation.evaluate(async () => {
+    const React = (await import("react")).default;
+    const { createRoot } = (await import("react-dom/client")).default;
+    const { DisplayEditor } = await import("/ui/DisplayEditor.tsx");
+    const project = {};
+    const transform = { position: [0, 0, 0], rotation: [0, 0, 0, 1], scale: [1, 1, 1] };
+    const object = { id: "display", name: "Display", assetId: "plinth", transform };
+    const asset = { id: "plinth", name: "Plinth", kind: "model", displayRole: "physical" };
+    const crate = { id: "crate", name: "Sample crate", kind: "model", sha256: "b".repeat(64) };
+    window.displayTest = { pending: [], added: [], closes: 0 };
+    const store = {
+      getSnapshot: () => ({ project, objects: [] }),
+      addAttachedObject: (...args) => {
+        window.displayTest.added.push(args);
+        return { ok: true };
+      },
+    };
+    function Harness() {
+      const [open, setOpen] = React.useState(true);
+      window.openDisplay = () => setOpen(true);
+      window.unmountDisplay = () => setOpen(false);
+      return open
+        ? React.createElement(DisplayEditor, {
+            object,
+            asset,
+            assets: [asset, crate],
+            project,
+            store,
+            thumbnailFor: () => undefined,
+            placementFor: () => new Promise((resolve) => window.displayTest.pending.push(resolve)),
+            onClose: () => {
+              window.displayTest.closes++;
+              setOpen(false);
+            },
+          })
+        : null;
+    }
+    createRoot(document.getElementById("root")).render(
+      React.createElement(React.StrictMode, null, React.createElement(Harness)),
+    );
+  });
+  const dialog = cancellation.getByRole("dialog", { name: "Place an object on this display" });
+  for (const [index, how] of ["close", "escape", "unmount"].entries()) {
+    await dialog.waitFor();
+    await dialog.getByRole("button", { name: "Sample crate", exact: true }).click();
+    await dialog.getByRole("button", { name: "Add", exact: true }).click();
+    await cancellation.waitForFunction(
+      (count) => window.displayTest.pending.length === count,
+      index * 2 + 1,
+    );
+    if (how === "close") await dialog.getByRole("button", { name: "Close display editor" }).click();
+    else if (how === "escape") await cancellation.keyboard.press("Escape");
+    else await cancellation.evaluate(() => window.unmountDisplay());
+    await dialog.waitFor({ state: "detached" });
+    const before = await cancellation.evaluate(() => ({
+      added: window.displayTest.added.length,
+      closes: window.displayTest.closes,
+    }));
+    await cancellation.evaluate(() => window.openDisplay());
+    await dialog.waitFor();
+    await cancellation.evaluate(async (pendingIndex) => {
+      window.displayTest.pending[pendingIndex]({
+        position: [0, 0, 0],
+        rotation: [0, 0, 0, 1],
+        scale: [1, 1, 1],
+      });
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    }, index * 2);
+    assert.deepEqual(
+      {
+        ...(await cancellation.evaluate(() => ({
+          added: window.displayTest.added.length,
+          closes: window.displayTest.closes,
+        }))),
+        open: await dialog.isVisible(),
+      },
+      { ...before, open: true },
+      `${how} cancels a pending Add without changing the reopened editor`,
+    );
+    await dialog.getByRole("button", { name: "Sample crate", exact: true }).click();
+    await dialog.getByRole("button", { name: "Add", exact: true }).click();
+    await cancellation.waitForFunction(
+      (count) => window.displayTest.pending.length === count,
+      index * 2 + 2,
+    );
+    await cancellation.evaluate(
+      (pendingIndex) =>
+        window.displayTest.pending[pendingIndex]({
+          position: [0, 0, 0],
+          rotation: [0, 0, 0, 1],
+          scale: [1, 1, 1],
+        }),
+      index * 2 + 1,
+    );
+    await dialog.waitFor({ state: "detached" });
+    assert.equal(await cancellation.evaluate(() => window.displayTest.added.length), index + 1);
+    if (index < 2) await cancellation.evaluate(() => window.openDisplay());
+  }
+  assert.deepEqual(cancellationErrors, [], "Cancelled placement must not raise browser errors");
+  await cancellation.close();
+
   const page = await browser.newPage({ viewport: { width: 1440, height: 1024 } });
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));

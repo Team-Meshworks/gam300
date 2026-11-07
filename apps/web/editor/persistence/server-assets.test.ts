@@ -1,5 +1,6 @@
 import { expect, it, vi } from "vitest";
 import { readServerAssets } from "./server-assets";
+import { readFileSync } from "node:fs";
 
 const id = "11111111-1111-4111-8111-111111111111";
 const asset = {
@@ -11,6 +12,20 @@ const asset = {
   thumbnail: null,
   category: null,
 };
+it("retains measured room geometry for an approved matching room asset", async () => {
+  const manifest = JSON.parse(
+    readFileSync(new URL("../../../../assets/manifest.json", import.meta.url), "utf8"),
+  );
+  const room = manifest.assets.find(
+    (entry: { assetId: string }) => entry.assetId === "room-doors-1-v1",
+  );
+  const fetcher = vi
+    .fn<typeof fetch>()
+    .mockResolvedValue(Response.json([{ ...asset, sha256: room.sha256 }]));
+  const [loaded] = await readServerAssets("alice", new AbortController().signal, fetcher);
+  expect(loaded?.boundsMeters).toEqual(room.boundsMeters);
+  expect(loaded?.placement).toBe("bottom-center");
+});
 it("loads retained references independently of the active catalogue using project-scoped bytes", async () => {
   const projectId = "22222222-2222-4222-8222-222222222222";
   const retained = { ...asset, url: `/api/v1/projects/${projectId}/assets/${id}/bytes` };

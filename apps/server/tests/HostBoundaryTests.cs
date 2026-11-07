@@ -18,7 +18,7 @@ using Spatia.Server.Persistence;
 
 namespace Spatia.Server.Tests;
 
-[NotInParallel]
+[NotInParallel(nameof(HostBoundaryTests))]
 public sealed class HostBoundaryTests
 {
     [Test]
@@ -106,11 +106,11 @@ public sealed class HostBoundaryTests
             "GET /api/v1/admin/assets/", "GET /api/v1/admin/assets/{id:guid}/bytes", "POST /api/v1/admin/assets/", "POST /api/v1/admin/assets/{id:guid}/approve",
             "POST /api/v1/admin/assets/{id:guid}/availability", "GET /api/v1/assets", "GET /api/v1/assets/{id:guid}/bytes",
             "GET /api/v1/projects/{projectId:guid}/assets/{id:guid}/bytes", "GET /api/v1/projects/{projectId:guid}/assets",
-            "GET /api/v1/publications/{publicationId}", "GET /api/v1/publications/{publicationId}/manifest", "GET /api/v1/publications/{publicationId}/assets/{assetId}/bytes",
+            "GET,HEAD /api/v1/publications/{publicationId}", "GET /api/v1/publications/{publicationId}/manifest", "GET,HEAD /api/v1/publications/{publicationId}/assets/{assetId}/bytes",
             "GET /api/v1/publications/{publicationId:guid}/access", "POST /api/v1/publications/{publicationId:guid}/access",
             "POST /api/v1/projects/{id:guid}/publications", "GET /api/v1/projects/{id:guid}/publication-readiness", "GET /api/v1/projects/{id:guid}/publication-viewers" };
         await Assert.That(string.Join(";", endpoints.Select(endpoint =>
-            endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Single() + " " + endpoint.RoutePattern.RawText).Order()))
+            string.Join(",", endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods) + " " + endpoint.RoutePattern.RawText).Order()))
             .IsEqualTo(string.Join(";", expected.Order()));
         foreach (var endpoint in endpoints)
         {
@@ -121,7 +121,7 @@ public sealed class HostBoundaryTests
             var project = path.StartsWith("/api/v1/projects", StringComparison.Ordinal)
                 || path.StartsWith("/api/v1/assets", StringComparison.Ordinal);
             var publication = path.StartsWith("/api/v1/publications", StringComparison.Ordinal);
-            var publicationRead = publication && !path.EndsWith("/access", StringComparison.Ordinal) && endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Single() == "GET";
+            var publicationRead = publication && !path.EndsWith("/access", StringComparison.Ordinal) && endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.All(method => method is "GET" or "HEAD");
             var assetBytes = path.EndsWith("/bytes", StringComparison.Ordinal);
             var upload = path == "/api/v1/admin/assets/" && endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Single() == "POST";
             var classroom = path.StartsWith("/api/v1/classes", StringComparison.Ordinal);
@@ -132,7 +132,7 @@ public sealed class HostBoundaryTests
                     data.Policy == (path.StartsWith("/api/v1/admin/", StringComparison.Ordinal)
                         ? SecurityPolicies.Administrator : project || classroom || publication ? SecurityPolicies.FullAccount : SecurityPolicies.CurrentAccount))).IsTrue();
             }
-            var method = endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Single();
+            var method = endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.First();
             if (assetBytes || (!csrf && !session && method != "GET"
                 && (!(project || classroom) || method is "POST" or "PATCH" || (classroom && method is "PUT" or "DELETE"))))
             {
@@ -232,6 +232,11 @@ public sealed class HostBoundaryTests
         {
             request.Headers.TransferEncodingChunked = true;
         }
+        else if (status == HttpStatusCode.RequestEntityTooLarge)
+        {
+            // Receive the size rejection before uploading a declared oversized body
+            request.Headers.ExpectContinue = true;
+        }
         using var response = await fixture.Client.SendAsync(request);
         await Assert.That(response.StatusCode).IsEqualTo(status);
         await Assert.That(fixture.Writes).IsEqualTo(status == HttpStatusCode.NoContent ? 1 : 0);
@@ -239,6 +244,47 @@ public sealed class HostBoundaryTests
         {
             await AssertProblemAsync(response, status, "request_too_large");
         }
+    }
+
+    [Test]
+    public async Task RequestBody_OrdinaryOversizedUploadNeverReachesWrite()
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync();
+        await fixture.SignInAsync(await fixture.CreateAccountAsync());
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/_test/write")
+        {
+            Version = HttpVersion.Version11,
+            VersionPolicy = HttpVersionPolicy.RequestVersionExact,
+            Content = new ByteArrayContent(new byte[17 * 1024]),
+        };
+        request.Content.Headers.ContentType = new("application/json");
+        request.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync());
+        try
+        {
+            using var response = await fixture.Client.SendAsync(request);
+            await AssertProblemAsync(response, HttpStatusCode.RequestEntityTooLarge, "request_too_large");
+        }
+        catch (HttpRequestException error) when (
+            error.HttpRequestError == HttpRequestError.ResponseEnded
+            || error.InnerException is IOException
+            {
+                InnerException: SocketException
+                {
+                    SocketErrorCode: SocketError.ConnectionReset or SocketError.ConnectionAborted
+                }
+            })
+        {
+            // Kestrel may close a connection while an oversized body is already being sent
+        }
+
+        // A transport reset is acceptable only after the server actually rejects the request
+        const string rejection = "request_completed POST /_test/write 413 ";
+        for (var attempt = 0; attempt < 100 && !fixture.Logs.Messages.Contains(rejection, StringComparison.Ordinal); attempt++)
+        {
+            await Task.Delay(10);
+        }
+        await Assert.That(fixture.Logs.Messages.Contains(rejection, StringComparison.Ordinal)).IsTrue();
+        await Assert.That(fixture.Writes).IsEqualTo(0);
     }
 
     [Test]

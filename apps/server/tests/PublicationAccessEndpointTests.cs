@@ -6,6 +6,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Spatia.Server.Accounts;
 using Spatia.Server.Assets;
@@ -15,9 +16,69 @@ using Spatia.Server.Publications;
 
 namespace Spatia.Server.Tests;
 
-[NotInParallel]
+[NotInParallel("Browser")]
 public sealed class PublicationAccessEndpointTests
 {
+    [Test]
+    public async Task PolicyChange_ExpiryBeforeCommitRollsBackTheChange()
+    {
+        var probe = new ExpireAfterSave();
+        await using var fixture = await HttpsApplicationFixture.CreateAsync(
+            builder => builder.Services.AddDbContext<ApplicationDbContext>(options => options.AddInterceptors(probe)), environmentName: "Development");
+        var data = JsonSerializer.SerializeToElement(await SeedAsync(fixture));
+        var publication = data.GetProperty("publicationId").GetGuid();
+        await fixture.SignInAsync(data.GetProperty("actors").GetProperty("manager").GetProperty("userId").GetGuid());
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/publications/{publication}/access")
+        {
+            Content = JsonContent.Create(new { audience = "Authenticated", viewerIds = Array.Empty<Guid>(), action = "hide" }),
+        };
+        request.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync());
+        probe.After = () => fixture.Clock.Advance(TimeSpan.FromHours(9));
+        using var response = await fixture.Client.SendAsync(request);
+        await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.Unauthorized);
+        await using var scope = fixture.Database.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await Assert.That((await database.PublicationAccess.AsNoTracking().SingleAsync(row => row.PublicationId == publication)).Hidden).IsFalse();
+    }
+
+    [Test]
+    public async Task Delivery_HeadUsesTheSameAuthorityAndMetadataWithoutABody()
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
+        var data = JsonSerializer.SerializeToElement(await SeedAsync(fixture));
+        var publication = data.GetProperty("publicationId").GetGuid();
+        var asset = data.GetProperty("assetId").GetGuid();
+        await fixture.SignInAsync(data.GetProperty("actors").GetProperty("viewer").GetProperty("userId").GetGuid());
+        using var anonymous = fixture.CreateClient();
+        foreach (var path in new[] { $"/api/v1/publications/{publication}", $"/api/v1/publications/{publication}/assets/{asset}/bytes" })
+        {
+            using var get = await fixture.Client.GetAsync(path);
+            using var headRequest = new HttpRequestMessage(HttpMethod.Head, path);
+            using var head = await fixture.Client.SendAsync(headRequest);
+            await Assert.That(get.StatusCode).IsEqualTo(HttpStatusCode.OK);
+            await Assert.That(head.StatusCode).IsEqualTo(get.StatusCode);
+            await Assert.That(head.Content.Headers.ContentType?.ToString()).IsEqualTo(get.Content.Headers.ContentType?.ToString());
+            await Assert.That(head.Content.Headers.ContentLength).IsEqualTo(get.Content.Headers.ContentLength);
+            await Assert.That(head.Headers.CacheControl?.NoStore).IsTrue();
+            await Assert.That((await head.Content.ReadAsByteArrayAsync()).Length).IsEqualTo(0);
+            using var deniedRequest = new HttpRequestMessage(HttpMethod.Head, path);
+            using var denied = await anonymous.SendAsync(deniedRequest);
+            await Assert.That(denied.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+            await Assert.That(denied.Headers.CacheControl?.NoStore).IsTrue();
+            await Assert.That((await denied.Content.ReadAsByteArrayAsync()).Length).IsEqualTo(0);
+        }
+    }
+
+    private sealed class ExpireAfterSave : SaveChangesInterceptor
+    {
+        public Action? After;
+        public override ValueTask<int> SavedChangesAsync(SaveChangesCompletedEventData eventData, int result, CancellationToken cancellationToken = default)
+        {
+            Interlocked.Exchange(ref After, null)?.Invoke();
+            return ValueTask.FromResult(result);
+        }
+    }
+
     [Test]
     public async Task Browser_PublicationAudienceLifecycleAndProtectedBytesUseCurrentAuthority()
     {
@@ -41,7 +102,16 @@ public sealed class PublicationAccessEndpointTests
         var output = process.StandardOutput.ReadToEndAsync();
         var error = process.StandardError.ReadToEndAsync();
         try { await process.WaitForExitAsync().WaitAsync(TimeSpan.FromMinutes(5)); }
-        catch { process.Kill(entireProcessTree: true); await process.WaitForExitAsync(); throw; }
+        catch (Exception exception)
+        {
+            process.Kill(entireProcessTree: true);
+            await process.WaitForExitAsync();
+            if (exception is TimeoutException)
+            {
+                throw new TimeoutException($"Browser check timed out. stdout: {await output}; stderr: {await error}", exception);
+            }
+            throw;
+        }
         await Assert.That(process.ExitCode).IsEqualTo(0).Because(await output + await error);
         var evidence = await output;
         await Assert.That(evidence.Contains("publication access matrix passed", StringComparison.Ordinal)).IsTrue();

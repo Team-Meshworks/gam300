@@ -3,7 +3,7 @@ using System.Text.Json;
 namespace Spatia.Server.Projects;
 
 /// <summary>
-/// Creates a blank room or imports a validated document into the caller's organization
+/// Creates a blank project, starts from an approved environment or imports a validated document
 /// </summary>
 public sealed record CreateProjectRequest
 {

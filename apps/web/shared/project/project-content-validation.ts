@@ -440,7 +440,10 @@ export function validateContentStructure(
       return {
         id: text(scene.id, `${path}.id`),
         name: text(scene.name, `${path}.name`),
-        environmentAssetId: text(scene.environmentAssetId, `${path}.environmentAssetId`),
+        environmentAssetId:
+          scene.environmentAssetId === null
+            ? null
+            : text(scene.environmentAssetId, `${path}.environmentAssetId`),
         ...(scene.environmentVisible === undefined
           ? {}
           : { environmentVisible: flag(scene.environmentVisible, `${path}.environmentVisible`) }),
@@ -634,7 +637,8 @@ export function validateContentReferences(
     // With the full index available, resolve each scene's hierarchy, assets and rule targets
     project.scenes.forEach((scene, index) => {
       const path = `project.scenes[${index}]`;
-      asset(scene.environmentAssetId, "environment", `${path}.environmentAssetId`);
+      if (scene.environmentAssetId !== null)
+        asset(scene.environmentAssetId, "environment", `${path}.environmentAssetId`);
 
       // Check parent targets and build the ancestor map before checking components and rules
       const parents = new Map<string, string | null>();

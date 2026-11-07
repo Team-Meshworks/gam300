@@ -1,6 +1,10 @@
 import type { ContentComponent } from "../../shared/project/project-content";
 import { useEffect, useRef, type DragEvent, type ReactNode } from "react";
-import { assetDragType, type CatalogueAsset } from "../../shared/asset-runtime/catalogue";
+import {
+  assetDragType,
+  isRoomModel,
+  type CatalogueAsset,
+} from "../../shared/asset-runtime/catalogue";
 import { HOTSPOT_ASSET_ID } from "../../shared/asset-runtime/hotspot";
 import type { SceneObject, Vector3Tuple } from "../../shared/project/scene-object";
 import type {
@@ -40,6 +44,7 @@ export type ViewpointCamera = {
 type ViewportProps = {
   onCamera: (camera: ViewpointCamera | null) => void;
   assets: readonly CatalogueAsset[];
+  selectableAssets?: readonly CatalogueAsset[];
   objects: readonly SceneObject[];
   projectScene: ProjectScene | null;
   loadGeneration: number;
@@ -48,7 +53,8 @@ type ViewportProps = {
   dragging: string | null;
   placingAssetId?: string | null;
   textPlacement?:
-    { objectId: string; component: Extract<ContentComponent, { type: "text" }> } | undefined;
+    | { objectId: string; component: Extract<ContentComponent, { type: "text" }> }
+    | undefined;
   onTextPlace?: (placement: Transform) => void;
   editingEnabled: boolean;
   navigationTool: NavigationTool;
@@ -78,6 +84,7 @@ type ViewportProps = {
 export function Viewport({
   onCamera,
   assets,
+  selectableAssets = assets,
   objects,
   projectScene,
   loadGeneration,
@@ -136,6 +143,7 @@ export function Viewport({
           onTransform,
           onObjectClick,
           onUpdate: onSceneUpdate,
+          selectableAssets,
         });
         sceneRef.current = scene;
         const current = snapshotRef.current;
@@ -185,6 +193,7 @@ export function Viewport({
     };
   }, [
     assets,
+    selectableAssets,
     attempt,
     onStatus,
     onThumbnail,
@@ -256,7 +265,7 @@ export function Viewport({
 
   function isRoom(id: string | null | undefined) {
     return (
-      id === "test-room-module-v1" ||
+      isRoomModel(assets, id ?? undefined) ||
       assets.some((asset) => asset.id === id && asset.kind === "environment")
     );
   }

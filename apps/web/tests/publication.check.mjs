@@ -86,6 +86,8 @@ try {
   await page.goto(`${origin}/publish?projectId=${projectId}`);
   await page.getByRole("heading", { name: "Publish project" }).waitFor();
   await page.getByText("Saved exhibition", { exact: true }).waitFor();
+  const qr = page.getByRole("img", { name: /QR code/i });
+  assert.equal(await qr.count(), 0, "No QR code before publication succeeds");
   assert.equal(await page.getByText(/revision 4/i).isVisible(), true);
   await page.getByRole("checkbox", { name: /Aisyah/ }).check();
   const publish = page.getByRole("button", { name: "Publish", exact: true });
@@ -94,21 +96,56 @@ try {
   await publish.click();
   await page.getByText(/could not be confirmed/i).waitFor();
   assert.equal(await page.getByRole("link", { name: /open publication/i }).count(), 0);
+  assert.equal(await qr.count(), 0, "An uncertain publication must not expose a QR code");
   assert.deepEqual(requests[0].intent, { audience: "Authenticated", viewerIds: [student] });
   assert.equal(requests[0].confirmedRevision, 4);
   assert.equal(classRequests, 0);
   await page.reload();
   await page.getByText(/could not be confirmed/i).waitFor();
   assert.equal(await page.getByRole("link", { name: /open publication/i }).count(), 0);
+  assert.equal(await qr.count(), 0, "An uncertain retry must not expose a QR code");
   outcome = "success";
   await page.getByRole("button", { name: /retry publication/i }).click();
   const link = page.getByRole("link", { name: /open publication/i });
   await link.waitFor();
   assert.deepEqual(requests[1], requests[0]);
+  const committedUrl = `https://spatia.example/p/${requests[0].publicationId}`;
+  assert.equal(await link.getAttribute("href"), committedUrl);
   assert.equal(
-    await link.getAttribute("href"),
-    `https://spatia.example/p/${requests[0].publicationId}`,
+    await page.getByRole("textbox", { name: "Publication link", exact: true }).inputValue(),
+    committedUrl,
   );
+  assert.equal(
+    await qr.isVisible(),
+    true,
+    "A committed publication should show an accessible QR code",
+  );
+  if (process.env.SPATIA_SHARE_SCREENSHOT) {
+    await page.screenshot({ path: process.env.SPATIA_SHARE_SCREENSHOT, fullPage: true });
+  }
+  const linkField = page.getByRole("textbox", { name: "Publication link", exact: true });
+  const copyButton = page.getByRole("button", { name: "Copy link" });
+  await linkField.focus();
+  await page.keyboard.press("Tab");
+  assert.equal(await copyButton.evaluate((element) => element === document.activeElement), true);
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, "clipboard", { value: { writeText: () => Promise.reject() } });
+  });
+  await page.keyboard.press("Enter");
+  await page.getByText("Copy the link from the field above.").waitFor();
+  const decoderAvailable = await page.evaluate(() => "BarcodeDetector" in window);
+  if (decoderAvailable) {
+    const screenshot = await qr.screenshot();
+    const decoded = await page.evaluate(async (base64) => {
+      const bytes = Uint8Array.from(atob(base64), (character) => character.charCodeAt(0));
+      const bitmap = await createImageBitmap(new Blob([bytes], { type: "image/png" }));
+      const detector = new BarcodeDetector({ formats: ["qr_code"] });
+      return (await detector.detect(bitmap)).map((code) => code.rawValue);
+    }, screenshot.toString("base64"));
+    assert.deepEqual(decoded, [committedUrl], "QR must encode the committed publication URL");
+  } else {
+    console.log("QR decoding skipped: Chrome BarcodeDetector is unavailable.");
+  }
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   canPublish = false;
   await page.reload();

@@ -1,5 +1,5 @@
 import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
-import type { CatalogueAsset } from "../../shared/asset-runtime/catalogue";
+import { isRoomModel, type CatalogueAsset } from "../../shared/asset-runtime/catalogue";
 import type {
   ContentComponent,
   ContentObject,
@@ -99,9 +99,7 @@ export function DisplayEditor({
   }
   const [pending, setPending] = useState(false);
   const candidates = assets.filter((a) =>
-    physical
-      ? a.kind === "model" && !a.displayRole && a.id !== "test-room-module-v1"
-      : a.kind === type,
+    physical ? a.kind === "model" && !a.displayRole && !isRoomModel(assets, a.id) : a.kind === type,
   );
   const shown = filterAssets(candidates, filter, favourites, query);
   const choiceKey = physical ? "physical" : type;

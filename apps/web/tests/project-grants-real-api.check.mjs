@@ -50,6 +50,10 @@ try {
   await page.getByLabel("Password", { exact: true }).fill("Synthetic-long-password1!");
   await page.getByRole("button", { name: "Log in", exact: true }).click();
   await page.waitForURL(`${origin}/admin/dashboard`);
+  await page.getByRole("link", { name: "View Organisations", exact: true }).click();
+  await page.waitForURL(`${origin}/organisations`);
+  await page.getByRole("link", { name: "Close organisations", exact: true }).click();
+  await page.waitForURL(`${origin}/admin/dashboard`);
   await page.getByRole("link", { name: "Open project workspace", exact: true }).click();
   await page.waitForURL(`${origin}/home`);
   assert.equal(await page.getByRole("button", { name: "Manage access" }).count(), 0);

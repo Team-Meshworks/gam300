@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text.Json;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Spatia.Server.Assets;
@@ -11,7 +12,7 @@ using Spatia.Server.Reviews;
 
 namespace Spatia.Server.Tests;
 
-[NotInParallel]
+[NotInParallel(nameof(ApprovedReviewAssetResolverTests))]
 public sealed class ApprovedReviewAssetResolverTests
 {
     [Test]
@@ -119,6 +120,41 @@ public sealed class ApprovedReviewAssetResolverTests
         await transaction.RollbackAsync();
         await Assert.That(await database.AssetCandidates.AsNoTracking().CountAsync()).IsEqualTo(0);
         await Assert.That(await database.ReviewSubmissions.CountAsync()).IsEqualTo(0);
+    }
+
+    [Test]
+    public async Task PackagedDevelopmentAssets_RemainUnavailableInProduction()
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync();
+        var actor = await fixture.CreateAccountAsync();
+        await using var scope = fixture.App.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var room = Candidate("environment", actor);
+        var model = Candidate("model", actor);
+        database.AssetCandidates.AddRange(room, model);
+        await database.SaveChangesAsync();
+
+        var environment = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = "Production" }).Environment;
+        var production = new ProjectDocumentService(environment, database);
+        var projectId = Guid.NewGuid();
+        var baseline = ProjectTestDocuments.Create(projectId, "Approved production assets")
+            .Replace("test-room-v1", room.Id.ToString(), StringComparison.Ordinal)
+            .Replace("test-crate-v1", model.Id.ToString(), StringComparison.Ordinal);
+        await Assert.That(production.Read(projectId, baseline).Ok).IsTrue();
+
+        var rooms = new[] { "room-space1-v1", "room-doors-1-v1", "room-doors-2-v1", "room-doors-3-v1", "room-doors-4-v1",
+            "room-doors-1-2-v1", "room-doors-1-3-v1", "room-doors-1-4-v1", "room-doors-2-3-v1", "room-doors-2-4-v1",
+            "room-doors-3-4-v1", "room-doors-1-2-3-v1", "room-doors-1-2-4-v1", "room-doors-1-3-4-v1",
+            "room-doors-2-3-4-v1", "room-doors-1-2-3-4-v1" };
+        foreach (var id in rooms)
+        {
+            var result = production.Read(projectId, baseline.Replace(room.Id.ToString(), id, StringComparison.Ordinal));
+            await Assert.That(result.Ok).IsFalse();
+            await Assert.That(result.Error!.Path).IsEqualTo("project.scenes[0].environmentAssetId");
+        }
+        var library = production.Read(projectId, baseline.Replace(model.Id.ToString(), "library-untitled-v1", StringComparison.Ordinal));
+        await Assert.That(library.Ok).IsFalse();
+        await Assert.That(library.Error!.Path).IsEqualTo("project.scenes[0].objects[0].assetId");
     }
 
     private static AssetCandidate Candidate(string kind, Guid actor)

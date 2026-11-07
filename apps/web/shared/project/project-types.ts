@@ -80,7 +80,8 @@ export type ProjectScene = Readonly<{
 
   // One environment can model several connected rooms for uninterrupted walking
   // Additional room modules use placed model objects with their own transforms
-  environmentAssetId: AssetId;
+  // Null represents an empty v2 scene; the v1 validator still requires an asset ID
+  environmentAssetId: AssetId | null;
 
   // Optional v2 room placement; v1 readers still reject these fields
   environmentTransform?: Transform;

@@ -20,7 +20,7 @@ const screens = [
   { id: "admin/dashboard", title: "Dashboard", roles: ["Administrator"] },
   { id: "classes", title: "Classes", roles: ["Administrator", "Educator"] },
   { id: "review", title: "Submission review", roles: ["Creator", "Educator"] },
-  { id: "accounts", title: "Accounts", roles: ["Administrator"] },
+  { id: "organisations", title: "Organisations", roles: ["Administrator"] },
 ];
 type Access =
   | { kind: "loading" }
@@ -118,6 +118,7 @@ function OtherWorkspacePage() {
         ? "/landing"
         : "/classes";
   const dashboard = screen?.id === "admin/dashboard" && session.role === "Administrator";
+  const organisations = screen?.id === "organisations" && permitted.includes(screen);
   const review = screen?.id === "review" && permitted.includes(screen);
   async function signOut() {
     if (signingOut.current) return;
@@ -148,7 +149,7 @@ function OtherWorkspacePage() {
     >
       {review ? (
         <WorkspaceNavigation role={session.role} current="reviews" />
-      ) : !dashboard && session.role !== "Administrator" ? (
+      ) : !dashboard && !organisations && session.role !== "Administrator" ? (
         <nav className="sp-workspace-links" aria-label="Workspace screens">
           <a href="/home">Projects</a>
           {permitted
@@ -165,26 +166,22 @@ function OtherWorkspacePage() {
         </nav>
       ) : null}
       {logoutError && <p role="alert">{logoutError}</p>}
-      {session.role === "Administrator" && screen?.id === "accounts" && (
-        <div className="sp-admin-return">
-          <a href="/admin/dashboard" aria-label="Back to dashboard">
-            ×
-          </a>
-        </div>
-      )}
       {!screen || !permitted.includes(screen) ? (
         <h1>Access denied</h1>
       ) : (
         <>
-          {!dashboard && !review && screen.id !== "assets" && screen.id !== "spaces" && (
-            <h1 className="sp-page-heading">{screen.title}</h1>
-          )}
+          {!dashboard &&
+            !review &&
+            !organisations &&
+            screen.id !== "assets" &&
+            screen.id !== "spaces" && <h1 className="sp-page-heading">{screen.title}</h1>}
           {assetService && (screen.id === "assets" || screen.id === "spaces") && (
             <AssetAdministration
               key={session.userId}
               session={session}
               service={assetService}
               kind={screen.id === "spaces" ? "environment" : "model"}
+              initialUpload={new URLSearchParams(location.search).get("add") === "1"}
               onClose={() => location.assign(fallback)}
             />
           )}
@@ -192,7 +189,7 @@ function OtherWorkspacePage() {
           {screen.id === "review" && (
             <ReviewWorkspace key={session.userId + ":" + session.orgId} session={session} />
           )}
-          {screen.id === "accounts" && (
+          {screen.id === "organisations" && (
             <AccountDirectoryPage key={session.userId} accountId={session.userId} />
           )}
           {screen.id === "publish" && <PublicationPage key={session.userId} session={session} />}

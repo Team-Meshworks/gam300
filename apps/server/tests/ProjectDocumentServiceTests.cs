@@ -10,6 +10,23 @@ namespace Spatia.Server.Tests;
 public sealed class ProjectDocumentServiceTests
 {
     [Test]
+    [Arguments("room-space1-module-v1")]
+    [Arguments("room-doors-1-module-v1")]
+    public async Task Documents_AdjoiningRoomModelsRoundTrip(string assetId)
+    {
+        var fixture = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "fixtures", "m1-project.json"));
+        var json = fixture.Replace("test-crate-v1", assetId, StringComparison.Ordinal);
+        var id = Guid.Parse(JsonNode.Parse(json)!["projectId"]!.GetValue<string>());
+        var service = Create("Development");
+        var parsed = service.Read(id, json);
+        await Assert.That(parsed.Ok).IsTrue();
+        var saved = service.Serialize(parsed.Value!);
+        await Assert.That(saved.Ok).IsTrue();
+        await Assert.That(service.Read(id, saved.Value!).Ok).IsTrue();
+        await Assert.That(Create("Production").Read(id, json).Ok).IsFalse();
+    }
+
+    [Test]
     public async Task Documents_UseOnlyThePackagedDevelopmentCatalogue()
     {
         var json = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "fixtures", "m1-project.json"));
@@ -34,6 +51,58 @@ public sealed class ProjectDocumentServiceTests
         }
         await Assert.That(Create("Production").Read(id, json).Ok).IsFalse();
         await Assert.That(Create("Testing").Read(id, json).Ok).IsFalse();
+    }
+
+    [Test]
+    [Arguments("furniture-modern-bench-1-v1")]
+    [Arguments("furniture-modern-bench-2-v1")]
+    public async Task Documents_PackagedBenchModelsRoundTripOnlyInDevelopment(string assetId)
+    {
+        var json = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "fixtures", "m1-project.json"))
+            .Replace("test-crate-v1", assetId, StringComparison.Ordinal);
+        var id = Guid.Parse(JsonNode.Parse(json)!["projectId"]!.GetValue<string>());
+        var development = Create("Development");
+        var document = development.Read(id, json);
+        await Assert.That(document.Ok).IsTrue();
+        var saved = development.Serialize(document.Value!);
+        await Assert.That(saved.Ok).IsTrue();
+        await Assert.That(development.Read(id, saved.Value!).Ok).IsTrue();
+        await Assert.That(Create("Production").Read(id, json).Ok).IsFalse();
+    }
+
+    [Test]
+    [Arguments("model", "library-untitled-v1")]
+    [Arguments("environment", "room-space1-v1")]
+    [Arguments("environment", "room-doors-1-v1")]
+    [Arguments("environment", "room-doors-2-v1")]
+    [Arguments("environment", "room-doors-3-v1")]
+    [Arguments("environment", "room-doors-4-v1")]
+    [Arguments("environment", "room-doors-1-2-v1")]
+    [Arguments("environment", "room-doors-1-3-v1")]
+    [Arguments("environment", "room-doors-1-4-v1")]
+    [Arguments("environment", "room-doors-2-3-v1")]
+    [Arguments("environment", "room-doors-2-4-v1")]
+    [Arguments("environment", "room-doors-3-4-v1")]
+    [Arguments("environment", "room-doors-1-2-3-v1")]
+    [Arguments("environment", "room-doors-1-2-4-v1")]
+    [Arguments("environment", "room-doors-1-3-4-v1")]
+    [Arguments("environment", "room-doors-2-3-4-v1")]
+    [Arguments("environment", "room-doors-1-2-3-4-v1")]
+    public async Task Documents_NewPackagedAssetsRoundTripOnlyInDevelopment(string kind, string assetId)
+    {
+        var fixture = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "fixtures", "m1-project.json"));
+        var json = fixture.Replace(kind == "environment" ? "test-room-v1" : "test-crate-v1", assetId, StringComparison.Ordinal);
+        var id = Guid.Parse(JsonNode.Parse(json)!["projectId"]!.GetValue<string>());
+        var development = Create("Development");
+        var document = development.Read(id, json);
+        await Assert.That(document.Ok).IsTrue();
+        var saved = development.Serialize(document.Value!);
+        await Assert.That(saved.Ok).IsTrue();
+        await Assert.That(development.Read(id, saved.Value!).Ok).IsTrue();
+        await Assert.That(development.ReadStored(id, 1, saved.Value!).Ok).IsTrue();
+        var wrongKind = fixture.Replace(kind == "environment" ? "test-crate-v1" : "test-room-v1", assetId, StringComparison.Ordinal);
+        await Assert.That(development.Read(id, wrongKind).Ok).IsFalse();
+        await Assert.That(Create("Production").Read(id, json).Ok).IsFalse();
     }
 
     [Test]

@@ -18,6 +18,29 @@ const candidate = {
   actions: ["hide", "delete"],
 };
 
+it("sends provenance with the model before automatic availability", async () => {
+  const calls: { url: string; init?: RequestInit }[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string, init?: RequestInit) => {
+      calls.push({ url, ...(init ? { init } : {}) });
+      return Response.json(url === "/api/v1/auth/csrf" ? { requestToken: "token" } : candidate);
+    }),
+  );
+  const review = { source: "Museum archive", license: "CC BY 4.0", reviewNotes: "Rights checked" };
+  const file = new File(["model"], "crate.glb", { type: "model/gltf-binary" });
+  await createAssetAdministrationService(actor).submit(
+    { file, kind: "model", category: "Objects", review },
+    new AbortController().signal,
+  );
+  const encoded = new Headers(calls[1]?.init?.headers).get("X-Spatia-Asset-Metadata");
+  expect(encoded).not.toBeNull();
+  expect(
+    JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(encoded!), (c) => c.charCodeAt(0)))),
+  ).toEqual(review);
+  expect(calls[1]?.init?.body).toBe(file);
+});
+
 it.each([
   [`/api/v1/admin/assets/${actor}/bytes`, true],
   [`/api/admin/assets/${actor}/bytes`, false],

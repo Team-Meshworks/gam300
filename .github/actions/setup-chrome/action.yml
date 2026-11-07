@@ -1,0 +1,38 @@
+name: Set up patched Chrome
+description: Reuse verified runner Chrome or install a cached, checksum-pinned official package.
+runs:
+  using: composite
+  steps:
+    - name: Check runner Chrome
+      id: chrome
+      shell: bash
+      working-directory: ${{ github.workspace }}/apps/web
+      run: |
+        if npm run browser:verify; then
+          echo 'install=false' >> "$GITHUB_OUTPUT"
+        else
+          echo 'install=true' >> "$GITHUB_OUTPUT"
+        fi
+    - name: Restore pinned Chrome package
+      if: steps.chrome.outputs.install == 'true'
+      uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+      with:
+        path: ${{ runner.temp }}/spatia-chrome/google-chrome-stable.deb
+        # Changing the package URL or checksum invalidates the cache.
+        key: chrome-deb-linux-x64-${{ hashFiles('.github/actions/setup-chrome/action.yml') }}
+    - name: Install and verify pinned Chrome
+      if: steps.chrome.outputs.install == 'true'
+      shell: bash
+      working-directory: ${{ github.workspace }}/apps/web
+      run: |
+        package="$RUNNER_TEMP/spatia-chrome/google-chrome-stable.deb"
+        if [[ ! -f "$package" ]]; then
+          mkdir -p "$(dirname "$package")"
+          curl --fail --show-error --location --retry 3 --connect-timeout 10 --max-time 120 \
+            --output "$package" \
+            https://dl.google.com/linux/chrome/deb/pool/main/g/google-chrome-stable/google-chrome-stable_157.0.8103.38-1_amd64.deb
+        fi
+        # Google publishes the package checksum in its stable amd64 Packages index.
+        echo "a62b277dc03da2cff50cc04589deb66f6875be339c066d46adb49b49eedb629d  $package" | sha256sum --check
+        sudo dpkg --install "$package"
+        npm run browser:verify

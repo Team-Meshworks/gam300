@@ -103,8 +103,8 @@ export function AssetPicker({
 
       {rooms && (
         <p className="room-picker-hint">
-          Choose a layout to replace the current room. Existing exhibits stay in place. Starter room
-          adds adjoining rooms.
+          Choose a room to add it to your scene. Adding another room requires an approved room
+          model.
         </p>
       )}
 

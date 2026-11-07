@@ -21,6 +21,7 @@ import {
 } from "./persistence/project-files";
 import { serializeProject } from "../shared/project/project-serialization";
 import type { ServerSaveStatus } from "./persistence/server-autosave";
+import { reviewReturnUrl } from "./projects/progress-navigation";
 
 const accounts = createAccountClient();
 type Candidate = {
@@ -82,6 +83,7 @@ export function ServerProjectEditor({ projectId }: { projectId: string }) {
   const [catalogue, setCatalogue] = useState<{
     all: readonly CatalogueAsset[];
     available: readonly CatalogueAsset[];
+    unavailable: boolean;
   } | null>(null);
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
@@ -97,26 +99,51 @@ export function ServerProjectEditor({ projectId }: { projectId: string }) {
           return;
         }
         if (identity.mustChangePassword) throw new Error("Sign in before opening this project.");
-        const [approved, retained] = await Promise.all([
-          readServerAssets(identity.userId, controller.signal),
-          readServerAssets(identity.userId, controller.signal, fetch, projectId),
-        ]);
+        let approved: readonly CatalogueAsset[];
+        let retained: readonly CatalogueAsset[];
+        let unavailable = false;
+        try {
+          [approved, retained] = await Promise.all([
+            readServerAssets(identity.userId, controller.signal),
+            readServerAssets(identity.userId, controller.signal, fetch, projectId),
+          ]);
+        } catch (cause) {
+          // Only open without a catalogue when the saved document needs no assets
+          const empty = await readServerProject(
+            projectId,
+            identity.userId,
+            new Map(),
+            controller.signal,
+          );
+          if (!empty.ok || controller.signal.aborted) throw cause;
+          approved = [];
+          retained = [];
+          unavailable = true;
+        }
         const current = await accounts.getSession();
         if (controller.signal.aborted) return;
         if (!current) {
           setSignedOut(true);
           return;
         }
-        if (current.userId !== identity.userId || current.mustChangePassword)
+        if (
+          current.userId !== identity.userId ||
+          current.orgId !== identity.orgId ||
+          current.role !== identity.role ||
+          current.mustChangePassword ||
+          current.developmentAssetsAllowed !== identity.developmentAssetsAllowed
+        )
           throw new Error("The account changed. Sign in again.");
+        const developmentAssets = current.developmentAssetsAllowed === true ? assets : [];
         if (!controller.signal.aborted)
           setCatalogue({
             all: [
               ...new Map(
-                [...assets, ...approved, ...retained].map((asset) => [asset.id, asset]),
+                [...developmentAssets, ...approved, ...retained].map((asset) => [asset.id, asset]),
               ).values(),
             ],
-            available: [...assets, ...approved],
+            available: [...developmentAssets, ...approved],
+            unavailable,
           });
       } catch (cause) {
         if (!controller.signal.aborted)
@@ -142,11 +169,19 @@ export function ServerProjectEditor({ projectId }: { projectId: string }) {
       </main>
     );
   return (
-    <ServerProjectSession
-      projectId={projectId}
-      catalogue={catalogue.all}
-      available={catalogue.available}
-    />
+    <>
+      {catalogue.unavailable && (
+        <p role="status">
+          Some 3D assets are unavailable. Save and reopen the project when the asset service
+          returns.
+        </p>
+      )}
+      <ServerProjectSession
+        projectId={projectId}
+        catalogue={catalogue.all}
+        available={catalogue.available}
+      />
+    </>
   );
 }
 
@@ -285,7 +320,7 @@ function ServerProjectSession({
       if (closing) void closing.session.dispose();
     };
     // A fresh attempt owns its own cancellation boundary; install uses only that candidate and the stable store.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks-js/exhaustive-deps
   }, [projectId, attempt, store]);
 
   useEffect(() => {
@@ -442,7 +477,7 @@ function ServerProjectSession({
           ? "/login"
           : departure === "publish"
             ? `/publish?projectId=${encodeURIComponent(projectId)}`
-            : "/home",
+            : reviewReturnUrl(new URLSearchParams(location.search)),
       );
     });
   }

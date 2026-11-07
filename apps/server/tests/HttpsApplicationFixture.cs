@@ -161,6 +161,8 @@ internal sealed class HttpsApplicationFixture : IAsyncDisposable
     public async Task<Guid> CreateAccountAsync(string role = ApplicationRoles.Creator, bool forced = false)
     {
         await using var scope = Database.Services.CreateAsyncScope();
+        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await context.Database.OpenConnectionAsync();
         var user = new ApplicationUser
         {
             Id = Guid.NewGuid(),
@@ -176,7 +178,6 @@ internal sealed class HttpsApplicationFixture : IAsyncDisposable
 
         if (role != ApplicationRoles.Administrator)
         {
-            var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             var organization = new Organization { Id = Guid.NewGuid(), Name = "Synthetic organization" };
             context.Organizations.Add(organization);
             context.OrganizationMemberships.Add(new OrganizationMembership
@@ -275,6 +276,8 @@ internal sealed class HttpsApplicationFixture : IAsyncDisposable
         var scopedConnection = new NpgsqlConnectionStringBuilder(connectionString)
         {
             ApplicationName = "Spatia.Part3." + Database.SchemaName,
+            Pooling = true,
+            MaxPoolSize = 8,
         };
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = _environmentName });
         builder.Configuration.Sources.Clear();
@@ -286,6 +289,11 @@ internal sealed class HttpsApplicationFixture : IAsyncDisposable
         });
         builder.Logging.ClearProviders();
         builder.Logging.AddProvider(Logs);
+        // Each host owns its pool; direct persistence scopes still open fresh physical connections.
+        builder.Services.AddSingleton(_ => NpgsqlDataSource.Create(builder.Configuration.GetConnectionString("Spatia")!));
+        builder.Services.AddScoped(services => new ApplicationDbContext(
+            new DbContextOptionsBuilder<ApplicationDbContext>(services.GetRequiredService<DbContextOptions<ApplicationDbContext>>())
+                .UseNpgsql(services.GetRequiredService<NpgsqlDataSource>()).Options));
         builder.Services.AddSingleton<TimeProvider>(Clock);
         builder.Services.PostConfigure<CookieAuthenticationOptions>(IdentityConstants.ApplicationScheme,
             options => options.TimeProvider = Clock);

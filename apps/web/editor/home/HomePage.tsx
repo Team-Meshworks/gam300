@@ -5,6 +5,8 @@ import { WorkspaceShell } from "../../shared/ui/WorkspaceShell";
 import { Button } from "../../shared/ui/Button";
 import { Dialog } from "../../shared/ui/Dialog";
 import { ProjectHome } from "./ProjectHome";
+import { StudentProjects } from "./StudentProjects";
+import { TeacherProjects } from "./TeacherProjects";
 import { ClassHome } from "./ClassHome";
 import { WorkspaceNavigation } from "./WorkspaceNavigation";
 import { AssignmentCreationScreen } from "../projects/AssignmentScreens";
@@ -138,6 +140,9 @@ function HomeWorkspace({
     dirty: false,
     locked: false,
   });
+  const [newProject, setNewProject] = useState(
+    location.pathname.replace(/\/$/, "") === "/new-project",
+  );
   const [leave, setLeave] = useState<(() => void) | null>(null);
   useEffect(() => {
     if (!navigation.dirty && !navigation.locked) return;
@@ -160,7 +165,7 @@ function HomeWorkspace({
     <WorkspaceShell
       name={session.displayName}
       initials={session.displayName.slice(0, 2).toUpperCase()}
-      onHome={() => navigate(() => setView("projects"))}
+      onHome={() => navigate(() => location.assign("/home"))}
       onSignOut={() => navigate(onSignOut)}
     >
       {session.role === "Administrator" ? (
@@ -174,7 +179,7 @@ function HomeWorkspace({
             ×
           </button>
         </div>
-      ) : (
+      ) : !(session.role === "Educator" && view === "assignment" && newProject) ? (
         <WorkspaceNavigation
           role={session.role}
           current={view}
@@ -183,39 +188,62 @@ function HomeWorkspace({
           onProjects={() => setView("projects")}
           onClasses={() => setView("classes")}
         />
-      )}
+      ) : null}
       {view === "projects" ? (
-        <ProjectHome
-          session={session}
-          active={active}
-          onOpenProject={openProject}
-          onNavigationStateChange={setNavigation}
-        />
+        session.role === "Educator" ? (
+          <TeacherProjects session={session} active={active} />
+        ) : session.role === "Creator" ? (
+          <StudentProjects session={session} active={active} onOpenProject={openProject} />
+        ) : (
+          <ProjectHome
+            session={session}
+            active={active}
+            onOpenProject={openProject}
+            onNavigationStateChange={setNavigation}
+          />
+        )
       ) : view === "classes" ? (
         <ClassHome
           session={session}
           active={active}
-          onCreateAssignment={() => setView("assignment")}
+          onCreateAssignment={() => {
+            setNewProject(false);
+            setView("assignment");
+          }}
           onOpenProject={openProject}
         />
       ) : view === "denied" ? (
         <h1>Access denied</h1>
       ) : (
-        <>
-          <div className="sp-page-heading">
-            <h1>New class assignment</h1>
-            <p>
-              Create an independent project for each selected student from an existing source
-              project.
-            </p>
+        <div className={newProject ? "sp-teacher-new-project" : undefined}>
+          <div className="sp-page-heading sp-teacher-detail-head">
+            <div>
+              <h1>{newProject ? "New Project" : "New class assignment"}</h1>
+              <p>
+                {newProject
+                  ? "Set up a new experience, add your project details and choose your students."
+                  : "Create an independent project for each selected student from an existing source project."}
+              </p>
+            </div>
+            {newProject && (
+              <Button
+                aria-label="Close new project"
+                onClick={() => navigate(() => location.assign("/home"))}
+              >
+                ×
+              </Button>
+            )}
           </div>
           <AssignmentCreationScreen
             expectedUserId={session.userId}
-            onCancel={() => navigate(() => setView("classes"))}
+            createBlank={newProject && session.role === "Educator"}
+            onCancel={() =>
+              navigate(() => (newProject ? location.assign("/home") : setView("classes")))
+            }
             onNavigationStateChange={setNavigation}
             onOpenProject={openProject}
           />
-        </>
+        </div>
       )}
       {leave && active && (
         <Dialog title="Leave this page?" onClose={() => setLeave(null)}>

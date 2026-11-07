@@ -12,6 +12,8 @@
   <a href="apps/web/package.json"><img src="https://img.shields.io/badge/React-19-149ECA?logo=react&amp;logoColor=white" alt="React 19"></a>
   <a href="apps/web/package.json"><img src="https://img.shields.io/badge/TypeScript-6-3178C6?logo=typescript&amp;logoColor=white" alt="TypeScript 6"></a>
   <a href="apps/web/package.json"><img src="https://img.shields.io/badge/Vite-8-646CFF?logo=vite&amp;logoColor=white" alt="Vite 8"></a>
+  <a href="apps/server/Spatia.Server/Spatia.Server.csproj"><img src="https://img.shields.io/badge/C%23-server-512BD4" alt="C# server"></a>
+  <a href="apps/server/global.json"><img src="https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet&amp;logoColor=white" alt=".NET 10"></a>
 </p>
 
 <p align="center">
@@ -29,7 +31,7 @@
 with educator support. The goal is to let authors arrange curated assets, add **WHEN → DO**
 interactions without writing code, and share spaces that others can explore.
 
-This repository contains the editor prototype and a separately developed account and project API.
+This repository contains the editor, visitor application and account and project API.
 
 ## Features
 
@@ -40,6 +42,8 @@ This repository contains the editor prototype and a separately developed account
 - **Load a sample project** — try a room, two crates, and a saved starting camera in development mode.
 - **Recover from loading errors** — retry failed assets, with feedback when WebGL 2 is unavailable.
 - **Save and reopen work** — recover a project from browser storage, or use Open, Save and Save As for project JSON files.
+- **Work with server projects** — open authorised projects and autosave changes when the API is configured.
+- **Publish an exhibition** — share a supported saved revision by link or QR code with selected signed-in viewers in the visitor application.
 - **Validate project data** — TypeScript and C# support validation and cross-runtime round trips for versions 1 and 2 of the [project format](docs/project-format.md).
 
 ## Project status
@@ -57,15 +61,14 @@ receipt. Save also retries a failed browser backup. Cancelled or failed operatio
 the current scene. If an older backup is damaged, recovery asks before opening another readable
 backup and keeps the damaged record.
 
-The server implements Identity accounts and sessions, administrator provisioning, and authorized
-PostgreSQL project list, open, save, creation, duplication, assignment and archive routes.
-The editor does not yet use those routes for its project workflow; browser recovery and JSON files
-remain the current editor storage paths. See the [server guide](apps/server/README.md) for setup
-and the API boundary. Integrated server saving and recovery remain in progress.
+The server implements Identity accounts and sessions, administrator provisioning, and authorised
+PostgreSQL project workflows. When configured with the API, the editor can open and autosave
+authorised server projects; browser recovery and JSON files remain available for local work.
+See the [server guide](apps/server/README.md) for setup and the API boundary.
 
-The WHEN → DO rule builder and publication/sharing are planned. Preview is part of the editor;
-a separate visitor application is still to come. Projects with unsupported multi-scene, content
-or rule capabilities are preserved, but cannot be previewed in the current editor.
+The editor includes a WHEN → DO interaction builder and preview. Supported saved projects can be
+published for selected signed-in viewers in the separate visitor application. Preview and publication check player capabilities;
+unsupported content and rules are preserved but cannot be played or published until supported.
 Sample asset distribution rights remain under review; see the [asset pipeline notes](assets/README.md).
 
 ## Wiki
@@ -125,7 +128,8 @@ verification, use `docker compose --project-name spatia-local build --no-cache`,
 run the launcher. `APP_PORT` selects another local port; `COMPOSE_PROJECT_NAME`
 selects an isolated local project. The launchers default to the M1 development build
 with **Open sample project**. Set `BUILD_MODE=production` explicitly for the production
-variant, which omits that control. `/version.txt` reports the checkout commit.
+variant, which omits that control. `/version.txt` identifies the running build by its
+commit, rather than a numbered product release.
 
 The separate entry pages are available at `/landing` and `/login`; `/` continues to open
 the editor. The web-only launcher does not start the account API. To use sign-in, follow
@@ -136,12 +140,9 @@ set the private database passwords and start the combined Compose stack. Open
 the browser must trust its certificate. Sign-in requires a provisioned username; public
 signup is unavailable. See the [private administrator bootstrap](apps/server/README.md#private-bootstrap-and-administrator-operations-part-4)
 and provisioning instructions in the server guide. A verified session links to `/home`,
-which loads authorised project and class workflows when their backend contracts are available.
-Server-project opening and blank creation await recovery and an approved asset catalogue.
-The separate `/new-project`, `/classes`, `/review`, and `/accounts` routes provide
-session-gated screen shells; these shells contain no real records and do not connect project
-and class lists, creation, assignments, submissions or the account directory. Role checks
-in these shells are user-interface gates; future data access must also be authorized by the server.
+which loads authorised project and class workflows. Server-project creation depends on an
+approved asset catalogue. The `/new-project`, `/classes`, `/review`, and `/organisations` routes
+provide session-gated workflows backed by the configured API.
 
 In the editor, add **test-room**, add **test-crate**, move it and try **Undo**.
 Use the project menu's **Save** to save a JSON file. After editing, allow two seconds for
@@ -186,12 +187,12 @@ save shortcuts are inactive while visiting; movement stops when the window loses
 | --------------------- | ----------------------------------------------------- |
 | Interface             | React 19, TypeScript 6, native HTML and CSS           |
 | 3D rendering          | Three.js with custom translation controls             |
-| Server                | ASP.NET Core 10, Identity, EF Core/Npgsql, PostgreSQL |
+| Server                | C#, ASP.NET Core 10, Identity, EF Core/Npgsql, PostgreSQL |
 | Development and build | Vite 8, Node.js 24, npm                               |
-| Quality checks        | ESLint, Prettier, Vitest, Playwright, TUnit           |
+| Quality checks        | Oxlint, Oxfmt, Vitest, Playwright, TUnit              |
 | Delivery              | Docker, Caddy, GitHub Actions, Git LFS                |
 
-The server is developed and tested separately; it is not required to run the current editor.
+The server has separate setup and checks; it is not required for the local-only editor.
 
 ## Development
 
@@ -199,7 +200,7 @@ For hot reload, install the pinned Node/npm versions in `apps/web/.nvmrc` and
 `apps/web/package.json`, then run `npm --prefix apps/web ci` and `npm --prefix apps/web run dev`
 from the root. The submission launcher above needs no host Node installation.
 Vite development and preview serve `/landing` and `/login` through the separate entry
-bundle and the four workspace routes through their own bundle; packaged Caddy is configured
+bundle and the workspace routes through their own bundle; packaged Caddy is configured
 to serve the same routes. Run `npm run test:workspace -- <origin>` from `apps/web/` against
 a running development server or built preview to check the workspace routes. For account integration
 with hot reload, start the combined API stack above and configure `apps/web/.env.local`
@@ -218,12 +219,12 @@ Individual maintenance commands below run from `apps/web/`:
 | Command                                             | Purpose                                                               |
 | --------------------------------------------------- | --------------------------------------------------------------------- |
 | `npm run dev`                                       | Start the development server with hot reload                          |
-| `npm run build`                                     | Typecheck and build the editor into `apps/web/dist/editor/`           |
+| `npm run build`                                     | Typecheck and build the editor and visitor into `apps/web/dist/`       |
 | `npm run preview`                                   | Serve the latest local build                                          |
 | `npm run check:architecture`                        | Check source dependency boundaries                                    |
 | `npm run test:architecture`                         | Test architecture enforcement                                         |
 | `npm run typecheck`                                 | Check TypeScript types                                                |
-| `npm run lint`                                      | Run ESLint with zero warnings allowed                                 |
+| `npm run lint`                                      | Run Oxlint with zero warnings allowed                                 |
 | `npm run format:check`                              | Check formatting                                                      |
 | `npm run format`                                    | Apply formatting                                                      |
 | `npm run test:unit`                                 | Run the Vitest suite                                                  |
@@ -231,21 +232,25 @@ Individual maintenance commands below run from `apps/web/`:
 | `npm run test:integration`                          | Check visitor isolation, loaded cameras, gizmos and edit cancellation |
 | `npm run test:recovery`                             | Check place–move–undo–save–reload, file transfer and failure recovery |
 | `npm run test:history`                              | Check recovered undo/redo and damaged-history handling                |
-| `npm run test:panel-style`                          | Check Scene Tree and Saved Views panel styling                        |
+| `npm run test:viewpoints`                           | Check saved-view heading, capture and picker behavior                 |
 | `npm run test:furniture-tools`                      | Check furniture placement, history and recovery                       |
 | `npm run test:placement-collision`                  | Check room bounds and display placement collisions                    |
 | `npm run test:moving-room-collision`                | Check room and object movement with collision constraints             |
 | `npm run test:deployment -- http://localhost:8081/` | Check the running container build                                     |
 
+Oxlint runs the upstream React Hooks JavaScript plugin to retain its compiler checks.
+That plugin retains ESLint as an npm peer; `npm run lint` itself runs Oxlint. Validate
+plugin compatibility when updating the lint configuration or dependencies.
+
 Browser checks require a non-root user and official Google Chrome (or Chrome for
-Testing) at least **156.0.8078.73**, the 27 October 2026 security-release floor.
+Testing) at least **157.0.8103.38**, the 3 November 2026 security-release floor.
 From `apps/web/`, run `npm run browser:install` to install current official stable
 Chrome and its system libraries, then `npm run browser:verify`. Installation may
 keep an already-installed local Chrome. For updates, use Chrome's normal updater
 or explicitly run `npm run browser:update` (this replaces the installed Chrome),
 then repeat verification and the browser regression suite. The minimum floor is
 not a promise of protection from future vulnerabilities. Release reference:
-[Chrome stable security update](https://chromereleases.googleblog.com/2026/10/stable-channel-update-for-desktop_0562499947.html).
+[Chrome stable security update](https://chromereleases.googleblog.com/2026/11/stable-channel-update-for-desktop.html).
 
 A custom official Chrome for Testing binary can be selected with `CHROME_PATH`.
 An explicitly selected missing, stale or unrecognized binary fails closed; bundled
@@ -258,7 +263,7 @@ If the host cannot support that sandbox, use a sandbox-capable non-root host. Do
 add `--no-sandbox`, privileged containers, or weaken host security settings.
 
 Keep `npm run dev` running in one terminal, then run `test:browser`, `test:integration`,
-`test:recovery`, `test:history`, `test:panel-style`, `test:furniture-tools`,
+`test:recovery`, `test:history`, `test:viewpoints`, `test:furniture-tools`,
 `test:placement-collision` and `test:moving-room-collision` with `npm run` in another.
 All accept a loopback server URL, for example `npm run test:recovery -- http://127.0.0.1:5186/`.
 Each browser is restricted to its explicitly selected local test origin through a
@@ -301,7 +306,7 @@ blocks the `.ps1` launchers.
 | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Windows 11                 | Fresh-clone native build and all browser checks passed on build 26200; launcher failure/startup checks also passed. Host Node was preinstalled for that native test.         |
 | Ubuntu 24.04               | Clean GitHub Actions build/test/container checks; [baseline CI](https://github.com/Team-Meshworks/gam300/actions/runs/36964933555). Check the push run for the integrated commit on `dev` or `main`. |
-| macOS Tahoe                | The workflow runs native setup, architecture, unit and build checks on `macos-26`; lint and formatting run on Ubuntu. Refer to the relevant `dev` or `main` push run for its actual result; no physical Mac test is claimed.        |
+| macOS Tahoe                | The workflow runs native setup, architecture, browser-policy and build checks on `macos-26`; lint, formatting and unit tests run on Ubuntu. Refer to the relevant `dev` or `main` push run for its actual result; no physical Mac test is claimed.        |
 | Local Ubuntu 26.04 / WSL 2 | Root launcher passed with no native Node/npm, a fresh checkout and an empty isolated Docker build cache. Git LFS was configured in the test directory.                       |
 
 For a clean reproduction, clone into a new directory and run the root launcher.
@@ -320,6 +325,7 @@ run.bat / run.sh     One-command submission build, tests and startup
 apps/
   web/
     editor/          React UI, document state, viewport, and camera controls
+    visitor/         Published exhibition viewer
     shared/
       asset-runtime/ Asset catalogue contracts and model cache (TypeScript)
       project/       Project types, validation, and shared JSON fixtures
@@ -379,11 +385,11 @@ Deployment remains a separate manual action.
 2. Wait for web lint, formatting, architecture and asset validation, unit and browser checks,
    native Windows/macOS checks, the Ubuntu container checks, shared project-format checks,
    and server build and tests against disposable PostgreSQL.
-3. Successful push/manual runs on `dev` or `main` publish the tested image and a release
-   descriptor. Feature branches receive no automatic CI runs or published images.
+3. Successful push/manual runs on `dev` or `main` publish the tested web, API and migration
+   images and a release descriptor. Feature branches receive no automatic CI runs or published images.
 4. To deploy, open **Actions > Deploy > Run workflow**, select the same branch, and enter
-   the successful CI run ID. Deployment uses that exact tested web image; it does not deploy
-   the server or database.
+   the successful CI run ID. Deployment uses the tested images and applies migrations to the
+   retained application database; see the runbook for backup and recovery details.
 
 `dev` deploys to **development**; `main` deploys to **production**. Promote releases through
 a `dev` to `main` pull request; the resulting push runs CI on the integrated `main` commit.

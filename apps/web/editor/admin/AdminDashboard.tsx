@@ -3,6 +3,7 @@ import { Button } from "../../shared/ui/Button";
 import { Dialog } from "../../shared/ui/Dialog";
 import { Field } from "../../shared/ui/Field";
 import { SearchField } from "../../shared/ui/SearchField";
+import { Tabs } from "../../shared/ui/Tabs";
 import type { AccountSession } from "../accounts/account-client";
 import { createDashboardClient, type DashboardProject } from "./dashboard-client";
 import organisationIcon from "./assets/organisation.svg";
@@ -31,7 +32,7 @@ function ProjectCards({
             <div className="admin-project-title">
               <h3>{project.title}</h3>
               <span className="admin-project-status">
-                {project.archived ? "Archived" : "Draft"}
+                {project.archived ? "Archived" : "Current"}
               </span>
             </div>
             <Button
@@ -49,136 +50,159 @@ function ProjectCards({
 
 function ProjectDetails({ project, onClose }: { project: DashboardProject; onClose: () => void }) {
   return (
-    <Dialog title="Project details" onClose={onClose}>
-      <h3>{project.title}</h3>
-      <dl className="admin-project-metadata">
-        <dt>Status</dt>
-        <dd>{project.archived ? "Archived" : "Draft"}</dd>
-        <dt>Revision</dt>
-        <dd>{project.revision}</dd>
-        <dt>Updated</dt>
-        <dd>{new Date(project.updatedAt).toLocaleString()}</dd>
-      </dl>
-      {project.permissions.canEdit && !project.archived && (
-        <a
-          className="sp-button sp-button--primary"
-          href={`/?projectId=${encodeURIComponent(project.projectId)}`}
-        >
-          Open project
-        </a>
-      )}
-    </Dialog>
+    <section className="admin-panel admin-project-detail" aria-label="Project details">
+      <div className="admin-project-view-heading">
+        <div>
+          <h1>Project details</h1>
+          <p>Review this project's available details.</p>
+        </div>
+        <Button aria-label="Back" onClick={onClose}>
+          ×
+        </Button>
+      </div>
+      <div className="admin-detail-columns">
+        <div>
+          <img className="admin-project-cover" src={defaultProjectImage} alt="" />
+          <h2>{project.title}</h2>
+          <dl className="admin-project-metadata">
+            <dt>Status</dt>
+            <dd>{project.archived ? "Archived" : "Current"}</dd>
+            <dt>Revision</dt>
+            <dd>{project.revision}</dd>
+            <dt>Updated</dt>
+            <dd>{new Date(project.updatedAt).toLocaleString()}</dd>
+          </dl>
+          {project.permissions.canEdit && !project.archived && (
+            <a
+              className="sp-button sp-button--primary"
+              href={`/?projectId=${encodeURIComponent(project.projectId)}`}
+            >
+              Open project
+            </a>
+          )}
+        </div>
+        <div className="admin-detail-unavailable">
+          <h2>Project progress</h2>
+          <p>Student progress and publication controls are unavailable for this project.</p>
+        </div>
+      </div>
+    </section>
   );
 }
 
-function ProjectResults({ client, archived }: { client: Client; archived: boolean }) {
+function ProjectResults({ client, onClose }: { client: Client; onClose: () => void }) {
+  const archived = false;
+  const [filter, setFilter] = useState<"all" | "private" | "public">("all");
   const [projects, setProjects] = useState<DashboardProject[]>([]);
-  const [cursor, setCursor] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
   const [detail, setDetail] = useState<DashboardProject | null>(null);
-  const pending = useRef(false);
-  const seen = useRef(new Set<string>());
   useEffect(() => {
     let disposed = false;
-    void client.projects(20, null, archived).then(
-      (page) => {
-        if (!disposed) {
-          setProjects(page.items);
-          setCursor(page.nextCursor);
-          setLoading(false);
-        }
-      },
-      (reason) => {
-        if (!disposed) {
-          setError(errorMessage(reason));
-          setLoading(false);
-        }
-      },
-    );
+    void (async () => {
+      try {
+        let cursor: string | null = null;
+        const seen = new Set<string>();
+        const rows = new Map<string, DashboardProject>();
+        do {
+          const page = await client.projects(20, cursor, archived);
+          if (disposed) return;
+          for (const project of page.items) rows.set(project.projectId, project);
+          setProjects([...rows.values()]);
+          cursor = page.nextCursor;
+          if (cursor && (seen.has(cursor) || seen.size >= 100))
+            throw new Error(
+              "The project list could not finish loading. Retry to search all projects.",
+            );
+          if (cursor) seen.add(cursor);
+        } while (cursor);
+      } catch (reason) {
+        if (!disposed) setError(errorMessage(reason));
+      } finally {
+        if (!disposed) setLoading(false);
+      }
+    })();
     return () => {
       disposed = true;
     };
   }, [client, archived, attempt]);
-  async function more() {
-    if (!cursor || pending.current) return;
-    pending.current = true;
-    setLoading(true);
-    setError("");
-    try {
-      const page = await client.projects(20, cursor, archived);
-      if (page.nextCursor && (page.nextCursor === cursor || seen.current.has(page.nextCursor)))
-        throw new Error("The project list could not finish loading. Close it and try again.");
-      seen.current.add(cursor);
-      setProjects((rows) => [
-        ...new Map([...rows, ...page.items].map((row) => [row.projectId, row])).values(),
-      ]);
-      setCursor(page.nextCursor);
-    } catch (reason) {
-      setError(errorMessage(reason));
-    } finally {
-      pending.current = false;
-      setLoading(false);
-    }
-  }
   const visible = projects.filter((project) =>
     project.title.toLowerCase().includes(query.trim().toLowerCase()),
   );
   return (
-    <div className="admin-project-browser">
-      <SearchField
-        label="Search loaded projects"
-        value={query}
-        onChange={setQuery}
-        placeholder="Search projects by title"
-      />
-      {error && <p role="alert">{error}</p>}
-      {!projects.length && error && (
-        <Button
-          onClick={() => {
-            setError("");
-            setLoading(true);
-            setAttempt((value) => value + 1);
-          }}
+    <>
+      <section
+        className="admin-panel admin-project-browser"
+        aria-label="All Projects"
+        hidden={detail !== null}
+      >
+        <div className="admin-project-view-heading">
+          <div>
+            <h1>All Projects</h1>
+            <p>Browse projects across your organisations.</p>
+          </div>
+          <SearchField
+            label="Search all projects"
+            value={query}
+            onChange={setQuery}
+            placeholder="Search all projects"
+          />
+          <Button aria-label="Back" onClick={onClose}>
+            ×
+          </Button>
+        </div>
+        <Tabs
+          id="admin-project-filter"
+          label="Project visibility"
+          value={filter}
+          onChange={setFilter}
+          items={[
+            {
+              value: "all",
+              label: !loading && !error ? `All Work (${projects.length})` : "All Work",
+            },
+            { value: "private", label: "Private" },
+            { value: "public", label: "Public" },
+          ]}
+        />
+        <div
+          id="admin-project-filter-panel"
+          role="tabpanel"
+          aria-labelledby={`admin-project-filter-${filter}`}
         >
-          Retry
-        </Button>
-      )}
-      <ProjectCards projects={visible} onView={setDetail} />
-      {loading && <p role="status">Loading projects…</p>}
-      {!loading && !error && !visible.length && (
-        <p role="status">
-          {query ? "No matching projects in the loaded results." : "No projects to show."}
-        </p>
-      )}
-      {cursor && (
-        <Button disabled={loading} onClick={() => void more()}>
-          {loading ? "Loading…" : "Load more projects"}
-        </Button>
-      )}
+          {filter !== "all" ? (
+            <p role="status">
+              Project visibility is unavailable. Public and private projects cannot be filtered yet.
+            </p>
+          ) : (
+            <>
+              {error && <p role="alert">{error}</p>}
+              {error && (
+                <Button
+                  onClick={() => {
+                    setError("");
+                    setLoading(true);
+                    setAttempt((value) => value + 1);
+                  }}
+                >
+                  Retry
+                </Button>
+              )}
+              <ProjectCards projects={visible} onView={setDetail} />
+              {loading && <p role="status">Loading projects…</p>}
+              {!loading && !error && !visible.length && (
+                <p role="status">
+                  {query ? "No matching projects in the loaded results." : "No projects to show."}
+                </p>
+              )}
+            </>
+          )}
+        </div>
+      </section>
       {detail && <ProjectDetails project={detail} onClose={() => setDetail(null)} />}
-    </div>
-  );
-}
-
-function ProjectsDialog({ client, onClose }: { client: Client; onClose: () => void }) {
-  const [archived, setArchived] = useState(false);
-  return (
-    <Dialog title="All Projects" variant="wide" onClose={onClose}>
-      <Field id="admin-project-status" label="Project status">
-        <select
-          id="admin-project-status"
-          value={String(archived)}
-          onChange={(event) => setArchived(event.target.value === "true")}
-        >
-          <option value="false">Current projects</option>
-          <option value="true">Archived projects</option>
-        </select>
-      </Field>
-      <ProjectResults key={String(archived)} client={client} archived={archived} />
-    </Dialog>
+    </>
   );
 }
 
@@ -273,18 +297,27 @@ export function AdminDashboard({ session }: { session: AccountSession }) {
       disposed = true;
     };
   }, [client, attempt]);
+  if (modal === "projects")
+    return (
+      <div className="admin-dashboard">
+        <ProjectResults client={client} onClose={() => setModal(null)} />
+      </div>
+    );
+  if (detail)
+    return (
+      <div className="admin-dashboard">
+        <ProjectDetails project={detail} onClose={() => setDetail(null)} />
+      </div>
+    );
   return (
     <div className="admin-dashboard">
       <div className="admin-greeting">
         <h1>Welcome Back, {session.displayName}</h1>
         <p>Manage what gets shared, who has access and the assets creators use.</p>
-        <a className="sp-button sp-button--primary" href="/home">
-          Open project workspace
-        </a>
       </div>
       {notice && (
         <p className="admin-notice" role="status">
-          {notice} <a href="/accounts">View organisations</a>
+          {notice} <a href="/organisations">View organisations</a>
         </p>
       )}
       <section className="admin-panel admin-projects" aria-labelledby="admin-projects-heading">
@@ -293,6 +326,9 @@ export function AdminDashboard({ session }: { session: AccountSession }) {
             <h2 id="admin-projects-heading">All Projects</h2>
             <p>Browse projects across your organisations.</p>
           </div>
+          <a className="sp-button" href="/home">
+            Open project workspace
+          </a>
           <Button variant="primary" onClick={() => setModal("projects")}>
             View All Projects
           </Button>
@@ -342,7 +378,7 @@ export function AdminDashboard({ session }: { session: AccountSession }) {
                 </div>
               </div>
               <div className="admin-entry-actions">
-                <a className="sp-button" href="/accounts">
+                <a className="sp-button" href="/organisations">
                   View Organisations
                 </a>
                 <Button variant="primary" onClick={() => setModal("organisation")}>
@@ -394,19 +430,18 @@ export function AdminDashboard({ session }: { session: AccountSession }) {
                   <a className="sp-button" href={kind === "environment" ? "/spaces" : "/assets"}>
                     {view}
                   </a>
-                  <Button variant="primary" disabled aria-describedby="admin-upload-note">
+                  <a
+                    className="sp-button sp-button--primary"
+                    href={kind === "environment" ? "/spaces?add=1" : "/assets?add=1"}
+                  >
                     {add}
-                  </Button>
+                  </a>
                 </div>
               </div>
             ))}
           </div>
-          <p className="admin-upload-note" id="admin-upload-note">
-            Asset uploads are not available yet.
-          </p>
         </section>
       </div>
-      {modal === "projects" && <ProjectsDialog client={client} onClose={() => setModal(null)} />}
       {modal === "organisation" && (
         <AddOrganization
           client={client}
@@ -417,7 +452,6 @@ export function AdminDashboard({ session }: { session: AccountSession }) {
           }}
         />
       )}
-      {detail && <ProjectDetails project={detail} onClose={() => setDetail(null)} />}
     </div>
   );
 }

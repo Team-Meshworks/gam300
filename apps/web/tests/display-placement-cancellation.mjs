@@ -27,7 +27,12 @@ export async function checkDisplayPlacementCancellation(browser, origin) {
         const project = {};
         const transform = { position: [0, 0, 0], rotation: [0, 0, 0, 1], scale: [1, 1, 1] };
         const asset = { id: "display", name: "Display", kind: "model", displayRole: "physical" };
-        const crate = { id: "crate", name: "Deferred crate", kind: "model" };
+        const crate = {
+          id: "crate",
+          name: "Deferred crate",
+          kind: "model",
+          sha256: "b".repeat(64),
+        };
         const writes = [],
           closes = [],
           pending = [];
@@ -82,7 +87,7 @@ export async function checkDisplayPlacementCancellation(browser, origin) {
       }
       if (dismissal !== "unmount") await dialog.waitFor({ state: "hidden" });
       await page.evaluate(() => window.displayCancellation.open("B"));
-      await dialog.getByRole("button", { name: "Deferred crate", exact: true }).waitFor();
+      await dialog.getByText("B", { exact: true }).waitFor();
       await page.evaluate(() => window.displayCancellation.finish(0));
       assert.deepEqual(await page.evaluate(() => window.displayCancellation.writes), [], dismissal);
       assert.deepEqual(

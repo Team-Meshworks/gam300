@@ -122,6 +122,9 @@ try {
   await rows.last().click();
   await page.keyboard.press("Delete");
   assert.equal(await rows.count(), 1);
+  const deletionNotice = await page.locator(".draft-feedback").textContent();
+  assert.match(deletionNotice, /1 related rule\b/i, "Deletion reports the affected rule count");
+  assert.match(deletionNotice, /undo restores/i, "Deletion explains how to restore the rule");
   await waitForRecovery(1, 0, 0, 0);
   await page.reload();
   await page.waitForFunction(() => document.querySelectorAll(".object-row").length === 1);

@@ -176,6 +176,13 @@ server assembly referenced by the running test build, including Debug builds. Th
 standalone cold-restart acceptance below still targets an explicitly prebuilt Release
 application and is not part of the CI job.
 
+The TUnit assembly limiter caps concurrent tests at four. Tests with the same
+`NotInParallel` key remain exclusive: database-backed classes use class-specific keys,
+while browser-launching classes and `ProxyChainTests` share `Browser`. The unkeyed
+`AccountModelTests` exclusion remains global because those tests change environment variables.
+CI runs proxy preparation, restore/build, formatting, migrations and tests as separate
+steps in the same server job.
+
 The full suite includes `ProxyChainTests`, which starts two Caddy processes and a
 local ASP.NET test host. Provide the pinned Caddy **2.11.4** executable through
 `CADDY_BINARY` (or as `caddy` on `PATH`) and Node 24.22.2 on `PATH`;
@@ -264,7 +271,7 @@ and database **spatia_scrum45_test**, then confirms `current_database()` before 
 creates a random `spatia_scrum45_<uuid>` schema. Each fixture uses that schema as its
 search path, applies the actual production migration, and removes only the exact
 schema it created. It never uses `EnsureCreated`, resets `public`, or clears other
-data. Test connections disable pooling so reopened-scope durability uses new
+data. Direct fixture connections disable pooling so reopened-scope durability uses new
 connections. Duplicate-insert races use separate contexts.
 
 HTTPS application fixtures apply freshly generated production migration SQL as one
@@ -273,7 +280,8 @@ Direct database tests retain the EF migrator for upgrade and reapplication cover
 `PostgresAccountFixtureTests` compares both schema catalogs, seeds and history, then
 checks independent same-ID records and cleanup. Independent fixtures share the
 disposable test database but use separate schemas, application hosts and schema-scoped
-connections. If migrations gain EF seeding delegates,
+connections. Each HTTPS host owns a bounded pool that is disposed with the host;
+direct fixture scopes remain unpooled. If migrations gain EF seeding delegates,
 revisit this setup path: generated SQL does not execute those delegates.
 
 Use a dedicated disposable PostgreSQL instance. The local SCRUM-45 setup uses the
@@ -1796,7 +1804,7 @@ Four lifecycle routes share FullAccount, CSRF and AccountWrite protection:
 
 | Route | Request and result |
 | --- | --- |
-| `POST /api/v1/projects` | Required bounded `title`, exactly one of `environmentAssetId` or complete `document`, and optional `orgId`; returns 201 metadata. |
+| `POST /api/v1/projects` | Required bounded `title`, optional `environmentAssetId` or complete `document` (mutually exclusive), and optional `orgId`; returns 201 metadata. |
 | `POST /api/v1/projects/{id}/duplicate` | Required integer `expectedRevision` and bounded `title`; returns 201 independent-copy metadata. |
 | `PATCH /api/v1/projects/{id}/assignments` | Required integer `expectedRevision`, `managedByUserIds`, `assignedCreatorIds`, `canPublishUserIds`; replaces the complete assignment set and returns 200 metadata. |
 | `PATCH /api/v1/projects/{id}/archive` | Required integer `expectedRevision` and boolean `archived`; true archives, false reopens; returns 200 metadata. |
@@ -1811,9 +1819,11 @@ fixed messages, never authored text or account details. Wrapped PostgreSQL inser
 failures now use the existing safe `503 storage_unavailable` mapping.
 
 Create derives organization from current membership; a supplied different organization
-is forbidden. Global Administrators explicitly select an active organization. A blank
-project uses an approved environment asset and the editor's v1 room/camera structure;
-imports preserve supported v1/v2 content. Imported authority is rejected. Server-owned
+is forbidden. Global Administrators explicitly select an active organization. With neither
+`environmentAssetId` nor `document`, creation produces an empty schema-v2 scene with
+`environmentAssetId: null`. An explicitly selected approved environment produces the
+legacy v1 room/camera structure; imports preserve supported v1/v2 content. The two
+inputs are mutually exclusive. Imported authority is rejected. Server-owned
 project IDs, revision 0 and initial assignments commit together. A Creator gets edit
 only; an Educator gets edit/manage/publish; a global Administrator needs no assignment.
 

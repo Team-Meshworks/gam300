@@ -8,7 +8,7 @@ using Spatia.Server.Publications;
 
 namespace Spatia.Server.Tests;
 
-[NotInParallel]
+[NotInParallel(nameof(PublicationMigrationIntegrationTests))]
 public sealed class PublicationMigrationIntegrationTests
 {
     [Test]

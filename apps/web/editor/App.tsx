@@ -5,7 +5,12 @@ import { ExhibitPopups } from "./ui/ExhibitPopups";
 import type { ContentObject } from "../shared/project/project-content";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { assets as developmentAssets } from "virtual:asset-catalogue";
-import type { CatalogueAsset } from "../shared/asset-runtime/catalogue";
+import {
+  isStarterRoomEnvironment,
+  isRoomModel,
+  roomCompanion,
+  type CatalogueAsset,
+} from "../shared/asset-runtime/catalogue";
 import { HOTSPOT_ASSET, HOTSPOT_ASSET_ID } from "../shared/asset-runtime/hotspot";
 import type { SceneObject, Vector3Tuple } from "../shared/project/scene-object";
 import type { HotspotDropTarget, ProjectHotspot, Transform } from "../shared/project/project-types";
@@ -59,6 +64,24 @@ export type ServerEditorSession = {
   leave: () => void;
   publish: () => void;
 };
+
+function countSceneRules(
+  snapshot: ReturnType<ReturnType<typeof createDocumentStore>["getSnapshot"]>,
+): number {
+  const scene = snapshot.project?.scenes.find((entry) => entry.id === snapshot.activeSceneId);
+  const canonical =
+    snapshot.project?.schemaVersion === 2
+      ? (snapshot.project.scenes.find((entry) => entry.id === snapshot.activeSceneId)?.rules
+          .length ?? 0)
+      : 0;
+  return (scene?.interactions.length ?? 0) + canonical;
+}
+
+function removalNotice(label: string, removedRules: number): string {
+  return removedRules > 0
+    ? `${label} and ${removedRules} related ${removedRules === 1 ? "rule" : "rules"}. Undo restores everything.`
+    : `${label}. Undo restores it.`;
+}
 
 export function App({ server }: { server?: ServerEditorSession }) {
   const assets = server?.assets ?? developmentAssets;
@@ -146,6 +169,13 @@ export function App({ server }: { server?: ServerEditorSession }) {
     // Every new message gets its own fade, even when the text repeats
     setFeedback((previous) => ({ text, sequence: previous.sequence + 1 }));
   }, []);
+  const reportRuleRemoval = (before: ReturnType<typeof store.getSnapshot>, label: string) => {
+    const removed = countSceneRules(before) - countSceneRules(store.getSnapshot());
+    if (removed > 0)
+      setNotice(
+        `${label}. Removed ${removed} related ${removed === 1 ? "rule" : "rules"}. Undo restores everything.`,
+      );
+  };
   useEffect(() => {
     const timer = setTimeout(() => {
       setFeedback((previous) => (previous.text ? { ...previous, text: "" } : previous));
@@ -331,7 +361,12 @@ export function App({ server }: { server?: ServerEditorSession }) {
       }
       setSelectedId(null);
       setError("");
-      setNotice("Audio removed. Undo restores it.");
+      setNotice(
+        removalNotice(
+          "Removed audio",
+          countSceneRules(current) - countSceneRules(store.getSnapshot()),
+        ),
+      );
       playUiSound("delete");
       return;
     }
@@ -347,10 +382,11 @@ export function App({ server }: { server?: ServerEditorSession }) {
       setError(result.error.message);
       return;
     }
+    const removedRules = countSceneRules(current) - countSceneRules(store.getSnapshot());
     setError("");
     setHasDeleted(true);
     setSelectedId(null);
-    setNotice(`Deleted ${result.value.name}. Undo restores it.`);
+    setNotice(removalNotice(`Deleted ${result.value.name}`, removedRules));
     playUiSound("delete");
   }, [store, selection, selectedId, visitor, setNotice]);
 
@@ -463,9 +499,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
       const result =
         ids.length > 1 ||
         id === snapshot.activeSceneId ||
-        snapshot.objects.some(
-          (object) => object.id === id && object.assetId === "test-room-module-v1",
-        )
+        snapshot.objects.some((object) => object.id === id && isRoomModel(assets, object.assetId))
           ? store.setSelectionTransform(ids, id, transform)
           : parentId !== undefined &&
               parentId !== ((object as ContentObject | undefined)?.parentId ?? null)
@@ -478,7 +512,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
         setNotice("Updated object. Undo is available.");
       }
     },
-    [store, setNotice],
+    [assets, store, setNotice],
   );
 
   function place(
@@ -519,7 +553,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
     // Choosing the first room turns the grid scene into a saveable project
     // Room placement uses the environment slot so it survives JSON reconstruction
     if (assetKinds.get(assetId) === "environment") {
-      if (assetId === "test-room-v1" && !projectScene && !roomFitsGrid(position)) {
+      if (isStarterRoomEnvironment(assets, assetId) && !projectScene && !roomFitsGrid(position)) {
         setError("Keep the whole room inside the grid");
         return;
       }
@@ -532,9 +566,19 @@ export function App({ server }: { server?: ServerEditorSession }) {
 
       // The same room tile creates the environment first and independent room instances afterward
       // Keep the model reference used by saved room instances behind this one catalogue choice
-      if (assetId === "test-room-v1" && projectScene?.environmentAssetId === assetId) {
-        const added = store.addObject("test-room-module-v1", position);
+      if (projectScene?.environmentAssetId) {
+        const companion = roomCompanion(
+          selectionAssets,
+          assets.find((asset) => asset.id === assetId),
+        );
+        if (!companion) {
+          setError("An approved room model is required to add an adjoining room.");
+          setDragging(null);
+          return;
+        }
+        const added = store.addObject(companion.id, position);
         if (added.ok) {
+          setError("");
           setSelectedId(added.object.id);
           setNotice(`Added ${added.object.name}`);
         } else {
@@ -708,8 +752,13 @@ export function App({ server }: { server?: ServerEditorSession }) {
               }),
             );
           if (unavailable.length > 0 || unsupportedDisplay) {
+            // Keep capability paths tied to the saved data so authors can find the blocked feature
+            const reasons = unavailable.map((issue) => `${issue.capability} at ${issue.path}`);
+            if (unsupportedDisplay) {
+              reasons.push("Place text, images and videos on a supported display");
+            }
             setNotice(
-              "This preview does not support all the scenes and interactions in this project",
+              `This preview does not support all the scenes and interactions in this project: ${reasons.join("; ")}`,
             );
             return;
           }
@@ -773,8 +822,16 @@ export function App({ server }: { server?: ServerEditorSession }) {
               : []
           }
           onHotspotRemove={(id) => {
+            const before = store.getSnapshot();
             const result = store.deleteHotspot(id);
             if (!result.ok) setNotice(result.error.message);
+            else
+              setNotice(
+                removalNotice(
+                  "Removed hotspot",
+                  countSceneRules(before) - countSceneRules(store.getSnapshot()),
+                ),
+              );
           }}
           scenes={
             <Scenes
@@ -866,6 +923,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
           onCamera={receiveCamera}
           loadGeneration={loadGeneration}
           assets={editorAssets}
+          selectableAssets={selectionAssets}
           objects={objects}
           projectScene={projectScene ?? null}
           selectedId={roomSelected ? projectScene.id : selection}
@@ -873,6 +931,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
           textPlacement={textPlacement}
           onTextPlace={(placement) => {
             if (!pendingText) return;
+            const before = store.getSnapshot();
             const result = store.editExhibit(pendingText.objectId, pendingText.before, {
               ...pendingText.fields,
               components: pendingText.fields.components.map((component) =>
@@ -883,6 +942,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
               setError(result.error.message);
               return;
             }
+            reportRuleRemoval(before, "Updated content");
             setPendingText(null);
             setShowExhibitTools(true);
           }}
@@ -929,6 +989,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
                 onEdit={openContent}
                 onLibrary={() => setDisplayEditing(selectedObject.id)}
                 onRemoveText={() => {
+                  const before = store.getSnapshot();
                   const result = store.editExhibit(selectedObject.id, selectedObject, {
                     name: selectedObject.name,
                     transform: selectedObject.transform,
@@ -937,10 +998,25 @@ export function App({ server }: { server?: ServerEditorSession }) {
                     ).filter((component) => component.type !== "text"),
                   });
                   if (!result.ok) setError(result.error.message);
+                  else
+                    setNotice(
+                      removalNotice(
+                        "Removed text",
+                        countSceneRules(before) - countSceneRules(store.getSnapshot()),
+                      ),
+                    );
                 }}
                 onRemoveMedia={() => {
+                  const before = store.getSnapshot();
                   const result = store.removeDisplayMedia(selectedObject.id);
                   if (!result.ok) setError(result.error.message);
+                  else
+                    setNotice(
+                      removalNotice(
+                        "Removed media",
+                        countSceneRules(before) - countSceneRules(store.getSnapshot()),
+                      ),
+                    );
                 }}
                 onRemoveContent={
                   assets.find((asset) => asset.id === selectedObject.assetId)?.displayRole ===
@@ -949,8 +1025,16 @@ export function App({ server }: { server?: ServerEditorSession }) {
                     (object) => (object as Partial<ContentObject>).parentId === selectedObject.id,
                   )
                     ? () => {
+                        const before = store.getSnapshot();
                         const result = store.removeDisplayedAsset(selectedObject.id);
                         if (!result.ok) setError(result.error.message);
+                        else
+                          setNotice(
+                            removalNotice(
+                              "Removed displayed object",
+                              countSceneRules(before) - countSceneRules(store.getSnapshot()),
+                            ),
+                          );
                       }
                     : undefined
                 }
@@ -992,15 +1076,27 @@ export function App({ server }: { server?: ServerEditorSession }) {
               }}
               onAdd={async (assetId) => {
                 const before = store.getSnapshot();
-                const modelId =
-                  assetId === "test-room-v1" && projectScene?.environmentAssetId === assetId
-                    ? "test-room-module-v1"
-                    : assetId;
+                const adjoiningRoom =
+                  projectScene?.environmentAssetId && assetKinds.get(assetId) === "environment";
+                const modelId = adjoiningRoom
+                  ? roomCompanion(
+                      selectionAssets,
+                      assets.find((asset) => asset.id === assetId),
+                    )?.id
+                  : assetId;
+                if (!modelId) {
+                  setError("An approved room model is required to add an adjoining room.");
+                  return;
+                }
                 if (!(await viewCamera?.prepareAsset(modelId)) || store.getSnapshot() !== before)
                   return;
                 setShowExhibitTools(false);
                 // Supplied rooms are complete environment layouts, selected at the scene origin.
-                if (assetKinds.get(assetId) === "environment" && assetId !== "test-room-v1") {
+                if (
+                  assetKinds.get(assetId) === "environment" &&
+                  !isStarterRoomEnvironment(assets, assetId) &&
+                  !projectScene?.environmentAssetId
+                ) {
                   setPlacingAssetId(null);
                   place(assetId, [0, 0, 0]);
                   return;
@@ -1017,6 +1113,19 @@ export function App({ server }: { server?: ServerEditorSession }) {
                 setNavigationTool("select");
               }}
               onDragChange={(assetId) => {
+                if (
+                  assetId &&
+                  projectScene?.environmentAssetId &&
+                  assetKinds.get(assetId) === "environment" &&
+                  !roomCompanion(
+                    selectionAssets,
+                    assets.find((asset) => asset.id === assetId),
+                  )
+                ) {
+                  setError("An approved room model is required to add an adjoining room.");
+                  setDragging(null);
+                  return;
+                }
                 setDragging(assetId);
                 if (assetId !== null) {
                   setPlacingAssetId(null);
@@ -1086,7 +1195,10 @@ export function App({ server }: { server?: ServerEditorSession }) {
               setView("third");
               return { ok: true, value: true };
             }
-            return store.editExhibit(contentEdit.objectId, before, fields);
+            const previous = store.getSnapshot();
+            const result = store.editExhibit(contentEdit.objectId, before, fields);
+            if (result.ok) reportRuleRemoval(previous, "Updated content");
+            return result;
           }}
           onClose={() => setContentEdit(null)}
         />

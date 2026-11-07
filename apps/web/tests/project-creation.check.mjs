@@ -32,6 +32,7 @@ try {
     },
   ];
   let failAssets = false;
+  let organizations = [{ id: orgId, name: "Active school", isActive: true }];
   let loseResponse = false;
   let releasePending;
   let holdPending = false;
@@ -42,11 +43,12 @@ try {
     if (path === "/api/v1/auth/session") return route.fulfill({ json: account });
     if (path === "/api/v1/auth/csrf")
       return route.fulfill({ json: { requestToken: "test-token" } });
+    if (path === "/api/v1/classes") return route.fulfill({ json: { items: [], nextCursor: null } });
     if (path === "/api/v1/assets")
       return failAssets ? route.fulfill({ status: 503 }) : route.fulfill({ json: assets });
     if (path === "/api/v1/admin/organizations")
       return route.fulfill({
-        json: { items: [{ id: orgId, name: "Active school", isActive: true }], nextCursor: null },
+        json: { items: organizations, nextCursor: null },
       });
     if (path === "/api/v1/projects" && request.method() === "GET")
       return route.fulfill({ json: { items: [], nextCursor: null } });
@@ -63,6 +65,7 @@ try {
     return route.fulfill({ status: 404 });
   });
   await page.goto(origin + "/home");
+  await page.getByText("Manage projects and archives", { exact: true }).click();
   const create = page.getByRole("button", { name: "New project", exact: true });
   await create.waitFor();
   await page.waitForFunction(() =>
@@ -85,6 +88,15 @@ try {
   );
   await dialog.getByLabel("Project title").fill("My gallery");
   await dialog.getByLabel("3D space").selectOption(assetId);
+  assert.equal(
+    await dialog
+      .getByText(
+        "Empty projects can be edited and assigned, but publishing is not yet available.",
+        { exact: true },
+      )
+      .count(),
+    0,
+  );
   for (const width of [390, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
@@ -111,6 +123,7 @@ try {
   await page.waitForURL(`**/?projectId=${projectId}`);
   assert.deepEqual(writes[0], { title: "My gallery", environmentAssetId: assetId });
   await page.goto(origin + "/home");
+  await page.getByText("Manage projects and archives", { exact: true }).click();
   await create.click();
   await dialog.getByLabel("Project title").fill("Unsent project");
   await dialog.getByRole("button", { name: "Cancel" }).click();
@@ -126,6 +139,7 @@ try {
   await dialog.getByRole("button", { name: "Back to projects" }).click();
   assert.equal(await create.isDisabled(), true);
   await page.reload();
+  await page.getByText("Manage projects and archives", { exact: true }).click();
   await page.getByRole("button", { name: /checked my projects/i }).waitFor();
   assert.equal(await create.isDisabled(), true);
   await page.getByRole("button", { name: /checked my projects/i }).click();
@@ -153,13 +167,22 @@ try {
   await page.waitForURL(`**/?projectId=${projectId}`);
   assert.deepEqual(writes[2], { title: "School gallery", environmentAssetId: assetId, orgId });
   assets = [];
+  organizations = [];
   await page.goto(origin + "/home");
-  await page.getByText(/no approved 3d spaces/i).waitFor();
+  await page.getByText("An active organisation is required to create a project.").waitFor();
   assert.equal(await create.isDisabled(), true);
+  organizations = [{ id: orgId, name: "Active school", isActive: true }];
+  await page.goto(origin + "/home");
+  await page.getByText(/start with an empty scene/i).waitFor();
+  assert.equal(await create.isEnabled(), true);
   failAssets = true;
   await page.reload();
   await page.getByText(/spaces.*(?:unavailable|could not|couldn.t)/i).waitFor();
-  assert.equal(await create.isDisabled(), true);
+  assert.equal(await create.isEnabled(), true);
+  await create.click();
+  assert.equal(await dialog.getByLabel("3D space").locator("option").count(), 1);
+  assert.equal(await dialog.getByLabel("3D space").inputValue(), "");
+  await dialog.getByRole("button", { name: "Cancel" }).click();
   const retry = page.getByRole("button", { name: /retry spaces/i });
   assert.equal(await retry.isEnabled(), true);
   failAssets = false;

@@ -11,7 +11,7 @@ using Spatia.Server.Persistence;
 
 namespace Spatia.Server.Tests;
 
-[NotInParallel]
+[NotInParallel(nameof(AccountLifecycleTests))]
 public sealed class AccountLifecycleTests
 {
     [Test]

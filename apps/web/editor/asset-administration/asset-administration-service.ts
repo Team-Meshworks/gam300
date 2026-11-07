@@ -86,7 +86,7 @@ export function createAssetAdministrationService(actorId: string): AssetAdminist
   const base = "/api/v1/admin/assets";
   return {
     load: (signal) => request<AssetAdministrationData>(base, signal),
-    submit: ({ file, kind, category }, signal) => {
+    submit: ({ file, kind, category, review }, signal) => {
       const query = new URLSearchParams({ name: file.name, kind });
       if (category !== null) {
         query.set("category", category);
@@ -94,7 +94,14 @@ export function createAssetAdministrationService(actorId: string): AssetAdminist
       return request<AssetCandidate>(`${base}?${query}`, signal, {
         method: "POST",
         body: file,
-        headers: { "Content-Type": "model/gltf-binary" },
+        headers: {
+          "Content-Type": "model/gltf-binary",
+          "X-Spatia-Asset-Metadata": btoa(
+            Array.from(new TextEncoder().encode(JSON.stringify(review)), (byte) =>
+              String.fromCharCode(byte),
+            ).join(""),
+          ),
+        },
       });
     },
 

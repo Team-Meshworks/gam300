@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { realpathSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { launchBrowser } from "./browser-security.mjs";
@@ -45,8 +45,15 @@ try {
   let forced = false;
   let rejectLogin = false;
   let projectError = false;
+  let assetError = false;
+  let assetReads = 0;
   let projectReads = 0;
   let creations = 0;
+  // Keep mock catalogue previews independent of Vite source paths and build hashing.
+  const assetThumbnail = await readFile("editor/home/assets/default-project-neutral.jpg");
+  await page.route("**/test-fixtures/admin-asset-thumbnail.jpg", (route) =>
+    route.fulfill({ body: assetThumbnail, contentType: "image/jpeg" }),
+  );
   await page.route("**/api/v1/**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -90,6 +97,44 @@ try {
           json: { id: orgId, name: "New School", isActive: true },
         });
       }
+    }
+    if (url.pathname === "/api/v1/admin/assets") {
+      assetReads++;
+      assert.equal(request.headers()["x-spatia-account"], userId);
+      if (assetError) return route.fulfill({ status: 503 });
+      return route.fulfill({
+        json: {
+          assets: [
+            {
+              id: "11111111-1111-4111-8111-111111111111",
+              name: "Approved Gallery",
+              kind: "environment",
+            },
+            {
+              id: "22222222-2222-4222-8222-222222222222",
+              name: "Approved Sculpture",
+              kind: "model",
+            },
+          ].map((asset) => ({
+            ...asset,
+            category: asset.kind === "model" ? "Objects" : null,
+            status: "approved",
+            hidden: false,
+            deleted: false,
+            removedFromProjects: false,
+            thumbnail: "/test-fixtures/admin-asset-thumbnail.jpg",
+            validation: [],
+            actions: ["hide", "delete"],
+          })),
+          policy: {
+            extensions: [".glb"],
+            maxBytes: 20971520,
+            categories: { environment: null, model: ["Objects"] },
+            canSubmit: true,
+            canForceRemove: false,
+          },
+        },
+      });
     }
     if (url.pathname === "/api/v1/projects") {
       projectReads++;
@@ -138,17 +183,23 @@ try {
   await page.getByRole("button", { name: "Change password", exact: true }).click();
   await page.waitForURL(origin + "/admin/dashboard");
   await page.getByRole("heading", { name: "Welcome Back, VThere", exact: true }).waitFor();
-  await page
-    .getByRole("link", { name: "Open project workspace", exact: true })
-    .click({ timeout: 5000 });
+  assert.equal(
+    await page.getByRole("link", { name: "+ Add environment", exact: true }).getAttribute("href"),
+    "/spaces?add=1",
+  );
+  assert.equal(
+    await page.getByRole("link", { name: "+ Add item", exact: true }).getAttribute("href"),
+    "/assets?add=1",
+  );
+  await page.getByRole("link", { name: "Open project workspace", exact: true }).click();
   await page.waitForURL(origin + "/home");
   assert.equal(await page.getByRole("navigation", { name: "Workspace" }).count(), 0);
   await page.getByRole("button", { name: "Back to dashboard" }).click();
   await page.waitForURL(origin + "/admin/dashboard");
   await page.getByRole("link", { name: "View Organisations", exact: true }).click();
-  await page.waitForURL(origin + "/accounts");
+  await page.waitForURL(origin + "/organisations");
   assert.equal(await page.getByRole("navigation", { name: "Workspace screens" }).count(), 0);
-  await page.getByRole("link", { name: "Back to dashboard" }).click();
+  await page.getByRole("link", { name: "Close organisations" }).click();
   await page.waitForURL(origin + "/admin/dashboard");
   await page
     .getByRole("button", { name: `View details for ${projects[0].title}`, exact: true })
@@ -170,50 +221,60 @@ try {
     assert.deepEqual(geometry, { width, height, loaded: true });
   }
   await page.getByRole("button", { name: "View All Projects", exact: true }).click();
-  let dialog = page.getByRole("dialog", { name: "All Projects", exact: true });
-  await dialog.getByRole("button", { name: "Load more projects", exact: true }).click();
-  await dialog
+  const projectView = page.locator('section[aria-label="All Projects"]');
+  await projectView.waitFor();
+  assert.equal(await page.getByRole("dialog", { name: "All Projects" }).count(), 0);
+  for (const name of [/^All Work(?: \(\d+\))?$/, "Private", "Public"]) {
+    assert.equal(await projectView.getByRole("tab", { name, exact: true }).isVisible(), true);
+  }
+  assert.equal(await projectView.getByRole("link", { name: "Open project workspace" }).count(), 0);
+  assert.equal(await projectView.getByRole("tab", { name: "Projects", exact: true }).count(), 0);
+  assert.equal(await projectView.getByRole("tab", { name: "Archived", exact: true }).count(), 0);
+  for (const name of ["Private", "Public"]) {
+    await projectView.getByRole("tab", { name, exact: true }).click();
+    await projectView.getByText(/visibility.*unavailable/i).waitFor();
+  }
+  await projectView.getByRole("tab", { name: /^All Work(?: \(\d+\))?$/ }).click();
+  await projectView
     .getByRole("button", { name: "View details for Ancient China", exact: true })
     .waitFor();
-  await dialog.getByLabel("Search loaded projects").fill("Rome");
-  assert.equal(await dialog.locator(".admin-project-card").count(), 1);
-  async function escapeProjectDetails(archived) {
-    const trigger = dialog.getByRole("button", {
-      name: "View details for Life in Ancient Rome",
-      exact: true,
-    });
-    const readsBefore = projectReads;
-    await trigger.click();
-    const details = page.getByRole("dialog", { name: "Project details", exact: true });
-    await details.waitFor();
-    assert.equal(
-      await details.locator("dd").first().textContent(),
-      archived ? "Archived" : "Draft",
-    );
-    await page.keyboard.press("Escape");
-    await details.waitFor({ state: "detached" });
-    assert.equal(await dialog.isVisible(), true, "Escape closes only the nested details dialog");
-    assert.equal(await dialog.getByLabel("Search loaded projects").inputValue(), "Rome");
-    assert.equal(await dialog.getByLabel("Project status").inputValue(), String(archived));
-    assert.equal(await trigger.evaluate((node) => node === document.activeElement), true);
-    assert.equal(projectReads, readsBefore, "Returning to the list does not reload its pages");
-  }
-  await escapeProjectDetails(false);
-  await dialog.getByLabel("Search loaded projects").fill("");
-  assert.equal(await dialog.locator(".admin-project-card").count(), 4, "Loaded pages are retained");
-  assert.equal(await dialog.getByRole("button", { name: "Load more projects" }).count(), 0);
-  await dialog.getByLabel("Project status").selectOption("true");
-  await dialog.getByRole("button", { name: "View details for Life in Ancient Rome" }).waitFor();
-  await dialog.getByLabel("Search loaded projects").fill("Rome");
-  await escapeProjectDetails(true);
-  await dialog.getByLabel("Search loaded projects").fill("no matching project");
-  await dialog.getByRole("status").filter({ hasText: "No matching projects" }).waitFor();
-  // A focused search input consumes Escape to clear its value; test the dialog itself.
-  await dialog.getByRole("button", { name: "Close", exact: true }).focus();
-  await page.keyboard.press("Escape");
-  await dialog.waitFor({ state: "detached" });
+  assert.equal(
+    await projectView.getByRole("tab", { name: "All Work (4)", exact: true }).count(),
+    1,
+  );
+  await projectView.getByLabel("Search all projects").fill("Rome");
+  assert.equal(await projectView.locator(".admin-project-card").count(), 1);
+  const readsBefore = projectReads;
+  await projectView
+    .getByRole("button", { name: "View details for Life in Ancient Rome", exact: true })
+    .click();
+  const details = page.getByRole("region", { name: "Project details", exact: true });
+  await details.waitFor();
+  assert.equal(await page.getByRole("dialog", { name: "Project details" }).count(), 0);
+  assert.equal(await details.getByText("Life in Ancient Rome", { exact: true }).isVisible(), true);
+  assert.equal(await details.locator("dd").first().textContent(), "Current");
+  await details.getByRole("button", { name: "Back", exact: true }).click();
+  await details.waitFor({ state: "detached" });
+  assert.equal(await projectView.isVisible(), true, "Back returns to the project list");
+  assert.equal(await projectView.getByLabel("Search all projects").inputValue(), "Rome");
+  assert.equal(projectReads, readsBefore, "Returning to the list does not reload its pages");
+  await projectView.getByLabel("Search all projects").fill("");
+  assert.equal(
+    await projectView.locator(".admin-project-card").count(),
+    4,
+    "Loaded pages are retained",
+  );
+  assert.equal(await projectView.getByRole("button", { name: "Load more projects" }).count(), 0);
+  await projectView.getByLabel("Search all projects").fill("no matching project");
+  await projectView.getByRole("status").filter({ hasText: "No matching projects" }).waitFor();
+  await projectView.getByRole("button", { name: "Back", exact: true }).click();
+  await projectView.waitFor({ state: "detached" });
+  assert.equal(
+    await page.getByRole("heading", { name: "Welcome Back, VThere", exact: true }).isVisible(),
+    true,
+  );
   await page.getByRole("button", { name: "+ Add Organisations", exact: true }).click();
-  dialog = page.getByRole("dialog", { name: "Add organisation", exact: true });
+  let dialog = page.getByRole("dialog", { name: "Add organisation", exact: true });
   await dialog.getByLabel("Organisation name").fill(" New School ");
   await dialog
     .getByRole("button", { name: "Create organisation", exact: true })
@@ -224,16 +285,49 @@ try {
   await dialog.waitFor({ state: "detached" });
   assert.equal(creations, 1);
   await page.getByRole("status").filter({ hasText: "New School was created." }).waitFor();
-  for (const [button, path, title] of [
-    ["View Environments", "/spaces", "All 3D Spaces"],
-    ["View Library", "/assets", "All Assets"],
+  for (const [button, path, title, expected, excluded, noun] of [
+    [
+      "View Environments",
+      "/spaces",
+      "All 3D Spaces",
+      "Approved Gallery",
+      "Approved Sculpture",
+      "3D spaces",
+    ],
+    ["View Library", "/assets", "All Assets", "Approved Sculpture", "Approved Gallery", "assets"],
   ]) {
-    await page.getByText(button, { exact: true }).click();
+    const readsBeforeOpen = assetReads;
+    await page.getByRole("link", { name: button, exact: true }).click();
     await page.waitForURL(origin + path);
     await page.getByRole("heading", { name: title, exact: true }).waitFor();
+    assert.equal(await page.getByRole("dialog").count(), 0);
+    const library = page.locator(".asset-admin");
+    await library.getByText(expected, { exact: true }).waitFor();
+    const preview = library
+      .locator("article")
+      .filter({ hasText: expected })
+      .locator(".asset-admin-thumbnail img");
+    await preview.evaluate((image) => image.decode());
+    assert.equal(await preview.evaluate((image) => image.complete && image.naturalWidth > 0), true);
+    assert.equal(await library.getByText(excluded, { exact: true }).count(), 0);
+    assert.ok(
+      assetReads > readsBeforeOpen,
+      "Opening asset administration reads assets from the API",
+    );
+    await library.getByRole("searchbox", { name: `Search ${noun}` }).fill("no matching asset");
+    await library.getByRole("heading", { name: `No matching ${noun}` }).waitFor();
     await page.getByRole("button", { name: "Close asset administration" }).click();
     await page.waitForURL(origin + "/admin/dashboard");
   }
+  assetError = true;
+  await page.getByRole("link", { name: "View Environments", exact: true }).click();
+  await page.waitForURL(origin + "/spaces");
+  const failedLibrary = page.locator(".asset-admin");
+  await failedLibrary.getByRole("alert").waitFor();
+  assert.equal(await failedLibrary.getByText("Approved Gallery", { exact: true }).count(), 0);
+  await failedLibrary.getByRole("button", { name: "Close asset administration" }).click();
+  await page.waitForURL(origin + "/admin/dashboard");
+  assetError = false;
   await page.getByRole("link", { name: "View Organisations", exact: true }).click();
   await page.getByRole("button", { name: "Open Ridgeview Secondary School" }).waitFor();
   await page.getByRole("link", { name: "Spatia home", exact: true }).click();
@@ -293,7 +387,7 @@ try {
   assert.equal(new URL(page.url()).pathname, "/landing");
   assert.deepEqual(errors, []);
   console.log(
-    "Admin dashboard checks passed: login routing, forced password change, sessions, access control, organisation creation, project pagination, nested-dialog Escape, assets, account navigation, error recovery and responsive layout.",
+    "Admin dashboard checks passed: login routing, forced password change, sessions, access control, organisation creation, project browsing, details and pagination, assets, account navigation, error recovery and responsive layout.",
   );
 } finally {
   await browser.close();

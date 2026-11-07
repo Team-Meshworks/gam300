@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import type { CatalogueAsset } from "../../shared/asset-runtime/catalogue";
+import { isStarterRoomModelAsset, type CatalogueAsset } from "../../shared/asset-runtime/catalogue";
 import type { Transform } from "../../shared/project/project-types";
 import { visibleModelBounds } from "./visible-model-bounds";
 import type { PlacementBody } from "./placement-constraints";
@@ -9,10 +9,11 @@ export function placementBody(
   transform: Transform,
   model: THREE.Object3D,
   asset: CatalogueAsset,
+  roomModel = isStarterRoomModelAsset(asset),
 ): PlacementBody {
   const bounds = visibleModelBounds(model);
   const body: PlacementBody = { id, transform, bounds };
-  if (asset.kind === "environment" || asset.id === "test-room-module-v1") {
+  if (asset.kind === "environment" || roomModel) {
     const interior = bounds.clone();
     model.traverse((node) => {
       if (!(node instanceof THREE.Mesh)) return;

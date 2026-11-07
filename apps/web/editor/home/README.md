@@ -1,5 +1,22 @@
 # M2 workspace integration
 
+## Current project creation and opening
+
+Creators and Administrators can create a project directly from home, optionally
+selecting an approved environment. Empty creation remains available when there are
+no approved environments or the catalogue is unavailable. Educator New Project
+opens a full-page class assignment form that creates an empty source without an
+environment selection. An empty project is a schema-v2 scene with
+`environmentAssetId: null`; selecting an approved environment creates a legacy v1
+room. Current active organisation authority is still required, and an Administrator
+explicitly selects an active organisation.
+
+If the asset catalogue is unavailable when opening a project, the editor uses its
+fallback only when the saved project validates against an empty asset map. It warns
+about the outage and preserves recovery. The current visitor/publisher rejects v2
+until runtime support is available. This current behaviour supersedes the creation
+availability claim in the historical 5 November integration note below.
+
 ## Login and publishing integration
 
 The project home and review flow can open `/publish?projectId=<id>`; the editor
@@ -9,7 +26,7 @@ visitor route. See [publishing](../publications/README.md) and the separate
 [visitor application](../../visitor/README.md). These integrations do not remove
 the production catalogue or broader acceptance limits below.
 
-## 5 November 2026 dev integration
+## Historical 5 November 2026 dev integration
 
 PR #34 is integrated with `dev` at `e921576`, including the merged class screens.
 The home and administration flows remain a bounded SCRUM-126 implementation, not

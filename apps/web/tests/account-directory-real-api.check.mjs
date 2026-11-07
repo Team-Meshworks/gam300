@@ -28,7 +28,7 @@ try {
   await page
     .getByRole("button", { name: "View details for Dashboard browser project", exact: true })
     .click();
-  const projectDetails = page.getByRole("dialog", { name: "Project details", exact: true });
+  const projectDetails = page.getByRole("region", { name: "Project details", exact: true });
   assert.equal(await projectDetails.locator("dd").nth(1).textContent(), "0");
   assert.match(
     await projectDetails
@@ -36,7 +36,7 @@ try {
       .getAttribute("href"),
     /^\/\?projectId=[0-9a-f-]{36}$/,
   );
-  await projectDetails.getByRole("button", { name: "Close", exact: true }).click();
+  await projectDetails.getByRole("button", { name: "Back", exact: true }).click();
   await page.getByRole("button", { name: "+ Add Organisations", exact: true }).click();
   await page
     .getByLabel("Organisation name", { exact: true })
@@ -71,23 +71,20 @@ try {
   await page.reload();
   await page.getByRole("button", { name: "Open Synthetic organization" }).click();
   await page.getByRole("button", { name: "View account for Browser Updated" }).waitFor();
-  // Exercise recovery against the real API, failing only the organisation refresh.
+  // Exercise recovery against the real API after a failed directory load.
   let failOrganizations = true;
   await page.route(/\/api\/v1\/admin\/organizations(?:\?|$)/, (route) =>
     failOrganizations
       ? route.fulfill({ status: 503, json: { code: "directory_unavailable" } })
       : route.continue(),
   );
-  await page.getByRole("button", { name: "Refresh directory", exact: true }).click();
+  await page.reload();
   await page.getByRole("alert").filter({ hasText: "directory request failed" }).waitFor();
   failOrganizations = false;
   await page.getByRole("button", { name: "Retry", exact: true }).click();
+  await page.getByRole("button", { name: "Open Synthetic organization" }).click();
   await page.getByRole("button", { name: "View account for Browser Updated" }).waitFor();
   await page.getByText("Dashboard browser project", { exact: true }).waitFor();
-  assert.equal(
-    await page.getByRole("button", { name: "Refresh directory", exact: true }).isEnabled(),
-    true,
-  );
   await page.getByRole("button", { name: "All organisations", exact: true }).click();
   await page.getByRole("button", { name: "Open Synthetic organization" }).click();
   await page.getByRole("button", { name: "View account for Browser Updated" }).waitFor();
@@ -111,7 +108,7 @@ try {
   assert.equal(session.mustChangePassword, true);
   await owner.close();
   console.log(
-    "Real API browser test passed: admin login, dashboard, organisation creation, accounts, overrides and failed-refresh recovery.",
+    "Real API browser test passed: admin login, dashboard, organisation creation, accounts, overrides and failed-load recovery.",
   );
 } finally {
   await browser.close();

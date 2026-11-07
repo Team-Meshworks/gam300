@@ -13,7 +13,7 @@ using Spatia.Server.Publications;
 
 namespace Spatia.Server.Tests;
 
-[NotInParallel]
+[NotInParallel(nameof(PublicationPersistenceTests))]
 public sealed class PublicationPersistenceTests
 {
     private const string DraftMigration = "20261018091152_AddProjectDraftStorage";
@@ -76,6 +76,68 @@ public sealed class PublicationPersistenceTests
             await Assert.That(failure!.ConstraintName).IsEqualTo("CK_publication_access_permanent");
         }
         await Assert.That((await database.PublicationAccess.AsNoTracking().SingleAsync()).Deleted).IsTrue();
+    }
+
+    [Test]
+    public async Task PublicationDatabase_RuntimePolicyIdentityIsImmutable()
+    {
+        await using var fixture = await PostgresAccountFixture.CreateAsync("20261104191214_ProtectPublicationHistory");
+        await SeedAsync(fixture);
+        await InsertAsync(fixture, Edition());
+        var other = Guid.NewGuid();
+        await InsertAsync(fixture, Edition(other));
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var database = Db(scope);
+        database.PublicationAccess.Add(new PublicationAccessState { PublicationId = PublicationId, Deleted = true });
+        await database.SaveChangesAsync();
+        await database.Database.MigrateAsync();
+        var role = "publication_runtime_" + Guid.NewGuid().ToString("N");
+        await using (var transaction = await database.Database.BeginTransactionAsync())
+        {
+            foreach (var sql in new[] {
+                $"CREATE ROLE {role} NOLOGIN", $"GRANT USAGE ON SCHEMA {fixture.SchemaName} TO {role}",
+                $"GRANT SELECT, UPDATE ON publication_access TO {role}", $"SET LOCAL ROLE {role}" })
+            {
+                await using var command = database.Database.GetDbConnection().CreateCommand();
+                command.Transaction = transaction.GetDbTransaction();
+                command.CommandText = sql;
+                await command.ExecuteNonQueryAsync();
+            }
+            var failure = await Assert.ThrowsAsync<PostgresException>(async () =>
+                await database.Database.ExecuteSqlInterpolatedAsync($"UPDATE publication_access SET \"PublicationId\" = {other} WHERE \"PublicationId\" = {PublicationId}"));
+            await Assert.That(failure!.ConstraintName).IsEqualTo("CK_publication_access_permanent");
+            await transaction.RollbackAsync();
+        }
+        var retained = await database.PublicationAccess.AsNoTracking().SingleAsync();
+        await Assert.That(retained.PublicationId).IsEqualTo(PublicationId);
+        await Assert.That(retained.Deleted).IsTrue();
+    }
+
+    [Test]
+    [Arguments("20261106000100_PreservePublicationPolicyIdentity", false)]
+    [Arguments("20261106000100_PreservePublicationPolicyIdentity", true)]
+    [Arguments("20261106140000_AddOrganizationDeletion", false)]
+    [Arguments("20261106140000_AddOrganizationDeletion", true)]
+    public async Task PublicationDatabase_PolicyIdentityRemainsProtectedAtMigrationTarget(string target, bool downgrade)
+    {
+        await using var fixture = await PostgresAccountFixture.CreateAsync(downgrade ? null : target);
+        await SeedAsync(fixture);
+        await InsertAsync(fixture, Edition());
+        var other = Guid.NewGuid();
+        await InsertAsync(fixture, Edition(other));
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var database = Db(scope);
+        database.PublicationAccess.Add(new PublicationAccessState { PublicationId = PublicationId, Deleted = true });
+        await database.SaveChangesAsync();
+        if (downgrade) { await database.GetService<IMigrator>().MigrateAsync(target); }
+
+        var error = await Assert.ThrowsAsync<PostgresException>(async () =>
+            await database.Database.ExecuteSqlInterpolatedAsync($"UPDATE publication_access SET \"PublicationId\" = {other} WHERE \"PublicationId\" = {PublicationId}"));
+        await Assert.That(error!.SqlState).IsEqualTo(PostgresErrorCodes.CheckViolation);
+        await Assert.That(error.ConstraintName).IsEqualTo("CK_publication_access_permanent");
+        var retained = await database.PublicationAccess.AsNoTracking().SingleAsync();
+        await Assert.That(retained.PublicationId).IsEqualTo(PublicationId);
+        await Assert.That(retained.Deleted).IsTrue();
     }
 
     [Test]

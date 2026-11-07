@@ -143,12 +143,16 @@ test("dashboard project cover loads the default blank environment image", async 
     await page.getByRole("heading", { name: "Welcome Back, Admin" }).waitFor();
     await page.getByRole("button", { name: "View All Projects" }).click();
     await page
-      .getByRole("dialog", { name: "All Projects" })
+      .locator('section[aria-label="All Projects"]')
       .getByRole("button", { name: "View details for Source" })
       .waitFor();
     const cover = page.locator(".admin-project-card").first().locator("img.admin-project-cover");
     assert.equal(await cover.count(), 1, "project card has a cover image");
-    assert.match(await cover.getAttribute("src"), /default-project-neutral\.jpg/);
+    assert.match(
+      await cover.getAttribute("src"),
+      /default-project-neutral(?:-[\w-]+)?\.jpg(?:\?|$)/,
+    );
+    await cover.evaluate((image) => image.decode());
     assert.equal(await cover.evaluate((image) => image.complete && image.naturalWidth > 0), true);
     assert.equal(await page.getByText("No cover image").count(), 0);
   } finally {
@@ -161,7 +165,11 @@ test("administrator project workspace has no access management control", async (
     await page.goto(origin + "/home");
     await page.getByRole("heading", { name: "Source", exact: true }).waitFor();
     const cover = page.locator("img.sp-home-project-cover").first();
-    assert.match(await cover.getAttribute("src"), /default-project-neutral\.jpg/);
+    assert.match(
+      await cover.getAttribute("src"),
+      /default-project-neutral(?:-[\w-]+)?\.jpg(?:\?|$)/,
+    );
+    await cover.evaluate((image) => image.decode());
     assert.equal(await cover.evaluate((image) => image.complete && image.naturalWidth > 0), true);
     if (process.env.CHECK_SCREENSHOTS) {
       await mkdir("test-results/admin-navigation", { recursive: true });

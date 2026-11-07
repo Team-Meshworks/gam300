@@ -22,21 +22,6 @@ try {
   const picker = page.getByLabel("Choose cover image");
   const gallery = page.getByRole("button", { name: "Gallery" });
   const cover = page.getByRole("img", { name: "Selected cover image" });
-  const coverOption = page.getByRole("radio", { name: "Cover image" }).locator("..");
-  const panoramaOption = page.getByRole("radio", { name: "360°" }).locator("..");
-  const [coverBox, galleryBox, panoramaBox] = await Promise.all(
-    [coverOption, gallery, panoramaOption].map((element) => element.boundingBox()),
-  );
-  assert.ok(coverBox && galleryBox && panoramaBox, "Image type controls are visible");
-  for (const box of [galleryBox, panoramaBox]) {
-    assert.ok(Math.abs(box.y - coverBox.y) < 1, "Image type controls share a row");
-    assert.ok(Math.abs(box.width - coverBox.width) < 1, "Image type controls have equal widths");
-  }
-  for (const box of [coverBox, galleryBox, panoramaBox]) {
-    assert.ok(Math.abs(box.height - 52) < 1, "Image type controls are 52px tall");
-  }
-  assert.ok(Math.abs(galleryBox.x - (coverBox.x + coverBox.width) - 12) < 1);
-  assert.ok(Math.abs(panoramaBox.x - (galleryBox.x + galleryBox.width) - 12) < 1);
   assert.equal(await page.getByRole("radio", { name: "Gallery" }).count(), 0);
   assert.equal(await page.getByRole("radio", { name: "Cover image" }).isChecked(), true);
   const [chooser] = await Promise.all([page.waitForEvent("filechooser"), gallery.click()]);

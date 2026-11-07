@@ -580,23 +580,50 @@ export function useProjectSession(
   }
 
   async function open() {
-    if (state.current.busy || state.current.switching) {
+    const local = state.current;
+    if (local.busy || local.switching) {
       return;
     }
     if (!canPickProjectFiles()) {
       document.getElementById("project-import")?.click();
       return;
     }
+    // Reserve the operation before the picker yields, so a recovery backup cannot
+    // start between choosing the file and importFile claiming the session.
+    const before = store.getSnapshot();
+    local.busy = true;
+    clearTimeout(local.timer);
+    setOperation("import");
+    let selected: { file: File; handle: ProjectFileHandle } | null = null;
     try {
       const handle = await pickProjectFile();
-
-      // Reading a project never requests permission to overwrite it
-      if (handle) {
-        await importFile(await handle.getFile(), handle);
+      if (handle) selected = { file: await handle.getFile(), handle };
+      if (selected && store.getSnapshot() !== before) {
+        selected = null;
+        setError("The scene changed while choosing the file; try Open again");
       }
     } catch (failure) {
       if (!wasPickerCancelled(failure)) {
         setError("Could not open the project; your scene is unchanged");
+      }
+    } finally {
+      local.busy = false;
+      setOperation(null);
+      if (!selected && local.pending && !local.paused) {
+        local.timer = setTimeout(() => void backup(), RECOVERY_DELAY_MS);
+      }
+    }
+    // Reading a project never requests permission to overwrite it. Claim the
+    // import synchronously after releasing the picker reservation.
+    if (selected) {
+      try {
+        await importFile(selected.file, selected.handle);
+      } finally {
+        // A rejected file can return before importFile schedules the pending backup.
+        if (local.pending && !local.busy && !local.switching && !local.paused) {
+          clearTimeout(local.timer);
+          local.timer = setTimeout(() => void backup(), RECOVERY_DELAY_MS);
+        }
       }
     }
   }

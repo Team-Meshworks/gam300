@@ -306,6 +306,25 @@ try {
     );
     await rolePage.goto(`${origin}/login`);
     const projects = rolePage.getByRole("link", { name: "Go to projects" });
+    for (const state of ["default", "hover"]) {
+      if (state === "hover") await projects.hover();
+      const contrast = await projects.evaluate((link) => {
+        const { color, backgroundColor } = getComputedStyle(link);
+        const luminance = (value) => {
+          const [red, green, blue] = value
+            .match(/\d+/g)
+            .slice(0, 3)
+            .map((channel) => {
+              const srgb = Number(channel) / 255;
+              return srgb <= 0.04045 ? srgb / 12.92 : ((srgb + 0.055) / 1.055) ** 2.4;
+            });
+          return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+        };
+        const levels = [color, backgroundColor].map(luminance).sort((a, b) => a - b);
+        return (levels[1] + 0.05) / (levels[0] + 0.05);
+      });
+      assert.ok(contrast >= 4.5, `Go to projects ${state} contrast is ${contrast.toFixed(2)}:1`);
+    }
     await projects.focus();
     await rolePage.keyboard.press("Enter");
     await rolePage.waitForURL(`${origin}/home`);

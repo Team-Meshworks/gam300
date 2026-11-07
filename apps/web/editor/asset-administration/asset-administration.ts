@@ -44,7 +44,12 @@ export type AssetAdministrationResult<T> =
 export interface AssetAdministrationService {
   load(signal: AbortSignal): Promise<AssetAdministrationResult<AssetAdministrationData>>;
   submit(
-    input: { file: File; kind: CatalogueAsset["kind"]; category: string | null },
+    input: {
+      file: File;
+      kind: CatalogueAsset["kind"];
+      category: string | null;
+      review: { source: string; license: string; reviewNotes: string };
+    },
     signal: AbortSignal,
   ): Promise<AssetAdministrationResult<AssetCandidate>>;
   review(

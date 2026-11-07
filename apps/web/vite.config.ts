@@ -11,7 +11,6 @@ export default defineConfig(({ command, mode }) => {
       ? accountDevelopmentServer({ ...loadEnv(mode, webDirectory, "SPATIA_"), ...process.env })
       : {};
   return {
-    resolve: { alias: { "/visitor": fileURLToPath(new URL("./visitor", import.meta.url)) } },
     server: accountServer,
     preview: accountServer,
     root: fileURLToPath(new URL("./editor", import.meta.url)),
@@ -29,7 +28,7 @@ export default defineConfig(({ command, mode }) => {
               request.url = "/entry.html";
             else if (
               request.url &&
-              /^\/(admin\/dashboard|new-project|classes|review|publish|accounts|assets|spaces)\/?(?:\?|$)/.test(
+              /^\/(admin\/dashboard|new-project|classes|review|publish|organisations|assets|spaces)\/?(?:\?|$)/.test(
                 request.url,
               )
             )
@@ -45,7 +44,7 @@ export default defineConfig(({ command, mode }) => {
               request.url = "/entry.html";
             else if (
               request.url &&
-              /^\/(admin\/dashboard|new-project|classes|review|publish|accounts|assets|spaces)\/?(?:\?|$)/.test(
+              /^\/(admin\/dashboard|new-project|classes|review|publish|organisations|assets|spaces)\/?(?:\?|$)/.test(
                 request.url,
               )
             )
