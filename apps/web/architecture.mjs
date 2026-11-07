@@ -77,7 +77,11 @@ export const modules = {
     paths: ["editor/graphics/", "editor/controls/"],
     uses: ["project", "catalogue", "input", "asset-loading"],
     packages: ["three"],
-    public: ["editor/graphics/scene.ts", "editor/graphics/modeManager.ts"],
+    public: [
+      "editor/graphics/scene.ts",
+      "editor/graphics/modeManager.ts",
+      "editor/graphics/library-previews.ts",
+    ],
   },
   persistence: {
     paths: ["editor/persistence/"],

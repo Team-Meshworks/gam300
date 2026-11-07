@@ -40,6 +40,8 @@ try {
         },
       });
     }
+    if (new URL(request.url()).pathname === "/api/v1/auth/csrf")
+      return route.fulfill({ json: { requestToken: "test-token" } });
     if (new URL(request.url()).pathname === "/api/v1/admin/organizations")
       return route.fulfill({ json: { items: [], nextCursor: null } });
     return route.fulfill({ status: 503 });
@@ -72,7 +74,33 @@ try {
   // Use the mounted screen and authenticated intake adapter, not its local preview.
   mode = "Administrator";
   let assetReads = 0;
-  await page.route("**/api/v1/admin/assets", (route) => {
+  let uploadedMetadata;
+  await page.route(/\/api\/v1\/admin\/assets(?:\?.*)?$/, (route) => {
+    if (route.request().method() === "POST") {
+      uploadedMetadata = JSON.parse(
+        Buffer.from(route.request().headers()["x-spatia-asset-metadata"], "base64").toString(
+          "utf8",
+        ),
+      );
+      assert.equal(route.request().headers()["x-csrf-token"], "test-token");
+      return route.fulfill({
+        status: 201,
+        json: {
+          id: "11111111-1111-4111-8111-111111111111",
+          name: "room",
+          kind: "environment",
+          category: null,
+          status: "approved",
+          hidden: false,
+          deleted: false,
+          removedFromProjects: false,
+          thumbnail: null,
+          validation: [],
+          actions: ["hide", "delete"],
+          ...uploadedMetadata,
+        },
+      });
+    }
     assetReads++;
     return route.fulfill({
       json: {
@@ -101,6 +129,33 @@ try {
   await page.setViewportSize({ width: 1440, height: 900 });
   await screen("spaces", "All 3D Spaces");
   assert.ok(assetReads >= 2, "Both admin libraries load the real service route");
+  for (const [path, title] of [
+    ["spaces", "Upload 3D Space"],
+    ["assets", "Upload 3D Model"],
+  ]) {
+    await page.goto(`${origin}/${path}?add=1`);
+    await page
+      .getByRole("dialog")
+      .getByRole("heading", { name: title, exact: true })
+      .waitFor({ timeout: 3000 });
+  }
+  await page.goto(`${origin}/spaces?add=1`);
+  const upload = page.getByRole("dialog");
+  await upload.getByLabel("Choose asset file").setInputFiles({
+    name: "room.glb",
+    mimeType: "model/gltf-binary",
+    buffer: Buffer.from("fixture"),
+  });
+  await upload.getByLabel("Source or provenance (optional)").fill("Museum archive");
+  await upload.getByLabel("Redistribution licence (optional)").fill("CC BY 4.0");
+  await upload.getByLabel("Content review notes (optional)").fill("Rights checked");
+  await upload.getByRole("button", { name: "Save Changes" }).click();
+  await upload.waitFor({ state: "hidden" });
+  assert.deepEqual(uploadedMetadata, {
+    source: "Museum archive",
+    license: "CC BY 4.0",
+    reviewNotes: "Rights checked",
+  });
 
   // Direct creator and educator routes must not fetch intake data.
   for (const role of ["Creator", "Educator"]) {

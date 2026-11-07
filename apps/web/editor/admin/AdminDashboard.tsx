@@ -8,6 +8,7 @@ import { Field } from "../../shared/ui/Field";
 import { SearchField } from "../../shared/ui/SearchField";
 import { Tabs } from "../../shared/ui/Tabs";
 import type { CatalogueAsset } from "../../shared/asset-runtime/catalogue";
+import { generateLibraryPreviews } from "../graphics/library-previews";
 import type { AccountSession } from "../accounts/account-client";
 import { readServerAssets } from "../persistence/server-assets";
 import { belongsInAssetPicker } from "../ui/asset-selection";
@@ -228,6 +229,7 @@ function AssetLibrary({
 }) {
   const [query, setQuery] = useState("");
   const [catalogue, setCatalogue] = useState<readonly CatalogueAsset[] | null>(null);
+  const [previews, setPreviews] = useState<Record<string, string>>({});
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
@@ -243,6 +245,13 @@ function AssetLibrary({
     );
     return () => controller.abort();
   }, [session.userId, session.developmentAssetsAllowed, attempt]);
+  useEffect(() => {
+    if (!catalogue) return;
+    return generateLibraryPreviews(
+      catalogue.filter((asset) => belongsInAssetPicker(asset, kind === "environment", catalogue)),
+      (id, image) => setPreviews((current) => ({ ...current, [id]: image })),
+    );
+  }, [catalogue, kind]);
   const entries = (catalogue ?? []).filter(
     (asset) =>
       belongsInAssetPicker(asset, kind === "environment", catalogue ?? []) &&
@@ -278,8 +287,12 @@ function AssetLibrary({
       <div className="admin-project-grid">
         {entries.map((asset) => (
           <article className="admin-project-card" key={asset.id}>
-            {asset.thumbnail ? (
-              <img className="admin-asset-cover" src={asset.thumbnail} alt="" />
+            {asset.thumbnail || previews[asset.id] ? (
+              <img
+                className="admin-asset-cover"
+                src={asset.thumbnail ?? previews[asset.id]}
+                alt=""
+              />
             ) : (
               <div className="admin-project-cover">
                 <FontAwesomeIcon icon={faImage} aria-hidden="true" />
@@ -524,16 +537,16 @@ export function AdminDashboard({ session }: { session: AccountSession }) {
                 </div>
                 <div className="admin-entry-actions">
                   <Button onClick={() => setModal(kind)}>{view}</Button>
-                  <Button variant="primary" disabled aria-describedby="admin-upload-note">
+                  <a
+                    className="sp-button sp-button--primary"
+                    href={kind === "environment" ? "/spaces?add=1" : "/assets?add=1"}
+                  >
                     {add}
-                  </Button>
+                  </a>
                 </div>
               </div>
             ))}
           </div>
-          <p className="admin-upload-note" id="admin-upload-note">
-            Asset uploads are not available yet.
-          </p>
         </section>
       </div>
       {(modal === "environment" || modal === "model") && (
