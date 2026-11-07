@@ -21,17 +21,25 @@ internal static class PublicationDeliveryEndpoints
             if (!PublicationWriteEndpoints.TryOrigin(configuration, out var origin))
             { return ApiProblems.Create(context, 503, "publication_unavailable", "Publication is not configured."); }
             var rows = authorized.Snapshot!.IsArchived ? [] : await (from edition in database.Publications.AsNoTracking()
-                join state in database.PublicationAccess.AsNoTracking() on edition.Id equals state.PublicationId
-                where edition.ProjectId == projectId && state.Audience == (int)PublicationAudience.Unlisted
-                    && !state.Hidden && !state.Revoked && !state.Deleted
-                orderby edition.CreatedAt descending, edition.Id descending
-                select new { edition.Id, edition.SourceRevision, edition.CreatedAt }).Take(1).ToArrayAsync(token);
+                                                                     join state in database.PublicationAccess.AsNoTracking() on edition.Id equals state.PublicationId
+                                                                     where edition.ProjectId == projectId && state.Audience == (int)PublicationAudience.Unlisted
+                                                                         && !state.Hidden && !state.Revoked && !state.Deleted
+                                                                     orderby edition.CreatedAt descending, edition.Id descending
+                                                                     select new { edition.Id, edition.SourceRevision, edition.CreatedAt }).Take(1).ToArrayAsync(token);
             var rechecked = await access.ReadAsync(context, projectId, token);
             if (rechecked.Failure is { } changed) { return ProjectHttpResults.FromAccessFailure(context, changed); }
             if (rechecked.Snapshot!.IsArchived) { rows = []; }
             context.Response.Headers.CacheControl = "private, no-store";
-            return Results.Ok(new { items = rows.Select(row => new { publicationId = row.Id, row.SourceRevision,
-                row.CreatedAt, visitorUrl = new Uri(origin!, $"p/{row.Id:D}").AbsoluteUri }) });
+            return Results.Ok(new
+            {
+                items = rows.Select(row => new
+                {
+                    publicationId = row.Id,
+                    row.SourceRevision,
+                    row.CreatedAt,
+                    visitorUrl = new Uri(origin!, $"p/{row.Id:D}").AbsoluteUri
+                })
+            });
         }).RequireAuthorization(SecurityPolicies.FullAccount);
 
         endpoints.MapGet("/publications/{publicationId}/manifest", async (string publicationId,
