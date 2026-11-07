@@ -11,7 +11,8 @@ public sealed class RetainPublicationPolicyIdentity : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder) => ReplaceFunction(migrationBuilder, true);
 
-    protected override void Down(MigrationBuilder migrationBuilder) => ReplaceFunction(migrationBuilder, false);
+    // The preceding migrations also protect identity, including after downgrade
+    protected override void Down(MigrationBuilder migrationBuilder) => ReplaceFunction(migrationBuilder, true);
 
     private static void ReplaceFunction(MigrationBuilder migrationBuilder, bool protectIdentity)
     {
