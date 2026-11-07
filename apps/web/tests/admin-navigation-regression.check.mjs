@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { realpathSync } from "node:fs";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { after, test } from "node:test";
 import { createServer } from "vite";
@@ -19,7 +20,7 @@ const server = process.argv[2]
     });
 await server?.listen();
 const origin = process.argv[2] ?? `http://127.0.0.1:${server.httpServer.address().port}`;
-const browser = await launchBrowser({ target: origin });
+const browser = await launchBrowser({ target: origin, args: ["--enable-unsafe-swiftshader"] });
 after(async () => {
   await browser.close();
   await server?.close();
@@ -33,22 +34,32 @@ const project = {
   archived: false,
   permissions: { canEdit: true, canManage: true, canPublish: false },
 };
-const assets = ["model", "environment"].flatMap((kind) =>
-  Array.from({ length: 4 }, (_, index) => ({
-    id: `${kind}-${index}`,
-    name: `${kind === "model" ? "Asset" : "Space"} ${index + 1}`,
-    kind,
-    category: kind === "model" ? "Objects" : null,
-    status: "approved",
-    hidden: false,
-    deleted: false,
-    removedFromProjects: false,
-    thumbnail: "/home/assets/default-project-neutral.jpg",
-    validation: [],
-    actions: ["hide", "delete"],
-  })),
+const models = {
+  model: await readFile(new URL("../../../assets/delivery/test-crate.glb", import.meta.url)),
+  environment: await readFile(new URL("../../../assets/delivery/test-room.glb", import.meta.url)),
+};
+const assets = ["model", "environment"].flatMap((kind, kindIndex) =>
+  Array.from({ length: 4 }, (_, index) => {
+    const id = `00000000-0000-4000-800${kindIndex}-${String(index + 1).padStart(12, "0")}`;
+    return {
+      id,
+      name: `${kind === "model" ? "Asset" : "Space"} ${index + 1}`,
+      kind,
+      category: kind === "model" ? "Objects" : null,
+      status: "approved",
+      hidden: false,
+      deleted: false,
+      removedFromProjects: false,
+      // Match the server response: no fabricated JPEG covers for actual GLB assets.
+      thumbnail: null,
+      sha256: createHash("sha256").update(models[kind]).digest("hex"),
+      inspectionUrl: `/api/v1/admin/assets/${id}/bytes`,
+      validation: [],
+      actions: ["hide", "delete"],
+    };
+  }),
 );
-async function setup(width = 1440) {
+async function setup(width = 1440, { records = assets, onBytes } = {}) {
   const page = await browser.newPage({ viewport: { width, height: 900 } });
   page.setDefaultTimeout(3000);
   await page.route("**/api/v1/**", (route) => {
@@ -70,7 +81,7 @@ async function setup(width = 1440) {
     if (path === "/api/v1/admin/assets")
       return route.fulfill({
         json: {
-          assets,
+          assets: records,
           policy: {
             extensions: [".glb"],
             maxBytes: 20971520,
@@ -80,9 +91,37 @@ async function setup(width = 1440) {
           },
         },
       });
+    const asset = records.find((record) => record.inspectionUrl === path);
+    if (asset) {
+      if (onBytes) return onBytes(route, asset);
+      return route.fulfill({ contentType: "model/gltf-binary", body: models[asset.kind] });
+    }
     return route.fulfill({ status: 404 });
   });
   return page;
+}
+
+async function checkGeneratedPreviews(page, count = 4) {
+  const images = page.locator('.asset-admin-thumbnail img[src^="data:image/png"]');
+  await images.nth(count - 1).waitFor({ timeout: 15000 });
+  assert.equal(await images.count(), count);
+  for (const image of await images.all()) {
+    assert.equal(
+      await image.evaluate(async (image) => {
+        await image.decode();
+        const canvas = document.createElement("canvas");
+        canvas.width = canvas.height = 320;
+        const context = canvas.getContext("2d");
+        context.drawImage(image, 0, 0);
+        const pixels = context.getImageData(0, 0, 320, 320).data;
+        return (
+          image.naturalWidth === 320 && pixels.some((value, index) => index % 4 === 3 && value > 0)
+        );
+      }),
+      true,
+      "preview contains rendered model pixels, not an empty image",
+    );
+  }
 }
 
 for (const [label, path, heading] of [
@@ -98,6 +137,7 @@ for (const [label, path, heading] of [
       await page.waitForURL(origin + path);
       await page.getByRole("heading", { name: heading, exact: true }).waitFor();
       assert.equal(await page.getByRole("dialog").count(), 0);
+      await checkGeneratedPreviews(page);
       await page.getByRole("button", { name: "Close asset administration" }).click();
       await page.waitForURL(origin + "/admin/dashboard");
     } finally {
@@ -112,10 +152,15 @@ for (const [label, path, heading] of [
         await page.getByRole("heading", { name: heading, exact: true }).waitFor();
         await page.locator(".asset-admin-card").first().waitFor();
         assert.equal(await page.locator(".asset-admin-card").count(), 4);
-        await page
-          .locator(".asset-admin-card .asset-admin-thumbnail img")
-          .first()
-          .evaluate((image) => image.decode());
+        await checkGeneratedPreviews(page);
+        const image = page.locator(".asset-admin-thumbnail img").first();
+        const preview = await image.getAttribute("src");
+        await page.locator(".asset-admin-card button").first().click();
+        assert.equal(
+          await page.locator(".asset-admin-detail-preview img").getAttribute("src"),
+          preview,
+        );
+        await page.keyboard.press("Escape");
         assert.equal(await page.getByRole("navigation", { name: "Workspace screens" }).count(), 0);
         assert.equal(
           await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
@@ -136,6 +181,64 @@ for (const [label, path, heading] of [
     });
   }
 }
+test("generated previews survive search and reopening details without reloading models", async () => {
+  const requested = [];
+  const page = await setup(1440, {
+    onBytes: (route, asset) => {
+      requested.push(asset.id);
+      return route.fulfill({ contentType: "model/gltf-binary", body: models[asset.kind] });
+    },
+  });
+  try {
+    await page.goto(origin + "/assets");
+    await checkGeneratedPreviews(page);
+    assert.equal(requested.length, 4);
+    const search = page.getByRole("searchbox", { name: "Search assets" });
+    await search.fill("Asset 1");
+    await checkGeneratedPreviews(page, 1);
+    await page.locator(".asset-admin-card button").click();
+    await page.locator(".asset-admin-detail-preview img").waitFor();
+    await page.keyboard.press("Escape");
+    await search.fill("");
+    await checkGeneratedPreviews(page);
+    assert.equal(requested.length, 4, "filtering and dialog changes reuse generated previews");
+  } finally {
+    await page.close();
+  }
+});
+
+test("unavailable or malformed GLBs keep their cards usable and do not block later previews", async () => {
+  const page = await setup(1440, {
+    onBytes: (route, asset) => {
+      if (asset.name === "Asset 1") return route.fulfill({ status: 404 });
+      if (asset.name === "Asset 2") return route.fulfill({ body: "not a GLB" });
+      return route.fulfill({ contentType: "model/gltf-binary", body: models[asset.kind] });
+    },
+  });
+  const errors = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  try {
+    await page.goto(origin + "/assets");
+    await checkGeneratedPreviews(page, 2);
+    assert.equal(await page.locator(".asset-admin-placeholder").count(), 2);
+    await page.locator(".asset-admin-card button").first().click();
+    await page.getByRole("dialog").waitFor();
+    assert.equal(
+      await page.locator(".asset-admin-detail-preview .asset-admin-placeholder").count(),
+      1,
+    );
+    await page.keyboard.press("Escape");
+    await page.getByRole("button", { name: "Close asset administration" }).click();
+    await page.waitForURL(origin + "/admin/dashboard");
+    await page.getByText("View Environments", { exact: true }).click();
+    await page.waitForURL(origin + "/spaces");
+    await checkGeneratedPreviews(page);
+    assert.deepEqual(errors, []);
+  } finally {
+    await page.close();
+  }
+});
+
 test("dashboard project cover loads the default blank environment image", async () => {
   const page = await setup();
   try {

@@ -7,6 +7,7 @@ export type AssetCandidate = Readonly<{
   kind: CatalogueAsset["kind"];
   category: string | null;
   inspectionUrl?: string | null;
+  sha256?: string;
   source?: string | null;
   license?: string | null;
   reviewNotes?: string | null;
