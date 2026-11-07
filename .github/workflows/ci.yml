@@ -203,6 +203,7 @@ jobs:
               asset-admin
               reviews
               publication
+              publication-access
               publication-readiness
               visitor
     defaults:

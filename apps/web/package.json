@@ -56,6 +56,7 @@
     "test:blank-project": "node tests/blank-project.check.mjs",
     "test:empty-project-editor": "node tests/empty-project-editor.check.mjs",
     "test:publication": "node tests/publication.check.mjs",
+    "test:publication-access": "node tests/publication-access.check.mjs",
     "test:publication-readiness": "node tests/publication-readiness.check.mjs",
     "test:visitor": "node tests/visitor.check.mjs",
     "test:workspace-assignments": "node tests/workspace-assignments.check.mjs",
