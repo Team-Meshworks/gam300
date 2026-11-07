@@ -42,6 +42,26 @@ it("preserves the receipt and offers recovery when a source is no longer availab
   expect(write).not.toHaveBeenCalled();
 });
 
+it("keeps the receipt when the source cannot be checked temporarily", async () => {
+  const saved = JSON.stringify({
+    receipt: {
+      projectId: "aefea67c-caca-4300-923c-937f1c785578",
+      revision: 0,
+      updatedAt: "2026-11-05T00:00:00Z",
+      archived: false,
+    },
+  });
+  const store = { getItem: () => saved, setItem: vi.fn(), removeItem: vi.fn() };
+  const write = vi.fn();
+  const read = vi.fn(async () => ({ kind: "retry" as const }));
+  expect(await createBlankSource(store, write, "teacher", "Museum", "", read)).toMatchObject({
+    kind: "rejected",
+    message: expect.stringMatching(/could not be checked/i),
+  });
+  expect(store.removeItem).not.toHaveBeenCalled();
+  expect(write).not.toHaveBeenCalled();
+});
+
 it("reuses the confirmed source after an assignment failure instead of creating another", async () => {
   const storage = new Map<string, string>();
   const store = {

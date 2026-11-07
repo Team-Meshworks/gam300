@@ -278,9 +278,12 @@ export function AssignmentCreationScreen({
             "",
             async (actorId, projectId) => {
               try {
-                if ((await assignmentSession()).userId !== actorId) return { kind: "retry" };
+                const before = await assignmentSession();
+                if (before.userId !== actorId || before.mustChangePassword)
+                  return { kind: "retry" };
                 const projects = await workspace.projects(false);
-                if ((await assignmentSession()).userId !== actorId) return { kind: "retry" };
+                const after = await assignmentSession();
+                if (after.userId !== actorId || after.mustChangePassword) return { kind: "retry" };
                 const current = projects.find(
                   (project) => project.projectId.toLowerCase() === projectId.toLowerCase(),
                 );
@@ -359,7 +362,9 @@ export function AssignmentCreationScreen({
               }
             }}
           >
-            {sourceUncertain === "unavailable" ? "Use a new source project" : "I checked my projects"}
+            {sourceUncertain === "unavailable"
+              ? "Use a new source project"
+              : "I checked my projects"}
           </Button>
         </div>
       )}

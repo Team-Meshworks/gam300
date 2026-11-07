@@ -115,7 +115,8 @@ try {
       role === "Creator" &&
       page.waitForResponse((response) => new URL(response.url()).pathname === "/api/v1/assets");
     await page.goto(origin + "/home");
-    if (role === "Creator") await page.getByText("Manage projects and archives", { exact: true }).click();
+    if (role === "Creator")
+      await page.getByText("Manage projects and archives", { exact: true }).click();
     if (assetsLoaded)
       await assetsLoaded.catch(async (error) => {
         throw new Error(`Assets request did not occur: ${await page.locator("body").innerText()}`, {
