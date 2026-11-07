@@ -721,8 +721,13 @@ export function App({ server }: { server?: ServerEditorSession }) {
               }),
             );
           if (unavailable.length > 0 || unsupportedDisplay) {
+            // Keep capability paths tied to the saved data so authors can find the blocked feature
+            const reasons = unavailable.map((issue) => `${issue.capability} at ${issue.path}`);
+            if (unsupportedDisplay) {
+              reasons.push("Place text, images and videos on a supported display");
+            }
             setNotice(
-              "This preview does not support all the scenes and interactions in this project",
+              `This preview does not support all the scenes and interactions in this project: ${reasons.join("; ")}`,
             );
             return;
           }
