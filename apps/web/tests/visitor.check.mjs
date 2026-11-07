@@ -202,3 +202,5 @@ try {
 }
 
 await import("./visitor-rooms.check.mjs");
+
+await import("./visitor-v2.check.mjs");
