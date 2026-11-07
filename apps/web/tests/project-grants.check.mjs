@@ -32,6 +32,7 @@ try {
     const json = (body, status = 200) => route.fulfill({ status, json: body });
     if (path === "/api/v1/auth/session") return json(actor);
     if (path === "/api/v1/auth/csrf") return json({ requestToken: "token" });
+    if (path === "/api/v1/classes") return json({ items: [], nextCursor: null });
     if (path === "/api/v1/projects")
       return json({
         items: [

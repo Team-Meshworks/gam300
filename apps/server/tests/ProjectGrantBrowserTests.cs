@@ -64,8 +64,21 @@ public sealed class ProjectGrantBrowserTests
         await using var verify = fixture.App.Services.CreateAsyncScope();
         var databaseAfter = verify.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         await Assert.That(await databaseAfter.AssetCandidates.CountAsync()).IsEqualTo(0);
-        await Assert.That(await databaseAfter.ClassAssignmentStudents.CountAsync()).IsEqualTo(1);
-        await Assert.That(await databaseAfter.Projects.CountAsync()).IsEqualTo(2);
+        var emptyAssignments = await databaseAfter.ClassAssignments.ToArrayAsync();
+        await Assert.That(emptyAssignments.Length).IsEqualTo(2);
+        var blankAssignment = emptyAssignments.Single(row => row.Title == "Empty source project");
+        var copiedAssignment = emptyAssignments.Single(row => row.Title == "Empty class assignment");
+        await Assert.That(copiedAssignment.SourceProjectId).IsEqualTo(blankAssignment.SourceProjectId);
+        var emptyStudents = await databaseAfter.ClassAssignmentStudents.ToArrayAsync();
+        await Assert.That(emptyStudents.Length).IsEqualTo(2);
+        foreach (var assignment in emptyAssignments)
+        {
+            var assigned = emptyStudents.Single(row => row.AssignmentId == assignment.Id);
+            await Assert.That(assigned.StudentId).IsEqualTo(student);
+            await Assert.That(assigned.ProjectId).IsNotEqualTo(assignment.SourceProjectId);
+        }
+        await Assert.That(emptyStudents[0].ProjectId).IsNotEqualTo(emptyStudents[1].ProjectId);
+        await Assert.That(await databaseAfter.Projects.CountAsync()).IsEqualTo(3);
     }
 
     [Test]
@@ -189,12 +202,24 @@ public sealed class ProjectGrantBrowserTests
         await Assert.That(process.ExitCode).IsEqualTo(0).Because(await output + await error);
         await using var verify = fixture.App.Services.CreateAsyncScope();
         var databaseAfter = verify.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var assignment = await databaseAfter.ClassAssignments.SingleAsync();
-        await Assert.That(assignment.Title).IsEqualTo("Live class assignment");
-        await Assert.That(await databaseAfter.ClassAssignmentStudents.CountAsync()).IsEqualTo(1);
+        var assignments = await databaseAfter.ClassAssignments.ToArrayAsync();
+        await Assert.That(assignments.Length).IsEqualTo(2);
+        var blankAssignment = assignments.Single(row => row.Title == "Live blank project");
+        var assignment = assignments.Single(row => row.Title == "Live class assignment");
+        await Assert.That(assignment.SourceProjectId).IsEqualTo(source);
+        await Assert.That(blankAssignment.SourceProjectId).IsNotEqualTo(source);
+        var assignedStudents = await databaseAfter.ClassAssignmentStudents.ToArrayAsync();
+        await Assert.That(assignedStudents.Length).IsEqualTo(2);
+        foreach (var item in assignments)
+        {
+            var assigned = assignedStudents.Single(row => row.AssignmentId == item.Id);
+            await Assert.That(assigned.StudentId).IsEqualTo(student);
+            await Assert.That(assigned.ProjectId).IsNotEqualTo(item.SourceProjectId);
+        }
+        await Assert.That(assignedStudents[0].ProjectId).IsNotEqualTo(assignedStudents[1].ProjectId);
         var documents = await databaseAfter.Projects.Select(row => row.DocumentJson).ToArrayAsync();
         await Assert.That(documents.Count(json => System.Text.Json.Nodes.JsonNode.Parse(json)!["title"]!.GetValue<string>()
-            == "Live blank project")).IsEqualTo(1);
+            == "Live blank project")).IsEqualTo(2);
     }
 
     [Test]
