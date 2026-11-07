@@ -38,7 +38,7 @@ async function recovery(page, count, position) {
   const deadline = Date.now() + 12000;
   while (Date.now() < deadline) {
     const doc = await page.evaluate(async () => {
-      const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
+      const { loadRecoverySession } = await import("/persistence/recovery-session.ts");
       const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
       const result = await loadRecoverySession(new Map(assets.map((a) => [a.id, a.kind])));
       return result.ok ? result.value?.document : null;

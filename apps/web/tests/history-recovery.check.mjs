@@ -49,7 +49,7 @@ try {
     while (Date.now() < deadline) {
       const ready = await page.evaluate(
         async ({ count, futureCount, hotspots, interactions }) => {
-          const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
+          const { loadRecoverySession } = await import("/persistence/recovery-session.ts");
           const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
           const result = await loadRecoverySession(
             new Map(assets.map((asset) => [asset.id, asset.kind])),
@@ -151,8 +151,9 @@ try {
   await waitForRecovery(2, 1, 1, 1);
 
   const storageResults = await page.evaluate(async () => {
-    const { loadLatestLocalDraft, saveLocalDraft, loadRecoverySession, saveRecoverySession } =
-      await import("/persistence/local-drafts.ts");
+    const { loadLatestLocalDraft, saveLocalDraft } = await import("/persistence/local-drafts.ts");
+    const { loadRecoverySession, saveRecoverySession } =
+      await import("/persistence/recovery-session.ts");
     const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
     const kinds = new Map(assets.map((a) => [a.id, a.kind]));
     // Exercise the active session first, then retain the older draft compatibility checks
@@ -253,7 +254,7 @@ try {
   await compatibilityPage.goto(process.argv[2] ?? "http://127.0.0.1:5173/");
   await compatibilityPage.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   await compatibilityPage.evaluate(async (fixture) => {
-    const { saveRecoverySession } = await import("/persistence/local-drafts.ts");
+    const { saveRecoverySession } = await import("/persistence/recovery-session.ts");
     const { createDocumentStore } = await import("/document-store.ts");
     const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
     const kinds = new Map(assets.map((a) => [a.id, a.kind]));
@@ -292,7 +293,7 @@ try {
       // Await IndexedDB explicitly; an async predicate is itself truthy to DOM polling.
       const ready = await compatibilityPage.evaluate(
         async ({ activeId, name, hotspotCount, ruleCount }) => {
-          const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
+          const { loadRecoverySession } = await import("/persistence/recovery-session.ts");
           const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
           const result = await loadRecoverySession(new Map(assets.map((a) => [a.id, a.kind])));
           if (!result.ok || !result.value?.history?.documents) return false;

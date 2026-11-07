@@ -818,7 +818,7 @@ try {
   const nudgeDeadline = Date.now() + 10000;
   while (Date.now() < nudgeDeadline) {
     nudgeBackedUp = await page.evaluate(async (expectedZ) => {
-      const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
+      const { loadRecoverySession } = await import("/persistence/recovery-session.ts");
       const result = await loadRecoverySession(
         new Map([
           ["test-room-v1", "environment"],
@@ -853,7 +853,7 @@ try {
   const backupDeadline = Date.now() + 10000;
   while (Date.now() < backupDeadline) {
     roomBackedUp = await page.evaluate(async () => {
-      const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
+      const { loadRecoverySession } = await import("/persistence/recovery-session.ts");
       const result = await loadRecoverySession(
         new Map([
           ["test-room-v1", "environment"],

@@ -7,12 +7,13 @@ import { MAX_PROJECT_BYTES } from "../../shared/project/project-limits";
 import { createDocumentStore } from "../document-store";
 import type { RecoveryHistory } from "../recovery-history";
 import {
-  loadLatestLocalDraft,
   loadRecoverySession,
   getOlderRecoveryFiles,
   saveRecoverySession,
   type RecoverySession,
-} from "./local-drafts";
+} from "./recovery-session";
+import { loadLatestLocalDraft } from "./local-drafts";
+import { recoverLegacyLocalDraft } from "./local-recovery-migration";
 import {
   canPickProjectFiles,
   pickProjectFile,
@@ -20,7 +21,6 @@ import {
   projectFilename,
   wasPickerCancelled,
   writeProjectFile,
-  recallProjectFile,
   type ProjectFileHandle,
 } from "./project-files";
 
@@ -44,6 +44,7 @@ export function useProjectSession(
   objectCount: number,
   onReplace: () => void,
   onNotice: (message: string) => void,
+  onOpenFileUpload: () => void,
   onSaved?: () => void,
   enabled = true,
 ) {
@@ -78,7 +79,6 @@ export function useProjectSession(
     fileName: "",
     savedJson: null as string | null,
     pristine: null as ProjectDocument | null,
-    recovered: null as ProjectDocument | null,
     previousProjectId: undefined as string | undefined,
   });
 
@@ -117,7 +117,7 @@ export function useProjectSession(
         },
         local.revision,
         kinds,
-        local.previousProjectId,
+        { previousProjectId: local.previousProjectId },
       );
       if (!result.ok) {
         // Stop retrying a stale session over and over while the student is editing
@@ -130,7 +130,6 @@ export function useProjectSession(
       // Advance only after storage commits so a failed write cannot claim a revision it never saved
       local.revision = result.value;
       local.previousProjectId = document?.projectId;
-      local.recovered = document;
       local.paused = false;
       return true;
     },
@@ -222,31 +221,7 @@ export function useProjectSession(
               setError(legacy.value.recoveryWarning);
               return;
             }
-            const link = await recallProjectFile(legacy.value.projectId).catch(() => null);
-            let baseline: string | null = null;
-            if (link) {
-              const checked = deserializeProject(link.text, kinds);
-              if (checked.ok && checked.value.projectId === legacy.value.document.projectId) {
-                const encoded = serializeProject(checked.value, kinds);
-                if (encoded.ok) baseline = encoded.value;
-              }
-            }
-            recovered = {
-              revision: 0,
-              document: legacy.value.document,
-              fileName: link?.name ?? "",
-              savedJson: baseline,
-              pristine:
-                !link &&
-                legacy.value.document.schemaVersion === 1 &&
-                legacy.value.document.scenes.length === 1 &&
-                legacy.value.document.scenes[0]?.objects.length === 0 &&
-                !legacy.value.document.scenes[0]?.viewpoints?.length,
-              ...(legacy.value.history ? { history: legacy.value.history } : {}),
-              ...(legacy.value.historyWarning
-                ? { historyWarning: legacy.value.historyWarning }
-                : {}),
-            };
+            recovered = await recoverLegacyLocalDraft(legacy.value, kinds);
           }
         }
 
@@ -291,7 +266,6 @@ export function useProjectSession(
         local.file = recovered.fileHandle ?? null;
         local.fileText = recovered.fileText ?? recovered.savedJson ?? "";
         local.pristine = recovered.pristine ? loaded.value : null;
-        local.recovered = loaded.value;
         local.previousProjectId = loaded.value.projectId;
 
         // The baseline restores Saved or Not saved independently of the browser backup
@@ -501,7 +475,6 @@ export function useProjectSession(
       local.fileName = candidate.fileName;
       local.savedJson = candidate.savedJson;
       local.pristine = candidate.pristine ? loaded.value : null;
-      local.recovered = loaded.value;
       local.pending = false;
       setFileName(candidate.fileName);
       setSavedJson(candidate.savedJson);
@@ -584,7 +557,7 @@ export function useProjectSession(
       return;
     }
     if (!canPickProjectFiles()) {
-      document.getElementById("project-import")?.click();
+      onOpenFileUpload();
       return;
     }
     try {

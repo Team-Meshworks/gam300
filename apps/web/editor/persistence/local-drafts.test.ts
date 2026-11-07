@@ -7,13 +7,11 @@ import type { ProjectDocument } from "../../shared/project/project-types";
 import {
   applySaveRecoverySession,
   clearConfirmedServerRecovery,
-  applySaveToLocalDraft,
-  getLatestLocalDraft,
-  getLocalDraft,
   getRecoverySession,
   getOlderRecoveryFiles,
   type RecoverySession,
-} from "./local-drafts";
+} from "./recovery-session";
+import { applySaveToLocalDraft, getLatestLocalDraft, getLocalDraft } from "./local-drafts";
 import type { IDraftDatabase } from "./draft-db";
 import type { ValidationResult } from "../../shared/project/validation-helpers";
 import { createDocumentStore } from "../document-store";
@@ -34,17 +32,8 @@ class FakeDraftDatabase implements IDraftDatabase {
     this.result = result;
   }
 
-  async getDraft(projectId: string): Promise<ValidationResult<unknown>> {
-    this.projectIds.push(projectId);
-    return (
-      this.result ?? {
-        ok: true,
-        value: this.records.get(`drafts:${JSON.stringify(["local", projectId])}`),
-      }
-    );
-  }
-
   async getIndexedDB(): Promise<IDBDatabase> {
+    if (this.result && !this.result.ok) throw new Error(this.result.error.message);
     const database = {
       transaction: (storeNames: string | string[], mode: IDBTransactionMode) => {
         const names = Array.isArray(storeNames) ? storeNames : [storeNames];
@@ -76,7 +65,14 @@ class FakeDraftDatabase implements IDraftDatabase {
             };
             return {
               get: (lookup: IDBValidKey) => {
-                const resultRequest = request(this.records.get(key(lookup)));
+                if (name === "drafts" && Array.isArray(lookup)) {
+                  this.projectIds.push(String(lookup[1]));
+                }
+                const resultRequest = request(
+                  name === "drafts" && this.result?.ok
+                    ? this.result.value
+                    : this.records.get(key(lookup)),
+                );
 
                 // Aborted writes cannot also report a successful transaction completion
                 queueMicrotask(() => {
@@ -454,9 +450,9 @@ describe("account-scoped recovery", () => {
     const aliceSession = { ...recoverySession(), fileName: "alice.json" };
     const bobSession = { ...recoverySession(), fileName: "bob.json" };
     expect(
-      await applySaveRecoverySession(aliceSession, 0, assets, database, undefined, alice),
+      await applySaveRecoverySession(aliceSession, 0, assets, database, { scope: alice }),
     ).toEqual({ ok: true, value: 1 });
-    expect(await applySaveRecoverySession(bobSession, 0, assets, database, undefined, bob)).toEqual(
+    expect(await applySaveRecoverySession(bobSession, 0, assets, database, { scope: bob })).toEqual(
       { ok: true, value: 1 },
     );
     expect(await getRecoverySession(assets, database, alice)).toMatchObject({
@@ -476,7 +472,7 @@ describe("account-scoped recovery", () => {
   it("never falls back to another account or the local session when a scoped backup is missing", async () => {
     const database = new FakeDraftDatabase();
     await applySaveRecoverySession(recoverySession(), 0, assets, database);
-    await applySaveRecoverySession(recoverySession(), 0, assets, database, undefined, alice);
+    await applySaveRecoverySession(recoverySession(), 0, assets, database, { scope: alice });
     // A missing scoped key stays empty even when other accounts have saved drafts
     expect(await getRecoverySession(assets, database, bob)).toEqual({ ok: true, value: null });
     expect(
@@ -500,7 +496,7 @@ describe("account-scoped recovery", () => {
 
     // Writing an account backup must leave the older local record and its conversion decision untouched
     expect(
-      await applySaveRecoverySession(recoverySession(), 0, assets, database, undefined, alice),
+      await applySaveRecoverySession(recoverySession(), 0, assets, database, { scope: alice }),
     ).toEqual({ ok: true, value: 1 });
     expect(database.records.get('session:"active"')).toEqual(original);
     expect(await getOlderRecoveryFiles(assets, database)).toEqual([]);
@@ -539,11 +535,11 @@ describe("account-scoped recovery", () => {
 
   it("rejects stale writes within the same account and project", async () => {
     const database = new FakeDraftDatabase();
-    await applySaveRecoverySession(recoverySession(), 0, assets, database, undefined, alice);
+    await applySaveRecoverySession(recoverySession(), 0, assets, database, { scope: alice });
     // Another tab still thinks this record is at revision zero
     // Its write must leave the committed revision-one copy intact
     expect(
-      await applySaveRecoverySession(recoverySession(), 0, assets, database, undefined, alice),
+      await applySaveRecoverySession(recoverySession(), 0, assets, database, { scope: alice }),
     ).toMatchObject({ ok: false });
     expect(await getRecoverySession(assets, database, alice)).toMatchObject({
       ok: true,
@@ -555,7 +551,7 @@ describe("account-scoped recovery", () => {
     const database = new FakeDraftDatabase();
     const other = { ...alice, projectId: crypto.randomUUID() };
     expect(
-      await applySaveRecoverySession(recoverySession(), 0, assets, database, undefined, other),
+      await applySaveRecoverySession(recoverySession(), 0, assets, database, { scope: other }),
     ).toMatchObject({ ok: false });
     // A corrupted record under the right key still needs its document identity checked
     database.records.set(
@@ -575,7 +571,7 @@ describe("account-scoped recovery", () => {
     const scope = { ...alice, accountId: "" };
     expect(await getRecoverySession(assets, database, scope)).toMatchObject({ ok: false });
     expect(
-      await applySaveRecoverySession(recoverySession(), 0, assets, database, undefined, scope),
+      await applySaveRecoverySession(recoverySession(), 0, assets, database, { scope }),
     ).toMatchObject({ ok: false });
     expect(database.records.size).toBe(0);
   });
@@ -594,7 +590,7 @@ describe("persisted server save identity", () => {
     const database = new FakeDraftDatabase();
     // Keep the exact pending request with its document before a retry can occur
     const session = { ...recoverySession(), serverSave };
-    expect(await applySaveRecoverySession(session, 0, assets, database, undefined, scope)).toEqual({
+    expect(await applySaveRecoverySession(session, 0, assets, database, { scope })).toEqual({
       ok: true,
       value: 1,
     });
@@ -618,14 +614,9 @@ describe("persisted server save identity", () => {
   ])("rejects damaged server metadata without replacing the existing backup", async (damaged) => {
     // Invalid retry metadata must not overwrite the previous valid recovery copy
     const database = new FakeDraftDatabase();
-    await applySaveRecoverySession(
-      { ...recoverySession(), serverSave },
-      0,
-      assets,
-      database,
-      undefined,
+    await applySaveRecoverySession({ ...recoverySession(), serverSave }, 0, assets, database, {
       scope,
-    );
+    });
     expect(validateServerSaveRecovery(damaged, projectId, assets).ok).toBe(false);
     expect(
       await applySaveRecoverySession(
@@ -633,8 +624,7 @@ describe("persisted server save identity", () => {
         1,
         assets,
         database,
-        undefined,
-        scope,
+        { scope },
       ),
     ).toMatchObject({ ok: false });
     expect(await getRecoverySession(assets, database, scope)).toMatchObject({
@@ -647,14 +637,9 @@ describe("persisted server save identity", () => {
     const database = new FakeDraftDatabase();
     const serverSave = { revision: 7, confirmedJson: serializedFixture(), pending: null };
     expect(
-      await applySaveRecoverySession(
-        { ...recoverySession(), serverSave },
-        0,
-        assets,
-        database,
-        undefined,
+      await applySaveRecoverySession({ ...recoverySession(), serverSave }, 0, assets, database, {
         scope,
-      ),
+      }),
     ).toEqual({ ok: true, value: 1 });
     await clearConfirmedServerRecovery(scope, database);
     const reopened = await getRecoverySession(assets, database, scope);
@@ -670,8 +655,7 @@ describe("persisted server save identity", () => {
           reopened.value?.revision ?? 0,
           assets,
           database,
-          undefined,
-          scope,
+          { scope },
         )
       ).ok,
     ).toBe(true);
@@ -684,8 +668,7 @@ describe("persisted server save identity", () => {
       1,
       assets,
       database,
-      undefined,
-      scope,
+      { scope },
     );
     expect(stale.ok).toBe(false);
     expect(await getRecoverySession(assets, database, scope)).toMatchObject({
@@ -704,8 +687,7 @@ describe("persisted server save identity", () => {
       0,
       assets,
       database,
-      undefined,
-      scope,
+      { scope },
     );
     expect(await clearConfirmedServerRecovery(scope, database)).toEqual({ ok: true, value: true });
     expect(await getRecoverySession(assets, database, scope)).toMatchObject({
@@ -713,14 +695,9 @@ describe("persisted server save identity", () => {
       value: { revision: 1, document: null },
     });
     expect([...database.records.values()]).toEqual([{ revision: 1, cleared: true }]);
-    await applySaveRecoverySession(
-      { ...recoverySession(), serverSave },
-      1,
-      assets,
-      database,
-      undefined,
+    await applySaveRecoverySession({ ...recoverySession(), serverSave }, 1, assets, database, {
       scope,
-    );
+    });
     expect(await clearConfirmedServerRecovery(scope, database)).toEqual({ ok: true, value: false });
     await applySaveRecoverySession(
       {
@@ -731,8 +708,7 @@ describe("persisted server save identity", () => {
       2,
       assets,
       database,
-      undefined,
-      scope,
+      { scope },
     );
     expect(await clearConfirmedServerRecovery(scope, database)).toEqual({ ok: true, value: false });
     expect(await getRecoverySession(assets, database, scope)).toMatchObject({
@@ -903,6 +879,79 @@ describe("server project session lifecycle", () => {
     expect(onStatus).toHaveBeenCalledTimes(count);
   });
 
+  it("queues each recovery document with its captured history and storage revision", async () => {
+    const { store, database, write, session } = setup();
+    const originalObjects = store.getSnapshot().objects;
+    const firstObject = originalObjects[0];
+    const secondObject = originalObjects[1];
+    if (!firstObject || !secondObject) throw new Error("Fixture needs two objects");
+    const connect = database.getIndexedDB.bind(database);
+    let releaseOpen!: () => void;
+    const opening = new Promise<void>((resolve) => {
+      releaseOpen = resolve;
+    });
+    vi.spyOn(database, "getIndexedDB").mockImplementationOnce(async () => {
+      await opening;
+      return connect();
+    });
+    const stored = vi.spyOn(database.records, "set");
+    let finishWrite!: (result: ServerDraftResult) => void;
+    write.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishWrite = resolve;
+        }),
+    );
+
+    expect(store.deleteObject(firstObject.id).ok).toBe(true);
+    const firstHistory = store.getRecoveryHistory();
+    const flush = session.flush();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(database.getIndexedDB).toHaveBeenCalledTimes(1);
+    expect(store.deleteObject(secondObject.id).ok).toBe(true);
+    const secondHistory = store.getRecoveryHistory();
+    const checkpoint = session.prepareToLeave("recovery");
+    store.undo();
+
+    releaseOpen();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(await checkpoint).toMatchObject({ ok: false });
+    expect(write).toHaveBeenCalledTimes(1);
+    const records = stored.mock.calls.map(
+      ([, record]) =>
+        record as {
+          revision: number;
+          document: string;
+          history: unknown;
+        },
+    );
+    expect(records).toMatchObject([
+      { revision: 1, history: firstHistory },
+      { revision: 2, history: secondHistory },
+    ]);
+    expect(records.map((record) => JSON.parse(record.document).scenes[0].objects.length)).toEqual([
+      originalObjects.length - 1,
+      originalObjects.length - 2,
+    ]);
+    const recovered = await getRecoverySession(assets, database, { accountId: "alice", projectId });
+    if (!recovered.ok || !recovered.value) throw new Error("Missing queued recovery");
+    const reopened = createDocumentStore([]);
+    expect(
+      reopened.loadProject(
+        JSON.stringify(recovered.value.document),
+        assets,
+        recovered.value.history,
+      ).ok,
+    ).toBe(true);
+    expect(reopened.getSnapshot().canRedo).toBe(false);
+    reopened.undo();
+    expect(reopened.getSnapshot().objects).toHaveLength(originalObjects.length - 1);
+
+    finishWrite({ kind: "failed" });
+    await flush;
+    await session.dispose();
+  });
+
   // Reopened history must belong to the recovered document
   it("saves undo changes and keeps their history with the recovery snapshot", async () => {
     const { store, database, write, session } = setup();
@@ -979,9 +1028,11 @@ describe("server project session lifecycle", () => {
   // Cleanup must not remove another account’s recovery copy
   it("clears the closed session's confirmed cache without touching another account", async () => {
     const { database, session } = setup();
-    await applySaveRecoverySession(recoverySession(), 0, assets, database, undefined, {
-      accountId: "bob",
-      projectId,
+    await applySaveRecoverySession(recoverySession(), 0, assets, database, {
+      scope: {
+        accountId: "bob",
+        projectId,
+      },
     });
     expect(await session.dispose()).toMatchObject({ ok: true, value: true });
     expect(
@@ -1001,9 +1052,9 @@ it("rejects blank account-scoped recovery without replacing the previous backup"
   const database = new FakeDraftDatabase();
   const scope = { accountId: "student-a", projectId: fixture.projectId };
   const empty = { document: null, fileName: "", savedJson: null, pristine: true };
-  expect(
-    await applySaveRecoverySession(empty, 0, assets, database, undefined, scope),
-  ).toMatchObject({ ok: false });
+  expect(await applySaveRecoverySession(empty, 0, assets, database, { scope })).toMatchObject({
+    ok: false,
+  });
   expect(database.records.size).toBe(0);
 
   // Stored data is untrusted too; reject an invalid scoped blank record on read

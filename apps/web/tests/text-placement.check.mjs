@@ -22,7 +22,7 @@ try {
   async function document() {
     return await page.evaluate(async () => {
       const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
-      const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
+      const { loadRecoverySession } = await import("/persistence/recovery-session.ts");
       const result = await loadRecoverySession(
         new Map(assets.map((asset) => [asset.id, asset.kind])),
       );

@@ -34,7 +34,7 @@ async function backup(page, expectedUrl, count) {
   while (Date.now() < deadline) {
     const ready = await page.evaluate(
       async ({ expectedUrl, count }) => {
-        const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
+        const { loadRecoverySession } = await import("/persistence/recovery-session.ts");
         const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
         const result = await loadRecoverySession(new Map(assets.map((a) => [a.id, a.kind])));
         const scene = result.ok && result.value?.document?.scenes[0];
@@ -102,7 +102,7 @@ try {
     await page.getByText("Not saved", { exact: true }).waitFor();
     await backup(page, "", 1); // Wait past the actual two-second debounce, leaving the URL empty.
     const restoredVersion = await page.evaluate(async () => {
-      const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
+      const { loadRecoverySession } = await import("/persistence/recovery-session.ts");
       const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
       return (await loadRecoverySession(new Map(assets.map((a) => [a.id, a.kind])))).value.document
         .schemaVersion;
@@ -138,7 +138,7 @@ try {
     );
     if (version === 2) {
       const mixed = await page.evaluate(async () => {
-        const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
+        const { loadRecoverySession } = await import("/persistence/recovery-session.ts");
         const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
         const result = await loadRecoverySession(new Map(assets.map((a) => [a.id, a.kind])));
         return result.value.document;
