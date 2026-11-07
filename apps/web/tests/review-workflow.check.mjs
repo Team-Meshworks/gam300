@@ -234,7 +234,7 @@ try {
   role = "Creator";
   await open();
   await page
-    .getByRole("region", { name: "Progress reviews" })
+    .getByRole("region", { name: "Reviews" })
     .getByText("Add a map to your draft.")
     .waitFor();
   assert.equal(

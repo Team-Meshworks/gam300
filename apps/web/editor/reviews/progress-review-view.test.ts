@@ -18,6 +18,28 @@ describe("progress feedback presentation", () => {
     expect(markup.indexOf("Earlier feedback")).toBeLessThan(markup.indexOf("Later feedback"));
     expect(markup).toContain("2026-10-18T00:00:00Z");
   });
+  it("combines progress and submission feedback into one chronological history", () => {
+    const markup = renderToStaticMarkup(
+      createElement(ProgressReviewList, {
+        items: [
+          {
+            id: "progress",
+            feedback: "Second review",
+            revision: 2,
+            createdAt: "2026-10-20T09:15:00Z",
+          },
+        ],
+        decisions: [
+          { id: "decision", feedback: "First review", decidedAt: "2026-10-18T09:15:00Z" },
+        ],
+      }),
+    );
+    expect(markup).toContain("First review");
+    expect(markup).toContain("Second review");
+    expect(markup.indexOf("First review")).toBeLessThan(markup.indexOf("Second review"));
+    expect(markup).toContain("2026-10-18T09:15:00Z");
+    expect(markup).toContain("2026-10-20T09:15:00Z");
+  });
 });
 
 it("opens the educator review dialog directly after returning from the editor", () => {
@@ -34,4 +56,26 @@ it("opens the educator review dialog directly after returning from the editor", 
   );
   expect(markup).toContain("aria-labelledby=");
   expect(markup).toContain("Add Reviews");
+});
+
+it("offers saving a review and publishing from the same teacher dialog", () => {
+  const markup = renderToStaticMarkup(
+    createElement(ProgressReviews, {
+      projectId: "11111111-1111-4111-8111-111111111111",
+      revision: 2,
+      actorId: "22222222-2222-4222-8222-222222222222",
+      educator: true,
+      onGuard: () => {},
+      autoOpen: true,
+      publication: {
+        studentId: "33333333-3333-4333-8333-333333333333",
+        studentName: "Aisyah",
+        projectTitle: "Silk Road",
+      },
+    }),
+  );
+  expect(markup).toContain("Silk Road");
+  expect(markup).toContain("Aisyah");
+  expect(markup).toContain("Save review");
+  expect(markup).toContain("Approve and publish");
 });

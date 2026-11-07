@@ -314,6 +314,11 @@ export function TeacherProjects({ session, active }: { session: AccountSession; 
           actorId={session.userId}
           educator
           autoOpen
+          publication={{
+            studentId: reviewProject.studentId,
+            studentName: reviewProject.name,
+            projectTitle: selected.details.title,
+          }}
           onGuard={setGuard}
           onClose={() => {
             setShowReview(false);

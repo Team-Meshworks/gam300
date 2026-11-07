@@ -21,9 +21,17 @@ import {
 } from "./persistence/project-files";
 import { serializeProject } from "../shared/project/project-serialization";
 import type { ServerSaveStatus } from "./persistence/server-autosave";
-import { reviewReturnUrl } from "./projects/progress-navigation";
+import {
+  parseProgressContext,
+  reviewReturnUrl,
+  type ProgressContext,
+} from "./projects/progress-navigation";
+import { readAssignment } from "./projects/assignment-api";
+import { createReviewClient } from "./reviews/review-client";
+import { ProgressReviews } from "./reviews/ProgressReviews";
 
 const accounts = createAccountClient();
+const reviews = createReviewClient();
 type Candidate = {
   opened: OpenedServerProject;
   recovery: RecoverySession | null;
@@ -212,6 +220,11 @@ function ServerProjectSession({
   const busyRef = useRef(false);
   const [attempt, setAttempt] = useState(0);
   const [departure, setDeparture] = useState<"home" | "logout" | "reload" | "publish" | null>(null);
+  const [reviewExit, setReviewExit] = useState<{
+    context: ProgressContext;
+    studentName: string;
+    revision: number;
+  } | null>(null);
 
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => {
@@ -482,6 +495,67 @@ function ServerProjectSession({
     });
   }
 
+  async function startHomeDeparture() {
+    const context = parseProgressContext(new URLSearchParams(location.search), projectId);
+    if (!context || !active) {
+      setDeparture("home");
+      return;
+    }
+    await run(async () => {
+      const identity = await accounts.getSession();
+      if (!identity || identity.userId !== active.accountId || identity.mustChangePassword)
+        throw new Error("Your account changed. Sign in again before reviewing.");
+      if (identity.role !== "Educator") {
+        setDeparture("home");
+        return;
+      }
+      await active.session.flush();
+      if (active.session.getStatus() !== "saved")
+        throw new Error("Save the project before reviewing or publishing it.");
+      const [assignment, project] = await Promise.all([
+        readAssignment(context.classId, context.assignmentId),
+        reviews.project(projectId),
+      ]);
+      const current = await accounts.getSession();
+      const selected = assignment.projects.find(
+        (item) =>
+          item.projectId.toLowerCase() === projectId.toLowerCase() &&
+          item.studentId.toLowerCase() === context.studentId.toLowerCase(),
+      );
+      if (
+        !current ||
+        current.userId !== active.accountId ||
+        current.role !== "Educator" ||
+        current.mustChangePassword ||
+        !selected
+      )
+        throw new Error(
+          "This student project could not be verified. Return to the class and try again.",
+        );
+      setReviewExit({
+        context,
+        studentName: selected.studentName ?? "Student",
+        revision: project.revision,
+      });
+    });
+  }
+
+  function finishReview() {
+    if (!active || !reviewExit) return;
+    const context = reviewExit.context;
+    void run(async () => {
+      const preserved = await active.session.prepareToLeave("save", exportJson);
+      if (!preserved.ok || !preserved.value)
+        throw new Error("The project could not be saved. Keep this tab open and retry.");
+      active.controller.abort();
+      await active.session.dispose();
+      current.current = null;
+      location.assign(
+        `/home?${new URLSearchParams({ classId: context.classId, assignmentId: context.assignmentId })}`,
+      );
+    });
+  }
+
   if (signedOut) return <LoginRedirect />;
   return (
     <div className="server-editor-shell">
@@ -495,9 +569,9 @@ function ServerProjectSession({
             dirty: status !== "saved",
             failed: ["failed", "conflict", "rejected"].includes(status),
             saving: status === "saving",
-            departing: departure !== null,
+            departing: departure !== null || reviewExit !== null,
             save,
-            leave: () => setDeparture("home"),
+            leave: () => void startHomeDeparture(),
             publish: () => setDeparture("publish"),
           }}
         />
@@ -578,6 +652,23 @@ function ServerProjectSession({
           </button>
           {error && <p role="alert">{error}</p>}
         </ChoiceDialog>
+      )}
+      {active && reviewExit && (
+        <ProgressReviews
+          projectId={projectId}
+          revision={reviewExit.revision}
+          actorId={active.accountId}
+          educator
+          autoOpen
+          publication={{
+            studentId: reviewExit.context.studentId,
+            studentName: reviewExit.studentName,
+            projectTitle: active.title,
+          }}
+          onGuard={() => {}}
+          onClose={() => setReviewExit(null)}
+          onSaved={finishReview}
+        />
       )}
       {departure && (
         <ChoiceDialog
