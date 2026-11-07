@@ -1,12 +1,21 @@
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { realpathSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { launchBrowser } from "./browser-security.mjs";
 import { createServer } from "vite";
 
 const server = process.argv[2]
   ? null
-  : await createServer({ server: { host: "127.0.0.1", port: 0 }, logLevel: "error" });
+  : await createServer({
+      cacheDir: "test-results/vite-admin-dashboard",
+      server: {
+        host: "127.0.0.1",
+        port: 0,
+        fs: { allow: [resolve("../.."), realpathSync("node_modules")] },
+      },
+      logLevel: "error",
+    });
 await server?.listen();
 const origin = process.argv[2] ?? `http://127.0.0.1:${server.httpServer.address().port}`;
 const browser = await launchBrowser({ target: origin });
@@ -133,16 +142,14 @@ try {
     .getByRole("link", { name: "Open project workspace", exact: true })
     .click({ timeout: 5000 });
   await page.waitForURL(origin + "/home");
-  await page.getByRole("link", { name: "Accounts", exact: true }).click();
-  await page.waitForURL(origin + "/accounts");
-  await page.getByRole("link", { name: "Projects", exact: true }).click();
-  await page.waitForURL(origin + "/home");
-  await page.getByRole("link", { name: "Dashboard", exact: true }).click();
+  assert.equal(await page.getByRole("navigation", { name: "Workspace" }).count(), 0);
+  await page.getByRole("button", { name: "Back to dashboard" }).click();
   await page.waitForURL(origin + "/admin/dashboard");
-  await page.getByRole("link", { name: "Open project workspace", exact: true }).click();
-  await page.waitForURL(origin + "/home");
-  await page.getByRole("button", { name: "Classes", exact: true }).click();
-  await page.goto(origin + "/admin/dashboard");
+  await page.getByRole("link", { name: "View Organisations", exact: true }).click();
+  await page.waitForURL(origin + "/accounts");
+  assert.equal(await page.getByRole("navigation", { name: "Workspace screens" }).count(), 0);
+  await page.getByRole("link", { name: "Back to dashboard" }).click();
+  await page.waitForURL(origin + "/admin/dashboard");
   await page
     .getByRole("button", { name: `View details for ${projects[0].title}`, exact: true })
     .waitFor();
@@ -217,17 +224,15 @@ try {
   await dialog.waitFor({ state: "detached" });
   assert.equal(creations, 1);
   await page.getByRole("status").filter({ hasText: "New School was created." }).waitFor();
-  for (const [button, title] of [
-    ["View Environments", "3D Environments"],
-    ["View Library", "Physical Asset Library"],
+  for (const [button, path, title] of [
+    ["View Environments", "/spaces", "All 3D Spaces"],
+    ["View Library", "/assets", "All Assets"],
   ]) {
-    await page.getByRole("button", { name: button, exact: true }).click();
-    const library = page.getByRole("dialog", { name: title, exact: true });
-    assert.ok((await library.locator(".admin-project-card").count()) > 0);
-    await library.getByLabel("Search assets").fill("no matching asset");
-    await page.getByRole("status").filter({ hasText: "No matching assets." }).waitFor();
-    await library.getByRole("button", { name: "Close", exact: true }).click();
-    await library.waitFor({ state: "detached" });
+    await page.getByText(button, { exact: true }).click();
+    await page.waitForURL(origin + path);
+    await page.getByRole("heading", { name: title, exact: true }).waitFor();
+    await page.getByRole("button", { name: "Close asset administration" }).click();
+    await page.waitForURL(origin + "/admin/dashboard");
   }
   await page.getByRole("link", { name: "View Organisations", exact: true }).click();
   await page.getByRole("button", { name: "Open Ridgeview Secondary School" }).waitFor();

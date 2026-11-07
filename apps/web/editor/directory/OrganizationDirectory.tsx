@@ -3,6 +3,7 @@ import { Avatar } from "../../shared/ui/Avatar";
 import { Button } from "../../shared/ui/Button";
 import { SearchField } from "../../shared/ui/SearchField";
 import { playUiSound } from "../audio/ui-sounds";
+import defaultProjectImage from "../home/assets/default-project-neutral.jpg";
 import { AccountList, type AccountActions } from "./AccountList";
 import type { DirectoryOrganization } from "./directory";
 import "./directory.css";
@@ -75,7 +76,7 @@ export function OrganizationDirectory({
             {projectError && <p role="alert">{projectError}</p>}
             {organization.projects.map((project) => (
               <article className="sp-directory-project" key={project.id}>
-                {project.cover && <img src={project.cover} alt="" />}
+                <img src={project.cover || defaultProjectImage} alt="" />
                 <div>
                   <h4>{project.title}</h4>
                   <p className="sp-hint">

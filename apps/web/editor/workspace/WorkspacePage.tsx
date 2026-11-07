@@ -137,12 +137,18 @@ function OtherWorkspacePage() {
       name={session.displayName}
       initials={session.displayName.slice(0, 2).toUpperCase()}
       homeHref={review ? "/home" : fallback}
-      variant={dashboard ? "dashboard" : undefined}
+      variant={
+        dashboard
+          ? "dashboard"
+          : screen?.id === "assets" || screen?.id === "spaces"
+            ? "asset-administration"
+            : undefined
+      }
       onSignOut={() => void signOut()}
     >
       {review ? (
         <WorkspaceNavigation role={session.role} current="reviews" />
-      ) : !dashboard ? (
+      ) : !dashboard && session.role !== "Administrator" ? (
         <nav className="sp-workspace-links" aria-label="Workspace screens">
           <a href="/home">Projects</a>
           {permitted
@@ -159,6 +165,13 @@ function OtherWorkspacePage() {
         </nav>
       ) : null}
       {logoutError && <p role="alert">{logoutError}</p>}
+      {session.role === "Administrator" && screen?.id === "accounts" && (
+        <div className="sp-admin-return">
+          <a href="/admin/dashboard" aria-label="Back to dashboard">
+            ×
+          </a>
+        </div>
+      )}
       {!screen || !permitted.includes(screen) ? (
         <h1>Access denied</h1>
       ) : (

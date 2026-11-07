@@ -21,11 +21,11 @@ export function WorkspaceShell({
   onSignOut?: () => void;
   onHome?: () => void;
   homeHref?: string;
-  variant?: "dashboard" | undefined;
+  variant?: "dashboard" | "asset-administration" | undefined;
   children: ReactNode;
 }) {
   return (
-    <div className={`sp-shell${variant === "dashboard" ? " sp-shell--dashboard" : ""}`}>
+    <div className={`sp-shell${variant ? ` sp-shell--${variant}` : ""}`}>
       <img
         className="sp-wash sp-wash--left"
         src={variant === "dashboard" ? adminWashLeft : washLeft}

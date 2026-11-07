@@ -60,6 +60,7 @@
     "test:accounts": "node tests/account-directory.check.mjs",
     "test:organization-deletion": "node tests/organization-deletion.check.mjs",
     "test:admin-dashboard": "node tests/admin-dashboard.check.mjs",
+    "test:admin-navigation": "node tests/admin-navigation-regression.check.mjs",
     "test:sounds": "node tests/ui-sounds.check.mjs",
     "browser:install": "playwright install --with-deps chrome",
     "browser:verify": "node tests/verify-browser.mjs",

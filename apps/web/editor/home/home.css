@@ -67,6 +67,13 @@
   background: white;
   box-shadow: 0 8px 24px rgb(41 39 35 / 0.025);
 }
+.sp-home-project-cover {
+  width: 136px;
+  height: 92px;
+  flex: 0 0 auto;
+  border-radius: 12px;
+  object-fit: cover;
+}
 .sp-home-project-copy {
   display: grid;
   gap: 14px;

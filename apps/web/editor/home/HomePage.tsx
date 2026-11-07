@@ -163,14 +163,27 @@ function HomeWorkspace({
       onHome={() => navigate(() => setView("projects"))}
       onSignOut={() => navigate(onSignOut)}
     >
-      <WorkspaceNavigation
-        role={session.role}
-        current={view}
-        locked={navigation.locked}
-        onNavigate={navigate}
-        onProjects={() => setView("projects")}
-        onClasses={() => setView("classes")}
-      />
+      {session.role === "Administrator" ? (
+        <div className="sp-admin-return">
+          <button
+            type="button"
+            aria-label="Back to dashboard"
+            disabled={navigation.locked}
+            onClick={() => navigate(() => location.assign("/admin/dashboard"))}
+          >
+            ×
+          </button>
+        </div>
+      ) : (
+        <WorkspaceNavigation
+          role={session.role}
+          current={view}
+          locked={navigation.locked}
+          onNavigate={navigate}
+          onProjects={() => setView("projects")}
+          onClasses={() => setView("classes")}
+        />
+      )}
       {view === "projects" ? (
         <ProjectHome
           session={session}

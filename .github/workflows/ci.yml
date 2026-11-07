@@ -203,6 +203,8 @@ jobs:
             script: test:organization-deletion
           - name: admin-dashboard
             script: test:admin-dashboard
+          - name: admin-navigation
+            script: test:admin-navigation
           - name: sounds
             script: test:sounds
           - name: entry

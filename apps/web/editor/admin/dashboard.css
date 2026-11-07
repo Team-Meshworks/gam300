@@ -81,18 +81,11 @@
   min-width: 0;
 }
 .admin-project-cover {
+  display: block;
+  width: 100%;
   height: 126px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  align-items: center;
-  justify-content: center;
+  object-fit: cover;
   background: #eee9e2;
-  color: #82756a;
-  font-size: 12px;
-}
-.admin-project-cover svg {
-  font-size: 26px;
 }
 .admin-project-info {
   padding: 20px;

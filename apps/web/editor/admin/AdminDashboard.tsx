@@ -1,7 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faImage } from "@fortawesome/free-solid-svg-icons";
-import { assets } from "virtual:asset-catalogue";
 import { Button } from "../../shared/ui/Button";
 import { Dialog } from "../../shared/ui/Dialog";
 import { Field } from "../../shared/ui/Field";
@@ -11,6 +8,7 @@ import { createDashboardClient, type DashboardProject } from "./dashboard-client
 import organisationIcon from "./assets/organisation.svg";
 import environmentIcon from "./assets/environment.svg";
 import libraryIcon from "./assets/library.svg";
+import defaultProjectImage from "../home/assets/default-project-neutral.jpg";
 import "./dashboard.css";
 
 type Client = ReturnType<typeof createDashboardClient>;
@@ -28,10 +26,7 @@ function ProjectCards({
     <div className="admin-project-grid">
       {projects.map((project) => (
         <article className="admin-project-card" key={project.projectId}>
-          <div className="admin-project-cover">
-            <FontAwesomeIcon icon={faImage} aria-hidden="true" />
-            <span>No cover image</span>
-          </div>
+          <img className="admin-project-cover" src={defaultProjectImage} alt="" />
           <div className="admin-project-info">
             <div className="admin-project-title">
               <h3>{project.title}</h3>
@@ -187,49 +182,6 @@ function ProjectsDialog({ client, onClose }: { client: Client; onClose: () => vo
   );
 }
 
-function AssetLibrary({ kind, onClose }: { kind: "environment" | "model"; onClose: () => void }) {
-  const [query, setQuery] = useState("");
-  const entries = assets.filter(
-    (asset) => asset.kind === kind && asset.name.toLowerCase().includes(query.trim().toLowerCase()),
-  );
-  return (
-    <Dialog
-      title={kind === "environment" ? "3D Environments" : "Physical Asset Library"}
-      variant="wide"
-      onClose={onClose}
-    >
-      <p>Assets currently available to creators.</p>
-      <SearchField
-        label="Search assets"
-        value={query}
-        onChange={setQuery}
-        placeholder="Search by name"
-      />
-      <div className="admin-project-grid">
-        {entries.map((asset) => (
-          <article className="admin-project-card" key={asset.id}>
-            {asset.thumbnail ? (
-              <img className="admin-asset-cover" src={asset.thumbnail} alt="" />
-            ) : (
-              <div className="admin-project-cover">
-                <FontAwesomeIcon icon={faImage} aria-hidden="true" />
-                <span>No preview image</span>
-              </div>
-            )}
-            <div className="admin-project-info">
-              <h3>{asset.name}</h3>
-              <p className="sp-hint">
-                {asset.category ?? (kind === "environment" ? "Environment" : "3D model")}
-              </p>
-            </div>
-          </article>
-        ))}
-      </div>
-      {!entries.length && <p role="status">No matching assets.</p>}
-    </Dialog>
-  );
-}
-
 function AddOrganization({
   client,
   onClose,
@@ -299,9 +251,7 @@ export function AdminDashboard({ session }: { session: AccountSession }) {
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
   const [notice, setNotice] = useState("");
-  const [modal, setModal] = useState<"projects" | "organisation" | "environment" | "model" | null>(
-    null,
-  );
+  const [modal, setModal] = useState<"projects" | "organisation" | null>(null);
   const [detail, setDetail] = useState<DashboardProject | null>(null);
   useEffect(() => {
     let disposed = false;
@@ -441,7 +391,9 @@ export function AdminDashboard({ session }: { session: AccountSession }) {
                   </div>
                 </div>
                 <div className="admin-entry-actions">
-                  <Button onClick={() => setModal(kind)}>{view}</Button>
+                  <a className="sp-button" href={kind === "environment" ? "/spaces" : "/assets"}>
+                    {view}
+                  </a>
                   <Button variant="primary" disabled aria-describedby="admin-upload-note">
                     {add}
                   </Button>
@@ -455,9 +407,6 @@ export function AdminDashboard({ session }: { session: AccountSession }) {
         </section>
       </div>
       {modal === "projects" && <ProjectsDialog client={client} onClose={() => setModal(null)} />}
-      {(modal === "environment" || modal === "model") && (
-        <AssetLibrary kind={modal} onClose={() => setModal(null)} />
-      )}
       {modal === "organisation" && (
         <AddOrganization
           client={client}

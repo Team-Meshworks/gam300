@@ -145,8 +145,7 @@ try {
     console.log("Legacy class and assignment routes use the guarded workspace");
   } else if (process.argv[3] === "admin") {
     account = { ...session, role: "Administrator", orgId: null };
-    await page.goto(origin + "/home");
-    await page.getByRole("button", { name: "Classes", exact: true }).click();
+    await page.goto(origin + "/classes");
     await page.getByRole("button", { name: "New class" }).click();
     await page.getByLabel("Class name").fill("First class");
     await page
@@ -155,14 +154,8 @@ try {
     assert.equal(await page.getByRole("option", { name: "Inactive school" }).count(), 0);
     await page.getByRole("button", { name: "Confirm", exact: true }).click();
     await page.getByText("Class change confirmed.").waitFor();
-    assert.equal(
-      await page.getByRole("link", { name: "Accounts" }).getAttribute("href"),
-      "/accounts",
-    );
-    assert.equal(
-      await page.getByRole("link", { name: "Dashboard" }).getAttribute("href"),
-      "/admin/dashboard",
-    );
+    assert.equal(await page.getByRole("navigation", { name: "Workspace" }).count(), 0);
+    assert.equal(await page.getByRole("button", { name: "Back to dashboard" }).count(), 1);
     for (const width of [1440, 390]) {
       await page.setViewportSize({ width, height: 1000 });
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));

@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readFileSync, realpathSync } from "node:fs";
+import { resolve } from "node:path";
 import { createServer } from "vite";
 import { launchBrowser } from "./browser-security.mjs";
 
@@ -8,7 +10,29 @@ assert.ok(
     process.env.SPATIA_TEST_CREATOR &&
     process.env.SPATIA_TEST_PROJECT,
 );
-const server = await createServer({ server: { port: 0 }, logLevel: "silent" });
+const fixtureScript = resolve("tests/project-grants-fixture.tsx").replaceAll("\\", "/");
+const fixtureHtml = readFileSync("tests/project-grants-fixture.html", "utf8").replace(
+  "/project-grants-fixture.tsx",
+  `/@fs/${fixtureScript}`,
+);
+const server = await createServer({
+  cacheDir: "test-results/vite-project-grants-real",
+  server: { port: 0, fs: { allow: [resolve("../.."), realpathSync("node_modules")] } },
+  plugins: [
+    {
+      name: "project-grants-test-fixture",
+      configureServer(vite) {
+        vite.middlewares.use(async (request, response, next) => {
+          if (new URL(request.url, "http://localhost").pathname !== "/project-grants-fixture.html")
+            return next();
+          response.setHeader("Content-Type", "text/html");
+          response.end(await vite.transformIndexHtml(request.url, fixtureHtml));
+        });
+      },
+    },
+  ],
+  logLevel: "silent",
+});
 await server.listen();
 const origin = `https://127.0.0.1:${server.httpServer.address().port}`;
 let browser;
@@ -16,6 +40,10 @@ try {
   browser = await launchBrowser({ target: origin });
   const context = await browser.newContext({ ignoreHTTPSErrors: true });
   const page = await context.newPage();
+  page.on("pageerror", (error) => console.error("Browser error:", error.message));
+  page.on("response", (response) => {
+    if (response.status() >= 400) console.error("HTTP error:", response.status(), response.url());
+  });
   page.setDefaultTimeout(15000);
   await page.goto(`${origin}/login`);
   await page.getByLabel("Username", { exact: true }).fill(process.env.SPATIA_TEST_ADMIN);
@@ -24,14 +52,12 @@ try {
   await page.waitForURL(`${origin}/admin/dashboard`);
   await page.getByRole("link", { name: "Open project workspace", exact: true }).click();
   await page.waitForURL(`${origin}/home`);
-  await page.getByRole("link", { name: "Accounts", exact: true }).click();
-  await page.waitForURL(`${origin}/accounts`);
-  await page.getByRole("link", { name: "Projects", exact: true }).click();
-  await page.waitForURL(`${origin}/home`);
-  await page.getByRole("link", { name: "Dashboard", exact: true }).click();
+  assert.equal(await page.getByRole("button", { name: "Manage access" }).count(), 0);
+  await page.getByRole("button", { name: "Back to dashboard" }).click();
   await page.waitForURL(`${origin}/admin/dashboard`);
-  await page.getByRole("link", { name: "Open project workspace", exact: true }).click();
-  await page.waitForURL(`${origin}/home`);
+  await page.goto(
+    `${origin}/project-grants-fixture.html?projectId=${encodeURIComponent(process.env.SPATIA_TEST_PROJECT)}`,
+  );
   await page.getByRole("heading", { name: "Grant browser project", exact: true }).waitFor();
   await page.getByRole("button", { name: "Manage access", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Project access" });
