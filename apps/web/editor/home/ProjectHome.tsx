@@ -20,11 +20,13 @@ export function ProjectHome({
   active,
   onOpenProject,
   onNavigationStateChange,
+  showCreation = true,
 }: {
   session: AccountSession;
   active: boolean;
   onOpenProject: (projectId: string) => void;
   onNavigationStateChange?: (state: FormNavigationState) => void;
+  showCreation?: boolean;
 }) {
   const [tab, setTab] = useState<"active" | "archived">("active");
   const [search, setSearch] = useState("");
@@ -115,11 +117,13 @@ export function ProjectHome({
           <h1>{session.role === "Administrator" ? "All Projects" : "Projects"}</h1>
           <p>Explore your projects and continue your classroom’s work.</p>
         </div>
-        <ProjectCreation
-          session={session}
-          active={active}
-          onNavigationStateChange={onNavigationStateChange}
-        />
+        {showCreation && (
+          <ProjectCreation
+            session={session}
+            active={active}
+            onNavigationStateChange={onNavigationStateChange}
+          />
+        )}
       </div>
       <div className="sp-home-toolbar">
         <Tabs
@@ -143,7 +147,9 @@ export function ProjectHome({
         />
         <Button onClick={() => setVersion((value) => value + 1)}>Refresh</Button>
       </div>
-      <p className="sp-hint sp-home-notice">New projects require an approved 3D space.</p>
+      {showCreation && (
+        <p className="sp-hint sp-home-notice">New projects require an approved 3D space.</p>
+      )}
       {message && !action && (
         <p role="status" className="sp-home-notice">
           {message}

@@ -6,6 +6,125 @@
   margin: 100px auto;
   padding: 24px;
 }
+.sp-teacher-welcome {
+  margin: 30px 0 32px;
+}
+.sp-teacher-welcome h1 {
+  font-size: 32px;
+  margin-bottom: 10px;
+}
+.sp-teacher-welcome p,
+.sp-teacher-heading p,
+.sp-teacher-detail-head p {
+  color: #77716a;
+}
+.sp-teacher-new-project,
+.sp-teacher-projects,
+.sp-teacher-detail {
+  background: rgb(255 253 251 / 78%);
+  border-radius: 50px;
+  padding: 50px;
+  min-height: 660px;
+}
+.sp-teacher-heading,
+.sp-teacher-detail-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 24px;
+}
+.sp-teacher-heading .sp-search {
+  width: min(58%, 730px);
+}
+.sp-teacher-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 40px 0 20px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid #e7e2dc;
+}
+.sp-teacher-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.sp-teacher-card {
+  overflow: hidden;
+  border-radius: 16px;
+  background: #fffdfb;
+}
+.sp-teacher-card-cover {
+  height: 126px;
+  background: #e7e2dc;
+}
+.sp-teacher-card > div:last-child {
+  padding: 20px;
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+}
+.sp-teacher-card p {
+  color: #77716a;
+  font-size: 13px;
+}
+.sp-teacher-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 540fr) minmax(0, 588fr);
+  gap: 50px;
+  margin-top: 30px;
+}
+.sp-teacher-info {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+.sp-teacher-info h2 {
+  margin-bottom: 8px;
+}
+.sp-teacher-value {
+  border: 1px solid #e7e2dc;
+  background: #fffdfb;
+  border-radius: 12px;
+  padding: 16px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.sp-teacher-students {
+  border: 1px solid #e7e2dc;
+  background: #fffdfb;
+  border-radius: 16px;
+  overflow: hidden;
+}
+.sp-teacher-students > .sp-search,
+.sp-teacher-students > h3 {
+  margin: 20px;
+}
+.sp-teacher-student {
+  border-top: 1px solid #e7e2dc;
+  display: grid;
+  gap: 14px;
+  justify-items: start;
+  padding: 20px;
+}
+@media (max-width: 760px) {
+  .sp-teacher-new-project,
+  .sp-teacher-projects,
+  .sp-teacher-detail {
+    padding: 24px;
+    border-radius: 24px;
+  }
+  .sp-teacher-grid,
+  .sp-teacher-columns {
+    grid-template-columns: 1fr;
+  }
+  .sp-teacher-heading {
+    flex-direction: column;
+  }
+  .sp-teacher-heading .sp-search {
+    width: 100%;
+  }
+}
 .sp-grant-options,
 .sp-grant-person {
   display: grid;

@@ -3,6 +3,8 @@ import { Button } from "../../shared/ui/Button";
 import { Field } from "../../shared/ui/Field";
 import { NewProjectForm, type FormNavigationState } from "./NewProjectForm";
 import { formatLocalDeadline, localDeadlineToUnixSeconds } from "./deadline";
+import { createWorkspaceClient, isId, isRecord } from "../home/workspace-api";
+import { blankSourceKey, createBlankSource } from "./blank-source";
 import "./assignment-screens.css";
 import {
   assignmentChoices,
@@ -25,6 +27,7 @@ import type {
 
 type Setup = { session: AssignmentSession; classes: ProjectClass[]; projects: SourceProject[] };
 const pendingKey = (userId: string) => `spatia.assignment.pending:${userId}`;
+const workspace = createWorkspaceClient();
 
 function loadPending(userId: string): PendingAssignment | null {
   const raw = localStorage.getItem(pendingKey(userId));
@@ -67,15 +70,19 @@ export function AssignmentCreationScreen({
   onCancel,
   expectedUserId,
   onNavigationStateChange,
+  createBlank = false,
 }: {
   onOpenProject?: (projectId: string) => void;
   onCancel?: () => void;
   expectedUserId?: string;
   onNavigationStateChange?: (state: FormNavigationState) => void;
+  createBlank?: boolean;
 }) {
   const [setup, setSetup] = useState<Setup | null>(null);
   const [message, setMessage] = useState("");
   const [sourceId, setSourceId] = useState("");
+  const [environmentId, setEnvironmentId] = useState("");
+  const [sourceUncertain, setSourceUncertain] = useState(false);
   const [students, setStudents] = useState<EligibleStudent[]>([]);
   const [rosterMessage, setRosterMessage] = useState("");
   const [choicesMessage, setChoicesMessage] = useState("");
@@ -106,9 +113,24 @@ export function AssignmentCreationScreen({
           return;
         }
         const saved = loadPending(session.userId);
+        if (createBlank && !saved) {
+          const stored = localStorage.getItem(blankSourceKey(session.userId));
+          if (stored) {
+            const parsed: unknown = JSON.parse(stored);
+            setSourceUncertain(!isRecord(parsed) || !isRecord(parsed.receipt));
+          }
+        }
         const choices = saved
           ? { classes: [], projects: [] }
           : await assignmentChoices(controller.signal);
+        if (createBlank && !saved) {
+          const assets = await workspace.read("/api/v1/assets", controller.signal);
+          if (!Array.isArray(assets)) throw new Error("Invalid assets");
+          const environment = assets.find(
+            (asset: unknown) => isRecord(asset) && asset.kind === "environment" && isId(asset.id),
+          );
+          if (isRecord(environment) && isId(environment.id)) setEnvironmentId(environment.id);
+        }
         if (controller.signal.aborted) return;
         setSetup({ session, ...choices });
         setPending(saved);
@@ -122,7 +144,7 @@ export function AssignmentCreationScreen({
       controller.abort();
       rosterController.current?.abort();
     };
-  }, [expectedUserId]);
+  }, [expectedUserId, createBlank]);
   useLayoutEffect(() => {
     onNavigationStateChange?.({
       dirty: !confirmed && !pending && (formNavigation.dirty || !!sourceId),
@@ -208,8 +230,13 @@ export function AssignmentCreationScreen({
         const result = await submitAssignment(request, previouslyUncertain);
         if (result.kind === "confirmed") {
           localStorage.removeItem(pendingKey(request.actorId));
+          if (createBlank) localStorage.removeItem(blankSourceKey(request.actorId));
           setPending(null);
           setConfirmed({ classId: request.classId, assignmentId: result.assignmentId });
+          if (createBlank)
+            location.assign(
+              `/home?${new URLSearchParams({ classId: request.classId, assignmentId: result.assignmentId })}`,
+            );
           changeClass(request.classId);
           return { kind: "created", projectId: result.projects[0]!.projectId };
         }
@@ -239,11 +266,40 @@ export function AssignmentCreationScreen({
         kind: "rejected",
         message: "Resolve the earlier assignment before creating another.",
       };
-    const source = setup.projects.find((project) => project.projectId === sourceId);
-    if (!source) return { kind: "rejected", message: "Choose an existing source project." };
     const dueAtUnixSeconds = localDeadlineToUnixSeconds(draft.dueDate);
     if (dueAtUnixSeconds === null)
       return { kind: "rejected", message: "Choose a valid local due date and time." };
+    let source = setup.projects.find((project) => project.projectId === sourceId);
+    if (createBlank) {
+      if (!environmentId)
+        return {
+          kind: "rejected",
+          message: "No approved 3D space is available for a new project.",
+        };
+      if (!navigator.locks)
+        return {
+          kind: "rejected",
+          message: "This browser cannot safely coordinate project creation.",
+        };
+      const result = await navigator.locks.request(
+        `spatia.assignment.source:${setup.session.userId}`,
+        () =>
+          createBlankSource(
+            localStorage,
+            workspace.write,
+            setup.session.userId,
+            draft.title.trim(),
+            environmentId,
+          ),
+      );
+      if (result.kind === "unknown") {
+        setSourceUncertain(true);
+        return { kind: "unknown" };
+      }
+      if (result.kind === "rejected") return result;
+      source = { projectId: result.projectId, title: draft.title, revision: result.revision };
+    }
+    if (!source) return { kind: "rejected", message: "Choose an existing source project." };
     const request: PendingAssignment = {
       actorId: setup.session.userId,
       classId: draft.classId,
@@ -273,6 +329,28 @@ export function AssignmentCreationScreen({
     );
   return (
     <section aria-label="Create class assignment" className="sp-assignment-create">
+      {sourceUncertain && !pending && (
+        <div role="alert" className="sp-creation-notice">
+          <p>
+            Creating the source project could not be confirmed. Check your projects before trying
+            again to avoid creating a duplicate.
+          </p>
+          <Button
+            onClick={() => {
+              try {
+                localStorage.removeItem(blankSourceKey(setup.session.userId));
+                location.assign("/home");
+              } catch {
+                setMessage(
+                  "The recovery warning could not be cleared. Your project may still exist.",
+                );
+              }
+            }}
+          >
+            I checked my projects
+          </Button>
+        </div>
+      )}
       {pending && (
         <div role="status" className="sp-creation-notice">
           <p>
@@ -290,34 +368,41 @@ export function AssignmentCreationScreen({
       )}
       {!restoredPending && (
         <>
-          <Field id="assignment-source" label="Source project" required>
-            <select
-              id="assignment-source"
-              value={sourceId}
-              disabled={!!pending}
-              onChange={(event) => setSourceId(event.target.value)}
-            >
-              <option value="">Choose a manageable project</option>
-              {setup.projects.map((project) => (
-                <option key={project.projectId} value={project.projectId}>
-                  {project.title}
-                </option>
-              ))}
-            </select>
-          </Field>
-          {!setup.projects.length && (
-            <p role="status">No manageable source projects are available.</p>
+          {!createBlank && (
+            <>
+              <Field id="assignment-source" label="Source project" required>
+                <select
+                  id="assignment-source"
+                  value={sourceId}
+                  disabled={!!pending}
+                  onChange={(event) => setSourceId(event.target.value)}
+                >
+                  <option value="">Choose a manageable project</option>
+                  {setup.projects.map((project) => (
+                    <option key={project.projectId} value={project.projectId}>
+                      {project.title}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              {!setup.projects.length && (
+                <p role="status">No manageable source projects are available.</p>
+              )}
+              {!setup.classes.length && <p role="status">No classes are available.</p>}
+              <Button
+                disabled={!!pending}
+                onClick={() => {
+                  void refreshChoices();
+                }}
+              >
+                Refresh projects and classes
+              </Button>
+              {choicesMessage && <p role="status">{choicesMessage}</p>}
+            </>
           )}
-          {!setup.classes.length && <p role="status">No classes are available.</p>}
-          <Button
-            disabled={!!pending}
-            onClick={() => {
-              void refreshChoices();
-            }}
-          >
-            Refresh projects and classes
-          </Button>
-          {choicesMessage && <p role="status">{choicesMessage}</p>}
+          {createBlank && !environmentId && (
+            <p role="status">No approved 3D space is available for a new project.</p>
+          )}
           {rosterMessage && <p role="status">{rosterMessage}</p>}
           <NewProjectForm
             organizationName="Selected class's organisation"

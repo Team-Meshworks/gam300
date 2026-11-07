@@ -21,6 +21,7 @@ import {
 } from "./persistence/project-files";
 import { serializeProject } from "../shared/project/project-serialization";
 import type { ServerSaveStatus } from "./persistence/server-autosave";
+import { reviewReturnUrl } from "./projects/progress-navigation";
 
 const accounts = createAccountClient();
 type Candidate = {
@@ -449,7 +450,7 @@ function ServerProjectSession({
           ? "/login"
           : departure === "publish"
             ? `/publish?projectId=${encodeURIComponent(projectId)}`
-            : "/home",
+            : reviewReturnUrl(new URLSearchParams(location.search)),
       );
     });
   }
