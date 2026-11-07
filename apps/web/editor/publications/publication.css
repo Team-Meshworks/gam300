@@ -63,6 +63,30 @@
   max-width: 100%;
   height: auto;
 }
+.sp-publication-access {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid var(--sp-border);
+  border-radius: 16px;
+  background: var(--sp-surface);
+}
+.sp-publication-access label {
+  width: 100%;
+}
+.sp-publication-access input {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  margin-top: 8px;
+  padding: 12px;
+  border: 1px solid var(--sp-border);
+  border-radius: 8px;
+  color: var(--sp-ink);
+  background: var(--sp-surface);
+}
 .sp-publication section[aria-label="Publication prerequisites"] {
   display: grid;
   justify-items: start;

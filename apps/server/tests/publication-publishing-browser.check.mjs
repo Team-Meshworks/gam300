@@ -241,6 +241,67 @@ try {
     .waitFor();
   assert.equal((await read(outsider, snapshot)).status, 404);
   assert.equal((await read(outsider, assetPath)).status, 404);
+  // Publish a second edition so revocation cannot affect the first edition's restart checks.
+  await educator.reload();
+  await educator.getByRole("heading", { name: "Publish project" }).waitFor();
+  await educator.getByRole("checkbox", { name: data.viewer, exact: true }).check();
+  await educator.getByRole("checkbox", { name: /confirm.*saved revision/i }).check();
+  const secondPost = educator.waitForRequest(
+    (item) =>
+      item.method() === "POST" &&
+      new URL(item.url()).pathname === `/api/v1/projects/${data.projectId}/publications`,
+  );
+  await educator.getByRole("button", { name: "Publish", exact: true }).click();
+  const secondRequest = (await secondPost).postDataJSON();
+  assert.notEqual(secondRequest.publicationId, request.publicationId);
+  assert.deepEqual(secondRequest.intent, { audience: "Authenticated", viewerIds: [data.viewerId] });
+  await educator.getByRole("link", { name: "Open publication" }).waitFor();
+  const secondLink = educator.getByRole("link", { name: "Open publication" });
+  const secondQr = educator.getByRole("img", { name: /QR code/i });
+  assert.equal(await secondLink.isVisible(), true);
+  assert.equal(await secondQr.isVisible(), true);
+  const secondSnapshot = `/api/v1/publications/${secondRequest.publicationId}`;
+  assert.equal(
+    (await read(viewer, secondSnapshot)).status,
+    200,
+    "Named viewer can read the second edition before revocation",
+  );
+
+  const accessSection = educator.getByRole("region", { name: "Manage publication access" });
+  await accessSection
+    .getByRole("textbox", { name: "Publication link or ID" })
+    .fill(secondRequest.publicationId);
+  await accessSection.getByRole("button", { name: "Check access" }).click();
+  await accessSection.getByText("Access active", { exact: true }).waitFor();
+  await accessSection.getByRole("button", { name: "Revoke access" }).click();
+  const confirmation = accessSection.getByRole("group", { name: "Confirm revocation" });
+  const revoked = educator.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      new URL(response.url()).pathname === `${secondSnapshot}/access`,
+  );
+  await confirmation.getByRole("button", { name: "Confirm revoke" }).click();
+  const revokeResponse = await revoked;
+  assert.equal(revokeResponse.status(), 204);
+  assert.deepEqual(revokeResponse.request().postDataJSON(), {
+    audience: "Authenticated",
+    viewerIds: [data.viewerId],
+    action: "revoke",
+  });
+  await accessSection.getByText("Access revoked", { exact: true }).waitFor();
+  assert.equal(await secondLink.count(), 0, "Revocation removes the second edition's share link");
+  assert.equal(await secondQr.count(), 0, "Revocation removes the second edition's QR code");
+  assert.equal(
+    (await read(viewer, secondSnapshot)).status,
+    404,
+    "Named viewer cannot read the revoked edition",
+  );
+  assert.equal((await read(viewer, `${secondSnapshot}/assets/${data.assetId}/bytes`)).status, 404);
+  assert.equal(
+    (await read(viewer, snapshot)).status,
+    200,
+    "Revocation leaves the first edition available",
+  );
   console.log(
     "browser publication API passed: UI publication, named viewer login and rendered exhibition, outsider denial and asset integrity",
   );
