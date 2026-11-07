@@ -168,7 +168,7 @@ function HomeWorkspace({
       onHome={() => navigate(() => location.assign("/home"))}
       onSignOut={() => navigate(onSignOut)}
     >
-      {session.role === "Administrator" ? (
+      {session.role === "Administrator" && (
         <div className="sp-admin-return">
           <button
             type="button"
@@ -179,7 +179,8 @@ function HomeWorkspace({
             ×
           </button>
         </div>
-      ) : !(session.role === "Educator" && view === "assignment" && newProject) ? (
+      )}
+      {!(session.role === "Educator" && view === "assignment" && newProject) && (
         <WorkspaceNavigation
           role={session.role}
           current={view}
@@ -188,7 +189,7 @@ function HomeWorkspace({
           onProjects={() => setView("projects")}
           onClasses={() => setView("classes")}
         />
-      ) : null}
+      )}
       {view === "projects" ? (
         session.role === "Educator" ? (
           <TeacherProjects session={session} active={active} />

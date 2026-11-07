@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync, realpathSync } from "node:fs";
+import { realpathSync } from "node:fs";
 import { resolve } from "node:path";
 import { createServer } from "vite";
 import { launchBrowser } from "./browser-security.mjs";
@@ -10,27 +10,9 @@ assert.ok(
     process.env.SPATIA_TEST_CREATOR &&
     process.env.SPATIA_TEST_PROJECT,
 );
-const fixtureScript = resolve("tests/project-grants-fixture.tsx").replaceAll("\\", "/");
-const fixtureHtml = readFileSync("tests/project-grants-fixture.html", "utf8").replace(
-  "/project-grants-fixture.tsx",
-  `/@fs/${fixtureScript}`,
-);
 const server = await createServer({
   cacheDir: "test-results/vite-project-grants-real",
   server: { port: 0, fs: { allow: [resolve("../.."), realpathSync("node_modules")] } },
-  plugins: [
-    {
-      name: "project-grants-test-fixture",
-      configureServer(vite) {
-        vite.middlewares.use(async (request, response, next) => {
-          if (new URL(request.url, "http://localhost").pathname !== "/project-grants-fixture.html")
-            return next();
-          response.setHeader("Content-Type", "text/html");
-          response.end(await vite.transformIndexHtml(request.url, fixtureHtml));
-        });
-      },
-    },
-  ],
   logLevel: "silent",
 });
 await server.listen();
@@ -56,14 +38,13 @@ try {
   await page.waitForURL(`${origin}/admin/dashboard`);
   await page.getByRole("link", { name: "Open project workspace", exact: true }).click();
   await page.waitForURL(`${origin}/home`);
-  assert.equal(await page.getByRole("button", { name: "Manage access" }).count(), 0);
-  await page.getByRole("button", { name: "Back to dashboard" }).click();
-  await page.waitForURL(`${origin}/admin/dashboard`);
-  await page.goto(
-    `${origin}/project-grants-fixture.html?projectId=${encodeURIComponent(process.env.SPATIA_TEST_PROJECT)}`,
-  );
-  await page.getByRole("heading", { name: "Grant browser project", exact: true }).waitFor();
-  await page.getByRole("button", { name: "Manage access", exact: true }).click();
+  await page.getByRole("button", { name: "Classes", exact: true }).click();
+  await page.getByRole("heading", { name: "Classes", exact: true }).waitFor();
+  await page.getByRole("button", { name: "Projects", exact: true }).click();
+  const project = page.getByRole("listitem").filter({
+    has: page.getByRole("heading", { name: "Grant browser project", exact: true }),
+  });
+  await project.getByRole("button", { name: "Manage access", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Project access" });
   await dialog.waitFor();
   const publish = dialog.getByRole("checkbox", {
@@ -74,7 +55,7 @@ try {
   await publish.check();
   await dialog.getByRole("button", { name: "Save access", exact: true }).click();
   await dialog.waitFor({ state: "detached" });
-  await page.getByRole("button", { name: "Manage access", exact: true }).click();
+  await project.getByRole("button", { name: "Manage access", exact: true }).click();
   assert.equal(await publish.isChecked(), true);
   const creatorContext = await browser.newContext({ ignoreHTTPSErrors: true });
   const creatorPage = await creatorContext.newPage();

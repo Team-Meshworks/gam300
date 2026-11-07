@@ -159,7 +159,7 @@ test("dashboard project cover loads the default blank environment image", async 
     await page.close();
   }
 });
-test("administrator project workspace has no access management control", async () => {
+test("administrator project workspace exposes access management control", async () => {
   const page = await setup();
   try {
     await page.goto(origin + "/home");
@@ -181,7 +181,7 @@ test("administrator project workspace has no access management control", async (
         });
       }
     }
-    assert.equal(await page.getByRole("button", { name: "Manage access" }).count(), 0);
+    assert.equal(await page.getByRole("button", { name: "Manage access" }).count(), 1);
   } finally {
     await page.close();
   }

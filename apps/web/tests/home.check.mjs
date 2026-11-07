@@ -173,7 +173,7 @@ try {
     assert.equal(await page.getByRole("option", { name: "Inactive school" }).count(), 0);
     await page.getByRole("button", { name: "Confirm", exact: true }).click();
     await page.getByText("Class change confirmed.").waitFor();
-    assert.equal(await page.getByRole("navigation", { name: "Workspace" }).count(), 0);
+    assert.equal(await page.getByRole("navigation", { name: "Workspace" }).count(), 1);
     assert.equal(await page.getByRole("button", { name: "Back to dashboard" }).count(), 1);
     for (const width of [1440, 390]) {
       await page.setViewportSize({ width, height: 1000 });

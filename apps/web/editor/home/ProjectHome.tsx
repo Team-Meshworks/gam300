@@ -8,6 +8,7 @@ import { PageState } from "../../shared/ui/PageState";
 import { SearchField } from "../../shared/ui/SearchField";
 import { Tabs } from "../../shared/ui/Tabs";
 import { createWorkspaceClient, projectReceipt, type ProjectSummary } from "./workspace-api";
+import { ProjectGrantEditor } from "./ProjectGrantEditor";
 import { ProjectCreation } from "./ProjectCreation";
 import type { FormNavigationState } from "../projects/NewProjectForm";
 import defaultProjectImage from "./assets/default-project-neutral.jpg";
@@ -43,6 +44,7 @@ export function ProjectHome({
   const [title, setTitle] = useState("");
   const [phase, setPhase] = useState<"ready" | "pending" | "unknown">("ready");
   const [message, setMessage] = useState("");
+  const [grantProject, setGrantProject] = useState<ProjectSummary | null>(null);
   const inFlight = useRef(false);
   useEffect(() => {
     if (phase !== "pending") return;
@@ -224,6 +226,13 @@ export function ProjectHome({
                         {project.archived ? "Reopen" : "Archive"}
                       </Button>
                     )}
+                    {session.role === "Administrator" &&
+                      project.permissions.canManage &&
+                      !project.archived && (
+                        <Button variant="quiet" onClick={() => setGrantProject(project)}>
+                          Manage access
+                        </Button>
+                      )}
                   </div>
                 </div>
                 <span className="sp-badge">
@@ -243,6 +252,19 @@ export function ProjectHome({
           </ul>
         )}
       </div>
+      {grantProject && (
+        <ProjectGrantEditor
+          session={session}
+          project={grantProject}
+          active={active}
+          onClose={() => setGrantProject(null)}
+          onSaved={() => {
+            setGrantProject(null);
+            setMessage("Project access saved.");
+            setVersion((value) => value + 1);
+          }}
+        />
+      )}
       {action && active && (
         <Dialog
           title={
