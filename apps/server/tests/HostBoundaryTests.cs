@@ -107,11 +107,11 @@ public sealed class HostBoundaryTests
             "GET /api/v1/admin/assets/", "GET /api/v1/admin/assets/{id:guid}/bytes", "POST /api/v1/admin/assets/", "POST /api/v1/admin/assets/{id:guid}/approve",
             "POST /api/v1/admin/assets/{id:guid}/availability", "GET /api/v1/assets", "GET /api/v1/assets/{id:guid}/bytes",
             "GET /api/v1/projects/{projectId:guid}/assets/{id:guid}/bytes", "GET /api/v1/projects/{projectId:guid}/assets", "GET /api/v1/projects/{projectId:guid}/publication-links",
-            "GET /api/v1/publications/{publicationId}", "GET /api/v1/publications/{publicationId}/manifest", "GET /api/v1/publications/{publicationId}/assets/{assetId}/bytes",
+            "GET,HEAD /api/v1/publications/{publicationId}", "GET /api/v1/publications/{publicationId}/manifest", "GET,HEAD /api/v1/publications/{publicationId}/assets/{assetId}/bytes",
             "GET /api/v1/publications/{publicationId:guid}/access", "POST /api/v1/publications/{publicationId:guid}/access",
             "POST /api/v1/projects/{id:guid}/publications", "GET /api/v1/projects/{id:guid}/publication-readiness", "GET /api/v1/projects/{id:guid}/publication-viewers" };
         await Assert.That(string.Join(";", endpoints.Select(endpoint =>
-            endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Single() + " " + endpoint.RoutePattern.RawText).Order()))
+            string.Join(",", endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods) + " " + endpoint.RoutePattern.RawText).Order()))
             .IsEqualTo(string.Join(";", expected.Order()));
         foreach (var endpoint in endpoints)
         {
@@ -122,7 +122,7 @@ public sealed class HostBoundaryTests
             var project = path.StartsWith("/api/v1/projects", StringComparison.Ordinal)
                 || path.StartsWith("/api/v1/assets", StringComparison.Ordinal);
             var publication = path.StartsWith("/api/v1/publications", StringComparison.Ordinal);
-            var publicationRead = publication && !path.EndsWith("/access", StringComparison.Ordinal) && endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Single() == "GET";
+            var publicationRead = publication && !path.EndsWith("/access", StringComparison.Ordinal) && endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.All(method => method is "GET" or "HEAD");
             var assetBytes = path.EndsWith("/bytes", StringComparison.Ordinal);
             var upload = path == "/api/v1/admin/assets/" && endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Single() == "POST";
             var classroom = path.StartsWith("/api/v1/classes", StringComparison.Ordinal);
@@ -133,7 +133,7 @@ public sealed class HostBoundaryTests
                     data.Policy == (path.StartsWith("/api/v1/admin/", StringComparison.Ordinal)
                         ? SecurityPolicies.Administrator : project || classroom || publication ? SecurityPolicies.FullAccount : SecurityPolicies.CurrentAccount))).IsTrue();
             }
-            var method = endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Single();
+            var method = endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.First();
             if (assetBytes || (!csrf && !session && method != "GET"
                 && (!(project || classroom) || method is "POST" or "PATCH" || (classroom && method is "PUT" or "DELETE"))))
             {

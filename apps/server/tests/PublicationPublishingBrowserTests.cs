@@ -58,9 +58,12 @@ public sealed class PublicationPublishingBrowserTests
         await File.WriteAllTextAsync(Path.Combine(artifacts, "scrum85-publication-browser.txt"), evidence);
         await using var scope = fixture.App.Services.CreateAsyncScope();
         var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        await Assert.That(await database.Publications.CountAsync()).IsEqualTo(1);
-        await Assert.That(await database.PublicationAccess.CountAsync()).IsEqualTo(1);
-        var edition = await database.Publications.SingleAsync();
+        await Assert.That(await database.Publications.CountAsync()).IsEqualTo(2);
+        await Assert.That(await database.PublicationAccess.CountAsync()).IsEqualTo(2);
+        var access = await database.PublicationAccess.AsNoTracking().ToArrayAsync();
+        await Assert.That(access.Count(row => row.Revoked)).IsEqualTo(1);
+        var retainedId = access.Single(row => !row.Revoked).PublicationId;
+        var edition = await database.Publications.SingleAsync(row => row.Id == retainedId);
         await fixture.App.StopAsync();
         await using var restarted = await fixture.CreateSiblingAsync(_ => { });
         await restarted.SignInAsync(data.OtherStudent);

@@ -33,7 +33,7 @@ public sealed class AssetAdministrationService(ApplicationDbContext database, As
             }).Take(1000).ToArrayAsync(token)).Select(Record).ToArray();
 
     public async Task<AssetAdministrationRecord?> SubmitAsync(string name, string kind, string? category,
-        byte[] bytes, Guid actor, CancellationToken token)
+        byte[] bytes, Guid actor, AssetReviewRequest? metadata, CancellationToken token)
     {
 
         // Repeat input bounds here because the service can be called outside the HTTP upload handler
@@ -49,7 +49,7 @@ public sealed class AssetAdministrationService(ApplicationDbContext database, As
             return null;
         }
 
-        // Keep technically valid candidates pending until a separate human review confirms their use
+        // A valid administrator upload is immediately selectable; failed validation stays private
         // Fingerprint the exact uploaded bytes once and retain that version through later retirement
         var asset = new AssetCandidate
         {
@@ -59,7 +59,12 @@ public sealed class AssetAdministrationService(ApplicationDbContext database, As
             Category = category,
             Sha256 = Convert.ToHexStringLower(SHA256.HashData(bytes)),
             Bytes = bytes,
-            Status = validation.Value.Valid ? "pending" : "invalid",
+            Status = validation.Value.Valid ? "approved" : "invalid",
+            Hidden = !validation.Value.Valid,
+            ReviewedBy = validation.Value.Valid ? actor : null,
+            Source = validation.Value.Valid ? metadata?.Source ?? "" : null,
+            License = validation.Value.Valid ? metadata?.License ?? "" : null,
+            ReviewNotes = validation.Value.Valid ? string.IsNullOrEmpty(metadata?.ReviewNotes) ? "Made available automatically after technical validation." : metadata.ReviewNotes : null,
             ValidationJson = JsonSerializer.Serialize(validation.Value.Messages),
             SubmittedBy = actor,
             CreatedAt = DateTimeOffset.UtcNow,

@@ -12,6 +12,7 @@ type Props = {
   session: { userId: string; role: string; mustChangePassword: boolean } | null;
   service: AssetAdministrationService;
   kind: AssetCandidate["kind"];
+  initialUpload?: boolean;
   onClose: () => void;
 };
 type Notice = { kind: "denied" | "unavailable" | "invalid"; message: string };
@@ -36,7 +37,7 @@ export function AssetAdministration(props: Props) {
   return <AssetAdministrationScreen key={`${props.session.userId}:${props.kind}`} {...props} />;
 }
 
-function AssetAdministrationScreen({ service, kind, onClose }: Props) {
+function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Props) {
   // Keep returned records, view filters and the unsent form separate so retries preserve user input
   const [data, setData] = useState<AssetAdministrationData | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
@@ -44,7 +45,7 @@ function AssetAdministrationScreen({ service, kind, onClose }: Props) {
   const [reload, setReload] = useState(0);
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState("all");
-  const [selection, setSelection] = useState<Selection>(null);
+  const [selection, setSelection] = useState<Selection>(initialUpload ? { kind: "upload" } : null);
   const [file, setFile] = useState<File | null>(null);
   const [category, setCategory] = useState("");
   const [busy, setBusy] = useState(false);
@@ -67,6 +68,7 @@ function AssetAdministrationScreen({ service, kind, onClose }: Props) {
         }
         if (result.ok) {
           setData(result.value);
+          if (initialUpload) setCategory(result.value.policy.categories[kind]?.[0] ?? "");
           setNotice(null);
         } else {
           setNotice(result);
@@ -86,7 +88,7 @@ function AssetAdministrationScreen({ service, kind, onClose }: Props) {
       controller.abort();
       operation.current?.abort();
     };
-  }, [service, reload]);
+  }, [service, reload, initialUpload, kind]);
 
   // Native modal behavior keeps keyboard focus inside the dialog and restores its opener on close
   useEffect(() => {
@@ -126,6 +128,7 @@ function AssetAdministrationScreen({ service, kind, onClose }: Props) {
   // Start each upload with fresh fields while keeping the loaded catalogue intact
   function openUpload() {
     setFile(null);
+    setReview({ source: "", license: "", reviewNotes: "" });
     setCategory(data?.policy.categories[kind]?.[0] ?? "");
     setNotice(null);
     setConfirmation(false);
@@ -175,7 +178,7 @@ function AssetAdministrationScreen({ service, kind, onClose }: Props) {
     }
     await mutate(async (signal) =>
       service.submit(
-        { file, kind: kind, category: categoryChoices === null ? null : category },
+        { file, kind: kind, category: categoryChoices === null ? null : category, review },
         signal,
       ),
     );
@@ -519,7 +522,27 @@ function AssetAdministrationScreen({ service, kind, onClose }: Props) {
           {!confirmation && (
             <>
               {selection?.kind === "upload" ? (
-                <label className="asset-admin-upload">
+                <label
+                  className="asset-admin-upload"
+                  onDragOver={(event) => {
+                    event.preventDefault();
+                    event.dataTransfer.dropEffect = busy ? "none" : "copy";
+                  }}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    if (busy) return;
+                    const files = event.dataTransfer.files;
+                    if (files.length !== 1) {
+                      setNotice({ kind: "invalid", message: "Drop one GLB file at a time." });
+                      return;
+                    }
+                    const chosen = files.item(0);
+                    if (chosen) {
+                      setFile(chosen);
+                      setNotice(null);
+                    }
+                  }}
+                >
                   <span className="asset-admin-upload-symbol" aria-hidden="true">
                     <svg
                       width="54"
@@ -534,7 +557,7 @@ function AssetAdministrationScreen({ service, kind, onClose }: Props) {
                       <path d="M27 37V7m-11 11L27 7l11 11M9 34v12c0 3 2 4 5 4h26c3 0 5-1 5-4V34" />
                     </svg>
                   </span>
-                  <span>{file?.name ?? "Choose a file"}</span>
+                  <span>{file?.name ?? "Drop a GLB file here or choose a file"}</span>
                   <span className="asset-admin-help">
                     {data
                       ? `${data.policy.extensions.join(" / ")} files, up to ${Math.floor(data.policy.maxBytes / 1024 / 1024)} MB`
@@ -558,6 +581,30 @@ function AssetAdministrationScreen({ service, kind, onClose }: Props) {
                 selected && <div className="asset-admin-detail-preview">{thumbnail(selected)}</div>
               )}
               {selection?.kind === "detail" && <h3>Details</h3>}
+              {selection?.kind === "upload" && (
+                <fieldset className="asset-admin-review" disabled={busy}>
+                  <legend>Asset details</legend>
+                  <p>These optional details are saved when the file is validated.</p>
+                  {(
+                    [
+                      ["source", "Source or provenance"],
+                      ["license", "Redistribution licence"],
+                      ["reviewNotes", "Content review notes"],
+                    ] as const
+                  ).map(([field, label]) => (
+                    <label className="asset-admin-select" key={field}>
+                      <span>{label} (optional)</span>
+                      <input
+                        value={review[field]}
+                        maxLength={2000}
+                        onChange={(event) =>
+                          setReview((current) => ({ ...current, [field]: event.target.value }))
+                        }
+                      />
+                    </label>
+                  ))}
+                </fieldset>
+              )}
               {(selection?.kind === "detail" || kind === "model") && (
                 <div
                   className={`asset-admin-fields${selection?.kind === "upload" ? " asset-admin-fields-upload" : ""}`}
@@ -733,7 +780,11 @@ function AssetAdministrationScreen({ service, kind, onClose }: Props) {
               </a>
             )}
             {selection?.kind === "upload" ? (
-              <button className="asset-admin-primary" disabled={busy || !file} type="submit">
+              <button
+                className="asset-admin-primary"
+                disabled={busy || !file || !data?.policy.canSubmit}
+                type="submit"
+              >
                 {busy ? "Submitting…" : "Save Changes"}
               </button>
             ) : (

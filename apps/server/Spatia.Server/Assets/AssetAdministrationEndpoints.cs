@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 using Spatia.Server.Persistence;
 using Spatia.Server.Hosting;
 using Spatia.Server.Security;
@@ -81,6 +82,20 @@ public static class AssetAdministrationEndpoints
 
     private static async Task<IResult> UploadAsync(HttpContext context, AssetAdministrationService service, CancellationToken token)
     {
+        AssetReviewRequest? metadata = null;
+        if (context.Request.Headers.TryGetValue("X-Spatia-Asset-Metadata", out var encoded))
+        {
+            if (encoded.Count != 1 || encoded[0] is not { Length: <= 32768 } value) { return Invalid(context); }
+            try
+            {
+                metadata = JsonSerializer.Deserialize<AssetReviewRequest>(Convert.FromBase64String(value), new JsonSerializerOptions(JsonSerializerDefaults.Web));
+            }
+            catch (Exception exception) when (exception is FormatException or JsonException)
+            {
+                return Invalid(context);
+            }
+            if (metadata is null || !ValidReview(metadata)) { return Invalid(context); }
+        }
         var query = context.Request.Query;
         if (query.Any(pair => pair.Value.Count != 1 || pair.Key is not ("name" or "kind" or "category"))
             || context.Request.ContentType != "model/gltf-binary")
@@ -116,7 +131,7 @@ public static class AssetAdministrationEndpoints
         var actor = context.Features.Get<CurrentAccount>()!.UserId;
 
         // Validation or storage unavailability leaves no approved entry and must remain retryable to the client
-        var record = await service.SubmitAsync(name, kind, category, buffer.ToArray(), actor, token);
+        var record = await service.SubmitAsync(name, kind, category, buffer.ToArray(), actor, metadata, token);
         return record is null ? ApiProblems.Create(context, 503, "asset_intake_unavailable", "Asset validation or storage is unavailable")
             : Results.Json(record, statusCode: StatusCodes.Status201Created);
     }

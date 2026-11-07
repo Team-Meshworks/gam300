@@ -112,7 +112,7 @@ try {
   const committedUrl = `https://spatia.example/p/${requests[0].publicationId}`;
   assert.equal(await link.getAttribute("href"), committedUrl);
   assert.equal(
-    await page.getByRole("textbox", { name: "Publication link" }).inputValue(),
+    await page.getByRole("textbox", { name: "Publication link", exact: true }).inputValue(),
     committedUrl,
   );
   assert.equal(
@@ -123,7 +123,7 @@ try {
   if (process.env.SPATIA_SHARE_SCREENSHOT) {
     await page.screenshot({ path: process.env.SPATIA_SHARE_SCREENSHOT, fullPage: true });
   }
-  const linkField = page.getByRole("textbox", { name: "Publication link" });
+  const linkField = page.getByRole("textbox", { name: "Publication link", exact: true });
   const copyButton = page.getByRole("button", { name: "Copy link" });
   await linkField.focus();
   await page.keyboard.press("Tab");

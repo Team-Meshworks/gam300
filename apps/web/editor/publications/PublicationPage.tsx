@@ -4,6 +4,7 @@ import { createAccountClient } from "../accounts/account-client";
 import { createWorkspaceClient, isId, isRecord } from "../home/workspace-api";
 import { Button } from "../../shared/ui/Button";
 import { PublicationShare } from "./PublicationShare";
+import { PublicationAccess } from "./PublicationAccess";
 import {
   publicationAcknowledgement,
   type PublicationAcknowledgement,
@@ -103,6 +104,7 @@ export function PublicationPage({ session }: { session: AccountSession }) {
   >(pending.error ? "storage-error" : pending.request ? "unknown" : "ready");
   const [request, setRequest] = useState<PublicationRequest | null>(pending.request);
   const [ack, setAck] = useState<PublicationAcknowledgement | null>(null);
+  const [shareAvailable, setShareAvailable] = useState(true);
   const inFlight = useRef(false);
 
   useEffect(() => {
@@ -285,6 +287,7 @@ export function PublicationPage({ session }: { session: AccountSession }) {
           /* A replay of the same ID remains safe. */
         }
         setAck(receipt);
+        setShareAvailable(true);
         setPhase("success");
         return;
       }
@@ -395,8 +398,14 @@ export function PublicationPage({ session }: { session: AccountSession }) {
           ) : phase === "success" && ack ? (
             <div>
               <p role="status">Published saved revision {ack.sourceRevision}.</p>
-              <a href={ack.visitorUrl}>Open publication</a>
-              <PublicationShare url={ack.visitorUrl} />
+              {shareAvailable ? (
+                <>
+                  <a href={ack.visitorUrl}>Open publication</a>
+                  <PublicationShare url={ack.visitorUrl} />
+                </>
+              ) : (
+                <p>Sharing is unavailable for this publication.</p>
+              )}
             </div>
           ) : (
             <>
@@ -461,6 +470,16 @@ export function PublicationPage({ session }: { session: AccountSession }) {
               </Button>
             </>
           )}
+          <PublicationAccess
+            key={`${session.userId}:${projectId}:${ack?.publicationId ?? "existing"}`}
+            projectId={projectId!}
+            session={session}
+            initialId={ack?.publicationId}
+            onAvailabilityChange={(id, available) => {
+              if (ack?.publicationId.toLowerCase() === id.toLowerCase())
+                setShareAvailable(available);
+            }}
+          />
         </>
       )}
     </section>
