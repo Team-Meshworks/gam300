@@ -235,6 +235,13 @@ try {
     .getByRole("status")
     .filter({ hasText: "This preview does not support all the scenes and interactions" })
     .waitFor();
+  assert.match(
+    await unsupportedPage
+      .getByRole("status")
+      .filter({ hasText: "This preview does not support" })
+      .innerText(),
+    /trigger:sceneStart at project\.scenes\[0\]\.rules\[0\]\.trigger/,
+  );
   assert.equal(await unsupportedPage.locator(".editor-shell.is-previewing").count(), 0);
   assert.equal(await unsupportedPage.locator(".object-row").count(), 2);
   await unsupportedPage.close();

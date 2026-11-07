@@ -1,3 +1,6 @@
+import fixture from "../shared/project/fixtures/m2-publication-project.json";
+import { deserializeProject } from "../shared/project/project-deserialization";
+import { serializeProject } from "../shared/project/project-serialization";
 import { afterEach, expect, it, vi } from "vitest";
 import { validateProject } from "../shared/project/project-validation";
 import { loadPublication, readPublicationManifest } from "./publication";
@@ -47,7 +50,7 @@ it.each([
     { environmentTransform: { position: [0, 0, 0], rotation: [0, 1, 0, 0], scale: [1, 1, 1] } },
   ],
   ["hidden", { environmentVisible: false }],
-])("rejects a %s initial room instead of silently showing it at the origin", async (_, state) => {
+])("preserves a %s v2 initial room and rejects it in v1", async (_, state) => {
   const scene = {
     id: "33333333-3333-4333-8333-333333333333",
     name: "Room",
@@ -72,8 +75,74 @@ it.each([
           new Response(JSON.stringify(url.endsWith("/manifest") ? manifest : snapshot)),
       ),
     );
-    await expect(loadPublication(id, new AbortController().signal)).rejects.toThrow(
-      "This exhibition format is not supported.",
-    );
+    if (snapshot.schemaVersion === 1) {
+      await expect(loadPublication(id, new AbortController().signal)).rejects.toThrow();
+    } else {
+      expect(
+        (await loadPublication(id, new AbortController().signal)).document.scenes[0],
+      ).toMatchObject(state);
+    }
   }
+});
+
+function v2Publication(enabled = false) {
+  const project = structuredClone(fixture);
+  project.projectId = id;
+  for (const scene of project.scenes) {
+    scene.environmentAssetId = asset;
+    for (const object of scene.objects) {
+      object.assetId = "44444444-4444-4444-8444-444444444444";
+    }
+  }
+  project.scenes[0]!.rules[0]!.enabled = enabled;
+  const manifest = {
+    ...value,
+    assets: [
+      { ...value.assets[0]!, kind: "environment" },
+      {
+        id: "44444444-4444-4444-8444-444444444444",
+        kind: "model",
+        sha256: "b".repeat(64),
+        url: `/api/v1/publications/${id}/assets/44444444-4444-4444-8444-444444444444/bytes`,
+      },
+    ],
+  };
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(
+      async (url: string) =>
+        new Response(JSON.stringify(url.endsWith("/manifest") ? manifest : project)),
+    ),
+  );
+  return { project, manifest };
+}
+
+it("reconstructs both v2 scenes with content, zones, viewpoints and disabled rule order intact", async () => {
+  const { project, manifest } = v2Publication();
+  const before = JSON.stringify(project);
+  const loaded = await loadPublication(id, new AbortController().signal);
+  expect(loaded.document).toMatchObject(project);
+  const kinds = new Map(manifest.assets.map((row) => [row.id, row.kind]));
+  const validated = deserializeProject(before, kinds);
+  expect(validated.ok).toBe(true);
+  if (!validated.ok) {
+    throw new Error(validated.error.message);
+  }
+  const saved = serializeProject(validated.value, kinds);
+  expect(saved.ok).toBe(true);
+  if (!saved.ok) {
+    throw new Error(saved.error.message);
+  }
+  const reopened = deserializeProject(saved.value, kinds);
+  expect(reopened).toEqual(validated);
+  expect(JSON.stringify(project)).toBe(before);
+});
+
+it("rejects enabled unavailable rules with stable capability paths without changing the document", async () => {
+  const { project } = v2Publication(true);
+  const before = JSON.stringify(project);
+  await expect(loadPublication(id, new AbortController().signal)).rejects.toThrow(
+    "trigger:sceneStart at project.scenes[0].rules[0].trigger",
+  );
+  expect(JSON.stringify(project)).toBe(before);
 });

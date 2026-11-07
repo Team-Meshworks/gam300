@@ -11,9 +11,11 @@ import { fetchPublicationAsset } from "./publication-asset";
 export function ExhibitionCanvas({
   exhibition,
   sceneIndex,
+  viewpoint,
 }: {
   exhibition: PublishedExhibition;
   sceneIndex: number;
+  viewpoint?: Readonly<{ id: string }> | undefined;
 }) {
   const mount = useRef<HTMLDivElement>(null);
   const reset = useRef<() => void>(() => {});
@@ -23,13 +25,15 @@ export function ExhibitionCanvas({
     exhibition: PublishedExhibition;
     sceneIndex: number;
     attempt: number;
+    viewpoint: typeof viewpoint;
     message: string;
     failed: boolean;
   } | null>(null);
   const current =
     result?.exhibition === exhibition &&
     result.sceneIndex === sceneIndex &&
-    result.attempt === attempt
+    result.attempt === attempt &&
+    result.viewpoint === viewpoint
       ? result
       : null;
   useEffect(() => {
@@ -48,6 +52,7 @@ export function ExhibitionCanvas({
             exhibition,
             sceneIndex,
             attempt,
+            viewpoint,
             message:
               "This browser cannot display the 3D exhibition. Try a browser with WebGL enabled.",
             failed: true,
@@ -59,9 +64,16 @@ export function ExhibitionCanvas({
     renderer.domElement.setAttribute("aria-label", "Exhibition view");
     renderer.domElement.tabIndex = 0;
     host.append(renderer.domElement);
+
+    // A navigation point can choose a saved view; ordinary scene changes use the scene's starting camera
     const starting =
-      source.viewpoints?.find((view) => view.id === source.startViewpointId)?.camera ??
-      source.startCamera;
+      source.viewpoints?.find(
+        (view) =>
+          view.id.toLowerCase() ===
+          (
+            viewpoint?.id ?? ("startViewpointId" in source ? source.startViewpointId : undefined)
+          )?.toLowerCase(),
+      )?.camera ?? source.startCamera;
     const camera = new THREE.PerspectiveCamera(starting.fovDegrees, 1, 0.01, 2000);
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
@@ -115,9 +127,18 @@ export function ExhibitionCanvas({
       controls.update();
       renderer.render(scene, camera);
     });
+
+    // Put the environment through the same transform and visibility path as placed objects
     const objects = [
       ...(source.environmentAssetId
-        ? [{ assetId: source.environmentAssetId, transform: null }]
+        ? [
+            {
+              id: source.id,
+              assetId: source.environmentAssetId,
+              transform: "environmentTransform" in source ? source.environmentTransform : undefined,
+              visible: !("environmentVisible" in source) || source.environmentVisible !== false,
+            },
+          ]
         : []),
       ...source.objects,
     ];
@@ -148,6 +169,10 @@ export function ExhibitionCanvas({
           return;
         }
         const root = new THREE.Group();
+
+        // Keep authored IDs on the rendered roots without changing the saved object data
+        root.name = object.id;
+        root.visible = !("visible" in object) || object.visible !== false;
         root.add(gltf.scene);
         if (object.transform) {
           root.position.fromArray(object.transform.position);
@@ -155,11 +180,20 @@ export function ExhibitionCanvas({
           root.scale.fromArray(object.transform.scale);
         }
         scene.add(root);
-        if (digest === STARTER_ROOM_SHA256) rooms.push(root);
+        if (root.visible && digest === STARTER_ROOM_SHA256) {
+          rooms.push(root);
+        }
       }
       if (!controller.signal.aborted) {
         entrances.sync(rooms);
-        setResult({ exhibition, sceneIndex, attempt, message: "Exhibition ready", failed: false });
+        setResult({
+          exhibition,
+          sceneIndex,
+          attempt,
+          viewpoint,
+          message: "Exhibition ready",
+          failed: false,
+        });
       }
     })().catch((failure: unknown) => {
       if (!controller.signal.aborted) {
@@ -170,6 +204,7 @@ export function ExhibitionCanvas({
           exhibition,
           sceneIndex,
           attempt,
+          viewpoint,
           message:
             failure instanceof DOMException && failure.name === "TimeoutError"
               ? "Loading the exhibition timed out. Please try again."
@@ -193,7 +228,7 @@ export function ExhibitionCanvas({
       reset.current = () => {};
       selectView.current = () => {};
     };
-  }, [exhibition, sceneIndex, attempt]);
+  }, [exhibition, sceneIndex, viewpoint, attempt]);
   return (
     <section aria-label="Exhibition viewer">
       <p role="status">{current?.message ?? "Loading exhibition…"}</p>

@@ -46,6 +46,15 @@ try {
               state,
               completionConfirmed: true,
               approved: state === "Ready",
+              missingCapabilities:
+                state === "UnsupportedRuntime"
+                  ? [
+                      {
+                        capability: "trigger:sceneStart",
+                        path: "project.scenes[0].rules[0].trigger",
+                      },
+                    ]
+                  : [],
             },
           });
     if (path === `/api/v1/projects/${projectId}/publication-viewers`)
@@ -94,6 +103,12 @@ try {
       )
       .waitFor();
     assert.equal(await publish.isDisabled(), true);
+    if (next === "UnsupportedRuntime") {
+      await page
+        .getByRole("list", { name: "Unavailable publication features" })
+        .getByText("trigger:sceneStart — project.scenes[0].rules[0].trigger")
+        .waitFor();
+    }
   }
   failRead = true;
   await page.reload();
