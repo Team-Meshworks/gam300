@@ -59,6 +59,7 @@ it("publishes the approved exact revision as an unlisted edition", async () => {
     `/api/v1/projects/${projectId}/publications`,
     "POST",
     { publicationId, confirmedRevision: 3, intent: { audience: "Unlisted", viewerIds: [] } },
+    expect.objectContaining({ revision_conflict: expect.any(String) }),
   );
   expect(store.getItem(`spatia-review-publication:${actorId}:${projectId}`)).toBeNull();
 });
@@ -83,6 +84,54 @@ it("keeps the original ids when publication fails after approval", async () => {
   expect((await approveAndPublish(store, intent, decide, publish)).kind).toBe("published");
   expect(publish.mock.calls[0]).toEqual(publish.mock.calls[1]);
   expect(decide.mock.calls[0]).toEqual(decide.mock.calls[1]);
+});
+
+it.each([false, true])(
+  "clears a definitive revision conflict after approval (prior uncertain response: %s)",
+  async (previousUnknown) => {
+    const store = memory();
+    const decide = vi.fn(async () => ({ kind: "confirmed" as const }));
+    const publish = vi.fn();
+    if (previousUnknown) {
+      publish.mockResolvedValueOnce({ kind: "unknown" });
+      expect((await approveAndPublish(store, intent, decide, publish)).kind).toBe("pending");
+    }
+    publish.mockResolvedValueOnce({
+      kind: "rejected",
+      code: "revision_conflict",
+      message: "The project changed.",
+    });
+    expect((await approveAndPublish(store, intent, decide, publish)).kind).toBe(
+      "revision-conflict",
+    );
+    expect(readApprovalPublication(store, actorId, projectId, studentId)).toBeNull();
+    expect(publish).toHaveBeenCalledTimes(previousUnknown ? 2 : 1);
+    expect(decide).toHaveBeenCalledWith(
+      expect.objectContaining({ decisionId, feedback: "Good work" }),
+      actorId,
+    );
+  },
+);
+
+it("keeps the request pending if a conflict is confirmed but browser storage cannot clear it", async () => {
+  const store = {
+    ...memory(),
+    removeItem: () => {
+      throw new Error("storage unavailable");
+    },
+  };
+  const result = await approveAndPublish(
+    store,
+    intent,
+    vi.fn(async () => ({ kind: "confirmed" as const })),
+    vi.fn(async () => ({
+      kind: "rejected" as const,
+      code: "revision_conflict",
+      message: "Changed",
+    })),
+  );
+  expect(result.kind).toBe("pending");
+  expect(readApprovalPublication(store, actorId, projectId, studentId)).toEqual(intent);
 });
 
 it("does not resume a request for a different student", async () => {

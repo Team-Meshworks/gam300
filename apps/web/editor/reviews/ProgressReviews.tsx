@@ -344,6 +344,13 @@ export function ProgressReviews({
         setPendingPublication(sent);
         setPhase("unknown");
         setError(result.message);
+      } else if (result.kind === "revision-conflict") {
+        setPendingPublication(null);
+        setSubmission(null);
+        setFeedback("");
+        setConflict(true);
+        setPhase("ready");
+        setError(result.message);
       } else {
         setPhase("ready");
         setError(result.message);

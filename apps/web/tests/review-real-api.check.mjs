@@ -54,11 +54,10 @@ try {
       studentId,
     });
     await teacher.goto(origin + "/home?" + returned);
-    await teacher.getByRole("dialog", { name: "Reviews" }).waitFor();
-    await teacher.getByRole("button", { name: "+ Add Reviews" }).click();
-    await teacher.getByRole("textbox", { name: "New review" }).fill("Add a map to the draft.");
-    await teacher.getByRole("button", { name: "Save Changes" }).click();
-    await teacher.getByRole("textbox", { name: "New review" }).waitFor({ state: "detached" });
+    await teacher.getByRole("dialog", { name: "Review submission" }).waitFor();
+    await teacher.getByRole("textbox", { name: "Your review" }).fill("Add a map to the draft.");
+    await teacher.getByRole("button", { name: "Save review" }).click();
+    await teacher.getByRole("textbox", { name: "Your review" }).waitFor({ state: "detached" });
     await student.goto(origin + "/home");
     await student.locator(`#student-project-${projectId}`).click();
     const progressRead = await student.evaluate(async (id) => {
@@ -72,7 +71,7 @@ try {
     );
     assert.match(progressRead.body, /Add a map to the draft/);
     await student
-      .getByRole("region", { name: "Progress reviews" })
+      .getByRole("region", { name: "Reviews" })
       .getByText("Add a map to the draft.")
       .waitFor();
     await student.goto(origin + "/review");

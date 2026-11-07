@@ -29,7 +29,8 @@ const summary = {
 let reviews = [],
   decisions = [],
   publishes = [],
-  lost = true;
+  lost = true,
+  conflict = false;
 try {
   await server.listen();
   const origin = `http://127.0.0.1:${server.httpServer.address().port}`;
@@ -67,6 +68,7 @@ try {
     if (path.endsWith("/publications") && req.method() === "POST") {
       const b = body();
       publishes.push(b);
+      if (conflict) return reply({ code: "revision_conflict" }, 409);
       if (lost) {
         lost = false;
         return route.abort();
@@ -147,7 +149,25 @@ try {
   assert.deepEqual(publishes[0], publishes[1]);
   assert.equal(publishes[0].intent.audience, "Unlisted");
   assert.equal(publishes[0].confirmedRevision, 7);
-  console.log("Save-only and lost-publication retry passed");
+  // A definitive publication conflict must not leave an automatically restored retry.
+  decisions = [];
+  publishes = [];
+  conflict = true;
+  d = await open();
+  await d.getByLabel("Your review").fill("Approved before a concurrent edit");
+  await d.getByRole("button", { name: "Approve and publish" }).click();
+  await d
+    .getByRole("alert")
+    .filter({ hasText: /review and approval were saved.*project changed/i })
+    .waitFor();
+  assert.equal(decisions.length, 1);
+  assert.equal(publishes.length, 1);
+  await page.reload();
+  d = page.getByRole("dialog", { name: "Review submission" });
+  await d.waitFor();
+  assert.equal(await d.getByRole("button", { name: "Retry same request" }).count(), 0);
+  assert.equal(publishes.length, 1, "Reload must not send a new publication");
+  console.log("Save-only, lost-publication retry, and revision conflict passed");
 } finally {
   await browser?.close();
   await server.close();

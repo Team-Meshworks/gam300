@@ -22,9 +22,11 @@ type Publish = (
   path: string,
   method: "POST",
   body: object,
+  problemMessages: Record<string, string>,
 ) => Promise<WriteResult>;
 type Result =
   | { kind: "published"; acknowledgement: PublicationAcknowledgement }
+  | { kind: "revision-conflict"; message: string }
   | { kind: "pending" | "rejected"; message: string };
 const key = (actorId: string, projectId: string) =>
   `spatia-review-publication:${actorId}:${projectId}`;
@@ -128,7 +130,25 @@ export async function approveAndPublish(
     `/api/v1/projects/${encodeURIComponent(intent.projectId)}/publications`,
     "POST",
     request,
+    { revision_conflict: "The saved project changed before it could be published." },
   );
+  if (result.kind === "rejected" && result.code === "revision_conflict") {
+    try {
+      storage.removeItem(storageKey);
+      if (storage.getItem(storageKey) !== null) throw new Error("Storage failed");
+      return {
+        kind: "revision-conflict",
+        message:
+          "Your review and approval were saved, but the project changed before publication. The student must submit the current work for a new review before it can be published.",
+      };
+    } catch {
+      return {
+        kind: "pending",
+        message:
+          "The project changed and was not published, but the saved request could not be cleared. Retry the same request.",
+      };
+    }
+  }
   if (result.kind === "confirmed") {
     const acknowledgement = publicationAcknowledgement(result.value, intent.projectId, request);
     if (acknowledgement) {
