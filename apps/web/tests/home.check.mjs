@@ -340,7 +340,17 @@ try {
       },
     ];
     await page.reload();
-    await page.getByRole("heading", { name: "Student draft" }).waitFor();
+    const studentCard = page.getByRole("button", { name: "Student draft", exact: true });
+    await studentCard.waitFor();
+    await studentCard.click();
+    await page.getByRole("heading", { name: "Student draft", exact: true }).waitFor();
+    assert.equal(await page.getByRole("region", { name: "Project details" }).isVisible(), true);
+    await page.getByRole("button", { name: "Close project details" }).click();
+    await page.getByText("Manage projects and archives", { exact: true }).click();
+    await page
+      .locator(".sp-home-projects")
+      .getByRole("heading", { name: "Student draft" })
+      .waitFor();
     assert.equal(await page.getByRole("button", { name: "Archive", exact: true }).count(), 0);
     assert.equal(await page.getByRole("heading", { name: "The Silk Road" }).count(), 0);
     rejectList = true;

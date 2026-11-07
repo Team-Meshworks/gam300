@@ -5,6 +5,7 @@ import { WorkspaceShell } from "../../shared/ui/WorkspaceShell";
 import { Button } from "../../shared/ui/Button";
 import { Dialog } from "../../shared/ui/Dialog";
 import { ProjectHome } from "./ProjectHome";
+import { StudentProjects } from "./StudentProjects";
 import { TeacherProjects } from "./TeacherProjects";
 import { ClassHome } from "./ClassHome";
 import { WorkspaceNavigation } from "./WorkspaceNavigation";
@@ -180,6 +181,8 @@ function HomeWorkspace({
       {view === "projects" ? (
         session.role === "Educator" ? (
           <TeacherProjects session={session} active={active} />
+        ) : session.role === "Creator" ? (
+          <StudentProjects session={session} active={active} onOpenProject={openProject} />
         ) : (
           <ProjectHome
             session={session}
