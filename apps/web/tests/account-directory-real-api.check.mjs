@@ -28,7 +28,7 @@ try {
   await page
     .getByRole("button", { name: "View details for Dashboard browser project", exact: true })
     .click();
-  const projectDetails = page.getByRole("dialog", { name: "Project details", exact: true });
+  const projectDetails = page.getByRole("region", { name: "Project details", exact: true });
   assert.equal(await projectDetails.locator("dd").nth(1).textContent(), "0");
   assert.match(
     await projectDetails
@@ -36,7 +36,7 @@ try {
       .getAttribute("href"),
     /^\/\?projectId=[0-9a-f-]{36}$/,
   );
-  await projectDetails.getByRole("button", { name: "Close", exact: true }).click();
+  await projectDetails.getByRole("button", { name: "Back", exact: true }).click();
   await page.getByRole("button", { name: "+ Add Organisations", exact: true }).click();
   await page
     .getByLabel("Organisation name", { exact: true })

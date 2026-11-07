@@ -37,13 +37,11 @@ try {
   const page = await browser.newPage();
   await page.goto(url);
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
-  await page
-    .locator("#project-import")
-    .setInputFiles({
-      name: "scenes.json",
-      mimeType: "application/json",
-      buffer: Buffer.from(JSON.stringify(project)),
-    });
+  await page.locator("#project-import").setInputFiles({
+    name: "scenes.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
   await page.getByText("Project opened", { exact: true }).waitFor();
   await page.getByRole("button", { name: "Scenes", exact: true }).click();
   await page.getByRole("button", { name: "Delete scene", exact: true }).click();

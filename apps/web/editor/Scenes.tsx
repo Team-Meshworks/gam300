@@ -200,7 +200,10 @@ export function Scenes({
                   playUiSound("delete");
                   onSwitch();
                 }
-                report(result, "Scene and related navigation links deleted. Undo restores everything.");
+                report(
+                  result,
+                  "Scene and related navigation links deleted. Undo restores everything.",
+                );
               }}
             >
               Confirm delete scene

@@ -38,13 +38,11 @@ try {
   const page = await browser.newPage();
   await page.goto(url);
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
-  await page
-    .locator("#project-import")
-    .setInputFiles({
-      name: "hotspot.json",
-      mimeType: "application/json",
-      buffer: Buffer.from(JSON.stringify(project)),
-    });
+  await page.locator("#project-import").setInputFiles({
+    name: "hotspot.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
   await page.getByText("Project opened", { exact: true }).waitFor();
   await page.locator(".object-row[data-object-id]").first().click();
   await page.getByRole("button", { name: "Interaction", exact: true }).click();
