@@ -193,7 +193,10 @@ try {
   );
   await page.getByRole("link", { name: "Open project workspace", exact: true }).click();
   await page.waitForURL(origin + "/home");
-  assert.equal(await page.getByRole("navigation", { name: "Workspace" }).count(), 0);
+  await page
+    .getByRole("navigation", { name: "Workspace" })
+    .getByRole("button", { name: "Classes", exact: true })
+    .waitFor();
   await page.getByRole("button", { name: "Back to dashboard" }).click();
   await page.waitForURL(origin + "/admin/dashboard");
   await page.getByRole("link", { name: "View Organisations", exact: true }).click();
