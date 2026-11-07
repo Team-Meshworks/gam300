@@ -413,9 +413,16 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
     const source = graph.object;
     if (
       project?.schemaVersion !== 2 &&
-      ((source as ContentObject).parentId != null || (source as ContentObject).visible === false)
+      ((source as ContentObject).parentId != null ||
+        (source as ContentObject).visible === false ||
+        (source as ContentObject).appearance !== undefined ||
+        ((source as ContentObject).components?.length ?? 0) > 0 ||
+        graph.rules.length > 0)
     ) {
-      return invalid("objectId", "This object's hierarchy or visibility requires a v2 project");
+      return invalid(
+        "objectId",
+        "This object's content, rules, appearance, hierarchy, or visibility requires a v2 project",
+      );
     }
     const asset = assets.find((entry) => entry.id === source.assetId);
     if (
@@ -455,6 +462,8 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
         id: remap(source.id),
         name: nextObjectName(asset),
         transform,
+        parentId: (source as ContentObject).parentId ?? null,
+        visible: (source as ContentObject).visible ?? true,
         components: ((source as ContentObject).components ?? []).map((component) => ({
           ...structuredClone(component),
           id: remap(component.id),
