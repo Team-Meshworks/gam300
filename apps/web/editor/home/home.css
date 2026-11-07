@@ -125,6 +125,21 @@
     width: 100%;
   }
 }
+.sp-home-welcome {
+  margin: 0 0 32px;
+}
+.sp-home-projects .sp-home-welcome--creator h1 {
+  font-size: clamp(36px, 5vw, 70px);
+  letter-spacing: -1px;
+}
+.sp-home-projects .sp-home-welcome--educator h1 {
+  font-size: 32px;
+  letter-spacing: 0;
+}
+.sp-home-welcome p {
+  color: var(--sp-muted);
+  margin-top: 10px;
+}
 .sp-grant-options,
 .sp-grant-person {
   display: grid;
@@ -174,6 +189,45 @@
   padding: 0;
   display: grid;
   gap: 20px;
+}
+.sp-home-projects--educator .sp-home-project-list {
+  grid-template-columns: minmax(0, 1fr);
+}
+.sp-home-projects--educator .sp-home-project-card {
+  flex-direction: column;
+  gap: 12px;
+  overflow: hidden;
+  padding: 0 0 20px;
+}
+.sp-home-projects--educator .sp-home-project-copy {
+  width: 100%;
+  padding: 0 20px;
+}
+.sp-home-projects--educator .sp-home-project-card > .sp-badge,
+.sp-home-projects--educator .sp-home-project-card > a {
+  margin: 0 20px;
+}
+.sp-home-project-preview {
+  display: grid;
+  place-items: center;
+  flex: 0 0 24%;
+  min-height: 150px;
+  border-radius: 24px;
+  background: var(--sp-soft);
+  color: var(--sp-muted);
+  font-size: 13px;
+}
+.sp-home-projects--educator .sp-home-project-preview {
+  width: 100%;
+  min-height: 126px;
+  flex: none;
+  border-radius: 0;
+}
+.sp-home-projects--creator .sp-home-project-card {
+  border-radius: 50px;
+}
+.sp-home-project-copy {
+  flex: 1;
 }
 .sp-home-project-card {
   display: flex;
@@ -266,6 +320,16 @@
 .sp-class-home .sp-table td {
   overflow-wrap: anywhere;
 }
+@media (min-width: 850px) {
+  .sp-home-projects--educator .sp-home-project-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1200px) {
+  .sp-home-projects--educator .sp-home-project-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
 @media (max-width: 600px) {
   .sp-home-projects > .sp-page-heading,
   .sp-home-project-card {
@@ -281,5 +345,12 @@
   }
   .sp-home-project-card {
     padding: 22px;
+  }
+  .sp-home-projects--educator .sp-home-project-card {
+    padding: 0 0 20px;
+  }
+  .sp-home-project-preview {
+    align-self: stretch;
+    flex: none;
   }
 }

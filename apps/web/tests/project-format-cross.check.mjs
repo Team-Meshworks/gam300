@@ -38,6 +38,8 @@ try {
       test.name.includes("appearance") ||
       // Optional room state and linked audio must reopen in the opposite runtime too
       test.name.includes("initial room") ||
+      test.name === "v2 scene without an environment" ||
+      test.name === "v1 scene still requires an environment" ||
       test.name.startsWith("v2 preserves") ||
       test.name.startsWith("v2 interaction navigation") ||
       test.name.startsWith("v2 interaction audio") ||

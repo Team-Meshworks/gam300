@@ -3,7 +3,7 @@ import { Button } from "../../shared/ui/Button";
 import { Field } from "../../shared/ui/Field";
 import { NewProjectForm, type FormNavigationState } from "./NewProjectForm";
 import { formatLocalDeadline, localDeadlineToUnixSeconds } from "./deadline";
-import { createWorkspaceClient, isId, isRecord } from "../home/workspace-api";
+import { createWorkspaceClient, isRecord } from "../home/workspace-api";
 import { blankSourceKey, createBlankSource } from "./blank-source";
 import "./assignment-screens.css";
 import {
@@ -81,7 +81,6 @@ export function AssignmentCreationScreen({
   const [setup, setSetup] = useState<Setup | null>(null);
   const [message, setMessage] = useState("");
   const [sourceId, setSourceId] = useState("");
-  const [environmentId, setEnvironmentId] = useState("");
   const [sourceUncertain, setSourceUncertain] = useState(false);
   const [students, setStudents] = useState<EligibleStudent[]>([]);
   const [rosterMessage, setRosterMessage] = useState("");
@@ -123,14 +122,6 @@ export function AssignmentCreationScreen({
         const choices = saved
           ? { classes: [], projects: [] }
           : await assignmentChoices(controller.signal);
-        if (createBlank && !saved) {
-          const assets = await workspace.read("/api/v1/assets", controller.signal);
-          if (!Array.isArray(assets)) throw new Error("Invalid assets");
-          const environment = assets.find(
-            (asset: unknown) => isRecord(asset) && asset.kind === "environment" && isId(asset.id),
-          );
-          if (isRecord(environment) && isId(environment.id)) setEnvironmentId(environment.id);
-        }
         if (controller.signal.aborted) return;
         setSetup({ session, ...choices });
         setPending(saved);
@@ -271,11 +262,6 @@ export function AssignmentCreationScreen({
       return { kind: "rejected", message: "Choose a valid local due date and time." };
     let source = setup.projects.find((project) => project.projectId === sourceId);
     if (createBlank) {
-      if (!environmentId)
-        return {
-          kind: "rejected",
-          message: "No approved 3D space is available for a new project.",
-        };
       if (!navigator.locks)
         return {
           kind: "rejected",
@@ -289,7 +275,7 @@ export function AssignmentCreationScreen({
             workspace.write,
             setup.session.userId,
             draft.title.trim(),
-            environmentId,
+            "",
           ),
       );
       if (result.kind === "unknown") {
@@ -399,9 +385,6 @@ export function AssignmentCreationScreen({
               </Button>
               {choicesMessage && <p role="status">{choicesMessage}</p>}
             </>
-          )}
-          {createBlank && !environmentId && (
-            <p role="status">No approved 3D space is available for a new project.</p>
           )}
           {rosterMessage && <p role="status">{rosterMessage}</p>}
           <NewProjectForm

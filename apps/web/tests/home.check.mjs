@@ -142,9 +142,9 @@ try {
     await page.goto(origin + "/classes");
     await page.getByRole("button", { name: "New assignment" }).waitFor();
     await page.goto(origin + "/new-project");
-    await page.getByRole("heading", { name: "New class assignment" }).waitFor();
+    await page.getByRole("heading", { name: "New Project", exact: true }).waitFor();
     await page.getByLabel("Project title").fill("Unsent assignment");
-    await page.getByRole("button", { name: "Classes", exact: true }).click();
+    await page.getByRole("button", { name: "Close new project" }).click();
     await page.getByRole("dialog", { name: "Leave this page?" }).waitFor();
     await page.getByRole("button", { name: "Keep editing" }).click();
     assert.equal(await page.getByLabel("Project title").inputValue(), "Unsent assignment");
@@ -191,6 +191,7 @@ try {
   } else if (process.argv[3] === "open-project") {
     await page.goto(origin + "/home");
     await page.getByRole("heading", { name: "The Silk Road", exact: true }).waitFor();
+    await page.getByText("Manage projects and archives", { exact: true }).click();
     await page.route(`**/?projectId=${projectId}`, (route) => route.fulfill({ body: "editor" }));
     await page.getByRole("button", { name: "Continue editing" }).click();
     assert.equal(new URL(page.url()).searchParams.get("projectId"), projectId);
@@ -273,13 +274,15 @@ try {
       await page.setViewportSize({ width, height: 1000 });
       await page.goto(origin + "/home");
       await page.getByRole("heading", { name: "The Silk Road", exact: true }).waitFor();
+      assert.equal(await page.getByRole("button", { name: "View Details" }).isVisible(), true);
+      assert.equal(
+        await page.getByRole("link", { name: "+ New Project" }).getAttribute("href"),
+        "/new-project",
+      );
+      await page.getByText("Manage projects and archives", { exact: true }).click();
       assert.equal(
         await page.getByRole("button", { name: "Continue editing" }).isDisabled(),
         false,
-      );
-      assert.equal(
-        await page.getByRole("button", { name: "New project", exact: true }).isDisabled(),
-        true,
       );
       assert.ok(
         await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
@@ -302,9 +305,10 @@ try {
       });
     }
     await page.setViewportSize({ width: 1440, height: 1000 });
-    await page.getByRole("searchbox", { name: "Search projects" }).fill("unrelated");
+    const management = page.locator(".sp-home-projects");
+    await management.getByRole("searchbox", { name: "Search projects" }).fill("unrelated");
     await page.getByText("No projects match your search.").waitFor();
-    await page.getByRole("searchbox", { name: "Search projects" }).fill("");
+    await management.getByRole("searchbox", { name: "Search projects" }).fill("");
     await page.getByRole("button", { name: "Archive", exact: true }).click();
     await page.getByRole("button", { name: "Confirm", exact: true }).click();
     await page.getByText("Project archived.", { exact: true }).waitFor();
@@ -326,7 +330,7 @@ try {
     assert.equal(writes, 3, "An uncertain copy is not automatically retried");
     assert.equal(await page.getByRole("button", { name: "Confirm", exact: true }).count(), 0);
     await page.getByRole("button", { name: "Close", exact: true }).click();
-    await page.getByRole("heading", { name: "Silk Road copy", exact: true }).waitFor();
+    await management.getByRole("heading", { name: "Silk Road copy", exact: true }).waitFor();
     account = { ...session, userId: orgId, role: "Creator" };
     items = [
       {

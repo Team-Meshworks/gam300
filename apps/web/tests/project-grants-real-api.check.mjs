@@ -22,13 +22,11 @@ try {
   await page.getByLabel("Password", { exact: true }).fill("Synthetic-long-password1!");
   await page.getByRole("button", { name: "Log in", exact: true }).click();
   await page.waitForURL(`${origin}/admin/dashboard`);
-  await page.getByRole("link", { name: "View All Projects", exact: true }).click();
-  await page.waitForURL(`${origin}/home`);
-  await page.getByRole("link", { name: "Organisations", exact: true }).click();
+  await page.getByRole("link", { name: "View Organisations", exact: true }).click();
   await page.waitForURL(`${origin}/organisations`);
   await page.getByRole("link", { name: "Close organisations", exact: true }).click();
   await page.waitForURL(`${origin}/admin/dashboard`);
-  await page.getByRole("link", { name: "View All Projects", exact: true }).click();
+  await page.getByRole("link", { name: "Manage project access", exact: true }).click();
   await page.waitForURL(`${origin}/home`);
   await page.getByRole("heading", { name: "Grant browser project", exact: true }).waitFor();
   await page.getByRole("button", { name: "Manage access", exact: true }).click();

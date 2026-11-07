@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { launchBrowser } from "./browser-security.mjs";
+import { placeAtRoomCenter } from "./placement-fixture.mjs";
 const url = process.argv[2] ?? "http://127.0.0.1:5185/";
 const browser = await launchBrowser({ target: url, args: ["--enable-unsafe-swiftshader"] });
 await mkdir("test-results/audio-library", { recursive: true });
@@ -178,7 +179,7 @@ try {
   await button("Asset library").click();
   await button("Sample crate", page.locator(".asset-picker")).click();
   await button("Add", page.locator(".asset-picker")).click();
-  await page.locator(".viewport-stage").click({ position: { x: 600, y: 350 } });
+  await placeAtRoomCenter(page);
   await page.locator(".object-row[data-object-id]").first().click();
   // Seed a checked annotation through import so this panel regression is independent of camera placement
   const annotated = await saved((doc) => doc.scenes[0].objects.length > 0);
@@ -201,6 +202,23 @@ try {
   await page.getByLabel("Interaction 1 do", { exact: true }).selectOption("play-audio");
   await page.getByLabel("Interaction 1 audio", { exact: true }).selectOption(original.id);
   await saved((doc) => doc.scenes[0].interactions[0]?.do.mediaId === original.id);
+  await button("Scene tree").click();
+  await button("Ethereal Calm").click();
+  await page.keyboard.press("Delete");
+  const deletionNotice = await page.locator(".draft-feedback").textContent();
+  assert.match(
+    deletionNotice,
+    /1 related rule\b/i,
+    "Audio deletion reports the affected rule count",
+  );
+  assert.match(deletionNotice, /undo restores/i, "Audio deletion explains how to restore the rule");
+  await saved((doc) => doc.scenes[0].audio.length === 0 && doc.scenes[0].interactions.length === 0);
+  await button("Undo").click();
+  await saved(
+    (doc) =>
+      doc.scenes[0].audio[0]?.id === original.id &&
+      doc.scenes[0].interactions[0]?.do.mediaId === original.id,
+  );
   await page.reload();
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   await button("Preview").click();

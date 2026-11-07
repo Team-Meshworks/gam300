@@ -66,3 +66,28 @@ it("does not send creation if the recovery marker cannot be verified", async () 
   });
   expect(write).not.toHaveBeenCalled();
 });
+
+it("creates an empty source without sending an environment asset", async () => {
+  const storage = new Map<string, string>();
+  const store = {
+    getItem: (key: string) => storage.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      storage.set(key, value);
+    },
+    removeItem: (key: string) => {
+      storage.delete(key);
+    },
+  };
+  const write = vi.fn(async () => ({
+    kind: "confirmed" as const,
+    value: {
+      projectId: "aefea67c-caca-4300-923c-937f1c785578",
+      revision: 0,
+      updatedAt: "2026-11-05T00:00:00Z",
+      archived: false,
+    },
+  }));
+  const result = await createBlankSource(store, write, "teacher", "Museum", "");
+  expect(result.kind).toBe("confirmed");
+  expect(write).toHaveBeenCalledWith("teacher", "/api/v1/projects", "POST", { title: "Museum" });
+});

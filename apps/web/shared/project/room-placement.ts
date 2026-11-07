@@ -19,7 +19,7 @@ export function roomLayoutTransform(
 export function snapRoomPlacement(
   position: Vector3Tuple,
   objects: readonly SceneObject[],
-  environmentAssetId?: string,
+  environmentAssetId?: string | null,
   environmentTransform?: SceneObject["transform"],
   isRoomModel: RoomModelPredicate = isPackagedRoomModel,
   roomFootprint: (assetId: string) => RoomFootprint = () => ({ halfWidth: 5, halfDepth: 5 }),

@@ -59,4 +59,17 @@ public sealed class PublicationCapabilitiesTests
         await Assert.That(PublicationDocumentAssets.Required(parsed.Value!).Contains("demo-audio-v1")).IsTrue();
         await Assert.That(ProjectCapabilities.Missing(parsed.Value!, PublicationCapabilities.Supported).Any(issue => issue.Capability == "audio:global")).IsTrue();
     }
+
+    [Test]
+    public async Task PublicationAssets_CollectsSceneAudioWithoutAnEnvironment()
+    {
+        var input = JsonNode.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "fixtures", "m2-publication-project.json")))!;
+        input["scenes"]![0]!["environmentAssetId"] = null;
+        input["scenes"]![0]!["audio"] = JsonNode.Parse("""[{"id":"eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee","type":"audio","mode":"global","assetId":"demo-audio-v1","caption":"Ambient sound","loop":true,"volume":0.5}]""");
+        var parsed = Format.Deserialize(input.ToJsonString(), Assets);
+        await Assert.That(parsed.Ok).IsTrue();
+        var required = PublicationDocumentAssets.Required(parsed.Value!);
+        await Assert.That(required.Contains("demo-audio-v1")).IsTrue();
+        await Assert.That(required.Contains(null!)).IsFalse();
+    }
 }

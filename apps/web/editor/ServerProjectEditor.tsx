@@ -83,6 +83,7 @@ export function ServerProjectEditor({ projectId }: { projectId: string }) {
   const [catalogue, setCatalogue] = useState<{
     all: readonly CatalogueAsset[];
     available: readonly CatalogueAsset[];
+    unavailable: boolean;
   } | null>(null);
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
@@ -98,10 +99,27 @@ export function ServerProjectEditor({ projectId }: { projectId: string }) {
           return;
         }
         if (identity.mustChangePassword) throw new Error("Sign in before opening this project.");
-        const [approved, retained] = await Promise.all([
-          readServerAssets(identity.userId, controller.signal),
-          readServerAssets(identity.userId, controller.signal, fetch, projectId),
-        ]);
+        let approved: readonly CatalogueAsset[];
+        let retained: readonly CatalogueAsset[];
+        let unavailable = false;
+        try {
+          [approved, retained] = await Promise.all([
+            readServerAssets(identity.userId, controller.signal),
+            readServerAssets(identity.userId, controller.signal, fetch, projectId),
+          ]);
+        } catch (cause) {
+          // Only open without a catalogue when the saved document needs no assets
+          const empty = await readServerProject(
+            projectId,
+            identity.userId,
+            new Map(),
+            controller.signal,
+          );
+          if (!empty.ok || controller.signal.aborted) throw cause;
+          approved = [];
+          retained = [];
+          unavailable = true;
+        }
         const current = await accounts.getSession();
         if (controller.signal.aborted) return;
         if (!current) {
@@ -125,6 +143,7 @@ export function ServerProjectEditor({ projectId }: { projectId: string }) {
               ).values(),
             ],
             available: [...developmentAssets, ...approved],
+            unavailable,
           });
       } catch (cause) {
         if (!controller.signal.aborted)
@@ -150,11 +169,19 @@ export function ServerProjectEditor({ projectId }: { projectId: string }) {
       </main>
     );
   return (
-    <ServerProjectSession
-      projectId={projectId}
-      catalogue={catalogue.all}
-      available={catalogue.available}
-    />
+    <>
+      {catalogue.unavailable && (
+        <p role="status">
+          Some 3D assets are unavailable. Save and reopen the project when the asset service
+          returns.
+        </p>
+      )}
+      <ServerProjectSession
+        projectId={projectId}
+        catalogue={catalogue.all}
+        available={catalogue.available}
+      />
+    </>
   );
 }
 

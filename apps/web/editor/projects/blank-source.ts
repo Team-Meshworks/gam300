@@ -30,7 +30,10 @@ export async function createBlankSource(
     storage.setItem(key, marker);
     if (storage.getItem(key) !== marker)
       return { kind: "rejected", message: "The browser could not save recovery information." };
-    const outcome = await write(actorId, "/api/v1/projects", "POST", { title, environmentAssetId });
+    const outcome = await write(actorId, "/api/v1/projects", "POST", {
+      title,
+      ...(environmentAssetId ? { environmentAssetId } : {}),
+    });
     if (outcome.kind === "rejected") {
       storage.removeItem(key);
       return outcome;
