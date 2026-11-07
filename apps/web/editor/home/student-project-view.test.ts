@@ -30,6 +30,7 @@ it("shows the selected student's project details and opens that project", () => 
       feedback: [],
       feedbackLoading: false,
       feedbackError: "",
+      actorId: "student",
       onClose: vi.fn(),
       onOpen: vi.fn(),
     }),
@@ -38,6 +39,7 @@ it("shows the selected student's project details and opens that project", () => 
   expect(html).toContain("Explore trade");
   expect(html).toContain("Build a museum");
   expect(html).toContain("Open project");
+  expect(html).toContain('aria-label="Progress reviews"');
   expect(html).toMatch(/<button[^>]*aria-label="Close project details"[^>]*autofocus=""/);
 });
 
@@ -58,9 +60,11 @@ it("offers Start Editing for a project with no saved revisions", () => {
       feedback: [],
       feedbackLoading: false,
       feedbackError: "",
+      actorId: "student",
       onClose: vi.fn(),
       onOpen: vi.fn(),
     }),
   );
   expect(html).toContain("Start Editing");
+  expect(html).not.toContain('aria-label="Progress reviews"');
 });

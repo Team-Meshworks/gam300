@@ -33,6 +33,7 @@ try {
     mode = "assets-unavailable";
   let submissions = [],
     decisions = [];
+  const progressReviews = [];
   const writes = [];
   let denied = false,
     canPublish = true;
@@ -69,6 +70,21 @@ try {
         nextCursor: null,
       });
     if (denied) return reply({ code: "project_not_found" }, 404);
+    if (path.endsWith("/progress-reviews")) {
+      if (req.method() === "POST") {
+        const body = req.postDataJSON();
+        assert.equal(req.headers()["x-csrf-token"], "test-csrf");
+        const item = {
+          id: body.reviewId,
+          feedback: body.feedback,
+          revision: body.expectedRevision,
+          createdAt: stamp,
+        };
+        progressReviews.push(item);
+        return reply(item, 201);
+      }
+      return reply({ items: progressReviews, nextCursor: null });
+    }
     if (path === "/api/v1/projects/" + projectId)
       return reply({
         projectId,
@@ -181,6 +197,20 @@ try {
   );
   role = "Educator";
   await open();
+  await page.getByRole("button", { name: "Reviews", exact: true }).click();
+  const reviewDialog = page.getByRole("dialog", { name: "Reviews" });
+  const dialogBounds = await reviewDialog.boundingBox();
+  const closeBounds = await reviewDialog
+    .getByRole("button", { name: "Close dialog" })
+    .boundingBox();
+  const addBounds = await reviewDialog.getByRole("button", { name: "+ Add Reviews" }).boundingBox();
+  assert.ok(dialogBounds.width >= 800 && closeBounds.x > dialogBounds.x + dialogBounds.width / 2);
+  assert.ok(addBounds.width < 250);
+  await page.getByRole("button", { name: "+ Add Reviews" }).click();
+  await page.getByRole("textbox", { name: "New review" }).fill("Add a map to your draft.");
+  await page.getByRole("button", { name: "Save Changes" }).click();
+  await page.getByText("Add a map to your draft.", { exact: true }).waitFor();
+  await page.getByRole("button", { name: "Close dialog" }).click();
   const feedback = page.getByRole("textbox", { name: "Feedback", exact: true });
   await feedback.fill("Move the first exhibit closer.");
   await page.getByRole("button", { name: "Return with feedback", exact: true }).click();
@@ -203,6 +233,10 @@ try {
   assert.deepEqual(writes.at(-1).body, writes.at(-2).body);
   role = "Creator";
   await open();
+  await page
+    .getByRole("region", { name: "Progress reviews" })
+    .getByText("Add a map to your draft.")
+    .waitFor();
   assert.equal(
     await page
       .getByRole("region", { name: "Educator feedback" })

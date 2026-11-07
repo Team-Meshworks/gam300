@@ -7,6 +7,8 @@ import { listAssignments } from "../projects/assignment-api";
 import { formatLocalDeadline } from "../projects/deadline";
 import { allPages, createReviewClient } from "../reviews/review-client";
 import type { Decision } from "../reviews/review-types";
+import { ProgressReviews } from "../reviews/ProgressReviews";
+import "../reviews/reviews.css";
 import { createWorkspaceClient } from "./workspace-api";
 import { studentProjectRows, type StudentProjectRow } from "./student-projects";
 import { loadStudentFeedback } from "./student-feedback";
@@ -16,12 +18,14 @@ import "./student-projects.css";
 const workspace = createWorkspaceClient();
 const accounts = createAccountClient();
 const reviews = createReviewClient();
+const ignoreGuard = () => {};
 
 export function StudentProjectDetails({
   row,
   feedback,
   feedbackLoading,
   feedbackError,
+  actorId,
   onClose,
   onOpen,
 }: {
@@ -29,6 +33,7 @@ export function StudentProjectDetails({
   feedback: readonly Decision[];
   feedbackLoading: boolean;
   feedbackError: string;
+  actorId: string;
   onClose: () => void;
   onOpen: () => void;
 }) {
@@ -56,11 +61,22 @@ export function StudentProjectDetails({
         )}
         {!row.assignment && <p>Assignment details are not available for this project.</p>}
         <h2>Comments:</h2>
+        {row.assignment && (
+          <ProgressReviews
+            key={`${row.project.projectId}:${actorId}`}
+            projectId={row.project.projectId}
+            revision={row.project.revision}
+            actorId={actorId}
+            educator={false}
+            onGuard={ignoreGuard}
+          />
+        )}
         <div className="sp-student-comments">
+          <h3>Submission feedback</h3>
           {feedbackLoading && <p role="status">Loading feedback…</p>}
           {feedbackError && <p role="alert">{feedbackError}</p>}
           {!feedbackLoading && !feedbackError && !feedback.length && (
-            <p>No feedback has been recorded yet.</p>
+            <p>No submission feedback has been recorded yet.</p>
           )}
           {feedback.map((decision) => (
             <article key={decision.id}>
@@ -183,6 +199,7 @@ export function StudentProjects({
           feedback={feedback}
           feedbackLoading={feedbackLoading}
           feedbackError={feedbackError}
+          actorId={session.userId}
           onClose={() => setSelected(null)}
           onOpen={() => onOpenProject(selected.project.projectId)}
         />

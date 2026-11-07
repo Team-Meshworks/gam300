@@ -65,6 +65,9 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     /// <summary>Gets the append-only educator review decisions.</summary>
     public DbSet<ReviewDecision> ReviewDecisions => Set<ReviewDecision>();
 
+    /// <summary>Gets educator comments on student work in progress.</summary>
+    public DbSet<ProgressReview> ProgressReviews => Set<ProgressReview>();
+
     /// <summary>
     /// Gets immutable publication editions; current audience and lifecycle authorization are checked separately
     /// </summary>
@@ -82,6 +85,24 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         base.OnModelCreating(builder);
         builder.ApplyConfiguration(new AssetCandidateConfiguration());
         builder.ApplyConfiguration(new PublicationConfiguration());
+        builder.Entity<ProgressReview>(review =>
+        {
+            review.ToTable("progress_reviews", table =>
+            {
+                table.HasCheckConstraint("CK_progress_reviews_feedback", "length(feedback) BETWEEN 1 AND 4000");
+                table.HasCheckConstraint("CK_progress_reviews_revision", $"revision BETWEEN 0 AND {Project.MaxRevision}");
+            });
+            review.HasKey(row => row.Id);
+            review.Property(row => row.Id).HasColumnName("id");
+            review.Property(row => row.ProjectId).HasColumnName("project_id");
+            review.Property(row => row.EducatorId).HasColumnName("educator_id");
+            review.Property(row => row.Revision).HasColumnName("revision");
+            review.Property(row => row.Feedback).HasColumnName("feedback").HasMaxLength(4000).IsRequired();
+            review.Property(row => row.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("statement_timestamp()");
+            review.HasIndex(row => new { row.ProjectId, row.Id });
+            review.HasOne<Project>().WithMany().HasForeignKey(row => row.ProjectId).OnDelete(DeleteBehavior.Restrict);
+            review.HasOne<ApplicationUser>().WithMany().HasForeignKey(row => row.EducatorId).OnDelete(DeleteBehavior.Restrict);
+        });
         builder.Entity<PublicationAccessState>(policy =>
         {
             policy.ToTable("publication_access");
