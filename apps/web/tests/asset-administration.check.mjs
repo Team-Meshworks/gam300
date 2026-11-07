@@ -103,6 +103,14 @@ try {
   await page.getByRole("button", { name: "+ Add 3D Space", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await dialog.waitFor();
+  await dialog.locator(".asset-admin-upload").evaluate((target) => {
+    const transfer = new DataTransfer();
+    transfer.items.add(new File(["test"], "dropped-room.glb", { type: "model/gltf-binary" }));
+    target.dispatchEvent(
+      new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: transfer }),
+    );
+  });
+  await dialog.getByText("dropped-room.glb", { exact: true }).waitFor({ timeout: 3000 });
   // Keep the type in the upload title without repeating it as a field or heading
   assert.equal(await dialog.getByRole("textbox", { name: "Asset Type" }).count(), 0);
   assert.equal(await dialog.locator("h3").count(), 0);
@@ -201,10 +209,14 @@ try {
   // Keep the preview controls from covering cards near the bottom of the longer room catalogue
   await page.getByText("Local preview controls", { exact: true }).click();
   await page.getByRole("button", { name: "+ Add 3D Space", exact: true }).click();
-  await dialog.getByLabel("Choose asset file").setInputFiles({
-    name: "new-room.glb",
-    mimeType: "model/gltf-binary",
-    buffer: Buffer.from("local preview only"),
+  await dialog.locator(".asset-admin-upload").evaluate((target) => {
+    const transfer = new DataTransfer();
+    transfer.items.add(
+      new File(["local preview only"], "new-room.glb", { type: "model/gltf-binary" }),
+    );
+    target.dispatchEvent(
+      new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: transfer }),
+    );
   });
   assert.equal(await dialog.getByRole("combobox", { name: "Filter Category" }).count(), 0);
   await dialog.getByRole("button", { name: "Save Changes", exact: true }).click();
@@ -436,6 +448,14 @@ try {
   await page.getByRole("button", { name: "+ Add Assets", exact: true }).click();
   assert.equal(await dialog.getByRole("textbox", { name: "Asset Type" }).count(), 0);
   await dialog.getByRole("heading", { name: "Upload 3D Model", exact: true }).waitFor();
+  await dialog.locator(".asset-admin-upload").evaluate((target) => {
+    const transfer = new DataTransfer();
+    transfer.items.add(new File(["test"], "dropped-object.glb", { type: "model/gltf-binary" }));
+    target.dispatchEvent(
+      new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: transfer }),
+    );
+  });
+  await dialog.getByText("dropped-object.glb", { exact: true }).waitFor({ timeout: 3000 });
   await checkDialogTypography();
   await page.screenshot({ path: "test-results/scrum168/add-asset.png", fullPage: true });
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();

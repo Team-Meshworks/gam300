@@ -101,6 +101,16 @@ try {
   await page.setViewportSize({ width: 1440, height: 900 });
   await screen("spaces", "All 3D Spaces");
   assert.ok(assetReads >= 2, "Both admin libraries load the real service route");
+  for (const [path, title] of [
+    ["spaces", "Upload 3D Space"],
+    ["assets", "Upload 3D Model"],
+  ]) {
+    await page.goto(`${origin}/${path}?add=1`);
+    await page
+      .getByRole("dialog")
+      .getByRole("heading", { name: title, exact: true })
+      .waitFor({ timeout: 3000 });
+  }
 
   // Direct creator and educator routes must not fetch intake data.
   for (const role of ["Creator", "Educator"]) {

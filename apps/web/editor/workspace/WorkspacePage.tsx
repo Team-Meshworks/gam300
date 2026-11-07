@@ -175,6 +175,7 @@ function OtherWorkspacePage() {
               session={session}
               service={assetService}
               kind={screen.id === "spaces" ? "environment" : "model"}
+              initialUpload={new URLSearchParams(location.search).get("add") === "1"}
               onClose={() => location.assign(fallback)}
             />
           )}

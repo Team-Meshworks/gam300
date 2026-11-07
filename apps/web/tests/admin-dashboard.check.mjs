@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { launchBrowser } from "./browser-security.mjs";
 import { createServer } from "vite";
@@ -57,6 +57,12 @@ try {
         : route.fulfill({ status: 401 });
     if (url.pathname === "/api/v1/auth/csrf")
       return route.fulfill({ json: { requestToken: "csrf" } });
+    if (/^\/api\/v1\/assets\/[^/]+\/bytes$/.test(url.pathname)) {
+      const fixture = url.pathname.includes("11111111")
+        ? "../../assets/source/rooms/room-space1-v1.glb"
+        : "../../assets/source/snowglobe.glb";
+      return route.fulfill({ body: await readFile(fixture), contentType: "model/gltf-binary" });
+    }
     if (request.method() === "POST") {
       assert.equal(request.headers()["x-csrf-token"], "csrf");
       if (url.pathname === "/api/v1/auth/login") {
@@ -160,6 +166,14 @@ try {
   await page.getByRole("button", { name: "Change password", exact: true }).click();
   await page.waitForURL(origin + "/admin/dashboard");
   await page.getByRole("heading", { name: "Welcome Back, VThere", exact: true }).waitFor();
+  assert.equal(
+    await page.getByRole("link", { name: "+ Add environment", exact: true }).getAttribute("href"),
+    "/spaces?add=1",
+  );
+  assert.equal(
+    await page.getByRole("link", { name: "+ Add item", exact: true }).getAttribute("href"),
+    "/assets?add=1",
+  );
   assert.equal(
     await page.getByRole("link", { name: "Open project workspace", exact: true }).count(),
     0,
@@ -268,6 +282,26 @@ try {
     await page.getByRole("button", { name: button, exact: true }).click();
     const library = page.getByRole("dialog", { name: title, exact: true });
     await library.getByText(expected, { exact: true }).waitFor();
+    const preview = library
+      .locator("article")
+      .filter({ hasText: expected })
+      .locator("img.admin-asset-cover");
+    await preview.waitFor({ timeout: 30000 });
+    assert.equal(await preview.evaluate((image) => image.complete && image.naturalWidth > 0), true);
+    assert.equal(
+      await preview.evaluate((image) => {
+        const canvas = document.createElement("canvas");
+        canvas.width = image.naturalWidth;
+        canvas.height = image.naturalHeight;
+        const context = canvas.getContext("2d");
+        context.drawImage(image, 0, 0);
+        return context
+          .getImageData(0, 0, canvas.width, canvas.height)
+          .data.some((value, index) => index % 4 === 3 && value > 0);
+      }),
+      true,
+      "The preview contains visible model pixels",
+    );
     assert.equal(await library.getByText(excluded, { exact: true }).count(), 0);
     assert.ok(
       assetReads > readsBeforeOpen,
