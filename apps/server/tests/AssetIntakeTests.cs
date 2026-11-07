@@ -16,6 +16,50 @@ namespace Spatia.Server.Tests;
 public sealed class AssetIntakeTests
 {
     [Test]
+    public async Task Intake_RejectsInvalidProvenanceBeforeStoringAsset()
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
+        await fixture.SignInAsync(await fixture.CreateAccountAsync(ApplicationRoles.Administrator));
+        foreach (var encoded in new[] { "not-base64", Convert.ToBase64String(JsonSerializer.SerializeToUtf8Bytes(new { source = new string('x', 2001) })) })
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/admin/assets?name=room.glb&kind=environment");
+            request.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync());
+            request.Headers.Add("X-Spatia-Asset-Metadata", encoded);
+            request.Content = new ByteArrayContent(CreateMinimalGlb());
+            request.Content.Headers.ContentType = new("model/gltf-binary");
+            using var response = await fixture.Client.SendAsync(request);
+            await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
+        }
+        await using var scope = fixture.Database.Services.CreateAsyncScope();
+        await Assert.That(await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().AssetCandidates.CountAsync()).IsEqualTo(0);
+    }
+
+    [Test]
+    public async Task Intake_ImmediateAvailabilityRetainsSuppliedProvenance()
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
+        await fixture.SignInAsync(await fixture.CreateAccountAsync(ApplicationRoles.Administrator));
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/admin/assets?name=room.glb&kind=environment");
+        request.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync());
+        var metadata = JsonSerializer.SerializeToUtf8Bytes(new { source = "Museum archive", license = "CC BY 4.0", reviewNotes = "Rights checked" });
+        request.Headers.Add("X-Spatia-Asset-Metadata", Convert.ToBase64String(metadata));
+        request.Content = new ByteArrayContent(CreateMinimalGlb());
+        request.Content.Headers.ContentType = new("model/gltf-binary");
+        using var response = await fixture.Client.SendAsync(request);
+        await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.Created);
+        var asset = (await response.Content.ReadFromJsonAsync<AssetAdministrationRecord>())!;
+        await Assert.That(asset.Status).IsEqualTo("approved");
+        await Assert.That(asset.Source).IsEqualTo("Museum archive");
+        await Assert.That(asset.License).IsEqualTo("CC BY 4.0");
+        await Assert.That(asset.ReviewNotes).IsEqualTo("Rights checked");
+        await using var scope = fixture.Database.Services.CreateAsyncScope();
+        var stored = await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().AssetCandidates.AsNoTracking().SingleAsync(row => row.Id == asset.Id);
+        await Assert.That(stored.Source).IsEqualTo("Museum archive");
+        await Assert.That(stored.License).IsEqualTo("CC BY 4.0");
+        await Assert.That(stored.ReviewNotes).IsEqualTo("Rights checked");
+    }
+
+    [Test]
     [Arguments("environment", "room.glb", null)]
     [Arguments("model", "object.glb", "Objects")]
     public async Task Intake_ValidAdminUploadIsImmediatelyAvailable(string kind, string name, string? category)

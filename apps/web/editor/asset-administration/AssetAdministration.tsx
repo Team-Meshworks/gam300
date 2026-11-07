@@ -128,6 +128,7 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
   // Start each upload with fresh fields while keeping the loaded catalogue intact
   function openUpload() {
     setFile(null);
+    setReview({ source: "", license: "", reviewNotes: "" });
     setCategory(data?.policy.categories[kind]?.[0] ?? "");
     setNotice(null);
     setConfirmation(false);
@@ -177,7 +178,7 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
     }
     await mutate(async (signal) =>
       service.submit(
-        { file, kind: kind, category: categoryChoices === null ? null : category },
+        { file, kind: kind, category: categoryChoices === null ? null : category, review },
         signal,
       ),
     );
@@ -580,6 +581,30 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
                 selected && <div className="asset-admin-detail-preview">{thumbnail(selected)}</div>
               )}
               {selection?.kind === "detail" && <h3>Details</h3>}
+              {selection?.kind === "upload" && (
+                <fieldset className="asset-admin-review" disabled={busy}>
+                  <legend>Asset details</legend>
+                  <p>These optional details are saved when the file is validated.</p>
+                  {(
+                    [
+                      ["source", "Source or provenance"],
+                      ["license", "Redistribution licence"],
+                      ["reviewNotes", "Content review notes"],
+                    ] as const
+                  ).map(([field, label]) => (
+                    <label className="asset-admin-select" key={field}>
+                      <span>{label} (optional)</span>
+                      <input
+                        value={review[field]}
+                        maxLength={2000}
+                        onChange={(event) =>
+                          setReview((current) => ({ ...current, [field]: event.target.value }))
+                        }
+                      />
+                    </label>
+                  ))}
+                </fieldset>
+              )}
               {(selection?.kind === "detail" || kind === "model") && (
                 <div
                   className={`asset-admin-fields${selection?.kind === "upload" ? " asset-admin-fields-upload" : ""}`}

@@ -33,7 +33,7 @@ public sealed class AssetAdministrationService(ApplicationDbContext database, As
             }).Take(1000).ToArrayAsync(token)).Select(Record).ToArray();
 
     public async Task<AssetAdministrationRecord?> SubmitAsync(string name, string kind, string? category,
-        byte[] bytes, Guid actor, CancellationToken token)
+        byte[] bytes, Guid actor, AssetReviewRequest? metadata, CancellationToken token)
     {
 
         // Repeat input bounds here because the service can be called outside the HTTP upload handler
@@ -62,9 +62,9 @@ public sealed class AssetAdministrationService(ApplicationDbContext database, As
             Status = validation.Value.Valid ? "approved" : "invalid",
             Hidden = !validation.Value.Valid,
             ReviewedBy = validation.Value.Valid ? actor : null,
-            Source = validation.Value.Valid ? "" : null,
-            License = validation.Value.Valid ? "" : null,
-            ReviewNotes = validation.Value.Valid ? "Made available automatically after technical validation." : null,
+            Source = validation.Value.Valid ? metadata?.Source ?? "" : null,
+            License = validation.Value.Valid ? metadata?.License ?? "" : null,
+            ReviewNotes = validation.Value.Valid ? string.IsNullOrEmpty(metadata?.ReviewNotes) ? "Made available automatically after technical validation." : metadata.ReviewNotes : null,
             ValidationJson = JsonSerializer.Serialize(validation.Value.Messages),
             SubmittedBy = actor,
             CreatedAt = DateTimeOffset.UtcNow,
