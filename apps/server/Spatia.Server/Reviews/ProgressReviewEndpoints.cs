@@ -67,12 +67,19 @@ public static class ProgressReviewEndpoints
         }
         if (authorization.Snapshot!.Revision != request.ExpectedRevision)
         { return ProjectHttpResults.FromSave(context, ProjectSaveResult.Rejected(ProjectSaveDecision.Conflict, authorization.Snapshot.Revision)); }
-        var review = new ProgressReview { Id = reviewId, ProjectId = id, EducatorId = account.UserId,
-            Revision = request.ExpectedRevision.Value, Feedback = request.Feedback };
+        var review = new ProgressReview
+        {
+            Id = reviewId,
+            ProjectId = id,
+            EducatorId = account.UserId,
+            Revision = request.ExpectedRevision.Value,
+            Feedback = request.Feedback
+        };
         database.ProgressReviews.Add(review);
         try { await database.SaveChangesAsync(cancellationToken); }
         catch (DbUpdateException error) when (error.InnerException is Npgsql.PostgresException
-            { SqlState: Npgsql.PostgresErrorCodes.UniqueViolation, ConstraintName: "PK_progress_reviews" }) { return Conflict(context); }
+        { SqlState: Npgsql.PostgresErrorCodes.UniqueViolation, ConstraintName: "PK_progress_reviews" })
+        { return Conflict(context); }
         var current = await access.LockAsync(context, id, ProjectLockPurpose.ManageAssignments, cancellationToken);
         if (current.Failure is { } currentFailure) { return ProjectHttpResults.FromAccessFailure(context, currentFailure); }
         var currentAccount = await access.ResolveCurrentAccountAsync(context, cancellationToken);
