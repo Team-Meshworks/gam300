@@ -16,7 +16,7 @@ try {
   assert.equal(await classes.count(), 1, "Classes navigation should be available");
   await classes.focus();
   await page.keyboard.press("Enter");
-  assert.equal(new URL(page.url()).hash, "#classes");
+  await page.waitForURL((url) => url.hash === "#classes");
   await page.getByRole("heading", { name: "Class assignments" }).waitFor();
   const outcome = page.getByLabel("Assignment outcome");
   const form = page.getByRole("form", { name: "Class assignment" });
