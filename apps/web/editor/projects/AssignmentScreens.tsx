@@ -81,7 +81,7 @@ export function AssignmentCreationScreen({
   const [setup, setSetup] = useState<Setup | null>(null);
   const [message, setMessage] = useState("");
   const [sourceId, setSourceId] = useState("");
-  const [sourceUncertain, setSourceUncertain] = useState(false);
+  const [sourceUncertain, setSourceUncertain] = useState<"unknown" | "unavailable" | null>(null);
   const [students, setStudents] = useState<EligibleStudent[]>([]);
   const [rosterMessage, setRosterMessage] = useState("");
   const [choicesMessage, setChoicesMessage] = useState("");
@@ -116,7 +116,7 @@ export function AssignmentCreationScreen({
           const stored = localStorage.getItem(blankSourceKey(session.userId));
           if (stored) {
             const parsed: unknown = JSON.parse(stored);
-            setSourceUncertain(!isRecord(parsed) || !isRecord(parsed.receipt));
+            setSourceUncertain(!isRecord(parsed) || !isRecord(parsed.receipt) ? "unknown" : null);
           }
         }
         const choices = saved
@@ -276,13 +276,37 @@ export function AssignmentCreationScreen({
             setup.session.userId,
             draft.title.trim(),
             "",
+            async (actorId, projectId) => {
+              try {
+                if ((await assignmentSession()).userId !== actorId) return { kind: "retry" };
+                const projects = await workspace.projects(false);
+                if ((await assignmentSession()).userId !== actorId) return { kind: "retry" };
+                const current = projects.find(
+                  (project) => project.projectId.toLowerCase() === projectId.toLowerCase(),
+                );
+                return current?.permissions.canManage
+                  ? { kind: "available", revision: current.revision }
+                  : { kind: "unavailable" };
+              } catch {
+                return { kind: "retry" };
+              }
+            },
           ),
       );
       if (result.kind === "unknown") {
-        setSourceUncertain(true);
+        setSourceUncertain("unknown");
         return { kind: "unknown" };
       }
+      if (result.kind === "source-unavailable") {
+        setSourceUncertain("unavailable");
+        return {
+          kind: "rejected",
+          message:
+            "The source project is no longer available. Check your projects before starting again.",
+        };
+      }
       if (result.kind === "rejected") return result;
+      setSourceUncertain(null);
       source = { projectId: result.projectId, title: draft.title, revision: result.revision };
     }
     if (!source) return { kind: "rejected", message: "Choose an existing source project." };
@@ -318,14 +342,16 @@ export function AssignmentCreationScreen({
       {sourceUncertain && !pending && (
         <div role="alert" className="sp-creation-notice">
           <p>
-            Creating the source project could not be confirmed. Check your projects before trying
-            again to avoid creating a duplicate.
+            {sourceUncertain === "unavailable"
+              ? "The source project is no longer available or cannot be managed. You can create a new source without losing these assignment details."
+              : "Creating the source project could not be confirmed. Check your projects before trying again to avoid creating a duplicate."}
           </p>
           <Button
             onClick={() => {
               try {
                 localStorage.removeItem(blankSourceKey(setup.session.userId));
-                location.assign("/home");
+                if (sourceUncertain === "unavailable") setSourceUncertain(null);
+                else location.assign("/home");
               } catch {
                 setMessage(
                   "The recovery warning could not be cleared. Your project may still exist.",
@@ -333,7 +359,7 @@ export function AssignmentCreationScreen({
               }
             }}
           >
-            I checked my projects
+            {sourceUncertain === "unavailable" ? "Use a new source project" : "I checked my projects"}
           </Button>
         </div>
       )}

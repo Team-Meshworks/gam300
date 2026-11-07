@@ -17,9 +17,10 @@ const session = {
 };
 
 try {
-  for (const [role, assetsStatus] of [
+  for (const [role, assetsStatus, missingSource] of [
     ["Educator", 200],
     ["Educator", 503],
+    ["Educator", 200, true],
     ["Creator", 200],
     ["Creator", 503],
   ]) {
@@ -63,6 +64,7 @@ try {
       if (path === `/api/v1/classes/${classId}/assignments` && request.method() === "POST") {
         const body = request.postDataJSON();
         assignments.push(body);
+        if (role === "Educator" && assignments.length === 1) return route.fulfill({ status: 409 });
         return route.fulfill({
           json: {
             assignmentId: body.requestId,
@@ -82,7 +84,23 @@ try {
           },
         });
       if (path === "/api/v1/projects" && request.method() === "GET")
-        return route.fulfill({ json: { items: [], nextCursor: null } });
+        return route.fulfill({
+          json: {
+            items: writes.length
+              ? [
+                  {
+                    projectId,
+                    title: "Blank project",
+                    revision: 3,
+                    updatedAt: "2026-11-05T00:00:00Z",
+                    archived: false,
+                    permissions: { canEdit: true, canManage: true, canPublish: true },
+                  },
+                ]
+              : [],
+            nextCursor: null,
+          },
+        });
       if (path === "/api/v1/projects" && request.method() === "POST") {
         writes.push(request.postDataJSON());
         return route.fulfill({
@@ -97,6 +115,7 @@ try {
       role === "Creator" &&
       page.waitForResponse((response) => new URL(response.url()).pathname === "/api/v1/assets");
     await page.goto(origin + "/home");
+    if (role === "Creator") await page.getByText("Manage projects and archives", { exact: true }).click();
     if (assetsLoaded)
       await assetsLoaded.catch(async (error) => {
         throw new Error(`Assets request did not occur: ${await page.locator("body").innerText()}`, {
@@ -104,6 +123,23 @@ try {
         });
       });
     if (role === "Educator") {
+      if (missingSource) {
+        await page.evaluate(
+          ({ userId, projectId }) =>
+            localStorage.setItem(
+              `spatia.assignment.source:${userId}`,
+              JSON.stringify({
+                receipt: {
+                  projectId,
+                  revision: 0,
+                  updatedAt: "2026-11-05T00:00:00Z",
+                  archived: false,
+                },
+              }),
+            ),
+          { userId, projectId },
+        );
+      }
       await page.getByRole("link", { name: "+ New Project", exact: true }).click();
       await page.getByRole("heading", { name: "New Project", exact: true }).waitFor();
       await page.getByLabel("Project title").fill("Blank project");
@@ -113,15 +149,42 @@ try {
       await page.getByLabel(/^Class/).selectOption(classId);
       await page.getByRole("checkbox", { name: /Alice/ }).check();
       await page.getByRole("button", { name: "Create project" }).click();
+      if (missingSource) {
+        await page
+          .getByText(/source project is no longer available or cannot be managed/i)
+          .waitFor();
+        assert.equal(writes.length, 0);
+        assert.equal(assignments.length, 0);
+        assert.ok(
+          await page.evaluate(
+            (userId) => localStorage.getItem(`spatia.assignment.source:${userId}`),
+            userId,
+          ),
+        );
+        await page.getByRole("button", { name: "Use a new source project" }).click();
+        assert.equal(await page.getByLabel("Project title").inputValue(), "Blank project");
+        assert.equal(
+          await page.evaluate(
+            (userId) => localStorage.getItem(`spatia.assignment.source:${userId}`),
+            userId,
+          ),
+          null,
+        );
+        await page.close();
+        continue;
+      }
+      await page.getByText(/assignment was not created/i).waitFor();
+      await page.getByRole("button", { name: "Create project" }).click();
       await page.getByRole("heading", { name: "Project details", exact: true }).waitFor();
       await page.getByRole("heading", { name: "Blank project", exact: true }).waitFor();
       await page.getByText("Alice", { exact: true }).waitFor();
       await page.getByRole("button", { name: "View Progress" }).waitFor();
       assert.deepEqual(writes, [{ title: "Blank project" }]);
-      assert.equal(assignments.length, 1);
-      assert.equal(assignments[0].sourceProjectId, projectId);
+      assert.equal(assignments.length, 2);
+      assert.equal(assignments[1].sourceProjectId, projectId);
       assert.equal(assignments[0].sourceRevision, 0);
-      assert.deepEqual(assignments[0].studentIds, [studentId]);
+      assert.equal(assignments[1].sourceRevision, 3);
+      assert.deepEqual(assignments[1].studentIds, [studentId]);
       assert.equal(assetReads, 0, "Educator assignment creation does not require the catalogue");
       await page.close();
       continue;

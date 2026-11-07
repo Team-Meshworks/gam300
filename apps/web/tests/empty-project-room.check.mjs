@@ -66,6 +66,7 @@ try {
           developmentAssetsAllowed: false,
         });
       if (path === "/api/v1/auth/csrf") return json(200, { requestToken: "test-token" });
+      if (path === "/api/v1/classes") return json(200, { items: [], nextCursor: null });
       if (path === "/api/v1/assets") return json(200, [asset]);
       if (path === "/api/v1/projects") {
         if (request.method() === "GET") return json(200, { items: [], nextCursor: null });
@@ -114,6 +115,7 @@ try {
     page.on("pageerror", (error) => errors.push(error.message));
     const url = `${base}/?projectId=${fixture.projectId}`;
     await page.goto(`${base}/home`);
+    await page.getByText("Manage projects and archives", { exact: true }).click();
     await page
       .getByRole("button", { name: "New project", exact: true })
       .click()

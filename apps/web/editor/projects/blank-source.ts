@@ -2,6 +2,10 @@ import { isRecord, projectReceipt, type WriteResult } from "../home/workspace-ap
 
 type Store = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 type Write = (actorId: string, path: string, method: "POST", body: object) => Promise<WriteResult>;
+type ReadSource = (
+  actorId: string,
+  projectId: string,
+) => Promise<{ kind: "available"; revision: number } | { kind: "unavailable" } | { kind: "retry" }>;
 export const blankSourceKey = (actorId: string) => `spatia.assignment.source:${actorId}`;
 
 export async function createBlankSource(
@@ -10,9 +14,11 @@ export async function createBlankSource(
   actorId: string,
   title: string,
   environmentAssetId: string,
+  readSource: ReadSource,
 ): Promise<
   | { kind: "confirmed"; projectId: string; revision: number }
   | { kind: "unknown" }
+  | { kind: "source-unavailable" }
   | { kind: "rejected"; message: string }
 > {
   const key = blankSourceKey(actorId);
@@ -22,7 +28,14 @@ export async function createBlankSource(
       const value: unknown = JSON.parse(saved);
       if (isRecord(value) && projectReceipt(value.receipt)) {
         const receipt = value.receipt as { projectId: string; revision: number };
-        return { kind: "confirmed", projectId: receipt.projectId, revision: receipt.revision };
+        const current = await readSource(actorId, receipt.projectId);
+        if (current.kind === "unavailable") return { kind: "source-unavailable" };
+        if (current.kind === "retry")
+          return {
+            kind: "rejected",
+            message: "The source project could not be checked. Try again.",
+          };
+        return { kind: "confirmed", projectId: receipt.projectId, revision: current.revision };
       }
       return { kind: "unknown" };
     }
