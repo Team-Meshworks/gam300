@@ -4,6 +4,7 @@ import { createServer } from "vite";
 import { launchBrowser } from "./browser-security.mjs";
 const server = await createServer({
   configFile: false,
+  cacheDir: "test-results/vite-review-exit-publish",
   server: { host: "127.0.0.1", port: 0 },
   logLevel: "silent",
 });

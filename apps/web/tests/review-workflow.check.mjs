@@ -5,6 +5,7 @@ import { launchBrowser } from "./browser-security.mjs";
 import { createServer } from "vite";
 
 const server = await createServer({
+  cacheDir: "test-results/vite-review-workflow",
   server: { host: "127.0.0.1", port: 0, strictPort: false },
   logLevel: "silent",
 });
