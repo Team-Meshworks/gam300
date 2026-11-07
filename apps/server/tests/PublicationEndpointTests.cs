@@ -15,45 +15,6 @@ namespace Spatia.Server.Tests;
 public sealed class PublicationEndpointTests
 {
     [Test]
-    [Arguments(false)]
-    [Arguments(true)]
-    public async Task Publish_V2PreservesBothScenesAndRejectsEnabledUnavailableRules(bool enabled)
-    {
-        await using var fixture = await HttpsApplicationFixture.CreateAsync();
-        var (data, _) = await PrepareAsync(fixture, content: true, enabledRule: enabled);
-        string saved;
-        await using (var scope = fixture.App.Services.CreateAsyncScope())
-        {
-            var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            saved = (await database.Projects.SingleAsync(row => row.Id == data.ProjectId)).DocumentJson;
-        }
-
-        // Readiness and publication use the same capability decision for the confirmed revision
-        using var readiness = await fixture.Client.GetAsync($"/api/v1/projects/{data.ProjectId}/publication-readiness");
-        var state = await readiness.Content.ReadFromJsonAsync<JsonElement>();
-        await Assert.That(state.GetProperty("state").GetString()).IsEqualTo(enabled ? "UnsupportedRuntime" : "Ready");
-        var missing = state.GetProperty("missingCapabilities");
-        await Assert.That(missing.EnumerateArray().Any(issue => issue.GetProperty("capability").GetString() == "trigger:sceneStart"
-            && issue.GetProperty("path").GetString() == "project.scenes[0].rules[0].trigger")).IsEqualTo(enabled);
-        var publication = Guid.NewGuid();
-        using var response = await PublishAsync(fixture, data.ProjectId, publication);
-        await Assert.That(response.StatusCode).IsEqualTo(enabled ? HttpStatusCode.UnprocessableEntity : HttpStatusCode.Created);
-        await using var verify = fixture.App.Services.CreateAsyncScope();
-        var db = verify.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        await Assert.That((await db.Projects.SingleAsync(row => row.Id == data.ProjectId)).DocumentJson).IsEqualTo(saved);
-        await Assert.That(await db.Publications.CountAsync()).IsEqualTo(enabled ? 0 : 1);
-        if (!enabled)
-        {
-            // Fetch the immutable edition through the same route used by the visitor
-            using var snapshot = await fixture.Client.GetAsync($"/api/v1/publications/{publication}");
-            await Assert.That(snapshot.StatusCode).IsEqualTo(HttpStatusCode.OK);
-            var published = await snapshot.Content.ReadAsStringAsync();
-            await Assert.That(JsonNode.DeepEquals(JsonNode.Parse(saved), JsonNode.Parse(published))).IsTrue();
-            await Assert.That(JsonNode.Parse(published)!["scenes"]!.AsArray().Count).IsEqualTo(2);
-        }
-    }
-
-    [Test]
     public async Task Publish_UnsupportedLegacyInteractionsAreRejectedBeforeCommitting()
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync();
@@ -345,7 +306,7 @@ public sealed class PublicationEndpointTests
     }
 
     internal static async Task<(ReviewSubmissionEndpointTests.Seeded Data, AssetCandidate Asset)> PrepareAsync(
-        HttpsApplicationFixture fixture, bool approve = true, bool interactions = false, Guid? assetOwner = null, bool content = false, bool enabledRule = false)
+        HttpsApplicationFixture fixture, bool approve = true, bool interactions = false, Guid? assetOwner = null)
     {
         fixture.App.Configuration["Publication:Origin"] = "https://publications.example.test";
         var data = await ReviewSubmissionEndpointTests.SeedAsync(fixture, false);
@@ -375,36 +336,6 @@ public sealed class PublicationEndpointTests
             document["scenes"]![0]!["environmentAssetId"] = asset.Id.ToString();
             document["scenes"]![0]!["objects"] = new JsonArray();
             if (interactions) { document["scenes"]![0]!["interactions"] = JsonNode.Parse("""[{"when":{"type":"scene-starts"},"do":{"type":"open-link","url":"https://example.com/"}}]"""); }
-            if (content)
-            {
-                // Reuse the shared two-scene fixture with approved identities from this database
-                var model = new AssetCandidate
-                {
-                    Id = Guid.NewGuid(),
-                    Name = "Synthetic model",
-                    Kind = "model",
-                    Bytes = bytes,
-                    Sha256 = asset.Sha256,
-                    Status = "approved",
-                    ValidationJson = "{}",
-                    Source = asset.Source,
-                    License = asset.License,
-                    ReviewNotes = asset.ReviewNotes,
-                    SubmittedBy = data.Educator,
-                    ReviewedBy = data.Educator,
-                    CreatedAt = DateTimeOffset.UtcNow,
-                };
-                database.AssetCandidates.Add(model);
-                document = JsonNode.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "fixtures", "m2-publication-project.json")))!;
-                document["projectId"] = data.ProjectId.ToString();
-                foreach (var scene in document["scenes"]!.AsArray())
-                {
-                    scene!["environmentAssetId"] = asset.Id.ToString();
-                    foreach (var item in scene["objects"]!.AsArray()) { item!["assetId"] = model.Id.ToString(); }
-                }
-                document["scenes"]![0]!["rules"]![0]!["enabled"] = enabledRule;
-                project.SchemaVersion = 2;
-            }
             project.DocumentJson = document.ToJsonString();
             await database.SaveChangesAsync();
         }

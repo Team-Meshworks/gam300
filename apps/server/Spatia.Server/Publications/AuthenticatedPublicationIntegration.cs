@@ -15,18 +15,11 @@ internal sealed class AuthenticatedPublicationIntegration : IPublicationIntegrat
     {
         var intent = ReadIntent(request);
         if (intent.Failure is { } failure) { return PublicationPreparation.Denied(failure); }
-        // Check authored features before resolving assets or creating a publication
-        // Keep unavailable content saved while preventing incomplete playback
-        var hasLegacyInteractions = document switch
+        // The protected snapshot contract covers baseline exhibits; a visitor runtime capability contract is separate
+        if (document is not LegacyProject { SchemaVersion: 1 } legacy
+            || legacy.Scenes.Any(scene => scene.Interactions.Length != 0 || scene.Hotspots.Length != 0))
         {
-            LegacyProject legacy => legacy.Scenes.Any(scene => scene.Interactions.Length != 0 || scene.Hotspots.Length != 0),
-            ContentProject content => content.Scenes.Any(scene => scene.Interactions.Length != 0 || scene.Hotspots.Length != 0),
-            _ => true,
-        };
-        var missing = ProjectCapabilities.Missing(document, PublicationCapabilities.Supported);
-        if (hasLegacyInteractions || missing.Count != 0)
-        {
-            return PublicationPreparation.Denied(PublicationRejection.UnsupportedRuntime, missing);
+            return PublicationPreparation.Denied(PublicationRejection.UnsupportedRuntime);
         }
         var viewers = intent.Viewers!;
         var eligible = await database.OrganizationMemberships.Where(member => member.OrganizationId == project.OrganizationId
@@ -39,7 +32,7 @@ internal sealed class AuthenticatedPublicationIntegration : IPublicationIntegrat
         var references = await new ApprovedReviewAssetResolver().ResolveAsync(database, project,
             PublicationDocumentAssets.Required(document), cancellationToken);
         return references is null ? PublicationPreparation.Denied(PublicationRejection.InvalidAssets)
-            : PublicationPreparation.Ready(references.Select(row => new PublicationAssetReference(row.AssetId, row.Sha256)), PublicationCapabilities.Supported);
+            : PublicationPreparation.Ready(references.Select(row => new PublicationAssetReference(row.AssetId, row.Sha256)), []);
     }
 
     public async Task<PublicationRejection?> AuthorizeReplayAsync(ApplicationDbContext database, ProjectAccessSnapshot project,

@@ -42,26 +42,23 @@ internal interface IPublicationIntegration
 internal sealed class PublicationPreparation
 {
     private PublicationPreparation(PublicationRejection? failure, IEnumerable<PublicationAssetReference> references,
-        IEnumerable<string> capabilities, bool ordinaryOriginVerified = false, IEnumerable<CapabilityIssue>? missingCapabilities = null)
+        IEnumerable<string> capabilities, bool ordinaryOriginVerified = false)
     {
         Failure = failure;
         References = references.ToImmutableArray();
         SupportedCapabilities = capabilities.ToFrozenSet(StringComparer.Ordinal);
         OrdinaryOriginVerified = ordinaryOriginVerified;
-        MissingCapabilities = (missingCapabilities ?? []).ToImmutableArray();
     }
 
     public PublicationRejection? Failure { get; }
     public ImmutableArray<PublicationAssetReference> References { get; }
     public IReadOnlySet<string> SupportedCapabilities { get; }
     public bool OrdinaryOriginVerified { get; }
-    public ImmutableArray<CapabilityIssue> MissingCapabilities { get; }
 
     public static PublicationPreparation Ready(IEnumerable<PublicationAssetReference> references,
         IEnumerable<string> supportedCapabilities, bool ordinaryOriginVerified = false) =>
         new(null, references, supportedCapabilities, ordinaryOriginVerified);
-    public static PublicationPreparation Denied(PublicationRejection failure, IEnumerable<CapabilityIssue>? missingCapabilities = null) =>
-        new(failure, [], [], missingCapabilities: missingCapabilities);
+    public static PublicationPreparation Denied(PublicationRejection failure) => new(failure, [], []);
 }
 
 /// <summary>No permissive default, development catalogue approval or inferred direct-project exemption</summary>

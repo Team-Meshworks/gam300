@@ -14,12 +14,7 @@ import "./publication.css";
 const api = createWorkspaceClient();
 const accounts = createAccountClient();
 type Saved = { title: string; revision: number; canPublish: boolean };
-type Readiness = {
-  state: string;
-  completionConfirmed: boolean | null;
-  approved: boolean | null;
-  missingCapabilities: { capability: string; path: string }[];
-};
+type Readiness = { state: string; completionConfirmed: boolean | null; approved: boolean | null };
 const readinessMessages: Record<string, string> = {
   Ready: "The saved revision is ready. Publishing checks these prerequisites again.",
   ApprovalRequired: "Educator approval of this saved revision is required before publishing.",
@@ -155,28 +150,12 @@ export function PublicationPage({ session }: { session: AccountSession }) {
                   (status.approved === false || status.completionConfirmed === false))
               )
                 throw new Error("Readiness changed");
-              // Keep the server's ordered capability reasons beside the saved revision
-              // Older responses may omit them; malformed details cannot become UI content
-              const missing = status.missingCapabilities ?? [];
-              if (
-                !Array.isArray(missing) ||
-                !missing.every(
-                  (issue) =>
-                    isRecord(issue) &&
-                    typeof issue.capability === "string" &&
-                    typeof issue.path === "string",
-                )
-              ) {
-                throw new Error("Readiness details could not be verified");
-              }
-              if (!cancelled) {
+              if (!cancelled)
                 setReadiness({
                   state: status.state,
                   completionConfirmed: status.completionConfirmed,
                   approved: status.approved,
-                  missingCapabilities: missing,
                 });
-              }
             } catch {
               if (!cancelled)
                 setReadinessError(
@@ -359,22 +338,6 @@ export function PublicationPage({ session }: { session: AccountSession }) {
                     </p>
                   )}
                   <p>{readinessMessages[readiness.state]}</p>
-                  {readiness.state === "UnsupportedRuntime" &&
-                    readiness.missingCapabilities.length > 0 && (
-                      <>
-                        <p>
-                          These features are not available in the visitor yet. Your saved content is
-                          unchanged.
-                        </p>
-                        <ul aria-label="Unavailable publication features">
-                          {readiness.missingCapabilities.map((issue) => (
-                            <li key={`${issue.path}:${issue.capability}`}>
-                              {issue.capability} — {issue.path}
-                            </li>
-                          ))}
-                        </ul>
-                      </>
-                    )}
                   {readiness.state === "ApprovalRequired" && session.role !== "Administrator" && (
                     <a href={`/review?projectId=${encodeURIComponent(projectId!)}`}>
                       Open submissions and reviews

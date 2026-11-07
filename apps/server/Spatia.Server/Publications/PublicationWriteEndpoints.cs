@@ -47,8 +47,7 @@ internal static class PublicationWriteEndpoints
                 result.Revision,
                 state = rejection?.ToString() ?? "Ready",
                 result.CompletionConfirmed,
-                result.Approved,
-                missingCapabilities = rejection == PublicationRejection.UnsupportedRuntime ? result.MissingCapabilities ?? [] : []
+                result.Approved
             });
         }).RequireAuthorization(SecurityPolicies.FullAccount);
 
