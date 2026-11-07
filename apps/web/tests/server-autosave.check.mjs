@@ -320,7 +320,7 @@ try {
     const result = await recoveryPage.evaluate(
       async ({ project, accountId }) => {
         const { applySaveRecoverySession, clearConfirmedServerRecovery, getRecoverySession } =
-          await import("/persistence/local-drafts.ts");
+          await import("/persistence/recovery-session.ts");
         const { IndexedDBDraftDatabase } = await import("/persistence/draft-db.ts");
         const database = new IndexedDBDraftDatabase();
         const assets = new Map([
@@ -334,7 +334,7 @@ try {
           savedJson: null,
           pristine: false,
         };
-        const first = await applySaveRecoverySession(backup, 0, assets, database, undefined, scope);
+        const first = await applySaveRecoverySession(backup, 0, assets, database, { scope });
         const connection = await database.getIndexedDB();
         const encoded = await new Promise((resolve, reject) => {
           const tx = connection.transaction("session", "readonly");
@@ -352,14 +352,9 @@ try {
           ...backup,
           serverSave: { revision: 7, confirmedJson: encoded, pending: null },
         };
-        const second = await applySaveRecoverySession(
-          confirmed,
-          1,
-          assets,
-          database,
-          undefined,
+        const second = await applySaveRecoverySession(confirmed, 1, assets, database, {
           scope,
-        );
+        });
         const cleared = await clearConfirmedServerRecovery(scope);
         const reopened = await getRecoverySession(assets, database, scope);
         if (!reopened.ok || !reopened.value) throw new Error("Cleared revision was not retained");
@@ -369,16 +364,14 @@ try {
           reopened.value.revision,
           assets,
           database,
-          undefined,
-          scope,
+          { scope },
         );
         const stale = await applySaveRecoverySession(
           { ...confirmed, document: { ...project, title: "Stale tab" } },
           2,
           assets,
           database,
-          undefined,
-          scope,
+          { scope },
         );
         const retained = await getRecoverySession(assets, database, scope);
         return { first, second, cleared, reopened, next, stale, retained };

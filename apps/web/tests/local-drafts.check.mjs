@@ -158,7 +158,7 @@ try {
       async ({ project, registry }) => {
         const { createDocumentStore } = await import("/document-store.ts");
         const { saveRecoverySession, loadRecoverySession } =
-          await import("/persistence/local-drafts.ts");
+          await import("/persistence/recovery-session.ts");
         const kinds = new Map(Object.entries(registry));
         const store = createDocumentStore([]);
         const loaded = store.loadProject(JSON.stringify(project), kinds);
@@ -603,7 +603,7 @@ try {
       .then(withSceneDefaults);
   const session = (target = editor) =>
     target.evaluate(async () => {
-      const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
+      const { loadRecoverySession } = await import("/persistence/recovery-session.ts");
       const result = await loadRecoverySession(
         new Map([
           ["test-room-v1", "environment"],

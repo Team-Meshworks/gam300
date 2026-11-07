@@ -1,10 +1,23 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import sampleProject from "../../shared/project/fixtures/m1-project.json";
 import type { CameraView } from "../graphics/modeManager";
-import type { useProjectSession } from "../persistence/use-project-session";
 import { Icon } from "./Icon";
 
 type SaveState = "saving" | "failed" | "pending" | "saved";
+
+export type TopBarSession = {
+  fileName: string;
+  dirty: boolean;
+  saveState: SaveState;
+  busy: boolean;
+  save: (exportFile?: boolean) => Promise<boolean>;
+  local: {
+    createNew: () => Promise<void>;
+    open: () => Promise<void>;
+    openSample: (document: unknown) => Promise<void>;
+    olderSceneFiles: readonly { name: string }[];
+  } | null;
+};
 
 const saveLabels: Record<SaveState, string> = {
   saving: "Saving…",
@@ -15,8 +28,6 @@ const saveLabels: Record<SaveState, string> = {
 
 export function TopBar({
   session,
-  serverMode = false,
-  serverSaving = false,
   onLeave,
   onPublish,
   hasProject,
@@ -36,9 +47,7 @@ export function TopBar({
   settingsPanel,
   onSettings,
 }: {
-  session: ReturnType<typeof useProjectSession>;
-  serverMode?: boolean;
-  serverSaving?: boolean;
+  session: TopBarSession;
   onLeave?: (() => void) | undefined;
   onPublish?: (() => void) | undefined;
   hasProject: boolean;
@@ -76,15 +85,8 @@ export function TopBar({
     menu.current?.querySelector("summary")?.focus();
   }
 
-  const busy = session.operation !== null;
-  const saveState: SaveState =
-    serverSaving || session.operation === "file"
-      ? "saving"
-      : session.fileFailed
-        ? "failed"
-        : session.dirty
-          ? "pending"
-          : "saved";
+  const { busy, saveState, local } = session;
+  const serverMode = local === null;
 
   return (
     <header className="app-header">
@@ -122,7 +124,7 @@ export function TopBar({
             <Icon name="caretDown" />
           </summary>
           <div className="draft-menu-panel">
-            {!serverMode && (
+            {local && (
               <>
                 <button
                   type="button"
@@ -130,7 +132,7 @@ export function TopBar({
                   disabled={!ready || busy}
                   onClick={() => {
                     closeMenu();
-                    void session.createNew();
+                    void local.createNew();
                   }}
                 >
                   New
@@ -141,7 +143,7 @@ export function TopBar({
                   disabled={!ready || busy}
                   onClick={() => {
                     closeMenu();
-                    void session.open();
+                    void local.open();
                   }}
                 >
                   Open
@@ -156,7 +158,7 @@ export function TopBar({
                 >
                   Import older scene file
                 </button>
-                {session.olderSceneFiles.map((file, index) => (
+                {local.olderSceneFiles.map((file, index) => (
                   <button
                     key={index}
                     type="button"
@@ -167,7 +169,7 @@ export function TopBar({
                     }}
                   >
                     Import older browser backup
-                    {session.olderSceneFiles.length > 1 ? ` ${index + 1}: ${file.name}` : ""}
+                    {local.olderSceneFiles.length > 1 ? ` ${index + 1}: ${file.name}` : ""}
                   </button>
                 ))}
               </>
@@ -260,12 +262,12 @@ export function TopBar({
       </div>
 
       <div className="mode-actions" role="group" aria-label="View and publish">
-        {import.meta.env.DEV && !visitor && !serverMode && (
+        {import.meta.env.DEV && !visitor && local && (
           <button
             className="dev-action"
             type="button"
             disabled={!ready || busy}
-            onClick={() => void session.openSample(sampleProject)}
+            onClick={() => void local.openSample(sampleProject)}
           >
             Open sample project
           </button>

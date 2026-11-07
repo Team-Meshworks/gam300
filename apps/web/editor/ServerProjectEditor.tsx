@@ -6,13 +6,13 @@ import { HOTSPOT_ASSET } from "../shared/asset-runtime/hotspot";
 import { createDocumentStore } from "./document-store";
 import { createAccountClient } from "./accounts/account-client";
 import { LoginRedirect } from "./accounts/LoginRedirect";
+import { readServerAssets } from "./persistence/server-assets";
+import { readServerProject, type OpenedServerProject } from "./persistence/server-project-read";
 import {
-  readServerAssets,
-  readServerProject,
-  type OpenedServerProject,
-} from "./persistence/server-project-read";
-import { connectServerProjectSession } from "./persistence/server-project-session";
-import { loadRecoverySession, type RecoverySession } from "./persistence/local-drafts";
+  connectServerProjectSession,
+  type ServerSaveStatus,
+} from "./persistence/server-project-session";
+import { loadRecoverySession, type RecoverySession } from "./persistence/recovery-session";
 import {
   pickProjectDestination,
   projectFilename,
@@ -20,7 +20,6 @@ import {
   writeProjectFile,
 } from "./persistence/project-files";
 import { serializeProject } from "../shared/project/project-serialization";
-import type { ServerSaveStatus } from "./persistence/server-autosave";
 
 const accounts = createAccountClient();
 type Candidate = {

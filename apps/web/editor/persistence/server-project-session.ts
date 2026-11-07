@@ -1,14 +1,17 @@
 import type { createDocumentStore } from "../document-store";
-import { deserializeProject } from "../../shared/project/project-deserialization";
-import { serializeProject } from "../../shared/project/project-serialization";
 import { invalid, type ValidationResult } from "../../shared/project/validation-helpers";
 import { IndexedDBDraftDatabase, type IDraftDatabase } from "./draft-db";
 import {
   applySaveRecoverySession,
   clearConfirmedServerRecovery,
   type RecoverySession,
-} from "./local-drafts";
-import { createServerAutosave, type ServerSaveStatus } from "./server-autosave";
+} from "./recovery-session";
+import {
+  createServerAutosave,
+  type ServerSaveSnapshot,
+  type ServerSaveStatus,
+} from "./server-autosave";
+export type { ServerSaveStatus } from "./server-autosave";
 import {
   writeServerDraft,
   type ServerDraftRequest,
@@ -56,10 +59,21 @@ export function connectServerProjectSession(options: {
   let storageRevision = options.storageRevision;
   let disposed = false;
   let closing: Promise<ValidationResult<boolean>> | undefined;
+  let backupQueue = Promise.resolve(true);
   // Hold onto the previous project's history when the store switches projects
   // Its final queued backup may run after the new scene has loaded
   let capturedHistory = options.store.getRecoveryHistory();
-  let historyDocument = serializeProject(document, options.assetKinds, { allowDraftLinks: true });
+
+  function captureRecovery(snapshot: ServerSaveSnapshot) {
+    return Object.freeze({
+      ...snapshot,
+      fileName: options.recovery?.fileName ?? "",
+      savedJson: null,
+      pristine: false,
+      ...(capturedHistory ? { history: capturedHistory } : {}),
+    });
+  }
+
   // Connect server writes to account-scoped recovery before watching edits
   const autosave = createServerAutosave({
     document,
@@ -73,35 +87,31 @@ export function connectServerProjectSession(options: {
     write:
       options.write ??
       ((request, signal) => writeServerDraft(request, signal, fetch, scope.accountId)),
-    backup: async (documentJson, serverSave) => {
-      const parsed = deserializeProject(documentJson, options.assetKinds, {
-        allowDraftLinks: true,
+    checkpoint: (snapshot) => {
+      const recovery = captureRecovery(snapshot);
+      const finalSnapshot = disposed;
+      // Capture matching history before queuing, so later edits cannot replace it.
+      backupQueue = backupQueue.then(async () => {
+        if (disposed && !finalSnapshot) return false;
+        try {
+          // Save the scene and pending request together under the expected local revision
+          const result = await applySaveRecoverySession(
+            recovery,
+            storageRevision,
+            options.assetKinds,
+            database,
+            { scope },
+          );
+          // Final backup may finish after logout, still under the captured account key
+          // Only this disposed owner's storage counter changes; no editor callbacks run
+          if (!result.ok) return false;
+          storageRevision = result.value;
+          return true;
+        } catch {
+          return false;
+        }
       });
-      if (!parsed.ok) return false;
-      // History belongs to the captured scene, not whichever scene happens to be open later
-      const history =
-        historyDocument.ok && historyDocument.value === documentJson ? capturedHistory : undefined;
-      // Save the scene and pending request together under the expected local revision
-      const result = await applySaveRecoverySession(
-        {
-          document: parsed.value,
-          fileName: options.recovery?.fileName ?? "",
-          savedJson: null,
-          pristine: false,
-          serverSave,
-          ...(history ? { history } : {}),
-        },
-        storageRevision,
-        options.assetKinds,
-        database,
-        undefined,
-        scope,
-      );
-      // Final backup may finish after logout, still under the captured account key
-      // Only this disposed owner's storage counter changes; no editor callbacks run
-      if (!result.ok) return false;
-      storageRevision = result.value;
-      return true;
+      return backupQueue;
     },
   });
 
@@ -115,7 +125,6 @@ export function connectServerProjectSession(options: {
     // Document subscriptions fire for committed edits and undo/redo
     // Drag previews stay outside this path
     capturedHistory = options.store.getRecoveryHistory();
-    historyDocument = serializeProject(next, options.assetKinds, { allowDraftLinks: true });
     autosave.changed(next);
   });
   // Online only means the browser has a connection again
@@ -188,12 +197,8 @@ export function connectServerProjectSession(options: {
       return { ok: true, value: true };
     },
     getRecovery: (): RecoverySession => ({
-      ...autosave.getRecovery(),
+      ...captureRecovery(autosave.getRecovery()),
       revision: storageRevision,
-      fileName: options.recovery?.fileName ?? "",
-      savedJson: null,
-      pristine: false,
-      ...(capturedHistory ? { history: capturedHistory } : {}),
     }),
     flush: autosave.flush,
     getStatus: autosave.getStatus,

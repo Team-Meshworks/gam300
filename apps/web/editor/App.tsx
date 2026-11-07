@@ -35,7 +35,7 @@ import { ContentEditor, type ContentKind, type ExhibitFields } from "./ui/Conten
 import { PreviewTargets } from "./ui/PreviewTargets";
 import { SettingsPanel } from "./ui/SettingsPanel";
 import { SidePanels } from "./ui/SidePanels";
-import { TopBar } from "./ui/TopBar";
+import { TopBar, type TopBarSession } from "./ui/TopBar";
 import { applyTheme, loadSettings, saveSettings, type UserSettings } from "./ui/user-settings";
 import { OlderSceneImport } from "./OlderSceneImport";
 import { Scenes } from "./Scenes";
@@ -285,6 +285,8 @@ export function App({ server }: { server?: ServerEditorSession }) {
     setError("");
     setHasDeleted(false);
   }, []);
+  const importInput = useRef<HTMLInputElement>(null);
+  const openFileUpload = useCallback(() => importInput.current?.click(), []);
   const localSession = useProjectSession(
     store,
     editorAssets,
@@ -292,25 +294,30 @@ export function App({ server }: { server?: ServerEditorSession }) {
     objects.length,
     onReplace,
     setNotice,
+    openFileUpload,
     () => playUiSound("save"),
     !server,
   );
-  const session = server
-    ? {
-        ...localSession,
-        operation: server.departing ? ("switch" as const) : null,
-        fileName: server.title,
-        dirty: server.dirty,
-        fileFailed: server.failed,
-        busy: server.departing,
-        save: server.save,
-      }
-    : localSession;
+  const storageOperation = server ? (server.departing ? "switch" : null) : localSession.operation;
+  const busy = storageOperation !== null;
+  const fileName = server?.title ?? localSession.fileName;
+  const dirty = server?.dirty ?? localSession.dirty;
+  const failed = server?.failed ?? localSession.fileFailed;
+  const saving = server?.saving ?? storageOperation === "file";
+  const toolbarSession: TopBarSession = {
+    fileName,
+    dirty,
+    busy,
+    saveState: saving ? "saving" : failed ? "failed" : dirty ? "pending" : "saved",
+    save: server?.save ?? localSession.save,
+    local: server ? null : localSession,
+  };
+  const confirmation = !server && localSession.confirmation;
+  const sessionError = server ? "" : localSession.error;
   // Here rather than in the dialog, whose mount effect run twice in development
   useEffect(() => {
-    if (session.confirmation) playUiSound("warning");
-  }, [session.confirmation]);
-  const storageOperation = session.operation;
+    if (confirmation) playUiSound("warning");
+  }, [confirmation]);
   const switching =
     storageOperation === "switch" ||
     storageOperation === "recover" ||
@@ -434,8 +441,8 @@ export function App({ server }: { server?: ServerEditorSession }) {
 
   useEffect(() => {
     // Filename identifies the browser tab; save status stays in the editor
-    document.title = `${session.fileName || "Untitled"} - Spatia`;
-  }, [session.fileName]);
+    document.title = `${fileName || "Untitled"} - Spatia`;
+  }, [fileName]);
 
   // Keep keyboard saving on the same path as the menu and its file picker
   useEffect(() => {
@@ -495,7 +502,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
     if (visitor) {
       return;
     }
-    session.clearError();
+    localSession.clearError();
     if (assetId === HOTSPOT_ASSET_ID) {
       if (projectScene === undefined) {
         setNotice("Choose a room before adding hotspots");
@@ -529,8 +536,8 @@ export function App({ server }: { server?: ServerEditorSession }) {
         return;
       }
       const creatingDuringInitialRecovery =
-        session.busy && session.operation === "recover" && project === null;
-      if (session.busy && session.operation !== "backup" && !creatingDuringInitialRecovery) {
+        busy && storageOperation === "recover" && project === null;
+      if (busy && storageOperation !== "backup" && !creatingDuringInitialRecovery) {
         setNotice("Wait for the project to finish opening, then choose a room");
         return;
       }
@@ -578,8 +585,8 @@ export function App({ server }: { server?: ServerEditorSession }) {
       setError("");
       setSelectedId(created.value.scenes[0]!.id);
       setDragging(null);
-      if (created.value.scenes[0]?.objects.length === 0) {
-        session.markPristine(created.value);
+      if (!server && created.value.scenes[0]?.objects.length === 0) {
+        localSession.markPristine(created.value);
       }
       setNotice("Project created; choose Save to name its file");
       playUiSound("assetPlace");
@@ -661,9 +668,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
         Skip to scene
       </a>
       <TopBar
-        session={session}
-        serverMode={!!server}
-        serverSaving={server?.saving ?? false}
+        session={toolbarSession}
         onLeave={server?.leave}
         onPublish={server?.publish}
         hasProject={project !== null}
@@ -675,9 +680,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
         canRedo={canRedo}
         onUndo={store.undo}
         onRedo={store.redo}
-        canPreview={
-          !pendingText && manager !== null && (!session.busy || storageOperation === "backup")
-        }
+        canPreview={!pendingText && manager !== null && (!busy || storageOperation === "backup")}
         onPreview={() => {
           const current = store.getSnapshot().project;
           const unavailable =
@@ -758,6 +761,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
       {/* Reset the input so choosing the same file again still fires a change */}
       {!server && (
         <input
+          ref={importInput}
           id="project-import"
           type="file"
           accept=".json,application/json"
@@ -766,7 +770,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
             const file = event.currentTarget.files?.[0];
             event.currentTarget.value = "";
             if (file !== undefined) {
-              void session.importFile(file);
+              void localSession.importFile(file);
             }
           }}
         />
@@ -774,9 +778,9 @@ export function App({ server }: { server?: ServerEditorSession }) {
 
       {!server && (
         <OlderSceneImport
-          olderSceneFiles={session.olderSceneFiles}
+          olderSceneFiles={localSession.olderSceneFiles}
           assets={assets}
-          onImport={session.importConvertedFile}
+          onImport={localSession.importConvertedFile}
           onError={setError}
         />
       )}
@@ -1174,24 +1178,24 @@ export function App({ server }: { server?: ServerEditorSession }) {
             />
           ) : null;
         })()}
-      {session.confirmation && (
+      {confirmation && (
         <ProjectConfirmation
-          fileName={session.fileName || "Untitled"}
-          busy={session.deciding}
-          onChoice={session.answer}
+          fileName={fileName || "Untitled"}
+          busy={localSession.deciding}
+          onChoice={localSession.answer}
         />
       )}
-      {(session.error || error) && (
+      {(sessionError || error) && (
         <p
-          key={session.error || error}
+          key={sessionError || error}
           className="action-error"
           role="alert"
           onAnimationEnd={() => {
-            session.clearError();
+            localSession.clearError();
             setError("");
           }}
         >
-          {session.error || error}
+          {sessionError || error}
         </p>
       )}
     </div>

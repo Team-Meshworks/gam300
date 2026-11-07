@@ -1,9 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import fixture from "../../shared/project/fixtures/m1-project.json";
 import { deserializeProject } from "../../shared/project/project-deserialization";
-import { createServerAutosave } from "./server-autosave";
+import { createServerAutosave, type ServerSaveSnapshot } from "./server-autosave";
 import type { ServerDraftRequest, ServerDraftResult } from "./server-draft-write";
-import type { ServerSaveRecovery } from "./server-save-recovery";
 
 const assetKinds = new Map([
   ["test-room-v1", "environment"],
@@ -34,7 +33,14 @@ function setup() {
     .fn<(request: ServerDraftRequest, signal: AbortSignal) => Promise<ServerDraftResult>>()
     .mockImplementation(async (request) => saved(request));
   const onStatus = vi.fn();
-  const session = createServerAutosave({ document, revision: 3, assetKinds, onStatus, write });
+  const session = createServerAutosave({
+    document,
+    revision: 3,
+    assetKinds,
+    onStatus,
+    write,
+    checkpoint: async () => true,
+  });
   return { session, write, onStatus };
 }
 
@@ -247,7 +253,7 @@ describe("server autosave recovery", () => {
       revision: Number.MAX_SAFE_INTEGER,
       assetKinds,
       onStatus: vi.fn(),
-      backup,
+      checkpoint: backup,
       write,
     });
     // Preserve the local edit when the revision counter cannot safely increase
@@ -260,9 +266,9 @@ describe("server autosave recovery", () => {
   });
 
   it("reopens an uncertain save with identical bytes before saving newer edits", async () => {
-    let snapshot!: { documentJson: string; serverSave: ServerSaveRecovery };
-    const backup = vi.fn(async (documentJson: string, serverSave: ServerSaveRecovery) => {
-      snapshot = { documentJson, serverSave };
+    let snapshot!: ServerSaveSnapshot;
+    const backup = vi.fn(async (captured: ServerSaveSnapshot) => {
+      snapshot = captured;
       return true;
     });
     const firstWrite = vi.fn(async (): Promise<ServerDraftResult> => ({ kind: "failed" }));
@@ -271,7 +277,7 @@ describe("server autosave recovery", () => {
       revision: 3,
       assetKinds,
       onStatus: vi.fn(),
-      backup,
+      checkpoint: backup,
       write: firstWrite,
     });
     // Preserve the original in-flight snapshot separately from later offline edits
@@ -280,7 +286,7 @@ describe("server autosave recovery", () => {
     first.changed(changed("Edited offline"));
     await vi.advanceTimersByTimeAsync(2_000);
     expect(firstWrite).toHaveBeenCalledTimes(1);
-    expect(JSON.parse(snapshot.documentJson).title).toBe("Edited offline");
+    expect(snapshot.document.title).toBe("Edited offline");
     expect(JSON.parse(snapshot.serverSave.pending!.documentJson).title).toBe(
       "Sent before disconnect",
     );
@@ -296,7 +302,7 @@ describe("server autosave recovery", () => {
       assetKinds,
       onStatus: vi.fn(),
       recovery: snapshot.serverSave,
-      backup,
+      checkpoint: backup,
       write,
     });
     expect(reopened.getStatus()).toBe("unsaved");
@@ -328,7 +334,7 @@ describe("server autosave recovery", () => {
       revision: 3,
       assetKinds,
       onStatus: vi.fn(),
-      backup,
+      checkpoint: backup,
       write,
     });
     session.changed(changed("Keep in memory"));
@@ -336,7 +342,7 @@ describe("server autosave recovery", () => {
     expect(write).not.toHaveBeenCalled();
     expect(session.getStatus()).toBe("failed");
     // Storage recovery retries the same captured mutation instead of creating a new one
-    const mutation = backup.mock.calls[0]![1].pending.clientMutationId;
+    const mutation = backup.mock.calls[0]![0].serverSave.pending.clientMutationId;
     await session.flush();
     expect(JSON.parse(write.mock.calls[0]![0].body).clientMutationId).toBe(mutation);
     expect(session.getStatus()).toBe("saved");
@@ -351,7 +357,7 @@ describe("server autosave recovery", () => {
       revision: 3,
       assetKinds,
       onStatus: vi.fn(),
-      backup,
+      checkpoint: backup,
       write,
     });
     session.changed(changed("Conflicting edit"));
@@ -368,12 +374,15 @@ describe("server autosave recovery", () => {
 
   it("cancels before sending if the account changes while recovery storage is busy", async () => {
     let finish!: (ok: boolean) => void;
-    const backup = vi.fn(
-      () =>
-        new Promise<boolean>((resolve) => {
-          finish = resolve;
-        }),
-    );
+    const backup = vi
+      .fn<(snapshot: ServerSaveSnapshot) => Promise<boolean>>()
+      .mockImplementationOnce(
+        () =>
+          new Promise<boolean>((resolve) => {
+            finish = resolve;
+          }),
+      )
+      .mockResolvedValue(true);
     const write = vi.fn(async (request: ServerDraftRequest) => saved(request));
     const onStatus = vi.fn();
     const session = createServerAutosave({
@@ -381,7 +390,7 @@ describe("server autosave recovery", () => {
       revision: 3,
       assetKinds,
       onStatus,
-      backup,
+      checkpoint: backup,
       write,
     });
     session.changed(changed("Old account"));

@@ -104,7 +104,7 @@ try {
   let backedUp = false;
   for (let attempt = 0; attempt < 100 && !backedUp; attempt++) {
     backedUp = await page.evaluate(async (viewId) => {
-      const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
+      const { loadRecoverySession } = await import("/persistence/recovery-session.ts");
       const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
       const result = await loadRecoverySession(
         new Map(assets.map((asset) => [asset.id, asset.kind])),
