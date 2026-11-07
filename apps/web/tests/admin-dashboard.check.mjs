@@ -160,20 +160,22 @@ try {
   await page.getByRole("button", { name: "Change password", exact: true }).click();
   await page.waitForURL(origin + "/admin/dashboard");
   await page.getByRole("heading", { name: "Welcome Back, VThere", exact: true }).waitFor();
-  await page
-    .getByRole("link", { name: "Open project workspace", exact: true })
-    .click({ timeout: 5000 });
+  assert.equal(
+    await page.getByRole("link", { name: "Open project workspace", exact: true }).count(),
+    0,
+  );
+  await page.getByRole("link", { name: "Manage project access", exact: true }).click();
   await page.waitForURL(origin + "/home");
-  await page.getByRole("link", { name: "Accounts", exact: true }).click();
-  await page.waitForURL(origin + "/accounts");
-  await page.getByRole("link", { name: "Projects", exact: true }).click();
-  await page.waitForURL(origin + "/home");
-  await page.getByRole("link", { name: "Dashboard", exact: true }).click();
+  await page.getByRole("heading", { name: "All Projects", exact: true }).waitFor();
+  await page.getByRole("link", { name: "Organisations", exact: true }).click();
+  await page.waitForURL(origin + "/organisations");
+  await page.getByRole("link", { name: "Close organisations", exact: true }).click();
   await page.waitForURL(origin + "/admin/dashboard");
-  await page.getByRole("link", { name: "Open project workspace", exact: true }).click();
+  await page.getByRole("link", { name: "Manage project access", exact: true }).click();
   await page.waitForURL(origin + "/home");
   await page.getByRole("button", { name: "Classes", exact: true }).click();
-  await page.goto(origin + "/admin/dashboard");
+  await page.getByRole("link", { name: "Dashboard", exact: true }).click();
+  await page.waitForURL(origin + "/admin/dashboard");
   await page
     .getByRole("button", { name: `View details for ${projects[0].title}`, exact: true })
     .waitFor();
@@ -246,9 +248,8 @@ try {
     await page.getByRole("heading", { name: "Welcome Back, VThere", exact: true }).isVisible(),
     true,
   );
-  let dialog;
   await page.getByRole("button", { name: "+ Add Organisations", exact: true }).click();
-  dialog = page.getByRole("dialog", { name: "Add organisation", exact: true });
+  let dialog = page.getByRole("dialog", { name: "Add organisation", exact: true });
   await dialog.getByLabel("Organisation name").fill(" New School ");
   await dialog
     .getByRole("button", { name: "Create organisation", exact: true })

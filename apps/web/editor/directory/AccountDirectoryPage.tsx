@@ -160,12 +160,6 @@ export function AccountDirectoryPage({ accountId }: { accountId: string }) {
     );
   return (
     <div className="sp-directory">
-      <div className="sp-directory-heading">
-        <p className="sp-hint">Manage accounts within an organisation.</p>
-        <Button onClick={refresh} disabled={busy || detailLoading}>
-          Refresh directory
-        </Button>
-      </div>
       {notice && <p role="status">{notice}</p>}
       <OrganizationDirectory
         organizations={organizations.map((row) => ({

@@ -259,10 +259,8 @@ async function catalogueScenario(capability, revokeDuringRead = false, companion
       "Bundled room layouts require explicit development capability",
     );
     assert.equal(
-      (await rooms.locator(".room-picker-hint").innerText()).includes(
-        "Starter room adds adjoining rooms.",
-      ),
-      capability === true || companion === "approved",
+      await rooms.locator(".room-picker-hint").innerText(),
+      "Choose a room to add it to your scene. Adding another room requires an approved room model.",
     );
     await rooms.getByRole("button", { name: "Approved Starter room", exact: true }).click();
     if (capability === true || companion === "approved") {

@@ -2,7 +2,7 @@ import type { ContentComponent } from "../../shared/project/project-content";
 import { useEffect, useRef, type DragEvent, type ReactNode } from "react";
 import {
   assetDragType,
-  isStarterRoomModel,
+  isRoomModel,
   type CatalogueAsset,
 } from "../../shared/asset-runtime/catalogue";
 import { HOTSPOT_ASSET_ID } from "../../shared/asset-runtime/hotspot";
@@ -265,7 +265,7 @@ export function Viewport({
 
   function isRoom(id: string | null | undefined) {
     return (
-      isStarterRoomModel(assets, id ?? undefined) ||
+      isRoomModel(assets, id ?? undefined) ||
       assets.some((asset) => asset.id === id && asset.kind === "environment")
     );
   }

@@ -7,6 +7,10 @@
 !apps/web/
 !apps/web/package.json
 !apps/web/package-lock.json
+# Include the capability profile embedded by the shared project format
+!apps/web/shared/
+!apps/web/shared/project/
+!apps/web/shared/project/publication-capabilities.json
 !tools/
 !tools/validate-intake.mjs
 !tools/asset-content-validation.mjs

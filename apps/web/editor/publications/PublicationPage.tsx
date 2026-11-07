@@ -3,6 +3,7 @@ import type { AccountSession } from "../accounts/account-client";
 import { createAccountClient } from "../accounts/account-client";
 import { createWorkspaceClient, isId, isRecord } from "../home/workspace-api";
 import { Button } from "../../shared/ui/Button";
+import { PublicationShare } from "./PublicationShare";
 import {
   publicationAcknowledgement,
   type PublicationAcknowledgement,
@@ -13,7 +14,12 @@ import "./publication.css";
 const api = createWorkspaceClient();
 const accounts = createAccountClient();
 type Saved = { title: string; revision: number; canPublish: boolean };
-type Readiness = { state: string; completionConfirmed: boolean | null; approved: boolean | null };
+type Readiness = {
+  state: string;
+  completionConfirmed: boolean | null;
+  approved: boolean | null;
+  missingCapabilities: { capability: string; path: string }[];
+};
 const readinessMessages: Record<string, string> = {
   Ready: "The saved revision is ready. Publishing checks these prerequisites again.",
   ApprovalRequired: "Educator approval of this saved revision is required before publishing.",
@@ -97,7 +103,6 @@ export function PublicationPage({ session }: { session: AccountSession }) {
   >(pending.error ? "storage-error" : pending.request ? "unknown" : "ready");
   const [request, setRequest] = useState<PublicationRequest | null>(pending.request);
   const [ack, setAck] = useState<PublicationAcknowledgement | null>(null);
-  const [copyStatus, setCopyStatus] = useState("");
   const inFlight = useRef(false);
 
   useEffect(() => {
@@ -150,12 +155,28 @@ export function PublicationPage({ session }: { session: AccountSession }) {
                   (status.approved === false || status.completionConfirmed === false))
               )
                 throw new Error("Readiness changed");
-              if (!cancelled)
+              // Keep the server's ordered capability reasons beside the saved revision
+              // Older responses may omit them; malformed details cannot become UI content
+              const missing = status.missingCapabilities ?? [];
+              if (
+                !Array.isArray(missing) ||
+                !missing.every(
+                  (issue) =>
+                    isRecord(issue) &&
+                    typeof issue.capability === "string" &&
+                    typeof issue.path === "string",
+                )
+              ) {
+                throw new Error("Readiness details could not be verified");
+              }
+              if (!cancelled) {
                 setReadiness({
                   state: status.state,
                   completionConfirmed: status.completionConfirmed,
                   approved: status.approved,
+                  missingCapabilities: missing,
                 });
+              }
             } catch {
               if (!cancelled)
                 setReadinessError(
@@ -298,16 +319,6 @@ export function PublicationPage({ session }: { session: AccountSession }) {
     }
   }
 
-  async function copyLink() {
-    if (!ack) return;
-    try {
-      await navigator.clipboard.writeText(ack.visitorUrl);
-      setCopyStatus("Link copied.");
-    } catch {
-      setCopyStatus("Copy the link from the field below.");
-    }
-  }
-
   return (
     <section className="sp-publication" aria-label="Publication settings">
       {!projectId && <p role="alert">Choose a valid project before publishing.</p>}
@@ -348,6 +359,22 @@ export function PublicationPage({ session }: { session: AccountSession }) {
                     </p>
                   )}
                   <p>{readinessMessages[readiness.state]}</p>
+                  {readiness.state === "UnsupportedRuntime" &&
+                    readiness.missingCapabilities.length > 0 && (
+                      <>
+                        <p>
+                          These features are not available in the visitor yet. Your saved content is
+                          unchanged.
+                        </p>
+                        <ul aria-label="Unavailable publication features">
+                          {readiness.missingCapabilities.map((issue) => (
+                            <li key={`${issue.path}:${issue.capability}`}>
+                              {issue.capability} — {issue.path}
+                            </li>
+                          ))}
+                        </ul>
+                      </>
+                    )}
                   {readiness.state === "ApprovalRequired" && session.role !== "Administrator" && (
                     <a href={`/review?projectId=${encodeURIComponent(projectId!)}`}>
                       Open submissions and reviews
@@ -369,15 +396,7 @@ export function PublicationPage({ session }: { session: AccountSession }) {
             <div>
               <p role="status">Published saved revision {ack.sourceRevision}.</p>
               <a href={ack.visitorUrl}>Open publication</a>
-              <label htmlFor="publication-link">Publication link</label>
-              <input
-                id="publication-link"
-                readOnly
-                value={ack.visitorUrl}
-                onFocus={(event) => event.currentTarget.select()}
-              />
-              <Button onClick={() => void copyLink()}>Copy link</Button>
-              <p role="status">{copyStatus}</p>
+              <PublicationShare url={ack.visitorUrl} />
             </div>
           ) : (
             <>

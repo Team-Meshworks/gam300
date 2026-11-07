@@ -42,7 +42,9 @@ import {
 } from "./recovery-history";
 import {
   isStarterRoomEnvironment,
-  isStarterRoomModel,
+  isRoomModel as isCatalogueRoomModel,
+  isRoomEnvironment,
+  roomFootprint,
   type CatalogueAsset,
 } from "../shared/asset-runtime/catalogue.ts";
 import type { SceneObject, Vector3Tuple } from "../shared/project/scene-object.ts";
@@ -158,7 +160,8 @@ export type TransformSession = Readonly<{
 }>;
 
 export function createDocumentStore(assets: readonly CatalogueAsset[]) {
-  const isRoomModel = (id: string) => isStarterRoomModel(assets, id);
+  const isRoomModel = (id: string) => isCatalogueRoomModel(assets, id);
+  const footprint = (id: string) => roomFootprint(assets, id);
   let objects: readonly SceneObject[] = Object.freeze([]);
 
   // The current grid-only editor has no environment-backed project at startup
@@ -339,8 +342,9 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
           proposed.id,
           proposed.transform,
           false,
-          isStarterRoomEnvironment(assets, scene.environmentAssetId),
+          isRoomEnvironment(assets, scene.environmentAssetId),
           isRoomModel,
+          footprint,
         );
         if (!moved.ok) return moved;
         const after = moved.value.objects.find((object) => object.id === proposed.id)!.transform;
@@ -1422,8 +1426,9 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
           object.id,
           after,
           true,
-          isStarterRoomEnvironment(assets, scene.environmentAssetId),
+          isRoomEnvironment(assets, scene.environmentAssetId),
           isRoomModel,
+          footprint,
         );
         if (!moved.ok) {
           clearEdit();
@@ -1684,18 +1689,20 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
           !roomFitsGrid(
             position,
             roomLayoutTransform(objects, activeScene(), isRoomModel)?.rotation,
+            footprint(assetId),
           )
         )
           return { ok: false, error: "Keep the whole room inside the grid" } as const;
         const snapped = snapRoomPlacement(
           position,
           objects,
-          activeScene()?.environmentVisible !== false &&
-            isStarterRoomEnvironment(assets, activeScene()?.environmentAssetId)
-            ? "test-room-v1"
+          activeScene()?.environmentVisible !== false
+            ? activeScene()?.environmentAssetId
             : undefined,
           roomLayoutTransform(objects, activeScene(), isRoomModel),
           isRoomModel,
+          footprint,
+          assetId,
         );
         if (snapped === null) {
           return {
@@ -1704,7 +1711,11 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
           } as const;
         }
         if (
-          !roomFitsGrid(snapped, roomLayoutTransform(objects, activeScene(), isRoomModel)?.rotation)
+          !roomFitsGrid(
+            snapped,
+            roomLayoutTransform(objects, activeScene(), isRoomModel)?.rotation,
+            footprint(assetId),
+          )
         )
           return { ok: false, error: "Keep the whole room inside the grid" } as const;
         position = snapped;
@@ -1773,8 +1784,9 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
         id,
         after.value,
         false,
-        isStarterRoomEnvironment(assets, scene.environmentAssetId),
+        isRoomEnvironment(assets, scene.environmentAssetId),
         isRoomModel,
+        footprint,
       );
       if (!moved.ok) return { ok: false, error: moved.error.message } as const;
       const changed = JSON.stringify(scene) !== JSON.stringify(moved.value);

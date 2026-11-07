@@ -8,9 +8,47 @@
   gap: 20px;
   align-content: space-between;
   min-height: 197px;
+  border: 0;
+  border-radius: 20px;
+  padding: 31px;
 }
 .sp-organization-card h3 {
-  font-size: 22px;
+  font-size: 25px;
+}
+.sp-organization-card .sp-avatar,
+.sp-organization-identity .sp-avatar {
+  width: 50px;
+  height: 50px;
+}
+.sp-organization-overview-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 32px;
+}
+.sp-organization-overview-heading > div {
+  flex: 1;
+}
+.sp-organization-overview-heading h1 {
+  font-size: 25px;
+}
+.sp-organization-overview-heading p {
+  margin-top: 8px;
+  font-size: 12px;
+}
+.sp-organization-overview-heading .sp-search {
+  flex: 1.5;
+}
+.sp-organization-overview > h2 {
+  font-size: 15px;
+}
+.sp-directory-close {
+  display: grid;
+  place-items: center;
+  min-height: 40px;
+  width: 40px;
+  padding: 0;
+  text-decoration: none;
+  font-size: 20px;
 }
 .sp-organization-card .sp-button {
   justify-self: start;
@@ -18,8 +56,44 @@
 .sp-organization-detail {
   display: grid;
   grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
-  gap: 24px;
+  gap: 10px;
   align-items: start;
+}
+.sp-organization-detail-left {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.sp-organization-identity,
+.sp-organization-projects,
+.sp-organization-detail .sp-account-list {
+  border-color: #f2eae1;
+  border-radius: 20px;
+}
+.sp-organization-identity {
+  display: grid;
+  gap: 16px;
+  padding: 30px;
+}
+.sp-organization-identity h2 {
+  font-size: 25px;
+  overflow-wrap: anywhere;
+}
+.sp-organization-identity .sp-actions {
+  margin-left: 62px;
+}
+.sp-organization-identity .sp-button {
+  min-height: 34px;
+  padding: 6px 16px;
+  font-size: 12px;
+}
+.sp-organization-projects {
+  display: grid;
+  gap: 20px;
+  align-content: start;
+}
+.sp-organization-projects h3 {
+  font-size: 15px;
 }
 .sp-directory-project {
   display: flex;
@@ -47,6 +121,16 @@
 @media (max-width: 800px) {
   .sp-organization-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+  .sp-organization-overview-heading {
+    flex-wrap: wrap;
+  }
+  .sp-organization-overview-heading > div {
+    flex-basis: calc(100% - 80px);
+  }
+  .sp-organization-overview-heading .sp-search {
+    order: 1;
+    flex-basis: 100%;
   }
 }
 .sp-directory {

@@ -112,7 +112,7 @@ export function ProjectHome({
     <section className="sp-home-projects" aria-label="Projects">
       <div className="sp-page-heading sp-between">
         <div>
-          <h1>Projects</h1>
+          <h1>{session.role === "Administrator" ? "All Projects" : "Projects"}</h1>
           <p>Explore your projects and continue your classroom’s work.</p>
         </div>
         <ProjectCreation

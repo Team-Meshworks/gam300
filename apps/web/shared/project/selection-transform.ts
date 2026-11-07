@@ -1,7 +1,13 @@
 import type { ContentObject, ContentScene } from "./project-content";
 import type { Transform } from "./project-types";
 import { moveAttachedObjects } from "./attached-transforms";
-import { isPackagedRoomModel, snapRoomPlacement, type RoomModelPredicate } from "./room-placement";
+import {
+  isPackagedRoomModel,
+  roomFitsGrid,
+  snapRoomPlacement,
+  type RoomModelPredicate,
+} from "./room-placement";
+import type { RoomFootprint } from "./room-bounds";
 import { invalid, type ValidationResult } from "./validation-helpers";
 
 export const ROOM_TRANSFORM: Transform = Object.freeze({
@@ -28,7 +34,11 @@ export function environmentObject(
   };
 }
 
-function roomsOverlap(a: ContentObject, b: ContentObject) {
+function roomsOverlap(
+  a: ContentObject,
+  b: ContentObject,
+  footprint: (id: string) => RoomFootprint,
+) {
   if (
     a.transform.position[1] - 0.2 * a.transform.scale[1] >=
       b.transform.position[1] + 3 * b.transform.scale[1] - 1e-5 ||
@@ -49,10 +59,13 @@ function roomsOverlap(a: ContentObject, b: ContentObject) {
   const dx = a.transform.position[0] - b.transform.position[0],
     dz = a.transform.position[2] - b.transform.position[2];
   return [...aa, ...bb].every(([x, z]) => {
-    const radius = (room: ContentObject, basis: typeof aa) =>
-      5 *
-      (room.transform.scale[0] * Math.abs(x * basis[0][0] + z * basis[0][1]) +
-        room.transform.scale[2] * Math.abs(x * basis[1][0] + z * basis[1][1]));
+    const radius = (room: ContentObject, basis: typeof aa) => {
+      const size = footprint(room.assetId);
+      return (
+        size.halfWidth * room.transform.scale[0] * Math.abs(x * basis[0][0] + z * basis[0][1]) +
+        size.halfDepth * room.transform.scale[2] * Math.abs(x * basis[1][0] + z * basis[1][1])
+      );
+    };
     return Math.abs(dx * x + dz * z) < radius(a, aa) + radius(b, bb) - 1e-5;
   });
 }
@@ -66,6 +79,7 @@ export function moveSceneSelection(
   preview = false,
   starterEnvironment = false,
   isRoomModel: RoomModelPredicate = isPackagedRoomModel,
+  footprint: (id: string) => RoomFootprint = () => ({ halfWidth: 5, halfDepth: 5 }),
 ): ValidationResult<ContentScene> {
   const environment = environmentObject(scene);
   const isStarterRoom = (object: ContentObject) =>
@@ -128,6 +142,7 @@ export function moveSceneSelection(
       preview,
       starterEnvironment,
       isRoomModel,
+      footprint,
     );
   }
   let after = proposed;
@@ -143,6 +158,8 @@ export function moveSceneSelection(
     const yaw = reference
       ? referenceYaw + (Math.round((requestedYaw - referenceYaw) / (Math.PI / 2)) * Math.PI) / 2
       : requestedYaw;
+    const size = footprint(anchor.assetId);
+    const quarterTurn = Math.abs(Math.round((yaw - referenceYaw) / (Math.PI / 2))) % 2 === 1;
     const snapped = reference
       ? snapRoomPlacement(
           after.position,
@@ -150,6 +167,9 @@ export function moveSceneSelection(
           undefined,
           undefined,
           (id) => isRoomModel(id) || (isStarterRoom(environment) && id === environment.assetId),
+          footprint,
+          anchor.assetId,
+          quarterTurn ? { halfWidth: size.halfDepth, halfDepth: size.halfWidth } : size,
         )
       : null;
     // Preview follows the handle; release must reconnect to the stationary layout
@@ -170,7 +190,15 @@ export function moveSceneSelection(
     .filter(isStarterRoom)
     .map((object) => ({ ...object, transform: transforms.get(object.id)! }));
   for (const room of roomObjects.filter((object) => moving.has(object.id))) {
-    if (!preview && roomObjects.some((other) => !moving.has(other.id) && roomsOverlap(room, other)))
+    if (
+      !preview &&
+      !roomFitsGrid(room.transform.position, room.transform.rotation, footprint(room.assetId))
+    )
+      return invalid("transform.position", "Keep the whole room inside the grid");
+    if (
+      !preview &&
+      roomObjects.some((other) => !moving.has(other.id) && roomsOverlap(room, other, footprint))
+    )
       return invalid("transform.position", "That move would overlap another room");
   }
   // Moving the whole layout carries authored starting views, while partial moves leave them fixed

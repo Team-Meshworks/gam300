@@ -51,6 +51,18 @@
   justify-items: start;
   gap: 8px;
 }
+.sp-publication-share {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+.sp-publication-share svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
 .sp-publication section[aria-label="Publication prerequisites"] {
   display: grid;
   justify-items: start;

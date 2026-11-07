@@ -38,6 +38,45 @@ const content = (store: ReturnType<typeof setup>) => store.getSnapshot().project
 // Exercise hierarchy edits through the same store used by panels and keyboard commands
 // Assertions cover portable JSON and local history independently so neither can hide data loss
 describe("authored hierarchy", () => {
+  it("lists a non-Starter room as a sibling of the initial room", () => {
+    const roomAsset: CatalogueAsset = {
+      id: "room-space1-module-v1",
+      name: "Space1",
+      kind: "model",
+      url: "room.glb",
+      sha256: "1".repeat(64),
+      thumbnail: null,
+    };
+    const object = {
+      id: "room-two",
+      name: "Space1",
+      assetId: roomAsset.id,
+      transform: {
+        position: [10, 0, 0] as const,
+        rotation: [0, 0, 0, 1] as const,
+        scale: [1, 1, 1] as const,
+      },
+    };
+    const html = renderToStaticMarkup(
+      createElement(SceneTreePanel, {
+        assets: [roomAsset],
+        room: { id: "room-one", name: "First", thumbnail: undefined },
+        objects: [object],
+        groups: [],
+        hotspots: [],
+        selectedId: null,
+        onSelect() {},
+        onDelete() {},
+        mobileDevice: false,
+        thumbnailFor: () => undefined,
+        hierarchy: { rename: () => true, move() {} },
+      }),
+    );
+    const initialRoomChildren = html.match(/<ul class="scene-objects"[^>]*>(.*?)<\/ul>/s)?.[1];
+    expect(initialRoomChildren).toBeDefined();
+    expect(initialRoomChildren).not.toContain('data-object-id="room-two"');
+    expect(html).toContain('data-object-id="room-two"');
+  });
   it("renames the first room and retains its undo history across recovery", () => {
     const store = setup();
     const scene = store.getSnapshot().project!.scenes[0]!;
@@ -367,11 +406,11 @@ describe("room layouts", () => {
   });
 
   it("requires the whole room, including rotated corners, to fit on the grid", () => {
-    expect(roomFitsGrid([15, 0, -15])).toBe(true);
-    expect(roomFitsGrid([15.1, 0, 0])).toBe(false);
+    expect(roomFitsGrid([35, 0, -35])).toBe(true);
+    expect(roomFitsGrid([35.1, 0, 0])).toBe(false);
     const rotation = [0, Math.sin(Math.PI / 8), 0, Math.cos(Math.PI / 8)] as const;
-    expect(roomFitsGrid([12, 0, 12], rotation)).toBe(true);
-    expect(roomFitsGrid([13, 0, 13], rotation)).toBe(false);
+    expect(roomFitsGrid([32, 0, 32], rotation)).toBe(true);
+    expect(roomFitsGrid([33, 0, 33], rotation)).toBe(false);
   });
 
   it("previews room movement freely but reconnects on release instead of saving gaps", () => {

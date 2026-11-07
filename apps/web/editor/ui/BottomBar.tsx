@@ -9,11 +9,7 @@ import {
   type MouseEvent,
   type PointerEvent,
 } from "react";
-import {
-  assetDragType,
-  isStarterRoomModelAsset,
-  type CatalogueAsset,
-} from "../../shared/asset-runtime/catalogue";
+import { assetDragType, type CatalogueAsset } from "../../shared/asset-runtime/catalogue";
 import { playUiSound } from "../audio/ui-sounds";
 import type { NavigationTool } from "../graphics/scene";
 import { AssetPicker } from "./AssetPicker";
@@ -254,8 +250,7 @@ export function BottomBar({
           <AssetPicker
             key={roomsOpen ? "rooms" : "assets"}
             mode={roomsOpen ? "rooms" : "assets"}
-            canAddAdjoiningRooms={assets.some(isStarterRoomModelAsset)}
-            assets={assets.filter((asset) => belongsInAssetPicker(asset, roomsOpen))}
+            assets={assets.filter((asset) => belongsInAssetPicker(asset, roomsOpen, assets))}
             ready={ready}
             thumbnailFor={thumbnailFor}
             onAdd={onAdd}

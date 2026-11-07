@@ -6,6 +6,82 @@ import { createDocumentStore } from "./document-store.ts";
 
 afterEach(() => vi.restoreAllMocks());
 
+it("places a different sized room beside the starter and preserves it through save and reopen", () => {
+  const assets: CatalogueAsset[] = [
+    {
+      id: "test-room-v1",
+      name: "Starter",
+      kind: "environment",
+      url: "starter.glb",
+      sha256: "0".repeat(64),
+      thumbnail: null,
+    },
+    {
+      id: "room-space1-module-v1",
+      name: "Space1",
+      kind: "model",
+      url: "space.glb",
+      sha256: "1".repeat(64),
+      thumbnail: null,
+      placement: "bottom-center",
+      boundsMeters: { min: [-4, 0, -3], max: [4, 3, 3] },
+    },
+  ];
+  const kinds = new Map(assets.map((asset) => [asset.id, asset.kind]));
+  const store = createDocumentStore(assets);
+  expect(store.createProject("test-room-v1").ok).toBe(true);
+  const added = store.addObject("room-space1-module-v1", [8, 0, 1]);
+  expect(added.ok).toBe(true);
+  if (!added.ok) throw new Error(added.error);
+  expect(added.object.transform.position).toEqual([9, 0, 0]);
+  const saved = serializeProject(store.getSnapshot().project!, kinds);
+  expect(saved.ok).toBe(true);
+  if (!saved.ok) throw new Error(saved.error.message);
+  const reopened = createDocumentStore(assets);
+  expect(reopened.loadProject(saved.value, kinds).ok).toBe(true);
+  expect(reopened.getSnapshot().objects[0]!.transform.position).toEqual([9, 0, 0]);
+  const room = reopened.getSnapshot().objects[0]!;
+  expect(reopened.setTransform(room.id, { ...room.transform, position: [0, 0, 7] }).ok).toBe(true);
+  expect(reopened.getSnapshot().objects[0]!.transform.position).toEqual([0, 0, 8]);
+  reopened.undo();
+  expect(reopened.getSnapshot().objects[0]!.transform.position).toEqual([9, 0, 0]);
+  reopened.redo();
+  expect(reopened.getSnapshot().objects[0]!.transform.position).toEqual([0, 0, 8]);
+  const moved = reopened.getSnapshot().objects[0]!;
+  expect(
+    reopened.setTransform(moved.id, {
+      ...moved.transform,
+      position: [0, 0, 9],
+      rotation: [0, Math.SQRT1_2, 0, Math.SQRT1_2],
+    }).ok,
+  ).toBe(true);
+  expect(reopened.getSnapshot().objects[0]!.transform.position[2]).toBeCloseTo(9);
+});
+
+it("rejects moving a single large room outside the visible grid", () => {
+  const room: CatalogueAsset = {
+    id: "room-space1-v1",
+    name: "Space1",
+    kind: "environment",
+    url: "room.glb",
+    sha256: "1".repeat(64),
+    thumbnail: null,
+    boundsMeters: { min: [-10, 0, -8], max: [10, 4, 8] },
+  };
+  const store = createDocumentStore([room]);
+  expect(store.createProject(room.id).ok).toBe(true);
+  const before = store.getSnapshot();
+  const sceneId = before.activeSceneId!;
+  expect(
+    store.setSelectionTransform([sceneId], sceneId, {
+      position: [31, 0, 0],
+      rotation: [0, 0, 0, 1],
+      scale: [1, 1, 1],
+    }).ok,
+  ).toBe(false);
+  expect(store.getSnapshot()).toBe(before);
+});
+
 it("preserves whole-room variants, exhibits and transforms through replacement, undo and reload", () => {
   const assets: CatalogueAsset[] = ["room-space1-v1", "room-doors-1-v1", "test-crate-v1"].map(
     (id) => ({
@@ -770,7 +846,7 @@ it("snaps rooms to vacant adjoining sides while preserving undo and saved positi
   assert.deepEqual(add([1, 0, 8]).transform.position, [0, 0, 10]);
   assert.deepEqual(add([1, 0, -8]).transform.position, [0, 0, -10]);
   const blocked = store.getSnapshot();
-  assert.equal(store.addObject("test-room-module-v1", [19, 0, 0]).ok, false);
+  assert.equal(store.addObject("test-room-module-v1", [39, 0, 0]).ok, false);
   assert.equal(store.getSnapshot(), blocked);
   const next = add([9, 0, 9]);
   assert.deepEqual(next.transform.position, [10, 0, 10]);

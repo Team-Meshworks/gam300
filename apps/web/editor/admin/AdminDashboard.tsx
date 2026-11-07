@@ -245,7 +245,7 @@ function AssetLibrary({
   }, [session.userId, session.developmentAssetsAllowed, attempt]);
   const entries = (catalogue ?? []).filter(
     (asset) =>
-      belongsInAssetPicker(asset, kind === "environment") &&
+      belongsInAssetPicker(asset, kind === "environment", catalogue ?? []) &&
       asset.name.toLowerCase().includes(query.trim().toLowerCase()),
   );
   return (
@@ -410,13 +410,10 @@ export function AdminDashboard({ session }: { session: AccountSession }) {
       <div className="admin-greeting">
         <h1>Welcome Back, {session.displayName}</h1>
         <p>Manage what gets shared, who has access and the assets creators use.</p>
-        <a className="sp-button sp-button--primary" href="/home">
-          Open project workspace
-        </a>
       </div>
       {notice && (
         <p className="admin-notice" role="status">
-          {notice} <a href="/accounts">View organisations</a>
+          {notice} <a href="/organisations">View organisations</a>
         </p>
       )}
       <section className="admin-panel admin-projects" aria-labelledby="admin-projects-heading">
@@ -425,6 +422,9 @@ export function AdminDashboard({ session }: { session: AccountSession }) {
             <h2 id="admin-projects-heading">All Projects</h2>
             <p>Browse projects across your organisations.</p>
           </div>
+          <a className="sp-button" href="/home">
+            Manage project access
+          </a>
           <Button variant="primary" onClick={() => setModal("projects")}>
             View All Projects
           </Button>
@@ -474,7 +474,7 @@ export function AdminDashboard({ session }: { session: AccountSession }) {
                 </div>
               </div>
               <div className="admin-entry-actions">
-                <a className="sp-button" href="/accounts">
+                <a className="sp-button" href="/organisations">
                   View Organisations
                 </a>
                 <Button variant="primary" onClick={() => setModal("organisation")}>

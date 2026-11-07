@@ -57,6 +57,9 @@ public sealed class ProjectDocumentService
                 or "room-doors-2-3-v1" or "room-doors-2-4-v1" or "room-doors-3-4-v1"
                 or "room-doors-1-2-3-v1" or "room-doors-1-2-4-v1" or "room-doors-1-3-4-v1"
                 or "room-doors-2-3-4-v1" or "room-doors-1-2-3-4-v1"
+                or "room-space1-module-v1" or "room-doors-1-module-v1" or "room-doors-2-module-v1" or "room-doors-3-module-v1" or "room-doors-4-module-v1"
+                or "room-doors-1-2-module-v1" or "room-doors-1-3-module-v1" or "room-doors-1-4-module-v1" or "room-doors-2-3-module-v1" or "room-doors-2-4-module-v1" or "room-doors-3-4-module-v1"
+                or "room-doors-1-2-3-module-v1" or "room-doors-1-2-4-module-v1" or "room-doors-1-3-4-module-v1" or "room-doors-2-3-4-module-v1" or "room-doors-1-2-3-4-module-v1"
                 or "display-rectangle-panel-v1" or "display-square-stand-v1" or "display-square-panel-v1" or "sample-landscape-image-v1" or "sample-coast-image-v1" or "sample-coast-video-v1"
                 or "sample-dunes-image-v1" or "sample-forest-image-v1" or "sample-sunset-image-v1" or "sample-valley-image-v1" or "sample-dunes-video-v1" or "sample-forest-video-v1" or "sample-sunset-video-v1"
                 or "audio-ethereal-calm-v1"
@@ -88,7 +91,7 @@ public sealed class ProjectDocumentService
                 throw new InvalidOperationException("Invalid packaged development asset catalogue.");
             }
         }
-        if (assets.Count != 54)
+        if (assets.Count != 70)
         {
             throw new InvalidOperationException("The packaged development asset catalogue is incomplete.");
         }

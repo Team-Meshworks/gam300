@@ -8,6 +8,7 @@ RUN npm install --global npm@11.21.1 && npm ci --ignore-scripts --no-audit --no-
 FROM mcr.microsoft.com/dotnet/sdk:10.0.401@sha256:e70cdb7f80b0348f5cb85f19a8f670fca061f033d57eed12fa003d58b0e06317 AS build
 WORKDIR /src/apps/server
 COPY apps/server/ ./
+COPY apps/web/shared/project/publication-capabilities.json /src/apps/web/shared/project/publication-capabilities.json
 # The server embeds the reviewed catalogue at compile time
 COPY assets/manifest.json /src/assets/manifest.json
 # Package the bounded worker and its locked parser in the paths expected by the API project
