@@ -209,6 +209,49 @@
   flex-direction: column;
   gap: 20px;
 }
+.admin-project-browser[hidden] {
+  display: none;
+}
+.admin-project-view-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 24px;
+}
+.admin-project-view-heading > div:first-child {
+  flex: 1;
+}
+.admin-project-view-heading h1 {
+  font-size: 25px;
+}
+.admin-project-view-heading p {
+  margin-top: 7px;
+  font-size: 12px;
+  color: var(--sp-muted);
+}
+.admin-project-view-heading .sp-search {
+  flex: 1.4;
+}
+.admin-project-detail h2 {
+  margin: 18px 0;
+}
+.admin-detail-columns {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  gap: 32px;
+  margin-top: 32px;
+}
+.admin-detail-columns .admin-project-cover {
+  height: 220px;
+  border-radius: 16px;
+}
+.admin-detail-unavailable {
+  background: var(--sp-surface);
+  border-radius: 16px;
+  padding: 20px;
+}
+.admin-detail-columns .sp-button {
+  margin-top: 20px;
+}
 .admin-project-metadata {
   display: grid;
   grid-template-columns: auto 1fr;
@@ -239,6 +282,16 @@
   }
 }
 @media (max-width: 800px) {
+  .admin-project-view-heading {
+    flex-wrap: wrap;
+  }
+  .admin-project-view-heading .sp-search {
+    flex-basis: 100%;
+    order: 1;
+  }
+  .admin-detail-columns {
+    grid-template-columns: 1fr;
+  }
   .admin-management-grid {
     grid-template-columns: 1fr;
   }

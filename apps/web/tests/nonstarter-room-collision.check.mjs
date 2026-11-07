@@ -72,11 +72,16 @@ try {
     lease.release();
   });
   await chooseRoom("Door 2");
+  await page
+    .locator('.viewport-stage[data-placing-asset="room-doors-2-v1"]')
+    .waitFor({ timeout: 60000 })
+    .catch(async () => {
+      const feedback = await page.locator('[role="alert"], [role="status"]').allTextContents();
+      throw new Error(
+        `A second non-Starter room must enter positionable placement instead of replacing the layout: ${feedback.join(" | ")}`,
+      );
+    });
   const feedback = await page.locator('[role="alert"], [role="status"]').allTextContents();
-  assert.ok(
-    await stage.getAttribute("data-placing-asset"),
-    `A second non-Starter room must enter positionable placement instead of replacing the layout: ${feedback.join(" | ")}`,
-  );
   let validPoint;
   const previews = [];
   for (const y of [200, 300, 400, 500, 600, 700, 800]) {

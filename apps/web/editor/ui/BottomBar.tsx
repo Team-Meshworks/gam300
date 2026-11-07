@@ -9,11 +9,7 @@ import {
   type MouseEvent,
   type PointerEvent,
 } from "react";
-import {
-  assetDragType,
-  isRoomModel,
-  type CatalogueAsset,
-} from "../../shared/asset-runtime/catalogue";
+import { assetDragType, type CatalogueAsset } from "../../shared/asset-runtime/catalogue";
 import { playUiSound } from "../audio/ui-sounds";
 import type { NavigationTool } from "../graphics/scene";
 import { AssetPicker } from "./AssetPicker";
@@ -21,6 +17,7 @@ import { dockEdges, loadDockEdge, nearestEdge, saveDockEdge, type DockEdge } fro
 import { Icon, type IconName } from "./Icon";
 import { displayPanelTools, displayCaseTools } from "./display-tools";
 import { furnitureTools } from "./furniture-tools";
+import { belongsInAssetPicker } from "./asset-selection";
 
 const cameraTools: { id: NavigationTool; label: string; hint: string; icon: IconName }[] = [
   { id: "select", label: "Select", hint: "Select · click objects to edit them", icon: "select" },
@@ -253,14 +250,7 @@ export function BottomBar({
           <AssetPicker
             key={roomsOpen ? "rooms" : "assets"}
             mode={roomsOpen ? "rooms" : "assets"}
-            assets={assets.filter((asset) =>
-              roomsOpen
-                ? asset.kind === "environment"
-                : !isRoomModel(assets, asset.id) &&
-                  asset.kind !== "environment" &&
-                  !asset.displayRole &&
-                  !furnitureTools.some((tool) => tool.assetId === asset.id),
-            )}
+            assets={assets.filter((asset) => belongsInAssetPicker(asset, roomsOpen, assets))}
             ready={ready}
             thumbnailFor={thumbnailFor}
             onAdd={onAdd}

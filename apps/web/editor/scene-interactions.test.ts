@@ -37,6 +37,25 @@ function setup() {
   return { store, object: object.object, hotspot: hotspot.value };
 }
 
+it("duplicates an attached hotspot and its interaction with independent identities", () => {
+  const { store, object, hotspot } = setup();
+  const before = store.getSnapshot().project;
+  const result = store.duplicateObject(object.id);
+  expect(result.ok).toBe(true);
+  if (!result.ok) throw Error(result.error.message);
+  const scene = active(store);
+  const duplicate = scene.hotspots.find((entry) => entry.objectId === result.value.id)!;
+  expect(duplicate.id).not.toBe(hotspot.id);
+  expect(scene.interactions).toContainEqual({
+    when: { type: "visitor-clicks-hotspot", targetHotspotId: duplicate.id },
+    do: { type: "print-hi" },
+  });
+  store.undo();
+  expect(store.getSnapshot().project).toEqual(before);
+  store.redo();
+  expect(active(store).hotspots).toContainEqual(duplicate);
+});
+
 it("retains hotspots and rules through viewpoint upgrades, scene edits, recovery and undo", () => {
   const { store, object, hotspot } = setup();
   const original = active(store);
@@ -115,7 +134,7 @@ it("allows scene and viewpoint edits while an interaction link is unfinished, bu
   expect(serializeProject(restored.getSnapshot().project, kinds).ok).toBe(true);
 });
 
-it("retains navigation targets through rename, reorder, undo and recovery; protects referenced destinations", () => {
+it("retains navigation targets through rename, reorder, undo and recovery", () => {
   const { store, hotspot } = setup();
   const firstId = active(store).id;
   expect(store.addViewpoint("Gallery detail", active(store).startCamera).ok).toBe(true);
@@ -153,8 +172,14 @@ it("retains navigation targets through rename, reorder, undo and recovery; prote
   expect(store.renameScene(secondId, "Renamed gallery").ok).toBe(true);
   expect(store.moveScene(secondId, 0).ok).toBe(true);
   expect(store.switchScene(firstId).ok).toBe(true);
-  expect(store.deleteViewpoint(viewId).ok).toBe(false);
-  expect(store.deleteScene(secondId).ok).toBe(false);
+  expect(store.deleteViewpoint(viewId).ok).toBe(true);
+  expect(active(store).interactions).toEqual([rules[0]]);
+  store.undo();
+  expect(active(store).interactions).toEqual(rules);
+  expect(store.deleteScene(secondId).ok).toBe(true);
+  expect(active(store).interactions).toEqual([rules[1]]);
+  store.undo();
+  expect(active(store).interactions).toEqual(rules);
   expect(
     store.setInteractions([
       { ...rules[0]!, do: { type: "navigate-scene", sceneId: crypto.randomUUID() } },

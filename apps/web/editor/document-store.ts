@@ -22,6 +22,7 @@ import type {
   ContentProject,
   ContentScene,
   ProjectGroup,
+  ProjectRule,
 } from "../shared/project/project-content";
 import type {
   ProjectHotspot,
@@ -71,6 +72,32 @@ function freezeHotspots(hotspots: readonly ProjectHotspot[]): readonly ProjectHo
       }),
     ),
   );
+}
+
+function withoutComponentReferences(
+  scene: ContentScene,
+  removed: ReadonlySet<string>,
+): ContentScene {
+  const gone = (id: string) => removed.has(id.toLowerCase());
+  return {
+    ...scene,
+    interactions: scene.interactions.filter(
+      (rule) => rule.do.type !== "play-audio" || !rule.do.mediaId || !gone(rule.do.mediaId),
+    ),
+    rules: scene.rules.filter(
+      (rule) =>
+        !(
+          (rule.trigger.type === "click" || rule.trigger.type === "gaze") &&
+          gone(rule.trigger.targetId)
+        ) &&
+        !(rule.trigger.type === "panelClose" && gone(rule.trigger.panelId)) &&
+        !rule.actions.some((action) =>
+          action.type === "showPanel"
+            ? gone(action.panelId)
+            : action.type === "playMedia" && gone(action.mediaId),
+        ),
+    ),
+  };
 }
 
 function toContentProject(project: ProjectDocument): ContentProject {
@@ -164,7 +191,12 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
 
   // This clipboard belongs to the open editor, not the operating system.
   // Objects are immutable, so later edits won't change the captured copy.
-  let clipboard: SceneObject | null = null;
+  let clipboard: {
+    object: SceneObject;
+    hotspots: readonly ProjectHotspot[];
+    interactions: readonly Interaction[];
+    rules: readonly ProjectRule[];
+  } | null = null;
   let pasteCount = 0;
   const listeners = new Set<() => void>();
 
@@ -342,16 +374,55 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
     return { ok: true, value: { changed: true, object } };
   }
 
-  function insertCopy(source: SceneObject, offset: number): ValidationResult<SceneObject> {
-    // Attached components need their own stable ID and reference remapping
-    if ((source as ContentObject).components?.length) {
-      return invalid("objectId", "This object's attached content cannot be copied safely");
-    }
+  function captureCopy(object: SceneObject): NonNullable<typeof clipboard> {
+    const scene =
+      project?.schemaVersion === 2
+        ? project.scenes.find((entry) => entry.id === state.activeSceneId)
+        : undefined;
+    const ids = new Set([
+      object.id.toLowerCase(),
+      ...((object as ContentObject).components ?? []).map((component) =>
+        component.id.toLowerCase(),
+      ),
+    ]);
+    const hotspots = sceneState().hotspots.filter(
+      (hotspot) => hotspot.objectId.toLowerCase() === object.id.toLowerCase(),
+    );
+    for (const hotspot of hotspots) ids.add(hotspot.id.toLowerCase());
+    const hotspotIds = new Set(hotspots.map((hotspot) => hotspot.id.toLowerCase()));
+    return structuredClone({
+      object,
+      hotspots,
+      interactions: sceneState().interactions.filter(
+        (rule) =>
+          rule.when.type === "visitor-clicks-hotspot" &&
+          hotspotIds.has(rule.when.targetHotspotId.toLowerCase()),
+      ),
+      rules: (scene?.rules ?? []).filter((rule) =>
+        rule.trigger.type === "click" || rule.trigger.type === "gaze"
+          ? ids.has(rule.trigger.targetId.toLowerCase())
+          : rule.trigger.type === "panelClose" && ids.has(rule.trigger.panelId.toLowerCase()),
+      ),
+    });
+  }
+
+  function insertCopy(
+    graph: NonNullable<typeof clipboard>,
+    offset: number,
+  ): ValidationResult<SceneObject> {
+    const source = graph.object;
     if (
       project?.schemaVersion !== 2 &&
-      ((source as ContentObject).parentId != null || (source as ContentObject).visible === false)
+      ((source as ContentObject).parentId != null ||
+        (source as ContentObject).visible === false ||
+        (source as ContentObject).appearance !== undefined ||
+        ((source as ContentObject).components?.length ?? 0) > 0 ||
+        graph.rules.length > 0)
     ) {
-      return invalid("objectId", "This object's hierarchy or visibility requires a v2 project");
+      return invalid(
+        "objectId",
+        "This object's content, rules, appearance, hierarchy, or visibility requires a v2 project",
+      );
     }
     const asset = assets.find((entry) => entry.id === source.assetId);
     if (
@@ -380,20 +451,113 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
     Object.freeze(transform.rotation);
     Object.freeze(transform.scale);
 
-    // Content-free copies retain their authored visibility and parent membership
+    if (project?.schemaVersion === 2) {
+      const ids = new Map<string, string>([[source.id.toLowerCase(), createId()]]);
+      for (const component of (source as ContentObject).components ?? [])
+        ids.set(component.id.toLowerCase(), createId());
+      for (const hotspot of graph.hotspots) ids.set(hotspot.id.toLowerCase(), createId());
+      const remap = (id: string) => ids.get(id.toLowerCase()) ?? id;
+      const copy: ContentObject = {
+        ...(source as ContentObject),
+        id: remap(source.id),
+        name: nextObjectName(asset),
+        transform,
+        parentId: (source as ContentObject).parentId ?? null,
+        visible: (source as ContentObject).visible ?? true,
+        components: ((source as ContentObject).components ?? []).map((component) => ({
+          ...structuredClone(component),
+          id: remap(component.id),
+        })),
+      };
+      const rules = graph.rules.map((rule): ProjectRule => ({
+        ...structuredClone(rule),
+        id: createId(),
+        trigger:
+          rule.trigger.type === "click" || rule.trigger.type === "gaze"
+            ? { ...rule.trigger, targetId: remap(rule.trigger.targetId) }
+            : rule.trigger.type === "panelClose"
+              ? { ...rule.trigger, panelId: remap(rule.trigger.panelId) }
+              : rule.trigger,
+        actions: rule.actions.map((action) =>
+          action.type === "showPanel"
+            ? { ...action, panelId: remap(action.panelId) }
+            : action.type === "playMedia"
+              ? { ...action, mediaId: remap(action.mediaId) }
+              : action.type === "setVisible"
+                ? { ...action, objectId: remap(action.objectId) }
+                : { ...action },
+        ),
+      }));
+      const result = editHierarchy("Copy object", (scene) => ({
+        ...scene,
+        objects: [...scene.objects, copy],
+        hotspots: [
+          ...scene.hotspots,
+          ...graph.hotspots.map((hotspot) => ({
+            ...hotspot,
+            id: remap(hotspot.id),
+            objectId: remap(hotspot.objectId),
+          })),
+        ],
+        interactions: [
+          ...scene.interactions,
+          ...graph.interactions.map((rule) => ({
+            ...rule,
+            when:
+              rule.when.type === "visitor-clicks-hotspot"
+                ? { ...rule.when, targetHotspotId: remap(rule.when.targetHotspotId) }
+                : rule.when,
+            do:
+              rule.do.type === "play-audio" && rule.do.mediaId
+                ? { ...rule.do, mediaId: remap(rule.do.mediaId) }
+                : rule.do,
+          })),
+        ],
+        rules: [...scene.rules, ...rules],
+      }));
+      if (!result.ok) return result;
+      return { ok: true, value: objects.find((entry) => entry.id === copy.id)! };
+    }
     const object: SceneObject = Object.freeze({
       id: createId(),
       name: nextObjectName(asset),
       assetId: source.assetId,
       transform: Object.freeze(transform),
-      ...(project?.schemaVersion === 2
-        ? {
-            parentId: (source as ContentObject).parentId ?? null,
-            visible: (source as ContentObject).visible ?? true,
-            components: Object.freeze([]),
-          }
-        : {}),
     });
+    if (graph.hotspots.length > 0) {
+      const ids = new Map(graph.hotspots.map((hotspot) => [hotspot.id.toLowerCase(), createId()]));
+      const current = sceneState();
+      const next: SceneEdit = {
+        objects: Object.freeze([...objects, object]),
+        hotspots: freezeHotspots([
+          ...current.hotspots,
+          ...graph.hotspots.map((hotspot) => ({
+            ...hotspot,
+            id: ids.get(hotspot.id.toLowerCase())!,
+            objectId: object.id,
+          })),
+        ]),
+        interactions: freezeInteractions([
+          ...current.interactions,
+          ...graph.interactions.map((rule) => ({
+            ...rule,
+            when:
+              rule.when.type === "visitor-clicks-hotspot"
+                ? {
+                    ...rule.when,
+                    targetHotspotId: ids.get(rule.when.targetHotspotId.toLowerCase())!,
+                  }
+                : rule.when,
+          })),
+        ]),
+      };
+      const valid = checkScene(next);
+      if (!valid.ok) return valid;
+      executeScene("Copy object", next);
+      clearEdit();
+      publish();
+      return { ok: true, value: object };
+    }
     // Confirm the copied parent and all remaining references still form a valid document
     const validCopy = checkContentObjects([...objects, object]);
     if (!validCopy.ok) {
@@ -560,6 +724,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
     },
     // Reject stale selections before removing the track and its dependent playback rules
     removeAudio(id: string) {
+      const matches = (candidate: string) => candidate.toLowerCase() === id.toLowerCase();
       const scene =
         project?.schemaVersion === 2
           ? project.scenes.find((entry) => entry.id === state.activeSceneId)
@@ -567,28 +732,24 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       if (
         !scene ||
         !(
-          scene.audio?.some((audio) => audio.id === id) ||
+          scene.audio?.some((audio) => matches(audio.id)) ||
           scene.objects.some((object) =>
             object.components.some(
-              (component) => component.type === "audio" && component.id === id,
+              (component) => component.type === "audio" && matches(component.id),
             ),
           )
         )
       )
         return invalid("audio", "This audio no longer exists");
       return editHierarchy("Remove audio", (scene) => ({
-        ...scene,
+        ...withoutComponentReferences(scene, new Set([id.toLowerCase()])),
         ...(scene.audio === undefined
           ? {}
-          : { audio: scene.audio.filter((audio) => audio.id !== id) }),
-        // Removing a track also removes its playback links; Undo restores the complete relationship
-        interactions: scene.interactions.filter(
-          (rule) => rule.do.type !== "play-audio" || rule.do.mediaId !== id,
-        ),
+          : { audio: scene.audio.filter((audio) => !matches(audio.id)) }),
         objects: scene.objects.map((object) => ({
           ...object,
           components: object.components.filter(
-            (component) => component.type !== "audio" || component.id !== id,
+            (component) => component.type !== "audio" || !matches(component.id),
           ),
         })),
       }));
@@ -598,7 +759,17 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       if (!object || assets.find((asset) => asset.id === object.assetId)?.displayRole !== "digital")
         return invalid("objectId", "Choose a display panel or stand");
       return editHierarchy("Remove display media", (scene) => ({
-        ...scene,
+        ...withoutComponentReferences(
+          scene,
+          new Set(
+            scene.objects
+              .find((entry) => entry.id === objectId)!
+              .components.filter(
+                (component) => component.type === "image" || component.type === "video",
+              )
+              .map((component) => component.id.toLowerCase()),
+          ),
+        ),
         objects: scene.objects.map((entry) =>
           entry.id === objectId
             ? {
@@ -629,7 +800,23 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
           scene.id !== state.activeSceneId
             ? scene
             : {
-                ...scene,
+                ...withoutComponentReferences(
+                  scene,
+                  new Set(
+                    scene.objects
+                      .find((entry) => entry.id === target.id)!
+                      .components.filter(
+                        (entry) =>
+                          ["text", "image", "video"].includes(entry.type) &&
+                          !(
+                            component &&
+                            entry.id.toLowerCase() === component.id.toLowerCase() &&
+                            entry.type === component.type
+                          ),
+                      )
+                      .map((entry) => entry.id.toLowerCase()),
+                  ),
+                ),
                 objects: scene.objects.map((object) =>
                   object.id !== target.id
                     ? object
@@ -687,8 +874,20 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       // Carry attached descendants with the same transform command used by the gizmos
       return editHierarchy("Edit exhibit", (scene) => {
         const moved = prepared.value.command?.apply(scene.objects) ?? scene.objects;
+        const removed = new Set(
+          ((object as ContentObject).components ?? [])
+            .filter(
+              (component) =>
+                !fields.components.some(
+                  (next) =>
+                    next.id.toLowerCase() === component.id.toLowerCase() &&
+                    next.type === component.type,
+                ),
+            )
+            .map((component) => component.id.toLowerCase()),
+        );
         return {
-          ...scene,
+          ...withoutComponentReferences(scene, removed),
           objects: scene.objects.map((entry, index) => ({
             ...entry,
             ...moved[index],
@@ -951,22 +1150,63 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       if (!project || index < 0) return invalid("scene", "This scene no longer exists");
       if (project.scenes.length === 1)
         return invalid("scene", "Keep at least one scene in the project");
-      if (
-        project.scenes.some(
-          (scene) =>
-            scene.id !== id &&
-            scene.interactions.some(
+      const targetId = id.toLowerCase();
+      if (project.schemaVersion !== 2) {
+        const remaining = project.scenes
+          .filter((scene) => scene.id !== id)
+          .map((scene) => ({
+            ...scene,
+            interactions: scene.interactions.filter(
               (rule) =>
-                rule.do.type === "navigate-scene" &&
-                rule.do.sceneId.toLowerCase() === id.toLowerCase(),
+                rule.do.type !== "navigate-scene" || rule.do.sceneId.toLowerCase() !== targetId,
             ),
-        )
-      )
-        return invalid(
-          "scene",
-          "Change or remove interactions targeting this scene before deleting it",
-        );
-      const remaining = project.scenes.filter((s) => s.id !== id);
+          }));
+        const active =
+          state.activeSceneId === id
+            ? remaining[Math.min(index, remaining.length - 1)]!.id
+            : state.activeSceneId!;
+        return commitProject({ ...project, scenes: remaining }, active, "Delete scene");
+      }
+      const remaining = project.scenes
+        .filter((s) => s.id !== id)
+        .map((scene) => {
+          const interactions = scene.interactions.filter(
+            (rule) =>
+              rule.do.type !== "navigate-scene" || rule.do.sceneId.toLowerCase() !== targetId,
+          );
+          const removedComponents = new Set(
+            scene.objects.flatMap((object) =>
+              object.components
+                .filter(
+                  (component) =>
+                    component.type === "navigationPoint" &&
+                    component.sceneId.toLowerCase() === targetId,
+                )
+                .map((component) => component.id.toLowerCase()),
+            ),
+          );
+          return {
+            ...scene,
+            objects: scene.objects.map((object) => ({
+              ...object,
+              components: object.components.filter(
+                (component) => !removedComponents.has(component.id.toLowerCase()),
+              ),
+            })),
+            interactions,
+            rules: scene.rules.filter(
+              (rule) =>
+                !(
+                  (rule.trigger.type === "click" || rule.trigger.type === "gaze") &&
+                  removedComponents.has(rule.trigger.targetId.toLowerCase())
+                ) &&
+                !rule.actions.some(
+                  (action) =>
+                    action.type === "navigateScene" && action.sceneId.toLowerCase() === targetId,
+                ),
+            ),
+          };
+        });
       const active =
         state.activeSceneId === id
           ? remaining[Math.min(index, remaining.length - 1)]!.id
@@ -1063,27 +1303,62 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       return editViews(next);
     },
     deleteViewpoint(id: string): ValidationResult<true> {
-      if (!activeScene()?.viewpoints?.some((v) => v.id === id))
+      const scene = activeScene();
+      if (!project || !scene?.viewpoints?.some((v) => v.id === id))
         return invalid("viewpoint", "This viewpoint no longer exists");
-      if (
-        activeScene()?.interactions.some(
-          (rule) =>
-            rule.do.type === "move-to-viewpoint" &&
-            rule.do.viewpointId.toLowerCase() === id.toLowerCase(),
-        )
-      )
-        return invalid(
-          "viewpoint",
-          "Change or remove interactions targeting this viewpoint before deleting it",
+      const targetId = id.toLowerCase();
+      const content = toContentProject(project);
+      const scenes = content.scenes.map((entry) => {
+        const removedComponents = new Set(
+          entry.objects.flatMap((object) =>
+            object.components
+              .filter(
+                (component) =>
+                  component.type === "navigationPoint" &&
+                  component.viewpointId.toLowerCase() === targetId,
+              )
+              .map((component) => component.id.toLowerCase()),
+          ),
         );
-      return editViews((activeScene()?.viewpoints ?? []).filter((v) => v.id !== id));
+        return {
+          ...entry,
+          viewpoints:
+            entry.id === scene.id
+              ? scene.viewpoints!.filter((view) => view.id !== id)
+              : entry.viewpoints,
+          objects: entry.objects.map((object) => ({
+            ...object,
+            components: object.components.filter(
+              (component) => !removedComponents.has(component.id.toLowerCase()),
+            ),
+          })),
+          interactions: entry.interactions.filter(
+            (rule) =>
+              rule.do.type !== "move-to-viewpoint" ||
+              rule.do.viewpointId.toLowerCase() !== targetId,
+          ),
+          rules: entry.rules.filter(
+            (rule) =>
+              !(
+                (rule.trigger.type === "click" || rule.trigger.type === "gaze") &&
+                removedComponents.has(rule.trigger.targetId.toLowerCase())
+              ) &&
+              !rule.actions.some(
+                (action) =>
+                  (action.type === "moveCamera" || action.type === "navigateScene") &&
+                  action.viewpointId.toLowerCase() === targetId,
+              ),
+          ),
+        };
+      });
+      return commitProject({ ...content, scenes }, scene.id, "Delete viewpoint");
     },
     copyObject(objectId: string): ValidationResult<SceneObject> {
       const object = objects.find((entry) => entry.id === objectId);
       if (!object) {
         return invalid("objectId", "Select an object to copy");
       }
-      clipboard = object;
+      clipboard = captureCopy(object);
       pasteCount = 0;
       return { ok: true, value: object };
     },
@@ -1104,7 +1379,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       if (!object) {
         return invalid("objectId", "Select an object to duplicate");
       }
-      return insertCopy(object, 0.5);
+      return insertCopy(captureCopy(object), 0.5);
     },
     getTransformEdit: () => edit,
     subscribeTransformEdit(listener: () => void) {
@@ -1620,6 +1895,18 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       if (!scene.hotspots.some((hotspot) => hotspot.id.toLowerCase() === hotspotId.toLowerCase())) {
         return invalid("hotspotId", "This hotspot is no longer in the scene");
       }
+      if (project.schemaVersion === 2) {
+        const gone = hotspotId.toLowerCase();
+        return editHierarchy("Delete hotspot", (current) => ({
+          ...withoutComponentReferences(current, new Set([gone])),
+          hotspots: current.hotspots.filter((hotspot) => hotspot.id.toLowerCase() !== gone),
+          interactions: current.interactions.filter(
+            (rule) =>
+              rule.when.type !== "visitor-clicks-hotspot" ||
+              rule.when.targetHotspotId.toLowerCase() !== gone,
+          ),
+        }));
+      }
       const next = {
         ...sceneState(),
         hotspots: freezeHotspots(
@@ -1670,12 +1957,15 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       const scene = project
         ? toContentProject(project).scenes.find((entry) => entry.id === state.activeSceneId)
         : undefined;
-      const initial = scene?.id === objectId && scene.environmentVisible !== false;
-      const group = scene?.groups.find((entry) => entry.id === objectId);
+      const initial =
+        scene?.id.toLowerCase() === objectId.toLowerCase() && scene.environmentVisible !== false;
+      const group = scene?.groups.find(
+        (entry) => entry.id.toLowerCase() === objectId.toLowerCase(),
+      );
       const target =
         initial && scene
           ? environmentObject(scene)
-          : (objects.find((object) => object.id === objectId) ??
+          : (objects.find((object) => object.id.toLowerCase() === objectId.toLowerCase()) ??
             (group
               ? { id: group.id, name: group.name, assetId: "", transform: ROOM_TRANSFORM }
               : undefined));
@@ -1684,7 +1974,15 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
         [...scene.groups, ...scene.objects].some(
           (entry) => entry.parentId?.toLowerCase() === objectId.toLowerCase(),
         );
-      if (scene && target && (initial || group || hasChildren || isRoomModel(target.assetId))) {
+      if (
+        scene &&
+        target &&
+        (project?.schemaVersion === 2 ||
+          initial ||
+          group ||
+          hasChildren ||
+          isRoomModel(target.assetId))
+      ) {
         const removed = new Set([objectId.toLowerCase()]);
         let changed = true;
         while (changed) {
@@ -1724,7 +2022,11 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
           ),
           rules: current.rules.filter(
             (rule) =>
-              !(rule.trigger.type === "click" && gone(rule.trigger.targetId)) &&
+              !(
+                (rule.trigger.type === "click" || rule.trigger.type === "gaze") &&
+                gone(rule.trigger.targetId)
+              ) &&
+              !(rule.trigger.type === "panelClose" && gone(rule.trigger.panelId)) &&
               !rule.actions.some((action) =>
                 action.type === "showPanel"
                   ? gone(action.panelId)
