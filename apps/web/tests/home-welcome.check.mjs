@@ -94,6 +94,7 @@ try {
       assert.equal(await page.getByRole("region", { name: "Project details" }).isVisible(), true);
       await page.getByRole("button", { name: "Close project details" }).click();
       await page.getByText("Manage projects and archives", { exact: true }).click();
+      await page.getByRole("button", { name: "New project", exact: true }).waitFor();
     }
     for (const width of [390, 1440]) {
       await page.setViewportSize({ width, height: 900 });
@@ -111,7 +112,7 @@ try {
         role === "Educator"
           ? page.getByRole("link", { name: "+ New Project", exact: true })
           : page.getByRole("button", { name: "New project", exact: true });
-      assert.equal(await creation.isVisible(), true);
+      assert.equal(await creation.isVisible(), true, `${role} creation control at ${width}px`);
       if (role === "Educator") assert.equal(await creation.getAttribute("href"), "/new-project");
     }
     await page.close();
