@@ -321,7 +321,7 @@ html.asset-admin-preview-page,
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin: 32px 0 18px;
+  margin: 16px 0 12px;
   padding-bottom: 16px;
   border-bottom: 1px solid var(--aa-border);
 }
@@ -453,35 +453,36 @@ html.asset-admin-preview-page,
   margin: 16px 0 24px;
 }
 
-/* Keep the broad inspection dialog and preview proportions from the approved PDF */
+/* Keep asset tasks compact with the same inset controls as the other admin dialogs */
 .asset-admin-dialog {
-  width: min(1600px, calc(100% - 64px));
+  --aa-text-title: 22px;
+  width: min(840px, calc(100% - 32px));
   max-height: calc(100dvh - 40px);
   margin: auto;
-  padding: 48px;
+  padding: 24px;
   border: 1px solid var(--aa-dialog-border);
   border-radius: 20px;
   background: var(--aa-paper);
   color: var(--aa-heading);
   box-shadow: 0 16px 40px var(--aa-shadow);
 }
-/* Keep uploads compact while retaining the larger inspection preview */
+/* File selection needs less room than model inspection */
 .asset-admin-dialog.asset-admin-dialog-upload {
   --aa-text-title: 22px;
-  width: min(840px, calc(100% - 48px));
-  padding: 32px;
+  width: min(800px, calc(100% - 32px));
+  padding: 24px;
 }
 /* Both upload and inspection use the same wide preview area */
 .asset-admin-dialog .asset-admin-upload,
 .asset-admin-dialog .asset-admin-detail-preview {
   width: 100%;
-  min-height: 180px;
-  height: auto;
-  aspect-ratio: 2.23;
+  min-height: 140px;
+  height: 160px;
+  aspect-ratio: auto;
   border-radius: 20px;
 }
 .asset-admin-dialog h3 {
-  margin: 32px 0 18px;
+  margin: 16px 0 12px;
   font-size: var(--aa-text-title);
   line-height: 1.25;
 }
@@ -957,9 +958,9 @@ html.asset-admin-preview-page,
 }
 /* Replace the details with one focused decision instead of appending warnings to the form */
 .asset-admin-dialog-confirmation {
-  --aa-text-title: 24px;
-  width: min(440px, calc(100% - 48px));
-  padding: 28px;
+  --aa-text-title: 20px;
+  width: min(480px, calc(100% - 32px));
+  padding: 24px;
 }
 .asset-admin-confirmation-content {
   font-size: var(--aa-text-body);
@@ -1033,7 +1034,7 @@ html.asset-admin-preview-page,
 
 /* Separate preview, metadata and lifecycle actions without a stranded half-width field */
 .asset-admin-dialog-detail h3 {
-  margin-top: 24px;
+  margin-top: 16px;
 }
 .asset-admin-dialog-detail .asset-admin-retired-status {
   margin-top: 20px;
@@ -1103,13 +1104,11 @@ html.asset-admin-preview-page,
     grid-template-columns: minmax(0, 1fr);
   }
   .asset-admin-dialog {
-    --aa-text-title: 24px;
-    width: calc(100% - 32px);
-    padding: 24px;
+    --aa-text-title: 22px;
+    padding: 20px;
   }
   .asset-admin-dialog.asset-admin-dialog-upload {
-    width: calc(100% - 32px);
-    padding: 24px;
+    padding: 20px;
   }
   .asset-admin-dialog .asset-admin-upload,
   .asset-admin-dialog .asset-admin-detail-preview {

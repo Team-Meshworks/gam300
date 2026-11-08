@@ -25,7 +25,7 @@ async function checkDialogTypography() {
       ].map(font),
     };
   });
-  assert.equal(sizes.title, sizes.upload ? 22 : 24);
+  assert.equal(sizes.title, 22);
   assert.ok(
     sizes.section === null || sizes.section === sizes.title,
     "Asset Details uses the same heading scale as the popup title",
@@ -308,7 +308,7 @@ try {
   );
   assert.equal(await dialog.locator(".asset-admin-detail-preview").count(), 0);
   assert.equal(await dialog.getByRole("status", { name: "Asset Type" }).count(), 0);
-  assert.ok((await dialog.boundingBox()).width <= 440);
+  assert.ok((await dialog.boundingBox()).width <= 480);
 
   await page.screenshot({ path: "test-results/scrum168/delete-confirmation.png", fullPage: true });
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
@@ -323,12 +323,7 @@ try {
 
   // Delete hides the record from the active list while retaining its administrative tombstone
   await dialog.getByRole("button", { name: "Delete", exact: true }).click();
-  assert.equal(
-    await dialog
-      .getByRole("checkbox", { name: "Remove from Existing Projects and Exhibitions" })
-      .isChecked(),
-    false,
-  );
+  assert.equal(await dialog.getByRole("checkbox").count(), 0);
   await dialog.getByRole("button", { name: "Confirm Delete", exact: true }).click();
   assert.equal(await page.getByRole("heading", { name: "new-room.glb", exact: true }).count(), 0);
 
@@ -378,10 +373,8 @@ try {
   const fieldRow = await dialog.locator(".asset-admin-fields").boundingBox();
   assert.ok(Math.abs((fieldRow.width - 16) / 2 - typeBounds.width) < 1);
   await page.screenshot({ path: "test-results/scrum168/deleted-details.png", fullPage: true });
-  await dialog
-    .getByRole("button", { name: "Remove from Existing Projects and Exhibitions", exact: true })
-    .click();
-  await dialog.getByRole("button", { name: "Confirm Removal", exact: true }).waitFor();
+  await dialog.getByRole("button", { name: "Delete Permanently", exact: true }).click();
+  await dialog.getByRole("button", { name: "Delete Permanently", exact: true }).waitFor();
   // Use equal spacing around the irreversible warning instead of offsetting individual elements
   const explanation = await dialog
     .locator(".asset-admin-confirmation-content > p")
@@ -402,19 +395,15 @@ try {
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
   // Cancelling removal retains the same details and its available follow-up action
   await dialog.getByRole("heading", { name: "new-room.glb", exact: true }).waitFor();
-  await dialog
-    .getByRole("button", { name: "Remove from Existing Projects and Exhibitions", exact: true })
-    .click();
-  await dialog.getByRole("button", { name: "Confirm Removal", exact: true }).click();
+  await dialog.getByRole("button", { name: "Delete Permanently", exact: true }).click();
+  await dialog.getByRole("button", { name: "Delete Permanently", exact: true }).click();
   await page
     .locator(".asset-admin-card")
     .filter({ has: page.getByRole("heading", { name: "new-room.glb", exact: true }) })
     .getByRole("button")
     .click();
   assert.equal(
-    await dialog
-      .getByRole("button", { name: "Remove from Existing Projects and Exhibitions", exact: true })
-      .count(),
+    await dialog.getByRole("button", { name: "Delete Permanently", exact: true }).count(),
     0,
   );
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
@@ -429,8 +418,8 @@ try {
   await page.screenshot({ path: "test-results/scrum168/details.png", fullPage: true });
   const viewBounds = await dialog.boundingBox();
   assert.ok(
-    viewBounds.width >= 1330 && viewBounds.width <= 1336,
-    "Details use the approved broad preview layout",
+    viewBounds.width >= 800 && viewBounds.width <= 840 && viewBounds.height <= 600,
+    "Details keep a wide preview without filling the screen vertically",
   );
   assert.ok(
     viewBounds.y >= 20 && viewBounds.y + viewBounds.height <= 980,
@@ -693,8 +682,7 @@ try {
   await page.screenshot({ path: "test-results/scrum168/mobile-upload.png", fullPage: true });
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
 
-  // Keep the mobile opt-in explicit and retain the confirmed administrative record
-  // Return to the original preview records before checking combined deletion and removal
+  // Keep permanent removal separate from library deletion on mobile too
   await page.getByText("Local preview controls", { exact: true }).click();
   await page.getByLabel("More sample assets", { exact: true }).uncheck();
   await page.locator(".asset-admin-preview-controls").evaluate((details) => {
@@ -705,15 +693,7 @@ try {
   await page.locator(".asset-admin-card").first().getByRole("button").click();
   const removedName = await dialog.locator("h2").textContent();
   await dialog.getByRole("button", { name: "Delete", exact: true }).click();
-  const force = dialog.getByRole("checkbox", {
-    name: "Remove from Existing Projects and Exhibitions",
-  });
-  assert.equal(await force.isChecked(), false);
-  const checkboxBefore = await force.boundingBox();
-  await force.check();
-  const checkboxAfter = await force.boundingBox();
-  assert.ok(Math.abs(checkboxBefore.x - checkboxAfter.x) < 1);
-  assert.ok(Math.abs(checkboxBefore.y - checkboxAfter.y) < 1);
+  assert.equal(await dialog.getByRole("checkbox").count(), 0);
   const removalBounds = await dialog.boundingBox();
   assert.ok(removalBounds.x >= 0 && removalBounds.x + removalBounds.width <= 390);
   assert.ok(removalBounds.y >= 0 && removalBounds.y + removalBounds.height <= 844);
@@ -725,11 +705,17 @@ try {
     .filter({ has: page.getByRole("heading", { name: removedName, exact: true }) })
     .getByRole("button")
     .click();
+  await dialog.getByRole("button", { name: "Delete Permanently", exact: true }).click();
+  await dialog.getByText("This cannot be undone.", { exact: true }).waitFor();
+  await dialog.getByRole("button", { name: "Delete Permanently", exact: true }).click();
+  await page
+    .locator(".asset-admin-card")
+    .filter({ has: page.getByRole("heading", { name: removedName, exact: true }) })
+    .getByRole("button")
+    .click();
   await dialog.getByText("Removed from all projects and exhibitions.", { exact: true }).waitFor();
   assert.equal(
-    await dialog
-      .getByRole("button", { name: "Remove from Existing Projects and Exhibitions", exact: true })
-      .count(),
+    await dialog.getByRole("button", { name: "Delete Permanently", exact: true }).count(),
     0,
   );
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();

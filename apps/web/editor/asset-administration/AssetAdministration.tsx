@@ -1,8 +1,15 @@
+import { Icon as UiIcon } from "@iconify/react/offline";
+import searchIcon from "@iconify-icons/lucide/search";
+import eyeIcon from "@iconify-icons/lucide/eye";
+import eyeOffIcon from "@iconify-icons/lucide/eye-off";
+import globeIcon from "@iconify-icons/lucide/globe";
+import trashIcon from "@iconify-icons/lucide/trash-2";
+import uploadIcon from "@iconify-icons/lucide/upload";
+import faMusic from "@iconify-icons/lucide/music";
+import faXmark from "@iconify-icons/lucide/x";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useModal } from "../../shared/ui/useModal";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faMusic, faXmark } from "@fortawesome/free-solid-svg-icons";
 import { generateLibraryPreviews } from "../graphics/library-previews";
 import { assetPreviewKey, assetPreviewSource } from "./asset-previews";
 import type {
@@ -59,7 +66,6 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
   const [busy, setBusy] = useState(false);
   const [outcome, setOutcome] = useState("");
   const [confirmation, setConfirmation] = useState(false);
-  const [removeFromProjects, setRemoveFromProjects] = useState(false);
   const [review, setReview] = useState({ source: "", license: "", reviewNotes: "" });
   const dialog = useModal(selection !== null);
   const operation = useRef<AbortController | null>(null);
@@ -204,7 +210,6 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
     setCategory(data?.policy.categories[kind]?.[0] ?? "");
     setNotice(null);
     setConfirmation(false);
-    setRemoveFromProjects(false);
     setSelection({ kind: "upload" });
   }
 
@@ -216,7 +221,6 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
     // Cancel the destructive step first so the same asset details remain open
     if (confirmation) {
       setConfirmation(false);
-      setRemoveFromProjects(false);
       setNotice(null);
       return;
     }
@@ -225,7 +229,6 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
     setReview({ source: "", license: "", reviewNotes: "" });
     setNotice(null);
     setConfirmation(false);
-    setRemoveFromProjects(false);
   }
 
   async function submit(event: FormEvent) {
@@ -266,12 +269,7 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
       return;
     }
     await mutate((signal) =>
-      service.changeAvailability(
-        selected.id,
-        action,
-        signal,
-        action === "remove" || (action === "delete" && removeFromProjects),
-      ),
+      service.changeAvailability(selected.id, action, signal, action === "remove"),
     );
   }
 
@@ -308,7 +306,6 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
       setReview({ source: "", license: "", reviewNotes: "" });
       setFile(null);
       setConfirmation(false);
-      setRemoveFromProjects(false);
       // Announce the confirmed state after closing the form; uploaded candidates can still be pending
       setOutcome(
         `${confirmed.name}: ${
@@ -381,7 +378,7 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
     if (asset.kind === "audio") {
       return (
         <span className="asset-admin-audio-icon">
-          <FontAwesomeIcon icon={faMusic} aria-hidden="true" />
+          <UiIcon icon={faMusic} aria-hidden="true" />
           <span className="asset-admin-sr">Audio</span>
         </span>
       );
@@ -421,25 +418,14 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
-          <svg
-            aria-hidden="true"
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-          >
-            <circle cx="10" cy="10" r="7" />
-            <path d="m15 15 6 6" />
-          </svg>
+          <UiIcon icon={searchIcon} width={24} height={24} aria-hidden="true" />
         </label>
         <button
           className="asset-admin-close sp-close-button"
           aria-label="Close asset administration"
           onClick={onClose}
         >
-          <FontAwesomeIcon icon={faXmark} aria-hidden="true" />
+          <UiIcon icon={faXmark} aria-hidden="true" />
         </button>
       </div>
       <div className="asset-admin-toolbar">
@@ -508,28 +494,12 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
                     <h2>{asset.name}</h2>
                     <span className="asset-admin-visibility">
                       {asset.status === "approved" && (
-                        <svg
+                        <UiIcon
+                          icon={asset.hidden ? eyeOffIcon : globeIcon}
+                          width={13}
+                          height={13}
                           aria-hidden="true"
-                          width="13"
-                          height="13"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="1.5"
-                        >
-                          {asset.hidden ? (
-                            <>
-                              <path d="m3 3 18 18M10 5a12 12 0 0 1 11 7 15 15 0 0 1-4 5M7 7a15 15 0 0 0-4 5c3 6 9 9 15 5" />
-                              <path d="M10 10a3 3 0 0 0 4 4" />
-                            </>
-                          ) : (
-                            <>
-                              <circle cx="12" cy="12" r="9" />
-                              <ellipse cx="12" cy="12" rx="4" ry="9" />
-                              <path d="M3 12h18" />
-                            </>
-                          )}
-                        </svg>
+                        />
                       )}
                       {asset.deleted
                         ? "Deleted"
@@ -545,7 +515,6 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
                     onClick={() => {
                       setNotice(null);
                       setConfirmation(false);
-                      setRemoveFromProjects(false);
                       setAudioPreview(null);
                       setAudioPreviewError(false);
                       setSelection({ kind: "detail", id: asset.id });
@@ -606,7 +575,7 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
             <h2 id="asset-dialog-heading">
               {confirmation
                 ? selected?.deleted
-                  ? "Remove asset?"
+                  ? "Delete Permanently?"
                   : "Delete asset?"
                 : (selected?.name ??
                   (kind === "environment" ? "Upload 3D Space" : "Upload Assets"))}
@@ -618,7 +587,7 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
               disabled={busy}
               onClick={closeDialog}
             >
-              <FontAwesomeIcon icon={faXmark} aria-hidden="true" />
+              <UiIcon icon={faXmark} aria-hidden="true" />
             </button>
           </div>
           {!confirmation && (
@@ -646,22 +615,7 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
                   }}
                 >
                   <span className="asset-admin-upload-symbol" aria-hidden="true">
-                    <svg
-                      width="44"
-                      height="44"
-                      viewBox="0 0 44 44"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path
-                        d="M3 24h38v11a6 6 0 0 1-6 6H9a6 6 0 0 1-6-6V24Z"
-                        fill="var(--aa-upload-tray)"
-                      />
-                      <path d="M22 32V3m-10 10L22 3l10 10" />
-                    </svg>
+                    <UiIcon icon={uploadIcon} width={36} height={36} aria-hidden="true" />
                   </span>
                   <span>
                     {file?.name ??
@@ -864,27 +818,10 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
                   ? " will be removed from every project and exhibition that uses it."
                   : " will move to Deleted and disappear from the student library."}
               </p>
-              {/* Keep both outcomes in the same text slot so toggling never moves the checkbox */}
               {!selected?.deleted && (
-                <p
-                  className={`asset-admin-confirmation-outcome ${removeFromProjects ? "asset-admin-confirmation-warning" : "asset-admin-confirmation-hint"}`}
-                  role={removeFromProjects ? "alert" : undefined}
-                >
-                  {removeFromProjects
-                    ? "Existing uses will be removed. This cannot be undone."
-                    : "Existing projects and exhibitions keep this asset."}
+                <p className="asset-admin-confirmation-hint">
+                  Existing projects and exhibitions keep this asset.
                 </p>
-              )}
-              {!selected?.deleted && data?.policy.canForceRemove && (
-                <label className="asset-admin-force-removal">
-                  <input
-                    type="checkbox"
-                    checked={removeFromProjects}
-                    disabled={busy || !data?.policy.canForceRemove}
-                    onChange={(event) => setRemoveFromProjects(event.target.checked)}
-                  />
-                  <span>Remove from Existing Projects and Exhibitions</span>
-                </label>
               )}
               {selected?.deleted && (
                 <p className="asset-admin-confirmation-warning" role="alert">
@@ -964,39 +901,24 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
                       void changeAvailability(action);
                     }}
                   >
-                    <svg
+                    <UiIcon
+                      icon={
+                        action === "delete" || action === "remove"
+                          ? trashIcon
+                          : action === "show"
+                            ? eyeIcon
+                            : eyeOffIcon
+                      }
+                      width={18}
+                      height={18}
                       aria-hidden="true"
-                      width="18"
-                      height="18"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.7"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      {action === "delete" || action === "remove" ? (
-                        <>
-                          <path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14M10 10v7m4-7v7" />
-                        </>
-                      ) : action === "show" ? (
-                        <>
-                          <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7Z" />
-                          <circle cx="12" cy="12" r="3" />
-                        </>
-                      ) : (
-                        <>
-                          <path d="m3 3 18 18M10 5a12 12 0 0 1 11 7 15 15 0 0 1-4 5M7 7a15 15 0 0 0-4 5c3 6 9 9 15 5" />
-                          <path d="M10 10a3 3 0 0 0 4 4" />
-                        </>
-                      )}
-                    </svg>
+                    />
                     {busy
                       ? "Saving…"
                       : action === "remove"
                         ? confirmation
-                          ? "Confirm Removal"
-                          : "Remove from Existing Projects and Exhibitions"
+                          ? "Delete Permanently"
+                          : "Delete Permanently"
                         : action === "delete"
                           ? confirmation
                             ? "Confirm Delete"

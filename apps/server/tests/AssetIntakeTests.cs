@@ -4,12 +4,14 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Spatia.Server.Accounts;
 using Spatia.Server.Assets;
 using Spatia.Server.Persistence;
 using Spatia.Server.Projects;
+using Spatia.Server.Publications;
 
 namespace Spatia.Server.Tests;
 
@@ -425,13 +427,13 @@ public sealed class AssetIntakeTests
         await Assert.That(currentProject.Revision).IsEqualTo(3L);
         await Assert.That(AssetDocumentReferences.Read(currentProject.DocumentJson).Contains(candidate.Id.ToString())).IsFalse();
         await Assert.That(await database.Database.GetPendingMigrationsAsync()).IsEmpty();
-        // No publication integration means a global removal must deny without changing the retained row
+        // Final removal permanently denies retained bytes after ordinary retirement
         using var removal = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/admin/assets/{candidate.Id}/availability");
         removal.Headers.Add("X-CSRF-TOKEN", token);
         removal.Content = JsonContent.Create(new AssetAvailabilityRequest("remove", true));
-        using var unavailable = await fixture.Client.SendAsync(removal);
-        await Assert.That(unavailable.StatusCode).IsEqualTo(HttpStatusCode.ServiceUnavailable);
-        await Assert.That((await database.AssetCandidates.AsNoTracking().SingleAsync(asset => asset.Id == candidate.Id)).RemovedFromProjects).IsFalse();
+        using var removed = await fixture.Client.SendAsync(removal);
+        await Assert.That(removed.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        await Assert.That((await database.AssetCandidates.AsNoTracking().SingleAsync(asset => asset.Id == candidate.Id)).RemovedFromProjects).IsTrue();
         // Database enforcement prevents later writers from replacing a reviewed version's bytes
         await Assert.ThrowsAsync<Npgsql.PostgresException>(async () => await database.Database.ExecuteSqlRawAsync("UPDATE asset_candidates SET bytes = decode('00', 'hex')"));
         await fixture.SignInAsync(await fixture.CreateAccountAsync());
@@ -531,6 +533,181 @@ public sealed class AssetIntakeTests
         var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         await Assert.That(await database.Projects.CountAsync()).IsEqualTo(1);
         await Assert.That(await database.ProjectAssignments.CountAsync()).IsEqualTo(1);
+    }
+
+    [Test]
+    [Arguments("environment", 1, false)]
+    [Arguments("model", 2, false)]
+    [Arguments("audio", 2, false)]
+    [Arguments("model", 2, true)]
+    public async Task Intake_FinalRemovalCleansDraftsAndPermanentlyRetiresAffectedEditions(string kind, int version, bool expire)
+    {
+        var expiry = new ExpireRemovalAfterSave();
+        await using var fixture = await HttpsApplicationFixture.CreateAsync(
+            builder => builder.Services.AddDbContext<ApplicationDbContext>(options => options.AddInterceptors(expiry)),
+            environmentName: "Development");
+        var admin = await fixture.CreateAccountAsync(ApplicationRoles.Administrator);
+        var creator = await fixture.CreateAccountAsync();
+        var assetId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        var editionId = Guid.NewGuid();
+        var json = JsonNode.Parse(ProjectTestDocuments.Create(projectId, "Retained " + assetId, version))!;
+        var scene = json["scenes"]![0]!;
+        if (kind == "environment") { scene["environmentAssetId"] = assetId.ToString(); }
+        if (kind == "model")
+        {
+            scene["objects"]![0]!["assetId"] = assetId.ToString();
+            scene["objects"]![1]!["parentId"] = scene["objects"]![0]!["id"]!.GetValue<string>();
+        }
+        if (kind == "audio")
+        {
+            var audio = new JsonObject
+            {
+                ["id"] = Guid.NewGuid().ToString(),
+                ["type"] = "audio",
+                ["assetId"] = assetId.ToString(),
+                ["caption"] = "Narration",
+                ["loop"] = true,
+                ["volume"] = 1,
+                ["mode"] = "global"
+            };
+            scene["audio"] = new JsonArray(audio);
+            scene["rules"]!.AsArray().Add(new JsonObject
+            {
+                ["id"] = Guid.NewGuid().ToString(),
+                ["enabled"] = true,
+                ["trigger"] = new JsonObject { ["type"] = "sceneStart" },
+                ["actions"] = new JsonArray(new JsonObject { ["type"] = "playMedia", ["mediaId"] = audio["id"]!.GetValue<string>() })
+            });
+        }
+        var original = json.ToJsonString();
+        var bytes = CreateMinimalGlb();
+        await using (var scope = fixture.Database.Services.CreateAsyncScope())
+        {
+            var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var organization = await database.OrganizationMemberships.Where(row => row.UserId == creator).Select(row => row.OrganizationId).SingleAsync();
+            var asset = new AssetCandidate
+            {
+                Id = assetId,
+                Name = "Removal fixture",
+                Kind = kind,
+                Category = kind == "environment" ? null : kind == "audio" ? "BGM" : "Objects",
+                Sha256 = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(bytes)),
+                Bytes = bytes,
+                Status = "approved",
+                Source = "Fixture",
+                License = "Fixture",
+                ReviewNotes = "Fixture",
+                ValidationJson = "[]",
+                SubmittedBy = admin,
+                ReviewedBy = admin,
+                CreatedAt = DateTimeOffset.UtcNow
+            };
+            database.AssetCandidates.Add(asset);
+            database.Projects.Add(new Project
+            {
+                Id = projectId,
+                OrganizationId = organization,
+                SchemaVersion = version,
+                DocumentJson = original,
+                UpdatedAt = DateTimeOffset.UtcNow
+            });
+            database.ProjectAssignments.Add(new ProjectAssignment { ProjectId = projectId, UserId = creator, CanEdit = true, CanPublish = true });
+            await database.SaveChangesAsync();
+            database.Publications.Add(new Publication
+            {
+                Id = editionId,
+                ProjectId = projectId,
+                PublishedById = creator,
+                SourceRevision = 0,
+                SchemaVersion = version,
+                DocumentJson = original,
+                RequestDigest = new byte[32],
+                AssetReferencesJson = PublicationAssetManifest.Serialize([new(assetId.ToString(), asset.Sha256)])
+            });
+            database.PublicationAccess.Add(new PublicationAccessState { PublicationId = editionId, Audience = 1 });
+            await database.SaveChangesAsync();
+        }
+        await fixture.SignInAsync(admin);
+        using var notDeleted = await AuthTestRequests.PostAsync(fixture, $"/api/v1/admin/assets/{assetId}/availability", new AssetAvailabilityRequest("remove"));
+        await Assert.That(notDeleted.StatusCode).IsEqualTo(HttpStatusCode.Conflict);
+        using var retired = await AuthTestRequests.PostAsync(fixture, $"/api/v1/admin/assets/{assetId}/availability", new AssetAvailabilityRequest("delete"));
+        await Assert.That(retired.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        await fixture.SignInAsync(creator);
+        using var retained = await fixture.Client.GetAsync($"/api/v1/projects/{projectId}/assets/{assetId}/bytes");
+        await Assert.That(retained.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        using var forbidden = await AuthTestRequests.PostAsync(fixture, $"/api/v1/admin/assets/{assetId}/availability", new AssetAvailabilityRequest("remove", true));
+        await Assert.That(forbidden.StatusCode).IsEqualTo(HttpStatusCode.Forbidden);
+        await fixture.SignInAsync(admin);
+        using var noCsrf = await fixture.Client.PostAsJsonAsync($"/api/v1/admin/assets/{assetId}/availability", new AssetAvailabilityRequest("remove", true));
+        await Assert.That(noCsrf.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
+        if (expire) { expiry.After = () => fixture.Clock.Advance(TimeSpan.FromHours(9)); }
+        using var removed = await AuthTestRequests.PostAsync(fixture, $"/api/v1/admin/assets/{assetId}/availability", new AssetAvailabilityRequest("remove", true));
+        if (expire)
+        {
+            await Assert.That(removed.StatusCode).IsEqualTo(HttpStatusCode.Unauthorized);
+            await using var rolledBack = fixture.Database.Services.CreateAsyncScope();
+            var state = rolledBack.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            await Assert.That((await state.AssetCandidates.SingleAsync(row => row.Id == assetId)).RemovedFromProjects).IsFalse();
+            var unchanged = await state.Projects.SingleAsync(row => row.Id == projectId);
+            await Assert.That(unchanged.Revision).IsEqualTo(0L);
+            await Assert.That(JsonNode.DeepEquals(JsonNode.Parse(original), JsonNode.Parse(unchanged.DocumentJson))).IsTrue();
+            await Assert.That((await state.PublicationAccess.SingleAsync(row => row.PublicationId == editionId)).Deleted).IsFalse();
+            await Assert.That(await state.Database.SqlQuery<Guid>($"SELECT id AS \"Value\" FROM retired_publication_ids WHERE id = {editionId}").AnyAsync()).IsFalse();
+            return;
+        }
+        await Assert.That(removed.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        var record = (await removed.Content.ReadFromJsonAsync<AssetAdministrationRecord>())!;
+        await Assert.That(record.RemovedFromProjects).IsTrue();
+        await Assert.That(record.Actions).IsEmpty();
+        using var repeated = await AuthTestRequests.PostAsync(fixture, $"/api/v1/admin/assets/{assetId}/availability", new AssetAvailabilityRequest("remove"));
+        await Assert.That(repeated.StatusCode).IsEqualTo(HttpStatusCode.Conflict);
+        await fixture.SignInAsync(creator);
+        using var reopened = await fixture.Client.GetAsync($"/api/v1/projects/{projectId}");
+        await Assert.That(reopened.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        var current = await reopened.Content.ReadFromJsonAsync<JsonElement>();
+        await Assert.That(current.GetProperty("revision").GetInt64()).IsEqualTo(1L);
+        var currentJson = current.GetProperty("document").GetRawText();
+        await Assert.That(AssetDocumentReferences.Read(currentJson).Contains(assetId.ToString())).IsFalse();
+        await Assert.That(current.GetProperty("document").GetProperty("title").GetString()).IsEqualTo("Retained " + assetId);
+        if (kind == "model") { await Assert.That(current.GetProperty("document").GetProperty("scenes")[0].GetProperty("objects").GetArrayLength()).IsEqualTo(0); }
+        using var deniedBytes = await fixture.Client.GetAsync($"/api/v1/projects/{projectId}/assets/{assetId}/bytes");
+        await Assert.That(deniedBytes.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+        using var save = new HttpRequestMessage(HttpMethod.Put, $"/api/v1/projects/{projectId}");
+        save.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync());
+        save.Content = JsonContent.Create(new { expectedRevision = 1, clientMutationId = Guid.NewGuid(), document = JsonSerializer.Deserialize<JsonElement>(original) });
+        using var restored = await fixture.Client.SendAsync(save);
+        await Assert.That(restored.StatusCode).IsEqualTo(HttpStatusCode.UnprocessableEntity);
+        using var visitor = fixture.CreateClient();
+        using var deniedEdition = await visitor.GetAsync($"/api/v1/publications/{editionId}");
+        await Assert.That(deniedEdition.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+        await using var verify = fixture.Database.Services.CreateAsyncScope();
+        var stored = verify.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await Assert.That(JsonNode.DeepEquals(JsonNode.Parse(original),
+            JsonNode.Parse((await stored.Publications.SingleAsync(row => row.Id == editionId)).DocumentJson))).IsTrue();
+        await Assert.That(AssetDocumentReferences.Read((await stored.Publications.SingleAsync(row => row.Id == editionId)).DocumentJson).Contains(assetId.ToString())).IsTrue();
+        await Assert.That((await stored.AssetCandidates.SingleAsync(row => row.Id == assetId)).Bytes.SequenceEqual(bytes)).IsTrue();
+        var boundary = new ProjectDocumentService(fixture.App.Environment, stored);
+        var history = boundary.ReadStored(projectId, version, original);
+        await Assert.That(history.Ok).IsTrue();
+        await Assert.That(boundary.Serialize(history.Value!).Ok).IsFalse();
+        await Assert.That(boundary.Read(projectId, original, original).Ok).IsFalse();
+        await Assert.That(await stored.Database.SqlQuery<Guid>($"SELECT id AS \"Value\" FROM retired_publication_ids WHERE id = {editionId}").AnyAsync()).IsTrue();
+        await Assert.ThrowsAsync<Npgsql.PostgresException>(async () =>
+            await stored.PublicationAccess.Where(row => row.PublicationId == editionId)
+                .ExecuteUpdateAsync(update => update.SetProperty(row => row.Deleted, false)));
+        using var stillDenied = await visitor.GetAsync($"/api/v1/publications/{editionId}");
+        await Assert.That(stillDenied.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+    }
+
+    private sealed class ExpireRemovalAfterSave : SaveChangesInterceptor
+    {
+        internal Action? After;
+        public override ValueTask<int> SavedChangesAsync(SaveChangesCompletedEventData eventData, int result, CancellationToken cancellationToken = default)
+        {
+            Interlocked.Exchange(ref After, null)?.Invoke();
+            return ValueTask.FromResult(result);
+        }
     }
 
     private static async Task<Guid> SeedLegacyPendingAsync(HttpsApplicationFixture fixture, Guid id)

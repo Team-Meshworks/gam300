@@ -1,4 +1,7 @@
+using System.Data;
 using Microsoft.AspNetCore.Mvc;
+using Spatia.Server.Accounts;
+using Spatia.Server.Projects;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
 using Spatia.Server.Persistence;
@@ -28,7 +31,7 @@ public static class AssetAdministrationEndpoints
                 categories = new { environment = (string[]?)null, model = AssetIntakePolicy.ModelCategories, audio = AssetIntakePolicy.AudioCategories },
                 canSubmit = validator.IsAvailable,
                 canSubmitByKind = new { environment = validator.IsAvailable, model = validator.IsAvailable, audio = true },
-                canForceRemove = false
+                canForceRemove = true
             },
         }));
 
@@ -60,20 +63,28 @@ public static class AssetAdministrationEndpoints
             return record is null ? ApiProblems.Create(context, 409, "asset_conflict", "Reload the asset before reviewing it") : Results.Ok(record);
         }).WithMetadata(new RequestSizeLimitAttribute(40 * 1024));
         group.MapPost("/{id:guid}/availability", async (Guid id, AssetAvailabilityRequest request, HttpContext context,
-            AssetAdministrationService service, CancellationToken token) =>
+            AssetAdministrationService service, ApplicationDbContext database, ProjectAccessService access,
+            ProjectDocumentService documents, CancellationToken token) =>
         {
 
-            // Reject unknown actions and combinations before checking the global-removal dependency
+            // Final removal follows ordinary deletion and cannot be combined with hiding or showing
             if (request.Action is not ("hide" or "show" or "delete" or "remove")
-                || (request.RemoveFromProjects && request.Action is not ("delete" or "remove")))
+                || (request.RemoveFromProjects && request.Action != "remove"))
             {
                 return Invalid(context);
             }
 
-            // Publication delivery is not integrated on this branch, so never acknowledge a partial global removal
             if (request.RemoveFromProjects || request.Action == "remove")
             {
-                return ApiProblems.Create(context, 503, "asset_removal_unavailable", "Removal from existing projects and exhibitions is unavailable");
+                await using var transaction = await database.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, token);
+                if (await RecheckAdministratorAsync(context, access, token) is { } denied) { return denied; }
+                var removed = await service.RemoveAsync(id, documents, token);
+                if (removed is null) { return ApiProblems.Create(context, 409, "asset_conflict", "Reload the asset before changing it"); }
+                if (await RecheckAdministratorAsync(context, access, token) is { } changed) { return changed; }
+                await transaction.CommitAsync(token);
+                token.ThrowIfCancellationRequested();
+                return context.Features.Get<ValidatedAccountSession>() is not { } session || session.Clock.GetUtcNow() >= session.ExpiresUtc
+                    ? ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired) : Results.Ok(removed);
             }
             var record = await service.ChangeAsync(id, request.Action, token);
             return record is null ? ApiProblems.Create(context, 409, "asset_conflict", "Reload the asset before changing it") : Results.Ok(record);
@@ -134,6 +145,15 @@ public static class AssetAdministrationEndpoints
         var record = await service.SubmitAsync(name, kind, category, buffer.ToArray(), actor, metadata, token);
         return record is null ? ApiProblems.Create(context, 503, "asset_intake_unavailable", "Asset validation or storage is unavailable")
             : Results.Json(record, statusCode: StatusCodes.Status201Created);
+    }
+
+    private static async Task<IResult?> RecheckAdministratorAsync(HttpContext context, ProjectAccessService access, CancellationToken token)
+    {
+        var account = await access.ResolveCurrentAccountAsync(context, token);
+        if (account is null) { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired); }
+        if (account.MustChangePassword) { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.PasswordChangeRequired); }
+        return account.Role == ApplicationRoles.Administrator ? null
+            : ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.OperationForbidden);
     }
 
     private static bool ValidReview(AssetReviewRequest request) =>
