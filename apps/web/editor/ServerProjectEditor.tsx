@@ -425,7 +425,7 @@ function ServerProjectSession({
     return true;
   }
 
-  async function run(action: () => Promise<void>) {
+  async function run(action: () => Promise<void>, onFailure: (message: string) => void = setError) {
     if (busyRef.current) return;
     busyRef.current = true;
     setBusy(true);
@@ -433,10 +433,11 @@ function ServerProjectSession({
     try {
       await action();
     } catch (cause) {
-      if (!wasPickerCancelled(cause))
-        setError(
+      if (!wasPickerCancelled(cause)) {
+        onFailure(
           cause instanceof Error ? cause.message : "The operation failed. Your draft was kept.",
         );
+      }
     } finally {
       busyRef.current = false;
       setBusy(false);
@@ -501,7 +502,7 @@ function ServerProjectSession({
       setDeparture("home");
       return;
     }
-    await run(async () => {
+    const openExitReview = async () => {
       const identity = await accounts.getSession();
       if (!identity || identity.userId !== active.accountId || identity.mustChangePassword)
         throw new Error("Your account changed. Sign in again before reviewing.");
@@ -522,6 +523,7 @@ function ServerProjectSession({
           item.projectId.toLowerCase() === projectId.toLowerCase() &&
           item.studentId.toLowerCase() === context.studentId.toLowerCase(),
       );
+      if (active.controller.signal.aborted) return;
       if (
         !current ||
         current.userId !== active.accountId ||
@@ -537,6 +539,11 @@ function ServerProjectSession({
         studentName: selected.studentName ?? "Student",
         revision: project.revision,
       });
+    };
+    await run(openExitReview, (message) => {
+      if (active.controller.signal.aborted) return;
+      setError(`The submission review could not be opened. ${message}`);
+      setDeparture("home");
     });
   }
 

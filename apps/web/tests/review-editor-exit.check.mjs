@@ -26,6 +26,8 @@ const projectId = doc.projectId,
 let releaseSave;
 const saveGate = new Promise((resolve) => (releaseSave = resolve));
 let saved = 0;
+let failAssignment = false;
+let revision = 0;
 try {
   await server.listen();
   const origin = `http://127.0.0.1:${server.httpServer.address().port}`;
@@ -48,6 +50,8 @@ try {
     if (path === "/api/v1/auth/csrf") return reply({ requestToken: "csrf" });
     if (path === "/api/v1/assets" || path === `/api/v1/projects/${projectId}/assets`)
       return reply([]);
+    if (path === `/api/v1/classes/${classId}/assignments/${assignmentId}` && failAssignment)
+      return reply({ code: "service_unavailable" }, 503);
     if (path === `/api/v1/classes/${classId}/assignments/${assignmentId}`)
       return reply({
         assignmentId,
@@ -75,10 +79,15 @@ try {
       return reply({ items: [], nextCursor: null });
     }
     if (path.endsWith("/submissions")) return reply({ items: [], nextCursor: null });
+    if (path === `/api/v1/projects/${projectId}` && req.method() === "PUT") {
+      const body = req.postDataJSON();
+      doc.scenes = body.document.scenes;
+      return reply({ projectId, clientMutationId: body.clientMutationId, revision: ++revision });
+    }
     if (path === `/api/v1/projects/${projectId}`)
       return reply({
         projectId,
-        revision: 0,
+        revision,
         document: doc,
         permissions: { canEdit: true, canManage: true, canPublish: true },
       });
@@ -98,18 +107,48 @@ try {
   await dialog.waitFor();
   assert.equal(page.url(), url, "review opens before navigation");
   await dialog.getByLabel("Your review").fill("Useful feedback");
+  const saveStarted = page.waitForRequest(
+    (request) =>
+      request.method() === "POST" &&
+      new URL(request.url()).pathname === `/api/v1/projects/${projectId}/progress-reviews`,
+  );
   await dialog.getByRole("button", { name: "Save review" }).click();
-  await page
-    .waitForFunction(
-      () => document.querySelector("dialog")?.textContent?.includes("Saving") || false,
-      { timeout: 3000 },
-    )
-    .catch(() => {});
-  assert.equal(saved, 1);
+  await saveStarted;
   assert.equal(page.url(), url, "save remains on editor until confirmation");
   releaseSave();
   await page.waitForURL("**/home?**");
+  assert.equal(saved, 1);
   assert.equal(new URL(page.url()).searchParams.get("assignmentId"), assignmentId);
+  failAssignment = true;
+  await page.goto(url);
+  await page.getByText("Scene ready", { exact: true }).waitFor();
+  await page.getByRole("button", { name: "Scenes", exact: true }).click();
+  await page.getByLabel("Scene name", { exact: true }).fill("Recovery test scene");
+  await page.getByRole("button", { name: "Rename scene", exact: true }).click();
+  await page.getByRole("button", { name: "Leave editor" }).click();
+  const departure = page.getByRole("dialog", { name: "Preserve your work before leaving" });
+  await departure.waitFor({ timeout: 8000 });
+  assert.equal(await page.getByRole("dialog", { name: "Review submission" }).count(), 0);
+  await departure.getByRole("button", { name: "Cancel" }).click();
+  assert.equal(page.url(), url);
+  assert.equal(
+    await page.getByLabel("Scene name", { exact: true }).inputValue(),
+    "Recovery test scene",
+  );
+  await page.getByRole("button", { name: "Leave editor" }).click();
+  await departure.getByRole("button", { name: "Keep recovery and continue" }).click();
+  await page.waitForURL("**/home?**");
+  const recovered = await page.evaluate(
+    async ({ actor, projectId }) => {
+      const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
+      const result = await loadRecoverySession(new Map(), { accountId: actor, projectId });
+      return result.ok ? result.value?.document : null;
+    },
+    { actor, projectId },
+  );
+  // A confirmed server save may clear the recovery copy during disposal.
+  assert.equal(doc.scenes[0].name, "Recovery test scene");
+  if (recovered) assert.equal(recovered.scenes[0].name, "Recovery test scene");
   console.log("Editor exit waits for confirmed review save");
 } finally {
   releaseSave?.();
