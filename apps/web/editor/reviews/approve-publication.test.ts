@@ -147,6 +147,30 @@ it("does not resume a request for a different student", async () => {
   ).toThrow();
 });
 
+it.each([
+  ["unsupported_publication_runtime", "publication-rejected"],
+  ["publication_assets_unavailable", "publication-rejected"],
+  ["publication_id_conflict", "pending"],
+  [undefined, "pending"],
+])("reconciles a stored request after publication rejects with %s", async (code, expected) => {
+  const store = memory();
+  store.setItem(`spatia-review-publication:${actorId}:${projectId}`, JSON.stringify(intent));
+  const publish = vi.fn().mockResolvedValue({ kind: "rejected", code, message: "Cannot publish." });
+
+  const result = await approveAndPublish(
+    store,
+    intent,
+    vi.fn().mockResolvedValue({ kind: "confirmed" }),
+    publish,
+  );
+
+  expect(result.kind).toBe(expected);
+  expect(publish.mock.calls[0]?.[3]).toMatchObject({ publicationId });
+  expect(readApprovalPublication(store, actorId, projectId, studentId)).toEqual(
+    expected === "pending" ? intent : null,
+  );
+});
+
 it("reports confirmed publication even when clearing local storage fails", async () => {
   const store = {
     ...memory(),
@@ -161,4 +185,19 @@ it("reports confirmed publication even when clearing local storage fails", async
     vi.fn(async () => ({ kind: "confirmed" as const, value: acknowledgement })),
   );
   expect(result.kind).toBe("published");
+});
+
+it("keeps an explicit retry uncertain if another tab already cleared storage", async () => {
+  const store = memory();
+  const publish = vi.fn().mockResolvedValue({ kind: "rejected", message: "Too many changes." });
+  const result = await approveAndPublish(
+    store,
+    intent,
+    vi.fn().mockResolvedValue({ kind: "confirmed" }),
+    publish,
+    true,
+  );
+  expect(result.kind).toBe("pending");
+  expect(readApprovalPublication(store, actorId, projectId, studentId)).toEqual(intent);
+  expect(publish.mock.calls[0]?.[3]).toMatchObject({ publicationId });
 });

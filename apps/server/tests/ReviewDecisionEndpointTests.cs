@@ -30,6 +30,14 @@ public sealed class ReviewDecisionEndpointTests
         { await Assert.That(submitted.StatusCode).IsEqualTo(HttpStatusCode.Created); }
         using var educator = fixture.CreateClient();
         await fixture.SignInAsync(data.Educator, educator);
+        using (var list = await educator.GetAsync($"/api/v1/projects/{data.ProjectId:D}/submissions?limit=1"))
+        {
+            await Assert.That(list.StatusCode).IsEqualTo(HttpStatusCode.OK);
+            var page = await list.Content.ReadFromJsonAsync<JsonElement>();
+            await Assert.That(page.GetProperty("projectId").GetGuid()).IsEqualTo(data.ProjectId);
+            await Assert.That(page.GetProperty("classId").GetGuid()).IsEqualTo(data.ClassroomId);
+            await Assert.That(page.GetProperty("assignmentId").GetGuid()).IsEqualTo(data.AssignmentId);
+        }
         using (var approved = await DecideAsync(fixture, educator, data.ProjectId, submissionId, Guid.NewGuid(), 0, "approved", "Well done"))
         { await Assert.That(approved.StatusCode).IsEqualTo(HttpStatusCode.Created); }
         using (var saved = await SaveAsync(fixture, data.ProjectId))
