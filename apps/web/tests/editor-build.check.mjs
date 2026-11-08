@@ -69,6 +69,8 @@ async function importProject(page, name, content, errors) {
   }
 }
 
+let page;
+const errors = [];
 try {
   const legacyModel = await fetch(new URL("models/snowglobe.glb", url));
   assert.notEqual(
@@ -78,8 +80,7 @@ try {
     "glTF",
     "The build must not ship a duplicate public model alongside the catalogue asset",
   );
-  const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
-  const errors = [];
+  page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
   page.on("pageerror", (error) => errors.push(error.message));
   const corePath = "**/assets/three-core-*.js";
   const { promise: coreGate, resolve: releaseCore } = Promise.withResolvers();
@@ -308,6 +309,24 @@ try {
       }),
     );
   }
+} catch (error) {
+  console.error("Packaged editor failure:", {
+    url: page?.url(),
+    pageErrors: errors,
+    messages: await page
+      ?.locator('[role="status"], [role="alert"]')
+      .allTextContents()
+      .catch(() => []),
+    placement: await page
+      ?.locator(".viewport-stage")
+      .getAttribute("data-placing-asset")
+      .catch(() => null),
+    body: await page
+      ?.locator("body")
+      .innerText()
+      .catch(() => "Page unavailable"),
+  });
+  throw error;
 } finally {
   await browser.close();
 }

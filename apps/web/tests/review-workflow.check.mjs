@@ -38,16 +38,19 @@ const server = await createServer({
   server: { host: "127.0.0.1", port: 0, strictPort: false },
   logLevel: "silent",
 });
-let browser;
+let browser, page;
+const errors = [];
 try {
   await server.listen();
   const address = server.httpServer.address();
   const origin = "http://127.0.0.1:" + address.port;
   browser = await launchBrowser({ target: origin });
-  const page = await browser.newPage();
+  page = await browser.newPage();
   page.setDefaultTimeout(10000);
-  const errors = [];
-  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("pageerror", (error) => {
+    errors.push(error.message);
+    console.error("Review workflow page error:", error.stack ?? error.message);
+  });
   const document = JSON.parse(
     await readFile(new URL("../shared/project/fixtures/m1-project.json", import.meta.url), "utf8"),
   );
@@ -292,18 +295,21 @@ try {
   // Exercise the retained review components independently of the educator route redirect.
   await open();
   await page.getByRole("button", { name: "Reviews", exact: true }).click();
-  const reviewDialog = page.getByRole("dialog", { name: "Reviews" });
+  const reviewDialog = page.getByRole("dialog", { name: "Review submission", exact: true });
   const dialogBounds = await reviewDialog.boundingBox();
   const closeBounds = await reviewDialog
     .getByRole("button", { name: "Close dialog" })
     .boundingBox();
-  const addBounds = await reviewDialog.getByRole("button", { name: "+ Add Reviews" }).boundingBox();
   assert.ok(dialogBounds.width >= 800 && closeBounds.x > dialogBounds.x + dialogBounds.width / 2);
+  await reviewDialog
+    .getByRole("textbox", { name: "Your review", exact: true })
+    .fill("Add a map to your draft.");
+  await reviewDialog.getByRole("button", { name: "Save review", exact: true }).click();
+  await reviewDialog.getByText("Add a map to your draft.", { exact: true }).waitFor();
+  const addBounds = await reviewDialog.getByRole("button", { name: "+ Add Reviews" }).boundingBox();
   assert.ok(addBounds.width < 250);
-  await page.getByRole("button", { name: "+ Add Reviews" }).click();
-  await page.getByRole("textbox", { name: "New review" }).fill("Add a map to your draft.");
-  await page.getByRole("button", { name: "Save Changes" }).click();
-  await page.getByText("Add a map to your draft.", { exact: true }).waitFor();
+  assert.equal(progressReviews.length, 1, "Saving feedback persists a progress review");
+  assert.equal(decisions.length, 0, "Saving feedback does not approve the submission");
   await page.getByRole("button", { name: "Close dialog" }).click();
   const feedback = page.getByRole("textbox", { name: "Feedback", exact: true });
   await feedback.fill("Move the first exhibit closer.");
@@ -432,6 +438,22 @@ try {
   console.log(
     "Review workflow browser checks passed (HTTP fixtures; no production asset resolver).",
   );
+} catch (error) {
+  console.error("Review workflow failure:", {
+    url: page?.url(),
+    pageErrors: errors,
+    body: await page
+      ?.locator("body")
+      .innerText()
+      .catch(() => "Page unavailable"),
+    dialogs: await page
+      ?.locator("dialog")
+      .evaluateAll((dialogs) =>
+        dialogs.map((dialog) => ({ open: dialog.open, text: dialog.innerText })),
+      )
+      .catch(() => []),
+  });
+  throw error;
 } finally {
   await browser?.close();
   await server.close();
