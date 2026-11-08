@@ -37,6 +37,10 @@ try {
     return page;
   }
   const student = await login(process.env.SPATIA_REVIEW_STUDENT);
+  const savedBefore = await student.evaluate(
+    async (id) => (await fetch("/api/v1/projects/" + id)).json(),
+    projectId,
+  );
   let teacher, assignmentId;
   if (!unavailable) {
     teacher = await login(process.env.SPATIA_REVIEW_EDUCATOR);
@@ -90,15 +94,30 @@ try {
   assert.equal(before.length, 0, "Cancellation creates no database submission");
   await student.getByRole("button", { name: "Submit for review", exact: true }).click();
   await student.getByRole("button", { name: "Confirm submission", exact: true }).click();
+  await student.getByText("Late submission", { exact: true }).waitFor();
+  const evidence = await student.evaluate(async (id) => {
+    const list = await (await fetch("/api/v1/projects/" + id + "/submissions")).json();
+    const detail = await (
+      await fetch("/api/v1/projects/" + id + "/submissions/" + list.items[0].submissionId)
+    ).json();
+    const saved = await (await fetch("/api/v1/projects/" + id)).json();
+    return { list, detail, saved };
+  }, projectId);
+  assert.equal(evidence.list.items.length, 1, "Submission is persisted");
+  assert.equal(evidence.saved.revision, savedBefore.revision);
+  assert.deepEqual(evidence.saved.document, savedBefore.document);
+  assert.equal(evidence.detail.revision, savedBefore.revision);
+  assert.deepEqual(evidence.detail.document, savedBefore.document);
   if (unavailable) {
-    await student.getByRole("alert").filter({ hasText: "assets are not ready" }).waitFor();
-    const after = await student.evaluate(
-      async (id) => (await (await fetch("/api/v1/projects/" + id + "/submissions")).json()).items,
-      projectId,
+    assert.deepEqual(
+      evidence.detail.assetReferences,
+      [],
+      "Unavailable assets are not represented as retained snapshots",
     );
-    assert.equal(after.length, 0);
   } else {
-    await student.getByText("Late submission", { exact: true }).waitFor();
+    assert.ok(evidence.detail.assetReferences.length > 0, "Resolved asset references are recorded");
+  }
+  if (teacher) {
     await teacher.goto(origin + "/review?projectId=" + encodeURIComponent(projectId));
     await teacher.getByText("Current server-saved revision:", { exact: false }).waitFor();
     assert.equal(await teacher.getByLabel("Class", { exact: true }).inputValue(), classId);
@@ -107,57 +126,59 @@ try {
       assignmentId,
     );
     assert.equal(await teacher.locator("#review-student").inputValue(), projectId);
-    await teacher
-      .getByRole("textbox", { name: "Feedback", exact: true })
-      .fill("The saved exhibition is ready.");
-    await teacher.getByRole("button", { name: "Approve submission", exact: true }).click();
-    await teacher.getByRole("button", { name: "Confirm decision", exact: true }).click();
-    await teacher.getByText("Approved for this revision", { exact: true }).waitFor();
-    await student.goto(origin + "/review");
-    await student.getByLabel("Class", { exact: true }).selectOption(classId);
-    await student.getByLabel("Assignment", { exact: true }).selectOption({ label: "Assignment" });
-    await student.locator("#review-student").selectOption(projectId);
-    await student.getByText("Current server-saved revision:", { exact: false }).waitFor();
-    await student.getByRole("button", { name: "Refresh status", exact: true }).click();
-    await student
-      .getByRole("region", { name: "Educator feedback" })
-      .getByText("The saved exhibition is ready.", { exact: true })
-      .waitFor();
-    assert.equal(
-      await student.getByRole("button", { name: "Publish project", exact: true }).isDisabled(),
-      true,
-    );
-    const saveStatus = await student.evaluate(async (id) => {
-      const saved = await (await fetch("/api/v1/projects/" + id)).json();
-      const token = await (await fetch("/api/v1/auth/csrf")).json();
-      const response = await fetch("/api/v1/projects/" + id, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": token.requestToken },
-        body: JSON.stringify({
-          expectedRevision: saved.revision,
-          clientMutationId: crypto.randomUUID(),
-          document: { ...saved.document, title: "Newer saved draft" },
-        }),
-      });
-      return response.status;
-    }, projectId);
-    assert.equal(saveStatus, 200);
-    await teacher.getByRole("button", { name: "Refresh status", exact: true }).click();
-    await teacher
-      .getByText("Historical submission — not approval of the current revision", { exact: true })
-      .waitFor();
-    await teacher
-      .getByRole("region", { name: "Submitted content" })
-      .getByText("Student draft", { exact: true })
-      .waitFor();
-    await teacher
-      .getByRole("textbox", { name: "Feedback", exact: true })
-      .fill("A newer revision needs review.");
-    assert.equal(
-      await teacher.getByRole("button", { name: "Approve submission", exact: true }).isDisabled(),
-      true,
-    );
+  } else {
+    teacher = await login(process.env.SPATIA_REVIEW_EDUCATOR);
   }
+  await teacher
+    .getByRole("textbox", { name: "Feedback", exact: true })
+    .fill("The saved exhibition is ready.");
+  await teacher.getByRole("button", { name: "Approve submission", exact: true }).click();
+  await teacher.getByRole("button", { name: "Confirm decision", exact: true }).click();
+  await teacher.getByText("Approved for this revision", { exact: true }).waitFor();
+  await student.goto(origin + "/review");
+  await student.getByLabel("Class", { exact: true }).selectOption(classId);
+  await student.getByLabel("Assignment", { exact: true }).selectOption({ label: "Assignment" });
+  await student.locator("#review-student").selectOption(projectId);
+  await student.getByText("Current server-saved revision:", { exact: false }).waitFor();
+  await student.getByRole("button", { name: "Refresh status", exact: true }).click();
+  await student
+    .getByRole("region", { name: "Educator feedback" })
+    .getByText("The saved exhibition is ready.", { exact: true })
+    .waitFor();
+  assert.equal(
+    await student.getByRole("button", { name: "Publish project", exact: true }).isDisabled(),
+    true,
+  );
+  const saveStatus = await student.evaluate(async (id) => {
+    const saved = await (await fetch("/api/v1/projects/" + id)).json();
+    const token = await (await fetch("/api/v1/auth/csrf")).json();
+    const response = await fetch("/api/v1/projects/" + id, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": token.requestToken },
+      body: JSON.stringify({
+        expectedRevision: saved.revision,
+        clientMutationId: crypto.randomUUID(),
+        document: { ...saved.document, title: "Newer saved draft" },
+      }),
+    });
+    return response.status;
+  }, projectId);
+  assert.equal(saveStatus, 200);
+  await teacher.getByRole("button", { name: "Refresh status", exact: true }).click();
+  await teacher
+    .getByText("Historical submission — not approval of the current revision", { exact: true })
+    .waitFor();
+  await teacher
+    .getByRole("region", { name: "Submitted content" })
+    .getByText("Student draft", { exact: true })
+    .waitFor();
+  await teacher
+    .getByRole("textbox", { name: "Feedback", exact: true })
+    .fill("A newer revision needs review.");
+  assert.equal(
+    await teacher.getByRole("button", { name: "Approve submission", exact: true }).isDisabled(),
+    true,
+  );
   assert.deepEqual(errors, []);
   console.log(
     "Real HTTPS review UI and PostgreSQL checks passed; unavailable assets=" + unavailable,
