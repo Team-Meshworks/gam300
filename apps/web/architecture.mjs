@@ -7,9 +7,15 @@ import ts from "typescript";
 
 // These are implemented source boundaries, not the future server/player layout
 export const modules = {
+  network: {
+    paths: ["shared/network/"],
+    uses: [],
+    packages: [],
+    public: ["shared/network/abort-signals.ts"],
+  },
   visitor: {
     paths: ["visitor/"],
-    uses: ["project", "catalogue", "asset-loading"],
+    uses: ["project", "catalogue", "asset-loading", "network"],
     packages: ["react", "react-dom", "three"],
     public: [],
   },
@@ -52,7 +58,7 @@ export const modules = {
   },
   "asset-loading": {
     paths: ["shared/asset-runtime/ModelCache.ts", "shared/asset-runtime/room-entrances.ts"],
-    uses: ["catalogue"],
+    uses: ["catalogue", "network"],
     packages: ["three"],
     public: ["shared/asset-runtime/ModelCache.ts", "shared/asset-runtime/room-entrances.ts"],
   },
@@ -85,7 +91,7 @@ export const modules = {
   },
   persistence: {
     paths: ["editor/persistence/"],
-    uses: ["project", "catalogue", "document"],
+    uses: ["project", "catalogue", "document", "network"],
     packages: ["react"],
     public: [
       "editor/persistence/use-project-session.ts",
@@ -124,6 +130,7 @@ export const modules = {
       "rendering",
       "persistence",
       "ui-foundation",
+      "network",
     ],
     packages: [
       "react",
@@ -151,6 +158,7 @@ export const modules = {
       "persistence",
       "editor",
       "ui-foundation",
+      "network",
       "build",
     ],
     public: [],
