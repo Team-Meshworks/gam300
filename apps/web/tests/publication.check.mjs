@@ -110,6 +110,25 @@ try {
   const publish = page.getByRole("button", { name: "Publish", exact: true });
   assert.equal(await publish.isDisabled(), true);
   await page.getByRole("checkbox", { name: /confirm.*saved revision/i }).check();
+  let leavePrompt = false;
+  const dismissDeparture = async (dialog) => {
+    leavePrompt = true;
+    await dialog.dismiss();
+  };
+  page.once("dialog", dismissDeparture);
+  await page.getByRole("link", { name: "Spatia home" }).click();
+  page.off("dialog", dismissDeparture);
+  const keepEditing = page.getByRole("button", { name: "Keep editing" });
+  if (await keepEditing.isVisible()) {
+    leavePrompt = true;
+    await keepEditing.click();
+  }
+  assert.equal(leavePrompt, true, "Leaving with unsent publication choices must ask first");
+  assert.equal(await page.getByRole("checkbox", { name: /Aisyah/ }).isChecked(), true);
+  assert.equal(
+    await page.getByRole("checkbox", { name: /confirm.*saved revision/i }).isChecked(),
+    true,
+  );
   await publish.click();
   await publishStarted;
   assert.equal(

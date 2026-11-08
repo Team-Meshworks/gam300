@@ -239,17 +239,14 @@ export function PublicationPage({
   }, [projectId, session.userId]);
 
   useEffect(() => {
-    onGuard({
-      pending: phase === "pending",
-      dirty: phase === "unknown" || (phase === "ready" && (confirmed || selected.length > 0)),
-    });
-  }, [onGuard, phase, confirmed, selected.length]);
-  useEffect(() => {
-    if (phase !== "pending" && phase !== "unknown") return;
+    const pending = phase === "pending";
+    const dirty = phase === "unknown" || (phase === "ready" && (confirmed || selected.length > 0));
+    onGuard({ pending, dirty });
+    if (!pending && !dirty) return;
     const preventLoss = (event: BeforeUnloadEvent) => event.preventDefault();
     window.addEventListener("beforeunload", preventLoss);
     return () => window.removeEventListener("beforeunload", preventLoss);
-  }, [phase]);
+  }, [onGuard, phase, confirmed, selected.length]);
 
   async function publish(retry = false) {
     if (
