@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
 import { launchBrowser } from "./browser-security.mjs";
+import { serveProject } from "./authoring-project-fixture.mjs";
 
-const target = new URL("/editor.html", process.argv[2] ?? "http://127.0.0.1:5173/").href;
+const target = process.argv[2] ?? "http://127.0.0.1:5173/";
 const browser = await launchBrowser({ target, args: ["--enable-unsafe-swiftshader"] });
 try {
   const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
-  await page.goto(target);
+  const project = await serveProject(page, target);
+  await page.goto(project.url);
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   assert.equal(
     await page.getByRole("heading", { name: /^Scene Tree/ }).count(),

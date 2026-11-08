@@ -1,47 +1,46 @@
-import { invalid, type ValidationResult } from "../../shared/project/validation-helpers";
-import { singletonIDBConnection } from "./idb-database-connection";
+const DATABASE_NAME = "vthere-local-drafts";
+const DATABASE_VERSION = 2;
+const SESSION_STORE_NAME = "session";
+
+function upgradeDatabase(database: IDBDatabase): void {
+  // Keep the version-2 schema compatible with existing browser profiles and open tabs.
+  if (!database.objectStoreNames.contains("drafts")) {
+    database.createObjectStore("drafts", { keyPath: ["principalKey", "projectId"] });
+  }
+  if (!database.objectStoreNames.contains(SESSION_STORE_NAME)) {
+    database.createObjectStore(SESSION_STORE_NAME);
+  }
+}
 
 export interface IDraftDatabase {
-  getDraft(projectId: string): Promise<ValidationResult<unknown>>;
   getIndexedDB(): Promise<IDBDatabase>;
 }
 
 export class IndexedDBDraftDatabase implements IDraftDatabase {
-  readonly STORE_NAME = "drafts";
-  readonly LOCAL_PRINCIPAL = "local";
-
-  async getDraft(projectId: string): Promise<ValidationResult<unknown>> {
-    let database: IDBDatabase;
-    try {
-      database = await singletonIDBConnection.openDatabase(this.STORE_NAME);
-    } catch {
-      return invalid("storage", "Local draft could not be read; try again");
-    }
-    const stored = await new Promise<ValidationResult<unknown>>((resolve) => {
-      try {
-        // Read-only transaction keeps failed recovery from changing the stored copy
-        const transaction = database.transaction(this.STORE_NAME, "readonly");
-        const read = transaction
-          .objectStore(this.STORE_NAME)
-          .get([this.LOCAL_PRINCIPAL, projectId.toLowerCase()]);
-        transaction.oncomplete = () => {
-          // Release the connection before validating the returned JSON
-          database.close();
-          resolve({ ok: true, value: read.result });
-        };
-        transaction.onabort = () => {
-          database.close();
-          resolve(invalid("storage", "Local draft could not be read; try again"));
-        };
-      } catch {
-        database.close();
-        resolve(invalid("storage", "Local draft could not be read; try again"));
+  getIndexedDB(): Promise<IDBDatabase> {
+    return new Promise((resolve, reject) => {
+      if (globalThis.indexedDB === undefined) {
+        reject(new Error("IndexedDB is unavailable"));
+        return;
       }
-    });
-    return stored;
-  }
 
-  async getIndexedDB(): Promise<IDBDatabase> {
-    return await singletonIDBConnection.openDatabase(this.STORE_NAME);
+      // Database version controls the store layout; project schemaVersion lives in the JSON
+      const request = indexedDB.open(DATABASE_NAME, DATABASE_VERSION);
+      let blocked = false;
+      request.onupgradeneeded = () => upgradeDatabase(request.result);
+      request.onerror = () => reject(request.error);
+      request.onblocked = () => {
+        blocked = true;
+        reject(new Error("Another tab is holding the database open"));
+      };
+      request.onsuccess = () => {
+        const database = request.result;
+        // Let another tab upgrade storage once this connection is finished
+        database.onversionchange = () => database.close();
+        // A blocked open can still finish after its caller has received an error
+        if (blocked) database.close();
+        else resolve(database);
+      };
+    });
   }
 }

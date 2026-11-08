@@ -247,9 +247,10 @@ function ServerProjectSession({
       );
     const recovery = recover ? next.recovery : null;
     const document = recovery?.document ?? opened.document;
-    const loaded = store.loadProject(JSON.stringify(document), kinds, recovery?.history, {
-      allowDraftLinks: !!recovery,
-    });
+    const options = { allowDraftLinks: !!recovery };
+    const encoded = serializeProject(document, kinds, options);
+    if (!encoded.ok) throw new Error(encoded.error.message);
+    const loaded = store.loadProject(encoded.value, kinds, recovery?.history, options);
     if (!loaded.ok) throw new Error(loaded.error.message);
     const session = connectServerProjectSession({
       accountId: opened.accountId,

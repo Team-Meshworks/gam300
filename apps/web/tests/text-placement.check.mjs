@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { launchBrowser } from "./browser-security.mjs";
+import { openSavedProject, serveProject } from "./authoring-project-fixture.mjs";
+import { placeAtRoomCenter } from "./placement-fixture.mjs";
 import * as THREE from "three";
 await mkdir("test-results/text-placement", { recursive: true });
 const browser = await launchBrowser({
@@ -11,23 +13,18 @@ try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1024 } });
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.goto(new URL("/editor.html", process.argv[2] ?? "http://127.0.0.1:5185/").href);
+  const project = await serveProject(page, process.argv[2] ?? "http://127.0.0.1:5185/");
+  await page.goto(project.url);
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   await page.getByRole("button", { name: "Third person", exact: true }).click();
-  async function add(category, name, x = 600, y = 350) {
+  async function add(category, name, x, y) {
     await page.getByRole("button", { name: category, exact: true }).click();
     await page.getByRole("button", { name, exact: true }).click();
-    await page.locator(".viewport-stage").click({ position: { x, y } });
+    if (x === undefined) await placeAtRoomCenter(page);
+    else await page.locator(".viewport-stage").click({ position: { x, y } });
   }
   async function document() {
-    return await page.evaluate(async () => {
-      const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
-      const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
-      const result = await loadRecoverySession(
-        new Map(assets.map((asset) => [asset.id, asset.kind])),
-      );
-      return result.ok ? result.value?.document : null;
-    });
+    return project.document();
   }
   async function saved(predicate) {
     const deadline = Date.now() + 15000;
@@ -36,7 +33,7 @@ try {
       if (doc && predicate(doc)) return doc;
       await page.waitForTimeout(100);
     }
-    throw new Error("Expected text did not reach recovery storage");
+    throw new Error("Expected text did not reach server storage");
   }
   await add("Rooms", "Starter room");
   await add("Display panels", "Square media stand");
@@ -236,7 +233,7 @@ try {
     text,
   );
   await page.reload();
-  await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
+  await openSavedProject(page);
   const reopened = await document();
   assert.deepEqual(
     reopened.scenes[0].objects.find((object) => object.id === target.id).components[0],

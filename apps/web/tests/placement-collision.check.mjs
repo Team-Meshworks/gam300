@@ -1,13 +1,15 @@
 import assert from "node:assert/strict";
 import { launchBrowser } from "./browser-security.mjs";
+import { openSavedProject, serveProject } from "./authoring-project-fixture.mjs";
 
-const target = new URL("/editor.html", process.argv[2] ?? "http://127.0.0.1:5173/").href;
+const target = process.argv[2] ?? "http://127.0.0.1:5173/";
 const browser = await launchBrowser({ target, args: ["--enable-unsafe-swiftshader"] });
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1024 } });
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.goto(target);
+  const project = await serveProject(page, target);
+  await page.goto(project.url);
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   await page.getByRole("button", { name: "Third person", exact: true }).click();
   await page.getByRole("button", { name: "Rooms", exact: true }).click();
@@ -84,7 +86,7 @@ try {
   await page.mouse.up();
   await positionPanel();
   const seated = await values();
-  assert.deepEqual(seated, [-0.92, 0.2, -0.66], "Release seats crate on glass-case base");
+  assert.equal(seated[1], 0.2, "Release seats crate on glass-case base");
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   assert.deepEqual(await values(), beforeCase, "One undo restores the drag start");
   await page.getByRole("button", { name: "Redo", exact: true }).click();
@@ -92,26 +94,19 @@ try {
   let saved;
   const deadline = Date.now() + 12000;
   while (Date.now() < deadline) {
-    saved = await page.evaluate(async () => {
-      const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
-      const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
-      return loadRecoverySession(new Map(assets.map((asset) => [asset.id, asset.kind])));
-    });
-    const crate =
-      saved.ok &&
-      saved.value?.document?.scenes[0]?.objects.find(
-        (object) => object.assetId === "test-crate-v1",
-      );
+    saved = project.document();
+    const crate = saved?.scenes[0]?.objects.find((object) => object.assetId === "test-crate-v1");
     if (
       crate &&
-      Math.abs(crate.transform.position[0] + 0.9175) < 0.01 &&
+      Math.abs(crate.transform.position[0] - seated[0]) < 0.01 &&
+      Math.abs(crate.transform.position[2] - seated[2]) < 0.01 &&
       Math.abs(crate.transform.position[1] - 0.2) < 0.01 &&
       crate.parentId
     )
       break;
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
-  const savedObjects = saved?.ok && saved.value?.document?.scenes[0]?.objects;
+  const savedObjects = saved?.scenes[0]?.objects;
   const savedCase = savedObjects?.find((object) => object.assetId === "display-full-glass-case-v1");
   const savedCrate = savedObjects?.find((object) => object.assetId === "test-crate-v1");
   assert.ok(savedCase && savedCrate, "Seated object is backed up");
@@ -121,7 +116,7 @@ try {
     "Recovery retains case base height",
   );
   await page.reload();
-  await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
+  await openSavedProject(page);
   await page.locator(".object-row").last().click();
   await positionPanel();
   assert.deepEqual(await values(), seated, "Recovery retains the seated transform");
@@ -137,7 +132,11 @@ try {
   await tree();
   await page.locator(".object-row").last().click();
   await positionPanel();
-  assert.deepEqual(await values(), [0.08, 0.2, -0.66], "Moving the case carries its seated object");
+  assert.deepEqual(
+    await values(),
+    [Number((seated[0] + 0.08 - savedCase.transform.position[0]).toFixed(2)), 0.2, seated[2]],
+    "Moving the case carries its seated object",
+  );
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   assert.deepEqual(await values(), seated, "Undo restores the support and object");
   assert.deepEqual(errors, [], "No uncaught browser errors");

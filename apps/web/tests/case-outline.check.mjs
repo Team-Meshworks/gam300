@@ -1,12 +1,14 @@
 import assert from "node:assert/strict";
 import { launchBrowser } from "./browser-security.mjs";
+import { serveProject } from "./authoring-project-fixture.mjs";
 const browser = await launchBrowser({
   target: process.argv[2] ?? "http://127.0.0.1:5185/",
   args: ["--enable-unsafe-swiftshader"],
 });
 try {
   const page = await browser.newPage();
-  await page.goto(new URL("/editor.html", process.argv[2] ?? "http://127.0.0.1:5185/").href);
+  const project = await serveProject(page, process.argv[2] ?? "http://127.0.0.1:5185/");
+  await page.goto(project.url);
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   const result = await page.evaluate(async () => {
     const { assets } = await import("/@id/__x00__virtual:asset-catalogue");

@@ -167,9 +167,10 @@ automatically retries a mutation. The user must inspect the refreshed list befor
 copy, because creation and duplication have no server idempotency key. Archived projects
 can be reopened only when the server returns management permission.
 
-The editor integration is deliberately unavailable: `local-drafts.ts` still uses the
-shared `local` principal. Linking a server project to that editor would risk loading the
-wrong draft. This branch does not implement SCRUM-67 or claim that requirement is complete.
+The initial integration did not open projects in the editor. The current integration
+opens an existing project only after verifying the account and edit permission, and uses
+account-and-project-scoped recovery. Existing unscoped drafts are not automatically
+attached to a project; retain their browser data until a recovery path is provided.
 
 Part 1 checks: production build and architecture check passed; six focused API tests passed.
 The browser regression passed anonymous/forced-password gates, role controls, archive/reopen,

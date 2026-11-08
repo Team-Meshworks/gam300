@@ -1,3 +1,4 @@
+import { createLoadedStore } from "../tests/project-store-fixture";
 import { describe, expect, it } from "vitest";
 import { createDocumentStore } from "./document-store";
 import m2 from "../shared/project/fixtures/m2-project.json";
@@ -306,8 +307,7 @@ describe("content document preservation in the existing editor", () => {
   });
 
   it("upgrades a released object for content editing and preserves placement undo", () => {
-    const store = createDocumentStore(assets);
-    expect(store.createProject("test-room-v1").ok).toBe(true);
+    const store = createLoadedStore(assets, "test-room-v1");
     const added = store.addObject("test-crate-v1", [0, 0, 0]);
     if (!added.ok) throw new Error(added.error);
     expect(
@@ -335,21 +335,19 @@ describe("content document preservation in the existing editor", () => {
     store.redo();
     expect(serializeProject(store.getSnapshot().project, kinds).ok).toBe(true);
   });
-  it("returns New to room selection without carrying objects or undo into the next project", () => {
+  it("clears history and copied objects when another project is loaded", () => {
     const store = setup();
     const id = store.getSnapshot().objects[0]!.id;
     store.setTransform(id, { ...store.getSnapshot().objects[0]!.transform, position: [3, 0, 0] });
     store.copyObject(id);
-    store.resetProject();
-    expect(store.getSnapshot()).toMatchObject({
-      project: null,
-      objects: [],
-      canUndo: false,
-      canRedo: false,
-    });
+    const other = { ...store.getSnapshot().project!, projectId: crypto.randomUUID() };
+    expect(store.loadProject(JSON.stringify(other), kinds).ok).toBe(true);
+    const opened = store.getSnapshot();
+    expect(opened.project?.projectId).toBe(other.projectId);
+    expect(opened.canUndo || opened.canRedo).toBe(false);
+    expect(store.pasteObject().ok).toBe(false);
     store.undo();
-    expect(store.getSnapshot().project).toBe(null);
-    expect(store.getRecoveryHistory()).toBeUndefined();
+    expect(store.getSnapshot()).toBe(opened);
   });
 
   it("preserves other scenes, components and rules through transforms, saving and recovered undo", () => {

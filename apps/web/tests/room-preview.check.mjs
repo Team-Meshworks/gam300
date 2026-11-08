@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdir, readFile } from "node:fs/promises";
 import { launchBrowser } from "./browser-security.mjs";
+import { openSavedProject, serveProject } from "./authoring-project-fixture.mjs";
 const browser = await launchBrowser({
   target: process.argv[2] ?? "http://127.0.0.1:5185/",
   args: ["--enable-unsafe-swiftshader"],
@@ -146,7 +147,8 @@ try {
           assets.push({...starter, id: "11111111-1111-4111-8111-111111111111", name: "Different room", sha256: "b".repeat(64)});`,
       });
     });
-    await page.goto(new URL("/editor.html", origin).href);
+    const project = await serveProject(page, origin);
+    await page.goto(project.url);
     await page.getByRole("button", { name: "Rooms", exact: true }).waitFor();
     const select = async (name) => {
       await page.getByRole("button", { name: "Rooms", exact: true }).click();
@@ -164,15 +166,7 @@ try {
       );
       await page.locator(".viewport-stage").click();
     };
-    const document = () =>
-      page.evaluate(async () => {
-        const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
-        const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
-        const saved = await loadRecoverySession(
-          new Map(assets.map((asset) => [asset.id, asset.kind])),
-        );
-        return saved.ok ? saved.value?.document : null;
-      });
+    const document = () => project.document();
     const waitForDocument = async (environmentAssetId, count, matches = () => true) => {
       const deadline = Date.now() + 5000;
       while (Date.now() < deadline) {
@@ -271,7 +265,8 @@ try {
   page.on("console", (message) => {
     if (message.type() === "error") errors.push(message.text());
   });
-  await page.goto(new URL("/editor.html", process.argv[2] ?? "http://127.0.0.1:5185/").href);
+  const project = await serveProject(page, process.argv[2] ?? "http://127.0.0.1:5185/");
+  await page.goto(project.url);
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   assert.equal(await page.getByRole("button", { name: "Filters", exact: true }).count(), 0);
   assert.equal(
@@ -311,12 +306,7 @@ try {
   async function saved(count, matches = () => true) {
     const deadline = Date.now() + 15000;
     while (Date.now() < deadline) {
-      const doc = await page.evaluate(async () => {
-        const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
-        const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
-        const r = await loadRecoverySession(new Map(assets.map((a) => [a.id, a.kind])));
-        return r.ok ? r.value?.document : null;
-      });
+      const doc = project.document();
       if (doc?.scenes[0].objects.length === count && matches(doc)) return doc;
       await page.waitForTimeout(100);
     }
@@ -729,7 +719,7 @@ try {
   await assertLiveCamera("numeric room rotation and doorway update");
   await page.getByRole("button", { name: "Scene tree", exact: true }).click();
   await page.reload();
-  await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
+  await openSavedProject(page);
   await page.getByRole("button", { name: "Third person", exact: true }).click();
   await saved(2);
   await mkdir("test-results/room-entrances", { recursive: true });
@@ -754,7 +744,7 @@ try {
   }
   await saved(0, (value) => value.scenes[0].environmentVisible === false);
   await page.reload();
-  await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
+  await openSavedProject(page);
   assert.equal(await page.locator(".scene-tree .environment-row").count(), 0);
   assert.equal(await page.locator(".scene-tree .object-row").count(), 0);
   await page.getByRole("button", { name: "Third person", exact: true }).click();

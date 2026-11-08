@@ -172,7 +172,6 @@ jobs:
               caching
           - name: recovery
             checks: |
-              recovery
               history
               interactions
               server-autosave

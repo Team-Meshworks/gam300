@@ -1,23 +1,16 @@
 import assert from "node:assert/strict";
 import { launchPersistentBrowser } from "./browser-security.mjs";
+import { openSavedProject, serveProject } from "./authoring-project-fixture.mjs";
 
-const target = new URL("/editor.html", process.argv[2] ?? "http://127.0.0.1:5197/").href;
+const target = process.argv[2] ?? "http://127.0.0.1:5197/";
 const browser = await launchPersistentBrowser({ target, args: ["--enable-unsafe-swiftshader"] });
 try {
-  await browser.addInitScript(() => {
-    window.showSaveFilePicker = async () =>
-      (await navigator.storage.getDirectory()).getFileHandle("rooms.json", { create: true });
-    window.showOpenFilePicker = async () => [
-      await (
-        await navigator.storage.getDirectory()
-      ).getFileHandle(window.openRoomFile ?? "rooms.json"),
-    ];
-  });
   const page = await browser.newPage();
   await page.setViewportSize({ width: 1440, height: 1024 });
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.goto(target);
+  const project = await serveProject(page, target);
+  await page.goto(project.url);
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor({ timeout: 60000 });
   await page.getByRole("button", { name: "Third person", exact: true }).click();
   const stage = page.locator(".viewport-stage");
@@ -32,14 +25,7 @@ try {
     const deadline = Date.now() + 15000;
     let latest;
     while (Date.now() < deadline) {
-      latest = await page.evaluate(async () => {
-        const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
-        const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
-        const saved = await loadRecoverySession(
-          new Map(assets.map((asset) => [asset.id, asset.kind])),
-        );
-        return saved.ok ? saved.value?.document?.scenes[0] : null;
-      });
+      latest = project.document().scenes[0];
       if (latest && matches(latest)) return latest;
       await page.waitForTimeout(100);
     }
@@ -155,84 +141,20 @@ try {
     "Placement snaps the distinct room bounds to an adjacent edge",
   );
   const beforeReload = await scene((value) => value.objects.length === 1);
-  await page.locator(".draft-menu summary").click();
-  await page.getByRole("button", { name: "Save", exact: true }).click();
-  await page.waitForFunction(
-    () => document.querySelector(".save-state .sr-only")?.textContent === "Saved",
-  );
-  const savedFile = await page.evaluate(async () => {
-    const handle = await (await navigator.storage.getDirectory()).getFileHandle("rooms.json");
-    return JSON.parse(await (await handle.getFile()).text());
-  });
-  assert.deepEqual(savedFile.scenes[0].objects, beforeReload.objects, "Save writes the room");
+  const savedFile = project.document();
   await page.reload();
-  await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor({ timeout: 60000 });
-  await page.locator(".draft-menu summary").click();
-  await page.getByRole("button", { name: "Open", exact: true }).click();
-  await page.waitForFunction(
-    () => document.querySelector(".save-state .sr-only")?.textContent === "Saved",
-  );
+  await openSavedProject(page);
   const restored = await scene((value) => value.objects.length === 1);
   assert.equal(restored.environmentAssetId, beforeReload.environmentAssetId);
-  assert.deepEqual(restored.objects, beforeReload.objects, "Open restores the placed room");
+  assert.deepEqual(
+    restored.objects,
+    beforeReload.objects,
+    "Server reload restores the placed room",
+  );
   await page.locator(".scene-tree .object-row").last().click();
   await page.getByRole("button", { name: "Position", exact: true }).click();
   const x = page.getByRole("textbox", { name: `${room.name} transform X (m)`, exact: true });
   const z = page.getByRole("textbox", { name: `${room.name} transform Z (m)`, exact: true });
-  // A file picker can stay open while a scheduled recovery backup starts.
-  // Keep that transaction alive until Open has had a chance to process the file.
-  await page.evaluate(() => {
-    const put = IDBObjectStore.prototype.put;
-    IDBObjectStore.prototype.put = function (...args) {
-      const result = put.apply(this, args);
-      if (this.name === "session" && window.holdRecovery) {
-        window.recoveryStarted = true;
-        const keepAlive = () => {
-          if (window.holdRecovery) this.get("active").onsuccess = keepAlive;
-        };
-        keepAlive();
-      }
-      return result;
-    };
-    const picker = window.showOpenFilePicker;
-    window.showOpenFilePicker = async (...args) => {
-      window.pickerStarted = true;
-      await new Promise((resolve) => {
-        window.releasePicker = resolve;
-      });
-      return picker(...args);
-    };
-    window.holdRecovery = true;
-  });
-  await x.fill("100");
-  await x.press("Enter");
-  await page.locator(".draft-menu summary").click();
-  await page.getByRole("button", { name: "Open", exact: true }).click();
-  await page.waitForFunction(() => window.pickerStarted);
-  await page.waitForTimeout(2500);
-  await page.evaluate(() => window.releasePicker());
-  const confirmation = page.locator("dialog.project-confirmation[open]");
-  const prompted = await confirmation.waitFor({ timeout: 5000 }).then(
-    () => true,
-    () => false,
-  );
-  const recoveryStarted = await page.evaluate(() => {
-    window.holdRecovery = false;
-    return window.recoveryStarted;
-  });
-  assert.ok(
-    prompted,
-    `Open must ask about unsaved work even if recovery starts while the picker is open (recovery started: ${Boolean(recoveryStarted)})`,
-  );
-  await confirmation.getByRole("button", { name: "Cancel", exact: true }).click();
-  await confirmation.waitFor({ state: "hidden" });
-  await page.evaluate(() => {
-    window.showOpenFilePicker = async () => [
-      await (
-        await navigator.storage.getDirectory()
-      ).getFileHandle(window.openRoomFile ?? "rooms.json"),
-    ];
-  });
   await x.fill("100");
   await x.press("Enter");
   assert.ok(Number(await x.inputValue()) < 100, "The room cannot move beyond the grid");
@@ -248,44 +170,27 @@ try {
   // A legacy project can contain a loose object just outside a room. A move that
   // is clear before snapping must not snap the other room's wall through it.
   const targetZ = halfSum(2);
-  await page.evaluate(
-    async ({ doc, targetZ, edge }) => {
-      const fixture = structuredClone(doc);
-      const room = fixture.scenes[0].objects[0];
-      room.transform.position = [0, 0, -targetZ - 3];
-      fixture.scenes[0].objects.push({
-        id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-        name: "Loose crate",
-        assetId: "test-crate-v1",
-        transform: { position: [0, 0, -edge], rotation: [0, 0, 0, 1], scale: [1, 1, 1] },
-      });
-      const handle = await (
-        await navigator.storage.getDirectory()
-      ).getFileHandle("collision.json", { create: true });
-      const writable = await handle.createWritable();
-      await writable.write(JSON.stringify(fixture));
-      await writable.close();
-      window.openRoomFile = "collision.json";
+  const fixture = structuredClone(savedFile);
+  fixture.scenes[0].objects[0].transform.position = [0, 0, -targetZ - 3];
+  fixture.scenes[0].objects.push({
+    id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    name: "Loose crate",
+    assetId: "test-crate-v1",
+    parentId: null,
+    visible: true,
+    components: [],
+    transform: {
+      position: [0, 0, -(matchingAsset.firstBounds.max[2] - matchingAsset.firstBounds.min[2]) / 2],
+      rotation: [0, 0, 0, 1],
+      scale: [1, 1, 1],
     },
-    {
-      doc: savedFile,
-      targetZ,
-      edge: (matchingAsset.firstBounds.max[2] - matchingAsset.firstBounds.min[2]) / 2,
-    },
-  );
-  await page.locator(".draft-menu summary").click();
-  await page.getByRole("button", { name: "Open", exact: true }).click();
-  const discard = page.getByRole("dialog").getByRole("button", { name: "Don’t Save", exact: true });
-  const outcome = await page.waitForFunction(() => {
-    if (document.querySelector("dialog.project-confirmation[open]")) return "confirmation";
-    return document.querySelector(".project-name")?.textContent === "collision.json" && "opened";
   });
-  if ((await outcome.jsonValue()) === "confirmation") {
-    await discard.click();
-    await page.getByRole("dialog").waitFor({ state: "hidden" });
-  }
+  project.setDocument(fixture);
+  await page.reload();
+  await openSavedProject(page);
   await page.getByRole("button", { name: "Third person", exact: true }).click();
-  await page.getByRole("button", { name: "Scene tree", exact: true }).click();
+  if (!(await page.getByText("Loose crate", { exact: true }).isVisible()))
+    await page.getByRole("button", { name: "Scene tree", exact: true }).click();
   await page
     .getByText("Loose crate", { exact: true })
     .waitFor({ timeout: 10000 })

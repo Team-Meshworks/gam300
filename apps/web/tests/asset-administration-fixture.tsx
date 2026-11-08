@@ -1,13 +1,15 @@
 import { useMemo, useRef, useState } from "react";
+import { createRoot } from "react-dom/client";
 import { assets } from "virtual:asset-catalogue";
-import { WorkspaceHeader } from "../../shared/ui/WorkspaceHeader";
-import { AssetSelect } from "./AssetSelect";
-import { AssetAdministration } from "./AssetAdministration";
+import { WorkspaceHeader } from "../shared/ui/WorkspaceHeader";
+import { AssetSelect } from "../editor/asset-administration/AssetSelect";
+import { AssetAdministration } from "../editor/asset-administration/AssetAdministration";
+import "../editor/styles.css";
 import type {
   AssetAdministrationData,
   AssetAdministrationService,
   AssetCandidate,
-} from "./asset-administration";
+} from "../editor/asset-administration/asset-administration";
 
 // Exercise administrative states locally without sending writes to the intake endpoint
 // Records disappear on reload and never enter the approved delivery catalogue
@@ -50,7 +52,7 @@ const samples: AssetCandidate[] = initial.assets.flatMap((asset) =>
 );
 const sampleIds = new Set(samples.map((asset) => asset.id));
 
-export function AssetAdministrationPreview() {
+function AssetAdministrationPreview() {
   const [kind, setKind] = useState<AssetCandidate["kind"]>("environment");
   const [role, setRole] = useState("Administrator");
   const [failure, setFailure] = useState("none");
@@ -246,3 +248,6 @@ export function AssetAdministrationPreview() {
     </div>
   );
 }
+
+document.documentElement.classList.add("asset-admin-preview-page");
+createRoot(document.getElementById("root")!).render(<AssetAdministrationPreview />);

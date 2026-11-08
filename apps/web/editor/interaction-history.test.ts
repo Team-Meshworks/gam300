@@ -1,3 +1,4 @@
+import { createLoadedStore } from "../tests/project-store-fixture";
 import { describe, expect, it } from "vitest";
 import type { CatalogueAsset } from "../shared/asset-runtime/catalogue";
 import type { Interaction, ProjectDocument } from "../shared/project/project-types";
@@ -33,8 +34,7 @@ const clickRule = (targetHotspotId: string): Interaction => ({
 });
 
 function setup(version: 1 | 2 = 1) {
-  const store = createDocumentStore(assets);
-  expect(store.createProject("room").ok).toBe(true);
+  const store = createLoadedStore(assets, "room");
   if (version === 2) {
     const project = store.getSnapshot().project!;
     const first = { ...scene(store), groups: [], zones: [], viewpoints: [], rules: [] };

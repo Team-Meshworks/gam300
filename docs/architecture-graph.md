@@ -48,6 +48,7 @@ graph TD
   checks --> persistence
   checks --> project
   checks --> rendering
+  checks --> ui-foundation
   checks --> visitor
 ```
 

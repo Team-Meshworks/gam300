@@ -1,11 +1,12 @@
 import { launchBrowser } from "./browser-security.mjs";
+import { openSavedProject, serveProject } from "./authoring-project-fixture.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 const browser = await launchBrowser({
   target: process.argv[2] ?? "http://127.0.0.1:5173/",
   args: ["--enable-unsafe-swiftshader"],
 });
-const url = new URL("/editor.html", process.argv[2] ?? "http://127.0.0.1:5173/").href;
+const url = process.argv[2] ?? "http://127.0.0.1:5173/";
 const fixture = JSON.parse(
   readFileSync(new URL("../shared/project/fixtures/m1-project.json", import.meta.url), "utf8"),
 );
@@ -67,14 +68,9 @@ try {
     if (dialog.type() === "alert") alerts.push(dialog.message());
     await dialog.accept();
   });
-  await page.goto(url);
+  const server = await serveProject(page, url, project);
+  await page.goto(server.url);
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
-  await page.locator("#project-import").setInputFiles({
-    name: "navigation.json",
-    mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify(project)),
-  });
-  await page.getByText("Project opened", { exact: true }).waitFor();
   await page.getByRole("button", { name: "Interaction", exact: true }).click();
   await page.getByLabel("Interaction 1 do", { exact: true }).selectOption("navigate-scene");
   assert.equal(
@@ -103,22 +99,12 @@ try {
   // Wait for the real session backup, then verify selected IDs survive reload.
   let backedUp = false;
   for (let attempt = 0; attempt < 100 && !backedUp; attempt++) {
-    backedUp = await page.evaluate(async (viewId) => {
-      const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
-      const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
-      const result = await loadRecoverySession(
-        new Map(assets.map((asset) => [asset.id, asset.kind])),
-      );
-      return (
-        result.ok && result.value?.document?.scenes[0]?.interactions[1]?.do.viewpointId === viewId
-      );
-    }, id(21));
+    backedUp = server.document().scenes[0].interactions[1]?.do.viewpointId === id(21);
     if (!backedUp) await page.waitForTimeout(100);
   }
-  assert.equal(backedUp, true, "Navigation choices reach browser recovery before reload");
+  assert.equal(backedUp, true, "Navigation choices reach the server before reload");
   await page.reload();
-  await page.getByText("Reopened your last project", { exact: true }).waitFor();
-  await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
+  await openSavedProject(page);
   await page.getByRole("button", { name: "Interaction", exact: true }).click();
   assert.equal(
     await page.getByLabel("Interaction 2 destination viewpoint", { exact: true }).inputValue(),
@@ -251,14 +237,9 @@ try {
     chain.scenes[1].interactions = [
       { when: { type: "scene-starts" }, do: { type: "navigate-scene", sceneId: first.id } },
     ];
-    await chainPage.goto(url);
+    const chainServer = await serveProject(chainPage, url, chain);
+    await chainPage.goto(chainServer.url);
     await chainPage.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
-    await chainPage.locator("#project-import").setInputFiles({
-      name: "chain.json",
-      mimeType: "application/json",
-      buffer: Buffer.from(JSON.stringify(chain)),
-    });
-    await chainPage.getByText("Project opened", { exact: true }).waitFor();
     await chainPage.getByRole("button", { name: "Preview", exact: true }).click();
     await chainPage
       .getByRole("status")

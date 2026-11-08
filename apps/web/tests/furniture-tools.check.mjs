@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { launchBrowser } from "./browser-security.mjs";
+import { openSavedProject, serveProject } from "./authoring-project-fixture.mjs";
 import { placeAtRoomCenter } from "./placement-fixture.mjs";
 
 const browser = await launchBrowser({
@@ -13,7 +14,8 @@ try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1024 } });
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.goto(new URL("/editor.html", process.argv[2] ?? "http://127.0.0.1:5173/").href);
+  const project = await serveProject(page, process.argv[2] ?? "http://127.0.0.1:5173/");
+  await page.goto(project.url);
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   await page.getByRole("button", { name: "Third person", exact: true }).click();
   await page.getByRole("button", { name: "Asset library", exact: true }).click();
@@ -60,14 +62,7 @@ try {
   const deadline = Date.now() + 12000;
   let saved;
   while (Date.now() < deadline) {
-    saved = await page.evaluate(async () => {
-      const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
-      const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
-      const result = await loadRecoverySession(
-        new Map(assets.map((asset) => [asset.id, asset.kind])),
-      );
-      return result.ok ? result.value?.document : null;
-    });
+    saved = project.document();
     if (saved?.scenes[0].objects.length === 3) break;
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
@@ -77,8 +72,7 @@ try {
     "furniture-modern-bench-2-v1",
   ]);
   await page.reload({ waitUntil: "domcontentloaded" });
-  await page.locator(".object-row").first().waitFor();
-  await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
+  await openSavedProject(page);
   assert.equal(await page.locator(".object-row").count(), 3);
   assert.deepEqual(errors, []);
   console.log(

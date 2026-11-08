@@ -1,3 +1,4 @@
+import { createLoadedStore } from "../tests/project-store-fixture";
 import { missingProjectCapabilities } from "../shared/project/project-capabilities";
 import { expect, it } from "vitest";
 import type { CatalogueAsset } from "../shared/asset-runtime/catalogue";
@@ -20,8 +21,7 @@ function active(store: Store) {
   return snapshot.project!.scenes.find((scene) => scene.id === snapshot.activeSceneId)!;
 }
 function setup() {
-  const store = createDocumentStore(assets);
-  expect(store.createProject("room").ok).toBe(true);
+  const store = createLoadedStore(assets, "room");
   const object = store.addObject("crate", [1, 0, 2]);
   if (!object.ok) throw Error(object.error);
   const hotspot = store.addHotspot(object.object.id, [0.5, 1, 0]);

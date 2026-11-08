@@ -24,7 +24,6 @@ function loginReturnPath(): string | null {
   return values.length === 1 &&
     path &&
     (path === "/" ||
-      path === "/editor.html" ||
       /^\/\?projectId=[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(path) ||
       /^\/p\/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(path))
     ? path

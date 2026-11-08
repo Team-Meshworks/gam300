@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { createDocumentStore } from "./document-store";
+import { createLoadedStore, testRoom } from "../tests/project-store-fixture";
 import fixture from "../shared/project/fixtures/m1-project.json";
 import { serializeProject } from "../shared/project/project-serialization";
 const assets = [
@@ -17,7 +17,7 @@ const kinds = new Map([
   ["test-crate-v1", "model"],
 ]);
 function setup() {
-  const store = createDocumentStore(assets);
+  const store = createLoadedStore([testRoom, ...assets], testRoom.id);
   const added = store.addObject("test-crate-v1", [0, 0, 0]);
   if (!added.ok) throw new Error(added.error);
   const session = store.beginTransform(added.object.id);

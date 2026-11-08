@@ -88,7 +88,6 @@ export const modules = {
     uses: ["project", "catalogue", "document"],
     packages: ["react"],
     public: [
-      "editor/persistence/use-project-session.ts",
       "editor/persistence/server-project-session.ts",
       "editor/persistence/server-project-read.ts",
       "editor/persistence/server-assets.ts",

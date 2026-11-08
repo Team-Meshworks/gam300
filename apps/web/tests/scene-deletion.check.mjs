@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { launchBrowser } from "./browser-security.mjs";
+import { serveProject } from "./authoring-project-fixture.mjs";
 
-const url = new URL("/editor.html", process.argv[2] ?? "http://127.0.0.1:5173/").href;
+const url = process.argv[2] ?? "http://127.0.0.1:5173/";
 const fixture = JSON.parse(
   readFileSync(new URL("../shared/project/fixtures/m1-project.json", import.meta.url), "utf8"),
 );
@@ -35,14 +36,9 @@ const project = { ...fixture, schemaVersion: 2, scenes: [first, second] };
 const browser = await launchBrowser({ target: url, args: ["--enable-unsafe-swiftshader"] });
 try {
   const page = await browser.newPage();
-  await page.goto(url);
+  const server = await serveProject(page, url, project);
+  await page.goto(server.url);
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
-  await page.locator("#project-import").setInputFiles({
-    name: "scenes.json",
-    mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify(project)),
-  });
-  await page.getByText("Project opened", { exact: true }).waitFor();
   await page.getByRole("button", { name: "Scenes", exact: true }).click();
   await page.getByRole("button", { name: "Delete scene", exact: true }).click();
   const confirmation = page.getByRole("group", { name: "Confirm scene deletion" });

@@ -1,6 +1,6 @@
 import { prepareTransformCommand } from "./transform-command";
 import { describe, expect, it } from "vitest";
-import { createDocumentStore } from "./document-store";
+import { createLoadedStore, testRoom } from "../tests/project-store-fixture";
 import type { CatalogueAsset } from "../shared/asset-runtime/catalogue";
 import type { Transform } from "../shared/project/project-types";
 import fixture from "../shared/project/fixtures/m1-project.json";
@@ -16,7 +16,7 @@ const assets: CatalogueAsset[] = [
   },
 ];
 function setup() {
-  const store = createDocumentStore(assets);
+  const store = createLoadedStore([testRoom, ...assets], testRoom.id);
   const added = store.addObject("test-crate-v1", [0, 0, 0]);
   if (!added.ok) throw new Error(added.error);
   return { store, object: added.object };

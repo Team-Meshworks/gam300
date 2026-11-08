@@ -76,10 +76,6 @@
   )[aria-pressed="true"] {
   background: var(--button-strong);
 }
-:root[data-theme="dark"] .dev-action {
-  border-color: var(--line);
-  background: rgb(43 39 35 / 0.75);
-}
 :root[data-theme="dark"] .dock-menu {
   background: rgb(43 39 35 / 0.95);
 }
@@ -665,19 +661,6 @@ a {
 .pill-button:disabled {
   color: var(--muted);
 }
-.dev-action {
-  min-height: 2rem;
-  padding: 0.25rem 0.8rem;
-  border: 1px dashed #c9c3b5;
-  border-radius: 999px;
-  background: rgb(255 253 243 / 0.75);
-  color: var(--muted);
-  font-size: 0.75rem;
-}
-.dev-action:hover:not(:disabled) {
-  color: inherit;
-}
-
 .library {
   position: absolute;
   top: 6rem;
@@ -2083,10 +2066,6 @@ a {
   }
   .asset-grid {
     columns: 8rem;
-  }
-  /* Keep the dev sample button clear of the phone dock. */
-  .dev-action {
-    display: none;
   }
   .pill-button {
     padding-inline: 0.9rem;

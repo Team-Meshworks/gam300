@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { launchBrowser } from "./browser-security.mjs";
 import { placeAtRoomCenter } from "./placement-fixture.mjs";
-const url = new URL("/editor.html", process.argv[2] ?? "http://127.0.0.1:5185/").href;
+import { openSavedProject, serveProject } from "./authoring-project-fixture.mjs";
+const url = process.argv[2] ?? "http://127.0.0.1:5185/";
 const browser = await launchBrowser({ target: url, args: ["--enable-unsafe-swiftshader"] });
 await mkdir("test-results/audio-library", { recursive: true });
 try {
@@ -18,7 +19,8 @@ try {
       return play.call(this);
     };
   });
-  await page.goto(url);
+  const project = await serveProject(page, url);
+  await page.goto(project.url);
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   const button = (name, root = page) => root.getByRole("button", { name, exact: true });
   await button("Third person").click();
@@ -28,16 +30,9 @@ try {
     page.getByRole("group", { name: "Rooms options", exact: true }),
   ).click();
   await page.locator(".viewport-stage").click({ position: { x: 600, y: 350 } });
-  // Read the real recovery record so assertions wait for the same persistence used after reload
+  // Read the saved server document so assertions wait for the same persistence used after reload
   async function document() {
-    return page.evaluate(async () => {
-      const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
-      const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
-      const result = await loadRecoverySession(
-        new Map(assets.map((asset) => [asset.id, asset.kind])),
-      );
-      return result.ok ? result.value?.document : null;
-    });
+    return project.document();
   }
   async function saved(check) {
     const until = Date.now() + 15000;
@@ -46,7 +41,7 @@ try {
       if (value && check(value)) return value;
       await page.waitForTimeout(50);
     }
-    throw Error("Audio edit did not reach recovery");
+    throw Error("Audio edit did not reach the server");
   }
   await saved((doc) => doc.scenes.length === 1);
   await button("Asset library").click();
@@ -147,7 +142,7 @@ try {
   assert.equal(await button("Ethereal Calm").getAttribute("aria-pressed"), "true");
   assert.equal(await page.locator(".scene-audio-remove").count(), 0);
   await page.keyboard.press("Delete");
-  await saved((doc) => doc.scenes[0].audio.length === 0);
+  await saved((doc) => (doc.scenes[0].audio?.length ?? 0) === 0);
   await button("Undo").click();
   await saved((doc) => doc.scenes[0].audio[0]?.id === original.id);
   // Unavailable audio types remain discoverable without changing the draft or opening a library
@@ -163,15 +158,15 @@ try {
   }
   await page.keyboard.press("Escape");
   await page.reload();
-  await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
+  await openSavedProject(page);
   doc = await document();
   assert.equal(doc.scenes[0].audio[0].id, original.id);
   assert.equal(doc.scenes[0].objects.length, 0);
   await button("Ethereal Calm").click();
   await page.keyboard.press("Delete");
-  await saved((doc) => doc.scenes[0].audio.length === 0);
+  await saved((doc) => (doc.scenes[0].audio?.length ?? 0) === 0);
   await button("Undo").click();
-  await saved((doc) => doc.scenes[0].audio.length === 1);
+  await saved((doc) => (doc.scenes[0].audio?.length ?? 0) === 1);
   // Reload returns to first person; use the overview so the annotation target is fully visible
   const overview = button("Third person");
   if ((await overview.getAttribute("aria-pressed")) !== "true") await overview.click();
@@ -186,22 +181,15 @@ try {
   annotated.scenes[0].hotspots = [
     { id: crypto.randomUUID(), objectId: annotated.scenes[0].objects[0].id, position: [0, 1, 0] },
   ];
-  await page.locator("#project-import").setInputFiles({
-    name: "audio-hotspot.json",
-    mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify(annotated)),
-  });
-  const discard = page
-    .locator(".project-confirmation")
-    .getByRole("button", { name: "Don’t Save", exact: true });
-  await discard.click();
-  await page.locator(".project-confirmation").waitFor({ state: "hidden" });
-  await saved((doc) => doc.scenes[0].hotspots.length === 1);
+  project.setDocument(annotated);
+  await page.reload();
+  await openSavedProject(page);
+  await saved((doc) => (doc.scenes[0].hotspots?.length ?? 0) === 1);
   await button("Interaction").click();
   await button("+ Add Interaction").click();
   await page.getByLabel("Interaction 1 do", { exact: true }).selectOption("play-audio");
   await page.getByLabel("Interaction 1 audio", { exact: true }).selectOption(original.id);
-  await saved((doc) => doc.scenes[0].interactions[0]?.do.mediaId === original.id);
+  await saved((doc) => doc.scenes[0].interactions?.[0]?.do.mediaId === original.id);
   await button("Scene tree").click();
   await button("Ethereal Calm").click();
   await page.keyboard.press("Delete");
@@ -212,15 +200,18 @@ try {
     "Audio deletion reports the affected rule count",
   );
   assert.match(deletionNotice, /undo restores/i, "Audio deletion explains how to restore the rule");
-  await saved((doc) => doc.scenes[0].audio.length === 0 && doc.scenes[0].interactions.length === 0);
+  await saved(
+    (doc) =>
+      (doc.scenes[0].audio?.length ?? 0) === 0 && (doc.scenes[0].interactions?.length ?? 0) === 0,
+  );
   await button("Undo").click();
   await saved(
     (doc) =>
       doc.scenes[0].audio[0]?.id === original.id &&
-      doc.scenes[0].interactions[0]?.do.mediaId === original.id,
+      doc.scenes[0].interactions?.[0]?.do.mediaId === original.id,
   );
   await page.reload();
-  await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
+  await openSavedProject(page);
   await button("Preview").click();
   const target = page.locator(".preview-targets button").first();
   await target.click();
@@ -244,13 +235,15 @@ try {
   await page.locator(".interaction-list").waitFor();
   await page.getByRole("button", { name: /^Remove hotspot from / }).click();
   await saved(
-    (doc) => doc.scenes[0].hotspots.length === 0 && doc.scenes[0].interactions.length === 0,
+    (doc) =>
+      (doc.scenes[0].hotspots?.length ?? 0) === 0 &&
+      (doc.scenes[0].interactions?.length ?? 0) === 0,
   );
   await button("Undo").click();
   await saved(
     (doc) =>
-      doc.scenes[0].hotspots.length === 1 &&
-      doc.scenes[0].interactions[0]?.do.mediaId === original.id,
+      (doc.scenes[0].hotspots?.length ?? 0) === 1 &&
+      doc.scenes[0].interactions?.[0]?.do.mediaId === original.id,
   );
   assert.deepEqual(errors, []);
   console.log(

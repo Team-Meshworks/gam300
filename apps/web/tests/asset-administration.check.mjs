@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 import { launchBrowser } from "./browser-security.mjs";
 
 const baseUrl = process.argv[2] ?? "http://127.0.0.1:5173/";
@@ -42,7 +43,23 @@ async function choose(label, text) {
 try {
   // Exercise the real components with the clearly labelled local adapter
   // No fixture response is evidence of authenticated intake or persisted asset approval
-  await page.goto(new URL("/editor.html?asset-admin-test", baseUrl).href);
+  const fixture = fileURLToPath(
+    new URL("./asset-administration-fixture.tsx", import.meta.url),
+  ).replaceAll("\\", "/");
+  await page.route("**/__asset-administration-test", (route) =>
+    route.fulfill({
+      contentType: "text/html",
+      body: `<!doctype html><meta name="viewport" content="width=device-width, initial-scale=1"><div id="root"></div><script type="module">
+        import RefreshRuntime from "/@react-refresh";
+        RefreshRuntime.injectIntoGlobalHook(window);
+        window.$RefreshReg$ = () => {};
+        window.$RefreshSig$ = () => (type) => type;
+        window.__vite_plugin_react_preamble_installed__ = true;
+        await import(${JSON.stringify(`/@fs/${fixture}`)});
+      </script>`,
+    }),
+  );
+  await page.goto(new URL("/__asset-administration-test", baseUrl).href);
   await page.getByRole("heading", { name: "All 3D Spaces" }).waitFor();
   await page
     .getByText("Manage and review catalogue assets.", { exact: true })

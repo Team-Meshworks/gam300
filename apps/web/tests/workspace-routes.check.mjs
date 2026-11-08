@@ -1,6 +1,7 @@
 import { launchBrowser } from "./browser-security.mjs";
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
+import { blankProject } from "./authoring-project-fixture.mjs";
 
 const origin = process.argv[2] ?? "http://127.0.0.1:5173";
 const browser = await launchBrowser({ target: origin, args: ["--enable-unsafe-swiftshader"] });
@@ -46,6 +47,15 @@ try {
       return route.fulfill({ json: { items: [], nextCursor: null } });
     return route.fulfill({ status: 503 });
   });
+
+  for (const path of [
+    "/editor",
+    "/editor.html",
+    "/editor.html?projectId=aefea67c-caca-4300-923c-937f1c785578",
+  ]) {
+    const response = await page.request.get(origin + path);
+    assert.equal(response.status(), 404, `${path} must not expose a standalone editor`);
+  }
 
   async function screen(path, heading) {
     await page.goto(`${origin}/${path}`);
@@ -201,7 +211,6 @@ try {
     "spaces",
     "admin/dashboard",
     projectQuery,
-    "editor.html" + projectQuery,
   ]) {
     await page.goto(`${origin}/${path}`);
     const destination = path.endsWith(projectQuery)
@@ -211,6 +220,37 @@ try {
     assert.equal(page.url(), destination);
     await page.getByRole("heading", { name: "Welcome back.", exact: true }).waitFor();
     assert.equal(await page.locator(".sp-workspace, .editor-shell").count(), 0);
+  }
+  mode = "Educator";
+  for (const stale of ["/editor", "/editor.html"]) {
+    await page.goto(`${origin}/login?returnTo=${encodeURIComponent(stale)}`);
+    await page.getByRole("heading", { name: /You.re signed in/ }).waitFor();
+    assert.equal(await page.locator(".editor-shell").count(), 0);
+  }
+  await page.route("**/api/v1/assets", (route) => route.fulfill({ json: [] }));
+  await page.route("**/api/v1/projects/*/assets", (route) => route.fulfill({ json: [] }));
+  let projectStatus = 404;
+  await page.route("**/api/v1/projects/*", (route) =>
+    projectStatus === 200
+      ? route.fulfill({
+          json: {
+            projectId: new URL(route.request().url()).pathname.split("/").at(-1),
+            revision: 1,
+            document: {
+              ...blankProject,
+              projectId: new URLSearchParams(projectQuery).get("projectId"),
+            },
+            permissions: { canEdit: false },
+          },
+        })
+      : route.fulfill({ status: projectStatus }),
+  );
+  for (projectStatus of [404, 403, 200]) {
+    await page.goto(`${origin}/${projectQuery}`);
+    await page.getByRole("alert").waitFor();
+    if (projectStatus === 200)
+      assert.match(await page.getByRole("alert").innerText(), /read.only/i);
+    assert.equal(await page.locator(".editor-shell, .viewport-stage canvas").count(), 0);
   }
   // Expiry on a mounted workspace redirects too, and Back skips the protected page.
   mode = "Educator";

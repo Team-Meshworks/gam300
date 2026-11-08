@@ -18,7 +18,7 @@ This is a manual safeguard, not an equivalent automated enforcement mechanism.
 The GitHub environments allow only their matching branches.
 
 CI builds `dev` with `NODE_ENV=development` and Vite's `development` mode, including
-**Open sample project** and framework development diagnostics. `main` uses
+framework development diagnostics. `main` uses
 `NODE_ENV=production` and `production` mode. Manual runs use the selected supported
 branch's mode. Both images contain built static files served by Caddy, with the same
 health checks. Account access is handled by Spatia's login and API session checks.
@@ -64,9 +64,9 @@ build runs lint, formatting, browser-policy and unit tests, TypeScript and build
 checks before the web service starts. Real browser proof runs separately on a
 non-root sandbox-capable host. CI sets `RUN_BUILD_CHECKS=false` after its source
 checks pass, then tests the final Caddy image from that host. Host Node/npm and
-Chrome are unnecessary just to start the container. This launcher starts the editor
-only; use the API Compose configuration
-below to include PostgreSQL and the API.
+Chrome are unnecessary just to start the container. This launcher starts the web service
+only; use the API Compose configuration below to include PostgreSQL and the API required
+for authoring.
 Only delivery assets enter the build; editable source files and local secrets are excluded.
 The existing asset validator runs with `--delivery-only` inside the build: it checks
 GLB contents and manifest hashes without needing Blender sources. A remaining LFS
@@ -118,8 +118,7 @@ BUILD_MODE=development node tests/editor-build.check.mjs http://127.0.0.1:8081/
 
 In PowerShell, set `$env:BUILD_MODE = "development"` before the second command.
 For production, select `production` in both the image build and test environment.
-The deployment check exercises place/move/undo, JSON Save/Open, reload and recovered
-undo through the packaged UI. From the repository root, `node tools/check-browser.mjs`
+The deployment check exercises packaged editor and recovery flows. From the repository root, `node tools/check-browser.mjs`
 checks the four source-level authoring suites against Vite and the built preview.
 CI runs both source fixtures and packaged-application checks on its non-root host.
 Do not add `--no-sandbox`, privileged containers, or weakened host security settings.
@@ -357,10 +356,10 @@ A missing or incorrect pair fails the probes; it does not disable either login l
 
 The root `/` shows sign-in for signed-out users and routes signed-in creators and
 educators to `/home` and administrators to `/admin/dashboard`. Selected server projects
-open at `/?projectId=<id>`. Built editors (including the development build) check the
-Spatia session before opening the local-file editor at `/editor.html`; sign-in returns
-there without clearing browser recovery. Session and CSRF cookie names include the
-environment because browser cookies
+open at `/?projectId=<id>` after the account and edit permission are verified. Browser
+recovery remains scoped to the account and project. Existing unscoped browser drafts are
+not automatically attached to a project; retain their browser data until a recovery path
+is provided. Session and CSRF cookie names include the environment because browser cookies
 are shared across ports on the VM IP. Upgrading these cookie names requires one fresh
 application sign-in. Models load when referenced by the active scene or selected for
 placement; failed requests retain the scene and expose Retry, with a separate sign-in

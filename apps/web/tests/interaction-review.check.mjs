@@ -1,5 +1,6 @@
 import { launchBrowser } from "./browser-security.mjs";
 import { placeAtRoomCenter } from "./placement-fixture.mjs";
+import { blankProject, openSavedProject, serveProject } from "./authoring-project-fixture.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
@@ -7,7 +8,12 @@ const browser = await launchBrowser({
   target: process.argv[2] ?? "http://127.0.0.1:5173/",
   args: ["--enable-unsafe-swiftshader"],
 });
-const url = new URL("/editor.html", process.argv[2] ?? "http://127.0.0.1:5173/").href;
+const url = process.argv[2] ?? "http://127.0.0.1:5173/";
+async function recover(page) {
+  const dialog = page.getByRole("dialog", { name: "A recovery copy is available" });
+  await dialog.getByRole("button", { name: "Recover my edits" }).click();
+  await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
+}
 async function add(page, name) {
   // Rooms now use the dedicated placement tray rather than the object library
   if (name === "Starter room") {
@@ -36,7 +42,10 @@ async function backup(page, expectedUrl, count) {
       async ({ expectedUrl, count }) => {
         const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
         const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
-        const result = await loadRecoverySession(new Map(assets.map((a) => [a.id, a.kind])));
+        const result = await loadRecoverySession(new Map(assets.map((a) => [a.id, a.kind])), {
+          accountId: "00000000-0000-4000-8000-000000000001",
+          projectId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        });
         const scene = result.ok && result.value?.document?.scenes[0];
         return (
           scene &&
@@ -60,9 +69,24 @@ try {
     page.on("dialog", (dialog) => dialog.accept());
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
-    await page.goto(url);
+    const initial =
+      version === 1
+        ? JSON.parse(
+            readFileSync(
+              new URL("../shared/project/fixtures/m1-project.json", import.meta.url),
+              "utf8",
+            ),
+          )
+        : structuredClone(blankProject);
+    if (version === 2) initial.scenes[0].environmentAssetId = null;
+    initial.scenes[0].objects = [];
+    initial.scenes[0].hotspots = [];
+    initial.scenes[0].interactions = [];
+    const server = await serveProject(page, url, initial);
+    await page.goto(server.url);
     await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
-    await add(page, "Starter room");
+    if (version === 2) await add(page, "Starter room");
+    else await page.getByRole("button", { name: "Third person", exact: true }).click();
     await add(page, "Sample crate");
     if (version === 2) {
       await page.locator(".environment-row").press("F2");
@@ -71,8 +95,17 @@ try {
     }
     await page.locator("[data-object-id]").first().click();
     await page.getByRole("button", { name: "Add Hotspot", exact: true }).click();
+    await page.locator(".hotspot-indicator").first().waitFor();
     await page.keyboard.press("Control+d");
+    await page.locator("[data-object-id]").nth(1).click();
     await page.getByRole("button", { name: "Add Hotspot", exact: true }).click();
+    await page
+      .locator(".hotspot-indicator")
+      .nth(1)
+      .waitFor()
+      .catch(async (error) => {
+        throw new Error(`${error.message}\n${await page.locator(".scene-tree").innerHTML()}`);
+      });
     const ids = await page
       .locator("[data-object-id]")
       .evaluateAll((rows) => rows.map((r) => r.dataset.objectId));
@@ -99,29 +132,30 @@ try {
       await page.getByRole("button", { name: "Interaction", exact: true }).click();
     }
     await page.getByLabel("Interaction 1 do", { exact: true }).selectOption("open-link");
-    await page.getByText("Not saved", { exact: true }).waitFor();
     await backup(page, "", 1); // Wait past the actual two-second debounce, leaving the URL empty.
     const restoredVersion = await page.evaluate(async () => {
       const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
       const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
-      return (await loadRecoverySession(new Map(assets.map((a) => [a.id, a.kind])))).value.document
-        .schemaVersion;
+      return (
+        await loadRecoverySession(new Map(assets.map((a) => [a.id, a.kind])), {
+          accountId: "00000000-0000-4000-8000-000000000001",
+          projectId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        })
+      ).value.document.schemaVersion;
     });
     assert.equal(restoredVersion, version);
-    await page.getByText("Untitled project", { exact: true }).click();
-    await page.getByRole("button", { name: "New", exact: true }).click();
+    await page.getByRole("button", { name: "Leave editor", exact: true }).click();
     const confirmation = page.getByRole("dialog");
     await confirmation.waitFor();
     await confirmation.getByRole("button", { name: "Cancel", exact: true }).click();
     await page.reload();
-    await page.getByText("Reopened your last project", { exact: true }).waitFor();
+    await recover(page);
     await page.getByRole("button", { name: "Interaction", exact: true }).click();
     assert.equal(await page.getByLabel("Interaction 1 link", { exact: true }).inputValue(), "");
     assert.deepEqual(
       await targets.locator("option").allTextContents(),
       choices.map((c) => c.label),
     );
-    await page.getByText("Not saved", { exact: true }).waitFor();
     await page
       .getByLabel("Interaction 1 link", { exact: true })
       .fill("https://example.com/corrected");
@@ -129,7 +163,7 @@ try {
     await page.getByRole("button", { name: "+ Add Interaction", exact: true }).click();
     await backup(page, "https://example.com/corrected", 2);
     await page.reload();
-    await page.getByText("Reopened your last project", { exact: true }).waitFor();
+    await recover(page);
     await page.getByRole("button", { name: "Interaction", exact: true }).click();
     assert.equal(await page.locator(".interaction-card").count(), 2);
     assert.equal(
@@ -140,20 +174,16 @@ try {
       const mixed = await page.evaluate(async () => {
         const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
         const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
-        const result = await loadRecoverySession(new Map(assets.map((a) => [a.id, a.kind])));
+        const result = await loadRecoverySession(new Map(assets.map((a) => [a.id, a.kind])), {
+          accountId: "00000000-0000-4000-8000-000000000001",
+          projectId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        });
         return result.value.document;
       });
       mixed.scenes[0].hotspots[0].objectId = mixed.scenes[0].hotspots[0].objectId.toUpperCase();
-      await page.locator("#project-import").setInputFiles({
-        name: "mixed-reference.json",
-        mimeType: "application/json",
-        buffer: Buffer.from(JSON.stringify(mixed)),
-      });
-      await page
-        .getByRole("dialog")
-        .getByRole("button", { name: "Don’t Save", exact: true })
-        .click();
-      await page.getByText("Project opened", { exact: true }).waitFor();
+      server.setDocument(mixed);
+      await page.reload();
+      await openSavedProject(page);
       if (!(await targets.count()))
         await page.getByRole("button", { name: "Interaction", exact: true }).click();
       await targets.selectOption(choices[0].value);
@@ -172,7 +202,7 @@ try {
     );
   }
 
-  // A released document at the byte limit must survive both Open and browser recovery.
+  // A server document at the byte limit must survive account-scoped recovery.
   const boundaryContext = await browser.newContext();
   const boundaryPage = await boundaryContext.newPage();
   const document = JSON.parse(
@@ -217,17 +247,36 @@ try {
   assert.equal(remaining, 0);
   const buffer = Buffer.from(JSON.stringify(document));
   assert.equal(buffer.length, 5 * 1024 * 1024);
-  await boundaryPage.goto(url);
-  await boundaryPage.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
+  const boundaryServer = await serveProject(boundaryPage, url, document);
+  await boundaryPage.goto(boundaryServer.url);
   await boundaryPage
-    .locator("#project-import")
-    .setInputFiles({ name: "boundary.json", mimeType: "application/json", buffer });
-  await boundaryPage.getByText("Project opened", { exact: true }).waitFor();
+    .getByRole("status")
+    .filter({ hasText: "Scene ready" })
+    .waitFor()
+    .catch(async (error) => {
+      throw new Error(`${error.message}\n${await boundaryPage.locator("body").innerText()}`);
+    });
+  await boundaryPage.evaluate(async (document) => {
+    const { applySaveRecoverySession } = await import("/persistence/local-drafts.ts");
+    const { IndexedDBDraftDatabase } = await import("/persistence/draft-db.ts");
+    const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
+    const confirmedJson = JSON.stringify(document);
+    document.title = "Retained boundary";
+    const saved = await applySaveRecoverySession(
+      { document, serverSave: { revision: 0, confirmedJson, pending: null } },
+      0,
+      new Map(assets.map((asset) => [asset.id, asset.kind])),
+      new IndexedDBDraftDatabase(),
+      { accountId: "00000000-0000-4000-8000-000000000001", projectId: document.projectId },
+    );
+    if (!saved.ok) throw new Error(saved.error.message);
+  }, document);
   await boundaryPage.reload();
-  await boundaryPage.getByText("Reopened your last project", { exact: true }).waitFor();
+  await recover(boundaryPage);
+  assert.equal(await boundaryPage.title(), "Retained boundary - Spatia");
   assert.equal(await boundaryPage.locator("[data-object-id]").count(), 12);
   await boundaryContext.close();
-  console.log("PASS: exact 5 MiB v2 file opens and reloads through the real session hook");
+  console.log("PASS: exact 5 MiB v2 server project opens and recovers an account-scoped edit");
 
   const context = await browser.newContext();
   // Exercise the real scene loop at roughly four frames per second.
@@ -236,7 +285,8 @@ try {
     window.requestAnimationFrame = (callback) => setTimeout(() => request(callback), 250);
   });
   const page = await context.newPage();
-  await page.goto(url);
+  const clockServer = await serveProject(page, url);
+  await page.goto(clockServer.url);
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   await add(page, "Starter room");
   await page.getByRole("button", { name: "Interaction", exact: true }).click();

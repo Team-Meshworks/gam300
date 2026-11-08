@@ -1,4 +1,5 @@
 import { placeAtRoomCenter } from "./placement-fixture.mjs";
+import { serveProject } from "./authoring-project-fixture.mjs";
 import { launchPersistentBrowser } from "./browser-security.mjs";
 import assert from "node:assert/strict";
 
@@ -66,11 +67,9 @@ try {
   const page = await context.newPage();
   page.on("pageerror", (error) => errors.push(error.message));
   page.on("dialog", (dialog) => dialog.accept());
-  await page.goto(`${origin}/editor.html`);
+  const project = await serveProject(page, origin);
+  await page.goto(project.url);
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
-  await page.waitForFunction(
-    () => document.querySelector(".draft-feedback")?.textContent !== "Reopening saved work…",
-  );
   await forget(page);
 
   // Rooms are placed from their own tray; object cards retain the library selection sound
@@ -100,45 +99,15 @@ try {
   await page.keyboard.press("Delete");
   await played(page, [], "A delete with nothing selected stays silent");
 
-  // Save, then a cancelled Save As
-  const menu = async (name) => {
-    await page.locator(".draft-menu summary").click();
-    await page.getByRole("button", { name, exact: true }).click();
-  };
-  await menu("Save");
-  await page.waitForFunction(
-    () => document.querySelector(".save-state .sr-only")?.textContent === "Saved",
-  );
-  await played(page, ["save.wav"], "A finished save plays Save");
-  await page.evaluate(() => (window.cancelPicker = true));
-  await menu("Save As");
-  await played(page, [], "A cancelled save stays silent");
-  await page.evaluate(() => (window.cancelPicker = false));
-
   // Preview
   await page.getByRole("button", { name: "Preview", exact: true }).click();
   await played(page, ["enter-preview.wav"], "Preview plays Enter Preview Mode");
   await page.getByRole("button", { name: "Exit preview", exact: true }).click();
   await played(page, ["going-back.wav"], "Exit preview plays Going Back");
 
-  // Unsaved changes dialog
-  await page.getByRole("button", { name: "Asset library", exact: true }).click();
-  await page
-    .locator(".asset-picker")
-    .getByRole("button", { name: "Sample crate", exact: true })
-    .click();
-  await page.getByRole("button", { name: "Add", exact: true }).click();
-  await played(page, ["asset-select.wav"], "Picking an object card plays Asset Select");
-  await placeAtRoomCenter(page);
-  await played(page, ["asset-place.wav"], "Placing an object plays Asset Place");
-  await forget(page);
-  await menu("New");
-  await page.getByRole("dialog").waitFor();
-  await played(page, ["warning.wav"], "The unsaved changes dialog plays Warning");
-
   assert.deepEqual(errors, [], "No page errors");
   console.log(
-    "PASS: sounds for going back, asset select and place, delete, save, preview and the unsaved changes warning, with silence when an action fails or is cancelled",
+    "PASS: sounds for going back, asset selection and placement, deletion, and preview, with silence when an action has no effect",
   );
 } finally {
   await context.close();

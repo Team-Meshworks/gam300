@@ -2,7 +2,7 @@ import { launchBrowser } from "./browser-security.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-const base = process.argv[2] ?? "http://127.0.0.1:5173";
+const base = new URL(process.argv[2] ?? "http://127.0.0.1:5173").origin;
 const fixture = JSON.parse(
   readFileSync(new URL("../shared/project/fixtures/m1-project.json", import.meta.url), "utf8"),
 );
