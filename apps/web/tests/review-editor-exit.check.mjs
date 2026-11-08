@@ -28,19 +28,22 @@ const saveGate = new Promise((resolve) => (releaseSave = resolve));
 let saved = 0;
 let failAssignment = false;
 let revision = 0;
+let identityAt = 0;
+let identityChecks = 0;
+let failSave = false;
 try {
   await server.listen();
   const origin = `http://127.0.0.1:${server.httpServer.address().port}`;
   browser = await launchBrowser({ target: origin });
   const page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
   page.setDefaultTimeout(15000);
-  await page.route("**/api/v1/**", async (route) => {
+  const api = async (route) => {
     const req = route.request(),
       path = new URL(req.url()).pathname;
     const reply = (json, status = 200) => route.fulfill({ json, status });
     if (path === "/api/v1/auth/session")
       return reply({
-        userId: actor,
+        userId: identityAt && ++identityChecks >= identityAt ? student : actor,
         orgId: "66666666-6666-4666-8666-666666666666",
         displayName: "Teacher",
         role: "Educator",
@@ -80,6 +83,7 @@ try {
     }
     if (path.endsWith("/submissions")) return reply({ items: [], nextCursor: null });
     if (path === `/api/v1/projects/${projectId}` && req.method() === "PUT") {
+      if (failSave) return reply({ code: "unavailable" }, 503);
       const body = req.postDataJSON();
       doc.scenes = body.document.scenes;
       return reply({ projectId, clientMutationId: body.clientMutationId, revision: ++revision });
@@ -92,10 +96,11 @@ try {
         permissions: { canEdit: true, canManage: true, canPublish: true },
       });
     return reply({}, 404);
-  });
-  await page.route("**/home?**", (route) =>
-    route.fulfill({ contentType: "text/html", body: "<!doctype html><title>Home fixture</title>" }),
-  );
+  };
+  const home = (route) =>
+    route.fulfill({ contentType: "text/html", body: "<!doctype html><title>Home fixture</title>" });
+  await page.route("**/api/v1/**", api);
+  await page.route("**/home?**", home);
   const url =
     origin +
     "/?" +
@@ -129,6 +134,14 @@ try {
   const departure = page.getByRole("dialog", { name: "Preserve your work before leaving" });
   await departure.waitFor({ timeout: 8000 });
   assert.equal(await page.getByRole("dialog", { name: "Review submission" }).count(), 0);
+  assert.equal(
+    await departure.getByRole("button", { name: "Save and continue" }).isVisible(),
+    true,
+  );
+  assert.equal(
+    await departure.getByRole("button", { name: "Export and continue" }).isVisible(),
+    true,
+  );
   await departure.getByRole("button", { name: "Cancel" }).click();
   assert.equal(page.url(), url);
   assert.equal(
@@ -149,6 +162,50 @@ try {
   // A confirmed server save may clear the recovery copy during disposal.
   assert.equal(doc.scenes[0].name, "Recovery test scene");
   if (recovered) assert.equal(recovered.scenes[0].name, "Recovery test scene");
+  failAssignment = false;
+  for (const [check, lookupFailure] of [
+    [1, false],
+    [2, false],
+    [2, true],
+  ]) {
+    identityChecks = 0;
+    const scenario = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
+    scenario.setDefaultTimeout(15000);
+    await scenario.route("**/api/v1/**", api);
+    await scenario.route("**/home?**", home);
+    await scenario.goto(url);
+    await scenario.getByText("Scene ready", { exact: true }).waitFor();
+    await scenario.getByRole("button", { name: "Scenes", exact: true }).click();
+    const name = `Account switch at exit check ${check}${lookupFailure ? " after failed lookup" : ""}`;
+    failSave = check === 1;
+    await scenario.getByLabel("Scene name", { exact: true }).fill(name);
+    await scenario.getByRole("button", { name: "Rename scene", exact: true }).click();
+    failAssignment = lookupFailure;
+    identityAt = check;
+    await scenario.getByRole("button", { name: "Leave editor" }).click();
+    await scenario.getByText(/account changed or expired/i).waitFor({ timeout: 5000 });
+    assert.equal(await scenario.getByLabel("Scene name", { exact: true }).count(), 0);
+    assert.equal(await scenario.getByRole("button", { name: "Export and continue" }).count(), 0);
+    if (check === 1) {
+      const copies = await scenario.evaluate(
+        async ({ actor, student, projectId }) => {
+          const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
+          const owner = await loadRecoverySession(new Map(), { accountId: actor, projectId });
+          const other = await loadRecoverySession(new Map(), { accountId: student, projectId });
+          return { owner: owner.ok && owner.value?.document, other: other.ok && other.value };
+        },
+        { actor, student, projectId },
+      );
+      assert.equal(copies.owner?.scenes[0].name, name);
+      assert.equal(copies.other, null);
+    } else {
+      assert.equal(doc.scenes[0].name, name, "The flushed draft is saved before the second check");
+    }
+    identityAt = 0;
+    failSave = false;
+    failAssignment = false;
+    await scenario.close();
+  }
   console.log("Editor exit waits for confirmed review save");
 } finally {
   releaseSave?.();
