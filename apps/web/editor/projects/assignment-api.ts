@@ -5,16 +5,33 @@ export type AssignmentSession = {
   displayName: string;
   role: string;
   orgId: string | null;
+  orgName?: string | null;
   mustChangePassword?: boolean;
 };
 export type SourceProject = { projectId: string; title: string; revision: number };
-export type AssignmentProject = { studentId: string; projectId: string; studentName?: string };
+export type AssignmentProject = {
+  studentId: string;
+  projectId: string;
+  studentName?: string;
+  approvalStatus?:
+    | "not-submitted"
+    | "awaiting-approval"
+    | "approved"
+    | "returned"
+    | "revoked"
+    | "changes-since-submission";
+  published?: boolean;
+};
 export type AssignmentDetails = {
   assignmentId: string;
   title: string;
   description: string;
   instructions: string;
   dueAtUnixSeconds: number;
+  revision?: number;
+  sourceProjectId?: string | null;
+  organizationName?: string;
+  creatorName?: string;
   projects: AssignmentProject[];
 };
 export type PendingAssignment = {
@@ -93,6 +110,7 @@ export async function assignmentSession(signal?: AbortSignal): Promise<Assignmen
     displayName: value.displayName,
     role: value.role,
     orgId: value.orgId,
+    orgName: typeof value.orgName === "string" && value.orgName.trim() ? value.orgName : null,
     mustChangePassword: value.mustChangePassword === true,
   };
 }
@@ -149,6 +167,9 @@ export async function enrolledStudents(
         !record(row) ||
         typeof row.userId !== "string" ||
         typeof row.userName !== "string" ||
+        (row.displayName !== undefined &&
+          row.displayName !== null &&
+          typeof row.displayName !== "string") ||
         typeof row.enrolled !== "boolean",
     )
   )
@@ -156,10 +177,10 @@ export async function enrolledStudents(
   return rows
     .filter((row) => (row as { enrolled: boolean }).enrolled)
     .map((row) => {
-      const student = row as { userId: string; userName: string };
+      const student = row as { userId: string; userName: string; displayName?: string | null };
       return {
         id: student.userId,
-        name: student.userName,
+        name: student.displayName?.trim() || student.userName,
         account: student.userName,
         classIds: [classId],
       };
@@ -275,13 +296,30 @@ function assignmentDetails(value: unknown): AssignmentDetails {
     typeof value.instructions !== "string" ||
     typeof value.dueAtUnixSeconds !== "number" ||
     !Number.isSafeInteger(value.dueAtUnixSeconds) ||
+    (value.revision !== undefined &&
+      (!Number.isSafeInteger(value.revision) || (value.revision as number) < 0)) ||
+    (value.sourceProjectId !== undefined &&
+      value.sourceProjectId !== null &&
+      typeof value.sourceProjectId !== "string") ||
+    (value.organizationName !== undefined && typeof value.organizationName !== "string") ||
+    (value.creatorName !== undefined && typeof value.creatorName !== "string") ||
     !Array.isArray(value.projects) ||
     value.projects.some(
       (row) =>
         !record(row) ||
         typeof row.studentId !== "string" ||
         typeof row.projectId !== "string" ||
-        !validStudentName(row.studentName),
+        !validStudentName(row.studentName) ||
+        (row.approvalStatus !== undefined &&
+          ![
+            "not-submitted",
+            "awaiting-approval",
+            "approved",
+            "returned",
+            "revoked",
+            "changes-since-submission",
+          ].includes(String(row.approvalStatus))) ||
+        (row.published !== undefined && typeof row.published !== "boolean"),
     )
   )
     throw new Error("The assignment is unavailable.");

@@ -303,6 +303,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                 table.HasCheckConstraint("CK_class_assignments_due", $"due_at_unix_seconds BETWEEN {ClassAssignment.MinimumUnixSeconds} AND {ClassAssignment.MaximumUnixSeconds}");
                 table.HasCheckConstraint("CK_class_assignments_source_revision", $"source_revision BETWEEN 0 AND {Project.MaxRevision}");
                 table.HasCheckConstraint("CK_class_assignments_request_digest", "octet_length(request_digest) = 32");
+                table.HasCheckConstraint("CK_class_assignments_revision", $"revision BETWEEN 0 AND {Project.MaxRevision}");
+                table.HasCheckConstraint("CK_class_assignments_last_edit", "(last_edit_id IS NULL AND last_edit_actor_id IS NULL AND last_edit_digest IS NULL) OR (last_edit_id IS NOT NULL AND last_edit_actor_id IS NOT NULL AND last_edit_digest IS NOT NULL AND octet_length(last_edit_digest) = 32)");
             });
             assignment.HasKey(record => record.Id);
             assignment.HasAlternateKey(record => new { record.Id, record.ClassroomId, record.OrganizationId });
@@ -317,6 +319,10 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             assignment.Property(record => record.Description).HasColumnName("description").IsRequired();
             assignment.Property(record => record.Instructions).HasColumnName("instructions").IsRequired();
             assignment.Property(record => record.RequestDigest).HasColumnName("request_digest").IsRequired();
+            assignment.Property(record => record.Revision).HasColumnName("revision");
+            assignment.Property(record => record.LastEditId).HasColumnName("last_edit_id");
+            assignment.Property(record => record.LastEditActorId).HasColumnName("last_edit_actor_id");
+            assignment.Property(record => record.LastEditDigest).HasColumnName("last_edit_digest");
             assignment.HasIndex(record => new { record.ClassroomId, record.Id });
             assignment.HasOne<Classroom>().WithMany()
                 .HasForeignKey(record => new { record.ClassroomId, record.OrganizationId })
@@ -343,6 +349,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             student.Property(record => record.StudentId).HasColumnName("student_id");
             student.Property(record => record.RoleId).HasColumnName("role_id");
             student.Property(record => record.ProjectId).HasColumnName("project_id");
+            student.Property(record => record.IsActive).HasColumnName("is_active").HasDefaultValue(true).HasSentinel(true);
+            student.Property(record => record.OriginallyAssigned).HasColumnName("originally_assigned").HasDefaultValue(true).HasSentinel(true);
             student.HasIndex(record => record.ProjectId).IsUnique();
             student.HasIndex(record => new { record.StudentId, record.AssignmentId });
             student.HasOne<ClassAssignment>().WithMany()

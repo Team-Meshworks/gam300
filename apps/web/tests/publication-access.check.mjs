@@ -9,7 +9,7 @@ const actor = "8ea0882b-9365-4b9c-b8b8-e5ee113ad07e";
 const viewer = "9ea0882b-9365-4b9c-b8b8-e5ee113ad07e";
 const session = {
   userId: actor,
-  role: "Creator",
+  role: "Educator",
   displayName: "Teacher",
   orgId: otherProject,
   mustChangePassword: false,

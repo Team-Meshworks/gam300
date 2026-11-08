@@ -12,7 +12,7 @@ export type ApprovalPublicationIntent = {
   projectId: string;
   actorId: string;
   studentId: string;
-  submissionId: string;
+  submissionId: string | null;
   decisionId: string;
   publicationId: string;
   revision: number;
@@ -50,13 +50,12 @@ export function readApprovalPublication(
     !isId(value.actorId) ||
     !isId(value.projectId) ||
     !isId(value.studentId) ||
-    !isId(value.submissionId) ||
+    !(value.submissionId === null || isId(value.submissionId)) ||
     !isId(value.decisionId) ||
     !isId(value.publicationId) ||
     !Number.isSafeInteger(value.revision) ||
     (value.revision as number) < 0 ||
     typeof value.feedback !== "string" ||
-    !value.feedback.trim() ||
     value.feedback.length > 4000 ||
     value.feedback.includes("\0")
   )
@@ -72,6 +71,8 @@ export async function approveAndPublish(
   publish: Publish,
   retry = false,
 ): Promise<Result> {
+  if (intent.submissionId === null)
+    return { kind: "rejected", message: "A current submission is required before publishing." };
   const storageKey = key(intent.actorId, intent.projectId);
   let existing: ApprovalPublicationIntent | null;
   try {
@@ -127,7 +128,10 @@ export async function approveAndPublish(
   const request: PublicationRequest = {
     publicationId: intent.publicationId,
     confirmedRevision: intent.revision,
-    intent: { audience: "Unlisted", viewerIds: [] },
+    intent: {
+      audience: "Unlisted",
+      viewerIds: [],
+    },
   };
   const result = await publish(
     intent.actorId,
@@ -176,7 +180,7 @@ export async function approveAndPublish(
     kind: "pending",
     message:
       result.kind === "rejected"
-        ? `Approval was saved, but publication was not confirmed: ${result.message} Retry the same request.`
-        : "Approval was saved, but publication could not be confirmed. Retry the same request.",
+        ? `Publication was not confirmed: ${result.message} Retry the same request.`
+        : "Publication could not be confirmed. Retry the same request.",
   };
 }

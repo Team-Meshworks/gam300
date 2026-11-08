@@ -175,6 +175,7 @@ try {
     await scenario.route("**/home?**", home);
     await scenario.goto(url);
     await scenario.getByText("Scene ready", { exact: true }).waitFor();
+    await scenario.getByRole("button", { name: "Review", exact: true }).waitFor();
     await scenario.getByRole("button", { name: "Scenes", exact: true }).click();
     const name = `Account switch at exit check ${check}${lookupFailure ? " after failed lookup" : ""}`;
     failSave = check === 1;

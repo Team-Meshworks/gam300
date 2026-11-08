@@ -2064,6 +2064,30 @@ Three focused access and concurrency cases passed on 29 October 2026, along with
 the Release build and both formatting checks. The original-student assignment
 rule and the 21 project-lifecycle regression cases passed on 30 October 2026.
 
+## Assignment editing (local implementation)
+
+`PATCH /api/v1/classes/{classId}/assignments/{assignmentId}` accepts a mutation ID,
+expected assignment revision, title, description, instructions, Unix-second deadline,
+and the complete selected student ID list. The server checks current class and project
+authority and active roster eligibility. Assignment edits and affected student drafts
+commit together under the existing locks; a stale revision conflicts, and an identical
+retry of the most recent edit returns its recorded revision. Reusing that mutation ID
+with different content or actor conflicts. This receipt is for the latest edit, not an
+unbounded history of retries.
+
+Removing a student deactivates the mapping without deleting their draft; selecting them
+again restores the existing mapping. Newly selected students receive independent drafts
+from the original source revision; if that source has changed, adding students conflicts.
+Metadata or membership changes advance affected draft revisions, so existing revision
+review rules continue to apply. Previously captured submission deadlines and immutable
+published snapshots are preserved. Assignment metadata remains server-owned.
+
+The educator date-only UI currently converts a selected date to local 23:59:59 before
+sending Unix seconds, per the user's 8 November request. The API continues to store an
+instant. This differs from the current SCRUM-161/162 Jira criteria for explicitly chosen
+date and time without end-of-day rounding; reconcile the product contract in Jira before
+claiming those criteria are satisfied.
+
 ## SCRUM-161 part 7: restart and reassignment evidence
 
 The assignment storage and independent drafts were checked after stopping the

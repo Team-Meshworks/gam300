@@ -71,6 +71,7 @@ export function BottomBar({
   tool,
   onToolChange,
   showCameraTools,
+  onPickerChange,
 }: {
   assets: readonly CatalogueAsset[];
   hotspot: CatalogueAsset;
@@ -83,6 +84,7 @@ export function BottomBar({
   onToolChange: (tool: NavigationTool) => void;
   // Available while editing; choosing a camera tool switches to third person
   showCameraTools: boolean;
+  onPickerChange: (mode: "rooms" | "assets" | null) => void;
 }) {
   const setDragImage = useDragImage();
   const categories = baseCategories.map((category) =>
@@ -99,6 +101,10 @@ export function BottomBar({
   const [selected, setSelected] = useState<SceneTool | null>(null);
   const roomsOpen = selected === "rooms";
   const libraryOpen = selected === "library" || roomsOpen;
+  useEffect(() => {
+    onPickerChange(roomsOpen ? "rooms" : libraryOpen ? "assets" : null);
+    return () => onPickerChange(null);
+  }, [roomsOpen, libraryOpen, onPickerChange]);
   const [draggingAsset, setDraggingAsset] = useState(false);
   const [picked, setPicked] = useState<Record<Category, number>>({
     rooms: 0,

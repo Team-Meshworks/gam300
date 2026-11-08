@@ -302,7 +302,7 @@ public sealed class ProjectAccessService(
                     && assignment.UserId == account.UserId && assignment.CanEdit)
                 && (!database.ClassAssignmentStudents.Any(mapping => mapping.ProjectId == project.Id)
                     || database.ClassAssignmentStudents.Any(mapping => mapping.ProjectId == project.Id
-                        && mapping.StudentId == account.UserId
+                        && mapping.StudentId == account.UserId && mapping.IsActive
                         && database.ClassroomMembers.Any(member => member.ClassroomId == mapping.ClassroomId
                             && member.UserId == account.UserId && member.RoleId == ApplicationRoles.CreatorId && member.IsActive)))),
             _ => projects.Where(_ => false),

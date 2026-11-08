@@ -27,7 +27,7 @@ const api = async (route) => {
       ? json(200, {
           userId: account,
           displayName: "Student",
-          role: "Creator",
+          role: "Educator",
           orgId: bob,
           mustChangePassword: false,
           developmentAssetsAllowed: true,

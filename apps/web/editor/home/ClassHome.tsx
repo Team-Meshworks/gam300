@@ -29,7 +29,7 @@ export function ClassHome({
 }: {
   session: AccountSession;
   active: boolean;
-  onCreateAssignment: () => void;
+  onCreateAssignment: (classId: string) => void;
   onOpenProject: (projectId: string) => void;
 }) {
   const [classes, setClasses] = useState<Classroom[] | null>(null);
@@ -199,7 +199,7 @@ export function ClassHome({
             >
               New class
             </Button>
-            <Button variant="primary" onClick={onCreateAssignment}>
+            <Button variant="primary" onClick={() => onCreateAssignment(classId)}>
               New assignment
             </Button>
           </div>

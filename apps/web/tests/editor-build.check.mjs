@@ -69,6 +69,8 @@ async function importProject(page, name, content, errors) {
   }
 }
 
+let page;
+const errors = [];
 try {
   const legacyModel = await fetch(new URL("models/snowglobe.glb", url));
   assert.notEqual(
@@ -78,8 +80,7 @@ try {
     "glTF",
     "The build must not ship a duplicate public model alongside the catalogue asset",
   );
-  const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
-  const errors = [];
+  page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
   page.on("pageerror", (error) => errors.push(error.message));
   const corePath = "**/assets/three-core-*.js";
   const { promise: coreGate, resolve: releaseCore } = Promise.withResolvers();
@@ -88,10 +89,8 @@ try {
     await route.continue();
   });
   const coreRequest = page.waitForRequest(corePath);
-  const snowglobeResponse = page.waitForResponse(
-    (response) => new URL(response.url()).pathname === `/restricted-assets/${snowglobeHash}.glb`,
-  );
-  await page.goto(url);
+  // The blocked renderer chunk can delay the load event; the shell must render while it is pending.
+  await page.goto(url, { waitUntil: "commit" });
   await page.getByRole("heading", { name: "Spatia", exact: true }).waitFor();
   await coreRequest;
   assert.equal(await page.locator("canvas").count(), 0, "Shell renders before Three.js arrives");
@@ -109,6 +108,9 @@ try {
   assert.equal(await page.locator(".object-row").count(), 1);
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   assert.equal(await page.locator(".object-row").count(), 0);
+  const snowglobeResponse = page.waitForResponse(
+    (response) => new URL(response.url()).pathname === `/restricted-assets/${snowglobeHash}.glb`,
+  );
   await addAsset(page, "Snow globe");
   const snowglobe = await snowglobeResponse;
   assert.ok(snowglobe.ok(), "The selected manifest snowglobe loads on demand");
@@ -307,6 +309,24 @@ try {
       }),
     );
   }
+} catch (error) {
+  console.error("Packaged editor failure:", {
+    url: page?.url(),
+    pageErrors: errors,
+    messages: await page
+      ?.locator('[role="status"], [role="alert"]')
+      .allTextContents()
+      .catch(() => []),
+    placement: await page
+      ?.locator(".viewport-stage")
+      .getAttribute("data-placing-asset")
+      .catch(() => null),
+    body: await page
+      ?.locator("body")
+      .innerText()
+      .catch(() => "Page unavailable"),
+  });
+  throw error;
 } finally {
   await browser.close();
 }

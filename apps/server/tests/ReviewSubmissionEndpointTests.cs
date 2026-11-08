@@ -19,6 +19,38 @@ namespace Spatia.Server.Tests;
 public sealed class ReviewSubmissionEndpointTests
 {
     [Test]
+    public async Task AssignmentStudentStatus_ReflectsCurrentSubmissionAndApprovalWithoutLeakingToOtherStudents()
+    {
+        await using var fixture = await CreateFixtureAsync(new FixtureAssets());
+        var data = await SeedAsync(fixture, false);
+        var submissionId = Guid.NewGuid();
+        using (var submitted = await SubmitAsync(fixture, data.ProjectId, submissionId, 0, true))
+        { await Assert.That(submitted.StatusCode).IsEqualTo(HttpStatusCode.Created); }
+        await using var scope = fixture.Database.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var assignmentId = await database.ClassAssignments.Select(row => row.Id).SingleAsync();
+        var path = $"/api/v1/classes/{data.ClassroomId:D}/assignments/{assignmentId:D}";
+        using var studentView = await fixture.Client.GetAsync(path);
+        var studentItem = (await studentView.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("projects")[0];
+        await Assert.That(studentItem.TryGetProperty("approvalStatus", out _)).IsFalse();
+        await Assert.That(studentItem.TryGetProperty("published", out _)).IsFalse();
+        using var educator = fixture.CreateClient();
+        await fixture.SignInAsync(data.Educator, educator);
+        async Task<string?> Status()
+        {
+            using var response = await educator.GetAsync(path);
+            return (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("projects")[0].GetProperty("approvalStatus").GetString();
+        }
+        await Assert.That(await Status()).IsEqualTo("awaiting-approval");
+        using (var approved = await ReviewDecisionEndpointTests.DecideAsync(fixture, educator, data.ProjectId, submissionId, Guid.NewGuid(), 0, "approved", "Good work"))
+        { await Assert.That(approved.StatusCode).IsEqualTo(HttpStatusCode.Created); }
+        await Assert.That(await Status()).IsEqualTo("approved");
+        using (var saved = await SaveAsync(fixture, data.ProjectId))
+        { await Assert.That(saved.StatusCode).IsEqualTo(HttpStatusCode.OK); }
+        await Assert.That(await Status()).IsEqualTo("changes-since-submission");
+    }
+
+    [Test]
     [Arguments(1, "rotation")]
     [Arguments(2, "rotation")]
     [Arguments(1, "read-limit")]

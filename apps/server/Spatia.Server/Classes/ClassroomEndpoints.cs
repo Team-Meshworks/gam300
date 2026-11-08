@@ -26,6 +26,8 @@ public static class ClassroomEndpoints
         group.MapPost("/", CreateAsync).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
         group.MapPost("/{id:guid}/assignments", ClassAssignmentCoordinator.CreateAsync)
             .RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
+        group.MapPatch("/{id:guid}/assignments/{assignmentId:guid}", ClassAssignmentEditor.UpdateAsync)
+            .RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
         group.MapPut("/{id:guid}/members/{userId:guid}", AddMemberAsync).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
         group.MapDelete("/{id:guid}/members/{userId:guid}", RemoveMemberAsync).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
         return endpoints;
@@ -138,6 +140,7 @@ public static class ClassroomEndpoints
                     {
                         userId = user.Id,
                         user.UserName,
+                        displayName = string.IsNullOrEmpty(user.DisplayName) ? user.UserName : user.DisplayName,
                         enrolled = database.ClassroomMembers.Any(row => row.ClassroomId == id && row.UserId == user.Id && row.IsActive),
                     };
         if (cursor is { } after) { query = query.Where(row => row.userId.CompareTo(after) > 0); }

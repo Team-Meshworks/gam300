@@ -143,6 +143,7 @@ function HomeWorkspace({
   const [newProject, setNewProject] = useState(
     location.pathname.replace(/\/$/, "") === "/new-project",
   );
+  const [assignmentClassId, setAssignmentClassId] = useState("");
   const [leave, setLeave] = useState<(() => void) | null>(null);
   useEffect(() => {
     if (!navigation.dirty && !navigation.locked) return;
@@ -207,7 +208,8 @@ function HomeWorkspace({
         <ClassHome
           session={session}
           active={active}
-          onCreateAssignment={() => {
+          onCreateAssignment={(classId) => {
+            setAssignmentClassId(classId);
             setNewProject(false);
             setView("assignment");
           }}
@@ -221,7 +223,7 @@ function HomeWorkspace({
             <div>
               <h1>{newProject ? "New Project" : "New class assignment"}</h1>
               <p>
-                {newProject
+                {newProject || session.role === "Educator"
                   ? "Set up a new experience, add your project details and choose your students."
                   : "Create an independent project for each selected student from an existing source project."}
               </p>
@@ -237,7 +239,8 @@ function HomeWorkspace({
           </div>
           <AssignmentCreationScreen
             expectedUserId={session.userId}
-            createBlank={newProject && session.role === "Educator"}
+            createBlank={session.role === "Educator"}
+            initialClassId={assignmentClassId}
             onCancel={() =>
               navigate(() => (newProject ? location.assign("/home") : setView("classes")))
             }

@@ -7,6 +7,7 @@ import { HomePage } from "../home/HomePage";
 import { WorkspaceNavigation } from "../home/WorkspaceNavigation";
 import { AccountDirectoryPage } from "../directory/AccountDirectoryPage";
 import { AdminDashboard } from "../admin/AdminDashboard";
+import { EducatorReviewLink } from "../reviews/EducatorReviewLink";
 import { ReviewWorkspace } from "../reviews/ReviewWorkspace";
 import { PublicationPage } from "../publications/PublicationPage";
 import { AssetAdministration } from "../asset-administration/AssetAdministration";
@@ -14,12 +15,12 @@ import { createAssetAdministrationService } from "../asset-administration/asset-
 
 const client = createAccountClient();
 const screens = [
-  { id: "publish", title: "Publish project", roles: ["Administrator", "Educator", "Creator"] },
+  { id: "publish", title: "Publish project", roles: ["Administrator", "Educator"] },
   { id: "assets", title: "3D Assets", roles: ["Administrator"] },
   { id: "spaces", title: "3D Spaces", roles: ["Administrator"] },
   { id: "admin/dashboard", title: "Dashboard", roles: ["Administrator"] },
   { id: "classes", title: "Classes", roles: ["Administrator", "Educator"] },
-  { id: "review", title: "Submission review", roles: ["Creator", "Educator"] },
+  { id: "review", title: "Submission review", roles: ["Creator"] },
   { id: "organisations", title: "Organisations", roles: ["Administrator"] },
 ];
 type Access =
@@ -109,6 +110,8 @@ function OtherWorkspacePage() {
         <a href="/login">Log in</a>
       </main>
     );
+  if (session.role === "Educator" && location.pathname.replace(/\/$/, "") === "/review")
+    return <EducatorReviewLink session={session} />;
   const screen = screens.find((item) => `/${item.id}` === location.pathname.replace(/\/$/, ""));
   const permitted = screens.filter((item) => item.roles.includes(session.role));
   const fallback =

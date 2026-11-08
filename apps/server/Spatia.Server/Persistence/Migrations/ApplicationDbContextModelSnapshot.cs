@@ -440,6 +440,18 @@ namespace Spatia.Server.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("instructions");
 
+                    b.Property<Guid?>("LastEditActorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("last_edit_actor_id");
+
+                    b.Property<byte[]>("LastEditDigest")
+                        .HasColumnType("bytea")
+                        .HasColumnName("last_edit_digest");
+
+                    b.Property<Guid?>("LastEditId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("last_edit_id");
+
                     b.Property<Guid>("OrganizationId")
                         .HasColumnType("uuid")
                         .HasColumnName("organization_id");
@@ -448,6 +460,10 @@ namespace Spatia.Server.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("bytea")
                         .HasColumnName("request_digest");
+
+                    b.Property<long>("Revision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("revision");
 
                     b.Property<Guid>("SourceProjectId")
                         .HasColumnType("uuid")
@@ -481,7 +497,11 @@ namespace Spatia.Server.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_class_assignments_instructions", "length(btrim(instructions)) > 0");
 
+                            t.HasCheckConstraint("CK_class_assignments_last_edit", "(last_edit_id IS NULL AND last_edit_actor_id IS NULL AND last_edit_digest IS NULL) OR (last_edit_id IS NOT NULL AND last_edit_actor_id IS NOT NULL AND last_edit_digest IS NOT NULL AND octet_length(last_edit_digest) = 32)");
+
                             t.HasCheckConstraint("CK_class_assignments_request_digest", "octet_length(request_digest) = 32");
+
+                            t.HasCheckConstraint("CK_class_assignments_revision", "revision BETWEEN 0 AND 9007199254740991");
 
                             t.HasCheckConstraint("CK_class_assignments_source_revision", "source_revision BETWEEN 0 AND 9007199254740991");
 
@@ -503,9 +523,21 @@ namespace Spatia.Server.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("classroom_id");
 
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("is_active");
+
                     b.Property<Guid>("OrganizationId")
                         .HasColumnType("uuid")
                         .HasColumnName("organization_id");
+
+                    b.Property<bool>("OriginallyAssigned")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("originally_assigned");
 
                     b.Property<Guid>("ProjectId")
                         .HasColumnType("uuid")

@@ -4,7 +4,7 @@ import { assets } from "virtual:asset-catalogue";
 import { App } from "./App";
 import { HOTSPOT_ASSET } from "../shared/asset-runtime/hotspot";
 import { createDocumentStore } from "./document-store";
-import { createAccountClient } from "./accounts/account-client";
+import { createAccountClient, type AccountRole } from "./accounts/account-client";
 import { LoginRedirect } from "./accounts/LoginRedirect";
 import {
   readServerAssets,
@@ -40,6 +40,8 @@ type Candidate = {
 type Active = {
   session: ReturnType<typeof connectServerProjectSession>;
   accountId: string;
+  orgId: string | null;
+  role: AccountRole;
   controller: AbortController;
   title: string;
 };
@@ -220,11 +222,58 @@ function ServerProjectSession({
   const busyRef = useRef(false);
   const [attempt, setAttempt] = useState(0);
   const [departure, setDeparture] = useState<"home" | "logout" | "reload" | "publish" | null>(null);
+  const [reviewAccess, setReviewAccess] = useState<Active | null>(null);
   const [reviewExit, setReviewExit] = useState<{
     context: ProgressContext;
     studentName: string;
     revision: number;
+    mode: "leave" | "publish" | "review";
   } | null>(null);
+
+  useEffect(() => {
+    const context = parseProgressContext(new URLSearchParams(location.search), projectId);
+    if (!active || !context) return;
+    let disposed = false;
+    void (async () => {
+      try {
+        const identity = await accounts.getSession();
+        if (
+          !identity ||
+          identity.userId !== active.accountId ||
+          identity.orgId !== active.orgId ||
+          identity.role !== "Educator" ||
+          identity.mustChangePassword
+        )
+          return;
+        const assignment = await readAssignment(
+          context.classId,
+          context.assignmentId,
+          active.controller.signal,
+        );
+        const current = await accounts.getSession();
+        if (
+          !disposed &&
+          current?.userId === active.accountId &&
+          current.role === "Educator" &&
+          current.orgId === identity.orgId &&
+          !current.mustChangePassword &&
+          assignment.projects.some(
+            (item) =>
+              item.projectId.toLowerCase() === projectId.toLowerCase() &&
+              item.studentId.toLowerCase() === context.studentId.toLowerCase(),
+          )
+        ) {
+          setReviewAccess(active);
+        }
+      } catch {
+        if (!disposed)
+          setError("Review controls could not be loaded. Reopen the student project to try again.");
+      }
+    })();
+    return () => {
+      disposed = true;
+    };
+  }, [active, projectId]);
 
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => {
@@ -261,7 +310,14 @@ function ServerProjectSession({
       onStatus: setStatus,
       ...(recovery ? { recovery } : {}),
     });
-    const owner = { session, accountId: opened.accountId, controller, title: document.title };
+    const owner = {
+      session,
+      accountId: opened.accountId,
+      orgId: identity.orgId,
+      role: identity.role,
+      controller,
+      title: document.title,
+    };
     current.current = owner;
     setActive(owner);
     setCandidate(null);
@@ -339,7 +395,13 @@ function ServerProjectSession({
   async function checkDraftAccount(owner: Active) {
     const identity = await accounts.getSession();
     if (owner.controller.signal.aborted) return null;
-    if (identity?.userId === owner.accountId && !identity.mustChangePassword) return identity;
+    if (
+      identity?.userId === owner.accountId &&
+      identity.orgId === owner.orgId &&
+      identity.role === owner.role &&
+      !identity.mustChangePassword
+    )
+      return identity;
 
     // Lock the live draft before awaiting account-scoped recovery storage
     retained.current = { accountId: owner.accountId, recovery: owner.session.getRecovery() };
@@ -501,17 +563,17 @@ function ServerProjectSession({
     });
   }
 
-  async function startHomeDeparture() {
+  async function startReview(mode: "leave" | "publish" | "review") {
     const context = parseProgressContext(new URLSearchParams(location.search), projectId);
     if (!context || !active) {
-      setDeparture("home");
+      if (mode === "leave") setDeparture("home");
       return;
     }
     await run(async () => {
       const identity = await checkDraftAccount(active);
       if (!identity) return;
       if (identity.role !== "Educator") {
-        setDeparture("home");
+        if (mode === "leave") setDeparture("home");
         return;
       }
       let review: typeof reviewExit = null;
@@ -535,6 +597,7 @@ function ServerProjectSession({
             context,
             studentName: selected.studentName ?? "Student",
             revision: project.revision,
+            mode,
           };
         }
       } catch (cause) {
@@ -546,7 +609,7 @@ function ServerProjectSession({
         setReviewExit(review);
       } else {
         setError(`The submission review could not be opened. ${failure}`);
-        setDeparture("home");
+        if (mode === "leave") setDeparture("home");
       }
     });
   }
@@ -582,8 +645,16 @@ function ServerProjectSession({
             saving: status === "saving",
             departing: departure !== null || reviewExit !== null,
             save,
-            leave: () => void startHomeDeparture(),
-            publish: () => setDeparture("publish"),
+            leave: () => void startReview("leave"),
+            ...(reviewAccess === active
+              ? {
+                  publish: () => void startReview("publish"),
+                  review: () => void startReview("review"),
+                }
+              : active.role !== "Creator" &&
+                  !parseProgressContext(new URLSearchParams(location.search), projectId)
+                ? { publish: () => setDeparture("publish") }
+                : {}),
           }}
         />
       ) : (
@@ -669,16 +740,21 @@ function ServerProjectSession({
           projectId={projectId}
           revision={reviewExit.revision}
           actorId={active.accountId}
+          orgId={active.orgId}
           educator
           autoOpen
-          publication={{
-            studentId: reviewExit.context.studentId,
-            studentName: reviewExit.studentName,
-            projectTitle: active.title,
-          }}
+          {...(reviewExit.mode === "review"
+            ? { startEditing: true }
+            : {
+                publication: {
+                  studentId: reviewExit.context.studentId,
+                  studentName: reviewExit.studentName,
+                  projectTitle: active.title,
+                },
+              })}
           onGuard={() => {}}
           onClose={() => setReviewExit(null)}
-          onSaved={finishReview}
+          onSaved={reviewExit.mode === "leave" ? finishReview : () => setReviewExit(null)}
         />
       )}
       {departure && (

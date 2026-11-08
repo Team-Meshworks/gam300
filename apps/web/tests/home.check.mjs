@@ -255,13 +255,8 @@ try {
     await touchPage.close();
 
     await page.goto(origin + "/review");
-    const reviews = page
-      .getByRole("navigation", { name: "Workspace" })
-      .getByRole("link", { name: "Submissions and reviews", exact: true });
-    assert.equal(await reviews.getAttribute("aria-current"), "page");
-    await reviews.hover();
-    const reviewed = await textContrast(reviews);
-    assert.ok(reviewed >= 4.5, `Selected reviews hover contrast is ${reviewed.toFixed(2)}:1`);
+    await page.waitForURL("**/home");
+    assert.equal(await page.getByRole("link", { name: "Submissions and reviews" }).count(), 0);
 
     for (const width of [1440, 1024, 768, 390]) {
       await page.setViewportSize({ width, height: 1000 });

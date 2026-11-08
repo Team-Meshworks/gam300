@@ -259,8 +259,8 @@ export function StudentProjects({
             >
               {tab === "published" ? (
                 <p role="status">
-                  Published projects cannot be listed yet. Open publishing from a project to see its
-                  current sharing options.
+                  Published projects cannot be listed here yet. Open a project’s details to see its
+                  sharing link when available.
                 </p>
               ) : (
                 <>

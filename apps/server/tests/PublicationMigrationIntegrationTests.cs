@@ -38,7 +38,7 @@ public sealed class PublicationMigrationIntegrationTests
             previous = migration;
         }
         await Assert.That((await database.Database.GetAppliedMigrationsAsync()).Contains(publicationMigration)).IsFalse();
-        var data = await ReviewPersistenceTests.SeedAsync(fixture);
+        var data = await ReviewPersistenceTests.SeedAsync(fixture, legacyAssignmentSchema: true);
         var submission = ReviewPersistenceTests.Submission(data);
         database.ReviewSubmissions.Add(submission);
         database.ReviewDecisions.Add(ReviewPersistenceTests.Decision(data));

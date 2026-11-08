@@ -9,7 +9,7 @@ const student = "9ea0882b-9365-4b9c-b8b8-e5ee113ad07e";
 const classId = "aea0882b-9365-4b9c-b8b8-e5ee113ad07e";
 const session = {
   userId: actor,
-  role: "Creator",
+  role: "Educator",
   displayName: "Teacher",
   orgId: classId,
   mustChangePassword: false,
