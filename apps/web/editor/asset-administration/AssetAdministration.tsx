@@ -311,7 +311,7 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
         `${confirmed.name}: ${
           confirmed.deleted
             ? confirmed.removedFromProjects
-              ? "removed from all projects and exhibitions"
+              ? "removed from projects; affected published exhibitions are permanently unavailable"
               : "deleted from library"
             : confirmed.status === "approved"
               ? confirmed.hidden
@@ -785,7 +785,7 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
               {selected?.deleted && (
                 <p className="asset-admin-retired-status">
                   {selected.removedFromProjects
-                    ? "Removed from all projects and exhibitions."
+                    ? "Removed from projects. Affected published exhibitions are permanently unavailable."
                     : "Deleted from library; still kept in existing projects and exhibitions."}
                 </p>
               )}
@@ -815,7 +815,7 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
               <p role="alert">
                 <strong>{selected?.name}</strong>
                 {selected?.deleted
-                  ? " will be removed from every project and exhibition that uses it."
+                  ? " will be removed from every project that uses it."
                   : " will move to Deleted and disappear from the student library."}
               </p>
               {!selected?.deleted && (
@@ -825,7 +825,8 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
               )}
               {selected?.deleted && (
                 <p className="asset-admin-confirmation-warning" role="alert">
-                  This cannot be undone.
+                  All published exhibitions using this asset will become permanently unavailable.
+                  Their links and QR codes will stop working. This cannot be undone.
                 </p>
               )}
             </div>

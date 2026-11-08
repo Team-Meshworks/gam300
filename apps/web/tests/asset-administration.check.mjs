@@ -380,6 +380,12 @@ try {
     .locator(".asset-admin-confirmation-content > p")
     .first()
     .boundingBox();
+  await dialog
+    .getByText(
+      "All published exhibitions using this asset will become permanently unavailable. Their links and QR codes will stop working. This cannot be undone.",
+      { exact: true },
+    )
+    .waitFor();
   const warning = await dialog.locator(".asset-admin-confirmation-warning").boundingBox();
   const actions = await dialog.locator(".asset-admin-actions").boundingBox();
   assert.ok(Math.abs(warning.y - (explanation.y + explanation.height) - 16) < 1);
@@ -706,14 +712,24 @@ try {
     .getByRole("button")
     .click();
   await dialog.getByRole("button", { name: "Delete Permanently", exact: true }).click();
-  await dialog.getByText("This cannot be undone.", { exact: true }).waitFor();
+  await dialog
+    .getByText(
+      "All published exhibitions using this asset will become permanently unavailable. Their links and QR codes will stop working. This cannot be undone.",
+      { exact: true },
+    )
+    .waitFor();
   await dialog.getByRole("button", { name: "Delete Permanently", exact: true }).click();
   await page
     .locator(".asset-admin-card")
     .filter({ has: page.getByRole("heading", { name: removedName, exact: true }) })
     .getByRole("button")
     .click();
-  await dialog.getByText("Removed from all projects and exhibitions.", { exact: true }).waitFor();
+  await dialog
+    .getByText(
+      "Removed from projects. Affected published exhibitions are permanently unavailable.",
+      { exact: true },
+    )
+    .waitFor();
   assert.equal(
     await dialog.getByRole("button", { name: "Delete Permanently", exact: true }).count(),
     0,
