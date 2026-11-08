@@ -247,10 +247,7 @@ try {
   );
   await student.getByRole("button", { name: "Rename scene", exact: true }).click();
   assert.equal((await savedResponse).status(), 200);
-  await student
-    .locator('.server-session [role="status"]')
-    .filter({ hasText: "Saved to server" })
-    .waitFor();
+  await student.locator('.save-state[data-state="saved"]').waitFor();
   const outsiderContext = await browser.newContext({ ignoreHTTPSErrors: true });
   await login(outsiderContext, process.env.SPATIA_TEST_OUTSIDER);
   assert.equal(

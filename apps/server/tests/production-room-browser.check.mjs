@@ -126,10 +126,7 @@ try {
   let saved = waitForSave(page);
   await page.locator(".viewport-stage").click({ position: { x: 600, y: 350 } });
   assert.equal((await saved).status(), 200);
-  await page
-    .locator('.server-session [role="status"]')
-    .filter({ hasText: "Saved to server" })
-    .waitFor();
+  await page.locator('.save-state[data-state="saved"]').waitFor();
   let project = await readProject(page);
   assert.equal(
     project.document.scenes[0].environmentAssetId.toLowerCase(),
@@ -151,10 +148,7 @@ try {
   saved = waitForSave(page);
   await position.press("Enter");
   assert.equal((await saved).status(), 200);
-  await page
-    .locator('.server-session [role="status"]')
-    .filter({ hasText: "Saved to server" })
-    .waitFor();
+  await page.locator('.save-state[data-state="saved"]').waitFor();
   project = await readProject(page);
   room = project.document.scenes[0].objects.find((object) => object.id === roomId);
   assert.ok(room);
@@ -166,10 +160,7 @@ try {
   saved = waitForSave(page);
   await rotation.press("Enter");
   assert.equal((await saved).status(), 200);
-  await page
-    .locator('.server-session [role="status"]')
-    .filter({ hasText: "Saved to server" })
-    .waitFor();
+  await page.locator('.save-state[data-state="saved"]').waitFor();
   project = await readProject(page);
   room = project.document.scenes[0].objects.find((object) => object.id === roomId);
   assert.ok(room);

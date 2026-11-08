@@ -95,34 +95,41 @@ export async function checkServerEditor(
   };
   try {
     const page = await open(accounts[0], true);
-    await page.getByLabel("Scene name", { exact: true }).fill("SCRUM-67 actual editor save");
-    await page.getByRole("button", { name: "Rename scene", exact: true }).click();
-    await page.waitForFunction(
-      () =>
-        document.querySelector('.server-session [role="status"]')?.textContent ===
-        "Saved to server",
-    );
+    await page
+      .getByLabel("Scene name", { exact: true })
+      .fill("SCRUM-67 actual editor save");
+    await page
+      .getByRole("button", { name: "Rename scene", exact: true })
+      .click();
+    await page.locator('.save-state[data-state="saved"]').waitFor();
     const fresh = await open(accounts[0]);
     assert.equal(
       await fresh.getByLabel("Scene name", { exact: true }).inputValue(),
       "SCRUM-67 actual editor save",
     );
     // The second authenticated editor creates a real revision conflict in the first.
-    await fresh.getByLabel("Scene name", { exact: true }).fill("Another editor's saved revision");
-    await fresh.getByRole("button", { name: "Rename scene", exact: true }).click();
-    await fresh.waitForFunction(
-      () =>
-        document.querySelector('.server-session [role="status"]')?.textContent ===
-        "Saved to server",
-    );
-    await page.getByLabel("Scene name", { exact: true }).fill("Keep these conflicting edits");
-    await page.getByRole("button", { name: "Rename scene", exact: true }).click();
+    await fresh
+      .getByLabel("Scene name", { exact: true })
+      .fill("Another editor's saved revision");
+    await fresh
+      .getByRole("button", { name: "Rename scene", exact: true })
+      .click();
+    await fresh.locator('.save-state[data-state="saved"]').waitFor();
     await page
-      .locator('.server-session [role="status"]')
+      .getByLabel("Scene name", { exact: true })
+      .fill("Keep these conflicting edits");
+    await page
+      .getByRole("button", { name: "Rename scene", exact: true })
+      .click();
+    await page
+      .getByRole("alert")
       .filter({ hasText: "Another revision" })
       .waitFor();
-    await page.getByRole("button", { name: "Log Out", exact: true }).click();
-    await page.getByRole("button", { name: "Exit", exact: true }).click();
+    await page.getByLabel("Project options", { exact: true }).click();
+    await page.getByRole("button", { name: "Log out", exact: true }).click();
+    await page
+      .getByRole("button", { name: "Exit", exact: true })
+      .click();
     await page.getByRole("dialog").getByRole("alert").waitFor();
     await page.getByRole("button", { name: "Cancel", exact: true }).click();
     assert.equal(

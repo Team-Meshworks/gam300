@@ -42,10 +42,7 @@ type Active = {
   controller: AbortController;
   title: string;
 };
-const labels: Record<ServerSaveStatus, string> = {
-  saved: "Saved to server",
-  unsaved: "Unsaved changes",
-  saving: "Saving to server...",
+const saveErrors: Partial<Record<ServerSaveStatus, string>> = {
   failed: "Save failed. Your edits are still here. Retry or export a copy.",
   conflict:
     "Another revision was saved. Export your edits or open the server version; nothing will be overwritten automatically.",
@@ -588,6 +585,7 @@ function ServerProjectSession({
   }
 
   if (signedOut) return <LoginRedirect />;
+  const saveError = active && saveErrors[status];
   return (
     <div className="server-editor-shell">
       {active ? (
@@ -604,6 +602,8 @@ function ServerProjectSession({
             save,
             leave: () => setDeparture("home"),
             importFile,
+            openServerVersion: () => setDeparture("reload"),
+            logout: () => setDeparture("logout"),
             ...(!parseProgressContext(new URLSearchParams(location.search), projectId)
               ? { publish: () => setDeparture("publish") }
               : {}),
@@ -620,25 +620,6 @@ function ServerProjectSession({
             </>
           )}
         </main>
-      )}
-      {active && (
-        <aside className="server-session" aria-label="Server project">
-          <span role="status">{labels[status]}</span>
-          {status === "failed" && (
-            <button disabled={busy} onClick={() => void save()}>
-              Retry Save
-            </button>
-          )}
-          <button disabled={busy} onClick={() => void save(true)}>
-            Export a Copy
-          </button>
-          <button disabled={busy} onClick={() => setDeparture("reload")}>
-            Open Server Version
-          </button>
-          <button disabled={busy} onClick={() => setDeparture("logout")}>
-            Log Out
-          </button>
-        </aside>
       )}
       {candidate && (
         <ChoiceDialog
@@ -723,9 +704,11 @@ function ServerProjectSession({
           {error && <p role="alert">{error}</p>}
         </ChoiceDialog>
       )}
-      {error && !candidate && !departure && (
+      {(error || saveError) && !candidate && !departure && (
         <p className="server-session-error" role="alert">
           {error}
+          {error && saveError && " "}
+          {saveError}
         </p>
       )}
     </div>

@@ -54,8 +54,11 @@ export type ServerEditorSession = {
   failed: boolean;
   saving: boolean;
   departing: boolean;
+  busy: boolean;
   save: (exportFile?: boolean) => Promise<boolean>;
   leave: () => void;
+  openServerVersion: () => void;
+  logout: () => void;
   publish?: () => void;
   importFile: (file: File) => Promise<void>;
 };

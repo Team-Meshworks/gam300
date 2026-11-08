@@ -77,7 +77,11 @@ const page = await context.newPage();
 page.on("pageerror", (error) => errors.push(error.message));
 page.on("dialog", (dialog) => dialog.accept());
 const url = `${base}/?projectId=${fixture.projectId}`;
-const status = page.locator('.server-session [role="status"]');
+const status = page.locator(".save-state");
+async function projectOption(name) {
+  await page.getByLabel("Project options", { exact: true }).click();
+  await page.getByRole("button", { name, exact: true }).click();
+}
 async function ready() {
   await page.getByRole("button", { name: "Scenes", exact: true }).click();
   await page.getByLabel("Scene name", { exact: true }).waitFor();
@@ -88,8 +92,7 @@ async function edit(name) {
 }
 async function saved() {
   await page.waitForFunction(
-    () =>
-      document.querySelector('.server-session [role="status"]')?.textContent === "Saved to server",
+    () => document.querySelector(".save-state")?.dataset.state === "saved",
   );
 }
 
@@ -351,8 +354,7 @@ async function importScenario() {
     const editor = await isolated.newPage();
     await editor.goto(url);
     await editor
-      .locator('.server-session [role="status"]')
-      .filter({ hasText: "Saved to server" })
+      .locator('.save-state[data-state="saved"]')
       .waitFor();
     await editor.getByLabel("Project options", { exact: true }).click();
     assert.equal(
@@ -414,6 +416,7 @@ try {
   await page.getByRole("button", { name: "Retry opening" }).click();
   await saved();
   await importScenario();
+  assert.equal(await page.getByRole("complementary", { name: "Server project" }).count(), 0);
   await page.getByRole("button", { name: "Leave editor" }).focus();
   await page.keyboard.press("Enter");
   const departureSave = page.getByRole("button", { name: "Exit" });
@@ -437,7 +440,8 @@ try {
   // Publishing goes through the same preservation choices as leaving the editor.
   mode = "failed";
   await edit("Draft before publishing");
-  await status.filter({ hasText: "Save failed" }).waitFor();
+  await page.locator('.save-state[data-state="failed"]').waitFor();
+  await page.getByRole("alert").filter({ hasText: "Save failed" }).waitFor();
   await page.getByRole("button", { name: "Publish", exact: true }).click();
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   assert.equal(
@@ -466,8 +470,8 @@ try {
   await freshContext.close();
   mode = "failed";
   await edit("Offline edit");
-  await status.filter({ hasText: "Save failed" }).waitFor();
-  await page.getByRole("button", { name: "Log Out", exact: true }).click();
+  await page.locator('.save-state[data-state="failed"]').waitFor();
+  await projectOption("Log out");
   await page.getByRole("button", { name: "Exit", exact: true }).click();
   await page.getByRole("dialog").getByRole("alert").waitFor();
   assert.equal(account, alice);
@@ -475,13 +479,13 @@ try {
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   const failedMutation = writes.at(-1).clientMutationId;
   mode = "saved";
-  await page.getByRole("button", { name: "Retry Save", exact: true }).click();
+  await projectOption("Retry save");
   await saved();
   assert.equal(writes.at(-1).clientMutationId, failedMutation);
   assert.equal(document.scenes[0].name, "Offline edit");
   mode = "conflict";
   await edit("Conflicting local edit");
-  await status.filter({ hasText: "Another revision" }).waitFor();
+  await page.getByRole("alert").filter({ hasText: "Another revision" }).waitFor();
   const attempts = writes.length;
   // Native export cancellation must not permit logout.
   await page.evaluate(() => {
@@ -489,13 +493,13 @@ try {
       throw new DOMException("Cancelled", "AbortError");
     };
   });
-  await page.getByRole("button", { name: "Log Out", exact: true }).click();
+  await projectOption("Log out");
   await page.getByRole("button", { name: "Exit", exact: true }).click();
   await page.getByRole("button", { name: "Export and Exit", exact: true }).click();
   await page.getByRole("dialog").getByRole("alert").waitFor();
   assert.equal(account, alice);
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
-  await page.getByRole("button", { name: "Open Server Version", exact: true }).click();
+  await projectOption("Open server version");
   await chooseRecovery();
   await page.getByRole("dialog", { name: "A recovery copy is available" }).waitFor();
   assert.equal(writes.length, attempts);
@@ -505,8 +509,8 @@ try {
     await page.getByLabel("Scene name", { exact: true }).inputValue(),
     "Conflicting local edit",
   );
-  await status.filter({ hasText: "Another revision" }).waitFor();
-  await page.getByRole("button", { name: "Open Server Version", exact: true }).click();
+  await page.getByRole("alert").filter({ hasText: "Another revision" }).waitFor();
+  await projectOption("Open server version");
   await chooseRecovery();
   mode = "saved";
   await page
@@ -518,10 +522,10 @@ try {
   // An acknowledgement for an older edit must not mark newer work saved.
   mode = "delayed";
   await edit("First edit while saving");
-  await status.filter({ hasText: "Saving to server" }).waitFor();
+  await page.locator('.save-state[data-state="saving"]').waitFor();
   while (!releaseSave) await new Promise((resolve) => setTimeout(resolve, 10));
   await edit("Newer edit while saving");
-  assert.notEqual(await status.textContent(), "Saved to server");
+  assert.notEqual(await status.getAttribute("data-state"), "saved");
   mode = "saved";
   releaseSave();
   await saved();
@@ -530,7 +534,7 @@ try {
   // Expiry redirects only after preserving unsynced edits for the original account.
   mode = "failed";
   await edit("Draft retained after sign-out");
-  await status.filter({ hasText: "Save failed" }).waitFor();
+  await page.locator('.save-state[data-state="failed"]').waitFor();
   account = null;
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
   await page.waitForURL(
@@ -561,9 +565,9 @@ try {
   });
   const beforeStorageFailure = writes.length;
   await edit("Storage failure edit");
-  await status.filter({ hasText: "Save failed" }).waitFor();
+  await page.locator('.save-state[data-state="failed"]').waitFor();
   assert.equal(writes.length, beforeStorageFailure);
-  await page.getByRole("button", { name: "Log Out", exact: true }).click();
+  await projectOption("Log out");
   await chooseRecovery();
   await page.getByRole("dialog").getByRole("alert").waitFor();
   assert.equal(account, alice);
@@ -571,7 +575,7 @@ try {
   await page.evaluate(() => {
     window.failRecovery = false;
   });
-  await page.getByRole("button", { name: "Retry Save", exact: true }).click();
+  await projectOption("Retry save");
   await saved();
   assert.equal(document.scenes[0].name, "Storage failure edit");
 
@@ -580,7 +584,7 @@ try {
     window.failRecovery = true;
   });
   await edit("Only live draft after expiry");
-  await status.filter({ hasText: "Save failed" }).waitFor();
+  await page.locator('.save-state[data-state="failed"]').waitFor();
   account = null;
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
   await page.getByRole("alert").filter({ hasText: "recovery storage failed" }).waitFor();
@@ -617,13 +621,13 @@ try {
   });
   const [download] = await Promise.all([
     page.waitForEvent("download"),
-    page.getByRole("button", { name: "Export a Copy", exact: true }).click(),
+    projectOption("Export project file"),
   ]);
   assert.equal(
     JSON.parse(readFileSync(await download.path(), "utf8")).scenes[0].name,
     "Only live draft after expiry",
   );
-  await page.getByRole("button", { name: "Log Out", exact: true }).click();
+  await projectOption("Log out");
   await Promise.all([
     page.waitForEvent("download"),
     page.getByRole("button", { name: "Export and Exit", exact: true }).click(),
@@ -635,7 +639,7 @@ try {
   // Changing cookies must hide the old editor and keep recovery in its original account.
   mode = "failed";
   await edit("Alice private edit");
-  await status.filter({ hasText: "Save failed" }).waitFor();
+  await page.locator('.save-state[data-state="failed"]').waitFor();
   account = bob;
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
   await page.getByRole("alert").filter({ hasText: "account changed or expired" }).waitFor();
@@ -668,7 +672,7 @@ try {
     };
   });
   // Confirmed autosave permits logout while the final backup still holds the editor locked
-  await page.getByRole("button", { name: "Log Out", exact: true }).click();
+  await projectOption("Log out");
   await page.getByRole("button", { name: "Exit", exact: true }).click();
   await page.waitForFunction(() => typeof window.releaseDeparture === "function");
   await page.keyboard.press("Control+z");
