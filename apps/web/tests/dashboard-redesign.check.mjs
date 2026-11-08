@@ -52,6 +52,9 @@ try {
     });
     let publicationFailure = false;
     let emptyPublications = false;
+    let revoked = false;
+    let listReads = 0;
+    const requests = [];
     let holdPublication = false;
     let releasePublication;
     const publicationGate = new Promise((resolve) => {
@@ -73,7 +76,8 @@ try {
     await page.route("**/api/v1/**", async (route) => {
       const request = route.request();
       const path = new URL(request.url()).pathname;
-      if (path === "/api/v1/auth/session")
+      if (path === "/api/v1/auth/session") {
+        requests.push("session");
         return route.fulfill({
           json: {
             userId,
@@ -83,8 +87,13 @@ try {
             mustChangePassword: false,
           },
         });
-      if (path === "/api/v1/projects")
-        return route.fulfill({ json: { items: projects, nextCursor: null } });
+      }
+      if (path === "/api/v1/projects") {
+        listReads++;
+        return route.fulfill({
+          json: { items: revoked ? projects.slice(1) : projects, nextCursor: null },
+        });
+      }
       if (path === "/api/v1/classes")
         return route.fulfill({
           json: { items: [{ id: classId, name: "History" }], nextCursor: null },
@@ -93,26 +102,46 @@ try {
         return route.fulfill({ json: { items: assignments, nextCursor: null } });
       if (path.endsWith("/submissions") || path.endsWith("/progress-reviews"))
         return route.fulfill({ json: { items: [], nextCursor: null } });
-      if (path.endsWith("/publication-links")) {
-        publicationRequests.push({ path, account: request.headers()["x-spatia-account"] });
+      if (path === "/api/v1/projects/publication-links") {
+        requests.push("publication");
+        publicationRequests.push({
+          path,
+          account: request.headers()["x-spatia-account"],
+          limit: new URL(request.url()).searchParams.get("limit"),
+        });
         if (holdPublication) await publicationGate;
         if (publicationFailure) return route.fulfill({ status: 503 });
         return route.fulfill({
           json: {
-            items:
-              path.includes(ids[0]) && !emptyPublications
-                ? [
-                    {
-                      publicationId,
-                      sourceRevision: 1,
-                      createdAt: "2026-10-30T01:00:00Z",
-                      visitorUrl: `https://spatia.example/p/${publicationId}`,
-                    },
-                  ]
-                : [],
+            items: !emptyPublications
+              ? [
+                  {
+                    projectId: revoked ? ids[1] : ids[0],
+                    publicationId,
+                    sourceRevision: 1,
+                    createdAt: "2026-10-30T01:00:00Z",
+                    visitorUrl: `https://spatia.example/p/${publicationId}`,
+                    requiresSignIn: false,
+                  },
+                ]
+              : [],
+            nextCursor: null,
           },
         });
       }
+      if (path === `/api/v1/projects/${ids[0]}/publication-links`)
+        return route.fulfill({
+          json: {
+            items: [
+              {
+                publicationId,
+                sourceRevision: 1,
+                createdAt: "2026-10-30T01:00:00Z",
+                visitorUrl: `https://spatia.example/p/${publicationId}`,
+              },
+            ],
+          },
+        });
       return route.fulfill({ status: 404 });
     });
     async function capture(name) {
@@ -241,9 +270,13 @@ try {
         await page.getByRole("button", { name: "Copy", exact: true }).click();
         await page.getByText("Select the link and copy it.").waitFor();
         assert.equal(await linkField.evaluate((node) => node === document.activeElement), true);
+        assert.ok(publicationRequests.length > 0);
         assert.ok(
-          publicationRequests.some(
-            (request) => request.path.includes(ids[0]) && request.account === userId,
+          publicationRequests.every(
+            (request) =>
+              request.path === "/api/v1/projects/publication-links" &&
+              request.limit === "20" &&
+              request.account === userId,
           ),
         );
         const preview = page.getByRole("link", { name: /preview/i });
@@ -260,13 +293,32 @@ try {
         await page.getByRole("button", { name: "Close project details" }).click();
         publicationFailure = true;
         await page.reload();
+        await page.getByText(titles[0], { exact: true }).waitFor();
+        await page.getByText(titles[1], { exact: true }).waitFor();
+        revoked = true;
         await page.getByRole("tab", { name: "Published", exact: true }).click();
         await page.getByRole("alert").waitFor();
+        const listsBeforeRetry = listReads;
         publicationFailure = false;
-        emptyPublications = true;
         await page.getByRole("button", { name: /retry/i }).click();
+        await page.getByText(titles[1], { exact: true }).waitFor();
+        assert.ok(listReads > listsBeforeRetry, "Retry refreshes project access");
+        assert.equal(await page.getByText(titles[0], { exact: true }).count(), 0);
+        assert.equal(
+          requests.at(-1),
+          "session",
+          "The session is checked after publication metadata",
+        );
+        emptyPublications = true;
+        await page.getByRole("tab", { name: "Projects", exact: true }).click();
+        await page.getByRole("tab", { name: "Published", exact: true }).click();
         await page.getByText(/no published projects/i).waitFor();
         assert.equal(await page.getByText(titles[0], { exact: true }).count(), 0);
+        assert.ok(
+          publicationRequests.every(
+            (request) => request.limit === "20" && request.account === userId,
+          ),
+        );
       }
       for (const width of [1440, 390]) {
         await page.setViewportSize({ width, height: 900 });

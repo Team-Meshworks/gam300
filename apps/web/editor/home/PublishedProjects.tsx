@@ -9,22 +9,19 @@ import type { StudentProjectRow } from "./student-projects";
 export function PublishedProjects({
   rows,
   session,
+  onRetry,
 }: {
   rows: StudentProjectRow[];
   session: AccountSession;
+  onRetry: () => void;
 }) {
   const [response, setResponse] = useState<{
     rows: StudentProjectRow[];
     links: Map<string, StudentPublication> | "error";
   } | null>(null);
-  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     const controller = new AbortController();
-    void readDashboardPublications(
-      rows.map((row) => row.project.projectId),
-      session.userId,
-      controller.signal,
-    ).then(
+    void readDashboardPublications(session.userId, controller.signal).then(
       (links) => {
         if (!controller.signal.aborted) setResponse({ rows, links });
       },
@@ -33,24 +30,17 @@ export function PublishedProjects({
       },
     );
     return () => controller.abort();
-  }, [attempt, rows, session.userId]);
+  }, [rows, session.userId]);
   const result = response?.rows === rows ? response.links : null;
   if (!result) return <DashboardSkeleton view="published" />;
   if (result === "error")
     return (
       <div className="sp-dashboard-state" role="alert">
         <p>Published projects could not be loaded. Try again.</p>
-        <Button
-          onClick={() => {
-            setResponse(null);
-            setAttempt((n) => n + 1);
-          }}
-        >
-          Retry
-        </Button>
+        <Button onClick={onRetry}>Retry</Button>
       </div>
     );
-  if (result.size === 0)
+  if (!rows.some((row) => result.has(row.project.projectId)))
     return (
       <p className="sp-dashboard-state" role="status">
         No published projects are available yet.

@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Spatia.Server.Assets;
 using Spatia.Server.Persistence;
 using Spatia.Server.Projects;
+using Spatia.Server.Publications;
 
 namespace Spatia.Server.Tests;
 
@@ -15,19 +16,53 @@ namespace Spatia.Server.Tests;
 public sealed class PublicationEndpointTests
 {
     [Test]
-    public async Task DashboardLinks_RequireEditionAudienceAsWellAsProjectAccess()
+    public async Task DashboardLinks_PageVisibleProjectsAndRecheckAudienceAndGrants()
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync();
         var (data, _) = await PrepareAsync(fixture);
         var publicationId = Guid.NewGuid();
         using var published = await PublishAsync(fixture, data.ProjectId, publicationId, viewers: [data.Student]);
         await Assert.That(published.StatusCode).IsEqualTo(HttpStatusCode.Created);
-        await fixture.SignInAsync(data.Student);
-        var path = $"/api/v1/projects/{data.ProjectId}/publication-links?view=dashboard";
-        var allowed = await fixture.Client.GetFromJsonAsync<JsonElement>(path);
-        await Assert.That(allowed.GetProperty("items")[0].GetProperty("publicationId").GetGuid()).IsEqualTo(publicationId);
+        using var privateEdition = await PublishAsync(fixture, data.ProjectId, Guid.NewGuid());
+        await Assert.That(privateEdition.StatusCode).IsEqualTo(HttpStatusCode.Created);
+        const string path = "/api/v1/projects/publication-links?limit=1";
+        using var educator = await fixture.Client.GetAsync(path);
+        await Assert.That(educator.StatusCode).IsEqualTo(HttpStatusCode.Forbidden);
         await using var scope = fixture.Database.Services.CreateAsyncScope();
         var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var source = await database.Projects.SingleAsync(row => row.Id != data.ProjectId);
+        var otherEdition = Guid.NewGuid();
+        database.Publications.Add(new Publication
+        {
+            Id = otherEdition,
+            ProjectId = source.Id,
+            PublishedById = data.Educator,
+            SourceRevision = source.Revision,
+            SchemaVersion = source.SchemaVersion,
+            DocumentJson = source.DocumentJson,
+            AssetReferencesJson = "[]",
+            RequestDigest = new byte[32]
+        });
+        database.PublicationAccess.Add(new PublicationAccessState { PublicationId = otherEdition, Audience = (int)PublicationAudience.Public });
+        var grant = new ProjectAssignment { ProjectId = source.Id, UserId = data.Student, CanEdit = true };
+        database.ProjectAssignments.Add(grant);
+        await database.SaveChangesAsync();
+        await fixture.SignInAsync(data.Student);
+        var first = await fixture.Client.GetFromJsonAsync<JsonElement>(path);
+        var cursor = first.GetProperty("nextCursor").GetGuid();
+        var second = await fixture.Client.GetFromJsonAsync<JsonElement>($"{path}&cursor={cursor:D}");
+        var ids = new[] { first, second }.Select(page => page.GetProperty("items").EnumerateArray().Single())
+            .ToDictionary(item => item.GetProperty("projectId").GetGuid(), item => item.GetProperty("publicationId").GetGuid());
+        await Assert.That(ids[data.ProjectId]).IsEqualTo(publicationId);
+        await Assert.That(ids[source.Id]).IsEqualTo(otherEdition);
+        await Assert.That(second.GetProperty("nextCursor").ValueKind).IsEqualTo(JsonValueKind.Null);
+        var legacy = await fixture.Client.GetFromJsonAsync<JsonElement>($"/api/v1/projects/{data.ProjectId}/publication-links?view=dashboard");
+        await Assert.That(legacy.GetProperty("items").EnumerateArray().Single().GetProperty("publicationId").GetGuid()).IsEqualTo(publicationId);
+        database.ProjectAssignments.Remove(grant);
+        await database.SaveChangesAsync();
+        var retry = await fixture.Client.GetFromJsonAsync<JsonElement>(path);
+        await Assert.That(retry.GetProperty("items").EnumerateArray().Single().GetProperty("publicationId").GetGuid()).IsEqualTo(publicationId);
+        await Assert.That(retry.GetProperty("nextCursor").ValueKind).IsEqualTo(JsonValueKind.Null);
         var access = await database.PublicationAccess.SingleAsync(row => row.PublicationId == publicationId);
         access.ViewerIds = [];
         await database.SaveChangesAsync();

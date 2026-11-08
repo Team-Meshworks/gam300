@@ -234,6 +234,11 @@ export function StudentProjects({
       disposed = true;
     };
   }, [selected, session.userId]);
+  function retryProjects() {
+    setError("");
+    setRows(null);
+    setVersion((n) => n + 1);
+  }
   if (selected)
     return renderWorkspace(
       <StudentProjectDetails
@@ -271,19 +276,12 @@ export function StudentProjects({
         {error ? (
           <div role="alert" className="sp-dashboard-state">
             <p>{error}</p>
-            <Button
-              onClick={() => {
-                setError("");
-                setVersion((n) => n + 1);
-              }}
-            >
-              Retry
-            </Button>
+            <Button onClick={retryProjects}>Retry</Button>
           </div>
         ) : !rows ? (
           <DashboardSkeleton view={published ? "published" : "creator"} />
         ) : published ? (
-          active && <PublishedProjects rows={rows} session={session} />
+          active && <PublishedProjects rows={rows} session={session} onRetry={retryProjects} />
         ) : !rows.length ? (
           <p className="sp-dashboard-state" role="status">
             No projects are available yet.

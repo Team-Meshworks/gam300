@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
+using System.Data;
 using System.Text.Json;
 using Spatia.Server.Accounts;
+using Spatia.Server.Classes;
 using Spatia.Server.Hosting;
 using Spatia.Server.Persistence;
 using Spatia.Server.Projects;
@@ -13,45 +15,13 @@ internal static class PublicationDeliveryEndpoints
 {
     internal static void MapPublicationDelivery(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapGet("/projects/{projectId:guid}/publication-links", async (Guid projectId,
+        endpoints.MapGet("/projects/{projectId:guid}/publication-links", (Guid projectId,
             HttpContext context, ApplicationDbContext database, ProjectAccessService access,
-            IConfiguration configuration, CancellationToken token) =>
-        {
-            var authorized = await access.ReadAsync(context, projectId, token);
-            if (authorized.Failure is { } failure) { return ProjectHttpResults.FromAccessFailure(context, failure); }
-            if (!PublicationWriteEndpoints.TryOrigin(configuration, out var origin))
-            { return ApiProblems.Create(context, 503, "publication_unavailable", "Publication is not configured."); }
-            var project = authorized.Snapshot!;
-            var viewer = context.Request.Query["view"] == "dashboard" ? await access.ResolveCurrentAccountAsync(context, token) : null;
-            var creator = viewer is { Role: ApplicationRoles.Creator, MustChangePassword: false }
-                && viewer.UserId == project.ActorId && viewer.OrganizationId == project.OrganizationId;
-            var available = from edition in database.Publications.AsNoTracking()
-                            join state in database.PublicationAccess.AsNoTracking() on edition.Id equals state.PublicationId
-                            where edition.ProjectId == projectId && !state.Hidden && !state.Revoked && !state.Deleted
-                            let permittedViewer = state.ViewerIds.Contains(project.ActorId)
-                                || (edition.PublishedById == project.ActorId && project.CanEdit && project.CanPublish)
-                            where state.Audience == (int)PublicationAudience.Unlisted
-                                || (creator && state.Audience == (int)PublicationAudience.Public)
-                                || (creator && state.Audience == (int)PublicationAudience.Authenticated && permittedViewer)
-                            orderby edition.CreatedAt descending, edition.Id descending
-                            select new { edition.Id, edition.SourceRevision, edition.CreatedAt, state.Audience };
-            var rows = project.IsArchived ? [] : await available.Take(1).ToArrayAsync(token);
-            var rechecked = await access.ReadAsync(context, projectId, token);
-            if (rechecked.Failure is { } changed) { return ProjectHttpResults.FromAccessFailure(context, changed); }
-            if (rechecked.Snapshot!.IsArchived) { rows = []; }
-            context.Response.Headers.CacheControl = "private, no-store";
-            return Results.Ok(new
-            {
-                items = rows.Select(row => new
-                {
-                    publicationId = row.Id,
-                    row.SourceRevision,
-                    row.CreatedAt,
-                    requiresSignIn = row.Audience == (int)PublicationAudience.Authenticated,
-                    visitorUrl = new Uri(origin!, $"p/{row.Id:D}").AbsoluteUri
-                })
-            });
-        }).RequireAuthorization(SecurityPolicies.FullAccount);
+            IConfiguration configuration, CancellationToken token) => ReadLinksAsync(projectId, context, database, access, configuration, token))
+            .RequireAuthorization(SecurityPolicies.FullAccount);
+        endpoints.MapGet("/projects/publication-links", (HttpContext context, ApplicationDbContext database, ProjectAccessService access,
+            IConfiguration configuration, CancellationToken token) => ReadLinksAsync(null, context, database, access, configuration, token))
+            .RequireAuthorization(SecurityPolicies.FullAccount);
 
         endpoints.MapGet("/publications/{publicationId}/manifest", async (string publicationId,
             HttpContext context, ApplicationDbContext database, CancellationToken token) =>
@@ -212,6 +182,66 @@ internal static class PublicationDeliveryEndpoints
             return Results.NoContent();
         }).RequireAuthorization(SecurityPolicies.FullAccount).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit)
             .WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(16 * 1024));
+    }
+
+    private static async Task<IResult> ReadLinksAsync(Guid? projectId, HttpContext context, ApplicationDbContext database,
+        ProjectAccessService access, IConfiguration configuration, CancellationToken token)
+    {
+        var limit = 1;
+        Guid? cursor = null;
+        if (projectId is null && !ClassroomEndpoints.TryPage(context, out limit, out cursor))
+        { return ApiProblems.Create(context, 400, "invalid_query", "Check the page size and cursor"); }
+
+        await using var transaction = await database.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, token);
+        var account = await access.ResolveCurrentAccountAsync(context, token);
+        if (account is null) { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired); }
+        if (account.MustChangePassword) { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.PasswordChangeRequired); }
+        if (projectId is null && account.Role != ApplicationRoles.Creator)
+        { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.OperationForbidden); }
+        var projects = access.VisibleProjects(account);
+        if (projectId is { } id)
+        {
+            projects = projects.Where(project => project.Id == id);
+            if (!await projects.AnyAsync(token)) { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.NotFound); }
+        }
+        if (!PublicationWriteEndpoints.TryOrigin(configuration, out var origin))
+        { return ApiProblems.Create(context, 503, "publication_unavailable", "Publication is not configured."); }
+        if (cursor is { } after) { projects = projects.Where(project => project.Id.CompareTo(after) > 0); }
+        var dashboard = account.Role == ApplicationRoles.Creator && (projectId is null || context.Request.Query["view"] == "dashboard");
+        var editions = from edition in database.Publications
+                       join state in database.PublicationAccess on edition.Id equals state.PublicationId
+                       where !state.Hidden && !state.Revoked && !state.Deleted
+                       where state.Audience == (int)PublicationAudience.Unlisted
+                           || (dashboard && state.Audience == (int)PublicationAudience.Public)
+                           || (dashboard && state.Audience == (int)PublicationAudience.Authenticated
+                               && (state.ViewerIds.Contains(account.UserId) || (edition.PublishedById == account.UserId
+                                   && database.ProjectAssignments.Any(grant => grant.ProjectId == edition.ProjectId
+                                       && grant.UserId == account.UserId && grant.CanPublish))))
+                       select new { edition.ProjectId, edition.Id, edition.SourceRevision, edition.CreatedAt, state.Audience };
+        var latestLinks = from project in projects
+                          where !project.IsArchived
+                          from link in editions.Where(row => row.ProjectId == project.Id)
+                              .OrderByDescending(row => row.CreatedAt).ThenByDescending(row => row.Id).Take(1)
+                          orderby project.Id
+                          select link;
+        var rows = await latestLinks.Take(limit + 1).ToArrayAsync(token);
+        var items = rows.Take(limit).Select(row => new
+        {
+            row.ProjectId,
+            publicationId = row.Id,
+            row.SourceRevision,
+            row.CreatedAt,
+            requiresSignIn = row.Audience == (int)PublicationAudience.Authenticated,
+            visitorUrl = new Uri(origin!, $"p/{row.Id:D}").AbsoluteUri
+        });
+        await transaction.CommitAsync(token);
+        if (HasExpired(context)) { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired); }
+        context.Response.Headers.CacheControl = "private, no-store";
+        return projectId.HasValue ? Results.Ok(new { items }) : Results.Ok(new
+        {
+            items,
+            nextCursor = rows.Length > limit ? rows[limit - 1].ProjectId : (Guid?)null
+        });
     }
 
     private static bool HasExpired(HttpContext context) =>
