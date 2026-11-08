@@ -119,7 +119,7 @@ healthy() {
   if $server; then
     # Pass the optional outer Basic gate without signing into the application.
     public_curl --fail --silent --show-error --max-time 15 --output /dev/null "$url/login" || return 1
-    public_curl --fail --silent --show-error --max-time 15 --output /dev/null "$url/api/v1/auth/csrf" || return 1
+    public_curl --fail --silent --show-error --retry 12 --retry-delay 1 --retry-connrefused --retry-max-time 60 --max-time 15 --output /dev/null "$url/api/v1/auth/csrf" || return 1
     # Basic authentication must not grant an application session.
     [[ "$(public_curl --silent --show-error --max-time 15 --output /dev/null --write-out '%{http_code}' "$url/api/v1/auth/session")" == 401 ]] || return 1
     # Check the local application stack; anonymous session requests must remain unauthorized
