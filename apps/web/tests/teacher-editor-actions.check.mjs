@@ -110,6 +110,18 @@ try {
         items: [{ userId: student, userName: "Student One", accountActive: true }],
         nextCursor: null,
       });
+    if (path.endsWith("/publication-readiness")) {
+      return reply({
+        projectId,
+        revision: 0,
+        state: "ApprovalRequired",
+        completionConfirmed: false,
+        approved: false,
+      });
+    }
+    if (path.endsWith("/publication-viewers")) {
+      return reply({ items: [], nextCursor: null });
+    }
     if (path.endsWith("/publications") && req.method() === "POST") {
       const body = req.postDataJSON();
       publications.push(body);
@@ -124,7 +136,8 @@ try {
         201,
       );
     }
-    if (path.endsWith("/submissions")) return reply({ items: [], nextCursor: null });
+    if (path.endsWith("/submissions"))
+      return reply({ projectId, classId, assignmentId, items: [], nextCursor: null });
     if (path === `/api/v1/projects/${projectId}`)
       return reply({
         projectId,
@@ -133,7 +146,7 @@ try {
         permissions: {
           canEdit: true,
           canManage: role === "Educator",
-          canPublish: role === "Educator",
+          canPublish: true,
         },
       });
     return reply({}, 404);
@@ -180,10 +193,15 @@ try {
     await page.getByRole("button", { name: "Review", exact: true }).click({ timeout: 3000 });
     await page.getByRole("dialog", { name: "Reviews" }).waitFor({ timeout: 3000 });
   });
-  await page
-    .getByRole("dialog", { name: "Reviews" })
-    .getByRole("button", { name: "Close dialog" })
-    .click();
+  await check("teacher can open approval without publishing", async () => {
+    await page
+      .getByRole("dialog", { name: "Reviews" })
+      .getByRole("button", { name: "Approve separately" })
+      .click();
+    await page.getByRole("heading", { name: "Submission review", exact: true }).waitFor();
+    await page.getByText("No submissions have been made for this project.").waitFor();
+    assert.equal(publications.length, 0);
+  });
   role = "Creator";
   await page.goto(url);
   await page.getByText("Scene ready", { exact: true }).waitFor();
@@ -193,14 +211,18 @@ try {
   });
   await page.goto(origin + "/?" + new URLSearchParams({ projectId }));
   await page.getByText("Scene ready", { exact: true }).waitFor();
-  await check("ordinary creator editor hides Publish", async () => {
-    assert.equal(await page.getByRole("button", { name: "Publish", exact: true }).count(), 0);
+  await check("ordinary creator editor exposes student publishing", async () => {
+    assert.equal(await page.getByRole("button", { name: "Publish", exact: true }).count(), 1);
     assert.equal(await page.getByRole("button", { name: "Review", exact: true }).count(), 0);
   });
   await page.goto(origin + "/publish?" + new URLSearchParams({ projectId }));
-  await check("creator direct publication route is denied", async () => {
-    await page.getByRole("heading", { name: "Access denied", exact: true }).waitFor();
-    assert.equal(await page.getByRole("button", { name: "Publish", exact: true }).count(), 0);
+  await check("creator direct publication route is available", async () => {
+    await page.getByRole("heading", { name: "Publish project", exact: true }).waitFor();
+    await page.getByRole("button", { name: "Publish", exact: true }).waitFor();
+    assert.equal(
+      await page.getByRole("button", { name: "Publish", exact: true }).isDisabled(),
+      true,
+    );
     assert.equal(publications.length, 0);
   });
   await page.goto(origin + "/review");
@@ -209,7 +231,7 @@ try {
     await page.getByLabel("Assignment", { exact: true }).selectOption(assignmentId);
     await page.getByLabel("Your assigned project", { exact: true }).selectOption(projectId);
     await page.getByRole("button", { name: "Submit for review", exact: true }).waitFor();
-    assert.equal(await page.getByRole("button", { name: /Publish project/i }).count(), 0);
+    assert.equal(await page.getByRole("button", { name: /Publish project/i }).isDisabled(), true);
   });
   role = "Educator";
   await page.goto(origin + "/review");

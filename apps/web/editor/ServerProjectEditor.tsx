@@ -651,8 +651,7 @@ function ServerProjectSession({
                   publish: () => void startReview("publish"),
                   review: () => void startReview("review"),
                 }
-              : active.role !== "Creator" &&
-                  !parseProgressContext(new URLSearchParams(location.search), projectId)
+              : !parseProgressContext(new URLSearchParams(location.search), projectId)
                 ? { publish: () => setDeparture("publish") }
                 : {}),
           }}
@@ -743,6 +742,7 @@ function ServerProjectSession({
           orgId={active.orgId}
           educator
           autoOpen
+          approvalLink
           {...(reviewExit.mode === "review"
             ? { startEditing: true }
             : {

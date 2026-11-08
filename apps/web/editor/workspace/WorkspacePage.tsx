@@ -15,12 +15,12 @@ import { createAssetAdministrationService } from "../asset-administration/asset-
 
 const client = createAccountClient();
 const screens = [
-  { id: "publish", title: "Publish project", roles: ["Administrator", "Educator"] },
+  { id: "publish", title: "Publish project", roles: ["Administrator", "Educator", "Creator"] },
   { id: "assets", title: "3D Assets", roles: ["Administrator"] },
   { id: "spaces", title: "3D Spaces", roles: ["Administrator"] },
   { id: "admin/dashboard", title: "Dashboard", roles: ["Administrator"] },
   { id: "classes", title: "Classes", roles: ["Administrator", "Educator"] },
-  { id: "review", title: "Submission review", roles: ["Creator"] },
+  { id: "review", title: "Submission review", roles: ["Creator", "Educator"] },
   { id: "organisations", title: "Organisations", roles: ["Administrator"] },
 ];
 type Access =
@@ -110,7 +110,12 @@ function OtherWorkspacePage() {
         <a href="/login">Log in</a>
       </main>
     );
-  if (session.role === "Educator" && location.pathname.replace(/\/$/, "") === "/review")
+  // Keep the existing editor handoff unless an educator is opening the approval screen
+  if (
+    session.role === "Educator" &&
+    location.pathname.replace(/\/$/, "") === "/review" &&
+    new URLSearchParams(location.search).get("approval") !== "1"
+  )
     return <EducatorReviewLink session={session} />;
   const screen = screens.find((item) => `/${item.id}` === location.pathname.replace(/\/$/, ""));
   const permitted = screens.filter((item) => item.roles.includes(session.role));

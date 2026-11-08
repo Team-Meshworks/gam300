@@ -510,7 +510,7 @@ export function ProjectReview({
               ) : null}
             </section>
           )}
-          {role === "Educator" && (
+          {(role === "Educator" || role === "Creator") && (
             <section className="sp-card sp-reviews" aria-label="Publication prerequisites">
               <h3>Publication</h3>
               <p>

@@ -80,6 +80,7 @@ export function ProgressReviews({
   decisionsLoading = false,
   decisionsError = "",
   publication,
+  approvalLink = false,
   onSaved,
 }: {
   projectId: string;
@@ -95,6 +96,7 @@ export function ProgressReviews({
   decisionsLoading?: boolean;
   decisionsError?: string;
   publication?: { studentId: string; studentName: string; projectTitle: string };
+  approvalLink?: boolean;
   onSaved?: () => void;
 }) {
   const [items, setItems] = useState<ProgressReview[]>([]);
@@ -710,6 +712,19 @@ export function ProgressReviews({
                 >
                   {publication ? "Save review" : "Save Changes"}
                 </Button>
+                {(publication || approvalLink) && !publishedUrl && (
+                  <Button
+                    disabled={phase !== "ready" || Boolean(pendingPublication)}
+                    onClick={() => {
+                      if (feedback.trim() && !window.confirm("Discard this unsaved review?"))
+                        return;
+                      const params = new URLSearchParams({ projectId, approval: "1" });
+                      location.assign(`/review?${params}`);
+                    }}
+                  >
+                    Approve separately
+                  </Button>
+                )}
                 {publication && !publishedUrl && (
                   <Button
                     variant="primary"
