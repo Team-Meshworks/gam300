@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -15,6 +16,116 @@ namespace Spatia.Server.Tests;
 [NotInParallel(nameof(AssetIntakeTests))]
 public sealed class AssetIntakeTests
 {
+    [Test]
+    public async Task IntakeAudio_ValidatesRealAudioAndRejectsInvalidContent()
+    {
+        var audio = await File.ReadAllBytesAsync(System.IO.Path.GetFullPath(
+            "../../../../../../assets/delivery/audio/calm-piano.m4a", AppContext.BaseDirectory));
+        // Validate every supplied track so intake accepts the same BGM files the library offers
+        var directory = Path.GetFullPath("../../../../../../assets/delivery/audio", AppContext.BaseDirectory);
+        foreach (var track in Directory.EnumerateFiles(directory, "*.m4a"))
+        {
+            await Assert.That(AssetAudioValidator.Validate(await File.ReadAllBytesAsync(track)).Valid)
+                .IsTrue().Because(Path.GetFileName(track));
+        }
+        await Assert.That(AssetAudioValidator.Validate(audio[..^20]).Valid).IsFalse();
+        await Assert.That(AssetAudioValidator.Validate(CreateMinimalGlb()).Valid).IsFalse();
+        await Assert.That(AssetIntakePolicy.Accepts("track.m4a", "audio", "BGM")).IsTrue();
+        await Assert.That(AssetIntakePolicy.Accepts("track.glb", "audio", "BGM")).IsFalse();
+        await Assert.That(AssetIntakePolicy.Accepts("track.m4a", "audio", "Unknown")).IsFalse();
+    }
+
+    [Test]
+    public async Task IntakeAudio_PreservesAuthorizedProjectReferences()
+    {
+        var audio = await File.ReadAllBytesAsync(System.IO.Path.GetFullPath(
+            "../../../../../../assets/delivery/audio/calm-piano.m4a", AppContext.BaseDirectory));
+
+        // Exercise the production catalogue and the existing administrator-only upload route
+        await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Production");
+        var admin = await fixture.CreateAccountAsync(ApplicationRoles.Administrator);
+        var creator = await fixture.CreateAccountAsync();
+        await fixture.SignInAsync(admin);
+        async Task<AssetAdministrationRecord> UploadAsync(string name, string kind, string? category, byte[] bytes)
+        {
+            var query = $"/api/v1/admin/assets?name={name}&kind={kind}" + (category is null ? "" : $"&category={category}");
+            using var upload = new HttpRequestMessage(HttpMethod.Post, query);
+            upload.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync());
+            upload.Content = new ByteArrayContent(bytes);
+            upload.Content.Headers.ContentType = new(kind == "audio" ? "audio/mp4" : "model/gltf-binary");
+            using var response = await fixture.Client.SendAsync(upload);
+            await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.Created);
+            return (await response.Content.ReadFromJsonAsync<AssetAdministrationRecord>())!;
+        }
+        var invalid = await UploadAsync("invalid.m4a", "audio", "BGM", audio[..^20]);
+        await Assert.That(invalid.Status).IsEqualTo("invalid");
+        var environment = await UploadAsync("room.glb", "environment", null, CreateMinimalGlb());
+        var model = await UploadAsync("object.glb", "model", "Objects", CreateMinimalGlb());
+        var track = await UploadAsync("track.m4a", "audio", "BGM", audio);
+        await Assert.That(track.Status).IsEqualTo("approved");
+        using var inspection = await fixture.Client.GetAsync($"/api/v1/admin/assets/{track.Id}/bytes");
+        await Assert.That(inspection.Content.Headers.ContentType!.MediaType).IsEqualTo("audio/mp4");
+        await Assert.That(inspection.Content.Headers.ContentDisposition!.FileName!.Trim('"')).IsEqualTo($"asset-{track.Id}.m4a");
+
+        await fixture.SignInAsync(creator);
+        using var catalogue = await fixture.Client.GetAsync("/api/v1/assets");
+        var entries = await catalogue.Content.ReadFromJsonAsync<JsonElement>();
+        await Assert.That(entries.EnumerateArray().Any(item => item.GetProperty("id").GetGuid() == track.Id)).IsTrue();
+        await Assert.That(entries.EnumerateArray().Any(item => item.GetProperty("id").GetGuid() == invalid.Id)).IsFalse();
+        using var created = await AuthTestRequests.PostAsync(fixture, "/api/v1/projects/",
+            new { title = "Audio project", environmentAssetId = environment.Id.ToString() });
+        await Assert.That(created.StatusCode).IsEqualTo(HttpStatusCode.Created);
+        var projectId = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("projectId").GetGuid();
+        var json = ProjectTestDocuments.Create(projectId, "Audio project", 2)
+            .Replace("test-room-v1", environment.Id.ToString(), StringComparison.Ordinal)
+            .Replace("test-crate-v1", model.Id.ToString(), StringComparison.Ordinal);
+        var document = JsonNode.Parse(json)!;
+        document["scenes"]![0]!["objects"]![0]!["components"]!.AsArray().Add(new JsonObject
+        {
+            ["id"] = Guid.NewGuid().ToString(),
+            ["type"] = "audio",
+            ["assetId"] = track.Id.ToString(),
+            ["caption"] = "Music",
+            ["loop"] = true,
+            ["volume"] = 0.75,
+            ["mode"] = "spatial"
+        });
+        async Task<HttpResponseMessage> SaveAsync(long revision)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Put, $"/api/v1/projects/{projectId}");
+            request.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync());
+            request.Content = JsonContent.Create(new { expectedRevision = revision, clientMutationId = Guid.NewGuid(), document });
+            return await fixture.Client.SendAsync(request);
+        }
+        using var saved = await SaveAsync(0);
+        if (!saved.IsSuccessStatusCode) { throw new InvalidOperationException(await saved.Content.ReadAsStringAsync()); }
+        await Assert.That(saved.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        using var reopened = await fixture.Client.GetAsync($"/api/v1/projects/{projectId}");
+        var reopenedDocument = (await reopened.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("document");
+        var components = reopenedDocument.GetProperty("scenes")[0].GetProperty("objects")[0].GetProperty("components");
+        await Assert.That(components.EnumerateArray().Any(item => item.GetProperty("type").GetString() == "audio"
+            && item.GetProperty("assetId").GetGuid() == track.Id)).IsTrue();
+
+        // Hiding or deleting prevents new selection while keeping the exact saved project bytes
+        await fixture.SignInAsync(admin);
+        using var deleted = await AuthTestRequests.PostAsync(fixture, $"/api/v1/admin/assets/{track.Id}/availability",
+            new AssetAvailabilityRequest("delete"));
+        await Assert.That(deleted.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        await fixture.SignInAsync(creator);
+        using var unavailable = await fixture.Client.GetAsync($"/api/v1/assets/{track.Id}/bytes");
+        await Assert.That(unavailable.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+        using var retained = await fixture.Client.GetAsync($"/api/v1/projects/{projectId}/assets/{track.Id}/bytes");
+        await Assert.That(retained.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        await Assert.That(retained.Content.Headers.ContentType!.MediaType).IsEqualTo("audio/mp4");
+        await Assert.That((await retained.Content.ReadAsByteArrayAsync()).SequenceEqual(audio)).IsTrue();
+        using var savedAgain = await SaveAsync(1);
+        await Assert.That(savedAgain.StatusCode).IsEqualTo(HttpStatusCode.OK);
+
+        await fixture.SignInAsync(await fixture.CreateAccountAsync());
+        using var denied = await fixture.Client.GetAsync($"/api/v1/projects/{projectId}/assets/{track.Id}/bytes");
+        await Assert.That(denied.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+    }
+
     [Test]
     public async Task Intake_RejectsInvalidProvenanceBeforeStoringAsset()
     {

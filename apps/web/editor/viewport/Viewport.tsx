@@ -37,6 +37,7 @@ export type ViewpointCamera = {
   show: (pose: CameraPose) => void;
   locate: (id: string) => void;
   toggleDisplayMedia: (id: string) => void;
+  playSpatialAudio?: (id: string) => void;
   hotspotAnchor: (id: string) => Vector3Tuple | undefined;
   bounds: (id: string) => { left: number; right: number; top: number; bottom: number } | null;
 };
@@ -62,6 +63,7 @@ type ViewportProps = {
   status: ViewportStatus;
   attempt: number;
   onStatus: (status: ViewportStatus) => void;
+  onAudioError?: (message: string) => void;
   onThumbnail: (id: string, url: string) => void;
   onSelect: (id: string | null) => void;
   onTransform: (id: string, transform: Transform) => void;
@@ -100,6 +102,7 @@ export function Viewport({
   status,
   attempt,
   onStatus,
+  onAudioError,
   onThumbnail,
   onSelect,
   onTransform,
@@ -144,6 +147,7 @@ export function Viewport({
           onObjectClick,
           onUpdate: onSceneUpdate,
           selectableAssets,
+          ...(onAudioError ? { onAudioError } : {}),
         });
         sceneRef.current = scene;
         const current = snapshotRef.current;
@@ -173,6 +177,7 @@ export function Viewport({
             show: scene.showCamera,
             locate: scene.locateObject,
             toggleDisplayMedia: scene.toggleDisplayMedia,
+            playSpatialAudio: scene.playSpatialAudio,
             hotspotAnchor: scene.getHotspotAnchor,
             bounds: scene.getObjectScreenBounds,
           });
@@ -196,6 +201,7 @@ export function Viewport({
     selectableAssets,
     attempt,
     onStatus,
+    onAudioError,
     onThumbnail,
     onSelect,
     onTransform,
@@ -440,7 +446,7 @@ export function Viewport({
       <div className={status === "ready" ? "sr-only" : "viewport-feedback"}>
         <p role="status">{statusMessages[status]}</p>
         {status === "authentication-required" && (
-          <a href="/login?returnTo=%2F" target="_blank" rel="noopener noreferrer">
+          <a href="/login" target="_blank" rel="noopener noreferrer">
             Sign in in another tab
           </a>
         )}

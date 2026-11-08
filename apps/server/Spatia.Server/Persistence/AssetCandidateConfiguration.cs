@@ -13,7 +13,7 @@ public sealed class AssetCandidateConfiguration : IEntityTypeConfiguration<Asset
         // Enforce lifecycle invariants in PostgreSQL as well as the request handlers
         entity.ToTable("asset_candidates", table =>
         {
-            table.HasCheckConstraint("CK_asset_candidate_kind", "kind IN ('model', 'environment')");
+            table.HasCheckConstraint("CK_asset_candidate_kind", "kind IN ('model', 'environment', 'audio')");
             table.HasCheckConstraint("CK_asset_candidate_size", "octet_length(bytes) BETWEEN 1 AND 20971520");
             table.HasCheckConstraint("CK_asset_candidate_status", "status IN ('pending', 'approved', 'invalid')");
             table.HasCheckConstraint("CK_asset_candidate_retirement", "(NOT deleted OR hidden) AND (NOT removed_from_projects OR deleted)");

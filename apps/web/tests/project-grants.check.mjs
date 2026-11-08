@@ -100,7 +100,16 @@ try {
     }
     if (path === "/api/v1/admin/organizations")
       return json({
-        items: [{ id: organization, name: "School", isActive: true }],
+        items: [
+          {
+            id: organization,
+            name: "School",
+            isActive: true,
+            projectCount: 0,
+            facilitatorCount: 0,
+            creatorCount: 0,
+          },
+        ],
         nextCursor: null,
       });
     if (path === "/api/v1/admin/users")
@@ -175,7 +184,7 @@ try {
     .getByRole("button", { name: "Keep editing" })
     .click();
   assert.equal(await publishBox().isChecked(), true);
-  await dialog.getByRole("button", { name: "Close" }).click();
+  await dialog.getByRole("button", { name: /^Close(?: dialog)?$/ }).click();
   await page
     .getByRole("dialog", { name: "Discard access changes?" })
     .getByRole("button", { name: "Keep editing" })
@@ -184,7 +193,7 @@ try {
   await dialog.getByRole("button", { name: "Save access" }).click();
   await page.waitForFunction(() => document.querySelector('form[aria-busy="true"]'));
   await page.keyboard.press("Escape");
-  await dialog.getByRole("button", { name: "Close" }).click();
+  await dialog.getByRole("button", { name: /^Close(?: dialog)?$/ }).click();
   assert.equal(await dialog.isVisible(), true);
   assert.equal(await dialog.getByRole("button", { name: "Saving access…" }).isDisabled(), true);
   assert.equal(writes, 1);
@@ -206,12 +215,15 @@ try {
   await page.getByRole("button", { name: "Manage access" }).click();
   dialog = page.getByRole("dialog", { name: "Project access" });
   assert.equal(await publishBox().isChecked(), true);
-  await dialog.getByRole("button", { name: "Close" }).click();
+  await dialog.getByRole("button", { name: /^Close(?: dialog)?$/ }).click();
   unsupported = true;
   await page.getByRole("button", { name: "Manage access" }).click();
   await page.getByRole("alert").filter({ hasText: "cannot be edited" }).waitFor();
   assert.equal(await page.getByRole("button", { name: "Save access" }).count(), 0);
-  await page.getByRole("dialog").getByRole("button", { name: "Close" }).click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: /^Close(?: dialog)?$/ })
+    .click();
   actor = { ...session, userId: educator, role: "Educator", orgId: organization };
   await page.reload();
   await page.getByRole("heading", { name: "Source", exact: true }).waitFor();

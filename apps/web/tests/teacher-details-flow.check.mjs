@@ -107,7 +107,9 @@ try {
     return route.fulfill({ status: 404 });
   });
   await page.goto(origin + "/home");
-  const assignmentCard = page.locator("article").filter({ hasText: "4 student projects" });
+  const assignmentCard = page
+    .locator("article")
+    .filter({ has: page.locator(`[id="teacher-project-${classId}:${assignmentId}"]`) });
   await assignmentCard.getByRole("button", { name: "View Details" }).click();
   assert.equal(await page.getByText("Build a museum", { exact: true }).count(), 1);
   assert.equal(await page.getByText("Add exhibits", { exact: true }).count(), 1);

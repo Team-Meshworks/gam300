@@ -68,8 +68,22 @@ try {
       return route.fulfill({
         json: {
           items: [
-            { id: orgId, name: "Active school", isActive: true },
-            { id: copyId, name: "Inactive school", isActive: false },
+            {
+              id: orgId,
+              name: "Active school",
+              isActive: true,
+              projectCount: 0,
+              facilitatorCount: 0,
+              creatorCount: 0,
+            },
+            {
+              id: copyId,
+              name: "Inactive school",
+              isActive: false,
+              projectCount: 0,
+              facilitatorCount: 0,
+              creatorCount: 0,
+            },
           ],
           nextCursor: null,
         },
@@ -264,7 +278,7 @@ try {
       await page.getByRole("heading", { name: "The Silk Road", exact: true }).waitFor();
       assert.equal(await page.getByRole("button", { name: "View Details" }).isVisible(), true);
       assert.equal(
-        await page.getByRole("link", { name: "+ New Project" }).getAttribute("href"),
+        await page.getByRole("link", { name: "New Project" }).getAttribute("href"),
         "/new-project",
       );
       await page.getByText("Manage projects and archives", { exact: true }).click();
@@ -328,7 +342,10 @@ try {
       },
     ];
     await page.reload();
-    const studentCard = page.getByRole("button", { name: "Student draft", exact: true });
+    const studentCard = page
+      .locator(".sp-student-card")
+      .filter({ hasText: "Student draft" })
+      .getByRole("button", { name: /view details/i });
     await studentCard.waitFor();
     await studentCard.click();
     await page.getByRole("heading", { name: "Student draft", exact: true }).waitFor();

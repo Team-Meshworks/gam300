@@ -36,15 +36,16 @@ try {
   await page.waitForURL(`${origin}/organisations`);
   await page.getByRole("link", { name: "Close organisations", exact: true }).click();
   await page.waitForURL(`${origin}/admin/dashboard`);
-  await page.getByRole("link", { name: "Open project workspace", exact: true }).click();
-  await page.waitForURL(`${origin}/home`);
+  await page.goto(`${origin}/home`);
   await page.getByRole("button", { name: "Classes", exact: true }).click();
   await page.getByRole("heading", { name: "Classes", exact: true }).waitFor();
   await page.getByRole("button", { name: "Projects", exact: true }).click();
-  const project = page.getByRole("listitem").filter({
-    has: page.getByRole("heading", { name: "Grant browser project", exact: true }),
-  });
-  await project.getByRole("button", { name: "Manage access", exact: true }).click();
+  await page.getByRole("button", { name: "Back to dashboard", exact: true }).click();
+  await page.getByRole("button", { name: "View All Projects", exact: true }).click();
+  await page
+    .getByRole("button", { name: "View progress for Grant browser project", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Manage Access", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Project access" });
   await dialog.waitFor();
   const publish = dialog.getByRole("checkbox", {
@@ -55,7 +56,7 @@ try {
   await publish.check();
   await dialog.getByRole("button", { name: "Save access", exact: true }).click();
   await dialog.waitFor({ state: "detached" });
-  await project.getByRole("button", { name: "Manage access", exact: true }).click();
+  await page.getByRole("button", { name: "Manage Access", exact: true }).click();
   assert.equal(await publish.isChecked(), true);
   const creatorContext = await browser.newContext({ ignoreHTTPSErrors: true });
   const creatorPage = await creatorContext.newPage();

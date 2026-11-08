@@ -92,7 +92,7 @@ public sealed class HostBoundaryTests
         var expected = new[] { "GET /api/v1/auth/csrf", "POST /api/v1/auth/login", "GET /api/v1/auth/session", "GET /api/v1/auth/asset-access", "POST /api/v1/auth/logout", "POST /api/v1/auth/password",
             "POST /api/v1/admin/organizations", "POST /api/v1/admin/users", "POST /api/v1/admin/users/{id:guid}/password",
             "GET /api/v1/admin/users", "GET /api/v1/admin/users/{id:guid}", "GET /api/v1/admin/organizations", "GET /api/v1/admin/organizations/{id:guid}",
-            "PATCH /api/v1/admin/users/{id:guid}/active",
+            "PATCH /api/v1/admin/users/{id:guid}/active", "DELETE /api/v1/admin/users/{id:guid}",
             "PATCH /api/v1/admin/users/{id:guid}", "GET /api/v1/admin/organizations/{id:guid}/projects",
             "PATCH /api/v1/admin/organizations/{id:guid}/active",
             "GET /api/v1/admin/organizations/{id:guid}/deletion", "DELETE /api/v1/admin/organizations/{id:guid}",
@@ -106,9 +106,10 @@ public sealed class HostBoundaryTests
             "POST /api/v1/classes/", "POST /api/v1/classes/{id:guid}/assignments", "PUT /api/v1/classes/{id:guid}/members/{userId:guid}", "DELETE /api/v1/classes/{id:guid}/members/{userId:guid}",
             "GET /api/v1/admin/assets/", "GET /api/v1/admin/assets/{id:guid}/bytes", "POST /api/v1/admin/assets/", "POST /api/v1/admin/assets/{id:guid}/approve",
             "POST /api/v1/admin/assets/{id:guid}/availability", "GET /api/v1/assets", "GET /api/v1/assets/{id:guid}/bytes",
-            "GET /api/v1/projects/{projectId:guid}/assets/{id:guid}/bytes", "GET /api/v1/projects/{projectId:guid}/assets", "GET /api/v1/projects/{projectId:guid}/publication-links",
+            "GET /api/v1/projects/{projectId:guid}/assets/{id:guid}/bytes", "GET /api/v1/projects/{projectId:guid}/assets", "GET /api/v1/projects/{projectId:guid}/publication-links", "GET /api/v1/projects/publication-links",
             "GET,HEAD /api/v1/publications/{publicationId}", "GET /api/v1/publications/{publicationId}/manifest", "GET,HEAD /api/v1/publications/{publicationId}/assets/{assetId}/bytes",
             "GET /api/v1/publications/{publicationId:guid}/access", "POST /api/v1/publications/{publicationId:guid}/access",
+            "GET /api/v1/admin/projects/publication-moderation", "POST /api/v1/admin/projects/{projectId:guid}/publication-moderation",
             "POST /api/v1/projects/{id:guid}/publications", "GET /api/v1/projects/{id:guid}/publication-readiness", "GET /api/v1/projects/{id:guid}/publication-viewers" };
         await Assert.That(string.Join(";", endpoints.Select(endpoint =>
             string.Join(",", endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods) + " " + endpoint.RoutePattern.RawText).Order()))

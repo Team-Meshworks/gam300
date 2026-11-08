@@ -15,6 +15,9 @@ public sealed class ApplicationUser : IdentityUser<Guid>
     /// </summary>
     public bool IsActive { get; set; } = true;
 
+    /// <summary>Gets or sets whether the retained identity is permanently removed from account management</summary>
+    public bool IsDeleted { get; set; }
+
     /// <summary>
     /// Gets or sets whether the account must change its password before using full account permissions
     /// </summary>

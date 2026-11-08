@@ -11,6 +11,9 @@ export interface ManagedOrganization {
   id: string;
   name: string;
   isActive: boolean;
+  projectCount: number;
+  facilitatorCount: number;
+  creatorCount: number;
 }
 export interface OrganizationDeletion {
   id: string;
@@ -27,6 +30,7 @@ export interface ManagedProject {
   id: string;
   title: string;
   status: string;
+  isPublic: boolean;
 }
 export interface AccountChanges {
   displayName?: string;
@@ -86,6 +90,9 @@ export function createDirectoryClient(request: typeof fetch = fetch, accountId?:
           "This account has class or assignment history, so its account type cannot be changed.",
         organization_unavailable:
           "This organisation is inactive. Enable it before adding accounts.",
+        account_delete_forbidden: "This account cannot be deleted from the organisation directory.",
+        account_not_found:
+          "This account is no longer available. Close this window and refresh the directory.",
         account_conflict:
           "This account changed. Close this window and refresh before trying again.",
         invalid_account_input: "Check the account details. Passwords need 12–128 characters.",
@@ -164,17 +171,28 @@ export function createDirectoryClient(request: typeof fetch = fetch, accountId?:
       write(`/api/v1/admin/organizations/${encodeURIComponent(orgId)}`, "DELETE", {
         confirmationName,
       }),
-    organizations: () =>
-      list("/api/v1/admin/organizations", (value): ManagedOrganization => {
-        if (
-          !record(value) ||
-          !id(value.id) ||
-          typeof value.name !== "string" ||
-          typeof value.isActive !== "boolean"
-        )
-          throw new Error("Invalid organisation details.");
-        return value as unknown as ManagedOrganization;
-      }),
+    organizations: async (query = "") => {
+      if (query.length > 256 || query.includes("\0")) {
+        throw new Error("Search names must contain up to 256 characters.");
+      }
+      const search = query.trim();
+      return list(
+        `/api/v1/admin/organizations${search ? `?q=${encodeURIComponent(search)}` : ""}`,
+        (value): ManagedOrganization => {
+          if (
+            !record(value) ||
+            !id(value.id) ||
+            typeof value.name !== "string" ||
+            typeof value.isActive !== "boolean" ||
+            !["projectCount", "facilitatorCount", "creatorCount"].every(
+              (key) => Number.isSafeInteger(value[key]) && (value[key] as number) >= 0,
+            )
+          )
+            throw new Error("Invalid organisation details.");
+          return value as unknown as ManagedOrganization;
+        },
+      );
+    },
     accounts: (orgId: string) =>
       list(`/api/v1/admin/users?orgId=${encodeURIComponent(orgId)}`, account),
     projects: (orgId: string) =>
@@ -185,7 +203,8 @@ export function createDirectoryClient(request: typeof fetch = fetch, accountId?:
             !record(value) ||
             !id(value.id) ||
             typeof value.title !== "string" ||
-            typeof value.status !== "string"
+            typeof value.status !== "string" ||
+            typeof value.isPublic !== "boolean"
           )
             throw new Error("Invalid project details.");
           return value as unknown as ManagedProject;
@@ -205,6 +224,12 @@ export function createDirectoryClient(request: typeof fetch = fetch, accountId?:
     ) => account(await write("/api/v1/admin/users", "POST", { ...values, orgId })),
     update: async (userId: string, values: AccountChanges) =>
       account(await write(`/api/v1/admin/users/${encodeURIComponent(userId)}`, "PATCH", values)),
+    deleteAccount: (userId: string) =>
+      write(`/api/v1/admin/users/${encodeURIComponent(userId)}`, "DELETE", {}),
+    setOrganizationActive: (orgId: string, isActive: boolean) =>
+      write(`/api/v1/admin/organizations/${encodeURIComponent(orgId)}/active`, "PATCH", {
+        isActive,
+      }),
     setActive: (userId: string, isActive: boolean) =>
       write(`/api/v1/admin/users/${encodeURIComponent(userId)}/active`, "PATCH", { isActive }),
   };

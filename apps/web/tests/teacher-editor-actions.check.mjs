@@ -27,14 +27,16 @@ let role = "Educator";
 let releaseSave;
 const saveGate = new Promise((resolve) => (releaseSave = resolve));
 let saved = 0;
+let revision = 0;
+let savedDocument = structuredClone(doc);
 const publications = [];
 try {
   await server.listen();
   const origin = `http://127.0.0.1:${server.httpServer.address().port}`;
   browser = await launchBrowser({ target: origin });
-  const page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
+  let page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
   page.setDefaultTimeout(15000);
-  await page.route("**/api/v1/**", async (route) => {
+  const mockApi = async (route) => {
     const req = route.request(),
       path = new URL(req.url()).pathname;
     const reply = (json, status = 200) => route.fulfill({ json, status });
@@ -110,6 +112,15 @@ try {
         items: [{ userId: student, userName: "Student One", accountActive: true }],
         nextCursor: null,
       });
+    if (path.endsWith("/publication-readiness"))
+      return reply({
+        projectId,
+        revision,
+        state: "ApprovalRequired",
+        completionConfirmed: false,
+        approved: false,
+      });
+    if (path.endsWith("/publication-viewers")) return reply({ items: [], nextCursor: null });
     if (path.endsWith("/publications") && req.method() === "POST") {
       const body = req.postDataJSON();
       publications.push(body);
@@ -125,22 +136,31 @@ try {
       );
     }
     if (path.endsWith("/submissions")) return reply({ items: [], nextCursor: null });
+    if (path === `/api/v1/projects/${projectId}` && req.method() === "PUT") {
+      const body = req.postDataJSON();
+      saved++;
+      await saveGate;
+      savedDocument = body.document;
+      revision = body.expectedRevision + 1;
+      return reply({ projectId, clientMutationId: body.clientMutationId, revision });
+    }
     if (path === `/api/v1/projects/${projectId}`)
       return reply({
         projectId,
-        revision: 0,
-        document: doc,
+        revision,
+        document: savedDocument,
         permissions: {
           canEdit: true,
           canManage: role === "Educator",
-          canPublish: role === "Educator",
+          canPublish: true,
         },
       });
     return reply({}, 404);
-  });
-  await page.route("**/home?**", (route) =>
-    route.fulfill({ contentType: "text/html", body: "<!doctype html><title>Home fixture</title>" }),
-  );
+  };
+  const mockHome = (route) =>
+    route.fulfill({ contentType: "text/html", body: "<!doctype html><title>Home fixture</title>" });
+  await page.route("**/api/v1/**", mockApi);
+  await page.route("**/home?**", mockHome);
   const url =
     origin +
     "/?" +
@@ -157,34 +177,23 @@ try {
       console.error("FAIL " + name + ": " + error.message);
     }
   }
-  await check("teacher Publish opens submission review", async () => {
-    await page.getByRole("button", { name: "Publish", exact: true }).click();
-    await page.getByRole("dialog", { name: "Review submission" }).waitFor({ timeout: 3000 });
-    assert.equal(await page.getByRole("dialog", { name: /save|export/i }).count(), 0);
-    const dialog = page.getByRole("dialog", { name: "Review submission" });
-    assert.equal(await dialog.getByLabel("Your review").inputValue(), "");
-    await dialog
-      .getByText("Publishing requires permission and a current submission ready for approval.")
-      .waitFor();
-    assert.equal(
-      await dialog.getByRole("button", { name: "Approve and publish" }).isDisabled(),
-      true,
-    );
-    assert.equal(publications.length, 0);
+  await check("teacher editor has no review popup", async () => {
+    assert.equal(await page.getByRole("button", { name: "Review", exact: true }).count(), 0);
+    assert.equal(await page.getByRole("button", { name: "Publish", exact: true }).count(), 0);
+    await page.getByRole("button", { name: "Leave editor" }).click();
+    const dialog = page.getByRole("dialog", { name: "Are you sure?" });
+    await dialog.waitFor();
+    assert.equal(await page.getByRole("dialog", { name: "Reviews" }).count(), 0);
+    await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+    assert.equal(new URL(page.url()).pathname, "/");
   });
-  await page
-    .getByRole("dialog", { name: "Review submission" })
-    .getByRole("button", { name: "Close dialog" })
-    .click();
-  await check("teacher Review opens history", async () => {
-    await page.getByRole("button", { name: "Review", exact: true }).click({ timeout: 3000 });
-    await page.getByRole("dialog", { name: "Reviews" }).waitFor({ timeout: 3000 });
-  });
-  await page
-    .getByRole("dialog", { name: "Reviews" })
-    .getByRole("button", { name: "Close dialog" })
-    .click();
+  // Separate browser storage prevents the teacher session leaking into the student scenario
+  await page.close();
   role = "Creator";
+  page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
+  page.setDefaultTimeout(15000);
+  await page.route("**/api/v1/**", mockApi);
+  await page.route("**/home?**", mockHome);
   await page.goto(url);
   await page.getByText("Scene ready", { exact: true }).waitFor();
   await check("creator cannot use educator review controls", async () => {
@@ -193,14 +202,35 @@ try {
   });
   await page.goto(origin + "/?" + new URLSearchParams({ projectId }));
   await page.getByText("Scene ready", { exact: true }).waitFor();
-  await check("ordinary creator editor hides Publish", async () => {
-    assert.equal(await page.getByRole("button", { name: "Publish", exact: true }).count(), 0);
+  await check("student publishing waits for unsaved work", async () => {
+    assert.equal(await page.getByRole("button", { name: "Publish", exact: true }).count(), 1);
     assert.equal(await page.getByRole("button", { name: "Review", exact: true }).count(), 0);
+    await page.getByRole("button", { name: "Scenes", exact: true }).click();
+    await page.getByLabel("Scene name", { exact: true }).fill("Saved before publishing");
+    await page.getByRole("button", { name: "Rename scene", exact: true }).click();
+    await page.getByRole("button", { name: "Publish", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Are you sure?" });
+    const saveRequest = page.waitForRequest(
+      (request) =>
+        request.method() === "PUT" &&
+        new URL(request.url()).pathname === `/api/v1/projects/${projectId}`,
+    );
+    await dialog.getByRole("button", { name: "Exit", exact: true }).click();
+    await saveRequest;
+    assert.equal(new URL(page.url()).pathname, "/");
+    assert.equal(await dialog.isVisible(), true);
+    assert.equal(publications.length, 0);
+    releaseSave();
+    await page.waitForURL((url) => url.pathname === "/publish");
+    assert.equal(saved, 1);
+    assert.equal(savedDocument.scenes[0].name, "Saved before publishing");
   });
-  await page.goto(origin + "/publish?" + new URLSearchParams({ projectId }));
-  await check("creator direct publication route is denied", async () => {
-    await page.getByRole("heading", { name: "Access denied", exact: true }).waitFor();
-    assert.equal(await page.getByRole("button", { name: "Publish", exact: true }).count(), 0);
+  await check("student publication route remains approval-gated", async () => {
+    await page.getByRole("heading", { name: "Publish project", exact: true }).waitFor();
+    assert.equal(
+      await page.getByRole("button", { name: "Publish", exact: true }).isDisabled(),
+      true,
+    );
     assert.equal(publications.length, 0);
   });
   await page.goto(origin + "/review");
@@ -217,6 +247,7 @@ try {
     await page.waitForURL("**/home**");
     assert.equal(await page.getByRole("region", { name: "Submissions and reviews" }).count(), 0);
   });
+  await page.unroute("**/home?**");
   await page.goto(origin + "/home");
   await check("teacher home hides submissions and reviews link", async () => {
     await page.getByRole("navigation").first().waitFor();

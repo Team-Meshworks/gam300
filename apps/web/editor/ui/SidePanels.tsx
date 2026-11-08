@@ -181,7 +181,7 @@ export function SidePanels({
 function PanelHeading({ id, children }: { id: string; children: ReactNode }) {
   return (
     <h2 id={id}>
-      <Icon name="info" />
+      <Icon name="info" title="Move and rotate the selected object" />
       {children}
     </h2>
   );

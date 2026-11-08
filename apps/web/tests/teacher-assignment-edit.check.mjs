@@ -100,7 +100,9 @@ try {
     return route.fulfill({ status: 404 });
   });
   await page.goto(origin + "/home");
-  const assignmentCard = page.locator("article").filter({ hasText: "2 student projects" });
+  const assignmentCard = page
+    .locator("article")
+    .filter({ has: page.locator(`[id="teacher-project-${classId}:${assignmentId}"]`) });
   await assignmentCard.getByRole("button", { name: "View Details" }).click();
   await page.getByRole("button", { name: "Edit project details" }).click();
   await page.getByLabel("Project title").fill("Updated museum");
@@ -143,11 +145,7 @@ try {
   );
   superseded = true;
   await page.reload();
-  await page
-    .locator("article")
-    .filter({ hasText: "1 student project" })
-    .getByRole("button", { name: "View Details" })
-    .click();
+  await assignmentCard.getByRole("button", { name: "View Details" }).click();
   await page.getByRole("button", { name: "Edit project details" }).click();
   const dialog = page.getByRole("dialog", { name: "Edit project details" });
   await dialog.getByRole("button", { name: "Retry same request" }).click();

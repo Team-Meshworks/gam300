@@ -18,7 +18,7 @@ import exhibit from "./assets/login-exhibit.png";
 
 const client = createAccountClient();
 
-function publicationReturnPath(): string | null {
+function loginReturnPath(): string | null {
   const values = new URLSearchParams(location.search).getAll("returnTo");
   const path = values[0];
   return values.length === 1 &&
@@ -30,7 +30,7 @@ function publicationReturnPath(): string | null {
     : null;
 }
 
-export function LoginPage() {
+export function LoginPage({ siteRoot }: { siteRoot: boolean }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -72,13 +72,14 @@ export function LoginPage() {
     if (error) errorRef.current?.focus();
   }, [error]);
   useEffect(() => {
-    const returnPath = publicationReturnPath();
-    if (session && !session.mustChangePassword && returnPath) {
-      location.replace(returnPath);
-    } else if (session?.role === "Administrator" && !session.mustChangePassword) {
-      location.replace("/admin/dashboard");
-    } else if (session) statusRef.current?.focus();
-  }, [session]);
+    if (!session) return;
+    const returnPath = siteRoot ? null : loginReturnPath();
+    const destination =
+      returnPath ??
+      (session.role === "Administrator" ? "/admin/dashboard" : siteRoot ? "/home" : null);
+    if (!session.mustChangePassword && destination) location.replace(destination);
+    else statusRef.current?.focus();
+  }, [session, siteRoot]);
   async function submit() {
     if (busy.current) return;
     if (session?.mustChangePassword && (password === newPassword || newPassword !== confirmation)) {
@@ -180,7 +181,7 @@ export function LoginPage() {
                   <a href="/admin/dashboard">Open admin dashboard</a>
                 ) : null}
                 <Button disabled={pending} onClick={() => void signOut()}>
-                  {pending ? "Signing out…" : "Log out"}
+                  {pending ? "Signing out…" : "Log Out"}
                 </Button>
               </div>
             ) : (
@@ -227,9 +228,10 @@ export function LoginPage() {
                         type="button"
                         aria-label={visible ? "Hide password" : "Show password"}
                         aria-pressed={visible}
+                        title={visible ? "Hide password" : "Show password"}
                         onClick={() => setVisible((value) => !value)}
                       >
-                        <FontAwesomeIcon icon={visible ? faEyeSlash : faEye} aria-hidden="true" />
+                        <FontAwesomeIcon icon={visible ? faEye : faEyeSlash} aria-hidden="true" />
                       </button>
                     </div>
                   </Field>
@@ -283,7 +285,7 @@ export function LoginPage() {
             )}
             {session?.mustChangePassword && (
               <Button disabled={pending} onClick={() => void signOut()}>
-                Log out
+                Log Out
               </Button>
             )}
             <div className="login-account-note">
@@ -336,7 +338,7 @@ export function LoginPage() {
         </div>
       </footer>
       {help && (
-        <Dialog title="Account help" onClose={() => setHelp(false)}>
+        <Dialog title="Account help" variant="admin" onClose={() => setHelp(false)}>
           <p>
             Use the username and password provided by your teacher or organisation administrator.
             Contact them to request an account or reset a forgotten password.

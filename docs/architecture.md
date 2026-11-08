@@ -14,7 +14,7 @@ block-beta
   columns 7
   author["Author"] space ui["React controls"] space store["Project + undo"] space view["Three.js view"]
   space:7
-  file["Project JSON"] space persistence["Save / open"] space format["Project v1"] space catalogue["Catalogue"]
+  file["Server project / export"] space persistence["Save / open"] space format["Project format"] space catalogue["Catalogue"]
   space:7
   space:2 idb[("IndexedDB")] space:3 registry["GLB manifest"]
 
@@ -46,17 +46,15 @@ visitor navigation cannot invoke authoring controls or file saving.
 
 The v1 document contains stable project/scene/object IDs, one environment-backed
 scene, ordered asset references, transforms, a starting camera and ordered WHEN→DO
-interaction rules. The initial grid
-has no complete project until a room is chosen or a valid file is opened.
+interaction rules. The editor opens an existing authorised server project.
 See [project types](../apps/web/shared/project/project-types.ts) and the
 [representative fixture](../apps/web/shared/project/fixtures/m1-project.json).
 
-New project IDs use UUIDv7 because they become PostgreSQL keys, where the timestamp
+The server creates project IDs using UUIDv7 because they become PostgreSQL keys, where the timestamp
 prefix improves index locality. Scene and object IDs remain UUIDv4 from the browser's
 `crypto.randomUUID()`; they are references inside the JSON document, without separate
-database key indexes. The project generator uses the RFC 9562 millisecond prefix and
-retains the native UUID's variant and 74 random suffix bits, without a new dependency.
-Both versions remain valid on import. Opening, saving, recovery and undo preserve
+database key indexes. Both versions remain valid in existing documents. Opening,
+saving, recovery and undo preserve
 existing IDs; this generation policy requires no schema version bump or ID migration.
 UUID timestamps are not authoritative save or edit ordering; revisions and authored
 array order remain separate.
@@ -100,22 +98,20 @@ Account data uses Spatia's authenticated API. The planned API uses
 ASP.NET Core/Identity and EF Core/Npgsql; the shared player serves both editor preview
 and the separate visitor application.
 
-The current application has no API or application database. Wiki.js and its database
-are documentation infrastructure, separate from Spatia projects. M1 IndexedDB/JSON is
-local recovery and interchange. M2 adds durable PostgreSQL projects/accounts; M3
-publication uses persisted snapshots and server-enforced access. The separate visitor
-build must exclude authoring code. See [deployment](deployment.md).
+The API and PostgreSQL store accounts and durable projects. Wiki.js and its database
+are documentation infrastructure, separate from Spatia projects. The separate visitor
+build excludes authoring code. See [deployment](deployment.md).
 
 ## Interfaces and responsibility
 
 | Component                          | Current boundary contract                                                                                                                                   |
 | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Editor controls                    | Read document/selection snapshots and invoke commands; do not maintain a second saved scene.                                                                |
-| Document store and history         | `createProject`, `loadProject`, `addObject`, `setTransform`, Undo/Redo and commit subscriptions.                                                            |
+| Document store and history         | `loadProject`, `addObject`, `setTransform`, Undo/Redo and commit subscriptions.                                                            |
 | Three.js viewport and manipulation | Project document objects into meshes; report stable selection IDs and commit one transform after a completed drag.                                          |
 | Project format                     | Validate raw JSON and asset kinds before reconstruction; serialize stable IDs, ordered objects, transforms and starting camera.                             |
-| Recovery                           | `useProjectSession` coordinates manual file saves and quiet backups; `saveRecoverySession` / `loadRecoverySession` validate the active session and use expected storage revisions. Legacy drafts remain readable for migration. |
-| Project files                      | `writeProjectFile` checks last-known disk text and commits on stream close; JSON upload/download is the fallback.                                           |
+| Recovery                           | The server project session coordinates autosave and account/project-scoped backups with expected storage revisions. Unscoped drafts remain stored but are not automatically loaded. |
+| Project files                      | `writeProjectFile` writes emergency project exports, with download as a fallback. |
 | Asset catalogue                    | `CatalogueAsset` supplies immutable ID, kind, URL, thumbnail and placement metadata from the validated manifest.                                            |
 | Build and hosting                  | CI produces runnable web files and a commit identifier; branch builds also produce an immutable image and release descriptor consumed by manual deployment. |
 
@@ -127,28 +123,21 @@ completion status remain outside this technical specification.
 
 ## Edit, save and reload trace
 
-1. Choose a room, then place a crate. `App.tsx` calls `createProject`/`addObject` in
-   the document store; controls and viewport receive the same stable object ID.
+1. Open an authorised server project, then place a crate. The document store publishes
+   the object to controls and viewport with the same stable ID.
 2. Moving commits `setTransform`; Undo restores its previous transform. The store
    publishes a new snapshot for each committed operation.
-3. `use-project-session.ts` captures committed document and history snapshots after
-   a two-second editing pause. `local-drafts.ts` writes them with the last manual-save
-   baseline to one active IndexedDB record, checking the expected storage revision.
+3. The server project session captures committed document and history snapshots after
+   a two-second editing pause. `local-drafts.ts` writes them to an account-and-project
+   scoped IndexedDB record, checking the expected storage revision.
    Only a committed transaction reports success. Backup failures pause retries until Save.
-4. Save/Save As uses `project-files.ts`. A file write compares the last known disk
-   text before replacing it; closing the writable stream confirms completion.
-   Browsers without file pickers use JSON upload/download instead. Downloads do not
-   confirm disk completion or clear the dirty state, but Save still retries recovery.
-5. Reload validates the browser record and project again before `loadProject`
-   replaces the store. IDs, object order, transforms and starting camera survive;
-   valid undo history and the file's dirty state are restored. Invalid history is
-   discarded with a warning while keeping the scene. A remembered file needs an
-   explicit Save to reconnect permission. Legacy migration offers the newest readable
-   backup when another is damaged, retaining rejected records. New/Open asks about
-   unsaved changes and commits the replacement backup before changing the visible
-   project. An invalid file, failed write or conflict preserves work.
+4. Server autosave uses revision-aware writes. An emergency project export can preserve
+   work when a save fails.
+5. Reload validates the authorised project and its scoped browser record before
+   restoring it. Invalid history is discarded with a warning while keeping the scene.
+   Existing unscoped browser drafts are not automatically attached to a project.
 
-Run `npm run test:recovery`, `npm run test:history` and `npm run test:integration`
+Run `npm run test:server-autosave`, `npm run test:history` and `npm run test:integration`
 from `apps/web/` against the development server for persistence and viewport integration
 checks. CI runs these alongside the editor shell suite. The
 [setup guide](../README.md#development) provides commands and verification limits. Asset
@@ -169,7 +158,7 @@ group existing files by responsibility; they do not introduce packages or empty 
 | input | `editor/history-shortcuts.ts`: keyboard/text-focus guards and callbacks. It owns no document or renderer. | None |
 | document | `document-store.ts`, `command-history.ts`, `transform-command.ts`, `recovery-history.ts`: immutable authored snapshots, reversible commands, transform sessions and validated recovery history. Consumers use the store and recovery-history contracts. | project, catalogue |
 | rendering | `editor/graphics/` and `editor/controls/`: scene projection, picking, navigation, custom gizmos and drag overlays. Public entry points are `scene.ts` and `modeManager.ts`. | project, catalogue, input, asset-loading |
-| persistence | `editor/persistence/`: native project-file access, revisioned IndexedDB recovery and React session coordination. The editor uses `useProjectSession`; storage implementation files are private outside checks. | project, catalogue, document |
+| persistence | `editor/persistence/`: project export, revisioned IndexedDB recovery and server session coordination. Storage implementation files are private outside checks. | project, catalogue, document |
 | editor | Remaining `editor/` files: React composition, viewport lifecycle, confirmation controls, HTML and CSS. It invokes document commands and passes renderer callbacks. | project, catalogue, input, document, rendering, persistence |
 | build | Root web configuration, asset-catalogue generation and architecture tooling. | None |
 | checks | All `.test.ts` files, `tests/` browser drivers and `architecture.check.mjs`. These are consumer checks, including tests co-located with production code. | All eight application modules and build |

@@ -16,7 +16,7 @@ public sealed class PublicationPublishingBrowserTests
     public async Task Browser_ApprovedClassPublicationCommitsAndEnforcesAudience()
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
-        var (data, asset) = await PublicationEndpointTests.PrepareAsync(fixture);
+        var (data, asset) = await PublicationEndpointTests.PrepareAsync(fixture, content: true, enabledRule: true);
         var unrelated = await fixture.CreateAccountAsync();
         var (certificate, key) = fixture.WritePemFiles();
         var serverDirectory = FindServerDirectory();
@@ -33,6 +33,7 @@ public sealed class PublicationPublishingBrowserTests
         start.ArgumentList.Add(JsonSerializer.Serialize(new
         {
             projectId = data.ProjectId,
+            title = "Two-scene content example",
             assetId = asset.Id,
             assetHash = asset.Sha256,
             publicationId = Guid.NewGuid(),

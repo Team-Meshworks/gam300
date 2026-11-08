@@ -1,12 +1,15 @@
 import { useMemo, useRef, useState } from "react";
+import { createRoot } from "react-dom/client";
 import { assets } from "virtual:asset-catalogue";
-import { AssetSelect } from "./AssetSelect";
-import { AssetAdministration } from "./AssetAdministration";
+import { WorkspaceHeader } from "../shared/ui/WorkspaceHeader";
+import { AssetSelect } from "../editor/asset-administration/AssetSelect";
+import { AssetAdministration } from "../editor/asset-administration/AssetAdministration";
+import "../editor/styles.css";
 import type {
   AssetAdministrationData,
   AssetAdministrationService,
   AssetCandidate,
-} from "./asset-administration";
+} from "../editor/asset-administration/asset-administration";
 
 // Exercise administrative states locally without sending writes to the intake endpoint
 // Records disappear on reload and never enter the approved delivery catalogue
@@ -15,22 +18,28 @@ const initial: AssetAdministrationData = {
     id: asset.id,
     name: asset.name,
     kind: asset.kind,
-    category: asset.kind === "environment" ? null : "Objects",
+    category:
+      asset.kind === "environment"
+        ? null
+        : asset.kind === "audio"
+          ? (asset.category ?? "BGM")
+          : "Objects",
     status: "approved",
     hidden: false,
     deleted: false,
     removedFromProjects: false,
     thumbnail: asset.thumbnail,
+    inspectionUrl: asset.url,
     validation: [],
     actions: ["hide", "delete"],
   })),
   policy: {
-    extensions: [".glb"],
+    extensions: [".glb", ".m4a"],
     maxBytes: 20 * 1024 * 1024,
     categories: {
       environment: null,
       image: null,
-      audio: null,
+      audio: ["BGM"],
       video: null,
       model: ["Objects", "Furniture", "Architecture", "Clothing", "Tools & Equipment"],
     },
@@ -49,25 +58,28 @@ const samples: AssetCandidate[] = initial.assets.flatMap((asset) =>
 );
 const sampleIds = new Set(samples.map((asset) => asset.id));
 
-export function AssetAdministrationPreview() {
+function AssetAdministrationPreview() {
   const [kind, setKind] = useState<AssetCandidate["kind"]>("environment");
   const [role, setRole] = useState("Administrator");
   const [failure, setFailure] = useState("none");
   const [closed, setClosed] = useState(false);
   const [overflow, setOverflow] = useState(false);
   const [displayName, setDisplayName] = useState("Preview Admin");
-  const initials = displayName
-    .trim()
-    .split(/\s+/)
-    .map((part) => part[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
 
   // Keep one adapter per scenario so changing controls cancels the previous screen session
   const records = useRef({ ...initial, assets: [...initial.assets, ...samples] });
   const service = useMemo<AssetAdministrationService>(
     () => ({
+      async download(id, signal) {
+        const asset = records.current.assets.find((asset) => asset.id === id);
+        if (!asset?.inspectionUrl) {
+          return { ok: false, kind: "unavailable", message: "Asset file is unavailable" };
+        }
+        const response = await fetch(asset.inspectionUrl, { signal });
+        return response.ok
+          ? { ok: true, value: await response.blob() }
+          : { ok: false, kind: "unavailable", message: "Asset file is unavailable" };
+      },
       async load() {
         if (failure === "denied") {
           return {
@@ -168,38 +180,14 @@ export function AssetAdministrationPreview() {
   // Keep scenario controls outside the reusable screen and show the simulated account explicitly
   return (
     <div className="asset-admin-preview">
-      <header>
-        <a className="asset-admin-brand" href="/" aria-label="Spatia home">
-          <span>
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.6"
-            >
-              <path d="m3 8 9-5 9 5H3Zm2 3v7m5-7v7m4-7v7m5-7v7M3 21h18M4 18h16" />
-            </svg>
-          </span>
-          Spatia
-        </a>
-        <div className="asset-admin-account">
-          {role !== "Signed out" && <span aria-hidden="true">{initials}</span>}
-          {role !== "Signed out" && <span>{displayName}</span>}
-          {role !== "Signed out" && (
-            <button
-              type="button"
-              onClick={() => {
-                setClosed(true);
-                setRole("Signed out");
-              }}
-            >
-              Log Out
-            </button>
-          )}
-        </div>
-      </header>
+      <WorkspaceHeader
+        account={role === "Signed out" ? null : { displayName, role }}
+        homeHref="/"
+        onSignOut={() => {
+          setClosed(true);
+          setRole("Signed out");
+        }}
+      />
 
       {role === "Signed out" && (
         <section className="asset-admin asset-admin-denied">
@@ -276,3 +264,6 @@ export function AssetAdministrationPreview() {
     </div>
   );
 }
+
+document.documentElement.classList.add("asset-admin-preview-page");
+createRoot(document.getElementById("root")!).render(<AssetAdministrationPreview />);

@@ -88,6 +88,6 @@ public static class AssetDeliveryEndpoints
         // Revalidate authority on the next request rather than allowing a shared cache to serve retained bytes
         context.Response.Headers.CacheControl = "no-store";
         context.Response.Headers.XContentTypeOptions = "nosniff";
-        return Results.Bytes(asset.Bytes, "model/gltf-binary");
+        return Results.Bytes(asset.Bytes, AssetIntakePolicy.MediaType(asset.Kind));
     }
 }

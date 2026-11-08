@@ -100,7 +100,7 @@ try {
       cause: error,
     });
   }
-  await page.getByRole("button", { name: "Save and continue" }).click();
+  await page.getByRole("button", { name: "Exit" }).click();
   await page.waitForURL(`${origin}/home`);
   const retainedId = process.env.SPATIA_TEST_RETAINED_PROJECT;
   const retainedAsset = process.env.SPATIA_TEST_RETAINED_ASSET;
@@ -165,7 +165,7 @@ try {
   }
   assert.equal(savedRetained.status(), 200, "A project retaining the retired room can be saved");
   await page.getByRole("button", { name: "Leave editor" }).click();
-  await page.getByRole("button", { name: "Save and continue" }).click();
+  await page.getByRole("button", { name: "Exit" }).click();
   await page.waitForURL(`${origin}/home`);
   await page.getByRole("button", { name: "Classes", exact: true }).click();
   await page.getByRole("button", { name: "New assignment", exact: true }).click();

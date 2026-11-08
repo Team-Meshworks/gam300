@@ -8,6 +8,7 @@ using Spatia.Server.Accounts;
 using Spatia.Server.Classes;
 using Spatia.Server.Persistence;
 using Spatia.Server.Projects;
+using Spatia.Server.Publications;
 
 namespace Spatia.Server.Tests;
 
@@ -22,6 +23,8 @@ public sealed class AccountProfileTests
         var first = await fixture.CreateAccountAsync();
         var other = await fixture.CreateAccountAsync();
         Guid organizationId;
+        var publicProjectId = Guid.Empty;
+        var publicationId = Guid.NewGuid();
         await using (var scope = fixture.Database.Services.CreateAsyncScope())
         {
             var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -40,6 +43,21 @@ public sealed class AccountProfileTests
                 });
             }
             await database.SaveChangesAsync();
+            var project = await database.Projects.FirstAsync(row => row.OrganizationId == organizationId);
+            publicProjectId = project.Id;
+            database.Publications.Add(new Publication
+            {
+                Id = publicationId,
+                ProjectId = project.Id,
+                PublishedById = first,
+                SourceRevision = 0,
+                SchemaVersion = project.SchemaVersion,
+                DocumentJson = project.DocumentJson,
+                AssetReferencesJson = "[]",
+                RequestDigest = new byte[32],
+            });
+            database.PublicationAccess.Add(new PublicationAccessState { PublicationId = publicationId, Audience = (int)PublicationAudience.Public });
+            await database.SaveChangesAsync();
         }
         var path = $"/api/v1/admin/organizations/{organizationId}/projects";
         var page = await fixture.Client.GetFromJsonAsync<JsonElement>(path + "?limit=1");
@@ -48,6 +66,26 @@ public sealed class AccountProfileTests
         var next = await fixture.Client.GetFromJsonAsync<JsonElement>(path + "?limit=1&cursor=" + page.GetProperty("nextCursor").GetString());
         await Assert.That(next.GetProperty("items").GetArrayLength()).IsEqualTo(1);
         await Assert.That(next.GetProperty("nextCursor").ValueKind).IsEqualTo(JsonValueKind.Null);
+        var listed = page.GetProperty("items").EnumerateArray().Concat(next.GetProperty("items").EnumerateArray()).ToArray();
+        await Assert.That(listed.Single(row => row.GetProperty("id").GetGuid() == publicProjectId).GetProperty("isPublic").GetBoolean()).IsTrue();
+        await Assert.That(listed.Single(row => row.GetProperty("id").GetGuid() != publicProjectId).GetProperty("isPublic").GetBoolean()).IsFalse();
+        await using (var scope = fixture.Database.Services.CreateAsyncScope())
+        {
+            var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var state = await database.PublicationAccess.SingleAsync(row => row.PublicationId == publicationId);
+            state.Hidden = true;
+            await database.SaveChangesAsync();
+            var hidden = await fixture.Client.GetFromJsonAsync<JsonElement>(path);
+            await Assert.That(hidden.GetProperty("items").EnumerateArray().Any(row => row.GetProperty("isPublic").GetBoolean())).IsFalse();
+            state.Hidden = false;
+            state.Audience = (int)PublicationAudience.Unlisted;
+            await database.SaveChangesAsync();
+            var unlisted = await fixture.Client.GetFromJsonAsync<JsonElement>(path);
+            await Assert.That(unlisted.GetProperty("items").EnumerateArray().Single(row => row.GetProperty("id").GetGuid() == publicProjectId).GetProperty("isPublic").GetBoolean()).IsTrue();
+            await database.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO retired_publication_ids (id) VALUES ({publicationId})");
+            var retired = await fixture.Client.GetFromJsonAsync<JsonElement>(path);
+            await Assert.That(retired.GetProperty("items").EnumerateArray().Any(row => row.GetProperty("isPublic").GetBoolean())).IsFalse();
+        }
         using var unbounded = await fixture.Client.GetAsync(path + "?limit=21");
         await Assert.That(unbounded.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
         using var missing = await fixture.Client.GetAsync($"/api/v1/admin/organizations/{Guid.NewGuid()}/projects");

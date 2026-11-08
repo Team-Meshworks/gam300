@@ -1,3 +1,5 @@
+/* Hallmark - preserve the supplied Spatia PDF system and existing page wiring */
+/* Keep admin controls aligned while retaining the approved page layouts */
 @import "@fortawesome/fontawesome-svg-core/styles.css";
 @import "@fontsource/inter/latin-400.css";
 @import "@fontsource/inter/latin-500.css";
@@ -5,7 +7,13 @@
 @import "@fontsource/inter/latin-700.css";
 
 :root {
-  font-family: "Inter", sans-serif;
+  --sp-font: "Inter", sans-serif;
+  --sp-button-primary-ink: #fff;
+  --sp-avatar-surface: #ede4d8;
+  --sp-avatar-ink: #77604b;
+  --sp-close-surface: #f3f4f6;
+  --sp-close-ink: #000;
+  font-family: var(--sp-font);
   color: #292723;
   background: #fff;
   font-synthesis: none;
@@ -18,6 +26,18 @@
 }
 * {
   box-sizing: border-box;
+}
+/* Reserve the scroll gutter across routes and keep open dialogs from scrolling the page */
+html {
+  overflow-x: clip;
+  scrollbar-gutter: stable;
+}
+body {
+  overflow-x: clip;
+}
+html:has(dialog[open]),
+body:has(dialog[open]) {
+  overflow-y: hidden;
 }
 body {
   margin: 0;
@@ -122,36 +142,6 @@ p {
   left: calc(50% + 30px);
   top: 250px;
 }
-.sp-navigation {
-  max-width: 1440px;
-  height: 100px;
-  padding: 0 80px;
-  margin: auto;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 24px;
-}
-.sp-brand {
-  display: inline-flex;
-  flex-shrink: 0;
-  gap: 12px;
-  align-items: center;
-  text-decoration: none;
-  color: var(--sp-ink);
-  font-size: 18px;
-}
-.sp-brand-mark {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  background: var(--sp-ink);
-  display: grid;
-  place-items: center;
-}
-.sp-brand-mark img {
-  display: block;
-}
 .sp-account {
   display: flex;
   align-items: center;
@@ -159,15 +149,9 @@ p {
   font-size: 13px;
   min-width: 0;
 }
-.sp-account-name {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 .sp-account .sp-button {
   flex-shrink: 0;
+  background: var(--sp-soft);
 }
 .sp-avatar {
   flex-shrink: 0;
@@ -177,32 +161,41 @@ p {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: #ede4d8;
-  color: #77604b;
+  background: var(--sp-avatar-surface);
+  color: var(--sp-avatar-ink);
   font-size: 12px;
   font-weight: 600;
 }
-.sp-navigation .sp-avatar {
-  width: 32px;
-  height: 32px;
-  font-size: 11px;
+.sp-account-header[data-role="Administrator"] .sp-avatar {
+  width: 44px;
+  height: 44px;
+  font-size: 13px;
+}
+.sp-button.sp-close-button,
+.sp-dialog .sp-dialog-dismiss {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--sp-close-surface);
+  color: var(--sp-close-ink);
+  font-size: 24px;
+  line-height: 1;
+  text-decoration: none;
+}
+.sp-close-button > svg {
+  width: 18px;
+  height: 18px;
 }
 .sp-admin-return {
   display: flex;
   justify-content: flex-end;
-}
-.sp-admin-return :is(a, button) {
-  display: grid;
-  place-items: center;
-  width: 36px;
-  height: 36px;
-  border: 0;
-  border-radius: 50%;
-  background: #eae9e6;
-  color: #080808;
-  font-size: 22px;
-  text-decoration: none;
-  cursor: pointer;
 }
 .sp-admin-return button:disabled {
   cursor: not-allowed;
@@ -226,8 +219,12 @@ p {
   margin-top: 8px;
 }
 .sp-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
   border: 1px solid var(--sp-border);
-  background: var(--sp-soft);
+  background: var(--sp-surface);
   border-radius: 20px;
   min-height: 44px;
   padding: 10px 28px;
@@ -237,13 +234,20 @@ p {
   cursor: pointer;
   white-space: nowrap;
 }
+/* Centre the visible capital height without shifting icon-only buttons */
+.sp-button-label {
+  display: block;
+  line-height: 1;
+  text-box-trim: trim-both;
+  text-box-edge: cap alphabetic;
+}
 .sp-button:hover:not(:disabled) {
   background: #eee8e1;
 }
 .sp-button--primary {
-  background: #332e2a;
-  color: white;
-  border-color: #332e2a;
+  background: var(--sp-ink);
+  color: var(--sp-button-primary-ink);
+  border-color: var(--sp-ink);
 }
 .sp-button--primary:hover:not(:disabled) {
   background: #51473d;
@@ -434,6 +438,7 @@ h3 + .sp-hint {
   padding: 8px 16px;
 }
 .sp-dialog {
+  position: fixed;
   border: 1px solid var(--sp-border);
   border-radius: 20px;
   background: var(--sp-surface);
@@ -443,6 +448,27 @@ h3 + .sp-hint {
   max-height: calc(100vh - 48px);
   overflow-y: auto;
   box-shadow: 0 20px 80px rgb(41 39 35 / 0.2);
+}
+.sp-dialog:has(> .sp-dialog-dismiss) > h2 {
+  padding-right: 48px;
+}
+.sp-dialog > .sp-dialog-dismiss {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+}
+.sp-shell--dashboard .sp-dialog .sp-dialog-dismiss {
+  width: 40px;
+  height: 40px;
+  min-height: 40px;
+}
+.sp-shell--asset-administration .sp-wash--left {
+  left: -210px;
+  top: -248px;
+}
+.sp-shell--asset-administration .sp-wash--right {
+  left: calc(50% - 67px);
+  top: 183px;
 }
 .sp-dialog::backdrop {
   background: rgb(41 39 35 / 0.35);
@@ -481,9 +507,6 @@ h3 + .sp-hint {
   color: var(--sp-muted);
 }
 @media (max-width: 1100px) {
-  .sp-navigation {
-    padding: 0 32px;
-  }
   .sp-workspace {
     width: calc(100% - 64px);
     padding: 30px;
@@ -491,19 +514,9 @@ h3 + .sp-hint {
   }
 }
 @media (max-width: 600px) {
-  .sp-navigation {
-    padding: 20px;
-    height: auto;
-    min-height: 84px;
-    flex-wrap: wrap;
-    gap: 16px;
-  }
   .sp-account {
     gap: 8px;
     flex: 1 1 100%;
-  }
-  .sp-navigation .sp-button {
-    padding: 8px 12px;
   }
   .sp-workspace {
     width: calc(100% - 24px);

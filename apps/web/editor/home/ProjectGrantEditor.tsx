@@ -143,7 +143,11 @@ export function ProjectGrantEditor({
       (row) => row.isActive && row.orgId === loaded.snapshot.organizationId,
     ) ?? [];
   return (
-    <Dialog title={discard ? "Discard access changes?" : "Project access"} onClose={close}>
+    <Dialog
+      title={discard ? "Discard access changes?" : "Project access"}
+      onClose={close}
+      {...(session.role === "Administrator" ? { variant: "admin" as const } : {})}
+    >
       {discard ? (
         <>
           <p>

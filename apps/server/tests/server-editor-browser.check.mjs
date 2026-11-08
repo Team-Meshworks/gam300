@@ -20,13 +20,8 @@ export async function checkServerEditor(
   const output = (Array.isArray(built) ? built[0] : built).output;
   const largest = output
     .filter((file) => file.type === "asset" && file.fileName.endsWith(".glb"))
-    .sort(
-      (a, b) => Buffer.byteLength(b.source) - Buffer.byteLength(a.source),
-    )[0];
-  assert.ok(
-    largest,
-    "The actual catalogue must be present in the editor build",
-  );
+    .sort((a, b) => Buffer.byteLength(b.source) - Buffer.byteLength(a.source))[0];
+  assert.ok(largest, "The actual catalogue must be present in the editor build");
   const asset = {
     path: "/" + largest.fileName,
     bytes: Buffer.byteLength(largest.source),
@@ -100,16 +95,12 @@ export async function checkServerEditor(
   };
   try {
     const page = await open(accounts[0], true);
-    await page
-      .getByLabel("Scene name", { exact: true })
-      .fill("SCRUM-67 actual editor save");
-    await page
-      .getByRole("button", { name: "Rename scene", exact: true })
-      .click();
+    await page.getByLabel("Scene name", { exact: true }).fill("SCRUM-67 actual editor save");
+    await page.getByRole("button", { name: "Rename scene", exact: true }).click();
     await page.waitForFunction(
       () =>
-        document.querySelector('.server-session [role="status"]')
-          ?.textContent === "Saved to server",
+        document.querySelector('.server-session [role="status"]')?.textContent ===
+        "Saved to server",
     );
     const fresh = await open(accounts[0]);
     assert.equal(
@@ -117,31 +108,21 @@ export async function checkServerEditor(
       "SCRUM-67 actual editor save",
     );
     // The second authenticated editor creates a real revision conflict in the first.
-    await fresh
-      .getByLabel("Scene name", { exact: true })
-      .fill("Another editor's saved revision");
-    await fresh
-      .getByRole("button", { name: "Rename scene", exact: true })
-      .click();
+    await fresh.getByLabel("Scene name", { exact: true }).fill("Another editor's saved revision");
+    await fresh.getByRole("button", { name: "Rename scene", exact: true }).click();
     await fresh.waitForFunction(
       () =>
-        document.querySelector('.server-session [role="status"]')
-          ?.textContent === "Saved to server",
+        document.querySelector('.server-session [role="status"]')?.textContent ===
+        "Saved to server",
     );
-    await page
-      .getByLabel("Scene name", { exact: true })
-      .fill("Keep these conflicting edits");
-    await page
-      .getByRole("button", { name: "Rename scene", exact: true })
-      .click();
+    await page.getByLabel("Scene name", { exact: true }).fill("Keep these conflicting edits");
+    await page.getByRole("button", { name: "Rename scene", exact: true }).click();
     await page
       .locator('.server-session [role="status"]')
       .filter({ hasText: "Another revision" })
       .waitFor();
-    await page.getByRole("button", { name: "Log out", exact: true }).click();
-    await page
-      .getByRole("button", { name: "Save and continue", exact: true })
-      .click();
+    await page.getByRole("button", { name: "Log Out", exact: true }).click();
+    await page.getByRole("button", { name: "Exit", exact: true }).click();
     await page.getByRole("dialog").getByRole("alert").waitFor();
     await page.getByRole("button", { name: "Cancel", exact: true }).click();
     assert.equal(

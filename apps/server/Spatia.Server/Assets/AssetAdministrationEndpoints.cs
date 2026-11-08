@@ -23,10 +23,11 @@ public static class AssetAdministrationEndpoints
             assets = await service.ListAsync(token),
             policy = new
             {
-                extensions = new[] { ".glb" },
+                extensions = new[] { ".glb", ".m4a" },
                 maxBytes = AssetIntakePolicy.MaxBytes,
-                categories = new { environment = (string[]?)null, model = AssetIntakePolicy.ModelCategories },
+                categories = new { environment = (string[]?)null, model = AssetIntakePolicy.ModelCategories, audio = AssetIntakePolicy.AudioCategories },
                 canSubmit = validator.IsAvailable,
+                canSubmitByKind = new { environment = validator.IsAvailable, model = validator.IsAvailable, audio = true },
                 canForceRemove = false
             },
         }));
@@ -39,7 +40,7 @@ public static class AssetAdministrationEndpoints
 
             // Keep quarantined bytes an explicit download so inspection never becomes public library delivery
             context.Response.Headers.XContentTypeOptions = "nosniff";
-            return Results.File(asset.Bytes, "model/gltf-binary", $"asset-{asset.Id}.glb");
+            return Results.File(asset.Bytes, AssetIntakePolicy.MediaType(asset.Kind), $"asset-{asset.Id}{AssetIntakePolicy.Extension(asset.Kind)}");
         }).RequireRateLimiting("AssetBytes");
         group.MapPost("", UploadAsync).WithMetadata(new RequestSizeLimitAttribute(AssetIntakePolicy.MaxBytes))
             .RequireRateLimiting("AssetIntake");
@@ -97,8 +98,7 @@ public static class AssetAdministrationEndpoints
             if (metadata is null || !ValidReview(metadata)) { return Invalid(context); }
         }
         var query = context.Request.Query;
-        if (query.Any(pair => pair.Value.Count != 1 || pair.Key is not ("name" or "kind" or "category"))
-            || context.Request.ContentType != "model/gltf-binary")
+        if (query.Any(pair => pair.Value.Count != 1 || pair.Key is not ("name" or "kind" or "category")))
         {
             return Invalid(context);
         }
@@ -107,7 +107,7 @@ public static class AssetAdministrationEndpoints
         var name = query["name"].ToString();
         var kind = query["kind"].ToString();
         var category = query.TryGetValue("category", out var raw) ? raw.ToString() : null;
-        if (!AssetIntakePolicy.Accepts(name, kind, category))
+        if (!AssetIntakePolicy.Accepts(name, kind, category) || context.Request.ContentType != AssetIntakePolicy.MediaType(kind))
         {
             return Invalid(context);
         }

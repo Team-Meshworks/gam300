@@ -36,6 +36,7 @@ let reviews = [],
   unsupported = false,
   saveDenied = false,
   historyUnavailable = true;
+let approvalLost = false;
 let legacyFound = false;
 let sessionActor = actor;
 try {
@@ -123,6 +124,10 @@ try {
         decidedAt: stamp,
       };
       if (!decisions.length) decisions.push(row);
+      if (approvalLost) {
+        approvalLost = false;
+        return route.abort();
+      }
       return reply(row, 201);
     }
     if (path.endsWith("/submissions")) return reply({ items: [summary], nextCursor: null });
@@ -152,6 +157,23 @@ try {
     await d.waitFor();
     return d;
   }
+  const storageKey = `spatia-review-publication:${actor}:${project}`;
+  async function recoverPublication(feedback) {
+    await page.evaluate(({ key, value }) => localStorage.setItem(key, JSON.stringify(value)), {
+      key: storageKey,
+      value: {
+        projectId: project,
+        actorId: actor,
+        studentId: student,
+        submissionId: submission,
+        decisionId: "66666666-6666-4666-8666-666666666666",
+        publicationId: "77777777-7777-4777-8777-777777777777",
+        revision: 7,
+        feedback,
+      },
+    });
+    return open();
+  }
   let d = await open();
   const retryHistory = d.getByRole("button", { name: "Retry loading reviews" });
   await retryHistory.waitFor();
@@ -178,8 +200,19 @@ try {
   saveDenied = false;
   await d.getByLabel("Your review").fill("");
   d = await open();
-  await d.getByLabel("Your review").fill("Ready for publishing");
-  await d.getByRole("button", { name: "Approve and publish" }).click();
+  await d.getByLabel("Your review").fill("Approved for the student to publish");
+  assert.equal(await d.getByRole("button", { name: "Approve and publish" }).count(), 0);
+  approvalLost = true;
+  await d.getByRole("button", { name: "Approve", exact: true }).click();
+  await d.getByRole("button", { name: "Retry same request" }).click();
+  await d.getByText("Approval saved. The student can now publish the approved revision.").waitFor();
+  assert.equal(decisions.length, 1);
+  assert.equal(publishes.length, 0, "An approval retry never creates a publication");
+  assert.deepEqual(decisionRequests[0], decisionRequests[1]);
+  decisions = [];
+  // Old in-flight approval-and-publication requests retain their exact intent
+  d = await recoverPublication("Ready for publishing");
+  await d.getByRole("button", { name: "Retry same request" }).click();
   await d.getByRole("button", { name: "Retry same request" }).waitFor();
   assert.equal(decisions.length, 1);
   assert.equal(publishes.length, 1);
@@ -197,9 +230,8 @@ try {
   decisions = [];
   publishes = [];
   conflict = true;
-  d = await open();
-  await d.getByLabel("Your review").fill("Approved before a concurrent edit");
-  await d.getByRole("button", { name: "Approve and publish" }).click();
+  d = await recoverPublication("Approved before a concurrent edit");
+  await d.getByRole("button", { name: "Retry same request" }).click();
   await d
     .getByRole("alert")
     .filter({ hasText: /review and approval were saved.*project changed/i })
@@ -221,7 +253,6 @@ try {
     revision: 7,
     feedback: "Keep this earlier feedback",
   };
-  const storageKey = `spatia-review-publication:${actor}:${project}`;
   await page.evaluate(({ key, value }) => localStorage.setItem(key, JSON.stringify(value)), {
     key: storageKey,
     value: legacy,
@@ -321,8 +352,8 @@ try {
       d = page.getByRole("dialog", { name: "Review submission" });
       await d.getByRole("button", { name: "Retry same request" }).click();
     } else {
-      await d.getByLabel("Your review").fill(intent.feedback);
-      await d.getByRole("button", { name: "Approve and publish" }).click();
+      d = await recoverPublication(intent.feedback);
+      await d.getByRole("button", { name: "Retry same request" }).click();
     }
     await d
       .getByRole("alert")
@@ -348,7 +379,9 @@ try {
     assert.equal(publishes.length, 1, "Reload must not repeat publication");
     assert.equal(decisions.length, 1);
   }
-  console.log("Save-only, lost-publication retry, and revision conflict passed");
+  console.log(
+    "Teacher approval-only retry, recovered publication retry, and revision conflict passed",
+  );
 } finally {
   await browser?.close();
   await server.close();

@@ -63,7 +63,7 @@ export function AssetPicker({
       <LibraryRail icon={rooms ? "door" : "library"} label={rooms ? "Rooms" : "Asset library"} />
       <div className="asset-picker-head">
         <h2 id="assets-heading" className="asset-picker-title">
-          <Icon name="info" />
+          <Icon name="info" title="Choose an asset to place in your scene" />
           {rooms ? "Rooms" : "Assets"}
         </h2>
         <div className="asset-search">

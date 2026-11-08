@@ -55,3 +55,10 @@ select {
   background: white;
   padding: 1rem;
 }
+
+/* Keep authored media within the information panel on narrow visitor screens */
+figure img,
+figure video {
+  max-width: 100%;
+  height: auto;
+}

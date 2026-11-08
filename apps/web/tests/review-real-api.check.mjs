@@ -52,19 +52,17 @@ try {
       const data = await (await fetch(`/api/v1/classes/${id}/assignments?limit=20`)).json();
       return data.items.find((item) => item.title === "Assignment").assignmentId;
     }, classId);
-    const editor = new URLSearchParams({
-      projectId,
-      classId,
-      assignmentId,
-      studentId,
-      review: "1",
-    });
-    await teacher.goto(origin + "/?" + editor);
-    await teacher.getByText("Scene ready", { exact: true }).waitFor();
-    await teacher.getByRole("button", { name: "Review", exact: true }).click();
-    const dialog = teacher.getByRole("dialog", { name: "Reviews" });
-    await dialog.getByLabel("New review").fill("Add a map to the draft.");
-    await dialog.getByRole("button", { name: "Save Changes" }).click();
+    // Draft feedback belongs to the teacher dashboard, before any submission exists
+    await teacher.goto(
+      origin +
+        "/home?" +
+        new URLSearchParams({ classId, assignmentId, studentId, reviewProjectId: projectId }),
+    );
+    const dialog = teacher.getByRole("dialog", { name: "Review submission" });
+    await dialog.getByLabel("Your review").fill("Add a map to the draft.");
+    await dialog.getByRole("button", { name: "Save review", exact: true }).click();
+    await dialog.getByText("Add a map to the draft.", { exact: true }).waitFor();
+    await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
     await dialog.waitFor({ state: "detached" });
     await student.goto(origin + "/home");
     await student.locator(`#student-project-${projectId}`).click();
@@ -133,33 +131,47 @@ try {
       studentId,
       reviewProjectId: projectId,
     });
-  if (unavailable) {
-    // Missing 3D assets must not prevent reviewing the retained submission in Home.
-    await teacher.goto(homeReviewUrl);
-  } else {
-    await teacher.goto(origin + "/review?projectId=" + encodeURIComponent(projectId));
-    const publish = teacher.getByRole("button", { name: "Publish", exact: true });
-    const recovery = teacher.getByRole("dialog", { name: "A recovery copy is available" });
-    await publish.or(recovery).waitFor();
-    if (await recovery.isVisible()) {
-      // The earlier editor visit retained a local checkpoint; review the submitted server copy.
-      await recovery
-        .getByRole("button", { name: "Use server version and discard recovery", exact: true })
-        .click();
-    }
-    await publish.click();
-  }
+  // Both complete and unavailable assets use the dashboard review route
+  await teacher.goto(homeReviewUrl);
   const publication = teacher.getByRole("dialog", { name: "Review submission" });
+  let publicationWrites = 0;
+  teacher.on("request", (request) => {
+    if (
+      request.method() === "POST" &&
+      new URL(request.url()).pathname === `/api/v1/projects/${projectId}/publications`
+    )
+      publicationWrites++;
+  });
   await publication.getByLabel("Your review").fill("The saved exhibition is ready.");
-  await publication.getByRole("button", { name: "Approve and publish" }).click();
+  await publication.getByRole("button", { name: "Approve", exact: true }).click();
+  await publication
+    .getByText("Approval saved. The student can now publish the approved revision.", {
+      exact: true,
+    })
+    .waitFor();
+  assert.equal(publicationWrites, 0, "Approval alone must not request a publication");
+  const approved = await teacher.evaluate(
+    async ({ projectId, submissionId }) =>
+      (await fetch(`/api/v1/projects/${projectId}/submissions/${submissionId}`)).json(),
+    { projectId, submissionId: evidence.detail.submissionId },
+  );
+  assert.equal(approved.latestDecision.outcome, "approved");
+  assert.equal(approved.latestDecision.feedback, "The saved exhibition is ready.");
+  assert.equal(await publication.getByRole("button", { name: "Approve and publish" }).count(), 0);
+  // The student owns the separate publication decision after teacher approval
+  await student.goto(origin + `/publish?projectId=${projectId}`);
+  await student.getByRole("heading", { name: "Publish project", exact: true }).waitFor();
   if (unavailable) {
-    await publication
-      .getByRole("alert")
-      .filter({ hasText: /approval.*saved.*publication.*rejected/i })
-      .waitFor();
+    await student.getByText(/assets are (?:not available|unavailable) for publication/).waitFor();
   } else {
-    await publication.getByRole("textbox", { name: "Publication link" }).waitFor();
+    await student
+      .getByRole("combobox", { name: "Who can open this publication" })
+      .selectOption("Unlisted");
+    await student.getByRole("checkbox", { name: /confirm.*saved revision/i }).check();
+    await student.getByRole("button", { name: "Publish", exact: true }).click();
+    await student.getByRole("textbox", { name: "Publication link" }).waitFor();
   }
+  assert.equal(publicationWrites, 0, "The educator never requests publication");
   await student.goto(origin + "/review");
   await student.getByLabel("Class", { exact: true }).selectOption(classId);
   await student.getByLabel("Assignment", { exact: true }).selectOption({ label: "Assignment" });
@@ -216,10 +228,10 @@ try {
   await teacher.goto(homeReviewUrl);
   const historicalReview = teacher.getByRole("dialog", { name: "Review submission" });
   await historicalReview
-    .getByText("Publishing requires permission and a current submission ready for approval.")
+    .getByText("Approval requires permission and a current submission ready for review.")
     .waitFor();
   assert.equal(
-    await historicalReview.getByRole("button", { name: "Approve and publish" }).isDisabled(),
+    await historicalReview.getByRole("button", { name: "Approve", exact: true }).isDisabled(),
     true,
   );
   const stale = await teacher.evaluate(async (id) => {

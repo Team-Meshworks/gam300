@@ -8,7 +8,7 @@ import {
   searchAssets,
   type CatalogueAsset,
 } from "./catalogue";
-import { createDocumentStore } from "../../editor/document-store";
+import { createLoadedStore } from "../../tests/project-store-fixture";
 
 const assets: readonly CatalogueAsset[] = Object.freeze([
   Object.freeze({
@@ -57,7 +57,7 @@ describe("catalogue search", () => {
   });
 
   it("places a search result through existing history and preserves its ID on redo", () => {
-    const store = createDocumentStore(assets);
+    const store = createLoadedStore(assets, "room");
     const match = searchAssets(assets, "BLUE")[0];
     expect(match).toBeDefined();
     const result = store.addObject(match!.id, [1, 0, -2]);

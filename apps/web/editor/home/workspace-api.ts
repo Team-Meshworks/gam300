@@ -23,8 +23,11 @@ export type WriteResult =
 
 export function createWorkspaceClient(request: typeof fetch = fetch) {
   const accounts = createAccountClient(request);
-  async function read(path: string, signal?: AbortSignal): Promise<unknown> {
+  async function read(path: string, signal?: AbortSignal, actorId?: string): Promise<unknown> {
+    if (actorId !== undefined && !isId(actorId))
+      throw new Error("The account could not be verified.");
     const response = await request(path, {
+      ...(actorId ? { headers: { "X-Spatia-Account": actorId } } : {}),
       credentials: "same-origin",
       cache: "no-store",
       signal: signal
@@ -39,7 +42,7 @@ export function createWorkspaceClient(request: typeof fetch = fetch) {
       );
     return response.json();
   }
-  async function pages(path: string, signal?: AbortSignal): Promise<unknown[]> {
+  async function pages(path: string, signal?: AbortSignal, actorId?: string): Promise<unknown[]> {
     const items: unknown[] = [];
     const seen = new Set<string>();
     let cursor: string | null = null;
@@ -47,6 +50,7 @@ export function createWorkspaceClient(request: typeof fetch = fetch) {
       const page = await read(
         `${path}${path.includes("?") ? "&" : "?"}limit=20${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`,
         signal,
+        actorId,
       );
       if (
         !isRecord(page) ||

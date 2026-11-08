@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { launchBrowser } from "./browser-security.mjs";
+import { openSavedProject, serveProject } from "./authoring-project-fixture.mjs";
 
 const url = process.argv[2] ?? "http://127.0.0.1:5173/";
 const fixture = JSON.parse(
@@ -25,19 +26,10 @@ const first = {
 };
 const browser = await launchBrowser({ target: url, args: ["--enable-unsafe-swiftshader"] });
 try {
-  let page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
-  await page.addInitScript(() => {
-    window.showSaveFilePicker = undefined;
-    window.showOpenFilePicker = undefined;
-  });
-  await page.goto(url);
+  const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
+  const project = await serveProject(page, url, { ...fixture, schemaVersion: 2, scenes: [first] });
+  await page.goto(project.url);
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
-  await page.locator("#project-import").setInputFiles({
-    name: "start.json",
-    mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify({ ...fixture, schemaVersion: 2, scenes: [first] })),
-  });
-  await page.getByText("Project opened", { exact: true }).waitFor();
   await page.getByRole("button", { name: "Saved views", exact: true }).click();
   await page.getByLabel("View name", { exact: true }).fill("First arrival");
   await page.getByRole("button", { name: "Capture current view", exact: true }).click();
@@ -62,10 +54,13 @@ try {
     .inputValue();
   assert.notEqual(target, first.id);
   await page.getByLabel("Interaction 1 destination scene", { exact: true }).blur();
-  await page.locator(".draft-menu summary").click();
-  const downloading = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Save As", exact: true }).click();
-  const saved = JSON.parse(readFileSync(await (await downloading).path(), "utf8"));
+  const deadline = Date.now() + 15000;
+  while (
+    Date.now() < deadline &&
+    project.document().scenes[1]?.interactions[0]?.do.sceneId !== target
+  )
+    await page.waitForTimeout(100);
+  const saved = project.document();
   assert.deepEqual(
     saved.scenes.map((scene) => scene.name),
     ["Second room", "First room"],
@@ -76,16 +71,8 @@ try {
   assert.equal(saved.scenes[1].viewpoints[0].name, "First arrival");
   assert.deepEqual(saved.scenes[1].startCamera, saved.scenes[1].viewpoints[0].camera);
   assert.equal(saved.scenes[1].interactions[0].do.sceneId, target);
-  await page.close();
-  page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
-  await page.goto(url);
-  await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
-  await page.locator("#project-import").setInputFiles({
-    name: "saved.json",
-    mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify(saved)),
-  });
-  await page.getByText("Project opened", { exact: true }).waitFor();
+  await page.reload();
+  await openSavedProject(page);
   await page.getByRole("button", { name: "Scenes", exact: true }).click();
   await page.getByRole("button", { name: "1. Second room", exact: true }).click();
   await page.getByRole("button", { name: "2. First room", exact: true }).click();
@@ -113,7 +100,7 @@ try {
     "Undo restores incoming target",
   );
   console.log(
-    "PASS: scene creation, keyboard reorder, starting view, file round trip, switching history and referenced deletion undo",
+    "PASS: scene creation, keyboard reorder, starting view, server round trip, switching history and referenced deletion undo",
   );
 } finally {
   await browser.close();

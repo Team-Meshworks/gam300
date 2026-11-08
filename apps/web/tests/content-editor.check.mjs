@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
-import { mkdirSync, readFileSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import { launchBrowser } from "./browser-security.mjs";
+import { openSavedProject, serveProject } from "./authoring-project-fixture.mjs";
+import { placeAtRoomCenter } from "./placement-fixture.mjs";
 
 mkdirSync("test-results/scrum56", { recursive: true });
 
@@ -24,7 +26,8 @@ try {
     window.showOpenFilePicker = undefined;
     window.showSaveFilePicker = undefined;
   });
-  await page.goto(origin);
+  const project = await serveProject(page, origin);
+  await page.goto(project.url);
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   // Dev now starts in first person; placement checks use the overview camera.
   await page.getByRole("button", { name: "Third person", exact: true }).click();
@@ -40,15 +43,16 @@ try {
       await page.locator(".asset-picker").getByRole("button", { name, exact: true }).click();
       await page.getByRole("button", { name: "Add", exact: true }).click();
     }
-    await page.locator(".viewport-stage").click({ position: { x: 500, y: 300 } });
+    await placeAtRoomCenter(page);
+    if (name !== "Starter room") {
+      await page.locator(".object-row").last().click();
+    }
   }
   async function saved() {
     await page.getByLabel("Project options", { exact: true }).click();
-    const download = page.waitForEvent("download");
     await page.getByRole("button", { name: "Save", exact: true }).click();
-    const content = JSON.parse(readFileSync(await (await download).path(), "utf8"));
-    // The download starts before the accompanying recovery write has completed.
-    await page.waitForFunction(() => !document.querySelector("#project-save")?.disabled);
+    await page.locator('.save-state[data-state="saved"]').waitFor();
+    const content = project.document();
     return content;
   }
   await place("Starter room");
@@ -61,6 +65,7 @@ try {
     .getByRole("button", { name: "Sample crate", exact: true })
     .click();
   await page.getByRole("button", { name: "Add", exact: true }).click();
+  await page.locator('.viewport-stage[data-placing-asset="test-crate-v1"]').waitFor();
   assert.equal(
     await page.locator('.viewport-stage[data-placing-asset="test-crate-v1"]').count(),
     1,
@@ -74,15 +79,16 @@ try {
     "Cancelled placement must not create a history entry",
   );
   await place("Landscape media stand");
+  await page.locator(".object-row").first().waitFor();
+  await page.locator(".object-row").first().click();
+  async function openTree() {
+    const tree = page.getByRole("button", { name: "Scene tree", exact: true });
+    if ((await tree.getAttribute("aria-pressed")) !== "true") {
+      await tree.click();
+    }
+  }
   async function openText() {
-    if (
-      (await page
-        .getByRole("button", { name: "Edit exhibit information", exact: true })
-        .count()) === 0
-    )
-      await page.getByRole("button", { name: "Position", exact: true }).click();
-    await page.getByRole("button", { name: "Edit exhibit information", exact: true }).click();
-    await page.getByRole("dialog").getByRole("button", { name: "Text", exact: true }).click();
+    await page.getByRole("button", { name: "Edit text", exact: true }).click();
   }
   const renderer = await page.locator(".viewport-stage canvas").elementHandle();
   const initial = await saved();
@@ -152,20 +158,12 @@ try {
   await page.getByRole("button", { name: "Redo", exact: true }).click();
   assert.deepEqual(await saved(), after);
 
-  // Imported content reopens through the real file reader with stable IDs and mixed formatting
-  await page.locator("#project-import").setInputFiles({
-    name: "content.json",
-    mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify(after)),
-  });
-  // Download fallback does not claim a bound file save; explicitly approve replacing this draft
-  await page
-    .locator(".project-confirmation")
-    .getByRole("button", { name: "Don’t Save", exact: true })
-    .click();
-  await page.locator(".project-confirmation").waitFor({ state: "hidden" });
-  await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
-  await page.getByRole("button", { name: "Scene tree", exact: true }).click();
+  // Reopen the server project and verify the same content.
+  project.setDocument(after);
+  await page.goto(project.url);
+  await openSavedProject(page);
+  if (!(await page.locator(`.object-row[data-object-id="${id}"]`).isVisible()))
+    await page.getByRole("button", { name: "Scene tree", exact: true }).click();
   await page.locator(`.object-row[data-object-id="${id}"]`).click();
   await openText();
   assert.equal(await modal.getByRole("textbox", { name: "Text", exact: true }).innerText(), story);
@@ -174,35 +172,39 @@ try {
   assert.equal(await modal.evaluate((element) => element.scrollWidth <= element.clientWidth), true);
   await modal.screenshot({ path: "test-results/scrum56/text-mobile.png" });
   await modal.getByRole("button", { name: "Cancel content editing", exact: true }).click();
-  // Digital displays accept text and media; physical cases expose neither text nor media.
+  // Digital panels use media controls; physical cases keep text and their object library
   await page.setViewportSize({ width: 1366, height: 900 });
   await page.getByRole("button", { name: "Display panels", exact: true }).click();
   await page.getByRole("button", { name: "Square media stand", exact: true }).click();
-  await page.locator(".viewport-stage").click({ position: { x: 500, y: 300 } });
-  if (
-    (await page.getByRole("button", { name: "Edit exhibit information", exact: true }).count()) ===
-    0
-  )
-    await page.getByRole("button", { name: "Position", exact: true }).click();
-  await page.getByRole("button", { name: "Edit exhibit information", exact: true }).click();
-  await modal.getByRole("button", { name: "Text", exact: true }).click();
+  await placeAtRoomCenter(page);
+  await page.locator(".object-row").last().click();
+  await openText();
   await modal.getByRole("textbox", { name: "Text", exact: true }).fill("Digital display text");
   await modal.getByRole("button", { name: "Add", exact: true }).click();
-  await page.getByRole("button", { name: "Edit exhibit information", exact: true }).click();
-  await modal.getByRole("button", { name: "Image", exact: true }).click();
+  await page.getByRole("button", { name: "Edit image", exact: true }).click();
   await modal.getByRole("button", { name: "Sample landscape", exact: true }).click();
   await modal.getByRole("button", { name: "Add", exact: true }).click();
-  await page.getByRole("button", { name: "Edit exhibit information", exact: true }).click();
-  await modal.getByRole("button", { name: "Video", exact: true }).click();
+  await page.getByRole("button", { name: "Edit video", exact: true }).click();
   await modal.getByRole("button", { name: "Sample coast motion (3 seconds)", exact: true }).click();
   await modal.getByRole("button", { name: "Add", exact: true }).click();
   await page.getByRole("button", { name: "Display cases", exact: true }).click();
   await page.getByRole("button", { name: "Display plinth", exact: true }).click();
-  await page.locator(".viewport-stage").click({ position: { x: 600, y: 300 } });
+  await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
+  const placement = await page.locator(".viewport-stage").boundingBox();
+  await page
+    .locator(".viewport-stage")
+    .click({ position: { x: placement.width / 2 + 100, y: placement.height / 2 } });
+  await page.locator(".object-row").last().click();
   assert.equal(
-    await page.getByRole("button", { name: "Edit exhibit information", exact: true }).isEnabled(),
+    await page.getByRole("button", { name: "Edit text", exact: true }).isEnabled(),
     true,
   );
+  assert.equal(
+    await page.getByRole("button", { name: "Display asset library", exact: true }).isEnabled(),
+    true,
+  );
+  assert.equal(await page.getByRole("button", { name: "Edit image", exact: true }).count(), 0);
+  assert.equal(await page.getByRole("button", { name: "Edit video", exact: true }).count(), 0);
   const fixtureSave = await saved();
   assert.equal(fixtureSave.scenes[0].objects.length, 3);
   const displayMedia = fixtureSave.scenes[0].objects.find(
@@ -220,10 +222,12 @@ try {
       .length,
     0,
   );
-  await page.getByRole("button", { name: "Scene tree", exact: true }).click();
+  await openTree();
   const testCase = fixtureSave.scenes[0].objects.find(
     (object) => object.assetId === "display-cube-v1",
   );
+  if (!(await page.locator(`.object-row[data-object-id="${testCase.id}"]`).isVisible()))
+    await page.getByRole("button", { name: "Scene tree", exact: true }).click();
   await page.locator(`.object-row[data-object-id="${testCase.id}"]`).click();
   await page.getByRole("button", { name: "Display colour", exact: true }).hover();
   assert.equal(await page.getByRole("tooltip", { name: "Colour", exact: true }).isVisible(), true);

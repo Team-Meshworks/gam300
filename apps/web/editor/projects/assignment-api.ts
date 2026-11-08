@@ -10,10 +10,12 @@ export type AssignmentSession = {
   mustChangePassword?: boolean;
 };
 export type SourceProject = { projectId: string; title: string; revision: number };
+const reviewStates = ["draft", "outdated", "pending", "approved", "returned", "revoked"] as const;
 export type AssignmentProject = {
   studentId: string;
   projectId: string;
   studentName?: string;
+  reviewState?: (typeof reviewStates)[number] | null;
   approvalStatus?:
     | "not-submitted"
     | "awaiting-approval"
@@ -22,12 +24,14 @@ export type AssignmentProject = {
     | "revoked"
     | "changes-since-submission";
   published?: boolean;
+  isPublic?: boolean;
 };
 export type AssignmentDetails = {
   assignmentId: string;
   title: string;
   description: string;
   instructions: string;
+  assignedBy?: string | null;
   dueAtUnixSeconds: number;
   revision?: number;
   sourceProjectId?: string | null;
@@ -178,7 +182,11 @@ export async function enrolledStudents(
   return rows
     .filter((row) => (row as { enrolled: boolean }).enrolled)
     .map((row) => {
-      const student = row as { userId: string; userName: string; displayName?: string | null };
+      const student = row as {
+        userId: string;
+        userName: string;
+        displayName?: string | null;
+      };
       return {
         id: student.userId,
         name: student.displayName?.trim() || student.userName,
@@ -261,7 +269,11 @@ export async function submitAssignment(
         const projects = receipt(await response.json(), pending);
         if ((await assignmentSession()).userId !== pending.actorId) return { kind: "unknown" };
         return projects
-          ? { kind: "confirmed", assignmentId: pending.body.requestId, projects }
+          ? {
+              kind: "confirmed",
+              assignmentId: pending.body.requestId,
+              projects,
+            }
           : { kind: "unknown" };
       } catch {
         return { kind: "unknown" };
@@ -288,13 +300,14 @@ export async function submitAssignment(
   }
 }
 
-function assignmentDetails(value: unknown): AssignmentDetails {
+export function assignmentDetails(value: unknown): AssignmentDetails {
   if (
     !record(value) ||
     typeof value.assignmentId !== "string" ||
     typeof value.title !== "string" ||
     typeof value.description !== "string" ||
     typeof value.instructions !== "string" ||
+    !(value.assignedBy == null || typeof value.assignedBy === "string") ||
     typeof value.dueAtUnixSeconds !== "number" ||
     !Number.isSafeInteger(value.dueAtUnixSeconds) ||
     (value.revision !== undefined &&
@@ -311,6 +324,7 @@ function assignmentDetails(value: unknown): AssignmentDetails {
         typeof row.studentId !== "string" ||
         typeof row.projectId !== "string" ||
         !validStudentName(row.studentName) ||
+        !(row.reviewState == null || reviewStates.some((state) => state === row.reviewState)) ||
         (row.approvalStatus !== undefined &&
           ![
             "not-submitted",
@@ -320,7 +334,8 @@ function assignmentDetails(value: unknown): AssignmentDetails {
             "revoked",
             "changes-since-submission",
           ].includes(String(row.approvalStatus))) ||
-        (row.published !== undefined && typeof row.published !== "boolean"),
+        (row.published !== undefined && typeof row.published !== "boolean") ||
+        (row.isPublic !== undefined && typeof row.isPublic !== "boolean"),
     )
   )
     throw new Error("The assignment is unavailable.");

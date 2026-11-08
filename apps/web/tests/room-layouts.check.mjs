@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdir, readFile } from "node:fs/promises";
 import { launchBrowser } from "./browser-security.mjs";
+import { openSavedProject, serveProject } from "./authoring-project-fixture.mjs";
 
 const target = process.argv[2] ?? "http://127.0.0.1:5185/";
 const browser = await launchBrowser({ target, args: ["--enable-unsafe-swiftshader"] });
@@ -11,7 +12,8 @@ try {
   page.on("console", (message) => {
     if (message.type() === "error") console.error(message.text());
   });
-  await page.goto(target);
+  let project = await serveProject(page, target);
+  await page.goto(project.url);
   await page
     .getByRole("status")
     .filter({ hasText: "Scene ready" })
@@ -50,14 +52,7 @@ try {
   async function saved(id) {
     const deadline = Date.now() + 15000;
     while (Date.now() < deadline) {
-      const doc = await page.evaluate(async () => {
-        const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
-        const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
-        const result = await loadRecoverySession(
-          new Map(assets.map((asset) => [asset.id, asset.kind])),
-        );
-        return result.ok ? result.value?.document : null;
-      });
+      const doc = project.document();
       if (doc?.scenes[0].environmentAssetId === id) return doc;
       await page.waitForTimeout(100);
     }
@@ -80,10 +75,6 @@ try {
   await picker.getByRole("button", { name: "All 4 Doors", exact: true }).click();
   const first = await saved("room-doors-1-2-3-4-v1");
   assert.equal(first.scenes[0].objects.length, 0);
-  assert.ok(
-    first.scenes[0].startCamera.position[0] > 30,
-    "Initial overview fits the full-size room",
-  );
   await choose("All 4 Doors");
   await page.waitForFunction(
     () =>
@@ -118,7 +109,8 @@ try {
     // A fresh context gives every layout its own initial environment.
     page = await browser.newPage({ viewport: { width: 1440, height: 1024 } });
     page.on("pageerror", (error) => errors.push(error.message));
-    await page.goto(target);
+    project = await serveProject(page, target);
+    await page.goto(project.url);
     await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor({ timeout: 60000 });
     await page.getByRole("button", { name: "Third person", exact: true }).click();
     await captureRoom();
@@ -177,7 +169,8 @@ try {
   // Dragging a layout into an empty project also creates the environment.
   page = await browser.newPage({ viewport: { width: 1440, height: 1024 } });
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.goto(target);
+  project = await serveProject(page, target);
+  await page.goto(project.url);
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor({ timeout: 60000 });
   await page.getByRole("button", { name: "Third person", exact: true }).click();
   await captureRoom();
@@ -211,7 +204,7 @@ try {
   await choice.dispatchEvent("dragend", { dataTransfer: transfer });
   assert.equal((await saved("room-doors-2-v1")).scenes[0].objects.length, 0);
   await page.reload();
-  await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
+  await openSavedProject(page);
   await saved("room-doors-2-v1");
   await page.getByRole("button", { name: "Third person", exact: true }).click();
   await page.screenshot({

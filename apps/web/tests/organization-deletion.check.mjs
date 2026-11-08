@@ -73,8 +73,26 @@ try {
       return route.fulfill({
         json: {
           items: [
-            ...(!deleted ? [{ id: orgId, name, isActive: true }] : []),
-            { id: otherId, name: "Other school", isActive: true },
+            ...(!deleted
+              ? [
+                  {
+                    id: orgId,
+                    name,
+                    isActive: true,
+                    projectCount: 4,
+                    facilitatorCount: 1,
+                    creatorCount: 2,
+                  },
+                ]
+              : []),
+            {
+              id: otherId,
+              name: "Other school",
+              isActive: true,
+              projectCount: 0,
+              facilitatorCount: 0,
+              creatorCount: 0,
+            },
           ],
           nextCursor: null,
         },
@@ -91,7 +109,7 @@ try {
   await dialog.getByText("3 accounts", { exact: true }).waitFor();
   assert.match(await dialog.innerText(), /This cannot be undone/);
   assert.match(await dialog.innerText(), /including archived projects/);
-  const confirm = dialog.getByRole("button", { name: "Delete organisation permanently" });
+  const confirm = dialog.getByRole("button", { name: "Delete Organisation Permanently" });
   assert.equal(await confirm.isDisabled(), true);
   await dialog.getByLabel(`Type ${name} to confirm`).fill(name.toLowerCase());
   assert.equal(await confirm.isDisabled(), true);
@@ -102,7 +120,7 @@ try {
   await open.click();
   await page.getByRole("dialog").getByRole("alert").waitFor();
   assert.equal(
-    await page.getByRole("button", { name: "Delete organisation permanently" }).count(),
+    await page.getByRole("button", { name: "Delete Organisation Permanently" }).count(),
     0,
   );
   await page.keyboard.press("Escape");
@@ -110,7 +128,7 @@ try {
   await open.click();
   dialog = page.getByRole("dialog");
   await dialog.getByLabel(`Type ${name} to confirm`).fill(name);
-  await dialog.getByRole("button", { name: "Delete organisation permanently" }).click();
+  await dialog.getByRole("button", { name: "Delete Organisation Permanently" }).click();
   await dialog.getByRole("alert").waitFor();
   assert.match(await dialog.getByRole("alert").innerText(), /Nothing was deleted/);
   assert.equal(deletes, 1);
@@ -126,12 +144,12 @@ try {
   assert.equal(await dialog.evaluate((node) => node.scrollWidth <= node.clientWidth), true);
   await dialog.getByLabel(`Type ${name} to confirm`).fill(name);
   failDelete = false;
-  await dialog.getByRole("button", { name: "Delete organisation permanently" }).click();
+  await dialog.getByRole("button", { name: "Delete Organisation Permanently" }).click();
   await dialog.getByRole("button", { name: "Deleting…" }).waitFor();
   assert.equal(await dialog.getByRole("button", { name: "Deleting…" }).isDisabled(), true);
   await page.keyboard.press("Escape");
   assert.equal(await dialog.isVisible(), true);
-  await dialog.getByRole("button", { name: "Close", exact: true }).click();
+  await dialog.getByRole("button", { name: "Close dialog", exact: true }).click();
   assert.equal(await dialog.isVisible(), true);
   assert.equal(deletes, 2);
   releaseDelete();

@@ -4,20 +4,26 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { STARTER_ROOM_SHA256 } from "../shared/asset-runtime/catalogue";
 import { disposeModels } from "../shared/asset-runtime/ModelCache";
+import { createExhibitAppearance } from "../shared/asset-runtime/exhibit-appearance";
+import { createTextTexture } from "../shared/asset-runtime/text-texture";
 import { createRoomEntrances } from "../shared/asset-runtime/room-entrances";
 import type { PublishedExhibition } from "./publication";
+import { createVisitorPlayback } from "./visitor-playback";
 import { fetchPublicationAsset } from "./publication-asset";
 
 export function ExhibitionCanvas({
   exhibition,
   sceneIndex,
   viewpoint,
+  navigate,
 }: {
   exhibition: PublishedExhibition;
   sceneIndex: number;
+  navigate: (sceneId: string, viewpointId: string) => void;
   viewpoint?: Readonly<{ id: string }> | undefined;
 }) {
   const mount = useRef<HTMLDivElement>(null);
+  const play = useRef<() => void>(() => {});
   const reset = useRef<() => void>(() => {});
   const selectView = useRef<(id: string) => void>(() => {});
   const [attempt, setAttempt] = useState(0);
@@ -123,8 +129,49 @@ export function ExhibitionCanvas({
       controls.update();
     };
     renderer.domElement.addEventListener("keydown", keys);
+    const roots = new Map<string, THREE.Object3D>();
+    let playback: ReturnType<typeof createVisitorPlayback> | undefined;
+    const ray = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+    let lastFrame = performance.now();
+    // Resolve visible model owners from child geometry for click and gaze triggers
+    const picked = () => {
+      for (const hit of ray.intersectObjects([...roots.values()], true)) {
+        let node: THREE.Object3D | null = hit.object;
+        let visible = true;
+        while (node) {
+          if (!node.visible) visible = false;
+          if (roots.get(node.name) === node && visible) return node.name;
+          node = node.parent;
+        }
+      }
+      return undefined;
+    };
+    // Orbit dragging changes the camera without accidentally activating an exhibit
+    let press = { x: 0, y: 0 };
+    const down = (event: PointerEvent) => {
+      press = { x: event.clientX, y: event.clientY };
+    };
+    const click = (event: PointerEvent) => {
+      if (Math.hypot(event.clientX - press.x, event.clientY - press.y) > 5) return;
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointer.set(
+        ((event.clientX - rect.left) / rect.width) * 2 - 1,
+        (-(event.clientY - rect.top) / rect.height) * 2 + 1,
+      );
+      ray.setFromCamera(pointer, camera);
+      const id = picked();
+      if (id) playback?.click(id);
+      else playback?.start();
+    };
+    renderer.domElement.addEventListener("pointerdown", down);
+    renderer.domElement.addEventListener("pointerup", click);
     renderer.setAnimationLoop(() => {
+      const now = performance.now();
       controls.update();
+      ray.setFromCamera(new THREE.Vector2(), camera);
+      playback?.update(Math.min(0.1, (now - lastFrame) / 1000), picked());
+      lastFrame = now;
       renderer.render(scene, camera);
     });
 
@@ -150,6 +197,7 @@ export function ExhibitionCanvas({
     });
     const loader = new GLTFLoader(manager);
     const entrances = createRoomEntrances();
+    const appearances = createExhibitAppearance();
     const rooms: THREE.Group[] = [];
     void (async () => {
       for (const object of objects) {
@@ -168,6 +216,13 @@ export function ExhibitionCanvas({
           disposeModels(gltf.scene);
           return;
         }
+        // Approved rooms use the same floor-centered model origin as the editor
+        // Apply it inside the authored root so its saved world transform stays unchanged
+        if (asset.placement === "bottom-center") {
+          const box = new THREE.Box3().setFromObject(gltf.scene);
+          const center = box.getCenter(new THREE.Vector3());
+          gltf.scene.position.sub(new THREE.Vector3(center.x, box.min.y, center.z));
+        }
         const root = new THREE.Group();
 
         // Keep authored IDs on the rendered roots without changing the saved object data
@@ -179,13 +234,76 @@ export function ExhibitionCanvas({
           root.quaternion.fromArray(object.transform.rotation);
           root.scale.fromArray(object.transform.scale);
         }
+        const authored =
+          "rules" in source ? source.objects.find((item) => item.id === object.id) : undefined;
+        if (authored && "appearance" in authored) appearances.apply(root, authored.appearance);
+        // Placed text uses the editor's formatting and local placement on its exhibit
+        if (authored && "components" in authored) {
+          for (const component of authored.components) {
+            if (component.type !== "text" || !component.placement) continue;
+            const placement = component.placement;
+            const texture = createTextTexture(
+              "",
+              placement.scale[0],
+              placement.scale[1],
+              component.runs,
+              (component.fontSize ?? 24) * 4,
+              component.background === "transparent",
+              component.color ?? "#292522",
+              component.background ?? "#fffaf0",
+            );
+            const panel = new THREE.Mesh(
+              new THREE.PlaneGeometry(placement.scale[0], placement.scale[1]),
+              new THREE.MeshBasicMaterial({
+                map: texture,
+                side: THREE.DoubleSide,
+                toneMapped: false,
+                transparent: component.background === "transparent",
+              }),
+            );
+            panel.position.fromArray(placement.position);
+            panel.quaternion.fromArray(placement.rotation);
+            panel.translateZ(0.004);
+            root.add(panel);
+          }
+        }
         scene.add(root);
+        roots.set(object.id, root);
+        // Markers attach in object-local coordinates and follow the saved model transform
+        for (const hotspot of ("hotspots" in source ? source.hotspots : []).filter(
+          (item) => item.objectId.toLowerCase() === object.id.toLowerCase(),
+        )) {
+          const marker = new THREE.Mesh(
+            new THREE.SphereGeometry(0.08, 12, 8),
+            new THREE.MeshBasicMaterial({ color: "#b45b34" }),
+          );
+          marker.position.fromArray(hotspot.position);
+          root.add(marker);
+        }
         if (root.visible && digest === STARTER_ROOM_SHA256) {
           rooms.push(root);
         }
       }
       if (!controller.signal.aborted) {
         entrances.sync(rooms);
+        const information = document.querySelector<HTMLElement>(
+          `[data-exhibition-scene="${source.id}"]`,
+        );
+        if (information) {
+          playback = createVisitorPlayback(
+            source,
+            camera,
+            controls,
+            roots,
+            information,
+            navigate,
+            (message) => {
+              if (!controller.signal.aborted)
+                setResult({ exhibition, sceneIndex, attempt, viewpoint, message, failed: false });
+            },
+          );
+          play.current = playback.start;
+        }
         setResult({
           exhibition,
           sceneIndex,
@@ -198,6 +316,7 @@ export function ExhibitionCanvas({
     })().catch((failure: unknown) => {
       if (!controller.signal.aborted) {
         entrances.dispose();
+        appearances.dispose();
         disposeModels(scene);
         scene.clear();
         setResult({
@@ -217,11 +336,16 @@ export function ExhibitionCanvas({
     });
     return () => {
       controller.abort();
+      playback?.dispose();
+      renderer.domElement.removeEventListener("pointerdown", down);
+      renderer.domElement.removeEventListener("pointerup", click);
+      play.current = () => {};
       size.disconnect();
       renderer.setAnimationLoop(null);
       renderer.domElement.removeEventListener("keydown", keys);
       controls.dispose();
       entrances.dispose();
+      appearances.dispose();
       disposeModels(scene);
       renderer.dispose();
       renderer.domElement.remove();
@@ -240,6 +364,7 @@ export function ExhibitionCanvas({
       <p>
         Drag to look around, scroll or pinch to zoom. Focus the view and use the arrow keys to move.
       </p>
+      <button onClick={() => play.current()}>Start exhibition</button>
       <button onClick={() => reset.current()}>Reset view</button>
       {exhibition.document.scenes[sceneIndex]?.viewpoints?.map((view) => (
         <button key={view.id} onClick={() => selectView.current(view.id)}>

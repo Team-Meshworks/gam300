@@ -12,7 +12,7 @@ import {
   type SavedProject,
   type SubmissionSummary,
 } from "./review-types";
-import type { LeaveGuard } from "./ReviewWorkspace";
+import type { LeaveGuard } from "../workspace/useWorkspaceDeparture";
 import { ReviewDocument } from "./ReviewDocument";
 import { ProgressReviews } from "./ProgressReviews";
 import { formatLocalDeadline } from "../projects/deadline";

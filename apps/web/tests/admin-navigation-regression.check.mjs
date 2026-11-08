@@ -32,6 +32,8 @@ const project = {
   revision: 0,
   updatedAt: "2026-11-01T00:00:00Z",
   archived: false,
+  organizationName: "Test School",
+  isPublic: false,
   permissions: { canEdit: true, canManage: true, canPublish: false },
 };
 const models = {

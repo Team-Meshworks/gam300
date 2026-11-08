@@ -21,6 +21,15 @@ let rosterAvailable = true;
 let largeRoster = false;
 let currentSession = session;
 let classRequests = 0;
+let logoutPosts = 0;
+let releasePublish;
+let notifyPublish;
+const publishStarted = new Promise((resolve) => {
+  notifyPublish = resolve;
+});
+const heldPublish = new Promise((resolve) => {
+  releasePublish = resolve;
+});
 try {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   page.setDefaultTimeout(5000);
@@ -29,6 +38,10 @@ try {
     const path = new URL(request.url()).pathname;
     if (path === "/api/v1/auth/session") return route.fulfill({ json: currentSession });
     if (path === "/api/v1/auth/csrf") return route.fulfill({ json: { requestToken: "test" } });
+    if (path === "/api/v1/auth/logout") {
+      logoutPosts++;
+      return route.abort();
+    }
     if (path === `/api/v1/projects/${projectId}/publication-readiness`)
       return route.fulfill({
         json: { projectId, revision: 4, state: "Ready", completionConfirmed: true, approved: true },
@@ -65,6 +78,10 @@ try {
       assert.equal(request.headers()["x-spatia-account"], actor);
       const body = request.postDataJSON();
       requests.push(body);
+      if (requests.length === 1) {
+        notifyPublish();
+        await heldPublish;
+      }
       if (outcome === "unknown") return route.abort();
       if (outcome === "conflict")
         return route.fulfill({ status: 409, json: { code: "revision_conflict" } });
@@ -95,7 +112,38 @@ try {
   const publish = page.getByRole("button", { name: "Publish", exact: true });
   assert.equal(await publish.isDisabled(), true);
   await page.getByRole("checkbox", { name: /confirm.*saved revision/i }).check();
+  let leavePrompt = false;
+  const dismissDeparture = async (dialog) => {
+    leavePrompt = true;
+    await dialog.dismiss();
+  };
+  page.once("dialog", dismissDeparture);
+  await page.getByRole("link", { name: "Spatia home" }).click();
+  page.off("dialog", dismissDeparture);
+  const keepEditing = page.getByRole("button", { name: "Keep editing" });
+  if (await keepEditing.isVisible()) {
+    leavePrompt = true;
+    await keepEditing.click();
+  }
+  assert.equal(leavePrompt, true, "Leaving with unsent publication choices must ask first");
+  assert.equal(await page.getByRole("checkbox", { name: /Aisyah/ }).isChecked(), true);
+  assert.equal(
+    await page.getByRole("checkbox", { name: /confirm.*saved revision/i }).isChecked(),
+    true,
+  );
   await publish.click();
+  await publishStarted;
+  assert.equal(
+    await page.getByRole("link", { name: "Spatia home" }).getAttribute("aria-disabled"),
+    "true",
+  );
+  assert.equal(await page.getByRole("button", { name: "Log Out", exact: true }).isDisabled(), true);
+  await page
+    .getByRole("button", { name: "Log Out", exact: true })
+    .evaluate((button) => button.click());
+  await page.waitForTimeout(200);
+  assert.equal(logoutPosts, 0, "A pending publication must block header logout");
+  releasePublish();
   await page.getByText(/could not be confirmed/i).waitFor();
   assert.equal(await page.getByRole("link", { name: /open publication/i }).count(), 0);
   assert.equal(await qr.count(), 0, "An uncertain publication must not expose a QR code");

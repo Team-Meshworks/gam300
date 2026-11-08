@@ -21,7 +21,7 @@ internal static class PublicationDocumentAssets
                 foreach (var scene in content.Scenes)
                 {
                     if (scene.EnvironmentAssetId is { } environmentId) { ids.Add(environmentId); }
-                    // Include scene audio in retained references even while its playback remains unavailable
+                    // Retain scene audio alongside models so its exact bytes survive library retirement
                     foreach (var audio in (scene.Audio ?? []).OfType<AudioComponent>()) { ids.Add(audio.AssetId); }
                     foreach (var item in scene.Objects)
                     {

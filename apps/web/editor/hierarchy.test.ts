@@ -1,3 +1,4 @@
+import { createLoadedStore } from "../tests/project-store-fixture";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { SceneTreePanel } from "./ui/SceneTreePanel";
@@ -113,8 +114,7 @@ describe("authored hierarchy", () => {
       name: "Starter room",
       kind: "model" as const,
     };
-    const store = createDocumentStore([...assets, roomModel]);
-    store.createProject("test-room-v1");
+    const store = createLoadedStore([...assets, roomModel], "test-room-v1");
     const room = store.addObject(roomModel.id, [10, 0, 0]);
     const crate = store.addObject("test-crate-v1", [0, 0, 0]);
     if (!room.ok || !crate.ok) throw new Error("Fixture placement failed");
@@ -323,8 +323,7 @@ describe("room layouts", () => {
     }),
   );
   function layout() {
-    const store = createDocumentStore(assets);
-    store.createProject("test-room-v1");
+    const store = createLoadedStore(assets, "test-room-v1");
     const a = store.addObject("test-room-module-v1", [10, 0, 0]);
     const b = store.addObject("test-room-module-v1", [10, 0, 10]);
     if (!a.ok || !b.ok) throw new Error("Could not create rooms");
@@ -503,8 +502,7 @@ describe("room layouts", () => {
     );
   });
   it("deletes the last room into an empty saveable project and permits adding a new room", () => {
-    const store = createDocumentStore(assets);
-    store.createProject("test-room-v1");
+    const store = createLoadedStore(assets, "test-room-v1");
     const id = store.getSnapshot().activeSceneId!;
     store.addObject("test-crate-v1", [0, 0, 0], id);
     expect(store.deleteObject(id).ok).toBe(true);
@@ -536,8 +534,7 @@ describe("room layouts", () => {
   });
 
   it("aligns new rooms with the remaining rotated layout after deleting the initial room", () => {
-    const store = createDocumentStore(assets);
-    store.createProject("test-room-v1");
+    const store = createLoadedStore(assets, "test-room-v1");
     expect(store.deleteObject(store.getSnapshot().activeSceneId!).ok).toBe(true);
     const first = store.addObject("test-room-module-v1", [0, 0, 0]);
     if (!first.ok) throw new Error(first.error);

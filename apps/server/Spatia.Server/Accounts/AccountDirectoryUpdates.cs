@@ -5,6 +5,7 @@ using Npgsql;
 using Spatia.Server.Hosting;
 using Spatia.Server.Persistence;
 using Spatia.Server.Projects;
+using Spatia.Server.Publications;
 using Spatia.Server.Security;
 
 namespace Spatia.Server.Accounts;
@@ -31,6 +32,7 @@ public static partial class AccountDirectoryEndpoints
         var user = await users.FindByIdAsync(id.ToString("D"));
         if (user is null) { return ApiProblems.Create(context, 404, "account_not_found", "The account was not found."); }
         await database.Entry(user).ReloadAsync(cancellationToken);
+        if (user.IsDeleted) { return ApiProblems.Create(context, 404, "account_not_found", "The account was not found."); }
         var membership = await database.OrganizationMemberships.AsNoTracking().SingleOrDefaultAsync(row => row.UserId == id, cancellationToken);
         var role = (await users.GetRolesAsync(user)).Single();
         var changeRole = request.Role is not null && request.Role != role;
@@ -112,6 +114,19 @@ public static partial class AccountDirectoryEndpoints
         var query = database.Projects.AsNoTracking().Where(row => row.OrganizationId == id);
         if (page.Cursor is { } cursor) { query = query.Where(row => row.Id.CompareTo(cursor) > 0); }
         var rows = await query.OrderBy(row => row.Id).Take(page.Limit + 1).ToListAsync(cancellationToken);
+        // Resolve anonymous visibility once for the bounded organisation project page
+        var pageIds = rows.Take(page.Limit).Select(row => row.Id).ToArray();
+        var retired = database.Database.SqlQuery<Guid>($"SELECT id AS \"Value\" FROM retired_publication_ids");
+        var publicIds = await (from project in database.Projects.AsNoTracking()
+                               where pageIds.Contains(project.Id) && !project.IsArchived
+                               where (from edition in database.Publications
+                                      join state in database.PublicationAccess on edition.Id equals state.PublicationId
+                                      where edition.ProjectId == project.Id
+                                          && (state.Audience == (int)PublicationAudience.Public || state.Audience == (int)PublicationAudience.Unlisted)
+                                          && !state.Hidden && !state.Revoked && !state.Deleted
+                                          && !retired.Contains(edition.Id)
+                                      select edition.Id).Any()
+                               select project.Id).ToListAsync(cancellationToken);
         var items = new List<object>();
         foreach (var row in rows.Take(page.Limit))
         {
@@ -119,7 +134,7 @@ public static partial class AccountDirectoryEndpoints
             if (!document.Ok) { return ApiProblems.Create(context, 503, "project_unavailable", "Project details could not be loaded."); }
             var title = document.Value!.Title;
             if (title.Length > 256) { title = title[..(char.IsHighSurrogate(title[254]) ? 254 : 255)] + "…"; }
-            items.Add(new { id = row.Id, title, status = row.IsArchived ? "Archived" : "Draft" });
+            items.Add(new { id = row.Id, title, status = row.IsArchived ? "Archived" : "Draft", isPublic = publicIds.Contains(row.Id) });
         }
         return await CompleteAsync(context, transaction, Results.Ok(new
         {

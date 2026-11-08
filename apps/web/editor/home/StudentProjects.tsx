@@ -15,7 +15,12 @@ import "../reviews/reviews.css";
 import { createWorkspaceClient } from "./workspace-api";
 import { studentProjectRows, type StudentProjectRow } from "./student-projects";
 import { loadStudentFeedback } from "./student-feedback";
-import { ProjectHome } from "./ProjectHome";
+import { Icon } from "@iconify/react/offline";
+import info from "@iconify-icons/lucide/info";
+import type { RenderWorkspace } from "./dashboard";
+import { DashboardSkeleton } from "./DashboardSkeleton";
+import { CreatorProjectCard } from "./CreatorProjectCard";
+import { PublishedProjects } from "./PublishedProjects";
 import "./student-projects.css";
 
 const workspace = createWorkspaceClient();
@@ -103,7 +108,7 @@ export function StudentProjectDetails({
           </>
         )}
         <StudentPublicationLink
-          key={`${row.project.projectId}:${actorId}`}
+          key={`link:${row.project.projectId}:${actorId}`}
           projectId={row.project.projectId}
           actorId={actorId}
         />
@@ -146,10 +151,14 @@ export function StudentProjectDetails({
 
 export function StudentProjects({
   session,
+  listVersion,
+  renderWorkspace,
   active,
   onOpenProject,
 }: {
   session: AccountSession;
+  listVersion: number;
+  renderWorkspace: RenderWorkspace;
   active: boolean;
   onOpenProject: (projectId: string) => void;
 }) {
@@ -161,7 +170,6 @@ export function StudentProjects({
   const [feedback, setFeedback] = useState<Decision[]>([]);
   const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [feedbackError, setFeedbackError] = useState("");
-  const [manage, setManage] = useState(false);
   const lastSelected = useRef<string | null>(null);
   useEffect(() => {
     if (!selected && lastSelected.current) {
@@ -212,7 +220,7 @@ export function StudentProjects({
       disposed = true;
       controller.abort();
     };
-  }, [session.userId, session.orgId, session.role, version]);
+  }, [session.userId, session.orgId, session.role, version, listVersion]);
   useEffect(() => {
     let disposed = false;
     if (!selected?.assignment) return;
@@ -234,103 +242,85 @@ export function StudentProjects({
       disposed = true;
     };
   }, [selected, session.userId]);
-  return (
-    <>
-      {selected ? (
-        <StudentProjectDetails
-          row={selected}
-          feedback={feedback}
-          feedbackLoading={feedbackLoading}
-          feedbackError={feedbackError}
-          actorId={session.userId}
-          onClose={() => setSelected(null)}
-          onOpen={() => onOpenProject(selected.project.projectId)}
-        />
-      ) : (
-        <>
-          <h1 className="sp-student-welcome">Welcome Back, {session.displayName}</h1>
-          <section className="sp-student-dashboard" aria-label="Student projects">
-            <Tabs
-              id="student-projects"
-              label="Student project views"
-              value={tab}
-              items={[
-                { value: "projects", label: "Projects" },
-                { value: "published", label: "Published" },
-              ]}
-              onChange={setTab}
-            />
-            <div
-              id="student-projects-panel"
-              role="tabpanel"
-              aria-labelledby={`student-projects-${tab}`}
-            >
-              {tab === "published" ? (
-                <p role="status">
-                  Published projects cannot be listed here yet. Open a project’s details to see its
-                  sharing link when available.
-                </p>
-              ) : (
-                <>
-                  {error && (
-                    <div role="alert">
-                      <p>{error}</p>
-                      <Button
-                        onClick={() => {
-                          setError("");
-                          setVersion((n) => n + 1);
-                        }}
-                      >
-                        Retry
-                      </Button>
-                    </div>
-                  )}
-                  {!rows && !error && <p role="status">Loading projects…</p>}
-                  {rows && !rows.length && <p>No projects are available yet.</p>}
-                  <div className="sp-student-list">
-                    {rows?.map((row) => (
-                      <button
-                        className="sp-student-card"
-                        type="button"
-                        id={`student-project-${row.project.projectId}`}
-                        key={row.project.projectId}
-                        onClick={() => {
-                          lastSelected.current = row.project.projectId;
-                          setFeedback([]);
-                          setFeedbackError("");
-                          setFeedbackLoading(Boolean(row.assignment));
-                          setSelected(row);
-                        }}
-                      >
-                        <span className="sp-student-card-image" aria-hidden="true" />
-                        <span className="sp-student-card-copy">
-                          <strong>{row.project.title}</strong>
-                          {row.assignment && (
-                            <>
-                              <small>
-                                {row.assignment.className} · Due{" "}
-                                {formatLocalDeadline(row.assignment.details.dueAtUnixSeconds) ??
-                                  "Unavailable"}
-                              </small>
-                              <span>{row.assignment.details.description}</span>
-                            </>
-                          )}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-            <details onToggle={(event) => setManage(event.currentTarget.open)}>
-              <summary>Manage projects and archives</summary>
-              {manage && (
-                <ProjectHome session={session} active={active} onOpenProject={onOpenProject} />
-              )}
-            </details>
-          </section>
-        </>
-      )}
-    </>
+  function retryProjects() {
+    setError("");
+    setRows(null);
+    setVersion((n) => n + 1);
+  }
+  if (selected)
+    return renderWorkspace(
+      <StudentProjectDetails
+        row={selected}
+        feedback={feedback}
+        feedbackLoading={feedbackLoading}
+        feedbackError={feedbackError}
+        actorId={session.userId}
+        onClose={() => setSelected(null)}
+        onOpen={() => onOpenProject(selected.project.projectId)}
+      />,
+    );
+  const published = tab === "published";
+  return renderWorkspace(
+    <section className="sp-student-dashboard" aria-labelledby="creator-heading" data-tab={tab}>
+      <div className="sp-student-heading">
+        <h1 id="creator-heading">{published ? "Published Projects" : "Projects"}</h1>
+        <p>
+          {published
+            ? "Your work, ready to explore. View your published projects and share them with others."
+            : "Your next chapter starts here. Explore your assigned projects and keep track of approvals."}
+        </p>
+      </div>
+      <Tabs
+        id="student-projects"
+        label="Project views"
+        value={tab}
+        items={[
+          { value: "projects", label: "Projects" },
+          { value: "published", label: "Published" },
+        ]}
+        onChange={setTab}
+      />
+      <div id="student-projects-panel" role="tabpanel" aria-labelledby={`student-projects-${tab}`}>
+        {error ? (
+          <div role="alert" className="sp-dashboard-state">
+            <p>{error}</p>
+            <Button onClick={retryProjects}>Retry</Button>
+          </div>
+        ) : !rows ? (
+          <DashboardSkeleton view={published ? "published" : "creator"} />
+        ) : published ? (
+          active && <PublishedProjects rows={rows} session={session} onRetry={retryProjects} />
+        ) : !rows.length ? (
+          <p className="sp-dashboard-state" role="status">
+            No projects are available yet.
+          </p>
+        ) : (
+          <div className="sp-student-list">
+            {rows.map((row) => (
+              <CreatorProjectCard
+                key={row.project.projectId}
+                row={row}
+                name={session.displayName}
+                onOpen={() => onOpenProject(row.project.projectId)}
+                onDetails={() => {
+                  lastSelected.current = row.project.projectId;
+                  setFeedback([]);
+                  setFeedbackError("");
+                  setFeedbackLoading(Boolean(row.assignment));
+                  setSelected(row);
+                }}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+      <p className="sp-workspace-note">
+        <Icon icon={info} width={16} />
+        {published
+          ? "A little sharing goes a long way. Copy your project link into a message, email or presentation."
+          : "Open a project to review its instructions and continue building your virtual museum."}
+      </p>
+    </section>,
+    published ? "creator-published" : "creator-projects",
   );
 }

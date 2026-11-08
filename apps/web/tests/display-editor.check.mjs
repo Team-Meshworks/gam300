@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { launchBrowser } from "./browser-security.mjs";
 import { placeAtRoomCenter } from "./placement-fixture.mjs";
+import { serveProject } from "./authoring-project-fixture.mjs";
 await mkdir("test-results/display-editor", { recursive: true });
 const browser = await launchBrowser({
   target: process.argv[2] ?? "http://127.0.0.1:5185/",
@@ -140,7 +141,8 @@ try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1024 } });
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.goto(process.argv[2] ?? "http://127.0.0.1:5185/");
+  const project = await serveProject(page, process.argv[2] ?? "http://127.0.0.1:5185/");
+  await page.goto(project.url);
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   // Dev now starts in first person; placement checks use the overview camera.
   await page.getByRole("button", { name: "Third person", exact: true }).click();

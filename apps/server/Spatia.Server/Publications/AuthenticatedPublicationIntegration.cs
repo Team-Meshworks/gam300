@@ -15,16 +15,16 @@ internal sealed class AuthenticatedPublicationIntegration : IPublicationIntegrat
     {
         var intent = ReadIntent(request);
         if (intent.Failure is { } failure) { return PublicationPreparation.Denied(failure); }
-        // Check authored features before resolving assets or creating a publication
-        // Keep unavailable content saved while preventing incomplete playback
-        var hasLegacyInteractions = document switch
+        // URL-only audio has no retained bytes or current publication access decision
+        // Require a captured library component while preserving authored rules and hotspots
+        var hasUncapturedAudio = document switch
         {
-            LegacyProject legacy => legacy.Scenes.Any(scene => scene.Interactions.Length != 0 || scene.Hotspots.Length != 0),
-            ContentProject content => content.Scenes.Any(scene => scene.Interactions.Length != 0 || scene.Hotspots.Length != 0),
+            LegacyProject legacy => legacy.Scenes.Any(scene => scene.Interactions.Any(item => item.Do is PlayAudioInteractionAction { Url: not null })),
+            ContentProject content => content.Scenes.Any(scene => scene.Interactions.Any(item => item.Do is PlayAudioInteractionAction { Url: not null })),
             _ => true,
         };
         var missing = ProjectCapabilities.Missing(document, PublicationCapabilities.Supported);
-        if (hasLegacyInteractions || missing.Count != 0)
+        if (hasUncapturedAudio || missing.Count != 0)
         {
             return PublicationPreparation.Denied(PublicationRejection.UnsupportedRuntime, missing);
         }

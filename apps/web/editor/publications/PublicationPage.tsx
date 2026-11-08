@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { AccountSession } from "../accounts/account-client";
+import type { LeaveGuard } from "../workspace/useWorkspaceDeparture";
 import { createAccountClient } from "../accounts/account-client";
 import { createWorkspaceClient, isId, isRecord } from "../home/workspace-api";
 import { Button } from "../../shared/ui/Button";
@@ -71,7 +72,13 @@ function pendingRequest(key: string | null): {
   }
 }
 
-export function PublicationPage({ session }: { session: AccountSession }) {
+export function PublicationPage({
+  session,
+  onGuard,
+}: {
+  session: AccountSession;
+  onGuard: (guard: LeaveGuard) => void;
+}) {
   const params = new URLSearchParams(location.search).getAll("projectId");
   const projectId = params.length === 1 && isId(params[0]) ? params[0] : null;
   const storageKey = projectId
@@ -224,11 +231,14 @@ export function PublicationPage({ session }: { session: AccountSession }) {
   }, [projectId, session.userId]);
 
   useEffect(() => {
-    if (phase !== "pending" && phase !== "unknown") return;
+    const pending = phase === "pending";
+    const dirty = phase === "unknown" || (phase === "ready" && (confirmed || selected.length > 0));
+    onGuard({ pending, dirty });
+    if (!pending && !dirty) return;
     const preventLoss = (event: BeforeUnloadEvent) => event.preventDefault();
     window.addEventListener("beforeunload", preventLoss);
     return () => window.removeEventListener("beforeunload", preventLoss);
-  }, [phase]);
+  }, [onGuard, phase, confirmed, selected.length]);
 
   async function publish(retry = false) {
     if (

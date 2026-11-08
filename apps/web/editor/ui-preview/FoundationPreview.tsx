@@ -124,7 +124,7 @@ export function FoundationPreview() {
           </select>
         </label>
       </aside>
-      <WorkspaceShell name="Ms Tan" initials="MT">
+      <WorkspaceShell header={{ account: { displayName: "Ms Tan" }, homeHref: "#new-project" }}>
         <div className="sp-page-heading">
           <h1>{view.title}</h1>
           <p>{view.description}</p>

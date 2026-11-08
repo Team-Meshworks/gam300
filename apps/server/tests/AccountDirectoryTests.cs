@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Spatia.Server.Accounts;
 using Spatia.Server.Persistence;
+using Spatia.Server.Projects;
 
 namespace Spatia.Server.Tests;
 
@@ -15,21 +16,36 @@ public sealed class AccountDirectoryTests
     public async Task Directory_ReadsReturnOnlyPublicFieldsAndPersistedInactiveRecords()
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync();
-        await fixture.SignInAsync(await fixture.CreateAccountAsync(ApplicationRoles.Administrator));
+        var administrator = await fixture.CreateAccountAsync(ApplicationRoles.Administrator);
+        await fixture.SignInAsync(administrator);
         var userId = await fixture.CreateAccountAsync(forced: true);
+        var educatorId = await fixture.CreateAccountAsync(ApplicationRoles.Educator);
         Guid orgId;
+        var projectId = Guid.NewGuid();
         string userName;
         await using (var scope = fixture.Database.Services.CreateAsyncScope())
         {
             var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             var user = await database.Users.SingleAsync(row => row.Id == userId);
             user.IsActive = false;
+            user.DisplayName = "Directory Member Display";
             userName = user.UserName!;
             orgId = await database.OrganizationMemberships.Where(row => row.UserId == userId)
                 .Select(row => row.OrganizationId).SingleAsync();
             var organization = await database.Organizations.SingleAsync(row => row.Id == orgId);
             organization.Name = "Synthetic 100%_\\ Organization";
             organization.IsActive = false;
+            await database.OrganizationMemberships.Where(row => row.UserId == educatorId)
+                .ExecuteUpdateAsync(set => set.SetProperty(row => row.OrganizationId, orgId));
+            database.Projects.Add(new Project
+            {
+                Id = projectId,
+                OrganizationId = orgId,
+                SchemaVersion = 1,
+                DocumentJson = ProjectTestDocuments.Create(projectId, "Organisation totals"),
+                UpdatedAt = DateTimeOffset.UtcNow,
+            });
+            database.ProjectAssignments.Add(new ProjectAssignment { ProjectId = projectId, UserId = userId, CanEdit = true });
             await database.SaveChangesAsync();
         }
 
@@ -50,7 +66,10 @@ public sealed class AccountDirectoryTests
         await Assert.That(filtered.GetProperty("items").GetArrayLength()).IsEqualTo(1);
         await Assert.That(filtered.GetProperty("items")[0].GetProperty("userId").GetGuid()).IsEqualTo(userId);
         await Assert.That(filtered.GetProperty("nextCursor").ValueKind).IsEqualTo(JsonValueKind.Null);
-        var empty = await GetJsonAsync(fixture, $"/api/v1/admin/users?role=Educator&orgId={orgId:D}");
+        var educators = await GetJsonAsync(fixture, $"/api/v1/admin/users?role=Educator&orgId={orgId:D}");
+        await Assert.That(educators.GetProperty("items").GetArrayLength()).IsEqualTo(1);
+        await Assert.That(educators.GetProperty("items")[0].GetProperty("userId").GetGuid()).IsEqualTo(educatorId);
+        var empty = await GetJsonAsync(fixture, $"/api/v1/admin/users?role=Creator&orgId={orgId:D}&isActive=true");
         await Assert.That(empty.GetProperty("items").GetArrayLength()).IsEqualTo(0);
 
         var organizationJson = await GetJsonAsync(fixture, $"/api/v1/admin/organizations/{orgId:D}");
@@ -63,8 +82,81 @@ public sealed class AccountDirectoryTests
             + Uri.EscapeDataString("100%_\\ ORGANIZATION"));
         await Assert.That(organizations.GetProperty("items").GetArrayLength()).IsEqualTo(1);
         await Assert.That(organizations.GetProperty("items")[0].GetProperty("id").GetGuid()).IsEqualTo(orgId);
+        var totals = organizations.GetProperty("items")[0];
+        await Assert.That(totals.GetProperty("projectCount").GetInt32()).IsEqualTo(1);
+        await Assert.That(totals.GetProperty("facilitatorCount").GetInt32()).IsEqualTo(1);
+        await Assert.That(totals.GetProperty("creatorCount").GetInt32()).IsEqualTo(1);
+
+        // Organisation discovery also follows member account names without exposing account records in the list
+        foreach (var term in new[] { userName.ToUpperInvariant(), "DIRECTORY MEMBER DISPLAY" })
+        {
+            var matching = await GetJsonAsync(fixture, "/api/v1/admin/organizations?q=" + Uri.EscapeDataString(term));
+            await Assert.That(matching.GetProperty("items").GetArrayLength()).IsEqualTo(1);
+            await Assert.That(matching.GetProperty("items")[0].GetProperty("id").GetGuid()).IsEqualTo(orgId);
+        }
         var literal = await GetJsonAsync(fixture, "/api/v1/admin/users?q=%25");
         await Assert.That(literal.GetProperty("items").GetArrayLength()).IsEqualTo(0);
+
+        using var noToken = await fixture.Client.DeleteAsync($"/api/v1/admin/users/{userId:D}");
+        await AuthTestRequests.AssertProblemAsync(noToken, HttpStatusCode.BadRequest, "csrf_invalid");
+        using var protectedAdministrator = await DeleteAsync(fixture, administrator);
+        await AuthTestRequests.AssertProblemAsync(protectedAdministrator, HttpStatusCode.Forbidden, "account_delete_forbidden");
+        using var missing = await DeleteAsync(fixture, Guid.NewGuid());
+        await AuthTestRequests.AssertProblemAsync(missing, HttpStatusCode.NotFound, "account_not_found");
+        await using (var scope = fixture.Database.Services.CreateAsyncScope())
+        {
+            var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            await database.Users.Where(row => row.Id == userId).ExecuteUpdateAsync(set => set.SetProperty(row => row.IsActive, true));
+            await database.Organizations.Where(row => row.Id == orgId).ExecuteUpdateAsync(set => set.SetProperty(row => row.IsActive, true));
+        }
+        using var targetClient = fixture.CreateClient();
+        await fixture.SignInAsync(userId, targetClient);
+        using var liveSession = await targetClient.GetAsync("/api/v1/auth/session");
+        await Assert.That(liveSession.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        using var deleted = await DeleteAsync(fixture, userId);
+        await Assert.That(deleted.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
+        using var repeated = await DeleteAsync(fixture, userId);
+        await Assert.That(repeated.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
+        using var staleSession = await targetClient.GetAsync("/api/v1/auth/session");
+        await Assert.That(staleSession.StatusCode).IsEqualTo(HttpStatusCode.Unauthorized);
+        using var freshLogin = await AuthTestRequests.PostAsync(fixture, "/api/v1/auth/login",
+            new { userName, password = AuthTestRequests.CurrentPassword }, targetClient);
+        await AuthTestRequests.AssertProblemAsync(freshLogin, HttpStatusCode.Unauthorized, "login_failed");
+        using var removed = await fixture.Client.GetAsync($"/api/v1/admin/users/{userId:D}");
+        await Assert.That(removed.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+        using var reactivate = new HttpRequestMessage(HttpMethod.Patch, $"/api/v1/admin/users/{userId:D}/active")
+        {
+            Content = JsonContent.Create(new { isActive = true }),
+        };
+        reactivate.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync());
+        using var unavailable = await fixture.Client.SendAsync(reactivate);
+        await Assert.That(unavailable.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+        using var reset = await AuthTestRequests.PostAsync(fixture, $"/api/v1/admin/users/{userId:D}/password",
+            new { newTemporaryPassword = AuthTestRequests.NewPassword });
+        await Assert.That(reset.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+        using var reuse = await AuthTestRequests.PostAsync(fixture, "/api/v1/admin/users", new
+        {
+            userName,
+            role = ApplicationRoles.Creator,
+            orgId,
+            initialPassword = AuthTestRequests.CurrentPassword,
+        });
+        await AuthTestRequests.AssertProblemAsync(reuse, HttpStatusCode.Conflict, "username_taken");
+        var remaining = await GetJsonAsync(fixture, $"/api/v1/admin/users?orgId={orgId:D}");
+        await Assert.That(remaining.GetProperty("items").GetArrayLength()).IsEqualTo(1);
+        await Assert.That(remaining.GetProperty("items")[0].GetProperty("userId").GetGuid()).IsEqualTo(educatorId);
+        await using (var scope = fixture.Database.Services.CreateAsyncScope())
+        {
+            var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var retained = await database.Users.SingleAsync(row => row.Id == userId);
+            await Assert.That(retained.IsDeleted).IsTrue();
+            await Assert.That(retained.IsActive).IsFalse();
+            await Assert.That(retained.UserName).IsEqualTo(userName);
+            await Assert.That(await database.Projects.AnyAsync(row => row.Id == projectId)).IsTrue();
+            await Assert.That(await database.ProjectAssignments.AnyAsync(row => row.ProjectId == projectId && row.UserId == userId)).IsTrue();
+            await Assert.That(await database.OrganizationMemberships.AnyAsync(row => row.UserId == userId)).IsTrue();
+        }
+
     }
 
     [Test]
@@ -158,6 +250,15 @@ public sealed class AccountDirectoryTests
             await Assert.That((int)response.StatusCode).IsEqualTo(status);
             await Assert.That((await response.Content.ReadAsStringAsync()).Contains(target.ToString("D"), StringComparison.Ordinal)).IsFalse();
         }
+        using var deletion = await DeleteAsync(fixture, target);
+        await Assert.That((int)deletion.StatusCode).IsEqualTo(status);
+    }
+
+    private static async Task<HttpResponseMessage> DeleteAsync(HttpsApplicationFixture fixture, Guid id)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Delete, $"/api/v1/admin/users/{id:D}");
+        request.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync());
+        return await fixture.Client.SendAsync(request);
     }
 
     private static async Task<JsonElement> GetJsonAsync(HttpsApplicationFixture fixture, string path)

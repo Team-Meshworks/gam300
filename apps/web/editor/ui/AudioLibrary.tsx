@@ -8,7 +8,6 @@ import selectedRail from "./assets/editor-video-selected-bg.svg?no-inline";
 import "./audio-library.css";
 
 export type AudioLibraryMode = "background" | "spatial" | "narration";
-const categories = ["BGM"];
 export function AudioLibrary({
   assets,
   mode,
@@ -27,12 +26,17 @@ export function AudioLibrary({
   const [playing, setPlaying] = useState<string | null>(null);
   const [chosen, setChosen] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const initialFilter = "BGM";
+  const initialFilter = mode === "background" ? "BGM" : "all";
   const [filter, setFilter] = useState(initialFilter);
   const [favourites, setFavourites] = useState(loadFavourites);
   const [error, setError] = useState("");
-  // Only the confirmed BGM category is available for authoring
-  const tracks = assets.filter((asset) => asset.kind === "audio" && asset.category === "BGM");
+  // Background music keeps its category; spatial sources can use any approved clip
+  const tracks = assets.filter(
+    (asset) => asset.kind === "audio" && (mode !== "background" || asset.category === "BGM"),
+  );
+  const categories = [
+    ...new Set(tracks.flatMap((asset) => (asset.category ? [asset.category] : []))),
+  ];
   const shown = tracks.filter(
     (asset) =>
       asset.name.toLowerCase().includes(query.trim().toLowerCase()) &&
@@ -110,7 +114,14 @@ export function AudioLibrary({
       </aside>
       <header className="asset-picker-head">
         <h2 className="asset-picker-title" id="audio-heading">
-          <Icon name="info" />
+          <Icon
+            name="info"
+            title={
+              mode === "background"
+                ? "Add background music to this scene"
+                : "Attach sound to the selected object"
+            }
+          />
           Audio
         </h2>
         <div className="asset-search">

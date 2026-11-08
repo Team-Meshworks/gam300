@@ -271,3 +271,40 @@ it("keeps an explicit retry uncertain if another tab already cleared storage", a
   expect(readApprovalPublication(store, actorId, projectId, studentId)).toEqual(intent);
   expect(publish.mock.calls[0]?.[3]).toMatchObject({ publicationId });
 });
+
+it("approves without publishing and preserves that choice across uncertain retries", async () => {
+  const store = memory();
+  const approval = { ...intent, approvalOnly: true as const };
+  const decide = vi
+    .fn()
+    .mockResolvedValueOnce({ kind: "unknown" })
+    .mockResolvedValueOnce({ kind: "confirmed" });
+  const publish = vi.fn();
+  expect((await approveAndPublish(store, approval, decide, publish)).kind).toBe("pending");
+  const recovered = readApprovalPublication(store, actorId, projectId, studentId)!;
+  expect(recovered.approvalOnly).toBe(true);
+  expect((await approveAndPublish(store, recovered, decide, publish, true)).kind).toBe("approved");
+  expect(decide.mock.calls[0]).toEqual(decide.mock.calls[1]);
+  expect(publish).not.toHaveBeenCalled();
+  expect(readApprovalPublication(store, actorId, projectId, studentId)).toBeNull();
+});
+
+it("keeps confirmed approval retryable if recovery storage cannot be cleared", async () => {
+  const store = {
+    ...memory(),
+    removeItem: () => {
+      throw new Error("Storage unavailable");
+    },
+  };
+  const approval = { ...intent, approvalOnly: true as const };
+  const publish = vi.fn();
+  const result = await approveAndPublish(
+    store,
+    approval,
+    vi.fn().mockResolvedValue({ kind: "confirmed" }),
+    publish,
+  );
+  expect(result.kind).toBe("pending");
+  expect(readApprovalPublication(store, actorId, projectId, studentId)?.approvalOnly).toBe(true);
+  expect(publish).not.toHaveBeenCalled();
+});

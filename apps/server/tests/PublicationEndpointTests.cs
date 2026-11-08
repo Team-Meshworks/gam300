@@ -10,6 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Spatia.Server.Assets;
 using Spatia.Server.Persistence;
 using Spatia.Server.Projects;
+using Spatia.Server.Publications;
 
 namespace Spatia.Server.Tests;
 
@@ -128,6 +129,61 @@ public sealed class PublicationEndpointTests
         await fixture.SignInAsync(data.Student);
         using var denied = await PublishAsync(fixture, data.ProjectId, Guid.NewGuid(), revision: 1);
         await Assert.That(denied.StatusCode).IsEqualTo(HttpStatusCode.Forbidden);
+    }
+
+    [Test]
+    public async Task DashboardLinks_PageVisibleProjectsAndRecheckAudienceAndGrants()
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync();
+        var (data, _) = await PrepareAsync(fixture);
+        var publicationId = Guid.NewGuid();
+        using var published = await PublishAsync(fixture, data.ProjectId, publicationId, viewers: [data.Student]);
+        await Assert.That(published.StatusCode).IsEqualTo(HttpStatusCode.Created);
+        using var privateEdition = await PublishAsync(fixture, data.ProjectId, Guid.NewGuid());
+        await Assert.That(privateEdition.StatusCode).IsEqualTo(HttpStatusCode.Created);
+        const string path = "/api/v1/projects/publication-links?limit=1";
+        using var educator = await fixture.Client.GetAsync(path);
+        await Assert.That(educator.StatusCode).IsEqualTo(HttpStatusCode.Forbidden);
+        await using var scope = fixture.Database.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var source = await database.Projects.SingleAsync(row => row.Id != data.ProjectId);
+        var otherEdition = Guid.NewGuid();
+        database.Publications.Add(new Publication
+        {
+            Id = otherEdition,
+            ProjectId = source.Id,
+            PublishedById = data.Educator,
+            SourceRevision = source.Revision,
+            SchemaVersion = source.SchemaVersion,
+            DocumentJson = source.DocumentJson,
+            AssetReferencesJson = "[]",
+            RequestDigest = new byte[32]
+        });
+        database.PublicationAccess.Add(new PublicationAccessState { PublicationId = otherEdition, Audience = (int)PublicationAudience.Public });
+        var grant = new ProjectAssignment { ProjectId = source.Id, UserId = data.Student, CanEdit = true };
+        database.ProjectAssignments.Add(grant);
+        await database.SaveChangesAsync();
+        await fixture.SignInAsync(data.Student);
+        var first = await fixture.Client.GetFromJsonAsync<JsonElement>(path);
+        var cursor = first.GetProperty("nextCursor").GetGuid();
+        var second = await fixture.Client.GetFromJsonAsync<JsonElement>($"{path}&cursor={cursor:D}");
+        var ids = new[] { first, second }.Select(page => page.GetProperty("items").EnumerateArray().Single())
+            .ToDictionary(item => item.GetProperty("projectId").GetGuid(), item => item.GetProperty("publicationId").GetGuid());
+        await Assert.That(ids[data.ProjectId]).IsEqualTo(publicationId);
+        await Assert.That(ids[source.Id]).IsEqualTo(otherEdition);
+        await Assert.That(second.GetProperty("nextCursor").ValueKind).IsEqualTo(JsonValueKind.Null);
+        var legacy = await fixture.Client.GetFromJsonAsync<JsonElement>($"/api/v1/projects/{data.ProjectId}/publication-links?view=dashboard");
+        await Assert.That(legacy.GetProperty("items").EnumerateArray().Single().GetProperty("publicationId").GetGuid()).IsEqualTo(publicationId);
+        database.ProjectAssignments.Remove(grant);
+        await database.SaveChangesAsync();
+        var retry = await fixture.Client.GetFromJsonAsync<JsonElement>(path);
+        await Assert.That(retry.GetProperty("items").EnumerateArray().Single().GetProperty("publicationId").GetGuid()).IsEqualTo(publicationId);
+        await Assert.That(retry.GetProperty("nextCursor").ValueKind).IsEqualTo(JsonValueKind.Null);
+        var access = await database.PublicationAccess.SingleAsync(row => row.PublicationId == publicationId);
+        access.ViewerIds = [];
+        await database.SaveChangesAsync();
+        var denied = await fixture.Client.GetFromJsonAsync<JsonElement>(path);
+        await Assert.That(denied.GetProperty("items").GetArrayLength()).IsEqualTo(0);
     }
 
     [Test]
@@ -282,7 +338,7 @@ public sealed class PublicationEndpointTests
     [Test]
     [Arguments(false)]
     [Arguments(true)]
-    public async Task Publish_V2PreservesBothScenesAndRejectsEnabledUnavailableRules(bool enabled)
+    public async Task Publish_V2RetainsAudioHotspotsAndBothScenesWithEnabledOrDisabledRules(bool enabled)
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync();
         var (data, _) = await PrepareAsync(fixture, content: true, enabledRule: enabled);
@@ -296,18 +352,16 @@ public sealed class PublicationEndpointTests
         // Readiness and publication use the same capability decision for the confirmed revision
         using var readiness = await fixture.Client.GetAsync($"/api/v1/projects/{data.ProjectId}/publication-readiness");
         var state = await readiness.Content.ReadFromJsonAsync<JsonElement>();
-        await Assert.That(state.GetProperty("state").GetString()).IsEqualTo(enabled ? "UnsupportedRuntime" : "Ready");
+        await Assert.That(state.GetProperty("state").GetString()).IsEqualTo("Ready");
         var missing = state.GetProperty("missingCapabilities");
-        await Assert.That(missing.EnumerateArray().Any(issue => issue.GetProperty("capability").GetString() == "trigger:sceneStart"
-            && issue.GetProperty("path").GetString() == "project.scenes[0].rules[0].trigger")).IsEqualTo(enabled);
+        await Assert.That(missing.GetArrayLength()).IsEqualTo(0);
         var publication = Guid.NewGuid();
         using var response = await PublishAsync(fixture, data.ProjectId, publication);
-        await Assert.That(response.StatusCode).IsEqualTo(enabled ? HttpStatusCode.UnprocessableEntity : HttpStatusCode.Created);
+        await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.Created);
         await using var verify = fixture.App.Services.CreateAsyncScope();
         var db = verify.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         await Assert.That((await db.Projects.SingleAsync(row => row.Id == data.ProjectId)).DocumentJson).IsEqualTo(saved);
-        await Assert.That(await db.Publications.CountAsync()).IsEqualTo(enabled ? 0 : 1);
-        if (!enabled)
+        await Assert.That(await db.Publications.CountAsync()).IsEqualTo(1);
         {
             // Fetch the immutable edition through the same route used by the visitor
             using var snapshot = await fixture.Client.GetAsync($"/api/v1/publications/{publication}");
@@ -315,14 +369,28 @@ public sealed class PublicationEndpointTests
             var published = await snapshot.Content.ReadAsStringAsync();
             await Assert.That(JsonNode.DeepEquals(JsonNode.Parse(saved), JsonNode.Parse(published))).IsTrue();
             await Assert.That(JsonNode.Parse(published)!["scenes"]!.AsArray().Count).IsEqualTo(2);
+            var track = JsonNode.Parse(published)!["scenes"]![0]!["audio"]![0]!["assetId"]!.GetValue<string>();
+            using var audioResponse = await fixture.Client.GetAsync($"/api/v1/publications/{publication}/assets/{track}/bytes");
+            await Assert.That(audioResponse.Content.Headers.ContentType!.MediaType).IsEqualTo("audio/mp4");
+            var expected = await db.AssetCandidates.SingleAsync(item => item.Id == Guid.Parse(track));
+            await Assert.That((await audioResponse.Content.ReadAsByteArrayAsync()).SequenceEqual(expected.Bytes)).IsTrue();
         }
     }
 
     [Test]
-    public async Task Publish_UnsupportedLegacyInteractionsAreRejectedBeforeCommitting()
+    public async Task Publish_UncapturedAudioUrlsAreRejectedBeforeCommitting()
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync();
         var (data, _) = await PrepareAsync(fixture, interactions: true);
+        await using (var edit = fixture.App.Services.CreateAsyncScope())
+        {
+            var db = edit.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var row = await db.Projects.SingleAsync(item => item.Id == data.ProjectId);
+            var document = JsonNode.Parse(row.DocumentJson)!;
+            document["scenes"]![0]!["interactions"]![0]!["do"] = JsonNode.Parse("""{"type":"play-audio","url":"https://example.com/track.m4a"}""");
+            row.DocumentJson = document.ToJsonString();
+            await db.SaveChangesAsync();
+        }
         using var readiness = await fixture.Client.GetAsync($"/api/v1/projects/{data.ProjectId}/publication-readiness");
         var state = await readiness.Content.ReadFromJsonAsync<JsonElement>();
         await Assert.That(state.GetProperty("state").GetString()).IsEqualTo("UnsupportedRuntime");
@@ -668,6 +736,30 @@ public sealed class PublicationEndpointTests
                     scene!["environmentAssetId"] = asset.Id.ToString();
                     foreach (var item in scene["objects"]!.AsArray()) { item!["assetId"] = model.Id.ToString(); }
                 }
+                var audioBytes = File.ReadAllBytes(Path.GetFullPath("../../../../../../assets/delivery/audio/calm-piano.m4a", AppContext.BaseDirectory));
+                var audio = new AssetCandidate
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "Fixture BGM",
+                    Kind = "audio",
+                    Category = "BGM",
+                    Bytes = audioBytes,
+                    Sha256 = Convert.ToHexStringLower(SHA256.HashData(audioBytes)),
+                    Status = "approved",
+                    ValidationJson = "{}",
+                    Source = asset.Source,
+                    License = asset.License,
+                    ReviewNotes = asset.ReviewNotes,
+                    SubmittedBy = data.Educator,
+                    ReviewedBy = data.Educator,
+                    CreatedAt = DateTimeOffset.UtcNow,
+                };
+                database.AssetCandidates.Add(audio);
+                var sceneAudio = JsonNode.Parse("""{"id":"eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee","type":"audio","mode":"global","assetId":"","caption":"BGM","loop":true,"volume":0.4}""")!;
+                sceneAudio["assetId"] = audio.Id.ToString();
+                document["scenes"]![0]!["audio"] = new JsonArray(sceneAudio);
+                document["scenes"]![0]!["hotspots"] = JsonNode.Parse($$"""[{"id":"77777777-7777-4777-8777-777777777777","objectId":"{{document["scenes"]![0]!["objects"]![0]!["id"]!.GetValue<string>()}}","position":[0,0,0]}]""");
+                document["scenes"]![0]!["interactions"] = JsonNode.Parse("""[{"when":{"type":"visitor-clicks-hotspot","targetHotspotId":"77777777-7777-4777-8777-777777777777"},"do":{"type":"play-audio","mediaId":"eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee"}}]""");
                 document["scenes"]![0]!["rules"]![0]!["enabled"] = enabledRule;
                 project.SchemaVersion = 2;
             }

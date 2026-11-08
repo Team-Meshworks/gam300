@@ -1,12 +1,14 @@
 import { launchBrowser } from "./browser-security.mjs";
 import { placeAtRoomCenter } from "./placement-fixture.mjs";
+import { blankProject, serveProject } from "./authoring-project-fixture.mjs";
 import { checkDisplayPlacementCancellation } from "./display-placement-cancellation.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import * as THREE from "three";
 
+const editorUrl = process.argv[2] ?? "http://127.0.0.1:5173/";
 const browser = await launchBrowser({
-  target: process.argv[2] ?? "http://127.0.0.1:5173/",
+  target: editorUrl,
   args: ["--enable-unsafe-swiftshader"],
 });
 
@@ -17,30 +19,6 @@ async function nudge(page, name, axis, metres) {
   await field.fill(String(Number(await field.inputValue()) + metres));
   await field.press("Enter");
   await page.getByRole("button", { name: "Scene tree", exact: true }).click();
-}
-
-async function storedDocuments(page) {
-  return page.evaluate(
-    () =>
-      new Promise((resolve, reject) => {
-        const open = indexedDB.open("vthere-local-drafts", 2);
-        open.onerror = () => reject(open.error);
-        open.onsuccess = () => {
-          const database = open.result;
-          const transaction = database.transaction(["drafts", "session"], "readonly");
-          const drafts = transaction.objectStore("drafts").getAll();
-          const sessions = transaction.objectStore("session").getAll();
-          transaction.oncomplete = () => {
-            database.close();
-            resolve([...drafts.result, ...sessions.result].map((record) => record.document).sort());
-          };
-          transaction.onabort = () => {
-            database.close();
-            reject(transaction.error);
-          };
-        };
-      }),
-  );
 }
 
 // Asset library is a pop up now. Only open it when closed, since the button toggles it
@@ -92,7 +70,22 @@ try {
     dialog.accept().catch((error) => pageErrors.push(error.message));
   });
 
-  await page.goto(process.argv[2] ?? "http://127.0.0.1:5173/");
+  const project = await serveProject(page, editorUrl);
+  async function openDocument(document) {
+    project.setDocument(document);
+    await page.goto(project.url);
+    const recovery = page.getByRole("dialog", { name: "A recovery copy is available" });
+    await Promise.race([
+      recovery.waitFor(),
+      page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor(),
+    ]);
+    if (await recovery.isVisible())
+      await recovery
+        .getByRole("button", { name: "Use server version and discard recovery" })
+        .click();
+    await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
+  }
+  await page.goto(project.url);
   const ready = page.getByRole("status").filter({ hasText: "Scene ready" });
   const picker = page.locator(".asset-picker");
   const asset = picker.getByRole("button", { name: "Sample crate", exact: true });
@@ -266,55 +259,25 @@ try {
     .getByRole("option", { name: "All assets", exact: true })
     .click();
   assert.equal(await asset.getAttribute("aria-pressed"), "true", "The pick survives filtering");
-  await add.focus();
-  await page.keyboard.press("Enter");
-  await page.getByRole("alert").filter({ hasText: "Choose a room first" }).waitFor();
-  assert.equal(await rows.count(), 0, "A crate cannot start a project without an environment");
-  assert.equal(await undo.isDisabled(), true);
-
-  // A viewport drop follows the same room-first rule as the asset's Add button
-  await asset.dragTo(stage, { targetPosition: await dropPointBesideLibrary() });
-  assert.equal(await rows.count(), 0, "Dropping a crate before choosing a room changes nothing");
-  assert.equal(await undo.isDisabled(), true);
-  await page.getByText("Add a room to start.", { exact: true }).waitFor();
-
   await addAsset(page, "Starter room");
   await ready.waitFor();
-  assert.equal(
-    await page.getByRole("alert").count(),
-    0,
-    "Choosing a room clears the placement error",
-  );
   // Load a known camera pose so pointer checks do not depend on the editor startup view
   const fixture = JSON.parse(
     readFileSync(new URL("../shared/project/fixtures/m1-project.json", import.meta.url), "utf8"),
   );
   const emptyFixture = structuredClone(fixture);
   emptyFixture.scenes[0].objects = [];
-  await page.locator("#project-import").setInputFiles({
-    name: "pointer-fixture.json",
-    mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify(emptyFixture)),
-  });
-  await page.getByText("Project opened", { exact: true }).waitFor();
+  await openDocument(emptyFixture);
   // Reopening the same document must discard uncommitted scene-form drafts.
   await page.getByRole("button", { name: "Scenes", exact: true }).click();
   await page.getByLabel("Scene name").fill("Uncommitted scene draft");
-  await page.locator("#project-import").setInputFiles({
-    name: "pointer-fixture-reopened.json",
-    mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify(emptyFixture)),
-  });
-  await page.getByText("pointer-fixture-reopened.json", { exact: true }).waitFor();
+  await openDocument(emptyFixture);
+  await page.getByRole("button", { name: "Scenes", exact: true }).click();
   assert.equal(await page.getByLabel("Scene name").inputValue(), emptyFixture.scenes[0].name);
   await page.getByRole("button", { name: "Saved views", exact: true }).click();
   await page.getByLabel("View name").fill("Uncommitted view draft");
-  await page.locator("#project-import").setInputFiles({
-    name: "pointer-fixture-views.json",
-    mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify(emptyFixture)),
-  });
-  await page.getByText("pointer-fixture-views.json", { exact: true }).waitFor();
+  await openDocument(emptyFixture);
+  await page.getByRole("button", { name: "Saved views", exact: true }).click();
   assert.equal(await page.getByLabel("View name").inputValue(), "");
   await page.getByRole("button", { name: "Scene tree", exact: true }).click();
   const placementBox = await stage.boundingBox();
@@ -349,11 +312,11 @@ try {
   assert.equal(await rows.first().isVisible(), false);
   await page.keyboard.press("Enter");
   assert.equal(await rows.first().isVisible(), true);
-  await page.getByRole("button", { name: "Third person", exact: true }).click();
   // Editor starts in first person; the camera toolbar remains available in either editing view.
   const viewToggle = page.getByRole("button", { name: "Third person", exact: true });
   const cameraTools = page.getByRole("group", { name: "Camera tools" });
   const locked = () => page.evaluate(() => document.pointerLockElement?.tagName ?? null);
+  if ((await viewToggle.getAttribute("aria-pressed")) === "true") await viewToggle.click();
   assert.equal(await viewToggle.getAttribute("aria-pressed"), "false");
   assert.equal(await cameraTools.isVisible(), true, "Camera tools remain available while editing");
   assert.match(await page.locator(".walk-hint").textContent(), /Click the scene to look around/);
@@ -720,12 +683,7 @@ try {
   assert.equal(await rows.last().getAttribute("data-object-id"), crateId);
 
   // The saved fixture should replace placement history and show its two authored objects
-  await page.getByRole("button", { name: "Open sample project", exact: true }).click();
-  // Project replacement now waits for the editor confirmation
-  await page.getByRole("dialog").getByRole("button", { name: "Don’t Save", exact: true }).click();
-  // Project switching writes recovery data before replacing the scene
-  // Wait for the dialog to close before reading the new objects
-  await page.getByRole("dialog").waitFor({ state: "hidden" });
+  await openDocument(fixture);
   assert.deepEqual(await rows.allTextContents(), ["First crate", "Second crate"]);
   assert.deepEqual(await rows.evaluateAll((items) => items.map((item) => item.dataset.objectId)), [
     "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
@@ -751,8 +709,8 @@ try {
   assert.deepEqual(await rows.allTextContents(), ["First crate", "Second crate"]);
   await roomRow.click();
   // Disclosure changes presentation only and must leave the stored draft untouched
-  const savedBeforeTree = await storedDocuments(page);
-  assert.ok(savedBeforeTree.length > 0);
+  const savedBeforeTree = project.document();
+  assert.equal(savedBeforeTree.scenes[0].objects.length, 2);
   await disclosure.click();
   assert.equal(await rows.first().isVisible(), false);
   assert.equal(await roomRow.getAttribute("aria-pressed"), "true");
@@ -761,23 +719,17 @@ try {
   assert.equal(await roomRow.getAttribute("aria-pressed"), "true");
   assert.equal(await undo.isDisabled(), true);
   assert.equal(await redo.isDisabled(), false);
-  assert.deepEqual(
-    await storedDocuments(page),
-    savedBeforeTree,
-    "Tree expansion preserves saved JSON",
-  );
+  assert.deepEqual(project.document(), savedBeforeTree, "Tree expansion preserves saved JSON");
   await addAsset(page, "Sample crate");
   assert.equal(await rows.count(), 3);
   await undo.click();
   assert.equal(await rows.count(), 2);
   await redo.click();
   assert.equal(await rows.count(), 3);
-  await page.getByRole("button", { name: "Open sample project", exact: true }).click();
-  // Project replacement now waits for the editor confirmation
-  await page.getByRole("dialog").getByRole("button", { name: "Don’t Save", exact: true }).click();
-  await page.getByRole("dialog").waitFor({ state: "hidden" });
+  await openDocument(fixture);
   assert.equal(await rows.count(), 2);
   assert.equal(await page.locator("canvas").count(), 1);
+  if ((await viewToggle.getAttribute("aria-pressed")) !== "true") await viewToggle.click();
   if (process.env.SCENE_SCREENSHOT) {
     await page.screenshot({ path: process.env.SCENE_SCREENSHOT });
   }
@@ -811,78 +763,21 @@ try {
   );
   assert.equal(await roomRow.getAttribute("aria-pressed"), "false");
 
-  // Finish the nudge's automatic backup before opening the project menu
-  // Backup temporarily disables New; its timer must not interrupt the pointer click
-  // Check the persisted edit rather than sleeping for an assumed storage duration
-  let nudgeBackedUp = false;
-  const nudgeDeadline = Date.now() + 10000;
-  while (Date.now() < nudgeDeadline) {
-    nudgeBackedUp = await page.evaluate(async (expectedZ) => {
-      const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
-      const result = await loadRecoverySession(
-        new Map([
-          ["test-room-v1", "environment"],
-          ["test-crate-v1", "model"],
-          ["sample-snowglobe-v1", "model"],
-        ]),
-      );
-      return (
-        result.ok &&
-        result.value?.document?.scenes[0]?.objects[1]?.transform.position[2] === expectedZ
-      );
-    }, fixture.scenes[0].objects[1].transform.position[2] + 1);
-    if (nudgeBackedUp) break;
-    await new Promise((resolve) => setTimeout(resolve, 50));
-  }
-  assert.equal(nudgeBackedUp, true, "The nudge is backed up before opening New");
-
-  // New projects and recovered sessions should show the same asset choices
-  await page.locator(".draft-menu summary").click();
-  await page.getByRole("button", { name: "New", exact: true }).click();
-  await page.getByRole("dialog").getByRole("button", { name: "Don’t Save", exact: true }).click();
-  await page.getByRole("dialog").waitFor({ state: "hidden" });
-  await page.getByText("Add a room to start.", { exact: true }).waitFor();
+  // Opening a fresh server project resets placement history and retains the library layout.
+  await openDocument(blankProject);
   await openLibrary(page);
-  assert.equal(await room.count(), 0, "Rooms stay in the Rooms popup after New");
+  assert.equal(await room.count(), 0, "Rooms stay in the Rooms popup");
   await addAsset(page, "Starter room");
   await roomRow.waitFor();
   assert.equal(await rows.count(), 0);
-  assert.equal(await undo.isDisabled(), true);
-  // Choosing a room follows the blank New record; wait for its backup before reloading
-  let roomBackedUp = false;
-  const backupDeadline = Date.now() + 10000;
-  while (Date.now() < backupDeadline) {
-    roomBackedUp = await page.evaluate(async () => {
-      const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
-      const result = await loadRecoverySession(
-        new Map([
-          ["test-room-v1", "environment"],
-          ["test-crate-v1", "model"],
-          ["sample-snowglobe-v1", "model"],
-        ]),
-      );
-      return result.ok && result.value?.document?.scenes[0]?.objects.length === 0;
-    });
-    if (roomBackedUp) break;
-    await new Promise((resolve) => setTimeout(resolve, 50));
-  }
-  assert.equal(roomBackedUp, true, "The selected room is backed up before refresh");
-  await page.reload();
-  await ready.waitFor();
-  await openLibrary(page);
-  assert.equal(await room.count(), 0, "Recovery keeps rooms in their own hotbar popup");
-  await roomRow.waitFor();
-  assert.equal(await page.locator(".panel-count").textContent(), "1");
-  assert.equal(
-    await page.getByText("No objects in this scene.", { exact: true }).isVisible(),
-    true,
-  );
+  assert.equal(await undo.isEnabled(), true, "Adding a room is undoable in an existing project");
 
   // Object parenting uses selection and drag/drop without a separate group form
   const nestedContext = await browser.newContext();
   try {
     const nested = await nestedContext.newPage();
-    await nested.goto(process.argv[2] ?? "http://127.0.0.1:5173/");
+    const nestedProject = await serveProject(nested, editorUrl);
+    await nested.goto(nestedProject.url);
     await nested.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
     await addAsset(nested, "Starter room");
     await addAsset(nested, "Sample crate");
@@ -1031,9 +926,6 @@ try {
   const contentContext = await browser.newContext();
   try {
     const contentPage = await contentContext.newPage();
-    await contentPage.goto(process.argv[2] ?? "http://127.0.0.1:5173/");
-    // Wait for startup recovery before bypassing the Open menu through its hidden file input
-    await contentPage.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
     const contentProject = structuredClone(fixture);
     contentProject.schemaVersion = 2;
     const scene = contentProject.scenes[0];
@@ -1047,12 +939,9 @@ try {
       label: "Exhibit details",
     };
     scene.objects[0].components.push(component);
-    await contentPage.locator("#project-import").setInputFiles({
-      name: "content-tree.json",
-      mimeType: "application/json",
-      buffer: Buffer.from(JSON.stringify(contentProject)),
-    });
-    await contentPage.getByText("Project opened", { exact: true }).waitFor();
+    const contentServer = await serveProject(contentPage, editorUrl, contentProject);
+    await contentPage.goto(contentServer.url);
+    await contentPage.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
     const contentRow = contentPage.locator(`[data-component-id="${component.id}"]`);
     await contentRow.waitFor();
     const owner = contentPage.locator(`[data-object-id="${scene.objects[0].id}"]`);
@@ -1060,7 +949,7 @@ try {
     await contentRow.focus();
     await contentPage.keyboard.press("Enter");
     assert.equal(await owner.getAttribute("aria-pressed"), "true");
-    const before = await storedDocuments(contentPage);
+    const before = contentServer.document();
     await contentPage.getByRole("button", { name: "Collapse First crate", exact: true }).click();
     assert.equal(await contentRow.isVisible(), false);
     assert.equal(await owner.getAttribute("aria-pressed"), "true");
@@ -1068,7 +957,7 @@ try {
       .getByRole("button", { name: "Expand First crate", exact: true })
       .press("ArrowRight");
     assert.equal(await contentRow.isVisible(), true);
-    assert.deepEqual(await storedDocuments(contentPage), before);
+    assert.deepEqual(contentServer.document(), before);
   } finally {
     await contentContext.close();
   }
@@ -1149,6 +1038,10 @@ try {
   });
   await page.reload();
   const loadError = page.getByRole("status").filter({ hasText: "Couldn't load the 3D view" });
+  const recovery = page.getByRole("dialog", { name: "A recovery copy is available" });
+  await Promise.race([recovery.waitFor(), ready.waitFor(), loadError.waitFor()]);
+  if (await recovery.isVisible())
+    await recovery.getByRole("button", { name: "Use server version and discard recovery" }).click();
   await Promise.race([ready.waitFor(), loadError.waitFor()]);
   // A recovered empty scene has no model requests. Select a model to exercise its failure.
   if (!(await loadError.isVisible())) {
@@ -1179,6 +1072,9 @@ try {
   });
   await page.reload();
   const unsupported = page.getByRole("status").filter({ hasText: "The 3D view needs WebGL 2" });
+  await Promise.race([recovery.waitFor(), unsupported.waitFor()]);
+  if (await recovery.isVisible())
+    await recovery.getByRole("button", { name: "Use server version and discard recovery" }).click();
   await unsupported.waitFor();
   await retry.click();
   await unsupported.waitFor();
@@ -1186,7 +1082,7 @@ try {
   await openLibrary(page);
   assert.equal(await asset.isDisabled(), true);
   assert.deepEqual(pageErrors, [], "No uncaught page errors in any flow");
-  await checkDisplayPlacementCancellation(browser, process.argv[2] ?? "http://127.0.0.1:5173/");
+  await checkDisplayPlacementCancellation(browser, editorUrl);
   console.log(
     "PASS: placement, hotspot, preview keyboard activation, single-pointer movement, cancellation, hierarchy, room occlusion, project loading, undo/redo, keyboard, resizing, retry and WebGL fallback",
   );

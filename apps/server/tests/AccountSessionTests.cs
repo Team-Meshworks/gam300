@@ -59,6 +59,21 @@ public sealed class AccountSessionTests
         }
         await Assert.That(session.Headers.CacheControl?.NoStore == true).IsTrue();
         await AuthTestRequests.AssertSafeAsync(fixture, session);
+
+        // Separate browsers keep their own signed-in account even when both users have the same role
+        var peerId = await fixture.CreateAccountAsync(role, forced);
+        using var peer = fixture.CreateClient();
+        using var peerSignedIn = await AuthTestRequests.PostAsync(fixture, "/api/v1/auth/login", new
+        {
+            userName = await AuthTestRequests.UserNameAsync(fixture, peerId),
+            password = AuthTestRequests.CurrentPassword
+        }, peer);
+        await Assert.That(peerSignedIn.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
+        var concurrentSessions = await Task.WhenAll(fixture.Client.GetAsync("/api/v1/auth/session"), peer.GetAsync("/api/v1/auth/session"));
+        using var originalSession = concurrentSessions[0];
+        using var peerSession = concurrentSessions[1];
+        await Assert.That((await originalSession.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("userId").GetGuid()).IsEqualTo(id);
+        await Assert.That((await peerSession.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("userId").GetGuid()).IsEqualTo(peerId);
     }
 
     [Test]

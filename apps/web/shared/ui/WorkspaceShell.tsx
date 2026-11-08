@@ -1,73 +1,40 @@
 import type { ReactNode } from "react";
-import { Avatar } from "./Avatar";
-import { Button } from "./Button";
-import landmark from "./assets/landmark.svg";
+import { WorkspaceHeader, type WorkspaceHeaderProps } from "./WorkspaceHeader";
 import washLeft from "./assets/ambient-left.svg";
 import washRight from "./assets/ambient-right.svg";
 import adminWashLeft from "./assets/admin-ambient-left.svg";
 import adminWashRight from "./assets/admin-ambient-right.svg";
 
 export function WorkspaceShell({
-  name,
-  initials,
-  onSignOut,
-  onHome,
-  homeHref = "#new-project",
+  header,
   variant,
+  appearance,
+  footer,
   children,
 }: {
-  name: string;
-  initials: string;
-  onSignOut?: () => void;
-  onHome?: () => void;
-  homeHref?: string;
-  variant?: "dashboard" | "asset-administration" | undefined;
+  header: WorkspaceHeaderProps;
+  variant?: "dashboard" | "asset-administration" | "creator" | "facilitator" | undefined;
+  appearance?: { washLeft: string; washRight: string } | undefined;
+  footer?: ReactNode;
   children: ReactNode;
 }) {
   return (
     <div className={`sp-shell${variant ? ` sp-shell--${variant}` : ""}`}>
       <img
         className="sp-wash sp-wash--left"
-        src={variant === "dashboard" ? adminWashLeft : washLeft}
+        src={appearance?.washLeft ?? (variant === "dashboard" ? adminWashLeft : washLeft)}
         alt=""
       />
       <img
         className="sp-wash sp-wash--right"
-        src={variant === "dashboard" ? adminWashRight : washRight}
+        src={appearance?.washRight ?? (variant === "dashboard" ? adminWashRight : washRight)}
         alt=""
       />
-      <header className="sp-navigation">
-        <a
-          className="sp-brand"
-          href={onHome ? "/home" : homeHref}
-          aria-label="Spatia home"
-          onClick={
-            onHome
-              ? (event) => {
-                  event.preventDefault();
-                  onHome();
-                }
-              : undefined
-          }
-        >
-          <span className="sp-brand-mark">
-            <img src={landmark} alt="" />
-          </span>
-          Spatia
-        </a>
-        <div className="sp-account">
-          <Avatar name={name} initials={initials} />
-          <span className="sp-account-name" title={name}>
-            {name}
-          </span>
-          <Button disabled={!onSignOut} onClick={onSignOut}>
-            Log Out
-          </Button>
-        </div>
-      </header>
+      <WorkspaceHeader {...header} />
       <main id="workspace" className="sp-workspace" tabIndex={-1}>
         {children}
       </main>
+      {footer}
     </div>
   );
 }

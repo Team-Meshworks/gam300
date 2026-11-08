@@ -3,9 +3,19 @@ import path from "node:path";
 import { mkdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { launchBrowser } from "../../web/tests/browser-security.mjs";
+import { placeAtRoomCenter } from "../../web/tests/placement-fixture.mjs";
 
-const [origin, userName, projectId, environmentId, modelId, editorDirectory, artifactDirectory] =
-  process.argv.slice(2);
+const [
+  origin,
+  userName,
+  projectId,
+  environmentId,
+  modelId,
+  editorDirectory,
+  artifactDirectory,
+  authoringJson,
+] = process.argv.slice(2);
+const authoring = JSON.parse(authoringJson);
 const target = new URL(origin);
 assert.equal(target.protocol, "https:");
 assert.equal(target.hostname, "127.0.0.1");
@@ -30,14 +40,35 @@ let page;
 const errors = [];
 const failedResponses = [];
 const consoleErrors = [];
-const projectPath = `/api/v1/projects/${projectId}`;
 
-async function openEditor() {
+async function openEditor(id = projectId) {
   const context = await browser.newContext({
     ignoreHTTPSErrors: true,
     viewport: { width: 1440, height: 1024 },
   });
   contexts.push(context);
+  await context.addInitScript(() => {
+    window.spatialPlays = 0;
+    const create = AudioContext.prototype.createBufferSource;
+    AudioContext.prototype.createBufferSource = function (...args) {
+      const source = create.apply(this, args);
+      const start = source.start.bind(source);
+      const connect = source.connect.bind(source);
+      let started = false;
+      source.start = (...values) => {
+        started = true;
+        return start(...values);
+      };
+      source.connect = (destination, ...values) => {
+        if (started && destination instanceof PannerNode) {
+          window.spatialPlays++;
+          window.spatialContext = this;
+        }
+        return connect(destination, ...values);
+      };
+      return source;
+    };
+  });
   const next = await context.newPage();
   page = next;
   next.setDefaultTimeout(15000);
@@ -62,7 +93,7 @@ async function openEditor() {
   });
   assert.equal(session.status, 200);
   assert.equal(session.value.developmentAssetsAllowed, false);
-  await next.goto(`${origin}/?projectId=${encodeURIComponent(projectId)}`);
+  await next.goto(`${origin}/?projectId=${encodeURIComponent(id)}`);
   await next.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   return next;
 }
@@ -71,12 +102,13 @@ async function readProject(current) {
   const response = await current.evaluate(async (id) => {
     const result = await fetch(`/api/v1/projects/${encodeURIComponent(id)}`, { cache: "no-store" });
     return { status: result.status, value: await result.json() };
-  }, projectId);
+  }, new URL(current.url()).searchParams.get("projectId"));
   assert.equal(response.status, 200);
   return response.value;
 }
 
 function waitForSave(current) {
+  const projectPath = `/api/v1/projects/${new URL(current.url()).searchParams.get("projectId")}`;
   return current.waitForResponse(
     (response) =>
       response.request().method() === "PUT" && new URL(response.url()).pathname === projectPath,
@@ -190,6 +222,111 @@ try {
     path: path.join(artifactDirectory, "02-reopened.png"),
     animations: "disabled",
   });
+  // A new real project must keep normal asset placement working after reopening
+  await page.context().close();
+  page = await openEditor(authoring.projectId);
+  await page.getByRole("button", { name: "Asset library", exact: true }).click();
+  await page
+    .locator(".asset-picker")
+    .getByRole("button", { name: "Approved sample crate", exact: true })
+    .click();
+  await page.locator(".asset-picker").getByRole("button", { name: "Add", exact: true }).click();
+  saved = waitForSave(page);
+  await placeAtRoomCenter(page);
+  assert.equal((await saved).status(), 200);
+  await page
+    .locator('.server-session [role="status"]')
+    .filter({ hasText: "Saved to server" })
+    .waitFor();
+  let authored = await readProject(page);
+  assert.equal(
+    authored.document.scenes[0].objects.filter((object) => object.assetId === authoring.crateId)
+      .length,
+    1,
+  );
+  await page.context().close();
+  page = await openEditor(authoring.projectId);
+  await page.getByRole("button", { name: "Asset library", exact: true }).click();
+  const stage = page.locator(".viewport-stage");
+  const bounds = await stage.boundingBox();
+  const card = await page
+    .locator(".asset-picker")
+    .getByRole("button", { name: "Approved sample crate", exact: true })
+    .boundingBox();
+  await page.mouse.move(card.x + card.width / 2, card.y + card.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(card.x + card.width / 2 + 8, card.y + card.height / 2 + 8, { steps: 3 });
+  const [dropped] = await Promise.all([
+    waitForSave(page),
+    (async () => {
+      await page.mouse.move(bounds.x + bounds.width / 2 + 80, bounds.y + bounds.height / 2 + 30, {
+        steps: 12,
+      });
+      await page.mouse.up();
+    })(),
+  ]);
+  assert.equal(dropped.status(), 200);
+  await page
+    .locator('.server-session [role="status"]')
+    .filter({ hasText: "Saved to server" })
+    .waitFor();
+  authored = await readProject(page);
+  const crates = authored.document.scenes[0].objects.filter(
+    (object) => object.assetId === authoring.crateId,
+  );
+  assert.equal(crates.length, 2);
+
+  // Approved production audio must survive saving and use its retained bytes after reopening
+  await page.locator(`.object-row[data-object-id="${crates[0].id}"]`).click();
+  await page.getByRole("button", { name: "Audio", exact: true }).click();
+  await page
+    .getByRole("group", { name: "Audio options", exact: true })
+    .getByRole("button", { name: "Spatial Audio", exact: true })
+    .click();
+  const library = page.getByRole("dialog", { name: "Audio", exact: true });
+  await library.getByRole("button", { name: "Approved spatial track", exact: true }).click();
+  saved = waitForSave(page);
+  await library.getByRole("button", { name: "Add", exact: true }).click();
+  assert.equal((await saved).status(), 200);
+  await page
+    .locator('.server-session [role="status"]')
+    .filter({ hasText: "Saved to server" })
+    .waitFor();
+  await page.context().close();
+  page = await openEditor(authoring.projectId);
+  authored = await readProject(page);
+  assert.equal(
+    authored.document.scenes[0].objects.filter((object) => object.assetId === authoring.crateId)
+      .length,
+    2,
+  );
+  assert.ok(
+    authored.document.scenes[0].objects.some((object) =>
+      object.components?.some(
+        (component) =>
+          component.type === "audio" &&
+          component.mode === "spatial" &&
+          component.assetId === authoring.audioId,
+      ),
+    ),
+  );
+  const audioBytes = page.waitForResponse(
+    (response) => response.url().includes(authoring.audioId) && response.url().endsWith("/bytes"),
+  );
+  await page.getByRole("button", { name: "Preview", exact: true }).click();
+  const playing = await audioBytes;
+  assert.equal(playing.status(), 200);
+  assert.equal(playing.headers()["content-type"], "audio/mp4");
+  await page.waitForFunction(
+    () => window.spatialPlays > 0 && window.spatialContext?.state === "running",
+  );
+  await page.screenshot({
+    path: path.join(artifactDirectory, "03-production-spatial-audio.png"),
+    animations: "disabled",
+  });
+  console.log(
+    "production new project Add, reopen, drag and retained spatial audio playback passed",
+  );
   assert.deepEqual(errors, []);
   console.log(
     "production adjoining room saved and reopened with approved UUID, position and rotation",

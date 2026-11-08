@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import { launchBrowser } from "./browser-security.mjs";
+import { openSavedProject, serveProject } from "./authoring-project-fixture.mjs";
 import { placeAtRoomCenter } from "./placement-fixture.mjs";
 
 const origin = process.argv[2] ?? "http://127.0.0.1:5184/";
@@ -11,7 +11,8 @@ try {
     window.showOpenFilePicker = undefined;
     window.showSaveFilePicker = undefined;
   });
-  await page.goto(origin);
+  const project = await serveProject(page, origin);
+  await page.goto(project.url);
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   await page.getByRole("button", { name: "Third person", exact: true }).click();
   await page.getByRole("button", { name: "Rooms", exact: true }).click();
@@ -27,10 +28,9 @@ try {
   await modal.getByRole("button", { name: "Add", exact: true }).click();
   async function saved() {
     await page.getByLabel("Project options", { exact: true }).click();
-    const download = page.waitForEvent("download");
     await page.getByRole("button", { name: "Save", exact: true }).click();
-    const content = JSON.parse(readFileSync(await (await download).path(), "utf8"));
-    await page.waitForFunction(() => !document.querySelector("#project-save")?.disabled);
+    await page.locator('.save-state[data-state="saved"]').waitFor();
+    const content = project.document();
     return content;
   }
   const withRules = await saved();
@@ -42,17 +42,9 @@ try {
     trigger: { type: "panelClose", panelId },
     actions: [{ type: "openLink", url: "https://example.com/" }],
   }));
-  await page.locator("#project-import").setInputFiles({
-    name: "content.json",
-    mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify(withRules)),
-  });
-  await page
-    .locator(".project-confirmation")
-    .getByRole("button", { name: "Don’t Save", exact: true })
-    .click();
-  await page.locator(".project-confirmation").waitFor({ state: "hidden" });
-  await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
+  project.setDocument(withRules);
+  await page.goto(project.url);
+  await openSavedProject(page);
   if ((await page.locator(`.object-row[data-object-id="${object.id}"]`).count()) === 0)
     await page.getByRole("button", { name: "Scene tree", exact: true }).click();
   await page.locator(`.object-row[data-object-id="${object.id}"]`).click();

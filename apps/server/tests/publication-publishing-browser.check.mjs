@@ -93,7 +93,7 @@ try {
   await student.getByRole("heading", { name: /you.re signed in/i }).waitFor();
   await student.goto(`${origin}/publish?projectId=${data.projectId}`);
   await student.getByRole("heading", { name: "Publish project" }).waitFor();
-  await student.getByText("Student draft", { exact: true }).waitFor();
+  await student.getByText(data.title, { exact: true }).waitFor();
   await student.getByRole("checkbox", { name: data.viewer, exact: true }).check();
   await student.getByRole("checkbox", { name: /confirm.*saved revision/i }).check();
   const posted = student.waitForRequest(
@@ -124,9 +124,19 @@ try {
   assert.equal(new URL(viewer.url()).searchParams.get("returnTo"), `/p/${request.publicationId}`);
   await login(viewer, "viewer");
   await viewer.waitForURL(localVisitor);
-  await viewer.getByRole("heading", { name: "Student draft" }).waitFor();
+  await viewer.getByRole("heading", { name: data.title }).waitFor();
   await viewer.getByRole("status").getByText("Exhibition ready").waitFor({ timeout: 30000 });
   assert.equal(await viewer.locator("canvas[aria-label='Exhibition view']").count(), 1);
+  // Open the server-captured audio, then activate its hotspot without restarting the same track
+  await viewer.getByRole("button", { name: "Start exhibition", exact: true }).click();
+  await viewer.waitForFunction(() => {
+    const track = document.querySelector("audio");
+    return track && !track.paused && track.currentTime > 0;
+  });
+  const trackTime = await viewer.locator("audio").evaluate((node) => node.currentTime);
+  await viewer.getByRole("button", { name: "Activate First crate", exact: true }).click();
+  assert.ok(await viewer.locator("audio").evaluate((node) => node.currentTime) >= trackTime);
+
   const snapshot = `/api/v1/publications/${request.publicationId}`;
   const assetPath = `${snapshot}/assets/${data.assetId}/bytes`;
   const read = (page, route) =>

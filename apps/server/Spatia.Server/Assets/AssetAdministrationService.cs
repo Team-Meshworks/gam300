@@ -43,7 +43,7 @@ public sealed class AssetAdministrationService(ApplicationDbContext database, As
         }
 
         // Validate privately before allocating an immutable identity or admitting another stored upload
-        var validation = await validator.ValidateAsync(bytes, token);
+        var validation = kind == "audio" ? AssetAudioValidator.Validate(bytes) : await validator.ValidateAsync(bytes, token);
         if (validation is null)
         {
             return null;

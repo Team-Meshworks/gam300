@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { AccountSession } from "../accounts/account-client";
+import type { LeaveGuard } from "../workspace/useWorkspaceDeparture";
 import { isId } from "../home/workspace-api";
 import { Button } from "../../shared/ui/Button";
 import { Field } from "../../shared/ui/Field";
@@ -9,15 +10,19 @@ import { ProjectReview } from "./ProjectReview";
 import "./reviews.css";
 
 const client = createReviewClient();
-export interface LeaveGuard {
-  pending: boolean;
-  dirty: boolean;
-}
 const emptyGuard: LeaveGuard = { pending: false, dirty: false };
 const message = (error: unknown) =>
   error instanceof Error ? error.message : "Reviews could not be loaded.";
 
-export function ReviewWorkspace({ session }: { session: AccountSession }) {
+export function ReviewWorkspace({
+  session,
+  guard,
+  onGuard,
+}: {
+  session: AccountSession;
+  guard: LeaveGuard;
+  onGuard: (guard: LeaveGuard) => void;
+}) {
   const [classes, setClasses] = useState<Classroom[]>([]);
   const [classId, setClassId] = useState("");
   const [linkedProject, setLinkedProject] = useState<{
@@ -28,7 +33,6 @@ export function ReviewWorkspace({ session }: { session: AccountSession }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
-  const [guard, setGuard] = useState(emptyGuard);
   useEffect(() => {
     let disposed = false;
     void (async () => {
@@ -110,7 +114,7 @@ export function ReviewWorkspace({ session }: { session: AccountSession }) {
                 if (canLeave()) {
                   setLinkedProject(null);
                   setLinkError("");
-                  setGuard(emptyGuard);
+                  onGuard(emptyGuard);
                   setClassId(e.target.value);
                 }
               }}
@@ -134,7 +138,7 @@ export function ReviewWorkspace({ session }: { session: AccountSession }) {
             linkedProject={linkedProject}
             guard={guard}
             canLeave={canLeave}
-            onGuard={setGuard}
+            onGuard={onGuard}
           />
         )}
       </div>

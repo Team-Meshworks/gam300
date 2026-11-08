@@ -26,6 +26,7 @@ graph TD
   visitor --> project
   asset-loading --> catalogue
   asset-loading --> network
+  asset-loading --> project
   document --> catalogue
   document --> project
   rendering --> asset-loading
