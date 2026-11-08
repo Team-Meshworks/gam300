@@ -293,6 +293,18 @@ const revoked=[];const revoke=URL.revokeObjectURL.bind(URL);URL.revokeObjectURL=
     configFile: false,
     root: dir,
     cacheDir: path.join(dir, "test-results/vite-visitor-playback"),
+    // Virtual fixtures bypass HTML scanning; prebundle their CommonJS imports together before serving
+    optimizeDeps: {
+      noDiscovery: true,
+      include: [
+        "react",
+        "react/jsx-runtime",
+        "react/jsx-dev-runtime",
+        "react-dom",
+        "react-dom/client",
+        "three",
+      ],
+    },
     logLevel: "silent",
     plugins: [
       react(),
