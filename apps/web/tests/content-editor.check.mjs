@@ -49,8 +49,7 @@ try {
     }
   }
   async function saved() {
-    await page.getByLabel("Project options", { exact: true }).click();
-    await page.getByRole("button", { name: "Save", exact: true }).click();
+    await page.keyboard.press("Control+s");
     await page.locator('.save-state[data-state="saved"]').waitFor();
     const content = project.document();
     return content;

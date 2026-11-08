@@ -353,9 +353,7 @@ async function importScenario() {
   try {
     const editor = await isolated.newPage();
     await editor.goto(url);
-    await editor
-      .locator('.save-state[data-state="saved"]')
-      .waitFor();
+    await editor.locator('.save-state[data-state="saved"]').waitFor();
     await editor.getByLabel("Project options", { exact: true }).click();
     assert.equal(
       await editor.locator("#project-save").count(),
@@ -471,7 +469,7 @@ try {
   mode = "failed";
   await edit("Offline edit");
   await page.locator('.save-state[data-state="failed"]').waitFor();
-  await projectOption("Log out");
+  await projectOption("Log Out");
   await page.getByRole("button", { name: "Exit", exact: true }).click();
   await page.getByRole("dialog").getByRole("alert").waitFor();
   assert.equal(account, alice);
@@ -479,7 +477,7 @@ try {
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   const failedMutation = writes.at(-1).clientMutationId;
   mode = "saved";
-  await projectOption("Retry save");
+  await projectOption("Retry Save");
   await saved();
   assert.equal(writes.at(-1).clientMutationId, failedMutation);
   assert.equal(document.scenes[0].name, "Offline edit");
@@ -493,13 +491,13 @@ try {
       throw new DOMException("Cancelled", "AbortError");
     };
   });
-  await projectOption("Log out");
+  await projectOption("Log Out");
   await page.getByRole("button", { name: "Exit", exact: true }).click();
   await page.getByRole("button", { name: "Export and Exit", exact: true }).click();
   await page.getByRole("dialog").getByRole("alert").waitFor();
   assert.equal(account, alice);
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
-  await projectOption("Open server version");
+  await projectOption("Open Server Version");
   await chooseRecovery();
   await page.getByRole("dialog", { name: "A recovery copy is available" }).waitFor();
   assert.equal(writes.length, attempts);
@@ -510,7 +508,7 @@ try {
     "Conflicting local edit",
   );
   await page.getByRole("alert").filter({ hasText: "Another revision" }).waitFor();
-  await projectOption("Open server version");
+  await projectOption("Open Server Version");
   await chooseRecovery();
   mode = "saved";
   await page
@@ -567,7 +565,7 @@ try {
   await edit("Storage failure edit");
   await page.locator('.save-state[data-state="failed"]').waitFor();
   assert.equal(writes.length, beforeStorageFailure);
-  await projectOption("Log out");
+  await projectOption("Log Out");
   await chooseRecovery();
   await page.getByRole("dialog").getByRole("alert").waitFor();
   assert.equal(account, alice);
@@ -575,7 +573,7 @@ try {
   await page.evaluate(() => {
     window.failRecovery = false;
   });
-  await projectOption("Retry save");
+  await projectOption("Retry Save");
   await saved();
   assert.equal(document.scenes[0].name, "Storage failure edit");
 
@@ -621,13 +619,13 @@ try {
   });
   const [download] = await Promise.all([
     page.waitForEvent("download"),
-    projectOption("Export project file"),
+    projectOption("Export Project File"),
   ]);
   assert.equal(
     JSON.parse(readFileSync(await download.path(), "utf8")).scenes[0].name,
     "Only live draft after expiry",
   );
-  await projectOption("Log out");
+  await projectOption("Log Out");
   await Promise.all([
     page.waitForEvent("download"),
     page.getByRole("button", { name: "Export and Exit", exact: true }).click(),
@@ -672,7 +670,7 @@ try {
     };
   });
   // Confirmed autosave permits logout while the final backup still holds the editor locked
-  await projectOption("Log out");
+  await projectOption("Log Out");
   await page.getByRole("button", { name: "Exit", exact: true }).click();
   await page.waitForFunction(() => typeof window.releaseDeparture === "function");
   await page.keyboard.press("Control+z");

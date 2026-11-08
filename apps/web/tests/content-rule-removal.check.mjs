@@ -27,8 +27,7 @@ try {
   await modal.getByRole("textbox", { name: "Text", exact: true }).fill("Referenced text");
   await modal.getByRole("button", { name: "Add", exact: true }).click();
   async function saved() {
-    await page.getByLabel("Project options", { exact: true }).click();
-    await page.getByRole("button", { name: "Save", exact: true }).click();
+    await page.keyboard.press("Control+s");
     await page.locator('.save-state[data-state="saved"]').waitFor();
     const content = project.document();
     return content;

@@ -35,8 +35,9 @@ export function parseProgressContext(
   return { classId, assignmentId, studentId, projectId };
 }
 
-export function reviewReturnUrl(params: URLSearchParams): string {
+export function reviewReturnUrl(params: URLSearchParams, role?: string): string {
   const context = parseProgressContext(params, params.get("projectId") ?? "");
-  if (!context) return "/home";
+  // Preserve assignment return context; ordinary admin visits return to their dashboard
+  if (!context) return role === "Administrator" ? "/admin/dashboard" : "/home";
   return `/home?${new URLSearchParams({ classId: context.classId, assignmentId: context.assignmentId, studentId: context.studentId, reviewProjectId: context.projectId })}`;
 }

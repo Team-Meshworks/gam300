@@ -579,7 +579,7 @@ function ServerProjectSession({
           ? "/login"
           : departure === "publish"
             ? `/publish?projectId=${encodeURIComponent(projectId)}`
-            : reviewReturnUrl(new URLSearchParams(location.search)),
+            : reviewReturnUrl(new URLSearchParams(location.search), active.role),
       );
     });
   }
@@ -599,6 +599,7 @@ function ServerProjectSession({
             failed: ["failed", "conflict", "rejected"].includes(status),
             saving: status === "saving",
             departing: departure !== null || busy,
+            busy,
             save,
             leave: () => setDeparture("home"),
             importFile,
