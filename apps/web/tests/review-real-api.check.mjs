@@ -38,13 +38,13 @@ try {
     return page;
   }
   const student = await login(process.env.SPATIA_REVIEW_STUDENT);
-  let teacher;
+  let teacher, assignmentId;
   if (!unavailable) {
     teacher = await login(process.env.SPATIA_REVIEW_EDUCATOR, false);
     const studentId = await student.evaluate(
       async () => (await (await fetch("/api/v1/auth/session")).json()).userId,
     );
-    const assignmentId = await teacher.evaluate(async (id) => {
+    assignmentId = await teacher.evaluate(async (id) => {
       const data = await (await fetch(`/api/v1/classes/${id}/assignments?limit=20`)).json();
       return data.items.find((item) => item.title === "Assignment").assignmentId;
     }, classId);
@@ -103,6 +103,7 @@ try {
     assert.equal(after.length, 0);
   } else {
     await student.getByText("Late submission", { exact: true }).waitFor();
+    await teacher.goto(origin + "/review?projectId=" + encodeURIComponent(projectId));
     await teacher.getByRole("button", { name: "Publish", exact: true }).click();
     const publication = teacher.getByRole("dialog", { name: "Review submission" });
     await publication.getByLabel("Your review").fill("The saved exhibition is ready.");

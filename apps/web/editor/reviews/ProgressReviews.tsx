@@ -100,6 +100,7 @@ export function ProgressReviews({
   const [items, setItems] = useState<ProgressReview[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [historyError, setHistoryError] = useState("");
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(autoOpen);
   const [editing, setEditing] = useState(Boolean(publication) || startEditing);
@@ -237,7 +238,7 @@ export function ProgressReviews({
     async (after?: string | null) => {
       const version = generation.current;
       setLoading(true);
-      setError("");
+      setHistoryError("");
       try {
         const page = await client.list(
           projectId,
@@ -259,7 +260,9 @@ export function ProgressReviews({
         if (active.current && generation.current === version) {
           setItems([]);
           setCursor(null);
-          setError(failure instanceof Error ? failure.message : "Reviews could not be loaded.");
+          setHistoryError(
+            failure instanceof Error ? failure.message : "Reviews could not be loaded.",
+          );
         }
       } finally {
         if (active.current && generation.current === version) setLoading(false);
@@ -346,16 +349,17 @@ export function ProgressReviews({
     } else if (result.kind === "rejected" && !retry) {
       setPhase("ready");
       setIntent(null);
-      setError(result.error.message);
-      if (result.error.status === 409) {
+      if ([401, 403, 404].includes(result.error.status)) {
+        setItems([]);
+        setCursor(null);
+        setHistoryError(result.error.message);
+      } else if (result.error.status === 409) {
         setConflict(true);
         setError(
           result.error.message + " Copy your text, then close this dialog and refresh the project.",
         );
-      }
-      if ([401, 403, 404].includes(result.error.status)) {
-        setItems([]);
-        setCursor(null);
+      } else {
+        setError(result.error.message);
       }
     } else {
       setPhase("unknown");
@@ -403,6 +407,7 @@ export function ProgressReviews({
             sent,
             (...args) => bound(() => submissionClient.execute(...args)),
             (...args) => bound(() => workspace.write(...args)),
+            retry,
           );
         },
       );
@@ -421,12 +426,17 @@ export function ProgressReviews({
         setPendingPublication(sent);
         setPhase("unknown");
         setError(result.message);
-      } else if (result.kind === "revision-conflict") {
+      } else if (result.kind === "revision-conflict" || result.kind === "publication-rejected") {
         setPendingPublication(null);
         setSubmission(null);
         setCanPublish(false);
         setFeedback("");
-        setConflict(true);
+        if (result.kind === "revision-conflict") {
+          setConflict(true);
+        } else {
+          setPublicationLoading(true);
+          setPublicationAttempt((value) => value + 1);
+        }
         setPhase("ready");
         setError(result.message);
       } else {
@@ -543,8 +553,10 @@ export function ProgressReviews({
       {loading && <p role="status">Loading reviews…</p>}
       {decisionsLoading && <p role="status">Loading submission feedback…</p>}
       {decisionsError && <p role="alert">{decisionsError}</p>}
+      {historyError && <p role="alert">{historyError}</p>}
       {error && <p role="alert">{error}</p>}
       {!loading &&
+        !historyError &&
         !error &&
         !decisionsLoading &&
         !decisionsError &&
@@ -558,7 +570,7 @@ export function ProgressReviews({
           Load more reviews
         </Button>
       )}
-      {error && phase === "ready" && (
+      {historyError && phase === "ready" && (
         <Button onClick={() => void load()}>Retry loading reviews</Button>
       )}
     </>

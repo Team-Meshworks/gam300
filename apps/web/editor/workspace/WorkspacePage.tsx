@@ -7,6 +7,7 @@ import { HomePage } from "../home/HomePage";
 import { WorkspaceNavigation } from "../home/WorkspaceNavigation";
 import { AccountDirectoryPage } from "../directory/AccountDirectoryPage";
 import { AdminDashboard } from "../admin/AdminDashboard";
+import { EducatorReviewLink } from "../reviews/EducatorReviewLink";
 import { ReviewWorkspace } from "../reviews/ReviewWorkspace";
 import { PublicationPage } from "../publications/PublicationPage";
 import { AssetAdministration } from "../asset-administration/AssetAdministration";
@@ -46,15 +47,6 @@ function OtherWorkspacePage() {
   const [attempt, setAttempt] = useState(0);
   const [logoutError, setLogoutError] = useState("");
   const signingOut = useRef(false);
-  useEffect(() => {
-    if (
-      access.kind === "ready" &&
-      access.session?.role === "Educator" &&
-      location.pathname.replace(/\/$/, "") === "/review"
-    ) {
-      location.replace("/home");
-    }
-  }, [access]);
   useEffect(() => {
     let disposed = false;
     void client.getSession().then(
@@ -118,6 +110,8 @@ function OtherWorkspacePage() {
         <a href="/login">Log in</a>
       </main>
     );
+  if (session.role === "Educator" && location.pathname.replace(/\/$/, "") === "/review")
+    return <EducatorReviewLink session={session} />;
   const screen = screens.find((item) => `/${item.id}` === location.pathname.replace(/\/$/, ""));
   const permitted = screens.filter((item) => item.roles.includes(session.role));
   const fallback =

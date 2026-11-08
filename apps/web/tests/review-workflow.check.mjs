@@ -37,7 +37,9 @@ try {
   const progressReviews = [];
   const writes = [];
   let denied = false,
-    canPublish = true;
+    canPublish = true,
+    denyReviewContext = false,
+    hideLinkedProject = false;
   await page.route("**/api/v1/**", async (route) => {
     const req = route.request(),
       path = new URL(req.url()).pathname;
@@ -51,6 +53,17 @@ try {
         mustChangePassword: false,
       });
     if (path === "/api/v1/auth/csrf") return reply({ requestToken: "test-csrf" });
+    if (path === `/api/v1/projects/${projectId}/publication-readiness`)
+      return reply({
+        projectId,
+        revision,
+        state: "ApprovalRequired",
+        completionConfirmed: true,
+        approved: false,
+        missingCapabilities: [],
+      });
+    if (path === `/api/v1/projects/${projectId}/publication-viewers`)
+      return reply({ items: [], nextCursor: null });
     if (path === "/api/v1/classes")
       return reply({ items: [{ id: classId, name: "History class" }], nextCursor: null });
     if (path.endsWith("/assignments"))
@@ -60,7 +73,7 @@ try {
             assignmentId,
             title: "Museum",
             dueAtUnixSeconds: 1793581200,
-            projects: [{ projectId, studentId }],
+            projects: hideLinkedProject ? [] : [{ projectId, studentId }],
           },
         ],
         nextCursor: null,
@@ -149,14 +162,25 @@ try {
       }
       return reply({ ...stored, projectId }, 201);
     }
-    if (path.endsWith("/submissions"))
-      return reply({ items: submissions.map(detail), nextCursor: null });
+    if (path.endsWith("/submissions")) {
+      if (denyReviewContext && new URL(req.url()).searchParams.get("limit") === "1")
+        return reply({ code: "review_not_found" }, 404);
+      return reply({
+        projectId,
+        classId,
+        assignmentId,
+        items: submissions.map(detail),
+        nextCursor: null,
+      });
+    }
     const found = submissions.find((s) => path.endsWith("/" + s.submissionId));
     if (found) return reply(detail(found));
     return reply({ code: "review_not_found" }, 404);
   });
   async function open() {
-    await page.goto(origin + "/review");
+    await page.goto(
+      origin + (role === "Educator" ? "/tests/review-workspace-fixture.html" : "/review"),
+    );
     await page.getByLabel("Class", { exact: true }).selectOption(classId);
     await page.getByLabel("Assignment", { exact: true }).selectOption(assignmentId);
     await page
@@ -202,6 +226,178 @@ try {
       .count(),
     1,
   );
+  role = "Educator";
+  // The editor's review controls have their own browser suite; capture this navigation boundary.
+  await page.route(
+    (url) =>
+      url.origin === origin && url.pathname === "/" && url.searchParams.get("review") === "1",
+    (route) =>
+      route.fulfill({
+        contentType: "text/html",
+        body: "<!doctype html><title>Editor review target</title>",
+      }),
+  );
+  await page.goto(`${origin}/publish?projectId=${projectId}`);
+  await page.getByRole("link", { name: "Open submissions and reviews" }).click();
+  await page.waitForURL((url) => url.pathname === "/" && url.searchParams.get("review") === "1");
+  const linked = new URL(page.url()).searchParams;
+  assert.equal(linked.get("projectId"), projectId);
+  assert.equal(linked.get("classId"), classId);
+  assert.equal(linked.get("assignmentId"), assignmentId);
+  assert.equal(linked.get("studentId"), studentId);
+  denyReviewContext = true;
+  await page.goto(`${origin}/review?projectId=${projectId}`);
+  await page
+    .getByRole("alert")
+    .filter({ hasText: "This project or submission is unavailable to your account." })
+    .waitFor();
+  assert.equal(await page.getByLabel("Class", { exact: true }).count(), 0);
+  assert.equal(await page.getByText("Retained student work", { exact: true }).count(), 0);
+  denyReviewContext = false;
+  hideLinkedProject = true;
+  await page.goto(`${origin}/review?projectId=${projectId}`);
+  await page
+    .getByRole("alert")
+    .filter({ hasText: "This project is no longer available in the selected assignment." })
+    .waitFor();
+  assert.equal(await page.getByText("Retained student work", { exact: true }).count(), 0);
+  hideLinkedProject = false;
+  // Exercise the retained review components independently of the educator route redirect.
+  await open();
+  await page.getByRole("button", { name: "Reviews", exact: true }).click();
+  const reviewDialog = page.getByRole("dialog", { name: "Reviews" });
+  const dialogBounds = await reviewDialog.boundingBox();
+  const closeBounds = await reviewDialog
+    .getByRole("button", { name: "Close dialog" })
+    .boundingBox();
+  const addBounds = await reviewDialog.getByRole("button", { name: "+ Add Reviews" }).boundingBox();
+  assert.ok(dialogBounds.width >= 800 && closeBounds.x > dialogBounds.x + dialogBounds.width / 2);
+  assert.ok(addBounds.width < 250);
+  await page.getByRole("button", { name: "+ Add Reviews" }).click();
+  await page.getByRole("textbox", { name: "New review" }).fill("Add a map to your draft.");
+  await page.getByRole("button", { name: "Save Changes" }).click();
+  await page.getByText("Add a map to your draft.", { exact: true }).waitFor();
+  await page.getByRole("button", { name: "Close dialog" }).click();
+  const feedback = page.getByRole("textbox", { name: "Feedback", exact: true });
+  await feedback.fill("Move the first exhibit closer.");
+  await page.getByRole("button", { name: "Return with feedback", exact: true }).click();
+  const beforeCancel = writes.length;
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  assert.equal(writes.length, beforeCancel);
+  assert.equal(await feedback.inputValue(), "Move the first exhibit closer.");
+  mode = "lost-decision";
+  await page.getByRole("button", { name: "Return with feedback", exact: true }).click();
+  await page.getByRole("button", { name: "Confirm decision", exact: true }).click();
+  await page.getByRole("button", { name: "Check outcome", exact: true }).waitFor();
+  assert.equal(
+    await page.getByLabel("Class", { exact: true }).isDisabled(),
+    true,
+    "Unknown write blocks switching",
+  );
+  await page.getByRole("button", { name: "Retry same request", exact: true }).click();
+  await page.getByText("Returned for changes", { exact: true }).waitFor();
+  assert.equal(decisions.length, 1);
+  assert.deepEqual(writes.at(-1).body, writes.at(-2).body);
+  role = "Creator";
+  await open();
+  await page
+    .getByRole("region", { name: "Reviews" })
+    .getByText("Add a map to your draft.")
+    .waitFor();
+  assert.equal(
+    await page
+      .getByRole("region", { name: "Educator feedback" })
+      .getByText("Move the first exhibit closer.", { exact: true })
+      .count(),
+    1,
+  );
+  await page.getByRole("checkbox").check();
+  await page.getByRole("button", { name: "Submit for review", exact: true }).click();
+  await page.getByRole("button", { name: "Confirm submission", exact: true }).click();
+  await page.getByText("Awaiting educator review", { exact: true }).waitFor();
+  role = "Educator";
+  await open();
+  await feedback.fill("Ready for review completion.");
+  await page.getByRole("button", { name: "Approve submission", exact: true }).click();
+  await page.getByRole("button", { name: "Confirm decision", exact: true }).click();
+  await page.getByText("Approved for this revision", { exact: true }).waitFor();
+  const publish = page.getByRole("link", { name: "Publish project", exact: true });
+  await publish.waitFor();
+  assert.equal(
+    await publish.getAttribute("href"),
+    "/publish?projectId=" + encodeURIComponent(projectId),
+  );
+  await page.setViewportSize({ width: 390, height: 844 });
+  await publish.scrollIntoViewIfNeeded();
+  const bounds = await publish.boundingBox();
+  assert.ok(
+    bounds && bounds.x >= 0 && bounds.x + bounds.width <= 390,
+    "Publish link fits mobile viewport",
+  );
+  await mkdir(new URL("../../../.artifacts/scrum-165/", import.meta.url), { recursive: true });
+  await page.screenshot({
+    path: fileURLToPath(
+      new URL("../../../.artifacts/scrum-165/review-publish-mobile.png", import.meta.url),
+    ),
+    fullPage: true,
+  });
+  await feedback.fill("Unsaved feedback stays here.");
+  assert.equal(await publish.count(), 0, "Unsaved feedback prevents navigation");
+  assert.equal(await page.getByRole("button", { name: "Publish project" }).isDisabled(), true);
+  assert.equal(await feedback.inputValue(), "Unsaved feedback stays here.");
+  await page.getByRole("button", { name: "Revoke approval" }).click();
+  assert.equal(await publish.count(), 0, "Pending decision prevents navigation");
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Discard feedback" }).click();
+  canPublish = false;
+  await page.getByRole("button", { name: "Refresh status" }).click();
+  await page
+    .getByText("Publish permission:", { exact: false })
+    .filter({ hasText: "not granted" })
+    .waitFor();
+  assert.equal(await publish.count(), 0, "Permission is required");
+  canPublish = true;
+  await page.getByRole("button", { name: "Refresh status" }).click();
+  await publish.waitFor();
+  await publish.focus();
+  assert.equal(await publish.evaluate((element) => document.activeElement === element), true);
+  await page.keyboard.press("Enter");
+  await page.waitForURL("**/publish?projectId=*");
+  await open();
+  revision = 8;
+  await page.getByRole("button", { name: "Refresh status", exact: true }).click();
+  await page
+    .getByText("Historical submission — not approval of the current revision", { exact: true })
+    .waitFor();
+  assert.equal(await publish.count(), 0, "Historical approval cannot publish");
+  await feedback.fill("Keep recoverable feedback.");
+  assert.equal(
+    await page.getByRole("button", { name: "Approve submission", exact: true }).isDisabled(),
+    true,
+  );
+  for (const width of [1366, 768, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    assert.equal(
+      await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+      true,
+      "Review fits " + width,
+    );
+  }
+  await mkdir(new URL("../../../.artifacts/scrum-165/", import.meta.url), { recursive: true });
+  await page.screenshot({
+    path: fileURLToPath(new URL("../../../.artifacts/scrum-165/review.png", import.meta.url)),
+    fullPage: true,
+  });
+  denied = true;
+  await page.getByRole("button", { name: "Refresh status", exact: true }).click();
+  await page.getByRole("alert").filter({ hasText: "unavailable to your account" }).waitFor();
+  assert.equal(await page.getByText("Retained student work", { exact: true }).count(), 0);
+  assert.equal(
+    await page.getByRole("button", { name: "Approve submission", exact: true }).count(),
+    0,
+  );
+  page.once("dialog", (dialog) => dialog.accept());
   role = "Administrator";
   await page.goto(origin + "/review");
   await page.getByRole("heading", { name: "Access denied" }).waitFor();

@@ -2563,7 +2563,7 @@ decisions. Administrator directory powers do not grant review access.
 | Route | Request | Successful response |
 | --- | --- | --- |
 | `POST /api/v1/projects/{id}/submissions` | `{submissionId, expectedRevision, completionConfirmed: true}` | 201 for a new submission, 200 for an identical retry: `{submissionId, projectId, revision, submittedAt, dueAtUnixSeconds, isLate}`. |
-| `GET /api/v1/projects/{id}/submissions` | Optional `limit` (default 10, maximum 20) and exclusive UUID `cursor` | `{items, nextCursor}`; each item has `submissionId`, `revision`, `sequence`, `submittedAt`, `dueAtUnixSeconds`, `isLate`, `isCurrentSubmission`. |
+| `GET /api/v1/projects/{id}/submissions` | Optional `limit` (default 10, maximum 20) and exclusive UUID `cursor` | `{projectId, classId, assignmentId, items, nextCursor}`; each item has `submissionId`, `revision`, `sequence`, `submittedAt`, `dueAtUnixSeconds`, `isLate`, `isCurrentSubmission`. |
 | `GET /api/v1/projects/{id}/submissions/{submissionId}` | Same pagination parameters, applied to decision history | Submission detail described below, including the saved document and latest decision. |
 | `POST /api/v1/projects/{id}/submissions/{submissionId}/decisions` | `{decisionId, expectedRevision, outcome, feedback}` | 201 for a new decision, 200 for an identical retry: `{decisionId, submissionId, sequence, outcome, feedback, decidedAt}`. |
 

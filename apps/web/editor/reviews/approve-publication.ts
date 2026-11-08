@@ -1,6 +1,8 @@
 import { isId, isRecord, type WriteResult } from "../home/workspace-api";
 import {
+  isDefinitivePublicationRejection,
   publicationAcknowledgement,
+  publicationProblems,
   type PublicationAcknowledgement,
   type PublicationRequest,
 } from "../publications/publication-client";
@@ -26,7 +28,7 @@ type Publish = (
 ) => Promise<WriteResult>;
 type Result =
   | { kind: "published"; acknowledgement: PublicationAcknowledgement }
-  | { kind: "revision-conflict"; message: string }
+  | { kind: "revision-conflict" | "publication-rejected"; message: string }
   | { kind: "pending" | "rejected"; message: string };
 const key = (actorId: string, projectId: string) =>
   `spatia-review-publication:${actorId}:${projectId}`;
@@ -67,6 +69,7 @@ export async function approveAndPublish(
   intent: ApprovalPublicationIntent,
   decide: ReviewClient["execute"],
   publish: Publish,
+  retry = false,
 ): Promise<Result> {
   if (intent.submissionId === null)
     return { kind: "rejected", message: "A current submission is required before publishing." };
@@ -91,6 +94,7 @@ export async function approveAndPublish(
         "The publishing request could not be safely saved or verified. Check any earlier request before continuing.",
     };
   }
+  const previouslyAttempted = retry || existing !== null;
   const decision = await decide(
     {
       kind: "decide",
@@ -104,7 +108,7 @@ export async function approveAndPublish(
     intent.actorId,
   );
   if (decision.kind !== "confirmed") {
-    if (decision.kind === "rejected" && !existing) {
+    if (decision.kind === "rejected" && !previouslyAttempted) {
       try {
         storage.removeItem(storageKey);
       } catch {
@@ -134,32 +138,25 @@ export async function approveAndPublish(
     `/api/v1/projects/${encodeURIComponent(intent.projectId)}/publications`,
     "POST",
     request,
-    { revision_conflict: "The saved project changed before it could be published." },
+    publicationProblems,
   );
-  if (result.kind === "rejected" && result.code === "revision_conflict" && !existing) {
+  if (
+    result.kind === "rejected" &&
+    isDefinitivePublicationRejection(result.code, previouslyAttempted)
+  ) {
     try {
       storage.removeItem(storageKey);
       if (storage.getItem(storageKey) !== null) throw new Error("Storage failed");
-      return {
-        kind: "revision-conflict",
-        message:
-          "Your review and approval were saved, but the project changed before publication. Refresh the project before publishing the latest saved work.",
-      };
-    } catch {
-      return {
-        kind: "pending",
-        message:
-          "The project changed and was not published, but the saved request could not be cleared. Retry the same request.",
-      };
-    }
-  }
-  // A first rejection cannot have committed this publication. An older saved
-  // request may already have committed despite an uncertain response.
-  if (result.kind === "rejected" && !existing) {
-    try {
-      storage.removeItem(storageKey);
-      if (storage.getItem(storageKey) !== null) throw new Error("Storage failed");
-      return { kind: "rejected", message: result.message };
+      return result.code === "revision_conflict"
+        ? {
+            kind: "revision-conflict",
+            message:
+              "Your review and approval were saved, but the project changed before publication. The student must submit the current work for a new review before it can be published.",
+          }
+        : {
+            kind: "publication-rejected",
+            message: `Your approval and feedback were saved. Publication was rejected. ${result.message}`,
+          };
     } catch {
       return {
         kind: "pending",

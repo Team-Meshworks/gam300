@@ -392,6 +392,39 @@ function ServerProjectSession({
     // eslint-disable-next-line react-hooks-js/exhaustive-deps
   }, [projectId, attempt, store]);
 
+  async function checkDraftAccount(owner: Active) {
+    const identity = await accounts.getSession();
+    if (owner.controller.signal.aborted) return null;
+    if (
+      identity?.userId === owner.accountId &&
+      identity.orgId === owner.orgId &&
+      identity.role === owner.role &&
+      !identity.mustChangePassword
+    )
+      return identity;
+
+    // Lock the live draft before awaiting account-scoped recovery storage
+    retained.current = { accountId: owner.accountId, recovery: owner.session.getRecovery() };
+    owner.controller.abort();
+    current.current = null;
+    setActive(null);
+    setDeparture(null);
+    setReviewExit(null);
+    setLoading(true);
+    const preserved = await owner.session.dispose();
+    retained.current = preserved?.ok
+      ? null
+      : { accountId: owner.accountId, recovery: owner.session.getRecovery() };
+    setLoading(false);
+    if (!identity && preserved?.ok) setSignedOut(true);
+    setError(
+      preserved?.ok
+        ? "Your account changed or expired. Sign in with the original account to reopen your retained draft."
+        : "Your account changed or expired and recovery storage failed. Your draft is held only in this tab. Keep it open, sign in with the original account, then retry.",
+    );
+    return null;
+  }
+
   useEffect(() => {
     if (!active) return;
     const owner = active;
@@ -400,29 +433,7 @@ function ServerProjectSession({
       if (checking || owner.controller.signal.aborted) return;
       checking = true;
       try {
-        const identity = await accounts.getSession();
-        if (owner.controller.signal.aborted) return;
-        if (!identity || identity.mustChangePassword || identity.userId !== owner.accountId) {
-          // Lock the live draft before awaiting storage; a new account must never see it.
-          retained.current = { accountId: owner.accountId, recovery: owner.session.getRecovery() };
-          owner.controller.abort();
-          current.current = null;
-          setActive(null);
-          setDeparture(null);
-          setLoading(true);
-          const preserved = await owner.session.dispose();
-          retained.current = preserved?.ok
-            ? null
-            : { accountId: owner.accountId, recovery: owner.session.getRecovery() };
-          setLoading(false);
-          // Redirect only after the account-scoped recovery copy is safely stored.
-          if (!identity && preserved?.ok) setSignedOut(true);
-          setError(
-            preserved?.ok
-              ? "Your account changed or expired. Sign in with the original account to reopen your retained draft."
-              : "Your account changed or expired and recovery storage failed. Your draft is held only in this tab. Keep it open, sign in with the original account, then retry.",
-          );
-        }
+        await checkDraftAccount(owner);
       } catch {
         // Offline editing retains the captured account; server writes also enforce that identity.
       } finally {
@@ -489,10 +500,11 @@ function ServerProjectSession({
     try {
       await action();
     } catch (cause) {
-      if (!wasPickerCancelled(cause))
+      if (!wasPickerCancelled(cause)) {
         setError(
           cause instanceof Error ? cause.message : "The operation failed. Your draft was kept.",
         );
+      }
     } finally {
       busyRef.current = false;
       setBusy(false);
@@ -558,48 +570,47 @@ function ServerProjectSession({
       return;
     }
     await run(async () => {
-      const identity = await accounts.getSession();
-      if (
-        !identity ||
-        identity.userId !== active.accountId ||
-        identity.orgId !== active.orgId ||
-        identity.mustChangePassword
-      )
-        throw new Error("Your account changed. Sign in again before reviewing.");
+      const identity = await checkDraftAccount(active);
+      if (!identity) return;
       if (identity.role !== "Educator") {
         if (mode === "leave") setDeparture("home");
         return;
       }
-      await active.session.flush();
-      if (active.session.getStatus() !== "saved")
-        throw new Error("Save the project before reviewing or publishing it.");
-      const [assignment, project] = await Promise.all([
-        readAssignment(context.classId, context.assignmentId),
-        reviews.project(projectId),
-      ]);
-      const current = await accounts.getSession();
-      const selected = assignment.projects.find(
-        (item) =>
-          item.projectId.toLowerCase() === projectId.toLowerCase() &&
-          item.studentId.toLowerCase() === context.studentId.toLowerCase(),
-      );
-      if (
-        !current ||
-        current.userId !== active.accountId ||
-        current.role !== "Educator" ||
-        current.orgId !== identity.orgId ||
-        current.mustChangePassword ||
-        !selected
-      )
-        throw new Error(
-          "This student project could not be verified. Return to the class and try again.",
+      let review: typeof reviewExit = null;
+      let failure =
+        "This student project could not be verified. Return to the class and try again.";
+      try {
+        await active.session.flush();
+        if (active.session.getStatus() !== "saved")
+          throw new Error("Save the project before reviewing or publishing it.");
+        const [assignment, project] = await Promise.all([
+          readAssignment(context.classId, context.assignmentId),
+          reviews.project(projectId),
+        ]);
+        const selected = assignment.projects.find(
+          (item) =>
+            item.projectId.toLowerCase() === projectId.toLowerCase() &&
+            item.studentId.toLowerCase() === context.studentId.toLowerCase(),
         );
-      setReviewExit({
-        context,
-        studentName: selected.studentName ?? "Student",
-        revision: project.revision,
-        mode,
-      });
+        if (selected) {
+          review = {
+            context,
+            studentName: selected.studentName ?? "Student",
+            revision: project.revision,
+            mode,
+          };
+        }
+      } catch (cause) {
+        if (cause instanceof Error) failure = cause.message;
+      }
+      const current = await checkDraftAccount(active);
+      if (!current) return;
+      if (current.role === "Educator" && review) {
+        setReviewExit(review);
+      } else {
+        setError(`The submission review could not be opened. ${failure}`);
+        if (mode === "leave") setDeparture("home");
+      }
     });
   }
 
