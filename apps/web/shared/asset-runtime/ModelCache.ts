@@ -1,3 +1,4 @@
+import { combineAbortSignals } from "../network/abort-signals";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import type { CatalogueAsset } from "./catalogue";
@@ -139,7 +140,7 @@ export class ModelRequestError extends Error {
 
 async function loadModel(asset: CatalogueAsset, signal: AbortSignal): Promise<LoadedModel> {
   const response = await fetch(asset.url, {
-    signal: AbortSignal.any([signal, AbortSignal.timeout(120_000)]),
+    signal: combineAbortSignals([signal, AbortSignal.timeout(120_000)]),
     credentials: "same-origin",
   });
   if (!response.ok) {

@@ -1,3 +1,4 @@
+import { combineAbortSignals } from "../shared/network/abort-signals";
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { loadPublication, type PublishedExhibition } from "./publication";
@@ -29,7 +30,7 @@ function Visitor() {
   }
   useEffect(() => {
     const controller = new AbortController();
-    const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(20000)]);
+    const signal = combineAbortSignals([controller.signal, AbortSignal.timeout(20000)]);
     void loadPublication(publicationId, signal)
       .then((value) => {
         if (!controller.signal.aborted) {
