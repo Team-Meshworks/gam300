@@ -349,13 +349,31 @@ const revoked=[];const revoke=URL.revokeObjectURL.bind(URL);URL.revokeObjectURL=
       errors = [];
     page.on("pageerror", (e) => errors.push(e.message));
     await page.goto(origin + "/__visitor-playback");
-    await page.waitForFunction(
-      () =>
-        window.probe &&
-        document.querySelectorAll('audio[src^="blob:"]').length === 3 &&
-        document.querySelector("video")?.readyState >= 2 &&
-        document.querySelector("img")?.naturalWidth > 0,
-    );
+    await page
+      .waitForFunction(
+        () =>
+          window.probe &&
+          document.querySelectorAll('audio[src^="blob:"]').length === 3 &&
+          document.querySelector("video")?.readyState >= 2 &&
+          document.querySelector("img")?.naturalWidth > 0,
+      )
+      .catch(async (cause) => {
+        throw new Error(
+          JSON.stringify({
+            errors,
+            media: await page.evaluate(() =>
+              [...document.querySelectorAll("audio,video,img")].map((node) => ({
+                tag: node.tagName,
+                src: node.src,
+                ready: node.readyState,
+                width: node.naturalWidth,
+                error: node.error?.message,
+              })),
+            ),
+          }),
+          { cause },
+        );
+      });
     await page.locator("#start").click();
     await page.waitForFunction(() =>
       [...document.querySelectorAll("audio")]

@@ -89,16 +89,16 @@ internal static class ClassAssignmentReads
                             .OrderByDescending(decision => decision.Sequence).Select(decision => decision.Outcome).FirstOrDefault()
                     }).FirstOrDefault(),
                 Published = !creator && !project.IsArchived && (from publication in database.Publications
-                                                    join policy in database.PublicationAccess on publication.Id equals policy.PublicationId
-                                                    where publication.ProjectId == project.Id && !policy.Hidden && !policy.Revoked && !policy.Deleted
-                                                        && !retired.Contains(publication.Id)
-                                                    select publication.Id).Any(),
+                                                                join policy in database.PublicationAccess on publication.Id equals policy.PublicationId
+                                                                where publication.ProjectId == project.Id && !policy.Hidden && !policy.Revoked && !policy.Deleted
+                                                                    && !retired.Contains(publication.Id)
+                                                                select publication.Id).Any(),
                 IsPublic = !creator && !project.IsArchived && (from publication in database.Publications
-                                                   join policy in database.PublicationAccess on publication.Id equals policy.PublicationId
-                                                   where publication.ProjectId == project.Id && !policy.Hidden && !policy.Revoked && !policy.Deleted
-                                                       && !retired.Contains(publication.Id)
-                                                       && (policy.Audience == (int)PublicationAudience.Public || policy.Audience == (int)PublicationAudience.Unlisted)
-                                                   select publication.Id).Any(),
+                                                               join policy in database.PublicationAccess on publication.Id equals policy.PublicationId
+                                                               where publication.ProjectId == project.Id && !policy.Hidden && !policy.Revoked && !policy.Deleted
+                                                                   && !retired.Contains(publication.Id)
+                                                                   && (policy.Audience == (int)PublicationAudience.Public || policy.Audience == (int)PublicationAudience.Unlisted)
+                                                               select publication.Id).Any(),
             }).ToArrayAsync(cancellationToken);
         var items = page.Select(row => new AssignmentView(row.Id, row.Title, row.Description, row.Instructions, row.DueAtUnixSeconds, row.Revision,
             organizationName, creators.FirstOrDefault(user => user.Id == row.CreatedByUserId)?.Name ?? "Teacher",

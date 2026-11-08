@@ -98,11 +98,6 @@ public sealed class PublicationEndpointTests
         var (data, _) = await PrepareAsync(fixture);
 
         // Revoke the student grant through the same revisioned API used by project managers
-        await using (var scope = fixture.App.Services.CreateAsyncScope())
-        {
-            var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            await database.GetService<IMigrator>().MigrateAsync("20261108003114_AddAssignmentEditing");
-        }
         using (var request = new HttpRequestMessage(HttpMethod.Patch, $"/api/v1/projects/{data.ProjectId}/assignments"))
         {
             request.Content = JsonContent.Create(new
@@ -115,6 +110,13 @@ public sealed class PublicationEndpointTests
             request.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync());
             using var revoked = await fixture.Client.SendAsync(request);
             await Assert.That(revoked.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        }
+
+        // Rewind only after the API change; the current binary requires the latest account schema
+        await using (var scope = fixture.App.Services.CreateAsyncScope())
+        {
+            var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            await database.GetService<IMigrator>().MigrateAsync("20261108003114_AddAssignmentEditing");
         }
 
         // Applying the upgrade must not undo a manager's explicit permission change
