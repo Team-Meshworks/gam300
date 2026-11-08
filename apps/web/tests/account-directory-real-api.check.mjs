@@ -29,31 +29,28 @@ try {
     .getByRole("button", { name: "View details for Dashboard browser project", exact: true })
     .click();
   const projectDetails = page.getByRole("region", { name: "Project details", exact: true });
-  assert.equal(await projectDetails.locator("dd").nth(1).textContent(), "0");
-  assert.match(
-    await projectDetails
-      .getByRole("link", { name: "Open project", exact: true })
-      .getAttribute("href"),
-    /^\/\?projectId=[0-9a-f-]{36}$/,
-  );
+  await projectDetails.getByRole("link", { name: "Synthetic organization", exact: true }).waitFor();
+  assert.equal(await projectDetails.locator(".admin-project-visibility").textContent(), "Private");
+  await projectDetails
+    .getByText("No class assignments are linked to this project.", { exact: true })
+    .waitFor();
   await projectDetails.getByRole("button", { name: "Back", exact: true }).click();
   await page.getByRole("button", { name: "+ Add Organisations", exact: true }).click();
   await page
     .getByLabel("Organisation name", { exact: true })
     .fill("Dashboard browser organisation");
-  await page.getByRole("button", { name: "Create organisation", exact: true }).click();
+  await page.getByRole("button", { name: "Create Organisation", exact: true }).click();
+  await page.waitForURL(origin + "/organisations");
   await page
-    .getByRole("status")
-    .filter({ hasText: "Dashboard browser organisation was created." })
+    .getByRole("button", { name: "Open Dashboard browser organisation", exact: true })
     .waitFor();
-  await page.getByRole("link", { name: "View Organisations", exact: true }).click();
   await page.getByRole("button", { name: "Open Synthetic organization" }).click();
   await page.getByRole("button", { name: "+ Add Accounts" }).click();
   let dialog = page.getByRole("dialog");
   await dialog.getByLabel("Name", { exact: true }).fill("Browser Created");
   await dialog.getByLabel("Username", { exact: true }).fill("browser.created");
   await dialog.getByLabel("Password", { exact: true }).fill("Browser-initial1!");
-  await dialog.getByRole("button", { name: "Save changes" }).click();
+  await dialog.getByRole("button", { name: "Save Changes" }).click();
   await dialog.waitFor({ state: "detached" });
   await page.reload();
   await page.getByRole("button", { name: "Open Synthetic organization" }).click();
@@ -64,9 +61,10 @@ try {
     await dialog.getByRole("button", { name: `Override ${field}`, exact: true }).click();
   await dialog.getByLabel("Name", { exact: true }).fill("Browser Updated");
   await dialog.getByLabel("Username", { exact: true }).fill("browser.updated");
-  await dialog.getByLabel("Account Type", { exact: true }).selectOption("Educator");
-  await dialog.getByLabel("New password", { exact: true }).fill("Browser-replacement2!");
-  await dialog.getByRole("button", { name: "Save changes" }).click();
+  await dialog.getByRole("combobox", { name: "Account Type", exact: true }).click();
+  await page.getByRole("option", { name: "Facilitator", exact: true }).click();
+  await dialog.getByLabel("New Password", { exact: true }).fill("Browser-replacement2!");
+  await dialog.getByRole("button", { name: "Save Changes" }).click();
   await dialog.waitFor({ state: "detached" });
   await page.reload();
   await page.getByRole("button", { name: "Open Synthetic organization" }).click();
@@ -85,7 +83,7 @@ try {
   await page.getByRole("button", { name: "Open Synthetic organization" }).click();
   await page.getByRole("button", { name: "View account for Browser Updated" }).waitFor();
   await page.getByText("Dashboard browser project", { exact: true }).waitFor();
-  await page.getByRole("button", { name: "All organisations", exact: true }).click();
+  await page.getByRole("button", { name: "Close organisation", exact: true }).click();
   await page.getByRole("button", { name: "Open Synthetic organization" }).click();
   await page.getByRole("button", { name: "View account for Browser Updated" }).waitFor();
   assert.equal(

@@ -126,7 +126,7 @@ export async function checkServerEditor(
       .filter({ hasText: "Another revision" })
       .waitFor();
     await page.getByLabel("Project options", { exact: true }).click();
-    await page.getByRole("button", { name: "Log out", exact: true }).click();
+    await page.getByRole("button", { name: "Log Out", exact: true }).click();
     await page
       .getByRole("button", { name: "Exit", exact: true })
       .click();

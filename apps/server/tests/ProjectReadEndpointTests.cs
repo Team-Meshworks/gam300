@@ -87,7 +87,8 @@ public sealed class ProjectReadEndpointTests
         await fixture.SignInAsync(role == ApplicationRoles.Administrator
             ? await fixture.CreateAccountAsync(ApplicationRoles.Administrator) : manager);
         var body = await GetAsync(fixture.Client, Path(project.Id) + "/assignments");
-        await AssertFieldsAsync(body, "projectId", "organizationId", "revision", "archived", "assignments");
+        await AssertFieldsAsync(body, "projectId", "organizationId", "revision", "archived", "assignments", "classAssignments");
+        await Assert.That(body.GetProperty("classAssignments").GetArrayLength()).IsEqualTo(0);
         await Assert.That(body.GetProperty("projectId").GetGuid()).IsEqualTo(project.Id);
         await Assert.That(body.GetProperty("organizationId").GetGuid()).IsEqualTo(project.OrganizationId);
         await Assert.That(body.GetProperty("revision").GetInt64()).IsEqualTo(project.Revision);

@@ -226,8 +226,7 @@ try {
   await placeAtRoomCenter(page);
   assert.equal((await saved).status(), 200);
   await page
-    .locator('.server-session [role="status"]')
-    .filter({ hasText: "Saved to server" })
+    .locator('.save-state[data-state="saved"]')
     .waitFor();
   let authored = await readProject(page);
   assert.equal(
@@ -258,8 +257,7 @@ try {
   ]);
   assert.equal(dropped.status(), 200);
   await page
-    .locator('.server-session [role="status"]')
-    .filter({ hasText: "Saved to server" })
+    .locator('.save-state[data-state="saved"]')
     .waitFor();
   authored = await readProject(page);
   const crates = authored.document.scenes[0].objects.filter(
@@ -280,8 +278,7 @@ try {
   await library.getByRole("button", { name: "Add", exact: true }).click();
   assert.equal((await saved).status(), 200);
   await page
-    .locator('.server-session [role="status"]')
-    .filter({ hasText: "Saved to server" })
+    .locator('.save-state[data-state="saved"]')
     .waitFor();
   await page.context().close();
   page = await openEditor(authoring.projectId);

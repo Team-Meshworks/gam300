@@ -41,11 +41,11 @@ try {
   await page.getByRole("heading", { name: "Classes", exact: true }).waitFor();
   await page.getByRole("button", { name: "Projects", exact: true }).click();
   await page.getByRole("button", { name: "Back to dashboard", exact: true }).click();
-  await page.getByRole("button", { name: "View All Projects", exact: true }).click();
-  await page
-    .getByRole("button", { name: "View progress for Grant browser project", exact: true })
-    .click();
-  await page.getByRole("button", { name: "Manage Access", exact: true }).click();
+  await page.goto(`${origin}/home`);
+  const project = page.getByRole("listitem").filter({
+    has: page.getByRole("heading", { name: "Grant browser project", exact: true }),
+  });
+  await project.getByRole("button", { name: "Manage access", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Project access" });
   await dialog.waitFor();
   const publish = dialog.getByRole("checkbox", {
@@ -56,7 +56,7 @@ try {
   await publish.check();
   await dialog.getByRole("button", { name: "Save access", exact: true }).click();
   await dialog.waitFor({ state: "detached" });
-  await page.getByRole("button", { name: "Manage Access", exact: true }).click();
+  await project.getByRole("button", { name: "Manage access", exact: true }).click();
   assert.equal(await publish.isChecked(), true);
   const creatorContext = await browser.newContext({ ignoreHTTPSErrors: true });
   const creatorPage = await creatorContext.newPage();

@@ -155,7 +155,8 @@ public sealed class AccountAdministrationService(ApplicationDbContext database, 
         }
 
         await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
-        await database.Database.ExecuteSqlRawAsync("""LOCK TABLE "AspNetUserRoles" IN SHARE ROW EXCLUSIVE MODE""", cancellationToken);
+        // Keep lifecycle changes out while concurrent resets retain their optimistic conflict check
+        await database.Database.ExecuteSqlRawAsync("""LOCK TABLE "AspNetUserRoles" IN SHARE MODE""", cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         var user = await users.FindByIdAsync(userId.ToString("D"));
         if (user is null)
