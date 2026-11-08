@@ -241,8 +241,9 @@ const scene={id:"scene",name:"Probe",startCamera:pose,audio:[audio("bg")],object
 ,
  {id:"move",name:"Camera",transform,visible:true,components:[{id:"move-hot",type:"hotspot",label:"Move camera"}]},
  {id:"link",name:"Link",transform,visible:true,components:[{id:"link-hot",type:"hotspot",label:"Open link"}]}
-],viewpoints:[{id:"view",name:"View",camera:{...pose,position:[2,3,4],fovDegrees:75}}],zones:[{id:"zone",transform:{...transform,scale:[2,2,2]}}],rules:[
+],hotspots:[{id:"scene-hotspot",objectId:"other",label:"Scene hotspot"}],viewpoints:[{id:"view",name:"View",camera:{...pose,position:[2,3,4],fovDegrees:75}}],zones:[{id:"zone",transform:{...transform,scale:[2,2,2]}}],rules:[
  rule("gaze",{type:"gaze",targetId:"hotspot",seconds:1},[{type:"showPanel",panelId:"panel"}]),
+ rule("scene-gaze",{type:"gaze",targetId:"SCENE-HOTSPOT",seconds:1},[{type:"showPanel",panelId:"other-panel"}]),
  rule("zone",{type:"zoneEnter",zoneId:"zone"},[{type:"showPanel",panelId:"image"}]),
  rule("move",{type:"click",targetId:"move-hot"},[{type:"moveCamera",viewpointId:"view",durationSeconds:2}]),
  rule("link",{type:"click",targetId:"link-hot"},[{type:"openLink",url:"https://example.com/exhibition"}]),
@@ -472,6 +473,22 @@ const revoked=[];const revoke=URL.revokeObjectURL.bind(URL);URL.revokeObjectURL=
       await page.locator('[data-component-id="panel"]').evaluate((n) => n.hidden),
       false,
     );
+    // Scene hotspots resolve their owning model and share the same continuous dwell behavior
+    await page.evaluate(() => {
+      document.querySelector('[data-component-id="other-panel"]').hidden = true;
+      probe.runtime.update(0.6, "other");
+      probe.runtime.update(0.1, "owner");
+      probe.runtime.update(0.6, "other");
+    });
+    assert.equal(
+      await page.locator('[data-component-id="other-panel"]').evaluate((n) => n.hidden),
+      true,
+    );
+    await page.evaluate(() => probe.runtime.update(0.5, "OTHER"));
+    assert.equal(
+      await page.locator('[data-component-id="other-panel"]').evaluate((n) => n.hidden),
+      false,
+    );
     // Zone entry fires once until the camera leaves and enters again
     await page
       .locator('[data-component-id="image"]')
@@ -615,7 +632,7 @@ const revoked=[];const revoke=URL.revokeObjectURL.bind(URL);URL.revokeObjectURL=
       probe.unmount();
     });
     // Start before verified audio arrives, including owners hidden or disposed while waiting
-    for (const state of ["playing", "hidden", "disposed"]) {
+    for (const state of ["playing", "hidden", "disposed", "backgrounded"]) {
       let releaseAudio;
       const audioGate = new Promise((resolve) => {
         releaseAudio = resolve;
@@ -632,17 +649,37 @@ const revoked=[];const revoke=URL.revokeObjectURL.bind(URL);URL.revokeObjectURL=
       await page.locator("#start").click();
       if (state === "hidden") await page.evaluate(() => probe.hiddenPlay());
       if (state === "disposed") await page.evaluate(() => probe.runtime.dispose());
+      if (state === "backgrounded") {
+        await page.evaluate(() => {
+          Object.defineProperty(document, "hidden", { configurable: true, value: true });
+          document.dispatchEvent(new Event("visibilitychange"));
+          window.hiddenPlays = 0;
+          document.querySelectorAll("audio").forEach((node) => {
+            node.addEventListener("play", () => {
+              if (document.hidden) window.hiddenPlays++;
+            });
+          });
+        });
+      }
       releaseAudio();
       await page.waitForFunction(() =>
         [...document.querySelectorAll("audio")].every((node) => node.readyState >= 2),
       );
+      if (state === "backgrounded") {
+        assert.equal(await page.evaluate(() => window.hiddenPlays), 0);
+        assert.equal(await page.locator('[aria-label="bg"]').evaluate((node) => node.paused), true);
+        await page.evaluate(() => {
+          delete document.hidden;
+          document.dispatchEvent(new Event("visibilitychange"));
+        });
+      }
       if (state !== "disposed") {
         await page.waitForFunction(() => {
           const node = document.querySelector('[aria-label="bg"]');
           return !node.paused && node.currentTime > 0;
         });
       }
-      if (state === "playing") {
+      if (state === "playing" || state === "backgrounded") {
         await page.waitForFunction(() => !document.querySelector('[aria-label="spatial"]').paused);
       } else {
         assert.equal(

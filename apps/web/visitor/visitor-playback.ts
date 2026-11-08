@@ -60,7 +60,7 @@ export function createVisitorPlayback(
     }
     // A verified media download may finish after Start or a scene-start rule
     // Resume the requested track when it becomes playable, unless its owner has since hidden
-    if (node.readyState < 2) {
+    if (node.readyState < 2 || document.hidden) {
       pendingMedia.add(id.toLowerCase());
       return;
     }
@@ -265,6 +265,7 @@ export function createVisitorPlayback(
 
   // Resume only media that was playing before backgrounding, including hidden-owner checks
   const visibility = () => {
+    if (disposed || departing) return;
     content.querySelectorAll<HTMLMediaElement>("audio,video").forEach((node) => {
       if (document.hidden) {
         node.dataset.wasPlaying = String(!node.paused);
@@ -276,6 +277,9 @@ export function createVisitorPlayback(
         });
       }
     });
+    if (!document.hidden) {
+      for (const id of pendingMedia) media(id);
+    }
   };
   content.addEventListener("loadeddata", mediaReady, true);
   content.addEventListener("exhibit-start", start);
@@ -310,13 +314,14 @@ export function createVisitorPlayback(
         // Looking away resets dwell time so brief separate glances cannot accumulate
         if (trigger.type === "gaze") {
           const owner =
-            "rules" in source
+            hotspots.find((item) => equal(item.id, trigger.targetId))?.objectId ??
+            ("rules" in source
               ? source.objects.find(
                   (item) =>
                     equal(item.id, trigger.targetId) ||
                     item.components.some((component) => equal(component.id, trigger.targetId)),
                 )?.id
-              : undefined;
+              : undefined);
           const duration =
             owner && lookingAt && equal(owner, lookingAt) ? (gaze.get(rule.id) ?? 0) + delta : 0;
           gaze.set(rule.id, duration);
