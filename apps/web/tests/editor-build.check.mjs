@@ -7,7 +7,7 @@ const browser = await launchBrowser({
   target: process.argv[2] ?? "http://127.0.0.1:4173/",
   args: ["--enable-unsafe-swiftshader"],
 });
-const url = process.argv[2] ?? "http://127.0.0.1:4173/";
+const url = new URL("/editor.html", process.argv[2] ?? "http://127.0.0.1:4173/").href;
 const isDevelopment = process.env.BUILD_MODE === "development";
 const manifest = JSON.parse(
   readFileSync(new URL("../../../assets/manifest.json", import.meta.url), "utf8"),

@@ -40,7 +40,7 @@ try {
   page.on("dialog", (dialog) => dialog.accept());
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.goto(process.argv[2] ?? "http://127.0.0.1:5173/");
+  await page.goto(new URL("/editor.html", process.argv[2] ?? "http://127.0.0.1:5173/").href);
   await addAsset(page, "Starter room");
   await addAsset(page, "Sample crate");
   const rows = page.locator(".object-row");
@@ -253,7 +253,9 @@ try {
   );
   const compatibilityPage = await browser.newPage();
   compatibilityPage.on("pageerror", (error) => errors.push(error.message));
-  await compatibilityPage.goto(process.argv[2] ?? "http://127.0.0.1:5173/");
+  await compatibilityPage.goto(
+    new URL("/editor.html", process.argv[2] ?? "http://127.0.0.1:5173/").href,
+  );
   await compatibilityPage.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   await compatibilityPage.evaluate(async (fixture) => {
     const { saveRecoverySession } = await import("/persistence/local-drafts.ts");

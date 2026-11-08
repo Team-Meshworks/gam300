@@ -11,8 +11,9 @@ function withSceneDefaults(document) {
   };
 }
 
+const editorUrl = new URL("/editor.html", process.argv[2] ?? "http://127.0.0.1:5173/").href;
 const browser = await launchBrowser({
-  target: process.argv[2] ?? "http://127.0.0.1:5173/",
+  target: editorUrl,
   args: ["--enable-unsafe-swiftshader"],
 });
 let fileContext;
@@ -51,7 +52,7 @@ try {
   const page = await browser.newPage();
   page.on("pageerror", (error) => errors.push(error.message));
   page.on("dialog", (dialog) => dialog.accept());
-  await page.goto(process.argv[2] ?? "http://127.0.0.1:5173/");
+  await page.goto(editorUrl);
   await page.waitForFunction(
     () => document.querySelector(".draft-feedback")?.textContent !== "Reopening saved work…",
   );
@@ -64,7 +65,7 @@ try {
     const oldPage = await oldContext.newPage();
     oldPage.on("pageerror", (error) => errors.push(error.message));
     oldPage.on("dialog", (dialog) => dialog.accept());
-    await oldPage.goto(process.argv[2] ?? "http://127.0.0.1:5173/");
+    await oldPage.goto(editorUrl);
     await oldPage.waitForFunction(
       () => document.querySelector(".draft-feedback")?.textContent !== "Reopening saved work…",
     );
@@ -150,7 +151,7 @@ try {
   try {
     const formatPage = await formatContext.newPage();
     formatPage.on("pageerror", (error) => errors.push(error.message));
-    await formatPage.goto(urlForChecks());
+    await formatPage.goto(editorUrl);
     await formatPage.waitForFunction(
       () => document.querySelector(".draft-feedback")?.textContent !== "Reopening saved work…",
     );
@@ -214,7 +215,7 @@ try {
   try {
     const previewPage = await previewContext.newPage();
     previewPage.on("pageerror", (error) => errors.push(error.message));
-    await previewPage.goto(urlForChecks());
+    await previewPage.goto(editorUrl);
     await previewPage.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
     const modelOnly = structuredClone(contentFixture);
     for (const scene of modelOnly.scenes) {
@@ -435,7 +436,7 @@ try {
     recoveryQuestions.push(dialog.message());
     await dialog.accept();
   });
-  await legacyPage.goto(process.argv[2] ?? "http://127.0.0.1:5173/");
+  await legacyPage.goto(editorUrl);
   await legacyPage.waitForFunction(() => document.querySelector(".workspace")?.inert === false);
   const legacyResult = await legacyPage.evaluate(async (fixture) => {
     const { saveLocalDraft, loadLatestLocalDraft } = await import("/persistence/local-drafts.ts");
@@ -499,7 +500,7 @@ try {
   // A temporary regular profile exercises durable handles across reloads
   // Chromium's headless incognito profile crashes when cloning OPFS handles into IndexedDB
   const context = await launchPersistentBrowser({
-    target: process.argv[2] ?? "http://127.0.0.1:5173/",
+    target: editorUrl,
     args: ["--enable-unsafe-swiftshader"],
   });
   fileContext = context;
@@ -549,8 +550,7 @@ try {
       });
     };
   });
-  const url = process.argv[2] ?? "http://127.0.0.1:5173/";
-  await editor.goto(url);
+  await editor.goto(editorUrl);
   await editor.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   await editor.waitForFunction(
     () => document.querySelector(".draft-feedback")?.textContent !== "Reopening saved work…",
@@ -820,7 +820,7 @@ try {
   // Another tab cannot replace the active recovery session from a stale revision
   const second = await context.newPage();
   second.on("dialog", (dialog) => dialog.accept());
-  await second.goto(url);
+  await second.goto(editorUrl);
   await second.getByText("Reopened your last project", { exact: true }).waitFor();
   await add();
   await waitBackup(3);
@@ -879,7 +879,7 @@ try {
       return put.apply(this, args);
     };
   });
-  await fallback.goto(url);
+  await fallback.goto(editorUrl);
   await fallback.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   await fallback.locator(".draft-menu summary").click();
   const choosing = fallback.waitForEvent("filechooser");
@@ -925,8 +925,4 @@ try {
 } finally {
   await fileContext?.close();
   await browser.close();
-}
-
-function urlForChecks() {
-  return process.argv[2] ?? "http://127.0.0.1:5173/";
 }

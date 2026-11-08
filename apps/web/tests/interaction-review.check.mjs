@@ -7,7 +7,7 @@ const browser = await launchBrowser({
   target: process.argv[2] ?? "http://127.0.0.1:5173/",
   args: ["--enable-unsafe-swiftshader"],
 });
-const url = process.argv[2] ?? "http://127.0.0.1:5173/";
+const url = new URL("/editor.html", process.argv[2] ?? "http://127.0.0.1:5173/").href;
 async function add(page, name) {
   // Rooms now use the dedicated placement tray rather than the object library
   if (name === "Starter room") {

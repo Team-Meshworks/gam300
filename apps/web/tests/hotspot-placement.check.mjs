@@ -7,7 +7,7 @@ const browser = await launchBrowser({
   target: process.argv[2] ?? "http://127.0.0.1:5173/",
   args: ["--enable-unsafe-swiftshader"],
 });
-const url = process.argv[2] ?? "http://127.0.0.1:5173/";
+const url = new URL("/editor.html", process.argv[2] ?? "http://127.0.0.1:5173/").href;
 const output = fileURLToPath(new URL("../test-results/hotspot-placement/", import.meta.url));
 const template = JSON.parse(
   await readFile(new URL("../shared/project/fixtures/m1-project.json", import.meta.url), "utf8"),

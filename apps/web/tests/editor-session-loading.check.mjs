@@ -55,14 +55,13 @@ try {
       ? route.fulfill({ status: 401, body: "Session required" })
       : route.continue();
   });
-  await page.goto(origin);
-  await page.getByRole("link", { name: "Sign in", exact: true }).waitFor();
+  await page.goto(origin + "/editor.html");
+  await page.waitForURL(origin + "/login?returnTo=%2Feditor.html");
   assert.equal(requested.size, 0, "Signed-out entry must not start protected model downloads");
-  await page.getByRole("link", { name: "Sign in", exact: true }).click();
   await page.getByLabel("Username", { exact: true }).fill("browser-check");
   await page.getByLabel("Password", { exact: true }).fill("Synthetic browser password 1!");
   await page.getByRole("button", { name: "Log in", exact: true }).click();
-  await page.waitForURL(origin + "/");
+  await page.waitForURL(origin + "/editor.html");
   const ready = () => page.getByText("Scene ready", { exact: true }).waitFor();
   await ready();
   assert.equal(requested.size, 0, "An empty editor must not download the whole catalogue");

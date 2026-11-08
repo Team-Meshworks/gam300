@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { launchPersistentBrowser } from "./browser-security.mjs";
 
-const target = process.argv[2] ?? "http://127.0.0.1:5197/";
+const target = new URL("/editor.html", process.argv[2] ?? "http://127.0.0.1:5197/").href;
 const browser = await launchPersistentBrowser({ target, args: ["--enable-unsafe-swiftshader"] });
 try {
   await browser.addInitScript(() => {

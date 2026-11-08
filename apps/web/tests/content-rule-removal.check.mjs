@@ -11,7 +11,7 @@ try {
     window.showOpenFilePicker = undefined;
     window.showSaveFilePicker = undefined;
   });
-  await page.goto(origin);
+  await page.goto(new URL("/editor.html", origin).href);
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   await page.getByRole("button", { name: "Third person", exact: true }).click();
   await page.getByRole("button", { name: "Rooms", exact: true }).click();

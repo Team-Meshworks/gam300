@@ -42,7 +42,7 @@ async function choose(label, text) {
 try {
   // Exercise the real components with the clearly labelled local adapter
   // No fixture response is evidence of authenticated intake or persisted asset approval
-  await page.goto(`${baseUrl}?asset-admin-test`);
+  await page.goto(new URL("/editor.html?asset-admin-test", baseUrl).href);
   await page.getByRole("heading", { name: "All 3D Spaces" }).waitFor();
   await page
     .getByText("Manage and review catalogue assets.", { exact: true })

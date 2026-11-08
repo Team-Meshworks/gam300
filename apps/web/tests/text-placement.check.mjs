@@ -11,7 +11,7 @@ try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1024 } });
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.goto(process.argv[2] ?? "http://127.0.0.1:5185/");
+  await page.goto(new URL("/editor.html", process.argv[2] ?? "http://127.0.0.1:5185/").href);
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   await page.getByRole("button", { name: "Third person", exact: true }).click();
   async function add(category, name, x = 600, y = 350) {

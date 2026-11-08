@@ -5,8 +5,9 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import * as THREE from "three";
 
+const editorUrl = new URL("/editor.html", process.argv[2] ?? "http://127.0.0.1:5173/").href;
 const browser = await launchBrowser({
-  target: process.argv[2] ?? "http://127.0.0.1:5173/",
+  target: editorUrl,
   args: ["--enable-unsafe-swiftshader"],
 });
 
@@ -92,7 +93,7 @@ try {
     dialog.accept().catch((error) => pageErrors.push(error.message));
   });
 
-  await page.goto(process.argv[2] ?? "http://127.0.0.1:5173/");
+  await page.goto(editorUrl);
   const ready = page.getByRole("status").filter({ hasText: "Scene ready" });
   const picker = page.locator(".asset-picker");
   const asset = picker.getByRole("button", { name: "Sample crate", exact: true });
@@ -882,7 +883,7 @@ try {
   const nestedContext = await browser.newContext();
   try {
     const nested = await nestedContext.newPage();
-    await nested.goto(process.argv[2] ?? "http://127.0.0.1:5173/");
+    await nested.goto(editorUrl);
     await nested.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
     await addAsset(nested, "Starter room");
     await addAsset(nested, "Sample crate");
@@ -1031,7 +1032,7 @@ try {
   const contentContext = await browser.newContext();
   try {
     const contentPage = await contentContext.newPage();
-    await contentPage.goto(process.argv[2] ?? "http://127.0.0.1:5173/");
+    await contentPage.goto(editorUrl);
     // Wait for startup recovery before bypassing the Open menu through its hidden file input
     await contentPage.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
     const contentProject = structuredClone(fixture);
@@ -1186,7 +1187,7 @@ try {
   await openLibrary(page);
   assert.equal(await asset.isDisabled(), true);
   assert.deepEqual(pageErrors, [], "No uncaught page errors in any flow");
-  await checkDisplayPlacementCancellation(browser, process.argv[2] ?? "http://127.0.0.1:5173/");
+  await checkDisplayPlacementCancellation(browser, editorUrl);
   console.log(
     "PASS: placement, hotspot, preview keyboard activation, single-pointer movement, cancellation, hierarchy, room occlusion, project loading, undo/redo, keyboard, resizing, retry and WebGL fallback",
   );

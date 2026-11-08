@@ -3,7 +3,7 @@ import { launchBrowser } from "./browser-security.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-const url = process.argv[2] ?? "http://127.0.0.1:8081/";
+const url = new URL("/editor.html", process.argv[2] ?? "http://127.0.0.1:8081/").href;
 const useFileTransfer = () => {
   window.showOpenFilePicker = undefined;
   window.showSaveFilePicker = undefined;

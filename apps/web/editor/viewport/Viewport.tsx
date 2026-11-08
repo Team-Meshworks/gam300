@@ -440,7 +440,7 @@ export function Viewport({
       <div className={status === "ready" ? "sr-only" : "viewport-feedback"}>
         <p role="status">{statusMessages[status]}</p>
         {status === "authentication-required" && (
-          <a href="/login?returnTo=%2F" target="_blank" rel="noopener noreferrer">
+          <a href="/login" target="_blank" rel="noopener noreferrer">
             Sign in in another tab
           </a>
         )}

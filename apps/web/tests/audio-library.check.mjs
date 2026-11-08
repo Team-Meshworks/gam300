@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { launchBrowser } from "./browser-security.mjs";
 import { placeAtRoomCenter } from "./placement-fixture.mjs";
-const url = process.argv[2] ?? "http://127.0.0.1:5185/";
+const url = new URL("/editor.html", process.argv[2] ?? "http://127.0.0.1:5185/").href;
 const browser = await launchBrowser({ target: url, args: ["--enable-unsafe-swiftshader"] });
 await mkdir("test-results/audio-library", { recursive: true });
 try {

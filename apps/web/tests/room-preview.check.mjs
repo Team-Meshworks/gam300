@@ -146,7 +146,7 @@ try {
           assets.push({...starter, id: "11111111-1111-4111-8111-111111111111", name: "Different room", sha256: "b".repeat(64)});`,
       });
     });
-    await page.goto(origin);
+    await page.goto(new URL("/editor.html", origin).href);
     await page.getByRole("button", { name: "Rooms", exact: true }).waitFor();
     const select = async (name) => {
       await page.getByRole("button", { name: "Rooms", exact: true }).click();
@@ -271,7 +271,7 @@ try {
   page.on("console", (message) => {
     if (message.type() === "error") errors.push(message.text());
   });
-  await page.goto(process.argv[2] ?? "http://127.0.0.1:5185/");
+  await page.goto(new URL("/editor.html", process.argv[2] ?? "http://127.0.0.1:5185/").href);
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   assert.equal(await page.getByRole("button", { name: "Filters", exact: true }).count(), 0);
   assert.equal(

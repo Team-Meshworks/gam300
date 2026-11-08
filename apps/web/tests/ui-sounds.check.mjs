@@ -66,7 +66,7 @@ try {
   const page = await context.newPage();
   page.on("pageerror", (error) => errors.push(error.message));
   page.on("dialog", (dialog) => dialog.accept());
-  await page.goto(`${origin}/`);
+  await page.goto(`${origin}/editor.html`);
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   await page.waitForFunction(
     () => document.querySelector(".draft-feedback")?.textContent !== "Reopening saved work…",

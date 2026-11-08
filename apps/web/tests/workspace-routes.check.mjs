@@ -189,6 +189,7 @@ try {
   await screen("review", "Submission review");
   assert.equal(await page.getByRole("link", { name: "New class assignment" }).count(), 0);
   mode = "anonymous";
+  const projectQuery = "?projectId=aefea67c-caca-4300-923c-937f1c785578";
   for (const path of [
     "home",
     "classes",
@@ -199,13 +200,15 @@ try {
     "assets",
     "spaces",
     "admin/dashboard",
-    "?projectId=aefea67c-caca-4300-923c-937f1c785578",
+    projectQuery,
+    "editor.html" + projectQuery,
   ]) {
     await page.goto(`${origin}/${path}`);
-    const destination = path.startsWith("?projectId=")
-      ? `${origin}/login?returnTo=${encodeURIComponent("/" + path)}`
+    const destination = path.endsWith(projectQuery)
+      ? `${origin}/login?returnTo=${encodeURIComponent("/" + projectQuery)}`
       : `${origin}/login`;
-    await page.waitForURL(destination);
+    await page.waitForURL(`${origin}/login*`);
+    assert.equal(page.url(), destination);
     await page.getByRole("heading", { name: "Welcome back.", exact: true }).waitFor();
     assert.equal(await page.locator(".sp-workspace, .editor-shell").count(), 0);
   }

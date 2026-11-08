@@ -19,6 +19,7 @@ try {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   let mode = "anonymous";
+  let role = session.role;
   let loginRequests = 0;
   let passwordRequests = 0;
   let releaseLogin;
@@ -42,7 +43,12 @@ try {
       return mode === "signed-in" || mode === "forced"
         ? route.fulfill({
             status: 200,
-            json: { ...session, mustChangePassword: mode === "forced" },
+            json: {
+              ...session,
+              role,
+              orgId: role === "Administrator" ? null : session.orgId,
+              mustChangePassword: mode === "forced",
+            },
           })
         : route.fulfill({ status: 401 });
     if (path === "/api/v1/auth/login") {
@@ -75,6 +81,12 @@ try {
     }
     return route.fulfill({ status: 404 });
   });
+
+  await page.goto(origin + "/");
+  await page.getByRole("heading", { name: "Welcome back." }).waitFor();
+  assert.equal(await page.getByLabel("Username", { exact: true }).isVisible(), true);
+  assert.equal(await page.getByLabel("Password", { exact: true }).isVisible(), true);
+  assert.equal(await page.getByRole("heading", { name: "Spatia", exact: true }).count(), 0);
 
   mode = "unavailable";
   await page.goto(origin + "/login");
@@ -390,10 +402,37 @@ try {
   await initialResponse;
   assert.equal(await racePage.getByRole("heading", { name: /You.re signed in/ }).isVisible(), true);
   await racePage.close();
-  await page.goto(origin + "/");
-  await page.getByRole("heading", { name: "Spatia", exact: true }).waitFor();
-  // Allow the same renderer/model startup time as the editor browser suites.
-  await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor({ timeout: 30000 });
+  for (const destination of ["/home", "/admin/dashboard"]) {
+    await page.route(`**${destination}`, (route) =>
+      route.fulfill({ contentType: "text/html", body: "<h1>Account destination</h1>" }),
+    );
+  }
+  for (const [accountRole, authenticated, forcePassword] of [
+    ["Educator", false, false],
+    ["Creator", true, false],
+    ["Administrator", true, false],
+    ["Creator", false, true],
+  ]) {
+    role = accountRole;
+    mode = authenticated ? "signed-in" : forcePassword ? "next-forced" : "anonymous";
+    const destination = role === "Administrator" ? "/admin/dashboard" : "/home";
+    await page.goto(origin + "/");
+    if (!authenticated) {
+      await page.getByLabel("Username", { exact: true }).fill("teacher");
+      await page.getByLabel("Password", { exact: true }).fill("incorrect password");
+      await page.getByRole("button", { name: "Log in" }).click();
+    }
+    if (forcePassword) {
+      await page.getByRole("heading", { name: "Change your password." }).waitFor();
+      assert.notEqual(new URL(page.url()).pathname, destination);
+      await page.getByLabel("Current password").fill("incorrect password");
+      await page.getByLabel("New password", { exact: true }).fill("a different password");
+      await page.getByLabel("Confirm new password").fill("a different password");
+      await page.getByRole("button", { name: "Change password" }).click();
+    }
+    await page.waitForURL(`${origin}${destination}`);
+    await page.getByRole("heading", { name: "Account destination" }).waitFor();
+  }
   assert.deepEqual(errors, []);
   console.log(
     "Entry routes, responsive layout, navigation and rejected/unavailable sign-in checks passed.",

@@ -9,6 +9,13 @@
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/main.tsx"></script>
+    <script type="module">
+      const query = new URLSearchParams(location.search);
+      if (query.has("projectId") || (import.meta.env.DEV && query.has("asset-admin-test"))) {
+        void import("./main.tsx");
+      } else {
+        void import("./entry/main.tsx");
+      }
+    </script>
   </body>
 </html>

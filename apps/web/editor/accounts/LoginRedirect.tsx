@@ -3,21 +3,25 @@ import { useEffect, useRef } from "react";
 // Replace the protected page so Back does not return to a signed-out workspace.
 export function LoginRedirect() {
   const redirecting = useRef(false);
+  const id = new URLSearchParams(location.search).get("projectId");
+  const editorPath = ["/", "/index.html", "/editor.html"].includes(location.pathname);
+  const returnTo =
+    editorPath && id && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id)
+      ? "/?projectId=" + id
+      : location.pathname === "/editor.html"
+        ? "/editor.html"
+        : null;
+  const href = returnTo ? "/login?returnTo=" + encodeURIComponent(returnTo) : "/login";
   useEffect(() => {
     // StrictMode can replay this effect while the first navigation is still pending.
     if (redirecting.current) return;
     redirecting.current = true;
-    const id = new URLSearchParams(location.search).get("projectId");
-    const returnTo =
-      location.pathname === "/" && id && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id)
-        ? "/?projectId=" + id
-        : null;
-    location.replace(returnTo ? "/login?returnTo=" + encodeURIComponent(returnTo) : "/login");
-  }, []);
+    location.replace(href);
+  }, [href]);
 
   return (
     <p role="status">
-      Redirecting to login… <a href="/login">Log in</a>
+      Redirecting to login… <a href={href}>Log in</a>
     </p>
   );
 }

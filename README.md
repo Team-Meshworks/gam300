@@ -131,16 +131,21 @@ with **Open sample project**. Set `BUILD_MODE=production` explicitly for the pro
 variant, which omits that control. `/version.txt` identifies the running build by its
 commit, rather than a numbered product release.
 
-The separate entry pages are available at `/landing` and `/login`; `/` continues to open
-the editor. The web-only launcher does not start the account API. To use sign-in, follow
+The root `/` shows sign-in for signed-out users and routes signed-in creators and
+educators to `/home` and administrators to `/admin/dashboard`. Separate entry pages
+remain available at `/landing` and `/login`. Open a server project at
+`/?projectId=<id>`, or use `/editor.html` for local-file authoring and recovery.
+Packaged builds require sign-in before opening the local-file editor and return to it
+afterwards without clearing browser drafts. The web-only launcher does not start the
+account API. To use sign-in, follow
 the [local API and PostgreSQL setup](docs/deployment.md#local-api-and-postgresql-integration):
 set the private database passwords and start the combined Compose stack. Open
 [https://localhost:8444/landing](https://localhost:8444/landing) or
 [https://localhost:8444/login](https://localhost:8444/login). Caddy uses a local CA, so
 the browser must trust its certificate. Sign-in requires a provisioned username; public
 signup is unavailable. See the [private administrator bootstrap](apps/server/README.md#private-bootstrap-and-administrator-operations-part-4)
-and provisioning instructions in the server guide. A verified session links to `/home`,
-which loads authorised project and class workflows. Server-project creation depends on an
+and provisioning instructions in the server guide. `/home` loads authorised project and
+class workflows. Server-project creation depends on an
 approved asset catalogue. The `/new-project`, `/classes`, `/review`, and `/organisations` routes
 provide session-gated workflows backed by the configured API.
 

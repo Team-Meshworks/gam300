@@ -8,7 +8,7 @@ const browser = await launchBrowser({
   target: process.argv[2] ?? "http://127.0.0.1:5173/",
   args: ["--enable-unsafe-swiftshader"],
 });
-const url = process.argv[2] ?? "http://127.0.0.1:5173/";
+const url = new URL("/editor.html", process.argv[2] ?? "http://127.0.0.1:5173/").href;
 // Asset library is a pop up now. Only open it when closed, since the button toggles it
 async function openLibrary(page) {
   if ((await page.locator(".asset-picker").count()) === 0) {

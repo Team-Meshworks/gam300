@@ -24,7 +24,7 @@ try {
     window.showOpenFilePicker = undefined;
     window.showSaveFilePicker = undefined;
   });
-  await page.goto(origin);
+  await page.goto(new URL("/editor.html", origin).href);
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   // Dev now starts in first person; placement checks use the overview camera.
   await page.getByRole("button", { name: "Third person", exact: true }).click();

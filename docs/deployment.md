@@ -355,9 +355,12 @@ These secrets must be configured before attempting a gated deployment. Store the
 environment secrets, not variables. Development currently requires both names above.
 A missing or incorrect pair fails the probes; it does not disable either login layer.
 
-Built editors (including the development build) check the Spatia session before opening
-the local-file editor at `/`. Sign-in returns to that editor without clearing browser
-recovery. Session and CSRF cookie names include the environment because browser cookies
+The root `/` shows sign-in for signed-out users and routes signed-in creators and
+educators to `/home` and administrators to `/admin/dashboard`. Selected server projects
+open at `/?projectId=<id>`. Built editors (including the development build) check the
+Spatia session before opening the local-file editor at `/editor.html`; sign-in returns
+there without clearing browser recovery. Session and CSRF cookie names include the
+environment because browser cookies
 are shared across ports on the VM IP. Upgrading these cookie names requires one fresh
 application sign-in. Models load when referenced by the active scene or selected for
 placement; failed requests retain the scene and expose Retry, with a separate sign-in

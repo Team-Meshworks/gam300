@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdir, readFile } from "node:fs/promises";
 import { launchBrowser } from "./browser-security.mjs";
 
-const target = process.argv[2] ?? "http://127.0.0.1:5185/";
+const target = new URL("/editor.html", process.argv[2] ?? "http://127.0.0.1:5185/").href;
 const browser = await launchBrowser({ target, args: ["--enable-unsafe-swiftshader"] });
 try {
   let page = await browser.newPage({ viewport: { width: 1440, height: 1024 } });
