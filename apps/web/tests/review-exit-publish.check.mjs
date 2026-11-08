@@ -29,9 +29,15 @@ const summary = {
 };
 let reviews = [],
   decisions = [],
+  decisionRequests = [],
   publishes = [],
   lost = true,
-  conflict = false;
+  conflict = false,
+  unsupported = false,
+  saveDenied = false,
+  historyUnavailable = true;
+let legacyFound = false;
+let sessionActor = actor;
 try {
   await server.listen();
   const origin = `http://127.0.0.1:${server.httpServer.address().port}`;
@@ -45,15 +51,30 @@ try {
     const reply = (json, status = 200) => route.fulfill({ json, status });
     if (path === "/api/v1/auth/session")
       return reply({
-        userId: actor,
+        userId: sessionActor,
         displayName: "Teacher",
         role: "Educator",
         orgId: "44444444-4444-4444-8444-444444444444",
         mustChangePassword: false,
       });
     if (path === "/api/v1/auth/csrf") return reply({ requestToken: "csrf" });
+    if (path.endsWith("/access")) {
+      if (!legacyFound) return reply({ code: "unavailable" }, 404);
+      return reply({
+        publicationId: "77777777-7777-4777-8777-777777777777",
+        projectId: project,
+        audience: "Unlisted",
+        viewerIds: [],
+        hidden: false,
+        revoked: false,
+        deleted: false,
+        archived: false,
+        canManage: true,
+      });
+    }
     if (path.endsWith("/progress-reviews")) {
       if (req.method() === "POST") {
+        if (saveDenied) return reply({ code: "project_not_found" }, 403);
         const b = body(),
           row = {
             id: b.reviewId,
@@ -64,12 +85,15 @@ try {
         reviews.push(row);
         return reply(row, 201);
       }
-      return reply({ items: reviews, nextCursor: null });
+      return historyUnavailable
+        ? reply({ code: "unavailable" }, 503)
+        : reply({ items: reviews, nextCursor: null });
     }
     if (path.endsWith("/publications") && req.method() === "POST") {
       const b = body();
       publishes.push(b);
       if (conflict) return reply({ code: "revision_conflict" }, 409);
+      if (unsupported) return reply({ code: "unsupported_publication_runtime" }, 422);
       if (lost) {
         lost = false;
         return route.abort();
@@ -87,6 +111,7 @@ try {
     }
     if (path.endsWith("/decisions") && req.method() === "POST") {
       const b = body();
+      decisionRequests.push(b);
       const row = {
         id: b.decisionId,
         decisionId: b.decisionId,
@@ -128,12 +153,30 @@ try {
     return d;
   }
   let d = await open();
+  const retryHistory = d.getByRole("button", { name: "Retry loading reviews" });
+  await retryHistory.waitFor();
+  historyUnavailable = false;
+  await retryHistory.click();
+  await d.getByText("No reviews yet.").waitFor();
+  assert.equal(await retryHistory.count(), 0);
   await d.getByLabel("Your review").fill("Saved only");
   await d.getByRole("button", { name: "Save review" }).click();
   await page.waitForFunction(() => document.body.dataset.saved === "yes");
   assert.equal(reviews.length, 1);
   assert.equal(decisions.length, 0);
   assert.equal(publishes.length, 0);
+  d = await open();
+  await d.getByText("Saved only", { exact: true }).waitFor();
+  await d.getByLabel("Your review").fill("Keep this unsaved review");
+  saveDenied = true;
+  await d.getByRole("button", { name: "Save review" }).click();
+  await d.getByRole("alert").waitFor();
+  assert.equal(await d.getByText("Saved only", { exact: true }).count(), 0);
+  await d.getByRole("button", { name: "Retry loading reviews" }).click();
+  await d.getByText("Saved only", { exact: true }).waitFor();
+  assert.equal(await d.getByLabel("Your review").inputValue(), "Keep this unsaved review");
+  saveDenied = false;
+  await d.getByLabel("Your review").fill("");
   d = await open();
   await d.getByLabel("Your review").fill("Ready for publishing");
   await d.getByRole("button", { name: "Approve and publish" }).click();
@@ -168,6 +211,143 @@ try {
   await d.waitFor();
   assert.equal(await d.getByRole("button", { name: "Retry same request" }).count(), 0);
   assert.equal(publishes.length, 1, "Reload must not send a new publication");
+  const legacy = {
+    projectId: project,
+    actorId: actor,
+    studentId: student,
+    submissionId: null,
+    decisionId: "66666666-6666-4666-8666-666666666666",
+    publicationId: "77777777-7777-4777-8777-777777777777",
+    revision: 7,
+    feedback: "Keep this earlier feedback",
+  };
+  const storageKey = `spatia-review-publication:${actor}:${project}`;
+  await page.evaluate(({ key, value }) => localStorage.setItem(key, JSON.stringify(value)), {
+    key: storageKey,
+    value: legacy,
+  });
+  await page.reload();
+  d = page.getByRole("dialog", { name: "Review submission" });
+  await d
+    .getByText(/earlier publishing request/i)
+    .first()
+    .waitFor();
+  await d.getByRole("button", { name: "Check earlier publication" }).click();
+  await d
+    .getByText(/could not be verified/i)
+    .first()
+    .waitFor();
+  assert.equal(await d.getByRole("button", { name: "Acknowledge publication" }).count(), 0);
+  assert.ok(await page.evaluate((key) => localStorage.getItem(key), storageKey));
+  legacyFound = true;
+  await d.getByRole("button", { name: "Check earlier publication" }).click();
+  await d.getByRole("button", { name: "Acknowledge publication" }).waitFor();
+  sessionActor = "88888888-8888-4888-8888-888888888888";
+  await d.getByRole("button", { name: "Acknowledge publication" }).click();
+  await d.getByText(/could not be safely cleared/i).waitFor();
+  assert.ok(await page.evaluate((key) => localStorage.getItem(key), storageKey));
+  sessionActor = actor;
+  await d.getByRole("button", { name: "Acknowledge publication" }).click();
+  await page.waitForFunction((key) => localStorage.getItem(key) === null, storageKey);
+  assert.equal(await page.evaluate((key) => localStorage.getItem(key), storageKey), null);
+  assert.equal(await d.getByLabel("Your review").inputValue(), legacy.feedback);
+  await page.reload();
+  d = page.getByRole("dialog", { name: "Review submission" });
+  await d.getByLabel("Your review").waitFor();
+  await page.waitForFunction(
+    (feedback) => document.querySelector("#progress-feedback")?.value === feedback,
+    legacy.feedback,
+  );
+  assert.equal(publishes.length, 1, "Recovery must not publish again");
+  await page.evaluate(({ key, value }) => localStorage.setItem(key, JSON.stringify(value)), {
+    key: storageKey,
+    value: legacy,
+  });
+  legacyFound = false;
+  await page.reload();
+  d = page.getByRole("dialog", { name: "Review submission" });
+  await d.getByRole("button", { name: "Check earlier publication" }).click();
+  await d
+    .getByText(/could not be verified/i)
+    .first()
+    .waitFor();
+  const abandon = d.getByRole("button", { name: "Stop tracking earlier request" });
+  assert.equal(await abandon.isDisabled(), true);
+  await d.getByRole("checkbox", { name: /may still exist/i }).check();
+  await abandon.click();
+  await page.waitForFunction((key) => localStorage.getItem(key) === null, storageKey);
+  assert.equal(await d.getByLabel("Your review").inputValue(), legacy.feedback);
+  assert.equal(publishes.length, 1, "Abandoning an uncertain request must not republish");
+  await page.reload();
+  await page.waitForFunction(
+    (feedback) => document.querySelector("#progress-feedback")?.value === feedback,
+    legacy.feedback,
+  );
+
+  conflict = false;
+  unsupported = true;
+
+  for (const legacy of [false, true]) {
+    decisions = [];
+    decisionRequests = [];
+    publishes = [];
+    d = await open();
+    const intent = {
+      projectId: project,
+      actorId: actor,
+      studentId: student,
+      submissionId: submission,
+      decisionId: "66666666-6666-4666-8666-666666666666",
+      publicationId: "77777777-7777-4777-8777-777777777777",
+      revision: 7,
+      feedback: "Approved but publication rejected",
+    };
+    if (legacy) {
+      decisions.push({
+        id: intent.decisionId,
+        decisionId: intent.decisionId,
+        submissionId: submission,
+        educatorId: actor,
+        sequence: 1,
+        outcome: "approved",
+        feedback: intent.feedback,
+        decidedAt: stamp,
+      });
+      await page.evaluate(({ key, value }) => localStorage.setItem(key, JSON.stringify(value)), {
+        key: storageKey,
+        value: intent,
+      });
+      await page.reload();
+      d = page.getByRole("dialog", { name: "Review submission" });
+      await d.getByRole("button", { name: "Retry same request" }).click();
+    } else {
+      await d.getByLabel("Your review").fill(intent.feedback);
+      await d.getByRole("button", { name: "Approve and publish" }).click();
+    }
+    await d
+      .getByRole("alert")
+      .filter({ hasText: /approval.*saved.*publication.*(?:reject|not publish)/i })
+      .waitFor();
+    await d.getByText(intent.feedback, { exact: true }).waitFor();
+    assert.equal(await d.getByRole("button", { name: "Retry loading reviews" }).count(), 0);
+    assert.equal(decisions.length, 1, "The approval is recorded once");
+    assert.equal(decisionRequests.length, 1);
+    assert.equal(publishes.length, 1);
+    if (legacy) {
+      assert.equal(decisionRequests[0].decisionId, intent.decisionId);
+      assert.equal(publishes[0].publicationId, intent.publicationId);
+    }
+    assert.equal(await d.getByRole("button", { name: "Retry same request" }).count(), 0);
+    assert.equal(await page.evaluate((key) => localStorage.getItem(key), storageKey), null);
+    await page.reload();
+    d = page.getByRole("dialog", { name: "Review submission" });
+    await d.waitFor();
+    await d.getByText(intent.feedback, { exact: true }).waitFor();
+    assert.equal(await d.getByRole("button", { name: "Retry same request" }).count(), 0);
+    assert.equal(decisionRequests.length, 1, "Reload must not repeat approval");
+    assert.equal(publishes.length, 1, "Reload must not repeat publication");
+    assert.equal(decisions.length, 1);
+  }
   console.log("Save-only, lost-publication retry, and revision conflict passed");
 } finally {
   await browser?.close();

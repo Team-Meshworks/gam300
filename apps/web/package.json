@@ -83,9 +83,20 @@
     "browser:update": "playwright install --with-deps --force chrome",
     "test:text-placement": "node tests/text-placement.check.mjs",
     "test:room-preview": "node tests/room-preview.check.mjs",
+    "test:editor-library-previews": "node tests/editor-library-previews.check.mjs",
     "test:audio-library": "node tests/audio-library.check.mjs",
     "test:reviews": "node tests/reviews-suite.mjs",
-    "build:visitor": "vite build --config vite.visitor.config.ts"
+    "build:visitor": "vite build --config vite.visitor.config.ts",
+    "test:teacher-assignment-flow": "node tests/teacher-assignment-flow.check.mjs",
+    "test:teacher-assignment-edit": "node tests/teacher-assignment-edit.check.mjs",
+    "test:teacher-review-refresh": "node tests/teacher-review-refresh.check.mjs",
+    "test:teacher-details-flow": "node tests/teacher-details-flow.check.mjs",
+    "test:teacher-review-org-click": "node tests/teacher-review-org-click.check.mjs",
+    "test:teacher-review-org-switch": "node tests/teacher-review-org-switch.check.mjs",
+    "test:teacher-editor-actions": "node tests/teacher-editor-actions.check.mjs",
+    "test:teacher-roster-account-switch": "node tests/teacher-roster-account-switch.check.mjs",
+    "test:teacher-choices-account-switch": "node tests/teacher-choices-account-switch.check.mjs",
+    "test:teacher-assignment-edit-storage": "node tests/teacher-assignment-edit-storage.check.mjs"
   },
   "dependencies": {
     "@fontsource/inter": "5.3.0",

@@ -198,6 +198,17 @@ jobs:
               blank-project
               project-grants
               workspace-assignments
+              teacher-assignment-flow
+              teacher-assignment-edit
+              teacher-assignment-edit-storage
+              teacher-details-flow
+              teacher-review-refresh
+              teacher-editor-actions
+              teacher-review-org-switch
+              teacher-review-org-click
+              editor-library-previews
+              teacher-roster-account-switch
+              teacher-choices-account-switch
               deadline /ui-preview.html
               review-directory /ui-preview.html
           - name: publication

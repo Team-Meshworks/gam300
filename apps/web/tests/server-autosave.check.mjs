@@ -10,6 +10,9 @@ const alice = "00000000-0000-4000-8000-000000000001";
 const bob = "00000000-0000-4000-8000-000000000002";
 const browser = await launchBrowser({ target: base, args: ["--enable-unsafe-swiftshader"] });
 const context = await browser.newContext();
+await context.addInitScript(() => {
+  Object.defineProperty(AbortSignal, "any", { configurable: true, value: undefined });
+});
 let account = alice,
   document = structuredClone(fixture),
   revision = 7,
@@ -27,7 +30,7 @@ const api = async (route) => {
       ? json(200, {
           userId: account,
           displayName: "Student",
-          role: "Creator",
+          role: "Educator",
           orgId: bob,
           mustChangePassword: false,
           developmentAssetsAllowed: true,

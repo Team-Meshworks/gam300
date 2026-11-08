@@ -102,7 +102,7 @@ public sealed class HostBoundaryTests
             "GET /api/v1/projects/{id:guid}/progress-reviews", "POST /api/v1/projects/{id:guid}/progress-reviews",
             "POST /api/v1/projects/{id:guid}/submissions/{submissionId:guid}/decisions",
             "GET /api/v1/classes/", "GET /api/v1/classes/{id:guid}", "GET /api/v1/classes/{id:guid}/roster", "GET /api/v1/classes/{id:guid}/eligible-students",
-            "GET /api/v1/classes/{id:guid}/assignments", "GET /api/v1/classes/{id:guid}/assignments/{assignmentId:guid}",
+            "GET /api/v1/classes/{id:guid}/assignments", "GET /api/v1/classes/{id:guid}/assignments/{assignmentId:guid}", "PATCH /api/v1/classes/{id:guid}/assignments/{assignmentId:guid}",
             "POST /api/v1/classes/", "POST /api/v1/classes/{id:guid}/assignments", "PUT /api/v1/classes/{id:guid}/members/{userId:guid}", "DELETE /api/v1/classes/{id:guid}/members/{userId:guid}",
             "GET /api/v1/admin/assets/", "GET /api/v1/admin/assets/{id:guid}/bytes", "POST /api/v1/admin/assets/", "POST /api/v1/admin/assets/{id:guid}/approve",
             "POST /api/v1/admin/assets/{id:guid}/availability", "GET /api/v1/assets", "GET /api/v1/assets/{id:guid}/bytes",

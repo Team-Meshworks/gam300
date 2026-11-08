@@ -71,18 +71,21 @@ export function AssignmentCreationScreen({
   expectedUserId,
   onNavigationStateChange,
   createBlank = false,
+  initialClassId = "",
 }: {
   onOpenProject?: (projectId: string) => void;
   onCancel?: () => void;
   expectedUserId?: string;
   onNavigationStateChange?: (state: FormNavigationState) => void;
   createBlank?: boolean;
+  initialClassId?: string;
 }) {
   const [setup, setSetup] = useState<Setup | null>(null);
   const [message, setMessage] = useState("");
   const [sourceId, setSourceId] = useState("");
   const [sourceUncertain, setSourceUncertain] = useState<"unknown" | "unavailable" | null>(null);
   const [students, setStudents] = useState<EligibleStudent[]>([]);
+  const [initialClass, setInitialClass] = useState("");
   const [rosterMessage, setRosterMessage] = useState("");
   const [choicesMessage, setChoicesMessage] = useState("");
   const [pending, setPending] = useState<PendingAssignment | null>(null);
@@ -122,20 +125,37 @@ export function AssignmentCreationScreen({
         const choices = saved
           ? { classes: [], projects: [] }
           : await assignmentChoices(controller.signal);
+        const current = await assignmentSession(controller.signal);
+        if (
+          current.userId !== session.userId ||
+          current.role !== session.role ||
+          current.mustChangePassword
+        )
+          throw new Error("Your account changed. Reload before continuing.");
         if (controller.signal.aborted) return;
+        const selectedClass =
+          choices.classes.find((row) => row.id === initialClassId)?.id ??
+          (choices.classes.length === 1 ? choices.classes[0]!.id : "");
+        setInitialClass(selectedClass);
         setSetup({ session, ...choices });
         setPending(saved);
         setRestoredPending(saved !== null);
-      } catch {
+        if (!saved && selectedClass) changeClass(selectedClass, session.userId);
+      } catch (error) {
         if (!controller.signal.aborted)
-          setMessage("Class assignment information is unavailable. Reload to try again.");
+          setMessage(
+            error instanceof Error &&
+              error.message === "Your account changed. Reload before continuing."
+              ? error.message
+              : "Class assignment information is unavailable. Reload to try again.",
+          );
       }
     })();
     return () => {
       controller.abort();
       rosterController.current?.abort();
     };
-  }, [expectedUserId, createBlank]);
+  }, [expectedUserId, createBlank, initialClassId]);
   useLayoutEffect(() => {
     onNavigationStateChange?.({
       dirty: !confirmed && !pending && (formNavigation.dirty || !!sourceId),
@@ -147,7 +167,7 @@ export function AssignmentCreationScreen({
     [onNavigationStateChange],
   );
 
-  function changeClass(classId: string) {
+  function changeClass(classId: string, actorId: string) {
     rosterController.current?.abort();
     setStudents([]);
     setRosterMessage(classId ? "Loading enrolled students…" : "");
@@ -155,15 +175,27 @@ export function AssignmentCreationScreen({
     const controller = new AbortController();
     rosterController.current = controller;
     void enrolledStudents(classId, controller.signal)
-      .then((rows) => {
+      .then(async (rows) => {
+        const identity = await assignmentSession(controller.signal);
+        if (
+          identity.userId !== actorId ||
+          identity.mustChangePassword ||
+          (identity.role !== "Educator" && identity.role !== "Administrator")
+        )
+          throw new Error("Your account changed. Reload before continuing.");
         if (!controller.signal.aborted) {
           setStudents(rows);
           setRosterMessage(rows.length ? "" : "No enrolled students are available in this class.");
         }
       })
-      .catch(() => {
+      .catch((error: unknown) => {
         if (!controller.signal.aborted)
-          setRosterMessage("The roster is unavailable. Choose the class again to retry.");
+          setRosterMessage(
+            error instanceof Error &&
+              error.message === "Your account changed. Reload before continuing."
+              ? error.message
+              : "The roster is unavailable. Choose the class again to retry.",
+          );
       });
   }
 
@@ -177,6 +209,13 @@ export function AssignmentCreationScreen({
         return;
       }
       const choices = await assignmentChoices();
+      const current = await assignmentSession();
+      if (
+        current.userId !== session.userId ||
+        current.role !== session.role ||
+        current.mustChangePassword
+      )
+        throw new Error("Account changed");
       setSetup({ session, ...choices });
       setChoicesMessage("Projects and classes refreshed.");
     } catch {
@@ -228,7 +267,7 @@ export function AssignmentCreationScreen({
             location.assign(
               `/home?${new URLSearchParams({ classId: request.classId, assignmentId: result.assignmentId })}`,
             );
-          changeClass(request.classId);
+          changeClass(request.classId, request.actorId);
           return { kind: "created", projectId: result.projects[0]!.projectId };
         }
         if (result.kind === "rejected") {
@@ -259,7 +298,7 @@ export function AssignmentCreationScreen({
       };
     const dueAtUnixSeconds = localDeadlineToUnixSeconds(draft.dueDate);
     if (dueAtUnixSeconds === null)
-      return { kind: "rejected", message: "Choose a valid local due date and time." };
+      return { kind: "rejected", message: "Choose a valid due date and time." };
     let source = setup.projects.find((project) => project.projectId === sourceId);
     if (createBlank) {
       if (!navigator.locks)
@@ -304,8 +343,7 @@ export function AssignmentCreationScreen({
         setSourceUncertain("unavailable");
         return {
           kind: "rejected",
-          message:
-            "The source project is no longer available. Check your projects before starting again.",
+          message: "The project is no longer available. Check your projects before starting again.",
         };
       }
       if (result.kind === "rejected") return result;
@@ -346,8 +384,8 @@ export function AssignmentCreationScreen({
         <div role="alert" className="sp-creation-notice">
           <p>
             {sourceUncertain === "unavailable"
-              ? "The source project is no longer available or cannot be managed. You can create a new source without losing these assignment details."
-              : "Creating the source project could not be confirmed. Check your projects before trying again to avoid creating a duplicate."}
+              ? "The project is no longer available or cannot be managed. You can start a new project without losing these details."
+              : "Creating the project could not be confirmed. Check your projects before trying again to avoid creating a duplicate."}
           </p>
           <Button
             onClick={() => {
@@ -362,9 +400,7 @@ export function AssignmentCreationScreen({
               }
             }}
           >
-            {sourceUncertain === "unavailable"
-              ? "Use a new source project"
-              : "I checked my projects"}
+            {sourceUncertain === "unavailable" ? "Start a new project" : "I checked my projects"}
           </Button>
         </div>
       )}
@@ -419,12 +455,13 @@ export function AssignmentCreationScreen({
           )}
           {rosterMessage && <p role="status">{rosterMessage}</p>}
           <NewProjectForm
-            organizationName="Selected class's organisation"
+            organizationName={setup.session.orgName ?? "Selected class's organisation"}
             creatorName={setup.session.displayName}
+            initialClassId={initialClass}
             classes={setup.classes}
             students={students}
             showImageOptions={false}
-            onClassChange={changeClass}
+            onClassChange={(classId) => changeClass(classId, setup.session.userId)}
             onSubmit={create}
             {...(onCancel ? { onCancel } : {})}
             onNavigationStateChange={setFormNavigation}

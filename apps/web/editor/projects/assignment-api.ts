@@ -1,3 +1,4 @@
+import { combineAbortSignals } from "../../shared/network/abort-signals";
 import type { EligibleStudent, ProjectClass } from "./new-project-form";
 
 export type AssignmentSession = {
@@ -5,6 +6,7 @@ export type AssignmentSession = {
   displayName: string;
   role: string;
   orgId: string | null;
+  orgName?: string | null;
   mustChangePassword?: boolean;
 };
 export type SourceProject = { projectId: string; title: string; revision: number };
@@ -14,6 +16,14 @@ export type AssignmentProject = {
   projectId: string;
   studentName?: string;
   reviewState?: (typeof reviewStates)[number] | null;
+  approvalStatus?:
+    | "not-submitted"
+    | "awaiting-approval"
+    | "approved"
+    | "returned"
+    | "revoked"
+    | "changes-since-submission";
+  published?: boolean;
 };
 export type AssignmentDetails = {
   assignmentId: string;
@@ -22,6 +32,10 @@ export type AssignmentDetails = {
   instructions: string;
   assignedBy?: string | null;
   dueAtUnixSeconds: number;
+  revision?: number;
+  sourceProjectId?: string | null;
+  organizationName?: string;
+  creatorName?: string;
   projects: AssignmentProject[];
 };
 export type PendingAssignment = {
@@ -48,7 +62,7 @@ async function readJson(path: string, signal?: AbortSignal): Promise<unknown> {
     credentials: "same-origin",
     cache: "no-store",
     signal: signal
-      ? AbortSignal.any([signal, AbortSignal.timeout(15000)])
+      ? combineAbortSignals([signal, AbortSignal.timeout(15000)])
       : AbortSignal.timeout(15000),
   });
   if (!response.ok) throw new Error("The requested information is unavailable.");
@@ -100,6 +114,7 @@ export async function assignmentSession(signal?: AbortSignal): Promise<Assignmen
     displayName: value.displayName,
     role: value.role,
     orgId: value.orgId,
+    orgName: typeof value.orgName === "string" && value.orgName.trim() ? value.orgName : null,
     mustChangePassword: value.mustChangePassword === true,
   };
 }
@@ -156,6 +171,9 @@ export async function enrolledStudents(
         !record(row) ||
         typeof row.userId !== "string" ||
         typeof row.userName !== "string" ||
+        (row.displayName !== undefined &&
+          row.displayName !== null &&
+          typeof row.displayName !== "string") ||
         typeof row.enrolled !== "boolean",
     )
   )
@@ -163,10 +181,10 @@ export async function enrolledStudents(
   return rows
     .filter((row) => (row as { enrolled: boolean }).enrolled)
     .map((row) => {
-      const student = row as { userId: string; userName: string };
+      const student = row as { userId: string; userName: string; displayName?: string | null };
       return {
         id: student.userId,
-        name: student.userName,
+        name: student.displayName?.trim() || student.userName,
         account: student.userName,
         classIds: [classId],
       };
@@ -283,6 +301,13 @@ function assignmentDetails(value: unknown): AssignmentDetails {
     !(value.assignedBy == null || typeof value.assignedBy === "string") ||
     typeof value.dueAtUnixSeconds !== "number" ||
     !Number.isSafeInteger(value.dueAtUnixSeconds) ||
+    (value.revision !== undefined &&
+      (!Number.isSafeInteger(value.revision) || (value.revision as number) < 0)) ||
+    (value.sourceProjectId !== undefined &&
+      value.sourceProjectId !== null &&
+      typeof value.sourceProjectId !== "string") ||
+    (value.organizationName !== undefined && typeof value.organizationName !== "string") ||
+    (value.creatorName !== undefined && typeof value.creatorName !== "string") ||
     !Array.isArray(value.projects) ||
     value.projects.some(
       (row) =>
@@ -290,7 +315,17 @@ function assignmentDetails(value: unknown): AssignmentDetails {
         typeof row.studentId !== "string" ||
         typeof row.projectId !== "string" ||
         !validStudentName(row.studentName) ||
-        !(row.reviewState == null || reviewStates.some((state) => state === row.reviewState)),
+        !(row.reviewState == null || reviewStates.some((state) => state === row.reviewState)) ||
+        (row.approvalStatus !== undefined &&
+          ![
+            "not-submitted",
+            "awaiting-approval",
+            "approved",
+            "returned",
+            "revoked",
+            "changes-since-submission",
+          ].includes(String(row.approvalStatus))) ||
+        (row.published !== undefined && typeof row.published !== "boolean"),
     )
   )
     throw new Error("The assignment is unavailable.");

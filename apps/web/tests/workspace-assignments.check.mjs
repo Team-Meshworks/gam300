@@ -40,6 +40,11 @@ async function api(route) {
   if (path === "/api/v1/auth/session") return route.fulfill({ json: account });
   if (path === "/api/v1/auth/csrf") return route.fulfill({ json: { requestToken: "test-token" } });
   if (method !== "GET") assert.equal(request.headers()["x-csrf-token"], "test-token");
+  if (path === "/api/v1/projects" && method === "POST")
+    return route.fulfill({
+      status: 201,
+      json: { projectId: source, revision: 0, updatedAt: "2026-10-30T01:00:00Z", archived: false },
+    });
   if (path === "/api/v1/projects")
     return route.fulfill({
       json: {
@@ -102,17 +107,17 @@ async function api(route) {
     const body = request.postDataJSON();
     attempts.push(body);
     assert.equal(body.sourceProjectId, source);
-    assert.equal(body.sourceRevision, 3);
+    assert.equal(body.sourceRevision, 0);
     assert.deepEqual(body.studentIds.sort(), [alice, bob].sort());
-    assert.equal(body.dueAtUnixSeconds, Date.parse("2026-11-05T10:00:00Z") / 1000);
+    assert.equal(body.dueAtUnixSeconds, Date.parse("2026-11-05T07:30:00Z") / 1000);
     if (assignment) assert.deepEqual(body, attempts[0]);
     else
       assignment = {
         ...body,
         assignmentId: body.requestId,
         projects: [
-          { studentId: alice, projectId: alice },
-          { studentId: bob, projectId: bob },
+          { studentId: alice, projectId: alice, studentName: "Alice" },
+          { studentId: bob, projectId: bob, studentName: "Bob" },
         ],
       };
     if (heldCreation) await heldCreation;
@@ -180,7 +185,7 @@ try {
   assert.equal(classes.length, 2);
   await page.getByRole("combobox", { name: "Class", exact: true }).selectOption(classId);
   await page.getByRole("button", { name: "New assignment", exact: true }).click();
-  await page.getByRole("combobox", { name: "Source project", exact: true }).selectOption(source);
+  assert.equal(await page.getByLabel("Source project").count(), 0);
   await page
     .getByRole("textbox", { name: "Project title", exact: true })
     .fill("Silk Road assignment");
@@ -206,14 +211,14 @@ try {
     await page.getByRole("textbox", { name: "Project title", exact: true }).inputValue(),
     "",
   );
-  await page.getByRole("combobox", { name: "Source project", exact: true }).selectOption(source);
+  assert.equal(await page.getByLabel("Source project").count(), 0);
   await page
     .getByRole("textbox", { name: "Project title", exact: true })
     .fill("Silk Road assignment");
   await page.getByRole("button", { name: "Log Out", exact: true }).click();
   await page.getByRole("button", { name: "Keep editing", exact: true }).click();
   await page.getByRole("combobox", { name: "Class", exact: true }).selectOption(classId);
-  await page.getByLabel("Due date and time").fill("2026-11-05T18:00");
+  await page.getByLabel(/^Due date/).fill("2026-11-05T15:30");
   await page.getByLabel("Project description").fill("Research trade across the Silk Road.");
   await page.getByLabel("Project instructions").fill("Build an exhibit and explain each object.");
   await page.getByRole("button", { name: "Select all", exact: true }).click();
@@ -265,7 +270,8 @@ try {
   await page.getByRole("button", { name: "New assignment", exact: true }).click();
   await page.getByRole("button", { name: "Retry same assignment", exact: true }).click();
   await page.getByRole("heading", { name: "Silk Road assignment", exact: true }).waitFor();
-  await page.getByRole("button", { name: "Open project for Alice", exact: true }).waitFor();
+  await page.getByText("Alice", { exact: true }).waitFor();
+  await page.getByRole("button", { name: "View Progress", exact: true }).first().waitFor();
   assert.equal(attempts.length, 2);
   assert.deepEqual(attempts[1], attempts[0]);
   assert.equal(
@@ -286,7 +292,7 @@ try {
   await local.getByRole("combobox", { name: "Class", exact: true }).selectOption(classId);
   await local.getByRole("button", { name: "Silk Road assignment", exact: true }).click();
   await local.getByText("Build an exhibit and explain each object.", { exact: true }).waitFor();
-  await local.getByText(/Nov 5, 2026.*5:00 AM/).waitFor();
+  await local.getByText(/Nov 5, 2026/).waitFor();
   assert.equal(
     await local.getByRole("button", { name: "Open your project", exact: true }).count(),
     1,

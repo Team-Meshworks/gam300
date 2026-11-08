@@ -1,5 +1,15 @@
 {
   "modules": {
+    "network": {
+      "paths": [
+        "shared/network/"
+      ],
+      "uses": [],
+      "packages": [],
+      "public": [
+        "shared/network/abort-signals.ts"
+      ]
+    },
     "visitor": {
       "paths": [
         "visitor/"
@@ -7,7 +17,8 @@
       "uses": [
         "project",
         "catalogue",
-        "asset-loading"
+        "asset-loading",
+        "network"
       ],
       "packages": [
         "react",
@@ -68,7 +79,8 @@
         "shared/asset-runtime/room-entrances.ts"
       ],
       "uses": [
-        "catalogue"
+        "catalogue",
+        "network"
       ],
       "packages": [
         "three"
@@ -132,7 +144,8 @@
       "uses": [
         "project",
         "catalogue",
-        "document"
+        "document",
+        "network"
       ],
       "packages": [
         "react"
@@ -184,7 +197,8 @@
         "document",
         "rendering",
         "persistence",
-        "ui-foundation"
+        "ui-foundation",
+        "network"
       ],
       "packages": [
         "react",
@@ -224,21 +238,25 @@
         "persistence",
         "editor",
         "ui-foundation",
+        "network",
         "build"
       ],
       "public": []
     }
   },
   "edges": {
+    "network": [],
     "visitor": [
       "asset-loading",
       "catalogue",
+      "network",
       "project"
     ],
     "project": [],
     "catalogue": [],
     "asset-loading": [
-      "catalogue"
+      "catalogue",
+      "network"
     ],
     "input": [],
     "document": [
@@ -254,6 +272,7 @@
     "persistence": [
       "catalogue",
       "document",
+      "network",
       "project"
     ],
     "ui-foundation": [],
@@ -261,6 +280,7 @@
       "catalogue",
       "document",
       "input",
+      "network",
       "persistence",
       "project",
       "rendering",
@@ -274,6 +294,7 @@
       "document",
       "editor",
       "input",
+      "network",
       "persistence",
       "project",
       "rendering",
@@ -284,11 +305,11 @@
   "files": {
     "account-dev-server.ts": "e117343d2dda5bf2d1a2636bfffdb6d2559da9410db4a42fdc336a837259c6fd",
     "architecture.check.mjs": "4725617ff67e1bdfe64935e10f25a7a0199e138a9a39e064b2b693435235c2a3",
-    "architecture.mjs": "b8959626991658248876759350f1d28c3bb4d7ff874634eeb1321828a599a4c8",
+    "architecture.mjs": "b02e077ac1a3c7cf6fd17a5ff1594f83b3bad77f189627141e0401a89600bb63",
     "asset-catalogue-plugin.ts": "9d13b4b5a45ddd6b5e6b2f91e5bc57897628a33aff42afa2f1ce3ec630be95a9",
-    "editor/App.tsx": "f4593fedd23e47294a59a70629b9f031c2e01200ebbe0ff9ef1c91d7bf3ac72d",
+    "editor/App.tsx": "cab59be1aa8ad01104ff9afa7057818182ae74af18df965f82655830edd9e9ae",
     "editor/Scenes.tsx": "afaa76820b30e011b31a76b739a8c16a1f6c336eb723e25de82b1f60f6baa7d5",
-    "editor/ServerProjectEditor.tsx": "124f3feca863700a5e487367b947467a903dc3babcc1660a867911a05d111424",
+    "editor/ServerProjectEditor.tsx": "c3f9437e54a7632c964de7c299df4129559183144c8b3368af982a3498e78af6",
     "editor/Viewpoints.tsx": "78c54d8fb8b886651fff4b1a977892926d6ebec53568429d7f557368c9748aeb",
     "editor/accounts/LoginRedirect.tsx": "717e26f1bbab1de317bee11eeb9c3a5c3a27d562ad0ac3c23d67f5a7f5e15e60",
     "editor/accounts/WorkspaceAccountGate.tsx": "c81a5ddef5e897bd6aa5d832b6017f4b0413bb98ad123ce435ab8316700db16c",
@@ -370,24 +391,24 @@
     "editor/hierarchy.test.ts": "d80db8a9f30d6c4ed6d406190c59a8256eece0282fe364c5615461560e4bd929",
     "editor/history-shortcuts.test.ts": "fc33404f4da0e7c9fd27d2da50d63eb3367c790cda0f985dd98b398b651e3a3b",
     "editor/history-shortcuts.ts": "e9d147c651ba15b45484207f805fbb648beb13c7393e4538d249c159c4b4e583",
-    "editor/home/ClassHome.tsx": "ff0dc0708787d608e6f2bcdd4efd7291b1fc73569c7473fe87d32cd7ec869bcb",
+    "editor/home/ClassHome.tsx": "c3231abacace8b3cb03ddaabb83280baa36adabdc31f238206511207d7c9b27c",
     "editor/home/CreatorProjectCard.tsx": "9cc3db7b7b6fc4f42e7c7edcf44275c6eb534d7bffce67a20cbdf4a04ace813f",
     "editor/home/DashboardSettings.tsx": "048d02484c5e17bde0f4b7aedc40f82e389b8521dc12372afdac573d34835c05",
     "editor/home/DashboardSkeleton.tsx": "59749a5171ebab013b2824d0d0bb77413616d5f7dbc29f5935a2b3f8d8edbc97",
-    "editor/home/HomePage.tsx": "58819f5c0ad51ddfa656547c14eeb2141a4c6529215d058abddb65219acba73f",
+    "editor/home/HomePage.tsx": "b72cb6580bd81192e7de1e22088d032b3a62026bc2c648706fbe499cbd019688",
     "editor/home/ProjectCreation.tsx": "2d6352bc7e32a16908f30961d720186c19b5ff479b68d4d7569a7a8c6c9201dc",
     "editor/home/ProjectGrantEditor.tsx": "16577b8a2909c0a48efeccde89c9e1703e00f2acebccb64883df37ab786560c5",
-    "editor/home/ProjectHome.tsx": "10e31930b04dccbd42ed122ec9224d611653eaab409c42185c1dc4342c304772",
+    "editor/home/ProjectHome.tsx": "c55a42fc34c3d58c4104ba8d46eee3dbdbbaabf2e1fd6c8fa892b95b33487bac",
     "editor/home/PublishedProjects.tsx": "f33979b64d45f5dec9ffa8430cfd44c102c2be89106ae3697afe80a07c10e7c0",
     "editor/home/StudentProjects.tsx": "c0a9f49608738f1c30ee7f1e839b3b29883ebb68cb34f8634de416239571cfc3",
     "editor/home/TeacherDashboard.tsx": "d4c01584d2a2431d2273455c86237a75e323b151d9a785d5a233cb1b6fce99a2",
-    "editor/home/TeacherProjects.tsx": "139c4ec055d32742700f1a28e4fd7f15e9a5b03ee19dddf25a62ae5dbe45aec0",
-    "editor/home/WorkspaceNavigation.tsx": "b05572a1ae094500f550acdc6792a4095b8b473c785acf131f49249bc8e1c94d",
+    "editor/home/TeacherProjects.tsx": "b270dd68bb6fdbe5b0a10fef69f632b60184c1b6a72a697c96914d649d9ffcf9",
+    "editor/home/WorkspaceNavigation.tsx": "494d1b54b5198db5ee3072a607f41957f3a7c942cf3486942a607fa1998fc411",
     "editor/home/classroom-api.test.ts": "8eeba3f458d9b6c82aafdeeb908e9d4fca0e60f87ae37cb369d7eab4aad684e0",
     "editor/home/classroom-api.ts": "1841a49f46c0a18837ae360d3b72a46fd9f8ee6bee83cae08e44e5ccf81c5597",
     "editor/home/dashboard.ts": "a589fce7e01b0ab18f514bbfa17f3111588b399c9ac3e2c1b7006091705a2596",
     "editor/home/project-grants.test.ts": "4ff9464622c5fc1268cd1784f969e65c7f00575a2aa353331d3f2198323f31ca",
-    "editor/home/project-grants.ts": "b2ea0f8bb2309941d95a6cd9767861dc3d83e29b3a6208502db72c3fa007a57f",
+    "editor/home/project-grants.ts": "f802a3739f9dc83d28655fab89e06ac42775b3c60ed3a00f0d3b6d78be37f051",
     "editor/home/project-management.test.ts": "26379ebd1423e445fb76f1f590ac980f12f1b51658f67733318b7af3498ae521",
     "editor/home/student-feedback.test.ts": "a25aff313f72ba510d5f6446ab0fa56bc5fd1f49ea6a89ba94b81b0ebb19f9c3",
     "editor/home/student-feedback.ts": "86a6a3c5cf631833ca3723bf07e9b97c73635f9811e26a232a63310223d33422",
@@ -395,10 +416,10 @@
     "editor/home/student-projects.test.ts": "64a30251b491ee829ddc5962f18dc3003c6fa1f14a09c296aa7951420abbd04a",
     "editor/home/student-projects.ts": "da6ed49a3a00581832972252dccff2fe64b0eb602f89ad434867a6305e882e36",
     "editor/home/student-publication.test.ts": "974eca2ea1b4b779aaffec3b4ddb16192ca1cb54c5e609bb773397100cf8c077",
-    "editor/home/student-publication.ts": "bba87bf753c8af9f262923b4ca2a551d84b7356784b8b53c532180bd1f86a842",
-    "editor/home/teacher-projects.test.ts": "929e4def4c33490f25c25cf35acd62e8b8ca47a802fe8e2aec83cc7829981a0e",
+    "editor/home/student-publication.ts": "dff5a38420a1211e4cf32c65964876c4ef7a00dbfaef04d8b9eda2ca85bf34db",
+    "editor/home/teacher-projects.test.ts": "76915d97b69a335034034e01ad7c85fd13ee581e60a7aaa18d1dbe5fcbfa4ce8",
     "editor/home/workspace-api.test.ts": "ec4f68a5bef27f6d9960a696e350e75f24a3530359d42cece7aeb51fb7dabc95",
-    "editor/home/workspace-api.ts": "20bda00de45a274010341a7336fc3ea47be90b93d5da978ed553672e32ca37dc",
+    "editor/home/workspace-api.ts": "10b0faed033d7ffcaca4c4637c82f64c3de8501784c45d1cacec56454ee67960",
     "editor/interaction-history.test.ts": "4758dbd2d8fbae9c6459ebf13a10891bade45dfda26df08757731c5e8895e094",
     "editor/interaction/actionHandler.test.ts": "4d20e5122bf4398b78d45c60c2892ba50c3b468aaf2631feb685763933e1d0c0",
     "editor/interaction/actionHandler.ts": "9996661af820653074089f35211f0e038b7afe1aedee604ec146a2b2c5ab672c",
@@ -416,13 +437,13 @@
     "editor/persistence/local-drafts.ts": "bde8a60610c03287f09b29d85c1ea11d0506e7f8fc99cd47c682787f50be1ec6",
     "editor/persistence/project-files.ts": "16c8a6540774699fc4ef69878da77931e93269908ad0c2339649d796d28e748b",
     "editor/persistence/server-assets.test.ts": "1f85a922a7840fdae48bdccff800d4f6c0762189f55e889e06a2afcbbd646dec",
-    "editor/persistence/server-assets.ts": "9de8c9b1b273dcafb4a281d6b6ef5370eae9d45fcb4669626671189538fc7c7c",
+    "editor/persistence/server-assets.ts": "e429f99bb08dacb0a95b335effab21c68b749dc8f1fd873f155f05f9c69644e7",
     "editor/persistence/server-autosave.test.ts": "ee19969b8159cd5d030296db4cffe44acce9534e4bd969fc0d524d3e3f6d2900",
     "editor/persistence/server-autosave.ts": "d72717f45309322006c30d0811a8d3b0b33914db106eb939231d6709c7b71a6e",
-    "editor/persistence/server-draft-write.test.ts": "d147f02b79eb513dd0de267af9562fcc16d7ddd6c3a28fc27894abbf1b4ddd88",
-    "editor/persistence/server-draft-write.ts": "55c4270f6d0e795ff512d1ac90f7f2776f9dbacb5b3926d8527aaf08de4a31eb",
-    "editor/persistence/server-project-read.test.ts": "aa1ee60ee8a8244c749347244e3dce20820555639cd0ba5f6c7d79da90a645ac",
-    "editor/persistence/server-project-read.ts": "17d15d8ba27673dd3b81cee8c33356342963356a2e00b0337843320d8381563e",
+    "editor/persistence/server-draft-write.test.ts": "4068f3d05d9f74609d348eafae608a345147ad9ec4f515488f11db4ae819aebd",
+    "editor/persistence/server-draft-write.ts": "14d221d41a5c6b33156e3724703c8050ac60b2443f24459fa337635f9007ad3f",
+    "editor/persistence/server-project-read.test.ts": "9d0628021f741b023bb3205c982f679446dda41b19da67341ccb858140f94f06",
+    "editor/persistence/server-project-read.ts": "abb11a2fc8eaa5cab0e4ca46d46f104005dd4d2c4157b2ad4574928b755ad28f",
     "editor/persistence/server-project-session.ts": "5ef4cb4050cb2b054553ad4972d6406aaea7ba425840b17fad3f209816d03a19",
     "editor/persistence/server-save-progress.test.ts": "4eb3091bc78c665e7c9ccdfc2dd5fed6f77ec57dde1625b3ec5a5652ede7cf76",
     "editor/persistence/server-save-progress.ts": "a67877d00c616ccc9e1956ca4f5bc7373fe22002fa9b4b079700618db3a55e75",
@@ -434,24 +455,27 @@
     "editor/project-history-store.test.ts": "187f2c3f84addb43d9cbc4de86520f5670eed12fc109d7b42b23fd66c18979b7",
     "editor/project-history.test.ts": "bb7ea657b49d92c47ae31c728471418b4ec76f9ff046e1c14519c2abaa584952",
     "editor/project-loading.test.ts": "d56f303c15a069d65b0896f047b7b9ade1faece93c2f2d45122da60d89e39f3e",
-    "editor/projects/AssignmentScreens.tsx": "521c3342ae3adb3b8d57cea01338b2c367e5c70a3fbe6df4f91906836b12a91e",
+    "editor/projects/AssignmentEditDialog.tsx": "43c13282e0c187170da1a74c25a585ae153fe8bca0fb620857e4a13111b0da1b",
+    "editor/projects/AssignmentScreens.tsx": "285f79ab51b2055a29272d29757afc66ceb10863f964bf264875ca4cafd7e2b7",
     "editor/projects/ClassAssignmentForm.tsx": "e220254716661615bd68d49b0c4a90256f1c329b60fb1ebf4fba6d93579d2265",
     "editor/projects/ClassSelect.tsx": "d348bc5b38ff8678f60e605f6139931e3310c4bafd04763f8d63f8d615c16c5b",
     "editor/projects/CoverImagePicker.tsx": "03a97943fd5cccd182461da563f1598edad2aa8b8d686ec944d5e26b4429070c",
-    "editor/projects/NewProjectForm.tsx": "320c712499b9db5c23756827d9134575d0a1ee4a446fcc7ab54d87cabeab1c1b",
-    "editor/projects/StudentSelector.tsx": "f6ae555e1e005bb68c9471e1c2274f55723111f1b6cf7d2cd91127d1d952d976",
+    "editor/projects/NewProjectForm.tsx": "b3e1c8e8ad4d3e8d06f52f7999f0bf4cf7e07bba6ca30e07bcfe60db14af0e33",
+    "editor/projects/StudentSelector.tsx": "87e95a7e859069b2bbb34b8f82b84b2abc61c95772609eac44606ad9a920caf7",
     "editor/projects/SubmissionPanel.tsx": "44a2d76cdaaed7f059c0d6cc123774a6719732dcc1a8c3a17f24cd79d77d4b40",
-    "editor/projects/assignment-api.test.ts": "87a829d666e2310125cdbe1bdc9d06c74501670ad8b61be62f8721b9f8699be8",
-    "editor/projects/assignment-api.ts": "b92973617d7befd5fffdc888073245eff9bd947074097534e5ea356c1438aebd",
+    "editor/projects/assignment-api.test.ts": "914bf8add830cb14fb815860c70f0a85b1feaf340412be24897b5e1d4d911d34",
+    "editor/projects/assignment-api.ts": "c488b7d7375fb092ae60fd2d42b8044f011652f0347eb2a754db22a2b961c296",
+    "editor/projects/assignment-edit.test.ts": "5f5c0738bd0565880711e0cdd5977eddf5369da77ad70bd15c261c924934a2c1",
+    "editor/projects/assignment-edit.ts": "21d1e83a6b40b13743045aa6f6f341b27be2812fee25cc4900192d7766c497de",
     "editor/projects/blank-source.test.ts": "13496a614c1fe3577ef26d3b08880a1257366ca01d372805ad8181deb913ada7",
     "editor/projects/blank-source.ts": "116cce4989a31b70b324ebea638b315826b85a9c8b6c80e8ded67007402bcc21",
     "editor/projects/class-assignment.test.ts": "b87c74c47f075ec20e1e29b996a89fc3cf505685fcb3476a51efa424797f3b62",
     "editor/projects/class-assignment.ts": "fd43e345a57e3fea0d91d6d2ec28bed10e9da15915990865e3ac17eada969e2b",
     "editor/projects/cover-image.test.ts": "cc12540176181bef9ac8cd2b9ebe86444293e9592ea1dac9c756c0f07ee0a99d",
-    "editor/projects/deadline.test.ts": "cd80b16e81b6933b0e0c848770232b09b879027402405742b2a0844fae83a722",
-    "editor/projects/deadline.ts": "0dfca98a6242e02f272dbf671464572026bb899de77a534aeeea1b58e0c8e9e2",
+    "editor/projects/deadline.test.ts": "bdb29ba2946a00472d24271e12603d2f32fdc3e7ac7963afee6f61ed1262d4fb",
+    "editor/projects/deadline.ts": "a7b143a0301589d8610d0687144658cad307198e01cecfe1ae0dbad1b6598aa2",
     "editor/projects/new-project-form.test.ts": "dad3a84c6b6875e0fa1ebe3fe9ec578c032c571f86cafb71d0b837fcd6937157",
-    "editor/projects/new-project-form.ts": "8ac26578de165e511e5e4d536d0792a26cd751294f291e63f46e8720dfff2efd",
+    "editor/projects/new-project-form.ts": "51f83c32a16cf8c751bda384fb09bdf144ec23be836bef0ee3996899db390adf",
     "editor/projects/progress-navigation.test.ts": "6c5562482b9e41a1fa050c83b5b872681595859da55c73202a0d11bcedab8bb8",
     "editor/projects/progress-navigation.ts": "0daff5f74071aca7fa287540bde111789b45f18a4a94873ec4a21f8d11c43c99",
     "editor/projects/roster-scaling.test.ts": "ed3d38c968293e3579d5a56bb57ef0a70af08ee1a416c87f8a636124c6f79b72",
@@ -459,27 +483,32 @@
     "editor/projects/submission.test.ts": "da0d5a8c5eeecfba0e573ff3838972f637eb570673409c5c5d5946fd51c2a582",
     "editor/projects/submission.ts": "e4071c1d1e3c641c38379f605e592b099fca578702c5d8e8aa8edebed2aaa855",
     "editor/publications/PublicationAccess.tsx": "1964f0c1e94ac9f42e99800e381117dfc8f46732489bb3f6de775202968c8c1f",
-    "editor/publications/PublicationPage.tsx": "13fb0a8c2d047a8157352e99d87ff8d7d63f829687ced9500c58f72d35f8fd63",
+    "editor/publications/PublicationPage.tsx": "a8004ab3ef0119e7a8563e9a57343b7484a26ac4d0cd41e30ffe4bf20b980517",
     "editor/publications/PublicationShare.tsx": "f3d4b334321d073d994f143761b93f8ce919fce9c0e5bc9b7a4e7fcbb6f5c7f2",
     "editor/publications/publication-access.test.ts": "da1c12e667848ab0dfa0f9c5d0f91a61259cec4e9c01ed59fad2bf077a1a503e",
     "editor/publications/publication-access.ts": "8f388af1050ecd2c8c2f687dd39a86d2f9e98445a2cc30ead2095795d4a9391e",
     "editor/publications/publication-client.test.ts": "11c73aef67daea6d4c2ae5274e4157b9d815678915e0edafc4f8a3c99587c7b3",
-    "editor/publications/publication-client.ts": "b5dfbb0cc5d2d78dd4022a37ba380f5243bfe9b02f71f609e5ef4bb2261779a5",
+    "editor/publications/publication-client.ts": "67b64930013650e56e8799e76b690870965cf1194b6fcd26bbfe2a67f15b0851",
     "editor/publications/publication-share.test.ts": "a71c668c0c2984ae9a33a9322ddb4c19a85a63979630a89069f14a0af3bc48cf",
     "editor/recovery-history-budget.test.ts": "c5682347fba756f3ec018384dbd5f648b0660e3311d8276b9458b2b3d0de7703",
     "editor/recovery-history.test.ts": "8083087ab03c353b7003566313250206513105e7dbd7c103c99d2ea7870dde31",
     "editor/recovery-history.ts": "a6b408c94f644cc6a6c3dfa181709a098ba2a797d4c9e4e0d9f70825efba260e",
-    "editor/reviews/ProgressReviews.tsx": "5d52529345321de7ef96c88c1eb88f1cf5cad12fd2902ea0745d10f06651c0c7",
-    "editor/reviews/ProjectReview.tsx": "f810f54d4d11a957b09b0bb1b7726b41a943c9af59a2a8e16cbe53f4ca2e6422",
+    "editor/reviews/EducatorReviewLink.tsx": "ce0cacd14d790807ab6a9467570308dc24914ab873e0d26051a52b012ccfb26c",
+    "editor/reviews/ProgressReviews.tsx": "16ab00020241660e647d6752103021743be482ac852ff14dbd855cdb8b69e614",
+    "editor/reviews/ProjectReview.tsx": "717677809ec674a687310b318b3616549a764c84e704b29c4eec579f51c353b9",
     "editor/reviews/ReviewDocument.tsx": "e67b5f44758c126bb774c6b035c4052c4e06ec140941d2aba012a03456e5d1be",
-    "editor/reviews/ReviewWorkspace.tsx": "afd05c6b0dc690a0c8918976dea76bbd31f83c59e671c0958c2a4e9c1e991fd3",
-    "editor/reviews/approve-publication.test.ts": "8d9018069fbd12d9f2c7ed31a793d0d39c2c82a3b4127c3eec34c9f4ab5ce7ff",
-    "editor/reviews/approve-publication.ts": "b3868afeebfeedbeec5afe4439d2daf857caaa5692aaf32c0578ad2f26cd5e02",
+    "editor/reviews/ReviewWorkspace.tsx": "a213ccf5ef469a4067dd958c6c52a348c98fd2ff7d14b58459b139f31b33a14a",
+    "editor/reviews/approve-publication.test.ts": "32af399369f53deec0a545fe059e3215d3909b39b6172ccb9aeb2f4cd03e2f1a",
+    "editor/reviews/approve-publication.ts": "04e507ba3d103c643911625bed4531d5ed2acbdcbc6e175cf095c96d35c85667",
+    "editor/reviews/educator-review-link.test.ts": "cfedf5b09128c766155587667dd420411c01c4021956033bc2f654e92c0146bc",
+    "editor/reviews/educator-review-link.ts": "750e701db9aaa0587dc57ae0840e5483d1d7813d121a0a0912a763c3e3e91ada",
     "editor/reviews/progress-review-client.test.ts": "9dd465b7fb8f61bee3236c2951d8c5522339ab0f36f12855814e2e739d8e9aa7",
     "editor/reviews/progress-review-client.ts": "f1258cbb9a7ed2440f54a109dae073b7c50ad0a492eaa4acf9f71fb67b28d666",
     "editor/reviews/progress-review-view.test.ts": "5212f650355d99152592dc71436bbd5353293f886034fb80a20b2e1aabc29801",
+    "editor/reviews/publication-session.test.ts": "93e47e1d7bf64e30fd843e0b1389c6e24cf89e087fbfe5610c37d91e84b4eb5f",
+    "editor/reviews/publication-session.ts": "a5e09edc5859ea0c8ecb517cd5390f73ca6edfd1ff8586780013debc6f46c4bc",
     "editor/reviews/review-client.test.ts": "9cd7199ccba2b93cb98a645bd986d2e8fae588ed4756ecb93c9c17d3a94b6711",
-    "editor/reviews/review-client.ts": "01dd0324cf7eb9a00fb128949e9e0a630e16f9162bba5208652afa574d9eae12",
+    "editor/reviews/review-client.ts": "942b64a4860b0c6c6b394460e0ca3a6b8c6450f073428648a335206b5f2aa0eb",
     "editor/reviews/review-types.ts": "19f3d717ed42273efb395fd8789694f849c659a8bc121ffff59c0aa309ff7688",
     "editor/scene-interactions.test.ts": "d37281894dc79f652e887fb4597ccad318e5cac5eeacf80a6b1109d608219d7c",
     "editor/scenes.test.ts": "c32f7340bfc7eec0a35d9c4f50e23f25c44537a0bad0ab35ad85731274e4537f",
@@ -496,7 +525,7 @@
     "editor/ui/AssetFilterSelect.tsx": "a6165d2e7714c0c542bfb26e8f59e40c0608abec36a6691f8de8a5f95e179dcf",
     "editor/ui/AssetPicker.tsx": "ee7eceb51a2b730949462d225f071316e5bb7dca4502b12e6a76d8afccab9d49",
     "editor/ui/AudioLibrary.tsx": "d34b93f67ca6a162265d35a024aa9aa678d1337ba10a5240840e3c49e488be5a",
-    "editor/ui/BottomBar.tsx": "df2cb296a3ca5bcc745068e50639f40c54b312cf02cd5fd042a23ca24d8d9f07",
+    "editor/ui/BottomBar.tsx": "0c2c40ade87b0379f619b5a35b2d3b4a7adc9346978637d46c34ae68ba41ea65",
     "editor/ui/ColorSwatches.tsx": "9d5add9ed67436ed70e201257935852ba44b822b303f25eb0e0a123856b7fe55",
     "editor/ui/ContentEditor.tsx": "fb51c304eb7815dbe55f53cd1b5ebac87e6683f14deb77b5a1273c8852798340",
     "editor/ui/DisplayEditor.tsx": "4acd4974a160908464104c5a4125cd90f45f1e71ddb65fce645e8d137bbac05b",
@@ -509,7 +538,7 @@
     "editor/ui/SceneTreePanel.tsx": "af069697bb85faad0eb27de5517f3ac734908c1f4efeb02ae4e7c87f1ed970c9",
     "editor/ui/SettingsPanel.tsx": "32950090dcdcde872df9bb769025e1bece2040c51b06ab6d242570126386e17f",
     "editor/ui/SidePanels.tsx": "4568f53da6152c8abdb537b5c69bd4f36c527c7fd20a2434432791e78db6a85c",
-    "editor/ui/TopBar.tsx": "2d586cc9fe2ea88375bb6c1e3faac26da7f74837d5350c4485b4e2528b55541a",
+    "editor/ui/TopBar.tsx": "375971e94b5b8813f078efcf446067911f66ad9111fc5d61268f1e59f8c9ffe7",
     "editor/ui/asset-filters.test.ts": "0b88a68d514d283e155ceb0838d4951c1b4fd5867459df2e8c6ab8780c65f858",
     "editor/ui/asset-filters.ts": "5e08299dbfc2543f41017306fdff78d7ba3161e2242186877a315e3ea75fa8cc",
     "editor/ui/asset-selection.test.ts": "e415448325821b4432deb4d1255526236e7da9401626978306e9fc95e9b93a44",
@@ -530,12 +559,12 @@
     "editor/viewport/MobileControls.tsx": "f3f37136f19839fe7e1348c80581ae866e4bf19e9cda98aaf92718955f67d5bb",
     "editor/viewport/Viewport.tsx": "898f615def9ef14713f4e5f61a4f02258a7faa5b827837fdcef60dba36e535db",
     "editor/viewport/mobile-device.ts": "ab05c53861f725a35b68e2509872d8e247f6a8adfaccd7cbdc337f7f41426599",
-    "editor/workspace/WorkspacePage.tsx": "14c42dbf9ace9926298914421a78c34c592a7c438cedbdfeb3d4339592ff1b66",
+    "editor/workspace/WorkspacePage.tsx": "3b603faa39d24b3a580bbc62d44aa6696a2168092ad770a5c2af97eddf169506",
     "editor/workspace/main.tsx": "ba13928e8e371d8dcf218adb28f93eaab5e47d2ef5c020a4ee823190ac47d2dd",
     "editor/workspace/useWorkspaceDeparture.tsx": "14ded75aa2745924212f728fb7512c40ca961966482a27b248af4a9fa80e2206",
     "prepare-dashboard-font.mjs": "4a074c05c419b9e6e7ffb32e0ae7002818ddafa640f8ec830626e8974a354b53",
     "shared/asset-runtime/ModelCache.test.ts": "6e5cf28591eb858c981923550fe49fb330535b085db0d99d7ce209736fefc2d3",
-    "shared/asset-runtime/ModelCache.ts": "924c229764e86a340d02bda582958cf8a2a5917facc1842a4df398a64ff260aa",
+    "shared/asset-runtime/ModelCache.ts": "f3ece7f4ce3a3df3303575b85616f3c9940a9e22c860703d62c73c08b9fd04ad",
     "shared/asset-runtime/catalogue.test.ts": "53d1ed353ffaa1b2ded68d67a5a37944b5f76c0246441919b81a5a5587d08179",
     "shared/asset-runtime/catalogue.ts": "f4c8710987f43cfe4a39d0cd774353327cc84ae3cf56588b5193b40e3816b639",
     "shared/asset-runtime/hotspot.ts": "1981f66fb7e803218b2cbf88b6e64c649a8dd4f2298b70882003495b631e16aa",
@@ -543,6 +572,8 @@
     "shared/asset-runtime/manifest-module.d.ts": "ff7add6e7e483a4cc6a0dd48c9ead7b2f4cd0b0a5ccc7fb06181e1a5d2d1326e",
     "shared/asset-runtime/room-entrances.test.ts": "49b17ff5ba3b7de13e64f3bfeaa535800093fd70e3bcb1bdb10e91cda9f504cb",
     "shared/asset-runtime/room-entrances.ts": "cb9993b0f6aeb296680c9df1089e02c2455f6fc5f542c88ee571a58205ba4d35",
+    "shared/network/abort-signals.test.ts": "14cf46f71faaffa07368eb90fce2d2b6580fe12689088c80ae354bfdb26047b1",
+    "shared/network/abort-signals.ts": "f96021d454dc750f610d289e146231b4778e685302182f5deea7afecb29cb73d",
     "shared/project/attached-transforms.ts": "73599346cb723db417b11d02eb9bf92f80f038ff070f605d11b62d77083f543a",
     "shared/project/legacy-scene-import.test.ts": "4574e69926012dfa25a362fcd5d4b14bd67169f3aef1235bebf6ca5479d597ca",
     "shared/project/legacy-scene-import.ts": "37fd657a29e0e6094b7a951ee0592c465f866c9e330f1571e46faff8a66094f3",
@@ -593,17 +624,17 @@
     "tests/account-directory.check.mjs": "a57def12b7ac4470998766e3b82b89c998a2c8a7ec3dd88d8e59c1c755eed3ec",
     "tests/account-header.check.mjs": "f2f3fc7c3289b50eabcbf85bab2b73f87ad0b009ebc6ff03869858d14adea2e4",
     "tests/admin-classes-navigation.check.mjs": "001e08b1bade0305007e64a4bfcd6681f8c53f823a9a5d168d880aec75d3f768",
-    "tests/admin-dashboard.check.mjs": "bb60b3a9211a95830dfec18cc8f5804137ebcf1de4a01579268b0fa5ca5d4b34",
+    "tests/admin-dashboard.check.mjs": "113159bb2920521361b35deea477c76bb3017c14509f94317d67c6678d2746db",
     "tests/admin-navigation-regression.check.mjs": "29a5712ea0d81eff371d1e9a9d56c0a13a58ef0c2a77d08435dd71d8a93b69e4",
     "tests/admin-navigation-suite.mjs": "07678393e0e4051d1eaaae768cf15e0023b52fcc0061645eb1efad3d9eca81c6",
     "tests/admin-project-grants-navigation.check.mjs": "46aaf4f855e42677dff487bd299a2cf6cf06e6361a133af006d56b70ab215c2f",
     "tests/asset-administration-fixture.tsx": "e89e1339cf24e7e94447a3e8b0f250d795304c91b4b396de43e1869676ca98b5",
     "tests/asset-administration.check.mjs": "301ef6687a67e5877fa08be567fbbc54180b311928a9f7ebdeffb33d962ba5ff",
-    "tests/assignment-real-api.check.mjs": "6db9a34a341caf4d7725e5db26e7af7d4d013923eb43c59925813b3922e333c8",
-    "tests/assignment-screen.check.mjs": "310c41227d644b389723145d56d9d1a86fa9f66e4e78102126cb57e37849016a",
+    "tests/assignment-real-api.check.mjs": "093d1896bdfa76d344ecd488e7318c0d35e0916142f45bc5b7c79ca6077a1c58",
+    "tests/assignment-screen.check.mjs": "418bf5e75184f4c1b8f0bac80f13e349681a7d5dcceead314fff0f46eee23986",
     "tests/audio-library.check.mjs": "262bf840f603684272eba2b4c06387d53f7d2478d3ff3a26845529f572bc3961",
     "tests/authoring-project-fixture.mjs": "5061aa79bc6bf814b5d4cd9db844ea1fc50517846b5b864df8e5ddf7dd25166e",
-    "tests/blank-project.check.mjs": "4443765e400294acaf6f38b5f0ea44010529221c76d29d1bc7c4ec7a3f05a73a",
+    "tests/blank-project.check.mjs": "58523279198058eba1c4e0577ceef6d12a9a1d25af3736da8f7c5801ebfe91be",
     "tests/browser-network.mjs": "502fa431b9df37478a112c58cdce855a62bd422c62d123854b98a1ff003cdd88",
     "tests/browser-network.test.mjs": "34fd4a44eab68ab895b61ef23620cf7e300b5767f30eedb780dcd5819a9e1025",
     "tests/browser-security.check.mjs": "4ebdb00d3dcffffe44861b82d254f58a1975862d191feb84061b6d78a69f09ae",
@@ -621,19 +652,20 @@
     "tests/display-editor.check.mjs": "f643735df62cc961eb90991efff717068bf012e8973b966eb706a5d869a196c9",
     "tests/display-placement-cancellation.mjs": "21190a6584b4ea7bef3e42c220504bd55dafa1b441d894662ee20b1fce721afa",
     "tests/display-tools.check.mjs": "21ac40b5b29544ed4f7b67177d9678171f99175c9de483a5a30b6e762f737c99",
-    "tests/editor-build.check.mjs": "51a1824c13c174c1f9f58ae9348c987c9a2219d2ff31056144c584255b2f2695",
+    "tests/editor-build.check.mjs": "891b21639ae7cbfbb194325022b63c38baadc3b8830969cdc7b14a94806ab857",
     "tests/editor-integration.check.mjs": "a5889f2bde9ff1a33b04e04b6bc98dbeb44bb24eeebb898dc052d086938fa405",
+    "tests/editor-library-previews.check.mjs": "6a31aca2f84f89ee80c91ddf8805e13225cf04949beca26132e59a6bf94fdbcf",
     "tests/editor-session-loading.check.mjs": "6b6b52ef414d45b02603bb4389687ca237e67938c5162d1193bc06997988c686",
     "tests/editor-shell.check.mjs": "c5272993fc0375912e5020d04fe2a200c126e69927d1009fffb1586025fc8217",
     "tests/empty-project-editor.check.mjs": "f3076afcd474702efa67d5367f346e1f0d0c4854770156c11cae8626639f1f41",
-    "tests/empty-project-real-api.check.mjs": "054b62769d38325ae02d514fee4245c07b4bbeea308fce2ef2a419400a14378c",
+    "tests/empty-project-real-api.check.mjs": "f749e95203ec1c85533f9cce36775b0b916f212b8ea2734aff344697c452b832",
     "tests/empty-project-room.check.mjs": "f87cf92e7cfe2693e966143f104b3aaa4fad3ac3154542992ca2d549965473ea",
     "tests/entry.check.mjs": "8fa0cb6eaadfaaf248f7ef0efcafe40f1016d9c11e0db9d30ec8c859c5794e1b",
     "tests/first-person-sandbox.check.mjs": "1105127c48ab22754d93c53365f024a556c7cd513a401fd71466f4876d58357a",
     "tests/furniture-tools.check.mjs": "b14a7ab37f816327517b7a84983b6e571a928d76845f682a25a5264f49afb220",
     "tests/history-recovery.check.mjs": "15187e9efc4e5c8d8cdb0fbf221dd324f9d4fb58f5800491a4e2e5805e37a217",
     "tests/home-welcome.check.mjs": "d56e1356131722311463d2bb385ead8114c5120eafda36217966607e9a97daf1",
-    "tests/home.check.mjs": "2f5cc3de6a7170920a12eae25889a90751e6223e0fbf2837a86ff5c82b0576bd",
+    "tests/home.check.mjs": "5f42be11a1483c5f0b6ba8c285b473a139890383b8dd2b5bdeaf876b50234e7a",
     "tests/hotspot-deletion.check.mjs": "d807bcdbce8dca32404a7db4c903f50815621f90a1eb3ec0d58810292e1137b7",
     "tests/hotspot-placement.check.mjs": "0f70423ae8d15a3084c0e2337c34df4686ecca577dadc88d66320340f896858e",
     "tests/hotspot-rendering.check.mjs": "a8dfef8c40b58bbf3c8955f2a0d312db754b7fdafa79ab4a5d74e1423a4c3b26",
@@ -652,24 +684,36 @@
     "tests/project-grants-real-api.check.mjs": "d0c5c8d4eee939bed0362fdd044cdbca99eb2c5089e6d26ce088cb178660aa69",
     "tests/project-grants.check.mjs": "b96a95e0d0f7ebbe8c56a3ae5a97b2f4e9db42059fe3b43c8f13de20e16c2e01",
     "tests/project-store-fixture.ts": "2cbf3e5e59d831824bf2288c48e5e7fdd001251958b88061e8116e964b97b624",
-    "tests/publication-access.check.mjs": "fff0eaefb12ad65ca78a095d610e07e8a5c0de8430d3a8440f35096d69a98d39",
+    "tests/publication-access.check.mjs": "abe7b9582d3429fb32ecbcec062a5f3f7d866bb61358db73d4d0c898dbcda055",
     "tests/publication-readiness.check.mjs": "f7623f593f78ddd8496f4251aeeda779d5852e37bf3fd26a941ea3986dfef56b",
-    "tests/publication.check.mjs": "96520e005eb07c7321a6d4a4128bb94c96162743fab23916fb6085cc2808fb49",
+    "tests/publication.check.mjs": "cde185e31a10b414260660fceca7f2185d4fa6976100983edbb8b642268e3215",
     "tests/restricted-catalogue.check.mjs": "d4c1ca1499798469e40f0dc5a6a7cc5c9fa51eaca53709fa2355d05f21c72f84",
     "tests/review-directory.check.mjs": "38c7c15bf9da45f16ae65de04b535a4f54cf22aab2a1119e126797dba593f7fb",
-    "tests/review-editor-exit.check.mjs": "173ef444d43e305fd1d62792c3941f75cf667bfdf6ac23aaa619be124e32b709",
-    "tests/review-exit-fixture.tsx": "bebf124e5d2b9cad1e063cfa4e888b8591166b89667efc691fd2e65d3b37b6b5",
-    "tests/review-exit-publish.check.mjs": "f072d9741730ba7217b59f6294d703e7affa992325dac43182258225d6051959",
+    "tests/review-editor-exit.check.mjs": "b8d596270f5da480d3c74f61de4956bccad229f9aaeb1872eb660216ae01f265",
+    "tests/review-exit-fixture.tsx": "1435e996d891469297229c44bea7b3727a571ba7374152e7d1db77d18d688e81",
+    "tests/review-exit-publish.check.mjs": "ebf7082cc8f3e0d9a1bc262da5529f90ad8fb833e861e021f0b214ae3e5ac55f",
     "tests/review-exit.check.mjs": "1ab915e7e3d9cfd22973df1acf9950873c45d5755a43542e83efd5b6d59150e1",
-    "tests/review-real-api.check.mjs": "39531f2dc81ccd2f582b7cf873667393582c752536bebe2828c2f82569c34413",
-    "tests/review-workflow.check.mjs": "25f3fb3396275c5f1002aa64d43515712570f3c7fa34196cf8802480fad25f50",
-    "tests/reviews-suite.mjs": "af1f3248e6346c802d37b1d790edfb1d110709c13f4d8124e7a4ad9508f1e6d3",
+    "tests/review-real-api.check.mjs": "f4ed5149fbef69412f0b5ed137e7331c6c961a642b408d273a446ceebea6b3f4",
+    "tests/review-workflow.check.mjs": "9ccb43460b70acaf3a56e4acef44cf5894b0679e23e4703c4ccfe8659f454369",
+    "tests/review-workspace-fixture.tsx": "0792d259d491fcac922e9b6d582c8b68c11a0713442bb2008d6d063f2956c8dc",
+    "tests/reviews-suite.mjs": "d4bfc0552c9c967cf11a0b52b92630e37e7526e094ed321deccbab0fa37bd0cd",
     "tests/room-layouts.check.mjs": "889696a6b3fb0ff8e8240fe9c317f2fa088aa188cbfaa3d4fb6a28ff94fb0e48",
     "tests/room-preview.check.mjs": "98f5a672ae85b1954c5450115c7576219d89b5d08ebf5b67cd48f193e8bf04db",
     "tests/scene-authoring-flow.check.mjs": "f0835c2c75dde83316f6526b42347b5fee69bd70717f7ae60dbdbb524c5ab86d",
     "tests/scene-deletion.check.mjs": "91afe1b84433304da13b1413daada20a8929c7b35a7d1daf8b6c54a4774e4c2e",
-    "tests/server-autosave.check.mjs": "285c16535dce4ab0d44040c2f0ba68f1a6a84e850346ce689ef4d0350950d1cd",
+    "tests/server-autosave.check.mjs": "c1e74876a860ce30ec710e15eafb63ec882274aa86c2175aefbffe76200c88de",
     "tests/starter-room-transform.check.mjs": "e094c8695624ad0ff8e021266c523d0dff71ccfd4e78662707331e67f98e54f8",
+    "tests/teacher-assignment-edit-storage.check.mjs": "4a364e2021356b6f324172720f773354e6028593f52ced93e84515e17821af08",
+    "tests/teacher-assignment-edit.check.mjs": "b8a8484d51ea6468cee20982a2394b64716a9fc4cfabc28262c46e7a7ad949c9",
+    "tests/teacher-assignment-flow.check.mjs": "d14fb03647e175085b87ff130cd220b90aa487c987d0c4d068c6fc084f9f743a",
+    "tests/teacher-choices-account-switch.check.mjs": "22daa2c705569eadb0fcdcc489916f041e03af292d74b75f8d1690b406c3eacb",
+    "tests/teacher-details-flow.check.mjs": "1519ccc2bf3d151b2788f98160ec64f93bff622a1a5573f4d6f288ececc436cc",
+    "tests/teacher-editor-actions.check.mjs": "255a1469e92e206aee0fe9bd8f846b1068a911addd919e657841d7cac1666e7a",
+    "tests/teacher-review-dialog.check.mjs": "c0cbef006da3ca6b23882fc6ab5d5e43406725ba38106e99c458bb798337a3f9",
+    "tests/teacher-review-org-click.check.mjs": "f983334b6e24d83ced96b6fbf6299e637124039083c06ba9269135930e79a800",
+    "tests/teacher-review-org-switch.check.mjs": "a2567a1397ef9ad3547543b6b34514c46184048636e652f93097926d32e1f6c8",
+    "tests/teacher-review-refresh.check.mjs": "15534f852f339a41a747c116dbec94dd41502227322224966ada8c766bf6ca15",
+    "tests/teacher-roster-account-switch.check.mjs": "d74679c1a49c3dcc0ef394b8475462422dcd9b7b94bc33ddd4e05a3f20100206",
     "tests/text-placement.check.mjs": "822ee3f12f90c3a693cb2ffc94f03c48a6820ed79137f8e90d59ad2108b15e77",
     "tests/ui-foundation.check.mjs": "d7ba03b1591b5973cc7103176961f5564a4082b4fd46a7d9e93d8d668c96b32c",
     "tests/ui-sounds.check.mjs": "65cf2650860f1b6fd2e666b829ecc2e9a73e2cb4b1cb1978d1375b24e7f43dab",
@@ -678,14 +722,14 @@
     "tests/visitor-rooms.check.mjs": "6982f2ba6f0ccf97c6018fa39a5e6a5e5a576c163572b7c0f276867c75a0b99a",
     "tests/visitor-v2.check.mjs": "8b81bcfcf38aa92e25386dc134fa544e374ea7a7bd760d5bd3e96762f01d1b99",
     "tests/visitor.check.mjs": "63d0378b997bec0e1e62406e0a93fc20412eed36c83478206e849645ae1ae333",
-    "tests/workspace-assignments.check.mjs": "d4c19754230edc70b343237264f43bd269210a9c3380bd24ca2d2b55cf5ad352",
+    "tests/workspace-assignments.check.mjs": "6a3d7ca744bf58ba968cf0185ef71a5fb237d3b9eb32e969ada2f911bc57dbbb",
     "tests/workspace-live.check.mjs": "7aff862e4be3090df034b645fd26c6a0e9f0a1e09b66c4380991cad810f162c3",
-    "tests/workspace-routes.check.mjs": "87c6e95781c0999cb694d9a3d03955f6d5aa32a2cf541165fad0cd972fec5256",
+    "tests/workspace-routes.check.mjs": "320fcc39a97fad380ec23f72e2a06ef89bb16c919d5a2e60c4d5d88050e714da",
     "visitor/ExhibitionCanvas.tsx": "8d9fb4e9fa53bb82d7bda65927ba34571ae1c4cc4ea56f35d20ae8844e9510fc",
     "visitor/ExhibitionContent.tsx": "7fecfc4ca66b1546d34c2fa3e93cef063ee66dd69b7e86fcb89b027c0350c87b",
-    "visitor/main.tsx": "dd6438a1a229fc792a3c58ccd7ea9bb6550bd6d90090f3ef9f566dfd28f96420",
+    "visitor/main.tsx": "d7cb0f0a092e878c3adfe4d0dd8076149f2d1af7aea7015ff72be65f2b86d65b",
     "visitor/publication-asset.test.ts": "d906b97519f22114c36ff7e8e92603d3bd815eebdd4f3c66cd5acab11c6f0e84",
-    "visitor/publication-asset.ts": "e007f9b4c6eb7e9ce58e1cf81db66d3184068200386b5b1882ef069b9cf54cb6",
+    "visitor/publication-asset.ts": "93508447005d2d8139f9c9b0d91113ec360e6a67d3473d9bd725886a8e113a64",
     "visitor/publication.test.ts": "8de6ffb2e20532685b5fcacc35dfa58977df04fe82f5436b6651456a4f911d81",
     "visitor/publication.ts": "a720efcb70103e144918e4afcca57426665ce025e1f3d0e48737b10e917148fa",
     "vite.config.ts": "4140684073a73e5bf1ce62e82c973e5f4c9f6734199dc5decfa9c2f0a96ec1d5",
@@ -1312,7 +1356,16 @@
     },
     {
       "file": "editor/App.tsx",
-      "line": 590,
+      "line": 144,
+      "kind": "dynamic",
+      "specifier": "./graphics/library-previews",
+      "target": "editor/graphics/library-previews.ts",
+      "from": "editor",
+      "to": "rendering"
+    },
+    {
+      "file": "editor/App.tsx",
+      "line": 614,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -1559,7 +1612,7 @@
     },
     {
       "file": "editor/ServerProjectEditor.tsx",
-      "line": 73,
+      "line": 75,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -6098,6 +6151,15 @@
       "file": "editor/home/TeacherProjects.tsx",
       "line": 5,
       "kind": "static",
+      "specifier": "../../shared/ui/Tabs",
+      "target": "shared/ui/Tabs.tsx",
+      "from": "editor",
+      "to": "ui-foundation"
+    },
+    {
+      "file": "editor/home/TeacherProjects.tsx",
+      "line": 6,
+      "kind": "static",
       "specifier": "../reviews/review-client",
       "target": "editor/reviews/review-client.ts",
       "from": "editor",
@@ -6105,7 +6167,7 @@
     },
     {
       "file": "editor/home/TeacherProjects.tsx",
-      "line": 6,
+      "line": 7,
       "kind": "static",
       "specifier": "../reviews/ProgressReviews",
       "target": "editor/reviews/ProgressReviews.tsx",
@@ -6114,7 +6176,7 @@
     },
     {
       "file": "editor/home/TeacherProjects.tsx",
-      "line": 7,
+      "line": 8,
       "kind": "type",
       "specifier": "../workspace/useWorkspaceDeparture",
       "target": "editor/workspace/useWorkspaceDeparture.tsx",
@@ -6123,7 +6185,7 @@
     },
     {
       "file": "editor/home/TeacherProjects.tsx",
-      "line": 8,
+      "line": 9,
       "kind": "static",
       "specifier": "../projects/assignment-api",
       "target": "editor/projects/assignment-api.ts",
@@ -6132,7 +6194,16 @@
     },
     {
       "file": "editor/home/TeacherProjects.tsx",
-      "line": 9,
+      "line": 15,
+      "kind": "static",
+      "specifier": "../projects/AssignmentEditDialog",
+      "target": "editor/projects/AssignmentEditDialog.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/home/TeacherProjects.tsx",
+      "line": 16,
       "kind": "static",
       "specifier": "../projects/deadline",
       "target": "editor/projects/deadline.ts",
@@ -6141,7 +6212,7 @@
     },
     {
       "file": "editor/home/TeacherProjects.tsx",
-      "line": 10,
+      "line": 17,
       "kind": "static",
       "specifier": "../projects/progress-navigation",
       "target": "editor/projects/progress-navigation.ts",
@@ -6150,7 +6221,7 @@
     },
     {
       "file": "editor/home/TeacherProjects.tsx",
-      "line": 11,
+      "line": 18,
       "kind": "static",
       "specifier": "./workspace-api",
       "target": "editor/home/workspace-api.ts",
@@ -6159,7 +6230,7 @@
     },
     {
       "file": "editor/home/TeacherProjects.tsx",
-      "line": 12,
+      "line": 19,
       "kind": "static",
       "specifier": "../accounts/account-client",
       "target": "editor/accounts/account-client.ts",
@@ -6168,7 +6239,7 @@
     },
     {
       "file": "editor/home/TeacherProjects.tsx",
-      "line": 13,
+      "line": 20,
       "kind": "static",
       "specifier": "./dashboard",
       "target": "editor/home/dashboard.ts",
@@ -6177,7 +6248,7 @@
     },
     {
       "file": "editor/home/TeacherProjects.tsx",
-      "line": 14,
+      "line": 21,
       "kind": "static",
       "specifier": "./TeacherDashboard",
       "target": "editor/home/TeacherDashboard.tsx",
@@ -6186,7 +6257,7 @@
     },
     {
       "file": "editor/home/TeacherProjects.tsx",
-      "line": 15,
+      "line": 22,
       "kind": "static",
       "specifier": "../reviews/reviews.css",
       "target": "editor/reviews/reviews.css",
@@ -6195,7 +6266,7 @@
     },
     {
       "file": "editor/home/TeacherProjects.tsx",
-      "line": 32,
+      "line": 45,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -6232,7 +6303,7 @@
     },
     {
       "file": "editor/home/WorkspaceNavigation.tsx",
-      "line": 41,
+      "line": 43,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -6319,6 +6390,15 @@
       "file": "editor/home/project-grants.ts",
       "line": 1,
       "kind": "static",
+      "specifier": "../../shared/network/abort-signals",
+      "target": "shared/network/abort-signals.ts",
+      "from": "editor",
+      "to": "network"
+    },
+    {
+      "file": "editor/home/project-grants.ts",
+      "line": 2,
+      "kind": "static",
       "specifier": "../accounts/account-client",
       "target": "editor/accounts/account-client.ts",
       "from": "editor",
@@ -6326,7 +6406,7 @@
     },
     {
       "file": "editor/home/project-grants.ts",
-      "line": 2,
+      "line": 3,
       "kind": "static",
       "specifier": "../directory/directory-client",
       "target": "editor/directory/directory-client.ts",
@@ -6335,7 +6415,7 @@
     },
     {
       "file": "editor/home/project-grants.ts",
-      "line": 3,
+      "line": 4,
       "kind": "static",
       "specifier": "./workspace-api",
       "target": "editor/home/workspace-api.ts",
@@ -6526,6 +6606,15 @@
       "file": "editor/home/student-publication.ts",
       "line": 1,
       "kind": "static",
+      "specifier": "../../shared/network/abort-signals",
+      "target": "shared/network/abort-signals.ts",
+      "from": "editor",
+      "to": "network"
+    },
+    {
+      "file": "editor/home/student-publication.ts",
+      "line": 2,
+      "kind": "static",
       "specifier": "./workspace-api",
       "target": "editor/home/workspace-api.ts",
       "from": "editor",
@@ -6592,6 +6681,15 @@
     {
       "file": "editor/home/workspace-api.ts",
       "line": 1,
+      "kind": "static",
+      "specifier": "../../shared/network/abort-signals",
+      "target": "shared/network/abort-signals.ts",
+      "from": "editor",
+      "to": "network"
+    },
+    {
+      "file": "editor/home/workspace-api.ts",
+      "line": 2,
       "kind": "static",
       "specifier": "../accounts/account-client",
       "target": "editor/accounts/account-client.ts",
@@ -7198,6 +7296,15 @@
     {
       "file": "editor/persistence/server-assets.ts",
       "line": 1,
+      "kind": "static",
+      "specifier": "../../shared/network/abort-signals",
+      "target": "shared/network/abort-signals.ts",
+      "from": "persistence",
+      "to": "network"
+    },
+    {
+      "file": "editor/persistence/server-assets.ts",
+      "line": 2,
       "kind": "type",
       "specifier": "../../shared/asset-runtime/catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -7206,7 +7313,7 @@
     },
     {
       "file": "editor/persistence/server-assets.ts",
-      "line": 2,
+      "line": 3,
       "kind": "static",
       "specifier": "../../shared/asset-runtime/catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -7215,7 +7322,7 @@
     },
     {
       "file": "editor/persistence/server-assets.ts",
-      "line": 3,
+      "line": 4,
       "kind": "static",
       "specifier": "../../shared/project/validation-helpers",
       "target": "shared/project/validation-helpers.ts",
@@ -7354,6 +7461,15 @@
       "file": "editor/persistence/server-draft-write.ts",
       "line": 1,
       "kind": "static",
+      "specifier": "../../shared/network/abort-signals",
+      "target": "shared/network/abort-signals.ts",
+      "from": "persistence",
+      "to": "network"
+    },
+    {
+      "file": "editor/persistence/server-draft-write.ts",
+      "line": 2,
+      "kind": "static",
       "specifier": "../../shared/project/validation-helpers",
       "target": "shared/project/validation-helpers.ts",
       "from": "persistence",
@@ -7391,6 +7507,15 @@
       "file": "editor/persistence/server-project-read.ts",
       "line": 1,
       "kind": "static",
+      "specifier": "../../shared/network/abort-signals",
+      "target": "shared/network/abort-signals.ts",
+      "from": "persistence",
+      "to": "network"
+    },
+    {
+      "file": "editor/persistence/server-project-read.ts",
+      "line": 2,
+      "kind": "static",
       "specifier": "../../shared/project/project-deserialization",
       "target": "shared/project/project-deserialization.ts",
       "from": "persistence",
@@ -7398,7 +7523,7 @@
     },
     {
       "file": "editor/persistence/server-project-read.ts",
-      "line": 2,
+      "line": 3,
       "kind": "static",
       "specifier": "../../shared/project/project-limits",
       "target": "shared/project/project-limits.ts",
@@ -7407,7 +7532,7 @@
     },
     {
       "file": "editor/persistence/server-project-read.ts",
-      "line": 3,
+      "line": 4,
       "kind": "static",
       "specifier": "../../shared/project/validation-helpers",
       "target": "shared/project/validation-helpers.ts",
@@ -7416,7 +7541,7 @@
     },
     {
       "file": "editor/persistence/server-project-read.ts",
-      "line": 4,
+      "line": 5,
       "kind": "type",
       "specifier": "../../shared/project/project-types",
       "target": "shared/project/project-types.ts",
@@ -7425,7 +7550,7 @@
     },
     {
       "file": "editor/persistence/server-project-read.ts",
-      "line": 5,
+      "line": 6,
       "kind": "static",
       "specifier": "./server-assets",
       "target": "editor/persistence/server-assets.ts",
@@ -7872,6 +7997,98 @@
       "to": "document"
     },
     {
+      "file": "editor/projects/AssignmentEditDialog.tsx",
+      "line": 1,
+      "kind": "static",
+      "specifier": "react",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/projects/AssignmentEditDialog.tsx",
+      "line": 2,
+      "kind": "static",
+      "specifier": "../../shared/ui/Button",
+      "target": "shared/ui/Button.tsx",
+      "from": "editor",
+      "to": "ui-foundation"
+    },
+    {
+      "file": "editor/projects/AssignmentEditDialog.tsx",
+      "line": 3,
+      "kind": "static",
+      "specifier": "../../shared/ui/Dialog",
+      "target": "shared/ui/Dialog.tsx",
+      "from": "editor",
+      "to": "ui-foundation"
+    },
+    {
+      "file": "editor/projects/AssignmentEditDialog.tsx",
+      "line": 4,
+      "kind": "static",
+      "specifier": "../../shared/ui/Field",
+      "target": "shared/ui/Field.tsx",
+      "from": "editor",
+      "to": "ui-foundation"
+    },
+    {
+      "file": "editor/projects/AssignmentEditDialog.tsx",
+      "line": 5,
+      "kind": "static",
+      "specifier": "./assignment-api",
+      "target": "editor/projects/assignment-api.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/projects/AssignmentEditDialog.tsx",
+      "line": 11,
+      "kind": "static",
+      "specifier": "./assignment-edit",
+      "target": "editor/projects/assignment-edit.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/projects/AssignmentEditDialog.tsx",
+      "line": 19,
+      "kind": "static",
+      "specifier": "./deadline",
+      "target": "editor/projects/deadline.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/projects/AssignmentEditDialog.tsx",
+      "line": 20,
+      "kind": "static",
+      "specifier": "./StudentSelector",
+      "target": "editor/projects/StudentSelector.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/projects/AssignmentEditDialog.tsx",
+      "line": 21,
+      "kind": "type",
+      "specifier": "./new-project-form",
+      "target": "editor/projects/new-project-form.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/projects/AssignmentEditDialog.tsx",
+      "line": 255,
+      "kind": "implicit-jsx",
+      "specifier": "react/jsx-runtime",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
       "file": "editor/projects/AssignmentScreens.tsx",
       "line": 1,
       "kind": "static",
@@ -7964,7 +8181,7 @@
     },
     {
       "file": "editor/projects/AssignmentScreens.tsx",
-      "line": 333,
+      "line": 371,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -8245,7 +8462,7 @@
     },
     {
       "file": "editor/projects/NewProjectForm.tsx",
-      "line": 148,
+      "line": 154,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -8339,7 +8556,7 @@
     },
     {
       "file": "editor/projects/StudentSelector.tsx",
-      "line": 31,
+      "line": 33,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -8434,9 +8651,64 @@
     {
       "file": "editor/projects/assignment-api.ts",
       "line": 1,
+      "kind": "static",
+      "specifier": "../../shared/network/abort-signals",
+      "target": "shared/network/abort-signals.ts",
+      "from": "editor",
+      "to": "network"
+    },
+    {
+      "file": "editor/projects/assignment-api.ts",
+      "line": 2,
       "kind": "type",
       "specifier": "./new-project-form",
       "target": "editor/projects/new-project-form.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/projects/assignment-edit.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/projects/assignment-edit.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "./assignment-edit",
+      "target": "editor/projects/assignment-edit.ts",
+      "from": "checks",
+      "to": "editor"
+    },
+    {
+      "file": "editor/projects/assignment-edit.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "./assignment-api",
+      "target": "editor/projects/assignment-api.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/projects/assignment-edit.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "../home/workspace-api",
+      "target": "editor/home/workspace-api.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/projects/assignment-edit.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./deadline",
+      "target": "editor/projects/deadline.ts",
       "from": "editor",
       "to": "editor"
     },
@@ -8836,7 +9108,7 @@
     },
     {
       "file": "editor/publications/PublicationPage.tsx",
-      "line": 14,
+      "line": 16,
       "kind": "static",
       "specifier": "./publication.css",
       "target": "editor/publications/publication.css",
@@ -8845,7 +9117,7 @@
     },
     {
       "file": "editor/publications/PublicationPage.tsx",
-      "line": 336,
+      "line": 327,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -9135,6 +9407,53 @@
       "to": "project"
     },
     {
+      "file": "editor/reviews/EducatorReviewLink.tsx",
+      "line": 1,
+      "kind": "static",
+      "specifier": "react",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/reviews/EducatorReviewLink.tsx",
+      "line": 2,
+      "kind": "static",
+      "specifier": "../accounts/account-client",
+      "target": "editor/accounts/account-client.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/reviews/EducatorReviewLink.tsx",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./review-client",
+      "target": "editor/reviews/review-client.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/reviews/EducatorReviewLink.tsx",
+      "line": 4,
+      "kind": "static",
+      "specifier": "./educator-review-link",
+      "target": "editor/reviews/educator-review-link.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/reviews/EducatorReviewLink.tsx",
+      "line": 33,
+      "kind": "implicit-jsx",
+      "specifier": "react/jsx-runtime",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
       "file": "editor/reviews/ProgressReviews.tsx",
       "line": 1,
       "kind": "static",
@@ -9238,6 +9557,24 @@
       "file": "editor/reviews/ProgressReviews.tsx",
       "line": 16,
       "kind": "static",
+      "specifier": "../publications/publication-access",
+      "target": "editor/publications/publication-access.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/reviews/ProgressReviews.tsx",
+      "line": 17,
+      "kind": "static",
+      "specifier": "./publication-session",
+      "target": "editor/reviews/publication-session.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/reviews/ProgressReviews.tsx",
+      "line": 18,
+      "kind": "static",
       "specifier": "../publications/publication.css",
       "target": "editor/publications/publication.css",
       "from": "editor",
@@ -9245,7 +9582,7 @@
     },
     {
       "file": "editor/reviews/ProgressReviews.tsx",
-      "line": 17,
+      "line": 19,
       "kind": "static",
       "specifier": "./approve-publication",
       "target": "editor/reviews/approve-publication.ts",
@@ -9254,7 +9591,7 @@
     },
     {
       "file": "editor/reviews/ProgressReviews.tsx",
-      "line": 46,
+      "line": 48,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -9346,7 +9683,16 @@
     },
     {
       "file": "editor/reviews/ProjectReview.tsx",
-      "line": 282,
+      "line": 18,
+      "kind": "static",
+      "specifier": "../projects/deadline",
+      "target": "editor/projects/deadline.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/reviews/ProjectReview.tsx",
+      "line": 285,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -9405,6 +9751,15 @@
       "file": "editor/reviews/ReviewWorkspace.tsx",
       "line": 4,
       "kind": "static",
+      "specifier": "../home/workspace-api",
+      "target": "editor/home/workspace-api.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/reviews/ReviewWorkspace.tsx",
+      "line": 5,
+      "kind": "static",
       "specifier": "../../shared/ui/Button",
       "target": "shared/ui/Button.tsx",
       "from": "editor",
@@ -9412,7 +9767,7 @@
     },
     {
       "file": "editor/reviews/ReviewWorkspace.tsx",
-      "line": 5,
+      "line": 6,
       "kind": "static",
       "specifier": "../../shared/ui/Field",
       "target": "shared/ui/Field.tsx",
@@ -9421,7 +9776,7 @@
     },
     {
       "file": "editor/reviews/ReviewWorkspace.tsx",
-      "line": 6,
+      "line": 7,
       "kind": "static",
       "specifier": "./review-client",
       "target": "editor/reviews/review-client.ts",
@@ -9430,7 +9785,7 @@
     },
     {
       "file": "editor/reviews/ReviewWorkspace.tsx",
-      "line": 7,
+      "line": 8,
       "kind": "type",
       "specifier": "./review-types",
       "target": "editor/reviews/review-types.ts",
@@ -9439,7 +9794,7 @@
     },
     {
       "file": "editor/reviews/ReviewWorkspace.tsx",
-      "line": 8,
+      "line": 9,
       "kind": "static",
       "specifier": "./ProjectReview",
       "target": "editor/reviews/ProjectReview.tsx",
@@ -9448,7 +9803,7 @@
     },
     {
       "file": "editor/reviews/ReviewWorkspace.tsx",
-      "line": 9,
+      "line": 10,
       "kind": "static",
       "specifier": "./reviews.css",
       "target": "editor/reviews/reviews.css",
@@ -9457,7 +9812,7 @@
     },
     {
       "file": "editor/reviews/ReviewWorkspace.tsx",
-      "line": 57,
+      "line": 74,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -9504,8 +9859,81 @@
     },
     {
       "file": "editor/reviews/approve-publication.ts",
-      "line": 7,
+      "line": 9,
       "kind": "type",
+      "specifier": "./review-client",
+      "target": "editor/reviews/review-client.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/reviews/educator-review-link.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/reviews/educator-review-link.test.ts",
+      "line": 2,
+      "kind": "type",
+      "specifier": "../accounts/account-client",
+      "target": "editor/accounts/account-client.ts",
+      "from": "checks",
+      "to": "editor"
+    },
+    {
+      "file": "editor/reviews/educator-review-link.test.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./review-client",
+      "target": "editor/reviews/review-client.ts",
+      "from": "checks",
+      "to": "editor"
+    },
+    {
+      "file": "editor/reviews/educator-review-link.test.ts",
+      "line": 4,
+      "kind": "static",
+      "specifier": "./educator-review-link",
+      "target": "editor/reviews/educator-review-link.ts",
+      "from": "checks",
+      "to": "editor"
+    },
+    {
+      "file": "editor/reviews/educator-review-link.ts",
+      "line": 1,
+      "kind": "type",
+      "specifier": "../accounts/account-client",
+      "target": "editor/accounts/account-client.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/reviews/educator-review-link.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "../home/workspace-api",
+      "target": "editor/home/workspace-api.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/reviews/educator-review-link.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "../projects/progress-navigation",
+      "target": "editor/projects/progress-navigation.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/reviews/educator-review-link.ts",
+      "line": 4,
+      "kind": "static",
       "specifier": "./review-client",
       "target": "editor/reviews/review-client.ts",
       "from": "editor",
@@ -9576,6 +10004,34 @@
       "specifier": "./ProgressReviews",
       "target": "editor/reviews/ProgressReviews.tsx",
       "from": "checks",
+      "to": "editor"
+    },
+    {
+      "file": "editor/reviews/publication-session.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/reviews/publication-session.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "./publication-session",
+      "target": "editor/reviews/publication-session.ts",
+      "from": "checks",
+      "to": "editor"
+    },
+    {
+      "file": "editor/reviews/publication-session.ts",
+      "line": 1,
+      "kind": "type",
+      "specifier": "../accounts/account-client",
+      "target": "editor/accounts/account-client.ts",
+      "from": "editor",
       "to": "editor"
     },
     {
@@ -10625,7 +11081,7 @@
     },
     {
       "file": "editor/ui/BottomBar.tsx",
-      "line": 242,
+      "line": 248,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -12233,6 +12689,15 @@
       "file": "editor/workspace/WorkspacePage.tsx",
       "line": 8,
       "kind": "static",
+      "specifier": "../reviews/EducatorReviewLink",
+      "target": "editor/reviews/EducatorReviewLink.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/workspace/WorkspacePage.tsx",
+      "line": 9,
+      "kind": "static",
       "specifier": "../reviews/ReviewWorkspace",
       "target": "editor/reviews/ReviewWorkspace.tsx",
       "from": "editor",
@@ -12240,7 +12705,7 @@
     },
     {
       "file": "editor/workspace/WorkspacePage.tsx",
-      "line": 9,
+      "line": 10,
       "kind": "static",
       "specifier": "../publications/PublicationPage",
       "target": "editor/publications/PublicationPage.tsx",
@@ -12249,7 +12714,7 @@
     },
     {
       "file": "editor/workspace/WorkspacePage.tsx",
-      "line": 10,
+      "line": 11,
       "kind": "static",
       "specifier": "../asset-administration/AssetAdministration",
       "target": "editor/asset-administration/AssetAdministration.tsx",
@@ -12258,7 +12723,7 @@
     },
     {
       "file": "editor/workspace/WorkspacePage.tsx",
-      "line": 11,
+      "line": 12,
       "kind": "static",
       "specifier": "../asset-administration/asset-administration-service",
       "target": "editor/asset-administration/asset-administration-service.ts",
@@ -12267,7 +12732,7 @@
     },
     {
       "file": "editor/workspace/WorkspacePage.tsx",
-      "line": 12,
+      "line": 13,
       "kind": "static",
       "specifier": "./useWorkspaceDeparture",
       "target": "editor/workspace/useWorkspaceDeparture.tsx",
@@ -12276,7 +12741,7 @@
     },
     {
       "file": "editor/workspace/WorkspacePage.tsx",
-      "line": 27,
+      "line": 28,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -12470,6 +12935,15 @@
       "file": "shared/asset-runtime/ModelCache.ts",
       "line": 1,
       "kind": "static",
+      "specifier": "../network/abort-signals",
+      "target": "shared/network/abort-signals.ts",
+      "from": "asset-loading",
+      "to": "network"
+    },
+    {
+      "file": "shared/asset-runtime/ModelCache.ts",
+      "line": 2,
+      "kind": "static",
       "specifier": "three",
       "target": {
         "package": "three"
@@ -12478,7 +12952,7 @@
     },
     {
       "file": "shared/asset-runtime/ModelCache.ts",
-      "line": 2,
+      "line": 3,
       "kind": "static",
       "specifier": "three/examples/jsm/loaders/GLTFLoader.js",
       "target": {
@@ -12488,7 +12962,7 @@
     },
     {
       "file": "shared/asset-runtime/ModelCache.ts",
-      "line": 3,
+      "line": 4,
       "kind": "type",
       "specifier": "./catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -12617,6 +13091,25 @@
         "package": "three"
       },
       "from": "asset-loading"
+    },
+    {
+      "file": "shared/network/abort-signals.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "shared/network/abort-signals.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "./abort-signals",
+      "target": "shared/network/abort-signals.ts",
+      "from": "checks",
+      "to": "network"
     },
     {
       "file": "shared/project/attached-transforms.ts",
@@ -15683,6 +16176,34 @@
       "to": "catalogue"
     },
     {
+      "file": "tests/editor-library-previews.check.mjs",
+      "line": 1,
+      "kind": "static",
+      "specifier": "node:assert/strict",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/editor-library-previews.check.mjs",
+      "line": 2,
+      "kind": "static",
+      "specifier": "./browser-security.mjs",
+      "target": "tests/browser-security.mjs",
+      "from": "checks",
+      "to": "checks"
+    },
+    {
+      "file": "tests/editor-library-previews.check.mjs",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./authoring-project-fixture.mjs",
+      "target": "tests/authoring-project-fixture.mjs",
+      "from": "checks",
+      "to": "checks"
+    },
+    {
       "file": "tests/editor-session-loading.check.mjs",
       "line": 1,
       "kind": "static",
@@ -17354,6 +17875,24 @@
       "to": "checks"
     },
     {
+      "file": "tests/review-editor-exit.check.mjs",
+      "line": 156,
+      "kind": "dynamic",
+      "specifier": "/persistence/local-drafts.ts",
+      "target": "editor/persistence/local-drafts.ts",
+      "from": "checks",
+      "to": "persistence"
+    },
+    {
+      "file": "tests/review-editor-exit.check.mjs",
+      "line": 193,
+      "kind": "dynamic",
+      "specifier": "/persistence/local-drafts.ts",
+      "target": "editor/persistence/local-drafts.ts",
+      "from": "checks",
+      "to": "persistence"
+    },
+    {
       "file": "tests/review-exit-fixture.tsx",
       "line": 1,
       "kind": "static",
@@ -17543,6 +18082,90 @@
       "specifier": "vite",
       "target": {
         "package": "vite"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/review-workspace-fixture.tsx",
+      "line": 1,
+      "kind": "static",
+      "specifier": "react-dom/client",
+      "target": {
+        "package": "react-dom"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/review-workspace-fixture.tsx",
+      "line": 2,
+      "kind": "static",
+      "specifier": "react",
+      "target": {
+        "package": "react"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/review-workspace-fixture.tsx",
+      "line": 3,
+      "kind": "static",
+      "specifier": "../editor/accounts/account-client",
+      "target": "editor/accounts/account-client.ts",
+      "from": "checks",
+      "to": "editor"
+    },
+    {
+      "file": "tests/review-workspace-fixture.tsx",
+      "line": 4,
+      "kind": "static",
+      "specifier": "../editor/reviews/ReviewWorkspace",
+      "target": "editor/reviews/ReviewWorkspace.tsx",
+      "from": "checks",
+      "to": "editor"
+    },
+    {
+      "file": "tests/review-workspace-fixture.tsx",
+      "line": 5,
+      "kind": "static",
+      "specifier": "../editor/workspace/useWorkspaceDeparture",
+      "target": "editor/workspace/useWorkspaceDeparture.tsx",
+      "from": "checks",
+      "to": "editor"
+    },
+    {
+      "file": "tests/review-workspace-fixture.tsx",
+      "line": 6,
+      "kind": "static",
+      "specifier": "../shared/ui/WorkspaceShell",
+      "target": "shared/ui/WorkspaceShell.tsx",
+      "from": "checks",
+      "to": "ui-foundation"
+    },
+    {
+      "file": "tests/review-workspace-fixture.tsx",
+      "line": 7,
+      "kind": "static",
+      "specifier": "../shared/ui/foundation.css",
+      "target": "shared/ui/foundation.css",
+      "from": "checks",
+      "to": "ui-foundation"
+    },
+    {
+      "file": "tests/review-workspace-fixture.tsx",
+      "line": 8,
+      "kind": "static",
+      "specifier": "../editor/workspace/workspace.css",
+      "target": "editor/workspace/workspace.css",
+      "from": "checks",
+      "to": "editor"
+    },
+    {
+      "file": "tests/review-workspace-fixture.tsx",
+      "line": 15,
+      "kind": "implicit-jsx",
+      "specifier": "react/jsx-runtime",
+      "target": {
+        "package": "react"
       },
       "from": "checks"
     },
@@ -17825,6 +18448,345 @@
       "kind": "static",
       "specifier": "./authoring-project-fixture.mjs",
       "target": "tests/authoring-project-fixture.mjs",
+      "from": "checks",
+      "to": "checks"
+    },
+    {
+      "file": "tests/teacher-assignment-edit-storage.check.mjs",
+      "line": 1,
+      "kind": "static",
+      "specifier": "node:assert/strict",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/teacher-assignment-edit-storage.check.mjs",
+      "line": 2,
+      "kind": "static",
+      "specifier": "vite",
+      "target": {
+        "package": "vite"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/teacher-assignment-edit-storage.check.mjs",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./browser-security.mjs",
+      "target": "tests/browser-security.mjs",
+      "from": "checks",
+      "to": "checks"
+    },
+    {
+      "file": "tests/teacher-assignment-edit.check.mjs",
+      "line": 1,
+      "kind": "static",
+      "specifier": "node:assert/strict",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/teacher-assignment-edit.check.mjs",
+      "line": 2,
+      "kind": "static",
+      "specifier": "vite",
+      "target": {
+        "package": "vite"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/teacher-assignment-edit.check.mjs",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./browser-security.mjs",
+      "target": "tests/browser-security.mjs",
+      "from": "checks",
+      "to": "checks"
+    },
+    {
+      "file": "tests/teacher-assignment-flow.check.mjs",
+      "line": 1,
+      "kind": "static",
+      "specifier": "node:assert/strict",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/teacher-assignment-flow.check.mjs",
+      "line": 2,
+      "kind": "static",
+      "specifier": "vite",
+      "target": {
+        "package": "vite"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/teacher-assignment-flow.check.mjs",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./browser-security.mjs",
+      "target": "tests/browser-security.mjs",
+      "from": "checks",
+      "to": "checks"
+    },
+    {
+      "file": "tests/teacher-choices-account-switch.check.mjs",
+      "line": 1,
+      "kind": "static",
+      "specifier": "node:assert/strict",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/teacher-choices-account-switch.check.mjs",
+      "line": 2,
+      "kind": "static",
+      "specifier": "vite",
+      "target": {
+        "package": "vite"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/teacher-choices-account-switch.check.mjs",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./browser-security.mjs",
+      "target": "tests/browser-security.mjs",
+      "from": "checks",
+      "to": "checks"
+    },
+    {
+      "file": "tests/teacher-details-flow.check.mjs",
+      "line": 1,
+      "kind": "static",
+      "specifier": "node:assert/strict",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/teacher-details-flow.check.mjs",
+      "line": 2,
+      "kind": "static",
+      "specifier": "vite",
+      "target": {
+        "package": "vite"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/teacher-details-flow.check.mjs",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./browser-security.mjs",
+      "target": "tests/browser-security.mjs",
+      "from": "checks",
+      "to": "checks"
+    },
+    {
+      "file": "tests/teacher-editor-actions.check.mjs",
+      "line": 1,
+      "kind": "static",
+      "specifier": "node:assert/strict",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/teacher-editor-actions.check.mjs",
+      "line": 2,
+      "kind": "static",
+      "specifier": "node:fs/promises",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/teacher-editor-actions.check.mjs",
+      "line": 3,
+      "kind": "static",
+      "specifier": "vite",
+      "target": {
+        "package": "vite"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/teacher-editor-actions.check.mjs",
+      "line": 4,
+      "kind": "static",
+      "specifier": "./browser-security.mjs",
+      "target": "tests/browser-security.mjs",
+      "from": "checks",
+      "to": "checks"
+    },
+    {
+      "file": "tests/teacher-review-dialog.check.mjs",
+      "line": 1,
+      "kind": "static",
+      "specifier": "./teacher-editor-actions.check.mjs",
+      "target": "tests/teacher-editor-actions.check.mjs",
+      "from": "checks",
+      "to": "checks"
+    },
+    {
+      "file": "tests/teacher-review-org-click.check.mjs",
+      "line": 1,
+      "kind": "static",
+      "specifier": "node:assert/strict",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/teacher-review-org-click.check.mjs",
+      "line": 2,
+      "kind": "static",
+      "specifier": "node:fs/promises",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/teacher-review-org-click.check.mjs",
+      "line": 3,
+      "kind": "static",
+      "specifier": "vite",
+      "target": {
+        "package": "vite"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/teacher-review-org-click.check.mjs",
+      "line": 4,
+      "kind": "static",
+      "specifier": "./browser-security.mjs",
+      "target": "tests/browser-security.mjs",
+      "from": "checks",
+      "to": "checks"
+    },
+    {
+      "file": "tests/teacher-review-org-switch.check.mjs",
+      "line": 1,
+      "kind": "static",
+      "specifier": "node:assert/strict",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/teacher-review-org-switch.check.mjs",
+      "line": 2,
+      "kind": "static",
+      "specifier": "node:fs/promises",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/teacher-review-org-switch.check.mjs",
+      "line": 3,
+      "kind": "static",
+      "specifier": "vite",
+      "target": {
+        "package": "vite"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/teacher-review-org-switch.check.mjs",
+      "line": 4,
+      "kind": "static",
+      "specifier": "./browser-security.mjs",
+      "target": "tests/browser-security.mjs",
+      "from": "checks",
+      "to": "checks"
+    },
+    {
+      "file": "tests/teacher-review-refresh.check.mjs",
+      "line": 1,
+      "kind": "static",
+      "specifier": "node:assert/strict",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/teacher-review-refresh.check.mjs",
+      "line": 2,
+      "kind": "static",
+      "specifier": "node:fs/promises",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/teacher-review-refresh.check.mjs",
+      "line": 3,
+      "kind": "static",
+      "specifier": "vite",
+      "target": {
+        "package": "vite"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/teacher-review-refresh.check.mjs",
+      "line": 4,
+      "kind": "static",
+      "specifier": "./browser-security.mjs",
+      "target": "tests/browser-security.mjs",
+      "from": "checks",
+      "to": "checks"
+    },
+    {
+      "file": "tests/teacher-roster-account-switch.check.mjs",
+      "line": 1,
+      "kind": "static",
+      "specifier": "node:assert/strict",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/teacher-roster-account-switch.check.mjs",
+      "line": 2,
+      "kind": "static",
+      "specifier": "vite",
+      "target": {
+        "package": "vite"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/teacher-roster-account-switch.check.mjs",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./browser-security.mjs",
+      "target": "tests/browser-security.mjs",
       "from": "checks",
       "to": "checks"
     },
@@ -18347,6 +19309,15 @@
       "file": "visitor/main.tsx",
       "line": 1,
       "kind": "static",
+      "specifier": "../shared/network/abort-signals",
+      "target": "shared/network/abort-signals.ts",
+      "from": "visitor",
+      "to": "network"
+    },
+    {
+      "file": "visitor/main.tsx",
+      "line": 2,
+      "kind": "static",
       "specifier": "react",
       "target": {
         "package": "react"
@@ -18355,7 +19326,7 @@
     },
     {
       "file": "visitor/main.tsx",
-      "line": 2,
+      "line": 3,
       "kind": "static",
       "specifier": "react-dom/client",
       "target": {
@@ -18365,7 +19336,7 @@
     },
     {
       "file": "visitor/main.tsx",
-      "line": 3,
+      "line": 4,
       "kind": "static",
       "specifier": "./publication",
       "target": "visitor/publication.ts",
@@ -18374,7 +19345,7 @@
     },
     {
       "file": "visitor/main.tsx",
-      "line": 4,
+      "line": 5,
       "kind": "static",
       "specifier": "./ExhibitionContent",
       "target": "visitor/ExhibitionContent.tsx",
@@ -18383,7 +19354,7 @@
     },
     {
       "file": "visitor/main.tsx",
-      "line": 5,
+      "line": 6,
       "kind": "static",
       "specifier": "./ExhibitionCanvas",
       "target": "visitor/ExhibitionCanvas.tsx",
@@ -18392,7 +19363,7 @@
     },
     {
       "file": "visitor/main.tsx",
-      "line": 6,
+      "line": 7,
       "kind": "static",
       "specifier": "./visitor.css",
       "target": "visitor/visitor.css",
@@ -18401,7 +19372,7 @@
     },
     {
       "file": "visitor/main.tsx",
-      "line": 77,
+      "line": 78,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -18427,6 +19398,15 @@
       "target": "visitor/publication-asset.ts",
       "from": "checks",
       "to": "visitor"
+    },
+    {
+      "file": "visitor/publication-asset.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "../shared/network/abort-signals",
+      "target": "shared/network/abort-signals.ts",
+      "from": "visitor",
+      "to": "network"
     },
     {
       "file": "visitor/publication.test.ts",

@@ -33,6 +33,8 @@ export function NewProjectForm({
   classes,
   students,
   showImageOptions = true,
+  initialClassId = "",
+  dateOnly = false,
   onClassChange,
   onSubmit,
   onCreated,
@@ -45,6 +47,8 @@ export function NewProjectForm({
   classes: readonly ProjectClass[];
   students: readonly EligibleStudent[];
   showImageOptions?: boolean;
+  initialClassId?: string;
+  dateOnly?: boolean;
   onClassChange?: (classId: string) => void;
   onSubmit?: (draft: NewProjectDraft) => Promise<ProjectCreationResult>;
   onCreated?: (projectId: string) => void;
@@ -68,13 +72,14 @@ export function NewProjectForm({
   useEffect(() => {
     if (error) errorRef.current?.focus();
   }, [error]);
-  const [form, setForm] = useState(emptyForm);
+  const [initialForm] = useState(() => ({ ...emptyForm, classId: initialClassId }));
+  const [form, setForm] = useState(initialForm);
   const [selectorReset, setSelectorReset] = useState(0);
   const [selected, setSelected] = useState<readonly string[]>([]);
   const [coverImage, setCoverImage] = useState<File | null>(null);
   const dirty =
     phase === "editing" &&
-    (JSON.stringify(form) !== JSON.stringify(emptyForm) ||
+    (JSON.stringify(form) !== JSON.stringify(initialForm) ||
       selected.length > 0 ||
       coverImage !== null);
   useLayoutEffect(() => {
@@ -102,6 +107,7 @@ export function NewProjectForm({
       { ...form, studentIds: selected, ...(coverImage ? { coverImage } : {}) },
       classes,
       students,
+      dateOnly,
     );
     if (!checked.ok) {
       setError(checked.message);
@@ -216,10 +222,10 @@ export function NewProjectForm({
                   onClassChange?.(value);
                 }}
               />
-              <Field id="project-due" label="Due date and time" required>
+              <Field id="project-due" label={dateOnly ? "Due date" : "Due date and time"} required>
                 <input
                   id="project-due"
-                  type="datetime-local"
+                  type={dateOnly ? "date" : "datetime-local"}
                   required
                   value={form.dueDate}
                   onChange={(event) => update("dueDate", event.target.value)}
@@ -300,13 +306,20 @@ export function NewProjectForm({
               />
             </Field>
             <p className="sp-hint">
-              <FontAwesomeIcon icon={faCircleInfo} aria-hidden="true" /> Each selected student
-              receives an independent draft with these instructions.
+              <FontAwesomeIcon icon={faCircleInfo} aria-hidden="true" />{" "}
+              {dateOnly
+                ? "You can edit project details, students and due date later."
+                : "Each selected student receives an independent draft with these instructions."}
             </p>
           </div>
           <StudentSelector
             key={selectorReset}
             students={available}
+            emptyMessage={
+              form.classId
+                ? "No enrolled students are available in this class."
+                : "Choose a class to see its students."
+            }
             selected={selected}
             onChange={setSelected}
           />

@@ -7,7 +7,9 @@ import { Button } from "../../shared/ui/Button";
 import { PublicationShare } from "./PublicationShare";
 import { PublicationAccess } from "./PublicationAccess";
 import {
+  isDefinitivePublicationRejection,
   publicationAcknowledgement,
+  publicationProblems,
   type PublicationAcknowledgement,
   type PublicationRequest,
 } from "./publication-client";
@@ -34,17 +36,6 @@ const readinessMessages: Record<string, string> = {
   PolicyDenied: "Publication is unavailable under the current project policy.",
 };
 type Viewer = { userId: string; userName: string };
-const problems = {
-  revision_conflict:
-    "The saved project has changed. Refresh and confirm the latest revision before publishing.",
-  approval_required:
-    "This class project needs approval for the current saved revision before it can be published.",
-  publication_id_conflict:
-    "This publication request conflicts with an existing one. Refresh before continuing.",
-  publication_assets_unavailable: "The saved project's assets are not available for publication.",
-  invalid_document: "The saved project is not valid for publication.",
-  unsupported_publication_runtime: "This project cannot be published by the current runtime.",
-};
 const uncertainMessage =
   "The publication result could not be confirmed. Retry this same request to check its outcome.";
 const storageMessage =
@@ -285,7 +276,7 @@ export function PublicationPage({
       `/api/v1/projects/${encodeURIComponent(projectId)}/publications`,
       "POST",
       payload,
-      problems,
+      publicationProblems,
     );
     inFlight.current = false;
     if (result.kind === "confirmed") {
@@ -303,7 +294,7 @@ export function PublicationPage({
       }
     }
     if (result.kind === "rejected") {
-      if (retry) {
+      if (!isDefinitivePublicationRejection(result.code, retry)) {
         setError(`${result.message} The earlier publication outcome is still unconfirmed.`);
         setPhase("unknown");
         return;

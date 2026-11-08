@@ -1,3 +1,4 @@
+import { combineAbortSignals } from "../../shared/network/abort-signals";
 import { isId, isRecord } from "./workspace-api";
 
 export type StudentPublication = {
@@ -15,7 +16,7 @@ function optionsFor(actorId: string, signal?: AbortSignal): RequestInit {
     credentials: "same-origin",
     cache: "no-store",
     signal: signal
-      ? AbortSignal.any([signal, AbortSignal.timeout(15000)])
+      ? combineAbortSignals([signal, AbortSignal.timeout(15000)])
       : AbortSignal.timeout(15000),
   };
 }

@@ -2,10 +2,17 @@ import { useEffect, useRef, useState } from "react";
 import type { AccountSession } from "../accounts/account-client";
 import { Button } from "../../shared/ui/Button";
 import { SearchField } from "../../shared/ui/SearchField";
+import { Tabs } from "../../shared/ui/Tabs";
 import { allPages, createReviewClient } from "../reviews/review-client";
 import { ProgressReviews } from "../reviews/ProgressReviews";
 import type { LeaveGuard } from "../workspace/useWorkspaceDeparture";
-import { listAssignments, type AssignmentDetails } from "../projects/assignment-api";
+import {
+  assignmentSession,
+  listAssignments,
+  readAssignment,
+  type AssignmentDetails,
+} from "../projects/assignment-api";
+import { AssignmentEditDialog } from "../projects/AssignmentEditDialog";
 import { formatLocalDeadline } from "../projects/deadline";
 import { progressEditorUrl, type ProgressContext } from "../projects/progress-navigation";
 import { createWorkspaceClient, type ProjectSummary } from "./workspace-api";
@@ -18,6 +25,12 @@ const accounts = createAccountClient();
 const reviews = createReviewClient();
 const workspace = createWorkspaceClient();
 type Item = { classId: string; className: string; details: AssignmentDetails };
+
+function updateAssignment(item: Item, classId: string, details: AssignmentDetails): Item {
+  return item.classId === classId && item.details.assignmentId === details.assignmentId
+    ? { ...item, details }
+    : item;
+}
 
 export function TeacherStandaloneDetails({
   project,
@@ -51,13 +64,38 @@ export function TeacherProjectDetails({
   item,
   onBack,
   onProgress,
+  actorId,
+  onUpdated,
 }: {
   item: Item;
   onBack: () => void;
   onProgress: (context: ProgressContext) => void;
+  actorId?: string;
+  onUpdated?: (details: AssignmentDetails) => void;
 }) {
   const [search, setSearch] = useState("");
+  const [studentTab, setStudentTab] = useState<"all" | "progress" | "awaiting">("all");
+  const [editing, setEditing] = useState(false);
+  const [editError, setEditError] = useState("");
   const { details } = item;
+  const labels = {
+    "not-submitted": "Not submitted",
+    "awaiting-approval": "Awaiting approval",
+    approved: "Approved",
+    returned: "Changes requested",
+    revoked: "Approval revoked",
+    "changes-since-submission": "Changes since submission",
+  } as const;
+  const visibleStudents = details.projects.filter(
+    (project) =>
+      (project.studentName ?? "").toLocaleLowerCase().includes(search.toLocaleLowerCase()) &&
+      (studentTab === "all" ||
+        (studentTab === "awaiting"
+          ? project.approvalStatus === "awaiting-approval"
+          : project.approvalStatus !== undefined &&
+            project.approvalStatus !== "approved" &&
+            project.approvalStatus !== "awaiting-approval")),
+  );
   return (
     <section className="sp-teacher-detail">
       <div className="sp-teacher-detail-head">
@@ -69,9 +107,17 @@ export function TeacherProjectDetails({
           ×
         </Button>
       </div>
+      {editError && <p role="alert">{editError}</p>}
+      {actorId && (
+        <Button disabled={details.revision === undefined} onClick={() => setEditing(true)}>
+          Edit project details
+        </Button>
+      )}
       <div className="sp-teacher-columns">
         <div className="sp-teacher-info">
           <h2>{details.title}</h2>
+          {details.organizationName && <p>Organisation: {details.organizationName}</p>}
+          {details.creatorName && <p>Created by: {details.creatorName}</p>}
           <p className="sp-hint">Class {item.className}</p>
           <h3>Due Date</h3>
           <p className="sp-teacher-value">
@@ -89,33 +135,83 @@ export function TeacherProjectDetails({
             value={search}
             onChange={setSearch}
           />
-          <h3>All Students ({details.projects.length})</h3>
-          {details.projects
-            .filter((p) =>
-              (p.studentName ?? "").toLocaleLowerCase().includes(search.toLocaleLowerCase()),
-            )
-            .map((p) => (
-              <div className="sp-teacher-student" key={p.projectId}>
-                <strong>{p.studentName ?? "Student name unavailable"}</strong>
-                <Button
-                  variant="primary"
-                  disabled={!p.studentName}
-                  onClick={() =>
-                    onProgress({
-                      classId: item.classId,
-                      assignmentId: details.assignmentId,
-                      studentId: p.studentId,
-                      projectId: p.projectId,
-                    })
-                  }
-                >
-                  View Progress
-                </Button>
-              </div>
-            ))}
-          {!details.projects.length && <p>No student projects are available.</p>}
+          <Tabs
+            id="teacher-student-status"
+            label="Student project status"
+            value={studentTab}
+            onChange={setStudentTab}
+            items={[
+              { value: "all", label: `All Students (${details.projects.length})` },
+              { value: "progress", label: "In Progress" },
+              { value: "awaiting", label: "Awaiting Approval" },
+            ]}
+          />
+          {visibleStudents.map((p) => (
+            <div className="sp-teacher-student" key={p.projectId}>
+              <strong>{p.studentName ?? "Student name unavailable"}</strong>
+              <p>Approval status: {p.approvalStatus ? labels[p.approvalStatus] : "Unavailable"}</p>
+              <p>
+                Publication status:{" "}
+                {p.published === undefined
+                  ? "Unavailable"
+                  : p.published
+                    ? "Published"
+                    : "Not published"}
+              </p>
+              <Button
+                variant="primary"
+                disabled={!p.studentName}
+                onClick={() =>
+                  onProgress({
+                    classId: item.classId,
+                    assignmentId: details.assignmentId,
+                    studentId: p.studentId,
+                    projectId: p.projectId,
+                  })
+                }
+              >
+                View Progress
+              </Button>
+            </div>
+          ))}
+          {!visibleStudents.length && (
+            <p>
+              {details.projects.length
+                ? "No student projects match this view."
+                : "No student projects are available."}
+            </p>
+          )}
         </div>
       </div>
+      {editing && actorId && (
+        <AssignmentEditDialog
+          classId={item.classId}
+          actorId={actorId}
+          details={details}
+          onClose={() => setEditing(false)}
+          onSaved={() => {
+            setEditing(false);
+            void (async () => {
+              try {
+                const latest = await readAssignment(item.classId, details.assignmentId);
+                const identity = await assignmentSession();
+                if (
+                  identity.userId !== actorId ||
+                  identity.mustChangePassword ||
+                  latest.assignmentId !== details.assignmentId
+                )
+                  throw new Error("Account changed");
+                onUpdated?.(latest);
+                setEditError("");
+              } catch {
+                setEditError(
+                  "Changes were saved, but the latest details could not be loaded. Refresh this page.",
+                );
+              }
+            })();
+          }}
+        />
+      )}
     </section>
   );
 }
@@ -176,7 +272,10 @@ export function TeacherProjects({
         setError("");
         const rows = groups.flat();
         const assigned = new Set(
-          rows.flatMap((row) => row.details.projects.map((project) => project.projectId)),
+          rows.flatMap((row) => [
+            ...row.details.projects.map((project) => project.projectId),
+            ...(row.details.sourceProjectId ? [row.details.sourceProjectId] : []),
+          ]),
         );
         setStandalone(projects.filter((project) => !assigned.has(project.projectId)));
         setItems(rows);
@@ -228,6 +327,27 @@ export function TeacherProjects({
       lastSelected.current = null;
     }
   }, [selected, selectedStandalone]);
+  function applyAssignment(classId: string, details: AssignmentDetails) {
+    setSelected((current) => (current ? updateAssignment(current, classId, details) : null));
+    setItems((current) => current?.map((item) => updateAssignment(item, classId, details)) ?? null);
+  }
+  async function refreshAssignment(item: Item) {
+    try {
+      const latest = await readAssignment(item.classId, item.details.assignmentId);
+      const identity = await assignmentSession();
+      if (
+        identity.userId !== session.userId ||
+        identity.orgId !== session.orgId ||
+        identity.role !== session.role ||
+        identity.mustChangePassword ||
+        latest.assignmentId !== item.details.assignmentId
+      )
+        throw new Error("Account or assignment changed");
+      applyAssignment(item.classId, latest);
+    } catch {
+      setError("The latest assignment details could not be loaded. Refresh this page.");
+    }
+  }
   const cards: TeacherCard[] | null = items && [
     ...items.map((item) => {
       const { status, submitted } = assignmentProgress(item.details.projects);
@@ -256,6 +376,7 @@ export function TeacherProjects({
   ];
   return renderWorkspace(
     <>
+      {selected && error && <p role="alert">{error}</p>}
       {selectedStandalone ? (
         <TeacherStandaloneDetails
           project={selectedStandalone}
@@ -267,6 +388,8 @@ export function TeacherProjects({
       ) : selected ? (
         <TeacherProjectDetails
           item={selected}
+          actorId={session.userId}
+          onUpdated={(details) => applyAssignment(selected.classId, details)}
           onBack={() => {
             if (guard.pending || (guard.dirty && !window.confirm("Discard your unsaved feedback?")))
               return;
@@ -296,6 +419,7 @@ export function TeacherProjects({
           projectId={reviewProject.projectId}
           revision={reviewRevision}
           actorId={session.userId}
+          orgId={session.orgId}
           educator
           autoOpen
           publication={{
@@ -306,6 +430,7 @@ export function TeacherProjects({
           onGuard={setGuard}
           onClose={() => {
             setShowReview(false);
+            void refreshAssignment(selected);
             history.replaceState(null, "", "/home");
           }}
         />

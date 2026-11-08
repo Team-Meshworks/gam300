@@ -239,11 +239,13 @@ export function ProjectHome({
                       ? "Draft"
                       : "View only"}
                 </span>
-                {!project.archived && project.permissions.canPublish && (
-                  <a className="sp-button" href={`/publish?projectId=${project.projectId}`}>
-                    Publish project
-                  </a>
-                )}
+                {session.role === "Administrator" &&
+                  !project.archived &&
+                  project.permissions.canPublish && (
+                    <a className="sp-button" href={`/publish?projectId=${project.projectId}`}>
+                      Publish project
+                    </a>
+                  )}
               </li>
             ))}
           </ul>

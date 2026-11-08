@@ -56,7 +56,8 @@ export type ServerEditorSession = {
   departing: boolean;
   save: (exportFile?: boolean) => Promise<boolean>;
   leave: () => void;
-  publish: () => void;
+  publish?: () => void;
+  review?: () => void;
 };
 
 function countSceneRules(
@@ -131,10 +132,33 @@ export function App({ server }: { server: ServerEditorSession }) {
       ? { objectId: pendingText.objectId, component }
       : undefined;
   }, [pendingText]);
+  const [previewPicker, setPreviewPicker] = useState<"rooms" | "assets" | null>(null);
   const [generatedThumbnails, setGeneratedThumbnails] = useState<Record<string, string>>({});
   const onThumbnail = useCallback((id: string, url: string) => {
     setGeneratedThumbnails((previous) => ({ ...previous, [id]: url }));
   }, []);
+  useEffect(() => {
+    if (!previewPicker) return;
+    let disposed = false;
+    let cleanup: (() => void) | undefined;
+    void import("./graphics/library-previews")
+      .then(({ generateLibraryPreviews }) => {
+        if (!disposed)
+          cleanup = generateLibraryPreviews(
+            editorAssets.filter((asset) =>
+              previewPicker === "rooms" ? asset.kind === "environment" : asset.kind === "model",
+            ),
+            onThumbnail,
+          );
+      })
+      .catch(() => {
+        // Catalogue thumbnails remain available when generated previews cannot load.
+      });
+    return () => {
+      disposed = true;
+      cleanup?.();
+    };
+  }, [editorAssets, onThumbnail, previewPicker]);
   const thumbnailFor = (id: string) =>
     editorAssets.find((asset) => asset.id === id)?.thumbnail ?? generatedThumbnails[id];
   const [status, setStatus] = useState<ViewportStatus>("loading");
@@ -937,6 +961,7 @@ export function App({ server }: { server: ServerEditorSession }) {
           )}
           {!visitor && (
             <BottomBar
+              onPickerChange={setPreviewPicker}
               assets={selectionAssets.filter((a) => a.kind === "model" || a.kind === "environment")}
               hotspot={HOTSPOT_ASSET}
               ready={status === "ready"}

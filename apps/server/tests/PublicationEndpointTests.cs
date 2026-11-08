@@ -36,6 +36,76 @@ public sealed class PublicationEndpointTests
     }
 
     [Test]
+    public async Task EducatorOverride_PublishesAndReplaysApprovedAssignment()
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync();
+        var (data, _) = await PrepareAsync(fixture);
+        var id = Guid.NewGuid();
+        async Task<HttpResponseMessage> Publish(long revision)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/projects/{data.ProjectId}/publications")
+            {
+                Content = JsonContent.Create(new
+                {
+                    publicationId = id,
+                    confirmedRevision = revision,
+                    intent = new { audience = "Unlisted", viewerIds = Array.Empty<Guid>(), teacherOverride = true }
+                })
+            };
+            request.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync());
+            return await fixture.Client.SendAsync(request);
+        }
+        using var created = await Publish(0);
+        await Assert.That(created.StatusCode).IsEqualTo(HttpStatusCode.Created);
+        using var replay = await Publish(0);
+        await Assert.That(replay.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        using var conflict = await Publish(1);
+        await Assert.That(conflict.StatusCode).IsEqualTo(HttpStatusCode.Conflict);
+    }
+    [Test]
+    public async Task PublishedAssignment_EditingDetailsKeepsPublishedSnapshotAndOriginalSubmissionDeadline()
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync();
+        var (data, _) = await PrepareAsync(fixture);
+        var publicationId = Guid.NewGuid();
+        using (var published = await PublishAsync(fixture, data.ProjectId, publicationId, audience: "Unlisted"))
+        { await Assert.That(published.StatusCode).IsEqualTo(HttpStatusCode.Created); }
+        using var visitor = fixture.CreateClient();
+        using var original = await visitor.GetAsync($"/api/v1/publications/{publicationId:D}");
+        var originalBody = await original.Content.ReadAsStringAsync();
+        Guid assignmentId;
+        await using (var scope = fixture.App.Services.CreateAsyncScope())
+        {
+            assignmentId = await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().ClassAssignments.Select(row => row.Id).SingleAsync();
+        }
+        using var edit = new HttpRequestMessage(HttpMethod.Patch, $"/api/v1/classes/{data.ClassroomId:D}/assignments/{assignmentId:D}")
+        {
+            Content = JsonContent.Create(new
+            {
+                mutationId = Guid.NewGuid(),
+                expectedRevision = 0,
+                title = "Changed title",
+                description = "Changed description",
+                instructions = "Changed instructions",
+                dueAtUnixSeconds = data.Due + 3600,
+                studentIds = new[] { data.Student }
+            })
+        };
+        edit.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync());
+        using (var changed = await fixture.Client.SendAsync(edit))
+        { await Assert.That(changed.StatusCode).IsEqualTo(HttpStatusCode.OK); }
+        using var after = await visitor.GetAsync($"/api/v1/publications/{publicationId:D}");
+        await Assert.That(await after.Content.ReadAsStringAsync()).IsEqualTo(originalBody);
+        using var detail = await fixture.Client.GetAsync($"/api/v1/classes/{data.ClassroomId:D}/assignments/{assignmentId:D}");
+        var item = (await detail.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("projects")[0];
+        await Assert.That(item.GetProperty("published").GetBoolean()).IsTrue();
+        await Assert.That(item.GetProperty("approvalStatus").GetString()).IsEqualTo("changes-since-submission");
+        await using var verify = fixture.App.Services.CreateAsyncScope();
+        var database = verify.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await Assert.That((await database.ReviewSubmissions.SingleAsync(row => row.ProjectId == data.ProjectId)).DueAtUnixSeconds).IsEqualTo(data.Due);
+    }
+
+    [Test]
     public async Task PublicationLinks_StudentCanFindCurrentUnlistedLinkWithoutExposingOtherProjects()
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync();
@@ -43,6 +113,19 @@ public sealed class PublicationEndpointTests
         var id = Guid.NewGuid();
         using var published = await PublishAsync(fixture, data.ProjectId, id, audience: "Unlisted");
         await Assert.That(published.StatusCode).IsEqualTo(HttpStatusCode.Created);
+        Guid assignmentId;
+        await using (var scope = fixture.App.Services.CreateAsyncScope())
+        {
+            assignmentId = await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().ClassAssignments.Select(row => row.Id).SingleAsync();
+        }
+        async Task<JsonElement> AssignmentStudent()
+        {
+            using var response = await fixture.Client.GetAsync($"/api/v1/classes/{data.ClassroomId:D}/assignments/{assignmentId:D}");
+            return (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("projects")[0];
+        }
+        var beforeRevocation = await AssignmentStudent();
+        await Assert.That(beforeRevocation.GetProperty("published").GetBoolean()).IsTrue();
+        await Assert.That(beforeRevocation.GetProperty("approvalStatus").GetString()).IsEqualTo("approved");
         await fixture.SignInAsync(data.Student);
         using var links = await fixture.Client.GetAsync($"/api/v1/projects/{data.ProjectId}/publication-links");
         await Assert.That(links.StatusCode).IsEqualTo(HttpStatusCode.OK);
@@ -58,6 +141,7 @@ public sealed class PublicationEndpointTests
         revoke.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync());
         using var revoked = await fixture.Client.SendAsync(revoke);
         await Assert.That(revoked.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
+        await Assert.That((await AssignmentStudent()).GetProperty("published").GetBoolean()).IsFalse();
         await fixture.SignInAsync(data.Student);
         using var after = await fixture.Client.GetAsync($"/api/v1/projects/{data.ProjectId}/publication-links");
         await Assert.That((await after.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("items").GetArrayLength()).IsEqualTo(0);

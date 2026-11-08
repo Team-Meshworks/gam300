@@ -141,19 +141,17 @@ try {
           { userId, projectId },
         );
       }
-      await page.getByRole("link", { name: "+ New Project", exact: true }).click();
+      await page.getByRole("link", { name: "New Project", exact: true }).click();
       await page.getByRole("heading", { name: "New Project", exact: true }).waitFor();
       await page.getByLabel("Project title").fill("Blank project");
       await page.getByLabel("Project description").fill("Description");
       await page.getByLabel("Project instructions").fill("Instructions");
-      await page.getByLabel("Due date and time").fill("2027-12-01T15:30");
+      await page.getByLabel(/^Due date/).fill("2027-12-01T15:30");
       await page.getByLabel(/^Class/).selectOption(classId);
       await page.getByRole("checkbox", { name: /Alice/ }).check();
       await page.getByRole("button", { name: "Create project" }).click();
       if (missingSource) {
-        await page
-          .getByText(/source project is no longer available or cannot be managed/i)
-          .waitFor();
+        await page.getByText(/project is no longer available or cannot be managed/i).waitFor();
         assert.equal(writes.length, 0);
         assert.equal(assignments.length, 0);
         assert.ok(
@@ -162,7 +160,7 @@ try {
             userId,
           ),
         );
-        await page.getByRole("button", { name: "Use a new source project" }).click();
+        await page.getByRole("button", { name: "Start a new project" }).click();
         assert.equal(await page.getByLabel("Project title").inputValue(), "Blank project");
         assert.equal(
           await page.evaluate(

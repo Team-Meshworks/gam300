@@ -1,3 +1,4 @@
+import { combineAbortSignals } from "../../shared/network/abort-signals";
 import { isRecord } from "../../shared/project/validation-helpers";
 
 // Time allowed for one network attempt; the edit debounce lives in server-autosave
@@ -25,7 +26,7 @@ export async function writeServerDraft(
   const timeout = new AbortController();
   const deadline = setTimeout(() => timeout.abort(), SAVE_REQUEST_TIMEOUT_MS);
   // Either leaving the account or reaching the deadline cancels both fetches
-  const requestSignal = AbortSignal.any([signal, timeout.signal]);
+  const requestSignal = combineAbortSignals([signal, timeout.signal]);
   try {
     // Cookies stay in the browser; the request token goes in the header required by SCRUM-66
     // Fetch a fresh token so login changes cannot leave an old one cached here
@@ -89,5 +90,8 @@ export async function writeServerDraft(
     return { kind: "failed" };
   } finally {
     clearTimeout(deadline);
+
+    // Release fallback subscriptions when this request settles, keeping the project session active
+    timeout.abort();
   }
 }

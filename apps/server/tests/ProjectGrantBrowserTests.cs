@@ -68,7 +68,7 @@ public sealed class ProjectGrantBrowserTests
         await Assert.That(emptyAssignments.Length).IsEqualTo(2);
         var blankAssignment = emptyAssignments.Single(row => row.Title == "Empty source project");
         var copiedAssignment = emptyAssignments.Single(row => row.Title == "Empty class assignment");
-        await Assert.That(copiedAssignment.SourceProjectId).IsEqualTo(blankAssignment.SourceProjectId);
+        await Assert.That(copiedAssignment.SourceProjectId).IsNotEqualTo(blankAssignment.SourceProjectId);
         var emptyStudents = await databaseAfter.ClassAssignmentStudents.ToArrayAsync();
         await Assert.That(emptyStudents.Length).IsEqualTo(2);
         foreach (var assignment in emptyAssignments)
@@ -78,7 +78,7 @@ public sealed class ProjectGrantBrowserTests
             await Assert.That(assigned.ProjectId).IsNotEqualTo(assignment.SourceProjectId);
         }
         await Assert.That(emptyStudents[0].ProjectId).IsNotEqualTo(emptyStudents[1].ProjectId);
-        await Assert.That(await databaseAfter.Projects.CountAsync()).IsEqualTo(3);
+        await Assert.That(await databaseAfter.Projects.CountAsync()).IsEqualTo(4);
     }
 
     [Test]
@@ -206,17 +206,20 @@ public sealed class ProjectGrantBrowserTests
         await Assert.That(assignments.Length).IsEqualTo(2);
         var blankAssignment = assignments.Single(row => row.Title == "Live blank project");
         var assignment = assignments.Single(row => row.Title == "Live class assignment");
-        await Assert.That(assignment.SourceProjectId).IsEqualTo(source);
+        await Assert.That(assignment.SourceProjectId).IsNotEqualTo(source);
         await Assert.That(blankAssignment.SourceProjectId).IsNotEqualTo(source);
+        await Assert.That(assignment.SourceProjectId).IsNotEqualTo(blankAssignment.SourceProjectId);
+        await Assert.That(assignment.Description).IsEqualTo("Updated independent exhibit");
+        await Assert.That(assignment.Revision).IsEqualTo(1);
         var assignedStudents = await databaseAfter.ClassAssignmentStudents.ToArrayAsync();
-        await Assert.That(assignedStudents.Length).IsEqualTo(2);
-        foreach (var item in assignments)
-        {
-            var assigned = assignedStudents.Single(row => row.AssignmentId == item.Id);
-            await Assert.That(assigned.StudentId).IsEqualTo(student);
-            await Assert.That(assigned.ProjectId).IsNotEqualTo(item.SourceProjectId);
-        }
-        await Assert.That(assignedStudents[0].ProjectId).IsNotEqualTo(assignedStudents[1].ProjectId);
+        await Assert.That(assignedStudents.Length).IsEqualTo(3);
+        var active = assignedStudents.Where(row => row.IsActive).ToArray();
+        await Assert.That(active.Length).IsEqualTo(2);
+        await Assert.That(active.All(row => row.StudentId == student)).IsTrue();
+        var removed = assignedStudents.Single(row => !row.IsActive);
+        await Assert.That(removed.StudentId).IsEqualTo(outsider);
+        await Assert.That(removed.AssignmentId).IsEqualTo(assignment.Id);
+        await Assert.That(active.All(row => row.ProjectId != assignment.SourceProjectId && row.ProjectId != blankAssignment.SourceProjectId)).IsTrue();
         var documents = await databaseAfter.Projects.Select(row => row.DocumentJson).ToArrayAsync();
         await Assert.That(documents.Count(json => System.Text.Json.Nodes.JsonNode.Parse(json)!["title"]!.GetValue<string>()
             == "Live blank project")).IsEqualTo(2);

@@ -4,21 +4,53 @@ import { readFile, mkdir } from "node:fs/promises";
 import { launchBrowser } from "./browser-security.mjs";
 import { createServer } from "vite";
 
+const workspaceFixture = "/tests/review-workspace-fixture.html";
+const workspaceFixtureEntry =
+  "/@fs/" +
+  fileURLToPath(new URL("./review-workspace-fixture.tsx", import.meta.url))
+    .replaceAll("\\", "/")
+    .replace(/^\/+/, "");
 const server = await createServer({
+  plugins: [
+    {
+      name: "review-workspace-test-fixture",
+      configureServer(vite) {
+        vite.middlewares.use(workspaceFixture, async (_request, response, next) => {
+          try {
+            const source = await readFile(
+              new URL("./review-workspace-fixture.html", import.meta.url),
+              "utf8",
+            );
+            const html = await vite.transformIndexHtml(
+              workspaceFixture,
+              source.replace("./review-workspace-fixture.tsx", workspaceFixtureEntry),
+            );
+            response.setHeader("Content-Type", "text/html");
+            response.end(html);
+          } catch (error) {
+            next(error);
+          }
+        });
+      },
+    },
+  ],
   cacheDir: "test-results/vite-review-workflow",
   server: { host: "127.0.0.1", port: 0, strictPort: false },
   logLevel: "silent",
 });
-let browser;
+let browser, page;
+const errors = [];
 try {
   await server.listen();
   const address = server.httpServer.address();
   const origin = "http://127.0.0.1:" + address.port;
   browser = await launchBrowser({ target: origin });
-  const page = await browser.newPage();
+  page = await browser.newPage();
   page.setDefaultTimeout(10000);
-  const errors = [];
-  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("pageerror", (error) => {
+    errors.push(error.message);
+    console.error("Review workflow page error:", error.stack ?? error.message);
+  });
   const document = JSON.parse(
     await readFile(new URL("../shared/project/fixtures/m1-project.json", import.meta.url), "utf8"),
   );
@@ -44,7 +76,9 @@ try {
     notifyLogout = resolve;
   });
   let denied = false,
-    canPublish = true;
+    canPublish = true,
+    denyReviewContext = false,
+    hideLinkedProject = false;
   await page.route("**/api/v1/**", async (route) => {
     const req = route.request(),
       path = new URL(req.url()).pathname;
@@ -68,6 +102,17 @@ try {
       }
       return route.abort();
     }
+    if (path === `/api/v1/projects/${projectId}/publication-readiness`)
+      return reply({
+        projectId,
+        revision,
+        state: "ApprovalRequired",
+        completionConfirmed: true,
+        approved: false,
+        missingCapabilities: [],
+      });
+    if (path === `/api/v1/projects/${projectId}/publication-viewers`)
+      return reply({ items: [], nextCursor: null });
     if (path === "/api/v1/classes")
       return reply({ items: [{ id: classId, name: "History class" }], nextCursor: null });
     if (path.endsWith("/assignments"))
@@ -77,7 +122,7 @@ try {
             assignmentId,
             title: "Museum",
             dueAtUnixSeconds: 1793581200,
-            projects: [{ projectId, studentId }],
+            projects: hideLinkedProject ? [] : [{ projectId, studentId }],
           },
         ],
         nextCursor: null,
@@ -166,14 +211,23 @@ try {
       }
       return reply({ ...stored, projectId }, 201);
     }
-    if (path.endsWith("/submissions"))
-      return reply({ items: submissions.map(detail), nextCursor: null });
+    if (path.endsWith("/submissions")) {
+      if (denyReviewContext && new URL(req.url()).searchParams.get("limit") === "1")
+        return reply({ code: "review_not_found" }, 404);
+      return reply({
+        projectId,
+        classId,
+        assignmentId,
+        items: submissions.map(detail),
+        nextCursor: null,
+      });
+    }
     const found = submissions.find((s) => path.endsWith("/" + s.submissionId));
     if (found) return reply(detail(found));
     return reply({ code: "review_not_found" }, 404);
   });
   async function open() {
-    await page.goto(origin + "/review");
+    await page.goto(origin + (role === "Educator" ? workspaceFixture : "/review"));
     await page.getByLabel("Class", { exact: true }).selectOption(classId);
     await page.getByLabel("Assignment", { exact: true }).selectOption(assignmentId);
     await page
@@ -204,8 +258,14 @@ try {
   await page.getByRole("button", { name: "Submit for review", exact: true }).click();
   await page.getByRole("button", { name: "Confirm submission", exact: true }).click();
   await page.getByText("Late submission", { exact: true }).waitFor();
+  const due = await page.evaluate(() =>
+    new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(
+      new Date(1793581199 * 1000),
+    ),
+  );
+  assert.ok(await page.getByText(due, { exact: false }).count());
   assert.equal(submissions.length, 1);
-  assert.equal(await page.getByRole("button", { name: "Publish project" }).isDisabled(), true);
+  assert.equal(await page.getByRole("button", { name: "Publish project" }).count(), 0);
   assert.equal(
     await page
       .getByRole("region", { name: "Submitted content" })
@@ -214,20 +274,59 @@ try {
     1,
   );
   role = "Educator";
+  // The editor's review controls have their own browser suite; capture this navigation boundary.
+  await page.route(
+    (url) =>
+      url.origin === origin && url.pathname === "/" && url.searchParams.get("review") === "1",
+    (route) =>
+      route.fulfill({
+        contentType: "text/html",
+        body: "<!doctype html><title>Editor review target</title>",
+      }),
+  );
+  await page.goto(`${origin}/publish?projectId=${projectId}`);
+  await page.getByRole("link", { name: "Open submissions and reviews" }).click();
+  await page.waitForURL((url) => url.pathname === "/" && url.searchParams.get("review") === "1");
+  const linked = new URL(page.url()).searchParams;
+  assert.equal(linked.get("projectId"), projectId);
+  assert.equal(linked.get("classId"), classId);
+  assert.equal(linked.get("assignmentId"), assignmentId);
+  assert.equal(linked.get("studentId"), studentId);
+  denyReviewContext = true;
+  await page.goto(`${origin}/review?projectId=${projectId}`);
+  await page
+    .getByRole("alert")
+    .filter({ hasText: "This project or submission is unavailable to your account." })
+    .waitFor();
+  assert.equal(await page.getByLabel("Class", { exact: true }).count(), 0);
+  assert.equal(await page.getByText("Retained student work", { exact: true }).count(), 0);
+  denyReviewContext = false;
+  hideLinkedProject = true;
+  await page.goto(`${origin}/review?projectId=${projectId}`);
+  await page
+    .getByRole("alert")
+    .filter({ hasText: "This project is no longer available in the selected assignment." })
+    .waitFor();
+  assert.equal(await page.getByText("Retained student work", { exact: true }).count(), 0);
+  hideLinkedProject = false;
+  // Exercise the retained review components independently of the educator route redirect.
   await open();
   await page.getByRole("button", { name: "Reviews", exact: true }).click();
-  const reviewDialog = page.getByRole("dialog", { name: "Reviews" });
+  const reviewDialog = page.getByRole("dialog", { name: "Review submission", exact: true });
   const dialogBounds = await reviewDialog.boundingBox();
   const closeBounds = await reviewDialog
     .getByRole("button", { name: "Close dialog" })
     .boundingBox();
-  const addBounds = await reviewDialog.getByRole("button", { name: "+ Add Reviews" }).boundingBox();
   assert.ok(dialogBounds.width >= 800 && closeBounds.x > dialogBounds.x + dialogBounds.width / 2);
+  await reviewDialog
+    .getByRole("textbox", { name: "Your review", exact: true })
+    .fill("Add a map to your draft.");
+  await reviewDialog.getByRole("button", { name: "Save review", exact: true }).click();
+  await reviewDialog.getByText("Add a map to your draft.", { exact: true }).waitFor();
+  const addBounds = await reviewDialog.getByRole("button", { name: "+ Add Reviews" }).boundingBox();
   assert.ok(addBounds.width < 250);
-  await page.getByRole("button", { name: "+ Add Reviews" }).click();
-  await page.getByRole("textbox", { name: "New review" }).fill("Add a map to your draft.");
-  await page.getByRole("button", { name: "Save Changes" }).click();
-  await page.getByText("Add a map to your draft.", { exact: true }).waitFor();
+  assert.equal(progressReviews.length, 1, "Saving feedback persists a progress review");
+  assert.equal(decisions.length, 0, "Saving feedback does not approve the submission");
   await page.getByRole("button", { name: "Close dialog" }).click();
   const feedback = page.getByRole("textbox", { name: "Feedback", exact: true });
   await feedback.fill("Move the first exhibit closer.");
@@ -381,6 +480,22 @@ try {
   console.log(
     "Review workflow browser checks passed (HTTP fixtures; no production asset resolver).",
   );
+} catch (error) {
+  console.error("Review workflow failure:", {
+    url: page?.url(),
+    pageErrors: errors,
+    body: await page
+      ?.locator("body")
+      .innerText()
+      .catch(() => "Page unavailable"),
+    dialogs: await page
+      ?.locator("dialog")
+      .evaluateAll((dialogs) =>
+        dialogs.map((dialog) => ({ open: dialog.open, text: dialog.innerText })),
+      )
+      .catch(() => []),
+  });
+  throw error;
 } finally {
   await browser?.close();
   await server.close();

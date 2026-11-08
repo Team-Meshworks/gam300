@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import fixture from "../../shared/project/fixtures/m1-project.json";
 import { readServerProject } from "./server-project-read";
 
@@ -28,6 +28,14 @@ const read = (fetcher: typeof fetch, signal = new AbortController().signal) =>
   readServerProject(fixture.projectId, "alice", assets, signal, fetcher);
 
 describe("authenticated project opening", () => {
+  // Exercise every opening and account-switch check on older Android browsers
+  beforeEach(() => {
+    class OlderAbortSignal extends AbortSignal {}
+    Object.defineProperty(OlderAbortSignal, "any", { value: undefined });
+    vi.stubGlobal("AbortSignal", OlderAbortSignal);
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
   it("returns validated content and retains read-only permissions", async () => {
     // Open the server response as a candidate and retain its read-only permission
     const fetcher = responses({ ...envelope, permissions: { canEdit: false } });

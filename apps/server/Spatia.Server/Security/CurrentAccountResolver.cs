@@ -51,6 +51,7 @@ public sealed class CurrentAccountResolver(ApplicationDbContext database)
                 RoleName = assignedRole == null ? null : assignedRole.Name,
                 MembershipRoleId = membership == null ? (Guid?)null : membership.RoleId,
                 OrganizationId = membership == null ? (Guid?)null : membership.OrganizationId,
+                OrganizationName = organization == null ? null : organization.Name,
                 OrganizationActive = organization != null && organization.IsActive,
             }).SingleOrDefaultAsync(cancellationToken);
 
@@ -79,6 +80,6 @@ public sealed class CurrentAccountResolver(ApplicationDbContext database)
             return null;
         }
 
-        return new CurrentAccount(userId, current.UserName, role, current.OrganizationId, current.MustChangePassword, current.DisplayName);
+        return new CurrentAccount(userId, current.UserName, role, current.OrganizationId, current.MustChangePassword, current.DisplayName, current.OrganizationName);
     }
 }

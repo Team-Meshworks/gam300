@@ -213,12 +213,22 @@ export function TopBar({
             Preview
           </button>
         )}
-        {!visitor && (
+        {!visitor && session.review && (
+          <button
+            className="ui-button pill-button"
+            type="button"
+            disabled={!ready || busy}
+            onClick={session.review}
+          >
+            Review
+          </button>
+        )}
+        {!visitor && session.publish && (
           <button
             className="ui-button pill-button is-primary"
             type="button"
             disabled={!ready || busy}
-            title="Publish a saved edition"
+            title="Publish this project"
             onClick={session.publish}
           >
             Publish

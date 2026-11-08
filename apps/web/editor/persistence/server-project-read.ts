@@ -1,3 +1,4 @@
+import { combineAbortSignals } from "../../shared/network/abort-signals";
 import { deserializeProject } from "../../shared/project/project-deserialization";
 import { MAX_PROJECT_BYTES } from "../../shared/project/project-limits";
 import { invalid, isRecord, type ValidationResult } from "../../shared/project/validation-helpers";
@@ -29,7 +30,7 @@ export async function readServerProject(
   }
   // Bound the entire read and let account changes cancel every request in the sequence
   const deadline = AbortSignal.timeout(15_000);
-  const cancelled = AbortSignal.any([signal, deadline]);
+  const cancelled = combineAbortSignals([signal, deadline]);
   const options = {
     headers: { "X-Spatia-Account": accountId },
     credentials: "same-origin",

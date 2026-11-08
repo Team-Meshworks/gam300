@@ -9,7 +9,7 @@ const student = "9ea0882b-9365-4b9c-b8b8-e5ee113ad07e";
 const classId = "aea0882b-9365-4b9c-b8b8-e5ee113ad07e";
 const session = {
   userId: actor,
-  role: "Creator",
+  role: "Educator",
   displayName: "Teacher",
   orgId: classId,
   mustChangePassword: false,
@@ -87,6 +87,8 @@ try {
         return route.fulfill({ status: 409, json: { code: "revision_conflict" } });
       if (outcome === "approval")
         return route.fulfill({ status: 409, json: { code: "approval_required" } });
+      if (outcome === "unsupported")
+        return route.fulfill({ status: 422, json: { code: "unsupported_publication_runtime" } });
       return route.fulfill({
         status: 201,
         json: {
@@ -195,6 +197,28 @@ try {
     console.log("QR decoding skipped: Chrome BarcodeDetector is unavailable.");
   }
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+  await page.reload();
+  await page.getByRole("checkbox", { name: /confirm.*saved revision/i }).check();
+  outcome = "unknown";
+  await page.getByRole("button", { name: "Publish", exact: true }).click();
+  await page.getByText(/could not be confirmed/i).waitFor();
+  const uncertainRequest = requests.at(-1);
+  await page.reload();
+  await page.getByText(/could not be confirmed/i).waitFor();
+  outcome = "unsupported";
+  await page.getByRole("button", { name: /retry publication/i }).click();
+  await page.getByText(/cannot be published by the current runtime/i).waitFor();
+  assert.deepEqual(
+    requests.at(-1),
+    uncertainRequest,
+    "Retry must keep the original publication ID",
+  );
+  assert.equal(await page.getByRole("button", { name: /retry publication/i }).count(), 0);
+  const requestCount = requests.length;
+  await page.reload();
+  await page.getByRole("heading", { name: "Publish project" }).waitFor();
+  assert.equal(await page.getByRole("button", { name: /retry publication/i }).count(), 0);
+  assert.equal(requests.length, requestCount, "Reload must not resend the rejected request");
   canPublish = false;
   await page.reload();
   await page.getByText(/do not have permission to publish/i).waitFor();

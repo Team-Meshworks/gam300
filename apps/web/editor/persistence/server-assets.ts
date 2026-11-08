@@ -1,3 +1,4 @@
+import { combineAbortSignals } from "../../shared/network/abort-signals";
 import type { CatalogueAsset } from "../../shared/asset-runtime/catalogue";
 import { knownRoomGeometry } from "../../shared/asset-runtime/catalogue";
 import { isRecord } from "../../shared/project/validation-helpers";
@@ -16,7 +17,7 @@ export async function readServerAssets(
     credentials: "same-origin",
     cache: "no-store",
     redirect: "error",
-    signal: AbortSignal.any([signal, AbortSignal.timeout(15_000)]),
+    signal: combineAbortSignals([signal, AbortSignal.timeout(15_000)]),
   });
   if (!response.ok)
     throw new Error("Approved assets could not be loaded. Retry opening this project.");
