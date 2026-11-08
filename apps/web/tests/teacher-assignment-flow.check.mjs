@@ -71,6 +71,7 @@ try {
   await page.getByLabel("Class", { exact: true }).selectOption(classId);
   await page.getByRole("button", { name: "New assignment", exact: true }).click();
   await page.getByRole("heading", { name: "Project details" }).waitFor();
+  await page.getByRole("checkbox", { name: /Alice/ }).waitFor();
   const checks = [
     [
       "selected class retained",
