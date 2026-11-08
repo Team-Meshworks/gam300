@@ -4,6 +4,8 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.DependencyInjection;
 using Spatia.Server.Assets;
 using Spatia.Server.Persistence;
@@ -14,6 +16,120 @@ namespace Spatia.Server.Tests;
 [NotInParallel(nameof(PublicationEndpointTests))]
 public sealed class PublicationEndpointTests
 {
+    [Test]
+    [Arguments("Public")]
+    [Arguments("Unlisted")]
+    public async Task StudentPublishesApprovedRevisionAndSharesWithoutGrantingDraftAccess(string audience)
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync();
+        var (data, asset) = await PrepareAsync(fixture, approve: false);
+
+        // Upgrade an existing assignment that predates student publishing
+        await using (var scope = fixture.App.Services.CreateAsyncScope())
+        {
+            var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            await database.ProjectAssignments.Where(row => row.ProjectId == data.ProjectId && row.UserId == data.Student)
+                .ExecuteUpdateAsync(set => set.SetProperty(row => row.CanPublish, false));
+            var migrations = database.GetService<IMigrator>();
+            await migrations.MigrateAsync("20261108003114_AddAssignmentEditing");
+            await migrations.MigrateAsync();
+            await Assert.That((await database.ProjectAssignments.SingleAsync(row => row.ProjectId == data.ProjectId && row.UserId == data.Student)).CanPublish).IsTrue();
+        }
+        await fixture.SignInAsync(data.Student);
+        using (var denied = await PublishAsync(fixture, data.ProjectId, Guid.NewGuid(), audience))
+        { await Assert.That(denied.StatusCode).IsEqualTo(HttpStatusCode.Conflict); }
+
+        // Only an educator may approve the student's submitted saved revision
+        Guid submission;
+        await using (var scope = fixture.App.Services.CreateAsyncScope())
+        {
+            submission = await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().ReviewSubmissions
+                .Where(row => row.ProjectId == data.ProjectId).Select(row => row.Id).SingleAsync();
+        }
+        var decision = new { decisionId = Guid.NewGuid(), expectedRevision = 0, outcome = "approved", feedback = "Ready to share" };
+        async Task<HttpResponseMessage> Approve()
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/projects/{data.ProjectId}/submissions/{submission}/decisions")
+            { Content = JsonContent.Create(decision) };
+            request.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync());
+            return await fixture.Client.SendAsync(request);
+        }
+        using (var selfApproval = await Approve())
+        { await Assert.That(selfApproval.IsSuccessStatusCode).IsFalse(); }
+        await fixture.SignInAsync(data.Educator);
+        using (var approved = await Approve())
+        { await Assert.That(approved.StatusCode).IsEqualTo(HttpStatusCode.Created); }
+
+        // Students publish; friends can read only the immutable edition and its pinned assets
+        await fixture.SignInAsync(data.Student);
+        var id = Guid.NewGuid();
+        using (var published = await PublishAsync(fixture, data.ProjectId, id, audience))
+        { await Assert.That(published.StatusCode).IsEqualTo(HttpStatusCode.Created); }
+        using var friend = fixture.CreateClient();
+        using var snapshot = await friend.GetAsync($"/api/v1/publications/{id}");
+        await Assert.That(snapshot.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        var original = await snapshot.Content.ReadAsStringAsync();
+        using var bytes = await friend.GetAsync($"/api/v1/publications/{id}/assets/{asset.Id:D}/bytes");
+        await Assert.That(bytes.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        using var privateDraft = await friend.GetAsync($"/api/v1/projects/{data.ProjectId}");
+        await Assert.That(privateDraft.IsSuccessStatusCode).IsFalse();
+
+        // Saving another revision requires new approval while the already shared edition stays unchanged
+        using var read = await fixture.Client.GetAsync($"/api/v1/projects/{data.ProjectId}");
+        var saved = (await read.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("document");
+        var document = JsonNode.Parse(saved.GetRawText())!;
+        document["title"] = "Edited after approval";
+        using var save = new HttpRequestMessage(HttpMethod.Put, $"/api/v1/projects/{data.ProjectId}")
+        { Content = JsonContent.Create(new { expectedRevision = 0, clientMutationId = Guid.NewGuid(), document }) };
+        save.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync());
+        using (var changed = await fixture.Client.SendAsync(save))
+        { await Assert.That(changed.StatusCode).IsEqualTo(HttpStatusCode.OK); }
+        using (var denied = await PublishAsync(fixture, data.ProjectId, Guid.NewGuid(), audience, revision: 1))
+        { await Assert.That(denied.StatusCode).IsEqualTo(HttpStatusCode.Conflict); }
+        using var unchanged = await friend.GetAsync($"/api/v1/publications/{id}");
+        await Assert.That(await unchanged.Content.ReadAsStringAsync()).IsEqualTo(original);
+    }
+
+    [Test]
+    public async Task StudentPublicationUpgradePreservesRevokedPermission()
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync();
+        var (data, _) = await PrepareAsync(fixture);
+
+        // Revoke the student grant through the same revisioned API used by project managers
+        await using (var scope = fixture.App.Services.CreateAsyncScope())
+        {
+            var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            await database.GetService<IMigrator>().MigrateAsync("20261108003114_AddAssignmentEditing");
+        }
+        using (var request = new HttpRequestMessage(HttpMethod.Patch, $"/api/v1/projects/{data.ProjectId}/assignments"))
+        {
+            request.Content = JsonContent.Create(new
+            {
+                expectedRevision = 0,
+                managedByUserIds = new[] { data.Educator },
+                assignedCreatorIds = new[] { data.Student },
+                canPublishUserIds = Array.Empty<Guid>()
+            });
+            request.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync());
+            using var revoked = await fixture.Client.SendAsync(request);
+            await Assert.That(revoked.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        }
+
+        // Applying the upgrade must not undo a manager's explicit permission change
+        await using (var scope = fixture.App.Services.CreateAsyncScope())
+        {
+            var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            await database.GetService<IMigrator>().MigrateAsync();
+            var grant = await database.ProjectAssignments.AsNoTracking()
+                .SingleAsync(row => row.ProjectId == data.ProjectId && row.UserId == data.Student);
+            await Assert.That(grant.CanPublish).IsFalse();
+        }
+        await fixture.SignInAsync(data.Student);
+        using var denied = await PublishAsync(fixture, data.ProjectId, Guid.NewGuid(), revision: 1);
+        await Assert.That(denied.StatusCode).IsEqualTo(HttpStatusCode.Forbidden);
+    }
+
     [Test]
     public async Task EducatorOverride_PublishesAndReplaysApprovedAssignment()
     {
@@ -127,12 +243,14 @@ public sealed class PublicationEndpointTests
     }
 
     [Test]
-    public async Task Publish_UnlistedEditionAllowsAnonymousReadAndRespectsRevocation()
+    [Arguments("Unlisted")]
+    [Arguments("Public")]
+    public async Task Publish_AnonymousEditionAllowsAnonymousReadAndRespectsRevocation(string audience)
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync();
         var (data, asset) = await PrepareAsync(fixture);
         var id = Guid.NewGuid();
-        using var published = await PublishAsync(fixture, data.ProjectId, id, audience: "Unlisted");
+        using var published = await PublishAsync(fixture, data.ProjectId, id, audience: audience);
         await Assert.That(published.StatusCode).IsEqualTo(HttpStatusCode.Created);
         using var anonymous = fixture.CreateClient();
         using var snapshot = await anonymous.GetAsync($"/api/v1/publications/{id}");
@@ -144,11 +262,11 @@ public sealed class PublicationEndpointTests
         await Assert.That((await bytes.Content.ReadAsByteArrayAsync()).SequenceEqual(asset.Bytes)).IsTrue();
         using var draft = await anonymous.GetAsync($"/api/v1/projects/{data.ProjectId}");
         await Assert.That(draft.IsSuccessStatusCode).IsFalse();
-        using var replay = await PublishAsync(fixture, data.ProjectId, id, audience: "Unlisted");
+        using var replay = await PublishAsync(fixture, data.ProjectId, id, audience: audience);
         await Assert.That(replay.StatusCode).IsEqualTo(HttpStatusCode.OK);
         using var revoke = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/publications/{id}/access")
         {
-            Content = JsonContent.Create(new { audience = "Unlisted", viewerIds = Array.Empty<Guid>(), action = "revoke" }),
+            Content = JsonContent.Create(new { audience = audience, viewerIds = Array.Empty<Guid>(), action = "revoke" }),
         };
         revoke.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync());
         using var revoked = await fixture.Client.SendAsync(revoke);
@@ -157,7 +275,7 @@ public sealed class PublicationEndpointTests
         using var deniedBytes = await anonymous.GetAsync($"/api/v1/publications/{id}/assets/{asset.Id:D}/bytes");
         await Assert.That(deniedSnapshot.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
         await Assert.That(deniedBytes.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
-        using var deniedReplay = await PublishAsync(fixture, data.ProjectId, id, audience: "Unlisted");
+        using var deniedReplay = await PublishAsync(fixture, data.ProjectId, id, audience: audience);
         await Assert.That(deniedReplay.StatusCode).IsEqualTo(HttpStatusCode.Forbidden);
     }
 
@@ -436,7 +554,6 @@ public sealed class PublicationEndpointTests
     [Test]
     [Arguments("approval", 409)]
     [Arguments("origin", 503)]
-    [Arguments("public", 503)]
     [Arguments("asset", 422)]
     [Arguments("revision", 409)]
     [Arguments("viewer", 403)]
@@ -516,6 +633,9 @@ public sealed class PublicationEndpointTests
         {
             var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             database.AssetCandidates.Add(asset);
+            // Match student permissions created by the production class assignment workflow
+            await database.ProjectAssignments.Where(row => row.ProjectId == data.ProjectId && row.UserId == data.Student)
+                .ExecuteUpdateAsync(set => set.SetProperty(row => row.CanPublish, true));
             var project = await database.Projects.SingleAsync(row => row.Id == data.ProjectId);
             var document = JsonNode.Parse(project.DocumentJson)!;
             document["scenes"]![0]!["environmentAssetId"] = asset.Id.ToString();
