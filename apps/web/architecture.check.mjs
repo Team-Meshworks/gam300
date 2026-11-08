@@ -125,7 +125,7 @@ async function browserEntry(root) {
       args: ["--enable-unsafe-swiftshader"],
     });
     const page = await browser.newPage();
-    const response = await page.goto(server.resolvedUrls.local[0]);
+    const response = await page.goto(new URL("/editor.html", server.resolvedUrls.local[0]).href);
     if (response.status() !== 200) return `Browser editor entry returned HTTP ${response.status()}`;
     await page.getByRole("heading", { name: "Spatia", exact: true }).waitFor({ timeout: 2000 });
     return undefined;

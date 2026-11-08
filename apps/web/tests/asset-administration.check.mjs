@@ -579,11 +579,8 @@ try {
   // Account labels come from the preview identity and logout removes the active screen
   await page.getByText("Local preview controls", { exact: true }).click();
   await page.getByLabel("Display name", { exact: true }).fill("Alex Tan");
-  await page.locator(".asset-admin-account").getByText("Alex Tan", { exact: true }).waitFor();
-  assert.equal(
-    await page.locator(".asset-admin-account").getByText("AT", { exact: true }).count(),
-    1,
-  );
+  await page.getByRole("banner").getByText("Alex Tan", { exact: true }).waitFor();
+  assert.equal(await page.getByRole("banner").getByText("AT", { exact: true }).count(), 1);
   assert.equal(await page.locator("select").count(), 0);
   assert.equal(
     await page

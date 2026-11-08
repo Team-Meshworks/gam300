@@ -22,23 +22,10 @@
   background: #fff;
   color: var(--text);
 }
-:is(.sp-shell--creator, .sp-shell--facilitator) .sp-navigation {
-  width: min(1280px, calc(100% - 2 * var(--gutter)));
-  padding: 0;
-  flex-wrap: nowrap;
-}
-:is(.sp-shell--creator, .sp-shell--facilitator) .sp-account {
-  flex: 0 1 auto;
-}
 :is(.sp-shell--creator, .sp-shell--facilitator) .sp-workspace {
   padding: 0;
   border: 0;
   background: transparent;
-}
-:is(.sp-shell--creator, .sp-shell--facilitator) .sp-account .sp-button {
-  padding: 0;
-  min-height: 0;
-  border: 0;
 }
 .sp-shell--creator .sp-wash--left {
   left: calc(50% - 930px);
@@ -55,15 +42,6 @@
 .sp-shell--facilitator .sp-wash--right {
   left: calc(50% - 67px);
   top: 208px;
-}
-.sp-shell--facilitator .sp-account {
-  gap: 18px;
-  font-weight: 500;
-}
-.sp-shell--facilitator .sp-account .sp-button {
-  width: 88px;
-  height: 40px;
-  border-radius: 8px;
 }
 .sp-shell--facilitator .sp-workspace {
   width: min(1280px, calc(100% - 2 * var(--gutter)));
@@ -254,35 +232,6 @@
     700 12px/16px Satoshi,
     Inter,
     sans-serif;
-}
-.sp-shell--creator .sp-navigation {
-  height: 104px;
-}
-.sp-shell--creator .sp-account {
-  gap: 24px;
-  color: var(--text);
-  font:
-    400 14px/20px Inter,
-    sans-serif;
-}
-.sp-shell--creator .sp-account-name {
-  margin-left: -14px;
-}
-.sp-shell--creator .sp-avatar {
-  width: 36px;
-  height: 36px;
-  background: var(--control);
-  color: var(--words);
-  font-size: 15px;
-  font-weight: 700;
-}
-.sp-shell--creator .sp-account .sp-button {
-  width: 94px;
-  height: 36px;
-  border-radius: 20px;
-  background: var(--control);
-  color: var(--words);
-  font-size: 14px;
 }
 .sp-shell--creator .sp-workspace {
   max-width: 1366px;
@@ -660,9 +609,6 @@ html[data-theme="dark"] .sp-shell--creator .settings-dialog {
 html[data-theme="dark"] .sp-shell--creator .sp-due {
   color: #e6c684;
 }
-html[data-theme="dark"] .sp-shell--creator .sp-brand-mark {
-  background: #332e2a;
-}
 @media (min-width: 1440px) {
   .sp-teacher-projects {
     padding-right: 53px;
@@ -673,7 +619,6 @@ html[data-theme="dark"] .sp-shell--creator .sp-brand-mark {
   .sp-shell--creator .sp-dashboard-tools {
     margin-top: 60px;
   }
-  :is(.sp-shell--creator, .sp-shell--facilitator) .sp-navigation,
   .sp-shell--facilitator .sp-workspace,
   .sp-student-dashboard[data-tab="projects"] {
     position: relative;
@@ -727,25 +672,6 @@ html[data-theme="dark"] .sp-shell--creator .sp-brand-mark {
   }
 }
 @media (max-width: 600px) {
-  :is(.sp-shell--creator, .sp-shell--facilitator) .sp-navigation {
-    gap: 12px;
-    height: 76px;
-    min-height: 76px;
-  }
-  :is(.sp-shell--creator, .sp-shell--facilitator) .sp-account {
-    gap: 8px;
-  }
-  .sp-shell--creator .sp-account-name {
-    margin-left: 0;
-  }
-  .sp-shell--creator .sp-account .sp-button,
-  .sp-shell--facilitator .sp-account .sp-button {
-    width: 68px;
-  }
-  :is(.sp-shell--creator, .sp-shell--facilitator) .sp-brand {
-    gap: 7px;
-    font-size: 16px;
-  }
   .sp-shell--creator .sp-workspace {
     width: calc(100% - 24px);
     min-height: calc(100svh - 76px);

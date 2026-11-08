@@ -36,12 +36,20 @@ try {
     decisions = [];
   const progressReviews = [];
   const writes = [];
+  let logoutPosts = 0;
+  let allowLogout = false;
+  let signedOut = false;
+  let notifyLogout;
+  const logoutAttempted = new Promise((resolve) => {
+    notifyLogout = resolve;
+  });
   let denied = false,
     canPublish = true;
   await page.route("**/api/v1/**", async (route) => {
     const req = route.request(),
       path = new URL(req.url()).pathname;
     const reply = (body, status = 200) => route.fulfill({ status, json: body });
+    if (path === "/api/v1/auth/session" && signedOut) return route.fulfill({ status: 401 });
     if (path === "/api/v1/auth/session")
       return reply({
         userId: role === "Creator" ? studentId : educatorId,
@@ -51,6 +59,15 @@ try {
         mustChangePassword: false,
       });
     if (path === "/api/v1/auth/csrf") return reply({ requestToken: "test-csrf" });
+    if (path === "/api/v1/auth/logout") {
+      logoutPosts++;
+      notifyLogout();
+      if (allowLogout) {
+        signedOut = true;
+        return route.fulfill({ status: 204 });
+      }
+      return route.abort();
+    }
     if (path === "/api/v1/classes")
       return reply({ items: [{ id: classId, name: "History class" }], nextCursor: null });
     if (path.endsWith("/assignments"))
@@ -214,6 +231,18 @@ try {
   await page.getByRole("button", { name: "Close dialog" }).click();
   const feedback = page.getByRole("textbox", { name: "Feedback", exact: true });
   await feedback.fill("Move the first exhibit closer.");
+  await page.getByRole("button", { name: "Log Out", exact: true }).click();
+  const result = await Promise.race([
+    page
+      .getByRole("dialog", { name: /leave/i })
+      .waitFor()
+      .then(() => "guarded"),
+    logoutAttempted.then(() => "posted"),
+  ]);
+  assert.equal(result, "guarded", "Dirty feedback must prompt before logout");
+  assert.equal(logoutPosts, 0, "Dirty feedback must not post logout before confirmation");
+  await page.getByRole("button", { name: /keep editing/i }).click();
+  assert.equal(await feedback.inputValue(), "Move the first exhibit closer.");
   await page.getByRole("button", { name: "Return with feedback", exact: true }).click();
   const beforeCancel = writes.length;
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
@@ -335,6 +364,19 @@ try {
   role = "Administrator";
   await page.goto(origin + "/review");
   await page.getByRole("heading", { name: "Access denied" }).waitFor();
+  role = "Educator";
+  denied = false;
+  await open();
+  await feedback.fill("Discard this draft on logout.");
+  allowLogout = true;
+  await page.getByRole("button", { name: "Log Out", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "Leave this page?" })
+    .getByRole("button", { name: "Discard details and leave" })
+    .click();
+  await page.waitForURL(`${origin}/login`);
+  assert.equal(logoutPosts, 1, "Confirmed discard sends one logout");
+  assert.equal(await feedback.count(), 0, "Signed-out page no longer exposes discarded feedback");
   assert.deepEqual(errors, []);
   console.log(
     "Review workflow browser checks passed (HTTP fixtures; no production asset resolver).",

@@ -4,7 +4,7 @@ import { Button } from "../../shared/ui/Button";
 import { SearchField } from "../../shared/ui/SearchField";
 import { allPages, createReviewClient } from "../reviews/review-client";
 import { ProgressReviews } from "../reviews/ProgressReviews";
-import type { LeaveGuard } from "../reviews/ReviewWorkspace";
+import type { LeaveGuard } from "../workspace/useWorkspaceDeparture";
 import { listAssignments, type AssignmentDetails } from "../projects/assignment-api";
 import { formatLocalDeadline } from "../projects/deadline";
 import { progressEditorUrl, type ProgressContext } from "../projects/progress-navigation";

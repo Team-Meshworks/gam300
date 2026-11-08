@@ -55,6 +55,7 @@
     "test:home": "node tests/home.check.mjs",
     "test:home-welcome": "node tests/home-welcome.check.mjs",
     "test:dashboards": "node tests/dashboard-redesign.check.mjs",
+    "test:account-header": "node tests/account-header.check.mjs",
     "test:project-creation": "node tests/project-creation.check.mjs",
     "test:blank-project": "node tests/blank-project.check.mjs",
     "test:empty-project-editor": "node tests/empty-project-editor.check.mjs",

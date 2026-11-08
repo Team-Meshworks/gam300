@@ -1,8 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { createAccountClient, type AccountSession } from "../accounts/account-client";
-import { LoginRedirect } from "../accounts/LoginRedirect";
+import { useMemo, useState } from "react";
+import { WorkspaceAccountGate, type WorkspaceAccess } from "../accounts/WorkspaceAccountGate";
 import { WorkspaceShell } from "../../shared/ui/WorkspaceShell";
-import { Button } from "../../shared/ui/Button";
 import { HomePage } from "../home/HomePage";
 import { WorkspaceNavigation } from "../home/WorkspaceNavigation";
 import { AccountDirectoryPage } from "../directory/AccountDirectoryPage";
@@ -11,8 +9,8 @@ import { ReviewWorkspace } from "../reviews/ReviewWorkspace";
 import { PublicationPage } from "../publications/PublicationPage";
 import { AssetAdministration } from "../asset-administration/AssetAdministration";
 import { createAssetAdministrationService } from "../asset-administration/asset-administration-service";
+import { useWorkspaceDeparture } from "./useWorkspaceDeparture";
 
-const client = createAccountClient();
 const screens = [
   { id: "publish", title: "Publish project", roles: ["Administrator", "Educator", "Creator"] },
   { id: "assets", title: "3D Assets", roles: ["Administrator"] },
@@ -22,93 +20,23 @@ const screens = [
   { id: "review", title: "Submission review", roles: ["Creator", "Educator"] },
   { id: "organisations", title: "Organisations", roles: ["Administrator"] },
 ];
-type Access =
-  | { kind: "loading" }
-  | { kind: "error"; message: string }
-  | { kind: "ready"; session: AccountSession | null };
 
 // Route visibility follows the session; each screen's API enforces access to its records.
 export function WorkspacePage() {
   const path = location.pathname.replace(/\/$/, "");
   if (path === "/classes" || path === "/new-project") return <HomePage />;
-  return <OtherWorkspacePage />;
+  return (
+    <WorkspaceAccountGate>{(access) => <OtherWorkspacePage {...access} />}</WorkspaceAccountGate>
+  );
 }
 
-function OtherWorkspacePage() {
-  const [access, setAccess] = useState<Access>({ kind: "loading" });
+function OtherWorkspacePage({ session, active, onSignOut }: WorkspaceAccess) {
+  const [guard, setGuard] = useState({ dirty: false, pending: false });
+  const { navigate, confirmation } = useWorkspaceDeparture(active, guard);
   const assetService = useMemo(
-    () =>
-      access.kind === "ready" && access.session
-        ? createAssetAdministrationService(access.session.userId)
-        : null,
-    [access],
+    () => createAssetAdministrationService(session.userId),
+    [session.userId],
   );
-  const [attempt, setAttempt] = useState(0);
-  const [logoutError, setLogoutError] = useState("");
-  const signingOut = useRef(false);
-  useEffect(() => {
-    let disposed = false;
-    void client.getSession().then(
-      (session) => {
-        if (!disposed) setAccess({ kind: "ready", session });
-      },
-      (error: unknown) => {
-        if (!disposed)
-          setAccess({
-            kind: "error",
-            message: error instanceof Error ? error.message : "The account service is unavailable.",
-          });
-      },
-    );
-    const restored = (event: PageTransitionEvent) => {
-      if (event.persisted) {
-        setAccess({ kind: "loading" });
-        setAttempt((value) => value + 1);
-      }
-    };
-    window.addEventListener("pageshow", restored);
-    return () => {
-      disposed = true;
-      window.removeEventListener("pageshow", restored);
-    };
-  }, [attempt]);
-
-  if (access.kind === "loading")
-    return (
-      <main className="sp-workspace">
-        <p role="status">Checking your session…</p>
-      </main>
-    );
-  if (access.kind === "error")
-    return (
-      <main className="sp-workspace">
-        <p role="alert">{access.message}</p>
-        <Button
-          onClick={() => {
-            setAccess({ kind: "loading" });
-            setAttempt((value) => value + 1);
-          }}
-        >
-          Retry
-        </Button>
-        <a href="/login">Log in</a>
-      </main>
-    );
-  const session = access.session;
-  if (!session)
-    return (
-      <main className="sp-workspace">
-        <LoginRedirect />
-      </main>
-    );
-  if (session.mustChangePassword)
-    return (
-      <main className="sp-workspace">
-        <h1>Password change required</h1>
-        <p>Change your password before opening your workspace.</p>
-        <a href="/login">Log in</a>
-      </main>
-    );
   const screen = screens.find((item) => `/${item.id}` === location.pathname.replace(/\/$/, ""));
   const permitted = screens.filter((item) => item.roles.includes(session.role));
   const fallback =
@@ -120,24 +48,14 @@ function OtherWorkspacePage() {
   const dashboard = screen?.id === "admin/dashboard" && session.role === "Administrator";
   const organisations = screen?.id === "organisations" && permitted.includes(screen);
   const review = screen?.id === "review" && permitted.includes(screen);
-  async function signOut() {
-    if (signingOut.current) return;
-    signingOut.current = true;
-    setLogoutError("");
-    try {
-      await client.signOut(session!.userId);
-      location.assign("/login");
-    } catch (error) {
-      setLogoutError(error instanceof Error ? error.message : "Sign-out failed. Please try again.");
-    } finally {
-      signingOut.current = false;
-    }
-  }
   return (
     <WorkspaceShell
-      name={session.displayName}
-      initials={session.displayName.slice(0, 2).toUpperCase()}
-      homeHref={review ? "/home" : fallback}
+      header={{
+        account: session,
+        homeHref: review ? "/home" : fallback,
+        locked: guard.pending,
+        onSignOut: () => navigate(onSignOut),
+      }}
       variant={
         dashboard
           ? "dashboard"
@@ -145,7 +63,6 @@ function OtherWorkspacePage() {
             ? "asset-administration"
             : undefined
       }
-      onSignOut={() => void signOut()}
     >
       {review ? (
         <WorkspaceNavigation role={session.role} current="reviews" />
@@ -165,7 +82,6 @@ function OtherWorkspacePage() {
             ))}
         </nav>
       ) : null}
-      {logoutError && <p role="alert">{logoutError}</p>}
       {!screen || !permitted.includes(screen) ? (
         <h1>Access denied</h1>
       ) : (
@@ -175,7 +91,7 @@ function OtherWorkspacePage() {
             !organisations &&
             screen.id !== "assets" &&
             screen.id !== "spaces" && <h1 className="sp-page-heading">{screen.title}</h1>}
-          {assetService && (screen.id === "assets" || screen.id === "spaces") && (
+          {(screen.id === "assets" || screen.id === "spaces") && (
             <AssetAdministration
               key={session.userId}
               session={session}
@@ -187,14 +103,15 @@ function OtherWorkspacePage() {
           )}
           {dashboard && <AdminDashboard key={session.userId} session={session} />}
           {screen.id === "review" && (
-            <ReviewWorkspace key={session.userId + ":" + session.orgId} session={session} />
+            <ReviewWorkspace session={session} guard={guard} onGuard={setGuard} />
           )}
           {screen.id === "organisations" && (
             <AccountDirectoryPage key={session.userId} accountId={session.userId} />
           )}
-          {screen.id === "publish" && <PublicationPage key={session.userId} session={session} />}
+          {screen.id === "publish" && <PublicationPage session={session} onGuard={setGuard} />}
         </>
       )}
+      {confirmation}
     </WorkspaceShell>
   );
 }

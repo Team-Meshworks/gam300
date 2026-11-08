@@ -189,6 +189,7 @@ jobs:
               home
               home-welcome
               dashboards
+              account-header
           - name: projects
             checks: |
               new-project /ui-preview.html#new-project

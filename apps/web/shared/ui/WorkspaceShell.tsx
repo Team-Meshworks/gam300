@@ -1,32 +1,20 @@
 import type { ReactNode } from "react";
-import { Avatar } from "./Avatar";
-import { Button } from "./Button";
-import landmark from "./assets/landmark.svg";
+import { WorkspaceHeader, type WorkspaceHeaderProps } from "./WorkspaceHeader";
 import washLeft from "./assets/ambient-left.svg";
 import washRight from "./assets/ambient-right.svg";
 import adminWashLeft from "./assets/admin-ambient-left.svg";
 import adminWashRight from "./assets/admin-ambient-right.svg";
 
 export function WorkspaceShell({
-  name,
-  initials,
-  onSignOut,
-  onHome,
-  homeHref = "#new-project",
+  header,
   variant,
   appearance,
-  accountActions,
   footer,
   children,
 }: {
-  name: string;
-  initials: string;
-  onSignOut?: () => void;
-  onHome?: () => void;
-  homeHref?: string;
+  header: WorkspaceHeaderProps;
   variant?: "dashboard" | "asset-administration" | "creator" | "facilitator" | undefined;
-  appearance?: { washLeft: string; washRight: string; mark: ReactNode } | undefined;
-  accountActions?: ReactNode;
+  appearance?: { washLeft: string; washRight: string } | undefined;
   footer?: ReactNode;
   children: ReactNode;
 }) {
@@ -42,34 +30,7 @@ export function WorkspaceShell({
         src={appearance?.washRight ?? (variant === "dashboard" ? adminWashRight : washRight)}
         alt=""
       />
-      <header className="sp-navigation">
-        <a
-          className="sp-brand"
-          href={onHome ? "/home" : homeHref}
-          aria-label="Spatia home"
-          onClick={
-            onHome
-              ? (event) => {
-                  event.preventDefault();
-                  onHome();
-                }
-              : undefined
-          }
-        >
-          <span className="sp-brand-mark">{appearance?.mark ?? <img src={landmark} alt="" />}</span>
-          Spatia
-        </a>
-        <div className="sp-account">
-          <Avatar name={name} initials={initials} />
-          <span className="sp-account-name" title={name}>
-            {name}
-          </span>
-          <Button disabled={!onSignOut} onClick={onSignOut}>
-            Log Out
-          </Button>
-          {accountActions}
-        </div>
-      </header>
+      <WorkspaceHeader {...header} />
       <main id="workspace" className="sp-workspace" tabIndex={-1}>
         {children}
       </main>

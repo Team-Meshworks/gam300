@@ -6,7 +6,7 @@ import {
   type ProgressIntent,
   type ProgressReview,
 } from "./progress-review-client";
-import type { LeaveGuard } from "./ReviewWorkspace";
+import type { LeaveGuard } from "../workspace/useWorkspaceDeparture";
 import { allPages, createReviewClient } from "./review-client";
 import { mayDecide, reviewState, type Decision } from "./review-types";
 import { loadStudentFeedback } from "../home/student-feedback";

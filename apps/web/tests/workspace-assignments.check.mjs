@@ -31,10 +31,12 @@ let heldCreation;
 const snapshots = "../../.artifacts/home-check";
 await mkdir(snapshots, { recursive: true });
 const errors = [];
+let logoutPosts = 0;
 async function api(route) {
   const request = route.request();
   const path = new URL(request.url()).pathname;
   const method = request.method();
+  if (path === "/api/v1/auth/logout" && method === "POST") logoutPosts++;
   if (path === "/api/v1/auth/session") return route.fulfill({ json: account });
   if (path === "/api/v1/auth/csrf") return route.fulfill({ json: { requestToken: "test-token" } });
   if (method !== "GET") assert.equal(request.headers()["x-csrf-token"], "test-token");
@@ -244,7 +246,15 @@ try {
   assert.equal(await page.evaluate(() => window.pendingNavigationGuard), true);
   await page.getByText("Creating project… Keep this page open.", { exact: true }).waitFor();
   assert.equal(await page.getByRole("button", { name: "Classes", exact: true }).isDisabled(), true);
-  await page.getByRole("link", { name: "Spatia home" }).click();
+  const logoutBeforeLocked = logoutPosts;
+  await page
+    .getByRole("button", { name: "Log Out", exact: true })
+    .evaluate((button) => button.click());
+  await page.waitForTimeout(200);
+  assert.equal(logoutPosts, logoutBeforeLocked, "A locked assignment must not send logout");
+  const lockedHome = page.getByRole("link", { name: "Spatia home" });
+  assert.equal(await lockedHome.getAttribute("aria-disabled"), "true");
+  await lockedHome.evaluate((link) => link.click());
   await page.getByText("Creating project… Keep this page open.", { exact: true }).waitFor();
   releaseCreation();
   heldCreation = null;

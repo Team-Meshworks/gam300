@@ -1,5 +1,6 @@
-import { useEffect, useId, useRef, type ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import { Button } from "./Button";
+import { useModal } from "./useModal";
 
 // Mount only while open; the native modal makes the background inert and contains focus
 export function Dialog({
@@ -13,17 +14,8 @@ export function Dialog({
   onClose: () => void;
   variant?: "account" | "wide" | "display" | "progress";
 }) {
-  const ref = useRef<HTMLDialogElement>(null);
+  const ref = useModal(true);
   const titleId = useId();
-  useEffect(() => {
-    const dialog = ref.current;
-    const trigger = document.activeElement;
-    dialog?.showModal();
-    return () => {
-      dialog?.close();
-      if (trigger instanceof HTMLElement && trigger.isConnected) trigger.focus();
-    };
-  }, []);
   return (
     <dialog
       className={`sp-dialog${variant === "account" ? " sp-account-dialog" : variant === "wide" ? " sp-dialog--wide" : variant === "display" ? " sp-display-dialog" : variant === "progress" ? " sp-progress-dialog" : ""}`}

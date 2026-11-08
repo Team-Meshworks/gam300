@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import { assets } from "virtual:asset-catalogue";
+import { WorkspaceHeader } from "../../shared/ui/WorkspaceHeader";
 import { AssetSelect } from "./AssetSelect";
 import { AssetAdministration } from "./AssetAdministration";
 import type {
@@ -56,13 +57,6 @@ export function AssetAdministrationPreview() {
   const [closed, setClosed] = useState(false);
   const [overflow, setOverflow] = useState(false);
   const [displayName, setDisplayName] = useState("Preview Admin");
-  const initials = displayName
-    .trim()
-    .split(/\s+/)
-    .map((part) => part[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
 
   // Keep one adapter per scenario so changing controls cancels the previous screen session
   const records = useRef({ ...initial, assets: [...initial.assets, ...samples] });
@@ -168,38 +162,14 @@ export function AssetAdministrationPreview() {
   // Keep scenario controls outside the reusable screen and show the simulated account explicitly
   return (
     <div className="asset-admin-preview">
-      <header>
-        <a className="asset-admin-brand" href="/" aria-label="Spatia home">
-          <span>
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.6"
-            >
-              <path d="m3 8 9-5 9 5H3Zm2 3v7m5-7v7m4-7v7m5-7v7M3 21h18M4 18h16" />
-            </svg>
-          </span>
-          Spatia
-        </a>
-        <div className="asset-admin-account">
-          {role !== "Signed out" && <span aria-hidden="true">{initials}</span>}
-          {role !== "Signed out" && <span>{displayName}</span>}
-          {role !== "Signed out" && (
-            <button
-              type="button"
-              onClick={() => {
-                setClosed(true);
-                setRole("Signed out");
-              }}
-            >
-              Log Out
-            </button>
-          )}
-        </div>
-      </header>
+      <WorkspaceHeader
+        account={role === "Signed out" ? null : { displayName, role }}
+        homeHref="/"
+        onSignOut={() => {
+          setClosed(true);
+          setRole("Signed out");
+        }}
+      />
 
       {role === "Signed out" && (
         <section className="asset-admin asset-admin-denied">
