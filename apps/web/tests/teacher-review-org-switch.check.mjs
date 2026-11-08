@@ -106,6 +106,9 @@ try {
     new URLSearchParams({ projectId, classId, assignmentId, studentId: student, review: "1" });
   await page.goto(url);
   await assignmentStarted;
+  await page.getByText("Scene ready", { exact: true }).waitFor();
+  assert.equal(await page.getByRole("button", { name: "Publish", exact: true }).count(), 0);
+  assert.equal(await page.getByRole("button", { name: "Review", exact: true }).count(), 0);
   org = "77777777-7777-4777-8777-777777777777";
   releaseAssignment();
   await page.getByText("Scene ready", { exact: true }).waitFor();

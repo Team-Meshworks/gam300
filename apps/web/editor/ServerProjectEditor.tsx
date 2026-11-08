@@ -633,13 +633,14 @@ function ServerProjectSession({
             departing: departure !== null || reviewExit !== null,
             save,
             leave: () => void startReview("leave"),
-            publish: () =>
-              reviewAccess === active ? void startReview("publish") : setDeparture("publish"),
             ...(reviewAccess === active
               ? {
+                  publish: () => void startReview("publish"),
                   review: () => void startReview("review"),
                 }
-              : {}),
+              : !parseProgressContext(new URLSearchParams(location.search), projectId)
+                ? { publish: () => setDeparture("publish") }
+                : {}),
           }}
         />
       ) : (
