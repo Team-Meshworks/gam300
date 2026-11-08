@@ -14,10 +14,14 @@ export type WorkspaceHeaderProps = {
   actions?: ReactNode;
 };
 
-const graphemes = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+const graphemes =
+  typeof Intl.Segmenter === "function"
+    ? new Intl.Segmenter(undefined, { granularity: "grapheme" })
+    : null;
 function initials(name: string, single: boolean) {
   const words = name.trim().split(/\s+/);
-  const letters = (word: string) => Array.from(graphemes.segment(word), (part) => part.segment);
+  const letters = (word: string) =>
+    graphemes ? Array.from(graphemes.segment(word), (part) => part.segment) : Array.from(word);
   const first = letters(words[0] ?? "");
   if (single) return (first[0] ?? "?").toLocaleUpperCase();
   const second = words[1] ? letters(words[1])[0] : first[1];

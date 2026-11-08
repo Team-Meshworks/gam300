@@ -196,9 +196,10 @@ try {
     await upload.getByLabel("Source or provenance (optional)").inputValue(),
     "Unsent museum archive",
   );
-  current = { ...session, role: "Creator", displayName: "Student" };
+  current = { ...session, role: "Creator", displayName: "👩‍🎨 Creator" };
   await page.goto(`${origin}/home`);
   await page.getByRole("button", { name: "Settings", exact: true }).waitFor();
+  assert.equal(await page.locator(".sp-header-account .sp-avatar").textContent(), "👩‍🎨");
   console.log("Account rechecks, stale responses and uncertain logout are guarded.");
 } finally {
   await browser.close();

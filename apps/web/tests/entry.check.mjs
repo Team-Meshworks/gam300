@@ -14,6 +14,28 @@ const session = {
 const screenshots = "../../.artifacts/ui-foundation/entry-check";
 await mkdir(screenshots, { recursive: true });
 try {
+  const withoutSegmenter = await browser.newPage();
+  await withoutSegmenter.addInitScript(() => {
+    Intl.Segmenter = undefined;
+  });
+  let fallbackSession = null;
+  await withoutSegmenter.route("**/api/v1/auth/session", (route) =>
+    route.fulfill(fallbackSession ? { json: fallbackSession } : { status: 401 }),
+  );
+  await withoutSegmenter.route("**/api/v1/projects", (route) =>
+    route.fulfill({ json: { items: [], nextCursor: null } }),
+  );
+  await withoutSegmenter.route("**/api/v1/classes", (route) =>
+    route.fulfill({ json: { items: [], nextCursor: null } }),
+  );
+  await withoutSegmenter.goto(origin + "/");
+  await withoutSegmenter.getByRole("heading", { name: "Welcome back." }).waitFor({ timeout: 5000 });
+  assert.equal(await withoutSegmenter.getByLabel("Username", { exact: true }).isVisible(), true);
+  fallbackSession = { ...session, role: "Creator", displayName: "😀 Creator" };
+  await withoutSegmenter.goto(origin + "/home");
+  await withoutSegmenter.getByText("😀 Creator", { exact: true }).waitFor();
+  assert.equal(await withoutSegmenter.locator(".sp-header-account .sp-avatar").textContent(), "😀");
+  await withoutSegmenter.close();
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   page.setDefaultTimeout(5000);
   const errors = [];
