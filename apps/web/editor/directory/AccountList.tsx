@@ -1,3 +1,8 @@
+import { Icon as UiIcon } from "@iconify/react/offline";
+import closeIcon from "@iconify-icons/lucide/x";
+import faEye from "@iconify-icons/lucide/eye";
+import faEyeSlash from "@iconify-icons/lucide/eye-off";
+import faTrashCan from "@iconify-icons/lucide/trash-2";
 import { useState, type ReactNode } from "react";
 import { Avatar } from "../../shared/ui/Avatar";
 import { Button } from "../../shared/ui/Button";
@@ -9,6 +14,7 @@ export interface AccountActions {
   onCreate: () => void;
   onView: (id: string) => void;
   onToggleActive: (id: string) => void;
+  onDelete?: (id: string) => void;
   busy: boolean;
   canCreate: boolean;
 }
@@ -19,6 +25,8 @@ export function AccountList({
   actions,
   loading,
   error,
+  administration = false,
+  onClose,
 }: {
   accounts: readonly DirectoryAccount[];
   organizationName: string;
@@ -26,6 +34,8 @@ export function AccountList({
   actions?: AccountActions | undefined;
   loading?: boolean;
   error?: string | undefined;
+  administration?: boolean;
+  onClose?: (() => void) | undefined;
 }) {
   const [query, setQuery] = useState("");
   const [role, setRole] = useState<"All" | "Students" | "Teachers">("All");
@@ -41,12 +51,24 @@ export function AccountList({
       aria-busy={loading}
     >
       <div className="sp-account-list-header">
-        <SearchField
-          label="Search accounts"
-          placeholder="Search by name or account"
-          value={query}
-          onChange={setQuery}
-        />
+        <div className="sp-account-search-row">
+          <SearchField
+            label="Search accounts"
+            placeholder="Search by name or account"
+            value={query}
+            onChange={setQuery}
+          />
+          {onClose && (
+            <Button
+              className="sp-close-button"
+              aria-label="Close organisation"
+              title="Close organisation"
+              onClick={onClose}
+            >
+              <UiIcon icon={closeIcon} aria-hidden="true" />
+            </Button>
+          )}
+        </div>
         <div className="sp-account-list-toolbar">
           <Tabs
             id="account-tabs"
@@ -81,6 +103,7 @@ export function AccountList({
         </div>
       </div>
       <div
+        className="sp-account-rows"
         role="tabpanel"
         id="account-tabs-panel"
         aria-labelledby={`account-tabs-${role}`}
@@ -105,11 +128,13 @@ export function AccountList({
                     <small>{account.account}</small>
                   </span>
                 </div>
-                <span
-                  className={`sp-badge${account.status === "Active" ? " sp-badge--success" : ""}`}
-                >
-                  {account.status}
-                </span>
+                {!administration && (
+                  <span
+                    className={`sp-badge${account.status === "Active" ? " sp-badge--success" : ""}`}
+                  >
+                    {account.status}
+                  </span>
+                )}
               </div>
               <div className="sp-account-row-bottom">
                 <div className="sp-actions">
@@ -144,17 +169,57 @@ export function AccountList({
                   {actions && (
                     <Button
                       disabled={actions.busy}
-                      aria-label={`${account.status === "Active" ? "Disable" : "Enable"} account for ${account.name}`}
+                      aria-label={`${administration ? (account.status === "Active" ? "Hide" : "Show") : account.status === "Active" ? "Disable" : "Enable"} account for ${account.name}`}
                       onClick={() => actions.onToggleActive(account.id)}
                     >
-                      {account.status === "Active" ? "Disable" : "Enable"}
+                      {administration && (
+                        <UiIcon
+                          icon={account.status === "Active" ? faEyeSlash : faEye}
+                          aria-hidden="true"
+                        />
+                      )}
+                      <span className="sp-button-label">
+                        {administration
+                          ? account.status === "Active"
+                            ? "Hide"
+                            : "Show"
+                          : account.status === "Active"
+                            ? "Disable"
+                            : "Enable"}
+                      </span>
+                    </Button>
+                  )}
+                  {administration && actions?.onDelete && (
+                    <Button
+                      disabled={actions.busy}
+                      aria-label={`Delete account for ${account.name}`}
+                      onClick={() => actions.onDelete?.(account.id)}
+                    >
+                      <UiIcon icon={faTrashCan} aria-hidden="true" />
+                      <span className="sp-button-label">Delete</span>
                     </Button>
                   )}
                 </div>
-                <span className="sp-hint">
-                  {account.role === "Students" ? "Creator" : "Facilitator"}
-                </span>
+                {!administration && (
+                  <span className="sp-hint">
+                    {account.role === "Students" ? "Creator" : "Facilitator"}
+                  </span>
+                )}
               </div>
+              {administration && (
+                <dl className="sp-account-row-metadata">
+                  <div>
+                    <dt>Account Status</dt>
+                    <dd className={account.status === "Active" ? "is-active" : undefined}>
+                      {account.status}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Account Type</dt>
+                    <dd>{account.role === "Students" ? "Creator" : "Facilitator"}</dd>
+                  </div>
+                </dl>
+              )}
             </article>
           ))
         )}

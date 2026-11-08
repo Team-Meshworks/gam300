@@ -1,3 +1,5 @@
+import { Icon as UiIcon } from "@iconify/react/offline";
+import faXmark from "@iconify-icons/lucide/x";
 import { useId, type ReactNode } from "react";
 import { Button } from "./Button";
 import { useModal } from "./useModal";
@@ -12,7 +14,7 @@ export function Dialog({
   title: string;
   children: ReactNode;
   onClose: () => void;
-  variant?: "account" | "wide" | "display" | "progress";
+  variant?: "account" | "wide" | "display" | "progress" | "admin";
 }) {
   const ref = useModal(true);
   const titleId = useId();
@@ -23,21 +25,26 @@ export function Dialog({
       aria-labelledby={titleId}
       onCancel={(event) => {
         event.preventDefault();
-        // React propagates cancel through nested dialogs even though the native event does not bubble.
+        // Keep cancellation inside the active dialog when React propagates it through nested dialogs
         event.stopPropagation();
         onClose();
       }}
     >
       <h2 id={titleId}>{title}</h2>
-      {(variant === "account" || variant === "progress") && (
-        <Button className="sp-dialog-dismiss" aria-label="Close dialog" onClick={onClose}>
-          ×
+      {(variant === "account" || variant === "progress" || variant === "admin") && (
+        <Button
+          className="sp-dialog-dismiss sp-close-button"
+          aria-label="Close dialog"
+          onClick={onClose}
+        >
+          <UiIcon icon={faXmark} aria-hidden="true" />
         </Button>
       )}
       <div className="sp-dialog-body">{children}</div>
-      {variant !== "account" && variant !== "display" && variant !== "progress" && (
-        <Button onClick={onClose}>Close</Button>
-      )}
+      {variant !== "account" &&
+        variant !== "display" &&
+        variant !== "progress" &&
+        variant !== "admin" && <Button onClick={onClose}>Close</Button>}
     </dialog>
   );
 }

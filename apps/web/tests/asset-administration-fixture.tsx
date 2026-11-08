@@ -18,22 +18,28 @@ const initial: AssetAdministrationData = {
     id: asset.id,
     name: asset.name,
     kind: asset.kind,
-    category: asset.kind === "environment" ? null : "Objects",
+    category:
+      asset.kind === "environment"
+        ? null
+        : asset.kind === "audio"
+          ? (asset.category ?? "BGM")
+          : "Objects",
     status: "approved",
     hidden: false,
     deleted: false,
     removedFromProjects: false,
     thumbnail: asset.thumbnail,
+    inspectionUrl: asset.url,
     validation: [],
     actions: ["hide", "delete"],
   })),
   policy: {
-    extensions: [".glb"],
+    extensions: [".glb", ".m4a"],
     maxBytes: 20 * 1024 * 1024,
     categories: {
       environment: null,
       image: null,
-      audio: null,
+      audio: ["BGM"],
       video: null,
       model: ["Objects", "Furniture", "Architecture", "Clothing", "Tools & Equipment"],
     },
@@ -64,6 +70,16 @@ function AssetAdministrationPreview() {
   const records = useRef({ ...initial, assets: [...initial.assets, ...samples] });
   const service = useMemo<AssetAdministrationService>(
     () => ({
+      async download(id, signal) {
+        const asset = records.current.assets.find((asset) => asset.id === id);
+        if (!asset?.inspectionUrl) {
+          return { ok: false, kind: "unavailable", message: "Asset file is unavailable" };
+        }
+        const response = await fetch(asset.inspectionUrl, { signal });
+        return response.ok
+          ? { ok: true, value: await response.blob() }
+          : { ok: false, kind: "unavailable", message: "Asset file is unavailable" };
+      },
       async load() {
         if (failure === "denied") {
           return {

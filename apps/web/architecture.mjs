@@ -57,10 +57,22 @@ export const modules = {
     public: ["shared/asset-runtime/catalogue.ts", "shared/asset-runtime/hotspot.ts"],
   },
   "asset-loading": {
-    paths: ["shared/asset-runtime/ModelCache.ts", "shared/asset-runtime/room-entrances.ts"],
-    uses: ["catalogue", "network"],
+    paths: [
+      "shared/asset-runtime/ModelCache.ts",
+      "shared/asset-runtime/room-entrances.ts",
+      "shared/asset-runtime/exhibit-appearance.ts",
+      "shared/asset-runtime/text-texture.ts",
+      "shared/asset-runtime/display-layout.ts",
+    ],
+    uses: ["catalogue", "network", "project"],
     packages: ["three"],
-    public: ["shared/asset-runtime/ModelCache.ts", "shared/asset-runtime/room-entrances.ts"],
+    public: [
+      "shared/asset-runtime/ModelCache.ts",
+      "shared/asset-runtime/room-entrances.ts",
+      "shared/asset-runtime/exhibit-appearance.ts",
+      "shared/asset-runtime/text-texture.ts",
+      "shared/asset-runtime/display-layout.ts",
+    ],
   },
   input: {
     paths: ["editor/history-shortcuts.ts"],
@@ -114,6 +126,7 @@ export const modules = {
     ],
     public: [
       "shared/ui/Button.tsx",
+      "shared/ui/Select.tsx",
       "shared/ui/Field.tsx",
       "shared/ui/Avatar.tsx",
       "shared/ui/Tabs.tsx",

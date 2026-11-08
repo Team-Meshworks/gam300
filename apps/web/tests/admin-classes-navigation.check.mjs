@@ -29,8 +29,8 @@ try {
     return route.fulfill({ json: { items: [], nextCursor: null } });
   });
   await page.goto(`${origin}/admin/dashboard`);
-  await page.getByRole("link", { name: "Open project workspace" }).click();
-  await page.waitForURL(`${origin}/home`);
+  assert.equal(await page.getByRole("link", { name: "Open project workspace" }).count(), 0);
+  await page.goto(`${origin}/home`);
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 900 });
     const classes = page.getByRole("button", { name: "Classes", exact: true });

@@ -1,7 +1,12 @@
+import { Icon as UiIcon } from "@iconify/react/offline";
+import faCircleChevronDown from "@iconify-icons/lucide/circle-chevron-down";
+import faEye from "@iconify-icons/lucide/eye";
+import faEyeSlash from "@iconify-icons/lucide/eye-off";
 import { useRef, useState, type FormEvent } from "react";
 import { Avatar } from "../../shared/ui/Avatar";
 import { Button } from "../../shared/ui/Button";
 import { Dialog } from "../../shared/ui/Dialog";
+import { Select } from "../../shared/ui/Select";
 import type { AccountChanges, ManagedAccount } from "./directory-client";
 
 export type NewAccount = {
@@ -87,10 +92,10 @@ export function AccountDialog({
       variant="account"
       onClose={close}
     >
-      <p className="sp-hint">
+      <p className="sp-hint" title={account ? undefined : organizationName}>
         {account
           ? "Review and override account credentials"
-          : `Add a new account to ${organizationName}`}
+          : "Add a new account into the organisation"}
       </p>
       <form
         className="sp-account-form"
@@ -113,21 +118,26 @@ export function AccountDialog({
             </span>
           </div>
         )}
-        <div className="sp-field">
-          <label htmlFor="account-type">Account Type</label>
-          <div className="sp-account-control">
-            <select
-              id="account-type"
-              value={role}
-              disabled={pending || !enabled("role")}
-              onChange={(event) => setRole(event.target.value as "Creator" | "Educator")}
-            >
-              <option value="Creator">Creator</option>
-              <option value="Educator">Facilitator</option>
-            </select>
-            {override("role", "account type")}
-          </div>
-        </div>
+        <Select
+          label="Account Type"
+          className="sp-field sp-account-type-select"
+          menuClassName="sp-account-type-menu"
+          value={role}
+          disabled={pending || !enabled("role")}
+          options={[
+            { value: "Creator", label: "Creator" },
+            { value: "Educator", label: "Facilitator" },
+          ]}
+          onChange={(value) => setRole(value as "Creator" | "Educator")}
+          leading={
+            <UiIcon
+              icon={faCircleChevronDown}
+              className="sp-account-type-icon"
+              aria-hidden="true"
+            />
+          }
+          trailing={override("role", "account type")}
+        />
         <fieldset className="sp-credentials" disabled={pending}>
           <legend>Account Credentials</legend>
           <div className="sp-credential-grid">
@@ -165,7 +175,7 @@ export function AccountDialog({
             </div>
             <div className="sp-field">
               <label htmlFor="account-password">
-                {account && enabled("password") ? "New password" : "Password"}
+                {account && enabled("password") ? "New Password" : "Password"}
               </label>
               <div className="sp-account-control">
                 <input
@@ -181,25 +191,26 @@ export function AccountDialog({
                   autoComplete="new-password"
                   aria-describedby="account-password-hint"
                 />
-                {enabled("password") && (
-                  <Button
-                    className="sp-password-toggle"
-                    aria-label={revealed ? "Hide password" : "Show password"}
-                    aria-pressed={revealed}
-                    onClick={() => setRevealed(!revealed)}
-                  >
-                    {revealed ? "Hide" : "Show"}
-                  </Button>
-                )}
+                <Button
+                  className="sp-password-toggle"
+                  aria-label={revealed ? "Hide password" : "Show password"}
+                  aria-pressed={revealed}
+                  title={
+                    enabled("password")
+                      ? revealed
+                        ? "Hide password"
+                        : "Show password"
+                      : "Override to set a new temporary password"
+                  }
+                  disabled={pending || !enabled("password")}
+                  onClick={() => setRevealed((current) => !current)}
+                >
+                  <UiIcon icon={revealed ? faEye : faEyeSlash} aria-hidden="true" />
+                </Button>
                 {override("password", "password")}
               </div>
             </div>
           </div>
-          <p id="account-password-hint" className="sp-hint">
-            {enabled("password")
-              ? "Use 12–128 characters. The person will change this temporary password on sign-in."
-              : "Existing passwords are private. Override to set a new temporary password."}
-          </p>
         </fieldset>
         {error && (
           <p role="alert" className="sp-account-error">
@@ -207,13 +218,20 @@ export function AccountDialog({
           </p>
         )}
         <div className="sp-account-form-footer">
-          <p className="sp-hint">Changes apply to this account only.</p>
+          <div className="sp-account-notes">
+            <p className="sp-hint">Changes apply to this account only.</p>
+            <p id="account-password-hint" className="sp-hint">
+              {enabled("password")
+                ? "Use 12–128 characters. The person will change this temporary password on sign-in."
+                : "Existing passwords are private. Override to set a new temporary password."}
+            </p>
+          </div>
           <div className="sp-actions">
             <Button onClick={close} disabled={pending}>
               Cancel
             </Button>
             <Button type="submit" variant="primary" disabled={pending || !changed}>
-              {pending ? "Saving…" : "Save changes"}
+              {pending ? "Saving…" : "Save Changes"}
             </Button>
           </div>
         </div>

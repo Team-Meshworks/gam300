@@ -24,6 +24,7 @@ export type AssignmentProject = {
     | "revoked"
     | "changes-since-submission";
   published?: boolean;
+  isPublic?: boolean;
 };
 export type AssignmentDetails = {
   assignmentId: string;
@@ -181,7 +182,11 @@ export async function enrolledStudents(
   return rows
     .filter((row) => (row as { enrolled: boolean }).enrolled)
     .map((row) => {
-      const student = row as { userId: string; userName: string; displayName?: string | null };
+      const student = row as {
+        userId: string;
+        userName: string;
+        displayName?: string | null;
+      };
       return {
         id: student.userId,
         name: student.displayName?.trim() || student.userName,
@@ -264,7 +269,11 @@ export async function submitAssignment(
         const projects = receipt(await response.json(), pending);
         if ((await assignmentSession()).userId !== pending.actorId) return { kind: "unknown" };
         return projects
-          ? { kind: "confirmed", assignmentId: pending.body.requestId, projects }
+          ? {
+              kind: "confirmed",
+              assignmentId: pending.body.requestId,
+              projects,
+            }
           : { kind: "unknown" };
       } catch {
         return { kind: "unknown" };
@@ -291,7 +300,7 @@ export async function submitAssignment(
   }
 }
 
-function assignmentDetails(value: unknown): AssignmentDetails {
+export function assignmentDetails(value: unknown): AssignmentDetails {
   if (
     !record(value) ||
     typeof value.assignmentId !== "string" ||
@@ -325,7 +334,8 @@ function assignmentDetails(value: unknown): AssignmentDetails {
             "revoked",
             "changes-since-submission",
           ].includes(String(row.approvalStatus))) ||
-        (row.published !== undefined && typeof row.published !== "boolean"),
+        (row.published !== undefined && typeof row.published !== "boolean") ||
+        (row.isPublic !== undefined && typeof row.isPublic !== "boolean"),
     )
   )
     throw new Error("The assignment is unavailable.");

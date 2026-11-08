@@ -97,7 +97,7 @@ try {
   assert.equal(source.document.scenes[0].environmentAssetId, null);
   assert.deepEqual(source.document.scenes[0].objects, []);
   await page.getByRole("button", { name: "Leave editor" }).click();
-  await page.getByRole("button", { name: "Save and continue" }).click();
+  await page.getByRole("button", { name: "Exit" }).click();
   await page.waitForURL(`${origin}/home`);
   await page.getByRole("button", { name: "Classes", exact: true }).click();
   await page.getByRole("button", { name: "New assignment", exact: true }).click();

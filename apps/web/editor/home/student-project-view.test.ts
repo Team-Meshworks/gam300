@@ -24,7 +24,9 @@ it("does not infer publication eligibility for a visible project without an assi
     }),
   );
   expect(html).toContain("No review listed");
-  expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Continue editing<\/button>/);
+  expect(html).toMatch(
+    /<button[^>]*disabled=""[^>]*><span[^>]*>Continue editing<\/span><\/button>/,
+  );
 });
 
 it("shows the selected student's project details and opens that project", () => {

@@ -39,6 +39,16 @@ public sealed class PublicationAccessEndpointTests
         await using var scope = fixture.Database.Services.CreateAsyncScope();
         var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         await Assert.That((await database.PublicationAccess.AsNoTracking().SingleAsync(row => row.PublicationId == publication)).Hidden).IsFalse();
+
+        // The project-wide operation must roll back both access flags and tombstones at the same cutoff
+        await fixture.SignInAsync(data.GetProperty("actors").GetProperty("admin").GetProperty("userId").GetGuid());
+        var csrf = await fixture.GetCsrfAsync();
+        probe.After = () => fixture.Clock.Advance(TimeSpan.FromHours(9));
+        using var moderation = await AuthTestRequests.PostAsync(fixture,
+            $"/api/v1/admin/projects/{data.GetProperty("projectId").GetGuid()}/publication-moderation", new { action = "delete" }, token: csrf);
+        await Assert.That(moderation.StatusCode).IsEqualTo(HttpStatusCode.Unauthorized);
+        await Assert.That(await database.PublicationAccess.CountAsync(row => row.Deleted)).IsEqualTo(0);
+        await Assert.That(await database.Database.SqlQuery<int>($"SELECT count(*)::int AS \"Value\" FROM retired_publication_ids").SingleAsync()).IsEqualTo(0);
     }
 
     [Test]
@@ -125,15 +135,35 @@ public sealed class PublicationAccessEndpointTests
         await Assert.That(await database.Publications.CountAsync()).IsEqualTo(4);
         await Assert.That(await database.AssetCandidates.CountAsync()).IsEqualTo(1);
         await Assert.That(await database.PublicationAccess.CountAsync(row => row.Deleted)).IsEqualTo(1);
+        await Assert.That(await database.Database.SqlQuery<int>($"SELECT count(*)::int AS \"Value\" FROM retired_publication_ids").SingleAsync()).IsEqualTo(1);
         await Assert.That(await database.PublicationAccess.CountAsync(row => row.Revoked)).IsEqualTo(1);
     }
 
     [Test]
-    public async Task AudienceChange_UnresolvedPublicModesCannotExposeAnAuthenticatedEdition()
+    public async Task AudienceChange_CurrentPublisherCanChooseAnonymousModes()
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
         var data = JsonSerializer.SerializeToElement(await SeedAsync(fixture));
         var publication = data.GetProperty("publicationId").GetGuid();
+        var project = data.GetProperty("projectId").GetGuid();
+        using var administrator = fixture.CreateClient();
+        await fixture.SignInAsync(data.GetProperty("actors").GetProperty("admin").GetProperty("userId").GetGuid(), administrator);
+        await using var metadataScope = fixture.Database.Services.CreateAsyncScope();
+        var metadata = metadataScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        // Isolate this edition so other anonymous fixture editions cannot keep the project public
+        var editionIds = metadata.Publications.Where(row => row.ProjectId == project).Select(row => row.Id);
+        await metadata.PublicationAccess.Where(row => editionIds.Contains(row.PublicationId))
+            .ExecuteUpdateAsync(set => set.SetProperty(row => row.Audience, 3));
+        async Task AssertVisibility(bool expected, bool archived = false)
+        {
+            using var listed = await administrator.GetAsync($"/api/v1/projects?archived={archived.ToString().ToLowerInvariant()}");
+            await Assert.That(listed.StatusCode).IsEqualTo(HttpStatusCode.OK);
+            var summary = (await listed.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("items").EnumerateArray()
+                .Single(row => row.GetProperty("projectId").GetGuid() == project);
+            await Assert.That(summary.GetProperty("isPublic").GetBoolean()).IsEqualTo(expected);
+        }
+        await AssertVisibility(false);
         await fixture.SignInAsync(data.GetProperty("actors").GetProperty("publisher").GetProperty("userId").GetGuid());
         foreach (var audience in new[] { "Public", "Unlisted" })
         {
@@ -143,16 +173,55 @@ public sealed class PublicationAccessEndpointTests
             };
             request.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync());
             using var response = await fixture.Client.SendAsync(request);
-            await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.ServiceUnavailable);
+            await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
+            await AssertVisibility(true);
         }
         await using var scope = fixture.App.Services.CreateAsyncScope();
         var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var state = await database.PublicationAccess.AsNoTracking().SingleAsync(row => row.PublicationId == publication);
-        await Assert.That(state.Audience).IsEqualTo(3);
-        await Assert.That(state.ViewerIds.Length).IsEqualTo(1);
+        await Assert.That(state.Audience).IsEqualTo(2);
+        await Assert.That(state.ViewerIds.Length).IsEqualTo(0);
         using var anonymous = fixture.CreateClient();
         using var denied = await anonymous.GetAsync($"/api/v1/publications/{publication}");
-        await Assert.That(denied.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+        await Assert.That(denied.StatusCode).IsEqualTo(HttpStatusCode.OK);
+
+        // Reversible visitor restrictions independently remove the project's Public label
+        foreach (var restriction in new[] { "hidden", "revoked" })
+        {
+            await metadata.PublicationAccess.Where(row => row.PublicationId == publication).ExecuteUpdateAsync(set => set
+                .SetProperty(row => row.Hidden, restriction == "hidden")
+                .SetProperty(row => row.Revoked, restriction == "revoked"));
+            await AssertVisibility(false);
+            using var restricted = await anonymous.GetAsync($"/api/v1/publications/{publication}");
+            await Assert.That(restricted.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+        }
+        await metadata.PublicationAccess.Where(row => row.PublicationId == publication)
+            .ExecuteUpdateAsync(set => set.SetProperty(row => row.Hidden, false).SetProperty(row => row.Revoked, false));
+        await metadata.Projects.Where(row => row.Id == project).ExecuteUpdateAsync(set => set.SetProperty(row => row.IsArchived, true));
+        await AssertVisibility(false, archived: true);
+        await metadata.Projects.Where(row => row.Id == project).ExecuteUpdateAsync(set => set.SetProperty(row => row.IsArchived, false));
+
+        // Isolate a separate edition to prove tombstones override otherwise unrestricted policy rows
+        var otherEdition = data.GetProperty("unlistedId").GetGuid();
+        await metadata.PublicationAccess.Where(row => row.PublicationId == publication)
+            .ExecuteUpdateAsync(set => set.SetProperty(row => row.Audience, 3));
+        await metadata.PublicationAccess.Where(row => row.PublicationId == otherEdition)
+            .ExecuteUpdateAsync(set => set.SetProperty(row => row.Audience, 2));
+        await AssertVisibility(true);
+        await metadata.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO retired_publication_ids (id) VALUES ({otherEdition})");
+        await AssertVisibility(false);
+        using var retired = await anonymous.GetAsync($"/api/v1/publications/{otherEdition}");
+        await Assert.That(retired.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+
+        // Permanent deletion comes last and is never cleared during a fixture reset
+        await metadata.PublicationAccess.Where(row => row.PublicationId == publication)
+            .ExecuteUpdateAsync(set => set.SetProperty(row => row.Audience, 2));
+        await AssertVisibility(true);
+        await metadata.PublicationAccess.Where(row => row.PublicationId == publication)
+            .ExecuteUpdateAsync(set => set.SetProperty(row => row.Deleted, true));
+        await AssertVisibility(false);
+        using var deleted = await anonymous.GetAsync($"/api/v1/publications/{publication}");
+        await Assert.That(deleted.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
     }
 
     [Test]
@@ -203,6 +272,146 @@ public sealed class PublicationAccessEndpointTests
         var retained = await database.PublicationAccess.AsNoTracking().SingleAsync(row => row.PublicationId == publicationId);
         await Assert.That(retained.Audience).IsEqualTo(3);
         await Assert.That(retained.ViewerIds.Length).IsEqualTo(1);
+    }
+
+    [Test]
+    public async Task ProjectModeration_CurrentAdminPreservesDraftAndPermanentlyRetiresEveryEdition()
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
+        var data = JsonSerializer.SerializeToElement(await SeedAsync(fixture));
+        var projectId = data.GetProperty("projectId").GetGuid();
+        var authenticatedId = data.GetProperty("publicationId").GetGuid();
+        var deletedId = data.GetProperty("deletedId").GetGuid();
+        var publicId = data.GetProperty("publicId").GetGuid();
+        var retiredId = data.GetProperty("unlistedId").GetGuid();
+        var adminId = data.GetProperty("actors").GetProperty("admin").GetProperty("userId").GetGuid();
+        await using var scope = fixture.Database.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var draft = await database.Projects.AsNoTracking().SingleAsync(row => row.Id == projectId);
+        var original = await database.Publications.AsNoTracking().SingleAsync(row => row.Id == publicId);
+        var assetId = data.GetProperty("assetId").GetGuid();
+        var bytes = await database.AssetCandidates.Where(row => row.Id == assetId).Select(row => row.Bytes).SingleAsync();
+
+        // Include independent revocation, legacy deletion, retirement and an edition whose policy is absent
+        await database.PublicationAccess.Where(row => row.PublicationId == authenticatedId)
+            .ExecuteUpdateAsync(set => set.SetProperty(row => row.Revoked, true));
+        await database.PublicationAccess.Where(row => row.PublicationId == deletedId)
+            .ExecuteUpdateAsync(set => set.SetProperty(row => row.Deleted, true));
+        await database.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO retired_publication_ids (id) VALUES ({retiredId})");
+        var missingPolicyId = Guid.NewGuid();
+        database.Publications.Add(new Publication
+        {
+            Id = missingPolicyId,
+            ProjectId = projectId,
+            PublishedById = original.PublishedById,
+            SourceRevision = original.SourceRevision,
+            SchemaVersion = original.SchemaVersion,
+            DocumentJson = original.DocumentJson,
+            AssetReferencesJson = original.AssetReferencesJson,
+            RequestDigest = original.RequestDigest
+        });
+        var emptyProjectId = Guid.NewGuid();
+        database.Projects.Add(new Project
+        {
+            Id = emptyProjectId,
+            OrganizationId = draft.OrganizationId,
+            DocumentJson = ProjectTestDocuments.Create(emptyProjectId, "No editions"),
+            SchemaVersion = 1,
+            UpdatedAt = DateTimeOffset.UtcNow
+        });
+        await database.SaveChangesAsync();
+        var allIds = new[] { authenticatedId, deletedId, publicId, retiredId, missingPolicyId };
+        var path = $"/api/v1/admin/projects/{projectId}/publication-moderation";
+        var query = $"/api/v1/admin/projects/publication-moderation?ids={projectId},{emptyProjectId}";
+
+        // A forged administrator claim grants neither a student nor an assigned educator moderation authority
+        foreach (var actor in new[] { "publisher", "manager" })
+        {
+            using var client = fixture.CreateClient();
+            await fixture.SignInAsync(data.GetProperty("actors").GetProperty(actor).GetProperty("userId").GetGuid(), client, forgedRole: ApplicationRoles.Administrator);
+            using var deniedRead = await client.GetAsync(query);
+            await Assert.That(deniedRead.StatusCode).IsEqualTo(HttpStatusCode.Forbidden);
+            using var deniedWrite = await AuthTestRequests.PostAsync(fixture, path, new { action = "hide" }, client);
+            await Assert.That(deniedWrite.StatusCode).IsEqualTo(HttpStatusCode.Forbidden);
+        }
+        await fixture.SignInAsync(adminId);
+        async Task AssertCounts(int editions, int hidden, int visible)
+        {
+            using var response = await fixture.Client.GetAsync(query);
+            await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.OK);
+            await Assert.That(response.Headers.CacheControl?.NoStore).IsTrue();
+            var items = (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("items").EnumerateArray().ToArray();
+            await Assert.That(items.Length).IsEqualTo(2);
+            var current = items.Single(row => row.GetProperty("projectId").GetGuid() == projectId);
+            await Assert.That(current.GetProperty("publicationCount").GetInt32()).IsEqualTo(editions);
+            await Assert.That(current.GetProperty("hiddenCount").GetInt32()).IsEqualTo(hidden);
+            await Assert.That(current.GetProperty("publicCount").GetInt32()).IsEqualTo(visible);
+            var empty = items.Single(row => row.GetProperty("projectId").GetGuid() == emptyProjectId);
+            await Assert.That(empty.GetProperty("publicationCount").GetInt32()).IsEqualTo(0);
+        }
+        await AssertCounts(3, 0, 1);
+        foreach (var invalid in new[] { "ids=bad", $"ids={projectId},{projectId}", $"ids={projectId}&ids={emptyProjectId}", $"ids={projectId}&extra=1" })
+        {
+            using var rejected = await fixture.Client.GetAsync("/api/v1/admin/projects/publication-moderation?" + invalid);
+            await Assert.That(rejected.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
+        }
+        using (var missing = await fixture.Client.GetAsync($"/api/v1/admin/projects/publication-moderation?ids={projectId},{Guid.NewGuid()}"))
+        { await Assert.That(missing.StatusCode).IsEqualTo(HttpStatusCode.NotFound); }
+        using (var noCsrf = await fixture.Client.PostAsJsonAsync(path, new { action = "hide" }))
+        { await Assert.That(noCsrf.StatusCode).IsEqualTo(HttpStatusCode.BadRequest); }
+        using (var invalid = await AuthTestRequests.PostAsync(fixture, path, new { action = "archive" }))
+        { await Assert.That(invalid.StatusCode).IsEqualTo(HttpStatusCode.BadRequest); }
+
+        // Hide and Show touch current visibility only; they preserve revocation, audience and missing-policy denial
+        using (var hidden = await AuthTestRequests.PostAsync(fixture, path, new { action = "hide" }))
+        { await Assert.That(hidden.StatusCode).IsEqualTo(HttpStatusCode.NoContent); }
+        await AssertCounts(3, 3, 0);
+        using (var shown = await AuthTestRequests.PostAsync(fixture, path, new { action = "show" }))
+        { await Assert.That(shown.StatusCode).IsEqualTo(HttpStatusCode.NoContent); }
+        await AssertCounts(3, 0, 1);
+        var authenticated = await database.PublicationAccess.AsNoTracking().SingleAsync(row => row.PublicationId == authenticatedId);
+        await Assert.That(authenticated.Revoked).IsTrue();
+        await Assert.That(authenticated.Audience).IsEqualTo(3);
+        await Assert.That(authenticated.ViewerIds.SequenceEqual([data.GetProperty("actors").GetProperty("viewer").GetProperty("userId").GetGuid()])).IsTrue();
+        await Assert.That((await database.PublicationAccess.AsNoTracking().SingleAsync(row => row.PublicationId == missingPolicyId)).Audience).IsEqualTo(0);
+        using var anonymous = fixture.CreateClient();
+        using (var missingPolicy = await anonymous.GetAsync($"/api/v1/publications/{missingPolicyId}"))
+        { await Assert.That(missingPolicy.StatusCode).IsEqualTo(HttpStatusCode.NotFound); }
+        await database.Projects.Where(row => row.Id == projectId).ExecuteUpdateAsync(set => set.SetProperty(row => row.IsArchived, true));
+        using (var archivedShow = await AuthTestRequests.PostAsync(fixture, path, new { action = "show" }))
+        { await Assert.That(archivedShow.StatusCode).IsEqualTo(HttpStatusCode.NoContent); }
+        await AssertCounts(3, 0, 0);
+        await Assert.That((await database.Projects.AsNoTracking().SingleAsync(row => row.Id == projectId)).IsArchived).IsTrue();
+        await database.Projects.Where(row => row.Id == projectId).ExecuteUpdateAsync(set => set.SetProperty(row => row.IsArchived, false));
+
+        // Permanent deletion backfills every tombstone while retaining the draft, edition snapshots and exact bytes
+        using (var deleted = await AuthTestRequests.PostAsync(fixture, path, new { action = "delete" }))
+        { await Assert.That(deleted.StatusCode).IsEqualTo(HttpStatusCode.NoContent); }
+        await AssertCounts(0, 0, 0);
+        await Assert.That(await database.Publications.CountAsync(row => row.ProjectId == projectId)).IsEqualTo(5);
+        await Assert.That(await database.PublicationAccess.CountAsync(row => allIds.Contains(row.PublicationId) && row.Deleted)).IsEqualTo(5);
+        await Assert.That(await database.Database.SqlQuery<Guid>($"SELECT id AS \"Value\" FROM retired_publication_ids")
+            .CountAsync(id => allIds.Contains(id))).IsEqualTo(5);
+        var retained = await database.Projects.AsNoTracking().SingleAsync(row => row.Id == projectId);
+        await Assert.That(retained.DocumentJson).IsEqualTo(draft.DocumentJson);
+        await Assert.That(retained.Revision).IsEqualTo(draft.Revision);
+        await Assert.That(retained.UpdatedAt).IsEqualTo(draft.UpdatedAt);
+        await Assert.That(retained.IsArchived).IsFalse();
+        await Assert.That((await database.AssetCandidates.Where(row => row.Id == assetId).Select(row => row.Bytes).SingleAsync()).SequenceEqual(bytes)).IsTrue();
+        await Assert.That((await database.Publications.AsNoTracking().SingleAsync(row => row.Id == publicId)).DocumentJson).IsEqualTo(original.DocumentJson);
+        using (var reopened = await AuthTestRequests.PostAsync(fixture, path, new { action = "show" }))
+        { await Assert.That(reopened.StatusCode).IsEqualTo(HttpStatusCode.NotFound); }
+        using (var restored = await AuthTestRequests.PostAsync(fixture, $"/api/v1/publications/{publicId}/access",
+            new { audience = "Public", viewerIds = Array.Empty<Guid>(), action = "show" }))
+        { await Assert.That(restored.StatusCode).IsEqualTo(HttpStatusCode.NotFound); }
+        foreach (var id in allIds)
+        {
+            foreach (var suffix in new[] { "", $"/assets/{assetId}/bytes" })
+            {
+                using var denied = await anonymous.GetAsync($"/api/v1/publications/{id}{suffix}");
+                await Assert.That(denied.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+            }
+        }
     }
 
     private static async Task<object> SeedAsync(HttpsApplicationFixture fixture)

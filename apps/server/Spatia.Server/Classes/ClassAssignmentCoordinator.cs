@@ -128,7 +128,7 @@ internal static class ClassAssignmentCoordinator
                 CanEdit = true,
                 CanManage = true,
                 CanPublish = true,
-            }).Append(new ProjectAssignment { ProjectId = projectId, UserId = student, CanEdit = true }).ToArray();
+            }).Append(new ProjectAssignment { ProjectId = projectId, UserId = student, CanEdit = true, CanPublish = true }).ToArray();
             var copy = ProjectLifecycleEndpoints.Copy(document.Value!, projectId, request.Title!);
             if (!ProjectLifecycleEndpoints.StageDraft(database, documents, organizationId, copy, grants))
             {

@@ -208,7 +208,7 @@ export function ContentEditor({
       <form onSubmit={save}>
         <header className="asset-picker-head">
           <h2 id="content-heading" className="asset-picker-title">
-            <Icon name="info" />
+            <Icon name="info" title="Add or update the display content" />
             {labels[kind]}
           </h2>
           {kind !== "text" && (

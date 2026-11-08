@@ -60,7 +60,7 @@ export type ServerEditorSession = {
   openServerVersion: () => void;
   logout: () => void;
   publish?: () => void;
-  review?: () => void;
+  importFile: (file: File) => Promise<void>;
 };
 
 function countSceneRules(
@@ -278,15 +278,26 @@ export function App({ server }: { server: ServerEditorSession }) {
             ...(scene?.audio ?? []),
             ...(scene?.objects.flatMap((object) => object.components) ?? []),
           ].find((entry) => entry.type === "audio" && entry.id.toLowerCase() === id.toLowerCase());
-          if (audio?.type !== "audio" || audio.mode !== "global") return undefined;
+          if (audio?.type !== "audio") {
+            return undefined;
+          }
           const asset = assets.find(
             (entry) => entry.id === audio.assetId && entry.kind === "audio",
           );
-          return asset ? { url: asset.url, loop: audio.loop, volume: audio.volume } : undefined;
+          return asset
+            ? {
+                url: asset.url,
+                loop: audio.loop,
+                volume: audio.volume,
+                ...(audio.mode === "spatial"
+                  ? { play: () => viewCamera?.playSpatialAudio?.(audio.id) }
+                  : {}),
+              }
+            : undefined;
         }),
         navigation.beginEvent,
       ),
-    [projectScene, navigation, store, assets],
+    [projectScene, navigation, store, assets, viewCamera],
   );
   const interactionHandlerRef = useRef(interactionHandler);
   useEffect(() => {
@@ -445,12 +456,18 @@ export function App({ server }: { server: ServerEditorSession }) {
       }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
         event.preventDefault();
-        document.getElementById(event.shiftKey ? "project-save-as" : "project-save")?.click();
+        if (server && !event.shiftKey) {
+          if (!departing && project !== null) {
+            void server.save();
+          }
+        } else {
+          document.getElementById(event.shiftKey ? "project-save-as" : "project-save")?.click();
+        }
       }
     }
     addEventListener("keydown", saveShortcut);
     return () => removeEventListener("keydown", saveShortcut);
-  }, [visitor]);
+  }, [visitor, server, departing, project]);
 
   const onTransform = useCallback(
     (id: string, transform: Transform) => {
@@ -644,6 +661,7 @@ export function App({ server }: { server: ServerEditorSession }) {
                     "content:video",
                     "content:audio",
                     "audio:global",
+                    "audio:spatial",
                     "interaction:play-audio",
                     "text:placement",
                     "environment:transform",
@@ -822,6 +840,7 @@ export function App({ server }: { server: ServerEditorSession }) {
           loadGeneration={loadGeneration}
           assets={editorAssets}
           selectableAssets={selectionAssets}
+          onAudioError={setNotice}
           objects={objects}
           projectScene={projectScene ?? null}
           selectedId={roomSelected ? projectScene.id : selection}

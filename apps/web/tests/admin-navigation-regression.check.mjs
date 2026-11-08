@@ -32,6 +32,8 @@ const project = {
   revision: 0,
   updatedAt: "2026-11-01T00:00:00Z",
   archived: false,
+  organizationName: "Test School",
+  isPublic: false,
   permissions: { canEdit: true, canManage: true, canPublish: false },
 };
 const models = {
@@ -247,7 +249,7 @@ test("dashboard project cover loads the default blank environment image", async 
     await page.getByRole("button", { name: "View All Projects" }).click();
     await page
       .locator('section[aria-label="All Projects"]')
-      .getByRole("button", { name: "View details for Source" })
+      .getByRole("button", { name: "View progress for Source" })
       .waitFor();
     const cover = page.locator(".admin-project-card").first().locator("img.admin-project-cover");
     assert.equal(await cover.count(), 1, "project card has a cover image");

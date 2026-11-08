@@ -32,7 +32,16 @@ try {
     },
   ];
   let failAssets = false;
-  let organizations = [{ id: orgId, name: "Active school", isActive: true }];
+  let organizations = [
+    {
+      id: orgId,
+      name: "Active school",
+      isActive: true,
+      projectCount: 0,
+      facilitatorCount: 0,
+      creatorCount: 0,
+    },
+  ];
   let loseResponse = false;
   let releasePending;
   let holdPending = false;
@@ -171,7 +180,16 @@ try {
   await page.goto(origin + "/home");
   await page.getByText("An active organisation is required to create a project.").waitFor();
   assert.equal(await create.isDisabled(), true);
-  organizations = [{ id: orgId, name: "Active school", isActive: true }];
+  organizations = [
+    {
+      id: orgId,
+      name: "Active school",
+      isActive: true,
+      projectCount: 0,
+      facilitatorCount: 0,
+      creatorCount: 0,
+    },
+  ];
   await page.goto(origin + "/home");
   await page.getByText(/start with an empty scene/i).waitFor();
   assert.equal(await create.isEnabled(), true);

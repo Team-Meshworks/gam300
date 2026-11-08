@@ -1,4 +1,7 @@
+using System.Data;
 using Microsoft.AspNetCore.Mvc;
+using Spatia.Server.Accounts;
+using Spatia.Server.Projects;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
 using Spatia.Server.Persistence;
@@ -23,11 +26,12 @@ public static class AssetAdministrationEndpoints
             assets = await service.ListAsync(token),
             policy = new
             {
-                extensions = new[] { ".glb" },
+                extensions = new[] { ".glb", ".m4a" },
                 maxBytes = AssetIntakePolicy.MaxBytes,
-                categories = new { environment = (string[]?)null, model = AssetIntakePolicy.ModelCategories },
+                categories = new { environment = (string[]?)null, model = AssetIntakePolicy.ModelCategories, audio = AssetIntakePolicy.AudioCategories },
                 canSubmit = validator.IsAvailable,
-                canForceRemove = false
+                canSubmitByKind = new { environment = validator.IsAvailable, model = validator.IsAvailable, audio = true },
+                canForceRemove = true
             },
         }));
 
@@ -39,7 +43,7 @@ public static class AssetAdministrationEndpoints
 
             // Keep quarantined bytes an explicit download so inspection never becomes public library delivery
             context.Response.Headers.XContentTypeOptions = "nosniff";
-            return Results.File(asset.Bytes, "model/gltf-binary", $"asset-{asset.Id}.glb");
+            return Results.File(asset.Bytes, AssetIntakePolicy.MediaType(asset.Kind), $"asset-{asset.Id}{AssetIntakePolicy.Extension(asset.Kind)}");
         }).RequireRateLimiting("AssetBytes");
         group.MapPost("", UploadAsync).WithMetadata(new RequestSizeLimitAttribute(AssetIntakePolicy.MaxBytes))
             .RequireRateLimiting("AssetIntake");
@@ -59,20 +63,28 @@ public static class AssetAdministrationEndpoints
             return record is null ? ApiProblems.Create(context, 409, "asset_conflict", "Reload the asset before reviewing it") : Results.Ok(record);
         }).WithMetadata(new RequestSizeLimitAttribute(40 * 1024));
         group.MapPost("/{id:guid}/availability", async (Guid id, AssetAvailabilityRequest request, HttpContext context,
-            AssetAdministrationService service, CancellationToken token) =>
+            AssetAdministrationService service, ApplicationDbContext database, ProjectAccessService access,
+            ProjectDocumentService documents, CancellationToken token) =>
         {
 
-            // Reject unknown actions and combinations before checking the global-removal dependency
+            // Final removal follows ordinary deletion and cannot be combined with hiding or showing
             if (request.Action is not ("hide" or "show" or "delete" or "remove")
-                || (request.RemoveFromProjects && request.Action is not ("delete" or "remove")))
+                || (request.RemoveFromProjects && request.Action != "remove"))
             {
                 return Invalid(context);
             }
 
-            // Publication delivery is not integrated on this branch, so never acknowledge a partial global removal
             if (request.RemoveFromProjects || request.Action == "remove")
             {
-                return ApiProblems.Create(context, 503, "asset_removal_unavailable", "Removal from existing projects and exhibitions is unavailable");
+                await using var transaction = await database.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, token);
+                if (await RecheckAdministratorAsync(context, access, token) is { } denied) { return denied; }
+                var removed = await service.RemoveAsync(id, documents, token);
+                if (removed is null) { return ApiProblems.Create(context, 409, "asset_conflict", "Reload the asset before changing it"); }
+                if (await RecheckAdministratorAsync(context, access, token) is { } changed) { return changed; }
+                await transaction.CommitAsync(token);
+                token.ThrowIfCancellationRequested();
+                return context.Features.Get<ValidatedAccountSession>() is not { } session || session.Clock.GetUtcNow() >= session.ExpiresUtc
+                    ? ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired) : Results.Ok(removed);
             }
             var record = await service.ChangeAsync(id, request.Action, token);
             return record is null ? ApiProblems.Create(context, 409, "asset_conflict", "Reload the asset before changing it") : Results.Ok(record);
@@ -97,8 +109,7 @@ public static class AssetAdministrationEndpoints
             if (metadata is null || !ValidReview(metadata)) { return Invalid(context); }
         }
         var query = context.Request.Query;
-        if (query.Any(pair => pair.Value.Count != 1 || pair.Key is not ("name" or "kind" or "category"))
-            || context.Request.ContentType != "model/gltf-binary")
+        if (query.Any(pair => pair.Value.Count != 1 || pair.Key is not ("name" or "kind" or "category")))
         {
             return Invalid(context);
         }
@@ -107,7 +118,7 @@ public static class AssetAdministrationEndpoints
         var name = query["name"].ToString();
         var kind = query["kind"].ToString();
         var category = query.TryGetValue("category", out var raw) ? raw.ToString() : null;
-        if (!AssetIntakePolicy.Accepts(name, kind, category))
+        if (!AssetIntakePolicy.Accepts(name, kind, category) || context.Request.ContentType != AssetIntakePolicy.MediaType(kind))
         {
             return Invalid(context);
         }
@@ -134,6 +145,15 @@ public static class AssetAdministrationEndpoints
         var record = await service.SubmitAsync(name, kind, category, buffer.ToArray(), actor, metadata, token);
         return record is null ? ApiProblems.Create(context, 503, "asset_intake_unavailable", "Asset validation or storage is unavailable")
             : Results.Json(record, statusCode: StatusCodes.Status201Created);
+    }
+
+    private static async Task<IResult?> RecheckAdministratorAsync(HttpContext context, ProjectAccessService access, CancellationToken token)
+    {
+        var account = await access.ResolveCurrentAccountAsync(context, token);
+        if (account is null) { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired); }
+        if (account.MustChangePassword) { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.PasswordChangeRequired); }
+        return account.Role == ApplicationRoles.Administrator ? null
+            : ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.OperationForbidden);
     }
 
     private static bool ValidReview(AssetReviewRequest request) =>

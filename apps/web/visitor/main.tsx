@@ -126,10 +126,13 @@ function Visitor() {
               exhibition={exhibition}
               sceneIndex={scene}
               viewpoint={viewpoint}
+              navigate={navigate}
             />
-            {exhibition.document.schemaVersion === 2 && (
-              <ExhibitionContent scene={exhibition.document.scenes[scene]!} navigate={navigate} />
-            )}
+            <ExhibitionContent
+              scene={exhibition.document.scenes[scene]!}
+              assets={exhibition.assets}
+              navigate={navigate}
+            />
           </>
         ) : (
           <p role="status">Opening exhibition…</p>

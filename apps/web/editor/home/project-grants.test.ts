@@ -141,7 +141,19 @@ it("loads current grants and complete authorized choices under the captured admi
     const path = String(input);
     if (path === `/api/v1/projects/${projectId}/assignments`) return json(snapshot);
     if (path.startsWith("/api/v1/admin/organizations"))
-      return json({ items: [{ id: orgId, name: "School", isActive: true }], nextCursor: null });
+      return json({
+        items: [
+          {
+            id: orgId,
+            name: "School",
+            isActive: true,
+            projectCount: 0,
+            facilitatorCount: 0,
+            creatorCount: 0,
+          },
+        ],
+        nextCursor: null,
+      });
     if (path.includes("cursor=")) return json({ items: [accounts[1]], nextCursor: null });
     if (path.startsWith("/api/v1/admin/users"))
       return json({ items: [accounts[0]], nextCursor: teacherId });
@@ -168,7 +180,16 @@ it("rejects a changed account or inactive organisation after loading choices", a
       if (path === `/api/v1/projects/${projectId}/assignments`) return json(snapshot);
       if (path.startsWith("/api/v1/admin/organizations"))
         return json({
-          items: [{ id: orgId, name: "School", isActive: changedAccount }],
+          items: [
+            {
+              id: orgId,
+              name: "School",
+              isActive: changedAccount,
+              projectCount: 0,
+              facilitatorCount: 0,
+              creatorCount: 0,
+            },
+          ],
           nextCursor: null,
         });
       if (path.startsWith("/api/v1/admin/users"))
@@ -193,7 +214,19 @@ it("refuses ambiguous duplicate account choices", async () => {
     const path = String(input);
     if (path === `/api/v1/projects/${projectId}/assignments`) return json(snapshot);
     if (path.startsWith("/api/v1/admin/organizations"))
-      return json({ items: [{ id: orgId, name: "School", isActive: true }], nextCursor: null });
+      return json({
+        items: [
+          {
+            id: orgId,
+            name: "School",
+            isActive: true,
+            projectCount: 0,
+            facilitatorCount: 0,
+            creatorCount: 0,
+          },
+        ],
+        nextCursor: null,
+      });
     if (path.startsWith("/api/v1/admin/users"))
       return json({ items: [...accounts, accounts[0]], nextCursor: null });
     return json({

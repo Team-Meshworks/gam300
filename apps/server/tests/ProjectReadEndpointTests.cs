@@ -87,7 +87,8 @@ public sealed class ProjectReadEndpointTests
         await fixture.SignInAsync(role == ApplicationRoles.Administrator
             ? await fixture.CreateAccountAsync(ApplicationRoles.Administrator) : manager);
         var body = await GetAsync(fixture.Client, Path(project.Id) + "/assignments");
-        await AssertFieldsAsync(body, "projectId", "organizationId", "revision", "archived", "assignments");
+        await AssertFieldsAsync(body, "projectId", "organizationId", "revision", "archived", "assignments", "classAssignments");
+        await Assert.That(body.GetProperty("classAssignments").GetArrayLength()).IsEqualTo(0);
         await Assert.That(body.GetProperty("projectId").GetGuid()).IsEqualTo(project.Id);
         await Assert.That(body.GetProperty("organizationId").GetGuid()).IsEqualTo(project.OrganizationId);
         await Assert.That(body.GetProperty("revision").GetInt64()).IsEqualTo(project.Revision);
@@ -386,11 +387,15 @@ public sealed class ProjectReadEndpointTests
         var page = await GetAsync(fixture.Client, "/api/v1/projects");
         await AssertFieldsAsync(page, "items", "nextCursor");
         var summary = page.GetProperty("items").EnumerateArray().Single();
-        await AssertFieldsAsync(summary, "projectId", "title", "revision", "updatedAt", "archived", "permissions");
+        await AssertFieldsAsync(summary, "projectId", "title", "revision", "updatedAt", "archived", "permissions", "organizationName", "isPublic");
         await Assert.That(summary.GetProperty("projectId").GetGuid()).IsEqualTo(project.Id);
         await Assert.That(summary.GetProperty("revision").GetInt64()).IsEqualTo(project.Revision);
         await Assert.That(summary.GetProperty("updatedAt").GetDateTimeOffset()).IsEqualTo(project.UpdatedAt);
         await Assert.That(summary.GetProperty("archived").GetBoolean()).IsFalse();
+        await Assert.That(summary.GetProperty("isPublic").GetBoolean()).IsFalse();
+        var database = documentScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await Assert.That(summary.GetProperty("organizationName").GetString()).IsEqualTo(
+            await database.Organizations.Where(row => row.Id == project.OrganizationId).Select(row => row.Name).SingleAsync());
         await Assert.That(summary.GetProperty("title").GetString()).IsEqualTo(version == 1 ? new string('a', 254) + "…" : title);
         await AssertPermissionsAsync(summary, true, false, true);
         await Assert.That(page.GetProperty("nextCursor").ValueKind).IsEqualTo(JsonValueKind.Null);

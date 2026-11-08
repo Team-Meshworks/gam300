@@ -363,7 +363,7 @@ const icons = {
 
 export type IconName = keyof typeof icons;
 
-export function Icon({ name }: { name: IconName }) {
+export function Icon({ name, title }: { name: IconName; title?: string }) {
   const icon = icons[name];
   if ("src" in icon) {
     return (
@@ -374,6 +374,7 @@ export function Icon({ name }: { name: IconName }) {
         width={name === "door" ? 35 : 40}
         height={name === "door" ? 35 : 40}
         alt=""
+        title={title}
         aria-hidden="true"
         draggable={false}
       />
@@ -382,6 +383,7 @@ export function Icon({ name }: { name: IconName }) {
   const { viewBox, body } = icon;
   return (
     <svg className="icon" viewBox={viewBox} aria-hidden="true">
+      {title && <title>{title}</title>}
       {body}
     </svg>
   );

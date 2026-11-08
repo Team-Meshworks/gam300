@@ -44,10 +44,12 @@ try {
       await page.getByRole("button", { name: "Add", exact: true }).click();
     }
     await placeAtRoomCenter(page);
+    if (name !== "Starter room") {
+      await page.locator(".object-row").last().click();
+    }
   }
   async function saved() {
-    await page.getByLabel("Project options", { exact: true }).click();
-    await page.getByRole("button", { name: "Save", exact: true }).click();
+    await page.keyboard.press("Control+s");
     await page.locator('.save-state[data-state="saved"]').waitFor();
     const content = project.document();
     return content;
@@ -78,6 +80,12 @@ try {
   await place("Landscape media stand");
   await page.locator(".object-row").first().waitFor();
   await page.locator(".object-row").first().click();
+  async function openTree() {
+    const tree = page.getByRole("button", { name: "Scene tree", exact: true });
+    if ((await tree.getAttribute("aria-pressed")) !== "true") {
+      await tree.click();
+    }
+  }
   async function openText() {
     await page.getByRole("button", { name: "Edit text", exact: true }).click();
   }
@@ -163,13 +171,13 @@ try {
   assert.equal(await modal.evaluate((element) => element.scrollWidth <= element.clientWidth), true);
   await modal.screenshot({ path: "test-results/scrum56/text-mobile.png" });
   await modal.getByRole("button", { name: "Cancel content editing", exact: true }).click();
-  // Digital displays accept text and media; physical cases expose neither text nor media.
+  // Digital panels use media controls; physical cases keep text and their object library
   await page.setViewportSize({ width: 1366, height: 900 });
   await page.getByRole("button", { name: "Display panels", exact: true }).click();
   await page.getByRole("button", { name: "Square media stand", exact: true }).click();
   await placeAtRoomCenter(page);
   await page.locator(".object-row").last().click();
-  await page.getByRole("button", { name: "Edit text", exact: true }).click();
+  await openText();
   await modal.getByRole("textbox", { name: "Text", exact: true }).fill("Digital display text");
   await modal.getByRole("button", { name: "Add", exact: true }).click();
   await page.getByRole("button", { name: "Edit image", exact: true }).click();
@@ -180,12 +188,22 @@ try {
   await modal.getByRole("button", { name: "Add", exact: true }).click();
   await page.getByRole("button", { name: "Display cases", exact: true }).click();
   await page.getByRole("button", { name: "Display plinth", exact: true }).click();
-  await placeAtRoomCenter(page);
+  await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
+  const placement = await page.locator(".viewport-stage").boundingBox();
+  await page
+    .locator(".viewport-stage")
+    .click({ position: { x: placement.width / 2 + 100, y: placement.height / 2 } });
   await page.locator(".object-row").last().click();
   assert.equal(
     await page.getByRole("button", { name: "Edit text", exact: true }).isEnabled(),
     true,
   );
+  assert.equal(
+    await page.getByRole("button", { name: "Display asset library", exact: true }).isEnabled(),
+    true,
+  );
+  assert.equal(await page.getByRole("button", { name: "Edit image", exact: true }).count(), 0);
+  assert.equal(await page.getByRole("button", { name: "Edit video", exact: true }).count(), 0);
   const fixtureSave = await saved();
   assert.equal(fixtureSave.scenes[0].objects.length, 3);
   const displayMedia = fixtureSave.scenes[0].objects.find(
@@ -203,6 +221,7 @@ try {
       .length,
     0,
   );
+  await openTree();
   const testCase = fixtureSave.scenes[0].objects.find(
     (object) => object.assetId === "display-cube-v1",
   );

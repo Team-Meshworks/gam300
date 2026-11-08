@@ -179,7 +179,7 @@ export function InteractionPanel({
     <section className="editor-panel interaction-panel" aria-labelledby="interaction-heading">
       <header className="interaction-heading">
         <h2 id="interaction-heading">
-          <Icon name="info" />
+          <Icon name="info" title="Connect an event to an action" />
           Interactions
         </h2>
         {selectedHotspot && onHotspotRemove && (

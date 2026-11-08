@@ -57,25 +57,3 @@ it("opens the educator review dialog directly after returning from the editor", 
   expect(markup).toContain("aria-labelledby=");
   expect(markup).toContain("Add Reviews");
 });
-
-it("offers saving a review and publishing from the same teacher dialog", () => {
-  const markup = renderToStaticMarkup(
-    createElement(ProgressReviews, {
-      projectId: "11111111-1111-4111-8111-111111111111",
-      revision: 2,
-      actorId: "22222222-2222-4222-8222-222222222222",
-      educator: true,
-      onGuard: () => {},
-      autoOpen: true,
-      publication: {
-        studentId: "33333333-3333-4333-8333-333333333333",
-        studentName: "Aisyah",
-        projectTitle: "Silk Road",
-      },
-    }),
-  );
-  expect(markup).toContain("Silk Road");
-  expect(markup).toContain("Aisyah");
-  expect(markup).toContain("Save review");
-  expect(markup).toContain("Approve and publish");
-});

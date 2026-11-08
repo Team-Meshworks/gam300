@@ -21,6 +21,13 @@ public sealed class ReviewScreensIntegrationTests
         await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
         var seeded = await ReviewSubmissionEndpointTests.SeedAsync(fixture, late: true);
         fixture.App.Configuration["Publication:Origin"] = "https://publications.example.test";
+        // Match the student publication grant created by the real class assignment workflow
+        await using (var grantScope = fixture.App.Services.CreateAsyncScope())
+        {
+            var database = grantScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            await database.ProjectAssignments.Where(row => row.ProjectId == seeded.ProjectId && row.UserId == seeded.Student)
+                .ExecuteUpdateAsync(set => set.SetProperty(row => row.CanPublish, true));
+        }
         if (!unavailableAssets)
         {
             var bytes = AssetIntakeTests.CreateMinimalGlb();

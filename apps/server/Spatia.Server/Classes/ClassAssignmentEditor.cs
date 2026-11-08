@@ -127,7 +127,7 @@ internal static class ClassAssignmentEditor
                     CanManage = true,
                     CanPublish = true
                 })
-                    .Append(new ProjectAssignment { ProjectId = projectId, UserId = student, CanEdit = true }).ToArray();
+                    .Append(new ProjectAssignment { ProjectId = projectId, UserId = student, CanEdit = true, CanPublish = true }).ToArray();
                 if (!ProjectLifecycleEndpoints.StageDraft(database, documents, classroom!.OrganizationId,
                     ProjectLifecycleEndpoints.Copy(sourceDocument.Value!, projectId, request.Title!), grants)) { return Unavailable(context); }
                 database.ClassAssignmentStudents.Add(new ClassAssignmentStudent

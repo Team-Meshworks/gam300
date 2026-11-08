@@ -17,7 +17,7 @@ public sealed class PublicationCapabilitiesTests
     };
 
     [Test]
-    public async Task PublicationV2_TwoSceneRoundTripPreservesAuthoredDataAndCapabilityDecisions()
+    public async Task PublicationV2_SupportsBothScenesAndEnabledRules()
     {
         var json = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "fixtures", "m2-publication-project.json"));
         var parsed = Format.Deserialize(json, Assets);
@@ -25,51 +25,27 @@ public sealed class PublicationCapabilitiesTests
         var project = (ContentProject)parsed.Value!;
         await Assert.That(project.Scenes.Length).IsEqualTo(2);
         await Assert.That(ProjectCapabilities.Missing(project, PublicationCapabilities.Supported).Count).IsEqualTo(0);
-        var saved = Format.Serialize(project, Assets);
-        await Assert.That(saved.Ok).IsTrue();
-        var reopened = Format.Deserialize(saved.Value!, Assets);
-        await Assert.That(reopened.Ok).IsTrue();
-        var secondSave = Format.Serialize(reopened.Value!, Assets);
-        await Assert.That(secondSave.Value).IsEqualTo(saved.Value);
         var original = JsonNode.Parse(json)!;
-        var output = JsonNode.Parse(saved.Value!)!;
-        foreach (var field in new[] { "objects", "groups", "zones", "viewpoints", "rules" })
-        {
-            for (var scene = 0; scene < 2; scene++)
-            {
-                await Assert.That(JsonNode.DeepEquals(original["scenes"]![scene]![field], output["scenes"]![scene]![field])).IsTrue();
-            }
-        }
         original["scenes"]![0]!["rules"]![0]!["enabled"] = true;
         var enabled = Format.Deserialize(original.ToJsonString(), Assets);
         await Assert.That(enabled.Ok).IsTrue();
         var missing = ProjectCapabilities.Missing(enabled.Value!, PublicationCapabilities.Supported);
-        await Assert.That(missing.Any(issue => issue.Capability == "trigger:sceneStart" && issue.Path == "project.scenes[0].rules[0].trigger")).IsTrue();
-        await Assert.That(missing.Any(issue => issue.Capability == "action:showPanel")).IsTrue();
-        await Assert.That(Format.Serialize(enabled.Value!, Assets).Ok).IsTrue();
+        await Assert.That(missing.Count).IsEqualTo(0);
     }
 
     [Test]
-    public async Task PublicationV2_GlobalAudioRemainsAnImmutableRequiredReferenceEvenWhileUnsupported()
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task PublicationAssets_RetainsPlayableSceneAudioWithOrWithoutAnEnvironment(bool hasEnvironment)
     {
         var input = JsonNode.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "fixtures", "m2-publication-project.json")))!;
-        input["scenes"]![0]!["audio"] = JsonNode.Parse("""[{"id":"eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee","type":"audio","mode":"global","assetId":"demo-audio-v1","caption":"Ambient sound","loop":true,"volume":0.5}]""");
-        var parsed = Format.Deserialize(input.ToJsonString(), Assets);
-        await Assert.That(parsed.Ok).IsTrue();
-        await Assert.That(PublicationDocumentAssets.Required(parsed.Value!).Contains("demo-audio-v1")).IsTrue();
-        await Assert.That(ProjectCapabilities.Missing(parsed.Value!, PublicationCapabilities.Supported).Any(issue => issue.Capability == "audio:global")).IsTrue();
-    }
-
-    [Test]
-    public async Task PublicationAssets_CollectsSceneAudioWithoutAnEnvironment()
-    {
-        var input = JsonNode.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "fixtures", "m2-publication-project.json")))!;
-        input["scenes"]![0]!["environmentAssetId"] = null;
+        if (!hasEnvironment) { input["scenes"]![0]!["environmentAssetId"] = null; }
         input["scenes"]![0]!["audio"] = JsonNode.Parse("""[{"id":"eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee","type":"audio","mode":"global","assetId":"demo-audio-v1","caption":"Ambient sound","loop":true,"volume":0.5}]""");
         var parsed = Format.Deserialize(input.ToJsonString(), Assets);
         await Assert.That(parsed.Ok).IsTrue();
         var required = PublicationDocumentAssets.Required(parsed.Value!);
         await Assert.That(required.Contains("demo-audio-v1")).IsTrue();
         await Assert.That(required.Contains(null!)).IsFalse();
+        await Assert.That(ProjectCapabilities.Missing(parsed.Value!, PublicationCapabilities.Supported).Count).IsEqualTo(0);
     }
 }

@@ -166,3 +166,9 @@
     padding: 0;
   }
 }
+
+.sp-account-header[data-role="Administrator"] .sp-avatar {
+  width: 44px;
+  height: 44px;
+  font-size: 13px;
+}

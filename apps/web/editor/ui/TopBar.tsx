@@ -105,19 +105,30 @@ export function TopBar({
             <Icon name="caretDown" />
           </summary>
           <div className="draft-menu-panel">
-            {/* Ctrl+S clicks these two by id, so dont change the ids */}
             <button
-              id="project-save"
               type="button"
-              title="Save to server · Ctrl+S"
-              disabled={busy || session.busy}
+              disabled={busy || session.busy || !ready}
               onClick={() => {
                 closeMenu();
-                void session.save();
+                document.getElementById("project-import")?.click();
               }}
             >
-              Save
+              Import Project File
             </button>
+            {session.failed && (
+              <button
+                id="project-save"
+                type="button"
+                title="Retry autosave · Ctrl+S"
+                disabled={busy || session.busy}
+                onClick={() => {
+                  closeMenu();
+                  void session.save();
+                }}
+              >
+                Retry Save
+              </button>
+            )}
             <button
               id="project-save-as"
               type="button"
@@ -128,7 +139,7 @@ export function TopBar({
                 void session.save(true);
               }}
             >
-              Export project file
+              Export Project File
             </button>
             <button
               type="button"
@@ -138,7 +149,7 @@ export function TopBar({
                 session.openServerVersion();
               }}
             >
-              Open server version
+              Open Server Version
             </button>
             <button
               type="button"
@@ -148,10 +159,25 @@ export function TopBar({
                 session.logout();
               }}
             >
-              Log out
+              Log Out
             </button>
           </div>
         </details>
+        <input
+          id="project-import"
+          type="file"
+          accept=".json,application/json"
+          hidden
+          disabled={busy || session.busy}
+          onChange={(event) => {
+            const file = event.currentTarget.files?.[0];
+            // Reset the picker so the same file can be selected again after a rejected import
+            event.currentTarget.value = "";
+            if (file) {
+              void session.importFile(file);
+            }
+          }}
+        />
         <span
           className="save-state"
           data-state={saveState}
@@ -231,16 +257,6 @@ export function TopBar({
             onClick={onPreview}
           >
             Preview
-          </button>
-        )}
-        {!visitor && session.review && (
-          <button
-            className="ui-button pill-button"
-            type="button"
-            disabled={!ready || busy}
-            onClick={session.review}
-          >
-            Review
           </button>
         )}
         {!visitor && session.publish && (

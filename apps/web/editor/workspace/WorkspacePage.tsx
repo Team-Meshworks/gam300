@@ -13,7 +13,7 @@ import { createAssetAdministrationService } from "../asset-administration/asset-
 import { useWorkspaceDeparture } from "./useWorkspaceDeparture";
 
 const screens = [
-  { id: "publish", title: "Publish project", roles: ["Administrator", "Educator"] },
+  { id: "publish", title: "Publish project", roles: ["Administrator", "Educator", "Creator"] },
   { id: "assets", title: "3D Assets", roles: ["Administrator"] },
   { id: "spaces", title: "3D Spaces", roles: ["Administrator"] },
   { id: "admin/dashboard", title: "Dashboard", roles: ["Administrator"] },
@@ -60,7 +60,7 @@ function OtherWorkspacePage({ session, active, onSignOut }: WorkspaceAccess) {
         onSignOut: () => navigate(onSignOut),
       }}
       variant={
-        dashboard
+        dashboard || organisations
           ? "dashboard"
           : screen?.id === "assets" || screen?.id === "spaces"
             ? "asset-administration"

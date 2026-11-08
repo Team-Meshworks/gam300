@@ -183,6 +183,7 @@ try {
   current = { ...session, role: "Administrator", orgId: null, displayName: "Administrator" };
   await page.goto(`${origin}/spaces?add=1`);
   const upload = page.getByRole("dialog", { name: "Upload 3D Space" });
+  await upload.getByText("Additional Details", { exact: true }).click();
   await upload.getByLabel("Source or provenance (optional)").fill("Unsent museum archive");
   sessionFailure = true;
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));

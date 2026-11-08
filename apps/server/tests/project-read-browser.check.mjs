@@ -124,6 +124,7 @@ try {
     organizationId: manager.organizationId,
     revision: 7,
     archived: false,
+    classAssignments: [],
     assignments: [
       { userId: accounts[0].userId, canEdit: true, canManage: false, canPublish: false },
       { userId: manager.userId, canEdit: true, canManage: true, canPublish: true },

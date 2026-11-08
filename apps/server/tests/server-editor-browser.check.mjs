@@ -20,13 +20,8 @@ export async function checkServerEditor(
   const output = (Array.isArray(built) ? built[0] : built).output;
   const largest = output
     .filter((file) => file.type === "asset" && file.fileName.endsWith(".glb"))
-    .sort(
-      (a, b) => Buffer.byteLength(b.source) - Buffer.byteLength(a.source),
-    )[0];
-  assert.ok(
-    largest,
-    "The actual catalogue must be present in the editor build",
-  );
+    .sort((a, b) => Buffer.byteLength(b.source) - Buffer.byteLength(a.source))[0];
+  assert.ok(largest, "The actual catalogue must be present in the editor build");
   const asset = {
     path: "/" + largest.fileName,
     bytes: Buffer.byteLength(largest.source),
@@ -131,9 +126,9 @@ export async function checkServerEditor(
       .filter({ hasText: "Another revision" })
       .waitFor();
     await page.getByLabel("Project options", { exact: true }).click();
-    await page.getByRole("button", { name: "Log out", exact: true }).click();
+    await page.getByRole("button", { name: "Log Out", exact: true }).click();
     await page
-      .getByRole("button", { name: "Save and continue", exact: true })
+      .getByRole("button", { name: "Exit", exact: true })
       .click();
     await page.getByRole("dialog").getByRole("alert").waitFor();
     await page.getByRole("button", { name: "Cancel", exact: true }).click();

@@ -17,6 +17,7 @@ export type ApprovalPublicationIntent = {
   publicationId: string;
   revision: number;
   feedback: string;
+  approvalOnly?: true;
 };
 type Store = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 type Publish = (
@@ -27,6 +28,7 @@ type Publish = (
   problemMessages: Record<string, string>,
 ) => Promise<WriteResult>;
 type Result =
+  | { kind: "approved" }
   | { kind: "published"; acknowledgement: PublicationAcknowledgement }
   | { kind: "revision-conflict" | "publication-rejected"; message: string }
   | { kind: "pending" | "rejected"; message: string };
@@ -57,7 +59,8 @@ export function readApprovalPublication(
     (value.revision as number) < 0 ||
     typeof value.feedback !== "string" ||
     value.feedback.length > 4000 ||
-    value.feedback.includes("\0")
+    value.feedback.includes("\0") ||
+    (value.approvalOnly !== undefined && value.approvalOnly !== true)
   )
     throw new Error("The earlier publishing request could not be verified.");
   return value as ApprovalPublicationIntent;
@@ -124,6 +127,20 @@ export async function approveAndPublish(
       kind: "pending",
       message: "Approval could not be confirmed. Retry the same request before leaving.",
     };
+  }
+  // Keep approval-only retries in the same durable request without ever creating a publication
+  if (intent.approvalOnly) {
+    try {
+      storage.removeItem(storageKey);
+      if (storage.getItem(storageKey) !== null) throw new Error("Storage failed");
+      return { kind: "approved" };
+    } catch {
+      return {
+        kind: "pending",
+        message:
+          "Approval was saved, but the request could not be cleared. Retry the same request.",
+      };
+    }
   }
   const request: PublicationRequest = {
     publicationId: intent.publicationId,

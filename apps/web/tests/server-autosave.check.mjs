@@ -96,6 +96,14 @@ async function saved() {
   );
 }
 
+async function chooseRecovery() {
+  const recovery = page.getByRole("button", { name: "Keep Recovery and Exit", exact: true });
+  if (!(await recovery.isVisible())) {
+    await page.getByRole("button", { name: "Exit", exact: true }).click();
+  }
+  await recovery.click();
+}
+
 async function catalogueScenario(capability, revokeDuringRead = false, companion = "none") {
   const approvedId = "22222222-2222-4222-8222-222222222222";
   const retainedId = "33333333-3333-4333-8333-333333333333";
@@ -314,6 +322,86 @@ async function catalogueScenario(capability, revokeDuringRead = false, companion
     await isolated.close();
   }
 }
+async function importScenario() {
+  const isolated = await browser.newContext();
+  const incoming = { ...structuredClone(fixture), title: "Imported copy" };
+  const importedId = "55555555-5555-4555-8555-555555555555";
+  let lostReceipt = true;
+  const imports = [];
+  await isolated.route("**/api/v1/**", async (route) => {
+    if (
+      new URL(route.request().url()).pathname === "/api/v1/projects" &&
+      route.request().method() === "POST"
+    ) {
+      imports.push(route.request().postDataJSON());
+      return route.fulfill(
+        lostReceipt
+          ? { status: 503, json: {} }
+          : {
+              status: 201,
+              json: {
+                projectId: importedId,
+                revision: 0,
+                archived: false,
+                updatedAt: new Date().toISOString(),
+              },
+            },
+      );
+    }
+    return api(route);
+  });
+  try {
+    const editor = await isolated.newPage();
+    await editor.goto(url);
+    await editor.locator('.save-state[data-state="saved"]').waitFor();
+    await editor.getByLabel("Project options", { exact: true }).click();
+    assert.equal(
+      await editor.locator("#project-save").count(),
+      0,
+      "Server autosave has no redundant Save menu item",
+    );
+    await editor.getByRole("button", { name: "Import Project File", exact: true }).waitFor();
+    await editor.getByRole("button", { name: "Export Project File", exact: true }).waitFor();
+    const upload = async (text) =>
+      editor.locator("#project-import").setInputFiles({
+        name: "project.json",
+        mimeType: "application/json",
+        buffer: Buffer.from(text),
+      });
+    await upload("{}");
+    await editor.locator(".server-session-error").waitFor();
+    assert.equal(imports.length, 0, "Malformed imports never reach project creation");
+    const original = JSON.stringify(document);
+    await upload(JSON.stringify(incoming));
+    await editor.getByRole("alert").filter({ hasText: "Import could not be confirmed" }).waitFor();
+    assert.equal(imports.length, 1);
+    await upload(JSON.stringify(incoming));
+    await editor
+      .getByRole("alert")
+      .filter({ hasText: "earlier creation may have completed" })
+      .waitFor();
+    assert.equal(imports.length, 1, "Uncertain imports do not create duplicates on retry");
+    // The existing All Projects reconciliation clears this same guard after checking creation
+    await editor.evaluate(
+      (key) => sessionStorage.removeItem(key),
+      `spatia:uncertain-project-creation:${alice}`,
+    );
+    lostReceipt = false;
+    await upload(JSON.stringify(incoming));
+    await editor.waitForURL(`**/?projectId=${importedId}`);
+    assert.equal(imports[1].title, incoming.title);
+    assert.equal(imports[1].document.projectId, incoming.projectId);
+    assert.equal(imports[1].orgId, bob);
+    assert.equal(
+      JSON.stringify(document),
+      original,
+      "Import creates a new project and preserves the current server draft",
+    );
+  } finally {
+    await isolated.close();
+  }
+}
+
 try {
   await catalogueScenario(false, false, "approved");
   for (const capability of [false, undefined, true]) await catalogueScenario(capability);
@@ -325,17 +413,19 @@ try {
   catalogueUnavailable = false;
   await page.getByRole("button", { name: "Retry opening" }).click();
   await saved();
-  assert.equal(
-    await page.getByRole("complementary", { name: "Server project" }).count(),
-    0,
-    "The editor must not have a server-project footer",
-  );
+  await importScenario();
+  assert.equal(await page.getByRole("complementary", { name: "Server project" }).count(), 0);
   await page.getByRole("button", { name: "Leave editor" }).focus();
   await page.keyboard.press("Enter");
-  const departureSave = page.getByRole("button", { name: "Save and continue" });
+  const departureSave = page.getByRole("button", { name: "Exit" });
   await departureSave.waitFor();
-  assert.equal(await departureSave.evaluate((node) => node === document.activeElement), true);
-  await page.keyboard.press("Enter");
+  assert.equal(
+    await page
+      .getByRole("button", { name: "Cancel", exact: true })
+      .evaluate((node) => node === document.activeElement),
+    true,
+  );
+  await departureSave.click();
   await page.waitForURL(`${base}/home`, { timeout: 5000 });
   await page.goto(url);
   await saved();
@@ -359,7 +449,7 @@ try {
   assert.notEqual(document.scenes[0].name, "Draft before publishing");
   mode = "saved";
   await page.getByRole("button", { name: "Publish", exact: true }).click();
-  await page.getByRole("button", { name: "Save and continue", exact: true }).click();
+  await page.getByRole("button", { name: "Exit", exact: true }).click();
   await page.waitForURL(`${base}/publish?projectId=${fixture.projectId}`);
   assert.equal(document.scenes[0].name, "Draft before publishing");
   await page.goto(url);
@@ -379,15 +469,15 @@ try {
   mode = "failed";
   await edit("Offline edit");
   await page.locator('.save-state[data-state="failed"]').waitFor();
-  await projectOption("Log out");
-  await page.getByRole("button", { name: "Save and continue", exact: true }).click();
+  await projectOption("Log Out");
+  await page.getByRole("button", { name: "Exit", exact: true }).click();
   await page.getByRole("dialog").getByRole("alert").waitFor();
   assert.equal(account, alice);
   assert.equal(new URL(page.url()).searchParams.get("projectId"), fixture.projectId);
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   const failedMutation = writes.at(-1).clientMutationId;
   mode = "saved";
-  await projectOption("Save");
+  await projectOption("Retry Save");
   await saved();
   assert.equal(writes.at(-1).clientMutationId, failedMutation);
   assert.equal(document.scenes[0].name, "Offline edit");
@@ -401,13 +491,14 @@ try {
       throw new DOMException("Cancelled", "AbortError");
     };
   });
-  await projectOption("Log out");
-  await page.getByRole("button", { name: "Export and continue", exact: true }).click();
+  await projectOption("Log Out");
+  await page.getByRole("button", { name: "Exit", exact: true }).click();
+  await page.getByRole("button", { name: "Export and Exit", exact: true }).click();
   await page.getByRole("dialog").getByRole("alert").waitFor();
   assert.equal(account, alice);
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
-  await projectOption("Open server version");
-  await page.getByRole("button", { name: "Keep recovery and continue", exact: true }).click();
+  await projectOption("Open Server Version");
+  await chooseRecovery();
   await page.getByRole("dialog", { name: "A recovery copy is available" }).waitFor();
   assert.equal(writes.length, attempts);
   await page.getByRole("button", { name: "Recover my edits", exact: true }).click();
@@ -417,8 +508,8 @@ try {
     "Conflicting local edit",
   );
   await page.getByRole("alert").filter({ hasText: "Another revision" }).waitFor();
-  await projectOption("Open server version");
-  await page.getByRole("button", { name: "Keep recovery and continue", exact: true }).click();
+  await projectOption("Open Server Version");
+  await chooseRecovery();
   mode = "saved";
   await page
     .getByRole("button", { name: "Use server version and discard recovery", exact: true })
@@ -474,15 +565,15 @@ try {
   await edit("Storage failure edit");
   await page.locator('.save-state[data-state="failed"]').waitFor();
   assert.equal(writes.length, beforeStorageFailure);
-  await projectOption("Log out");
-  await page.getByRole("button", { name: "Keep recovery and continue", exact: true }).click();
+  await projectOption("Log Out");
+  await chooseRecovery();
   await page.getByRole("dialog").getByRole("alert").waitFor();
   assert.equal(account, alice);
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   await page.evaluate(() => {
     window.failRecovery = false;
   });
-  await projectOption("Save");
+  await projectOption("Retry Save");
   await saved();
   assert.equal(document.scenes[0].name, "Storage failure edit");
 
@@ -528,16 +619,16 @@ try {
   });
   const [download] = await Promise.all([
     page.waitForEvent("download"),
-    projectOption("Export project file"),
+    projectOption("Export Project File"),
   ]);
   assert.equal(
     JSON.parse(readFileSync(await download.path(), "utf8")).scenes[0].name,
     "Only live draft after expiry",
   );
-  await projectOption("Log out");
+  await projectOption("Log Out");
   await Promise.all([
     page.waitForEvent("download"),
-    page.getByRole("button", { name: "Export and continue", exact: true }).click(),
+    page.getByRole("button", { name: "Export and Exit", exact: true }).click(),
   ]);
   await page.getByRole("dialog").getByRole("alert").waitFor();
   assert.equal(account, alice);
@@ -578,9 +669,9 @@ try {
       return put.apply(this, args);
     };
   });
-  // A confirmed recovery choice permits logout, but never deletes another account's work.
-  await projectOption("Log out");
-  await page.getByRole("button", { name: "Keep recovery and continue", exact: true }).click();
+  // Confirmed autosave permits logout while the final backup still holds the editor locked
+  await projectOption("Log Out");
+  await page.getByRole("button", { name: "Exit", exact: true }).click();
   await page.waitForFunction(() => typeof window.releaseDeparture === "function");
   await page.keyboard.press("Control+z");
   assert.equal(await departureName.evaluate((input) => input.value), "Preserved departure edit");

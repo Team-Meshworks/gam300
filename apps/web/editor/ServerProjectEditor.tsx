@@ -20,18 +20,15 @@ import {
   writeProjectFile,
 } from "./persistence/project-files";
 import { serializeProject } from "../shared/project/project-serialization";
+import { deserializeProject } from "../shared/project/project-deserialization";
+import { MAX_PROJECT_BYTES } from "../shared/project/project-limits";
+import { createWorkspaceClient, isId, isRecord, projectReceipt } from "./home/workspace-api";
+import { Icon } from "./ui/Icon";
 import type { ServerSaveStatus } from "./persistence/server-autosave";
-import {
-  parseProgressContext,
-  reviewReturnUrl,
-  type ProgressContext,
-} from "./projects/progress-navigation";
-import { readAssignment } from "./projects/assignment-api";
-import { createReviewClient } from "./reviews/review-client";
-import { ProgressReviews } from "./reviews/ProgressReviews";
+import { parseProgressContext, reviewReturnUrl } from "./projects/progress-navigation";
 
 const accounts = createAccountClient();
-const reviews = createReviewClient();
+const workspace = createWorkspaceClient();
 type Candidate = {
   opened: OpenedServerProject;
   recovery: RecoverySession | null;
@@ -57,15 +54,18 @@ function ChoiceDialog({
   title,
   children,
   cancel,
+  busy = false,
 }: {
   title: string;
   children: ReactNode;
   cancel: () => void;
+  busy?: boolean;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const node = dialog.current;
     node?.showModal();
+    node?.querySelector<HTMLButtonElement>("[data-initial-focus]")?.focus();
     return () => node?.close();
   }, []);
   return (
@@ -75,9 +75,20 @@ function ChoiceDialog({
       aria-label={title}
       onCancel={(event) => {
         event.preventDefault();
-        cancel();
+        if (!busy) {
+          cancel();
+        }
       }}
     >
+      <button
+        className="project-confirmation-close"
+        type="button"
+        aria-label="Close dialog"
+        disabled={busy}
+        onClick={cancel}
+      >
+        <Icon name="close" />
+      </button>
       <h2>{title}</h2>
       {children}
     </dialog>
@@ -219,59 +230,6 @@ function ServerProjectSession({
   const busyRef = useRef(false);
   const [attempt, setAttempt] = useState(0);
   const [departure, setDeparture] = useState<"home" | "logout" | "reload" | "publish" | null>(null);
-  const [reviewAccess, setReviewAccess] = useState<Active | null>(null);
-  const [reviewExit, setReviewExit] = useState<{
-    context: ProgressContext;
-    studentName: string;
-    revision: number;
-    mode: "leave" | "publish" | "review";
-  } | null>(null);
-
-  useEffect(() => {
-    const context = parseProgressContext(new URLSearchParams(location.search), projectId);
-    if (!active || !context) return;
-    let disposed = false;
-    void (async () => {
-      try {
-        const identity = await accounts.getSession();
-        if (
-          !identity ||
-          identity.userId !== active.accountId ||
-          identity.orgId !== active.orgId ||
-          identity.role !== "Educator" ||
-          identity.mustChangePassword
-        )
-          return;
-        const assignment = await readAssignment(
-          context.classId,
-          context.assignmentId,
-          active.controller.signal,
-        );
-        const current = await accounts.getSession();
-        if (
-          !disposed &&
-          current?.userId === active.accountId &&
-          current.role === "Educator" &&
-          current.orgId === identity.orgId &&
-          !current.mustChangePassword &&
-          assignment.projects.some(
-            (item) =>
-              item.projectId.toLowerCase() === projectId.toLowerCase() &&
-              item.studentId.toLowerCase() === context.studentId.toLowerCase(),
-          )
-        ) {
-          setReviewAccess(active);
-        }
-      } catch {
-        if (!disposed)
-          setError("Review controls could not be loaded. Reopen the student project to try again.");
-      }
-    })();
-    return () => {
-      disposed = true;
-    };
-  }, [active, projectId]);
-
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => {
       if (retained.current) {
@@ -407,7 +365,6 @@ function ServerProjectSession({
     current.current = null;
     setActive(null);
     setDeparture(null);
-    setReviewExit(null);
     setLoading(true);
     const preserved = await owner.session.dispose();
     retained.current = preserved?.ok
@@ -527,6 +484,72 @@ function ServerProjectSession({
     return saved;
   }
 
+  async function importFile(file: File) {
+    await run(async () => {
+      if (!active || active.controller.signal.aborted) {
+        return;
+      }
+      if (file.size > MAX_PROJECT_BYTES) {
+        throw new Error("Project JSON exceeds the 5 MiB file limit");
+      }
+      const imported = deserializeProject(await file.text(), kinds);
+      if (!imported.ok) {
+        throw new Error(imported.error.message);
+      }
+      const key = `spatia:uncertain-project-creation:${active.accountId}`;
+      if (sessionStorage.getItem(key) === "1") {
+        throw new Error(
+          "Check All Projects before importing again; an earlier creation may have completed",
+        );
+      }
+      // Keep this draft safe and import into a new project instead of overwriting it
+      await active.session.flush();
+      if (active.session.getStatus() !== "saved") {
+        throw new Error("Save this project before importing another file");
+      }
+      const identity = await checkDraftAccount(active);
+      if (!identity) {
+        return;
+      }
+      const projectAccess = identity.orgId
+        ? null
+        : await workspace.read(`/api/v1/projects/${projectId}/assignments`);
+      const organizationId =
+        identity.orgId ??
+        (isRecord(projectAccess) && isId(projectAccess.organizationId)
+          ? projectAccess.organizationId
+          : null);
+      if (!organizationId) {
+        throw new Error("The project organisation could not be verified; your draft is unchanged");
+      }
+      sessionStorage.setItem(key, "1");
+      if (sessionStorage.getItem(key) !== "1") {
+        throw new Error("Browser storage is unavailable; import was not sent");
+      }
+      const result = await workspace.write(active.accountId, "/api/v1/projects", "POST", {
+        title: imported.value.title,
+        document: imported.value,
+        orgId: organizationId,
+      });
+      if (result.kind === "rejected") {
+        sessionStorage.removeItem(key);
+        throw new Error(result.message);
+      }
+      // A lost receipt may already have created the project; keep the existing creation guard
+      if (result.kind !== "confirmed" || !projectReceipt(result.value) || !isRecord(result.value)) {
+        throw new Error("Import could not be confirmed; check All Projects before trying again");
+      }
+      sessionStorage.removeItem(key);
+      const preserved = await active.session.prepareToLeave("save");
+      if (!preserved.ok || !preserved.value) {
+        throw new Error(
+          "The imported project is in All Projects; keep this draft open until its save completes",
+        );
+      }
+      location.assign(`/?projectId=${encodeURIComponent(String(result.value.projectId))}`);
+    });
+  }
+
   async function leave(choice: "save" | "recovery" | "export" | "cancel") {
     if (choice === "cancel") {
       setDeparture(null);
@@ -556,74 +579,7 @@ function ServerProjectSession({
           ? "/login"
           : departure === "publish"
             ? `/publish?projectId=${encodeURIComponent(projectId)}`
-            : reviewReturnUrl(new URLSearchParams(location.search)),
-      );
-    });
-  }
-
-  async function startReview(mode: "leave" | "publish" | "review") {
-    const context = parseProgressContext(new URLSearchParams(location.search), projectId);
-    if (!context || !active) {
-      if (mode === "leave") setDeparture("home");
-      return;
-    }
-    await run(async () => {
-      const identity = await checkDraftAccount(active);
-      if (!identity) return;
-      if (identity.role !== "Educator") {
-        if (mode === "leave") setDeparture("home");
-        return;
-      }
-      let review: typeof reviewExit = null;
-      let failure =
-        "This student project could not be verified. Return to the class and try again.";
-      try {
-        await active.session.flush();
-        if (active.session.getStatus() !== "saved")
-          throw new Error("Save the project before reviewing or publishing it.");
-        const [assignment, project] = await Promise.all([
-          readAssignment(context.classId, context.assignmentId),
-          reviews.project(projectId),
-        ]);
-        const selected = assignment.projects.find(
-          (item) =>
-            item.projectId.toLowerCase() === projectId.toLowerCase() &&
-            item.studentId.toLowerCase() === context.studentId.toLowerCase(),
-        );
-        if (selected) {
-          review = {
-            context,
-            studentName: selected.studentName ?? "Student",
-            revision: project.revision,
-            mode,
-          };
-        }
-      } catch (cause) {
-        if (cause instanceof Error) failure = cause.message;
-      }
-      const current = await checkDraftAccount(active);
-      if (!current) return;
-      if (current.role === "Educator" && review) {
-        setReviewExit(review);
-      } else {
-        setError(`The submission review could not be opened. ${failure}`);
-        if (mode === "leave") setDeparture("home");
-      }
-    });
-  }
-
-  function finishReview() {
-    if (!active || !reviewExit) return;
-    const context = reviewExit.context;
-    void run(async () => {
-      const preserved = await active.session.prepareToLeave("save", exportJson);
-      if (!preserved.ok || !preserved.value)
-        throw new Error("The project could not be saved. Keep this tab open and retry.");
-      active.controller.abort();
-      await active.session.dispose();
-      current.current = null;
-      location.assign(
-        `/home?${new URLSearchParams({ classId: context.classId, assignmentId: context.assignmentId })}`,
+            : reviewReturnUrl(new URLSearchParams(location.search), active.role),
       );
     });
   }
@@ -642,21 +598,16 @@ function ServerProjectSession({
             dirty: status !== "saved",
             failed: ["failed", "conflict", "rejected"].includes(status),
             saving: status === "saving",
-            departing: departure !== null || reviewExit !== null,
+            departing: departure !== null || busy,
             busy,
             save,
-            leave: () => void startReview("leave"),
+            leave: () => setDeparture("home"),
+            importFile,
             openServerVersion: () => setDeparture("reload"),
             logout: () => setDeparture("logout"),
-            ...(reviewAccess === active
-              ? {
-                  publish: () => void startReview("publish"),
-                  review: () => void startReview("review"),
-                }
-              : active.role !== "Creator" &&
-                  !parseProgressContext(new URLSearchParams(location.search), projectId)
-                ? { publish: () => setDeparture("publish") }
-                : {}),
+            ...(!parseProgressContext(new URLSearchParams(location.search), projectId)
+              ? { publish: () => setDeparture("publish") }
+              : {}),
           }}
         />
       ) : (
@@ -673,6 +624,7 @@ function ServerProjectSession({
       )}
       {candidate && (
         <ChoiceDialog
+          busy={busy}
           title="A recovery copy is available"
           cancel={() => {
             candidate.controller.abort();
@@ -718,50 +670,38 @@ function ServerProjectSession({
           {error && <p role="alert">{error}</p>}
         </ChoiceDialog>
       )}
-      {active && reviewExit && (
-        <ProgressReviews
-          projectId={projectId}
-          revision={reviewExit.revision}
-          actorId={active.accountId}
-          orgId={active.orgId}
-          educator
-          autoOpen
-          {...(reviewExit.mode === "review"
-            ? { startEditing: true }
-            : {
-                publication: {
-                  studentId: reviewExit.context.studentId,
-                  studentName: reviewExit.studentName,
-                  projectTitle: active.title,
-                },
-              })}
-          onGuard={() => {}}
-          onClose={() => setReviewExit(null)}
-          onSaved={reviewExit.mode === "leave" ? finishReview : () => setReviewExit(null)}
-        />
-      )}
       {departure && (
         <ChoiceDialog
-          title="Preserve your work before leaving"
+          busy={busy}
+          title="Are you sure?"
           cancel={() => {
             if (!busy) setDeparture(null);
           }}
         >
-          <p>
-            Continue after a confirmed save, a browser recovery copy, or a completed file export.
-          </p>
-          <button disabled={busy} onClick={() => void leave("save")}>
-            Save and continue
-          </button>
-          <button disabled={busy} onClick={() => void leave("recovery")}>
-            Keep recovery and continue
-          </button>
-          <button disabled={busy} onClick={() => void leave("export")}>
-            Export and continue
-          </button>
-          <button disabled={busy} onClick={() => void leave("cancel")}>
-            Cancel
-          </button>
+          <p>Your project will be saved before you exit.</p>
+          <div>
+            <button
+              disabled={busy}
+              onClick={() => void leave("cancel")}
+              autoFocus
+              data-initial-focus
+            >
+              Cancel
+            </button>
+            <button disabled={busy} onClick={() => void leave("save")}>
+              {busy ? "Please wait…" : "Exit"}
+            </button>
+          </div>
+          {error && (
+            <div>
+              <button disabled={busy} onClick={() => void leave("recovery")}>
+                Keep Recovery and Exit
+              </button>
+              <button disabled={busy} onClick={() => void leave("export")}>
+                Export and Exit
+              </button>
+            </div>
+          )}
           {error && <p role="alert">{error}</p>}
         </ChoiceDialog>
       )}

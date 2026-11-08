@@ -1,3 +1,4 @@
+import { createSceneAudio } from "./scene-audio";
 import { createModelLoadQueue } from "./model-load-queue";
 import {
   environmentObject,
@@ -164,6 +165,7 @@ export interface InitSceneHandle {
   ) => { left: number; right: number; top: number; bottom: number } | null;
   setNavigationTool: (tool: NavigationTool) => void;
   toggleDisplayMedia: (id: string) => void;
+  playSpatialAudio: (id: string) => void;
   mobileControls: FpsMobileControls;
   modeManager: ModeManager;
   dispose: () => void;
@@ -180,6 +182,7 @@ export function initScene(
     onObjectClick: (id: string) => void;
     onUpdate: (deltaSeconds: number) => void;
     selectableAssets?: readonly CatalogueAsset[];
+    onAudioError?: (message: string) => void;
   },
   modelCache: ModelCache = editorModelCache,
 ): InitSceneHandle | undefined {
@@ -311,6 +314,9 @@ export function initScene(
     ]);
   }
   const displays = createDisplayContent(assets, render, models);
+  const spatialAudio = createSceneAudio(camera, assets, (message) =>
+    callbacks.onAudioError?.(message),
+  );
   const instanceAssets = new Map<string, string>();
   function instanceFor(objectId: string): THREE.Group | undefined {
     if (objectId === projectScene?.id) return environment;
@@ -541,6 +547,7 @@ export function initScene(
     const now = performance.now();
     interactionClock.setActive(now, !document.hidden && modeManager.getState().mode === "visitor");
     lastFrameTime = now;
+    spatialAudio.setVisible(!document.hidden);
     if (document.hidden) displays.pause();
     else displays.resumeEditing();
   };
@@ -749,6 +756,7 @@ export function initScene(
       }
       syncRoomEntrances();
       displays.sync(objects, instances);
+      spatialAudio.sync(objects, instances);
       syncHotspots();
     }
     const selectedBounds = getSelectionBounds();
@@ -1686,6 +1694,16 @@ export function initScene(
   }
 
   function wheel(event: WheelEvent) {
+    // Open libraries and popups own scrolling; the camera behind them must stay put
+    if (
+      document.querySelector(
+        'dialog[open], [role="dialog"], .asset-picker, .tool-popup, .dock-menu, details[open] > .draft-menu-panel',
+      )
+    ) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
     if (drag?.currentMode === "carry" && event.deltaY !== 0) {
       event.preventDefault();
       event.stopPropagation();
@@ -1787,6 +1805,7 @@ export function initScene(
       previousMode = mode;
     }
     displays.setPreview(mode === "visitor");
+    spatialAudio.setPreview(mode === "visitor");
     visitorClick = undefined;
     // Esc or Alt let go of the mouse, which also puts back whatever was being carried or turned
     if (!captured && drag !== undefined && dragLocked) cancelDrag();
@@ -2157,6 +2176,7 @@ export function initScene(
       applyNavigationTool();
     },
     toggleDisplayMedia: (id) => displays.toggle(id),
+    playSpatialAudio: spatialAudio.play,
     mobileControls: fpsControls.mobileControls,
     modeManager,
     dispose() {
@@ -2175,6 +2195,7 @@ export function initScene(
       appearanceRenderer.dispose();
       disposed = true;
       displays.dispose();
+      spatialAudio.dispose();
       controller.abort();
       observer.disconnect();
       fpsMeter.dispose();

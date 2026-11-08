@@ -54,7 +54,7 @@ const baseCategories: { id: Category; label: string; items: Item[] }[] = [
     label: "Audio",
     items: [
       { label: "BGM", icon: "audioMusic" },
-      { label: "Sound effects", icon: "audioSpeaker" },
+      { label: "Spatial Audio", icon: "audioSpeaker" },
       { label: "Payphone audio", icon: "audioPhone" },
     ],
   },
@@ -334,8 +334,8 @@ export function BottomBar({
                         type="button"
                         aria-label={item.label}
                         aria-pressed={picked[open.id] === index}
-                        aria-disabled={open.id === "audio" && index !== 0}
-                        title={open.id === "audio" && index !== 0 ? "Coming soon" : item.label}
+                        aria-disabled={open.id === "audio" && index === 2}
+                        title={open.id === "audio" && index === 2 ? "Coming soon" : item.label}
                         disabled={
                           item.assetId !== undefined &&
                           (!ready || !assets.some((asset) => asset.id === item.assetId))
@@ -358,7 +358,7 @@ export function BottomBar({
                         }}
                         onClick={() => {
                           // Keep future audio types visible without opening an unsupported authoring flow
-                          if (open.id === "audio" && index !== 0) return;
+                          if (open.id === "audio" && index === 2) return;
                           setPicked((previous) => ({ ...previous, [open.id]: index }));
                           setPopup(null);
                           playUiSound("assetSelect");
@@ -367,7 +367,7 @@ export function BottomBar({
                           else if (item.assetId) onAdd(item.assetId);
                         }}
                         {...popupTip.handlers(
-                          open.id === "audio" && index !== 0 ? "Coming soon" : item.label,
+                          open.id === "audio" && index === 2 ? "Coming soon" : item.label,
                         )}
                       >
                         <Icon name={item.icon} />

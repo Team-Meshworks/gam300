@@ -116,6 +116,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             user.Property(account => account.UserName).IsRequired();
             user.Property(account => account.NormalizedUserName).IsRequired();
             user.Property(account => account.DisplayName).HasMaxLength(256);
+            user.Property(account => account.IsDeleted).IsRequired();
         });
 
         builder.Entity<IdentityRole<Guid>>().HasData(

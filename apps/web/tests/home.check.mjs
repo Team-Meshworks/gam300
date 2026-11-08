@@ -68,8 +68,22 @@ try {
       return route.fulfill({
         json: {
           items: [
-            { id: orgId, name: "Active school", isActive: true },
-            { id: copyId, name: "Inactive school", isActive: false },
+            {
+              id: orgId,
+              name: "Active school",
+              isActive: true,
+              projectCount: 0,
+              facilitatorCount: 0,
+              creatorCount: 0,
+            },
+            {
+              id: copyId,
+              name: "Inactive school",
+              isActive: false,
+              projectCount: 0,
+              facilitatorCount: 0,
+              creatorCount: 0,
+            },
           ],
           nextCursor: null,
         },

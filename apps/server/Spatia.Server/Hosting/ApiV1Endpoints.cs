@@ -23,6 +23,7 @@ public static class ApiV1Endpoints
         endpoints.MapAssetAdministration();
         endpoints.MapAssetDelivery();
         endpoints.MapPublicationDelivery();
+        endpoints.MapProjectPublicationModeration();
         endpoints.MapPublicationWrites();
         endpoints.MapAccountAdministration();
         endpoints.MapAccountDirectory();

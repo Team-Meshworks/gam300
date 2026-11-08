@@ -1,5 +1,5 @@
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faMagnifyingGlass } from "@fortawesome/free-solid-svg-icons";
+import { Icon as UiIcon } from "@iconify/react/offline";
+import faMagnifyingGlass from "@iconify-icons/lucide/search";
 import type { ReactNode } from "react";
 
 export function SearchField({
@@ -27,7 +27,7 @@ export function SearchField({
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder ?? label}
       />
-      {icon ?? <FontAwesomeIcon icon={faMagnifyingGlass} aria-hidden="true" />}
+      {icon ?? <UiIcon icon={faMagnifyingGlass} aria-hidden="true" />}
     </label>
   );
 }

@@ -15,16 +15,16 @@ internal sealed class AuthenticatedPublicationIntegration : IPublicationIntegrat
     {
         var intent = ReadIntent(request);
         if (intent.Failure is { } failure) { return PublicationPreparation.Denied(failure); }
-        // Check authored features before resolving assets or creating a publication
-        // Keep unavailable content saved while preventing incomplete playback
-        var hasLegacyInteractions = document switch
+        // URL-only audio has no retained bytes or current publication access decision
+        // Require a captured library component while preserving authored rules and hotspots
+        var hasUncapturedAudio = document switch
         {
-            LegacyProject legacy => legacy.Scenes.Any(scene => scene.Interactions.Length != 0 || scene.Hotspots.Length != 0),
-            ContentProject content => content.Scenes.Any(scene => scene.Interactions.Length != 0 || scene.Hotspots.Length != 0),
+            LegacyProject legacy => legacy.Scenes.Any(scene => scene.Interactions.Any(item => item.Do is PlayAudioInteractionAction { Url: not null })),
+            ContentProject content => content.Scenes.Any(scene => scene.Interactions.Any(item => item.Do is PlayAudioInteractionAction { Url: not null })),
             _ => true,
         };
         var missing = ProjectCapabilities.Missing(document, PublicationCapabilities.Supported);
-        if (hasLegacyInteractions || missing.Count != 0)
+        if (hasUncapturedAudio || missing.Count != 0)
         {
             return PublicationPreparation.Denied(PublicationRejection.UnsupportedRuntime, missing);
         }
@@ -80,16 +80,15 @@ internal sealed class AuthenticatedPublicationIntegration : IPublicationIntegrat
             || json.RootElement.GetProperty("viewerIds").ValueKind != JsonValueKind.Array)
         { return (null, default, PublicationRejection.PolicyDenied); }
         var audience = json.RootElement.GetProperty("audience").GetString();
-        if (audience == "Public") { return (null, default, PublicationRejection.DependencyUnavailable); }
-        if (audience is not ("Authenticated" or "Unlisted")) { return (null, default, PublicationRejection.PolicyDenied); }
+        if (audience is not ("Authenticated" or "Unlisted" or "Public")) { return (null, default, PublicationRejection.PolicyDenied); }
         var ids = new HashSet<Guid>();
         var values = json.RootElement.GetProperty("viewerIds");
-        if (values.GetArrayLength() > 100 || (audience == "Unlisted" && values.GetArrayLength() != 0)) { return (null, default, PublicationRejection.PolicyDenied); }
+        if (values.GetArrayLength() > 100 || (audience != "Authenticated" && values.GetArrayLength() != 0)) { return (null, default, PublicationRejection.PolicyDenied); }
         foreach (var value in values.EnumerateArray())
         {
             if (value.ValueKind != JsonValueKind.String || !value.TryGetGuid(out var id) || id == Guid.Empty || !ids.Add(id))
             { return (null, default, PublicationRejection.PolicyDenied); }
         }
-        return (ids.ToArray(), audience == "Unlisted" ? PublicationAudience.Unlisted : PublicationAudience.Authenticated, null);
+        return (ids.ToArray(), Enum.Parse<PublicationAudience>(audience!), null);
     }
 }

@@ -27,7 +27,7 @@ public sealed class CurrentAccountResolver(ApplicationDbContext database)
     {
         var current = await (
             from user in database.Users.AsNoTracking()
-            where user.Id == userId
+            where user.Id == userId && !user.IsDeleted
             join assignment in database.UserRoles on user.Id equals assignment.UserId into assignments
             from assignment in assignments.DefaultIfEmpty()
             join assignedRole in database.Roles

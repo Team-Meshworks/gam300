@@ -91,8 +91,6 @@
     "test:teacher-assignment-edit": "node tests/teacher-assignment-edit.check.mjs",
     "test:teacher-review-refresh": "node tests/teacher-review-refresh.check.mjs",
     "test:teacher-details-flow": "node tests/teacher-details-flow.check.mjs",
-    "test:teacher-review-org-click": "node tests/teacher-review-org-click.check.mjs",
-    "test:teacher-review-org-switch": "node tests/teacher-review-org-switch.check.mjs",
     "test:teacher-editor-actions": "node tests/teacher-editor-actions.check.mjs",
     "test:teacher-roster-account-switch": "node tests/teacher-roster-account-switch.check.mjs",
     "test:teacher-choices-account-switch": "node tests/teacher-choices-account-switch.check.mjs",

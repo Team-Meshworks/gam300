@@ -68,6 +68,12 @@ public sealed class ProductionRoomBrowserTests
         var environment = await ApproveAsync(fixture, "environment", bytes, hash);
         var model = await ApproveAsync(fixture, "model", bytes, hash);
         await Assert.That(environment.Id).IsNotEqualTo(model.Id);
+        var crateBytes = await File.ReadAllBytesAsync(Path.GetFullPath(
+            "../../../../../../assets/delivery/test-crate.glb", AppContext.BaseDirectory));
+        var crate = await ApproveAsync(fixture, "model", crateBytes, Convert.ToHexStringLower(SHA256.HashData(crateBytes)), "Approved sample crate.glb");
+        var audioBytes = await File.ReadAllBytesAsync(Path.GetFullPath(
+            "../../../../../../assets/delivery/audio/calm-piano.m4a", AppContext.BaseDirectory));
+        var audio = await ApproveAsync(fixture, "audio", audioBytes, Convert.ToHexStringLower(SHA256.HashData(audioBytes)));
         using (var logout = await AuthTestRequests.PostAsync(fixture, "/api/v1/auth/logout", null))
         {
             await Assert.That(logout.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
@@ -90,6 +96,10 @@ public sealed class ProductionRoomBrowserTests
             new { title = "Production adjoining rooms", environmentAssetId = environment.Id.ToString() });
         await Assert.That(created.StatusCode).IsEqualTo(HttpStatusCode.Created);
         var projectId = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("projectId").GetGuid();
+        using var authoring = await AuthTestRequests.PostAsync(fixture, "/api/v1/projects/",
+            new { title = "Production asset authoring", environmentAssetId = environment.Id.ToString() });
+        await Assert.That(authoring.StatusCode).IsEqualTo(HttpStatusCode.Created);
+        var authoringId = (await authoring.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("projectId").GetGuid();
 
         var serverDirectory = Path.GetFullPath("../../../../", AppContext.BaseDirectory);
         var editorDirectory = Path.Combine(fixture.KeyDirectory, "production-editor-static");
@@ -114,6 +124,7 @@ public sealed class ProductionRoomBrowserTests
         start.ArgumentList.Add(model.Id.ToString("D"));
         start.ArgumentList.Add(editorDirectory);
         start.ArgumentList.Add(artifactDirectory);
+        start.ArgumentList.Add(JsonSerializer.Serialize(new { projectId = authoringId, crateId = crate.Id, audioId = audio.Id }));
         using var process = Process.Start(start)
             ?? throw new InvalidOperationException("Could not start the production room browser check.");
         var output = process.StandardOutput.ReadToEndAsync();
@@ -143,15 +154,16 @@ public sealed class ProductionRoomBrowserTests
     }
 
     private static async Task<AssetAdministrationRecord> ApproveAsync(
-        HttpsApplicationFixture fixture, string kind, byte[] bytes, string hash)
+        HttpsApplicationFixture fixture, string kind, byte[] bytes, string hash, string? fileName = null)
     {
-        var name = kind == "environment" ? "Approved%20Starter%20room.glb" : "Approved%20Starter%20model.glb";
-        var category = kind == "model" ? "&category=Architecture" : "";
+        var name = Uri.EscapeDataString(fileName ?? (kind == "audio" ? "Approved spatial track.m4a"
+            : kind == "environment" ? "Approved Starter room.glb" : "Approved Starter model.glb"));
+        var category = kind == "audio" ? "&category=BGM" : kind == "model" ? "&category=Architecture" : "";
         using var upload = new HttpRequestMessage(
             HttpMethod.Post, $"/api/v1/admin/assets?name={name}&kind={kind}{category}");
         upload.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync());
         upload.Content = new ByteArrayContent(bytes);
-        upload.Content.Headers.ContentType = new("model/gltf-binary");
+        upload.Content.Headers.ContentType = new(AssetIntakePolicy.MediaType(kind));
         using var submitted = await fixture.Client.SendAsync(upload);
         await Assert.That(submitted.StatusCode).IsEqualTo(HttpStatusCode.Created);
         var candidate = (await submitted.Content.ReadFromJsonAsync<AssetAdministrationRecord>())!;

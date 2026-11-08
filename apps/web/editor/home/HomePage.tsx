@@ -10,6 +10,8 @@ import washLeft from "./assets/ambient-top.svg";
 import washRight from "./assets/ambient-bottom.svg";
 import creatorWashRight from "./assets/ambient-creator.svg";
 import { useWorkspaceDeparture } from "../workspace/useWorkspaceDeparture";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faXmark } from "@fortawesome/free-solid-svg-icons";
 import { ProjectHome } from "./ProjectHome";
 import { StudentProjects } from "./StudentProjects";
 import { TeacherProjects } from "./TeacherProjects";
@@ -126,11 +128,12 @@ function HomeWorkspace({ session, active, onSignOut }: WorkspaceAccess) {
         <div className="sp-admin-return">
           <button
             type="button"
+            className="sp-button sp-close-button"
             aria-label="Back to dashboard"
             disabled={navigation.locked}
             onClick={() => navigate(() => location.assign("/admin/dashboard"))}
           >
-            ×
+            <FontAwesomeIcon icon={faXmark} aria-hidden="true" />
           </button>
         </div>
       )}

@@ -181,7 +181,7 @@ export function LoginPage({ siteRoot }: { siteRoot: boolean }) {
                   <a href="/admin/dashboard">Open admin dashboard</a>
                 ) : null}
                 <Button disabled={pending} onClick={() => void signOut()}>
-                  {pending ? "Signing out…" : "Log out"}
+                  {pending ? "Signing out…" : "Log Out"}
                 </Button>
               </div>
             ) : (
@@ -228,9 +228,10 @@ export function LoginPage({ siteRoot }: { siteRoot: boolean }) {
                         type="button"
                         aria-label={visible ? "Hide password" : "Show password"}
                         aria-pressed={visible}
+                        title={visible ? "Hide password" : "Show password"}
                         onClick={() => setVisible((value) => !value)}
                       >
-                        <FontAwesomeIcon icon={visible ? faEyeSlash : faEye} aria-hidden="true" />
+                        <FontAwesomeIcon icon={visible ? faEye : faEyeSlash} aria-hidden="true" />
                       </button>
                     </div>
                   </Field>
@@ -284,7 +285,7 @@ export function LoginPage({ siteRoot }: { siteRoot: boolean }) {
             )}
             {session?.mustChangePassword && (
               <Button disabled={pending} onClick={() => void signOut()}>
-                Log out
+                Log Out
               </Button>
             )}
             <div className="login-account-note">
@@ -337,7 +338,7 @@ export function LoginPage({ siteRoot }: { siteRoot: boolean }) {
         </div>
       </footer>
       {help && (
-        <Dialog title="Account help" onClose={() => setHelp(false)}>
+        <Dialog title="Account help" variant="admin" onClose={() => setHelp(false)}>
           <p>
             Use the username and password provided by your teacher or organisation administrator.
             Contact them to request an account or reset a forgotten password.

@@ -262,7 +262,7 @@ export function DisplayEditor({
         >
           <header className="asset-picker-head">
             <h3 className="asset-picker-title">
-              <Icon name="info" />
+              <Icon name="info" title="Choose an object for this display" />
               {title}
             </h3>
             {!textMode && (

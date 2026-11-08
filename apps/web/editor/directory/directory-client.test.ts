@@ -25,6 +25,23 @@ it("loads every page within the selected organisation", async () => {
     credentials: "same-origin",
     cache: "no-store",
   });
+  const organization = {
+    id: user.orgId,
+    name: "School",
+    isActive: true,
+    projectCount: 2,
+    facilitatorCount: 1,
+    creatorCount: 3,
+  };
+  request.mockResolvedValueOnce(json({ items: [organization], nextCursor: null }));
+  expect(
+    await createDirectoryClient(request, user.userId).organizations("Aisyah 100%_ School"),
+  ).toEqual([organization]);
+  expect(String(request.mock.calls[2]?.[0])).toContain("q=Aisyah%20100%25_%20School&limit=100");
+  expect(request.mock.calls[2]?.[1]?.headers).toMatchObject({ "X-Spatia-Account": user.userId });
+  const project = { id: user.userId, title: "Project", status: "Draft", isPublic: true };
+  request.mockResolvedValueOnce(json({ items: [project], nextCursor: null }));
+  expect(await createDirectoryClient(request, user.userId).projects(user.orgId)).toEqual([project]);
 });
 it("sends only overridden fields with a fresh CSRF token", async () => {
   const request = vi
@@ -68,6 +85,24 @@ it("rejects malformed accounts, repeated cursors and unverified CSRF responses",
     createDirectoryClient(csrf).update(user.userId, { displayName: "Name" }),
   ).rejects.toThrow("verified");
   expect(csrf).toHaveBeenCalledTimes(1);
+  const malformedTotals = vi.fn<typeof fetch>().mockResolvedValue(
+    json({
+      items: [
+        {
+          id: user.orgId,
+          name: "School",
+          isActive: true,
+          projectCount: -1,
+          facilitatorCount: 0,
+          creatorCount: 1,
+        },
+      ],
+      nextCursor: null,
+    }),
+  );
+  await expect(createDirectoryClient(malformedTotals).organizations()).rejects.toThrow(
+    "Invalid organisation",
+  );
 });
 it("does not retry an unconfirmed write automatically", async () => {
   const request = vi
@@ -143,4 +178,12 @@ it("reports deletion conflicts and never retries an uncertain delete", async () 
     "Deletion could not be confirmed",
   );
   expect(request).toHaveBeenCalledTimes(4);
+  request
+    .mockResolvedValueOnce(json({ requestToken: "csrf" }))
+    .mockRejectedValueOnce(new Error("network"));
+  await expect(client.deleteAccount(user.userId)).rejects.toThrow(
+    "Deletion could not be confirmed",
+  );
+  expect(request).toHaveBeenCalledTimes(6);
+  expect(request.mock.calls[5]?.[1]).toMatchObject({ method: "DELETE" });
 });

@@ -1,4 +1,4 @@
-import type { CatalogueAsset } from "../shared/asset-runtime/catalogue";
+import { knownRoomGeometry, type CatalogueAsset } from "../shared/asset-runtime/catalogue";
 import { deserializeProject, readProjectJson } from "../shared/project/project-deserialization";
 import { missingProjectCapabilities } from "../shared/project/project-capabilities";
 import capabilities from "../shared/project/publication-capabilities.json";
@@ -27,7 +27,11 @@ export function readPublicationManifest(value: unknown, publicationId: string) {
       !record(asset) ||
       !id(asset.id) ||
       seen.has(asset.id) ||
-      (asset.kind !== "model" && asset.kind !== "environment") ||
+      (asset.kind !== "model" &&
+        asset.kind !== "environment" &&
+        asset.kind !== "audio" &&
+        asset.kind !== "image" &&
+        asset.kind !== "video") ||
       typeof asset.sha256 !== "string" ||
       !/^[a-f0-9]{64}$/.test(asset.sha256) ||
       asset.url !== `/api/v1/publications/${publicationId}/assets/${asset.id}/bytes`
@@ -41,6 +45,10 @@ export function readPublicationManifest(value: unknown, publicationId: string) {
       url: String(asset.url),
       sha256: asset.sha256,
       thumbnail: null,
+      // Match the editor's approved-room origin using metadata bound to the exact digest
+      ...(knownRoomGeometry[asset.sha256]
+        ? { boundsMeters: knownRoomGeometry[asset.sha256], placement: "bottom-center" as const }
+        : {}),
     };
   });
   return { projectId: value.projectId, sourceRevision: Number(value.sourceRevision), assets };
@@ -73,14 +81,23 @@ export async function loadPublication(publicationId: string, signal: AbortSignal
   // The server reads this same capability list before creating a publication
   if (parsed.value.schemaVersion === 2) {
     const missing = missingProjectCapabilities(parsed.value, new Set(capabilities));
-    if (parsed.value.scenes.some((scene) => scene.interactions.length || scene.hotspots.length)) {
-      throw new Error("This exhibition requires unsupported legacy interactions.");
-    }
     if (missing.length) {
       throw new Error(
         `This exhibition requires unsupported features: ${missing.map((issue) => `${issue.capability} at ${issue.path}`).join(", ")}`,
       );
     }
+  }
+  // URL-only audio has no immutable manifest entry; require a captured audio component instead
+  if (
+    parsed.value.scenes.some(
+      (scene) =>
+        "interactions" in scene &&
+        scene.interactions.some(
+          (item) => item.do.type === "play-audio" && item.do.url !== undefined,
+        ),
+    )
+  ) {
+    throw new Error("This exhibition audio must use an approved library track.");
   }
   return { ...manifest, document: parsed.value };
 }

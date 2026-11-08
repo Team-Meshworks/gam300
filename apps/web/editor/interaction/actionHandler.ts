@@ -28,7 +28,9 @@ export type NavigationActions = Readonly<{
 
 export function createActionRunner(
   navigation?: NavigationActions,
-  resolveAudio?: (id: string) => { url: string; loop: boolean; volume: number } | undefined,
+  resolveAudio?: (
+    id: string,
+  ) => { url: string; loop: boolean; volume: number; play?: () => void } | undefined,
 ): ActionRunner {
   let activeAudio: HTMLAudioElement | undefined;
   let activeTrack: string | undefined;
@@ -68,7 +70,11 @@ export function createActionRunner(
           // Resolve from the current scene at playback time; replaced tracks keep their authored link
           if (action.mediaId !== undefined) {
             const source = resolveAudio?.(action.mediaId);
-            if (source) playAudio(source.url, source.loop, source.volume, action.mediaId);
+            if (source?.play) {
+              source.play();
+            } else if (source) {
+              playAudio(source.url, source.loop, source.volume, action.mediaId);
+            }
           } else if (action.url !== undefined) playAudio(action.url);
           return;
         case "navigate-scene":

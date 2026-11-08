@@ -12,6 +12,31 @@ try {
   page.on("pageerror", (error) => errors.push(error.message));
   await page.addInitScript(() => {
     window.previewAudios = [];
+    window.spatialPanners = [];
+    window.spatialSources = [];
+    const createPanner = AudioContext.prototype.createPanner;
+    AudioContext.prototype.createPanner = function () {
+      const panner = createPanner.call(this);
+      window.spatialPanners.push(panner);
+      return panner;
+    };
+    const createSource = AudioContext.prototype.createBufferSource;
+    AudioContext.prototype.createBufferSource = function () {
+      const source = createSource.call(this);
+      const record = { source, started: false, stopped: false };
+      window.spatialSources.push(record);
+      const start = source.start.bind(source),
+        stop = source.stop.bind(source);
+      source.start = (...args) => {
+        record.started = true;
+        return start(...args);
+      };
+      source.stop = (...args) => {
+        record.stopped = true;
+        return stop(...args);
+      };
+      return source;
+    };
     const play = HTMLMediaElement.prototype.play;
     HTMLMediaElement.prototype.play = function () {
       if (this.src.includes(".m4a") && !window.previewAudios.includes(this))
@@ -137,7 +162,7 @@ try {
   let doc = await saved((doc) => doc.scenes[0].audio?.length === 1);
   assert.equal(doc.scenes[0].objects.length, 0);
   const original = doc.scenes[0].audio[0];
-  await button("Ethereal Calm").click();
+  await page.locator(".scene-audio-select").filter({ hasText: "Ethereal Calm" }).click();
   assert.equal(await dialog.count(), 0, "Selecting hierarchy audio must not reopen the library");
   assert.equal(await button("Ethereal Calm").getAttribute("aria-pressed"), "true");
   assert.equal(await page.locator(".scene-audio-remove").count(), 0);
@@ -148,7 +173,7 @@ try {
   // Unavailable audio types remain discoverable without changing the draft or opening a library
   await button("Audio").click();
   const audioTools = page.getByRole("group", { name: "Audio options", exact: true });
-  for (const name of ["Sound effects", "Payphone audio"]) {
+  for (const name of ["Payphone audio"]) {
     const tool = button(name, audioTools);
     assert.equal(await tool.getAttribute("aria-disabled"), "true");
     await tool.hover();
@@ -162,7 +187,7 @@ try {
   doc = await document();
   assert.equal(doc.scenes[0].audio[0].id, original.id);
   assert.equal(doc.scenes[0].objects.length, 0);
-  await button("Ethereal Calm").click();
+  await page.locator(".scene-audio-select").filter({ hasText: "Ethereal Calm" }).click();
   await page.keyboard.press("Delete");
   await saved((doc) => (doc.scenes[0].audio?.length ?? 0) === 0);
   await button("Undo").click();
@@ -176,6 +201,20 @@ try {
   await button("Add", page.locator(".asset-picker")).click();
   await placeAtRoomCenter(page);
   await page.locator(".object-row[data-object-id]").first().click();
+  // Spatial audio belongs to the selected object and survives recovery alongside global tracks
+  await open("Spatial Audio");
+  await button("Ethereal Calm", dialog).click();
+  await button("Add", dialog).click();
+  await saved((doc) =>
+    doc.scenes[0].objects[0]?.components?.some(
+      (entry) => entry.type === "audio" && entry.mode === "spatial",
+    ),
+  );
+  assert.equal(
+    await page.evaluate(() => window.spatialPanners.length),
+    0,
+    "Editing does not start spatial playback",
+  );
   // Seed a checked annotation through import so this panel regression is independent of camera placement
   const annotated = await saved((doc) => doc.scenes[0].objects.length > 0);
   annotated.scenes[0].hotspots = [
@@ -191,7 +230,7 @@ try {
   await page.getByLabel("Interaction 1 audio", { exact: true }).selectOption(original.id);
   await saved((doc) => doc.scenes[0].interactions?.[0]?.do.mediaId === original.id);
   await button("Scene tree").click();
-  await button("Ethereal Calm").click();
+  await page.locator(".scene-audio-select").filter({ hasText: "Ethereal Calm" }).click();
   await page.keyboard.press("Delete");
   const deletionNotice = await page.locator(".draft-feedback").textContent();
   assert.match(
@@ -213,12 +252,47 @@ try {
   await page.reload();
   await openSavedProject(page);
   await button("Preview").click();
+  await page.waitForFunction(
+    () =>
+      window.spatialPanners.length === 1 &&
+      window.spatialSources.some((entry) => entry.started && !entry.stopped),
+  );
+  assert.equal(await page.evaluate(() => window.spatialPanners[0].panningModel), "HRTF");
+  const placed = (await document()).scenes[0].objects[0].transform.position;
+  const sourcePosition = await page.evaluate(() => {
+    const panner = window.spatialPanners[0];
+    return [panner.positionX.value, panner.positionY.value, panner.positionZ.value];
+  });
+  placed.forEach((value, index) =>
+    assert.ok(Math.abs(value - sourcePosition[index]) < 0.01, "Spatial source follows its exhibit"),
+  );
+  // A hidden tab pauses its sources and returning resumes them without orphaning playback
+  await page.evaluate(() => {
+    Object.defineProperty(document, "hidden", { configurable: true, value: true });
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  assert.equal(
+    await page.evaluate(() => window.spatialSources.every((entry) => entry.stopped)),
+    true,
+  );
+  await page.evaluate(() => {
+    Object.defineProperty(document, "hidden", { configurable: true, value: false });
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  await page.waitForFunction(() =>
+    window.spatialSources.some((entry) => entry.started && !entry.stopped),
+  );
   const target = page.locator(".preview-targets button").first();
   await target.click();
   await page.waitForFunction(() =>
     window.previewAudios.some((audio) => !audio.paused && audio.src.includes("ethereal-calm")),
   );
   await button("Exit preview").click();
+  assert.equal(
+    await page.evaluate(() => window.spatialSources.every((entry) => entry.stopped)),
+    true,
+    "Leaving Preview stops spatial audio",
+  );
   assert.equal(
     await page.evaluate(() => window.previewAudios.every((audio) => audio.paused)),
     true,

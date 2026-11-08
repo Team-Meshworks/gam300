@@ -416,7 +416,7 @@ export function SceneTreePanel({
   return (
     <section ref={panel} className="editor-panel" aria-labelledby="objects-heading">
       <h2 id="objects-heading">
-        <Icon name="info" />
+        <Icon name="info" title="Select objects or drag them to change their nesting" />
         Scene Tree <span className="panel-count">{count}</span>
       </h2>
       {!room && objects.length === 0 && groups.length === 0 ? (

@@ -109,7 +109,8 @@ export function ProgressReviews({
   const [phase, setPhase] = useState<"ready" | "sending" | "unknown">("ready");
   const [conflict, setConflict] = useState(false);
   const [submission, setSubmission] = useState<{ id: string; revision: number } | null>(null);
-  const [canPublish, setCanPublish] = useState(false);
+  const [canApprove, setCanApprove] = useState(false);
+  const [approvalSaved, setApprovalSaved] = useState(false);
   const [submissionFeedback, setSubmissionFeedback] = useState<Decision[]>([]);
   const [publicationLoading, setPublicationLoading] = useState(Boolean(publication));
   const [publicationError, setPublicationError] = useState("");
@@ -193,19 +194,13 @@ export function ProgressReviews({
           throw new Error("Your account changed. Reload before continuing.");
         if (disposed) return;
         setSubmissionFeedback(history);
-        setCanPublish(
+        // Approval follows review authority even when publishing is unavailable
+        setCanApprove(
           project.revision === revision &&
-            project.permissions.canPublish &&
-            project.permissions.canManage &&
-            Boolean(
-              review &&
-              (mayDecide(review, project, "approved") ||
-                reviewState(review, project.revision) === "approved"),
-            ),
+            Boolean(review && mayDecide(review, project, "approved")),
         );
         if (
           project.revision === revision &&
-          project.permissions.canPublish &&
           review &&
           (mayDecide(review, project, "approved") ||
             (project.permissions.canManage && reviewState(review, project.revision) === "approved"))
@@ -369,10 +364,10 @@ export function ProgressReviews({
     }
   }
   async function publish(retry = false) {
-    if (busy.current || (!retry && (!canPublish || phase !== "ready"))) return;
+    if (busy.current || (!retry && (!canApprove || phase !== "ready"))) return;
     if (!navigator.locks) {
       setError(
-        "This browser cannot safely coordinate publishing requests. Please use a supported browser.",
+        "This browser cannot safely coordinate review requests. Please use a supported browser.",
       );
       return;
     }
@@ -387,6 +382,7 @@ export function ProgressReviews({
           publicationId: crypto.randomUUID(),
           revision,
           feedback,
+          approvalOnly: true as const,
         };
     if (!sent) return;
     busy.current = true;
@@ -412,7 +408,22 @@ export function ProgressReviews({
         },
       );
       if (!active.current) return;
-      if (result.kind === "published") {
+      if (result.kind === "approved") {
+        // Refresh the current decision after approval
+        try {
+          localStorage.removeItem(recoveredFeedbackKey);
+        } catch {
+          /* Keep recoverable text */
+        }
+        setPendingPublication(null);
+        setFeedback("");
+        setCanApprove(false);
+        setApprovalSaved(true);
+        setPublicationLoading(true);
+        setPublicationAttempt((value) => value + 1);
+        setPhase("ready");
+        onSaved?.();
+      } else if (result.kind === "published") {
         try {
           localStorage.removeItem(recoveredFeedbackKey);
         } catch {
@@ -429,7 +440,7 @@ export function ProgressReviews({
       } else if (result.kind === "revision-conflict" || result.kind === "publication-rejected") {
         setPendingPublication(null);
         setSubmission(null);
-        setCanPublish(false);
+        setCanApprove(false);
         setFeedback("");
         if (result.kind === "revision-conflict") {
           setConflict(true);
@@ -643,7 +654,7 @@ export function ProgressReviews({
                   setPublicationLoading(true);
                   setPublicationError("");
                   setSubmission(null);
-                  setCanPublish(false);
+                  setCanApprove(false);
                   setPublicationAttempt((value) => value + 1);
                 }}
               >
@@ -716,27 +727,29 @@ export function ProgressReviews({
                     disabled={
                       phase !== "ready" ||
                       publicationLoading ||
-                      !canPublish ||
+                      !canApprove ||
                       feedback.includes("\0")
                     }
                     onClick={() => void publish()}
                   >
-                    Approve and publish
+                    Approve
                   </Button>
                 )}
               </>
             )}
           </div>
           {publication &&
-            !canPublish &&
+            !canApprove &&
+            !approvalSaved &&
             !pendingPublication &&
             !publishedUrl &&
             !publicationError &&
             !publicationLoading && (
-              <p>Publishing requires permission and a current submission ready for approval.</p>
+              <p>Approval requires permission and a current submission ready for review.</p>
             )}
-          {publication && (
-            <p>Publishing creates a link anyone can open for this student's project.</p>
+          {publication && <p>After approval, the student can publish the approved revision.</p>}
+          {approvalSaved && !publishedUrl && (
+            <p role="status">Approval saved. The student can now publish the approved revision.</p>
           )}
           {publishedUrl && <PublicationShare url={publishedUrl} unlisted />}
         </Dialog>

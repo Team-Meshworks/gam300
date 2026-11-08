@@ -267,7 +267,7 @@ try {
   );
   await page.reload();
   await page.getByRole("heading", { name: /You.re signed in/ }).waitFor();
-  await page.getByRole("button", { name: "Log out" }).click();
+  await page.getByRole("button", { name: "Log Out" }).click();
   await page.getByRole("heading", { name: "Welcome back." }).waitFor();
   await username.fill("teacher");
   await password.fill("incorrect password");

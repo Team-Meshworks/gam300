@@ -1,14 +1,26 @@
-import { useEffect, useRef, useState } from "react";
+import { Icon as UiIcon } from "@iconify/react/offline";
+import faGlobe from "@iconify-icons/lucide/globe";
+import faLock from "@iconify-icons/lucide/lock";
+import faXmark from "@iconify-icons/lucide/x";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Skeleton } from "skullet/react";
 import { Button } from "../../shared/ui/Button";
 import { Dialog } from "../../shared/ui/Dialog";
 import { Field } from "../../shared/ui/Field";
 import { SearchField } from "../../shared/ui/SearchField";
 import { Tabs } from "../../shared/ui/Tabs";
 import type { AccountSession } from "../accounts/account-client";
-import { createDashboardClient, type DashboardProject } from "./dashboard-client";
-import organisationIcon from "./assets/organisation.svg";
-import environmentIcon from "./assets/environment.svg";
-import libraryIcon from "./assets/library.svg";
+import {
+  createDashboardClient,
+  type DashboardProject,
+  type DashboardProjectDetails,
+  type ProjectPublicationState,
+} from "./dashboard-client";
+import { ProjectModeration } from "./ProjectModeration";
+import { ProjectProgress } from "./ProjectProgress";
+import organisationIcon from "@iconify-icons/lucide/building-2";
+import environmentIcon from "@iconify-icons/lucide/box";
+import libraryIcon from "@iconify-icons/lucide/library";
 import defaultProjectImage from "../home/assets/default-project-neutral.jpg";
 import "./dashboard.css";
 
@@ -16,12 +28,26 @@ type Client = ReturnType<typeof createDashboardClient>;
 const errorMessage = (error: unknown) =>
   error instanceof Error ? error.message : "Please try again.";
 
+// Match the loaded card geometry while the dashboard waits for its authorised project list
+const loadingProjects: DashboardProject[] = Array.from({ length: 3 }, (_, index) => ({
+  projectId: `loading-${index}`,
+  title: "Loading project",
+  revision: 0,
+  updatedAt: "",
+  archived: false,
+  organizationName: "Loading organisation",
+  isPublic: false,
+  permissions: { canEdit: false, canManage: false, canPublish: false },
+}));
+
 function ProjectCards({
   projects,
   onView,
+  browser = false,
 }: {
   projects: readonly DashboardProject[];
   onView: (project: DashboardProject) => void;
+  browser?: boolean;
 }) {
   return (
     <div className="admin-project-grid">
@@ -31,15 +57,20 @@ function ProjectCards({
           <div className="admin-project-info">
             <div className="admin-project-title">
               <h3>{project.title}</h3>
-              <span className="admin-project-status">
-                {project.archived ? "Archived" : "Current"}
+              <span
+                className={`admin-project-status admin-project-status--${project.isPublic ? "public" : "private"}`}
+              >
+                <UiIcon icon={project.isPublic ? faGlobe : faLock} aria-hidden="true" />
+                {project.isPublic ? "Public" : "Private"}
               </span>
             </div>
+            {browser && <p className="admin-project-organization">{project.organizationName}</p>}
             <Button
-              aria-label={`View details for ${project.title}`}
+              variant={browser ? "primary" : "secondary"}
+              aria-label={`${browser ? "View progress" : "View details"} for ${project.title}`}
               onClick={() => onView(project)}
             >
-              View details
+              {browser ? "View Progress" : "View Details"}
             </Button>
           </div>
         </article>
@@ -48,50 +79,223 @@ function ProjectCards({
   );
 }
 
-function ProjectDetails({ project, onClose }: { project: DashboardProject; onClose: () => void }) {
+function ProjectDetails({
+  project,
+  client,
+  onClose,
+  onPublicationChanged,
+}: {
+  project: DashboardProject;
+  client: Client;
+  onClose: () => void;
+  onPublicationChanged: (state: ProjectPublicationState) => void;
+}) {
+  const [details, setDetails] = useState<DashboardProjectDetails | null>(null);
+  const [detailsError, setDetailsError] = useState("");
+  const [attempt, setAttempt] = useState(0);
+  const [assignmentIndex, setAssignmentIndex] = useState(0);
+  const assignment = details?.assignments[assignmentIndex];
+  const [publicationStates, setPublicationStates] = useState<
+    Record<string, ProjectPublicationState>
+  >({});
+  const [publicationError, setPublicationError] = useState("");
+  const [publicationAttempt, setPublicationAttempt] = useState(0);
+  const currentPublication = publicationStates[project.projectId.toLowerCase()];
+  const isPublic = currentPublication ? currentPublication.publicCount > 0 : project.isPublic;
+  const publicationChanged = useCallback(
+    (state: ProjectPublicationState) => {
+      setPublicationStates((rows) => ({ ...rows, [state.projectId.toLowerCase()]: state }));
+      onPublicationChanged(state);
+    },
+    [onPublicationChanged],
+  );
+  useEffect(() => {
+    let disposed = false;
+
+    // Keep organisation and student details bound to the account that opened this project
+    void client.projectDetails(project.projectId).then(
+      (value) => {
+        if (!disposed) setDetails(value);
+      },
+      (error: unknown) => {
+        if (!disposed) setDetailsError(errorMessage(error));
+      },
+    );
+    return () => {
+      disposed = true;
+    };
+  }, [client, project.projectId, attempt]);
+  useEffect(() => {
+    if (!details) {
+      return;
+    }
+    let disposed = false;
+    // Load the selected project and every linked student in bounded batches rather than per-row reads
+    const ids = [
+      project.projectId,
+      ...details.assignments.flatMap((item) =>
+        item.details.projects.map((student) => student.projectId),
+      ),
+    ];
+    void client.publicationStates(ids).then(
+      (states) => {
+        if (!disposed) {
+          setPublicationError("");
+          setPublicationStates(states);
+          for (const state of Object.values(states)) {
+            onPublicationChanged(state);
+          }
+        }
+      },
+      (reason) => {
+        if (!disposed) {
+          setPublicationError(errorMessage(reason));
+        }
+      },
+    );
+    return () => {
+      disposed = true;
+    };
+  }, [client, details, project.projectId, publicationAttempt, onPublicationChanged]);
   return (
     <section className="admin-panel admin-project-detail" aria-label="Project details">
       <div className="admin-project-view-heading">
         <div>
-          <h1>Project details</h1>
-          <p>Review this project's available details.</p>
+          <h1>Project Details</h1>
+          <p>Review published experiences and control what visitors can explore.</p>
         </div>
-        <Button aria-label="Back" onClick={onClose}>
-          ×
+        <Button
+          className="sp-close-button"
+          aria-label="Back"
+          title="Close project details"
+          onClick={onClose}
+        >
+          <UiIcon icon={faXmark} aria-hidden="true" />
         </Button>
       </div>
       <div className="admin-detail-columns">
         <div>
           <img className="admin-project-cover" src={defaultProjectImage} alt="" />
           <h2>{project.title}</h2>
+          <div className="admin-project-moderation" aria-label="Project publication controls">
+            <ProjectModeration
+              projectId={project.projectId}
+              client={client}
+              state={currentPublication}
+              onChanged={publicationChanged}
+            />
+          </div>
+          {publicationError && (
+            <div className="admin-moderation-retry">
+              <p role="alert">{publicationError}</p>
+              <Button
+                onClick={() => {
+                  setPublicationError("");
+                  setPublicationAttempt((value) => value + 1);
+                }}
+              >
+                Retry Publication Visibility
+              </Button>
+            </div>
+          )}
           <dl className="admin-project-metadata">
+            <dt>Organisation</dt>
+            <dd>
+              {details ? (
+                <a href="/organisations">{details.organization.name}</a>
+              ) : (
+                <span role={detailsError ? "alert" : "status"}>
+                  {detailsError || "Loading project details…"}
+                </span>
+              )}
+            </dd>
+            {assignment && (
+              <>
+                <dt>Created by</dt>
+                <dd>{assignment.details.creatorName ?? "Unavailable"}</dd>
+                <dt>Class</dt>
+                <dd>
+                  {details && details.assignments.length > 1 ? (
+                    <select
+                      className="admin-assignment-select"
+                      aria-label="Class Assignment"
+                      value={assignmentIndex}
+                      onChange={(event) => setAssignmentIndex(Number(event.target.value))}
+                    >
+                      {details.assignments.map((item, index) => (
+                        <option key={item.details.assignmentId} value={index}>
+                          {item.className} — {item.details.title}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    assignment.className
+                  )}
+                </dd>
+              </>
+            )}
             <dt>Status</dt>
-            <dd>{project.archived ? "Archived" : "Current"}</dd>
-            <dt>Revision</dt>
-            <dd>{project.revision}</dd>
-            <dt>Updated</dt>
-            <dd>{new Date(project.updatedAt).toLocaleString()}</dd>
-          </dl>
-          {project.permissions.canEdit && !project.archived && (
-            <a
-              className="sp-button sp-button--primary"
-              href={`/?projectId=${encodeURIComponent(project.projectId)}`}
+            <dd
+              className={`admin-project-visibility${isPublic ? " admin-project-visibility--public" : ""}`}
             >
-              Open project
-            </a>
+              <UiIcon icon={isPublic ? faGlobe : faLock} aria-hidden="true" />
+              {isPublic ? "Public" : "Private"}
+            </dd>
+          </dl>
+          {assignment && (
+            <div className="admin-assignment-description">
+              <h3>Project Description</h3>
+              <p>{assignment.details.description || "No description provided."}</p>
+              <h3>Project Instructions</h3>
+              <p>{assignment.details.instructions || "No instructions provided."}</p>
+            </div>
           )}
         </div>
-        <div className="admin-detail-unavailable">
-          <h2>Project progress</h2>
-          <p>Student progress and publication controls are unavailable for this project.</p>
-        </div>
+        {assignment ? (
+          <ProjectProgress
+            key={assignment.details.assignmentId}
+            assignment={assignment}
+            client={client}
+            publicationStates={publicationStates}
+            onPublicationChanged={publicationChanged}
+          />
+        ) : (
+          <section className="admin-progress admin-progress-empty" aria-label="Student progress">
+            <h2>Student Progress</h2>
+            <p role={detailsError ? "alert" : "status"}>
+              {detailsError ||
+                (details
+                  ? "No class assignments are linked to this project."
+                  : "Loading student progress…")}
+            </p>
+            {detailsError && (
+              <Button
+                onClick={() => {
+                  setDetailsError("");
+                  setAttempt((value) => value + 1);
+                }}
+              >
+                Retry
+              </Button>
+            )}
+          </section>
+        )}
       </div>
     </section>
   );
 }
 
-function ProjectResults({ client, onClose }: { client: Client; onClose: () => void }) {
-  const archived = false;
+function ProjectResults({
+  client,
+  onClose,
+  initialProjectId,
+  onPublicationChanged,
+}: {
+  client: Client;
+  onClose: () => void;
+  initialProjectId?: string | undefined;
+  onPublicationChanged: (state: ProjectPublicationState) => void;
+}) {
   const [filter, setFilter] = useState<"all" | "private" | "public">("all");
   const [projects, setProjects] = useState<DashboardProject[]>([]);
   const [query, setQuery] = useState("");
@@ -99,6 +303,18 @@ function ProjectResults({ client, onClose }: { client: Client; onClose: () => vo
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
   const [detail, setDetail] = useState<DashboardProject | null>(null);
+  const publicationChanged = useCallback(
+    (state: ProjectPublicationState) => {
+      const update = (row: DashboardProject) =>
+        row.projectId.toLowerCase() === state.projectId.toLowerCase()
+          ? { ...row, isPublic: state.publicCount > 0 }
+          : row;
+      setProjects((rows) => rows.map(update));
+      setDetail((row) => (row ? update(row) : row));
+      onPublicationChanged(state);
+    },
+    [onPublicationChanged],
+  );
   useEffect(() => {
     let disposed = false;
     void (async () => {
@@ -107,7 +323,7 @@ function ProjectResults({ client, onClose }: { client: Client; onClose: () => vo
         const seen = new Set<string>();
         const rows = new Map<string, DashboardProject>();
         do {
-          const page = await client.projects(20, cursor, archived);
+          const page = await client.projects(20, cursor);
           if (disposed) return;
           for (const project of page.items) rows.set(project.projectId, project);
           setProjects([...rows.values()]);
@@ -118,6 +334,39 @@ function ProjectResults({ client, onClose }: { client: Client; onClose: () => vo
             );
           if (cursor) seen.add(cursor);
         } while (cursor);
+
+        // Open organisation links only after the authorised list resolves the requested project
+        if (initialProjectId) {
+          let requested = rows.get(initialProjectId);
+          if (!requested) {
+            let archivedCursor: string | null = null;
+            const archivedCursors = new Set<string>();
+            do {
+              const page = await client.projects(20, archivedCursor, true);
+              if (disposed) {
+                return;
+              }
+              requested = page.items.find(
+                (row) => row.projectId.toLowerCase() === initialProjectId,
+              );
+              archivedCursor = page.nextCursor;
+              if (
+                archivedCursor &&
+                (archivedCursors.has(archivedCursor) || archivedCursors.size >= 100)
+              ) {
+                throw new Error("The project list could not finish loading. Please try again.");
+              }
+              if (archivedCursor) {
+                archivedCursors.add(archivedCursor);
+              }
+            } while (!requested && archivedCursor);
+          }
+          if (requested) {
+            setDetail(requested);
+          } else {
+            setError("This project is unavailable to your account.");
+          }
+        }
       } catch (reason) {
         if (!disposed) setError(errorMessage(reason));
       } finally {
@@ -127,9 +376,13 @@ function ProjectResults({ client, onClose }: { client: Client; onClose: () => vo
     return () => {
       disposed = true;
     };
-  }, [client, archived, attempt]);
-  const visible = projects.filter((project) =>
-    project.title.toLowerCase().includes(query.trim().toLowerCase()),
+  }, [client, attempt, initialProjectId]);
+  const privateCount = projects.filter((project) => !project.isPublic).length;
+  const publicCount = projects.length - privateCount;
+  const visible = projects.filter(
+    (project) =>
+      project.title.toLowerCase().includes(query.trim().toLowerCase()) &&
+      (filter === "all" || project.isPublic === (filter === "public")),
   );
   return (
     <>
@@ -141,7 +394,7 @@ function ProjectResults({ client, onClose }: { client: Client; onClose: () => vo
         <div className="admin-project-view-heading">
           <div>
             <h1>All Projects</h1>
-            <p>Browse projects across your organisations.</p>
+            <p>Review published experiences and control what visitors can explore.</p>
           </div>
           <SearchField
             label="Search all projects"
@@ -149,8 +402,13 @@ function ProjectResults({ client, onClose }: { client: Client; onClose: () => vo
             onChange={setQuery}
             placeholder="Search all projects"
           />
-          <Button aria-label="Back" onClick={onClose}>
-            ×
+          <Button
+            className="sp-close-button"
+            aria-label="Back"
+            title="Close projects"
+            onClick={onClose}
+          >
+            <UiIcon icon={faXmark} aria-hidden="true" />
           </Button>
         </div>
         <Tabs
@@ -163,8 +421,14 @@ function ProjectResults({ client, onClose }: { client: Client; onClose: () => vo
               value: "all",
               label: !loading && !error ? `All Work (${projects.length})` : "All Work",
             },
-            { value: "private", label: "Private" },
-            { value: "public", label: "Public" },
+            {
+              value: "private",
+              label: !loading && !error ? `Private (${privateCount})` : "Private",
+            },
+            {
+              value: "public",
+              label: !loading && !error ? `Public (${publicCount})` : "Public",
+            },
           ]}
         />
         <div
@@ -172,36 +436,55 @@ function ProjectResults({ client, onClose }: { client: Client; onClose: () => vo
           role="tabpanel"
           aria-labelledby={`admin-project-filter-${filter}`}
         >
-          {filter !== "all" ? (
-            <p role="status">
-              Project visibility is unavailable. Public and private projects cannot be filtered yet.
-            </p>
-          ) : (
-            <>
-              {error && <p role="alert">{error}</p>}
-              {error && (
-                <Button
-                  onClick={() => {
-                    setError("");
-                    setLoading(true);
-                    setAttempt((value) => value + 1);
-                  }}
-                >
-                  Retry
-                </Button>
-              )}
-              <ProjectCards projects={visible} onView={setDetail} />
-              {loading && <p role="status">Loading projects…</p>}
-              {!loading && !error && !visible.length && (
-                <p role="status">
-                  {query ? "No matching projects in the loaded results." : "No projects to show."}
-                </p>
-              )}
-            </>
-          )}
+          <>
+            {error && <p role="alert">{error}</p>}
+            {error && (
+              <Button
+                onClick={() => {
+                  setError("");
+                  setLoading(true);
+                  setAttempt((value) => value + 1);
+                }}
+              >
+                Retry
+              </Button>
+            )}
+            {(loading || visible.length > 0) && (
+              <Skeleton
+                loading={loading}
+                label="Loading projects"
+                className="admin-project-loading"
+              >
+                <ProjectCards
+                  projects={loading ? loadingProjects : visible}
+                  onView={setDetail}
+                  browser
+                />
+              </Skeleton>
+            )}
+            {!loading && !error && !visible.length && (
+              <p role="status" className="admin-project-empty">
+                {query
+                  ? "No matching projects in the loaded results."
+                  : filter === "public"
+                    ? "No public projects to show."
+                    : filter === "private"
+                      ? "No private projects to show."
+                      : "No projects to show."}
+              </p>
+            )}
+          </>
         </div>
       </section>
-      {detail && <ProjectDetails project={detail} onClose={() => setDetail(null)} />}
+      {detail && (
+        <ProjectDetails
+          key={detail.projectId}
+          project={detail}
+          client={client}
+          onPublicationChanged={publicationChanged}
+          onClose={() => setDetail(null)}
+        />
+      )}
     </>
   );
 }
@@ -236,7 +519,8 @@ function AddOrganization({
   }
   return (
     <Dialog
-      title="Add organisation"
+      title="Add Organisation"
+      variant="admin"
       onClose={() => {
         if (!busy.current) onClose();
       }}
@@ -261,7 +545,7 @@ function AddOrganization({
         </Field>
         {error && <p role="alert">{error}</p>}
         <Button type="submit" variant="primary" disabled={pending || !name.trim()}>
-          {pending ? "Creating…" : "Create organisation"}
+          {pending ? "Creating…" : "Create Organisation"}
         </Button>
       </form>
     </Dialog>
@@ -274,9 +558,24 @@ export function AdminDashboard({ session }: { session: AccountSession }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
-  const [notice, setNotice] = useState("");
-  const [modal, setModal] = useState<"projects" | "organisation" | null>(null);
+  const [initialProjectId] = useState(() => {
+    const requested = new URLSearchParams(location.search).get("projectId");
+    return requested && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(requested)
+      ? requested.toLowerCase()
+      : undefined;
+  });
+  const [modal, setModal] = useState<"projects" | "organisation" | null>(
+    initialProjectId ? "projects" : null,
+  );
   const [detail, setDetail] = useState<DashboardProject | null>(null);
+  const publicationChanged = useCallback((state: ProjectPublicationState) => {
+    const update = (row: DashboardProject) =>
+      row.projectId.toLowerCase() === state.projectId.toLowerCase()
+        ? { ...row, isPublic: state.publicCount > 0 }
+        : row;
+    setProjects((rows) => rows.map(update));
+    setDetail((row) => (row ? update(row) : row));
+  }, []);
   useEffect(() => {
     let disposed = false;
     void client.projects().then(
@@ -300,13 +599,29 @@ export function AdminDashboard({ session }: { session: AccountSession }) {
   if (modal === "projects")
     return (
       <div className="admin-dashboard">
-        <ProjectResults client={client} onClose={() => setModal(null)} />
+        <ProjectResults
+          client={client}
+          initialProjectId={initialProjectId}
+          onPublicationChanged={publicationChanged}
+          onClose={() => {
+            const url = new URL(location.href);
+            url.searchParams.delete("projectId");
+            history.replaceState(null, "", url);
+            setModal(null);
+          }}
+        />
       </div>
     );
   if (detail)
     return (
       <div className="admin-dashboard">
-        <ProjectDetails project={detail} onClose={() => setDetail(null)} />
+        <ProjectDetails
+          key={detail.projectId}
+          project={detail}
+          client={client}
+          onPublicationChanged={publicationChanged}
+          onClose={() => setDetail(null)}
+        />
       </div>
     );
   return (
@@ -315,28 +630,20 @@ export function AdminDashboard({ session }: { session: AccountSession }) {
         <h1>Welcome Back, {session.displayName}</h1>
         <p>Manage what gets shared, who has access and the assets creators use.</p>
       </div>
-      {notice && (
-        <p className="admin-notice" role="status">
-          {notice} <a href="/organisations">View organisations</a>
-        </p>
-      )}
       <section className="admin-panel admin-projects" aria-labelledby="admin-projects-heading">
         <div className="admin-section-heading">
           <div>
             <h2 id="admin-projects-heading">All Projects</h2>
-            <p>Browse projects across your organisations.</p>
+            <p>Manage published projects and their public visibility.</p>
           </div>
-          <a className="sp-button" href="/home">
-            Open project workspace
-          </a>
           <Button variant="primary" onClick={() => setModal("projects")}>
             View All Projects
           </Button>
         </div>
         {loading ? (
-          <p className="admin-project-state" role="status">
-            Loading projects…
-          </p>
+          <Skeleton loading label="Loading projects" className="admin-project-loading">
+            <ProjectCards projects={loadingProjects} onView={() => {}} />
+          </Skeleton>
         ) : error ? (
           <div className="admin-project-state">
             <p role="alert">{error}</p>
@@ -347,7 +654,7 @@ export function AdminDashboard({ session }: { session: AccountSession }) {
                 setAttempt((value) => value + 1);
               }}
             >
-              Retry projects
+              Retry Projects
             </Button>
           </div>
         ) : projects.length ? (
@@ -370,7 +677,7 @@ export function AdminDashboard({ session }: { session: AccountSession }) {
             <div className="admin-directory-entry">
               <div className="admin-entry-identity">
                 <span className="admin-entry-symbol">
-                  <img src={organisationIcon} alt="" />
+                  <UiIcon icon={organisationIcon} width={24} aria-hidden="true" />
                 </span>
                 <div>
                   <h3>Organisation &amp; Accounts</h3>
@@ -379,7 +686,7 @@ export function AdminDashboard({ session }: { session: AccountSession }) {
               </div>
               <div className="admin-entry-actions">
                 <a className="sp-button" href="/organisations">
-                  View Organisations
+                  <span className="sp-button-label">View Organisations</span>
                 </a>
                 <Button variant="primary" onClick={() => setModal("organisation")}>
                   + Add Organisations
@@ -403,7 +710,7 @@ export function AdminDashboard({ session }: { session: AccountSession }) {
                   "3D Environments",
                   "Manage the spaces available for museum projects.",
                   "View Environments",
-                  "+ Add environment",
+                  "+ Add Environment",
                   environmentIcon,
                 ],
                 [
@@ -411,7 +718,7 @@ export function AdminDashboard({ session }: { session: AccountSession }) {
                   "Physical Asset Library",
                   "Curate the approved objects creators can place.",
                   "View Library",
-                  "+ Add item",
+                  "+ Add Item",
                   libraryIcon,
                 ],
               ] as const
@@ -419,7 +726,7 @@ export function AdminDashboard({ session }: { session: AccountSession }) {
               <div className="admin-directory-entry" key={kind}>
                 <div className="admin-entry-identity">
                   <span className="admin-entry-symbol">
-                    <img src={icon} alt="" />
+                    <UiIcon icon={icon} width={24} aria-hidden="true" />
                   </span>
                   <div>
                     <h3>{title}</h3>
@@ -428,13 +735,13 @@ export function AdminDashboard({ session }: { session: AccountSession }) {
                 </div>
                 <div className="admin-entry-actions">
                   <a className="sp-button" href={kind === "environment" ? "/spaces" : "/assets"}>
-                    {view}
+                    <span className="sp-button-label">{view}</span>
                   </a>
                   <a
                     className="sp-button sp-button--primary"
                     href={kind === "environment" ? "/spaces?add=1" : "/assets?add=1"}
                   >
-                    {add}
+                    <span className="sp-button-label">{add}</span>
                   </a>
                 </div>
               </div>
@@ -446,9 +753,9 @@ export function AdminDashboard({ session }: { session: AccountSession }) {
         <AddOrganization
           client={client}
           onClose={() => setModal(null)}
-          onCreated={(name) => {
-            setModal(null);
-            setNotice(`${name} was created. You can now add its accounts.`);
+          onCreated={() => {
+            // Continue directly to the directory after the server confirms creation
+            location.assign("/organisations");
           }}
         />
       )}

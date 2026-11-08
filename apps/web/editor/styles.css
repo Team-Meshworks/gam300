@@ -1,3 +1,23 @@
+/* Keep the page still while native dialogs and editor popups own the interaction */
+html:has(
+  dialog[open],
+  [role="dialog"],
+  .asset-picker,
+  .tool-popup,
+  .dock-menu,
+  details[open] > .draft-menu-panel
+),
+body:has(
+  dialog[open],
+  [role="dialog"],
+  .asset-picker,
+  .tool-popup,
+  .dock-menu,
+  details[open] > .draft-menu-panel
+) {
+  overflow-y: hidden;
+}
+
 :root {
   --text: #1f1d1a;
   font-family: "Segoe UI", system-ui, sans-serif;
@@ -1345,8 +1365,8 @@ a {
   height: 35px;
 }
 .room-picker .library-rail .figma-tool-icon[data-icon="door"] {
-  width: 35px;
-  height: 35px;
+  width: 28px;
+  height: 28px;
 }
 .asset-picker-title {
   display: flex;
@@ -1960,13 +1980,36 @@ a {
   display: none;
 }
 .project-confirmation {
-  width: min(24rem, calc(100vw - 2rem));
-  padding: 1.25rem;
-  color: #292e29;
-  background: #f7f5f2;
-  border: 1px solid #ded9d1;
+  position: fixed;
+  width: min(24rem, calc(100% - 2rem));
+  padding: 1.5rem;
+  color: var(--text);
+  background: var(--card-raised);
+  border: 1px solid var(--line);
   border-radius: 1rem;
   box-shadow: 0 12px 40px #292e2933;
+}
+.project-confirmation h2 {
+  padding-right: 48px;
+}
+.project-confirmation button.project-confirmation-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--pill);
+}
+.project-confirmation-close .icon {
+  width: 18px;
+  height: 18px;
 }
 .project-confirmation::backdrop {
   background: #292e2955;
@@ -1981,7 +2024,10 @@ a {
   gap: 0.5rem;
 }
 .project-confirmation button {
-  min-height: 2.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
   padding: 0.35rem 1rem;
   background: #e9e5df;
   border: 1px solid #d5cfc7;
@@ -2912,12 +2958,6 @@ a {
 .draft-menu-panel button:disabled {
   color: var(--muted);
   cursor: not-allowed;
-}
-.draft-menu-panel #project-save {
-  margin-top: 0.25rem;
-  border-top: 1px solid var(--line);
-  border-top-left-radius: 0;
-  border-top-right-radius: 0;
 }
 
 :root {

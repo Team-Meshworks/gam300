@@ -56,7 +56,8 @@ export function DeleteOrganizationDialog({
   }
   return (
     <Dialog
-      title="Delete organisation"
+      title="Delete Organisation"
+      variant="admin"
       onClose={() => {
         if (!pending.current) onClose();
       }}
@@ -107,7 +108,7 @@ export function DeleteOrganizationDialog({
               className="sp-button--danger"
               disabled={busy || confirmation !== summary.name}
             >
-              {busy ? "Deleting…" : "Delete organisation permanently"}
+              {busy ? "Deleting…" : "Delete Organisation Permanently"}
             </Button>
           </div>
         </form>

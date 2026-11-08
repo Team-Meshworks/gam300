@@ -9,23 +9,26 @@ const page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
 const errors = [];
 page.on("pageerror", (error) => errors.push(error.message));
 await mkdir("test-results/scrum168", { recursive: true });
-// Compare the rendered hierarchy so later selectors cannot silently enlarge one popup
+// Keep dialog titles and section headings at the matching scale shown in the approved PDF
 async function checkDialogTypography() {
   const sizes = await page.getByRole("dialog").evaluate((dialog) => {
     const font = (node) => parseFloat(getComputedStyle(node).fontSize);
     return {
       page: font(document.querySelector(".asset-admin h1")),
       title: font(dialog.querySelector("h2")),
+      upload: dialog.classList.contains("asset-admin-dialog-upload"),
       section: dialog.querySelector("h3") ? font(dialog.querySelector("h3")) : null,
       controls: [
-        ...dialog.querySelectorAll("input:not([type=file]), button:not(.asset-admin-close)"),
+        ...dialog.querySelectorAll(
+          "input:not([type=file]), output, button:not(.asset-admin-close)",
+        ),
       ].map(font),
     };
   });
-  assert.ok(sizes.title <= sizes.page, "Popup titles must not overpower the library heading");
+  assert.equal(sizes.title, 22);
   assert.ok(
-    sizes.section === null || sizes.section < sizes.title,
-    "Section headings stay subordinate to the popup title",
+    sizes.section === null || sizes.section === sizes.title,
+    "Asset Details uses the same heading scale as the popup title",
   );
   assert.ok(
     sizes.controls.every((size) => size === 14),
@@ -62,10 +65,12 @@ try {
   await page.goto(new URL("/__asset-administration-test", baseUrl).href);
   await page.getByRole("heading", { name: "All 3D Spaces" }).waitFor();
   await page
-    .getByText("Manage and review catalogue assets.", { exact: true })
+    .getByText("Review published experiences and control what visitors can explore.", {
+      exact: true,
+    })
     .waitFor({ timeout: 5000 });
-  await page.getByRole("button", { name: /^Not hidden \(/ }).waitFor({ timeout: 5000 });
-  await page.getByRole("button", { name: /^Hidden \(/ }).waitFor();
+  await page.getByRole("button", { name: /^Public \(/ }).waitFor({ timeout: 5000 });
+  await page.getByRole("button", { name: /^Private \(/ }).waitFor();
   await page
     .getByRole("button", { name: /View Model/ })
     .first()
@@ -75,9 +80,10 @@ try {
     .evaluateAll((images) => Promise.all(images.map((image) => image.decode())));
   await page.screenshot({ path: "test-results/scrum168/list.png", fullPage: true });
 
-  // Balance the frame within the viewport before testing long lists
+  // Match the routed shell and the PDF's header and footer clearances before testing long lists
   const frame = await page.locator(".asset-admin").boundingBox();
-  assert.ok(Math.abs(frame.y - (1000 - frame.y - frame.height)) <= 1);
+  assert.equal(frame.y, 100);
+  assert.equal(1000 - frame.y - frame.height, 64);
   assert.ok(Math.abs(frame.x - (1400 - frame.x - frame.width)) <= 1);
   assert.equal(
     await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight),
@@ -97,8 +103,8 @@ try {
       background: getComputedStyle(el).backgroundColor,
       ink: getComputedStyle(el).color,
     }));
-  assert.equal(closeStyle.background, "rgb(234, 233, 230)");
-  assert.equal(closeStyle.ink, "rgb(8, 8, 8)");
+  assert.equal(closeStyle.background, "rgb(243, 244, 246)");
+  assert.equal(closeStyle.ink, "rgb(75, 85, 99)");
 
   // Search never removes records; clearing it restores the same visible catalogue
   const initialCount = await page.locator(".asset-admin-card").count();
@@ -113,7 +119,7 @@ try {
     Math.abs(emptyBounds.x + emptyBounds.width / 2 - listBounds.x - listBounds.width / 2) <= 1,
   );
   await page.screenshot({ path: "test-results/scrum168/empty.png" });
-  await page.getByRole("button", { name: "Reset search" }).click();
+  await page.getByRole("button", { name: "Reset Search" }).click();
   assert.equal(await page.locator(".asset-admin-card").count(), initialCount);
 
   // Cancel leaves the list unchanged and native dialog closure restores the opening control
@@ -128,9 +134,15 @@ try {
     );
   });
   await dialog.getByText("dropped-room.glb", { exact: true }).waitFor({ timeout: 3000 });
-  // Keep the type in the upload title without repeating it as a field or heading
-  assert.equal(await dialog.getByRole("textbox", { name: "Asset Type" }).count(), 0);
-  assert.equal(await dialog.locator("h3").count(), 0);
+  // Keep the two-column metadata row from the PDF while the space type remains fixed
+  assert.equal(await dialog.getByRole("status", { name: "Asset Type" }).textContent(), "3D Space");
+  assert.equal(
+    await dialog
+      .getByRole("status", { name: "Asset Type" })
+      .evaluate((field) => field instanceof HTMLOutputElement && field.tabIndex === -1),
+    true,
+  );
+  assert.equal(await dialog.locator("h3").count(), 1);
   await dialog.getByRole("heading", { name: "Upload 3D Space", exact: true }).waitFor();
   await checkDialogTypography();
   await page.screenshot({ path: "test-results/scrum168/upload.png", fullPage: true });
@@ -181,7 +193,7 @@ try {
   assert.equal(
     await dialog
       .locator("h2")
-      .evaluate((heading) => parseFloat(getComputedStyle(heading).fontSize) <= 24),
+      .evaluate((heading) => parseFloat(getComputedStyle(heading).fontSize) === 22),
     true,
   );
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
@@ -210,9 +222,25 @@ try {
     mimeType: "model/gltf-binary",
     buffer: Buffer.from("local preview only"),
   });
+  await dialog.getByText("Additional Details", { exact: true }).click();
+  const draftMetadata = [
+    ["Source or provenance", "Museum archive"],
+    ["Redistribution licence", "CC BY 4.0"],
+    ["Content review notes", "Rights checked"],
+  ];
+  for (const [label, value] of draftMetadata) {
+    await dialog.getByLabel(`${label} (optional)`, { exact: true }).fill(value);
+  }
   assert.equal(await dialog.getByRole("combobox", { name: "Filter Category" }).count(), 0);
   await dialog.getByRole("button", { name: "Save Changes", exact: true }).click();
   await dialog.getByRole("alert").waitFor();
+  for (const [label, value] of draftMetadata) {
+    assert.equal(
+      await dialog.getByLabel(`${label} (optional)`, { exact: true }).inputValue(),
+      value,
+    );
+  }
+  assert.equal(await dialog.locator(".asset-admin-metadata").getAttribute("open"), "");
   assert.equal(
     await dialog.getByLabel("Choose asset file").evaluate((input) => input.files[0].name),
     "test-room.glb",
@@ -279,8 +307,8 @@ try {
     true,
   );
   assert.equal(await dialog.locator(".asset-admin-detail-preview").count(), 0);
-  assert.equal(await dialog.getByRole("textbox", { name: "Asset Type" }).count(), 0);
-  assert.ok((await dialog.boundingBox()).width <= 440);
+  assert.equal(await dialog.getByRole("status", { name: "Asset Type" }).count(), 0);
+  assert.ok((await dialog.boundingBox()).width <= 480);
 
   await page.screenshot({ path: "test-results/scrum168/delete-confirmation.png", fullPage: true });
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
@@ -295,12 +323,7 @@ try {
 
   // Delete hides the record from the active list while retaining its administrative tombstone
   await dialog.getByRole("button", { name: "Delete", exact: true }).click();
-  assert.equal(
-    await dialog
-      .getByRole("checkbox", { name: "Remove from all projects and exhibitions" })
-      .isChecked(),
-    false,
-  );
+  assert.equal(await dialog.getByRole("checkbox").count(), 0);
   await dialog.getByRole("button", { name: "Confirm Delete", exact: true }).click();
   assert.equal(await page.getByRole("heading", { name: "new-room.glb", exact: true }).count(), 0);
 
@@ -336,24 +359,33 @@ try {
     .getByRole("button")
     .click();
   // Retained-use status must sit below the fixed field with a visible breathing gap
-  const typeBounds = await dialog.getByRole("textbox", { name: "Asset Type" }).boundingBox();
+  const typeBounds = await dialog.getByRole("status", { name: "Asset Type" }).boundingBox();
   const statusBounds = await dialog.locator(".asset-admin-retired-status").first().boundingBox();
   assert.ok(statusBounds.y - (typeBounds.y + typeBounds.height) >= 11);
-  const spaceCategory = dialog.getByRole("textbox", { name: "Filter Category", exact: true });
-  assert.equal(await spaceCategory.inputValue(), "Not applicable");
-  assert.equal(await spaceCategory.isDisabled(), true);
+  const spaceCategory = dialog.getByRole("status", { name: "Filter Category", exact: true });
+  assert.equal(await spaceCategory.textContent(), "Not applicable");
+  assert.equal(
+    await spaceCategory.evaluate(
+      (field) => field instanceof HTMLOutputElement && field.tabIndex === -1,
+    ),
+    true,
+  );
   const fieldRow = await dialog.locator(".asset-admin-fields").boundingBox();
   assert.ok(Math.abs((fieldRow.width - 16) / 2 - typeBounds.width) < 1);
   await page.screenshot({ path: "test-results/scrum168/deleted-details.png", fullPage: true });
-  await dialog
-    .getByRole("button", { name: "Remove from all projects and exhibitions", exact: true })
-    .click();
-  await dialog.getByRole("button", { name: "Confirm Removal", exact: true }).waitFor();
+  await dialog.getByRole("button", { name: "Delete Permanently", exact: true }).click();
+  await dialog.getByRole("button", { name: "Delete Permanently", exact: true }).waitFor();
   // Use equal spacing around the irreversible warning instead of offsetting individual elements
   const explanation = await dialog
     .locator(".asset-admin-confirmation-content > p")
     .first()
     .boundingBox();
+  await dialog
+    .getByText(
+      "All published exhibitions using this asset will become permanently unavailable. Their links and QR codes will stop working. This cannot be undone.",
+      { exact: true },
+    )
+    .waitFor();
   const warning = await dialog.locator(".asset-admin-confirmation-warning").boundingBox();
   const actions = await dialog.locator(".asset-admin-actions").boundingBox();
   assert.ok(Math.abs(warning.y - (explanation.y + explanation.height) - 16) < 1);
@@ -369,19 +401,15 @@ try {
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
   // Cancelling removal retains the same details and its available follow-up action
   await dialog.getByRole("heading", { name: "new-room.glb", exact: true }).waitFor();
-  await dialog
-    .getByRole("button", { name: "Remove from all projects and exhibitions", exact: true })
-    .click();
-  await dialog.getByRole("button", { name: "Confirm Removal", exact: true }).click();
+  await dialog.getByRole("button", { name: "Delete Permanently", exact: true }).click();
+  await dialog.getByRole("button", { name: "Delete Permanently", exact: true }).click();
   await page
     .locator(".asset-admin-card")
     .filter({ has: page.getByRole("heading", { name: "new-room.glb", exact: true }) })
     .getByRole("button")
     .click();
   assert.equal(
-    await dialog
-      .getByRole("button", { name: "Remove from all projects and exhibitions", exact: true })
-      .count(),
+    await dialog.getByRole("button", { name: "Delete Permanently", exact: true }).count(),
     0,
   );
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
@@ -395,11 +423,37 @@ try {
   await checkDialogTypography();
   await page.screenshot({ path: "test-results/scrum168/details.png", fullPage: true });
   const viewBounds = await dialog.boundingBox();
-  assert.ok(viewBounds.width <= 560, "View dialogs remain compact on desktop");
-  assert.ok(viewBounds.height <= 460, "Viewing should not occupy most of the viewport");
+  assert.ok(
+    viewBounds.width >= 800 && viewBounds.width <= 840 && viewBounds.height <= 600,
+    "Details keep a wide preview without filling the screen vertically",
+  );
+  assert.ok(
+    viewBounds.y >= 20 && viewBounds.y + viewBounds.height <= 980,
+    "Details stay within the viewport",
+  );
   const modelName = await dialog.locator("h2").textContent();
+
+  // Download stays at the left edge while lifecycle actions keep their right-aligned order
+  const downloadLink = dialog.getByRole("link", { name: "Download File", exact: true });
+  const downloadBounds = await downloadLink.boundingBox();
+  const actionsBounds = await dialog.locator(".asset-admin-actions").boundingBox();
+  const cancelBounds = await dialog
+    .getByRole("button", { name: "Cancel", exact: true })
+    .boundingBox();
+  assert.ok(Math.abs(downloadBounds.x - actionsBounds.x) < 1);
+  assert.ok(
+    Math.abs(
+      downloadBounds.y + downloadBounds.height / 2 - cancelBounds.y - cancelBounds.height / 2,
+    ) < 1,
+  );
+  const savedFile = page.waitForEvent("download");
+  await downloadLink.click();
+  const download = await savedFile;
+  assert.equal(download.suggestedFilename(), `${modelName}.glb`);
+  assert.equal(await download.failure(), null);
+  assert.equal(await dialog.isVisible(), true);
   await dialog.getByRole("button", { name: "Hide", exact: true }).click();
-  await page.getByRole("button", { name: /^Hidden \(/ }).click();
+  await page.getByRole("button", { name: /^Private \(/ }).click();
   await page
     .locator(".asset-admin-card")
     .filter({ has: page.getByRole("heading", { name: modelName, exact: true }) })
@@ -419,7 +473,7 @@ try {
   await choose("Test response", "Unavailable");
   await page.getByRole("heading", { name: "Spaces unavailable" }).waitFor();
   await page.screenshot({ path: "test-results/scrum168/unavailable.png" });
-  await page.getByRole("button", { name: "Try again" }).click();
+  await page.getByRole("button", { name: "Try Again" }).click();
   await page.getByRole("heading", { name: "Spaces unavailable" }).waitFor();
 
   // Object and space libraries use the distinct layouts in the supplied admin PDF
@@ -445,14 +499,24 @@ try {
   // Model dialogs keep their own asset type rather than inheriting the space form
   await page.locator(".asset-admin-card").first().getByRole("button").click();
   assert.equal(
-    (await dialog.getByRole("textbox", { name: "Asset Type" }).inputValue()).trim(),
+    (await dialog.getByRole("status", { name: "Asset Type" }).textContent()).trim(),
     "3D Model",
   );
   await checkDialogTypography();
-  const fixedType = dialog.getByRole("textbox", { name: "Asset Type" });
-  const fixedCategory = dialog.getByRole("combobox", { name: "Filter Category" });
-  assert.equal(await fixedType.isDisabled(), true);
-  assert.equal(await fixedCategory.isDisabled(), true);
+  const fixedType = dialog.getByRole("status", { name: "Asset Type" });
+  const fixedCategory = dialog.getByRole("status", { name: "Filter Category" });
+  assert.equal(
+    await fixedType.evaluate(
+      (field) => field instanceof HTMLOutputElement && field.tabIndex === -1,
+    ),
+    true,
+  );
+  assert.equal(
+    await fixedCategory.evaluate(
+      (field) => field instanceof HTMLOutputElement && field.tabIndex === -1,
+    ),
+    true,
+  );
   const appearance = (locator) =>
     locator.evaluate((element) => {
       const style = getComputedStyle(element);
@@ -463,8 +527,8 @@ try {
   await page.screenshot({ path: "test-results/scrum168/asset-details.png", fullPage: true });
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
   await page.getByRole("button", { name: "+ Add Assets", exact: true }).click();
-  assert.equal(await dialog.getByRole("textbox", { name: "Asset Type" }).count(), 0);
-  await dialog.getByRole("heading", { name: "Upload 3D Model", exact: true }).waitFor();
+  assert.equal(await dialog.getByRole("status", { name: "Asset Type" }).count(), 0);
+  await dialog.getByRole("heading", { name: "Upload Assets", exact: true }).waitFor();
   await dialog.locator(".asset-admin-upload").evaluate((target) => {
     const transfer = new DataTransfer();
     transfer.items.add(new File(["test"], "dropped-object.glb", { type: "model/gltf-binary" }));
@@ -499,10 +563,80 @@ try {
     (await dialog.getByRole("combobox", { name: "Filter Category" }).textContent()).trim(),
     "Furniture",
   );
-  // Model intake asks only for the editable category; the current page already determines its type
-  assert.equal(await dialog.getByRole("textbox", { name: "Asset Type" }).count(), 0);
-  assert.equal(await dialog.getByRole("combobox", { name: "Asset Type" }).count(), 0);
-  await dialog.getByRole("heading", { name: "Upload 3D Model", exact: true }).waitFor();
+  // All Assets keeps model as the default while offering the deployed audio intake
+  assert.equal(await dialog.getByRole("status", { name: "Asset Type" }).count(), 0);
+  assert.equal(await dialog.getByRole("combobox", { name: "Asset Type" }).count(), 1);
+  await dialog.getByRole("heading", { name: "Upload Assets", exact: true }).waitFor();
+  await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+
+  // Approved local audio previews use real media bytes and download with the matching extension
+  await page
+    .locator(".asset-admin-card")
+    .filter({ hasText: "Ethereal Calm" })
+    .first()
+    .getByRole("button")
+    .click();
+  const audioPlayer = dialog.locator("audio");
+  await audioPlayer.waitFor();
+  await page.waitForFunction(() => {
+    const audio = document.querySelector("dialog audio");
+    return audio && Number.isFinite(audio.duration) && audio.duration > 0;
+  });
+  await audioPlayer.evaluate(async (audio) => {
+    await audio.play();
+  });
+  assert.equal(await audioPlayer.evaluate((audio) => audio.paused), false);
+  await audioPlayer.evaluate((audio) => audio.pause());
+  await page.screenshot({ path: "test-results/scrum168/audio-details.png", fullPage: true });
+  const audioDownload = page.waitForEvent("download");
+  await dialog.getByRole("link", { name: "Download File", exact: true }).click();
+  assert.match((await audioDownload).suggestedFilename(), /\.m4a$/);
+  await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  assert.equal(await page.locator("audio").count(), 0);
+
+  // Audio gets its own file constraint and category, while changing type clears the previous file
+  await page.getByRole("button", { name: "+ Add Assets", exact: true }).click();
+  const fileInput = dialog.getByLabel("Choose asset file");
+  await fileInput.setInputFiles({
+    name: "old-model.glb",
+    mimeType: "model/gltf-binary",
+    buffer: Buffer.from("model"),
+  });
+  await choose("Asset Type", "Audio");
+  await dialog.getByRole("heading", { name: "Upload Assets", exact: true }).waitFor();
+  assert.equal(await fileInput.getAttribute("accept"), ".m4a");
+  assert.equal(await fileInput.evaluate((input) => input.files.length), 0);
+  assert.equal(
+    (await dialog.getByRole("combobox", { name: "Filter Category" }).textContent()).trim(),
+    "BGM",
+  );
+  await fileInput.setInputFiles({
+    name: "wrong.glb",
+    mimeType: "model/gltf-binary",
+    buffer: Buffer.from("model"),
+  });
+  await dialog.getByRole("button", { name: "Save Changes", exact: true }).click();
+  await dialog.getByRole("alert").filter({ hasText: "Choose a supported file" }).waitFor();
+  await fileInput.setInputFiles({
+    name: "test-music.m4a",
+    mimeType: "audio/mp4",
+    buffer: Buffer.from("local preview only"),
+  });
+  await page.screenshot({ path: "test-results/scrum168/audio-upload.png", fullPage: true });
+  await dialog.getByRole("button", { name: "Save Changes", exact: true }).click();
+  await dialog.waitFor({ state: "hidden" });
+  const audioCard = page.locator(".asset-admin-card").filter({ hasText: "test-music.m4a" });
+  await audioCard.getByRole("button").click();
+  assert.equal(await dialog.getByRole("status", { name: "Asset Type" }).textContent(), "Audio");
+  assert.equal(
+    (await dialog.getByRole("status", { name: "Filter Category" }).textContent()).trim(),
+    "BGM",
+  );
+  assert.equal(
+    await dialog.locator("audio").count(),
+    0,
+    "Pending audio is never played before validation",
+  );
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
 
   const editableModelName = await page
@@ -554,8 +688,7 @@ try {
   await page.screenshot({ path: "test-results/scrum168/mobile-upload.png", fullPage: true });
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
 
-  // Keep the mobile opt-in explicit and retain the confirmed administrative record
-  // Return to the original preview records before checking combined deletion and removal
+  // Keep permanent removal separate from library deletion on mobile too
   await page.getByText("Local preview controls", { exact: true }).click();
   await page.getByLabel("More sample assets", { exact: true }).uncheck();
   await page.locator(".asset-admin-preview-controls").evaluate((details) => {
@@ -566,13 +699,7 @@ try {
   await page.locator(".asset-admin-card").first().getByRole("button").click();
   const removedName = await dialog.locator("h2").textContent();
   await dialog.getByRole("button", { name: "Delete", exact: true }).click();
-  const force = dialog.getByRole("checkbox", { name: "Remove from all projects and exhibitions" });
-  assert.equal(await force.isChecked(), false);
-  const checkboxBefore = await force.boundingBox();
-  await force.check();
-  const checkboxAfter = await force.boundingBox();
-  assert.ok(Math.abs(checkboxBefore.x - checkboxAfter.x) < 1);
-  assert.ok(Math.abs(checkboxBefore.y - checkboxAfter.y) < 1);
+  assert.equal(await dialog.getByRole("checkbox").count(), 0);
   const removalBounds = await dialog.boundingBox();
   assert.ok(removalBounds.x >= 0 && removalBounds.x + removalBounds.width <= 390);
   assert.ok(removalBounds.y >= 0 && removalBounds.y + removalBounds.height <= 844);
@@ -584,11 +711,27 @@ try {
     .filter({ has: page.getByRole("heading", { name: removedName, exact: true }) })
     .getByRole("button")
     .click();
-  await dialog.getByText("Removed from all projects and exhibitions.", { exact: true }).waitFor();
+  await dialog.getByRole("button", { name: "Delete Permanently", exact: true }).click();
+  await dialog
+    .getByText(
+      "All published exhibitions using this asset will become permanently unavailable. Their links and QR codes will stop working. This cannot be undone.",
+      { exact: true },
+    )
+    .waitFor();
+  await dialog.getByRole("button", { name: "Delete Permanently", exact: true }).click();
+  await page
+    .locator(".asset-admin-card")
+    .filter({ has: page.getByRole("heading", { name: removedName, exact: true }) })
+    .getByRole("button")
+    .click();
+  await dialog
+    .getByText(
+      "Removed from projects. Affected published exhibitions are permanently unavailable.",
+      { exact: true },
+    )
+    .waitFor();
   assert.equal(
-    await dialog
-      .getByRole("button", { name: "Remove from all projects and exhibitions", exact: true })
-      .count(),
+    await dialog.getByRole("button", { name: "Delete Permanently", exact: true }).count(),
     0,
   );
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();

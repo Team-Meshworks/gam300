@@ -144,7 +144,7 @@ try {
   assert.ok(assetReads >= 2, "Both admin libraries load the real service route");
   for (const [path, title] of [
     ["spaces", "Upload 3D Space"],
-    ["assets", "Upload 3D Model"],
+    ["assets", "Upload Assets"],
   ]) {
     await page.goto(`${origin}/${path}?add=1`);
     await page
@@ -159,6 +159,7 @@ try {
     mimeType: "model/gltf-binary",
     buffer: Buffer.from("fixture"),
   });
+  await upload.getByText("Additional Details", { exact: true }).click();
   await upload.getByLabel("Source or provenance (optional)").fill("Museum archive");
   await upload.getByLabel("Redistribution licence (optional)").fill("CC BY 4.0");
   await upload.getByLabel("Content review notes (optional)").fill("Rights checked");
@@ -199,7 +200,7 @@ try {
   }
   await screen("classes", "Classes");
   assert.equal(await page.getByRole("button", { name: "New assignment" }).count(), 0);
-  await screen("publish", "Access denied");
+  await screen("publish", "Publish project");
   await screen("review", "Submission review");
   assert.equal(await page.getByRole("link", { name: "New class assignment" }).count(), 0);
   mode = "anonymous";

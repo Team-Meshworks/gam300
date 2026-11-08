@@ -9,7 +9,7 @@ const actor = "8ea0882b-9365-4b9c-b8b8-e5ee113ad07e";
 const viewer = "9ea0882b-9365-4b9c-b8b8-e5ee113ad07e";
 const session = {
   userId: actor,
-  role: "Educator",
+  role: "Creator",
   displayName: "Teacher",
   orgId: otherProject,
   mustChangePassword: false,
@@ -62,7 +62,13 @@ try {
       assert.equal(request.method(), "POST");
       writes.push({ path, body: request.postDataJSON() });
       if (result === "unknown") return route.abort();
-      access = { ...access, revoked: true };
+      const action = request.postDataJSON().action;
+      access = {
+        ...access,
+        revoked: access.revoked || action === "revoke",
+        hidden: action === "hide" ? true : action === "show" ? false : access.hidden,
+        deleted: access.deleted || action === "delete",
+      };
       return route.fulfill({ status: 204 });
     }
     if (request.method() !== "GET") writes.push({ path, method: request.method() });
@@ -156,6 +162,22 @@ try {
   await confirmation.getByRole("button", { name: "Confirm revoke" }).click();
   await section.getByRole("alert").waitFor();
   assert.equal(writes.length, 2, "An account change must prevent the write");
+  // Manager controls verify each result with the server and deletion requires confirmation
+  currentSession = session;
+  access = { ...access, revoked: false };
+  await check.click();
+  await section.getByRole("button", { name: "Hide publication", exact: true }).click();
+  await section.getByText("Publication hidden", { exact: true }).waitFor();
+  await section.getByRole("button", { name: "Restore visibility", exact: true }).click();
+  await section.getByText("Access active", { exact: true }).waitFor();
+  await section.getByRole("button", { name: "Delete publication", exact: true }).click();
+  const deletion = section.getByRole("group", { name: "Confirm publication deletion" });
+  await deletion.getByRole("button", { name: "Cancel", exact: true }).click();
+  assert.equal(writes.length, 4);
+  await section.getByRole("button", { name: "Delete publication", exact: true }).click();
+  await deletion.getByRole("button", { name: "Confirm delete", exact: true }).click();
+  await section.getByText("Publication deleted", { exact: true }).waitFor();
+  assert.equal(await section.getByRole("button", { name: "Restore visibility" }).count(), 0);
   console.log("Publication access checks passed.");
 } finally {
   await browser.close();

@@ -1,3 +1,4 @@
+import { combineAbortSignals } from "../../shared/network/abort-signals";
 import type {
   AssetAdministrationData,
   AssetAdministrationResult,
@@ -19,8 +20,10 @@ export function createAssetAdministrationService(actorId: string): AssetAdminist
         // Bind both token acquisition and the write to the account that opened this screen.
         const csrf = await fetch("/api/v1/auth/csrf", {
           credentials: "same-origin",
+          cache: "no-store",
+          redirect: "error",
           headers: { "X-Spatia-Account": actorId },
-          signal,
+          signal: combineAbortSignals([signal, AbortSignal.timeout(15_000)]),
         });
         if (!csrf.ok) {
           return failure(csrf.status);
@@ -86,6 +89,32 @@ export function createAssetAdministrationService(actorId: string): AssetAdminist
   const base = "/api/v1/admin/assets";
   return {
     load: (signal) => request<AssetAdministrationData>(base, signal),
+
+    // Download through the same captured account as the list and report failures inside the open dialog
+    async download(id, signal) {
+      try {
+        const response = await fetch(`${base}/${encodeURIComponent(id)}/bytes`, {
+          credentials: "same-origin",
+          cache: "no-store",
+          redirect: "error",
+          headers: { "X-Spatia-Account": actorId },
+          signal: combineAbortSignals([signal, AbortSignal.timeout(15_000)]),
+        });
+        if (!response.ok) {
+          return failure(response.status);
+        }
+        const file = await response.blob();
+        if (file.size === 0 || file.size > 20 * 1024 * 1024) {
+          return { ok: false, kind: "unavailable", message: "Asset file is unavailable" };
+        }
+        return { ok: true, value: file };
+      } catch (error) {
+        if (signal.aborted) {
+          throw error;
+        }
+        return { ok: false, kind: "unavailable", message: "Download failed. Please try again" };
+      }
+    },
     submit: ({ file, kind, category, review }, signal) => {
       const query = new URLSearchParams({ name: file.name, kind });
       if (category !== null) {
@@ -95,7 +124,7 @@ export function createAssetAdministrationService(actorId: string): AssetAdminist
         method: "POST",
         body: file,
         headers: {
-          "Content-Type": "model/gltf-binary",
+          "Content-Type": kind === "audio" ? "audio/mp4" : "model/gltf-binary",
           "X-Spatia-Asset-Metadata": btoa(
             Array.from(new TextEncoder().encode(JSON.stringify(review)), (byte) =>
               String.fromCharCode(byte),
@@ -136,7 +165,7 @@ function isCandidate(value: unknown): value is AssetCandidate {
     record(value) &&
     typeof value.id === "string" &&
     typeof value.name === "string" &&
-    (value.kind === "model" || value.kind === "environment") &&
+    (value.kind === "model" || value.kind === "environment" || value.kind === "audio") &&
     (value.category === null || typeof value.category === "string") &&
     typeof value.status === "string" &&
     ["pending", "approved", "invalid", "unavailable"].includes(value.status) &&
@@ -160,7 +189,7 @@ function isCandidate(value: unknown): value is AssetCandidate {
   );
 }
 
-// Accept only the bounded GLB policy supported by this screen; spaces never acquire model categories
+// Accept only the bounded GLB and M4A intake policy; spaces never acquire categories
 function isAdministrationData(value: unknown): value is AssetAdministrationData {
   if (
     !record(value) ||
@@ -173,14 +202,21 @@ function isAdministrationData(value: unknown): value is AssetAdministrationData 
   const policy = value.policy;
   return (
     strings(policy.extensions) &&
-    policy.extensions.every((extension) => extension === ".glb") &&
+    policy.extensions.every((extension) => extension === ".glb" || extension === ".m4a") &&
     typeof policy.maxBytes === "number" &&
     policy.maxBytes > 0 &&
     policy.maxBytes <= 20 * 1024 * 1024 &&
     typeof policy.canSubmit === "boolean" &&
+    (policy.canSubmitByKind === undefined ||
+      (record(policy.canSubmitByKind) &&
+        Object.entries(policy.canSubmitByKind).every(
+          ([kind, allowed]) =>
+            ["model", "environment", "audio"].includes(kind) && typeof allowed === "boolean",
+        ))) &&
     typeof policy.canForceRemove === "boolean" &&
     record(policy.categories) &&
     policy.categories.environment === null &&
-    strings(policy.categories.model)
+    strings(policy.categories.model) &&
+    (!policy.extensions.includes(".m4a") || strings(policy.categories.audio))
   );
 }

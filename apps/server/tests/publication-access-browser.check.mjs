@@ -110,7 +110,7 @@ try {
     }
   }
 
-  // Existing public and unlisted editions permit anonymous reads; creation policy remains unresolved
+  // Public and unlisted editions permit anonymous reads without granting draft authority
   for (const [mode, id] of [["Public", data.publicId], ["Unlisted", data.unlistedId]]) {
     for (const name of ["anonymous", "unrelated", "foreign"])
       await pair(name, 200, id);
@@ -121,8 +121,11 @@ try {
       mode === "Unlisted" ? /anyone with the link/i : /without signing in/i,
     );
   }
-  for (const mode of ["Public", "Unlisted"])
-    assert.equal((await policy("publisher", mode)).status, 503);
+  for (const mode of ["Public", "Unlisted"]) {
+    assert.equal((await policy("publisher", mode)).status, 400);
+    await change("publisher", mode, "audience", []);
+    await pair("anonymous", 200);
+  }
   await pair("anonymous", 404, "invalid-publication");
   await pair("anonymous", 404, crypto.randomUUID());
   await change("publisher", "Authenticated");
@@ -257,7 +260,11 @@ try {
   ]);
   await pair("publisher", 200);
   assert.equal((await policy("publisher", "Public")).status, 404);
-  // Public-link continuity after publisher disablement remains an owner decision.
+  // Publisher disablement does not revoke independently shared anonymous editions
+  assert.equal((await write("admin", `/api/v1/admin/users/${data.actors.publisher.userId}/active`, { isActive: false }, "PATCH")).status, 204);
+  // Anonymous editions retain their access after reassignment without transferring publisher authority
+  await pair("anonymous", 200, data.publicId);
+  await pair("anonymous", 200, data.unlistedId);
 
   // Later draft edits do not alter the captured edition or its protected asset identity
   draft = (await get("admin", `/api/v1/projects/${data.projectId}`)).body;

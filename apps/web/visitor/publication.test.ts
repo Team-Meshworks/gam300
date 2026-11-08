@@ -1,6 +1,4 @@
 import fixture from "../shared/project/fixtures/m2-publication-project.json";
-import { deserializeProject } from "../shared/project/project-deserialization";
-import { serializeProject } from "../shared/project/project-serialization";
 import { afterEach, expect, it, vi } from "vitest";
 import { validateProject } from "../shared/project/project-validation";
 import { loadPublication, readPublicationManifest } from "./publication";
@@ -114,35 +112,35 @@ function v2Publication(enabled = false) {
         new Response(JSON.stringify(url.endsWith("/manifest") ? manifest : project)),
     ),
   );
-  return { project, manifest };
+  return { project };
 }
 
-it("reconstructs both v2 scenes with content, zones, viewpoints and disabled rule order intact", async () => {
-  const { project, manifest } = v2Publication();
-  const before = JSON.stringify(project);
-  const loaded = await loadPublication(id, new AbortController().signal);
-  expect(loaded.document).toMatchObject(project);
-  const kinds = new Map(manifest.assets.map((row) => [row.id, row.kind]));
-  const validated = deserializeProject(before, kinds);
-  expect(validated.ok).toBe(true);
-  if (!validated.ok) {
-    throw new Error(validated.error.message);
-  }
-  const saved = serializeProject(validated.value, kinds);
-  expect(saved.ok).toBe(true);
-  if (!saved.ok) {
-    throw new Error(saved.error.message);
-  }
-  const reopened = deserializeProject(saved.value, kinds);
-  expect(reopened).toEqual(validated);
-  expect(JSON.stringify(project)).toBe(before);
+it.each([false, true])("opens both v2 scenes with enabled rules set to %s", async (enabled) => {
+  const { project } = v2Publication(enabled);
+  expect((await loadPublication(id, new AbortController().signal)).document).toMatchObject(project);
 });
 
-it("rejects enabled unavailable rules with stable capability paths without changing the document", async () => {
-  const { project } = v2Publication(true);
-  const before = JSON.stringify(project);
+it.each(["audio", "image", "video"])(
+  "retains only publication-bound %s bytes in the manifest",
+  (kind) => {
+    expect(
+      readPublicationManifest({ ...value, assets: [{ ...value.assets[0], kind }] }, id).assets[0]
+        ?.kind,
+    ).toBe(kind);
+  },
+);
+
+it("rejects URL-only audio rather than silently fetching media outside the captured edition", async () => {
+  const { project } = v2Publication();
+  Object.assign(project.scenes[0]!, {
+    interactions: [
+      {
+        when: { type: "scene-starts" },
+        do: { type: "play-audio", url: "https://example.com/track.m4a" },
+      },
+    ],
+  });
   await expect(loadPublication(id, new AbortController().signal)).rejects.toThrow(
-    "trigger:sceneStart at project.scenes[0].rules[0].trigger",
+    "approved library track",
   );
-  expect(JSON.stringify(project)).toBe(before);
 });

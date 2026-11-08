@@ -36,11 +36,12 @@ try {
   await page.waitForURL(`${origin}/organisations`);
   await page.getByRole("link", { name: "Close organisations", exact: true }).click();
   await page.waitForURL(`${origin}/admin/dashboard`);
-  await page.getByRole("link", { name: "Open project workspace", exact: true }).click();
-  await page.waitForURL(`${origin}/home`);
+  await page.goto(`${origin}/home`);
   await page.getByRole("button", { name: "Classes", exact: true }).click();
   await page.getByRole("heading", { name: "Classes", exact: true }).waitFor();
   await page.getByRole("button", { name: "Projects", exact: true }).click();
+  await page.getByRole("button", { name: "Back to dashboard", exact: true }).click();
+  await page.goto(`${origin}/home`);
   const project = page.getByRole("listitem").filter({
     has: page.getByRole("heading", { name: "Grant browser project", exact: true }),
   });
