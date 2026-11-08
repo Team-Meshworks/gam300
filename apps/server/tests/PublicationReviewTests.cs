@@ -77,7 +77,8 @@ public sealed class PublicationReviewTests
         await Assert.That(replay.Acknowledgement).IsEqualTo(published.Acknowledgement);
         var student = await PublishAsync(fixture, data.Student, data.ProjectId,
             new PublicationRequest(Guid.NewGuid(), 0, request.IntentJson), integration);
-        await Assert.That(student.AccessFailure).IsEqualTo((ProjectAccessFailure?)ProjectAccessFailure.OperationForbidden);
+        await Assert.That(student.Rejection).IsEqualTo((PublicationRejection?)PublicationRejection.PolicyDenied);
+        await Assert.That(student.Acknowledgement).IsNull();
         await using (var scope = fixture.Database.Services.CreateAsyncScope())
         {
             var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -171,8 +172,8 @@ public sealed class PublicationReviewTests
         using (var approved = await DecideAsync(fixture, educator, data.ProjectId, submission, 0, "approved"))
         { await Assert.That(approved.StatusCode).IsEqualTo(HttpStatusCode.Created); }
 
-        var deniedStudent = await PublishAsync(fixture, data.Student, data.ProjectId, Request(), integration);
-        await Assert.That(deniedStudent.AccessFailure).IsEqualTo((ProjectAccessFailure?)ProjectAccessFailure.OperationForbidden);
+        var student = await PublishAsync(fixture, data.Student, data.ProjectId, Request(), integration);
+        await Assert.That(student.Acknowledgement?.SourceRevision).IsEqualTo((long?)0);
         var request = Request();
         var published = await PublishAsync(fixture, data.Educator, data.ProjectId, request, integration);
         await Assert.That(published.Acknowledgement?.SourceRevision).IsEqualTo((long?)0);
@@ -180,6 +181,8 @@ public sealed class PublicationReviewTests
         { await Assert.That(revoked.StatusCode).IsEqualTo(HttpStatusCode.Created); }
         var deniedNew = await PublishAsync(fixture, data.Educator, data.ProjectId, Request(), integration);
         await Assert.That(deniedNew.Rejection).IsEqualTo((PublicationRejection?)PublicationRejection.ApprovalRequired);
+        var deniedStudent = await PublishAsync(fixture, data.Student, data.ProjectId, Request(), integration);
+        await Assert.That(deniedStudent.Rejection).IsEqualTo((PublicationRejection?)PublicationRejection.ApprovalRequired);
 
         using (var saved = await SaveAsync(fixture, data.ProjectId))
         { await Assert.That(saved.StatusCode).IsEqualTo(HttpStatusCode.OK); }
@@ -203,7 +206,7 @@ public sealed class PublicationReviewTests
         var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var original = await database.Publications.SingleAsync(row => row.Id == request.PublicationId);
         await Assert.That(original.DocumentJson).IsEqualTo((await database.ReviewSubmissions.SingleAsync(row => row.Id == submission)).DocumentJson);
-        await Assert.That(await database.Publications.CountAsync()).IsEqualTo(2);
+        await Assert.That(await database.Publications.CountAsync()).IsEqualTo(3);
         await Assert.That(await database.ReviewDecisions.CountAsync()).IsEqualTo(3);
     }
 
