@@ -80,16 +80,15 @@ internal sealed class AuthenticatedPublicationIntegration : IPublicationIntegrat
             || json.RootElement.GetProperty("viewerIds").ValueKind != JsonValueKind.Array)
         { return (null, default, PublicationRejection.PolicyDenied); }
         var audience = json.RootElement.GetProperty("audience").GetString();
-        if (audience == "Public") { return (null, default, PublicationRejection.DependencyUnavailable); }
-        if (audience is not ("Authenticated" or "Unlisted")) { return (null, default, PublicationRejection.PolicyDenied); }
+        if (audience is not ("Authenticated" or "Unlisted" or "Public")) { return (null, default, PublicationRejection.PolicyDenied); }
         var ids = new HashSet<Guid>();
         var values = json.RootElement.GetProperty("viewerIds");
-        if (values.GetArrayLength() > 100 || (audience == "Unlisted" && values.GetArrayLength() != 0)) { return (null, default, PublicationRejection.PolicyDenied); }
+        if (values.GetArrayLength() > 100 || (audience != "Authenticated" && values.GetArrayLength() != 0)) { return (null, default, PublicationRejection.PolicyDenied); }
         foreach (var value in values.EnumerateArray())
         {
             if (value.ValueKind != JsonValueKind.String || !value.TryGetGuid(out var id) || id == Guid.Empty || !ids.Add(id))
             { return (null, default, PublicationRejection.PolicyDenied); }
         }
-        return (ids.ToArray(), audience == "Unlisted" ? PublicationAudience.Unlisted : PublicationAudience.Authenticated, null);
+        return (ids.ToArray(), Enum.Parse<PublicationAudience>(audience!), null);
     }
 }

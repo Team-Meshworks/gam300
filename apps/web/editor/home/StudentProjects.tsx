@@ -123,6 +123,14 @@ export function StudentProjectDetails({
           />
         )}
         <div className="sp-student-detail-actions">
+          {row.project.permissions.canPublish && !row.project.archived && (
+            <a
+              className="sp-button"
+              href={`/publish?projectId=${encodeURIComponent(row.project.projectId)}`}
+            >
+              Publish and share
+            </a>
+          )}
           <Button
             variant="primary"
             disabled={!row.project.permissions.canEdit || row.project.archived}

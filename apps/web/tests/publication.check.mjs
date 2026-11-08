@@ -9,7 +9,7 @@ const student = "9ea0882b-9365-4b9c-b8b8-e5ee113ad07e";
 const classId = "aea0882b-9365-4b9c-b8b8-e5ee113ad07e";
 const session = {
   userId: actor,
-  role: "Educator",
+  role: "Creator",
   displayName: "Teacher",
   orgId: classId,
   mustChangePassword: false,
@@ -217,6 +217,19 @@ try {
     await page.getByRole("checkbox", { name: "Student 101", exact: true }).isEnabled(),
     true,
   );
+  // Anonymous audience choices carry no stale named viewers and require fresh confirmation
+  for (const audience of ["Public", "Unlisted"]) {
+    await page.reload();
+    await page
+      .getByRole("combobox", { name: "Who can open this publication" })
+      .selectOption(audience);
+    assert.equal(await page.getByRole("checkbox", { name: "Student 1", exact: true }).count(), 0);
+    await page.getByRole("checkbox", { name: /confirm.*saved revision/i }).check();
+    outcome = "conflict";
+    await page.getByRole("button", { name: "Publish", exact: true }).click();
+    await page.getByText(/saved project has changed/i).waitFor();
+    assert.deepEqual(requests.at(-1).intent, { audience, viewerIds: [] });
+  }
   rosterAvailable = false;
   largeRoster = false;
   currentSession = session;

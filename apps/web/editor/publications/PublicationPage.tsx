@@ -55,7 +55,7 @@ function pendingRequest(key: string | null): {
       !Number.isSafeInteger(value.confirmedRevision) ||
       (value.confirmedRevision as number) < 0 ||
       !isRecord(value.intent) ||
-      value.intent.audience !== "Authenticated" ||
+      !["Authenticated", "Unlisted", "Public"].includes(String(value.intent.audience)) ||
       !Array.isArray(value.intent.viewerIds) ||
       value.intent.viewerIds.length > 100 ||
       !value.intent.viewerIds.every(isId) ||
@@ -94,6 +94,7 @@ export function PublicationPage({ session }: { session: AccountSession }) {
     "ready" | "pending" | "unknown" | "success" | "stale" | "storage-error"
   >(pending.error ? "storage-error" : pending.request ? "unknown" : "ready");
   const [request, setRequest] = useState<PublicationRequest | null>(pending.request);
+  const [audience, setAudience] = useState(pending.request?.intent.audience ?? "Authenticated");
   const [ack, setAck] = useState<PublicationAcknowledgement | null>(null);
   const [shareAvailable, setShareAvailable] = useState(true);
   const inFlight = useRef(false);
@@ -245,7 +246,10 @@ export function PublicationPage({ session }: { session: AccountSession }) {
         : {
             publicationId: crypto.randomUUID(),
             confirmedRevision: saved.revision,
-            intent: { audience: "Authenticated", viewerIds: [...selected].sort() },
+            intent: {
+              audience,
+              viewerIds: audience === "Authenticated" ? [...selected].sort() : [],
+            },
           };
     try {
       if (!storageKey) throw new Error("Missing key");
@@ -392,7 +396,10 @@ export function PublicationPage({ session }: { session: AccountSession }) {
               {shareAvailable ? (
                 <>
                   <a href={ack.visitorUrl}>Open publication</a>
-                  <PublicationShare url={ack.visitorUrl} />
+                  <PublicationShare
+                    url={ack.visitorUrl}
+                    unlisted={(request?.intent.audience ?? audience) !== "Authenticated"}
+                  />
                 </>
               ) : (
                 <p>Sharing is unavailable for this publication.</p>
@@ -401,32 +408,60 @@ export function PublicationPage({ session }: { session: AccountSession }) {
           ) : (
             <>
               <fieldset disabled={phase !== "ready" || viewersLoading}>
-                <legend>Signed-in viewers</legend>
-                <p>Choose up to 100 viewers.</p>
-                {viewersLoading && <p role="status">Loading viewers…</p>}
-                {viewersError && (
-                  <p>Viewers could not be loaded. You can publish for yourself only.</p>
+                <legend>Publication audience</legend>
+                <label>
+                  Who can open this publication
+                  <select
+                    value={audience}
+                    onChange={(event) => {
+                      setAudience(event.target.value);
+                      setConfirmed(false);
+                    }}
+                  >
+                    <option value="Authenticated">Permitted signed-in accounts</option>
+                    <option value="Unlisted">Anyone with the link</option>
+                    <option value="Public">Anyone without signing in</option>
+                  </select>
+                </label>
+                <p>
+                  {audience === "Authenticated"
+                    ? "Choose permitted accounts below"
+                    : audience === "Unlisted"
+                      ? "Unlisted is not private; anyone holding the link can open it"
+                      : "Anyone can open this publication without an account"}
+                </p>
+                {audience === "Authenticated" && (
+                  <>
+                    <p>Choose up to 100 viewers.</p>
+                    {viewersLoading && <p role="status">Loading viewers…</p>}
+                    {viewersError && (
+                      <p>Viewers could not be loaded. You can publish for yourself only.</p>
+                    )}
+                    {!viewersLoading && !viewersError && viewers.length === 0 && (
+                      <p>No other viewers are available to select.</p>
+                    )}
+                    {viewers.map((viewer) => (
+                      <label key={viewer.userId}>
+                        <input
+                          type="checkbox"
+                          checked={selected.includes(viewer.userId)}
+                          disabled={
+                            audience !== "Authenticated" ||
+                            (selected.length >= 100 && !selected.includes(viewer.userId))
+                          }
+                          onChange={(event) =>
+                            setSelected((previous) =>
+                              event.target.checked
+                                ? [...previous, viewer.userId]
+                                : previous.filter((id) => id !== viewer.userId),
+                            )
+                          }
+                        />{" "}
+                        {viewer.userName}
+                      </label>
+                    ))}
+                  </>
                 )}
-                {!viewersLoading && !viewersError && viewers.length === 0 && (
-                  <p>No other viewers are available to select.</p>
-                )}
-                {viewers.map((viewer) => (
-                  <label key={viewer.userId}>
-                    <input
-                      type="checkbox"
-                      checked={selected.includes(viewer.userId)}
-                      disabled={selected.length >= 100 && !selected.includes(viewer.userId)}
-                      onChange={(event) =>
-                        setSelected((previous) =>
-                          event.target.checked
-                            ? [...previous, viewer.userId]
-                            : previous.filter((id) => id !== viewer.userId),
-                        )
-                      }
-                    />{" "}
-                    {viewer.userName}
-                  </label>
-                ))}
                 <label>
                   <input
                     type="checkbox"

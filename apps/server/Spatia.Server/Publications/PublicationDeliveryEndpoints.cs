@@ -153,11 +153,10 @@ internal static class PublicationDeliveryEndpoints
                 && !(request.Action == "audience" && current.ActorId == edition.PublishedById && current.CanEdit && current.CanPublish)))
             { return Unavailable(context); }
 
-            // Match the publisher's unavailable result until public/unlisted lifecycle policy is agreed
-            // Existing stored editions retain their read policy; this cannot promote a restricted edition
-            if (request.Action == "audience" && audience is PublicationAudience.Public or PublicationAudience.Unlisted)
+            // Anonymous audiences have no named viewers; changing access still requires current authority
+            if (request.Action == "audience" && audience != PublicationAudience.Authenticated && ids.Length != 0)
             {
-                return ApiProblems.Create(context, 503, "publication_unavailable", "This audience is not available for new access changes.");
+                return ApiProblems.Create(context, 400, "invalid_publication_audience", "Public and unlisted access cannot include named viewers");
             }
 
             // Validate newly chosen viewers against the locked project's current organization
@@ -190,7 +189,13 @@ internal static class PublicationDeliveryEndpoints
             if (request.Action == "hide") { state.Hidden = true; }
             if (request.Action == "show") { state.Hidden = false; }
             if (request.Action == "revoke") { state.Revoked = true; }
-            if (request.Action == "delete") { state.Deleted = true; }
+            if (request.Action == "delete")
+            {
+                state.Deleted = true;
+
+                // Preserve permanent denial independently of the retained edition and its access row
+                await database.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO retired_publication_ids (id) VALUES ({publicationId}) ON CONFLICT DO NOTHING", token);
+            }
 
             // Acknowledge only after the policy and retained project lock commit together
             await database.SaveChangesAsync(token);

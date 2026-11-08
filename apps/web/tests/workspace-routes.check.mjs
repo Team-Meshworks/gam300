@@ -189,7 +189,7 @@ try {
   }
   await screen("classes", "Classes");
   assert.equal(await page.getByRole("button", { name: "New assignment" }).count(), 0);
-  await screen("publish", "Access denied");
+  await screen("publish", "Publish project");
   await screen("review", "Submission review");
   assert.equal(await page.getByRole("link", { name: "New class assignment" }).count(), 0);
   mode = "anonymous";

@@ -293,7 +293,7 @@ public sealed class ClassAssignmentCoordinatorTests
                 using var json = JsonDocument.Parse(project.DocumentJson);
                 await Assert.That(JsonElement.DeepEquals(json.RootElement.GetProperty("scenes"), sourceJson.RootElement.GetProperty("scenes"))).IsTrue();
                 var ownGrant = await database.ProjectAssignments.SingleAsync(row => row.ProjectId == projectId && row.UserId == student);
-                await Assert.That(ownGrant.CanEdit && !ownGrant.CanManage && !ownGrant.CanPublish).IsTrue();
+                await Assert.That(ownGrant.CanEdit && !ownGrant.CanManage && ownGrant.CanPublish).IsTrue();
                 await Assert.That(await database.ProjectAssignments.AnyAsync(row => row.ProjectId == projectId
                     && row.UserId == data.Educator && row.CanManage)).IsTrue();
             }
@@ -417,7 +417,7 @@ public sealed class ClassAssignmentCoordinatorTests
         foreach (var (student, projectId) in projects)
         {
             await Assert.That(await reopened.ProjectAssignments.AnyAsync(row => row.ProjectId == projectId
-                && row.UserId == student && row.CanEdit && !row.CanManage && !row.CanPublish)).IsTrue();
+                && row.UserId == student && row.CanEdit && !row.CanManage && row.CanPublish)).IsTrue();
         }
     }
 
