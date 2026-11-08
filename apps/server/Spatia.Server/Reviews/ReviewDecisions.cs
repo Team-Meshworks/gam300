@@ -93,6 +93,13 @@ internal static class ReviewDecisions
         {
             return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.OperationForbidden);
         }
+        if (request.Outcome == ReviewDecision.Approved)
+        {
+            await database.ProjectAssignments.Where(grant => grant.ProjectId == id && grant.CanEdit
+                && database.ClassAssignmentStudents.Any(student => student.ProjectId == id
+                    && student.StudentId == grant.UserId && student.IsActive))
+                .ExecuteUpdateAsync(update => update.SetProperty(grant => grant.CanPublish, true), cancellationToken);
+        }
         return await ClassroomEndpoints.CompleteAsync(context, transaction,
             Results.Json(Acknowledgement(decision), statusCode: 201), cancellationToken);
     }

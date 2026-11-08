@@ -23,7 +23,8 @@ public sealed class PublicationEndpointTests
     public async Task StudentPublishesApprovedRevisionAndSharesWithoutGrantingDraftAccess(string audience)
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync();
-        var (data, asset) = await PrepareAsync(fixture, approve: false);
+        const long revision = 291;
+        var (data, asset) = await PrepareAsync(fixture, approve: false, revision: revision);
 
         // Upgrade an existing assignment that predates student publishing
         await using (var scope = fixture.App.Services.CreateAsyncScope())
@@ -34,11 +35,11 @@ public sealed class PublicationEndpointTests
             var migrations = database.GetService<IMigrator>();
             await migrations.MigrateAsync("20261108003114_AddAssignmentEditing");
             await migrations.MigrateAsync();
-            await Assert.That((await database.ProjectAssignments.SingleAsync(row => row.ProjectId == data.ProjectId && row.UserId == data.Student)).CanPublish).IsTrue();
+            await Assert.That((await database.ProjectAssignments.SingleAsync(row => row.ProjectId == data.ProjectId && row.UserId == data.Student)).CanPublish).IsFalse();
         }
         await fixture.SignInAsync(data.Student);
-        using (var denied = await PublishAsync(fixture, data.ProjectId, Guid.NewGuid(), audience))
-        { await Assert.That(denied.StatusCode).IsEqualTo(HttpStatusCode.Conflict); }
+        using (var denied = await PublishAsync(fixture, data.ProjectId, Guid.NewGuid(), audience, revision: revision))
+        { await Assert.That(denied.StatusCode).IsEqualTo(HttpStatusCode.Forbidden); }
 
         // Only an educator may approve the student's submitted saved revision
         Guid submission;
@@ -47,7 +48,7 @@ public sealed class PublicationEndpointTests
             submission = await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().ReviewSubmissions
                 .Where(row => row.ProjectId == data.ProjectId).Select(row => row.Id).SingleAsync();
         }
-        var decision = new { decisionId = Guid.NewGuid(), expectedRevision = 0, outcome = "approved", feedback = "Ready to share" };
+        var decision = new { decisionId = Guid.NewGuid(), expectedRevision = revision, outcome = "approved", feedback = "Ready to share" };
         async Task<HttpResponseMessage> Approve()
         {
             using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/projects/{data.ProjectId}/submissions/{submission}/decisions")
@@ -61,10 +62,21 @@ public sealed class PublicationEndpointTests
         using (var approved = await Approve())
         { await Assert.That(approved.StatusCode).IsEqualTo(HttpStatusCode.Created); }
 
+        if (audience == "Public")
+        {
+            // Reproduce an approval saved before it also enabled student publishing
+            await using var scope = fixture.App.Services.CreateAsyncScope();
+            var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            await database.ProjectAssignments.Where(row => row.ProjectId == data.ProjectId && row.UserId == data.Student)
+                .ExecuteUpdateAsync(set => set.SetProperty(row => row.CanPublish, false));
+            await database.GetService<IMigrator>().MigrateAsync("20261108160000_AddAccountDeletion");
+            await database.GetService<IMigrator>().MigrateAsync();
+        }
+
         // Students publish; friends can read only the immutable edition and its pinned assets
         await fixture.SignInAsync(data.Student);
         var id = Guid.NewGuid();
-        using (var published = await PublishAsync(fixture, data.ProjectId, id, audience))
+        using (var published = await PublishAsync(fixture, data.ProjectId, id, audience, revision: revision))
         { await Assert.That(published.StatusCode).IsEqualTo(HttpStatusCode.Created); }
         using var friend = fixture.CreateClient();
         using var snapshot = await friend.GetAsync($"/api/v1/publications/{id}");
@@ -81,11 +93,11 @@ public sealed class PublicationEndpointTests
         var document = JsonNode.Parse(saved.GetRawText())!;
         document["title"] = "Edited after approval";
         using var save = new HttpRequestMessage(HttpMethod.Put, $"/api/v1/projects/{data.ProjectId}")
-        { Content = JsonContent.Create(new { expectedRevision = 0, clientMutationId = Guid.NewGuid(), document }) };
+        { Content = JsonContent.Create(new { expectedRevision = revision, clientMutationId = Guid.NewGuid(), document }) };
         save.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync());
         using (var changed = await fixture.Client.SendAsync(save))
         { await Assert.That(changed.StatusCode).IsEqualTo(HttpStatusCode.OK); }
-        using (var denied = await PublishAsync(fixture, data.ProjectId, Guid.NewGuid(), audience, revision: 1))
+        using (var denied = await PublishAsync(fixture, data.ProjectId, Guid.NewGuid(), audience, revision: revision + 1))
         { await Assert.That(denied.StatusCode).IsEqualTo(HttpStatusCode.Conflict); }
         using var unchanged = await friend.GetAsync($"/api/v1/publications/{id}");
         await Assert.That(await unchanged.Content.ReadAsStringAsync()).IsEqualTo(original);
@@ -678,7 +690,7 @@ public sealed class PublicationEndpointTests
     }
 
     internal static async Task<(ReviewSubmissionEndpointTests.Seeded Data, AssetCandidate Asset)> PrepareAsync(
-        HttpsApplicationFixture fixture, bool approve = true, bool interactions = false, Guid? assetOwner = null, bool content = false, bool enabledRule = false)
+        HttpsApplicationFixture fixture, bool approve = true, bool interactions = false, Guid? assetOwner = null, bool content = false, bool enabledRule = false, long revision = 0)
     {
         fixture.App.Configuration["Publication:Origin"] = "https://publications.example.test";
         var data = await ReviewSubmissionEndpointTests.SeedAsync(fixture, false);
@@ -707,6 +719,7 @@ public sealed class PublicationEndpointTests
             await database.ProjectAssignments.Where(row => row.ProjectId == data.ProjectId && row.UserId == data.Student)
                 .ExecuteUpdateAsync(set => set.SetProperty(row => row.CanPublish, true));
             var project = await database.Projects.SingleAsync(row => row.Id == data.ProjectId);
+            project.Revision = revision;
             var document = JsonNode.Parse(project.DocumentJson)!;
             document["scenes"]![0]!["environmentAssetId"] = asset.Id.ToString();
             document["scenes"]![0]!["objects"] = new JsonArray();
@@ -769,14 +782,14 @@ public sealed class PublicationEndpointTests
             await database.SaveChangesAsync();
         }
         var submission = Guid.NewGuid();
-        using var submitted = await ReviewSubmissionEndpointTests.SubmitAsync(fixture, data.ProjectId, submission, 0, true);
+        using var submitted = await ReviewSubmissionEndpointTests.SubmitAsync(fixture, data.ProjectId, submission, revision, true);
         await Assert.That(submitted.StatusCode).IsEqualTo(HttpStatusCode.Created);
         await fixture.SignInAsync(data.Educator);
         if (approve)
         {
             using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/projects/{data.ProjectId}/submissions/{submission}/decisions")
             {
-                Content = JsonContent.Create(new { decisionId = Guid.NewGuid(), expectedRevision = 0, outcome = "approved", feedback = "Approved" }),
+                Content = JsonContent.Create(new { decisionId = Guid.NewGuid(), expectedRevision = revision, outcome = "approved", feedback = "Approved" }),
             };
             request.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync());
             using var approved = await fixture.Client.SendAsync(request);

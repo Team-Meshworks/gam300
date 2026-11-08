@@ -91,6 +91,7 @@ if $server; then
   fi
   chmod 600 -- "$directory/server.env"
   cat "$directory/server.env" >> "$candidate/.env"
+  printf 'PUBLICATION_ORIGIN=%s\n' "${url%/}" >> "$candidate/.env"
   printf 'API_IMAGE=%s\nMIGRATION_IMAGE=%s\nSERVER_PORT=%s\nSERVER_NETWORK_PREFIX=%s\nSERVER_ENVIRONMENT=%s\nSERVER_ALLOWED_HOSTS=%s\nSERVER_CADDYFILE=%s\n' \
     "$api_image" "$migration_image" "$server_port" "$network" "${environment^}" "$host" \
     "$configuration/server.Caddyfile" >> "$candidate/.env"
