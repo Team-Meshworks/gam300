@@ -193,12 +193,15 @@ try {
   });
   await page.goto(origin + "/?" + new URLSearchParams({ projectId }));
   await page.getByText("Scene ready", { exact: true }).waitFor();
-  await check("ordinary creator editor offers Publish", async () => {
-    assert.equal(await page.getByRole("button", { name: "Publish", exact: true }).count(), 1);
-    assert.equal(
-      await page.getByRole("button", { name: "Publish", exact: true }).getAttribute("title"),
-      "Publish this project",
-    );
+  await check("ordinary creator editor hides Publish", async () => {
+    assert.equal(await page.getByRole("button", { name: "Publish", exact: true }).count(), 0);
+    assert.equal(await page.getByRole("button", { name: "Review", exact: true }).count(), 0);
+  });
+  await page.goto(origin + "/publish?" + new URLSearchParams({ projectId }));
+  await check("creator direct publication route is denied", async () => {
+    await page.getByRole("heading", { name: "Access denied", exact: true }).waitFor();
+    assert.equal(await page.getByRole("button", { name: "Publish", exact: true }).count(), 0);
+    assert.equal(publications.length, 0);
   });
   await page.goto(origin + "/review");
   await check("student submission remains reachable without Publish", async () => {

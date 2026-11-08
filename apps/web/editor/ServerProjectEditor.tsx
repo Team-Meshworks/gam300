@@ -4,7 +4,7 @@ import { assets } from "virtual:asset-catalogue";
 import { App } from "./App";
 import { HOTSPOT_ASSET } from "../shared/asset-runtime/hotspot";
 import { createDocumentStore } from "./document-store";
-import { createAccountClient } from "./accounts/account-client";
+import { createAccountClient, type AccountRole } from "./accounts/account-client";
 import { LoginRedirect } from "./accounts/LoginRedirect";
 import {
   readServerAssets,
@@ -41,6 +41,7 @@ type Active = {
   session: ReturnType<typeof connectServerProjectSession>;
   accountId: string;
   orgId: string | null;
+  role: AccountRole;
   controller: AbortController;
   title: string;
 };
@@ -313,6 +314,7 @@ function ServerProjectSession({
       session,
       accountId: opened.accountId,
       orgId: identity.orgId,
+      role: identity.role,
       controller,
       title: document.title,
     };
@@ -638,7 +640,8 @@ function ServerProjectSession({
                   publish: () => void startReview("publish"),
                   review: () => void startReview("review"),
                 }
-              : !parseProgressContext(new URLSearchParams(location.search), projectId)
+              : active.role !== "Creator" &&
+                  !parseProgressContext(new URLSearchParams(location.search), projectId)
                 ? { publish: () => setDeparture("publish") }
                 : {}),
           }}
