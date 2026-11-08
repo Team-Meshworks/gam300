@@ -39,6 +39,11 @@ it("shows each assigned student with a progress action and the assignment detail
       onProgress: vi.fn(),
     }),
   );
+  expect(html).toContain(
+    new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(
+      new Date(1900000000 * 1000),
+    ),
+  );
   expect(html).toContain("Silk Road");
   expect(html).toContain("School");
   expect(html).toContain("Ms Chew");

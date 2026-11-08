@@ -107,7 +107,7 @@ async function api(route) {
     assert.equal(body.sourceProjectId, source);
     assert.equal(body.sourceRevision, 0);
     assert.deepEqual(body.studentIds.sort(), [alice, bob].sort());
-    assert.equal(body.dueAtUnixSeconds, Date.parse("2026-11-05T15:59:59Z") / 1000);
+    assert.equal(body.dueAtUnixSeconds, Date.parse("2026-11-05T07:30:00Z") / 1000);
     if (assignment) assert.deepEqual(body, attempts[0]);
     else
       assignment = {
@@ -216,7 +216,7 @@ try {
   await page.getByRole("button", { name: "Log Out", exact: true }).click();
   await page.getByRole("button", { name: "Keep editing", exact: true }).click();
   await page.getByRole("combobox", { name: "Class", exact: true }).selectOption(classId);
-  await page.getByLabel(/^Due date/).fill("2026-11-05");
+  await page.getByLabel(/^Due date/).fill("2026-11-05T15:30");
   await page.getByLabel("Project description").fill("Research trade across the Silk Road.");
   await page.getByLabel("Project instructions").fill("Build an exhibit and explain each object.");
   await page.getByRole("button", { name: "Select all", exact: true }).click();

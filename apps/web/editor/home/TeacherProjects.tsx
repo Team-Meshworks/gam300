@@ -13,7 +13,7 @@ import {
   type AssignmentDetails,
 } from "../projects/assignment-api";
 import { AssignmentEditDialog } from "../projects/AssignmentEditDialog";
-import { formatDueDate } from "../projects/deadline";
+import { formatLocalDeadline } from "../projects/deadline";
 import { progressEditorUrl, type ProgressContext } from "../projects/progress-navigation";
 import { createWorkspaceClient, type ProjectSummary } from "./workspace-api";
 import { ProjectHome } from "./ProjectHome";
@@ -22,6 +22,12 @@ import "../reviews/reviews.css";
 const reviews = createReviewClient();
 const workspace = createWorkspaceClient();
 type Item = { classId: string; className: string; details: AssignmentDetails };
+
+function updateAssignment(item: Item, classId: string, details: AssignmentDetails): Item {
+  return item.classId === classId && item.details.assignmentId === details.assignmentId
+    ? { ...item, details }
+    : item;
+}
 
 export function TeacherStandaloneDetails({
   project,
@@ -112,7 +118,7 @@ export function TeacherProjectDetails({
           <p className="sp-hint">Class {item.className}</p>
           <h3>Due Date</h3>
           <p className="sp-teacher-value">
-            {formatDueDate(details.dueAtUnixSeconds) ?? "Unavailable"}
+            {formatLocalDeadline(details.dueAtUnixSeconds) ?? "Unavailable"}
           </p>
           <h3>Project Description</h3>
           <p className="sp-teacher-value">{details.description}</p>
@@ -186,7 +192,11 @@ export function TeacherProjectDetails({
               try {
                 const latest = await readAssignment(item.classId, details.assignmentId);
                 const identity = await assignmentSession();
-                if (identity.userId !== actorId || identity.mustChangePassword)
+                if (
+                  identity.userId !== actorId ||
+                  identity.mustChangePassword ||
+                  latest.assignmentId !== details.assignmentId
+                )
                   throw new Error("Account changed");
                 onUpdated?.(latest);
                 setEditError("");
@@ -283,8 +293,30 @@ export function TeacherProjects({ session, active }: { session: AccountSession; 
       disposed = true;
     };
   }, []);
+  function applyAssignment(classId: string, details: AssignmentDetails) {
+    setSelected((current) => (current ? updateAssignment(current, classId, details) : null));
+    setItems((current) => current?.map((item) => updateAssignment(item, classId, details)) ?? null);
+  }
+  async function refreshAssignment(item: Item) {
+    try {
+      const latest = await readAssignment(item.classId, item.details.assignmentId);
+      const identity = await assignmentSession();
+      if (
+        identity.userId !== session.userId ||
+        identity.orgId !== session.orgId ||
+        identity.role !== session.role ||
+        identity.mustChangePassword ||
+        latest.assignmentId !== item.details.assignmentId
+      )
+        throw new Error("Account or assignment changed");
+      applyAssignment(item.classId, latest);
+    } catch {
+      setError("The latest assignment details could not be loaded. Refresh this page.");
+    }
+  }
   return (
     <>
+      {selected && error && <p role="alert">{error}</p>}
       {selectedStandalone ? (
         <TeacherStandaloneDetails
           project={selectedStandalone}
@@ -297,18 +329,7 @@ export function TeacherProjects({ session, active }: { session: AccountSession; 
         <TeacherProjectDetails
           item={selected}
           actorId={session.userId}
-          onUpdated={(details) => {
-            setSelected((current) => (current ? { ...current, details } : null));
-            setItems(
-              (current) =>
-                current?.map((item) =>
-                  item.classId === selected.classId &&
-                  item.details.assignmentId === details.assignmentId
-                    ? { ...item, details }
-                    : item,
-                ) ?? null,
-            );
-          }}
+          onUpdated={(details) => applyAssignment(selected.classId, details)}
           onBack={() => {
             if (guard.pending || (guard.dirty && !window.confirm("Discard your unsaved feedback?")))
               return;
@@ -425,6 +446,7 @@ export function TeacherProjects({ session, active }: { session: AccountSession; 
           onGuard={setGuard}
           onClose={() => {
             setShowReview(false);
+            void refreshAssignment(selected);
             history.replaceState(null, "", "/home");
           }}
         />

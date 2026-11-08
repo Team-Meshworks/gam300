@@ -4,7 +4,7 @@ import { createAccountClient } from "../accounts/account-client";
 import { Button } from "../../shared/ui/Button";
 import { Tabs } from "../../shared/ui/Tabs";
 import { listAssignments } from "../projects/assignment-api";
-import { formatDueDate } from "../projects/deadline";
+import { formatLocalDeadline } from "../projects/deadline";
 import { allPages, createReviewClient } from "../reviews/review-client";
 import type { Decision } from "../reviews/review-types";
 import { ProgressReviews } from "../reviews/ProgressReviews";
@@ -94,7 +94,7 @@ export function StudentProjectDetails({
           <>
             <p className="sp-student-meta">
               {row.assignment.className} · Due{" "}
-              {formatDueDate(row.assignment.details.dueAtUnixSeconds) ?? "Unavailable"}
+              {formatLocalDeadline(row.assignment.details.dueAtUnixSeconds) ?? "Unavailable"}
             </p>
             <h2>Project Description:</h2>
             <p>{row.assignment.details.description}</p>
@@ -301,7 +301,7 @@ export function StudentProjects({
                             <>
                               <small>
                                 {row.assignment.className} · Due{" "}
-                                {formatDueDate(row.assignment.details.dueAtUnixSeconds) ??
+                                {formatLocalDeadline(row.assignment.details.dueAtUnixSeconds) ??
                                   "Unavailable"}
                               </small>
                               <span>{row.assignment.details.description}</span>

@@ -32,6 +32,8 @@ let reviews = [],
   publishes = [],
   lost = true,
   conflict = false;
+let legacyFound = false;
+let sessionActor = actor;
 try {
   await server.listen();
   const origin = `http://127.0.0.1:${server.httpServer.address().port}`;
@@ -45,13 +47,27 @@ try {
     const reply = (json, status = 200) => route.fulfill({ json, status });
     if (path === "/api/v1/auth/session")
       return reply({
-        userId: actor,
+        userId: sessionActor,
         displayName: "Teacher",
         role: "Educator",
         orgId: "44444444-4444-4444-8444-444444444444",
         mustChangePassword: false,
       });
     if (path === "/api/v1/auth/csrf") return reply({ requestToken: "csrf" });
+    if (path.endsWith("/access")) {
+      if (!legacyFound) return reply({ code: "unavailable" }, 404);
+      return reply({
+        publicationId: "77777777-7777-4777-8777-777777777777",
+        projectId: project,
+        audience: "Unlisted",
+        viewerIds: [],
+        hidden: false,
+        revoked: false,
+        deleted: false,
+        archived: false,
+        canManage: true,
+      });
+    }
     if (path.endsWith("/progress-reviews")) {
       if (req.method() === "POST") {
         const b = body(),
@@ -168,6 +184,78 @@ try {
   await d.waitFor();
   assert.equal(await d.getByRole("button", { name: "Retry same request" }).count(), 0);
   assert.equal(publishes.length, 1, "Reload must not send a new publication");
+  const legacy = {
+    projectId: project,
+    actorId: actor,
+    studentId: student,
+    submissionId: null,
+    decisionId: "66666666-6666-4666-8666-666666666666",
+    publicationId: "77777777-7777-4777-8777-777777777777",
+    revision: 7,
+    feedback: "Keep this earlier feedback",
+  };
+  const storageKey = `spatia-review-publication:${actor}:${project}`;
+  await page.evaluate(({ key, value }) => localStorage.setItem(key, JSON.stringify(value)), {
+    key: storageKey,
+    value: legacy,
+  });
+  await page.reload();
+  d = page.getByRole("dialog", { name: "Review submission" });
+  await d
+    .getByText(/earlier publishing request/i)
+    .first()
+    .waitFor();
+  await d.getByRole("button", { name: "Check earlier publication" }).click();
+  await d
+    .getByText(/could not be verified/i)
+    .first()
+    .waitFor();
+  assert.equal(await d.getByRole("button", { name: "Acknowledge publication" }).count(), 0);
+  assert.ok(await page.evaluate((key) => localStorage.getItem(key), storageKey));
+  legacyFound = true;
+  await d.getByRole("button", { name: "Check earlier publication" }).click();
+  await d.getByRole("button", { name: "Acknowledge publication" }).waitFor();
+  sessionActor = "88888888-8888-4888-8888-888888888888";
+  await d.getByRole("button", { name: "Acknowledge publication" }).click();
+  await d.getByText(/could not be safely cleared/i).waitFor();
+  assert.ok(await page.evaluate((key) => localStorage.getItem(key), storageKey));
+  sessionActor = actor;
+  await d.getByRole("button", { name: "Acknowledge publication" }).click();
+  await page.waitForFunction((key) => localStorage.getItem(key) === null, storageKey);
+  assert.equal(await page.evaluate((key) => localStorage.getItem(key), storageKey), null);
+  assert.equal(await d.getByLabel("Your review").inputValue(), legacy.feedback);
+  await page.reload();
+  d = page.getByRole("dialog", { name: "Review submission" });
+  await d.getByLabel("Your review").waitFor();
+  await page.waitForFunction(
+    (feedback) => document.querySelector("#progress-feedback")?.value === feedback,
+    legacy.feedback,
+  );
+  assert.equal(publishes.length, 1, "Recovery must not publish again");
+  await page.evaluate(({ key, value }) => localStorage.setItem(key, JSON.stringify(value)), {
+    key: storageKey,
+    value: legacy,
+  });
+  legacyFound = false;
+  await page.reload();
+  d = page.getByRole("dialog", { name: "Review submission" });
+  await d.getByRole("button", { name: "Check earlier publication" }).click();
+  await d
+    .getByText(/could not be verified/i)
+    .first()
+    .waitFor();
+  const abandon = d.getByRole("button", { name: "Stop tracking earlier request" });
+  assert.equal(await abandon.isDisabled(), true);
+  await d.getByRole("checkbox", { name: /may still exist/i }).check();
+  await abandon.click();
+  await page.waitForFunction((key) => localStorage.getItem(key) === null, storageKey);
+  assert.equal(await d.getByLabel("Your review").inputValue(), legacy.feedback);
+  assert.equal(publishes.length, 1, "Abandoning an uncertain request must not republish");
+  await page.reload();
+  await page.waitForFunction(
+    (feedback) => document.querySelector("#progress-feedback")?.value === feedback,
+    legacy.feedback,
+  );
   console.log("Save-only, lost-publication retry, and revision conflict passed");
 } finally {
   await browser?.close();

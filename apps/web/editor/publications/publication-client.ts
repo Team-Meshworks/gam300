@@ -3,7 +3,7 @@ import { isId, isRecord } from "../home/workspace-api";
 export interface PublicationRequest {
   publicationId: string;
   confirmedRevision: number;
-  intent: { audience: string; viewerIds: string[]; teacherOverride?: boolean };
+  intent: { audience: string; viewerIds: string[] };
 }
 export interface PublicationAcknowledgement {
   publicationId: string;

@@ -2,14 +2,21 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "../../shared/ui/Button";
 import { Dialog } from "../../shared/ui/Dialog";
 import { Field } from "../../shared/ui/Field";
-import { assignmentSession, enrolledStudents, type AssignmentDetails } from "./assignment-api";
+import {
+  assignmentSession,
+  enrolledStudents,
+  readAssignment,
+  type AssignmentDetails,
+} from "./assignment-api";
 import {
   assignmentEditKey,
+  editDeadline,
   readAssignmentEdit,
   submitAssignmentEdit,
+  supersededAssignment,
   type PendingAssignmentEdit,
 } from "./assignment-edit";
-import { dueDateInput, localDateToDueUnixSeconds } from "./deadline";
+import { localDeadlineInput } from "./deadline";
 import { StudentSelector } from "./StudentSelector";
 import type { EligibleStudent } from "./new-project-form";
 
@@ -29,12 +36,13 @@ export function AssignmentEditDialog({
   const [title, setTitle] = useState(details.title);
   const [description, setDescription] = useState(details.description);
   const [instructions, setInstructions] = useState(details.instructions);
-  const [dueDate, setDueDate] = useState(() => dueDateInput(details.dueAtUnixSeconds));
+  const [dueDate, setDueDate] = useState(() => localDeadlineInput(details.dueAtUnixSeconds));
   const [selected, setSelected] = useState(() =>
     details.projects.map((project) => project.studentId),
   );
   const [students, setStudents] = useState<EligibleStudent[] | null>(null);
   const [pending, setPending] = useState<PendingAssignmentEdit | null>(null);
+  const [latest, setLatest] = useState<AssignmentDetails | null>(null);
   const [phase, setPhase] = useState<"loading" | "ready" | "sending" | "unknown" | "error">(
     "loading",
   );
@@ -49,7 +57,7 @@ export function AssignmentEditDialog({
     title !== details.title ||
     description !== details.description ||
     instructions !== details.instructions ||
-    dueDate !== dueDateInput(details.dueAtUnixSeconds) ||
+    dueDate !== localDeadlineInput(details.dueAtUnixSeconds) ||
     [...selected].sort().join(",") !== initialIds;
   useEffect(() => {
     const controller = new AbortController();
@@ -67,7 +75,7 @@ export function AssignmentEditDialog({
           setTitle(earlier.body.title);
           setDescription(earlier.body.description);
           setInstructions(earlier.body.instructions);
-          setDueDate(dueDateInput(earlier.body.dueAtUnixSeconds));
+          setDueDate(localDeadlineInput(earlier.body.dueAtUnixSeconds));
           setSelected(earlier.body.studentIds);
           setPhase("unknown");
           setMessage("An earlier save could not be confirmed. Retry the same request.");
@@ -100,7 +108,11 @@ export function AssignmentEditDialog({
       if (!navigator.locks) setMessage("This browser cannot safely save changes.");
       return;
     }
-    const due = localDateToDueUnixSeconds(dueDate);
+    const due = editDeadline(
+      dueDate,
+      localDeadlineInput(details.dueAtUnixSeconds),
+      details.dueAtUnixSeconds,
+    );
     if (
       !retry &&
       (!title.trim() ||
@@ -188,6 +200,54 @@ export function AssignmentEditDialog({
       inFlight.current = false;
     }
   }
+  async function reviewLatest(discard = false) {
+    if (!pending || !navigator.locks || inFlight.current) return;
+    inFlight.current = true;
+    setPhase("sending");
+    try {
+      const current = await navigator.locks.request(
+        assignmentEditKey(actorId, details.assignmentId),
+        async () => {
+          const stored = readAssignmentEdit(localStorage, actorId, classId, details.assignmentId);
+          if (JSON.stringify(stored) !== JSON.stringify(pending))
+            throw new Error("The saved request changed. Reopen this dialog.");
+          const identity = await assignmentSession();
+          if (identity.userId !== actorId || identity.mustChangePassword)
+            throw new Error("Your account changed. Reload before continuing.");
+          const result = await readAssignment(classId, details.assignmentId);
+          const after = await assignmentSession();
+          if (after.userId !== actorId || after.mustChangePassword)
+            throw new Error("Your account changed. Reload before continuing.");
+          if (!supersededAssignment(pending, result))
+            throw new Error("The latest version has not advanced. Retry the same request.");
+          if (discard && latest?.revision === result.revision) {
+            localStorage.removeItem(assignmentEditKey(actorId, details.assignmentId));
+            if (localStorage.getItem(assignmentEditKey(actorId, details.assignmentId)) !== null)
+              throw new Error("The saved request could not be cleared.");
+            return null;
+          }
+          return result;
+        },
+      );
+      if (!current) {
+        setPending(null);
+        onSaved();
+      } else {
+        setLatest(current);
+        setPhase("unknown");
+        setMessage(
+          "The earlier save may or may not have been applied. Review the latest version before discarding the uncertain request.",
+        );
+      }
+    } catch (error) {
+      setPhase("unknown");
+      setMessage(
+        error instanceof Error ? error.message : "The latest version could not be loaded.",
+      );
+    } finally {
+      inFlight.current = false;
+    }
+  }
   const missing = selected.filter(
     (id) => students && !students.some((student) => student.id === id),
   );
@@ -205,6 +265,23 @@ export function AssignmentEditDialog({
           Retry loading students
         </Button>
       )}
+      {latest && phase === "unknown" && (
+        <section aria-label="Latest assignment version">
+          <h3>Latest version</h3>
+          <p>{latest.title}</p>
+          <p>{latest.description}</p>
+          <p>{latest.instructions}</p>
+          <p>Due date and time: {localDeadlineInput(latest.dueAtUnixSeconds)}</p>
+          <p>
+            Students:{" "}
+            {latest.projects.map((project) => project.studentName ?? project.studentId).join(", ")}
+          </p>
+          <p>
+            Discarding removes the uncertain request and its displayed changes; it does not undo any
+            earlier save.
+          </p>
+        </section>
+      )}
       <fieldset disabled={phase !== "ready"}>
         <Field id="edit-assignment-title" label="Project title" required>
           <input
@@ -214,10 +291,10 @@ export function AssignmentEditDialog({
             maxLength={120}
           />
         </Field>
-        <Field id="edit-assignment-due" label="Due date" required>
+        <Field id="edit-assignment-due" label="Due date and time" required>
           <input
             id="edit-assignment-due"
-            type="date"
+            type="datetime-local"
             value={dueDate}
             onChange={(event) => setDueDate(event.target.value)}
           />
@@ -259,9 +336,17 @@ export function AssignmentEditDialog({
           Cancel
         </Button>
         {phase === "unknown" ? (
-          <Button variant="primary" onClick={() => void save(true)}>
-            Retry same request
-          </Button>
+          <>
+            <Button onClick={() => void reviewLatest()}>Review latest version</Button>
+            {latest && (
+              <Button onClick={() => void reviewLatest(true)}>
+                Discard uncertain request and use latest
+              </Button>
+            )}
+            <Button variant="primary" onClick={() => void save(true)}>
+              Retry same request
+            </Button>
+          </>
         ) : (
           <Button
             variant="primary"

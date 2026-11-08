@@ -86,6 +86,7 @@
     "build:visitor": "vite build --config vite.visitor.config.ts",
     "test:teacher-assignment-flow": "node tests/teacher-assignment-flow.check.mjs",
     "test:teacher-assignment-edit": "node tests/teacher-assignment-edit.check.mjs",
+    "test:teacher-review-refresh": "node tests/teacher-review-refresh.check.mjs",
     "test:teacher-details-flow": "node tests/teacher-details-flow.check.mjs",
     "test:teacher-review-org-click": "node tests/teacher-review-org-click.check.mjs",
     "test:teacher-review-org-switch": "node tests/teacher-review-org-switch.check.mjs",

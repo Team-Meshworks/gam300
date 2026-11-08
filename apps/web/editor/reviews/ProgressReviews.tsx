@@ -13,6 +13,7 @@ import { loadStudentFeedback } from "../home/student-feedback";
 import { createWorkspaceClient } from "../home/workspace-api";
 import { createAccountClient } from "../accounts/account-client";
 import { PublicationShare } from "../publications/PublicationShare";
+import { publicationAccessState } from "../publications/publication-access";
 import { withPublicationSession } from "./publication-session";
 import "../publications/publication.css";
 import {
@@ -116,10 +117,15 @@ export function ProgressReviews({
     null,
   );
   const [publishedUrl, setPublishedUrl] = useState("");
+  const [legacyChecked, setLegacyChecked] = useState(false);
+  const [legacyUnverified, setLegacyUnverified] = useState(false);
+  const [legacyAcknowledged, setLegacyAcknowledged] = useState(false);
+  const [legacyMessage, setLegacyMessage] = useState("");
   const active = useRef(true);
   const generation = useRef(0);
   const busy = useRef(false);
   const publicationStudentId = publication?.studentId;
+  const recoveredFeedbackKey = `spatia-review-feedback:${actorId}:${projectId}`;
   useEffect(() => {
     if (!publicationStudentId || !educator) return;
     let disposed = false;
@@ -135,6 +141,23 @@ export function ProgressReviews({
           setPendingPublication(pending);
           setFeedback(pending.feedback);
           setPhase("unknown");
+        } else if (!pending) {
+          const raw = localStorage.getItem(recoveredFeedbackKey);
+          if (raw) {
+            const recovered: unknown = JSON.parse(raw);
+            if (
+              typeof recovered === "object" &&
+              recovered !== null &&
+              "studentId" in recovered &&
+              recovered.studentId === publicationStudentId &&
+              "feedback" in recovered &&
+              typeof recovered.feedback === "string" &&
+              recovered.feedback.length <= 4000 &&
+              !recovered.feedback.includes("\0") &&
+              !disposed
+            )
+              setFeedback(recovered.feedback);
+          }
         }
         const [project, summaries, history] = await Promise.all([
           submissionClient.project(projectId),
@@ -172,7 +195,12 @@ export function ProgressReviews({
         setCanPublish(
           project.revision === revision &&
             project.permissions.canPublish &&
-            project.permissions.canManage,
+            project.permissions.canManage &&
+            Boolean(
+              review &&
+              (mayDecide(review, project, "approved") ||
+                reviewState(review, project.revision) === "approved"),
+            ),
         );
         if (
           project.revision === revision &&
@@ -195,7 +223,16 @@ export function ProgressReviews({
     return () => {
       disposed = true;
     };
-  }, [publicationStudentId, educator, actorId, orgId, projectId, revision, publicationAttempt]);
+  }, [
+    publicationStudentId,
+    educator,
+    actorId,
+    orgId,
+    projectId,
+    revision,
+    publicationAttempt,
+    recoveredFeedbackKey,
+  ]);
   const load = useCallback(
     async (after?: string | null) => {
       const version = generation.current;
@@ -263,6 +300,11 @@ export function ProgressReviews({
       return;
     }
     if (feedback && !window.confirm("Discard your unsaved progress review?")) return;
+    try {
+      localStorage.removeItem(recoveredFeedbackKey);
+    } catch {
+      /* Keep recoverable text. */
+    }
     setFeedback("");
     setEditing(false);
     setOpen(false);
@@ -287,6 +329,11 @@ export function ProgressReviews({
     if (!active.current) return;
     busy.current = false;
     if (result.kind === "confirmed") {
+      try {
+        localStorage.removeItem(recoveredFeedbackKey);
+      } catch {
+        /* Keep recoverable text. */
+      }
       setItems((previous) => [
         ...previous.filter((item) => item.id !== result.item.id),
         result.item,
@@ -356,12 +403,16 @@ export function ProgressReviews({
             sent,
             (...args) => bound(() => submissionClient.execute(...args)),
             (...args) => bound(() => workspace.write(...args)),
-            (...args) => bound(() => client.save(...args)),
           );
         },
       );
       if (!active.current) return;
       if (result.kind === "published") {
+        try {
+          localStorage.removeItem(recoveredFeedbackKey);
+        } catch {
+          /* Keep recoverable text. */
+        }
         setPendingPublication(null);
         setFeedback("");
         setPublishedUrl(result.acknowledgement.visitorUrl);
@@ -388,6 +439,101 @@ export function ProgressReviews({
         setPhase("unknown");
         setError("The result could not be confirmed. Retry the same request.");
       }
+    } finally {
+      busy.current = false;
+    }
+  }
+  async function checkEarlierPublication() {
+    if (!pendingPublication || pendingPublication.submissionId !== null || busy.current) return;
+    busy.current = true;
+    setLegacyChecked(false);
+    setLegacyUnverified(false);
+    setLegacyAcknowledged(false);
+    setLegacyMessage("");
+    try {
+      const value = await withPublicationSession(
+        { userId: actorId, orgId: orgId ?? null },
+        accounts.getSession,
+        () =>
+          workspace.read(
+            `/api/v1/publications/${encodeURIComponent(pendingPublication.publicationId)}/access`,
+          ),
+      );
+      const checked = publicationAccessState(value, projectId, pendingPublication.publicationId);
+      if (!checked) throw new Error("Unverified publication");
+      setLegacyChecked(true);
+      setLegacyMessage(
+        `The earlier publication exists. Audience: ${checked.audience}. Access is ${checked.revoked ? "revoked" : checked.deleted ? "deleted" : checked.hidden ? "hidden" : checked.archived ? "archived" : "active"}. Review its access before continuing.`,
+      );
+    } catch {
+      setLegacyUnverified(true);
+      setLegacyMessage(
+        "The earlier publication could not be verified. It may still exist; check access or contact an administrator before continuing.",
+      );
+    } finally {
+      busy.current = false;
+    }
+  }
+  async function acknowledgeEarlierPublication(abandon = false) {
+    if (
+      !(legacyChecked || (abandon && legacyUnverified && legacyAcknowledged)) ||
+      !pendingPublication ||
+      pendingPublication.submissionId !== null ||
+      busy.current
+    )
+      return;
+    if (!navigator.locks) {
+      setLegacyMessage(
+        "This browser cannot safely coordinate the earlier request. Use a supported browser.",
+      );
+      return;
+    }
+    busy.current = true;
+    try {
+      await navigator.locks.request(
+        `spatia-review-publication:${actorId}:${projectId}`,
+        async () => {
+          const cleared = await withPublicationSession(
+            { userId: actorId, orgId: orgId ?? null },
+            accounts.getSession,
+            async () => {
+              const current = readApprovalPublication(
+                localStorage,
+                actorId,
+                projectId,
+                pendingPublication.studentId,
+              );
+              if (JSON.stringify(current) !== JSON.stringify(pendingPublication))
+                throw new Error("Request changed");
+              const recovered = JSON.stringify({
+                studentId: pendingPublication.studentId,
+                feedback: pendingPublication.feedback,
+              });
+              const earlierFeedback = localStorage.getItem(recoveredFeedbackKey);
+              if (earlierFeedback !== null && earlierFeedback !== recovered)
+                throw new Error("Existing recovered feedback");
+              localStorage.setItem(recoveredFeedbackKey, recovered);
+              if (localStorage.getItem(recoveredFeedbackKey) !== recovered)
+                throw new Error("Storage failed");
+              localStorage.removeItem(`spatia-review-publication:${actorId}:${projectId}`);
+              if (
+                localStorage.getItem(`spatia-review-publication:${actorId}:${projectId}`) !== null
+              )
+                throw new Error("Storage failed");
+              return true;
+            },
+          );
+          if (cleared !== true) throw new Error("Session or storage changed");
+        },
+      );
+      setPendingPublication(null);
+      setPhase("ready");
+      setLegacyChecked(false);
+      setLegacyMessage("Earlier publication acknowledged. Your review text is preserved.");
+    } catch {
+      setLegacyMessage(
+        "The earlier request could not be safely cleared. Reload and check it again.",
+      );
     } finally {
       busy.current = false;
     }
@@ -440,6 +586,42 @@ export function ProgressReviews({
             </>
           )}
           {history}
+          {pendingPublication?.submissionId === null && (
+            <section aria-label="Earlier publishing request">
+              <p>
+                An earlier publishing request has an uncertain outcome. Publication ID:{" "}
+                {pendingPublication.publicationId}. Check it before starting another request.
+              </p>
+              <Button onClick={() => void checkEarlierPublication()}>
+                Check earlier publication
+              </Button>
+              {legacyMessage && <p role="status">{legacyMessage}</p>}
+              {legacyChecked && (
+                <Button onClick={() => void acknowledgeEarlierPublication()}>
+                  Acknowledge publication
+                </Button>
+              )}
+              {legacyUnverified && (
+                <>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={legacyAcknowledged}
+                      onChange={(event) => setLegacyAcknowledged(event.target.checked)}
+                    />
+                    I understand the earlier publication may still exist, and I will check its
+                    access before publishing again.
+                  </label>
+                  <Button
+                    disabled={!legacyAcknowledged}
+                    onClick={() => void acknowledgeEarlierPublication(true)}
+                  >
+                    Stop tracking earlier request
+                  </Button>
+                </>
+              )}
+            </section>
+          )}
           {publicationError && (
             <div>
               <p role="alert">{publicationError}</p>
@@ -488,6 +670,8 @@ export function ProgressReviews({
               <Button variant="primary" onClick={() => (onSaved ? onSaved() : close())}>
                 Done
               </Button>
+            ) : phase === "unknown" && pendingPublication?.submissionId === null ? (
+              <Button onClick={close}>Close, keep request</Button>
             ) : phase === "unknown" ? (
               <>
                 <Button onClick={close} disabled={!pendingPublication}>
@@ -537,7 +721,7 @@ export function ProgressReviews({
             !publishedUrl &&
             !publicationError &&
             !publicationLoading && (
-              <p>Publishing requires permission and the current saved work.</p>
+              <p>Publishing requires permission and a current submission ready for approval.</p>
             )}
           {publication && (
             <p>Publishing creates a link anyone can open for this student's project.</p>

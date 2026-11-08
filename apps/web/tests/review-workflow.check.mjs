@@ -187,6 +187,12 @@ try {
   await page.getByRole("button", { name: "Submit for review", exact: true }).click();
   await page.getByRole("button", { name: "Confirm submission", exact: true }).click();
   await page.getByText("Late submission", { exact: true }).waitFor();
+  const due = await page.evaluate(() =>
+    new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(
+      new Date(1793581199 * 1000),
+    ),
+  );
+  assert.ok(await page.getByText(due, { exact: false }).count());
   assert.equal(submissions.length, 1);
   assert.equal(await page.getByRole("button", { name: "Publish project" }).count(), 0);
   assert.equal(

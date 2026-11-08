@@ -220,7 +220,7 @@ function ServerProjectSession({
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
   const [attempt, setAttempt] = useState(0);
-  const [departure, setDeparture] = useState<"home" | "logout" | "reload" | null>(null);
+  const [departure, setDeparture] = useState<"home" | "logout" | "reload" | "publish" | null>(null);
   const [reviewAccess, setReviewAccess] = useState<Active | null>(null);
   const [reviewExit, setReviewExit] = useState<{
     context: ProgressContext;
@@ -540,7 +540,11 @@ function ServerProjectSession({
         if (identity?.userId === active.accountId) await accounts.signOut(active.accountId);
       }
       location.assign(
-        departure === "logout" ? "/login" : reviewReturnUrl(new URLSearchParams(location.search)),
+        departure === "logout"
+          ? "/login"
+          : departure === "publish"
+            ? `/publish?projectId=${encodeURIComponent(projectId)}`
+            : reviewReturnUrl(new URLSearchParams(location.search)),
       );
     });
   }
@@ -629,9 +633,10 @@ function ServerProjectSession({
             departing: departure !== null || reviewExit !== null,
             save,
             leave: () => void startReview("leave"),
+            publish: () =>
+              reviewAccess === active ? void startReview("publish") : setDeparture("publish"),
             ...(reviewAccess === active
               ? {
-                  publish: () => void startReview("publish"),
                   review: () => void startReview("review"),
                 }
               : {}),

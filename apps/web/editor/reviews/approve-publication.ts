@@ -5,7 +5,6 @@ import {
   type PublicationRequest,
 } from "../publications/publication-client";
 import type { ReviewClient } from "./review-client";
-import type { createProgressReviewClient } from "./progress-review-client";
 
 export type ApprovalPublicationIntent = {
   projectId: string;
@@ -68,8 +67,9 @@ export async function approveAndPublish(
   intent: ApprovalPublicationIntent,
   decide: ReviewClient["execute"],
   publish: Publish,
-  saveProgress?: ReturnType<typeof createProgressReviewClient>["save"],
 ): Promise<Result> {
+  if (intent.submissionId === null)
+    return { kind: "rejected", message: "A current submission is required before publishing." };
   const storageKey = key(intent.actorId, intent.projectId);
   let existing: ApprovalPublicationIntent | null;
   try {
@@ -91,29 +91,18 @@ export async function approveAndPublish(
         "The publishing request could not be safely saved or verified. Check any earlier request before continuing.",
     };
   }
-  const decision =
-    intent.submissionId !== null
-      ? await decide(
-          {
-            kind: "decide",
-            projectId: intent.projectId,
-            submissionId: intent.submissionId,
-            decisionId: intent.decisionId,
-            expectedRevision: intent.revision,
-            outcome: "approved",
-            feedback: intent.feedback,
-          },
-          intent.actorId,
-        )
-      : intent.feedback.trim() && saveProgress
-        ? await saveProgress(intent.projectId, intent.actorId, {
-            reviewId: intent.decisionId,
-            expectedRevision: intent.revision,
-            feedback: intent.feedback,
-          })
-        : intent.feedback.trim()
-          ? { kind: "unknown" as const }
-          : { kind: "confirmed" as const };
+  const decision = await decide(
+    {
+      kind: "decide",
+      projectId: intent.projectId,
+      submissionId: intent.submissionId,
+      decisionId: intent.decisionId,
+      expectedRevision: intent.revision,
+      outcome: "approved",
+      feedback: intent.feedback,
+    },
+    intent.actorId,
+  );
   if (decision.kind !== "confirmed") {
     if (decision.kind === "rejected" && !existing) {
       try {
@@ -129,10 +118,7 @@ export async function approveAndPublish(
     }
     return {
       kind: "pending",
-      message:
-        intent.submissionId === null
-          ? "The review could not be confirmed. Retry the same request before leaving."
-          : "Approval could not be confirmed. Retry the same request before leaving.",
+      message: "Approval could not be confirmed. Retry the same request before leaving.",
     };
   }
   const request: PublicationRequest = {
@@ -141,7 +127,6 @@ export async function approveAndPublish(
     intent: {
       audience: "Unlisted",
       viewerIds: [],
-      ...(intent.submissionId === null ? { teacherOverride: true } : {}),
     },
   };
   const result = await publish(
@@ -158,9 +143,7 @@ export async function approveAndPublish(
       return {
         kind: "revision-conflict",
         message:
-          intent.submissionId === null
-            ? "The project changed before publication. Refresh the project before publishing."
-            : "Your review and approval were saved, but the project changed before publication. Refresh the project before publishing the latest saved work.",
+          "Your review and approval were saved, but the project changed before publication. Refresh the project before publishing the latest saved work.",
       };
     } catch {
       return {

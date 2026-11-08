@@ -17,6 +17,20 @@ namespace Spatia.Server.Tests;
 public sealed class PublicationReviewTests
 {
     [Test]
+    public async Task PublicationReview_OverrideCannotPublishUnsubmittedClassDraft()
+    {
+        await using var fixture = await CreateFixtureAsync(new FixtureAssets());
+        var data = await SeedAsync(fixture, false);
+        var integration = new FixturePublicationIntegration();
+        var request = new PublicationRequest(Guid.NewGuid(), 0, """{"audience":"Authenticated","viewerIds":[],"teacherOverride":true}""");
+        var result = await PublishAsync(fixture, data.Educator, data.ProjectId, request, integration);
+        await Assert.That(result.Rejection).IsEqualTo((PublicationRejection?)PublicationRejection.ApprovalRequired);
+        await Assert.That(result.Acknowledgement).IsNull();
+        await using var scope = fixture.Database.Services.CreateAsyncScope();
+        await Assert.That(await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().Publications.CountAsync()).IsEqualTo(0);
+    }
+
+    [Test]
     public async Task PublicationReview_MissingClassMappingDoesNotProveOrdinaryOrigin()
     {
         await using var fixture = await PublicationCoordinatorFixture.CreateAsync();
@@ -43,11 +57,18 @@ public sealed class PublicationReviewTests
     }
 
     [Test]
-    public async Task PublicationReview_EducatorCanPublishAssignedDraftWithoutSubmission()
+    public async Task PublicationReview_EducatorCanPublishApprovedAssignmentAndReplay()
     {
         await using var fixture = await CreateFixtureAsync(new FixtureAssets());
         var data = await SeedAsync(fixture, false);
         var integration = new FixturePublicationIntegration();
+        var submission = Guid.NewGuid();
+        using (var submitted = await SubmitAsync(fixture, data.ProjectId, submission, 0, true))
+        { await Assert.That(submitted.StatusCode).IsEqualTo(HttpStatusCode.Created); }
+        using var educator = fixture.CreateClient();
+        await fixture.SignInAsync(data.Educator, educator);
+        using (var approved = await DecideAsync(fixture, educator, data.ProjectId, submission, 0, "approved"))
+        { await Assert.That(approved.StatusCode).IsEqualTo(HttpStatusCode.Created); }
         var request = new PublicationRequest(Guid.NewGuid(), 0, """{"audience":"Authenticated","viewerIds":[],"teacherOverride":true}""");
         var published = await PublishAsync(fixture, data.Educator, data.ProjectId, request, integration);
         await Assert.That(published.Acknowledgement?.SourceRevision).IsEqualTo((long?)0);
@@ -75,6 +96,13 @@ public sealed class PublicationReviewTests
         await using var fixture = await CreateFixtureAsync(new FixtureAssets());
         var data = await SeedAsync(fixture, false);
         var integration = new FixturePublicationIntegration();
+        var submission = Guid.NewGuid();
+        using (var submitted = await SubmitAsync(fixture, data.ProjectId, submission, 0, true))
+        { await Assert.That(submitted.StatusCode).IsEqualTo(HttpStatusCode.Created); }
+        using var educator = fixture.CreateClient();
+        await fixture.SignInAsync(data.Educator, educator);
+        using (var approved = await DecideAsync(fixture, educator, data.ProjectId, submission, 0, "approved"))
+        { await Assert.That(approved.StatusCode).IsEqualTo(HttpStatusCode.Created); }
         var request = new PublicationRequest(Guid.NewGuid(), 0, """{"audience":"Authenticated","viewerIds":[],"teacherOverride":true}""");
         var published = await PublishAsync(fixture, data.Educator, data.ProjectId, request, integration);
         await Assert.That(published.Acknowledgement?.SourceRevision).IsEqualTo((long?)0);
@@ -157,6 +185,9 @@ public sealed class PublicationReviewTests
         { await Assert.That(saved.StatusCode).IsEqualTo(HttpStatusCode.OK); }
         var deniedRevision = await PublishAsync(fixture, data.Educator, data.ProjectId, Request(1), integration);
         await Assert.That(deniedRevision.Rejection).IsEqualTo((PublicationRejection?)PublicationRejection.ApprovalRequired);
+        var overrideAfterEdit = await PublishAsync(fixture, data.Educator, data.ProjectId,
+            new PublicationRequest(Guid.NewGuid(), 1, """{"audience":"Authenticated","viewerIds":[],"teacherOverride":true}"""), integration);
+        await Assert.That(overrideAfterEdit.Rejection).IsEqualTo((PublicationRejection?)PublicationRejection.ApprovalRequired);
         var replay = await PublishAsync(fixture, data.Educator, data.ProjectId, request, integration);
         await Assert.That(replay.IsReplay).IsTrue();
         await Assert.That(replay.Acknowledgement).IsEqualTo(published.Acknowledgement);

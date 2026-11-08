@@ -25,9 +25,10 @@ try {
   const page = await browser.newPage();
   page.setDefaultTimeout(7000);
   let saved = null;
+  let superseded = false;
   const assignment = () => ({
     assignmentId,
-    revision: saved ? 1 : 0,
+    revision: superseded ? 2 : saved ? 1 : 0,
     sourceProjectId: sourceId,
     title: saved?.title ?? "Museum",
     description: saved?.description ?? "Build a museum",
@@ -53,6 +54,7 @@ try {
         },
       });
     if (path.endsWith("/assignments/" + assignmentId) && route.request().method() === "PATCH") {
+      if (superseded) return route.fulfill({ status: 409, json: { code: "conflict" } });
       saved = route.request().postDataJSON();
       return route.fulfill({ json: { assignmentId, revision: 1 } });
     }
@@ -102,8 +104,7 @@ try {
   await assignmentCard.getByRole("button", { name: "View Details" }).click();
   await page.getByRole("button", { name: "Edit project details" }).click();
   await page.getByLabel("Project title").fill("Updated museum");
-  await page.getByLabel(/^Due date/).fill("2027-01-12");
-  assert.equal(await page.getByLabel(/^Due date/).getAttribute("type"), "date");
+  assert.equal(await page.getByLabel(/^Due date/).getAttribute("type"), "datetime-local");
   await page.getByLabel("Project description").fill("New description");
   await page.getByLabel("Project instructions").fill("New instructions");
   await page.getByRole("checkbox", { name: /Bob/ }).uncheck();
@@ -114,9 +115,64 @@ try {
   assert.equal(saved.title, "Updated museum");
   assert.equal(saved.description, "New description");
   assert.equal(saved.instructions, "New instructions");
+  assert.equal(saved.dueAtUnixSeconds, 1796200000, "Unchanged date preserves the exact deadline");
   assert.deepEqual(saved.studentIds, [studentId]);
   assert.equal(await page.getByText("Alice", { exact: true }).count(), 1);
   assert.equal(await page.getByText("Bob", { exact: true }).count(), 0);
+  await page.evaluate(
+    ({ teacher, classId, assignmentId, studentId }) => {
+      localStorage.setItem(
+        `spatia.assignment.edit:${teacher}:${assignmentId}`,
+        JSON.stringify({
+          actorId: teacher,
+          classId,
+          assignmentId,
+          body: {
+            mutationId: "de000000-0000-4000-8000-000000000099",
+            expectedRevision: 0,
+            title: "Uncertain edit",
+            description: "Earlier description",
+            instructions: "Earlier instructions",
+            dueAtUnixSeconds: 1796200000,
+            studentIds: [studentId],
+          },
+        }),
+      );
+    },
+    { teacher, classId, assignmentId, studentId },
+  );
+  superseded = true;
+  await page.reload();
+  await page
+    .locator("article")
+    .filter({ hasText: "1 student project" })
+    .getByRole("button", { name: "View Details" })
+    .click();
+  await page.getByRole("button", { name: "Edit project details" }).click();
+  const dialog = page.getByRole("dialog", { name: "Edit project details" });
+  await dialog.getByRole("button", { name: "Retry same request" }).click();
+  await dialog.getByRole("button", { name: "Review latest version" }).click();
+  await dialog.getByText("Updated museum", { exact: true }).waitFor();
+  assert.equal(
+    await page.evaluate(
+      ({ teacher, assignmentId }) =>
+        localStorage.getItem(`spatia.assignment.edit:${teacher}:${assignmentId}`) !== null,
+      { teacher, assignmentId },
+    ),
+    true,
+  );
+  await dialog.getByRole("button", { name: "Discard uncertain request and use latest" }).click();
+  await dialog.waitFor({ state: "hidden" });
+  assert.equal(
+    await page.evaluate(
+      ({ teacher, assignmentId }) =>
+        localStorage.getItem(`spatia.assignment.edit:${teacher}:${assignmentId}`),
+      { teacher, assignmentId },
+    ),
+    null,
+  );
+  await page.getByRole("button", { name: "Edit project details" }).click();
+  assert.equal(await page.getByLabel("Project title").inputValue(), "Updated museum");
   console.log("Teacher assignment edit checks passed");
 } finally {
   await browser?.close();

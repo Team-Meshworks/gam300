@@ -18,14 +18,23 @@ try {
     }),
   );
   await page.goto(process.argv[2] ?? "http://127.0.0.1:5185/");
+  assert.equal(
+    await page.evaluate(() => window.previewAssets),
+    undefined,
+    "A closed picker must not generate previews",
+  );
   await page.getByRole("button", { name: "Rooms", exact: true }).click();
   await page.locator('.room-picker img[src^="data:image/png"]').first().waitFor({ timeout: 10000 });
   const candidates = await page.evaluate(() => window.previewAssets);
   assert.ok(candidates.some((asset) => asset.kind === "environment" && !asset.thumbnail));
-  const model = candidates.find((asset) => asset.kind === "model" && !asset.thumbnail);
-  assert.ok(model);
+  assert.ok(candidates.every((asset) => asset.kind === "environment"));
   await page.getByRole("button", { name: "Close rooms" }).click();
   await page.getByRole("button", { name: "Asset library", exact: true }).click();
+  await page.waitForFunction(() => window.previewAssets?.some((asset) => asset.kind === "model"));
+  const model = await page.evaluate(() =>
+    window.previewAssets.find((asset) => asset.kind === "model" && !asset.thumbnail),
+  );
+  assert.ok(model);
   await page
     .getByRole("button", { name: model.name, exact: true })
     .locator('img[src^="data:image/png"]')

@@ -19,7 +19,7 @@ public sealed class ReviewPersistenceTests
     public async Task ReviewEvidence_UpgradePreservesClassMappingAndStoresPrivateSnapshots()
     {
         await using var fixture = await PostgresAccountFixture.CreateAsync("20261029154342_PreserveProjectOrganizationUpdates");
-        var data = await SeedAsync(fixture);
+        var data = await SeedAsync(fixture, legacyAssignmentSchema: true);
         await using (var scope = fixture.Services.CreateAsyncScope())
         {
             var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();

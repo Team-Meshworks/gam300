@@ -150,6 +150,16 @@ try {
   assert.equal(await student("Dee").count(), 0);
   await page.getByRole("tab", { name: /All Students/ }).click();
   assert.equal(await page.getByRole("button", { name: "View Progress" }).count(), 4);
+  await page.route("**/?classId=**", (route) => route.fulfill({ body: "Student editor" }));
+  await student("Alice").getByRole("button", { name: "View Progress" }).click();
+  await page.waitForURL((url) => url.searchParams.get("projectId") === studentProjectId);
+  const params = new URL(page.url()).searchParams;
+  assert.equal(params.get("assignmentId"), assignmentId);
+  assert.equal(params.get("classId"), classId);
+  assert.equal(params.get("studentId"), studentId);
+  assert.equal(params.get("review"), "1");
+  await page.goto(origin + "/home");
+  await assignmentCard.getByRole("button", { name: "View Details" }).click();
   console.log("PASS assignment card shows details and student");
   await page.getByRole("button", { name: "Close project details" }).click();
   assert.equal(
@@ -158,12 +168,7 @@ try {
     "Unrelated standalone project remains available",
   );
   console.log("PASS unrelated standalone remains visible");
-  await page.getByRole("link", { name: "Submissions and reviews" }).click();
-  await page.getByRole("heading", { name: "Submission review" }).waitFor();
-  await page.getByLabel("Class", { exact: true }).selectOption(classId);
-  await page.getByLabel("Assignment", { exact: true }).selectOption(assignmentId);
-  console.log("PASS navigation opens class and assignment review workflow");
-  await page.goto(origin + "/home");
+  console.log("PASS progress opens the selected student editor");
   await page.getByRole("heading", { name: "Standalone", exact: true }).waitFor();
   assert.equal(
     await page.getByRole("heading", { name: "Museum", exact: true }).count(),

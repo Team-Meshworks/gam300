@@ -1,10 +1,19 @@
 import { expect, it } from "vitest";
 import {
+  localDeadlineInput,
   formatDueDate,
   formatLocalDeadline,
   localDateToDueUnixSeconds,
   localDeadlineToUnixSeconds,
 } from "./deadline";
+
+it("shows the local date and time of an existing deadline", () => {
+  const seconds = 2_000_000_000;
+  const local = new Date(seconds * 1000);
+  expect(localDeadlineInput(seconds)).toBe(
+    `${local.getFullYear()}-${String(local.getMonth() + 1).padStart(2, "0")}-${String(local.getDate()).padStart(2, "0")}T${String(local.getHours()).padStart(2, "0")}:${String(local.getMinutes()).padStart(2, "0")}`,
+  );
+});
 
 it("maps a valid local date and time to Unix seconds", () => {
   expect(localDeadlineToUnixSeconds("2028-02-29T15:30")).toBe(

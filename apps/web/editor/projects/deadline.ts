@@ -42,6 +42,13 @@ export function dueDateInput(seconds: number): string {
   return `${String(date.getFullYear()).padStart(4, "0")}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
+export function localDeadlineInput(seconds: number): string {
+  const day = dueDateInput(seconds);
+  if (!day) return "";
+  const date = new Date(seconds * 1000);
+  return `${day}T${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
 export function localDeadlineToUnixSeconds(value: string): number | null {
   const parts = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value);
   if (!parts) return null;

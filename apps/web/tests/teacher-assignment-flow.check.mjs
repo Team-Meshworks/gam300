@@ -89,8 +89,9 @@ try {
       async () => assert.equal(await page.getByLabel("Source project").count(), 0),
     ],
     [
-      "date-only input",
-      async () => assert.equal(await page.locator("#project-due").getAttribute("type"), "date"),
+      "date and time input",
+      async () =>
+        assert.equal(await page.locator("#project-due").getAttribute("type"), "datetime-local"),
     ],
     [
       "creator shown",
@@ -106,9 +107,12 @@ try {
       async () =>
         assert.equal(
           await page
-            .getByText("You can edit project details, students and due date later.", {
-              exact: true,
-            })
+            .getByText(
+              "Each selected student receives an independent draft with these instructions.",
+              {
+                exact: true,
+              },
+            )
             .count(),
           1,
         ),

@@ -15,7 +15,7 @@ import {
 import type { LeaveGuard } from "./ReviewWorkspace";
 import { ReviewDocument } from "./ReviewDocument";
 import { ProgressReviews } from "./ProgressReviews";
-import { formatDueDate } from "../projects/deadline";
+import { formatLocalDeadline } from "../projects/deadline";
 
 const labels = {
   pending: "Awaiting educator review",
@@ -375,7 +375,7 @@ export function ProjectReview({
               <p className="sp-badge">{state ? labels[state] : ""}</p>
               <p>
                 Submitted {time(review.submittedAt)} · Due{" "}
-                {formatDueDate(review.dueAtUnixSeconds) ?? "Unavailable"} ·{" "}
+                {formatLocalDeadline(review.dueAtUnixSeconds) ?? "Unavailable"} ·{" "}
                 <strong>{review.isLate ? "Late submission" : "On time"}</strong>
               </p>
               {state === "historical" && (

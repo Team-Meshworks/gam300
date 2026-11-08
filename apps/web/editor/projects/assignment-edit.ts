@@ -1,5 +1,6 @@
 import { assignmentSession } from "./assignment-api";
 import { isId, isRecord } from "../home/workspace-api";
+import { localDeadlineToUnixSeconds } from "./deadline";
 
 export type PendingAssignmentEdit = {
   actorId: string;
@@ -20,6 +21,25 @@ export type AssignmentEditResult =
   | { kind: "rejected"; message: string };
 export const assignmentEditKey = (actorId: string, assignmentId: string) =>
   `spatia.assignment.edit:${actorId}:${assignmentId}`;
+
+export function editDeadline(
+  date: string,
+  originalDate: string,
+  originalDeadline: number,
+): number | null {
+  return date === originalDate ? originalDeadline : localDeadlineToUnixSeconds(date);
+}
+
+export function supersededAssignment(
+  pending: PendingAssignmentEdit,
+  current: { assignmentId: string; revision?: number },
+): boolean {
+  return (
+    current.assignmentId === pending.assignmentId &&
+    current.revision !== undefined &&
+    current.revision > pending.body.expectedRevision
+  );
+}
 
 export function readAssignmentEdit(
   storage: Storage,

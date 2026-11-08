@@ -163,15 +163,14 @@ try {
     assert.equal(await page.getByRole("dialog", { name: /save|export/i }).count(), 0);
     const dialog = page.getByRole("dialog", { name: "Review submission" });
     assert.equal(await dialog.getByLabel("Your review").inputValue(), "");
-    await dialog.getByRole("button", { name: "Approve and publish" }).click();
-    await dialog.getByRole("img", { name: "QR code for the publication link" }).waitFor();
-    assert.equal(publications.length, 1);
-    assert.equal(publications[0].intent.teacherOverride, true);
-    assert.equal(publications[0].confirmedRevision, 0);
-    assert.match(
-      await dialog.getByRole("textbox", { name: "Publication link" }).inputValue(),
-      /spatia\.example\/p\//,
+    await dialog
+      .getByText("Publishing requires permission and a current submission ready for approval.")
+      .waitFor();
+    assert.equal(
+      await dialog.getByRole("button", { name: "Approve and publish" }).isDisabled(),
+      true,
     );
+    assert.equal(publications.length, 0);
   });
   await page
     .getByRole("dialog", { name: "Review submission" })
@@ -188,8 +187,12 @@ try {
   role = "Creator";
   await page.goto(url);
   await page.getByText("Scene ready", { exact: true }).waitFor();
-  await check("student editor hides Publish", async () => {
-    assert.equal(await page.getByRole("button", { name: "Publish", exact: true }).count(), 0);
+  await check("creator editor offers Publish", async () => {
+    assert.equal(await page.getByRole("button", { name: "Publish", exact: true }).count(), 1);
+    assert.equal(
+      await page.getByRole("button", { name: "Publish", exact: true }).getAttribute("title"),
+      "Publish this project",
+    );
   });
   await page.goto(origin + "/review");
   await check("student submission remains reachable without Publish", async () => {

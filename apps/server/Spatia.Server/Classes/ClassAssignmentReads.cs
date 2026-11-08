@@ -78,13 +78,17 @@ internal static class ClassAssignmentReads
                 project.Revision,
                 Submission = database.ReviewSubmissions.Where(submission => submission.ProjectId == project.Id)
                     .OrderByDescending(submission => submission.Sequence)
-                    .Select(submission => new { submission.Id, submission.SourceRevision,
+                    .Select(submission => new
+                    {
+                        submission.Id,
+                        submission.SourceRevision,
                         Outcome = database.ReviewDecisions.Where(decision => decision.SubmissionId == submission.Id)
-                            .OrderByDescending(decision => decision.Sequence).Select(decision => decision.Outcome).FirstOrDefault() }).FirstOrDefault(),
+                            .OrderByDescending(decision => decision.Sequence).Select(decision => decision.Outcome).FirstOrDefault()
+                    }).FirstOrDefault(),
                 Published = !project.IsArchived && (from publication in database.Publications
-                    join policy in database.PublicationAccess on publication.Id equals policy.PublicationId
-                    where publication.ProjectId == project.Id && !policy.Hidden && !policy.Revoked && !policy.Deleted
-                    select publication.Id).Any(),
+                                                    join policy in database.PublicationAccess on publication.Id equals policy.PublicationId
+                                                    where publication.ProjectId == project.Id && !policy.Hidden && !policy.Revoked && !policy.Deleted
+                                                    select publication.Id).Any(),
             }).ToArrayAsync(cancellationToken);
         var items = page.Select(row => new AssignmentView(row.Id, row.Title, row.Description, row.Instructions, row.DueAtUnixSeconds, row.Revision,
             organizationName, creators.FirstOrDefault(user => user.Id == row.CreatedByUserId)?.Name ?? "Teacher",

@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Button } from "../../shared/ui/Button";
 import { Field } from "../../shared/ui/Field";
 import { NewProjectForm, type FormNavigationState } from "./NewProjectForm";
-import { formatDueDate, localDateToDueUnixSeconds, localDeadlineToUnixSeconds } from "./deadline";
+import { formatLocalDeadline, localDeadlineToUnixSeconds } from "./deadline";
 import { createWorkspaceClient, isRecord } from "../home/workspace-api";
 import { blankSourceKey, createBlankSource } from "./blank-source";
 import "./assignment-screens.css";
@@ -296,11 +296,9 @@ export function AssignmentCreationScreen({
         kind: "rejected",
         message: "Resolve the earlier assignment before creating another.",
       };
-    const dueAtUnixSeconds =
-      setup.session.role === "Educator"
-        ? localDateToDueUnixSeconds(draft.dueDate)
-        : localDeadlineToUnixSeconds(draft.dueDate);
-    if (dueAtUnixSeconds === null) return { kind: "rejected", message: "Choose a valid due date." };
+    const dueAtUnixSeconds = localDeadlineToUnixSeconds(draft.dueDate);
+    if (dueAtUnixSeconds === null)
+      return { kind: "rejected", message: "Choose a valid due date and time." };
     let source = setup.projects.find((project) => project.projectId === sourceId);
     if (createBlank) {
       if (!navigator.locks)
@@ -460,7 +458,6 @@ export function AssignmentCreationScreen({
             organizationName={setup.session.orgName ?? "Selected class's organisation"}
             creatorName={setup.session.displayName}
             initialClassId={initialClass}
-            dateOnly={setup.session.role === "Educator"}
             classes={setup.classes}
             students={students}
             showImageOptions={false}
@@ -513,7 +510,7 @@ export function AssignmentDetailsScreen({
       <p>{details.description}</p>
       <h3>Instructions</h3>
       <p>{details.instructions}</p>
-      <p>Due: {formatDueDate(details.dueAtUnixSeconds) ?? "Unavailable"}</p>
+      <p>Due: {formatLocalDeadline(details.dueAtUnixSeconds) ?? "Unavailable"}</p>
       {details.projects.map((project) => (
         <Button
           key={project.projectId}
@@ -593,7 +590,7 @@ export function AssignmentListScreen({
             <Button onClick={() => setSelected({ classId, assignmentId: item.assignmentId })}>
               {item.title}
             </Button>
-            <span> Due: {formatDueDate(item.dueAtUnixSeconds) ?? "Unavailable"}</span>
+            <span> Due: {formatLocalDeadline(item.dueAtUnixSeconds) ?? "Unavailable"}</span>
           </li>
         ))}
       </ul>

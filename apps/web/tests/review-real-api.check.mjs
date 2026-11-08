@@ -146,7 +146,7 @@ try {
         body: JSON.stringify({
           publicationId: crypto.randomUUID(),
           confirmedRevision: saved.revision - 1,
-          intent: { audience: "Unlisted", viewerIds: [], teacherOverride: true },
+          intent: { audience: "Unlisted", viewerIds: [] },
         }),
       });
       return response.status;

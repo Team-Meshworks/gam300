@@ -1,5 +1,10 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { submitAssignmentEdit, type PendingAssignmentEdit } from "./assignment-edit";
+import {
+  editDeadline,
+  supersededAssignment,
+  submitAssignmentEdit,
+  type PendingAssignmentEdit,
+} from "./assignment-edit";
 
 const request: PendingAssignmentEdit = {
   actorId: "teacher",
@@ -26,6 +31,19 @@ const session = () =>
     mustChangePassword: false,
   });
 afterEach(() => vi.unstubAllGlobals());
+
+it("preserves the exact deadline when the date is unchanged", () => {
+  expect(editDeadline("2033-05-18T10:20", "2033-05-18T10:20", 2_000_000_000)).toBe(2_000_000_000);
+  expect(editDeadline("2027-01-12T14:30", "2027-01-12T10:00", 2_000_000_000)).toBe(
+    new Date("2027-01-12T14:30").getTime() / 1000,
+  );
+});
+
+it("only permits recovery when the current revision supersedes the uncertain request", () => {
+  expect(supersededAssignment(request, { assignmentId: "assignment", revision: 3 })).toBe(true);
+  expect(supersededAssignment(request, { assignmentId: "assignment", revision: 2 })).toBe(false);
+  expect(supersededAssignment(request, { assignmentId: "other", revision: 3 })).toBe(false);
+});
 
 it("retries an uncertain edit with the same identity and body", async () => {
   const fetcher = vi

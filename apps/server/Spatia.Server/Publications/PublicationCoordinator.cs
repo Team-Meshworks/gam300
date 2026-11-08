@@ -162,7 +162,7 @@ internal sealed class PublicationCoordinator(ApplicationDbContext database, Proj
         var approval = await ReviewApproval.CheckLockedAsync(database, project, token);
         using var intent = JsonDocument.Parse(request.IntentJson);
         var overrides = intent.RootElement.EnumerateObject().Where(property => property.Name == "teacherOverride").ToArray();
-        if (approval == ReviewApprovalState.ApprovalRequired && overrides.Length == 0)
+        if (approval == ReviewApprovalState.ApprovalRequired)
         { return (PublicationRejection.ApprovalRequired, null, []); }
         if (overrides.Length != 0)
         {

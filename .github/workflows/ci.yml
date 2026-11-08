@@ -201,6 +201,7 @@ jobs:
               teacher-assignment-edit
               teacher-assignment-edit-storage
               teacher-details-flow
+              teacher-review-refresh
               teacher-editor-actions
               teacher-review-org-switch
               teacher-review-org-click

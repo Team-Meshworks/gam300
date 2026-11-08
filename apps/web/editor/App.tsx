@@ -44,7 +44,6 @@ import { Viewport, type ViewpointCamera } from "./viewport/Viewport";
 import { MobileControls } from "./viewport/MobileControls";
 import { isMobileTouchDevice } from "./viewport/mobile-device";
 import type { FpsMobileControls } from "./graphics/scene";
-import { generateLibraryPreviews } from "./graphics/library-previews";
 
 import { ProjectConfirmation } from "./ProjectConfirmation";
 import { useProjectSession } from "./persistence/use-project-session";
@@ -141,11 +140,33 @@ export function App({ server }: { server?: ServerEditorSession }) {
       ? { objectId: pendingText.objectId, component }
       : undefined;
   }, [pendingText]);
+  const [previewPicker, setPreviewPicker] = useState<"rooms" | "assets" | null>(null);
   const [generatedThumbnails, setGeneratedThumbnails] = useState<Record<string, string>>({});
   const onThumbnail = useCallback((id: string, url: string) => {
     setGeneratedThumbnails((previous) => ({ ...previous, [id]: url }));
   }, []);
-  useEffect(() => generateLibraryPreviews(editorAssets, onThumbnail), [editorAssets, onThumbnail]);
+  useEffect(() => {
+    if (!previewPicker) return;
+    let disposed = false;
+    let cleanup: (() => void) | undefined;
+    void import("./graphics/library-previews")
+      .then(({ generateLibraryPreviews }) => {
+        if (!disposed)
+          cleanup = generateLibraryPreviews(
+            editorAssets.filter((asset) =>
+              previewPicker === "rooms" ? asset.kind === "environment" : asset.kind === "model",
+            ),
+            onThumbnail,
+          );
+      })
+      .catch(() => {
+        // Catalogue thumbnails remain available when generated previews cannot load.
+      });
+    return () => {
+      disposed = true;
+      cleanup?.();
+    };
+  }, [editorAssets, onThumbnail, previewPicker]);
   const thumbnailFor = (id: string) =>
     editorAssets.find((asset) => asset.id === id)?.thumbnail ?? generatedThumbnails[id];
   const [status, setStatus] = useState<ViewportStatus>("loading");
@@ -1070,6 +1091,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
           )}
           {!visitor && (
             <BottomBar
+              onPickerChange={setPreviewPicker}
               assets={selectionAssets.filter((a) => a.kind === "model" || a.kind === "environment")}
               hotspot={HOTSPOT_ASSET}
               ready={status === "ready"}

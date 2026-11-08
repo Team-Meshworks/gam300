@@ -53,7 +53,7 @@ try {
   await page.getByLabel("Project title").fill("Live blank project");
   await page.getByLabel("Project description").fill("Blank source project");
   await page.getByLabel("Project instructions").fill("Explore the room.");
-  await page.getByLabel(/^Due date/).fill("2035-12-01");
+  await page.getByLabel(/^Due date/).fill("2035-12-01T15:30");
   await page.getByLabel(/^Class/).selectOption(process.env.SPATIA_TEST_CLASS);
   await page.getByRole("checkbox", { name: new RegExp(process.env.SPATIA_TEST_STUDENT) }).check();
   const createdResponse = page.waitForResponse(
@@ -173,7 +173,7 @@ try {
   await page.getByLabel("Project title").fill("Live class assignment");
   await page.getByLabel("Project description").fill("Independent exhibit");
   await page.getByLabel("Project instructions").fill("Explain each exhibit.");
-  await page.getByLabel(/^Due date/).fill("2026-12-01");
+  await page.getByLabel(/^Due date/).fill("2026-12-01T15:30");
   await page.getByLabel(/^Class/).selectOption(process.env.SPATIA_TEST_CLASS);
   await page.getByRole("checkbox", { name: new RegExp(process.env.SPATIA_TEST_STUDENT) }).check();
   await page.getByRole("checkbox", { name: new RegExp(process.env.SPATIA_TEST_OUTSIDER) }).check();

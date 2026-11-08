@@ -15,16 +15,22 @@ namespace Spatia.Server.Tests;
 public sealed class PublicationEndpointTests
 {
     [Test]
-    public async Task EducatorOverride_PublishesAndReplaysUnapprovedAssignment()
+    public async Task EducatorOverride_PublishesAndReplaysApprovedAssignment()
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync();
-        var (data, _) = await PrepareAsync(fixture, approve: false);
+        var (data, _) = await PrepareAsync(fixture);
         var id = Guid.NewGuid();
         async Task<HttpResponseMessage> Publish(long revision)
         {
             using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/projects/{data.ProjectId}/publications")
-            { Content = JsonContent.Create(new { publicationId = id, confirmedRevision = revision,
-                intent = new { audience = "Unlisted", viewerIds = Array.Empty<Guid>(), teacherOverride = true } }) };
+            {
+                Content = JsonContent.Create(new
+                {
+                    publicationId = id,
+                    confirmedRevision = revision,
+                    intent = new { audience = "Unlisted", viewerIds = Array.Empty<Guid>(), teacherOverride = true }
+                })
+            };
             request.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync());
             return await fixture.Client.SendAsync(request);
         }
@@ -52,8 +58,18 @@ public sealed class PublicationEndpointTests
             assignmentId = await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().ClassAssignments.Select(row => row.Id).SingleAsync();
         }
         using var edit = new HttpRequestMessage(HttpMethod.Patch, $"/api/v1/classes/{data.ClassroomId:D}/assignments/{assignmentId:D}")
-        { Content = JsonContent.Create(new { mutationId = Guid.NewGuid(), expectedRevision = 0, title = "Changed title",
-            description = "Changed description", instructions = "Changed instructions", dueAtUnixSeconds = data.Due + 3600, studentIds = new[] { data.Student } }) };
+        {
+            Content = JsonContent.Create(new
+            {
+                mutationId = Guid.NewGuid(),
+                expectedRevision = 0,
+                title = "Changed title",
+                description = "Changed description",
+                instructions = "Changed instructions",
+                dueAtUnixSeconds = data.Due + 3600,
+                studentIds = new[] { data.Student }
+            })
+        };
         edit.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync());
         using (var changed = await fixture.Client.SendAsync(edit))
         { await Assert.That(changed.StatusCode).IsEqualTo(HttpStatusCode.OK); }

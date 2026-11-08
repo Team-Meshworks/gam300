@@ -70,7 +70,7 @@ try {
     await page.getByLabel("Project title").fill("Assignment");
     await page.getByLabel("Project description").fill("Description");
     await page.getByLabel("Project instructions").fill("Instructions");
-    await page.getByLabel(/^Due date/).fill("2026-12-01");
+    await page.getByLabel(/^Due date/).fill("2026-12-01T15:30");
     await page.getByLabel(/^Class/).selectOption("class");
     await page.getByRole("checkbox", { name: /Alice/ }).check();
     await page.getByRole("checkbox", { name: /Bob/ }).check();
@@ -88,7 +88,7 @@ try {
   await second.getByRole("button", { name: "Retry same assignment" }).click();
   await second.getByRole("heading", { name: "Assignment" }).waitFor();
   assert.equal(requests.length, 2);
-  assert.equal(saved.dueAtUnixSeconds, Date.parse("2026-12-01T15:59:59Z") / 1000);
+  assert.equal(saved.dueAtUnixSeconds, Date.parse("2026-12-01T07:30:00Z") / 1000);
   assert.equal(
     await second.evaluate(() => localStorage.getItem("spatia.assignment.pending:teacher")),
     null,
@@ -155,7 +155,7 @@ async function recoveryScenario(kind) {
     await page.getByLabel("Project title").fill("Assignment");
     await page.getByLabel("Project description").fill("Description");
     await page.getByLabel("Project instructions").fill("Instructions");
-    await page.getByLabel(/^Due date/).fill("2026-12-01");
+    await page.getByLabel(/^Due date/).fill("2026-12-01T15:30");
     await page.getByLabel(/^Class/).selectOption("class");
     await page.getByRole("checkbox", { name: /Alice/ }).check();
     await page.getByRole("button", { name: "Create project" }).click();

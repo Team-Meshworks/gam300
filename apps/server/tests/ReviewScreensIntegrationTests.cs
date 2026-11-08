@@ -28,10 +28,19 @@ public sealed class ReviewScreensIntegrationTests
             var database = assetScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             var asset = new AssetCandidate
             {
-                Id = Guid.NewGuid(), Name = "Synthetic room", Kind = "environment", Bytes = bytes,
-                Sha256 = Convert.ToHexStringLower(SHA256.HashData(bytes)), Status = "approved", ValidationJson = "{}",
-                Source = "Synthetic fixture", License = "Synthetic test only", ReviewNotes = "Fixture approval",
-                SubmittedBy = seeded.Educator, ReviewedBy = seeded.Educator, CreatedAt = DateTimeOffset.UtcNow,
+                Id = Guid.NewGuid(),
+                Name = "Synthetic room",
+                Kind = "environment",
+                Bytes = bytes,
+                Sha256 = Convert.ToHexStringLower(SHA256.HashData(bytes)),
+                Status = "approved",
+                ValidationJson = "{}",
+                Source = "Synthetic fixture",
+                License = "Synthetic test only",
+                ReviewNotes = "Fixture approval",
+                SubmittedBy = seeded.Educator,
+                ReviewedBy = seeded.Educator,
+                CreatedAt = DateTimeOffset.UtcNow,
             };
             database.AssetCandidates.Add(asset);
             var project = await database.Projects.SingleAsync(row => row.Id == seeded.ProjectId);

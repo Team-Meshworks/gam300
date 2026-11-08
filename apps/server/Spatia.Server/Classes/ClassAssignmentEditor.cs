@@ -32,9 +32,20 @@ internal static class ClassAssignmentEditor
         var assignment = await database.ClassAssignments.SingleOrDefaultAsync(row => row.Id == assignmentId && row.ClassroomId == id, cancellationToken);
         if (assignment is null) { return Unavailable(context); }
         var requestedStudents = request.StudentIds!.Order().ToArray();
-        var digest = SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new { version = 1, classroomId = id,
-            assignmentId, actorId = account.UserId, request.MutationId, request.ExpectedRevision,
-            request.DueAtUnixSeconds, request.Title, request.Description, request.Instructions, studentIds = requestedStudents }));
+        var digest = SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new
+        {
+            version = 1,
+            classroomId = id,
+            assignmentId,
+            actorId = account.UserId,
+            request.MutationId,
+            request.ExpectedRevision,
+            request.DueAtUnixSeconds,
+            request.Title,
+            request.Description,
+            request.Instructions,
+            studentIds = requestedStudents
+        }));
         var mappings = await database.ClassAssignmentStudents.Where(row => row.AssignmentId == assignmentId).ToArrayAsync(cancellationToken);
         var mappedProjectIds = mappings.Select(row => row.ProjectId).ToArray();
         var visible = await access.VisibleProjects(account).Where(project => mappedProjectIds.Contains(project.Id))
@@ -57,7 +68,8 @@ internal static class ClassAssignmentEditor
         if (eligible != requestedStudents.Length)
         { return ApiProblems.Create(context, 422, "invalid_class_members", "Choose active students enrolled in this class."); }
         var newStudents = requestedStudents.Except(mappings.Select(row => row.StudentId)).ToArray();
-        var projectIds = mappings.Select(row => row.ProjectId).Concat(newStudents.Length > 0 ? [assignment.SourceProjectId] : Array.Empty<Guid>())
+        var projectIds = mappings.Where(row => row.IsActive || requestedStudents.Contains(row.StudentId))
+            .Select(row => row.ProjectId).Concat(newStudents.Length > 0 ? [assignment.SourceProjectId] : Array.Empty<Guid>())
             .Distinct().Order().ToArray();
         var snapshots = new Dictionary<Guid, ProjectAccessSnapshot>();
         foreach (var projectId in projectIds)
@@ -77,7 +89,7 @@ internal static class ClassAssignmentEditor
             if (!metadataChanged && active == mapping.IsActive) { continue; }
             var project = await database.Projects.SingleAsync(row => row.Id == mapping.ProjectId, cancellationToken);
             if (project.Revision >= Project.MaxRevision) { return Conflict(context); }
-            if (assignment.Title != request.Title)
+            if (assignment.Title != request.Title || (!mapping.IsActive && active))
             {
                 var original = documents.ReadStored(project.Id, project.SchemaVersion, project.DocumentJson);
                 if (!original.Ok) { return Unavailable(context); }
@@ -107,15 +119,34 @@ internal static class ClassAssignmentEditor
             foreach (var student in newStudents)
             {
                 var projectId = Guid.NewGuid();
-                var grants = managers.Select(manager => new ProjectAssignment { ProjectId = projectId, UserId = manager,
-                    CanEdit = true, CanManage = true, CanPublish = true })
+                var grants = managers.Select(manager => new ProjectAssignment
+                {
+                    ProjectId = projectId,
+                    UserId = manager,
+                    CanEdit = true,
+                    CanManage = true,
+                    CanPublish = true
+                })
                     .Append(new ProjectAssignment { ProjectId = projectId, UserId = student, CanEdit = true }).ToArray();
                 if (!ProjectLifecycleEndpoints.StageDraft(database, documents, classroom!.OrganizationId,
                     ProjectLifecycleEndpoints.Copy(sourceDocument.Value!, projectId, request.Title!), grants)) { return Unavailable(context); }
-                database.ClassAssignmentStudents.Add(new ClassAssignmentStudent { AssignmentId = assignmentId, ClassroomId = id,
-                    OrganizationId = classroom.OrganizationId, StudentId = student, ProjectId = projectId, OriginallyAssigned = false });
-                database.ProjectProvenances.Add(new ProjectProvenance { ProjectId = projectId, OrganizationId = classroom.OrganizationId,
-                    Kind = ProjectProvenance.Class, ClassAssignmentId = assignmentId, StudentId = student });
+                database.ClassAssignmentStudents.Add(new ClassAssignmentStudent
+                {
+                    AssignmentId = assignmentId,
+                    ClassroomId = id,
+                    OrganizationId = classroom.OrganizationId,
+                    StudentId = student,
+                    ProjectId = projectId,
+                    OriginallyAssigned = false
+                });
+                database.ProjectProvenances.Add(new ProjectProvenance
+                {
+                    ProjectId = projectId,
+                    OrganizationId = classroom.OrganizationId,
+                    Kind = ProjectProvenance.Class,
+                    ClassAssignmentId = assignmentId,
+                    StudentId = student
+                });
             }
         }
         assignment.Title = request.Title!;

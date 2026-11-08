@@ -331,7 +331,7 @@ export function TopBar({
             className="ui-button pill-button is-primary"
             type="button"
             disabled={!ready || busy}
-            title="Review and publish this student's project"
+            title="Publish this project"
             onClick={onPublish}
           >
             Publish

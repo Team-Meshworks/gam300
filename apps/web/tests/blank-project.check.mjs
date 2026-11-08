@@ -146,7 +146,7 @@ try {
       await page.getByLabel("Project title").fill("Blank project");
       await page.getByLabel("Project description").fill("Description");
       await page.getByLabel("Project instructions").fill("Instructions");
-      await page.getByLabel(/^Due date/).fill("2027-12-01");
+      await page.getByLabel(/^Due date/).fill("2027-12-01T15:30");
       await page.getByLabel(/^Class/).selectOption(classId);
       await page.getByRole("checkbox", { name: /Alice/ }).check();
       await page.getByRole("button", { name: "Create project" }).click();

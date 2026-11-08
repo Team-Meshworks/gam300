@@ -88,10 +88,8 @@ try {
     await route.continue();
   });
   const coreRequest = page.waitForRequest(corePath);
-  const snowglobeResponse = page.waitForResponse(
-    (response) => new URL(response.url()).pathname === `/restricted-assets/${snowglobeHash}.glb`,
-  );
-  await page.goto(url);
+  // The blocked renderer chunk can delay the load event; the shell must render while it is pending.
+  await page.goto(url, { waitUntil: "commit" });
   await page.getByRole("heading", { name: "Spatia", exact: true }).waitFor();
   await coreRequest;
   assert.equal(await page.locator("canvas").count(), 0, "Shell renders before Three.js arrives");
@@ -109,6 +107,9 @@ try {
   assert.equal(await page.locator(".object-row").count(), 1);
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   assert.equal(await page.locator(".object-row").count(), 0);
+  const snowglobeResponse = page.waitForResponse(
+    (response) => new URL(response.url()).pathname === `/restricted-assets/${snowglobeHash}.glb`,
+  );
   await addAsset(page, "Snow globe");
   const snowglobe = await snowglobeResponse;
   assert.ok(snowglobe.ok(), "The selected manifest snowglobe loads on demand");
