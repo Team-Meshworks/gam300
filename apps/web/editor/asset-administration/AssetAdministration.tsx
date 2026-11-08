@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
+import { generateLibraryPreviews } from "../graphics/library-previews";
+import { assetPreviewKey, assetPreviewSource } from "./asset-previews";
 import type {
   AssetAdministrationData,
   AssetAdministrationService,
@@ -55,6 +57,37 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
   const [review, setReview] = useState({ source: "", license: "", reviewNotes: "" });
   const dialog = useRef<HTMLDialogElement>(null);
   const operation = useRef<AbortController | null>(null);
+  const [previews, setPreviews] = useState<Readonly<Record<string, string>>>({});
+  const previewCache = useRef(new Set<string>());
+  const previewAssets = useMemo(
+    () =>
+      (data?.assets ?? [])
+        .filter((asset) => asset.kind === kind)
+        .map(assetPreviewSource)
+        .filter((asset) => asset !== null),
+    [data?.assets, kind],
+  );
+
+  // Scope images to this account/screen, reuse immutable previews across filter and availability
+  // changes, and cancel outstanding GLB loads when navigating away or replacing the list.
+  useEffect(() => {
+    const missing = previewAssets.filter(
+      (asset) => !previewCache.current.has(assetPreviewKey(asset)),
+    );
+    if (missing.length === 0) return;
+    const keys = new Map(missing.map((asset) => [asset.id, assetPreviewKey(asset)]));
+    let active = true;
+    const cancel = generateLibraryPreviews(missing, (id, image) => {
+      const key = keys.get(id);
+      if (!active || !key) return;
+      previewCache.current.add(key);
+      setPreviews((current) => ({ ...current, [key]: image }));
+    });
+    return () => {
+      active = false;
+      cancel();
+    };
+  }, [previewAssets]);
 
   // Read fresh state when the host changes its service or the admin retries a failed load
   // Ignore aborted responses so a closed screen cannot publish stale data into its replacement
@@ -278,6 +311,9 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
         // Invalid preview metadata must leave the candidate details usable
       }
     }
+    const source = assetPreviewSource(asset);
+    const generated = source && previews[assetPreviewKey(source)];
+    if (generated) return <img src={generated} alt="" />;
     return <span className="asset-admin-placeholder" aria-hidden="true" />;
   }
 

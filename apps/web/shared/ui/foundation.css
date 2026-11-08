@@ -187,6 +187,27 @@ p {
   height: 32px;
   font-size: 11px;
 }
+.sp-admin-return {
+  display: flex;
+  justify-content: flex-end;
+}
+.sp-admin-return :is(a, button) {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 50%;
+  background: #eae9e6;
+  color: #080808;
+  font-size: 22px;
+  text-decoration: none;
+  cursor: pointer;
+}
+.sp-admin-return button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
 .sp-workspace {
   width: calc(100% - 160px);
   max-width: 1280px;

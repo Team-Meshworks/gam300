@@ -53,7 +53,7 @@ try {
   await page.getByLabel("Project title").fill("Live blank project");
   await page.getByLabel("Project description").fill("Blank source project");
   await page.getByLabel("Project instructions").fill("Explore the room.");
-  await page.getByLabel("Due date and time").fill("2035-12-01T15:30");
+  await page.getByLabel(/^Due date/).fill("2035-12-01");
   await page.getByLabel(/^Class/).selectOption(process.env.SPATIA_TEST_CLASS);
   await page.getByRole("checkbox", { name: new RegExp(process.env.SPATIA_TEST_STUDENT) }).check();
   const createdResponse = page.waitForResponse(
@@ -72,14 +72,7 @@ try {
   assert.equal(initialReceipt.request().postDataJSON().sourceProjectId, blank.projectId);
   assert.equal((await initialReceipt.json()).projects.length, 1);
   await page.waitForURL(/\/home\?/);
-  await page.getByRole("button", { name: "Close project details" }).click();
-  await page
-    .locator("article")
-    .filter({ has: page.getByRole("heading", { name: "Live blank project", exact: true }) })
-    .last()
-    .getByRole("button", { name: "View Details" })
-    .click();
-  await page.getByRole("button", { name: "Open project", exact: true }).click();
+  await page.goto(`${origin}/?projectId=${blank.projectId}`);
   await page.waitForURL(`**/?projectId=${blank.projectId}`);
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor({ timeout: 30000 });
   const environmentResponse = page.waitForResponse(
@@ -176,13 +169,14 @@ try {
   await page.waitForURL(`${origin}/home`);
   await page.getByRole("button", { name: "Classes", exact: true }).click();
   await page.getByRole("button", { name: "New assignment", exact: true }).click();
-  await page.getByLabel("Source project").selectOption(process.env.SPATIA_TEST_SOURCE);
+  assert.equal(await page.getByLabel("Source project").count(), 0);
   await page.getByLabel("Project title").fill("Live class assignment");
   await page.getByLabel("Project description").fill("Independent exhibit");
   await page.getByLabel("Project instructions").fill("Explain each exhibit.");
-  await page.getByLabel("Due date and time").fill("2026-12-01T15:30");
+  await page.getByLabel(/^Due date/).fill("2026-12-01");
   await page.getByLabel(/^Class/).selectOption(process.env.SPATIA_TEST_CLASS);
   await page.getByRole("checkbox", { name: new RegExp(process.env.SPATIA_TEST_STUDENT) }).check();
+  await page.getByRole("checkbox", { name: new RegExp(process.env.SPATIA_TEST_OUTSIDER) }).check();
   const response = page.waitForResponse(
     (item) => item.url().endsWith("/assignments") && item.request().method() === "POST",
   );
@@ -190,9 +184,39 @@ try {
   const receiptResponse = await response;
   assert.equal(receiptResponse.status(), 201);
   const receipt = await receiptResponse.json();
-  assert.equal(receipt.projects.length, 1);
-  const project = receipt.projects[0].projectId;
+  assert.equal(receipt.projects.length, 2);
+  const rosterResponse = await teacher.request.get(
+    `${origin}/api/v1/classes/${process.env.SPATIA_TEST_CLASS}/eligible-students?limit=20`,
+  );
+  const roster = (await rosterResponse.json()).items;
+  const studentId = roster.find((row) => row.userName === process.env.SPATIA_TEST_STUDENT).userId;
+  const outsiderId = roster.find((row) => row.userName === process.env.SPATIA_TEST_OUTSIDER).userId;
+  const project = receipt.projects.find((row) => row.studentId === studentId).projectId;
+  const removedProject = receipt.projects.find((row) => row.studentId === outsiderId).projectId;
   await page.getByRole("heading", { name: "Live class assignment" }).waitFor();
+  await page.getByRole("button", { name: "Edit project details" }).click();
+  await page.getByLabel("Project description").fill("Updated independent exhibit");
+  await page
+    .getByRole("checkbox", { name: new RegExp(process.env.SPATIA_TEST_OUTSIDER) })
+    .uncheck();
+  const editing = page.waitForResponse(
+    (item) =>
+      item.url().endsWith("/assignments/" + receipt.assignmentId) &&
+      item.request().method() === "PATCH",
+  );
+  await page.getByRole("button", { name: "Save changes" }).click();
+  const edited = await editing;
+  assert.equal(edited.status(), 200);
+  const editBody = edited.request().postDataJSON();
+  assert.equal(editBody.expectedRevision, 0);
+  assert.ok(editBody.mutationId);
+  assert.deepEqual(editBody.studentIds, [studentId]);
+  await page.getByText("Updated independent exhibit", { exact: true }).waitFor();
+  const editedDetail = await teacher.request.get(
+    `${origin}/api/v1/classes/${process.env.SPATIA_TEST_CLASS}/assignments/${receipt.assignmentId}`,
+  );
+  assert.equal(editedDetail.status(), 200);
+  assert.equal((await editedDetail.json()).projects.length, 1);
   await page.reload();
   await page.getByRole("button", { name: "Classes", exact: true }).click();
   await page
@@ -235,6 +259,10 @@ try {
   );
   assert.equal(
     (await outsiderContext.request.get(`${origin}/api/v1/projects/${project}`)).status(),
+    404,
+  );
+  assert.equal(
+    (await outsiderContext.request.get(`${origin}/api/v1/projects/${removedProject}`)).status(),
     404,
   );
   const freshContext = await browser.newContext({ ignoreHTTPSErrors: true });

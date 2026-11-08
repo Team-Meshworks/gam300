@@ -19,6 +19,7 @@ export function TopBar({
   serverSaving = false,
   onLeave,
   onPublish,
+  onReview,
   hasProject,
   hasChanges,
   ready,
@@ -41,6 +42,7 @@ export function TopBar({
   serverSaving?: boolean;
   onLeave?: (() => void) | undefined;
   onPublish?: (() => void) | undefined;
+  onReview?: (() => void) | undefined;
   hasProject: boolean;
   hasChanges: boolean;
   ready: boolean;
@@ -314,12 +316,22 @@ export function TopBar({
             Preview
           </button>
         )}
-        {!visitor && (
+        {!visitor && onReview && (
+          <button
+            className="ui-button pill-button"
+            type="button"
+            disabled={!ready || busy}
+            onClick={onReview}
+          >
+            Review
+          </button>
+        )}
+        {!visitor && onPublish && (
           <button
             className="ui-button pill-button is-primary"
             type="button"
-            disabled={!onPublish || !ready || busy}
-            title={onPublish ? "Publish a saved edition" : "Open a server project to publish"}
+            disabled={!ready || busy}
+            title="Review and publish this student's project"
             onClick={onPublish}
           >
             Publish

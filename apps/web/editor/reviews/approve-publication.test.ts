@@ -86,8 +86,21 @@ it("keeps the original ids when publication fails after approval", async () => {
   expect(decide.mock.calls[0]).toEqual(decide.mock.calls[1]);
 });
 
+it("retries publication without requiring optional review comments", async () => {
+  const store = memory();
+  const withoutComment = { ...intent, feedback: "" };
+  const decide = vi.fn(async () => ({ kind: "confirmed" as const }));
+  const publish = vi.fn().mockResolvedValueOnce({ kind: "unknown" }).mockResolvedValueOnce({
+    kind: "confirmed",
+    value: acknowledgement,
+  });
+  expect((await approveAndPublish(store, withoutComment, decide, publish)).kind).toBe("pending");
+  expect(readApprovalPublication(store, actorId, projectId, studentId)).toEqual(withoutComment);
+  expect((await approveAndPublish(store, withoutComment, decide, publish)).kind).toBe("published");
+});
+
 it.each([false, true])(
-  "clears a definitive revision conflict after approval (prior uncertain response: %s)",
+  "handles a revision conflict after approval (prior uncertain response: %s)",
   async (previousUnknown) => {
     const store = memory();
     const decide = vi.fn(async () => ({ kind: "confirmed" as const }));
@@ -102,9 +115,11 @@ it.each([false, true])(
       message: "The project changed.",
     });
     expect((await approveAndPublish(store, intent, decide, publish)).kind).toBe(
-      "revision-conflict",
+      previousUnknown ? "pending" : "revision-conflict",
     );
-    expect(readApprovalPublication(store, actorId, projectId, studentId)).toBeNull();
+    expect(readApprovalPublication(store, actorId, projectId, studentId)).toEqual(
+      previousUnknown ? intent : null,
+    );
     expect(publish).toHaveBeenCalledTimes(previousUnknown ? 2 : 1);
     expect(decide).toHaveBeenCalledWith(
       expect.objectContaining({ decisionId, feedback: "Good work" }),
@@ -161,4 +176,103 @@ it("reports confirmed publication even when clearing local storage fails", async
     vi.fn(async () => ({ kind: "confirmed" as const, value: acknowledgement })),
   );
   expect(result.kind).toBe("published");
+});
+
+it("saves progress feedback before direct publication and retries the same identities", async () => {
+  const store = memory();
+  const direct = { ...intent, submissionId: null };
+  const decide = vi.fn();
+  const save = vi
+    .fn()
+    .mockResolvedValueOnce({ kind: "unknown" })
+    .mockResolvedValueOnce({
+      kind: "confirmed",
+      item: { id: decisionId, revision: 3, feedback: "Good work" },
+    });
+  const publish = vi.fn(async () => ({ kind: "confirmed" as const, value: acknowledgement }));
+  expect((await approveAndPublish(store, direct, decide, publish, save)).kind).toBe("pending");
+  expect(publish).not.toHaveBeenCalled();
+  expect(readApprovalPublication(store, actorId, projectId, studentId)).toEqual(direct);
+  expect((await approveAndPublish(store, direct, decide, publish, save)).kind).toBe("published");
+  expect(save.mock.calls[0]).toEqual([
+    projectId,
+    actorId,
+    {
+      reviewId: decisionId,
+      expectedRevision: 3,
+      feedback: "Good work",
+    },
+  ]);
+  expect(save.mock.calls[1]).toEqual(save.mock.calls[0]);
+  expect(decide).not.toHaveBeenCalled();
+  expect(publish).toHaveBeenCalledWith(
+    actorId,
+    `/api/v1/projects/${projectId}/publications`,
+    "POST",
+    {
+      publicationId,
+      confirmedRevision: 3,
+      intent: { audience: "Unlisted", viewerIds: [], teacherOverride: true },
+    },
+    expect.any(Object),
+  );
+});
+
+it("publishes directly without saving a blank review", async () => {
+  const save = vi.fn();
+  const decide = vi.fn();
+  const publish = vi.fn(async () => ({ kind: "confirmed" as const, value: acknowledgement }));
+  const result = await approveAndPublish(
+    memory(),
+    { ...intent, submissionId: null, feedback: "" },
+    decide,
+    publish,
+    save,
+  );
+  expect(result.kind).toBe("published");
+  expect(save).not.toHaveBeenCalled();
+  expect(decide).not.toHaveBeenCalled();
+});
+
+it("retries direct publication with the same override after an uncertain response", async () => {
+  const store = memory();
+  const direct = { ...intent, submissionId: null, feedback: "" };
+  const publish = vi.fn().mockResolvedValueOnce({ kind: "unknown" }).mockResolvedValueOnce({
+    kind: "confirmed",
+    value: acknowledgement,
+  });
+  expect((await approveAndPublish(store, direct, vi.fn(), publish, vi.fn())).kind).toBe("pending");
+  expect(() =>
+    readApprovalPublication(store, actorId, projectId, "77777777-7777-4777-8777-777777777777"),
+  ).toThrow();
+  expect((await approveAndPublish(store, direct, vi.fn(), publish, vi.fn())).kind).toBe(
+    "published",
+  );
+  expect(publish.mock.calls[1]).toEqual(publish.mock.calls[0]);
+});
+
+it("clears a definitive first publication rejection so the teacher can try again", async () => {
+  const store = memory();
+  const direct = { ...intent, submissionId: null, feedback: "" };
+  const result = await approveAndPublish(
+    store,
+    direct,
+    vi.fn(),
+    vi.fn(async () => ({ kind: "rejected" as const, message: "Publishing is unavailable." })),
+    vi.fn(),
+  );
+  expect(result).toEqual({ kind: "rejected", message: "Publishing is unavailable." });
+  expect(readApprovalPublication(store, actorId, projectId, studentId)).toBeNull();
+});
+
+it("retains the original publication after an uncertain outcome followed by rejection", async () => {
+  const store = memory();
+  const direct = { ...intent, submissionId: null, feedback: "" };
+  const publish = vi.fn().mockResolvedValueOnce({ kind: "unknown" }).mockResolvedValueOnce({
+    kind: "rejected",
+    message: "Try later.",
+  });
+  expect((await approveAndPublish(store, direct, vi.fn(), publish, vi.fn())).kind).toBe("pending");
+  expect((await approveAndPublish(store, direct, vi.fn(), publish, vi.fn())).kind).toBe("pending");
+  expect(readApprovalPublication(store, actorId, projectId, studentId)).toEqual(direct);
 });

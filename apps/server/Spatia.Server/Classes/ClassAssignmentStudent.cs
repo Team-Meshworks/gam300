@@ -11,4 +11,6 @@ public sealed class ClassAssignmentStudent
     public Guid StudentId { get; set; }
     public Guid RoleId { get; set; } = ApplicationRoles.CreatorId;
     public Guid ProjectId { get; set; }
+    public bool IsActive { get; set; } = true;
+    public bool OriginallyAssigned { get; set; } = true;
 }

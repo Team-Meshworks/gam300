@@ -44,6 +44,7 @@ import { Viewport, type ViewpointCamera } from "./viewport/Viewport";
 import { MobileControls } from "./viewport/MobileControls";
 import { isMobileTouchDevice } from "./viewport/mobile-device";
 import type { FpsMobileControls } from "./graphics/scene";
+import { generateLibraryPreviews } from "./graphics/library-previews";
 
 import { ProjectConfirmation } from "./ProjectConfirmation";
 import { useProjectSession } from "./persistence/use-project-session";
@@ -62,7 +63,8 @@ export type ServerEditorSession = {
   departing: boolean;
   save: (exportFile?: boolean) => Promise<boolean>;
   leave: () => void;
-  publish: () => void;
+  publish?: () => void;
+  review?: () => void;
 };
 
 function countSceneRules(
@@ -143,6 +145,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
   const onThumbnail = useCallback((id: string, url: string) => {
     setGeneratedThumbnails((previous) => ({ ...previous, [id]: url }));
   }, []);
+  useEffect(() => generateLibraryPreviews(editorAssets, onThumbnail), [editorAssets, onThumbnail]);
   const thumbnailFor = (id: string) =>
     editorAssets.find((asset) => asset.id === id)?.thumbnail ?? generatedThumbnails[id];
   const [status, setStatus] = useState<ViewportStatus>("loading");
@@ -694,6 +697,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
         serverSaving={server?.saving ?? false}
         onLeave={server?.leave}
         onPublish={server?.publish}
+        onReview={server?.review}
         hasProject={project !== null}
         hasChanges={hasChanges}
         ready={status === "ready"}

@@ -143,6 +143,8 @@ function isCandidate(value: unknown): value is AssetCandidate {
     typeof value.hidden === "boolean" &&
     typeof value.deleted === "boolean" &&
     typeof value.removedFromProjects === "boolean" &&
+    (value.sha256 === undefined ||
+      (typeof value.sha256 === "string" && /^[0-9a-f]{64}$/i.test(value.sha256))) &&
     (value.inspectionUrl === undefined ||
       value.inspectionUrl === null ||
       (typeof value.inspectionUrl === "string" &&

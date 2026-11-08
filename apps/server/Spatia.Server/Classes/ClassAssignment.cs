@@ -17,4 +17,8 @@ public sealed class ClassAssignment
     public required string Description { get; set; }
     public required string Instructions { get; set; }
     public required byte[] RequestDigest { get; set; }
+    public long Revision { get; set; }
+    public Guid? LastEditId { get; set; }
+    public Guid? LastEditActorId { get; set; }
+    public byte[]? LastEditDigest { get; set; }
 }

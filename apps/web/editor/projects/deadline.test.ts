@@ -1,5 +1,10 @@
 import { expect, it } from "vitest";
-import { formatLocalDeadline, localDeadlineToUnixSeconds } from "./deadline";
+import {
+  formatDueDate,
+  formatLocalDeadline,
+  localDateToDueUnixSeconds,
+  localDeadlineToUnixSeconds,
+} from "./deadline";
 
 it("maps a valid local date and time to Unix seconds", () => {
   expect(localDeadlineToUnixSeconds("2028-02-29T15:30")).toBe(
@@ -13,4 +18,17 @@ it("rejects invalid, incomplete and out-of-range deadlines", () => {
     expect(localDeadlineToUnixSeconds(value)).toBeNull();
   for (const value of [-62_135_596_801, 253_402_300_800, 1.5, Number.NaN])
     expect(formatLocalDeadline(value)).toBeNull();
+});
+
+it("treats a selected due date as the end of that local day and displays just its date", () => {
+  const deadline = localDateToDueUnixSeconds("2028-02-29");
+  expect(deadline).toBe(new Date(2028, 1, 29, 23, 59, 59).getTime() / 1000);
+  expect(formatDueDate(deadline!)).toBe(
+    new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(deadline! * 1000)),
+  );
+});
+
+it("rejects impossible date-only deadlines", () => {
+  for (const value of ["2028-02-30", "2028-13-01", "2028-02-29T15:30", "0000-01-01"])
+    expect(localDateToDueUnixSeconds(value)).toBeNull();
 });

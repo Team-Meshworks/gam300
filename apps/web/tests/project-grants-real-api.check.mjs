@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { realpathSync } from "node:fs";
+import { resolve } from "node:path";
 import { createServer } from "vite";
 import { launchBrowser } from "./browser-security.mjs";
 
@@ -8,7 +10,11 @@ assert.ok(
     process.env.SPATIA_TEST_CREATOR &&
     process.env.SPATIA_TEST_PROJECT,
 );
-const server = await createServer({ server: { port: 0 }, logLevel: "silent" });
+const server = await createServer({
+  cacheDir: "test-results/vite-project-grants-real",
+  server: { port: 0, fs: { allow: [resolve("../.."), realpathSync("node_modules")] } },
+  logLevel: "silent",
+});
 await server.listen();
 const origin = `https://127.0.0.1:${server.httpServer.address().port}`;
 let browser;
@@ -16,6 +22,10 @@ try {
   browser = await launchBrowser({ target: origin });
   const context = await browser.newContext({ ignoreHTTPSErrors: true });
   const page = await context.newPage();
+  page.on("pageerror", (error) => console.error("Browser error:", error.message));
+  page.on("response", (response) => {
+    if (response.status() >= 400) console.error("HTTP error:", response.status(), response.url());
+  });
   page.setDefaultTimeout(15000);
   await page.goto(`${origin}/login`);
   await page.getByLabel("Username", { exact: true }).fill(process.env.SPATIA_TEST_ADMIN);
@@ -26,10 +36,15 @@ try {
   await page.waitForURL(`${origin}/organisations`);
   await page.getByRole("link", { name: "Close organisations", exact: true }).click();
   await page.waitForURL(`${origin}/admin/dashboard`);
-  await page.getByRole("link", { name: "Manage project access", exact: true }).click();
+  await page.getByRole("link", { name: "Open project workspace", exact: true }).click();
   await page.waitForURL(`${origin}/home`);
-  await page.getByRole("heading", { name: "Grant browser project", exact: true }).waitFor();
-  await page.getByRole("button", { name: "Manage access", exact: true }).click();
+  await page.getByRole("button", { name: "Classes", exact: true }).click();
+  await page.getByRole("heading", { name: "Classes", exact: true }).waitFor();
+  await page.getByRole("button", { name: "Projects", exact: true }).click();
+  const project = page.getByRole("listitem").filter({
+    has: page.getByRole("heading", { name: "Grant browser project", exact: true }),
+  });
+  await project.getByRole("button", { name: "Manage access", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Project access" });
   await dialog.waitFor();
   const publish = dialog.getByRole("checkbox", {
@@ -40,7 +55,7 @@ try {
   await publish.check();
   await dialog.getByRole("button", { name: "Save access", exact: true }).click();
   await dialog.waitFor({ state: "detached" });
-  await page.getByRole("button", { name: "Manage access", exact: true }).click();
+  await project.getByRole("button", { name: "Manage access", exact: true }).click();
   assert.equal(await publish.isChecked(), true);
   const creatorContext = await browser.newContext({ ignoreHTTPSErrors: true });
   const creatorPage = await creatorContext.newPage();

@@ -12,12 +12,26 @@ it("shows each assigned student with a progress action and the assignment detail
         details: {
           assignmentId: "assignment",
           title: "Silk Road",
+          organizationName: "School",
+          creatorName: "Ms Chew",
           description: "Explore trade",
           instructions: "Build a museum",
           dueAtUnixSeconds: 1900000000,
           projects: [
-            { studentId: "alice", projectId: "alice-project", studentName: "Alice" },
-            { studentId: "bob", projectId: "bob-project", studentName: "Bob" },
+            {
+              studentId: "alice",
+              projectId: "alice-project",
+              studentName: "Alice",
+              approvalStatus: "approved",
+              published: true,
+            },
+            {
+              studentId: "bob",
+              projectId: "bob-project",
+              studentName: "Bob",
+              approvalStatus: "awaiting-approval",
+              published: false,
+            },
           ],
         },
       },
@@ -26,11 +40,18 @@ it("shows each assigned student with a progress action and the assignment detail
     }),
   );
   expect(html).toContain("Silk Road");
+  expect(html).toContain("School");
+  expect(html).toContain("Ms Chew");
   expect(html).toContain("Explore trade");
   expect(html).toContain("Build a museum");
   expect(html).toContain("Alice");
   expect(html).toContain("Bob");
   expect(html.match(/View Progress/g)).toHaveLength(2);
+  expect(html).toContain("Approved");
+  expect(html).toContain("Awaiting approval");
+  expect(html).toContain("Published");
+  expect(html).toContain("Not published");
+  expect(html).toContain("In Progress");
 });
 
 it("opens a standalone project in details without inventing student assignments", () => {

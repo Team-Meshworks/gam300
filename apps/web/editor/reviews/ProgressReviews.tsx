@@ -13,6 +13,7 @@ import { loadStudentFeedback } from "../home/student-feedback";
 import { createWorkspaceClient } from "../home/workspace-api";
 import { createAccountClient } from "../accounts/account-client";
 import { PublicationShare } from "../publications/PublicationShare";
+import { withPublicationSession } from "./publication-session";
 import "../publications/publication.css";
 import {
   approveAndPublish,
@@ -68,9 +69,11 @@ export function ProgressReviews({
   projectId,
   revision,
   actorId,
+  orgId,
   educator,
   onGuard,
   autoOpen = false,
+  startEditing = false,
   onClose,
   decisions = [],
   decisionsLoading = false,
@@ -81,9 +84,11 @@ export function ProgressReviews({
   projectId: string;
   revision: number;
   actorId: string;
+  orgId?: string | null;
   educator: boolean;
   onGuard: (guard: LeaveGuard) => void;
   autoOpen?: boolean;
+  startEditing?: boolean;
   onClose?: () => void;
   decisions?: readonly SubmissionFeedback[];
   decisionsLoading?: boolean;
@@ -96,12 +101,13 @@ export function ProgressReviews({
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(autoOpen);
-  const [editing, setEditing] = useState(Boolean(publication));
+  const [editing, setEditing] = useState(Boolean(publication) || startEditing);
   const [feedback, setFeedback] = useState("");
   const [intent, setIntent] = useState<ProgressIntent | null>(null);
   const [phase, setPhase] = useState<"ready" | "sending" | "unknown">("ready");
   const [conflict, setConflict] = useState(false);
   const [submission, setSubmission] = useState<{ id: string; revision: number } | null>(null);
+  const [canPublish, setCanPublish] = useState(false);
   const [submissionFeedback, setSubmissionFeedback] = useState<Decision[]>([]);
   const [publicationLoading, setPublicationLoading] = useState(Boolean(publication));
   const [publicationError, setPublicationError] = useState("");
@@ -139,6 +145,7 @@ export function ProgressReviews({
         if (
           !identity ||
           identity.userId !== actorId ||
+          identity.orgId !== orgId ||
           identity.role !== "Educator" ||
           identity.mustChangePassword
         )
@@ -155,12 +162,18 @@ export function ProgressReviews({
         if (
           !latest ||
           latest.userId !== actorId ||
+          latest.orgId !== orgId ||
           latest.role !== "Educator" ||
           latest.mustChangePassword
         )
           throw new Error("Your account changed. Reload before continuing.");
         if (disposed) return;
         setSubmissionFeedback(history);
+        setCanPublish(
+          project.revision === revision &&
+            project.permissions.canPublish &&
+            project.permissions.canManage,
+        );
         if (
           project.revision === revision &&
           project.permissions.canPublish &&
@@ -182,7 +195,7 @@ export function ProgressReviews({
     return () => {
       disposed = true;
     };
-  }, [publicationStudentId, educator, actorId, projectId, revision, publicationAttempt]);
+  }, [publicationStudentId, educator, actorId, orgId, projectId, revision, publicationAttempt]);
   const load = useCallback(
     async (after?: string | null) => {
       const version = generation.current;
@@ -305,7 +318,7 @@ export function ProgressReviews({
     }
   }
   async function publish(retry = false) {
-    if (busy.current || (!retry && (!submission || !feedback.trim() || phase !== "ready"))) return;
+    if (busy.current || (!retry && (!canPublish || phase !== "ready"))) return;
     if (!navigator.locks) {
       setError(
         "This browser cannot safely coordinate publishing requests. Please use a supported browser.",
@@ -314,15 +327,14 @@ export function ProgressReviews({
     }
     const sent = retry
       ? pendingPublication
-      : submission &&
-        publicationStudentId && {
+      : publicationStudentId && {
           projectId,
           actorId,
           studentId: publicationStudentId,
-          submissionId: submission.id,
+          submissionId: submission?.id ?? null,
           decisionId: crypto.randomUUID(),
           publicationId: crypto.randomUUID(),
-          revision: submission.revision,
+          revision,
           feedback,
         };
     if (!sent) return;
@@ -332,7 +344,21 @@ export function ProgressReviews({
     try {
       const result = await navigator.locks.request(
         `spatia-review-publication:${actorId}:${projectId}`,
-        () => approveAndPublish(localStorage, sent, submissionClient.execute, workspace.write),
+        () => {
+          const bound = <T,>(action: () => Promise<T>) =>
+            withPublicationSession(
+              { userId: actorId, orgId: orgId ?? null },
+              accounts.getSession,
+              action,
+            );
+          return approveAndPublish(
+            localStorage,
+            sent,
+            (...args) => bound(() => submissionClient.execute(...args)),
+            (...args) => bound(() => workspace.write(...args)),
+            (...args) => bound(() => client.save(...args)),
+          );
+        },
       );
       if (!active.current) return;
       if (result.kind === "published") {
@@ -347,6 +373,7 @@ export function ProgressReviews({
       } else if (result.kind === "revision-conflict") {
         setPendingPublication(null);
         setSubmission(null);
+        setCanPublish(false);
         setFeedback("");
         setConflict(true);
         setPhase("ready");
@@ -422,6 +449,7 @@ export function ProgressReviews({
                   setPublicationLoading(true);
                   setPublicationError("");
                   setSubmission(null);
+                  setCanPublish(false);
                   setPublicationAttempt((value) => value + 1);
                 }}
               >
@@ -492,8 +520,7 @@ export function ProgressReviews({
                     disabled={
                       phase !== "ready" ||
                       publicationLoading ||
-                      !submission ||
-                      !feedback.trim() ||
+                      !canPublish ||
                       feedback.includes("\0")
                     }
                     onClick={() => void publish()}
@@ -505,12 +532,12 @@ export function ProgressReviews({
             )}
           </div>
           {publication &&
-            !submission &&
+            !canPublish &&
             !pendingPublication &&
             !publishedUrl &&
             !publicationError &&
             !publicationLoading && (
-              <p>Publishing requires permission and a submission for the current saved work.</p>
+              <p>Publishing requires permission and the current saved work.</p>
             )}
           {publication && (
             <p>Publishing creates a link anyone can open for this student's project.</p>

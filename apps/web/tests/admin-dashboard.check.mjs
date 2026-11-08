@@ -1,12 +1,21 @@
 import assert from "node:assert/strict";
 import { mkdir, readFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { realpathSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { launchBrowser } from "./browser-security.mjs";
 import { createServer } from "vite";
 
 const server = process.argv[2]
   ? null
-  : await createServer({ server: { host: "127.0.0.1", port: 0 }, logLevel: "error" });
+  : await createServer({
+      cacheDir: "test-results/vite-admin-dashboard",
+      server: {
+        host: "127.0.0.1",
+        port: 0,
+        fs: { allow: [resolve("../.."), realpathSync("node_modules")] },
+      },
+      logLevel: "error",
+    });
 await server?.listen();
 const origin = process.argv[2] ?? `http://127.0.0.1:${server.httpServer.address().port}`;
 const browser = await launchBrowser({ target: origin });
@@ -40,6 +49,11 @@ try {
   let assetReads = 0;
   let projectReads = 0;
   let creations = 0;
+  // Keep mock catalogue previews independent of Vite source paths and build hashing.
+  const assetThumbnail = await readFile("editor/home/assets/default-project-neutral.jpg");
+  await page.route("**/test-fixtures/admin-asset-thumbnail.jpg", (route) =>
+    route.fulfill({ body: assetThumbnail, contentType: "image/jpeg" }),
+  );
   await page.route("**/api/v1/**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -57,12 +71,6 @@ try {
         : route.fulfill({ status: 401 });
     if (url.pathname === "/api/v1/auth/csrf")
       return route.fulfill({ json: { requestToken: "csrf" } });
-    if (/^\/api\/v1\/assets\/[^/]+\/bytes$/.test(url.pathname)) {
-      const fixture = url.pathname.includes("11111111")
-        ? "../../assets/source/rooms/room-space1-v1.glb"
-        : "../../assets/source/snowglobe.glb";
-      return route.fulfill({ body: await readFile(fixture), contentType: "model/gltf-binary" });
-    }
     if (request.method() === "POST") {
       assert.equal(request.headers()["x-csrf-token"], "csrf");
       if (url.pathname === "/api/v1/auth/login") {
@@ -90,33 +98,42 @@ try {
         });
       }
     }
-    if (url.pathname === "/api/v1/assets") {
-      if (new URL(request.headers().referer).pathname === "/admin/dashboard") {
-        assetReads++;
-        assert.equal(request.headers()["x-spatia-account"], userId);
-      }
+    if (url.pathname === "/api/v1/admin/assets") {
+      assetReads++;
+      assert.equal(request.headers()["x-spatia-account"], userId);
       if (assetError) return route.fulfill({ status: 503 });
       return route.fulfill({
-        json: [
-          {
-            id: "11111111-1111-4111-8111-111111111111",
-            name: "Approved Gallery",
-            kind: "environment",
-            category: null,
-            url: "/api/v1/assets/11111111-1111-4111-8111-111111111111/bytes",
-            sha256: "a".repeat(64),
-            thumbnail: null,
+        json: {
+          assets: [
+            {
+              id: "11111111-1111-4111-8111-111111111111",
+              name: "Approved Gallery",
+              kind: "environment",
+            },
+            {
+              id: "22222222-2222-4222-8222-222222222222",
+              name: "Approved Sculpture",
+              kind: "model",
+            },
+          ].map((asset) => ({
+            ...asset,
+            category: asset.kind === "model" ? "Objects" : null,
+            status: "approved",
+            hidden: false,
+            deleted: false,
+            removedFromProjects: false,
+            thumbnail: "/test-fixtures/admin-asset-thumbnail.jpg",
+            validation: [],
+            actions: ["hide", "delete"],
+          })),
+          policy: {
+            extensions: [".glb"],
+            maxBytes: 20971520,
+            categories: { environment: null, model: ["Objects"] },
+            canSubmit: true,
+            canForceRemove: false,
           },
-          {
-            id: "22222222-2222-4222-8222-222222222222",
-            name: "Approved Sculpture",
-            kind: "model",
-            category: null,
-            url: "/api/v1/assets/22222222-2222-4222-8222-222222222222/bytes",
-            sha256: "b".repeat(64),
-            thumbnail: null,
-          },
-        ],
+        },
       });
     }
     if (url.pathname === "/api/v1/projects") {
@@ -174,21 +191,18 @@ try {
     await page.getByRole("link", { name: "+ Add item", exact: true }).getAttribute("href"),
     "/assets?add=1",
   );
-  assert.equal(
-    await page.getByRole("link", { name: "Open project workspace", exact: true }).count(),
-    0,
-  );
-  await page.getByRole("link", { name: "Manage project access", exact: true }).click();
+  await page.getByRole("link", { name: "Open project workspace", exact: true }).click();
   await page.waitForURL(origin + "/home");
-  await page.getByRole("heading", { name: "All Projects", exact: true }).waitFor();
-  await page.getByRole("link", { name: "Organisations", exact: true }).click();
-  await page.waitForURL(origin + "/organisations");
-  await page.getByRole("link", { name: "Close organisations", exact: true }).click();
+  await page
+    .getByRole("navigation", { name: "Workspace" })
+    .getByRole("button", { name: "Classes", exact: true })
+    .waitFor();
+  await page.getByRole("button", { name: "Back to dashboard" }).click();
   await page.waitForURL(origin + "/admin/dashboard");
-  await page.getByRole("link", { name: "Manage project access", exact: true }).click();
-  await page.waitForURL(origin + "/home");
-  await page.getByRole("button", { name: "Classes", exact: true }).click();
-  await page.getByRole("link", { name: "Dashboard", exact: true }).click();
+  await page.getByRole("link", { name: "View Organisations", exact: true }).click();
+  await page.waitForURL(origin + "/organisations");
+  assert.equal(await page.getByRole("navigation", { name: "Workspace screens" }).count(), 0);
+  await page.getByRole("link", { name: "Close organisations" }).click();
   await page.waitForURL(origin + "/admin/dashboard");
   await page
     .getByRole("button", { name: `View details for ${projects[0].title}`, exact: true })
@@ -274,50 +288,48 @@ try {
   await dialog.waitFor({ state: "detached" });
   assert.equal(creations, 1);
   await page.getByRole("status").filter({ hasText: "New School was created." }).waitFor();
-  for (const [button, title, expected, excluded] of [
-    ["View Environments", "3D Environments", "Approved Gallery", "Approved Sculpture"],
-    ["View Library", "Physical Asset Library", "Approved Sculpture", "Approved Gallery"],
+  for (const [button, path, title, expected, excluded, noun] of [
+    [
+      "View Environments",
+      "/spaces",
+      "All 3D Spaces",
+      "Approved Gallery",
+      "Approved Sculpture",
+      "3D spaces",
+    ],
+    ["View Library", "/assets", "All Assets", "Approved Sculpture", "Approved Gallery", "assets"],
   ]) {
     const readsBeforeOpen = assetReads;
-    await page.getByRole("button", { name: button, exact: true }).click();
-    const library = page.getByRole("dialog", { name: title, exact: true });
+    await page.getByRole("link", { name: button, exact: true }).click();
+    await page.waitForURL(origin + path);
+    await page.getByRole("heading", { name: title, exact: true }).waitFor();
+    assert.equal(await page.getByRole("dialog").count(), 0);
+    const library = page.locator(".asset-admin");
     await library.getByText(expected, { exact: true }).waitFor();
     const preview = library
       .locator("article")
       .filter({ hasText: expected })
-      .locator("img.admin-asset-cover");
-    await preview.waitFor({ timeout: 30000 });
+      .locator(".asset-admin-thumbnail img");
+    await preview.evaluate((image) => image.decode());
     assert.equal(await preview.evaluate((image) => image.complete && image.naturalWidth > 0), true);
-    assert.equal(
-      await preview.evaluate((image) => {
-        const canvas = document.createElement("canvas");
-        canvas.width = image.naturalWidth;
-        canvas.height = image.naturalHeight;
-        const context = canvas.getContext("2d");
-        context.drawImage(image, 0, 0);
-        return context
-          .getImageData(0, 0, canvas.width, canvas.height)
-          .data.some((value, index) => index % 4 === 3 && value > 0);
-      }),
-      true,
-      "The preview contains visible model pixels",
-    );
     assert.equal(await library.getByText(excluded, { exact: true }).count(), 0);
     assert.ok(
       assetReads > readsBeforeOpen,
-      "Opening the catalogue reads approved assets from the API",
+      "Opening asset administration reads assets from the API",
     );
-    await library.getByLabel("Search assets").fill("no matching asset");
-    await page.getByRole("status").filter({ hasText: "No matching assets." }).waitFor();
-    await library.getByRole("button", { name: "Close", exact: true }).click();
-    await library.waitFor({ state: "detached" });
+    await library.getByRole("searchbox", { name: `Search ${noun}` }).fill("no matching asset");
+    await library.getByRole("heading", { name: `No matching ${noun}` }).waitFor();
+    await page.getByRole("button", { name: "Close asset administration" }).click();
+    await page.waitForURL(origin + "/admin/dashboard");
   }
   assetError = true;
-  await page.getByRole("button", { name: "View Environments", exact: true }).click();
-  const failedLibrary = page.getByRole("dialog", { name: "3D Environments", exact: true });
+  await page.getByRole("link", { name: "View Environments", exact: true }).click();
+  await page.waitForURL(origin + "/spaces");
+  const failedLibrary = page.locator(".asset-admin");
   await failedLibrary.getByRole("alert").waitFor();
   assert.equal(await failedLibrary.getByText("Approved Gallery", { exact: true }).count(), 0);
-  await failedLibrary.getByRole("button", { name: "Close", exact: true }).click();
+  await failedLibrary.getByRole("button", { name: "Close asset administration" }).click();
+  await page.waitForURL(origin + "/admin/dashboard");
   assetError = false;
   await page.getByRole("link", { name: "View Organisations", exact: true }).click();
   await page.getByRole("button", { name: "Open Ridgeview Secondary School" }).waitFor();

@@ -18,6 +18,96 @@ namespace Spatia.Server.Tests;
 public sealed class ClassAssignmentCoordinatorTests
 {
     [Test]
+    public async Task AssignmentEditing_PreservesDraftAndDeniesRemovedStudentWhileRetainingReplay()
+    {
+        await using var fixture = await CreateFixtureAsync();
+        var data = await SeedAsync(fixture);
+        var creation = Request(data);
+        using var created = await SendAsync(fixture, data.ClassroomId, creation);
+        await Assert.That(created.StatusCode).IsEqualTo(HttpStatusCode.Created);
+        var projects = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("projects").EnumerateArray()
+            .ToDictionary(row => row.GetProperty("studentId").GetGuid(), row => row.GetProperty("projectId").GetGuid());
+        var mutationId = Guid.NewGuid();
+        var body = new { mutationId, expectedRevision = 0, title = "Revised title", description = "Revised description",
+            instructions = "Revised instructions", dueAtUnixSeconds = 2_000_000_001L, studentIds = new[] { data.SecondStudent } };
+        var path = $"/api/v1/classes/{data.ClassroomId:D}/assignments/{creation.RequestId:D}";
+        async Task<HttpResponseMessage> Edit(HttpClient client, object value)
+        {
+            using var message = new HttpRequestMessage(HttpMethod.Patch, path) { Content = JsonContent.Create(value) };
+            message.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync(client));
+            return await client.SendAsync(message);
+        }
+        using var removedStudent = fixture.CreateClient();
+        await fixture.SignInAsync(data.FirstStudent, removedStudent);
+        using (var forbidden = await Edit(removedStudent, body))
+        { await Assert.That(forbidden.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.NotFound).IsTrue(); }
+        using (var updated = await Edit(fixture.Client, body))
+        { await Assert.That(updated.StatusCode).IsEqualTo(HttpStatusCode.OK); }
+        using (var replay = await Edit(fixture.Client, body))
+        { await Assert.That(replay.StatusCode).IsEqualTo(HttpStatusCode.OK); }
+        using (var stale = await Edit(fixture.Client, new { mutationId = Guid.NewGuid(), expectedRevision = 0, title = "Stale", description = "D", instructions = "I", dueAtUnixSeconds = 2_000_000_002L, studentIds = new[] { data.SecondStudent } }))
+        { await Assert.That(stale.StatusCode).IsEqualTo(HttpStatusCode.Conflict); }
+        using (var denied = await removedStudent.GetAsync($"/api/v1/projects/{projects[data.FirstStudent]:D}"))
+        { await Assert.That(denied.StatusCode).IsEqualTo(HttpStatusCode.NotFound); }
+        using var details = await fixture.Client.GetAsync(path);
+        var content = await details.Content.ReadFromJsonAsync<JsonElement>();
+        await Assert.That(content.GetProperty("title").GetString()).IsEqualTo("Revised title");
+        await Assert.That(content.GetProperty("projects").GetArrayLength()).IsEqualTo(1);
+        await Assert.That(content.GetProperty("projects")[0].GetProperty("projectId").GetGuid()).IsEqualTo(projects[data.SecondStudent]);
+        await using var scope = fixture.Database.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await Assert.That(await database.Projects.AnyAsync(row => row.Id == projects[data.FirstStudent])).IsTrue();
+        using var creationReplay = await SendAsync(fixture, data.ClassroomId, creation);
+        await Assert.That(creationReplay.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        var restore = new { mutationId = Guid.NewGuid(), expectedRevision = 1, title = "Revised title", description = "Revised description",
+            instructions = "Revised instructions", dueAtUnixSeconds = 2_000_000_001L, studentIds = new[] { data.FirstStudent, data.SecondStudent } };
+        using (var restored = await Edit(fixture.Client, restore))
+        { await Assert.That(restored.StatusCode).IsEqualTo(HttpStatusCode.OK); }
+        using (var originalDraft = await removedStudent.GetAsync($"/api/v1/projects/{projects[data.FirstStudent]:D}"))
+        { await Assert.That(originalDraft.StatusCode).IsEqualTo(HttpStatusCode.OK); }
+        await Assert.That(await database.Projects.CountAsync()).IsEqualTo(3);
+    }
+
+    [Test]
+    public async Task AssignmentEditing_AddsOnlyEnrolledStudentsAndRetriesWithoutDuplicateDrafts()
+    {
+        await using var fixture = await CreateFixtureAsync();
+        var data = await SeedAsync(fixture);
+        var creation = Request(data);
+        using var created = await SendAsync(fixture, data.ClassroomId, creation);
+        await Assert.That(created.StatusCode).IsEqualTo(HttpStatusCode.Created);
+        var path = $"/api/v1/classes/{data.ClassroomId:D}/assignments/{creation.RequestId:D}";
+        var body = new { mutationId = Guid.NewGuid(), expectedRevision = 0, title = creation.Title,
+            description = creation.Description, instructions = creation.Instructions, dueAtUnixSeconds = creation.DueAtUnixSeconds,
+            studentIds = new[] { data.FirstStudent, data.SecondStudent, data.NotEnrolled } };
+        async Task<HttpResponseMessage> Edit()
+        {
+            using var message = new HttpRequestMessage(HttpMethod.Patch, path) { Content = JsonContent.Create(body) };
+            message.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync());
+            return await fixture.Client.SendAsync(message);
+        }
+        using (var denied = await Edit()) { await Assert.That(denied.StatusCode).IsEqualTo(HttpStatusCode.UnprocessableEntity); }
+        using (var enrolled = await ChangeMemberAsync(fixture, data.ClassroomId, data.NotEnrolled, HttpMethod.Put))
+        { await Assert.That(enrolled.StatusCode).IsEqualTo(HttpStatusCode.NoContent); }
+        using (var added = await Edit()) { await Assert.That(added.StatusCode).IsEqualTo(HttpStatusCode.OK); }
+        using (var retried = await Edit()) { await Assert.That(retried.StatusCode).IsEqualTo(HttpStatusCode.OK); }
+        using var details = await fixture.Client.GetAsync(path);
+        var items = (await details.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("projects").EnumerateArray().ToArray();
+        await Assert.That(items.Length).IsEqualTo(3);
+        var projectId = items.Single(item => item.GetProperty("studentId").GetGuid() == data.NotEnrolled).GetProperty("projectId").GetGuid();
+        using var student = fixture.CreateClient();
+        await fixture.SignInAsync(data.NotEnrolled, student);
+        using (var own = await student.GetAsync($"/api/v1/projects/{projectId:D}"))
+        { await Assert.That(own.StatusCode).IsEqualTo(HttpStatusCode.OK); }
+        using var creationReplay = await SendAsync(fixture, data.ClassroomId, creation);
+        await Assert.That(creationReplay.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        await Assert.That((await creationReplay.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("projects").GetArrayLength()).IsEqualTo(2);
+        await using var scope = fixture.Database.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await Assert.That(await database.Projects.CountAsync()).IsEqualTo(4);
+    }
+
+    [Test]
     public async Task AssignmentCoordinator_EmptyProjectCanBeAssignedWithoutAnEnvironment()
     {
         await using var fixture = await CreateFixtureAsync();
@@ -57,6 +147,19 @@ public sealed class ClassAssignmentCoordinatorTests
         var first = await created.Content.ReadFromJsonAsync<JsonElement>();
         var projects = first.GetProperty("projects").EnumerateArray().ToDictionary(
             row => row.GetProperty("studentId").GetGuid(), row => row.GetProperty("projectId").GetGuid());
+        using (var detail = await fixture.Client.GetAsync($"/api/v1/classes/{data.ClassroomId:D}/assignments/{request.RequestId:D}"))
+        {
+            var body = await detail.Content.ReadFromJsonAsync<JsonElement>();
+            await Assert.That(body.GetProperty("sourceProjectId").GetGuid()).IsEqualTo(data.SourceProject);
+            await using var metadataScope = fixture.Database.Services.CreateAsyncScope();
+            var metadataDb = metadataScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var expectedOrg = await (from membership in metadataDb.OrganizationMemberships join org in metadataDb.Organizations on membership.OrganizationId equals org.Id
+                where membership.UserId == data.Educator select org.Name).SingleAsync();
+            await Assert.That(body.GetProperty("organizationName").GetString()).IsEqualTo(expectedOrg);
+            await Assert.That(body.GetProperty("creatorName").GetString()).IsEqualTo(await AuthTestRequests.UserNameAsync(fixture, data.Educator));
+            await Assert.That(body.GetProperty("projects")[0].GetProperty("approvalStatus").GetString()).IsEqualTo("not-submitted");
+            await Assert.That(body.GetProperty("projects")[0].GetProperty("published").GetBoolean()).IsFalse();
+        }
         await Assert.That(projects.Count).IsEqualTo(2);
         await Assert.That(projects[data.FirstStudent]).IsNotEqualTo(projects[data.SecondStudent]);
         await Assert.That(projects.Values.Contains(data.SourceProject)).IsFalse();
@@ -95,6 +198,8 @@ public sealed class ClassAssignmentCoordinatorTests
         await Assert.That(changed.StatusCode).IsEqualTo(HttpStatusCode.Conflict);
         using var studentClient = fixture.CreateClient();
         await fixture.SignInAsync(data.FirstStudent, studentClient);
+        using (var detail = await studentClient.GetAsync($"/api/v1/classes/{data.ClassroomId:D}/assignments/{request.RequestId:D}"))
+        { await Assert.That((await detail.Content.ReadFromJsonAsync<JsonElement>()).TryGetProperty("sourceProjectId", out _)).IsFalse(); }
         using (var own = await studentClient.GetAsync("/api/v1/projects/" + projects[data.FirstStudent].ToString("D")))
         { await Assert.That(own.StatusCode).IsEqualTo(HttpStatusCode.OK); }
         using (var other = await studentClient.GetAsync("/api/v1/projects/" + projects[data.SecondStudent].ToString("D")))
@@ -360,7 +465,7 @@ public sealed class ClassAssignmentCoordinatorTests
                 row => row.GetProperty("studentId").GetGuid(), row => row.GetProperty("studentName").GetString());
             await Assert.That(names[data.FirstStudent]).IsEqualTo(firstName);
             await Assert.That(names[data.SecondStudent]).IsEqualTo(await AuthTestRequests.UserNameAsync(fixture, data.SecondStudent));
-            await Assert.That(body.TryGetProperty("sourceProjectId", out _)).IsFalse();
+            await Assert.That(body.GetProperty("sourceProjectId").GetGuid()).IsEqualTo(data.SourceProject);
             await Assert.That(body.TryGetProperty("requestDigest", out _)).IsFalse();
         }
         using (var list = await fixture.Client.GetAsync($"/api/v1/classes/{data.ClassroomId:D}/assignments"))

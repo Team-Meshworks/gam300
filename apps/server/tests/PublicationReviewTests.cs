@@ -43,6 +43,93 @@ public sealed class PublicationReviewTests
     }
 
     [Test]
+    public async Task PublicationReview_EducatorCanPublishAssignedDraftWithoutSubmission()
+    {
+        await using var fixture = await CreateFixtureAsync(new FixtureAssets());
+        var data = await SeedAsync(fixture, false);
+        var integration = new FixturePublicationIntegration();
+        var request = new PublicationRequest(Guid.NewGuid(), 0, """{"audience":"Authenticated","viewerIds":[],"teacherOverride":true}""");
+        var published = await PublishAsync(fixture, data.Educator, data.ProjectId, request, integration);
+        await Assert.That(published.Acknowledgement?.SourceRevision).IsEqualTo((long?)0);
+        var replay = await PublishAsync(fixture, data.Educator, data.ProjectId, request, integration);
+        await Assert.That(replay.IsReplay).IsTrue();
+        await Assert.That(replay.Acknowledgement).IsEqualTo(published.Acknowledgement);
+        var student = await PublishAsync(fixture, data.Student, data.ProjectId,
+            new PublicationRequest(Guid.NewGuid(), 0, request.IntentJson), integration);
+        await Assert.That(student.AccessFailure).IsEqualTo((ProjectAccessFailure?)ProjectAccessFailure.OperationForbidden);
+        await using (var scope = fixture.Database.Services.CreateAsyncScope())
+        {
+            var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var assignment = await database.ClassAssignmentStudents.SingleAsync(row => row.ProjectId == data.ProjectId);
+            assignment.IsActive = false;
+            await database.SaveChangesAsync();
+        }
+        var inactiveReplay = await PublishAsync(fixture, data.Educator, data.ProjectId, request, integration);
+        await Assert.That(inactiveReplay.Acknowledgement).IsNull();
+    }
+    [Test]
+    [Arguments(true)]
+    [Arguments(false)]
+    public async Task PublicationReview_OverrideReplayRequiresCurrentProjectGrants(bool removeManage)
+    {
+        await using var fixture = await CreateFixtureAsync(new FixtureAssets());
+        var data = await SeedAsync(fixture, false);
+        var integration = new FixturePublicationIntegration();
+        var request = new PublicationRequest(Guid.NewGuid(), 0, """{"audience":"Authenticated","viewerIds":[],"teacherOverride":true}""");
+        var published = await PublishAsync(fixture, data.Educator, data.ProjectId, request, integration);
+        await Assert.That(published.Acknowledgement?.SourceRevision).IsEqualTo((long?)0);
+        await using (var scope = fixture.Database.Services.CreateAsyncScope())
+        {
+            var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var grant = await database.ProjectAssignments.SingleAsync(row => row.ProjectId == data.ProjectId && row.UserId == data.Educator);
+            if (removeManage) { grant.CanManage = false; }
+            else { grant.CanPublish = false; }
+            await database.SaveChangesAsync();
+        }
+        var replay = await PublishAsync(fixture, data.Educator, data.ProjectId, request, integration);
+        await Assert.That(replay.Acknowledgement).IsNull();
+        if (removeManage) { await Assert.That(replay.AccessFailure).IsEqualTo((ProjectAccessFailure?)ProjectAccessFailure.NotFound); }
+        else { await Assert.That(replay.Rejection).IsEqualTo((PublicationRejection?)PublicationRejection.PolicyDenied); }
+    }
+    [Test]
+    public async Task PublicationReview_ApprovedReplayAndNewPublicationRequireCurrentPublishGrant()
+    {
+        await using var fixture = await CreateFixtureAsync(new FixtureAssets());
+        var data = await SeedAsync(fixture, false);
+        var submission = Guid.NewGuid();
+        using (var submitted = await SubmitAsync(fixture, data.ProjectId, submission, 0, true))
+        { await Assert.That(submitted.StatusCode).IsEqualTo(HttpStatusCode.Created); }
+        using var educator = fixture.CreateClient();
+        await fixture.SignInAsync(data.Educator, educator);
+        using (var approved = await DecideAsync(fixture, educator, data.ProjectId, submission, 0, "approved"))
+        { await Assert.That(approved.StatusCode).IsEqualTo(HttpStatusCode.Created); }
+        var integration = new FixturePublicationIntegration();
+        var request = Request();
+        var published = await PublishAsync(fixture, data.Educator, data.ProjectId, request, integration);
+        await Assert.That(published.Acknowledgement?.SourceRevision).IsEqualTo((long?)0);
+        async Task SetGrant(bool canPublish)
+        {
+            await using var scope = fixture.Database.Services.CreateAsyncScope();
+            var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var grant = await database.ProjectAssignments.SingleAsync(row => row.ProjectId == data.ProjectId && row.UserId == data.Educator);
+            grant.CanPublish = canPublish;
+            await database.SaveChangesAsync();
+        }
+        await SetGrant(false);
+        var deniedReplay = await PublishAsync(fixture, data.Educator, data.ProjectId, request, integration);
+        var deniedNew = await PublishAsync(fixture, data.Educator, data.ProjectId, Request(), integration);
+        await Assert.That(deniedReplay.Acknowledgement).IsNull();
+        await Assert.That(deniedReplay.Rejection).IsEqualTo((PublicationRejection?)PublicationRejection.PolicyDenied);
+        await Assert.That(deniedNew.Acknowledgement).IsNull();
+        await Assert.That(deniedNew.Rejection).IsEqualTo((PublicationRejection?)PublicationRejection.PolicyDenied);
+        await SetGrant(true);
+        var replay = await PublishAsync(fixture, data.Educator, data.ProjectId, request, integration);
+        await Assert.That(replay.IsReplay).IsTrue();
+        await Assert.That(replay.Acknowledgement).IsEqualTo(published.Acknowledgement);
+        await using var verify = fixture.Database.Services.CreateAsyncScope();
+        await Assert.That(await verify.ServiceProvider.GetRequiredService<ApplicationDbContext>().Publications.CountAsync()).IsEqualTo(1);
+    }
+    [Test]
     public async Task PublicationReview_RealDecisionsGateNewEditionsButDoNotRewriteOrReapproveHistoricalRetries()
     {
         await using var fixture = await CreateFixtureAsync(new FixtureAssets());

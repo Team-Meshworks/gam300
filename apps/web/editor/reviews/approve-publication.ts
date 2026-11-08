@@ -5,12 +5,13 @@ import {
   type PublicationRequest,
 } from "../publications/publication-client";
 import type { ReviewClient } from "./review-client";
+import type { createProgressReviewClient } from "./progress-review-client";
 
 export type ApprovalPublicationIntent = {
   projectId: string;
   actorId: string;
   studentId: string;
-  submissionId: string;
+  submissionId: string | null;
   decisionId: string;
   publicationId: string;
   revision: number;
@@ -48,13 +49,12 @@ export function readApprovalPublication(
     !isId(value.actorId) ||
     !isId(value.projectId) ||
     !isId(value.studentId) ||
-    !isId(value.submissionId) ||
+    !(value.submissionId === null || isId(value.submissionId)) ||
     !isId(value.decisionId) ||
     !isId(value.publicationId) ||
     !Number.isSafeInteger(value.revision) ||
     (value.revision as number) < 0 ||
     typeof value.feedback !== "string" ||
-    !value.feedback.trim() ||
     value.feedback.length > 4000 ||
     value.feedback.includes("\0")
   )
@@ -68,6 +68,7 @@ export async function approveAndPublish(
   intent: ApprovalPublicationIntent,
   decide: ReviewClient["execute"],
   publish: Publish,
+  saveProgress?: ReturnType<typeof createProgressReviewClient>["save"],
 ): Promise<Result> {
   const storageKey = key(intent.actorId, intent.projectId);
   let existing: ApprovalPublicationIntent | null;
@@ -90,18 +91,29 @@ export async function approveAndPublish(
         "The publishing request could not be safely saved or verified. Check any earlier request before continuing.",
     };
   }
-  const decision = await decide(
-    {
-      kind: "decide",
-      projectId: intent.projectId,
-      submissionId: intent.submissionId,
-      decisionId: intent.decisionId,
-      expectedRevision: intent.revision,
-      outcome: "approved",
-      feedback: intent.feedback,
-    },
-    intent.actorId,
-  );
+  const decision =
+    intent.submissionId !== null
+      ? await decide(
+          {
+            kind: "decide",
+            projectId: intent.projectId,
+            submissionId: intent.submissionId,
+            decisionId: intent.decisionId,
+            expectedRevision: intent.revision,
+            outcome: "approved",
+            feedback: intent.feedback,
+          },
+          intent.actorId,
+        )
+      : intent.feedback.trim() && saveProgress
+        ? await saveProgress(intent.projectId, intent.actorId, {
+            reviewId: intent.decisionId,
+            expectedRevision: intent.revision,
+            feedback: intent.feedback,
+          })
+        : intent.feedback.trim()
+          ? { kind: "unknown" as const }
+          : { kind: "confirmed" as const };
   if (decision.kind !== "confirmed") {
     if (decision.kind === "rejected" && !existing) {
       try {
@@ -117,13 +129,20 @@ export async function approveAndPublish(
     }
     return {
       kind: "pending",
-      message: "Approval could not be confirmed. Retry the same request before leaving.",
+      message:
+        intent.submissionId === null
+          ? "The review could not be confirmed. Retry the same request before leaving."
+          : "Approval could not be confirmed. Retry the same request before leaving.",
     };
   }
   const request: PublicationRequest = {
     publicationId: intent.publicationId,
     confirmedRevision: intent.revision,
-    intent: { audience: "Unlisted", viewerIds: [] },
+    intent: {
+      audience: "Unlisted",
+      viewerIds: [],
+      ...(intent.submissionId === null ? { teacherOverride: true } : {}),
+    },
   };
   const result = await publish(
     intent.actorId,
@@ -132,20 +151,37 @@ export async function approveAndPublish(
     request,
     { revision_conflict: "The saved project changed before it could be published." },
   );
-  if (result.kind === "rejected" && result.code === "revision_conflict") {
+  if (result.kind === "rejected" && result.code === "revision_conflict" && !existing) {
     try {
       storage.removeItem(storageKey);
       if (storage.getItem(storageKey) !== null) throw new Error("Storage failed");
       return {
         kind: "revision-conflict",
         message:
-          "Your review and approval were saved, but the project changed before publication. The student must submit the current work for a new review before it can be published.",
+          intent.submissionId === null
+            ? "The project changed before publication. Refresh the project before publishing."
+            : "Your review and approval were saved, but the project changed before publication. Refresh the project before publishing the latest saved work.",
       };
     } catch {
       return {
         kind: "pending",
         message:
           "The project changed and was not published, but the saved request could not be cleared. Retry the same request.",
+      };
+    }
+  }
+  // A first rejection cannot have committed this publication. An older saved
+  // request may already have committed despite an uncertain response.
+  if (result.kind === "rejected" && !existing) {
+    try {
+      storage.removeItem(storageKey);
+      if (storage.getItem(storageKey) !== null) throw new Error("Storage failed");
+      return { kind: "rejected", message: result.message };
+    } catch {
+      return {
+        kind: "pending",
+        message:
+          "Publication was rejected, but the saved request could not be cleared. Retry the same request.",
       };
     }
   }
@@ -164,7 +200,7 @@ export async function approveAndPublish(
     kind: "pending",
     message:
       result.kind === "rejected"
-        ? `Approval was saved, but publication was not confirmed: ${result.message} Retry the same request.`
-        : "Approval was saved, but publication could not be confirmed. Retry the same request.",
+        ? `Publication was not confirmed: ${result.message} Retry the same request.`
+        : "Publication could not be confirmed. Retry the same request.",
   };
 }

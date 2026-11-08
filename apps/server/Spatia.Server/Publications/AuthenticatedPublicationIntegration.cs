@@ -73,7 +73,8 @@ internal sealed class AuthenticatedPublicationIntegration : IPublicationIntegrat
     {
         using var json = JsonDocument.Parse(request.IntentJson);
         var properties = json.RootElement.EnumerateObject().ToArray();
-        if (properties.Length != 2 || properties.Count(item => item.Name == "audience") != 1
+        if (properties.Length is not (2 or 3) || properties.Count(item => item.Name == "audience") != 1
+            || (properties.Length == 3 && properties.Count(item => item.Name == "teacherOverride" && item.Value.ValueKind == JsonValueKind.True) != 1)
             || properties.Count(item => item.Name == "viewerIds") != 1
             || json.RootElement.GetProperty("audience").ValueKind != JsonValueKind.String
             || json.RootElement.GetProperty("viewerIds").ValueKind != JsonValueKind.Array)

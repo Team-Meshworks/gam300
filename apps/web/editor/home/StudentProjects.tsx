@@ -4,7 +4,7 @@ import { createAccountClient } from "../accounts/account-client";
 import { Button } from "../../shared/ui/Button";
 import { Tabs } from "../../shared/ui/Tabs";
 import { listAssignments } from "../projects/assignment-api";
-import { formatLocalDeadline } from "../projects/deadline";
+import { formatDueDate } from "../projects/deadline";
 import { allPages, createReviewClient } from "../reviews/review-client";
 import type { Decision } from "../reviews/review-types";
 import { ProgressReviews } from "../reviews/ProgressReviews";
@@ -94,7 +94,7 @@ export function StudentProjectDetails({
           <>
             <p className="sp-student-meta">
               {row.assignment.className} · Due{" "}
-              {formatLocalDeadline(row.assignment.details.dueAtUnixSeconds) ?? "Unavailable"}
+              {formatDueDate(row.assignment.details.dueAtUnixSeconds) ?? "Unavailable"}
             </p>
             <h2>Project Description:</h2>
             <p>{row.assignment.details.description}</p>
@@ -259,8 +259,8 @@ export function StudentProjects({
             >
               {tab === "published" ? (
                 <p role="status">
-                  Published projects cannot be listed yet. Open publishing from a project to see its
-                  current sharing options.
+                  Published projects cannot be listed here yet. Open a project’s details to see its
+                  sharing link when available.
                 </p>
               ) : (
                 <>
@@ -301,7 +301,7 @@ export function StudentProjects({
                             <>
                               <small>
                                 {row.assignment.className} · Due{" "}
-                                {formatLocalDeadline(row.assignment.details.dueAtUnixSeconds) ??
+                                {formatDueDate(row.assignment.details.dueAtUnixSeconds) ??
                                   "Unavailable"}
                               </small>
                               <span>{row.assignment.details.description}</span>

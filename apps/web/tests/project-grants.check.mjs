@@ -1,8 +1,22 @@
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
+import { realpathSync } from "node:fs";
+import { resolve } from "node:path";
+import { createServer } from "vite";
 import { launchBrowser } from "./browser-security.mjs";
 
-const origin = process.argv[2] ?? "http://127.0.0.1:5182";
+const server = await createServer({
+  root: "tests",
+  cacheDir: "test-results/vite-project-grants",
+  server: {
+    host: "127.0.0.1",
+    port: 0,
+    fs: { allow: [resolve("../.."), realpathSync("node_modules")] },
+  },
+  logLevel: "error",
+});
+await server.listen();
+const origin = `http://127.0.0.1:${server.httpServer.address().port}`;
 const browser = await launchBrowser({ target: origin });
 const administrator = "00000000-0000-4000-8000-000000000001";
 const organization = "00000000-0000-4000-8000-000000000002";
@@ -115,7 +129,7 @@ try {
       });
     return json({}, 404);
   });
-  await page.goto(`${origin}/home`);
+  await page.goto(`${origin}/project-grants-fixture.html`);
   await page.getByRole("heading", { name: "Source", exact: true }).waitFor();
   await page.getByRole("button", { name: "Manage access" }).click();
   let dialog = page.getByRole("dialog", { name: "Project access" });
@@ -206,4 +220,5 @@ try {
   console.log("Project access preservation, recovery and role gates passed");
 } finally {
   await browser.close();
+  await server.close();
 }

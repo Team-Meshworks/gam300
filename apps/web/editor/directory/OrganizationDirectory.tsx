@@ -7,6 +7,7 @@ import { SearchField } from "../../shared/ui/SearchField";
 import { playUiSound } from "../audio/ui-sounds";
 import { AccountList, type AccountActions } from "./AccountList";
 import type { DirectoryOrganization } from "./directory";
+import defaultProjectImage from "../home/assets/default-project-neutral.jpg";
 import "./directory.css";
 
 function countLabel(count: number, noun: string) {
@@ -99,7 +100,7 @@ export function OrganizationDirectory({
                 )
                 .map((project) => (
                   <article className="sp-directory-project" key={project.id}>
-                    {project.cover && <img src={project.cover} alt="" />}
+                    <img src={project.cover || defaultProjectImage} alt="" />
                     <div>
                       <h4>{project.title}</h4>
                       <p className="sp-hint">

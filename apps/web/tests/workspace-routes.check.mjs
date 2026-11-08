@@ -15,7 +15,6 @@ const screens = [
   ["admin/dashboard", "Welcome Back, Test Teacher"],
   ["new-project", "New Project"],
   ["classes", "Classes"],
-  ["review", "Submission review"],
   ["organisations", "All Organisations"],
 ];
 try {
@@ -70,6 +69,10 @@ try {
       })
       .waitFor();
   }
+
+  mode = "Educator";
+  await page.goto(`${origin}/review`);
+  await page.waitForURL(`${origin}/home`);
 
   // Use the mounted screen and authenticated intake adapter, not its local preview.
   mode = "Administrator";

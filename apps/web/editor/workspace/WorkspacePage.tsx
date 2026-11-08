@@ -14,12 +14,12 @@ import { createAssetAdministrationService } from "../asset-administration/asset-
 
 const client = createAccountClient();
 const screens = [
-  { id: "publish", title: "Publish project", roles: ["Administrator", "Educator", "Creator"] },
+  { id: "publish", title: "Publish project", roles: ["Administrator", "Educator"] },
   { id: "assets", title: "3D Assets", roles: ["Administrator"] },
   { id: "spaces", title: "3D Spaces", roles: ["Administrator"] },
   { id: "admin/dashboard", title: "Dashboard", roles: ["Administrator"] },
   { id: "classes", title: "Classes", roles: ["Administrator", "Educator"] },
-  { id: "review", title: "Submission review", roles: ["Creator", "Educator"] },
+  { id: "review", title: "Submission review", roles: ["Creator"] },
   { id: "organisations", title: "Organisations", roles: ["Administrator"] },
 ];
 type Access =
@@ -46,6 +46,15 @@ function OtherWorkspacePage() {
   const [attempt, setAttempt] = useState(0);
   const [logoutError, setLogoutError] = useState("");
   const signingOut = useRef(false);
+  useEffect(() => {
+    if (
+      access.kind === "ready" &&
+      access.session?.role === "Educator" &&
+      location.pathname.replace(/\/$/, "") === "/review"
+    ) {
+      location.replace("/home");
+    }
+  }, [access]);
   useEffect(() => {
     let disposed = false;
     void client.getSession().then(
@@ -138,12 +147,18 @@ function OtherWorkspacePage() {
       name={session.displayName}
       initials={session.displayName.slice(0, 2).toUpperCase()}
       homeHref={review ? "/home" : fallback}
-      variant={dashboard ? "dashboard" : undefined}
+      variant={
+        dashboard
+          ? "dashboard"
+          : screen?.id === "assets" || screen?.id === "spaces"
+            ? "asset-administration"
+            : undefined
+      }
       onSignOut={() => void signOut()}
     >
       {review ? (
         <WorkspaceNavigation role={session.role} current="reviews" />
-      ) : !dashboard && !organisations ? (
+      ) : !dashboard && !organisations && session.role !== "Administrator" ? (
         <nav className="sp-workspace-links" aria-label="Workspace screens">
           <a href="/home">Projects</a>
           {permitted

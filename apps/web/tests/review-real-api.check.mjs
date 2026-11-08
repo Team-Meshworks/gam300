@@ -16,7 +16,7 @@ try {
   const origin = "https://127.0.0.1:" + address.port;
   browser = await launchBrowser({ target: origin });
   const errors = [];
-  async function login(userName) {
+  async function login(userName, review = true) {
     const context = await browser.newContext({ ignoreHTTPSErrors: true });
     await context.route("**/*", (route) =>
       new URL(route.request().url()).origin === origin ? route.continue() : route.abort(),
@@ -29,6 +29,7 @@ try {
     await page.getByLabel("Password", { exact: true }).fill("Synthetic-long-password1!");
     await page.getByRole("button", { name: "Log in", exact: true }).click();
     await page.getByRole("heading", { name: /You.re signed in/ }).waitFor();
+    if (!review) return page;
     await page.goto(origin + "/review");
     await page.getByLabel("Class", { exact: true }).selectOption(classId);
     await page.getByLabel("Assignment", { exact: true }).selectOption({ label: "Assignment" });
@@ -39,7 +40,7 @@ try {
   const student = await login(process.env.SPATIA_REVIEW_STUDENT);
   let teacher;
   if (!unavailable) {
-    teacher = await login(process.env.SPATIA_REVIEW_EDUCATOR);
+    teacher = await login(process.env.SPATIA_REVIEW_EDUCATOR, false);
     const studentId = await student.evaluate(
       async () => (await (await fetch("/api/v1/auth/session")).json()).userId,
     );
@@ -47,17 +48,20 @@ try {
       const data = await (await fetch(`/api/v1/classes/${id}/assignments?limit=20`)).json();
       return data.items.find((item) => item.title === "Assignment").assignmentId;
     }, classId);
-    const returned = new URLSearchParams({
+    const editor = new URLSearchParams({
+      projectId,
       classId,
       assignmentId,
-      reviewProjectId: projectId,
       studentId,
+      review: "1",
     });
-    await teacher.goto(origin + "/home?" + returned);
-    await teacher.getByRole("dialog", { name: "Review submission" }).waitFor();
-    await teacher.getByRole("textbox", { name: "Your review" }).fill("Add a map to the draft.");
-    await teacher.getByRole("button", { name: "Save review" }).click();
-    await teacher.getByRole("textbox", { name: "Your review" }).waitFor({ state: "detached" });
+    await teacher.goto(origin + "/?" + editor);
+    await teacher.getByText("Scene ready", { exact: true }).waitFor();
+    await teacher.getByRole("button", { name: "Review", exact: true }).click();
+    const dialog = teacher.getByRole("dialog", { name: "Reviews" });
+    await dialog.getByLabel("New review").fill("Add a map to the draft.");
+    await dialog.getByRole("button", { name: "Save Changes" }).click();
+    await dialog.waitFor({ state: "detached" });
     await student.goto(origin + "/home");
     await student.locator(`#student-project-${projectId}`).click();
     const progressRead = await student.evaluate(async (id) => {
@@ -99,17 +103,11 @@ try {
     assert.equal(after.length, 0);
   } else {
     await student.getByText("Late submission", { exact: true }).waitFor();
-    await teacher.goto(origin + "/review");
-    await teacher.getByLabel("Class", { exact: true }).selectOption(classId);
-    await teacher.getByLabel("Assignment", { exact: true }).selectOption({ label: "Assignment" });
-    await teacher.locator("#review-student").selectOption(projectId);
-    await teacher.getByText("Current server-saved revision:", { exact: false }).waitFor();
-    await teacher
-      .getByRole("textbox", { name: "Feedback", exact: true })
-      .fill("The saved exhibition is ready.");
-    await teacher.getByRole("button", { name: "Approve submission", exact: true }).click();
-    await teacher.getByRole("button", { name: "Confirm decision", exact: true }).click();
-    await teacher.getByText("Approved for this revision", { exact: true }).waitFor();
+    await teacher.getByRole("button", { name: "Publish", exact: true }).click();
+    const publication = teacher.getByRole("dialog", { name: "Review submission" });
+    await publication.getByLabel("Your review").fill("The saved exhibition is ready.");
+    await publication.getByRole("button", { name: "Approve and publish" }).click();
+    await publication.getByRole("textbox", { name: "Publication link" }).waitFor();
     await student.goto(origin + "/review");
     await student.getByLabel("Class", { exact: true }).selectOption(classId);
     await student.getByLabel("Assignment", { exact: true }).selectOption({ label: "Assignment" });
@@ -121,8 +119,8 @@ try {
       .getByText("The saved exhibition is ready.", { exact: true })
       .waitFor();
     assert.equal(
-      await student.getByRole("button", { name: "Publish project", exact: true }).isDisabled(),
-      true,
+      await student.getByRole("button", { name: "Publish project", exact: true }).count(),
+      0,
     );
     const saveStatus = await student.evaluate(async (id) => {
       const saved = await (await fetch("/api/v1/projects/" + id)).json();
@@ -139,21 +137,21 @@ try {
       return response.status;
     }, projectId);
     assert.equal(saveStatus, 200);
-    await teacher.getByRole("button", { name: "Refresh status", exact: true }).click();
-    await teacher
-      .getByText("Historical submission — not approval of the current revision", { exact: true })
-      .waitFor();
-    await teacher
-      .getByRole("region", { name: "Submitted content" })
-      .getByText("Student draft", { exact: true })
-      .waitFor();
-    await teacher
-      .getByRole("textbox", { name: "Feedback", exact: true })
-      .fill("A newer revision needs review.");
-    assert.equal(
-      await teacher.getByRole("button", { name: "Approve submission", exact: true }).isDisabled(),
-      true,
-    );
+    const stale = await teacher.evaluate(async (id) => {
+      const saved = await (await fetch(`/api/v1/projects/${id}`)).json();
+      const token = await (await fetch("/api/v1/auth/csrf")).json();
+      const response = await fetch(`/api/v1/projects/${id}/publications`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": token.requestToken },
+        body: JSON.stringify({
+          publicationId: crypto.randomUUID(),
+          confirmedRevision: saved.revision - 1,
+          intent: { audience: "Unlisted", viewerIds: [], teacherOverride: true },
+        }),
+      });
+      return response.status;
+    }, projectId);
+    assert.equal(stale, 409, "A stale saved revision cannot be published");
   }
   assert.deepEqual(errors, []);
   console.log(

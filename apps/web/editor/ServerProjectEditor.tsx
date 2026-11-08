@@ -40,6 +40,7 @@ type Candidate = {
 type Active = {
   session: ReturnType<typeof connectServerProjectSession>;
   accountId: string;
+  orgId: string | null;
   controller: AbortController;
   title: string;
 };
@@ -219,12 +220,59 @@ function ServerProjectSession({
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
   const [attempt, setAttempt] = useState(0);
-  const [departure, setDeparture] = useState<"home" | "logout" | "reload" | "publish" | null>(null);
+  const [departure, setDeparture] = useState<"home" | "logout" | "reload" | null>(null);
+  const [reviewAccess, setReviewAccess] = useState<Active | null>(null);
   const [reviewExit, setReviewExit] = useState<{
     context: ProgressContext;
     studentName: string;
     revision: number;
+    mode: "leave" | "publish" | "review";
   } | null>(null);
+
+  useEffect(() => {
+    const context = parseProgressContext(new URLSearchParams(location.search), projectId);
+    if (!active || !context) return;
+    let disposed = false;
+    void (async () => {
+      try {
+        const identity = await accounts.getSession();
+        if (
+          !identity ||
+          identity.userId !== active.accountId ||
+          identity.orgId !== active.orgId ||
+          identity.role !== "Educator" ||
+          identity.mustChangePassword
+        )
+          return;
+        const assignment = await readAssignment(
+          context.classId,
+          context.assignmentId,
+          active.controller.signal,
+        );
+        const current = await accounts.getSession();
+        if (
+          !disposed &&
+          current?.userId === active.accountId &&
+          current.role === "Educator" &&
+          current.orgId === identity.orgId &&
+          !current.mustChangePassword &&
+          assignment.projects.some(
+            (item) =>
+              item.projectId.toLowerCase() === projectId.toLowerCase() &&
+              item.studentId.toLowerCase() === context.studentId.toLowerCase(),
+          )
+        ) {
+          setReviewAccess(active);
+        }
+      } catch {
+        if (!disposed)
+          setError("Review controls could not be loaded. Reopen the student project to try again.");
+      }
+    })();
+    return () => {
+      disposed = true;
+    };
+  }, [active, projectId]);
 
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => {
@@ -261,7 +309,13 @@ function ServerProjectSession({
       onStatus: setStatus,
       ...(recovery ? { recovery } : {}),
     });
-    const owner = { session, accountId: opened.accountId, controller, title: document.title };
+    const owner = {
+      session,
+      accountId: opened.accountId,
+      orgId: identity.orgId,
+      controller,
+      title: document.title,
+    };
     current.current = owner;
     setActive(owner);
     setCandidate(null);
@@ -486,27 +540,28 @@ function ServerProjectSession({
         if (identity?.userId === active.accountId) await accounts.signOut(active.accountId);
       }
       location.assign(
-        departure === "logout"
-          ? "/login"
-          : departure === "publish"
-            ? `/publish?projectId=${encodeURIComponent(projectId)}`
-            : reviewReturnUrl(new URLSearchParams(location.search)),
+        departure === "logout" ? "/login" : reviewReturnUrl(new URLSearchParams(location.search)),
       );
     });
   }
 
-  async function startHomeDeparture() {
+  async function startReview(mode: "leave" | "publish" | "review") {
     const context = parseProgressContext(new URLSearchParams(location.search), projectId);
     if (!context || !active) {
-      setDeparture("home");
+      if (mode === "leave") setDeparture("home");
       return;
     }
     await run(async () => {
       const identity = await accounts.getSession();
-      if (!identity || identity.userId !== active.accountId || identity.mustChangePassword)
+      if (
+        !identity ||
+        identity.userId !== active.accountId ||
+        identity.orgId !== active.orgId ||
+        identity.mustChangePassword
+      )
         throw new Error("Your account changed. Sign in again before reviewing.");
       if (identity.role !== "Educator") {
-        setDeparture("home");
+        if (mode === "leave") setDeparture("home");
         return;
       }
       await active.session.flush();
@@ -526,6 +581,7 @@ function ServerProjectSession({
         !current ||
         current.userId !== active.accountId ||
         current.role !== "Educator" ||
+        current.orgId !== identity.orgId ||
         current.mustChangePassword ||
         !selected
       )
@@ -536,6 +592,7 @@ function ServerProjectSession({
         context,
         studentName: selected.studentName ?? "Student",
         revision: project.revision,
+        mode,
       });
     });
   }
@@ -571,8 +628,13 @@ function ServerProjectSession({
             saving: status === "saving",
             departing: departure !== null || reviewExit !== null,
             save,
-            leave: () => void startHomeDeparture(),
-            publish: () => setDeparture("publish"),
+            leave: () => void startReview("leave"),
+            ...(reviewAccess === active
+              ? {
+                  publish: () => void startReview("publish"),
+                  review: () => void startReview("review"),
+                }
+              : {}),
           }}
         />
       ) : (
@@ -658,16 +720,21 @@ function ServerProjectSession({
           projectId={projectId}
           revision={reviewExit.revision}
           actorId={active.accountId}
+          orgId={active.orgId}
           educator
           autoOpen
-          publication={{
-            studentId: reviewExit.context.studentId,
-            studentName: reviewExit.studentName,
-            projectTitle: active.title,
-          }}
+          {...(reviewExit.mode === "review"
+            ? { startEditing: true }
+            : {
+                publication: {
+                  studentId: reviewExit.context.studentId,
+                  studentName: reviewExit.studentName,
+                  projectTitle: active.title,
+                },
+              })}
           onGuard={() => {}}
           onClose={() => setReviewExit(null)}
-          onSaved={finishReview}
+          onSaved={reviewExit.mode === "leave" ? finishReview : () => setReviewExit(null)}
         />
       )}
       {departure && (

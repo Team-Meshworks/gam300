@@ -52,7 +52,7 @@ try {
   await page.getByLabel("Project title").fill("Empty source project");
   await page.getByLabel("Project description").fill("Blank source project");
   await page.getByLabel("Project instructions").fill("Explore the empty scene.");
-  await page.getByLabel("Due date and time").fill("2035-12-01T15:30");
+  await page.getByLabel(/^Due date/).fill("2035-12-01");
   await page.getByLabel(/^Class/).selectOption(process.env.SPATIA_TEST_CLASS);
   await page.getByRole("checkbox", { name: new RegExp(process.env.SPATIA_TEST_STUDENT) }).check();
   const creating = page.waitForResponse(
@@ -77,14 +77,7 @@ try {
   assert.equal(initialAssigned.request().postDataJSON().sourceProjectId, sourceId);
   assert.equal((await initialAssigned.json()).projects.length, 1);
   await page.waitForURL(/\/home\?/);
-  await page.getByRole("button", { name: "Close project details" }).click();
-  await page
-    .locator("article")
-    .filter({ has: page.getByRole("heading", { name: "Empty source project", exact: true }) })
-    .last()
-    .getByRole("button", { name: "View Details" })
-    .click();
-  await page.getByRole("button", { name: "Open project", exact: true }).click();
+  await page.goto(`${origin}/?projectId=${sourceId}`);
   await page.waitForURL(`**/?projectId=${sourceId}`);
   await sceneReady(page);
   await page.getByRole("button", { name: "Scenes", exact: true }).click();
@@ -111,11 +104,11 @@ try {
   await page.waitForURL(`${origin}/home`);
   await page.getByRole("button", { name: "Classes", exact: true }).click();
   await page.getByRole("button", { name: "New assignment", exact: true }).click();
-  await page.getByLabel("Source project").selectOption(sourceId);
+  assert.equal(await page.getByLabel("Source project").count(), 0);
   await page.getByLabel("Project title").fill("Empty class assignment");
   await page.getByLabel("Project description").fill("Independent exhibit");
   await page.getByLabel("Project instructions").fill("Explain each exhibit.");
-  await page.getByLabel("Due date and time").fill("2035-12-01T15:30");
+  await page.getByLabel(/^Due date/).fill("2035-12-01");
   await page.getByLabel(/^Class/).selectOption(process.env.SPATIA_TEST_CLASS);
   await page.getByRole("checkbox", { name: new RegExp(process.env.SPATIA_TEST_STUDENT) }).check();
   const assigning = page.waitForResponse(
@@ -143,10 +136,7 @@ try {
   await student.waitForURL(`**/?projectId=${assignedId}`);
   await sceneReady(student);
   await student.getByRole("button", { name: "Scenes", exact: true }).click();
-  assert.equal(
-    await student.getByLabel("Scene name", { exact: true }).inputValue(),
-    "Edited empty scene",
-  );
+  assert.equal(await student.getByLabel("Scene name", { exact: true }).inputValue(), "Scene");
   const outsider = await browser.newContext({ ignoreHTTPSErrors: true });
   await login(outsider, process.env.SPATIA_TEST_OUTSIDER);
   assert.equal(

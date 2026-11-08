@@ -261,6 +261,7 @@ function ClassReviews({
           className={className}
           role={session.role}
           actorId={session.userId}
+          orgId={session.orgId}
           onGuard={onGuard}
         />
       )}

@@ -65,6 +65,39 @@ it.each([
   expect(result.ok).toBe(accepted);
 });
 
+it.each([
+  ["a".repeat(64), true],
+  ["A".repeat(64), true],
+  ["invalid", false],
+  [null, false],
+])(
+  "validates the content hash used to identify generated previews: %s",
+  async (sha256, accepted) => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) =>
+        Response.json(
+          url === "/api/v1/auth/csrf"
+            ? { requestToken: "current-token" }
+            : {
+                ...candidate,
+                id: actor,
+                sha256,
+                inspectionUrl: `/api/v1/admin/assets/${actor}/bytes`,
+              },
+        ),
+      ),
+    );
+    const result = await createAssetAdministrationService(actor).changeAvailability(
+      actor,
+      "hide",
+      new AbortController().signal,
+    );
+    expect(result.ok).toBe(accepted);
+    if (result.ok) expect(result.value.sha256).toBe(sha256);
+  },
+);
+
 it("sends an explicit destructive opt-in with the current CSRF token on the same origin", async () => {
   // Capture the token request before the mutation to prove writes use the current account session
   const calls: { url: string; init: RequestInit | undefined }[] = [];

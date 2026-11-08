@@ -75,7 +75,15 @@ try {
       reads.projects++;
       return route.fulfill({
         json: {
-          items: [{ id: userId, title: projectTitle, status: "Draft" }],
+          items: [
+            { id: userId, title: projectTitle, status: "Draft" },
+            {
+              id: "bbf2b1d0-b388-4df8-a995-930148dcdd19",
+              title: "Project with cover",
+              status: "Draft",
+              cover: "/entry/assets/login-exhibit.png",
+            },
+          ],
           nextCursor: null,
         },
       });
@@ -112,6 +120,21 @@ try {
   );
   assert.equal(await page.getByRole("navigation", { name: "Workspace" }).count(), 0);
   assert.equal(await page.getByRole("button", { name: "Refresh directory" }).count(), 0);
+  const defaultCard = page.locator(".sp-directory-project").filter({ hasText: projectTitle });
+  await defaultCard.getByRole("heading", { name: projectTitle }).waitFor();
+  const defaultCover = defaultCard.locator("img");
+  assert.equal(await defaultCover.count(), 1, "a project without a cover has a default image");
+  assert.match(
+    await defaultCover.getAttribute("src"),
+    /default-project-neutral(?:-[\w-]+)?\.jpg(?:\?|$)/,
+  );
+  await defaultCover.evaluate((image) => image.decode());
+  const explicitCover = page
+    .locator(".sp-directory-project")
+    .filter({ hasText: "Project with cover" })
+    .locator("img");
+  assert.equal(await explicitCover.getAttribute("src"), "/entry/assets/login-exhibit.png");
+  await explicitCover.evaluate((image) => image.decode());
   await page.getByRole("button", { name: "+ Add Accounts", exact: true }).focus();
   await page.keyboard.press("Enter");
   let dialog = page.getByRole("dialog");

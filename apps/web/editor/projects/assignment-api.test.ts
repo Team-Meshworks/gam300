@@ -166,7 +166,7 @@ it("uses authorized paginated choices and only enrolled students", async () => {
       if (path.startsWith("/api/v1/classes/class/eligible-students"))
         return json({
           items: [
-            { userId: "a", userName: "Alice", enrolled: true },
+            { userId: "a", userName: "alice123", displayName: "Alice", enrolled: true },
             { userId: "b", userName: "Bob", enrolled: false },
           ],
           nextCursor: null,
@@ -191,6 +191,6 @@ it("uses authorized paginated choices and only enrolled students", async () => {
     projects: [{ projectId: "two", title: "Two", revision: 1 }],
   });
   expect(await enrolledStudents("class")).toEqual([
-    { id: "a", name: "Alice", account: "Alice", classIds: ["class"] },
+    { id: "a", name: "Alice", account: "alice123", classIds: ["class"] },
   ]);
 });

@@ -164,8 +164,7 @@ try {
     console.log("Legacy class and assignment routes use the guarded workspace");
   } else if (process.argv[3] === "admin") {
     account = { ...session, role: "Administrator", orgId: null };
-    await page.goto(origin + "/home");
-    await page.getByRole("button", { name: "Classes", exact: true }).click();
+    await page.goto(origin + "/classes");
     await page.getByRole("button", { name: "New class" }).click();
     await page.getByLabel("Class name").fill("First class");
     await page
@@ -174,14 +173,8 @@ try {
     assert.equal(await page.getByRole("option", { name: "Inactive school" }).count(), 0);
     await page.getByRole("button", { name: "Confirm", exact: true }).click();
     await page.getByText("Class change confirmed.").waitFor();
-    assert.equal(
-      await page.getByRole("link", { name: "Organisations" }).getAttribute("href"),
-      "/organisations",
-    );
-    assert.equal(
-      await page.getByRole("link", { name: "Dashboard" }).getAttribute("href"),
-      "/admin/dashboard",
-    );
+    assert.equal(await page.getByRole("navigation", { name: "Workspace" }).count(), 1);
+    assert.equal(await page.getByRole("button", { name: "Back to dashboard" }).count(), 1);
     for (const width of [1440, 390]) {
       await page.setViewportSize({ width, height: 1000 });
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
@@ -262,13 +255,8 @@ try {
     await touchPage.close();
 
     await page.goto(origin + "/review");
-    const reviews = page
-      .getByRole("navigation", { name: "Workspace" })
-      .getByRole("link", { name: "Submissions and reviews", exact: true });
-    assert.equal(await reviews.getAttribute("aria-current"), "page");
-    await reviews.hover();
-    const reviewed = await textContrast(reviews);
-    assert.ok(reviewed >= 4.5, `Selected reviews hover contrast is ${reviewed.toFixed(2)}:1`);
+    await page.waitForURL("**/home");
+    assert.equal(await page.getByRole("link", { name: "Submissions and reviews" }).count(), 0);
 
     for (const width of [1440, 1024, 768, 390]) {
       await page.setViewportSize({ width, height: 1000 });
