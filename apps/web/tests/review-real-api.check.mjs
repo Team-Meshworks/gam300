@@ -41,13 +41,13 @@ try {
     async (id) => (await fetch("/api/v1/projects/" + id)).json(),
     projectId,
   );
-  let teacher;
+  let teacher, assignmentId;
   if (!unavailable) {
     teacher = await login(process.env.SPATIA_REVIEW_EDUCATOR);
     const studentId = await student.evaluate(
       async () => (await (await fetch("/api/v1/auth/session")).json()).userId,
     );
-    const assignmentId = await teacher.evaluate(async (id) => {
+    assignmentId = await teacher.evaluate(async (id) => {
       const data = await (await fetch(`/api/v1/classes/${id}/assignments?limit=20`)).json();
       return data.items.find((item) => item.title === "Assignment").assignmentId;
     }, classId);
@@ -118,11 +118,14 @@ try {
     assert.ok(evidence.detail.assetReferences.length > 0, "Resolved asset references are recorded");
   }
   if (teacher) {
-    await teacher.goto(origin + "/review");
-    await teacher.getByLabel("Class", { exact: true }).selectOption(classId);
-    await teacher.getByLabel("Assignment", { exact: true }).selectOption({ label: "Assignment" });
-    await teacher.locator("#review-student").selectOption(projectId);
+    await teacher.goto(origin + "/review?projectId=" + encodeURIComponent(projectId));
     await teacher.getByText("Current server-saved revision:", { exact: false }).waitFor();
+    assert.equal(await teacher.getByLabel("Class", { exact: true }).inputValue(), classId);
+    assert.equal(
+      await teacher.getByLabel("Assignment", { exact: true }).inputValue(),
+      assignmentId,
+    );
+    assert.equal(await teacher.locator("#review-student").inputValue(), projectId);
   } else {
     teacher = await login(process.env.SPATIA_REVIEW_EDUCATOR);
   }

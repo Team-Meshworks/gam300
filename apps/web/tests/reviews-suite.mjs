@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-for (const test of ["review-workflow", "review-exit-publish"]) {
+for (const test of ["review-workflow", "review-exit-publish", "review-editor-exit"]) {
   const result = spawnSync(
     process.execPath,
     [`tests/${test}.check.mjs`, ...process.argv.slice(2)],
