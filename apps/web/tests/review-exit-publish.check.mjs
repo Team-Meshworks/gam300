@@ -34,6 +34,7 @@ let reviews = [],
   lost = true,
   conflict = false,
   unsupported = false,
+  saveDenied = false,
   historyUnavailable = true;
 try {
   await server.listen();
@@ -57,6 +58,7 @@ try {
     if (path === "/api/v1/auth/csrf") return reply({ requestToken: "csrf" });
     if (path.endsWith("/progress-reviews")) {
       if (req.method() === "POST") {
+        if (saveDenied) return reply({ code: "project_not_found" }, 403);
         const b = body(),
           row = {
             id: b.reviewId,
@@ -147,6 +149,18 @@ try {
   assert.equal(reviews.length, 1);
   assert.equal(decisions.length, 0);
   assert.equal(publishes.length, 0);
+  d = await open();
+  await d.getByText("Saved only", { exact: true }).waitFor();
+  await d.getByLabel("Your review").fill("Keep this unsaved review");
+  saveDenied = true;
+  await d.getByRole("button", { name: "Save review" }).click();
+  await d.getByRole("alert").waitFor();
+  assert.equal(await d.getByText("Saved only", { exact: true }).count(), 0);
+  await d.getByRole("button", { name: "Retry loading reviews" }).click();
+  await d.getByText("Saved only", { exact: true }).waitFor();
+  assert.equal(await d.getByLabel("Your review").inputValue(), "Keep this unsaved review");
+  saveDenied = false;
+  await d.getByLabel("Your review").fill("");
   d = await open();
   await d.getByLabel("Your review").fill("Ready for publishing");
   await d.getByRole("button", { name: "Approve and publish" }).click();

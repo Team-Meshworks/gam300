@@ -289,16 +289,17 @@ export function ProgressReviews({
     } else if (result.kind === "rejected" && !retry) {
       setPhase("ready");
       setIntent(null);
-      setError(result.error.message);
-      if (result.error.status === 409) {
+      if ([401, 403, 404].includes(result.error.status)) {
+        setItems([]);
+        setCursor(null);
+        setHistoryError(result.error.message);
+      } else if (result.error.status === 409) {
         setConflict(true);
         setError(
           result.error.message + " Copy your text, then close this dialog and refresh the project.",
         );
-      }
-      if ([401, 403, 404].includes(result.error.status)) {
-        setItems([]);
-        setCursor(null);
+      } else {
+        setError(result.error.message);
       }
     } else {
       setPhase("unknown");
