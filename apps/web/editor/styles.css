@@ -530,7 +530,7 @@ a {
   top: calc(100% + 0.25rem);
   left: 0;
   z-index: 10;
-  width: 9rem;
+  width: 12rem;
   max-width: calc(100vw - 2rem);
   padding: 0.25rem;
   border: 1px solid #ded9d1;
@@ -2351,30 +2351,18 @@ a {
   flex: 1;
 }
 
-.server-session {
-  position: relative;
-  flex-shrink: 0;
-  z-index: 20;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  align-items: center;
-  padding: 0.5rem 1rem;
-  background: var(--card);
-  border-top: 1px solid var(--line);
-}
-.server-session > span {
-  flex: 1;
-}
 .server-session-error {
   position: fixed;
   bottom: 4rem;
   left: 1rem;
   z-index: 21;
-  max-width: 40rem;
+  max-width: min(40rem, calc(100vw - 2rem));
   padding: 1rem;
-  background: #fff;
-  color: #a02020;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: var(--card-raised);
+  color: var(--text);
+  box-shadow: var(--shadow);
 }
 
 /* Keep search/reset within the existing picker rather than adding another control row */

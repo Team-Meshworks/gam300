@@ -89,10 +89,7 @@ try {
   );
   await page.getByRole("button", { name: "Rename scene", exact: true }).click();
   assert.equal((await saving).status(), 200);
-  await page
-    .locator('.server-session [role="status"]')
-    .filter({ hasText: "Saved to server" })
-    .waitFor();
+  await page.locator('.save-state[data-state="saved"]').waitFor();
   const sourceResponse = await teacher.request.get(`${origin}/api/v1/projects/${sourceId}`);
   assert.equal(sourceResponse.status(), 200);
   const source = await sourceResponse.json();

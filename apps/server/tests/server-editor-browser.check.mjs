@@ -106,11 +106,7 @@ export async function checkServerEditor(
     await page
       .getByRole("button", { name: "Rename scene", exact: true })
       .click();
-    await page.waitForFunction(
-      () =>
-        document.querySelector('.server-session [role="status"]')
-          ?.textContent === "Saved to server",
-    );
+    await page.locator('.save-state[data-state="saved"]').waitFor();
     const fresh = await open(accounts[0]);
     assert.equal(
       await fresh.getByLabel("Scene name", { exact: true }).inputValue(),
@@ -123,11 +119,7 @@ export async function checkServerEditor(
     await fresh
       .getByRole("button", { name: "Rename scene", exact: true })
       .click();
-    await fresh.waitForFunction(
-      () =>
-        document.querySelector('.server-session [role="status"]')
-          ?.textContent === "Saved to server",
-    );
+    await fresh.locator('.save-state[data-state="saved"]').waitFor();
     await page
       .getByLabel("Scene name", { exact: true })
       .fill("Keep these conflicting edits");
@@ -135,9 +127,10 @@ export async function checkServerEditor(
       .getByRole("button", { name: "Rename scene", exact: true })
       .click();
     await page
-      .locator('.server-session [role="status"]')
+      .getByRole("alert")
       .filter({ hasText: "Another revision" })
       .waitFor();
+    await page.getByLabel("Project options", { exact: true }).click();
     await page.getByRole("button", { name: "Log out", exact: true }).click();
     await page
       .getByRole("button", { name: "Save and continue", exact: true })

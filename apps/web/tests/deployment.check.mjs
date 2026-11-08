@@ -94,10 +94,7 @@ try {
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   assert.equal(await page.getByLabel("Selected position").textContent(), originalPosition);
   await page.getByRole("button", { name: "Redo", exact: true }).click();
-  await page.waitForFunction(
-    () =>
-      document.querySelector('.server-session [role="status"]')?.textContent === "Saved to server",
-  );
+  await page.locator('.save-state[data-state="saved"]').waitFor();
   assert.equal(project.document().scenes[0].environmentAssetId, "test-room-v1");
   assert.equal(project.document().scenes[0].objects.length, 1);
   assert.deepEqual(

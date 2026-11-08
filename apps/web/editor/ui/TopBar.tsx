@@ -110,7 +110,7 @@ export function TopBar({
               id="project-save"
               type="button"
               title="Save to server · Ctrl+S"
-              disabled={busy}
+              disabled={busy || session.busy}
               onClick={() => {
                 closeMenu();
                 void session.save();
@@ -122,13 +122,33 @@ export function TopBar({
               id="project-save-as"
               type="button"
               title="Export project file · Ctrl+Shift+S"
-              disabled={busy}
+              disabled={busy || session.busy}
               onClick={() => {
                 closeMenu();
                 void session.save(true);
               }}
             >
               Export project file
+            </button>
+            <button
+              type="button"
+              disabled={busy || session.busy}
+              onClick={() => {
+                closeMenu();
+                session.openServerVersion();
+              }}
+            >
+              Open server version
+            </button>
+            <button
+              type="button"
+              disabled={busy || session.busy}
+              onClick={() => {
+                closeMenu();
+                session.logout();
+              }}
+            >
+              Log out
             </button>
           </div>
         </details>
