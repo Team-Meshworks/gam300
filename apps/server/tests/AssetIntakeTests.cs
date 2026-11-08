@@ -553,7 +553,15 @@ public sealed class AssetIntakeTests
         var editionId = Guid.NewGuid();
         var json = JsonNode.Parse(ProjectTestDocuments.Create(projectId, "Retained " + assetId, version))!;
         var scene = json["scenes"]![0]!;
-        if (kind == "environment") { scene["environmentAssetId"] = assetId.ToString(); }
+        if (kind == "environment")
+        {
+            scene["environmentAssetId"] = assetId.ToString();
+            // Released v1 names and scales can exceed v2 limits before the room is removed
+            json["title"] = new string('t', 257);
+            scene["name"] = new string('s', 255) + "\U0001F600";
+            scene["objects"]![0]!["name"] = new string('o', 257);
+            scene["objects"]![0]!["transform"]!["scale"] = new JsonArray(10001, 2, 3);
+        }
         if (kind == "model")
         {
             scene["objects"]![0]!["assetId"] = assetId.ToString();
@@ -669,7 +677,18 @@ public sealed class AssetIntakeTests
         await Assert.That(current.GetProperty("revision").GetInt64()).IsEqualTo(1L);
         var currentJson = current.GetProperty("document").GetRawText();
         await Assert.That(AssetDocumentReferences.Read(currentJson).Contains(assetId.ToString())).IsFalse();
-        await Assert.That(current.GetProperty("document").GetProperty("title").GetString()).IsEqualTo("Retained " + assetId);
+        await Assert.That(current.GetProperty("document").GetProperty("title").GetString()).IsEqualTo(kind == "environment" ? new string('t', 256) : "Retained " + assetId);
+        if (kind == "environment")
+        {
+            var converted = current.GetProperty("document").GetProperty("scenes")[0];
+            await Assert.That(converted.GetProperty("name").GetString()).IsEqualTo(new string('s', 255));
+            await Assert.That(converted.GetProperty("environmentAssetId").ValueKind).IsEqualTo(JsonValueKind.Null);
+            var objects = converted.GetProperty("objects");
+            await Assert.That(objects[0].GetProperty("name").GetString()).IsEqualTo(new string('o', 256));
+            await Assert.That(objects[0].GetProperty("transform").GetProperty("scale")[0].GetDouble()).IsEqualTo(10000d);
+            await Assert.That(objects[0].GetProperty("transform").GetProperty("scale")[1].GetDouble()).IsEqualTo(2d);
+            await Assert.That(objects[1].GetProperty("name").GetString()).IsEqualTo(scene["objects"]![1]!["name"]!.GetValue<string>());
+        }
         if (kind == "model") { await Assert.That(current.GetProperty("document").GetProperty("scenes")[0].GetProperty("objects").GetArrayLength()).IsEqualTo(0); }
         using var deniedBytes = await fixture.Client.GetAsync($"/api/v1/projects/{projectId}/assets/{assetId}/bytes");
         await Assert.That(deniedBytes.StatusCode).IsEqualTo(HttpStatusCode.NotFound);

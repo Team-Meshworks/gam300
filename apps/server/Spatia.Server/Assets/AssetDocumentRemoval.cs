@@ -18,12 +18,20 @@ internal static class AssetDocumentRemoval
             && scenes.Any(scene => scene!["environmentAssetId"]?.GetValue<string>() == assetId))
         {
             root["schemaVersion"] = 2;
+            // Keep the released document valid when the required empty room moves it to v2
+            // Only names and scale have narrower limits; identities and references stay untouched
+            LimitName(root, "title");
             foreach (var scene in scenes)
             {
+                LimitName(scene!, "name");
                 foreach (var field in new[] { "groups", "zones", "viewpoints", "rules" }) { scene![field] = new JsonArray(); }
                 foreach (var item in scene!["objects"]!.AsArray())
                 {
-                    item!["parentId"] = null;
+                    LimitName(item!, "name");
+                    var scale = item!["transform"]!["scale"]!.AsArray();
+                    for (var axis = 0; axis < scale.Count; axis++)
+                    { scale[axis] = Math.Min(scale[axis]!.GetValue<double>(), 10000); }
+                    item["parentId"] = null;
                     item["visible"] = true;
                     item["components"] = new JsonArray();
                 }
@@ -92,6 +100,14 @@ internal static class AssetDocumentRemoval
             }
         }
         return root.ToJsonString(JsonOptions);
+    }
+
+    private static void LimitName(JsonNode node, string field)
+    {
+        var text = node[field]!.GetValue<string>();
+        if (text.Length <= 256) { return; }
+        // Leave a complete Unicode character at the v2 boundary
+        node[field] = text[..(char.IsHighSurrogate(text[255]) ? 255 : 256)];
     }
 
     private static void RemoveAssets(JsonArray? components, string assetId, HashSet<string> removed)
