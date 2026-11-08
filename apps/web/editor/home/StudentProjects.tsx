@@ -7,6 +7,11 @@ import { listAssignments } from "../projects/assignment-api";
 import { formatLocalDeadline } from "../projects/deadline";
 import { allPages, createReviewClient } from "../reviews/review-client";
 import type { Decision } from "../reviews/review-types";
+import { ProgressReviews } from "../reviews/ProgressReviews";
+import { PublicationShare } from "../publications/PublicationShare";
+import { readStudentPublication, type StudentPublication } from "./student-publication";
+import "../publications/publication.css";
+import "../reviews/reviews.css";
 import { createWorkspaceClient } from "./workspace-api";
 import { studentProjectRows, type StudentProjectRow } from "./student-projects";
 import { loadStudentFeedback } from "./student-feedback";
@@ -16,12 +21,54 @@ import "./student-projects.css";
 const workspace = createWorkspaceClient();
 const accounts = createAccountClient();
 const reviews = createReviewClient();
+const ignoreGuard = () => {};
+
+function StudentPublicationLink({ projectId, actorId }: { projectId: string; actorId: string }) {
+  const [result, setResult] = useState<{ item: StudentPublication | null; error: string } | null>(
+    null,
+  );
+  const [attempt, setAttempt] = useState(0);
+  useEffect(() => {
+    const controller = new AbortController();
+    void readStudentPublication(projectId, actorId, fetch, controller.signal).then(
+      (item) => {
+        if (!controller.signal.aborted) setResult({ item, error: "" });
+      },
+      () => {
+        if (!controller.signal.aborted)
+          setResult({ item: null, error: "The published link could not be loaded." });
+      },
+    );
+    return () => controller.abort();
+  }, [projectId, actorId, attempt]);
+  if (!result) return <p role="status">Checking for a published project…</p>;
+  if (result.error)
+    return (
+      <div>
+        <p role="alert">{result.error}</p>
+        <Button
+          onClick={() => {
+            setResult(null);
+            setAttempt((value) => value + 1);
+          }}
+        >
+          Retry published link
+        </Button>
+      </div>
+    );
+  return result.item ? (
+    <PublicationShare url={result.item.visitorUrl} unlisted />
+  ) : (
+    <p>This project has not been published yet.</p>
+  );
+}
 
 export function StudentProjectDetails({
   row,
   feedback,
   feedbackLoading,
   feedbackError,
+  actorId,
   onClose,
   onOpen,
 }: {
@@ -29,6 +76,7 @@ export function StudentProjectDetails({
   feedback: readonly Decision[];
   feedbackLoading: boolean;
   feedbackError: string;
+  actorId: string;
   onClose: () => void;
   onOpen: () => void;
 }) {
@@ -54,23 +102,26 @@ export function StudentProjectDetails({
             <p>{row.assignment.details.instructions}</p>
           </>
         )}
+        <StudentPublicationLink
+          key={`${row.project.projectId}:${actorId}`}
+          projectId={row.project.projectId}
+          actorId={actorId}
+        />
         {!row.assignment && <p>Assignment details are not available for this project.</p>}
         <h2>Comments:</h2>
-        <div className="sp-student-comments">
-          {feedbackLoading && <p role="status">Loading feedback…</p>}
-          {feedbackError && <p role="alert">{feedbackError}</p>}
-          {!feedbackLoading && !feedbackError && !feedback.length && (
-            <p>No feedback has been recorded yet.</p>
-          )}
-          {feedback.map((decision) => (
-            <article key={decision.id}>
-              <time dateTime={decision.decidedAt}>
-                {new Date(decision.decidedAt).toLocaleDateString()}
-              </time>
-              <p>{decision.feedback}</p>
-            </article>
-          ))}
-        </div>
+        {row.assignment && (
+          <ProgressReviews
+            key={`${row.project.projectId}:${actorId}`}
+            projectId={row.project.projectId}
+            revision={row.project.revision}
+            actorId={actorId}
+            educator={false}
+            decisions={feedback}
+            decisionsLoading={feedbackLoading}
+            decisionsError={feedbackError}
+            onGuard={ignoreGuard}
+          />
+        )}
         <div className="sp-student-detail-actions">
           <Button
             variant="primary"
@@ -183,6 +234,7 @@ export function StudentProjects({
           feedback={feedback}
           feedbackLoading={feedbackLoading}
           feedbackError={feedbackError}
+          actorId={session.userId}
           onClose={() => setSelected(null)}
           onOpen={() => onOpenProject(selected.project.projectId)}
         />

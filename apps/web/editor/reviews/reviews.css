@@ -79,3 +79,81 @@
     font-size: 30px;
   }
 }
+.sp-progress-list {
+  width: 100%;
+}
+.sp-progress-entry,
+.sp-progress-draft {
+  background: #fffdfb;
+  border: 1px solid #e7e2dc;
+  padding: 16px;
+  color: #515151;
+  font-size: 15px;
+}
+.sp-progress-entry + .sp-progress-entry {
+  border-top: 0;
+}
+.sp-progress-entry time,
+.sp-progress-draft time {
+  color: #8a8989;
+  display: block;
+  margin-bottom: 8px;
+}
+.sp-progress-entry p {
+  margin: 0;
+  white-space: pre-wrap;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.sp-progress-draft {
+  background: #f5f4f2;
+  border: 1px dashed #292723;
+}
+.sp-progress-draft label {
+  display: block;
+}
+.sp-progress-draft textarea {
+  width: 100%;
+  min-height: 70px;
+  font: inherit;
+}
+.sp-progress-actions {
+  justify-content: flex-end;
+  margin-top: 20px;
+}
+.sp-progress-dialog.sp-dialog {
+  position: fixed;
+  width: min(960px, calc(100vw - 32px));
+  max-width: none;
+  padding: 50px;
+  border-radius: 20px;
+}
+.sp-progress-dialog .sp-dialog-dismiss {
+  position: absolute;
+  top: 50px;
+  right: 50px;
+  width: 32px;
+  height: 32px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+}
+.sp-progress-dialog > h2 {
+  font-size: 25px;
+}
+.sp-progress-dialog .sp-dialog-body {
+  margin-bottom: 0;
+}
+.sp-progress-dialog .sp-progress-add {
+  justify-self: start;
+}
+@media (max-width: 640px) {
+  .sp-progress-dialog.sp-dialog {
+    padding: 24px;
+  }
+  .sp-progress-dialog .sp-dialog-dismiss {
+    top: 24px;
+    right: 24px;
+  }
+}

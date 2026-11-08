@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { progressEditorUrl, reviewReturnUrl } from "./progress-navigation";
+import { progressEditorUrl, reviewReturnUrl, parseProgressContext } from "./progress-navigation";
 
 it("keeps the selected student's project and assignment together through editor exit", () => {
   const context = {
@@ -9,6 +9,10 @@ it("keeps the selected student's project and assignment together through editor 
     projectId: "44444444-4444-4444-8444-444444444444",
   };
   const editor = new URL(progressEditorUrl(context), "https://example.test");
+  expect(parseProgressContext(editor.searchParams, context.projectId)).toEqual(context);
+  expect(
+    parseProgressContext(editor.searchParams, "55555555-5555-4555-8555-555555555555"),
+  ).toBeNull();
   expect(editor.searchParams.get("projectId")).toBe(context.projectId);
   const returned = new URL(reviewReturnUrl(editor.searchParams), "https://example.test");
   expect(returned.pathname).toBe("/home");
@@ -22,4 +26,7 @@ it("does not start review for normal editor visits or incomplete context", () =>
     reviewReturnUrl(new URLSearchParams("projectId=44444444-4444-4444-8444-444444444444")),
   ).toBe("/home");
   expect(reviewReturnUrl(new URLSearchParams("review=1&projectId=invalid"))).toBe("/home");
+  expect(
+    parseProgressContext(new URLSearchParams("review=1&projectId=invalid"), "invalid"),
+  ).toBeNull();
 });

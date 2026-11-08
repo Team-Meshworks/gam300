@@ -15,6 +15,69 @@ namespace Spatia.Server.Tests;
 public sealed class PublicationEndpointTests
 {
     [Test]
+    public async Task PublicationLinks_StudentCanFindCurrentUnlistedLinkWithoutExposingOtherProjects()
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync();
+        var (data, _) = await PrepareAsync(fixture);
+        var id = Guid.NewGuid();
+        using var published = await PublishAsync(fixture, data.ProjectId, id, audience: "Unlisted");
+        await Assert.That(published.StatusCode).IsEqualTo(HttpStatusCode.Created);
+        await fixture.SignInAsync(data.Student);
+        using var links = await fixture.Client.GetAsync($"/api/v1/projects/{data.ProjectId}/publication-links");
+        await Assert.That(links.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        var body = await links.Content.ReadFromJsonAsync<JsonElement>();
+        await Assert.That(body.GetProperty("items").GetArrayLength()).IsEqualTo(1);
+        await Assert.That(body.GetProperty("items")[0].GetProperty("visitorUrl").GetString()).IsEqualTo($"https://publications.example.test/p/{id:D}");
+        await fixture.SignInAsync(data.OtherStudent);
+        using var denied = await fixture.Client.GetAsync($"/api/v1/projects/{data.ProjectId}/publication-links");
+        await Assert.That(denied.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+        await fixture.SignInAsync(data.Educator);
+        using var revoke = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/publications/{id}/access")
+        { Content = JsonContent.Create(new { audience = "Unlisted", viewerIds = Array.Empty<Guid>(), action = "revoke" }) };
+        revoke.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync());
+        using var revoked = await fixture.Client.SendAsync(revoke);
+        await Assert.That(revoked.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
+        await fixture.SignInAsync(data.Student);
+        using var after = await fixture.Client.GetAsync($"/api/v1/projects/{data.ProjectId}/publication-links");
+        await Assert.That((await after.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("items").GetArrayLength()).IsEqualTo(0);
+    }
+
+    [Test]
+    public async Task Publish_UnlistedEditionAllowsAnonymousReadAndRespectsRevocation()
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync();
+        var (data, asset) = await PrepareAsync(fixture);
+        var id = Guid.NewGuid();
+        using var published = await PublishAsync(fixture, data.ProjectId, id, audience: "Unlisted");
+        await Assert.That(published.StatusCode).IsEqualTo(HttpStatusCode.Created);
+        using var anonymous = fixture.CreateClient();
+        using var snapshot = await anonymous.GetAsync($"/api/v1/publications/{id}");
+        using var manifest = await anonymous.GetAsync($"/api/v1/publications/{id}/manifest");
+        using var bytes = await anonymous.GetAsync($"/api/v1/publications/{id}/assets/{asset.Id:D}/bytes");
+        await Assert.That(snapshot.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        await Assert.That(manifest.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        await Assert.That(bytes.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        await Assert.That((await bytes.Content.ReadAsByteArrayAsync()).SequenceEqual(asset.Bytes)).IsTrue();
+        using var draft = await anonymous.GetAsync($"/api/v1/projects/{data.ProjectId}");
+        await Assert.That(draft.IsSuccessStatusCode).IsFalse();
+        using var replay = await PublishAsync(fixture, data.ProjectId, id, audience: "Unlisted");
+        await Assert.That(replay.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        using var revoke = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/publications/{id}/access")
+        {
+            Content = JsonContent.Create(new { audience = "Unlisted", viewerIds = Array.Empty<Guid>(), action = "revoke" }),
+        };
+        revoke.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync());
+        using var revoked = await fixture.Client.SendAsync(revoke);
+        await Assert.That(revoked.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
+        using var deniedSnapshot = await anonymous.GetAsync($"/api/v1/publications/{id}");
+        using var deniedBytes = await anonymous.GetAsync($"/api/v1/publications/{id}/assets/{asset.Id:D}/bytes");
+        await Assert.That(deniedSnapshot.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+        await Assert.That(deniedBytes.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+        using var deniedReplay = await PublishAsync(fixture, data.ProjectId, id, audience: "Unlisted");
+        await Assert.That(deniedReplay.StatusCode).IsEqualTo(HttpStatusCode.Forbidden);
+    }
+
+    [Test]
     [Arguments(false)]
     [Arguments(true)]
     public async Task Publish_V2PreservesBothScenesAndRejectsEnabledUnavailableRules(bool enabled)
@@ -290,7 +353,6 @@ public sealed class PublicationEndpointTests
     [Arguments("approval", 409)]
     [Arguments("origin", 503)]
     [Arguments("public", 503)]
-    [Arguments("unlisted", 503)]
     [Arguments("asset", 422)]
     [Arguments("revision", 409)]
     [Arguments("viewer", 403)]

@@ -1,10 +1,9 @@
 import { useEffect, useState } from "react";
 import type { AccountSession } from "../accounts/account-client";
 import { Button } from "../../shared/ui/Button";
-import { Dialog } from "../../shared/ui/Dialog";
 import { SearchField } from "../../shared/ui/SearchField";
 import { allPages, createReviewClient } from "../reviews/review-client";
-import { ProjectReview } from "../reviews/ProjectReview";
+import { ProgressReviews } from "../reviews/ProgressReviews";
 import type { LeaveGuard } from "../reviews/ReviewWorkspace";
 import { listAssignments, type AssignmentDetails } from "../projects/assignment-api";
 import { formatLocalDeadline } from "../projects/deadline";
@@ -128,6 +127,7 @@ export function TeacherProjects({ session, active }: { session: AccountSession; 
   const [manage, setManage] = useState(false);
   const [guard, setGuard] = useState<LeaveGuard>({ pending: false, dirty: false });
   const [showReview, setShowReview] = useState(false);
+  const [reviewRevision, setReviewRevision] = useState<number | null>(null);
   const [reviewProject, setReviewProject] = useState<{
     projectId: string;
     studentId: string;
@@ -177,6 +177,13 @@ export function TeacherProjects({ session, active }: { session: AccountSession; 
               name: project.studentName ?? "Student",
             });
             setShowReview(true);
+            try {
+              const saved = await reviews.project(project.projectId);
+              if (!disposed) setReviewRevision(saved.revision);
+            } catch {
+              if (!disposed)
+                setError("The saved project could not be loaded for review. Refresh to try again.");
+            }
           }
         }
       } catch {
@@ -187,11 +194,6 @@ export function TeacherProjects({ session, active }: { session: AccountSession; 
       disposed = true;
     };
   }, []);
-  function closeReview() {
-    if (guard.pending || (guard.dirty && !window.confirm("Discard your unsaved feedback?"))) return;
-    setShowReview(false);
-    history.replaceState(null, "", "/home");
-  }
   return (
     <>
       {selectedStandalone ? (
@@ -206,6 +208,8 @@ export function TeacherProjects({ session, active }: { session: AccountSession; 
         <TeacherProjectDetails
           item={selected}
           onBack={() => {
+            if (guard.pending || (guard.dirty && !window.confirm("Discard your unsaved feedback?")))
+              return;
             setSelected(null);
             history.replaceState(null, "", "/home");
           }}
@@ -300,19 +304,27 @@ export function TeacherProjects({ session, active }: { session: AccountSession; 
           </section>
         </>
       )}
-      {showReview && reviewProject && selected && (
-        <Dialog title="Reviews" variant="wide" onClose={closeReview}>
-          <ProjectReview
-            client={reviews}
-            projectId={reviewProject.projectId}
-            studentId={reviewProject.studentId}
-            studentName={reviewProject.name}
-            className={selected.className}
-            role={session.role}
-            actorId={session.userId}
-            onGuard={setGuard}
-          />
-        </Dialog>
+      {showReview &&
+        reviewRevision === null &&
+        (error ? <p role="alert">{error}</p> : <p role="status">Loading reviews…</p>)}
+      {showReview && reviewProject && selected && reviewRevision !== null && (
+        <ProgressReviews
+          projectId={reviewProject.projectId}
+          revision={reviewRevision}
+          actorId={session.userId}
+          educator
+          autoOpen
+          publication={{
+            studentId: reviewProject.studentId,
+            studentName: reviewProject.name,
+            projectTitle: selected.details.title,
+          }}
+          onGuard={setGuard}
+          onClose={() => {
+            setShowReview(false);
+            history.replaceState(null, "", "/home");
+          }}
+        />
       )}
     </>
   );

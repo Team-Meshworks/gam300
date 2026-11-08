@@ -45,11 +45,12 @@ internal sealed class AuthenticatedPublicationIntegration : IPublicationIntegrat
     public async Task<PublicationRejection?> AuthorizeReplayAsync(ApplicationDbContext database, ProjectAccessSnapshot project,
         PublicationRequest request, Publication edition, CancellationToken cancellationToken)
     {
-        if (ReadIntent(request).Failure is { } failure) { return failure; }
+        var intent = ReadIntent(request);
+        if (intent.Failure is { } failure) { return failure; }
         // The coordinator already rechecks the original actor's current publish authority under the project lock
         // Do not reset audience or require approval for a later draft when acknowledging an existing edition
         var state = await database.PublicationAccess.AsNoTracking().SingleOrDefaultAsync(row => row.PublicationId == edition.Id, cancellationToken);
-        return state is { Audience: (int)PublicationAudience.Authenticated, Hidden: false, Revoked: false, Deleted: false }
+        return state is { Hidden: false, Revoked: false, Deleted: false } && state.Audience == (int)intent.Audience
             ? null : PublicationRejection.PolicyDenied;
     }
 
@@ -61,14 +62,14 @@ internal sealed class AuthenticatedPublicationIntegration : IPublicationIntegrat
         database.PublicationAccess.Add(new PublicationAccessState
         {
             PublicationId = edition.Id,
-            Audience = (int)PublicationAudience.Authenticated,
+            Audience = (int)intent.Audience,
             ViewerIds = intent.Viewers!,
         });
         await database.SaveChangesAsync(cancellationToken);
         return null;
     }
 
-    private static (Guid[]? Viewers, PublicationRejection? Failure) ReadIntent(PublicationRequest request)
+    private static (Guid[]? Viewers, PublicationAudience Audience, PublicationRejection? Failure) ReadIntent(PublicationRequest request)
     {
         using var json = JsonDocument.Parse(request.IntentJson);
         var properties = json.RootElement.EnumerateObject().ToArray();
@@ -76,19 +77,18 @@ internal sealed class AuthenticatedPublicationIntegration : IPublicationIntegrat
             || properties.Count(item => item.Name == "viewerIds") != 1
             || json.RootElement.GetProperty("audience").ValueKind != JsonValueKind.String
             || json.RootElement.GetProperty("viewerIds").ValueKind != JsonValueKind.Array)
-        { return (null, PublicationRejection.PolicyDenied); }
+        { return (null, default, PublicationRejection.PolicyDenied); }
         var audience = json.RootElement.GetProperty("audience").GetString();
-        // Public/unlisted continuity and unknown-origin policy await their owners' contract
-        if (audience is "Public" or "Unlisted") { return (null, PublicationRejection.DependencyUnavailable); }
-        if (audience != "Authenticated") { return (null, PublicationRejection.PolicyDenied); }
+        if (audience == "Public") { return (null, default, PublicationRejection.DependencyUnavailable); }
+        if (audience is not ("Authenticated" or "Unlisted")) { return (null, default, PublicationRejection.PolicyDenied); }
         var ids = new HashSet<Guid>();
         var values = json.RootElement.GetProperty("viewerIds");
-        if (values.GetArrayLength() > 100) { return (null, PublicationRejection.PolicyDenied); }
+        if (values.GetArrayLength() > 100 || (audience == "Unlisted" && values.GetArrayLength() != 0)) { return (null, default, PublicationRejection.PolicyDenied); }
         foreach (var value in values.EnumerateArray())
         {
             if (value.ValueKind != JsonValueKind.String || !value.TryGetGuid(out var id) || id == Guid.Empty || !ids.Add(id))
-            { return (null, PublicationRejection.PolicyDenied); }
+            { return (null, default, PublicationRejection.PolicyDenied); }
         }
-        return (ids.ToArray(), null);
+        return (ids.ToArray(), audience == "Unlisted" ? PublicationAudience.Unlisted : PublicationAudience.Authenticated, null);
     }
 }

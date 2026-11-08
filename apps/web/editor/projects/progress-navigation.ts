@@ -12,18 +12,31 @@ export function progressEditorUrl(context: ProgressContext): string {
   return `/?${params}`;
 }
 
-export function reviewReturnUrl(params: URLSearchParams): string {
+export function parseProgressContext(
+  params: URLSearchParams,
+  expectedProjectId: string,
+): ProgressContext | null {
   const classId = params.get("classId"),
     assignmentId = params.get("assignmentId"),
     studentId = params.get("studentId"),
     projectId = params.get("projectId");
   if (
+    ["review", "classId", "assignmentId", "studentId", "projectId"].some(
+      (name) => params.getAll(name).length !== 1,
+    ) ||
     params.get("review") !== "1" ||
     !isId(classId) ||
     !isId(assignmentId) ||
     !isId(studentId) ||
-    !isId(projectId)
+    !isId(projectId) ||
+    projectId.toLowerCase() !== expectedProjectId.toLowerCase()
   )
-    return "/home";
-  return `/home?${new URLSearchParams({ classId, assignmentId, studentId, reviewProjectId: projectId })}`;
+    return null;
+  return { classId, assignmentId, studentId, projectId };
+}
+
+export function reviewReturnUrl(params: URLSearchParams): string {
+  const context = parseProgressContext(params, params.get("projectId") ?? "");
+  if (!context) return "/home";
+  return `/home?${new URLSearchParams({ classId: context.classId, assignmentId: context.assignmentId, studentId: context.studentId, reviewProjectId: context.projectId })}`;
 }
