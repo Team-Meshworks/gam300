@@ -1,3 +1,4 @@
+import { combineAbortSignals } from "../../shared/network/abort-signals";
 import { isId, isRecord } from "./workspace-api";
 
 export type StudentPublication = {
@@ -21,7 +22,7 @@ export async function readStudentPublication(
     credentials: "same-origin",
     cache: "no-store",
     signal: signal
-      ? AbortSignal.any([signal, AbortSignal.timeout(15000)])
+      ? combineAbortSignals([signal, AbortSignal.timeout(15000)])
       : AbortSignal.timeout(15000),
   } as const;
   const response = await request(`/api/v1/projects/${projectId}/publication-links`, options);
