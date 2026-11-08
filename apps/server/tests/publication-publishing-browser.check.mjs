@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import https from "node:https";
 import net from "node:net";
+import { createRequire } from "node:module";
 import path from "node:path";
 import { launchBrowser } from "../../web/tests/browser-security.mjs";
 
@@ -22,14 +23,7 @@ const port = await new Promise((resolve, reject) => {
 const origin = `https://127.0.0.1:${port}`;
 const vite = spawn(
   process.execPath,
-  [
-    "node_modules/vite/bin/vite.js",
-    "--host",
-    "127.0.0.1",
-    "--port",
-    String(port),
-    "--strictPort",
-  ],
+  ["node_modules/vite/bin/vite.js", "--host", "127.0.0.1", "--port", String(port), "--strictPort"],
   {
     cwd: path.resolve("../web"),
     env: {
@@ -76,91 +70,63 @@ try {
   });
   console.log(`Node ${process.version}; Chromium ${browser.version()}`);
   const pages = {};
-  for (const name of ["educator", "viewer", "unrelated"]) {
+  for (const name of ["student", "educator", "viewer", "unrelated"]) {
     const context = await browser.newContext({ ignoreHTTPSErrors: true });
-    if (name === "educator")
+    if (name === "student")
       await context.grantPermissions(["clipboard-read", "clipboard-write"], {
         origin,
       });
     await context.route("**/*", (route) =>
-      new URL(route.request().url()).origin === origin
-        ? route.continue()
-        : route.abort(),
+      new URL(route.request().url()).origin === origin ? route.continue() : route.abort(),
     );
     pages[name] = await context.newPage();
     pages[name].setDefaultTimeout(15000);
   }
   async function login(page, name) {
     await page.getByLabel("Username", { exact: true }).fill(data[name]);
-    await page
-      .getByLabel("Password", { exact: true })
-      .fill("Synthetic-long-password1!");
+    await page.getByLabel("Password", { exact: true }).fill("Synthetic-long-password1!");
     await page.getByRole("button", { name: "Log in", exact: true }).click();
   }
-  const educator = pages.educator;
-  await educator.goto(`${origin}/login`);
-  await login(educator, "educator");
-  await educator.getByRole("heading", { name: /you.re signed in/i }).waitFor();
-  await educator.goto(`${origin}/publish?projectId=${data.projectId}`);
-  await educator.getByRole("heading", { name: "Publish project" }).waitFor();
-  await educator.getByText("Student draft", { exact: true }).waitFor();
-  await educator
-    .getByRole("checkbox", { name: data.viewer, exact: true })
-    .check();
-  await educator
-    .getByRole("checkbox", { name: /confirm.*saved revision/i })
-    .check();
-  const posted = educator.waitForRequest(
+  const student = pages.student;
+  await student.goto(`${origin}/login`);
+  await login(student, "student");
+  await student.getByRole("heading", { name: /you.re signed in/i }).waitFor();
+  await student.goto(`${origin}/publish?projectId=${data.projectId}`);
+  await student.getByRole("heading", { name: "Publish project" }).waitFor();
+  await student.getByText("Student draft", { exact: true }).waitFor();
+  await student.getByRole("checkbox", { name: data.viewer, exact: true }).check();
+  await student.getByRole("checkbox", { name: /confirm.*saved revision/i }).check();
+  const posted = student.waitForRequest(
     (request) =>
       request.method() === "POST" &&
-      new URL(request.url()).pathname ===
-        `/api/v1/projects/${data.projectId}/publications`,
+      new URL(request.url()).pathname === `/api/v1/projects/${data.projectId}/publications`,
   );
-  await educator.getByRole("button", { name: "Publish", exact: true }).click();
+  await student.getByRole("button", { name: "Publish", exact: true }).click();
   const request = (await posted).postDataJSON();
   assert.equal(request.confirmedRevision, 0);
   assert.deepEqual(request.intent, {
     audience: "Authenticated",
     viewerIds: [data.viewerId],
   });
-  const link = educator.getByRole("link", { name: "Open publication" });
+  const link = student.getByRole("link", { name: "Open publication" });
   await link.waitFor();
   const linkValue = await link.getAttribute("href");
-  assert.equal(
-    linkValue,
-    `https://publications.example.test/p/${request.publicationId}`,
-  );
-  await educator.getByRole("button", { name: "Copy link" }).click();
-  await educator
-    .getByRole("status")
-    .filter({ hasText: "Link copied." })
-    .waitFor();
-  const copy = await educator.evaluate(() => navigator.clipboard.readText());
+  assert.equal(linkValue, `https://publications.example.test/p/${request.publicationId}`);
+  await student.getByRole("button", { name: "Copy link" }).click();
+  await student.getByRole("status").filter({ hasText: "Link copied." }).waitFor();
+  const copy = await student.evaluate(() => navigator.clipboard.readText());
   assert.equal(copy, linkValue);
   const localVisitor = `${origin}${new URL(copy).pathname}`;
   const viewer = pages.viewer;
   await viewer.goto(localVisitor);
-  await viewer
-    .getByRole("heading", { name: "Exhibition unavailable" })
-    .waitFor();
-  await viewer
-    .getByRole("link", { name: "Sign in to view exhibition" })
-    .click();
-  assert.equal(
-    new URL(viewer.url()).searchParams.get("returnTo"),
-    `/p/${request.publicationId}`,
-  );
+  await viewer.getByRole("heading", { name: "Exhibition unavailable" }).waitFor();
+  await viewer.getByRole("link", { name: "Sign in to view exhibition" }).click();
+  assert.equal(new URL(viewer.url()).searchParams.get("returnTo"), `/p/${request.publicationId}`);
   await login(viewer, "viewer");
   await viewer.waitForURL(localVisitor);
   await viewer.getByRole("heading", { name: "Student draft" }).waitFor();
-  await viewer
-    .getByRole("status")
-    .getByText("Exhibition ready")
-    .waitFor({ timeout: 30000 });
-  assert.equal(
-    await viewer.locator("canvas[aria-label='Exhibition view']").count(),
-    1,
-  );
+  await viewer.getByRole("status").getByText("Exhibition ready").waitFor({ timeout: 30000 });
+  assert.equal(await viewer.locator("canvas[aria-label='Exhibition view']").count(), 1);
   const snapshot = `/api/v1/publications/${request.publicationId}`;
   const assetPath = `${snapshot}/assets/${data.assetId}/bytes`;
   const read = (page, route) =>
@@ -174,8 +140,7 @@ try {
   const write = (page, route, body) =>
     page.evaluate(
       async ({ route, body }) => {
-        const token = (await (await fetch("/api/v1/auth/csrf")).json())
-          .requestToken;
+        const token = (await (await fetch("/api/v1/auth/csrf")).json()).requestToken;
         const response = await fetch(route, {
           method: "POST",
           headers: {
@@ -191,16 +156,12 @@ try {
       },
       { route, body },
     );
-  const replay = await write(
-    educator,
-    `/api/v1/projects/${data.projectId}/publications`,
-    request,
-  );
+  const replay = await write(student, `/api/v1/projects/${data.projectId}/publications`, request);
   assert.equal(replay.status, 200);
   assert.equal(replay.body.visitorUrl, linkValue);
   assert.equal(
     (
-      await write(educator, `/api/v1/projects/${data.projectId}/publications`, {
+      await write(student, `/api/v1/projects/${data.projectId}/publications`, {
         ...request,
         intent: { audience: "Authenticated", viewerIds: [] },
       })
@@ -210,56 +171,81 @@ try {
   for (const audience of ["Public", "Unlisted"])
     assert.equal(
       (
-        await write(educator, `${snapshot}/access`, {
+        await write(student, `${snapshot}/access`, {
           audience,
           viewerIds: [],
           action: "audience",
         })
       ).status,
-      503,
+      204,
     );
-  assert.equal((await read(educator, snapshot)).status, 200);
+  const anonymousFriend = pages.unrelated;
+  await anonymousFriend.goto(localVisitor);
+  await anonymousFriend
+    .getByRole("status")
+    .getByText("Exhibition ready")
+    .waitFor({ timeout: 30000 });
+  assert.equal((await read(anonymousFriend, assetPath)).status, 200);
   assert.equal(
-    (await read(viewer, `/api/v1/projects/${data.projectId}`)).status,
-    404,
+    (
+      await write(student, `${snapshot}/access`, {
+        audience: "Authenticated",
+        viewerIds: [data.viewerId],
+        action: "audience",
+      })
+    ).status,
+    204,
   );
+  assert.equal((await read(student, snapshot)).status, 200);
+  assert.equal((await read(viewer, `/api/v1/projects/${data.projectId}`)).status, 404);
   const asset = await read(viewer, assetPath);
   assert.equal(asset.status, 200);
-  assert.equal(
-    createHash("sha256").update(Buffer.from(asset.bytes)).digest("hex"),
-    data.assetHash,
-  );
+  assert.equal(createHash("sha256").update(Buffer.from(asset.bytes)).digest("hex"), data.assetHash);
   const outsider = pages.unrelated;
   await outsider.goto(localVisitor);
-  await outsider
-    .getByRole("link", { name: "Sign in to view exhibition" })
-    .click();
+  await outsider.getByRole("link", { name: "Sign in to view exhibition" }).click();
   await login(outsider, "unrelated");
   await outsider.waitForURL(localVisitor);
-  await outsider
-    .getByRole("heading", { name: "Exhibition unavailable" })
-    .waitFor();
+  await outsider.getByRole("heading", { name: "Exhibition unavailable" }).waitFor();
   assert.equal((await read(outsider, snapshot)).status, 404);
   assert.equal((await read(outsider, assetPath)).status, 404);
   // Publish a second edition so revocation cannot affect the first edition's restart checks.
-  await educator.reload();
-  await educator.getByRole("heading", { name: "Publish project" }).waitFor();
-  await educator.getByRole("checkbox", { name: data.viewer, exact: true }).check();
-  await educator.getByRole("checkbox", { name: /confirm.*saved revision/i }).check();
-  const secondPost = educator.waitForRequest(
+  await student.reload();
+  await student.getByRole("heading", { name: "Publish project" }).waitFor();
+  await student.getByRole("checkbox", { name: data.viewer, exact: true }).check();
+  await student.getByRole("checkbox", { name: /confirm.*saved revision/i }).check();
+  const secondPost = student.waitForRequest(
     (item) =>
       item.method() === "POST" &&
       new URL(item.url()).pathname === `/api/v1/projects/${data.projectId}/publications`,
   );
-  await educator.getByRole("button", { name: "Publish", exact: true }).click();
+  await student.getByRole("button", { name: "Publish", exact: true }).click();
   const secondRequest = (await secondPost).postDataJSON();
   assert.notEqual(secondRequest.publicationId, request.publicationId);
   assert.deepEqual(secondRequest.intent, { audience: "Authenticated", viewerIds: [data.viewerId] });
-  await educator.getByRole("link", { name: "Open publication" }).waitFor();
-  const secondLink = educator.getByRole("link", { name: "Open publication" });
-  const secondQr = educator.getByRole("img", { name: /QR code/i });
+  await student.getByRole("link", { name: "Open publication" }).waitFor();
+  const secondLink = student.getByRole("link", { name: "Open publication" });
+  const secondQr = student.getByRole("img", { name: /QR code/i });
   assert.equal(await secondLink.isVisible(), true);
   assert.equal(await secondQr.isVisible(), true);
+  // Decode the rendered QR itself and compare it with the acknowledged link
+  const pixels = await secondQr.evaluate(async (svg) => {
+    const image = new Image();
+    image.src = `data:image/svg+xml;base64,${btoa(new XMLSerializer().serializeToString(svg))}`;
+    await image.decode();
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = 416;
+    const context = canvas.getContext("2d");
+    context.fillStyle = "white";
+    context.fillRect(0, 0, 416, 416);
+    context.drawImage(image, 0, 0, 416, 416);
+    return Array.from(context.getImageData(0, 0, 416, 416).data);
+  });
+  const decode = createRequire(new URL("../../web/package.json", import.meta.url))("jsqr");
+  assert.equal(
+    decode(new Uint8ClampedArray(pixels), 416, 416)?.data,
+    await secondLink.getAttribute("href"),
+  );
   const secondSnapshot = `/api/v1/publications/${secondRequest.publicationId}`;
   assert.equal(
     (await read(viewer, secondSnapshot)).status,
@@ -267,7 +253,17 @@ try {
     "Named viewer can read the second edition before revocation",
   );
 
-  const accessSection = educator.getByRole("region", { name: "Manage publication access" });
+  // Students share their edition; only project managers may revoke it
+  assert.equal(
+    await student.getByRole("button", { name: "Revoke access", exact: true }).count(),
+    0,
+  );
+  const manager = pages.educator;
+  await manager.goto(`${origin}/login`);
+  await login(manager, "educator");
+  await manager.getByRole("heading", { name: /you.re signed in/i }).waitFor();
+  await manager.goto(`${origin}/publish?projectId=${data.projectId}`);
+  const accessSection = manager.getByRole("region", { name: "Manage publication access" });
   await accessSection
     .getByRole("textbox", { name: "Publication link or ID" })
     .fill(secondRequest.publicationId);
@@ -275,7 +271,7 @@ try {
   await accessSection.getByText("Access active", { exact: true }).waitFor();
   await accessSection.getByRole("button", { name: "Revoke access" }).click();
   const confirmation = accessSection.getByRole("group", { name: "Confirm revocation" });
-  const revoked = educator.waitForResponse(
+  const revoked = manager.waitForResponse(
     (response) =>
       response.request().method() === "POST" &&
       new URL(response.url()).pathname === `${secondSnapshot}/access`,
@@ -289,6 +285,11 @@ try {
     action: "revoke",
   });
   await accessSection.getByText("Access revoked", { exact: true }).waitFor();
+  await student
+    .getByRole("region", { name: "Manage publication access" })
+    .getByRole("button", { name: "Check access", exact: true })
+    .click();
+  await student.getByText("Access revoked", { exact: true }).waitFor();
   assert.equal(await secondLink.count(), 0, "Revocation removes the second edition's share link");
   assert.equal(await secondQr.count(), 0, "Revocation removes the second edition's QR code");
   assert.equal(

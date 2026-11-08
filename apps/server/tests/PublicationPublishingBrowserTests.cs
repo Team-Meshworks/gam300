@@ -38,6 +38,7 @@ public sealed class PublicationPublishingBrowserTests
             publicationId = Guid.NewGuid(),
             viewerId = data.OtherStudent,
             educator = await AuthTestRequests.UserNameAsync(fixture, data.Educator),
+            student = await AuthTestRequests.UserNameAsync(fixture, data.Student),
             viewer = await AuthTestRequests.UserNameAsync(fixture, data.OtherStudent),
             unrelated = await AuthTestRequests.UserNameAsync(fixture, unrelated),
             certificate,
