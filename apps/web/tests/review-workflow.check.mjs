@@ -177,10 +177,13 @@ try {
     if (found) return reply(detail(found));
     return reply({ code: "review_not_found" }, 404);
   });
+  const workspaceFixture =
+    "/@fs/" +
+    fileURLToPath(new URL("./review-workspace-fixture.html", import.meta.url))
+      .replaceAll("\\", "/")
+      .replace(/^\/+/, "");
   async function open() {
-    await page.goto(
-      origin + (role === "Educator" ? "/tests/review-workspace-fixture.html" : "/review"),
-    );
+    await page.goto(origin + (role === "Educator" ? workspaceFixture : "/review"));
     await page.getByLabel("Class", { exact: true }).selectOption(classId);
     await page.getByLabel("Assignment", { exact: true }).selectOption(assignmentId);
     await page
