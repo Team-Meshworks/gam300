@@ -90,5 +90,8 @@ export async function writeServerDraft(
     return { kind: "failed" };
   } finally {
     clearTimeout(deadline);
+
+    // Release fallback subscriptions when this request settles, keeping the project session active
+    timeout.abort();
   }
 }
