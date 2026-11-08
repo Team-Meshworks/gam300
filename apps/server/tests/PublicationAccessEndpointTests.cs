@@ -125,11 +125,12 @@ public sealed class PublicationAccessEndpointTests
         await Assert.That(await database.Publications.CountAsync()).IsEqualTo(4);
         await Assert.That(await database.AssetCandidates.CountAsync()).IsEqualTo(1);
         await Assert.That(await database.PublicationAccess.CountAsync(row => row.Deleted)).IsEqualTo(1);
+        await Assert.That(await database.Database.SqlQuery<int>($"SELECT count(*)::int AS \"Value\" FROM retired_publication_ids").SingleAsync()).IsEqualTo(1);
         await Assert.That(await database.PublicationAccess.CountAsync(row => row.Revoked)).IsEqualTo(1);
     }
 
     [Test]
-    public async Task AudienceChange_UnresolvedPublicModesCannotExposeAnAuthenticatedEdition()
+    public async Task AudienceChange_CurrentPublisherCanChooseAnonymousModes()
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
         var data = JsonSerializer.SerializeToElement(await SeedAsync(fixture));
@@ -143,16 +144,16 @@ public sealed class PublicationAccessEndpointTests
             };
             request.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync());
             using var response = await fixture.Client.SendAsync(request);
-            await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.ServiceUnavailable);
+            await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
         }
         await using var scope = fixture.App.Services.CreateAsyncScope();
         var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var state = await database.PublicationAccess.AsNoTracking().SingleAsync(row => row.PublicationId == publication);
-        await Assert.That(state.Audience).IsEqualTo(3);
-        await Assert.That(state.ViewerIds.Length).IsEqualTo(1);
+        await Assert.That(state.Audience).IsEqualTo(2);
+        await Assert.That(state.ViewerIds.Length).IsEqualTo(0);
         using var anonymous = fixture.CreateClient();
         using var denied = await anonymous.GetAsync($"/api/v1/publications/{publication}");
-        await Assert.That(denied.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+        await Assert.That(denied.StatusCode).IsEqualTo(HttpStatusCode.OK);
     }
 
     [Test]

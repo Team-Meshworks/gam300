@@ -12,6 +12,9 @@ internal sealed class StoredPublicationAccessReader(ApplicationDbContext databas
     public async ValueTask<PublicationReadPolicy?> ReadAsync(Guid publicationId, string? assetId,
         CurrentAccount? account, CancellationToken token)
     {
+        // Retired links stay unavailable even if older policy data is restored
+        if (await database.Database.SqlQuery<Guid>($"SELECT id AS \"Value\" FROM retired_publication_ids WHERE id = {publicationId}").AnyAsync(token)) { return null; }
+
         var edition = await database.Publications.AsNoTracking().SingleOrDefaultAsync(row => row.Id == publicationId, token);
         var state = await database.PublicationAccess.AsNoTracking().SingleOrDefaultAsync(row => row.PublicationId == publicationId, token);
         if (edition is null || state is null) { return null; }

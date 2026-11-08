@@ -28,6 +28,7 @@ export function PublicationAccess({
   const [busy, setBusy] = useState(false);
   const [revoking, setRevoking] = useState(false);
   const [confirm, setConfirm] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [refresh, setRefresh] = useState(false);
   const generation = useRef(0);
   const writePending = useRef(false);
@@ -85,11 +86,11 @@ export function PublicationAccess({
     [projectId, session.userId],
   );
 
-  async function revoke() {
+  async function changeAccess(action: "revoke" | "hide" | "show" | "delete" = "revoke") {
     if (
       !state ||
       !state.canManage ||
-      state.revoked ||
+      (action === "revoke" && state.revoked) ||
       state.deleted ||
       busy ||
       writePending.current
@@ -111,7 +112,7 @@ export function PublicationAccess({
       {
         audience: current.audience,
         viewerIds: [...current.viewerIds],
-        action: "revoke",
+        action,
       },
     );
     writePending.current = false;
@@ -131,19 +132,31 @@ export function PublicationAccess({
     if (token !== generation.current) return;
     setBusy(false);
     setRevoking(false);
-    if (!checked || !checked.revoked) {
+    if (
+      !checked ||
+      (action === "revoke" && !checked.revoked) ||
+      (action === "delete" && !checked.deleted) ||
+      (action === "hide" && !checked.hidden) ||
+      (action === "show" && checked.hidden)
+    ) {
       setMessage("The result could not be confirmed. Refresh access before trying again.");
       setRefresh(true);
       return;
     }
     setState(checked);
-    onAvailabilityChange?.(checked.publicationId, false);
+    onAvailabilityChange?.(
+      checked.publicationId,
+      !checked.hidden && !checked.revoked && !checked.deleted && !checked.archived,
+    );
   }
 
   return (
     <section className="sp-publication-access" aria-label="Manage publication access">
       <h3>Manage publication access</h3>
-      <p>Check a publication from this project and revoke its access if you manage the project.</p>
+      <p>
+        Check a publication from this project and manage access with your current project
+        permissions.
+      </p>
       <label>
         Publication link or ID
         <input
@@ -156,6 +169,7 @@ export function PublicationAccess({
             setState(null);
             setMessage("");
             setConfirm(false);
+            setDeleteConfirm(false);
             setRefresh(false);
             setBusy(false);
           }}
@@ -166,7 +180,7 @@ export function PublicationAccess({
       </Button>
       {busy && (
         <p role="status">
-          {revoking ? "Revoking publication access…" : "Checking publication access…"}
+          {revoking ? "Updating publication access…" : "Checking publication access…"}
         </p>
       )}
       {message && <p role="alert">{message}</p>}
@@ -200,6 +214,37 @@ export function PublicationAccess({
               Revoke access
             </Button>
           )}
+          {state.canManage && !state.deleted && !confirm && (
+            <>
+              <Button
+                disabled={busy}
+                onClick={() => void changeAccess(state.hidden ? "show" : "hide")}
+              >
+                {state.hidden ? "Restore visibility" : "Hide publication"}
+              </Button>
+              <Button disabled={busy} onClick={() => setDeleteConfirm(true)}>
+                Delete publication
+              </Button>
+              {deleteConfirm && (
+                <div role="group" aria-label="Confirm publication deletion">
+                  <p>
+                    Delete this link permanently? The saved edition and shared assets are retained,
+                    but this link cannot be restored.
+                  </p>
+                  <Button onClick={() => setDeleteConfirm(false)}>Cancel</Button>
+                  <Button
+                    disabled={busy}
+                    onClick={() => {
+                      setDeleteConfirm(false);
+                      void changeAccess("delete");
+                    }}
+                  >
+                    Confirm delete
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
           {!state.canManage && <p>Only a project manager can revoke access.</p>}
           {confirm && (
             <div role="group" aria-label="Confirm revocation">
@@ -208,7 +253,7 @@ export function PublicationAccess({
                 codes will no longer grant access.
               </p>
               <Button onClick={() => setConfirm(false)}>Cancel</Button>
-              <Button disabled={busy} onClick={() => void revoke()}>
+              <Button disabled={busy} onClick={() => void changeAccess()}>
                 Confirm revoke
               </Button>
             </div>
