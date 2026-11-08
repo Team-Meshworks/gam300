@@ -37,13 +37,13 @@ try {
     return page;
   }
   const student = await login(process.env.SPATIA_REVIEW_STUDENT);
-  let teacher;
+  let teacher, assignmentId;
   if (!unavailable) {
     teacher = await login(process.env.SPATIA_REVIEW_EDUCATOR);
     const studentId = await student.evaluate(
       async () => (await (await fetch("/api/v1/auth/session")).json()).userId,
     );
-    const assignmentId = await teacher.evaluate(async (id) => {
+    assignmentId = await teacher.evaluate(async (id) => {
       const data = await (await fetch(`/api/v1/classes/${id}/assignments?limit=20`)).json();
       return data.items.find((item) => item.title === "Assignment").assignmentId;
     }, classId);
@@ -99,11 +99,14 @@ try {
     assert.equal(after.length, 0);
   } else {
     await student.getByText("Late submission", { exact: true }).waitFor();
-    await teacher.goto(origin + "/review");
-    await teacher.getByLabel("Class", { exact: true }).selectOption(classId);
-    await teacher.getByLabel("Assignment", { exact: true }).selectOption({ label: "Assignment" });
-    await teacher.locator("#review-student").selectOption(projectId);
+    await teacher.goto(origin + "/review?projectId=" + encodeURIComponent(projectId));
     await teacher.getByText("Current server-saved revision:", { exact: false }).waitFor();
+    assert.equal(await teacher.getByLabel("Class", { exact: true }).inputValue(), classId);
+    assert.equal(
+      await teacher.getByLabel("Assignment", { exact: true }).inputValue(),
+      assignmentId,
+    );
+    assert.equal(await teacher.locator("#review-student").inputValue(), projectId);
     await teacher
       .getByRole("textbox", { name: "Feedback", exact: true })
       .fill("The saved exhibition is ready.");

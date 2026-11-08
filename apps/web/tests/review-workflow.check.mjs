@@ -37,7 +37,9 @@ try {
   const progressReviews = [];
   const writes = [];
   let denied = false,
-    canPublish = true;
+    canPublish = true,
+    denyReviewContext = false,
+    hideLinkedProject = false;
   await page.route("**/api/v1/**", async (route) => {
     const req = route.request(),
       path = new URL(req.url()).pathname;
@@ -51,6 +53,17 @@ try {
         mustChangePassword: false,
       });
     if (path === "/api/v1/auth/csrf") return reply({ requestToken: "test-csrf" });
+    if (path === `/api/v1/projects/${projectId}/publication-readiness`)
+      return reply({
+        projectId,
+        revision,
+        state: "ApprovalRequired",
+        completionConfirmed: true,
+        approved: false,
+        missingCapabilities: [],
+      });
+    if (path === `/api/v1/projects/${projectId}/publication-viewers`)
+      return reply({ items: [], nextCursor: null });
     if (path === "/api/v1/classes")
       return reply({ items: [{ id: classId, name: "History class" }], nextCursor: null });
     if (path.endsWith("/assignments"))
@@ -60,7 +73,7 @@ try {
             assignmentId,
             title: "Museum",
             dueAtUnixSeconds: 1793581200,
-            projects: [{ projectId, studentId }],
+            projects: hideLinkedProject ? [] : [{ projectId, studentId }],
           },
         ],
         nextCursor: null,
@@ -149,8 +162,17 @@ try {
       }
       return reply({ ...stored, projectId }, 201);
     }
-    if (path.endsWith("/submissions"))
-      return reply({ items: submissions.map(detail), nextCursor: null });
+    if (path.endsWith("/submissions")) {
+      if (denyReviewContext && new URL(req.url()).searchParams.get("limit") === "1")
+        return reply({ code: "review_not_found" }, 404);
+      return reply({
+        projectId,
+        classId,
+        assignmentId,
+        items: submissions.map(detail),
+        nextCursor: null,
+      });
+    }
     const found = submissions.find((s) => path.endsWith("/" + s.submissionId));
     if (found) return reply(detail(found));
     return reply({ code: "review_not_found" }, 404);
@@ -197,6 +219,36 @@ try {
     1,
   );
   role = "Educator";
+  await page.goto(`${origin}/publish?projectId=${projectId}`);
+  await page.getByRole("link", { name: "Open submissions and reviews" }).click();
+  await page.getByText("Student One · History class", { exact: true }).waitFor({ timeout: 8000 });
+  await page.getByText("Current server-saved revision:", { exact: false }).waitFor();
+  assert.equal(
+    await page
+      .getByRole("region", { name: "Submitted content" })
+      .getByText("Retained student work", { exact: true })
+      .count(),
+    1,
+    "The publication link opens the matching student's submitted project",
+  );
+  denyReviewContext = true;
+  await page.goto(`${origin}/review?projectId=${projectId}`);
+  await page
+    .getByRole("alert")
+    .filter({ hasText: "This project or submission is unavailable to your account." })
+    .waitFor();
+  assert.equal(await page.getByLabel("Class", { exact: true }).inputValue(), "");
+  assert.equal(await page.getByText("Retained student work", { exact: true }).count(), 0);
+  denyReviewContext = false;
+  hideLinkedProject = true;
+  await page.goto(`${origin}/review?projectId=${projectId}`);
+  await page
+    .getByRole("alert")
+    .filter({ hasText: "This project is no longer available in the selected assignment." })
+    .waitFor();
+  assert.equal(await page.getByText("Retained student work", { exact: true }).count(), 0);
+  hideLinkedProject = false;
+  // The ordinary review route still supports choosing a class and project manually.
   await open();
   await page.getByRole("button", { name: "Reviews", exact: true }).click();
   const reviewDialog = page.getByRole("dialog", { name: "Reviews" });

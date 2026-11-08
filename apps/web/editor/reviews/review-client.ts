@@ -306,6 +306,16 @@ export function createReviewClient(request: typeof fetch = fetch) {
     execute,
     reconcile,
     getReview,
+    async projectAssignment(projectId: string) {
+      const row = record(await get(submissionsPath(projectId) + "?limit=1"));
+      const linkedProjectId = id(row.projectId);
+      if (linkedProjectId !== id(projectId)) throw invalid();
+      return {
+        projectId: linkedProjectId,
+        classId: id(row.classId),
+        assignmentId: id(row.assignmentId),
+      };
+    },
     async classrooms(after?: string | null) {
       return page(await get(paged("/api/v1/classes", after)), (v) => {
         const r = record(v);

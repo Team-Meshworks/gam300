@@ -258,7 +258,7 @@ public sealed class ReviewSubmissionEndpointTests
             await database.SaveChangesAsync();
         }
         await fixture.SignInAsync(student);
-        return new(educator, student, other, classroom, project, due);
+        return new(educator, student, other, classroom, assignment, project, due);
     }
 
     private static Project NewProject(Guid id, Guid organization, string title) => new()
@@ -294,7 +294,7 @@ public sealed class ReviewSubmissionEndpointTests
         return await fixture.Client.SendAsync(message);
     }
 
-    internal sealed record Seeded(Guid Educator, Guid Student, Guid OtherStudent, Guid ClassroomId, Guid ProjectId, long Due);
+    internal sealed record Seeded(Guid Educator, Guid Student, Guid OtherStudent, Guid ClassroomId, Guid AssignmentId, Guid ProjectId, long Due);
 
     internal sealed class FixtureAssets : IReviewAssetResolver
     {

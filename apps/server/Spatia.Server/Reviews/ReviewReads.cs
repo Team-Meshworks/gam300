@@ -31,9 +31,12 @@ internal static class ReviewReads
         if (account is null) { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired); }
         if (account.MustChangePassword) { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.PasswordChangeRequired); }
         if (account.Role is not (ApplicationRoles.Creator or ApplicationRoles.Educator)) { return Unavailable(context); }
-        var project = await access.VisibleProjects(account).Where(row => row.Id == id)
-            .Select(row => new { row.Revision }).SingleOrDefaultAsync(cancellationToken);
-        if (project is null || !await database.ClassAssignmentStudents.AnyAsync(row => row.ProjectId == id, cancellationToken))
+        var project = await (from visible in access.VisibleProjects(account)
+                             join mapping in database.ClassAssignmentStudents on visible.Id equals mapping.ProjectId
+                             where visible.Id == id
+                             select new { visible.Revision, mapping.ClassroomId, mapping.AssignmentId })
+            .SingleOrDefaultAsync(cancellationToken);
+        if (project is null)
         {
             return Unavailable(context);
         }
@@ -58,7 +61,14 @@ internal static class ReviewReads
                 isCurrentSubmission = row.Sequence == latestSequence && row.SourceRevision == project.Revision,
             }).ToArray();
             return await ClassroomEndpoints.CompleteAsync(context, transaction,
-                Results.Ok(new { items, nextCursor = rows.Length > limit ? page[^1].Id : (Guid?)null }), cancellationToken);
+                Results.Ok(new
+                {
+                    projectId = id,
+                    classId = project.ClassroomId,
+                    project.AssignmentId,
+                    items,
+                    nextCursor = rows.Length > limit ? page[^1].Id : (Guid?)null
+                }), cancellationToken);
         }
         var submission = await database.ReviewSubmissions.AsNoTracking()
             .SingleOrDefaultAsync(row => row.Id == submissionId && row.ProjectId == id, cancellationToken);
