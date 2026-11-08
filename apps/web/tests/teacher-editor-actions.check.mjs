@@ -187,7 +187,13 @@ try {
   role = "Creator";
   await page.goto(url);
   await page.getByText("Scene ready", { exact: true }).waitFor();
-  await check("creator editor offers Publish", async () => {
+  await check("creator cannot use educator review controls", async () => {
+    assert.equal(await page.getByRole("button", { name: "Publish", exact: true }).count(), 0);
+    assert.equal(await page.getByRole("button", { name: "Review", exact: true }).count(), 0);
+  });
+  await page.goto(origin + "/?" + new URLSearchParams({ projectId }));
+  await page.getByText("Scene ready", { exact: true }).waitFor();
+  await check("ordinary creator editor offers Publish", async () => {
     assert.equal(await page.getByRole("button", { name: "Publish", exact: true }).count(), 1);
     assert.equal(
       await page.getByRole("button", { name: "Publish", exact: true }).getAttribute("title"),
