@@ -53,6 +53,7 @@ try {
     let publicationFailure = false;
     let emptyPublications = false;
     let revoked = false;
+    let grantOnPublication = false;
     let listReads = 0;
     const requests = [];
     let holdPublication = false;
@@ -90,6 +91,7 @@ try {
       }
       if (path === "/api/v1/projects") {
         listReads++;
+        if (holdPublication) await publicationGate;
         return route.fulfill({
           json: { items: revoked ? projects.slice(1) : projects, nextCursor: null },
         });
@@ -103,6 +105,10 @@ try {
       if (path.endsWith("/submissions") || path.endsWith("/progress-reviews"))
         return route.fulfill({ json: { items: [], nextCursor: null } });
       if (path === "/api/v1/projects/publication-links") {
+        if (grantOnPublication) {
+          revoked = false;
+          grantOnPublication = false;
+        }
         requests.push("publication");
         publicationRequests.push({
           path,
@@ -121,7 +127,7 @@ try {
                     sourceRevision: 1,
                     createdAt: "2026-10-30T01:00:00Z",
                     visitorUrl: `https://spatia.example/p/${publicationId}`,
-                    requiresSignIn: false,
+                    requiresSignIn: revoked,
                   },
                 ]
               : [],
@@ -142,6 +148,8 @@ try {
             ],
           },
         });
+      if (path === `/api/v1/projects/${ids[1]}/publication-links`)
+        return route.fulfill({ json: { items: [] } });
       return route.fulfill({ status: 404 });
     });
     async function capture(name) {
@@ -239,9 +247,16 @@ try {
             .evaluate((node) => node === document.activeElement),
           true,
         );
-        holdPublication = true;
         await page.getByRole("tab", { name: "Projects", exact: true }).focus();
         await page.keyboard.press("ArrowRight");
+        await page.getByText(titles[0], { exact: true }).waitFor();
+        holdPublication = true;
+        await page.getByRole("tab", { name: "Projects", exact: true }).click();
+        const publicationRead = page.waitForRequest(
+          (request) => new URL(request.url()).pathname === "/api/v1/projects/publication-links",
+        );
+        await page.keyboard.press("ArrowRight");
+        await publicationRead;
         assert.equal(
           await page
             .getByRole("tab", { name: "Published", exact: true })
@@ -250,6 +265,7 @@ try {
         );
         const loading = page.getByRole("status").filter({ hasText: "Loading published projects" });
         await loading.waitFor();
+        assert.equal(await page.getByText(titles[0], { exact: true }).count(), 0);
         const placeholder = await loading.locator(".sp-student-card").boundingBox();
         assert.ok(placeholder && placeholder.width > 500 && placeholder.height > 100);
         holdPublication = false;
@@ -309,8 +325,16 @@ try {
           "session",
           "The session is checked after publication metadata",
         );
-        emptyPublications = true;
+        await page.getByText("Only permitted viewers can open this link.").waitFor();
         await page.getByRole("tab", { name: "Projects", exact: true }).click();
+        await page
+          .locator("article")
+          .filter({ hasText: titles[1] })
+          .getByRole("button", { name: /view details/i })
+          .click();
+        await page.getByText("No unlisted link is available for this project.").waitFor();
+        await page.getByRole("button", { name: "Close project details" }).click();
+        emptyPublications = true;
         await page.getByRole("tab", { name: "Published", exact: true }).click();
         await page.getByText(/no published projects/i).waitFor();
         assert.equal(await page.getByText(titles[0], { exact: true }).count(), 0);
@@ -319,6 +343,17 @@ try {
             (request) => request.limit === "20" && request.account === userId,
           ),
         );
+        revoked = false;
+        emptyPublications = false;
+        await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+        await page.getByText(titles[0], { exact: true }).waitFor();
+        revoked = true;
+        await page.reload();
+        await page.getByText(titles[1], { exact: true }).waitFor();
+        assert.equal(await page.getByText(titles[0], { exact: true }).count(), 0);
+        grantOnPublication = true;
+        await page.getByRole("tab", { name: "Published", exact: true }).click();
+        await page.getByText(titles[0], { exact: true }).waitFor();
       }
       for (const width of [1440, 390]) {
         await page.setViewportSize({ width, height: 900 });

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { AccountSession } from "../accounts/account-client";
 import { createAccountClient } from "../accounts/account-client";
 import { Button } from "../../shared/ui/Button";
@@ -9,7 +9,11 @@ import { allPages, createReviewClient } from "../reviews/review-client";
 import type { Decision } from "../reviews/review-types";
 import { ProgressReviews } from "../reviews/ProgressReviews";
 import { PublicationShare } from "../publications/PublicationShare";
-import { readStudentPublication, type StudentPublication } from "./student-publication";
+import {
+  readDashboardPublications,
+  readStudentPublication,
+  type StudentPublication,
+} from "./student-publication";
 import "../publications/publication.css";
 import "../reviews/reviews.css";
 import { createWorkspaceClient } from "./workspace-api";
@@ -64,7 +68,7 @@ function StudentPublicationLink({ projectId, actorId }: { projectId: string; act
   return result.item ? (
     <PublicationShare url={result.item.visitorUrl} unlisted />
   ) : (
-    <p>This project has not been published yet.</p>
+    <p>No unlisted link is available for this project.</p>
   );
 }
 
@@ -163,9 +167,18 @@ export function StudentProjects({
   onOpenProject: (projectId: string) => void;
 }) {
   const [tab, setTab] = useState<"projects" | "published">("projects");
-  const [rows, setRows] = useState<StudentProjectRow[] | null>(null);
-  const [error, setError] = useState("");
-  const [version, setVersion] = useState(0);
+  const [attempt, setAttempt] = useState(0);
+  const request = useMemo(
+    () => ({ session, tab, listVersion, attempt }),
+    [session, tab, listVersion, attempt],
+  );
+  const [list, setList] = useState<{
+    request: typeof request;
+    rows: StudentProjectRow[] | "error";
+    links: Map<string, StudentPublication> | null;
+  } | null>(null);
+  const result = active && list?.request === request ? list : null;
+  const rows = result?.rows;
   const [selected, setSelected] = useState<StudentProjectRow | null>(null);
   const [feedback, setFeedback] = useState<Decision[]>([]);
   const [feedbackLoading, setFeedbackLoading] = useState(false);
@@ -178,10 +191,17 @@ export function StudentProjects({
     }
   }, [selected]);
   useEffect(() => {
+    if (!active) return;
+    const { session, tab } = request;
     let disposed = false;
     const controller = new AbortController();
     void (async () => {
       try {
+        // Read links first so a new grant is reflected in the project rows used to display it.
+        const links =
+          tab === "published"
+            ? await readDashboardPublications(session.userId, controller.signal)
+            : null;
         const [projects, classes] = await Promise.all([
           workspace.projects(false, controller.signal),
           allPages((cursor) => reviews.classrooms(cursor)),
@@ -205,22 +225,21 @@ export function StudentProjects({
           current.mustChangePassword
         )
           throw new Error("Your account changed.");
-        if (!disposed) {
-          setRows(studentProjectRows(session.userId, projects, assignments));
-          setError("");
-        }
+        if (!disposed)
+          setList({
+            request,
+            links,
+            rows: studentProjectRows(session.userId, projects, assignments),
+          });
       } catch {
-        if (!disposed) {
-          setRows(null);
-          setError("Your projects could not be loaded. Try again.");
-        }
+        if (!disposed) setList({ request, rows: "error", links: null });
       }
     })();
     return () => {
       disposed = true;
       controller.abort();
     };
-  }, [session.userId, session.orgId, session.role, version, listVersion]);
+  }, [active, request]);
   useEffect(() => {
     let disposed = false;
     if (!selected?.assignment) return;
@@ -242,11 +261,6 @@ export function StudentProjects({
       disposed = true;
     };
   }, [selected, session.userId]);
-  function retryProjects() {
-    setError("");
-    setRows(null);
-    setVersion((n) => n + 1);
-  }
   if (selected)
     return renderWorkspace(
       <StudentProjectDetails
@@ -281,15 +295,17 @@ export function StudentProjects({
         onChange={setTab}
       />
       <div id="student-projects-panel" role="tabpanel" aria-labelledby={`student-projects-${tab}`}>
-        {error ? (
+        {rows === "error" ? (
           <div role="alert" className="sp-dashboard-state">
-            <p>{error}</p>
-            <Button onClick={retryProjects}>Retry</Button>
+            <p>
+              {published ? "Published projects" : "Your projects"} could not be loaded. Try again.
+            </p>
+            <Button onClick={() => setAttempt((n) => n + 1)}>Retry</Button>
           </div>
         ) : !rows ? (
           <DashboardSkeleton view={published ? "published" : "creator"} />
-        ) : published ? (
-          active && <PublishedProjects rows={rows} session={session} onRetry={retryProjects} />
+        ) : result?.links ? (
+          <PublishedProjects rows={rows} links={result.links} name={session.displayName} />
         ) : !rows.length ? (
           <p className="sp-dashboard-state" role="status">
             No projects are available yet.
