@@ -2575,7 +2575,7 @@ deadline or replace it with a device clock.
 | 401 authentication failure; 403 account, operation or `project_read_only` restriction | Preserve pending intent and recover the original account/access; never replay as another user. |
 | 404 `project_not_found` or `review_not_found` | Treat the requested work as unavailable; these codes disclose no other student's content or existence. |
 | 409 `revision_conflict`, `submission_conflict` or `review_decision_conflict` | Refresh authorized project and review state. An older submission or decision cannot authorize a newer revision. Do not silently substitute a new ID or overwrite newer work. |
-| 503 `review_assets_unavailable` or `project_unavailable` | No new evidence was accepted by this attempt. Approved retained assets or valid saved content must become available before a new submission can succeed. |
+| 503 `project_unavailable` | No new evidence was accepted by this attempt. Valid saved content must become available before a new submission can succeed. |
 | 503 `storage_unavailable`, transport failure or an otherwise unconfirmed write | The transaction might already have committed. Reconcile using the same ID, actor and original request fields before offering another write. |
 
 An identical authorized retry returns its original acknowledgement even after
@@ -2590,13 +2590,17 @@ acknowledgement is not proof of rollback.
 ### Asset and publisher handoffs
 
 `IReviewAssetResolver.ResolveAsync` runs inside the submission's existing
-read-committed transaction and project lock. It must resolve exactly one approved,
-retained immutable identity for every required environment, object and media asset,
-without committing or replacing the transaction. The returned SHA-256 strings must
-be 64 lowercase hexadecimal characters. Manifest validation rejects missing,
-duplicate, unexpected or malformed references; a well-formed hash alone does not
-prove byte retention or approval. SCRUM-73 owns that trusted supply and retention
-contract. The unavailable default stays in place until that implementation exists.
+read-committed transaction and project lock. When every required environment,
+object and media asset resolves to a valid approved retained reference, the
+submission records the complete manifest of asset IDs and lowercase SHA-256 hashes.
+
+As a temporary exception, submission proceeds when resolution is unavailable or
+incomplete, recording the exact saved document and an empty asset manifest. It does
+not invent hashes or retain the unresolved asset bytes. Consequently, that evidence
+cannot establish the exact historical appearance of those assets. The exception
+relaxes the immutable-asset review evidence requirement and does not establish
+SCRUM-164 acceptance. Publication still independently requires approved retained
+assets and remains subject to its existing authorization and review gates.
 
 The publisher must reauthorize its actor and keep the same project lock and
 transaction from `ReviewApproval.CheckLockedAsync` through publication commit.
