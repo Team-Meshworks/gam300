@@ -183,28 +183,36 @@ public sealed class ReviewSubmissionEndpointTests
     [Arguments("unavailable")]
     [Arguments("incomplete")]
     [Arguments("invalid")]
-    public async Task ReviewSubmission_UnavailableOrInvalidAssetResolutionLeavesNoEvidence(string mode)
+    public async Task ReviewSubmission_UnavailableOrInvalidAssetResolutionKeepsSavedDocument(string mode)
     {
         var resolver = new FixtureAssets { Mode = mode };
         await using var fixture = await CreateFixtureAsync(resolver);
         var data = await SeedAsync(fixture, false);
-        using var denied = await SubmitAsync(fixture, data.ProjectId, Guid.NewGuid(), 0, true);
-        await Assert.That(denied.StatusCode).IsEqualTo(HttpStatusCode.ServiceUnavailable);
-        await Assert.That((await denied.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString())
-            .IsEqualTo("review_assets_unavailable");
+        using var submitted = await SubmitAsync(fixture, data.ProjectId, Guid.NewGuid(), 0, true);
+        await Assert.That(submitted.StatusCode).IsEqualTo(HttpStatusCode.Created);
         await using var scope = fixture.Database.Services.CreateAsyncScope();
-        await Assert.That(await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().ReviewSubmissions.CountAsync()).IsEqualTo(0);
+        var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var submission = await database.ReviewSubmissions.AsNoTracking().SingleAsync();
+        var saved = await database.Projects.AsNoTracking().SingleAsync(row => row.Id == data.ProjectId);
+        await Assert.That(submission.DocumentJson).IsEqualTo(saved.DocumentJson);
+        await Assert.That(submission.AssetReferencesJson).IsEqualTo("[]");
     }
 
     [Test]
-    public async Task ReviewSubmission_DefaultAssetResolverFailsClosed()
+    public async Task ReviewSubmission_BuiltInAssetsDoNotRequireApprovedPool()
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
         var data = await SeedAsync(fixture, false);
-        using var denied = await SubmitAsync(fixture, data.ProjectId, Guid.NewGuid(), 0, true);
-        await Assert.That(denied.StatusCode).IsEqualTo(HttpStatusCode.ServiceUnavailable);
+        var submissionId = Guid.NewGuid();
+        using var response = await SubmitAsync(fixture, data.ProjectId, submissionId, 0, true);
+        await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.Created);
         await using var scope = fixture.Database.Services.CreateAsyncScope();
-        await Assert.That(await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().ReviewSubmissions.CountAsync()).IsEqualTo(0);
+        var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var saved = await database.Projects.AsNoTracking().SingleAsync(row => row.Id == data.ProjectId);
+        var submission = await database.ReviewSubmissions.AsNoTracking().SingleAsync(row => row.Id == submissionId);
+        await Assert.That(submission.DocumentJson).IsEqualTo(saved.DocumentJson);
+        await Assert.That(submission.SourceRevision).IsEqualTo(saved.Revision);
+        await Assert.That(submission.AssetReferencesJson).IsEqualTo("[]");
     }
 
     [Test]

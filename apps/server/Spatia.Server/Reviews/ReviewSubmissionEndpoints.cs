@@ -75,11 +75,8 @@ public static class ReviewSubmissionEndpoints
         if (!document.Ok) { return ApiProblems.Create(context, 503, "project_unavailable", "The project is unavailable."); }
         var required = ReviewAssetManifest.Required(document.Value!).ToFrozenSet(StringComparer.Ordinal);
         var references = await assets.ResolveAsync(database, project, required, cancellationToken);
-        var manifest = ReviewAssetManifest.Serialize(required, references);
-        if (manifest is null)
-        {
-            return ApiProblems.Create(context, 503, "review_assets_unavailable", "The submitted assets are unavailable.");
-        }
+        // A submission can proceed without approved assets; never invent hashes for unresolved files
+        var manifest = ReviewAssetManifest.Serialize(required, references) ?? "[]";
         var previous = await database.ReviewSubmissions.Where(row => row.ProjectId == id)
             .Select(row => (long?)row.Sequence).MaxAsync(cancellationToken) ?? 0;
         if (previous == long.MaxValue) { return Conflict(context); }

@@ -20,9 +20,9 @@ public sealed class ReviewScreensIntegrationTests
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
         var seeded = await ReviewSubmissionEndpointTests.SeedAsync(fixture, late: true);
+        fixture.App.Configuration["Publication:Origin"] = "https://publications.example.test";
         if (!unavailableAssets)
         {
-            fixture.App.Configuration["Publication:Origin"] = "https://publications.example.test";
             var bytes = AssetIntakeTests.CreateMinimalGlb();
             await using var assetScope = fixture.App.Services.CreateAsyncScope();
             var database = assetScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
