@@ -98,7 +98,9 @@ try {
     return route.fulfill({ status: 404 });
   });
   await page.goto(origin + "/home");
-  const assignmentCard = page.locator("article").filter({ hasText: "2 student projects" });
+  const assignmentCard = page
+    .locator("article")
+    .filter({ has: page.locator(`[id="teacher-project-${classId}:${assignmentId}"]`) });
   await assignmentCard.getByRole("button", { name: "View Details" }).click();
   await page.getByRole("button", { name: "Edit project details" }).click();
   const dialog = page.getByRole("dialog", { name: "Edit project details" });

@@ -15,6 +15,7 @@ import { dirname, resolve } from "node:path";
 import ts from "typescript";
 import { createServer } from "vite";
 import { launchBrowser } from "./tests/browser-security.mjs";
+import { serveProject } from "./tests/authoring-project-fixture.mjs";
 import { compilerOptions, dependents, moduleOf, modules, scan, webRoot } from "./architecture.mjs";
 
 // Used to observe the real missing tooling dependency after removal
@@ -125,7 +126,8 @@ async function browserEntry(root) {
       args: ["--enable-unsafe-swiftshader"],
     });
     const page = await browser.newPage();
-    const response = await page.goto(server.resolvedUrls.local[0]);
+    const project = await serveProject(page, server.resolvedUrls.local[0]);
+    const response = await page.goto(project.url);
     if (response.status() !== 200) return `Browser editor entry returned HTTP ${response.status()}`;
     await page.getByRole("heading", { name: "Spatia", exact: true }).waitFor({ timeout: 2000 });
     return undefined;

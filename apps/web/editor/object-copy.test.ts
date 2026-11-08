@@ -1,3 +1,4 @@
+import { createLoadedStore, testRoom } from "../tests/project-store-fixture";
 import { expect, it, vi } from "vitest";
 import { createDocumentStore } from "./document-store";
 import { handleObjectShortcut } from "./history-shortcuts";
@@ -139,16 +140,20 @@ it("rejects copied canonical rules in v1 even when the object has no components"
 });
 
 function setup() {
-  const store = createDocumentStore([
-    {
-      id: "crate",
-      name: "Crate",
-      kind: "model",
-      url: "crate.glb",
-      sha256: "0".repeat(64),
-      thumbnail: null,
-    },
-  ]);
+  const store = createLoadedStore(
+    [
+      testRoom,
+      {
+        id: "crate",
+        name: "Crate",
+        kind: "model",
+        url: "crate.glb",
+        sha256: "0".repeat(64),
+        thumbnail: null,
+      },
+    ],
+    testRoom.id,
+  );
   store.addObject("crate", [1, 2, 3]);
   return store;
 }

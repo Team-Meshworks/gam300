@@ -1,75 +1,11 @@
-.sp-student-welcome {
-  font-size: clamp(36px, 5vw, 70px);
-  letter-spacing: -1px;
-  margin: 24px 0 36px;
-  overflow-wrap: anywhere;
-}
-.sp-student-dashboard {
-  padding: 30px 64px 60px;
-  min-height: 650px;
-  border-radius: 50px;
-  background: rgb(255 253 251 / 70%);
-}
-.sp-student-dashboard > .sp-tabs {
-  display: flex;
-  width: min(500px, 100%);
-  margin: 0 auto 30px;
-  padding: 5px;
-  border-radius: 28px;
-  background: #f0eeeb;
-}
-.sp-student-dashboard > .sp-tabs button {
-  flex: 1;
-  border: 0;
-  border-radius: 24px;
-  padding: 10px;
-  background: transparent;
-}
-.sp-student-dashboard > .sp-tabs button[aria-selected="true"] {
-  background: #fffdfb;
-}
-.sp-student-list {
-  display: grid;
-  gap: 28px;
-}
-.sp-student-card {
-  width: 100%;
-  display: flex;
-  gap: 24px;
-  align-items: center;
-  text-align: left;
-  border: 0;
-  border-radius: 50px;
-  background: #fff;
-  padding: 28px 34px;
-  cursor: pointer;
-}
-.sp-student-card:focus-visible {
-  outline: 3px solid #4b6cbb;
-  outline-offset: 3px;
-}
-.sp-student-card-image,
 .sp-student-detail-image {
   flex: 0 0 278px;
   min-height: 176px;
   border-radius: 40px;
   background: #e7e2dc;
 }
-.sp-student-card-copy {
-  display: grid;
-  gap: 10px;
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-.sp-student-card-copy strong {
-  font-size: 25px;
-}
-.sp-student-card-copy small,
 .sp-student-meta {
   color: #77716a;
-}
-.sp-student-dashboard details {
-  margin-top: 28px;
 }
 .sp-student-detail {
   display: flex;
@@ -131,20 +67,9 @@
   margin-top: 12px;
 }
 @media (max-width: 760px) {
-  .sp-student-dashboard,
   .sp-student-detail {
     padding: 24px;
     border-radius: 24px;
-  }
-  .sp-student-card {
-    padding: 20px;
-    border-radius: 24px;
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .sp-student-card-image {
-    flex: none;
-    min-height: 150px;
   }
   .sp-student-detail {
     flex-direction: column;

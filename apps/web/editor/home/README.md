@@ -1,5 +1,33 @@
 # M2 workspace integration
 
+## Current dashboards
+
+The Facilitator (educator) and Creator dashboards follow the Figma references
+[Facilitator](https://www.figma.com/design/QNpdfKb2Ge7vO8uG8HphxB?node-id=433-3773),
+[Creator](https://www.figma.com/design/QNpdfKb2Ge7vO8uG8HphxB?node-id=226-14714)
+and [Creator Published](https://www.figma.com/design/QNpdfKb2Ge7vO8uG8HphxB?node-id=226-14756).
+They use existing server permissions; the redesign grants no access.
+
+Assignment summaries use `assignedBy` and each student's latest submission and
+decision against the current draft revision, without loading full snapshots.
+`reviewState` is `draft`, `outdated`, `pending`, `approved`, `returned` or `revoked`;
+missing data is unavailable. Creator dashboards page through
+`GET /api/v1/projects/publication-links` for the latest permitted active edition per
+visible active project, without reading full project drafts. Pages use a project UUID
+cursor and a limit of 1–20 (default 10), and return `items` and `nextCursor`. Each item
+contains `projectId`, `publicationId`, `sourceRevision`, `createdAt`, `requiresSignIn`
+and `visitorUrl`, ordered by project ID. Retry refreshes project rows and current links.
+The single-project route retains unlisted-link behavior and `?view=dashboard` support.
+Assignment creation does not persist cover images, so these records use the built-in
+neutral project cover.
+
+Dashboard assets and icons are bundled; the browser does not call an icon service.
+The self-hosting-licensed Satoshi font is downloaded from a pinned Fontshare CDN URL
+and SHA-256 checked by [`prepare-dashboard-font.mjs`](../../prepare-dashboard-font.mjs).
+`npm run dev` and `npm run build:editor` run it automatically; run it first before a
+direct Vite command when uncached. The font binary is not committed and visitors do
+not make a Fontshare network request.
+
 ## Current project creation and opening
 
 Creators and Administrators can create a project directly from home, optionally
@@ -144,9 +172,10 @@ automatically retries a mutation. The user must inspect the refreshed list befor
 copy, because creation and duplication have no server idempotency key. Archived projects
 can be reopened only when the server returns management permission.
 
-The editor integration is deliberately unavailable: `local-drafts.ts` still uses the
-shared `local` principal. Linking a server project to that editor would risk loading the
-wrong draft. This branch does not implement SCRUM-67 or claim that requirement is complete.
+The initial integration did not open projects in the editor. The current integration
+opens an existing project only after verifying the account and edit permission, and uses
+account-and-project-scoped recovery. Existing unscoped drafts are not automatically
+attached to a project; retain their browser data until a recovery path is provided.
 
 Part 1 checks: production build and architecture check passed; six focused API tests passed.
 The browser regression passed anonymous/forced-password gates, role controls, archive/reopen,

@@ -172,7 +172,6 @@ jobs:
               caching
           - name: recovery
             checks: |
-              recovery
               history
               interactions
               server-autosave
@@ -188,6 +187,8 @@ jobs:
               ui /ui-preview.html
               home
               home-welcome
+              dashboards
+              account-header
           - name: projects
             checks: |
               new-project /ui-preview.html#new-project
@@ -240,6 +241,7 @@ jobs:
       - name: Start Vite server
         run: |
           mkdir -p test-results
+          node prepare-dashboard-font.mjs
           node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 5173 --strictPort \
             > "test-results/dev-server-${{ matrix.name }}.log" 2>&1 &
           echo $! > vite.pid

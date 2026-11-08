@@ -81,10 +81,7 @@ try {
   await page.getByRole("button", { name: "Scenes", exact: true }).click();
   await page.getByLabel("Scene name", { exact: true }).fill("Empty scene edited");
   await page.getByRole("button", { name: "Rename scene", exact: true }).click();
-  await page.waitForFunction(
-    () =>
-      document.querySelector('.server-session [role="status"]')?.textContent === "Saved to server",
-  );
+  await page.locator('.save-state[data-state="saved"]').waitFor();
   assert.equal(writes.length, 1);
   assert.equal(document.scenes[0].name, "Empty scene edited");
   assert.equal(document.scenes[0].environmentAssetId, null);

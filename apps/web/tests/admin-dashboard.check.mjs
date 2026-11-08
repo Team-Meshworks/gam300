@@ -388,7 +388,9 @@ try {
   role = "Administrator";
   forced = true;
   await page.goto(origin + "/admin/dashboard");
-  await page.getByRole("heading", { name: "Password change required", exact: true }).waitFor();
+  await page
+    .getByRole("heading", { name: "Change your password to continue", exact: true })
+    .waitFor();
   await page.goto(origin + "/landing");
   await page.getByRole("heading", { name: /Build immersive/ }).waitFor();
   assert.equal(new URL(page.url()).pathname, "/landing");

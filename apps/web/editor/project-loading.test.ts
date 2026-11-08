@@ -1,3 +1,4 @@
+import { createLoadedStore } from "../tests/project-store-fixture";
 import { describe, expect, it } from "vitest";
 import fixture from "../shared/project/fixtures/m1-project.json";
 import type { CatalogueAsset } from "../shared/asset-runtime/catalogue";
@@ -45,7 +46,7 @@ describe("loading a project into the editor store", () => {
   });
 
   it("replaces the whole project once and clears the previous placement history", () => {
-    const store = createDocumentStore(placementAssets);
+    const store = createLoadedStore(placementAssets, "test-room-v1");
     store.addObject(sampleAssetId, [0, 0, 0]);
     store.addObject(sampleAssetId, [1, 0, 0]);
     store.undo();

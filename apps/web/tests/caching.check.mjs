@@ -12,7 +12,7 @@ try {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   // Check real GLB revalidation before Playwright routing disables the HTTP cache.
-  await page.goto(new URL("/@vite/client", url).href);
+  await page.goto(new URL("/", url).href);
   const modelUrl = await page.evaluate(async () => {
     const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
     return new URL(assets.find((asset) => asset.id === "test-crate-v1").url, location.href).href;

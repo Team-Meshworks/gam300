@@ -85,16 +85,12 @@ export function connectServerProjectSession(options: {
       const result = await applySaveRecoverySession(
         {
           document: parsed.value,
-          fileName: options.recovery?.fileName ?? "",
-          savedJson: null,
-          pristine: false,
           serverSave,
           ...(history ? { history } : {}),
         },
         storageRevision,
         options.assetKinds,
         database,
-        undefined,
         scope,
       );
       // Final backup may finish after logout, still under the captured account key
@@ -190,9 +186,6 @@ export function connectServerProjectSession(options: {
     getRecovery: (): RecoverySession => ({
       ...autosave.getRecovery(),
       revision: storageRevision,
-      fileName: options.recovery?.fileName ?? "",
-      savedJson: null,
-      pristine: false,
       ...(capturedHistory ? { history: capturedHistory } : {}),
     }),
     flush: autosave.flush,

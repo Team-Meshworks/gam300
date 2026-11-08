@@ -190,11 +190,7 @@ try {
       assetId,
       `${method} should set and save the first environment`,
     );
-    await page.waitForFunction(
-      () =>
-        document.querySelector('.server-session [role="status"]')?.textContent ===
-        "Saved to server",
-    );
+    await page.locator('.save-state[data-state="saved"]').waitFor();
     assert.deepEqual(document.scenes[0].objects, [], "First room does not add a companion object");
     const fresh = await browser.newContext({ viewport: { width: 1440, height: 1024 } });
     await fresh.route("**/api/v1/**", api);

@@ -1,3 +1,4 @@
+import { createLoadedStore } from "../tests/project-store-fixture";
 import { expect, it } from "vitest";
 import documentFixture from "./fixtures/asset-pipeline-document-history.json";
 import viewpointFixture from "./fixtures/asset-pipeline-view-history.json";
@@ -140,11 +141,10 @@ it("upgrades viewpoint-only recovery to full documents without losing view edits
   expect(again.getSnapshot().project).toEqual(original);
 });
 
-it("promotes both grid stacks before room creation and never borrows later attachments", () => {
-  let store = createDocumentStore(assets);
+it("restores redo on a loaded project without borrowing later attachments", () => {
+  let store = createLoadedStore(assets, "room");
   const object = checked(store.addObject("crate", [1, 0, 0])).object;
   store.undo();
-  checked(store.createProject("room"));
   const room = store.getSnapshot().project!;
   store = reopen(store);
   store.redo();

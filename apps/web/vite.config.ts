@@ -11,6 +11,7 @@ export default defineConfig(({ command, mode }) => {
       ? accountDevelopmentServer({ ...loadEnv(mode, webDirectory, "SPATIA_"), ...process.env })
       : {};
   return {
+    appType: "mpa",
     server: accountServer,
     preview: accountServer,
     root: fileURLToPath(new URL("./editor", import.meta.url)),
@@ -60,7 +61,7 @@ export default defineConfig(({ command, mode }) => {
       emptyOutDir: true,
       rolldownOptions: {
         input: {
-          editor: fileURLToPath(new URL("./editor/index.html", import.meta.url)),
+          index: fileURLToPath(new URL("./editor/index.html", import.meta.url)),
           entry: fileURLToPath(new URL("./editor/entry.html", import.meta.url)),
           workspace: fileURLToPath(new URL("./editor/workspace.html", import.meta.url)),
           visitor: fileURLToPath(new URL("./editor/visitor.html", import.meta.url)),

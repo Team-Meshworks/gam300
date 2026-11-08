@@ -39,31 +39,23 @@ This repository contains the editor, visitor application and account and project
 - **Edit objects** — select from the scene or object list, move with axis handles, and edit position, rotation and scale. Copy, paste, duplicate and delete objects with keyboard shortcuts.
 - **Undo and redo** — reverse edits while preserving object identity.
 - **Explore your scene** — switch between an orbit camera and a first-person visitor camera.
-- **Load a sample project** — try a room, two crates, and a saved starting camera in development mode.
 - **Recover from loading errors** — retry failed assets, with feedback when WebGL 2 is unavailable.
-- **Save and reopen work** — recover a project from browser storage, or use Open, Save and Save As for project JSON files.
-- **Work with server projects** — open authorised projects and autosave changes when the API is configured.
+- **Save and reopen work** — open an authorised server project, autosave changes and recover its browser draft.
 - **Publish an exhibition** — share a supported saved revision by link or QR code with selected signed-in viewers in the visitor application.
 - **Validate project data** — TypeScript and C# support validation and cross-runtime round trips for versions 1 and 2 of the [project format](docs/project-format.md).
 
 ## Project status
 
 **Prototype, under active development.** The interface and sample content are provisional.
-Choose a room to create a saveable project. The editor quietly backs up the current session
-in this browser and reopens it on reload, including valid undo history. **Saved** and
-**Not saved** describe the JSON file; browser recovery does not mark that file as saved.
-
-The project menu provides **New**, **Open**, **Save** and **Save As**. New/Open offers
-**Save**, **Don’t Save** and **Cancel** when there are unsaved edits. Supported browsers
-can update a chosen JSON file; after reload, Save reconnects its permission. Other browsers
-use file upload/download and keep the file status unsaved because downloads have no completion
-receipt. Save also retries a failed browser backup. Cancelled or failed operations preserve
-the current scene. If an older backup is damaged, recovery asks before opening another readable
-backup and keeps the damaged record.
+The editor requires a verified account and an existing project with edit permission.
+It autosaves authorised server projects and keeps browser recovery scoped to the account
+and project. The project menu provides **Save**, **Export project file**, **Publish**
+and **Leave editor**. An emergency project export is available when work cannot be saved.
+Existing unscoped browser drafts are not automatically attached to an account or project;
+retain the browser data until a recovery path is provided.
 
 The server implements Identity accounts and sessions, administrator provisioning, and authorised
-PostgreSQL project workflows. When configured with the API, the editor can open and autosave
-authorised server projects; browser recovery and JSON files remain available for local work.
+PostgreSQL project workflows.
 See the [server guide](apps/server/README.md) for setup and the API boundary.
 
 The editor includes a WHEN → DO interaction builder and preview. Supported saved projects can be
@@ -126,30 +118,29 @@ Open [localhost:8081](http://localhost:8081). Stop with
 toolchain and packages. Later builds reuse Docker's cache. To force fresh
 verification, use `docker compose --project-name spatia-local build --no-cache`, then
 run the launcher. `APP_PORT` selects another local port; `COMPOSE_PROJECT_NAME`
-selects an isolated local project. The launchers default to the M1 development build
-with **Open sample project**. Set `BUILD_MODE=production` explicitly for the production
-variant, which omits that control. `/version.txt` identifies the running build by its
+selects an isolated Compose project. Set `BUILD_MODE=production` explicitly for the production
+variant. `/version.txt` identifies the running build by its
 commit, rather than a numbered product release.
 
-The separate entry pages are available at `/landing` and `/login`; `/` continues to open
-the editor. The web-only launcher does not start the account API. To use sign-in, follow
+The root `/` shows sign-in for signed-out users and routes signed-in creators and
+educators to `/home` and administrators to `/admin/dashboard`. Separate entry pages
+remain available at `/landing` and `/login`. Open an authorised server project at
+`/?projectId=<id>`. The web-only launcher does not start the account API, so authoring
+requires the combined stack. To use sign-in, follow
 the [local API and PostgreSQL setup](docs/deployment.md#local-api-and-postgresql-integration):
 set the private database passwords and start the combined Compose stack. Open
 [https://localhost:8444/landing](https://localhost:8444/landing) or
 [https://localhost:8444/login](https://localhost:8444/login). Caddy uses a local CA, so
 the browser must trust its certificate. Sign-in requires a provisioned username; public
 signup is unavailable. See the [private administrator bootstrap](apps/server/README.md#private-bootstrap-and-administrator-operations-part-4)
-and provisioning instructions in the server guide. A verified session links to `/home`,
-which loads authorised project and class workflows. Server-project creation depends on an
+and provisioning instructions in the server guide. `/home` loads authorised project and
+class workflows. Server-project creation depends on an
 approved asset catalogue. The `/new-project`, `/classes`, `/review`, and `/organisations` routes
 provide session-gated workflows backed by the configured API.
 
-In the editor, add **test-room**, add **test-crate**, move it and try **Undo**.
-Use the project menu's **Save** to save a JSON file. After editing, allow two seconds for
+Open an editable project from the workspace, add **test-crate**, move it and try **Undo**.
+Use the project menu's **Save** to save to the server. After editing, allow two seconds for
 the quiet browser backup before reloading to check recovery.
-**Open sample project** is available in the local development server and the `dev` VM build.
-The `main` production build omits it. See [build modes](docs/deployment.md) to reproduce either
-VM build locally.
 
 The same Dockerfile is used by CI and deployment. See the
 [deployment guide](docs/deployment.md#local-development) for prerequisites and details.
@@ -168,7 +159,7 @@ The same Dockerfile is used by CI and deployment. See the
 | Editor  | Ctrl/Cmd+C, V or D                                       | Copy, paste or duplicate selection |
 | Editor  | Delete / Backspace                                       | Delete selection                   |
 | Editor  | Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z or Ctrl/Cmd+Y               | Undo / redo                        |
-| Editor  | Ctrl/Cmd+S / Ctrl/Cmd+Shift+S                            | Save / Save As                     |
+| Editor  | Ctrl/Cmd+S                                               | Save                               |
 | Editor  | Escape during placement or movement                      | Cancel the change                  |
 | Editor  | Left-drag with Orbit / Pan / Zoom tool                   | Orbit / pan / zoom camera          |
 | Editor  | Right-drag / scroll on background                        | Pan / zoom camera                  |
@@ -230,7 +221,7 @@ Individual maintenance commands below run from `apps/web/`:
 | `npm run test:unit`                                 | Run the Vitest suite                                                  |
 | `npm run test:browser`                              | Check editor interactions against a running development server        |
 | `npm run test:integration`                          | Check visitor isolation, loaded cameras, gizmos and edit cancellation |
-| `npm run test:recovery`                             | Check place–move–undo–save–reload, file transfer and failure recovery |
+| `npm run test:server-autosave`                      | Check server autosave and recovery flows |
 | `npm run test:history`                              | Check recovered undo/redo and damaged-history handling                |
 | `npm run test:viewpoints`                           | Check saved-view heading, capture and picker behavior                 |
 | `npm run test:furniture-tools`                      | Check furniture placement, history and recovery                       |
@@ -263,9 +254,9 @@ If the host cannot support that sandbox, use a sandbox-capable non-root host. Do
 add `--no-sandbox`, privileged containers, or weaken host security settings.
 
 Keep `npm run dev` running in one terminal, then run `test:browser`, `test:integration`,
-`test:recovery`, `test:history`, `test:viewpoints`, `test:furniture-tools`,
+`test:server-autosave`, `test:history`, `test:viewpoints`, `test:furniture-tools`,
 `test:placement-collision` and `test:moving-room-collision` with `npm run` in another.
-All accept a loopback server URL, for example `npm run test:recovery -- http://127.0.0.1:5186/`.
+All accept a loopback server URL, for example `npm run test:history -- http://127.0.0.1:5186/`.
 Each browser is restricted to its explicitly selected local test origin through a
 forwarding proxy, including redirects, popups and WebSockets; service workers are
 blocked. Existing disposable HTTPS fixtures retain their local-only TLS exception.

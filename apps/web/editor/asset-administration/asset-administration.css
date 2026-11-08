@@ -35,8 +35,6 @@
   --aa-scroll-track: #efede9;
   --aa-scroll-thumb: #8f8981;
   --aa-scroll-hover: #6f6961;
-  --aa-avatar: #eee5d8;
-  --aa-avatar-ink: #755c45;
   --aa-panel: linear-gradient(112deg, #f0f0ef 0%, #ffffff 55%, #efeeeb 100%);
   --aa-page: linear-gradient(135deg, #efedeb 0%, #ffffff 34%, #ffffff 65%, #efedeb 100%);
 }
@@ -68,66 +66,16 @@ html.asset-admin-preview-page,
   color: var(--aa-ink);
   font-size: var(--aa-text-body);
 }
-.asset-admin-preview header {
+.asset-admin-preview > .sp-account-header {
   position: absolute;
-  top: 24px;
-  left: 80px;
-  right: 80px;
-  height: 36px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 80px;
 }
 .asset-admin-preview a {
   color: var(--aa-ink);
   text-decoration: none;
-}
-.asset-admin-brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 12px;
-  font-size: var(--aa-text-section);
-}
-.asset-admin-brand > span {
-  display: grid;
-  place-items: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
-  background: var(--aa-ink);
-  color: var(--aa-paper);
-}
-.asset-admin-account {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  font-size: var(--aa-text-body);
-}
-.asset-admin-account > span:first-child {
-  display: grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: var(--aa-avatar);
-  color: var(--aa-avatar-ink);
-  font-size: var(--aa-text-small);
-  font-weight: 600;
-}
-.asset-admin-account > span:nth-child(2) {
-  max-width: 160px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.asset-admin-account :is(a, button) {
-  padding: 12px 20px;
-  border: 0;
-  border-radius: 8px;
-  background: var(--aa-surface);
-  color: var(--aa-ink);
-  font: 600 var(--aa-text-body) var(--aa-font);
-  cursor: pointer;
 }
 .asset-admin-preview-controls {
   position: fixed;
@@ -747,10 +695,6 @@ html.asset-admin-preview-page,
   .asset-admin-preview {
     padding: 80px 40px;
   }
-  .asset-admin-preview header {
-    left: 40px;
-    right: 40px;
-  }
   .asset-admin {
     padding: 28px;
   }
@@ -764,11 +708,6 @@ html.asset-admin-preview-page,
 @media (max-width: 850px) {
   .asset-admin-preview {
     padding: 72px 24px 24px;
-  }
-  .asset-admin-preview header {
-    top: 20px;
-    left: 24px;
-    right: 24px;
   }
   .asset-admin {
     padding: 24px;
@@ -796,19 +735,6 @@ html.asset-admin-preview-page,
 @media (max-width: 520px) {
   .asset-admin-preview {
     padding: 72px 16px 24px;
-  }
-  .asset-admin-preview header {
-    left: 20px;
-    right: 20px;
-  }
-  .asset-admin-account {
-    gap: 12px;
-  }
-  .asset-admin-account > span:first-child {
-    display: none;
-  }
-  .asset-admin-account > span:nth-child(2) {
-    max-width: 88px;
   }
   .asset-admin {
     padding: 20px;

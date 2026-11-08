@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { AccountSession } from "../accounts/account-client";
 import { createAccountClient } from "../accounts/account-client";
 import { Button } from "../../shared/ui/Button";
@@ -9,13 +9,22 @@ import { allPages, createReviewClient } from "../reviews/review-client";
 import type { Decision } from "../reviews/review-types";
 import { ProgressReviews } from "../reviews/ProgressReviews";
 import { PublicationShare } from "../publications/PublicationShare";
-import { readStudentPublication, type StudentPublication } from "./student-publication";
+import {
+  readDashboardPublications,
+  readStudentPublication,
+  type StudentPublication,
+} from "./student-publication";
 import "../publications/publication.css";
 import "../reviews/reviews.css";
 import { createWorkspaceClient } from "./workspace-api";
 import { studentProjectRows, type StudentProjectRow } from "./student-projects";
 import { loadStudentFeedback } from "./student-feedback";
-import { ProjectHome } from "./ProjectHome";
+import { Icon } from "@iconify/react/offline";
+import info from "@iconify-icons/lucide/info";
+import type { RenderWorkspace } from "./dashboard";
+import { DashboardSkeleton } from "./DashboardSkeleton";
+import { CreatorProjectCard } from "./CreatorProjectCard";
+import { PublishedProjects } from "./PublishedProjects";
 import "./student-projects.css";
 
 const workspace = createWorkspaceClient();
@@ -59,7 +68,7 @@ function StudentPublicationLink({ projectId, actorId }: { projectId: string; act
   return result.item ? (
     <PublicationShare url={result.item.visitorUrl} unlisted />
   ) : (
-    <p>This project has not been published yet.</p>
+    <p>No unlisted link is available for this project.</p>
   );
 }
 
@@ -103,7 +112,7 @@ export function StudentProjectDetails({
           </>
         )}
         <StudentPublicationLink
-          key={`${row.project.projectId}:${actorId}`}
+          key={`link:${row.project.projectId}:${actorId}`}
           projectId={row.project.projectId}
           actorId={actorId}
         />
@@ -138,22 +147,34 @@ export function StudentProjectDetails({
 
 export function StudentProjects({
   session,
+  listVersion,
+  renderWorkspace,
   active,
   onOpenProject,
 }: {
   session: AccountSession;
+  listVersion: number;
+  renderWorkspace: RenderWorkspace;
   active: boolean;
   onOpenProject: (projectId: string) => void;
 }) {
   const [tab, setTab] = useState<"projects" | "published">("projects");
-  const [rows, setRows] = useState<StudentProjectRow[] | null>(null);
-  const [error, setError] = useState("");
-  const [version, setVersion] = useState(0);
+  const [attempt, setAttempt] = useState(0);
+  const request = useMemo(
+    () => ({ session, tab, listVersion, attempt }),
+    [session, tab, listVersion, attempt],
+  );
+  const [list, setList] = useState<{
+    request: typeof request;
+    rows: StudentProjectRow[] | "error";
+    links: Map<string, StudentPublication> | null;
+  } | null>(null);
+  const result = active && list?.request === request ? list : null;
+  const rows = result?.rows;
   const [selected, setSelected] = useState<StudentProjectRow | null>(null);
   const [feedback, setFeedback] = useState<Decision[]>([]);
   const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [feedbackError, setFeedbackError] = useState("");
-  const [manage, setManage] = useState(false);
   const lastSelected = useRef<string | null>(null);
   useEffect(() => {
     if (!selected && lastSelected.current) {
@@ -162,10 +183,17 @@ export function StudentProjects({
     }
   }, [selected]);
   useEffect(() => {
+    if (!active) return;
+    const { session, tab } = request;
     let disposed = false;
     const controller = new AbortController();
     void (async () => {
       try {
+        // Read links first so a new grant is reflected in the project rows used to display it.
+        const links =
+          tab === "published"
+            ? await readDashboardPublications(session.userId, controller.signal)
+            : null;
         const [projects, classes] = await Promise.all([
           workspace.projects(false, controller.signal),
           allPages((cursor) => reviews.classrooms(cursor)),
@@ -189,22 +217,21 @@ export function StudentProjects({
           current.mustChangePassword
         )
           throw new Error("Your account changed.");
-        if (!disposed) {
-          setRows(studentProjectRows(session.userId, projects, assignments));
-          setError("");
-        }
+        if (!disposed)
+          setList({
+            request,
+            links,
+            rows: studentProjectRows(session.userId, projects, assignments),
+          });
       } catch {
-        if (!disposed) {
-          setRows(null);
-          setError("Your projects could not be loaded. Try again.");
-        }
+        if (!disposed) setList({ request, rows: "error", links: null });
       }
     })();
     return () => {
       disposed = true;
       controller.abort();
     };
-  }, [session.userId, session.orgId, session.role, version]);
+  }, [active, request]);
   useEffect(() => {
     let disposed = false;
     if (!selected?.assignment) return;
@@ -226,103 +253,82 @@ export function StudentProjects({
       disposed = true;
     };
   }, [selected, session.userId]);
-  return (
-    <>
-      {selected ? (
-        <StudentProjectDetails
-          row={selected}
-          feedback={feedback}
-          feedbackLoading={feedbackLoading}
-          feedbackError={feedbackError}
-          actorId={session.userId}
-          onClose={() => setSelected(null)}
-          onOpen={() => onOpenProject(selected.project.projectId)}
-        />
-      ) : (
-        <>
-          <h1 className="sp-student-welcome">Welcome Back, {session.displayName}</h1>
-          <section className="sp-student-dashboard" aria-label="Student projects">
-            <Tabs
-              id="student-projects"
-              label="Student project views"
-              value={tab}
-              items={[
-                { value: "projects", label: "Projects" },
-                { value: "published", label: "Published" },
-              ]}
-              onChange={setTab}
-            />
-            <div
-              id="student-projects-panel"
-              role="tabpanel"
-              aria-labelledby={`student-projects-${tab}`}
-            >
-              {tab === "published" ? (
-                <p role="status">
-                  Published projects cannot be listed here yet. Open a project’s details to see its
-                  sharing link when available.
-                </p>
-              ) : (
-                <>
-                  {error && (
-                    <div role="alert">
-                      <p>{error}</p>
-                      <Button
-                        onClick={() => {
-                          setError("");
-                          setVersion((n) => n + 1);
-                        }}
-                      >
-                        Retry
-                      </Button>
-                    </div>
-                  )}
-                  {!rows && !error && <p role="status">Loading projects…</p>}
-                  {rows && !rows.length && <p>No projects are available yet.</p>}
-                  <div className="sp-student-list">
-                    {rows?.map((row) => (
-                      <button
-                        className="sp-student-card"
-                        type="button"
-                        id={`student-project-${row.project.projectId}`}
-                        key={row.project.projectId}
-                        onClick={() => {
-                          lastSelected.current = row.project.projectId;
-                          setFeedback([]);
-                          setFeedbackError("");
-                          setFeedbackLoading(Boolean(row.assignment));
-                          setSelected(row);
-                        }}
-                      >
-                        <span className="sp-student-card-image" aria-hidden="true" />
-                        <span className="sp-student-card-copy">
-                          <strong>{row.project.title}</strong>
-                          {row.assignment && (
-                            <>
-                              <small>
-                                {row.assignment.className} · Due{" "}
-                                {formatLocalDeadline(row.assignment.details.dueAtUnixSeconds) ??
-                                  "Unavailable"}
-                              </small>
-                              <span>{row.assignment.details.description}</span>
-                            </>
-                          )}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-            <details onToggle={(event) => setManage(event.currentTarget.open)}>
-              <summary>Manage projects and archives</summary>
-              {manage && (
-                <ProjectHome session={session} active={active} onOpenProject={onOpenProject} />
-              )}
-            </details>
-          </section>
-        </>
-      )}
-    </>
+  if (selected)
+    return renderWorkspace(
+      <StudentProjectDetails
+        row={selected}
+        feedback={feedback}
+        feedbackLoading={feedbackLoading}
+        feedbackError={feedbackError}
+        actorId={session.userId}
+        onClose={() => setSelected(null)}
+        onOpen={() => onOpenProject(selected.project.projectId)}
+      />,
+    );
+  const published = tab === "published";
+  return renderWorkspace(
+    <section className="sp-student-dashboard" aria-labelledby="creator-heading" data-tab={tab}>
+      <div className="sp-student-heading">
+        <h1 id="creator-heading">{published ? "Published Projects" : "Projects"}</h1>
+        <p>
+          {published
+            ? "Your work, ready to explore. View your published projects and share them with others."
+            : "Your next chapter starts here. Explore your assigned projects and keep track of approvals."}
+        </p>
+      </div>
+      <Tabs
+        id="student-projects"
+        label="Project views"
+        value={tab}
+        items={[
+          { value: "projects", label: "Projects" },
+          { value: "published", label: "Published" },
+        ]}
+        onChange={setTab}
+      />
+      <div id="student-projects-panel" role="tabpanel" aria-labelledby={`student-projects-${tab}`}>
+        {rows === "error" ? (
+          <div role="alert" className="sp-dashboard-state">
+            <p>
+              {published ? "Published projects" : "Your projects"} could not be loaded. Try again.
+            </p>
+            <Button onClick={() => setAttempt((n) => n + 1)}>Retry</Button>
+          </div>
+        ) : !rows ? (
+          <DashboardSkeleton view={published ? "published" : "creator"} />
+        ) : result?.links ? (
+          <PublishedProjects rows={rows} links={result.links} name={session.displayName} />
+        ) : !rows.length ? (
+          <p className="sp-dashboard-state" role="status">
+            No projects are available yet.
+          </p>
+        ) : (
+          <div className="sp-student-list">
+            {rows.map((row) => (
+              <CreatorProjectCard
+                key={row.project.projectId}
+                row={row}
+                name={session.displayName}
+                onOpen={() => onOpenProject(row.project.projectId)}
+                onDetails={() => {
+                  lastSelected.current = row.project.projectId;
+                  setFeedback([]);
+                  setFeedbackError("");
+                  setFeedbackLoading(Boolean(row.assignment));
+                  setSelected(row);
+                }}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+      <p className="sp-workspace-note">
+        <Icon icon={info} width={16} />
+        {published
+          ? "A little sharing goes a long way. Copy your project link into a message, email or presentation."
+          : "Open a project to review its instructions and continue building your virtual museum."}
+      </p>
+    </section>,
+    published ? "creator-published" : "creator-projects",
   );
 }

@@ -10,10 +10,12 @@ export type AssignmentSession = {
   mustChangePassword?: boolean;
 };
 export type SourceProject = { projectId: string; title: string; revision: number };
+const reviewStates = ["draft", "outdated", "pending", "approved", "returned", "revoked"] as const;
 export type AssignmentProject = {
   studentId: string;
   projectId: string;
   studentName?: string;
+  reviewState?: (typeof reviewStates)[number] | null;
   approvalStatus?:
     | "not-submitted"
     | "awaiting-approval"
@@ -28,6 +30,7 @@ export type AssignmentDetails = {
   title: string;
   description: string;
   instructions: string;
+  assignedBy?: string | null;
   dueAtUnixSeconds: number;
   revision?: number;
   sourceProjectId?: string | null;
@@ -295,6 +298,7 @@ function assignmentDetails(value: unknown): AssignmentDetails {
     typeof value.title !== "string" ||
     typeof value.description !== "string" ||
     typeof value.instructions !== "string" ||
+    !(value.assignedBy == null || typeof value.assignedBy === "string") ||
     typeof value.dueAtUnixSeconds !== "number" ||
     !Number.isSafeInteger(value.dueAtUnixSeconds) ||
     (value.revision !== undefined &&
@@ -311,6 +315,7 @@ function assignmentDetails(value: unknown): AssignmentDetails {
         typeof row.studentId !== "string" ||
         typeof row.projectId !== "string" ||
         !validStudentName(row.studentName) ||
+        !(row.reviewState == null || reviewStates.some((state) => state === row.reviewState)) ||
         (row.approvalStatus !== undefined &&
           ![
             "not-submitted",

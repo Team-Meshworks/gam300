@@ -1,41 +1,24 @@
-import { combineAbortSignals } from "../../shared/network/abort-signals";
-import { isId, isRecord } from "./workspace-api";
+import { createWorkspaceClient, isId, isRecord } from "./workspace-api";
 
 export type StudentPublication = {
   publicationId: string;
   sourceRevision: number;
   createdAt: string;
   visitorUrl: string;
+  requiresSignIn?: boolean;
 };
 
-/** Read a current unlisted link only for the account that opened this project */
-export async function readStudentPublication(
-  projectId: string,
+async function verifyActor(
   actorId: string,
-  request: typeof fetch = fetch,
+  client: ReturnType<typeof createWorkspaceClient>,
   signal?: AbortSignal,
-): Promise<StudentPublication | null> {
-  if (!isId(projectId) || !isId(actorId))
-    throw new Error("The project link could not be verified.");
-  const options = {
-    headers: { "X-Spatia-Account": actorId },
-    credentials: "same-origin",
-    cache: "no-store",
-    signal: signal
-      ? combineAbortSignals([signal, AbortSignal.timeout(15000)])
-      : AbortSignal.timeout(15000),
-  } as const;
-  const response = await request(`/api/v1/projects/${projectId}/publication-links`, options);
-  if (!response.ok) throw new Error("The published link could not be loaded.");
-  const body: unknown = await response.json();
-  const current = await request("/api/v1/auth/session", options);
-  const session: unknown = current.ok ? await current.json() : null;
+) {
+  const session = await client.read("/api/v1/auth/session", signal, actorId);
   if (!isRecord(session) || session.userId !== actorId || session.mustChangePassword !== false)
     throw new Error("Your account changed. Reload this project.");
-  if (!isRecord(body) || !Array.isArray(body.items) || body.items.length > 1)
-    throw new Error("The published link could not be verified.");
-  if (body.items.length === 0) return null;
-  const item: unknown = body.items[0];
+}
+
+function parseLink(item: unknown): StudentPublication {
   if (
     !isRecord(item) ||
     !isId(item.publicationId) ||
@@ -43,6 +26,7 @@ export async function readStudentPublication(
     (item.sourceRevision as number) < 0 ||
     typeof item.createdAt !== "string" ||
     !Number.isFinite(Date.parse(item.createdAt)) ||
+    !(item.requiresSignIn === undefined || typeof item.requiresSignIn === "boolean") ||
     typeof item.visitorUrl !== "string"
   )
     throw new Error("The published link could not be verified.");
@@ -57,4 +41,41 @@ export async function readStudentPublication(
   )
     throw new Error("The published link could not be verified.");
   return item as StudentPublication;
+}
+
+/** The project details view shares unlisted links only */
+export async function readStudentPublication(
+  projectId: string,
+  actorId: string,
+  request: typeof fetch = fetch,
+  signal?: AbortSignal,
+): Promise<StudentPublication | null> {
+  if (!isId(projectId)) throw new Error("The project link could not be verified.");
+  const client = createWorkspaceClient(request);
+  const body = await client.read(
+    `/api/v1/projects/${projectId}/publication-links`,
+    signal,
+    actorId,
+  );
+  if (!isRecord(body) || !Array.isArray(body.items) || body.items.length > 1)
+    throw new Error("The published link could not be verified.");
+  const publication = body.items.length ? parseLink(body.items[0]) : null;
+  await verifyActor(actorId, client, signal);
+  return publication;
+}
+
+export async function readDashboardPublications(
+  actorId: string,
+  signal: AbortSignal,
+): Promise<Map<string, StudentPublication>> {
+  const client = createWorkspaceClient();
+  const items = await client.pages("/api/v1/projects/publication-links", signal, actorId);
+  const published = new Map<string, StudentPublication>();
+  for (const item of items) {
+    if (!isRecord(item) || !isId(item.projectId) || published.has(item.projectId))
+      throw new Error("The published project could not be verified.");
+    published.set(item.projectId, parseLink(item));
+  }
+  await verifyActor(actorId, client, signal);
+  return published;
 }

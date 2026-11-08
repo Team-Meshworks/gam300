@@ -1,10 +1,10 @@
 using System.Data;
 using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
+using Spatia.Server.Accounts;
 using Spatia.Server.Hosting;
 using Spatia.Server.Persistence;
 using Spatia.Server.Projects;
-using Spatia.Server.Accounts;
 using Spatia.Server.Reviews;
 
 namespace Spatia.Server.Classes;
@@ -55,7 +55,8 @@ internal static class ClassAssignmentReads
             .Select(user => new { user.Id, Name = string.IsNullOrEmpty(user.DisplayName) ? user.UserName : user.DisplayName }).ToArrayAsync(cancellationToken);
         var organizationName = await database.Organizations.AsNoTracking().Where(org => org.Id == classroom!.OrganizationId)
             .Select(org => org.Name).SingleAsync(cancellationToken);
-        var visibleSources = account.Role == ApplicationRoles.Creator ? [] : await visibleProjects
+        var creator = account.Role == ApplicationRoles.Creator;
+        var visibleSources = creator ? [] : await visibleProjects
             .Where(project => sourceIds.Contains(project.Id)).Select(project => project.Id).ToArrayAsync(cancellationToken);
         var projects = await (from mapping in mappings
                               join student in database.Users.AsNoTracking() on mapping.StudentId equals student.Id
@@ -70,8 +71,8 @@ internal static class ClassAssignmentReads
                                       ? student.UserName ?? student.Id.ToString()
                                       : student.DisplayName + " (" + (student.UserName ?? student.Id.ToString()) + ")",
                               }).ToArrayAsync(cancellationToken);
-        var projectIds = projects.Select(row => row.ProjectId).ToArray();
-        var statusRows = account.Role == ApplicationRoles.Creator ? [] : await visibleProjects.Where(project => projectIds.Contains(project.Id))
+        var projectIds = projects.Where(row => !creator || row.StudentId == account.UserId).Select(row => row.ProjectId).ToArray();
+        var statusRows = await visibleProjects.Where(project => projectIds.Contains(project.Id))
             .Select(project => new
             {
                 project.Id,
@@ -85,10 +86,10 @@ internal static class ClassAssignmentReads
                         Outcome = database.ReviewDecisions.Where(decision => decision.SubmissionId == submission.Id)
                             .OrderByDescending(decision => decision.Sequence).Select(decision => decision.Outcome).FirstOrDefault()
                     }).FirstOrDefault(),
-                Published = !project.IsArchived && (from publication in database.Publications
-                                                    join policy in database.PublicationAccess on publication.Id equals policy.PublicationId
-                                                    where publication.ProjectId == project.Id && !policy.Hidden && !policy.Revoked && !policy.Deleted
-                                                    select publication.Id).Any(),
+                Published = !creator && !project.IsArchived && (from publication in database.Publications
+                                                                join policy in database.PublicationAccess on publication.Id equals policy.PublicationId
+                                                                where publication.ProjectId == project.Id && !policy.Hidden && !policy.Revoked && !policy.Deleted
+                                                                select publication.Id).Any(),
             }).ToArrayAsync(cancellationToken);
         var items = page.Select(row => new AssignmentView(row.Id, row.Title, row.Description, row.Instructions, row.DueAtUnixSeconds, row.Revision,
             organizationName, creators.FirstOrDefault(user => user.Id == row.CreatedByUserId)?.Name ?? "Teacher",
@@ -106,7 +107,15 @@ internal static class ClassAssignmentReads
                             ReviewDecision.Revoked => "revoked",
                             _ => "awaiting-approval",
                         };
-                    return new StudentProject(project.StudentId, project.ProjectId, project.StudentName, approval, status?.Published);
+                    var reviewState = account.Role == ApplicationRoles.Administrator ? null : approval switch
+                    {
+                        "not-submitted" => "draft",
+                        "changes-since-submission" => "outdated",
+                        "awaiting-approval" => "pending",
+                        _ => approval,
+                    };
+                    return new StudentProject(project.StudentId, project.ProjectId, project.StudentName, reviewState,
+                        creator ? null : approval, creator ? null : status?.Published);
                 }).ToArray())).ToArray();
         if (assignmentId is not null && items.Length == 0)
         {
@@ -119,8 +128,11 @@ internal static class ClassAssignmentReads
 
     private sealed record AssignmentView(Guid AssignmentId, string Title, string Description, string Instructions,
         long DueAtUnixSeconds, long Revision, string OrganizationName, string CreatorName,
-        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Guid? SourceProjectId, StudentProject[] Projects);
-    private sealed record StudentProject(Guid StudentId, Guid ProjectId, string StudentName,
+        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Guid? SourceProjectId, StudentProject[] Projects)
+    {
+        public string AssignedBy => CreatorName;
+    }
+    private sealed record StudentProject(Guid StudentId, Guid ProjectId, string StudentName, string? ReviewState,
         [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ApprovalStatus,
         [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? Published);
 }

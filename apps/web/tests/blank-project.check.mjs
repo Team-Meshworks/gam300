@@ -141,7 +141,7 @@ try {
           { userId, projectId },
         );
       }
-      await page.getByRole("link", { name: "+ New Project", exact: true }).click();
+      await page.getByRole("link", { name: "New Project", exact: true }).click();
       await page.getByRole("heading", { name: "New Project", exact: true }).waitFor();
       await page.getByLabel("Project title").fill("Blank project");
       await page.getByLabel("Project description").fill("Description");

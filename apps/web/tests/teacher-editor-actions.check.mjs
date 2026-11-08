@@ -217,6 +217,7 @@ try {
     await page.waitForURL("**/home**");
     assert.equal(await page.getByRole("region", { name: "Submissions and reviews" }).count(), 0);
   });
+  await page.unroute("**/home?**");
   await page.goto(origin + "/home");
   await check("teacher home hides submissions and reviews link", async () => {
     await page.getByRole("navigation").first().waitFor();

@@ -45,10 +45,7 @@ type Active = {
   controller: AbortController;
   title: string;
 };
-const labels: Record<ServerSaveStatus, string> = {
-  saved: "Saved to server",
-  unsaved: "Unsaved changes",
-  saving: "Saving to server...",
+const saveErrors: Partial<Record<ServerSaveStatus, string>> = {
   failed: "Save failed. Your edits are still here. Retry or export a copy.",
   conflict:
     "Another revision was saved. Export your edits or open the server version; nothing will be overwritten automatically.",
@@ -296,9 +293,10 @@ function ServerProjectSession({
       );
     const recovery = recover ? next.recovery : null;
     const document = recovery?.document ?? opened.document;
-    const loaded = store.loadProject(JSON.stringify(document), kinds, recovery?.history, {
-      allowDraftLinks: !!recovery,
-    });
+    const options = { allowDraftLinks: !!recovery };
+    const encoded = serializeProject(document, kinds, options);
+    if (!encoded.ok) throw new Error(encoded.error.message);
+    const loaded = store.loadProject(encoded.value, kinds, recovery?.history, options);
     if (!loaded.ok) throw new Error(loaded.error.message);
     const session = connectServerProjectSession({
       accountId: opened.accountId,
@@ -631,6 +629,7 @@ function ServerProjectSession({
   }
 
   if (signedOut) return <LoginRedirect />;
+  const saveError = active && saveErrors[status];
   return (
     <div className="server-editor-shell">
       {active ? (
@@ -644,8 +643,11 @@ function ServerProjectSession({
             failed: ["failed", "conflict", "rejected"].includes(status),
             saving: status === "saving",
             departing: departure !== null || reviewExit !== null,
+            busy,
             save,
             leave: () => void startReview("leave"),
+            openServerVersion: () => setDeparture("reload"),
+            logout: () => setDeparture("logout"),
             ...(reviewAccess === active
               ? {
                   publish: () => void startReview("publish"),
@@ -668,25 +670,6 @@ function ServerProjectSession({
             </>
           )}
         </main>
-      )}
-      {active && (
-        <aside className="server-session" aria-label="Server project">
-          <span role="status">{labels[status]}</span>
-          {status === "failed" && (
-            <button disabled={busy} onClick={() => void save()}>
-              Retry save
-            </button>
-          )}
-          <button disabled={busy} onClick={() => void save(true)}>
-            Export a copy
-          </button>
-          <button disabled={busy} onClick={() => setDeparture("reload")}>
-            Open server version
-          </button>
-          <button disabled={busy} onClick={() => setDeparture("logout")}>
-            Log out
-          </button>
-        </aside>
       )}
       {candidate && (
         <ChoiceDialog
@@ -782,9 +765,11 @@ function ServerProjectSession({
           {error && <p role="alert">{error}</p>}
         </ChoiceDialog>
       )}
-      {error && !candidate && !departure && (
+      {(error || saveError) && !candidate && !departure && (
         <p className="server-session-error" role="alert">
           {error}
+          {error && saveError && " "}
+          {saveError}
         </p>
       )}
     </div>

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
+import { useModal } from "../../shared/ui/useModal";
 import { generateLibraryPreviews } from "../graphics/library-previews";
 import { assetPreviewKey, assetPreviewSource } from "./asset-previews";
 import type {
@@ -55,7 +56,7 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
   const [confirmation, setConfirmation] = useState(false);
   const [removeFromProjects, setRemoveFromProjects] = useState(false);
   const [review, setReview] = useState({ source: "", license: "", reviewNotes: "" });
-  const dialog = useRef<HTMLDialogElement>(null);
+  const dialog = useModal(selection !== null);
   const operation = useRef<AbortController | null>(null);
   const [previews, setPreviews] = useState<Readonly<Record<string, string>>>({});
   const previewCache = useRef(new Set<string>());
@@ -123,22 +124,12 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
     };
   }, [service, reload, initialUpload, kind]);
 
-  // Native modal behavior keeps keyboard focus inside the dialog and restores its opener on close
-  useEffect(() => {
-    if (selection && !dialog.current?.open) {
-      dialog.current?.showModal();
-    }
-    if (!selection) {
-      dialog.current?.close();
-    }
-  }, [selection]);
-
   // Default to the safe action when details become a destructive confirmation
   useEffect(() => {
     if (confirmation) {
       dialog.current?.querySelector<HTMLButtonElement>(".asset-admin-actions > button")?.focus();
     }
-  }, [confirmation]);
+  }, [confirmation, dialog]);
 
   // Keep search and visibility filters outside the returned records
   // Opening a detail view still resolves its stable ID from the full list

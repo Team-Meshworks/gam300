@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { launchBrowser } from "./browser-security.mjs";
+import { serveProject } from "./authoring-project-fixture.mjs";
 
 const browser = await launchBrowser({
   target: process.argv[2] ?? "http://127.0.0.1:5185/",
@@ -7,6 +8,7 @@ const browser = await launchBrowser({
 });
 try {
   const page = await browser.newPage();
+  const project = await serveProject(page, process.argv[2] ?? "http://127.0.0.1:5185/");
   await page.route("**/graphics/library-previews.ts*", (route) =>
     route.fulfill({
       contentType: "text/javascript",
@@ -17,7 +19,7 @@ try {
     }`,
     }),
   );
-  await page.goto(process.argv[2] ?? "http://127.0.0.1:5185/");
+  await page.goto(project.url);
   assert.equal(
     await page.evaluate(() => window.previewAssets),
     undefined,
