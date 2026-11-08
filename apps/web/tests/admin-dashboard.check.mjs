@@ -37,6 +37,10 @@ const projects = [
 }));
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1212 } });
+  // Reproduce older Android browsers across login, dashboard navigation and project opening
+  await page.addInitScript(() => {
+    Object.defineProperty(AbortSignal, "any", { configurable: true, value: undefined });
+  });
   page.setDefaultTimeout(10000);
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));

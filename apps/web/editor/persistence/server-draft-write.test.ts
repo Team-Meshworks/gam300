@@ -7,7 +7,11 @@ const request = { projectId: "project-a", body: '{"captured":"request"}' };
 const signal = new AbortController().signal;
 const receipt = { projectId: "project-a", clientMutationId: "save-a", revision: 1 };
 
-afterEach(() => vi.useRealTimers());
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
 
 function responses(response: Response) {
   // First fetch gets the CSRF token; second fetch sends the draft
@@ -31,6 +35,22 @@ describe("server draft transport", () => {
       headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": "csrf-token" },
       body: request.body,
     });
+
+    // Repeated successful saves must release fallback subscriptions before the session ends
+    class OlderAbortSignal extends AbortSignal {}
+    Object.defineProperty(OlderAbortSignal, "any", { value: undefined });
+    vi.stubGlobal("AbortSignal", OlderAbortSignal);
+    const account = new AbortController();
+    const added = vi.spyOn(account.signal, "addEventListener");
+    const removed = vi.spyOn(account.signal, "removeEventListener");
+    for (let save = 0; save < 50; save += 1) {
+      expect(
+        await writeServerDraft(request, account.signal, responses(Response.json(receipt))),
+      ).toEqual({ kind: "saved", receipt });
+      expect(added).toHaveBeenCalledTimes(save + 1);
+      expect(removed).toHaveBeenCalledTimes(save + 1);
+    }
+    expect(account.signal.aborted).toBe(false);
   });
 
   it("binds token and save requests to the originating account even after cookies change", async () => {

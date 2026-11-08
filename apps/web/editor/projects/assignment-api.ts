@@ -1,3 +1,4 @@
+import { combineAbortSignals } from "../../shared/network/abort-signals";
 import type { EligibleStudent, ProjectClass } from "./new-project-form";
 
 export type AssignmentSession = {
@@ -58,7 +59,7 @@ async function readJson(path: string, signal?: AbortSignal): Promise<unknown> {
     credentials: "same-origin",
     cache: "no-store",
     signal: signal
-      ? AbortSignal.any([signal, AbortSignal.timeout(15000)])
+      ? combineAbortSignals([signal, AbortSignal.timeout(15000)])
       : AbortSignal.timeout(15000),
   });
   if (!response.ok) throw new Error("The requested information is unavailable.");

@@ -7,6 +7,7 @@ Vite/Oxlint/Vitest configuration and architecture tooling.
 
 ```mermaid
 graph TD
+  network["network"]
   visitor["visitor"]
   project["project"]
   catalogue["catalogue"]
@@ -21,8 +22,10 @@ graph TD
   checks["checks"]
   visitor --> asset-loading
   visitor --> catalogue
+  visitor --> network
   visitor --> project
   asset-loading --> catalogue
+  asset-loading --> network
   document --> catalogue
   document --> project
   rendering --> asset-loading
@@ -31,10 +34,12 @@ graph TD
   rendering --> project
   persistence --> catalogue
   persistence --> document
+  persistence --> network
   persistence --> project
   editor --> catalogue
   editor --> document
   editor --> input
+  editor --> network
   editor --> persistence
   editor --> project
   editor --> rendering
@@ -45,9 +50,11 @@ graph TD
   checks --> document
   checks --> editor
   checks --> input
+  checks --> network
   checks --> persistence
   checks --> project
   checks --> rendering
+  checks --> ui-foundation
   checks --> visitor
 ```
 

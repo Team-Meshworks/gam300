@@ -1,3 +1,4 @@
+import { combineAbortSignals } from "../../shared/network/abort-signals";
 import { createAccountClient } from "../accounts/account-client";
 
 export const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -27,7 +28,7 @@ export function createWorkspaceClient(request: typeof fetch = fetch) {
       credentials: "same-origin",
       cache: "no-store",
       signal: signal
-        ? AbortSignal.any([signal, AbortSignal.timeout(15000)])
+        ? combineAbortSignals([signal, AbortSignal.timeout(15000)])
         : AbortSignal.timeout(15000),
     });
     if (!response.ok || !response.headers.get("content-type")?.includes("application/json"))
