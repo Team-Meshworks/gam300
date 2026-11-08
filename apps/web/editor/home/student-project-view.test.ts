@@ -2,6 +2,30 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, it, vi } from "vitest";
 import { StudentProjectDetails } from "./StudentProjects";
+import { CreatorProjectCard } from "./CreatorProjectCard";
+
+it("does not infer publication eligibility for a visible project without an assignment mapping", () => {
+  const html = renderToStaticMarkup(
+    createElement(CreatorProjectCard, {
+      row: {
+        project: {
+          projectId: "draft",
+          title: "Shared draft",
+          revision: 2,
+          updatedAt: "2026-11-08T00:00:00Z",
+          archived: false,
+          permissions: { canEdit: false, canManage: false, canPublish: false },
+        },
+        assignment: null,
+      },
+      name: "Student",
+      onOpen: vi.fn(),
+      onDetails: vi.fn(),
+    }),
+  );
+  expect(html).toContain("No review listed");
+  expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Continue editing<\/button>/);
+});
 
 it("shows the selected student's project details and opens that project", () => {
   const html = renderToStaticMarkup(

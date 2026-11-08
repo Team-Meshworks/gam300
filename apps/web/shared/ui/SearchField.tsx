@@ -1,5 +1,6 @@
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faMagnifyingGlass } from "@fortawesome/free-solid-svg-icons";
+import type { ReactNode } from "react";
 
 export function SearchField({
   label,
@@ -7,12 +8,14 @@ export function SearchField({
   onChange,
   placeholder,
   disabled = false,
+  icon,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
   disabled?: boolean;
+  icon?: ReactNode;
 }) {
   return (
     <label className="sp-search">
@@ -24,7 +27,7 @@ export function SearchField({
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder ?? label}
       />
-      <FontAwesomeIcon icon={faMagnifyingGlass} aria-hidden="true" />
+      {icon ?? <FontAwesomeIcon icon={faMagnifyingGlass} aria-hidden="true" />}
     </label>
   );
 }

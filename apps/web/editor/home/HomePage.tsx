@@ -3,6 +3,14 @@ import { createAccountClient, type AccountSession } from "../accounts/account-cl
 import { LoginRedirect } from "../accounts/LoginRedirect";
 import { WorkspaceShell } from "../../shared/ui/WorkspaceShell";
 import { Button } from "../../shared/ui/Button";
+import { Icon } from "@iconify/react/offline";
+import landmark from "@iconify-icons/lucide/landmark";
+import chevronDown from "@iconify-icons/lucide/chevron-down";
+import { DashboardSettings } from "./DashboardSettings";
+import type { RenderWorkspace } from "./dashboard";
+import washLeft from "./assets/ambient-top.svg";
+import washRight from "./assets/ambient-bottom.svg";
+import creatorWashRight from "./assets/ambient-creator.svg";
 import { Dialog } from "../../shared/ui/Dialog";
 import { ProjectHome } from "./ProjectHome";
 import { StudentProjects } from "./StudentProjects";
@@ -12,6 +20,7 @@ import { WorkspaceNavigation } from "./WorkspaceNavigation";
 import { AssignmentCreationScreen } from "../projects/AssignmentScreens";
 import type { FormNavigationState } from "../projects/NewProjectForm";
 import "./home.css";
+import "./dashboard.css";
 
 const accounts = createAccountClient();
 
@@ -144,6 +153,9 @@ function HomeWorkspace({
     location.pathname.replace(/\/$/, "") === "/new-project",
   );
   const [leave, setLeave] = useState<(() => void) | null>(null);
+  const [manage, setManage] = useState(false);
+  const [listVersion, setListVersion] = useState(0);
+  const previousView = useRef(view);
   useEffect(() => {
     if (!navigation.dirty && !navigation.locked) return;
     const preventLoss = (event: BeforeUnloadEvent) => event.preventDefault();
@@ -159,14 +171,68 @@ function HomeWorkspace({
     navigate(() => location.assign(`/?projectId=${encodeURIComponent(projectId)}`));
   }
   useEffect(() => {
-    document.getElementById("workspace")?.focus();
-  }, [view]);
-  return (
+    if (view !== "projects" || session.role === "Administrator" || previousView.current !== view) {
+      document.getElementById("workspace")?.focus();
+    }
+    previousView.current = view;
+  }, [view, session.role]);
+  const navigationBar = (
+    <WorkspaceNavigation
+      role={session.role}
+      current={view}
+      locked={navigation.locked}
+      onNavigate={navigate}
+      onProjects={() => setView("projects")}
+      onClasses={() => setView("classes")}
+    />
+  );
+  const renderWorkspace: RenderWorkspace = (content, dashboard) => (
     <WorkspaceShell
       name={session.displayName}
-      initials={session.displayName.slice(0, 2).toUpperCase()}
+      initials={session.displayName
+        .slice(0, dashboard?.startsWith("creator") ? 1 : 2)
+        .toUpperCase()}
       onHome={() => navigate(() => location.assign("/home"))}
       onSignOut={() => navigate(onSignOut)}
+      variant={dashboard ? (dashboard === "facilitator" ? "facilitator" : "creator") : undefined}
+      appearance={
+        dashboard
+          ? {
+              washLeft,
+              washRight: dashboard === "creator-projects" ? creatorWashRight : washRight,
+              mark: <Icon icon={landmark} width={22} color="white" />,
+            }
+          : undefined
+      }
+      accountActions={dashboard === "creator-projects" && <DashboardSettings />}
+      footer={
+        dashboard && (
+          <footer className="sp-dashboard-tools">
+            {navigationBar}
+            <details
+              open={manage}
+              onToggle={(event) => {
+                const open = event.currentTarget.open;
+                if (manage && !open) setListVersion((value) => value + 1);
+                setManage(open);
+              }}
+            >
+              <summary>
+                Manage projects and archives <Icon icon={chevronDown} width={16} />
+              </summary>
+              {manage && (
+                <ProjectHome
+                  session={session}
+                  active={active}
+                  onOpenProject={openProject}
+                  onNavigationStateChange={setNavigation}
+                  showCreation={session.role === "Creator"}
+                />
+              )}
+            </details>
+          </footer>
+        )
+      }
     >
       {session.role === "Administrator" && (
         <div className="sp-admin-return">
@@ -180,72 +246,10 @@ function HomeWorkspace({
           </button>
         </div>
       )}
-      {!(session.role === "Educator" && view === "assignment" && newProject) && (
-        <WorkspaceNavigation
-          role={session.role}
-          current={view}
-          locked={navigation.locked}
-          onNavigate={navigate}
-          onProjects={() => setView("projects")}
-          onClasses={() => setView("classes")}
-        />
-      )}
-      {view === "projects" ? (
-        session.role === "Educator" ? (
-          <TeacherProjects session={session} active={active} />
-        ) : session.role === "Creator" ? (
-          <StudentProjects session={session} active={active} onOpenProject={openProject} />
-        ) : (
-          <ProjectHome
-            session={session}
-            active={active}
-            onOpenProject={openProject}
-            onNavigationStateChange={setNavigation}
-          />
-        )
-      ) : view === "classes" ? (
-        <ClassHome
-          session={session}
-          active={active}
-          onCreateAssignment={() => {
-            setNewProject(false);
-            setView("assignment");
-          }}
-          onOpenProject={openProject}
-        />
-      ) : view === "denied" ? (
-        <h1>Access denied</h1>
-      ) : (
-        <div className={newProject ? "sp-teacher-new-project" : undefined}>
-          <div className="sp-page-heading sp-teacher-detail-head">
-            <div>
-              <h1>{newProject ? "New Project" : "New class assignment"}</h1>
-              <p>
-                {newProject
-                  ? "Set up a new experience, add your project details and choose your students."
-                  : "Create an independent project for each selected student from an existing source project."}
-              </p>
-            </div>
-            {newProject && (
-              <Button
-                aria-label="Close new project"
-                onClick={() => navigate(() => location.assign("/home"))}
-              >
-                ×
-              </Button>
-            )}
-          </div>
-          <AssignmentCreationScreen
-            expectedUserId={session.userId}
-            createBlank={newProject && session.role === "Educator"}
-            onCancel={() =>
-              navigate(() => (newProject ? location.assign("/home") : setView("classes")))
-            }
-            onNavigationStateChange={setNavigation}
-            onOpenProject={openProject}
-          />
-        </div>
-      )}
+      {!dashboard &&
+        !(session.role === "Educator" && view === "assignment" && newProject) &&
+        navigationBar}
+      {content}
       {leave && active && (
         <Dialog title="Leave this page?" onClose={() => setLeave(null)}>
           <p>
@@ -268,5 +272,75 @@ function HomeWorkspace({
         </Dialog>
       )}
     </WorkspaceShell>
+  );
+  if (view === "projects" && session.role === "Educator")
+    return (
+      <TeacherProjects
+        session={session}
+        listVersion={listVersion}
+        renderWorkspace={renderWorkspace}
+      />
+    );
+  if (view === "projects" && session.role === "Creator")
+    return (
+      <StudentProjects
+        session={session}
+        active={active}
+        listVersion={listVersion}
+        renderWorkspace={renderWorkspace}
+        onOpenProject={openProject}
+      />
+    );
+  return renderWorkspace(
+    view === "projects" ? (
+      <ProjectHome
+        session={session}
+        active={active}
+        onOpenProject={openProject}
+        onNavigationStateChange={setNavigation}
+      />
+    ) : view === "classes" ? (
+      <ClassHome
+        session={session}
+        active={active}
+        onCreateAssignment={() => {
+          setNewProject(false);
+          setView("assignment");
+        }}
+        onOpenProject={openProject}
+      />
+    ) : view === "denied" ? (
+      <h1>Access denied</h1>
+    ) : (
+      <div className={newProject ? "sp-teacher-new-project" : undefined}>
+        <div className="sp-page-heading sp-teacher-detail-head">
+          <div>
+            <h1>{newProject ? "New Project" : "New class assignment"}</h1>
+            <p>
+              {newProject
+                ? "Set up a new experience, add your project details and choose your students."
+                : "Create an independent project for each selected student from an existing source project."}
+            </p>
+          </div>
+          {newProject && (
+            <Button
+              aria-label="Close new project"
+              onClick={() => navigate(() => location.assign("/home"))}
+            >
+              ×
+            </Button>
+          )}
+        </div>
+        <AssignmentCreationScreen
+          expectedUserId={session.userId}
+          createBlank={newProject && session.role === "Educator"}
+          onCancel={() =>
+            navigate(() => (newProject ? location.assign("/home") : setView("classes")))
+          }
+          onNavigationStateChange={setNavigation}
+          onOpenProject={openProject}
+        />
+      </div>
+    ),
   );
 }

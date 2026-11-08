@@ -14,6 +14,9 @@ export function WorkspaceShell({
   onHome,
   homeHref = "#new-project",
   variant,
+  appearance,
+  accountActions,
+  footer,
   children,
 }: {
   name: string;
@@ -21,19 +24,22 @@ export function WorkspaceShell({
   onSignOut?: () => void;
   onHome?: () => void;
   homeHref?: string;
-  variant?: "dashboard" | "asset-administration" | undefined;
+  variant?: "dashboard" | "asset-administration" | "creator" | "facilitator" | undefined;
+  appearance?: { washLeft: string; washRight: string; mark: ReactNode } | undefined;
+  accountActions?: ReactNode;
+  footer?: ReactNode;
   children: ReactNode;
 }) {
   return (
     <div className={`sp-shell${variant ? ` sp-shell--${variant}` : ""}`}>
       <img
         className="sp-wash sp-wash--left"
-        src={variant === "dashboard" ? adminWashLeft : washLeft}
+        src={appearance?.washLeft ?? (variant === "dashboard" ? adminWashLeft : washLeft)}
         alt=""
       />
       <img
         className="sp-wash sp-wash--right"
-        src={variant === "dashboard" ? adminWashRight : washRight}
+        src={appearance?.washRight ?? (variant === "dashboard" ? adminWashRight : washRight)}
         alt=""
       />
       <header className="sp-navigation">
@@ -50,9 +56,7 @@ export function WorkspaceShell({
               : undefined
           }
         >
-          <span className="sp-brand-mark">
-            <img src={landmark} alt="" />
-          </span>
+          <span className="sp-brand-mark">{appearance?.mark ?? <img src={landmark} alt="" />}</span>
           Spatia
         </a>
         <div className="sp-account">
@@ -63,11 +67,13 @@ export function WorkspaceShell({
           <Button disabled={!onSignOut} onClick={onSignOut}>
             Log Out
           </Button>
+          {accountActions}
         </div>
       </header>
       <main id="workspace" className="sp-workspace" tabIndex={-1}>
         {children}
       </main>
+      {footer}
     </div>
   );
 }

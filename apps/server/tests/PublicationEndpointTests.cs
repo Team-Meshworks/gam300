@@ -15,6 +15,27 @@ namespace Spatia.Server.Tests;
 public sealed class PublicationEndpointTests
 {
     [Test]
+    public async Task DashboardLinks_RequireEditionAudienceAsWellAsProjectAccess()
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync();
+        var (data, _) = await PrepareAsync(fixture);
+        var publicationId = Guid.NewGuid();
+        using var published = await PublishAsync(fixture, data.ProjectId, publicationId, viewers: [data.Student]);
+        await Assert.That(published.StatusCode).IsEqualTo(HttpStatusCode.Created);
+        await fixture.SignInAsync(data.Student);
+        var path = $"/api/v1/projects/{data.ProjectId}/publication-links?view=dashboard";
+        var allowed = await fixture.Client.GetFromJsonAsync<JsonElement>(path);
+        await Assert.That(allowed.GetProperty("items")[0].GetProperty("publicationId").GetGuid()).IsEqualTo(publicationId);
+        await using var scope = fixture.Database.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var access = await database.PublicationAccess.SingleAsync(row => row.PublicationId == publicationId);
+        access.ViewerIds = [];
+        await database.SaveChangesAsync();
+        var denied = await fixture.Client.GetFromJsonAsync<JsonElement>(path);
+        await Assert.That(denied.GetProperty("items").GetArrayLength()).IsEqualTo(0);
+    }
+
+    [Test]
     public async Task PublicationLinks_StudentCanFindCurrentUnlistedLinkWithoutExposingOtherProjects()
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync();

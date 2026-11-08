@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { Icon } from "@iconify/react/offline";
+import searchIcon from "@iconify-icons/ant-design/search-outlined";
 import type { AccountSession } from "../accounts/account-client";
 import { createAccountClient } from "../accounts/account-client";
 import { Button } from "../../shared/ui/Button";
@@ -116,14 +118,6 @@ export function ProjectHome({
       className={`sp-home-projects sp-home-projects--${session.role.toLowerCase()}`}
       aria-label="Projects"
     >
-      {session.role !== "Administrator" && (
-        <div className={`sp-home-welcome sp-home-welcome--${session.role.toLowerCase()}`}>
-          <h1>Welcome Back, {session.displayName}</h1>
-          {session.role === "Educator" && (
-            <p>A space to spark ideas, guide student work and curate what gets shared.</p>
-          )}
-        </div>
-      )}
       <div className="sp-page-heading sp-between">
         <div>
           {session.role === "Administrator" ? (
@@ -160,6 +154,9 @@ export function ProjectHome({
           value={search}
           onChange={setSearch}
           placeholder="Search projects"
+          icon={
+            session.role === "Administrator" ? undefined : <Icon icon={searchIcon} width={18} />
+          }
         />
         <Button onClick={() => setVersion((value) => value + 1)}>Refresh</Button>
       </div>

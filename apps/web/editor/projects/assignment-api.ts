@@ -8,12 +8,19 @@ export type AssignmentSession = {
   mustChangePassword?: boolean;
 };
 export type SourceProject = { projectId: string; title: string; revision: number };
-export type AssignmentProject = { studentId: string; projectId: string; studentName?: string };
+const reviewStates = ["draft", "outdated", "pending", "approved", "returned", "revoked"] as const;
+export type AssignmentProject = {
+  studentId: string;
+  projectId: string;
+  studentName?: string;
+  reviewState?: (typeof reviewStates)[number] | null;
+};
 export type AssignmentDetails = {
   assignmentId: string;
   title: string;
   description: string;
   instructions: string;
+  assignedBy?: string | null;
   dueAtUnixSeconds: number;
   projects: AssignmentProject[];
 };
@@ -273,6 +280,7 @@ function assignmentDetails(value: unknown): AssignmentDetails {
     typeof value.title !== "string" ||
     typeof value.description !== "string" ||
     typeof value.instructions !== "string" ||
+    !(value.assignedBy == null || typeof value.assignedBy === "string") ||
     typeof value.dueAtUnixSeconds !== "number" ||
     !Number.isSafeInteger(value.dueAtUnixSeconds) ||
     !Array.isArray(value.projects) ||
@@ -281,7 +289,8 @@ function assignmentDetails(value: unknown): AssignmentDetails {
         !record(row) ||
         typeof row.studentId !== "string" ||
         typeof row.projectId !== "string" ||
-        !validStudentName(row.studentName),
+        !validStudentName(row.studentName) ||
+        !(row.reviewState == null || reviewStates.some((state) => state === row.reviewState)),
     )
   )
     throw new Error("The assignment is unavailable.");

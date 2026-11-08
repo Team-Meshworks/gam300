@@ -6,7 +6,7 @@ const browser = await launchBrowser({ target: origin });
 try {
   for (const [role, welcome] of [
     ["Educator", "Welcome Back, Teacher"],
-    ["Creator", "Welcome Back, Student"],
+    ["Creator", "Projects"],
   ]) {
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
     page.setDefaultTimeout(7000);
@@ -89,7 +89,10 @@ try {
         second.y >= first.y + first.height,
         "Creator cards should be stacked at desktop width",
       );
-      await cards.first().click();
+      await cards
+        .first()
+        .getByRole("button", { name: /view details/i })
+        .click();
       await page.getByRole("heading", { name: "Silk Road", exact: true }).waitFor();
       assert.equal(await page.getByRole("region", { name: "Project details" }).isVisible(), true);
       await page.getByRole("button", { name: "Close project details" }).click();
@@ -110,7 +113,7 @@ try {
       }
       const creation =
         role === "Educator"
-          ? page.getByRole("link", { name: "+ New Project", exact: true })
+          ? page.getByRole("link", { name: "New Project", exact: true })
           : page.getByRole("button", { name: "New project", exact: true });
       assert.equal(await creation.isVisible(), true, `${role} creation control at ${width}px`);
       if (role === "Educator") assert.equal(await creation.getAttribute("href"), "/new-project");

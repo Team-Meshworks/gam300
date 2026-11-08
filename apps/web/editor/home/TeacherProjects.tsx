@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { AccountSession } from "../accounts/account-client";
 import { Button } from "../../shared/ui/Button";
 import { SearchField } from "../../shared/ui/SearchField";
@@ -9,9 +9,12 @@ import { listAssignments, type AssignmentDetails } from "../projects/assignment-
 import { formatLocalDeadline } from "../projects/deadline";
 import { progressEditorUrl, type ProgressContext } from "../projects/progress-navigation";
 import { createWorkspaceClient, type ProjectSummary } from "./workspace-api";
-import { ProjectHome } from "./ProjectHome";
+import { createAccountClient } from "../accounts/account-client";
+import { assignmentProgress, type RenderWorkspace } from "./dashboard";
+import { TeacherDashboard, type TeacherCard, type TeacherQuery } from "./TeacherDashboard";
 import "../reviews/reviews.css";
 
+const accounts = createAccountClient();
 const reviews = createReviewClient();
 const workspace = createWorkspaceClient();
 type Item = { classId: string; className: string; details: AssignmentDetails };
@@ -117,14 +120,23 @@ export function TeacherProjectDetails({
   );
 }
 
-export function TeacherProjects({ session, active }: { session: AccountSession; active: boolean }) {
+export function TeacherProjects({
+  session,
+  listVersion,
+  renderWorkspace,
+}: {
+  session: AccountSession;
+  listVersion: number;
+  renderWorkspace: RenderWorkspace;
+}) {
   const [items, setItems] = useState<Item[] | null>(null);
   const [error, setError] = useState("");
-  const [search, setSearch] = useState("");
+  const [attempt, setAttempt] = useState(0);
+  const [query, setQuery] = useState<TeacherQuery>({ filter: "all", search: "" });
+  const lastSelected = useRef<string | null>(null);
   const [selected, setSelected] = useState<Item | null>(null);
   const [standalone, setStandalone] = useState<ProjectSummary[]>([]);
   const [selectedStandalone, setSelectedStandalone] = useState<ProjectSummary | null>(null);
-  const [manage, setManage] = useState(false);
   const [guard, setGuard] = useState<LeaveGuard>({ pending: false, dirty: false });
   const [showReview, setShowReview] = useState(false);
   const [reviewRevision, setReviewRevision] = useState<number | null>(null);
@@ -135,22 +147,33 @@ export function TeacherProjects({ session, active }: { session: AccountSession; 
   } | null>(null);
   useEffect(() => {
     let disposed = false;
+    const controller = new AbortController();
     void (async () => {
       try {
         const [classes, projects] = await Promise.all([
           allPages((cursor) => reviews.classrooms(cursor)),
-          workspace.projects(false),
+          workspace.projects(false, controller.signal),
         ]);
         const groups = await Promise.all(
           classes.map(async (c) =>
-            (await listAssignments(c.id)).map((details) => ({
+            (await listAssignments(c.id, controller.signal)).map((details) => ({
               classId: c.id,
               className: c.name,
               details,
             })),
           ),
         );
+        const current = await accounts.getSession();
+        if (
+          !current ||
+          current.userId !== session.userId ||
+          current.orgId !== session.orgId ||
+          current.role !== session.role ||
+          current.mustChangePassword
+        )
+          throw new Error("Account changed");
         if (disposed) return;
+        setError("");
         const rows = groups.flat();
         const assigned = new Set(
           rows.flatMap((row) => row.details.projects.map((project) => project.projectId)),
@@ -187,14 +210,51 @@ export function TeacherProjects({ session, active }: { session: AccountSession; 
           }
         }
       } catch {
-        if (!disposed) setError("Projects could not be loaded. Refresh to try again.");
+        if (!disposed) {
+          setItems(null);
+          setStandalone([]);
+          setError("Projects could not be loaded. Try again.");
+        }
       }
     })();
     return () => {
       disposed = true;
+      controller.abort();
     };
-  }, []);
-  return (
+  }, [attempt, listVersion, session.userId, session.orgId, session.role]);
+  useEffect(() => {
+    if (!selected && !selectedStandalone && lastSelected.current) {
+      document.getElementById(`teacher-project-${lastSelected.current}`)?.focus();
+      lastSelected.current = null;
+    }
+  }, [selected, selectedStandalone]);
+  const cards: TeacherCard[] | null = items && [
+    ...items.map((item) => {
+      const { status, submitted } = assignmentProgress(item.details.projects);
+      const id = `${item.classId}:${item.details.assignmentId}`;
+      return {
+        id,
+        title: item.details.title,
+        status,
+        metadata: `${item.className} · ${submitted === null ? "Submission count unavailable" : `${submitted} student submission${submitted === 1 ? "" : "s"}`}`,
+        onDetails: () => {
+          lastSelected.current = id;
+          setSelected(item);
+        },
+      };
+    }),
+    ...standalone.map((project) => ({
+      id: project.projectId,
+      title: project.title,
+      status: "In Progress" as const,
+      metadata: "Independent project",
+      onDetails: () => {
+        lastSelected.current = project.projectId;
+        setSelectedStandalone(project);
+      },
+    })),
+  ];
+  return renderWorkspace(
     <>
       {selectedStandalone ? (
         <TeacherStandaloneDetails
@@ -216,93 +276,17 @@ export function TeacherProjects({ session, active }: { session: AccountSession; 
           onProgress={(context) => location.assign(progressEditorUrl(context))}
         />
       ) : (
-        <>
-          <div className="sp-teacher-welcome">
-            <h1>Welcome Back, {session.displayName}</h1>
-            <p>A space to spark ideas, guide student work and curate what gets shared.</p>
-          </div>
-          <section className="sp-teacher-projects">
-            <div className="sp-teacher-heading">
-              <div>
-                <h2>All Projects</h2>
-                <p>Review projects and student progress.</p>
-              </div>
-              <SearchField
-                label="Search projects"
-                placeholder="Search all projects"
-                value={search}
-                onChange={setSearch}
-              />
-            </div>
-            <div className="sp-teacher-toolbar">
-              <strong>All Projects ({(items?.length ?? 0) + standalone.length})</strong>
-              <a className="sp-button sp-button--primary" href="/new-project">
-                + New Project
-              </a>
-            </div>
-            {error && <p role="alert">{error}</p>}
-            {!items && !error && <p role="status">Loading projects…</p>}
-            {items && !items.length && !standalone.length && <p>No projects are available yet.</p>}
-            <div className="sp-teacher-grid">
-              {items
-                ?.filter((item) =>
-                  item.details.title.toLocaleLowerCase().includes(search.toLocaleLowerCase()),
-                )
-                .map((item) => (
-                  <article
-                    className="sp-teacher-card"
-                    key={`${item.classId}:${item.details.assignmentId}`}
-                  >
-                    <div className="sp-teacher-card-cover" />
-                    <div>
-                      <h3>{item.details.title}</h3>
-                      <p>
-                        {item.className} · {item.details.projects.length} student projects
-                      </p>
-                      <Button variant="primary" onClick={() => setSelected(item)}>
-                        View Details
-                      </Button>
-                    </div>
-                  </article>
-                ))}
-            </div>
-            {standalone.length > 0 && (
-              <>
-                <h2>Other projects</h2>
-                <div className="sp-teacher-grid">
-                  {standalone
-                    .filter((project) =>
-                      project.title.toLocaleLowerCase().includes(search.toLocaleLowerCase()),
-                    )
-                    .map((project) => (
-                      <article className="sp-teacher-card" key={project.projectId}>
-                        <div className="sp-teacher-card-cover" />
-                        <div>
-                          <h3>{project.title}</h3>
-                          <Button variant="primary" onClick={() => setSelectedStandalone(project)}>
-                            View Details
-                          </Button>
-                        </div>
-                      </article>
-                    ))}
-                </div>
-              </>
-            )}
-            <details onToggle={(event) => setManage(event.currentTarget.open)}>
-              <summary>Manage projects and archives</summary>
-              {manage && (
-                <ProjectHome
-                  session={session}
-                  active={active}
-                  showCreation={false}
-                  onOpenProject={(projectId) =>
-                    location.assign(`/?projectId=${encodeURIComponent(projectId)}`)
-                  }
-                />
-              )}
-            </details>
-          </section>
-        </>
+        <TeacherDashboard
+          name={session.displayName}
+          cards={cards}
+          error={error}
+          query={query}
+          onQuery={setQuery}
+          onRetry={() => {
+            setError("");
+            setAttempt((value) => value + 1);
+          }}
+        />
       )}
       {showReview &&
         reviewRevision === null &&
@@ -326,6 +310,7 @@ export function TeacherProjects({ session, active }: { session: AccountSession; 
           }}
         />
       )}
-    </>
+    </>,
+    selected || selectedStandalone ? undefined : "facilitator",
   );
 }

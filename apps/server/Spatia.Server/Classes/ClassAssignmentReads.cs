@@ -1,5 +1,6 @@
 using System.Data;
 using Microsoft.EntityFrameworkCore;
+using Spatia.Server.Accounts;
 using Spatia.Server.Hosting;
 using Spatia.Server.Persistence;
 using Spatia.Server.Projects;
@@ -42,12 +43,22 @@ internal static class ClassAssignmentReads
         if (assignmentId is { } exact) { assignments = assignments.Where(row => row.Id == exact); }
         else if (cursor is { } after) { assignments = assignments.Where(row => row.Id.CompareTo(after) > 0); }
         var rows = await assignments.OrderBy(row => row.Id).Take(assignmentId is null ? limit + 1 : 1)
-            .Select(row => new { row.Id, row.Title, row.Description, row.Instructions, row.DueAtUnixSeconds })
+            .Select(row => new
+            {
+                row.Id,
+                row.Title,
+                row.Description,
+                row.Instructions,
+                row.DueAtUnixSeconds,
+                AssignedBy = database.Users.Where(user => user.Id == row.CreatedByUserId)
+                    .Select(user => string.IsNullOrEmpty(user.DisplayName) ? user.UserName : user.DisplayName).FirstOrDefault(),
+            })
             .ToArrayAsync(cancellationToken);
         var page = rows.Take(limit).ToArray();
         var ids = page.Select(row => row.Id).ToArray();
         var projects = await (from mapping in mappings
                               join student in database.Users.AsNoTracking() on mapping.StudentId equals student.Id
+                              join project in database.Projects on mapping.ProjectId equals project.Id
                               where ids.Contains(mapping.AssignmentId)
                               orderby mapping.StudentId
                               select new
@@ -55,13 +66,23 @@ internal static class ClassAssignmentReads
                                   mapping.AssignmentId,
                                   mapping.StudentId,
                                   mapping.ProjectId,
+                                  ReviewState = account.Role == ApplicationRoles.Educator
+                                      || (account.Role == ApplicationRoles.Creator && mapping.StudentId == account.UserId)
+                                      ? database.ReviewSubmissions.Where(submission => submission.ProjectId == mapping.ProjectId)
+                                          .OrderByDescending(submission => submission.Sequence)
+                                          .Select(submission => submission.SourceRevision != project.Revision ? "outdated"
+                                              : database.ReviewDecisions.Where(decision => decision.SubmissionId == submission.Id)
+                                                  .OrderByDescending(decision => decision.Sequence)
+                                                  .Select(decision => decision.Outcome).FirstOrDefault() ?? "pending")
+                                          .FirstOrDefault() ?? "draft"
+                                      : null,
                                   StudentName = string.IsNullOrEmpty(student.DisplayName)
                                       ? student.UserName ?? student.Id.ToString()
                                       : student.DisplayName + " (" + (student.UserName ?? student.Id.ToString()) + ")",
                               }).ToArrayAsync(cancellationToken);
-        var items = page.Select(row => new AssignmentView(row.Id, row.Title, row.Description, row.Instructions, row.DueAtUnixSeconds,
+        var items = page.Select(row => new AssignmentView(row.Id, row.Title, row.Description, row.Instructions, row.DueAtUnixSeconds, row.AssignedBy,
             projects.Where(project => project.AssignmentId == row.Id)
-                .Select(project => new StudentProject(project.StudentId, project.ProjectId, project.StudentName)).ToArray())).ToArray();
+                .Select(project => new StudentProject(project.StudentId, project.ProjectId, project.StudentName, project.ReviewState)).ToArray())).ToArray();
         if (assignmentId is not null && items.Length == 0)
         {
             return ApiProblems.Create(context, 404, "class_assignment_not_found", "The assignment is unavailable.");
@@ -72,6 +93,6 @@ internal static class ClassAssignmentReads
     }
 
     private sealed record AssignmentView(Guid AssignmentId, string Title, string Description, string Instructions,
-        long DueAtUnixSeconds, StudentProject[] Projects);
-    private sealed record StudentProject(Guid StudentId, Guid ProjectId, string StudentName);
+        long DueAtUnixSeconds, string? AssignedBy, StudentProject[] Projects);
+    private sealed record StudentProject(Guid StudentId, Guid ProjectId, string StudentName, string? ReviewState);
 }

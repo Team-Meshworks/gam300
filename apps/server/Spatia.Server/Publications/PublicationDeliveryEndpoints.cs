@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
+using Spatia.Server.Accounts;
 using Spatia.Server.Hosting;
 using Spatia.Server.Persistence;
 using Spatia.Server.Projects;
@@ -20,12 +21,21 @@ internal static class PublicationDeliveryEndpoints
             if (authorized.Failure is { } failure) { return ProjectHttpResults.FromAccessFailure(context, failure); }
             if (!PublicationWriteEndpoints.TryOrigin(configuration, out var origin))
             { return ApiProblems.Create(context, 503, "publication_unavailable", "Publication is not configured."); }
-            var rows = authorized.Snapshot!.IsArchived ? [] : await (from edition in database.Publications.AsNoTracking()
-                                                                     join state in database.PublicationAccess.AsNoTracking() on edition.Id equals state.PublicationId
-                                                                     where edition.ProjectId == projectId && state.Audience == (int)PublicationAudience.Unlisted
-                                                                         && !state.Hidden && !state.Revoked && !state.Deleted
-                                                                     orderby edition.CreatedAt descending, edition.Id descending
-                                                                     select new { edition.Id, edition.SourceRevision, edition.CreatedAt }).Take(1).ToArrayAsync(token);
+            var project = authorized.Snapshot!;
+            var viewer = context.Request.Query["view"] == "dashboard" ? await access.ResolveCurrentAccountAsync(context, token) : null;
+            var creator = viewer is { Role: ApplicationRoles.Creator, MustChangePassword: false }
+                && viewer.UserId == project.ActorId && viewer.OrganizationId == project.OrganizationId;
+            var available = from edition in database.Publications.AsNoTracking()
+                            join state in database.PublicationAccess.AsNoTracking() on edition.Id equals state.PublicationId
+                            where edition.ProjectId == projectId && !state.Hidden && !state.Revoked && !state.Deleted
+                            let permittedViewer = state.ViewerIds.Contains(project.ActorId)
+                                || (edition.PublishedById == project.ActorId && project.CanEdit && project.CanPublish)
+                            where state.Audience == (int)PublicationAudience.Unlisted
+                                || (creator && state.Audience == (int)PublicationAudience.Public)
+                                || (creator && state.Audience == (int)PublicationAudience.Authenticated && permittedViewer)
+                            orderby edition.CreatedAt descending, edition.Id descending
+                            select new { edition.Id, edition.SourceRevision, edition.CreatedAt, state.Audience };
+            var rows = project.IsArchived ? [] : await available.Take(1).ToArrayAsync(token);
             var rechecked = await access.ReadAsync(context, projectId, token);
             if (rechecked.Failure is { } changed) { return ProjectHttpResults.FromAccessFailure(context, changed); }
             if (rechecked.Snapshot!.IsArchived) { rows = []; }
@@ -37,6 +47,7 @@ internal static class PublicationDeliveryEndpoints
                     publicationId = row.Id,
                     row.SourceRevision,
                     row.CreatedAt,
+                    requiresSignIn = row.Audience == (int)PublicationAudience.Authenticated,
                     visitorUrl = new Uri(origin!, $"p/{row.Id:D}").AbsoluteUri
                 })
             });

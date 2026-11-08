@@ -1,5 +1,28 @@
 # M2 workspace integration
 
+## Current dashboards
+
+The Facilitator (educator) and Creator dashboards follow the Figma references
+[Facilitator](https://www.figma.com/design/QNpdfKb2Ge7vO8uG8HphxB?node-id=433-3773),
+[Creator](https://www.figma.com/design/QNpdfKb2Ge7vO8uG8HphxB?node-id=226-14714)
+and [Creator Published](https://www.figma.com/design/QNpdfKb2Ge7vO8uG8HphxB?node-id=226-14756).
+They use existing server permissions; the redesign grants no access.
+
+Assignment summaries use `assignedBy` and each student's latest submission and
+decision against the current draft revision, without loading full snapshots.
+`reviewState` is `draft`, `outdated`, `pending`, `approved`, `returned` or `revoked`;
+missing data is unavailable. `publication-links?view=dashboard` supplies the latest
+readable active edition per visible active project, including public, unlisted and
+permitted authenticated links. Assignment creation does not persist cover images, so these
+records use the built-in neutral project cover.
+
+Dashboard assets and icons are bundled; the browser does not call an icon service.
+The self-hosting-licensed Satoshi font is downloaded from a pinned Fontshare CDN URL
+and SHA-256 checked by [`prepare-dashboard-font.mjs`](../../prepare-dashboard-font.mjs).
+`npm run dev` and `npm run build:editor` run it automatically; run it first before a
+direct Vite command when uncached. The font binary is not committed and visitors do
+not make a Fontshare network request.
+
 ## Current project creation and opening
 
 Creators and Administrators can create a project directly from home, optionally
