@@ -437,32 +437,30 @@ try {
       height: Math.round(1024 / zoom),
     });
     const geometry = await page.locator(".sp-directory--administration").evaluate((panel) => {
-      const box = panel.getBoundingClientRect();
+      const box = panel.querySelector(".sp-account-list").getBoundingClientRect();
       const close = panel
-        .querySelector(".sp-directory-detail-heading button")
+        .querySelector('[aria-label="Close organisation"]')
         .getBoundingClientRect();
-      const cards = [...panel.querySelectorAll(".sp-organization-identity,.sp-account-list")].map(
-        (node) => node.getBoundingClientRect(),
-      );
+      const search = panel
+        .querySelector(".sp-account-search-row .sp-search")
+        .getBoundingClientRect();
       return {
         inside:
           close.left >= box.left &&
           close.top >= box.top &&
           close.right <= box.right &&
           close.bottom <= box.bottom,
-        overlaps: cards.some(
-          (card) =>
-            close.left < card.right &&
-            close.right > card.left &&
-            close.top < card.bottom &&
-            close.bottom > card.top,
-        ),
+        overlaps:
+          close.left < search.right &&
+          close.right > search.left &&
+          close.top < search.bottom &&
+          close.bottom > search.top,
       };
     });
     assert.deepEqual(
       geometry,
       { inside: true, overlaps: false },
-      `Close control is contained above long-name cards at ${width}px and ${zoom} zoom`,
+      `Close control is inside the white account panel at ${width}px and ${zoom} zoom`,
     );
     assert.equal(
       await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),

@@ -1,6 +1,8 @@
+import { Icon as UiIcon } from "@iconify/react/offline";
+import faCircleChevronDown from "@iconify-icons/lucide/circle-chevron-down";
+import faEye from "@iconify-icons/lucide/eye";
+import faEyeSlash from "@iconify-icons/lucide/eye-off";
 import { useRef, useState, type FormEvent } from "react";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faCircleChevronDown, faEye, faEyeSlash } from "@fortawesome/free-solid-svg-icons";
 import { Avatar } from "../../shared/ui/Avatar";
 import { Button } from "../../shared/ui/Button";
 import { Dialog } from "../../shared/ui/Dialog";
@@ -128,7 +130,7 @@ export function AccountDialog({
           ]}
           onChange={(value) => setRole(value as "Creator" | "Educator")}
           leading={
-            <FontAwesomeIcon
+            <UiIcon
               icon={faCircleChevronDown}
               className="sp-account-type-icon"
               aria-hidden="true"
@@ -203,7 +205,7 @@ export function AccountDialog({
                   disabled={pending || !enabled("password")}
                   onClick={() => setRevealed((current) => !current)}
                 >
-                  <FontAwesomeIcon icon={revealed ? faEye : faEyeSlash} aria-hidden="true" />
+                  <UiIcon icon={revealed ? faEye : faEyeSlash} aria-hidden="true" />
                 </Button>
                 {override("password", "password")}
               </div>

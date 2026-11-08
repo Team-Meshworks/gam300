@@ -1,6 +1,9 @@
+import { Icon as UiIcon } from "@iconify/react/offline";
+import closeIcon from "@iconify-icons/lucide/x";
+import faEye from "@iconify-icons/lucide/eye";
+import faEyeSlash from "@iconify-icons/lucide/eye-off";
+import faTrashCan from "@iconify-icons/lucide/trash-2";
 import { useState, type ReactNode } from "react";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faEye, faEyeSlash, faTrashCan } from "@fortawesome/free-solid-svg-icons";
 import { Avatar } from "../../shared/ui/Avatar";
 import { Button } from "../../shared/ui/Button";
 import { SearchField } from "../../shared/ui/SearchField";
@@ -23,6 +26,7 @@ export function AccountList({
   loading,
   error,
   administration = false,
+  onClose,
 }: {
   accounts: readonly DirectoryAccount[];
   organizationName: string;
@@ -31,6 +35,7 @@ export function AccountList({
   loading?: boolean;
   error?: string | undefined;
   administration?: boolean;
+  onClose?: (() => void) | undefined;
 }) {
   const [query, setQuery] = useState("");
   const [role, setRole] = useState<"All" | "Students" | "Teachers">("All");
@@ -46,12 +51,24 @@ export function AccountList({
       aria-busy={loading}
     >
       <div className="sp-account-list-header">
-        <SearchField
-          label="Search accounts"
-          placeholder="Search by name or account"
-          value={query}
-          onChange={setQuery}
-        />
+        <div className="sp-account-search-row">
+          <SearchField
+            label="Search accounts"
+            placeholder="Search by name or account"
+            value={query}
+            onChange={setQuery}
+          />
+          {onClose && (
+            <Button
+              className="sp-close-button"
+              aria-label="Close organisation"
+              title="Close organisation"
+              onClick={onClose}
+            >
+              <UiIcon icon={closeIcon} aria-hidden="true" />
+            </Button>
+          )}
+        </div>
         <div className="sp-account-list-toolbar">
           <Tabs
             id="account-tabs"
@@ -156,7 +173,7 @@ export function AccountList({
                       onClick={() => actions.onToggleActive(account.id)}
                     >
                       {administration && (
-                        <FontAwesomeIcon
+                        <UiIcon
                           icon={account.status === "Active" ? faEyeSlash : faEye}
                           aria-hidden="true"
                         />
@@ -178,7 +195,7 @@ export function AccountList({
                       aria-label={`Delete account for ${account.name}`}
                       onClick={() => actions.onDelete?.(account.id)}
                     >
-                      <FontAwesomeIcon icon={faTrashCan} aria-hidden="true" />
+                      <UiIcon icon={faTrashCan} aria-hidden="true" />
                       <span className="sp-button-label">Delete</span>
                     </Button>
                   )}

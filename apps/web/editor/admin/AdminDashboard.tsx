@@ -1,6 +1,8 @@
+import { Icon as UiIcon } from "@iconify/react/offline";
+import faGlobe from "@iconify-icons/lucide/globe";
+import faLock from "@iconify-icons/lucide/lock";
+import faXmark from "@iconify-icons/lucide/x";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faGlobe, faLock, faXmark } from "@fortawesome/free-solid-svg-icons";
 import { Skeleton } from "skullet/react";
 import { Button } from "../../shared/ui/Button";
 import { Dialog } from "../../shared/ui/Dialog";
@@ -16,9 +18,9 @@ import {
 } from "./dashboard-client";
 import { ProjectModeration } from "./ProjectModeration";
 import { ProjectProgress } from "./ProjectProgress";
-import organisationIcon from "./assets/organisation.svg";
-import environmentIcon from "./assets/environment.svg";
-import libraryIcon from "./assets/library.svg";
+import organisationIcon from "@iconify-icons/lucide/building-2";
+import environmentIcon from "@iconify-icons/lucide/box";
+import libraryIcon from "@iconify-icons/lucide/library";
 import defaultProjectImage from "../home/assets/default-project-neutral.jpg";
 import "./dashboard.css";
 
@@ -58,7 +60,7 @@ function ProjectCards({
               <span
                 className={`admin-project-status admin-project-status--${project.isPublic ? "public" : "private"}`}
               >
-                <FontAwesomeIcon icon={project.isPublic ? faGlobe : faLock} aria-hidden="true" />
+                <UiIcon icon={project.isPublic ? faGlobe : faLock} aria-hidden="true" />
                 {project.isPublic ? "Public" : "Private"}
               </span>
             </div>
@@ -168,7 +170,7 @@ function ProjectDetails({
           title="Close project details"
           onClick={onClose}
         >
-          <FontAwesomeIcon icon={faXmark} aria-hidden="true" />
+          <UiIcon icon={faXmark} aria-hidden="true" />
         </Button>
       </div>
       <div className="admin-detail-columns">
@@ -236,7 +238,7 @@ function ProjectDetails({
             <dd
               className={`admin-project-visibility${isPublic ? " admin-project-visibility--public" : ""}`}
             >
-              <FontAwesomeIcon icon={isPublic ? faGlobe : faLock} aria-hidden="true" />
+              <UiIcon icon={isPublic ? faGlobe : faLock} aria-hidden="true" />
               {isPublic ? "Public" : "Private"}
             </dd>
           </dl>
@@ -406,7 +408,7 @@ function ProjectResults({
             title="Close projects"
             onClick={onClose}
           >
-            <FontAwesomeIcon icon={faXmark} aria-hidden="true" />
+            <UiIcon icon={faXmark} aria-hidden="true" />
           </Button>
         </div>
         <Tabs
@@ -675,7 +677,7 @@ export function AdminDashboard({ session }: { session: AccountSession }) {
             <div className="admin-directory-entry">
               <div className="admin-entry-identity">
                 <span className="admin-entry-symbol">
-                  <img src={organisationIcon} alt="" />
+                  <UiIcon icon={organisationIcon} width={24} aria-hidden="true" />
                 </span>
                 <div>
                   <h3>Organisation &amp; Accounts</h3>
@@ -724,11 +726,7 @@ export function AdminDashboard({ session }: { session: AccountSession }) {
               <div className="admin-directory-entry" key={kind}>
                 <div className="admin-entry-identity">
                   <span className="admin-entry-symbol">
-                    <img
-                      src={icon}
-                      alt=""
-                      className={kind === "model" ? "admin-library-symbol" : undefined}
-                    />
+                    <UiIcon icon={icon} width={24} aria-hidden="true" />
                   </span>
                   <div>
                     <h3>{title}</h3>

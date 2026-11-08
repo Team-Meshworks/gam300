@@ -348,7 +348,9 @@ try {
   await page.screenshot({ path: screenshot, fullPage: true });
   const chromeGeometry = () =>
     page
-      .locator(".sp-navigation .sp-brand, .sp-navigation .sp-avatar, .sp-navigation .sp-button")
+      .locator(
+        ".sp-account-header .sp-header-brand, .sp-account-header .sp-avatar, .sp-account-header .sp-header-logout",
+      )
       .evaluateAll((nodes) =>
         nodes.map((node) => {
           const rect = node.getBoundingClientRect();
@@ -363,20 +365,16 @@ try {
   const chromeBefore = await chromeGeometry();
   assert.equal(chromeBefore[1].height, 44);
   assert.equal(chromeBefore[1].height, chromeBefore[2].height);
-  for (const [name, width, height] of [
-    ["organisation.svg", 20, 20],
-    ["environment.svg", 20, 20],
-    ["library.svg", 28, 28],
-  ]) {
-    const geometry = await page
-      .locator(`.admin-entry-symbol img[src*="${name.split(".")[0]}"]`)
-      .evaluate((node) => ({
-        width: node.getBoundingClientRect().width,
-        height: node.getBoundingClientRect().height,
-        loaded: node.complete && node.naturalWidth > 0,
-      }));
-    assert.deepEqual(geometry, { width, height, loaded: true });
-  }
+  const entryIcons = await page.locator(".admin-entry-symbol > svg").evaluateAll((nodes) =>
+    nodes.map((node) => ({
+      width: node.getBoundingClientRect().width,
+      height: node.getBoundingClientRect().height,
+    })),
+  );
+  assert.deepEqual(
+    entryIcons,
+    Array.from({ length: 3 }, () => ({ width: 24, height: 24 })),
+  );
   await page.getByRole("button", { name: "View All Projects", exact: true }).click();
   const projectView = page.locator('section[aria-label="All Projects"]');
   await projectView.waitFor();

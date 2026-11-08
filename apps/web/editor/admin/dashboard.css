@@ -275,10 +275,10 @@
   background: var(--admin-status-background);
   border-radius: 10px;
 }
-.admin-entry-symbol img {
+.admin-entry-symbol > svg {
   display: block;
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   object-fit: contain;
 }
 .admin-entry-actions {
@@ -303,7 +303,7 @@
   margin-bottom: 20px;
 }
 .sp-dialog--wide {
-  width: min(1200px, calc(100% - 40px));
+  width: min(840px, calc(100% - 32px));
   max-width: none;
 }
 .admin-project-browser,
@@ -653,10 +653,6 @@
   color: var(--admin-public-ink);
 }
 
-.admin-entry-symbol img.admin-library-symbol {
-  width: 28px;
-  height: 28px;
-}
 .admin-project-browser .admin-project-view-heading .sp-search > svg {
   width: 24px;
   height: 24px;

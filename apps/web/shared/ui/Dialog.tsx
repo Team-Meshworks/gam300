@@ -1,8 +1,8 @@
+import { Icon as UiIcon } from "@iconify/react/offline";
+import faXmark from "@iconify-icons/lucide/x";
 import { useId, type ReactNode } from "react";
 import { Button } from "./Button";
 import { useModal } from "./useModal";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faXmark } from "@fortawesome/free-solid-svg-icons";
 
 // Mount only while open; the native modal makes the background inert and contains focus
 export function Dialog({
@@ -37,7 +37,7 @@ export function Dialog({
           aria-label="Close dialog"
           onClick={onClose}
         >
-          <FontAwesomeIcon icon={faXmark} aria-hidden="true" />
+          <UiIcon icon={faXmark} aria-hidden="true" />
         </Button>
       )}
       <div className="sp-dialog-body">{children}</div>

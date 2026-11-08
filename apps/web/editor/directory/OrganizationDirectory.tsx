@@ -1,13 +1,11 @@
+import { Icon as UiIcon } from "@iconify/react/offline";
+import faGlobe from "@iconify-icons/lucide/globe";
+import faLock from "@iconify-icons/lucide/lock";
+import faEye from "@iconify-icons/lucide/eye";
+import faEyeSlash from "@iconify-icons/lucide/eye-off";
+import faTrashCan from "@iconify-icons/lucide/trash-2";
+import faXmark from "@iconify-icons/lucide/x";
 import { useState, type ReactNode } from "react";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import {
-  faGlobe,
-  faLock,
-  faEye,
-  faEyeSlash,
-  faTrashCan,
-  faXmark,
-} from "@fortawesome/free-solid-svg-icons";
 import { Avatar } from "../../shared/ui/Avatar";
 import { Button } from "../../shared/ui/Button";
 import { SearchField } from "../../shared/ui/SearchField";
@@ -76,20 +74,8 @@ export function OrganizationDirectory({
   if (organization) {
     return (
       <div className={`sp-directory${administration ? " sp-directory--administration" : ""}`}>
-        <div className={administration ? "sp-directory-detail-heading" : undefined}>
-          {administration ? (
-            <Button
-              className="sp-close-button"
-              aria-label="Close organisation"
-              title="Close organisation"
-              onClick={() => {
-                onSelect(null);
-                playUiSound("goingBack");
-              }}
-            >
-              <FontAwesomeIcon icon={faXmark} aria-hidden="true" />
-            </Button>
-          ) : (
+        {!administration && (
+          <div>
             <Button
               onClick={() => {
                 onSelect(null);
@@ -98,8 +84,8 @@ export function OrganizationDirectory({
             >
               All organisations
             </Button>
-          )}
-        </div>
+          </div>
+        )}
         <div className="sp-organization-detail">
           <div className="sp-organization-detail-left">
             <section className="sp-card sp-organization-identity">
@@ -115,10 +101,7 @@ export function OrganizationDirectory({
               <div className="sp-actions">
                 {administration && onToggleActive && (
                   <Button disabled={busy} onClick={() => onToggleActive(organization.id)}>
-                    <FontAwesomeIcon
-                      icon={organization.isActive ? faEyeSlash : faEye}
-                      aria-hidden="true"
-                    />
+                    <UiIcon icon={organization.isActive ? faEyeSlash : faEye} aria-hidden="true" />
                     <span className="sp-button-label">
                       {organization.isActive ? "Hide" : "Show"}
                     </span>
@@ -136,7 +119,7 @@ export function OrganizationDirectory({
                     aria-label="Delete organisation"
                     onClick={() => onDelete(organization.id)}
                   >
-                    {administration && <FontAwesomeIcon icon={faTrashCan} aria-hidden="true" />}
+                    {administration && <UiIcon icon={faTrashCan} aria-hidden="true" />}
                     <span className="sp-button-label">Delete</span>
                   </Button>
                 )}
@@ -200,7 +183,7 @@ export function OrganizationDirectory({
                             <span
                               className={`sp-directory-project-visibility${project.isPublic ? " is-public" : ""}`}
                             >
-                              <FontAwesomeIcon
+                              <UiIcon
                                 icon={project.isPublic ? faGlobe : faLock}
                                 aria-hidden="true"
                               />
@@ -257,6 +240,14 @@ export function OrganizationDirectory({
           <AccountList
             key={organization.id}
             administration={administration}
+            onClose={
+              administration
+                ? () => {
+                    onSelect(null);
+                    playUiSound("goingBack");
+                  }
+                : undefined
+            }
             accounts={organization.accounts}
             organizationName={organization.name}
             onPreview={onPreview}
@@ -305,7 +296,7 @@ export function OrganizationDirectory({
           href="/admin/dashboard"
           aria-label="Close organisations"
         >
-          <FontAwesomeIcon icon={faXmark} aria-hidden="true" />
+          <UiIcon icon={faXmark} aria-hidden="true" />
         </a>
       </div>
       <h2>All Organisations</h2>
