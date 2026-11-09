@@ -146,12 +146,44 @@ export function ExhibitionCanvas({
       return undefined;
     };
     // Looking around never activates an exhibit at the end of a drag
-    let press = { x: 0, y: 0 };
+    let press: { id: number; x: number; y: number; locked: boolean; distance: number } | undefined;
+    const cancelPress = () => {
+      press = undefined;
+    };
     const down = (event: PointerEvent) => {
-      press = { x: event.clientX, y: event.clientY };
+      cancelPress();
+      // Pointerdown precedes the FPS mousedown which requests capture; that gesture only enters look mode
+      if (event.button !== 0 || !event.isPrimary || fps.wantsCapture(event)) return;
+      press = {
+        id: event.pointerId,
+        x: event.clientX,
+        y: event.clientY,
+        locked: fps.isCaptured(),
+        distance: 0,
+      };
+    };
+    const move = (event: PointerEvent) => {
+      if (!press || press.id !== event.pointerId) return;
+      const dx = press.locked ? event.movementX : event.clientX - press.x;
+      const dy = press.locked ? event.movementY : event.clientY - press.y;
+      // Accumulate travel rather than displacement so looking away and back still counts as a drag
+      press.distance += Math.hypot(dx, dy);
+      press.x = event.clientX;
+      press.y = event.clientY;
     };
     const click = (event: PointerEvent) => {
-      if (Math.hypot(event.clientX - press.x, event.clientY - press.y) > 5) return;
+      const gesture = press;
+      cancelPress();
+      if (
+        !gesture ||
+        gesture.id !== event.pointerId ||
+        event.button !== 0 ||
+        !event.isPrimary ||
+        gesture.locked !== fps.isCaptured() ||
+        !Number.isFinite(gesture.distance) ||
+        gesture.distance + Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) > 5
+      )
+        return;
       const rect = renderer.domElement.getBoundingClientRect();
       if (fps.isCaptured()) pointer.set(0, 0);
       else
@@ -170,6 +202,13 @@ export function ExhibitionCanvas({
     };
     renderer.domElement.addEventListener("pointerdown", down);
     renderer.domElement.addEventListener("pointerup", click);
+    renderer.domElement.addEventListener("lostpointercapture", cancelPress);
+    document.addEventListener("pointermove", move);
+    document.addEventListener("pointerup", cancelPress);
+    document.addEventListener("pointercancel", cancelPress);
+    document.addEventListener("pointerlockchange", cancelPress);
+    document.addEventListener("visibilitychange", cancelPress);
+    window.addEventListener("blur", cancelPress);
     renderer.setAnimationLoop(() => {
       const now = performance.now();
       if (!document.hidden) fps.update(Math.min(0.1, (now - lastFrame) / 1000));
@@ -345,6 +384,13 @@ export function ExhibitionCanvas({
       playback?.dispose();
       renderer.domElement.removeEventListener("pointerdown", down);
       renderer.domElement.removeEventListener("pointerup", click);
+      renderer.domElement.removeEventListener("lostpointercapture", cancelPress);
+      document.removeEventListener("pointermove", move);
+      document.removeEventListener("pointerup", cancelPress);
+      document.removeEventListener("pointercancel", cancelPress);
+      document.removeEventListener("pointerlockchange", cancelPress);
+      document.removeEventListener("visibilitychange", cancelPress);
+      window.removeEventListener("blur", cancelPress);
       play.current = () => {};
       size.disconnect();
       renderer.setAnimationLoop(null);

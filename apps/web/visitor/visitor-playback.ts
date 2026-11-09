@@ -27,6 +27,19 @@ export function createVisitorPlayback(
   let listener: THREE.AudioListener | undefined;
   const sounds: THREE.PositionalAudio[] = [];
   const pendingMedia = new Set<string>();
+  const blockedMedia = new Set<string>();
+  let contextBlocked = false;
+  let permissionReported = false;
+  function reportPermission() {
+    if (disposed || departing) return;
+    if (contextBlocked || blockedMedia.size > 0) {
+      permissionReported = true;
+      report("Select Enable audio to allow playback");
+    } else if (permissionReported) {
+      permissionReported = false;
+      report("Exhibition ready");
+    }
+  }
   const timers = new Set<string>();
   const inside = new Set<string>();
   const gaze = new Map<string, number>();
@@ -69,11 +82,22 @@ export function createVisitorPlayback(
       node.currentTime = 0;
     }
     if (node.paused) {
-      void node.play().catch(() => {
-        if (disposed || departing) return;
-        pendingMedia.add(id.toLowerCase());
-        report("Select Enable audio to allow playback");
-      });
+      void node
+        .play()
+        .then(() => {
+          if (disposed || departing) return;
+          blockedMedia.delete(id.toLowerCase());
+          reportPermission();
+        })
+        .catch(() => {
+          if (disposed || departing) return;
+          pendingMedia.add(id.toLowerCase());
+          blockedMedia.add(id.toLowerCase());
+          reportPermission();
+        });
+    } else {
+      blockedMedia.delete(id.toLowerCase());
+      reportPermission();
     }
   }
   const mediaReady = (event: Event) => {
@@ -201,7 +225,16 @@ export function createVisitorPlayback(
         sounds.push(sound);
       });
     }
-    void listener.context.resume().catch(() => report("Select Enable audio to allow playback"));
+    void listener.context
+      .resume()
+      .then(() => {
+        contextBlocked = false;
+        reportPermission();
+      })
+      .catch(() => {
+        contextBlocked = true;
+        reportPermission();
+      });
     begin();
     for (const id of pendingMedia) media(id);
   }
@@ -379,6 +412,7 @@ export function createVisitorPlayback(
       disposed = true;
       // Release subscriptions and audio connections before the canvas or content is replaced
       pendingMedia.clear();
+      blockedMedia.clear();
       content.removeEventListener("loadeddata", mediaReady, true);
       content.removeEventListener("exhibit-start", start);
       content.removeEventListener("exhibit-activate", activate);

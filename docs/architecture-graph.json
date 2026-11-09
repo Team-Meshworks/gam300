@@ -758,19 +758,20 @@
     "tests/verify-browser.mjs": "d976ca6aededfbe021dcfa16d2fed4384eba32e79df27149570f2bc7114178d2",
     "tests/viewpoints.check.mjs": "45a7b771047dc18749d39f7754784368148fc4c40d7121a165a9f49c820d00ee",
     "tests/visitor-rooms.check.mjs": "6982f2ba6f0ccf97c6018fa39a5e6a5e5a576c163572b7c0f276867c75a0b99a",
-    "tests/visitor-v2.check.mjs": "8d3f2cb48ea9ea9d45f56e9d33ec3eb654625f6cd8257f285bcee6bf76a00ee2",
-    "tests/visitor.check.mjs": "fe806a387e9ec95eaf8ce312f190410ad9c4514ae5d680c6f04dace7ffdd44ee",
+    "tests/visitor-v2.check.mjs": "18fc7d7ad905aa5eb24935dcfbcf510b032f5783a8e333cd1f351880f1eb6112",
+    "tests/visitor.check.mjs": "cf54b07a7ddb6b6549f6886bb862eafb3fba6ec3a45d8bd56932c4032b67c754",
     "tests/workspace-assignments.check.mjs": "6a3d7ca744bf58ba968cf0185ef71a5fb237d3b9eb32e969ada2f911bc57dbbb",
     "tests/workspace-live.check.mjs": "7aff862e4be3090df034b645fd26c6a0e9f0a1e09b66c4380991cad810f162c3",
     "tests/workspace-routes.check.mjs": "ef916ab2bab1d7a93674413a1a228ea72a3dcc0d398b83adf7036ffc45b43d48",
-    "visitor/ExhibitionCanvas.tsx": "207aebe971184c2a9fcad4b08a2b59cf9c9360dd108e460255b79920201312cf",
+    "visitor/ExhibitionCanvas.tsx": "59eb3142db11099e404941bd502eb5708ccb9752ff75f0c6a8193c7fe9d78221",
     "visitor/ExhibitionContent.tsx": "14939de813729afa7c002fdecf6a2d5266e1800b1895f87a084339e7cc71be0f",
     "visitor/main.tsx": "e2ab77d86e992bf139c63a9b44d1c58aea8252b8a41cff701f7cbd4ffe65aa30",
     "visitor/publication-asset.test.ts": "d906b97519f22114c36ff7e8e92603d3bd815eebdd4f3c66cd5acab11c6f0e84",
     "visitor/publication-asset.ts": "93508447005d2d8139f9c9b0d91113ec360e6a67d3473d9bd725886a8e113a64",
-    "visitor/publication.test.ts": "0a5370153446c6eb27ff70ea4ffb83b76a4aa5782fd4e69af82b2c1fdddbf86e",
-    "visitor/publication.ts": "0d5f183d784e77abbe7a4fc26ec920b7230ec7646536b24470f4d5e015bfecef",
-    "visitor/visitor-playback.ts": "de76aed989f8dd5924fd7d37b38eaf4b95850868a7397e3e5fc046b8e4ff97e2",
+    "visitor/publication.test.ts": "e5dd41b3481e70283b7ec630190a3727e99fdc6cb730924b09f312b6bc23c14d",
+    "visitor/publication.ts": "b3ce5c8b1ff6b555da6c77575c679918e953e23b46fa26d98f921bd838fe5632",
+    "visitor/visitor-playback.test.ts": "c3eda40de07f8b255dea92e1bf1ee1072804780ac0743f99f670a8e3d32d15c5",
+    "visitor/visitor-playback.ts": "f95ce576e0951acc57a3ef5a690a4480d05230d2fd87f288596fc9add0ae35de",
     "vite.config.ts": "4140684073a73e5bf1ce62e82c973e5f4c9f6734199dc5decfa9c2f0a96ec1d5",
     "vite.visitor.config.ts": "add5053e96c696c940b2209a51d1bc11b38d7a1228dbb90c01587552724a50a9",
     "vitest.config.ts": "765d1d40c8b60c85380eac494e4df2b7fca4ea6c38385b447763294186aec0d2",
@@ -850,7 +851,7 @@
     "shared/ui/assets/ambient-right.svg": "9e66fd1c1125fde8095c820aecfddca78d45ba051c984b64a57c028733d38767",
     "shared/ui/assets/admin-ambient-left.svg": "c113383e1d7aa90efce841581ce5433fed792487ed923b64187a5110e78e0ada",
     "shared/ui/assets/admin-ambient-right.svg": "ed0795457336c50204ad2d84c2225970fb44350567e3cf5fa1cd4ade2fa62372",
-    "visitor/visitor.css": "dcb286891c70da6b1012d38c7fb200cdaa47b94bec9086ee87310dc3b314c351",
+    "visitor/visitor.css": "8223fd21d8b973eae0a2fb3d9fbbcde8665d301e7d816c5a8628f304538dba00",
     "shared/project/fixtures/m2-publication-project.json": "088af0736775c57efa6d54c2fbfd82496c285a58263c02b38ee09c0cecfcba7f",
     "shared/project/publication-capabilities.json": "e81e00f90d6a2e26494460e9915725053463aa54b6b9d8c5b61ee67aa24235c8"
   },
@@ -19749,7 +19750,7 @@
     },
     {
       "file": "tests/visitor.check.mjs",
-      "line": 235,
+      "line": 251,
       "kind": "dynamic",
       "specifier": "./visitor-rooms.check.mjs",
       "target": "tests/visitor-rooms.check.mjs",
@@ -19758,7 +19759,7 @@
     },
     {
       "file": "tests/visitor.check.mjs",
-      "line": 237,
+      "line": 253,
       "kind": "dynamic",
       "specifier": "./visitor-v2.check.mjs",
       "target": "tests/visitor-v2.check.mjs",
@@ -19992,7 +19993,7 @@
     },
     {
       "file": "visitor/ExhibitionCanvas.tsx",
-      "line": 362,
+      "line": 404,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -20240,6 +20241,54 @@
       "target": "shared/project/legacy-scene-import.ts",
       "from": "visitor",
       "to": "project"
+    },
+    {
+      "file": "visitor/visitor-playback.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "visitor/visitor-playback.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "three",
+      "target": {
+        "package": "three"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "visitor/visitor-playback.test.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./visitor-playback",
+      "target": "visitor/visitor-playback.ts",
+      "from": "checks",
+      "to": "visitor"
+    },
+    {
+      "file": "visitor/visitor-playback.test.ts",
+      "line": 4,
+      "kind": "static",
+      "specifier": "../shared/project/fixtures/m1-project.json",
+      "target": "shared/project/fixtures/m1-project.json",
+      "from": "checks",
+      "to": "project"
+    },
+    {
+      "file": "visitor/visitor-playback.test.ts",
+      "line": 9,
+      "kind": "type-query",
+      "specifier": "three",
+      "target": {
+        "package": "three"
+      },
+      "from": "checks"
     },
     {
       "file": "visitor/visitor-playback.ts",

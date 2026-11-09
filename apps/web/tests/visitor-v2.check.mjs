@@ -100,6 +100,7 @@ if (process.argv.includes("--playback-only")) {
       type: "module",
       content: `import * as THREE from ${JSON.stringify(threePath)};
     const add = THREE.Object3D.prototype.add;
+    window.v2Raycaster = THREE.Raycaster;
     THREE.Object3D.prototype.add = function (...objects) {
       if (this.isScene) { window.v2Scene = this; }
       return add.apply(this, objects);
@@ -115,6 +116,133 @@ if (process.argv.includes("--playback-only")) {
     release();
     await page.getByRole("status").getByText("Exhibition ready", { exact: true }).waitFor();
     await page.waitForFunction(() => window.v2Scene?.children.some((node) => node.isGroup));
+    const activations = await page.evaluate(() => {
+      const canvas = document.querySelector("canvas");
+      const content = document.querySelector("[data-exhibition-scene]");
+      let locked = false;
+      let count = 0;
+      const inspect = () => count++;
+      content.addEventListener("exhibit-inspect", inspect);
+      const previous = Object.getOwnPropertyDescriptor(document, "pointerLockElement");
+      Object.defineProperty(document, "pointerLockElement", {
+        configurable: true,
+        get: () => (locked ? canvas : null),
+      });
+      const raycast = window.v2Raycaster.prototype.intersectObjects;
+      window.v2Raycaster.prototype.intersectObjects = function (roots) {
+        return roots.length ? [{ object: roots[1] }] : [];
+      };
+      const pointer = (type, extra = {}) =>
+        canvas.dispatchEvent(
+          new PointerEvent(type, {
+            bubbles: true,
+            button: 0,
+            pointerId: 1,
+            pointerType: "mouse",
+            isPrimary: true,
+            clientX: 200,
+            clientY: 200,
+            ...extra,
+          }),
+        );
+      pointer("pointerdown");
+      pointer("pointerup");
+      const refusedCapture = count;
+      pointer("pointerdown");
+      locked = true;
+      document.dispatchEvent(new Event("pointerlockchange"));
+      pointer("pointerup");
+      const capture = count;
+      pointer("pointerdown");
+      pointer("pointermove", { movementX: 30 });
+      pointer("pointermove", { movementX: -30 });
+      pointer("pointerup");
+      const drag = count;
+      pointer("pointerdown");
+      pointer("pointerup");
+      const click = count;
+      pointer("pointerdown");
+      pointer("pointerup", { pointerId: 2 });
+      pointer("pointerdown");
+      pointer("pointercancel");
+      pointer("pointerup");
+      pointer("pointerdown", { isPrimary: false });
+      pointer("pointerup", { isPrimary: false });
+      pointer("pointerdown");
+      document.dispatchEvent(
+        new PointerEvent("pointerup", {
+          bubbles: true,
+          button: 0,
+          pointerId: 1,
+          pointerType: "mouse",
+          isPrimary: true,
+        }),
+      );
+      pointer("pointerup");
+      const invalid = count;
+      locked = false;
+      document.dispatchEvent(new Event("pointerlockchange"));
+      pointer("pointerdown", { altKey: true });
+      pointer("pointerup", { altKey: true });
+      const fallback = count;
+      window.v2Raycaster.prototype.intersectObjects = raycast;
+      content.removeEventListener("exhibit-inspect", inspect);
+      content.closest("details").open = false;
+      if (previous) Object.defineProperty(document, "pointerLockElement", previous);
+      else delete document.pointerLockElement;
+      document.dispatchEvent(new Event("pointerlockchange"));
+      return { refusedCapture, capture, drag, click, invalid, fallback };
+    });
+    assert.deepEqual(
+      activations,
+      { refusedCapture: 0, capture: 0, drag: 0, click: 1, invalid: 1, fallback: 2 },
+      "Only deliberate clicks activate an exhibit",
+    );
+    await page.evaluate(() => {
+      window.nativeInspectCount = 0;
+      window.nativeInspect = () => window.nativeInspectCount++;
+      document
+        .querySelector("[data-exhibition-scene]")
+        .addEventListener("exhibit-inspect", window.nativeInspect);
+      window.nativeRaycast = window.v2Raycaster.prototype.intersectObjects;
+      window.v2Raycaster.prototype.intersectObjects = function (roots) {
+        return roots.length ? [{ object: roots[1] }] : [];
+      };
+    });
+    await page.mouse.click(640, 360);
+    await page.waitForFunction(
+      () => document.pointerLockElement === document.querySelector("canvas"),
+    );
+    assert.equal(
+      await page.evaluate(() => window.nativeInspectCount),
+      0,
+      "Capture click does not activate",
+    );
+    await page.mouse.down();
+    await page.mouse.move(690, 360, { steps: 4 });
+    await page.mouse.up();
+    await page.evaluate(
+      () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+    );
+    assert.equal(
+      await page.evaluate(() => window.nativeInspectCount),
+      0,
+      "Native locked drag does not activate",
+    );
+    await page.mouse.click(690, 360);
+    assert.equal(
+      await page.evaluate(() => window.nativeInspectCount),
+      1,
+      "Native locked stationary click activates",
+    );
+    await page.evaluate(() => {
+      document.exitPointerLock();
+      const content = document.querySelector("[data-exhibition-scene]");
+      content.removeEventListener("exhibit-inspect", window.nativeInspect);
+      content.closest("details").open = false;
+      window.v2Raycaster.prototype.intersectObjects = window.nativeRaycast;
+    });
+    await page.waitForFunction(() => !document.pointerLockElement);
     const first = snapshot.scenes[0];
     const roots = await page.evaluate(() =>
       window.v2Scene.children
@@ -395,7 +523,17 @@ const revoked=[];const revoke=URL.revokeObjectURL.bind(URL);URL.revokeObjectURL=
           { cause },
         );
       });
-    await page.evaluate(() => probe.runtime.begin());
+    await page.evaluate(() => {
+      for (const id of ["bg", "spatial"]) {
+        const audio = document.querySelector(`[data-component-id="${id}"] audio`);
+        audio.realPlay = audio.play.bind(audio);
+        audio.play = () => Promise.reject(new DOMException("Blocked", "NotAllowedError"));
+      }
+      probe.runtime.begin();
+    });
+    await page.waitForFunction(
+      () => probe.reports.at(-1) === "Select Enable audio to allow playback",
+    );
     assert.equal(await page.evaluate(() => probe.roots.get("other").visible), false);
     assert.equal(
       await page.locator('[data-component-id="panel"]').evaluate((node) => node.hidden),
@@ -404,7 +542,32 @@ const revoked=[];const revoke=URL.revokeObjectURL.bind(URL);URL.revokeObjectURL=
     await page.locator('[data-component-id="panel"]').evaluate((node) => {
       node.hidden = true;
     });
+    await page.evaluate(() => {
+      const audio = document.querySelector('[data-component-id="bg"] audio');
+      audio.play = audio.realPlay;
+    });
     await page.locator("#start").click();
+    await page.waitForFunction(
+      () => document.querySelector('[data-component-id="bg"] audio').currentTime > 0,
+    );
+    assert.equal(
+      await page.evaluate(() => probe.reports.at(-1)),
+      "Select Enable audio to allow playback",
+      "A remaining blocked track keeps the warning",
+    );
+    await page.evaluate(() => {
+      const audio = document.querySelector('[data-component-id="spatial"] audio');
+      audio.play = audio.realPlay;
+    });
+    await page.locator("#start").click();
+    await page.waitForFunction(
+      () => document.querySelector('[data-component-id="spatial"] audio').currentTime > 0,
+    );
+    assert.equal(
+      await page.evaluate(() => probe.reports.at(-1)),
+      "Exhibition ready",
+      "Successful retry clears the warning",
+    );
     assert.equal(
       await page.locator('[data-component-id="panel"]').evaluate((node) => node.hidden),
       true,
