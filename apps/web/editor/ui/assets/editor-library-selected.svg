@@ -1,0 +1,16 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="80" height="100" viewBox="0 0 80 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Asset Library" clip-path="url(#clip0_0_232)">
+<path id="Vector 2" d="M80.4999 98V0C80.4999 0 80.4998 16 57.4999 19C34.5 22 22 30 22 48.5C22 67 41.4998 77.079 60 80C78.5003 82.921 80.4999 98 80.4999 98Z" fill="#E5E2DB"/>
+<g id="boxicons:book-library-filled">
+<mask id="stroke0_0_232" fill="white">
+<path d="M49.875 35.625H52.9583V63.375H49.875V35.625ZM67.9279 62.1879L62.0696 49.6233L56.1958 37.0433L54.8083 37.6908L53.4054 38.3538L59.2638 50.9183L65.1375 63.4983L66.525 62.8508L67.9279 62.1879ZM45.25 35.625H48.3333V63.375H45.25V35.625ZM40.625 35.625H43.7083V63.375H40.625V35.625Z"/>
+</mask>
+<path id="Vector" d="M49.875 35.625H52.9583V63.375H49.875V35.625ZM67.9279 62.1879L62.0696 49.6233L56.1958 37.0433L54.8083 37.6908L53.4054 38.3538L59.2637 50.9183L65.1375 63.4983L66.525 62.8508L67.9279 62.1879ZM45.25 35.625H48.3333V63.375H45.25V35.625ZM40.625 35.625H43.7083V63.375H40.625V35.625Z" stroke-width="1.6" stroke="#3D3133" mask="url(#stroke0_0_232)"/>
+</g>
+</g>
+<defs>
+<clipPath id="clip0_0_232">
+<rect width="80" height="100" fill="white"/>
+</clipPath>
+</defs>
+</svg>

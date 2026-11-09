@@ -1,0 +1,150 @@
+/* Figma "Creators - Settings Pop-up", as a small drop down under the Settings button */
+.settings-anchor {
+  position: relative;
+}
+.settings-dialog {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  z-index: 20;
+  display: grid;
+  gap: 0.5rem;
+  width: 20rem;
+  max-width: calc(100vw - 2rem);
+  padding: 1rem 1.25rem 1.25rem;
+  border-radius: 16px;
+  color: var(--text);
+  background: var(--card);
+  box-shadow: var(--picker-shadow);
+  font-size: 0.875rem;
+}
+.settings-heading {
+  margin: 0.25rem 0 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+/* Light shows the sun knob on the left, dark slides the moon knob over to the right */
+.theme-toggle {
+  --knob: 26px;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  width: 8.5rem;
+  min-height: 36px;
+  padding: 0 0.75rem 0 calc(var(--knob) + 0.9rem);
+  border: 0;
+  border-radius: 20px;
+  color: #1f1d1a;
+  background: #ebebeb;
+  font: inherit;
+  cursor: pointer;
+  transition:
+    background-color 200ms ease,
+    color 200ms ease,
+    padding 200ms ease;
+}
+.theme-toggle[aria-checked="true"] {
+  padding: 0 calc(var(--knob) + 0.9rem) 0 1rem;
+  color: #fff;
+  background: #332e2a;
+}
+.theme-toggle-knob {
+  position: absolute;
+  top: 50%;
+  left: 0.3rem;
+  display: grid;
+  place-items: center;
+  width: var(--knob);
+  height: var(--knob);
+  border-radius: 50%;
+  color: #3d3133;
+  background: #fff;
+  box-shadow: 0 4px 4px rgb(0 0 0 / 0.25);
+  translate: 0 -50%;
+  transition: left 200ms ease;
+}
+.theme-toggle[aria-checked="true"] .theme-toggle-knob {
+  left: calc(100% - var(--knob) - 0.3rem);
+}
+@media (prefers-reduced-motion: reduce) {
+  .theme-toggle,
+  .theme-toggle-knob {
+    transition: none;
+  }
+}
+.theme-toggle-knob .icon {
+  width: 16px;
+  height: 16px;
+}
+
+.settings-sound {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.25rem 0.75rem;
+}
+.settings-sound > .icon {
+  width: 16px;
+  height: 21px;
+}
+.settings-sound output {
+  font-weight: 600;
+}
+/* Filled part of the track follows --fill, set from the value */
+.settings-sound input[type="range"] {
+  grid-column: 1 / -1;
+  width: 100%;
+  height: 16px;
+  margin: 0.5rem 0 0;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+.settings-sound input[type="range"]::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+  background:
+    linear-gradient(var(--text), var(--text)) 0 / var(--fill) 100% no-repeat,
+    var(--line);
+}
+.settings-sound input[type="range"]::-webkit-slider-thumb {
+  width: 16px;
+  height: 16px;
+  margin-top: -5px;
+  border: 2px solid var(--text);
+  border-radius: 50%;
+  background: #fff;
+  appearance: none;
+}
+.settings-sound input[type="range"]::-moz-range-track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--line);
+}
+.settings-sound input[type="range"]::-moz-range-progress {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--text);
+}
+.settings-sound input[type="range"]::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--text);
+  border-radius: 50%;
+  background: #fff;
+}
+
+.settings-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+.settings-actions .pill-button {
+  min-height: 2.25rem;
+  padding: 0 1rem;
+  font-size: 0.875rem;
+}

@@ -1,0 +1,154 @@
+import type { ProjectDocument } from "./project-types";
+import {
+  validateProjectStructure,
+  type ProjectStructureOptions,
+} from "./project-structure-validation";
+import { invalid } from "./validation-helpers";
+import type { ValidationResult } from "./validation-helpers";
+import { validateContentReferences } from "./project-content-validation";
+
+// UUID text form with all five groups present
+// Uppercase letters are allowed in saved IDs too
+const UUID_TEXT = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function checkEntityId(
+  id: string,
+  path: string,
+  seen: Map<string, string>,
+): ValidationResult<true> {
+  if (id.length !== 36 || !UUID_TEXT.test(id)) {
+    return invalid(path, "Expected a UUID in 8-4-4-4-12 hexadecimal form");
+  }
+
+  // Compare UUIDs without letter case; keep the saved spelling untouched
+  // Remember the first location so a duplicate error points to both entries
+  const key = id.toLowerCase();
+  const previousPath = seen.get(key);
+  if (previousPath !== undefined) {
+    return invalid(path, `ID already used at ${previousPath}`);
+  }
+  seen.set(key, path);
+  return { ok: true, value: true };
+}
+
+function checkAsset(
+  id: string,
+  expectedKind: "environment" | "model",
+  path: string,
+  assetKinds: ReadonlyMap<string, string>,
+): ValidationResult<true> {
+  // Asset IDs match the registry exactly, including letter case
+  const kind = assetKinds.get(id);
+  if (kind === undefined) {
+    return invalid(path, "Asset ID is missing from the supplied registry");
+  }
+  if (kind !== expectedKind) {
+    return invalid(path, `Expected an asset of kind ${expectedKind}`);
+  }
+  return { ok: true, value: true };
+}
+
+// Entry point for checking an already-parsed project
+// Caller supplies assetId -> kind entries from its trusted asset catalog
+// File import still needs byte and nesting limits before JSON parsing
+export function validateProject(
+  raw: unknown,
+  assetKinds: ReadonlyMap<string, string>,
+  options: ProjectStructureOptions = {},
+): ValidationResult<ProjectDocument> {
+  const result = validateProjectStructure(raw, options);
+  if (!result.ok) {
+    return result;
+  }
+  // Reference checks consume the rebuilt version-specific document after structure validation succeeds
+  if (result.value.schemaVersion === 2) {
+    return validateContentReferences(result.value, assetKinds);
+  }
+
+  // One ID pool across the project, scenes and placed objects
+  // Sharing an asset is fine; each placed copy needs its own entity ID
+  const seen = new Map<string, string>();
+  const projectId = checkEntityId(result.value.projectId, "project.projectId", seen);
+  if (!projectId.ok) {
+    return projectId;
+  }
+  for (const [sceneIndex, scene] of result.value.scenes.entries()) {
+    const path = `project.scenes[${sceneIndex}]`;
+    const sceneId = checkEntityId(scene.id, `${path}.id`, seen);
+    if (!sceneId.ok) {
+      return sceneId;
+    }
+    if (scene.environmentAssetId === null)
+      return invalid(`${path}.environmentAssetId`, "Choose an environment");
+    const environment = checkAsset(
+      scene.environmentAssetId,
+      "environment",
+      `${path}.environmentAssetId`,
+      assetKinds,
+    );
+    if (!environment.ok) {
+      return environment;
+    }
+    const objectIds = new Set<string>();
+    for (const [objectIndex, object] of scene.objects.entries()) {
+      const objectPath = `${path}.objects[${objectIndex}]`;
+      const objectId = checkEntityId(object.id, `${objectPath}.id`, seen);
+      if (!objectId.ok) {
+        return objectId;
+      }
+      objectIds.add(object.id.toLowerCase());
+      const asset = checkAsset(object.assetId, "model", `${objectPath}.assetId`, assetKinds);
+      if (!asset.ok) {
+        return asset;
+      }
+    }
+
+    const hotspotIds = new Set<string>();
+    const hotspotObjects = new Set<string>();
+    for (const [hotspotIndex, hotspot] of scene.hotspots.entries()) {
+      const hotspotPath = `${path}.hotspots[${hotspotIndex}]`;
+      const hotspotId = checkEntityId(hotspot.id, `${hotspotPath}.id`, seen);
+      if (!hotspotId.ok) {
+        return hotspotId;
+      }
+      hotspotIds.add(hotspot.id.toLowerCase());
+      const objectKey = hotspot.objectId.toLowerCase();
+      if (!objectIds.has(objectKey)) {
+        return invalid(
+          `${hotspotPath}.objectId`,
+          "Hotspot must reference an object in the same scene",
+        );
+      }
+      if (hotspotObjects.has(objectKey)) {
+        return invalid(`${hotspotPath}.objectId`, "Each object can have at most one hotspot");
+      }
+      hotspotObjects.add(objectKey);
+    }
+
+    for (const [interactionIndex, interaction] of scene.interactions.entries()) {
+      const actionPath = `${path}.interactions[${interactionIndex}].do`;
+      if (interaction.do.type === "move-to-viewpoint") {
+        return invalid(`${actionPath}.viewpointId`, "Saved viewpoints require a v2 project");
+      }
+      const action = interaction.do;
+      if (
+        action.type === "navigate-scene" &&
+        !result.value.scenes.some(
+          (target) => target.id.toLowerCase() === action.sceneId.toLowerCase(),
+        )
+      ) {
+        return invalid(`${actionPath}.sceneId`, "Choose a scene in this project");
+      }
+      if (interaction.when.type !== "visitor-clicks-hotspot") continue;
+      if (!hotspotIds.has(interaction.when.targetHotspotId.toLowerCase())) {
+        return invalid(
+          `${path}.interactions[${interactionIndex}].when.targetHotspotId`,
+          "Click trigger must reference a hotspot in the same scene",
+        );
+      }
+    }
+  }
+
+  // Return the separate copy already built by the structure and spatial checks
+  return result;
+}

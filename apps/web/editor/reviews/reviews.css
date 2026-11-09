@@ -1,0 +1,159 @@
+.sp-review-workspace > .sp-page-heading h1 {
+  font-size: 38px;
+  letter-spacing: -1px;
+}
+.sp-reviews {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+.sp-reviews > .sp-field {
+  max-width: 640px;
+}
+.sp-review-heading {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.sp-review-heading h2 {
+  overflow-wrap: anywhere;
+}
+.sp-review-feedback {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.sp-review-document {
+  display: grid;
+  gap: 12px;
+  overflow-wrap: anywhere;
+}
+.sp-reviews details {
+  padding: 12px;
+  border: 1px solid var(--sp-border);
+  border-radius: 8px;
+  min-width: 0;
+}
+.sp-reviews summary {
+  cursor: pointer;
+}
+.sp-reviews details > * + * {
+  margin-top: 12px;
+}
+.sp-reviews pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 400px;
+  overflow: auto;
+  font-size: 12px;
+  background: var(--sp-soft);
+  padding: 12px;
+}
+.sp-reviews .sp-actions {
+  flex-wrap: wrap;
+}
+.sp-reviews .sp-card {
+  padding: 20px;
+}
+.sp-reviews .sp-badge {
+  justify-self: start;
+}
+.sp-reviews [role="alert"] {
+  color: #8d2525;
+}
+
+.sp-reviews {
+  grid-template-columns: minmax(0, 1fr);
+}
+.sp-reviews > * {
+  min-width: 0;
+}
+.sp-reviews .sp-badge {
+  white-space: normal;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 600px) {
+  .sp-review-workspace > .sp-page-heading h1 {
+    font-size: 30px;
+  }
+}
+.sp-progress-list {
+  width: 100%;
+}
+.sp-progress-entry,
+.sp-progress-draft {
+  background: #fffdfb;
+  border: 1px solid #e7e2dc;
+  padding: 16px;
+  color: #515151;
+  font-size: 15px;
+}
+.sp-progress-entry + .sp-progress-entry {
+  border-top: 0;
+}
+.sp-progress-entry time,
+.sp-progress-draft time {
+  color: #8a8989;
+  display: block;
+  margin-bottom: 8px;
+}
+.sp-progress-entry p {
+  margin: 0;
+  white-space: pre-wrap;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.sp-progress-draft {
+  background: #f5f4f2;
+  border: 1px dashed #292723;
+}
+.sp-progress-draft label {
+  display: block;
+}
+.sp-progress-draft textarea {
+  width: 100%;
+  min-height: 70px;
+  font: inherit;
+}
+.sp-progress-actions {
+  justify-content: flex-end;
+  margin-top: 20px;
+}
+.sp-progress-dialog.sp-dialog {
+  position: fixed;
+  width: min(960px, calc(100vw - 32px));
+  max-width: none;
+  padding: 50px;
+  border-radius: 20px;
+}
+.sp-progress-dialog .sp-dialog-dismiss {
+  position: absolute;
+  top: 50px;
+  right: 50px;
+  width: 32px;
+  height: 32px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+}
+.sp-progress-dialog > h2 {
+  font-size: 25px;
+}
+.sp-progress-dialog .sp-dialog-body {
+  margin-bottom: 0;
+}
+.sp-progress-dialog .sp-progress-add {
+  justify-self: start;
+}
+@media (max-width: 640px) {
+  .sp-progress-dialog.sp-dialog {
+    padding: 24px;
+  }
+  .sp-progress-dialog .sp-dialog-dismiss {
+    top: 24px;
+    right: 24px;
+  }
+}

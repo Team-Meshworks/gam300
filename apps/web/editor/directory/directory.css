@@ -1,0 +1,1038 @@
+:root {
+  --directory-border: #f2eae1;
+  --directory-danger-ink: #a51f24;
+  --directory-danger-border: #d9b4b6;
+  --directory-danger-surface: #fff4f4;
+  --directory-search-surface: #f8f7f6;
+  --directory-search-inset: #29272308;
+  --directory-public-ink: #386047;
+  --directory-active-ink: #6d8955;
+}
+.sp-organization-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px 10px;
+}
+.sp-organization-card {
+  display: grid;
+  gap: 20px;
+  align-content: space-between;
+  min-height: 197px;
+  border: 0;
+  border-radius: 20px;
+  padding: 31px;
+}
+.sp-organization-card h3 {
+  font-size: 25px;
+}
+.sp-organization-card .sp-avatar,
+.sp-organization-identity .sp-avatar {
+  width: 50px;
+  height: 50px;
+}
+.sp-organization-overview-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 32px;
+}
+.sp-organization-overview-heading > div {
+  flex: 1;
+}
+.sp-organization-overview-heading h1 {
+  font-size: 25px;
+}
+.sp-organization-overview-heading p {
+  margin-top: 8px;
+  font-size: 12px;
+}
+.sp-organization-overview-heading .sp-search {
+  flex: 1.5;
+}
+.sp-organization-overview > h2 {
+  font-size: 15px;
+}
+.sp-directory-close {
+  display: grid;
+  place-items: center;
+  min-height: 40px;
+  width: 40px;
+  padding: 0;
+  text-decoration: none;
+  font-size: 20px;
+}
+.sp-organization-card .sp-button {
+  justify-self: start;
+}
+.sp-organization-detail {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  gap: 10px;
+  align-items: start;
+}
+.sp-organization-detail-left {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.sp-organization-identity,
+.sp-organization-projects,
+.sp-organization-detail .sp-account-list {
+  border-color: var(--directory-border);
+  border-radius: 20px;
+}
+.sp-organization-identity {
+  display: grid;
+  gap: 16px;
+  padding: 30px;
+}
+.sp-organization-identity h2 {
+  font-size: 25px;
+  overflow-wrap: anywhere;
+}
+.sp-organization-identity .sp-actions {
+  margin-left: 62px;
+}
+.sp-organization-identity .sp-button {
+  min-height: 34px;
+  padding: 6px 16px;
+  font-size: 12px;
+}
+.sp-organization-projects {
+  display: grid;
+  gap: 20px;
+  align-content: start;
+}
+.sp-organization-projects h3 {
+  font-size: 15px;
+}
+.sp-directory-project {
+  display: flex;
+  gap: 16px;
+  border-top: 1px solid var(--sp-border);
+  padding-top: 20px;
+}
+.sp-directory-project img {
+  width: 120px;
+  height: 90px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+.sp-directory-project h4 {
+  font-size: 14px;
+}
+.sp-directory-project .sp-button {
+  margin-top: 12px;
+}
+@media (max-width: 1100px) {
+  .sp-organization-detail {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 800px) {
+  .sp-organization-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .sp-organization-overview-heading {
+    flex-wrap: wrap;
+  }
+  .sp-organization-overview-heading > div {
+    flex-basis: calc(100% - 80px);
+  }
+  .sp-organization-overview-heading .sp-search {
+    order: 1;
+    flex-basis: 100%;
+  }
+}
+.sp-directory {
+  display: grid;
+  gap: 24px;
+}
+.sp-directory-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.sp-directory-heading .sp-search {
+  flex: 1;
+  max-width: 400px;
+  min-width: 220px;
+}
+.sp-account-list {
+  padding: 0;
+  overflow: hidden;
+}
+.sp-account-list-header {
+  padding: 20px 20px 0;
+  display: grid;
+  gap: 18px;
+}
+.sp-account-list-header .sp-search {
+  max-width: none;
+  width: 100%;
+}
+.sp-account-list-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 12px;
+}
+.sp-account-list-toolbar .sp-tabs {
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.sp-account-list-toolbar .sp-button,
+.sp-account-row .sp-button {
+  min-height: 34px;
+  padding: 6px 16px;
+  font-size: 12px;
+}
+.sp-account-row {
+  padding: 22px 20px;
+  border-top: 1px solid var(--sp-border);
+  display: grid;
+  gap: 20px;
+}
+.sp-account-row-top,
+.sp-account-row-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.sp-account-row .sp-person-name {
+  overflow-wrap: anywhere;
+}
+.sp-account-row-bottom {
+  flex-wrap: wrap;
+}
+.sp-account-dialog.sp-dialog {
+  --account-surface: #fff;
+  --account-ink: #101828;
+  --account-chevron: #000;
+  --account-muted: #667085;
+  --account-border: #dfe3ea;
+  --account-inset: #f8f9fb;
+  --account-control-fill: #f3f4f6;
+  --account-active-fill: #ecfdf5;
+  --account-active-ink: #047857;
+  --account-error: #a22620;
+  --account-shadow: 0 12px 32px rgb(15 23 42 / 12%);
+  position: fixed;
+  width: min(800px, calc(100% - 32px));
+  max-width: none;
+  left: 50%;
+  right: auto;
+  margin-inline: 0;
+  transform: translateX(-50%);
+  padding: 23px 23px 21px;
+  border: 1px solid var(--account-border);
+  border-radius: 20px;
+  background: var(--account-surface);
+  box-shadow: var(--account-shadow);
+  color: var(--account-ink);
+  translate: 0 -12px;
+}
+.sp-account-dialog .sp-dialog-body {
+  margin: 6px 0 0;
+  gap: 0;
+}
+.sp-account-dialog h2 {
+  padding-right: 40px;
+  font-size: 25px;
+  line-height: 32px;
+}
+.sp-account-dialog .sp-hint {
+  color: var(--account-muted);
+  font-size: 13px;
+  line-height: 20px;
+}
+.sp-account-dialog .sp-dialog-dismiss {
+  position: absolute;
+  right: 23px;
+  top: 34px;
+  border: 0;
+  padding: 0;
+  width: 32px;
+  min-height: 32px;
+  background: var(--account-control-fill);
+  font-size: 22px;
+}
+.sp-account-form {
+  display: grid;
+  gap: 14px;
+  margin-top: 12px;
+}
+.sp-account-identity {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 72px;
+  border: 1px solid var(--account-border);
+  border-radius: 12px;
+  background: var(--account-inset);
+  padding: 15px;
+}
+.sp-account-identity .sp-account {
+  gap: 12px;
+}
+.sp-account-identity .sp-avatar {
+  width: 40px;
+  height: 40px;
+  font-size: 14px;
+}
+.sp-account-identity .sp-person-name {
+  gap: 2px;
+  overflow-wrap: anywhere;
+}
+.sp-account-identity .sp-person-name strong {
+  font-size: 14px;
+  line-height: 20px;
+}
+.sp-account-identity .sp-person-name small {
+  font-size: 12px;
+  line-height: 18px;
+}
+.sp-account-identity .sp-badge {
+  min-height: 28px;
+  font-size: 12px;
+}
+.sp-account-identity .sp-badge--success {
+  background: var(--account-active-fill);
+  color: var(--account-active-ink);
+}
+.sp-account-form > .sp-field {
+  gap: 14px;
+  margin-bottom: 4px;
+}
+.sp-account-form > .sp-field > label {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 22px;
+}
+.sp-credentials {
+  border: 0;
+  min-width: 0;
+  padding: 0;
+  margin: 0;
+}
+.sp-credentials legend {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 22px;
+  margin-bottom: 14px;
+  padding: 0;
+}
+.sp-credential-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+.sp-credential-grid .sp-field {
+  gap: 4px;
+}
+.sp-credential-grid .sp-field > label {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 16px;
+}
+.sp-account-control {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--account-border);
+  border-radius: 12px;
+  padding-right: 12px;
+  min-width: 0;
+  background: var(--account-surface);
+}
+.sp-account-control:focus-within {
+  outline: 2px solid var(--sp-focus);
+  outline-offset: 2px;
+}
+.sp-account-control input,
+.sp-account-control select {
+  flex: 1;
+  width: 0;
+  min-width: 0;
+  padding: 12px;
+  border: 0;
+  background: transparent;
+  outline: none;
+  font-size: 14px;
+  height: 46px;
+  min-height: 46px;
+  color: var(--account-ink);
+}
+.sp-account-control input:disabled,
+.sp-account-control select:disabled {
+  opacity: 1;
+  cursor: default;
+}
+.sp-account-control .sp-override {
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 12px;
+  padding: 6px 10px;
+  min-height: 30px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--account-control-fill);
+}
+.sp-account-control .sp-password-toggle {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 10px;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+  background: var(--account-control-fill);
+  color: var(--account-muted);
+}
+.sp-account-control .sp-password-toggle svg {
+  width: 16px;
+  height: 16px;
+}
+.sp-account-control .sp-password-toggle:disabled {
+  opacity: 1;
+  cursor: default;
+}
+.sp-account-type-select {
+  position: relative;
+}
+.sp-account-type-select > button[role="combobox"] {
+  width: 100%;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  border: 1px solid var(--account-border);
+  border-radius: 12px;
+  background: var(--account-surface);
+  color: var(--account-ink);
+  text-align: left;
+  font-size: 14px;
+  font-weight: 600;
+}
+.sp-account-type-select > button[role="combobox"]:disabled {
+  opacity: 1;
+  cursor: default;
+}
+.sp-account-type-select > button[role="combobox"]:hover:not(:disabled) {
+  background: var(--account-inset);
+}
+.sp-account-type-select > button[role="combobox"] > svg:last-child {
+  display: none;
+}
+.sp-account-type-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  color: var(--account-chevron);
+}
+.sp-account-type-select > .sp-override {
+  position: absolute;
+  right: 13px;
+  bottom: 9px;
+  min-height: 30px;
+  border: 0;
+  border-radius: 12px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--account-control-fill);
+}
+.sp-account-type-menu {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  padding: 8px;
+  overflow-y: auto;
+  border: 1px solid var(--account-border);
+  border-radius: 12px;
+  background: var(--account-surface);
+  color: var(--account-ink);
+  box-shadow: var(--account-shadow);
+}
+.sp-account-type-menu > button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 36px;
+  border: 0;
+  border-radius: 8px;
+  padding: 8px 12px;
+  background: transparent;
+  text-align: left;
+  font-size: 14px;
+  line-height: 20px;
+}
+.sp-account-type-menu > button[data-active="true"] {
+  background: var(--account-control-fill);
+}
+.sp-account-type-menu > button[aria-selected="true"] {
+  font-weight: 600;
+}
+.sp-account-form-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+.sp-account-notes {
+  min-width: 0;
+}
+.sp-account-notes .sp-hint {
+  font-size: 12px;
+  line-height: 18px;
+}
+.sp-account-form-footer .sp-actions {
+  gap: 12px;
+  flex-shrink: 0;
+}
+.sp-account-form-footer .sp-button {
+  padding: 8px 16px;
+  min-height: 40px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.sp-account-error {
+  color: var(--account-error);
+  font-size: 13px;
+}
+@media (max-width: 640px) {
+  .sp-account-dialog.sp-dialog {
+    padding: 24px 18px;
+  }
+  .sp-account-dialog h2 {
+    font-size: 20px;
+  }
+  .sp-credential-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .sp-account-form-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .sp-account-form-footer .sp-actions {
+    justify-content: flex-end;
+  }
+  .sp-account-row-top {
+    align-items: flex-start;
+  }
+}
+.sp-directory .sp-button--danger,
+.sp-dialog .sp-button--danger {
+  color: var(--directory-danger-ink);
+  border-color: var(--directory-danger-border);
+  background: var(--directory-danger-surface);
+}
+
+/* Match the approved organisation overview without changing the separate organisation detail screen */
+.sp-shell--dashboard .sp-workspace:has(.sp-organization-overview.sp-directory--administration) {
+  padding-top: 0;
+}
+.sp-directory--administration.sp-organization-overview {
+  min-height: calc(100dvh - 180px);
+  padding: 50px 49px 30px;
+  row-gap: 20px;
+  border: 1px solid var(--admin-panel-border);
+  border-radius: 50px;
+  background-image:
+    linear-gradient(var(--admin-panel-tint), var(--admin-panel-tint)),
+    var(--admin-workspace-background);
+  background-position: center;
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  align-content: start;
+}
+.sp-directory--administration .sp-directory-detail-heading {
+  display: flex;
+  justify-content: flex-end;
+}
+.sp-directory--administration .sp-organization-overview-heading {
+  align-items: center;
+  margin-bottom: 14px;
+}
+.sp-directory--administration .sp-organization-overview-heading h1,
+.sp-directory--administration .sp-organization-card h3,
+.sp-directory--administration.sp-organization-overview > h2 {
+  font-weight: 600;
+}
+.sp-directory--administration .sp-organization-grid {
+  gap: 10px;
+}
+.sp-directory--administration.sp-organization-overview > h2 {
+  border-bottom: 1px solid var(--sp-border);
+  padding: 20px 20px 16px;
+}
+.sp-directory--administration .sp-organization-card {
+  background: var(--admin-organisation-card-paper);
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 30px;
+}
+.sp-directory--administration .sp-organization-card .sp-account {
+  min-width: 0;
+  align-items: center;
+  gap: 20px;
+}
+.sp-directory--administration .sp-organization-card .sp-avatar {
+  width: 44px;
+  height: 44px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.sp-directory--administration .sp-organization-card h3 {
+  flex: 1;
+  min-width: 0;
+  max-width: 240px;
+  overflow-wrap: anywhere;
+}
+.sp-directory--administration .sp-organization-card .sp-hint {
+  align-self: center;
+  text-align: right;
+}
+.sp-directory--administration .sp-organization-card .sp-organization-counts {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  display: grid;
+  gap: 14px;
+  align-self: center;
+  text-align: left;
+  font-size: 12px;
+}
+.sp-directory--administration .sp-organization-card > .sp-button {
+  grid-column: 1;
+  min-height: 44px;
+  padding: 10px 14px;
+  font-size: 12px;
+  font-weight: 600;
+}
+@media (min-width: 801px) {
+  .sp-directory--administration .sp-organization-overview-heading {
+    display: grid;
+    grid-template-columns: minmax(0, 0.681fr) minmax(0, 1fr) 94px;
+  }
+  .sp-directory--administration .sp-organization-overview-heading .sp-directory-close {
+    justify-self: end;
+  }
+}
+@media (max-width: 800px) {
+  .sp-directory--administration.sp-organization-overview {
+    padding: 28px;
+    border-radius: 32px;
+  }
+}
+@media (max-width: 520px) {
+  .sp-directory--administration.sp-organization-overview {
+    padding: 22px 16px;
+    border-radius: 24px;
+  }
+  .sp-directory--administration .sp-organization-card {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 24px;
+  }
+  .sp-directory--administration .sp-organization-card .sp-hint {
+    text-align: left;
+  }
+  .sp-directory--administration .sp-organization-card .sp-organization-counts {
+    grid-column: 1;
+    grid-row: auto;
+  }
+}
+/* Approved organisation detail, separate from the account form dialogs */
+.sp-shell--dashboard .sp-workspace:has(.sp-directory--administration > .sp-organization-detail) {
+  padding-top: 0;
+}
+.sp-directory--administration:has(> .sp-organization-detail) {
+  position: relative;
+  padding: 49px;
+  border: 1px solid var(--admin-panel-border);
+  border-radius: 50px;
+  background-image:
+    linear-gradient(var(--admin-panel-tint), var(--admin-panel-tint)),
+    var(--admin-workspace-background);
+  background-position: center;
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+}
+.sp-directory--administration:has(> .sp-organization-detail) > .sp-directory-detail-heading {
+  position: absolute;
+  top: 4px;
+  right: 24px;
+}
+.sp-directory--administration .sp-organization-detail {
+  grid-template-columns: minmax(0, 0.7515fr) minmax(0, 1fr);
+  height: max(640px, calc(100dvh - 282px));
+  align-items: stretch;
+}
+.sp-directory--administration .sp-organization-detail-left {
+  grid-template-rows: minmax(142px, max-content) minmax(0, 1fr);
+  min-height: 0;
+}
+.sp-directory--administration .sp-organization-detail .sp-card {
+  background: var(--admin-organisation-card-paper);
+  border: 1px solid var(--directory-border);
+}
+.sp-directory--administration .sp-organization-identity {
+  padding: 20px 29px;
+  gap: 10px;
+  align-content: center;
+}
+.sp-directory--administration .sp-organization-identity .sp-account {
+  gap: 20px;
+  min-width: 0;
+}
+.sp-directory--administration .sp-organization-identity .sp-avatar {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.sp-directory--administration .sp-organization-identity h2 {
+  font-size: 25px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+.sp-directory--administration .sp-organization-identity .sp-actions {
+  margin-left: 64px;
+  gap: 10px;
+}
+.sp-directory--administration .sp-organization-detail .sp-button {
+  min-height: 44px;
+  padding: 10px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  gap: 6px;
+}
+.sp-directory--administration .sp-organization-projects {
+  display: flex;
+  flex-direction: column;
+  padding: 20px 29px 0;
+  min-height: 0;
+  gap: 20px;
+  overflow: hidden;
+}
+.sp-directory--administration .sp-organization-detail .sp-search {
+  flex: 0 0 45px;
+  min-height: 45px;
+  max-width: none;
+  width: 100%;
+  flex-direction: row;
+  padding: 0 16px;
+  background: var(--directory-search-surface);
+  box-shadow: inset 0 2px 4px var(--directory-search-inset);
+}
+.sp-directory--administration .sp-organization-detail .sp-search input {
+  font-size: 12px;
+  min-width: 0;
+}
+.sp-directory--administration .sp-organization-detail .sp-search svg {
+  width: 24px;
+  height: 24px;
+}
+.sp-directory--administration .sp-organization-detail .sp-tabs {
+  gap: 24px;
+}
+.sp-directory--administration .sp-organization-detail .sp-tabs button {
+  min-height: 20px;
+  padding: 0;
+  border-bottom-color: transparent;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--sp-muted);
+}
+.sp-directory--administration .sp-organization-detail .sp-tabs button[aria-selected="true"] {
+  font-weight: 600;
+  color: var(--sp-ink);
+}
+.sp-directory--administration .sp-organization-project-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  padding-bottom: 20px;
+}
+.sp-directory--administration .sp-directory-project {
+  display: block;
+  border: 0;
+  padding-top: 0;
+  margin-bottom: 20px;
+}
+.sp-directory--administration .sp-directory-project:last-child {
+  margin-bottom: 0;
+}
+.sp-directory--administration .sp-directory-project img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 3.43;
+  object-fit: cover;
+  border-radius: 16px 16px 0 0;
+}
+.sp-directory--administration .sp-directory-project-body {
+  padding: 12px 20px 0;
+}
+.sp-directory-project-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+.sp-directory--administration .sp-directory-project h4 {
+  margin: 0;
+  max-width: 260px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+.sp-directory-project-visibility {
+  flex-shrink: 0;
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  font-size: 10px;
+  color: var(--sp-muted);
+}
+.sp-directory-project-visibility.is-public {
+  color: var(--directory-public-ink);
+}
+.sp-directory--administration .sp-directory-project .sp-hint {
+  margin-top: 6px;
+  font-size: 12px;
+}
+.sp-directory--administration .sp-directory-project .sp-button {
+  margin-top: 10px;
+  text-decoration: none;
+}
+.sp-directory--administration .sp-account-list {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.sp-directory--administration .sp-account-list-header {
+  flex-shrink: 0;
+  gap: 20px;
+  padding: 20px 19px 0;
+}
+.sp-directory--administration .sp-account-list-toolbar {
+  gap: 12px;
+  padding-bottom: 14px;
+  flex-wrap: nowrap;
+}
+.sp-directory--administration .sp-account-list-toolbar .sp-tabs {
+  gap: 24px;
+  flex-wrap: nowrap;
+}
+.sp-directory--administration .sp-account-list-toolbar .sp-tabs button {
+  font-size: 14px;
+  white-space: nowrap;
+}
+.sp-directory--administration .sp-account-rows {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+.sp-directory--administration .sp-account-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 124px;
+  gap: 20px 16px;
+  padding: 22px;
+}
+.sp-directory--administration .sp-account-row-top {
+  grid-column: 1;
+}
+.sp-directory--administration .sp-account-row .sp-account {
+  min-width: 0;
+  gap: 10px;
+}
+.sp-directory--administration .sp-account-row .sp-avatar {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+}
+.sp-directory--administration .sp-account-row .sp-person-name strong {
+  font-size: 14px;
+  font-weight: 600;
+}
+.sp-directory--administration .sp-account-row .sp-person-name small {
+  margin-top: 4px;
+  font-size: 12px;
+}
+.sp-directory--administration .sp-account-row-bottom {
+  grid-column: 1;
+}
+.sp-directory--administration .sp-account-row .sp-actions {
+  gap: 10px;
+}
+.sp-directory--administration .sp-account-row .sp-button {
+  font-size: 14px;
+  font-weight: 400;
+}
+.sp-directory--administration .sp-account-list-toolbar > .sp-button {
+  font-size: 14px;
+}
+.sp-account-row-metadata {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  margin: 0;
+  display: grid;
+  gap: 16px;
+  align-content: start;
+  font-size: 12px;
+}
+.sp-account-row-metadata dt {
+  margin-bottom: 8px;
+  color: var(--sp-muted);
+}
+.sp-account-row-metadata dd {
+  margin: 0;
+  font-weight: 600;
+}
+.sp-account-row-metadata dd.is-active {
+  color: var(--directory-active-ink);
+}
+@media (max-width: 1200px) {
+  .sp-directory--administration .sp-account-list-toolbar {
+    flex-wrap: wrap;
+  }
+  .sp-directory--administration .sp-account-list-toolbar .sp-tabs {
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+}
+@media (max-width: 1050px) {
+  .sp-directory--administration .sp-organization-detail {
+    grid-template-columns: minmax(0, 1fr);
+    height: auto;
+  }
+  .sp-directory--administration .sp-organization-detail-left {
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .sp-directory--administration .sp-organization-project-list,
+  .sp-directory--administration .sp-account-rows {
+    max-height: 590px;
+  }
+  .sp-directory--administration .sp-organization-identity {
+    min-height: 142px;
+  }
+}
+@media (max-width: 800px) {
+  .sp-directory--administration:has(> .sp-organization-detail) {
+    padding: 49px 27px 28px;
+    border-radius: 32px;
+  }
+}
+@media (max-width: 520px) {
+  .sp-directory--administration:has(> .sp-organization-detail) {
+    padding: 49px 15px 22px;
+    border-radius: 24px;
+  }
+  .sp-directory--administration .sp-organization-identity,
+  .sp-directory--administration .sp-organization-projects {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .sp-directory--administration .sp-organization-identity .sp-actions {
+    margin-left: 0;
+  }
+  .sp-directory--administration .sp-directory-project-body {
+    padding-left: 4px;
+    padding-right: 4px;
+  }
+  .sp-directory--administration .sp-account-list-header {
+    padding: 18px 15px 0;
+  }
+  .sp-directory--administration .sp-account-list-toolbar .sp-tabs {
+    gap: 12px;
+  }
+  .sp-directory--administration .sp-account-row {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 20px 15px;
+  }
+  .sp-account-row-metadata {
+    grid-column: 1;
+    grid-row: auto;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.sp-directory--administration .sp-organization-project-list > p,
+.sp-directory--administration .sp-account-rows > .sp-list-empty {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.sp-directory--administration .sp-organization-project-list > p[role="status"] {
+  color: var(--sp-muted);
+}
+
+/* Keep the exit control in the account panel alongside its search field */
+.sp-account-search-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+}
+.sp-directory--administration .sp-organization-detail .sp-account-search-row > .sp-search {
+  flex: 1;
+  min-width: 0;
+}
+.sp-directory--administration .sp-account-search-row > .sp-close-button {
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+}
+/* Give long organisation names room without stretching each overview card */
+.sp-directory--administration .sp-organization-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.sp-directory--administration .sp-organization-card {
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 190px;
+  padding: 20px;
+  gap: 14px;
+}
+.sp-directory--administration .sp-organization-card .sp-account {
+  gap: 12px;
+}
+.sp-directory--administration .sp-organization-card h3 {
+  max-width: none;
+  font-size: 18px;
+  line-height: 1.3;
+}
+.sp-directory--administration .sp-organization-card .sp-organization-counts {
+  grid-column: 1;
+  grid-row: auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+}
+.sp-directory--administration .sp-organization-card > .sp-button {
+  justify-self: start;
+}
+@media (max-width: 1000px) {
+  .sp-directory--administration .sp-organization-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 600px) {
+  .sp-directory--administration .sp-organization-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

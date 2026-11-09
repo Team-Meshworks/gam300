@@ -1,0 +1,169 @@
+using System.Globalization;
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.DependencyInjection;
+using Spatia.Server.Accounts;
+using Spatia.Server.Hosting;
+
+namespace Spatia.Server.Security;
+
+/// <summary>
+/// Registers and applies the application's cookie, authorization, antiforgery and rate limiting policies
+/// </summary>
+public static class RequestSecurityExtensions
+{
+    /// <summary>
+    /// Configures Identity sessions, current account validation and request security services
+    /// </summary>
+    /// <param name="services">The service collection receiving the security registrations</param>
+    /// <returns>The supplied service collection for additional registrations</returns>
+    public static IServiceCollection AddSpatiaRequestSecurity(this IServiceCollection services, string? environmentName = null)
+    {
+        // Cookies are scoped by host, not port. Dev and production share the VM IP.
+        var cookieSuffix = environmentName is "Development" or "Production" ? "." + environmentName : "";
+        services.AddIdentityCore<ApplicationUser>().AddSignInManager()
+            .AddTokenProvider<DataProtectorTokenProvider<ApplicationUser>>(TokenOptions.DefaultProvider);
+        services.AddAuthentication(options =>
+        {
+            options.DefaultAuthenticateScheme = IdentityConstants.ApplicationScheme;
+            options.DefaultChallengeScheme = IdentityConstants.ApplicationScheme;
+            options.DefaultSignInScheme = IdentityConstants.ExternalScheme;
+        }).AddIdentityCookies();
+        services.AddScoped<CurrentAccountResolver>();
+        services.AddScoped<CurrentAccountCookieEvents>();
+        services.ConfigureApplicationCookie(options =>
+        {
+            options.Cookie.Name = "__Host-Spatia.Application" + cookieSuffix;
+            options.Cookie.Path = "/";
+            options.Cookie.HttpOnly = true;
+            options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+            options.Cookie.SameSite = SameSiteMode.Lax;
+            options.Cookie.MaxAge = null;
+            options.ExpireTimeSpan = TimeSpan.FromHours(8);
+            options.SlidingExpiration = false;
+            options.EventsType = typeof(CurrentAccountCookieEvents);
+        });
+        services.Configure<SecurityStampValidatorOptions>(options =>
+            options.ValidationInterval = TimeSpan.FromMinutes(5));
+        services.Configure<IdentityOptions>(options =>
+        {
+            options.Password.RequiredLength = 12;
+            options.Password.RequireDigit = false;
+            options.Password.RequireLowercase = false;
+            options.Password.RequireUppercase = false;
+            options.Password.RequireNonAlphanumeric = false;
+            options.Lockout.AllowedForNewUsers = true;
+            options.Lockout.MaxFailedAccessAttempts = 5;
+            options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(5);
+        });
+        services.AddScoped<IPasswordValidator<ApplicationUser>, MaximumPasswordLengthValidator>();
+        services.AddAntiforgery(options =>
+        {
+            options.HeaderName = "X-CSRF-TOKEN";
+            options.Cookie.Name = "__Host-Spatia.Antiforgery" + cookieSuffix;
+            options.Cookie.Path = "/";
+            options.Cookie.HttpOnly = true;
+            options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+            options.Cookie.SameSite = SameSiteMode.Lax;
+        });
+        services.AddAuthorization(options =>
+        {
+            var fullAccount = new AuthorizationPolicyBuilder(IdentityConstants.ApplicationScheme)
+                .RequireAuthenticatedUser()
+                .RequireAssertion(context => GetCurrentAccount(context) is { MustChangePassword: false })
+                .Build();
+            options.AddPolicy(SecurityPolicies.FullAccount, fullAccount);
+            options.DefaultPolicy = fullAccount;
+            options.FallbackPolicy = fullAccount;
+            options.AddPolicy(SecurityPolicies.CurrentAccount, policy => policy
+                .AddAuthenticationSchemes(IdentityConstants.ApplicationScheme)
+                .RequireAuthenticatedUser()
+                .RequireAssertion(context => GetCurrentAccount(context) is { } account
+                    && (!account.MustChangePassword || IsForcedSessionRoute(context.Resource as HttpContext))));
+            options.AddPolicy(SecurityPolicies.Administrator, new AuthorizationPolicyBuilder(fullAccount)
+                .RequireRole(ApplicationRoles.Administrator).Build());
+        });
+        services.AddRateLimiter(options =>
+        {
+            options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(_ =>
+                RateLimitPartition.GetConcurrencyLimiter("application", _ => new ConcurrencyLimiterOptions
+                {
+                    PermitLimit = 64,
+                    QueueLimit = 0,
+                }));
+            // Each GLB response can hold 20 MB, so bound concurrent byte delivery separately from small API requests
+            options.AddPolicy("AssetBytes", _ => RateLimitPartition.GetConcurrencyLimiter("asset-bytes", _ => new ConcurrencyLimiterOptions
+            {
+                PermitLimit = 2,
+                QueueLimit = 0,
+            }));
+            // Validation holds bounded upload buffers, so share two intake slots across all administrators
+            options.AddPolicy("AssetIntake", _ => RateLimitPartition.GetConcurrencyLimiter("asset-intake", _ => new ConcurrencyLimiterOptions
+            {
+                PermitLimit = 2,
+                QueueLimit = 0,
+            }));
+            options.AddPolicy(SecurityPolicies.AuthenticationRateLimit, context =>
+                RateLimitPartition.GetFixedWindowLimiter(GetIpKey(context), _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = 60,
+                    Window = TimeSpan.FromMinutes(1),
+                    QueueLimit = 0,
+                }));
+            options.AddPolicy(SecurityPolicies.AccountWriteRateLimit, context =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    context.Features.Get<CurrentAccount>() is { } account
+                        ? "user:" + account.UserId.ToString("D")
+                        : GetIpKey(context),
+                    _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = 20,
+                        Window = TimeSpan.FromMinutes(1),
+                        QueueLimit = 0,
+                    }));
+            options.OnRejected = async (context, cancellationToken) =>
+            {
+                var seconds = context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter)
+                    ? Math.Max(1, (int)Math.Ceiling(retryAfter.TotalSeconds))
+                    : 1;
+                context.HttpContext.Response.Headers.RetryAfter = seconds.ToString(CultureInfo.InvariantCulture);
+                await ApiProblems.Create(context.HttpContext, 429, "rate_limited", "Please retry later.")
+                    .ExecuteAsync(context.HttpContext);
+            };
+        });
+        return services;
+    }
+
+    /// <summary>
+    /// Adds antiforgery validation for unsafe HTTP requests to the application pipeline
+    /// </summary>
+    /// <param name="app">The application pipeline receiving the antiforgery guard</param>
+    /// <returns>The application builder for further middleware registration</returns>
+    public static IApplicationBuilder UseSpatiaAntiforgery(this IApplicationBuilder app)
+        => app.UseMiddleware<CsrfGuardMiddleware>();
+
+    private static CurrentAccount? GetCurrentAccount(AuthorizationHandlerContext context)
+        => (context.Resource as HttpContext)?.Features.Get<CurrentAccount>();
+
+    private static bool IsForcedSessionRoute(HttpContext? context)
+    {
+        if (context is null)
+        {
+            return false;
+        }
+
+        context.Request.Path.StartsWithSegments(ApiV1Endpoints.Prefix, out var remaining);
+        var path = remaining.Value?.TrimEnd('/');
+        return HttpMethods.IsGet(context.Request.Method)
+            ? string.Equals(path, "/auth/csrf", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(path, "/auth/session", StringComparison.OrdinalIgnoreCase)
+            : HttpMethods.IsPost(context.Request.Method)
+                && (string.Equals(path, "/auth/password", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(path, "/auth/logout", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string GetIpKey(HttpContext context)
+        => "ip:" + (context.Connection.RemoteIpAddress?.ToString() ?? "unknown");
+}

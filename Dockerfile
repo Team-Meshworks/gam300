@@ -1,20 +1,23 @@
-FROM node:24.19.0-bookworm-slim@sha256:a9f5f7c91a432850b2a8a7797adf5eadb6c733ceed61167806cee7ea7fbc29df AS build
-WORKDIR /app/web
+FROM node:24.22.2-bookworm-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS build
+WORKDIR /app/apps/web
 ARG BUILD_MODE=production
 RUN case "$BUILD_MODE" in development|production) ;; *) echo >&2 "Invalid BUILD_MODE: use development for M1 or production for release builds"; exit 1 ;; esac
-RUN npm install --global npm@11.17.0
-COPY web/package.json web/package-lock.json ./
+RUN npm install --global npm@11.21.1
+COPY apps/web/package.json apps/web/package-lock.json ./
 RUN npm ci --no-audit --no-fund
-COPY web/ ./
+# Standalone builds run static and unit checks; browser proof runs on a non-root host
+ARG RUN_BUILD_CHECKS=true
+RUN case "$RUN_BUILD_CHECKS" in true|false) ;; *) echo >&2 "Invalid RUN_BUILD_CHECKS: use true or false"; exit 1 ;; esac
+# Chrome cannot be safely assumed to have a working sandbox in Docker build.
+# Run tools/check-browser.mjs on a non-root sandbox-capable host; CI also tests the final image.
+COPY apps/web/ ./
 COPY assets/manifest.json /app/assets/manifest.json
 COPY assets/delivery/ /app/assets/delivery/
-COPY assets/tools/validate-assets.mjs /app/assets/tools/validate-assets.mjs
-RUN node /app/assets/tools/validate-assets.mjs --delivery-only
-RUN npm run lint && npm run format:check && npm run test:unit
+COPY tools/validate-assets.mjs tools/asset-content-validation.mjs /app/tools/
+RUN node /app/tools/validate-assets.mjs --delivery-only
+RUN if [ "$RUN_BUILD_CHECKS" = true ]; then npm run lint && npm run format:check && npm run test:browser-policy && npm run test:unit; fi
 RUN NODE_ENV="$BUILD_MODE" npm run build:editor -- --mode "$BUILD_MODE"
-RUN npx --no-install playwright install --with-deps chromium
-COPY tools/check-browser.mjs /app/tools/check-browser.mjs
-RUN BUILD_MODE="$BUILD_MODE" node /app/tools/check-browser.mjs
+RUN NODE_ENV="$BUILD_MODE" npm run build:visitor -- --mode "$BUILD_MODE"
 
 FROM caddy:2.11.4-alpine@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b
 RUN setcap -r /usr/bin/caddy
@@ -23,7 +26,10 @@ ENV APP_REVISION=$REVISION
 LABEL org.opencontainers.image.source="https://github.com/Team-Meshworks/gam300" \
       org.opencontainers.image.revision=$REVISION
 COPY deploy/app.Caddyfile /etc/caddy/Caddyfile
-COPY --from=build /app/web/dist/editor/ /srv/
+COPY --from=build /app/apps/web/dist/editor/ /srv/
+# Never place development-only catalogue bytes under the public file_server root.
+RUN mv /srv/restricted-assets /srv-restricted
+COPY --from=build /app/apps/web/dist/visitor/ /srv/visit/
 USER 1000:1000
 EXPOSE 8080
 HEALTHCHECK --interval=15s --timeout=3s --start-period=5s --retries=3 \

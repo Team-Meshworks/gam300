@@ -17,5 +17,26 @@
 	header @immutable Cache-Control "public, max-age=31536000, immutable"
 	respond /healthz "ok" 200
 	respond /version.txt "{$APP_REVISION:local}" 200
+	@entry path /landing /landing/ /login /login/ /home /home/
+	rewrite @entry /entry.html
+	@visitor path /p/*
+	rewrite @visitor /visit/index.html
+	@workspace path /admin/dashboard /admin/dashboard/ /assets /assets/ /spaces /spaces/ /new-project /new-project/ /classes /classes/ /review /review/ /publish /publish/ /organisations /organisations/
+	rewrite @workspace /workspace.html
 	file_server
+}
+
+# The application gateway uses this unpublished listener after checking the session.
+# Catalogue bytes are physically outside /srv, so the public listener cannot serve them.
+:8081 {
+	root * /srv-restricted
+	header {
+		-Server
+		X-Content-Type-Options nosniff
+		Cache-Control "private, no-store"
+	}
+	handle_path /restricted-assets/* {
+		file_server
+	}
+	respond 404
 }

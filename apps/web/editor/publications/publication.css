@@ -1,0 +1,98 @@
+.sp-publication {
+  display: grid;
+  gap: 12px;
+  max-width: 48rem;
+  min-width: 0;
+}
+.sp-publication fieldset {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+  margin: 1rem 0;
+  padding: 20px;
+  border: 1px solid var(--sp-border);
+  border-radius: 16px;
+  background: var(--sp-surface);
+}
+.sp-publication legend {
+  padding: 0 6px;
+  font-weight: 600;
+}
+.sp-publication fieldset div {
+  display: grid;
+  gap: 0.5rem;
+}
+.sp-publication label {
+  display: block;
+}
+.sp-publication fieldset label {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.sp-publication input[readonly] {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0.75rem 0;
+  padding: 12px;
+  border: 1px solid var(--sp-border);
+  border-radius: 8px;
+  color: var(--sp-ink);
+  background: var(--sp-surface);
+}
+.sp-publication a {
+  color: var(--sp-ink);
+  overflow-wrap: anywhere;
+  text-underline-offset: 3px;
+}
+.sp-publication > div {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+}
+.sp-publication-share {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+.sp-publication-share svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+.sp-publication-access {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid var(--sp-border);
+  border-radius: 16px;
+  background: var(--sp-surface);
+}
+.sp-publication-access label {
+  width: 100%;
+}
+.sp-publication-access input {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  margin-top: 8px;
+  padding: 12px;
+  border: 1px solid var(--sp-border);
+  border-radius: 8px;
+  color: var(--sp-ink);
+  background: var(--sp-surface);
+}
+.sp-publication section[aria-label="Publication prerequisites"] {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+  padding: 18px;
+  border: 1px solid var(--sp-border);
+  border-radius: 16px;
+  background: var(--sp-surface);
+}

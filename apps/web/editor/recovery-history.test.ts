@@ -1,0 +1,199 @@
+import { createLoadedStore } from "../tests/project-store-fixture";
+import { describe, expect, it } from "vitest";
+import { createDocumentStore } from "./document-store";
+import { validateRecoveryHistory } from "./recovery-history";
+import { serializeProject } from "../shared/project/project-serialization";
+import type { CatalogueAsset } from "../shared/asset-runtime/catalogue";
+
+const assets: CatalogueAsset[] = [
+  {
+    id: "room",
+    kind: "environment",
+    name: "Room",
+    url: "room.glb",
+    sha256: "0".repeat(64),
+    thumbnail: null,
+  },
+  {
+    id: "crate",
+    kind: "model",
+    name: "Crate",
+    url: "crate.glb",
+    sha256: "0".repeat(64),
+    thumbnail: null,
+  },
+];
+const kinds = new Map(assets.map((asset) => [asset.id, asset.kind]));
+function setup() {
+  const store = createLoadedStore(assets, "room");
+  store.addObject("crate", [0, 0, 0]);
+  return store;
+}
+function capture(store: ReturnType<typeof setup>) {
+  return JSON.parse(
+    JSON.stringify({ project: store.getSnapshot().project, history: store.getRecoveryHistory() }),
+  );
+}
+function reopen(saved: ReturnType<typeof capture>) {
+  const store = createDocumentStore(assets);
+  expect(store.loadProject(JSON.stringify(saved.project), kinds, saved.history).ok).toBe(true);
+  return store;
+}
+
+describe("local recovery history", () => {
+  it("restores both stacks, ordering and IDs across repeated refreshes", () => {
+    const store = setup();
+    const id = store.getSnapshot().objects[0]!.id;
+    store.setTransform(id, {
+      position: [4, 2, 1],
+      rotation: [0, Math.sin(0.3), 0, Math.cos(0.3)],
+      scale: [2, 3, 4],
+    });
+    store.duplicateObject(id);
+    const duplicate = store.getSnapshot().objects[1]!;
+    store.deleteObject(id);
+    store.undo();
+    const restored = reopen(capture(store));
+    expect(restored.getSnapshot().canUndo).toBe(true);
+    expect(restored.getSnapshot().canRedo).toBe(true);
+    restored.redo();
+    expect(restored.getSnapshot().objects).toEqual([duplicate]);
+    restored.undo();
+    restored.undo();
+    expect(restored.getSnapshot().objects.map((o) => o.id)).toEqual([id]);
+    const again = reopen(capture(restored));
+    again.redo();
+    expect(again.getSnapshot().objects[1]).toEqual(duplicate);
+    again.redo();
+    expect(again.getSnapshot().objects).toEqual([duplicate]);
+    again.undo();
+    again.undo();
+    again.undo();
+    expect(again.getSnapshot().objects[0]!.transform.position).toEqual([0, 0, 0]);
+    again.undo();
+    expect(again.getSnapshot().objects).toEqual([]);
+  });
+
+  it("preserves an all-undone redo stack and branches correctly after recovery", () => {
+    const store = setup();
+    store.undo();
+    const restored = reopen(capture(store));
+    expect(restored.getSnapshot().canUndo).toBe(false);
+    expect(restored.getSnapshot().canRedo).toBe(true);
+    restored.addObject("crate", [3, 0, 0]);
+    expect(restored.getSnapshot().canRedo).toBe(false);
+    expect(reopen(capture(restored)).getSnapshot().canRedo).toBe(false);
+  });
+
+  it("leaves exported files history-free and opening a file resets history", () => {
+    const store = setup();
+    const saved = serializeProject(store.getSnapshot().project, kinds);
+    expect(saved.ok).toBe(true);
+    if (!saved.ok) return;
+    expect(saved.value).not.toContain('"history"');
+    expect(store.loadProject(saved.value, kinds).ok).toBe(true);
+    expect(store.getSnapshot().canUndo).toBe(false);
+    expect(store.getSnapshot().canRedo).toBe(false);
+  });
+
+  it("captures a stable scene/history pair and excludes previews", () => {
+    const store = setup();
+    const id = store.getSnapshot().objects[0]!.id;
+    const saved = { project: store.getSnapshot().project, history: store.getRecoveryHistory() };
+    const session = store.beginTransform(id);
+    if (!session.ok) throw new Error("begin failed");
+    store.previewTransform(session.value.token, {
+      position: [10, 0, 0],
+      rotation: [0, 0, 0, 1],
+      scale: [1, 1, 1],
+    });
+    expect(store.getRecoveryHistory()).toEqual(saved.history);
+    store.commitTransformEdit(session.value.token);
+    const restored = reopen(JSON.parse(JSON.stringify(saved)));
+    expect(restored.getSnapshot().objects[0]!.transform.position).toEqual([0, 0, 0]);
+    restored.undo();
+    expect(restored.getSnapshot().objects).toEqual([]);
+  });
+
+  it.each(["version", "project", "scene", "current", "duplicate", "asset", "limit", "transform"])(
+    "rejects invalid %s without replacing the live document or history",
+    (bad) => {
+      const store = setup();
+      store.duplicateObject(store.getSnapshot().objects[0]!.id);
+      const saved = capture(store);
+      if (bad === "version") saved.history.version = 99;
+      if (bad === "project") saved.history.projectId = crypto.randomUUID();
+      if (bad === "scene") saved.history.sceneId = crypto.randomUUID();
+      if (bad === "current") saved.history.current = [];
+      if (bad === "duplicate") saved.history.past[0].push(saved.history.past[0][0]);
+      if (bad === "asset") saved.history.past[0][0].assetId = "missing";
+      if (bad === "limit") saved.history.past = Array(101).fill([]);
+      if (bad === "transform") saved.history.past[0][0].transform.scale = [0, 1, 1];
+      const initial = store.getSnapshot();
+      expect(store.loadProject(JSON.stringify(saved.project), kinds, saved.history).ok).toBe(false);
+      expect(store.getSnapshot()).toBe(initial);
+      expect(validateRecoveryHistory(saved.history, saved.project, kinds).ok).toBe(false);
+    },
+  );
+
+  it("retains the existing 100-command bound across recovery", () => {
+    const store = setup();
+    const id = store.getSnapshot().objects[0]!.id;
+    for (let x = 1; x <= 110; x++)
+      store.setTransform(id, { position: [x, 0, 0], rotation: [0, 0, 0, 1], scale: [1, 1, 1] });
+    const restored = reopen(capture(store));
+    for (let i = 0; i < 100; i++) restored.undo();
+    expect(restored.getSnapshot().objects[0]!.transform.position).toEqual([10, 0, 0]);
+    expect(restored.getSnapshot().canUndo).toBe(false);
+  });
+});
+
+// Recovery validates complete hierarchy snapshots before any undo state reaches the store
+it("reopens hierarchy recovery and rejects damaged group parentage atomically", () => {
+  const store = setup();
+  const saved = capture(store);
+  saved.project.schemaVersion = 2;
+  const scene = saved.project.scenes[0];
+  Object.assign(scene, { groups: [], zones: [], viewpoints: [], rules: [] });
+  scene.objects = scene.objects.map((object: object) => ({
+    ...object,
+    parentId: null,
+    visible: true,
+    components: [],
+  }));
+  expect(store.loadProject(JSON.stringify(saved.project), kinds).ok).toBe(true);
+  const id = store.getSnapshot().objects[0]!.id;
+  store.renameObject(id, "Exhibit");
+  const recovered = capture(store);
+  expect(recovered.history.version).toBe(2);
+  const restored = reopen(recovered);
+  restored.undo();
+  expect(restored.getSnapshot().objects[0]!.name).not.toBe("Exhibit");
+  restored.redo();
+  expect(restored.getSnapshot().objects[0]!.name).toBe("Exhibit");
+  recovered.history.past[0].groups = [
+    { id: crypto.randomUUID(), name: "Broken", parentId: crypto.randomUUID() },
+  ];
+  expect(validateRecoveryHistory(recovered.history, recovered.project, kinds).ok).toBe(false);
+});
+
+// The first group edit upgrades legacy data and retains earlier object edits in the same history
+it("creates a group without losing earlier undo steps or reopening history", () => {
+  const store = setup();
+  const id = store.getSnapshot().objects[0]!.id;
+  const original = store.getSnapshot().objects[0]!.name;
+  store.renameObject(id, "Exhibit");
+  expect(store.createGroup("Gallery").ok).toBe(true);
+  expect(store.getSnapshot().project!.schemaVersion).toBe(2);
+  const reopened = reopen(capture(store));
+  reopened.undo();
+  reopened.undo();
+  expect(reopened.getSnapshot().objects[0]!.name).toBe(original);
+  reopened.redo();
+  reopened.redo();
+  expect(capture(reopened).project.scenes[0].groups[0].name).toBe("Gallery");
+  const before = reopened.getSnapshot();
+  expect(reopened.createGroup(" ").ok).toBe(false);
+  expect(reopened.createGroup("Invalid", crypto.randomUUID()).ok).toBe(false);
+  expect(reopened.getSnapshot()).toBe(before);
+});

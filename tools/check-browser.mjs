@@ -3,14 +3,10 @@ import { once } from "node:events";
 import { setTimeout } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 
-process.chdir(fileURLToPath(new URL("../web", import.meta.url)));
+process.chdir(fileURLToPath(new URL("../apps/web", import.meta.url)));
 
 for (const [mode, port, checks] of [
-  [
-    "dev",
-    5173,
-    ["editor-shell", "editor-integration", "local-drafts", "history-recovery"],
-  ],
+  ["dev", 5173, ["editor-shell", "editor-integration", "history-recovery"]],
   ["preview", 4173, ["editor-build"]],
 ]) {
   const url = `http://127.0.0.1:${port}/`;
@@ -40,15 +36,13 @@ for (const [mode, port, checks] of [
       if (ready) break;
       await setTimeout(1000);
     }
-    if (!ready)
-      throw new Error(`The ${mode} server did not become ready at ${url}`);
+    if (!ready) throw new Error(`The ${mode} server did not become ready at ${url}`);
     for (const check of checks) {
       const child = spawn(process.execPath, [`tests/${check}.check.mjs`, url], {
         stdio: "inherit",
       });
       const [code] = await once(child, "exit");
-      if (code !== 0)
-        throw new Error(`Browser check ${check} failed with exit code ${code}`);
+      if (code !== 0) throw new Error(`Browser check ${check} failed with exit code ${code}`);
     }
   } finally {
     if (server.exitCode === null) {

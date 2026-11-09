@@ -1,0 +1,203 @@
+import { isId, isRecord, type WriteResult } from "../home/workspace-api";
+import {
+  isDefinitivePublicationRejection,
+  publicationAcknowledgement,
+  publicationProblems,
+  type PublicationAcknowledgement,
+  type PublicationRequest,
+} from "../publications/publication-client";
+import type { ReviewClient } from "./review-client";
+
+export type ApprovalPublicationIntent = {
+  projectId: string;
+  actorId: string;
+  studentId: string;
+  submissionId: string | null;
+  decisionId: string;
+  publicationId: string;
+  revision: number;
+  feedback: string;
+  approvalOnly?: true;
+};
+type Store = Pick<Storage, "getItem" | "setItem" | "removeItem">;
+type Publish = (
+  actorId: string,
+  path: string,
+  method: "POST",
+  body: object,
+  problemMessages: Record<string, string>,
+) => Promise<WriteResult>;
+type Result =
+  | { kind: "approved" }
+  | { kind: "published"; acknowledgement: PublicationAcknowledgement }
+  | { kind: "revision-conflict" | "publication-rejected"; message: string }
+  | { kind: "pending" | "rejected"; message: string };
+const key = (actorId: string, projectId: string) =>
+  `spatia-review-publication:${actorId}:${projectId}`;
+
+export function readApprovalPublication(
+  storage: Store,
+  actorId: string,
+  projectId: string,
+  studentId: string,
+): ApprovalPublicationIntent | null {
+  const raw = storage.getItem(key(actorId, projectId));
+  if (!raw) return null;
+  const value: unknown = JSON.parse(raw);
+  if (
+    !isRecord(value) ||
+    value.actorId !== actorId ||
+    value.projectId !== projectId ||
+    value.studentId !== studentId ||
+    !isId(value.actorId) ||
+    !isId(value.projectId) ||
+    !isId(value.studentId) ||
+    !(value.submissionId === null || isId(value.submissionId)) ||
+    !isId(value.decisionId) ||
+    !isId(value.publicationId) ||
+    !Number.isSafeInteger(value.revision) ||
+    (value.revision as number) < 0 ||
+    typeof value.feedback !== "string" ||
+    value.feedback.length > 4000 ||
+    value.feedback.includes("\0") ||
+    (value.approvalOnly !== undefined && value.approvalOnly !== true)
+  )
+    throw new Error("The earlier publishing request could not be verified.");
+  return value as ApprovalPublicationIntent;
+}
+
+/** Preserve one exact approval and publication identity across uncertain responses */
+export async function approveAndPublish(
+  storage: Store,
+  intent: ApprovalPublicationIntent,
+  decide: ReviewClient["execute"],
+  publish: Publish,
+  retry = false,
+): Promise<Result> {
+  if (intent.submissionId === null)
+    return { kind: "rejected", message: "A current submission is required before publishing." };
+  const storageKey = key(intent.actorId, intent.projectId);
+  let existing: ApprovalPublicationIntent | null;
+  try {
+    existing = readApprovalPublication(storage, intent.actorId, intent.projectId, intent.studentId);
+    if (existing && JSON.stringify(existing) !== JSON.stringify(intent))
+      return {
+        kind: "rejected",
+        message: "Resolve the earlier publishing request before starting another.",
+      };
+    if (!existing) {
+      const encoded = JSON.stringify(intent);
+      storage.setItem(storageKey, encoded);
+      if (storage.getItem(storageKey) !== encoded) throw new Error("Storage failed");
+    }
+  } catch {
+    return {
+      kind: "rejected",
+      message:
+        "The publishing request could not be safely saved or verified. Check any earlier request before continuing.",
+    };
+  }
+  const previouslyAttempted = retry || existing !== null;
+  const decision = await decide(
+    {
+      kind: "decide",
+      projectId: intent.projectId,
+      submissionId: intent.submissionId,
+      decisionId: intent.decisionId,
+      expectedRevision: intent.revision,
+      outcome: "approved",
+      feedback: intent.feedback,
+    },
+    intent.actorId,
+  );
+  if (decision.kind !== "confirmed") {
+    if (decision.kind === "rejected" && !previouslyAttempted) {
+      try {
+        storage.removeItem(storageKey);
+      } catch {
+        return {
+          kind: "pending",
+          message:
+            "The approval was rejected, but the saved request could not be cleared. Retry the same request.",
+        };
+      }
+      return { kind: "rejected", message: decision.error.message };
+    }
+    return {
+      kind: "pending",
+      message: "Approval could not be confirmed. Retry the same request before leaving.",
+    };
+  }
+  // Keep approval-only retries in the same durable request without ever creating a publication
+  if (intent.approvalOnly) {
+    try {
+      storage.removeItem(storageKey);
+      if (storage.getItem(storageKey) !== null) throw new Error("Storage failed");
+      return { kind: "approved" };
+    } catch {
+      return {
+        kind: "pending",
+        message:
+          "Approval was saved, but the request could not be cleared. Retry the same request.",
+      };
+    }
+  }
+  const request: PublicationRequest = {
+    publicationId: intent.publicationId,
+    confirmedRevision: intent.revision,
+    intent: {
+      audience: "Unlisted",
+      viewerIds: [],
+    },
+  };
+  const result = await publish(
+    intent.actorId,
+    `/api/v1/projects/${encodeURIComponent(intent.projectId)}/publications`,
+    "POST",
+    request,
+    publicationProblems,
+  );
+  if (
+    result.kind === "rejected" &&
+    isDefinitivePublicationRejection(result.code, previouslyAttempted)
+  ) {
+    try {
+      storage.removeItem(storageKey);
+      if (storage.getItem(storageKey) !== null) throw new Error("Storage failed");
+      return result.code === "revision_conflict"
+        ? {
+            kind: "revision-conflict",
+            message:
+              "Your review and approval were saved, but the project changed before publication. The student must submit the current work for a new review before it can be published.",
+          }
+        : {
+            kind: "publication-rejected",
+            message: `Your approval and feedback were saved. Publication was rejected. ${result.message}`,
+          };
+    } catch {
+      return {
+        kind: "pending",
+        message:
+          "Publication was rejected, but the saved request could not be cleared. Retry the same request.",
+      };
+    }
+  }
+  if (result.kind === "confirmed") {
+    const acknowledgement = publicationAcknowledgement(result.value, intent.projectId, request);
+    if (acknowledgement) {
+      try {
+        storage.removeItem(storageKey);
+      } catch {
+        /* The confirmed request remains safe to retry. */
+      }
+      return { kind: "published", acknowledgement };
+    }
+  }
+  return {
+    kind: "pending",
+    message:
+      result.kind === "rejected"
+        ? `Publication was not confirmed: ${result.message} Retry the same request.`
+        : "Publication could not be confirmed. Retry the same request.",
+  };
+}

@@ -3,10 +3,12 @@
 
 An arrow means imports, including type-only and dynamic imports. Checks are consumer
 tests, including tests co-located with their implementation. Build is the existing
-Vite/ESLint/Vitest configuration and architecture tooling.
+Vite/Oxlint/Vitest configuration and architecture tooling.
 
 ```mermaid
 graph TD
+  network["network"]
+  visitor["visitor"]
   project["project"]
   catalogue["catalogue"]
   asset-loading["asset-loading"]
@@ -14,10 +16,17 @@ graph TD
   document["document"]
   rendering["rendering"]
   persistence["persistence"]
+  ui-foundation["ui-foundation"]
   editor["editor"]
   build["build"]
   checks["checks"]
+  visitor --> asset-loading
+  visitor --> catalogue
+  visitor --> network
+  visitor --> project
   asset-loading --> catalogue
+  asset-loading --> network
+  asset-loading --> project
   document --> catalogue
   document --> project
   rendering --> asset-loading
@@ -26,21 +35,28 @@ graph TD
   rendering --> project
   persistence --> catalogue
   persistence --> document
+  persistence --> network
   persistence --> project
   editor --> catalogue
   editor --> document
   editor --> input
+  editor --> network
   editor --> persistence
   editor --> project
   editor --> rendering
+  editor --> ui-foundation
   checks --> asset-loading
   checks --> build
   checks --> catalogue
   checks --> document
+  checks --> editor
   checks --> input
+  checks --> network
   checks --> persistence
   checks --> project
   checks --> rendering
+  checks --> ui-foundation
+  checks --> visitor
 ```
 
 Full file/line/import evidence and source hashes: [architecture-graph.json](architecture-graph.json).

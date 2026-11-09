@@ -1,0 +1,21 @@
+.sp-shell--asset-administration .sp-workspace {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.sp-workspace-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.sp-workspace-links a {
+  color: var(--sp-ink);
+  padding: 8px;
+}
+.sp-workspace-links a[aria-current="page"] {
+  background: var(--sp-soft);
+  border-radius: 8px;
+  font-weight: 600;
+}

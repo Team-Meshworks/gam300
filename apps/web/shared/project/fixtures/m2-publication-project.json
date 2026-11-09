@@ -1,0 +1,171 @@
+{
+  "schemaVersion": 2,
+  "projectId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+  "title": "Two-scene content example",
+  "scenes": [
+    {
+      "id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      "name": "Room",
+      "environmentAssetId": "test-room-v1",
+      "startCamera": {
+        "position": [12, 16, 18],
+        "rotation": [
+          -0.29962059992658957, 0.2752183320355054, 0.09071781822041597, 0.9089844021041025
+        ],
+        "fovDegrees": 40
+      },
+      "objects": [
+        {
+          "id": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+          "name": "First crate",
+          "assetId": "test-crate-v1",
+          "transform": {
+            "position": [1.123456789012345, 0, -2],
+            "rotation": [0, 0.6, 0, 0.8],
+            "scale": [1, 2.123456789012345, 1]
+          },
+          "parentId": "0000000a-0000-4000-8000-000000000000",
+          "visible": true,
+          "components": [
+            {
+              "id": "00000065-0000-4000-8000-000000000000",
+              "type": "text",
+              "caption": "Exhibit information",
+              "runs": [
+                {
+                  "text": "An exhibit with \"quotes\", Unicode 展览 and a line\nbreak",
+                  "marks": ["bold"]
+                },
+                {
+                  "text": " More information",
+                  "marks": ["italic", "underline"]
+                }
+              ]
+            },
+            {
+              "id": "00000069-0000-4000-8000-000000000000",
+              "type": "navigationPoint",
+              "label": "Next room",
+              "sceneId": "00000002-0000-4000-8000-000000000000",
+              "viewpointId": "00000015-0000-4000-8000-000000000000"
+            }
+          ]
+        },
+        {
+          "id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "name": "Second crate",
+          "assetId": "test-crate-v1",
+          "transform": {
+            "position": [-1, 0, 2],
+            "rotation": [0, 0, 0, 1],
+            "scale": [1, 1, 1]
+          },
+          "parentId": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+          "visible": true,
+          "components": []
+        }
+      ],
+      "hotspots": [],
+      "interactions": [],
+      "groups": [
+        {
+          "id": "0000000a-0000-4000-8000-000000000000",
+          "name": "Exhibit A",
+          "parentId": null
+        }
+      ],
+      "zones": [
+        {
+          "id": "0000001e-0000-4000-8000-000000000000",
+          "name": "Entry zone",
+          "transform": {
+            "position": [0, 0, 0],
+            "rotation": [0, 0, 0, 1],
+            "scale": [1, 1, 1]
+          }
+        }
+      ],
+      "viewpoints": [
+        {
+          "id": "00000014-0000-4000-8000-000000000000",
+          "name": "Entrance",
+          "camera": {
+            "position": [0, 1.6, 5],
+            "rotation": [0, 0, 0, 1],
+            "fovDegrees": 60
+          }
+        }
+      ],
+      "rules": [
+        {
+          "id": "00000190-0000-4000-8000-000000000000",
+          "enabled": false,
+          "trigger": {
+            "type": "sceneStart"
+          },
+          "actions": [
+            {
+              "type": "showPanel",
+              "panelId": "00000065-0000-4000-8000-000000000000"
+            }
+          ]
+        },
+        {
+          "id": "00000191-0000-4000-8000-000000000000",
+          "enabled": false,
+          "trigger": {
+            "type": "sceneStart"
+          },
+          "actions": [
+            {
+              "type": "navigateScene",
+              "sceneId": "00000002-0000-4000-8000-000000000000",
+              "viewpointId": "00000015-0000-4000-8000-000000000000"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "00000002-0000-4000-8000-000000000000",
+      "name": "Second room",
+      "environmentAssetId": "test-room-v1",
+      "startCamera": {
+        "position": [0, 1.6, 5],
+        "rotation": [0, 0, 0, 1],
+        "fovDegrees": 60
+      },
+      "objects": [
+        {
+          "id": "00000003-0000-4000-8000-000000000000",
+          "name": "Second-scene crate",
+          "assetId": "test-crate-v1",
+          "transform": {
+            "position": [0, 0, 0],
+            "rotation": [0, 0, 0, 1],
+            "scale": [1, 1, 1]
+          },
+          "parentId": null,
+          "visible": true,
+          "components": []
+        }
+      ],
+      "hotspots": [],
+      "interactions": [],
+      "groups": [],
+      "zones": [],
+      "viewpoints": [
+        {
+          "id": "00000015-0000-4000-8000-000000000000",
+          "name": "Second entrance",
+          "camera": {
+            "position": [0, 1.6, 5],
+            "rotation": [0, 0, 0, 1],
+            "fovDegrees": 60
+          }
+        }
+      ],
+      "rules": []
+    }
+  ]
+}

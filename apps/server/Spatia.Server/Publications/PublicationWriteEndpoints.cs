@@ -1,0 +1,107 @@
+using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
+using Spatia.Server.Classes;
+using Spatia.Server.Persistence;
+using Spatia.Server.Hosting;
+using Spatia.Server.Projects;
+using Spatia.Server.Security;
+
+namespace Spatia.Server.Publications;
+
+internal static class PublicationWriteEndpoints
+{
+    internal static void MapPublicationWrites(this IEndpointRouteBuilder endpoints)
+    {
+        endpoints.MapGet("/projects/{id:guid}/publication-viewers", async (Guid id,
+            HttpContext context, ApplicationDbContext database, ProjectAccessService access, CancellationToken token) =>
+        {
+            if (!ClassroomEndpoints.TryPage(context, out var limit, out var cursor))
+            { return ApiProblems.Create(context, 400, "invalid_query", "Check the page size and cursor"); }
+            var authorized = await access.ReadAsync(context, id, token);
+            if (authorized.Failure is { } failure) { return ProjectHttpResults.FromAccessFailure(context, failure); }
+            if (authorized.Snapshot is not { CanPublish: true } project)
+            { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.NotFound); }
+            // Expose only eligible names and IDs in this publisher's project organization
+            var query = from member in database.OrganizationMemberships.AsNoTracking()
+                        join user in database.Users.AsNoTracking() on member.UserId equals user.Id
+                        where member.OrganizationId == project.OrganizationId && user.IsActive && !user.MustChangePassword
+                            && database.Organizations.Any(org => org.Id == member.OrganizationId && org.IsActive)
+                            && database.UserRoles.Any(role => role.UserId == member.UserId && role.RoleId == member.RoleId)
+                        select new { userId = user.Id, userName = user.UserName };
+            if (cursor is { } after) { query = query.Where(row => row.userId.CompareTo(after) > 0); }
+            var rows = await query.OrderBy(row => row.userId).Take(limit + 1).ToListAsync(token);
+            context.Response.Headers.CacheControl = "private, no-store";
+            return Results.Ok(new { items = rows.Take(limit).ToArray(), nextCursor = rows.Count > limit ? rows[limit - 1].userId : (Guid?)null });
+        }).RequireAuthorization(SecurityPolicies.FullAccount);
+
+        endpoints.MapGet("/projects/{id:guid}/publication-readiness", async (Guid id,
+            PublicationCoordinator coordinator, HttpContext context, IConfiguration configuration, CancellationToken token) =>
+        {
+            var result = await coordinator.ReadinessAsync(context, id, token);
+            if (result.AccessFailure is { } failure) { return ProjectHttpResults.FromAccessFailure(context, failure); }
+            var rejection = TryOrigin(configuration, out _) ? result.Rejection : PublicationRejection.DependencyUnavailable;
+            context.Response.Headers.CacheControl = "private, no-store";
+            return Results.Ok(new
+            {
+                projectId = id,
+                result.Revision,
+                state = rejection?.ToString() ?? "Ready",
+                result.CompletionConfirmed,
+                result.Approved,
+                missingCapabilities = rejection == PublicationRejection.UnsupportedRuntime ? result.MissingCapabilities ?? [] : []
+            });
+        }).RequireAuthorization(SecurityPolicies.FullAccount);
+
+        endpoints.MapPost("/projects/{id:guid}/publications", async (Guid id, PublishSnapshotRequest input,
+            PublicationCoordinator coordinator, HttpContext context, IConfiguration configuration, CancellationToken token) =>
+        {
+            if (id == Guid.Empty || input.PublicationId is not { } publicationId || publicationId == Guid.Empty
+                || input.ConfirmedRevision is not { } revision || revision < 0 || revision > Project.MaxRevision
+                || input.Intent.ValueKind != JsonValueKind.Object)
+            { return ApiProblems.Create(context, 400, "invalid_publication", "Check the publication request."); }
+            // Only trusted configuration defines links; neither Host nor forwarded headers select a public origin
+            if (!TryOrigin(configuration, out var origin))
+            { return ApiProblems.Create(context, 503, "publication_unavailable", "Publication is not configured."); }
+            PublicationRequest request;
+            try { request = new(publicationId, revision, input.Intent.GetRawText()); }
+            catch (Exception error) when (error is ArgumentException or JsonException)
+            { return ApiProblems.Create(context, 400, "invalid_publication", "Check the publication request."); }
+            var result = await coordinator.PublishAsync(context, id, request, token);
+            if (result.AccessFailure is { } accessFailure) { return ProjectHttpResults.FromAccessFailure(context, accessFailure); }
+            if (result.Acknowledgement is { } ack)
+            {
+                var snapshotUrl = new Uri(origin!, $"{ApiV1Endpoints.Prefix}/publications/{ack.PublicationId:D}").AbsoluteUri;
+                var visitorUrl = new Uri(origin!, $"p/{ack.PublicationId:D}").AbsoluteUri;
+                var body = new { ack.PublicationId, ack.ProjectId, ack.SourceRevision, ack.CreatedAt, snapshotUrl, visitorUrl };
+                context.Response.Headers.CacheControl = "private, no-store";
+                return result.IsReplay ? Results.Ok(body) : Results.Created(snapshotUrl, body);
+            }
+            var status = result.Rejection switch
+            {
+                PublicationRejection.RevisionConflict or PublicationRejection.IdConflict or PublicationRejection.ApprovalRequired => 409,
+                PublicationRejection.PolicyDenied => 403,
+                PublicationRejection.InvalidAssets or PublicationRejection.InvalidDocument or PublicationRejection.UnsupportedRuntime => 422,
+                _ => 503,
+            };
+            var code = result.Rejection switch
+            {
+                PublicationRejection.RevisionConflict => "revision_conflict",
+                PublicationRejection.IdConflict => "publication_id_conflict",
+                PublicationRejection.ApprovalRequired => "approval_required",
+                PublicationRejection.PolicyDenied => "publication_access_denied",
+                PublicationRejection.InvalidAssets => "publication_assets_unavailable",
+                PublicationRejection.InvalidDocument => "invalid_document",
+                PublicationRejection.UnsupportedRuntime => "unsupported_publication_runtime",
+                _ => "publication_unavailable",
+            };
+            var problem = ApiProblems.Create(context, status, code, "The publication could not be created.");
+            if (result.CurrentRevision is { } current) { problem.ProblemDetails.Extensions["currentRevision"] = current; }
+            return problem;
+        }).RequireAuthorization(SecurityPolicies.FullAccount).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit)
+            .WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(16 * 1024));
+    }
+    internal static bool TryOrigin(IConfiguration configuration, out Uri? origin) =>
+        Uri.TryCreate(configuration["Publication:Origin"], UriKind.Absolute, out origin)
+        && origin.Scheme == Uri.UriSchemeHttps && origin.UserInfo.Length == 0 && origin.AbsolutePath == "/"
+        && origin.Query.Length == 0 && origin.Fragment.Length == 0;
+}

@@ -1,0 +1,745 @@
+/* Hallmark · existing Spatia system · admin dashboard.pdf pages 3–5 · scope: app */
+/* Restore the approved panel surfaces while retaining project cards, routes and actions */
+:root {
+  --admin-panel: rgb(255 253 251 / 52%);
+  --admin-organisation-card-paper: #fff;
+  --admin-panel-tint: rgb(204 186 168 / 10%);
+  --admin-page-wash-opacity: 1;
+  --admin-projects-background: url("./assets/dashboard-projects.png");
+  --admin-organisations-background: url("./assets/dashboard-organisations.png");
+  --admin-assets-background: url("./assets/dashboard-assets.png");
+  --admin-workspace-background: url("./assets/workspace-panel.png");
+  --admin-search-background: url("./assets/workspace-search.png");
+  --admin-search-inset: rgb(41 39 35 / 9%);
+  --admin-search-keyline: rgb(255 255 255 / 95%);
+  --admin-panel-border: rgb(255 255 255 / 85%);
+  --admin-cover: #eee9e2;
+  --admin-progress-background: #fffdfb;
+  --admin-approved-ink: #65794e;
+  --admin-status-background: #f0ede7;
+  --admin-status-ink: #686159;
+  --admin-public-ink: #3d6048;
+  --admin-public-background: #eaf0e8;
+  --admin-moderation-danger-ink: #a51f24;
+  --admin-moderation-danger-border: #d9b4b6;
+  --admin-moderation-danger-surface: #fff4f4;
+}
+.sp-shell--dashboard .sp-workspace {
+  border: 0;
+  border-radius: 0;
+  background: none;
+  padding: 35px 0 0;
+}
+.sp-shell--dashboard .sp-wash--left {
+  left: -210px;
+  top: -248px;
+}
+.sp-shell--dashboard .sp-wash--right {
+  left: calc(50% - 67px);
+  top: 183px;
+}
+.sp-shell--dashboard:has(.admin-greeting) .sp-wash {
+  opacity: var(--admin-page-wash-opacity);
+}
+.admin-greeting {
+  margin-bottom: 50px;
+}
+.admin-greeting h1 {
+  font-size: clamp(30px, 3.5vw, 50px);
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.admin-greeting p {
+  margin-top: 10px;
+  color: var(--sp-muted);
+  font-size: 15px;
+}
+.admin-greeting > .sp-button {
+  margin-top: 20px;
+}
+.admin-panel {
+  padding: 34px 46px;
+  border-radius: 50px;
+  background: var(--admin-panel);
+  border: 1px solid var(--admin-panel-border);
+  min-width: 0;
+}
+.admin-project-browser,
+.admin-project-detail {
+  min-height: calc(100dvh - 180px);
+  background-image: var(--admin-workspace-background);
+  background-size: 100% 100%;
+}
+.admin-project-detail,
+.admin-project-browser {
+  padding: 48px 50px;
+}
+.admin-project-browser {
+  position: relative;
+  background-image:
+    linear-gradient(var(--admin-panel-tint), var(--admin-panel-tint)),
+    var(--admin-workspace-background);
+}
+.sp-shell--dashboard .sp-workspace:has(.admin-project-browser, .admin-project-detail) {
+  padding-top: 0;
+}
+.admin-project-loading {
+  min-height: 254px;
+}
+/* Reuse the panel artwork embedded in the approved PDF, including its shaded edges */
+.admin-projects {
+  background-image:
+    linear-gradient(var(--admin-panel-tint), var(--admin-panel-tint)),
+    var(--admin-projects-background);
+  background-size: 100% 100%;
+  padding: 38px 40px 36px;
+  margin-bottom: 20px;
+}
+.admin-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+.admin-section-heading h2 {
+  font-size: 25px;
+}
+.admin-section-heading p {
+  margin-top: 7px;
+  font-size: 12px;
+  color: var(--sp-muted);
+}
+.admin-dashboard .sp-button {
+  min-height: 44px;
+  font-size: 12px;
+  padding: 8px 22px;
+  text-align: center;
+  text-decoration: none;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+}
+.admin-dashboard .sp-close-button {
+  min-height: 40px;
+  padding: 0;
+}
+.admin-dashboard a.sp-button:not(.sp-button--primary) {
+  color: var(--sp-ink);
+}
+.admin-section-heading > .sp-button {
+  flex-shrink: 0;
+}
+.admin-project-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+}
+.admin-project-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--sp-surface);
+  border-radius: 16px;
+  overflow: hidden;
+  min-width: 0;
+}
+.admin-project-cover {
+  display: block;
+  width: 100%;
+  height: 126px;
+  object-fit: cover;
+  background: var(--admin-cover);
+}
+.admin-project-info {
+  flex: 1;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
+.admin-project-info h3 {
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+.admin-project-title {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 40px;
+}
+.admin-project-status {
+  flex-shrink: 0;
+  background: var(--admin-status-background);
+  border-radius: 30px;
+  color: var(--admin-status-ink);
+  font-size: 12px;
+  padding: 4px 9px;
+}
+.admin-project-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.admin-project-status--public {
+  color: var(--admin-public-ink);
+  background: var(--admin-public-background);
+}
+.admin-project-organization {
+  font-size: 12px;
+  line-height: 1.2;
+  color: var(--sp-muted);
+}
+.admin-project-info .sp-button {
+  margin-top: auto;
+}
+.admin-projects:has(> p.admin-project-state) {
+  position: relative;
+  min-height: 412px;
+}
+.admin-projects > p.admin-project-state {
+  position: absolute;
+  top: calc(50% + 4px);
+  left: 0;
+  right: 0;
+  display: block;
+  min-height: 0;
+  margin: 0;
+  padding: 0 40px;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.admin-project-state {
+  min-height: 254px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  text-align: center;
+  color: var(--sp-muted);
+}
+.admin-management-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+.admin-management-grid > .admin-panel {
+  min-height: 412px;
+  background-size: 100% 100%;
+}
+.admin-management-grid > .admin-panel:first-child {
+  background-image:
+    linear-gradient(var(--admin-panel-tint), var(--admin-panel-tint)),
+    var(--admin-organisations-background);
+}
+.admin-management-grid > .admin-panel:last-child {
+  background-image:
+    linear-gradient(var(--admin-panel-tint), var(--admin-panel-tint)),
+    var(--admin-assets-background);
+}
+.admin-directory-card {
+  border: 1px solid var(--sp-border);
+  border-radius: 16px;
+  background: var(--sp-surface);
+  overflow: hidden;
+}
+.admin-directory-entry {
+  padding: 20px;
+}
+.admin-directory-entry + .admin-directory-entry {
+  border-top: 1px solid var(--sp-border);
+}
+.admin-entry-identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.admin-entry-identity h3 {
+  font-size: 15px;
+}
+.admin-entry-identity p {
+  font-size: 12px;
+  color: var(--sp-muted);
+  margin-top: 5px;
+}
+.admin-entry-symbol {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  background: var(--admin-status-background);
+  border-radius: 10px;
+}
+.admin-entry-symbol > svg {
+  display: block;
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+}
+.admin-entry-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+.admin-entry-actions .sp-button {
+  min-width: 160px;
+  padding-inline: 18px;
+}
+.admin-upload-note {
+  font-size: 12px;
+  color: var(--sp-muted);
+  margin-top: 12px;
+}
+.admin-notice {
+  padding: 16px 20px;
+  background: var(--sp-soft);
+  border-radius: 16px;
+  margin-bottom: 20px;
+}
+.sp-dialog--wide {
+  width: min(840px, calc(100% - 32px));
+  max-width: none;
+}
+.admin-project-browser,
+.admin-organisation-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.admin-project-browser[hidden] {
+  display: none;
+}
+.admin-project-browser .admin-project-view-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 606px) 104px;
+  gap: 24px;
+}
+.admin-project-browser .admin-project-view-heading .sp-close-button {
+  justify-self: end;
+}
+.admin-project-browser > .sp-tabs {
+  margin-top: 26px;
+  padding: 8px 20px 10px;
+  border-bottom: 1px solid var(--sp-border);
+}
+.admin-project-browser .admin-project-status {
+  background: transparent;
+  padding-inline: 0;
+}
+.admin-project-browser .admin-project-info {
+  gap: 10px;
+}
+.admin-project-browser .admin-project-title {
+  min-height: 38px;
+}
+.admin-project-browser .admin-project-grid {
+  gap: 10px;
+}
+.admin-project-browser .admin-project-empty {
+  position: absolute;
+  top: calc(50% + 4px);
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 0 40px;
+  text-align: center;
+  color: var(--sp-muted);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+.admin-project-view-heading {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+.admin-project-view-heading > div:first-child {
+  flex: 1;
+  min-width: 0;
+}
+.admin-project-view-heading .sp-close-button {
+  min-height: 40px;
+  padding: 0;
+  flex: 0 0 40px;
+}
+.admin-project-view-heading h1 {
+  font-size: 25px;
+}
+.admin-project-view-heading p {
+  margin-top: 7px;
+  font-size: 12px;
+  color: var(--sp-muted);
+}
+.admin-project-view-heading .sp-search {
+  flex: 1.4;
+  max-width: 606px;
+}
+.admin-project-view-heading .sp-search {
+  min-height: 45px;
+  border: 1px solid var(--admin-search-keyline);
+  background-image:
+    linear-gradient(var(--admin-panel-tint), var(--admin-panel-tint)),
+    var(--admin-search-background);
+  background-size: 100% 100%;
+  box-shadow: none;
+}
+.admin-project-view-heading .sp-search input {
+  font-size: 12px;
+}
+.admin-project-detail h2 {
+  margin: 18px 0;
+  font-size: 24px;
+  line-height: 1.35;
+}
+.admin-detail-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.45fr);
+  gap: 50px;
+  margin-top: 18px;
+}
+.admin-detail-columns .admin-project-cover {
+  height: auto;
+  aspect-ratio: 2.48;
+  border-radius: 16px;
+}
+.admin-progress {
+  display: flex;
+  flex-direction: column;
+  height: 668px;
+  min-width: 0;
+  align-self: start;
+  overflow: hidden;
+  border: 1px solid var(--sp-border);
+  border-radius: 16px;
+  background: var(--admin-progress-background);
+}
+.admin-progress-controls {
+  padding: 18px 18px 0;
+}
+.admin-progress-controls .sp-search {
+  min-height: 40px;
+  width: 100%;
+}
+.admin-progress-controls .sp-tabs {
+  margin-top: 18px;
+  gap: 20px;
+  overflow-x: auto;
+}
+.admin-progress-controls .sp-tabs button {
+  white-space: nowrap;
+  font-size: 12px;
+}
+.admin-progress-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+.admin-progress-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(110px, 0.6fr);
+  align-items: start;
+  gap: 14px;
+  min-height: 170px;
+  padding: 24px;
+  border-bottom: 1px solid var(--sp-border);
+}
+.admin-progress-row:last-child {
+  border-bottom: 0;
+}
+.admin-student-identity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.admin-student-avatar {
+  display: grid;
+  place-items: center;
+  flex: 0 0 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--sp-avatar-surface);
+  color: var(--sp-avatar-ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+.admin-student-identity strong {
+  display: block;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.admin-student-identity div > span {
+  display: block;
+  margin-top: 4px;
+  color: var(--sp-muted);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.admin-student-status {
+  grid-column: 2;
+  grid-row: span 2;
+  display: grid;
+  gap: 9px;
+  margin: 0;
+  font-size: 11px;
+}
+.admin-student-status dt {
+  color: var(--sp-muted);
+}
+.admin-student-status dd {
+  margin: 0 0 8px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.admin-status-approved {
+  color: var(--admin-approved-ink);
+}
+.admin-detail-columns .admin-progress-row .sp-button {
+  margin: 0;
+  justify-self: start;
+}
+.admin-progress-empty {
+  padding: 24px;
+  color: var(--sp-muted);
+  line-height: 1.6;
+}
+.admin-assignment-description h3 {
+  margin: 18px 0 8px;
+  font-size: 18px;
+}
+.admin-assignment-description p {
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.admin-detail-columns .sp-button {
+  margin-top: 20px;
+  margin-right: 12px;
+}
+.admin-project-metadata {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px 20px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.admin-project-metadata dt {
+  color: var(--sp-muted);
+}
+.admin-project-metadata a {
+  color: var(--sp-ink);
+  font-weight: 600;
+  text-underline-offset: 2px;
+}
+.admin-project-metadata dd {
+  margin: 0;
+}
+.admin-asset-cover {
+  width: 100%;
+  height: 160px;
+  object-fit: contain;
+  background: var(--sp-soft);
+}
+@media (max-width: 1100px) {
+  .admin-panel {
+    padding: 28px;
+    border-radius: 32px;
+  }
+  .admin-project-grid {
+    gap: 16px;
+  }
+  .admin-project-info {
+    padding: 16px;
+  }
+  .admin-project-title {
+    flex-direction: column;
+  }
+}
+@media (max-width: 800px) {
+  .admin-project-view-heading {
+    flex-wrap: wrap;
+  }
+  .admin-project-view-heading .sp-search {
+    flex-basis: 100%;
+    order: 1;
+  }
+  .admin-detail-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .admin-progress {
+    height: auto;
+  }
+  .admin-progress-list {
+    max-height: 570px;
+  }
+  .admin-management-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .admin-management-grid > .admin-panel {
+    min-height: 0;
+  }
+  .admin-project-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .admin-greeting {
+    margin-bottom: 30px;
+  }
+}
+@media (max-width: 520px) {
+  .admin-panel {
+    padding: 22px 16px;
+    border-radius: 24px;
+  }
+  .admin-section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .admin-project-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .admin-project-title {
+    flex-direction: row;
+  }
+  .admin-directory-entry {
+    padding: 16px;
+  }
+  .admin-entry-actions {
+    flex-direction: column;
+  }
+  .admin-greeting p {
+    font-size: 14px;
+  }
+  .admin-section-heading h2 {
+    font-size: 22px;
+  }
+}
+
+@media (max-width: 1200px) {
+  .admin-project-browser .admin-project-view-heading {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) 40px;
+    gap: 20px;
+  }
+}
+@media (max-width: 800px) {
+  .admin-project-browser .admin-project-view-heading {
+    grid-template-columns: minmax(0, 1fr) 40px;
+  }
+  .admin-project-browser .admin-project-view-heading .sp-search {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    max-width: none;
+  }
+  .admin-project-browser .admin-project-view-heading .sp-close-button {
+    grid-column: 2;
+    grid-row: 1;
+  }
+}
+
+.admin-project-visibility {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--sp-muted);
+}
+.admin-project-visibility--public {
+  color: var(--admin-public-ink);
+}
+
+.admin-project-browser .admin-project-view-heading .sp-search > svg {
+  width: 24px;
+  height: 24px;
+}
+.admin-project-browser .admin-project-info .sp-button {
+  padding-inline: 18px;
+}
+
+.admin-project-moderation,
+.admin-student-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+.admin-project-moderation {
+  margin: 14px 0 20px;
+}
+.admin-project-moderation .sp-button {
+  margin: 0;
+  min-height: 44px;
+  gap: 6px;
+}
+.admin-student-actions {
+  grid-column: 1;
+}
+.admin-student-actions .sp-button {
+  min-height: 44px;
+  gap: 6px;
+  padding: 10px 14px;
+}
+.admin-publication-delete {
+  color: var(--admin-moderation-danger-ink);
+  border-color: var(--admin-moderation-danger-border);
+  background: var(--admin-moderation-danger-surface);
+}
+.admin-moderation-error {
+  flex-basis: 100%;
+  font-size: 12px;
+  color: var(--admin-moderation-danger-ink);
+}
+.admin-moderation-retry {
+  margin: 12px 0 20px;
+  display: grid;
+  gap: 10px;
+  justify-items: start;
+}
+.admin-moderation-dialog-actions {
+  margin-top: 20px;
+  justify-content: flex-end;
+}
+
+@media (max-width: 520px) {
+  .admin-student-actions {
+    grid-column: 1 / -1;
+  }
+  .admin-student-status {
+    grid-row: 1;
+  }
+}
+
+.admin-assignment-select {
+  width: 100%;
+  max-width: 100%;
+  min-height: 32px;
+  margin: -6px 0;
+  padding: 5px 10px;
+  border: 1px solid var(--sp-border);
+  border-radius: 10px;
+  background: var(--sp-surface);
+  font-size: inherit;
+}
+
+.admin-progress.admin-progress-empty {
+  height: 300px;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 12px;
+  text-align: center;
+  padding: 32px;
+}
+.admin-project-detail .admin-progress-empty h2 {
+  margin: 0;
+  font-size: 18px;
+}
+.admin-progress-empty p {
+  font-size: 14px;
+  line-height: 1.5;
+}
