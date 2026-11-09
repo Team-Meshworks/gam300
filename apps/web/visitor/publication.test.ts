@@ -180,3 +180,33 @@ it("rejects URL-only audio rather than silently fetching media outside the captu
     "approved library track",
   );
 });
+
+it("retains captured bottom-center placement for non-room models", () => {
+  const manifest = {
+    ...value,
+    assets: [{ ...value.assets[0], placement: "bottom-center" }],
+  };
+  expect(readPublicationManifest(manifest, id).assets[0]?.placement).toBe("bottom-center");
+});
+it.each(["center", {}, 1])("rejects unsupported placement metadata %s", (placement) => {
+  expect(() =>
+    readPublicationManifest(
+      {
+        ...value,
+        assets: [{ ...value.assets[0], placement }],
+      },
+      id,
+    ),
+  ).toThrow();
+});
+it("rejects model placement on non-model assets", () => {
+  expect(() =>
+    readPublicationManifest(
+      {
+        ...value,
+        assets: [{ ...value.assets[0], kind: "audio", placement: "bottom-center" }],
+      },
+      id,
+    ),
+  ).toThrow();
+});

@@ -6,7 +6,7 @@ namespace Spatia.Server.Publications;
 // Packaged development assets are captured privately with an edition; production never resolves them
 internal sealed class DevelopmentPublicationAssets(IHostEnvironment environment, IConfiguration configuration)
 {
-    internal sealed record Asset(string Id, string Kind, string MediaType, string Sha256, string Path, int Size);
+    internal sealed record Asset(string Id, string Kind, string MediaType, string Sha256, string Path, int Size, string? Placement);
 
     internal async Task<Asset?> ReadAsync(string id, CancellationToken cancellationToken)
     {
@@ -27,10 +27,13 @@ internal sealed class DevelopmentPublicationAssets(IHostEnvironment environment,
             var digest = entry.GetProperty("sha256").GetString();
             var file = entry.GetProperty("file").GetString();
             var size = entry.GetProperty("byteSize").GetInt64();
+            var placement = entry.TryGetProperty("placement", out var placementValue) ? placementValue.GetString() : null;
             if (entry.GetProperty("access").GetString() != "development-only"
                 || kind is not ("environment" or "model" or "image" or "audio" or "video")
                 || media is not ("model/gltf-binary" or "image/webp" or "audio/mp4" or "video/webm")
                 || digest is null || digest.Length != 64 || digest.Any(c => c is not (>= '0' and <= '9') and not (>= 'a' and <= 'f'))
+                || placement is not (null or "bottom-center")
+                || (placement is not null && kind is not ("environment" or "model"))
                 || file is null || !file.StartsWith("delivery/", StringComparison.Ordinal)
                 || size is < 1 or > 104857600) { return null; }
             var root = Path.GetFullPath(configuration["DevelopmentPublication:AssetDirectory"]
@@ -44,7 +47,7 @@ internal sealed class DevelopmentPublicationAssets(IHostEnvironment environment,
             await using var content = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 65536, true);
             var actual = await SHA256.HashDataAsync(content, cancellationToken);
             return Convert.ToHexStringLower(actual) == digest && content.Length == size
-                ? new Asset(id, kind, media, digest, path, checked((int)size)) : null;
+                ? new Asset(id, kind, media, digest, path, checked((int)size), placement) : null;
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException or InvalidOperationException or ArgumentException)
         { return null; }

@@ -34,6 +34,12 @@ export function readPublicationManifest(value: unknown, publicationId: string) {
         asset.kind !== "audio" &&
         asset.kind !== "image" &&
         asset.kind !== "video") ||
+      (asset.placement !== undefined &&
+        asset.placement !== null &&
+        asset.placement !== "bottom-center") ||
+      (asset.placement === "bottom-center" &&
+        asset.kind !== "model" &&
+        asset.kind !== "environment") ||
       typeof asset.sha256 !== "string" ||
       !/^[a-f0-9]{64}$/.test(asset.sha256) ||
       asset.url !== `/api/v1/publications/${publicationId}/assets/${asset.id}/bytes`
@@ -47,6 +53,7 @@ export function readPublicationManifest(value: unknown, publicationId: string) {
       url: String(asset.url),
       sha256: asset.sha256,
       thumbnail: null,
+      ...(asset.placement === "bottom-center" ? { placement: "bottom-center" as const } : {}),
       // Match the editor's approved-room origin using metadata bound to the exact digest
       ...(knownRoomGeometry[asset.sha256]
         ? { boundsMeters: knownRoomGeometry[asset.sha256], placement: "bottom-center" as const }

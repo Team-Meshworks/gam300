@@ -20,12 +20,20 @@ public sealed class AddDevelopmentPublicationAssets : Migration
                 kind text NOT NULL CHECK (kind IN ('environment', 'model', 'image', 'audio', 'video')),
                 media_type text NOT NULL CHECK (media_type IN ('model/gltf-binary', 'image/webp', 'audio/mp4', 'video/webm')),
                 sha256 text NOT NULL REFERENCES development_publication_blobs(sha256) ON DELETE RESTRICT,
+                placement text CHECK (placement IS NULL OR (placement = 'bottom-center' AND kind IN ('environment', 'model'))),
                 PRIMARY KEY (publication_id, asset_id)
             );
             CREATE FUNCTION reject_development_publication_asset_change() RETURNS trigger
             LANGUAGE plpgsql AS $immutable$
             BEGIN
-                RAISE EXCEPTION USING ERRCODE = '23514', MESSAGE = 'Captured development assets are immutable.';
+                IF TG_OP = 'DELETE' AND TG_TABLE_NAME = 'development_publication_assets' THEN
+                    IF EXISTS (SELECT 1 FROM publications
+                        WHERE id = OLD.publication_id AND organization_purge_matches(project_id)) THEN
+                        RETURN OLD;
+                    END IF;
+                END IF;
+                RAISE EXCEPTION USING ERRCODE = '23514', CONSTRAINT = 'CK_development_publication_assets_immutable',
+                    MESSAGE = 'Captured development assets are immutable.';
             END;
             $immutable$;
             CREATE TRIGGER "TR_development_publication_blobs_immutable" BEFORE UPDATE OR DELETE ON development_publication_blobs

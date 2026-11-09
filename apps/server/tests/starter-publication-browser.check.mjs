@@ -79,6 +79,14 @@ try {
     await context.route("**/*", (route) =>
       new URL(route.request().url()).origin === origin ? route.continue() : route.abort(),
     );
+    // Observe the real visitor scene through Three's devtools hook, without application test hooks.
+    await context.addInitScript(() => {
+      window.__THREE_DEVTOOLS__ = new EventTarget();
+      window.__publicationScenes = [];
+      window.__THREE_DEVTOOLS__.addEventListener("observe", (event) => {
+        if (event.detail.isScene) window.__publicationScenes.push(event.detail);
+      });
+    });
     pages[name] = await context.newPage();
     pages[name].setDefaultTimeout(15000);
   }
@@ -133,11 +141,38 @@ try {
     const assetResponse = page.waitForResponse(
       (r) =>
         r.url().includes(`/api/v1/publications/${request.publicationId}/assets/`) &&
-        r.url().endsWith("/bytes"),
+        r.url().endsWith("/assets/test-room-v1/bytes"),
     );
     await page.goto(`${origin}${path}`);
     await page.getByRole("status").getByText("Exhibition ready").waitFor({ timeout: 30000 });
     assert.equal(await page.locator("canvas[aria-label='Exhibition view']").count(), 1);
+    const placement = await page.evaluate(async (publicationId) => {
+      const manifest = await fetch(`/api/v1/publications/${publicationId}/manifest`).then((r) =>
+        r.json(),
+      );
+      const cube = manifest.assets.find((asset) => asset.id === "display-cube-v1");
+      const root = window.__publicationScenes
+        .map((scene) => scene.getObjectByName("dddddddd-dddd-4ddd-8ddd-dddddddddddd"))
+        .find(Boolean);
+      if (!root) throw new Error("The published display cube was not rendered.");
+      const { Box3, Vector3 } = await import("/node_modules/.vite/deps/three.js");
+      const bounds = new Box3().setFromObject(root);
+      const center = bounds.getCenter(new Vector3());
+      return {
+        placement: cube.placement,
+        position: root.position.toArray(),
+        bottomCenter: [center.x, bounds.min.y, center.z],
+        height: bounds.max.y - bounds.min.y,
+      };
+    }, request.publicationId);
+    assert.equal(placement.placement, "bottom-center");
+    assert.deepEqual(placement.position, [2, 0, -3]);
+    for (const [index, expected] of [2, 0, -3].entries())
+      assert.ok(
+        Math.abs(placement.bottomCenter[index] - expected) < 0.0001,
+        `Published display cube has an exporter offset: ${JSON.stringify(placement)}`,
+      );
+    assert.ok(Math.abs(placement.height - 1.2) < 0.001);
     const asset = await assetResponse;
     assert.equal(asset.status(), 200);
     assert.equal(

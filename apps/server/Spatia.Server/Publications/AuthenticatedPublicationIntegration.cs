@@ -87,8 +87,8 @@ internal sealed class AuthenticatedPublicationIntegration(IHostEnvironment envir
                 .SingleAsync(cancellationToken);
             if (!stored.AsSpan().SequenceEqual(bytes)) { return PublicationRejection.InvalidAssets; }
             await database.Database.ExecuteSqlInterpolatedAsync($"""
-                INSERT INTO development_publication_assets (publication_id, asset_id, kind, media_type, sha256)
-                VALUES ({edition.Id}, {asset.Id}, {asset.Kind}, {asset.MediaType}, {asset.Sha256})
+                INSERT INTO development_publication_assets (publication_id, asset_id, kind, media_type, sha256, placement)
+                VALUES ({edition.Id}, {asset.Id}, {asset.Kind}, {asset.MediaType}, {asset.Sha256}, {asset.Placement})
                 """, cancellationToken);
         }
         database.PublicationAccess.Add(new PublicationAccessState
