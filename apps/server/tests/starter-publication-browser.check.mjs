@@ -155,14 +155,23 @@ try {
         .map((scene) => scene.getObjectByName("dddddddd-dddd-4ddd-8ddd-dddddddddddd"))
         .find(Boolean);
       if (!root) throw new Error("The published display cube was not rendered.");
-      const { Box3, Vector3 } = await import("/node_modules/.vite/deps/three.js");
-      const bounds = new Box3().setFromObject(root);
-      const center = bounds.getCenter(new Vector3());
+      root.updateWorldMatrix(true, true);
+      const min = [Infinity, Infinity, Infinity];
+      const max = [-Infinity, -Infinity, -Infinity];
+      root.traverse((node) => {
+        if (!node.isMesh) return;
+        node.geometry.computeBoundingBox();
+        const bounds = node.geometry.boundingBox.clone().applyMatrix4(node.matrixWorld);
+        for (const [index, axis] of ["x", "y", "z"].entries()) {
+          min[index] = Math.min(min[index], bounds.min[axis]);
+          max[index] = Math.max(max[index], bounds.max[axis]);
+        }
+      });
       return {
         placement: cube.placement,
         position: root.position.toArray(),
-        bottomCenter: [center.x, bounds.min.y, center.z],
-        height: bounds.max.y - bounds.min.y,
+        bottomCenter: [(min[0] + max[0]) / 2, min[1], (min[2] + max[2]) / 2],
+        height: max[1] - min[1],
       };
     }, request.publicationId);
     assert.equal(placement.placement, "bottom-center");
