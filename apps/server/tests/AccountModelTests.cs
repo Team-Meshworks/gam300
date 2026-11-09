@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.Extensions.DependencyInjection;
 using Spatia.Server.Accounts;
 using Spatia.Server.Persistence;
@@ -27,8 +28,10 @@ public sealed class AccountModelTests
             await using var scope = provider.CreateAsyncScope();
             var runtimeContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-            await Assert.That(runtimeContext.Model.ToDebugString(MetadataDebugStringOptions.LongDefault))
-                .IsEqualTo(designContext.Model.ToDebugString(MetadataDebugStringOptions.LongDefault));
+            // Compare schema metadata, not the runtime cache populated by unmapped SQL query types.
+            _ = runtimeContext.Database.SqlQuery<ModelProbe>($"SELECT 1 AS \"Value\"").ToQueryString();
+            await Assert.That(runtimeContext.GetService<IDesignTimeModel>().Model.ToDebugString(MetadataDebugStringOptions.LongDefault))
+                .IsEqualTo(designContext.GetService<IDesignTimeModel>().Model.ToDebugString(MetadataDebugStringOptions.LongDefault));
             await Assert.That(runtimeContext.Database.HasPendingModelChanges()).IsFalse();
             await Assert.That(runtimeContext.Model.FindEntityType(typeof(IdentityUserClaim<Guid>))!
                 .FindProperty(nameof(IdentityUserClaim<Guid>.Id))!.ClrType).IsEqualTo(typeof(int));
@@ -43,6 +46,11 @@ public sealed class AccountModelTests
         {
             Environment.SetEnvironmentVariable("ConnectionStrings__Spatia", previous);
         }
+    }
+
+    private sealed class ModelProbe
+    {
+        public int Value { get; set; }
     }
 
     [Test]

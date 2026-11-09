@@ -28,7 +28,6 @@ public sealed class ReviewScreensIntegrationTests
             await database.ProjectAssignments.Where(row => row.ProjectId == seeded.ProjectId && row.UserId == seeded.Student)
                 .ExecuteUpdateAsync(set => set.SetProperty(row => row.CanPublish, true));
         }
-        if (!unavailableAssets)
         {
             var bytes = AssetIntakeTests.CreateMinimalGlb();
             await using var assetScope = fixture.App.Services.CreateAsyncScope();
@@ -49,7 +48,8 @@ public sealed class ReviewScreensIntegrationTests
                 ReviewedBy = seeded.Educator,
                 CreatedAt = DateTimeOffset.UtcNow,
             };
-            database.AssetCandidates.Add(asset);
+            // A missing approved-asset ID stays unavailable even when built-in development assets can publish.
+            if (!unavailableAssets) { database.AssetCandidates.Add(asset); }
             var project = await database.Projects.SingleAsync(row => row.Id == seeded.ProjectId);
             var document = JsonNode.Parse(project.DocumentJson)!;
             document["scenes"]![0]!["environmentAssetId"] = asset.Id.ToString();
