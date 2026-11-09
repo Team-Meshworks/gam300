@@ -134,7 +134,8 @@ try {
     return track && !track.paused && track.currentTime > 0;
   });
   const trackTime = await viewer.locator("audio").evaluate((node) => node.currentTime);
-  await viewer.getByText("Exhibit information", { exact: true }).first().click();
+  // The scene-start rule opens this panel; do not toggle it closed before activating
+  await viewer.getByRole("region", { name: "Exhibit information", exact: true }).waitFor();
   await viewer.getByRole("button", { name: "Activate First crate", exact: true }).click();
   assert.ok((await viewer.locator("audio").evaluate((node) => node.currentTime)) >= trackTime);
 

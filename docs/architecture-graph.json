@@ -149,7 +149,6 @@
       "uses": [
         "project",
         "catalogue",
-        "input",
         "asset-loading",
         "preview"
       ],
@@ -336,7 +335,7 @@
   "files": {
     "account-dev-server.ts": "e117343d2dda5bf2d1a2636bfffdb6d2559da9410db4a42fdc336a837259c6fd",
     "architecture.check.mjs": "4725617ff67e1bdfe64935e10f25a7a0199e138a9a39e064b2b693435235c2a3",
-    "architecture.mjs": "bc2501c1efb3fbbfba6238b9be343c1f82ba2c1989a12535c69cdd11220f3177",
+    "architecture.mjs": "a1b432e81dbb389c425a184e5483a28ddc0a15202e995d0d8b14ae01c61276bf",
     "asset-catalogue-plugin.ts": "9d13b4b5a45ddd6b5e6b2f91e5bc57897628a33aff42afa2f1ce3ec630be95a9",
     "editor/App.tsx": "d59f7a72085201fbf12951180c2b5a8d6537a49c155ed8d759eb3a10b0ba5ec1",
     "editor/Scenes.tsx": "afaa76820b30e011b31a76b739a8c16a1f6c336eb723e25de82b1f60f6baa7d5",
@@ -758,20 +757,20 @@
     "tests/verify-browser.mjs": "d976ca6aededfbe021dcfa16d2fed4384eba32e79df27149570f2bc7114178d2",
     "tests/viewpoints.check.mjs": "45a7b771047dc18749d39f7754784368148fc4c40d7121a165a9f49c820d00ee",
     "tests/visitor-rooms.check.mjs": "6982f2ba6f0ccf97c6018fa39a5e6a5e5a576c163572b7c0f276867c75a0b99a",
-    "tests/visitor-v2.check.mjs": "18fc7d7ad905aa5eb24935dcfbcf510b032f5783a8e333cd1f351880f1eb6112",
+    "tests/visitor-v2.check.mjs": "e21187e5a8ea51554a67b800e8cde1bea1c9315e153ef5cb4211a2168b5d11c0",
     "tests/visitor.check.mjs": "cf54b07a7ddb6b6549f6886bb862eafb3fba6ec3a45d8bd56932c4032b67c754",
     "tests/workspace-assignments.check.mjs": "6a3d7ca744bf58ba968cf0185ef71a5fb237d3b9eb32e969ada2f911bc57dbbb",
     "tests/workspace-live.check.mjs": "7aff862e4be3090df034b645fd26c6a0e9f0a1e09b66c4380991cad810f162c3",
     "tests/workspace-routes.check.mjs": "ef916ab2bab1d7a93674413a1a228ea72a3dcc0d398b83adf7036ffc45b43d48",
-    "visitor/ExhibitionCanvas.tsx": "59eb3142db11099e404941bd502eb5708ccb9752ff75f0c6a8193c7fe9d78221",
+    "visitor/ExhibitionCanvas.tsx": "293ed4757d40f1ffd070857384e1f32b66243c63d7fbf6883fc400ba38472d6e",
     "visitor/ExhibitionContent.tsx": "14939de813729afa7c002fdecf6a2d5266e1800b1895f87a084339e7cc71be0f",
     "visitor/main.tsx": "e2ab77d86e992bf139c63a9b44d1c58aea8252b8a41cff701f7cbd4ffe65aa30",
     "visitor/publication-asset.test.ts": "d906b97519f22114c36ff7e8e92603d3bd815eebdd4f3c66cd5acab11c6f0e84",
     "visitor/publication-asset.ts": "93508447005d2d8139f9c9b0d91113ec360e6a67d3473d9bd725886a8e113a64",
     "visitor/publication.test.ts": "e5dd41b3481e70283b7ec630190a3727e99fdc6cb730924b09f312b6bc23c14d",
     "visitor/publication.ts": "b3ce5c8b1ff6b555da6c77575c679918e953e23b46fa26d98f921bd838fe5632",
-    "visitor/visitor-playback.test.ts": "c3eda40de07f8b255dea92e1bf1ee1072804780ac0743f99f670a8e3d32d15c5",
-    "visitor/visitor-playback.ts": "f95ce576e0951acc57a3ef5a690a4480d05230d2fd87f288596fc9add0ae35de",
+    "visitor/visitor-playback.test.ts": "d15f2d260902a484cc611a419466d7d44af14f928dee1d3fdb66cad71463b898",
+    "visitor/visitor-playback.ts": "aedf06bd5c2b213b2c143b1fdbc39c05b7cfaf86c6632e07a6755d9d7572c004",
     "vite.config.ts": "4140684073a73e5bf1ce62e82c973e5f4c9f6734199dc5decfa9c2f0a96ec1d5",
     "vite.visitor.config.ts": "add5053e96c696c940b2209a51d1bc11b38d7a1228dbb90c01587552724a50a9",
     "vitest.config.ts": "765d1d40c8b60c85380eac494e4df2b7fca4ea6c38385b447763294186aec0d2",
@@ -19993,7 +19992,7 @@
     },
     {
       "file": "visitor/ExhibitionCanvas.tsx",
-      "line": 404,
+      "line": 408,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -20274,9 +20273,9 @@
     {
       "file": "visitor/visitor-playback.test.ts",
       "line": 4,
-      "kind": "static",
-      "specifier": "../shared/project/fixtures/m1-project.json",
-      "target": "shared/project/fixtures/m1-project.json",
+      "kind": "type",
+      "specifier": "../shared/project/project-content",
+      "target": "shared/project/project-content.ts",
       "from": "checks",
       "to": "project"
     },

@@ -104,7 +104,7 @@ export const modules = {
   },
   rendering: {
     paths: ["editor/graphics/", "editor/controls/"],
-    uses: ["project", "catalogue", "input", "asset-loading", "preview"],
+    uses: ["project", "catalogue", "asset-loading", "preview"],
     packages: ["three"],
     public: [
       "editor/graphics/scene.ts",
