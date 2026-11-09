@@ -44,8 +44,13 @@ internal static class PublicationDeliveryEndpoints
                 {
                     var asset = assets.SingleOrDefault(row => row.Id == assetId && row.Sha256 == reference.Sha256);
                     if (asset is null) { return Unavailable(context); }
-                    result.Add(new { id = reference.AssetId, kind = asset.Kind, sha256 = reference.Sha256,
-                        url = $"{ApiV1Endpoints.Prefix}/publications/{id:D}/assets/{assetId:D}/bytes" });
+                    result.Add(new
+                    {
+                        id = reference.AssetId,
+                        kind = asset.Kind,
+                        sha256 = reference.Sha256,
+                        url = $"{ApiV1Endpoints.Prefix}/publications/{id:D}/assets/{assetId:D}/bytes"
+                    });
                 }
                 else
                 {
@@ -56,8 +61,13 @@ internal static class PublicationDeliveryEndpoints
                             AND sha256 = {reference.Sha256}
                         """).ToArrayAsync(token);
                     if (rows.Length != 1) { return Unavailable(context); }
-                    result.Add(new { id = reference.AssetId, kind = rows[0].Kind, sha256 = reference.Sha256,
-                        url = $"{ApiV1Endpoints.Prefix}/publications/{id:D}/assets/{Uri.EscapeDataString(reference.AssetId)}/bytes" });
+                    result.Add(new
+                    {
+                        id = reference.AssetId,
+                        kind = rows[0].Kind,
+                        sha256 = reference.Sha256,
+                        url = $"{ApiV1Endpoints.Prefix}/publications/{id:D}/assets/{Uri.EscapeDataString(reference.AssetId)}/bytes"
+                    });
                 }
             }
             return Results.Ok(new
