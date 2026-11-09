@@ -316,6 +316,16 @@ CI also checks the real image's separate roots and an anonymous GLB request agai
 API stack. These access controls do not approve redistribution: SCRUM-73 still requires
 redistribution-ready replacements before the development catalogue is publication-ready.
 
+The in-progress development publication integration captures referenced built-in delivery
+bytes in private, immutable, content-addressed PostgreSQL blobs after verifying their manifest
+hash. Each asset is linked to its publication and served only after normal publication access
+and membership checks; an unlisted link permits anonymous recipients to read its assets.
+Approved database assets continue through their existing path. Production does not resolve
+or serve built-in development publication assets. Apply the
+`20261109000000_AddDevelopmentPublicationAssets` migration before running this integration,
+and include retained blobs in database backups and restore checks. Sample redistribution
+terms remain unconfirmed; this integration is not rights approval or evidence of deployment.
+
 ## VM setup
 
 The VM uses Ubuntu 24.04 x86-64, Docker Engine and the Compose plugin. Runtime applications
