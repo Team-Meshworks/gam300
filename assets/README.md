@@ -89,6 +89,13 @@ Eight user-supplied GLBs are preserved unchanged in `source/stands-displays/` an
 `delivery/stands-displays/`, with immutable versioned IDs and hashes in the manifest.
 Their original filenames and unconfirmed provenance are recorded there. They are
 explicitly allowlisted development assets, not approved production distributions.
+
+The in-progress development publication integration verifies referenced built-in delivery
+bytes against this manifest, captures them in private immutable content-addressed database
+blobs, and links them to the publication. Delivery uses the publication's access and
+membership checks, including anonymous access for unlisted links. Production does not
+resolve or serve these built-in publication assets; approved database assets retain their
+existing delivery path. Redistribution terms remain unconfirmed.
 Generated thumbnails use the actual model renderer.
 
 The four physical cases/plinths expose `displayRole: physical` and a `displayTop`

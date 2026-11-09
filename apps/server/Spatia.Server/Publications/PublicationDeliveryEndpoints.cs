@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using System.Data;
 using System.Text.Json;
+using System.Security.Cryptography;
 using Spatia.Server.Accounts;
 using Spatia.Server.Classes;
 using Spatia.Server.Hosting;
@@ -25,31 +26,46 @@ internal static class PublicationDeliveryEndpoints
             .RequireAuthorization(SecurityPolicies.FullAccount);
 
         endpoints.MapGet("/publications/{publicationId}/manifest", async (string publicationId,
-            HttpContext context, ApplicationDbContext database, CancellationToken token) =>
+            HttpContext context, ApplicationDbContext database, IHostEnvironment environment, CancellationToken token) =>
         {
             var id = Guid.Parse(publicationId);
             var edition = await database.Publications.AsNoTracking().SingleAsync(row => row.Id == id, token);
             var references = JsonSerializer.Deserialize<PublicationAssetReference[]>(edition.AssetReferencesJson)
                 ?? throw new InvalidOperationException("The publication manifest is invalid.");
-            var ids = references.Select(reference => Guid.Parse(reference.AssetId)).ToArray();
+            var ids = references.Where(reference => Guid.TryParseExact(reference.AssetId, "D", out _))
+                .Select(reference => Guid.Parse(reference.AssetId)).ToArray();
             var assets = await database.AssetCandidates.AsNoTracking()
                 .Where(asset => ids.Contains(asset.Id) && asset.Status == "approved" && !asset.RemovedFromProjects)
                 .Select(asset => new { asset.Id, asset.Kind, asset.Sha256 }).ToListAsync(token);
-            if (assets.Count != references.Length || references.Any(reference =>
-                !assets.Any(asset => asset.Id == Guid.Parse(reference.AssetId) && asset.Sha256 == reference.Sha256)))
-            { return Unavailable(context); }
+            var result = new List<object>();
+            foreach (var reference in references)
+            {
+                if (Guid.TryParseExact(reference.AssetId, "D", out var assetId) && assetId.ToString() == reference.AssetId)
+                {
+                    var asset = assets.SingleOrDefault(row => row.Id == assetId && row.Sha256 == reference.Sha256);
+                    if (asset is null) { return Unavailable(context); }
+                    result.Add(new { id = reference.AssetId, kind = asset.Kind, sha256 = reference.Sha256,
+                        url = $"{ApiV1Endpoints.Prefix}/publications/{id:D}/assets/{assetId:D}/bytes" });
+                }
+                else
+                {
+                    if (!environment.IsDevelopment()) { return Unavailable(context); }
+                    var rows = await database.Database.SqlQuery<DevelopmentAssetMetadata>($"""
+                        SELECT asset_id AS "AssetId", kind AS "Kind", media_type AS "MediaType", sha256 AS "Sha256"
+                        FROM development_publication_assets WHERE publication_id = {id} AND asset_id = {reference.AssetId}
+                            AND sha256 = {reference.Sha256}
+                        """).ToArrayAsync(token);
+                    if (rows.Length != 1) { return Unavailable(context); }
+                    result.Add(new { id = reference.AssetId, kind = rows[0].Kind, sha256 = reference.Sha256,
+                        url = $"{ApiV1Endpoints.Prefix}/publications/{id:D}/assets/{Uri.EscapeDataString(reference.AssetId)}/bytes" });
+                }
+            }
             return Results.Ok(new
             {
                 publicationId = id,
                 edition.ProjectId,
                 edition.SourceRevision,
-                assets = assets.Select(asset => new
-                {
-                    id = asset.Id.ToString("D"),
-                    kind = asset.Kind,
-                    sha256 = asset.Sha256,
-                    url = $"{ApiV1Endpoints.Prefix}/publications/{id:D}/assets/{asset.Id:D}/bytes",
-                }),
+                assets = result,
             });
         }).RequirePublicationRead(PublicationReadKind.Snapshot);
 
@@ -63,14 +79,26 @@ internal static class PublicationDeliveryEndpoints
         }).RequirePublicationRead(PublicationReadKind.Snapshot);
 
         endpoints.MapMethods("/publications/{publicationId}/assets/{assetId}/bytes", [HttpMethods.Get, HttpMethods.Head], async (string assetId,
-            HttpContext context, ApplicationDbContext database, CancellationToken token) =>
+            string publicationId, HttpContext context, ApplicationDbContext database, IHostEnvironment environment, CancellationToken token) =>
         {
             // Recheck removal at byte loading too; never let a stale policy lookup bypass global removal
-            var id = Guid.Parse(assetId);
-            var asset = await database.AssetCandidates.AsNoTracking().SingleOrDefaultAsync(row => row.Id == id
-                && row.Status == "approved" && !row.RemovedFromProjects, token);
-            return asset is null ? ApiProblems.Create(context, 404, "asset_not_found", "Asset is unavailable")
-                : Results.Bytes(asset.Bytes, AssetIntakePolicy.MediaType(asset.Kind));
+            if (Guid.TryParseExact(assetId, "D", out var id) && id.ToString() == assetId)
+            {
+                var asset = await database.AssetCandidates.AsNoTracking().SingleOrDefaultAsync(row => row.Id == id
+                    && row.Status == "approved" && !row.RemovedFromProjects, token);
+                return asset is null ? ApiProblems.Create(context, 404, "asset_not_found", "Asset is unavailable")
+                    : Results.Bytes(asset.Bytes, AssetIntakePolicy.MediaType(asset.Kind));
+            }
+            if (!environment.IsDevelopment() || !Guid.TryParseExact(publicationId, "D", out var editionId))
+            { return Unavailable(context); }
+            var rows = await database.Database.SqlQuery<DevelopmentAssetBytes>($"""
+                SELECT a.sha256 AS "Sha256", a.media_type AS "MediaType", b.bytes AS "Bytes"
+                FROM development_publication_assets a JOIN development_publication_blobs b ON b.sha256 = a.sha256
+                WHERE a.publication_id = {editionId} AND a.asset_id = {assetId}
+                """).ToArrayAsync(token);
+            if (rows.Length != 1 || Convert.ToHexStringLower(SHA256.HashData(rows[0].Bytes)) != rows[0].Sha256)
+            { return Unavailable(context); }
+            return Results.Bytes(rows[0].Bytes, rows[0].MediaType);
         }).RequirePublicationRead(PublicationReadKind.Asset).RequireRateLimiting("AssetBytes");
 
         // Management metadata explains the current audience without granting visitor or draft access
@@ -255,4 +283,19 @@ internal static class PublicationDeliveryEndpoints
 
     private static IResult Unavailable(HttpContext context) =>
         ApiProblems.Create(context, 404, "publication_unavailable", "Publication is unavailable or access is not permitted");
+
+    private sealed class DevelopmentAssetMetadata
+    {
+        public string AssetId { get; set; } = "";
+        public string Kind { get; set; } = "";
+        public string MediaType { get; set; } = "";
+        public string Sha256 { get; set; } = "";
+    }
+
+    private sealed class DevelopmentAssetBytes
+    {
+        public string Sha256 { get; set; } = "";
+        public string MediaType { get; set; } = "";
+        public byte[] Bytes { get; set; } = [];
+    }
 }

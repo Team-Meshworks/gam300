@@ -690,7 +690,7 @@ public sealed class PublicationEndpointTests
     }
 
     internal static async Task<(ReviewSubmissionEndpointTests.Seeded Data, AssetCandidate Asset)> PrepareAsync(
-        HttpsApplicationFixture fixture, bool approve = true, bool interactions = false, Guid? assetOwner = null, bool content = false, bool enabledRule = false, long revision = 0)
+        HttpsApplicationFixture fixture, bool approve = true, bool interactions = false, Guid? assetOwner = null, bool content = false, bool enabledRule = false, long revision = 0, bool starterRoom = false)
     {
         fixture.App.Configuration["Publication:Origin"] = "https://publications.example.test";
         var data = await ReviewSubmissionEndpointTests.SeedAsync(fixture, false);
@@ -721,7 +721,7 @@ public sealed class PublicationEndpointTests
             var project = await database.Projects.SingleAsync(row => row.Id == data.ProjectId);
             project.Revision = revision;
             var document = JsonNode.Parse(project.DocumentJson)!;
-            document["scenes"]![0]!["environmentAssetId"] = asset.Id.ToString();
+            document["scenes"]![0]!["environmentAssetId"] = starterRoom ? "test-room-v1" : asset.Id.ToString();
             document["scenes"]![0]!["objects"] = new JsonArray();
             if (interactions) { document["scenes"]![0]!["interactions"] = JsonNode.Parse("""[{"when":{"type":"scene-starts"},"do":{"type":"open-link","url":"https://example.com/"}}]"""); }
             if (content)

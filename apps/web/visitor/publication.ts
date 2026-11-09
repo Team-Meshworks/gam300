@@ -10,6 +10,8 @@ const id = (value: unknown): value is string =>
   typeof value === "string" &&
   /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(value) &&
   value !== "00000000-0000-0000-0000-000000000000";
+const assetId = (value: unknown): value is string =>
+  id(value) || (typeof value === "string" && /^[a-z0-9][a-z0-9-]{0,127}$/.test(value));
 export function readPublicationManifest(value: unknown, publicationId: string) {
   if (
     !record(value) ||
@@ -25,7 +27,7 @@ export function readPublicationManifest(value: unknown, publicationId: string) {
   const assets: CatalogueAsset[] = value.assets.map((asset: unknown) => {
     if (
       !record(asset) ||
-      !id(asset.id) ||
+      !assetId(asset.id) ||
       seen.has(asset.id) ||
       (asset.kind !== "model" &&
         asset.kind !== "environment" &&

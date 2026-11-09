@@ -20,6 +20,42 @@ const value = {
 it("uses only assets bound to the requested publication", () => {
   expect(readPublicationManifest(value, id).assets[0]?.url).toBe(value.assets[0]?.url);
 });
+it("accepts a captured built-in room with a publication-bound URL", () => {
+  const room = "test-room-v1";
+  const manifest = {
+    ...value,
+    assets: [
+      {
+        id: room,
+        kind: "environment",
+        sha256: "a".repeat(64),
+        url: `/api/v1/publications/${id}/assets/${room}/bytes`,
+      },
+    ],
+  };
+  expect(readPublicationManifest(manifest, id).assets[0]?.id).toBe(room);
+});
+it.each(["../room", "room/../../other", "room?x=1", "room%2fother", "UPPERCASE", ""])(
+  "rejects unsafe built-in asset identity %s",
+  (assetId) => {
+    expect(() =>
+      readPublicationManifest(
+        {
+          ...value,
+          assets: [
+            {
+              id: assetId,
+              kind: "environment",
+              sha256: "a".repeat(64),
+              url: `/api/v1/publications/${id}/assets/${assetId}/bytes`,
+            },
+          ],
+        },
+        id,
+      ),
+    ).toThrow();
+  },
+);
 it.each([
   "https://elsewhere.test/asset.glb",
   `/api/v1/assets/${asset}/bytes`,
