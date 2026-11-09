@@ -69,7 +69,11 @@ export function createVisitorPlayback(
       node.currentTime = 0;
     }
     if (node.paused) {
-      void node.play().catch(() => report("Press the media Play control to allow playback"));
+      void node.play().catch(() => {
+        if (disposed || departing) return;
+        pendingMedia.add(id.toLowerCase());
+        report("Select Enable audio to allow playback");
+      });
     }
   }
   const mediaReady = (event: Event) => {
@@ -139,6 +143,7 @@ export function createVisitorPlayback(
           const panel = element(action.panelId);
           if (panel) {
             panel.hidden = false;
+            content.dispatchEvent(new CustomEvent("exhibit-show-panel"));
             panel.scrollIntoView({ block: "nearest" });
           }
           break;
@@ -196,9 +201,13 @@ export function createVisitorPlayback(
         sounds.push(sound);
       });
     }
-    void listener.context
-      .resume()
-      .catch(() => report("Allow audio playback and press Start exhibition again"));
+    void listener.context.resume().catch(() => report("Select Enable audio to allow playback"));
+    begin();
+    for (const id of pendingMedia) media(id);
+  }
+  // Enter the published scene immediately; audio permissions still need a user gesture
+  function begin() {
+    if (disposed || departing) return;
     // Initial BGM starts once; later object clicks respect tracks the visitor paused manually
     if (started) return;
     started = true;
@@ -288,6 +297,7 @@ export function createVisitorPlayback(
   document.addEventListener("visibilitychange", visibility);
 
   return {
+    begin,
     start,
     click,
     update(delta: number, lookingAt?: string) {

@@ -18,7 +18,8 @@
         "project",
         "catalogue",
         "asset-loading",
-        "network"
+        "network",
+        "preview"
       ],
       "packages": [
         "react",
@@ -97,6 +98,22 @@
         "shared/asset-runtime/display-layout.ts"
       ]
     },
+    "preview": {
+      "paths": [
+        "shared/preview/"
+      ],
+      "uses": [],
+      "packages": [
+        "react",
+        "three"
+      ],
+      "public": [
+        "shared/preview/FpsControls.ts",
+        "shared/preview/preview-start.ts",
+        "shared/preview/MobileControls.tsx",
+        "shared/preview/preview.css"
+      ]
+    },
     "input": {
       "paths": [
         "editor/history-shortcuts.ts"
@@ -133,7 +150,8 @@
         "project",
         "catalogue",
         "input",
-        "asset-loading"
+        "asset-loading",
+        "preview"
       ],
       "packages": [
         "three"
@@ -204,6 +222,7 @@
         "input",
         "document",
         "rendering",
+        "preview",
         "persistence",
         "ui-foundation",
         "network"
@@ -258,6 +277,7 @@
       "asset-loading",
       "catalogue",
       "network",
+      "preview",
       "project"
     ],
     "project": [],
@@ -267,6 +287,7 @@
       "network",
       "project"
     ],
+    "preview": [],
     "input": [],
     "document": [
       "catalogue",
@@ -275,7 +296,7 @@
     "rendering": [
       "asset-loading",
       "catalogue",
-      "input",
+      "preview",
       "project"
     ],
     "persistence": [
@@ -291,6 +312,7 @@
       "input",
       "network",
       "persistence",
+      "preview",
       "project",
       "rendering",
       "ui-foundation"
@@ -314,7 +336,7 @@
   "files": {
     "account-dev-server.ts": "e117343d2dda5bf2d1a2636bfffdb6d2559da9410db4a42fdc336a837259c6fd",
     "architecture.check.mjs": "4725617ff67e1bdfe64935e10f25a7a0199e138a9a39e064b2b693435235c2a3",
-    "architecture.mjs": "7e52f8b78417863771e2bf0d88cef297463fa419deefd84a9f3f23d64d438c93",
+    "architecture.mjs": "bc2501c1efb3fbbfba6238b9be343c1f82ba2c1989a12535c69cdd11220f3177",
     "asset-catalogue-plugin.ts": "9d13b4b5a45ddd6b5e6b2f91e5bc57897628a33aff42afa2f1ce3ec630be95a9",
     "editor/App.tsx": "d59f7a72085201fbf12951180c2b5a8d6537a49c155ed8d759eb3a10b0ba5ec1",
     "editor/Scenes.tsx": "afaa76820b30e011b31a76b739a8c16a1f6c336eb723e25de82b1f60f6baa7d5",
@@ -331,7 +353,7 @@
     "editor/admin/ProjectProgress.tsx": "ace6ec6642bd0e921b07dda4ea5e2880f0af02bd5c520ee0cb62215cac4d7c21",
     "editor/admin/dashboard-client.test.ts": "648d4261db90e2b9ce388026fd242ec54bbe406c33d4428cdc68aae5f7d9dd5a",
     "editor/admin/dashboard-client.ts": "907e77adbbd81731fad7e9b039bb7b5cfa14a8b763a5ec60dd8dbd87e9af48d7",
-    "editor/asset-administration/AssetAdministration.tsx": "239c8f42fede448be2854bf77f76734062356d4c0c986f3398b815daeb443d28",
+    "editor/asset-administration/AssetAdministration.tsx": "e470a75bd35264036997ac077f583a1681a9cf6038b3f54c3f0f8b670b370414",
     "editor/asset-administration/AssetSelect.tsx": "51d5fdde1515e02d1310b46ce964d34ccd6d574c074dc1698d42c00fc8ca1c49",
     "editor/asset-administration/asset-administration-service.test.ts": "84dcf404012469bf882d2a7715dd42746a39b03d57565819e644b6ad564a93c5",
     "editor/asset-administration/asset-administration-service.ts": "dd1ea0f04609b8cd28463d3694eaf92062529db56cf4b8102a43fc496f2822ea",
@@ -344,7 +366,7 @@
     "editor/command-history.test.ts": "783c026523513ea5520cde04e61502aba13ca3a612b509a904c2a50e50be2d1f",
     "editor/command-history.ts": "e243335582ab03da9d131bd80edef7b908e3eb0a751d6ebfa7deb77750fc54ad",
     "editor/controls/fpsControls.test.ts": "a33b3f7e191f730ee031973ebad3d5bc29bd46b613365ad7e5054af048529769",
-    "editor/controls/fpsControls.ts": "62c872a0ab058e8bb3a9825253439b8a86e3c8b62bef9e5ea53d7d183da4c661",
+    "editor/controls/fpsControls.ts": "8ddbf7301f9a3cc30a5ab2a309c4b5b7e4aab3652a2a9709113bfc44ddddc714",
     "editor/directory/AccountDialog.tsx": "802bc194a21201c875408890194b50402ab6fd085921418720b5e8503ebfb936",
     "editor/directory/AccountDirectoryPage.tsx": "63ccf079129a7600a3370d4918cd4afb4d13cb70201d81f6434802c8a2f8296a",
     "editor/directory/AccountList.tsx": "05b7131b8d4d7602365bb62ed04791b203d26a7221f64c5b6e51e6c78a8689b9",
@@ -377,7 +399,7 @@
     "editor/graphics/hotspot-anchor.ts": "7c9c40970d541352a3005dcb04db28dabbffd09c653a14908ca354749ef67dab",
     "editor/graphics/library-previews.ts": "4362b4c1f92b02d3087d8ab68385d97ff08525a348fcb8efbff47682bcb8e7f5",
     "editor/graphics/modeManager.test.ts": "541792061d8bc911a1d67f2ae5dfaea50baeb24edcff0e8f1317ec0e69336799",
-    "editor/graphics/modeManager.ts": "37515a42c7f229ad57c2b9c7b0c606e33550c02c1739ccc987ad660ece1e058d",
+    "editor/graphics/modeManager.ts": "b286d1507500e5ddec78e7c265a866ba73324df6ab3ce38892b3c4f73a0ab624",
     "editor/graphics/model-load-queue.test.ts": "4de0b8d896c4adc28aaddd9a69d516b8add7a5fabe6862499fa80dad2bd6601d",
     "editor/graphics/model-load-queue.ts": "df63b8c1781d532f37d1bd97109da127128bfeb24c882ad7b089e2f5a174381c",
     "editor/graphics/placement-body.test.ts": "1f14ef5394040e073639585bda0d69ebb350e1fdf9da370205648735c665178d",
@@ -411,8 +433,8 @@
     "editor/home/ProjectCreation.tsx": "2d6352bc7e32a16908f30961d720186c19b5ff479b68d4d7569a7a8c6c9201dc",
     "editor/home/ProjectGrantEditor.tsx": "5515744d71c58bbcd19134758c14b1670132968223d5a19d804a740a3d8188bc",
     "editor/home/ProjectHome.tsx": "c55a42fc34c3d58c4104ba8d46eee3dbdbbaabf2e1fd6c8fa892b95b33487bac",
-    "editor/home/PublishedProjects.tsx": "1a9531ffdb0928aad4ed59dad7616fc324201a743741a5f96057d4ebc550adea",
-    "editor/home/StudentProjects.tsx": "afd1b367b68c6c2949c28c0d8df4aafb80501b98c89e0d9b1eaa0d0e3a400215",
+    "editor/home/PublishedProjects.tsx": "5a0d62bb3b2a024226dd991cd586830460a132fd424d79bb04c1264835b2558a",
+    "editor/home/StudentProjects.tsx": "ac8b5f15db129e4544f79398ae5e5725801e8ac059d0b185bbee2cf3c1db9850",
     "editor/home/TeacherDashboard.tsx": "d4c01584d2a2431d2273455c86237a75e323b151d9a785d5a233cb1b6fce99a2",
     "editor/home/TeacherProjects.tsx": "b270dd68bb6fdbe5b0a10fef69f632b60184c1b6a72a697c96914d649d9ffcf9",
     "editor/home/WorkspaceNavigation.tsx": "494d1b54b5198db5ee3072a607f41957f3a7c942cf3486942a607fa1998fc411",
@@ -568,7 +590,7 @@
     "editor/ui/user-settings.test.ts": "32e755c027b86d03f26e85e7acfbd48857ff264f21b18b857799fb48b6b714e0",
     "editor/ui/user-settings.ts": "7476a683154bc14d7050e09f693f34576c420b8842d03f4ae3c39033abe4933d",
     "editor/viewpoints.test.ts": "43299538e93b4eb2a7118c3969b44dc592f249f1e51b867910f9d3fd9abee090",
-    "editor/viewport/MobileControls.tsx": "f3f37136f19839fe7e1348c80581ae866e4bf19e9cda98aaf92718955f67d5bb",
+    "editor/viewport/MobileControls.tsx": "4d4ecf4c0f7e896ea63f2beb2ab50e1a0e251f39159e9b133d5c6a240b8cec43",
     "editor/viewport/Viewport.tsx": "a36fa597f64189a0e7e1d826e2a3a2284dfd7381c523620eec6cefcffb59c83c",
     "editor/viewport/mobile-device.ts": "ab05c53861f725a35b68e2509872d8e247f6a8adfaccd7cbdc337f7f41426599",
     "editor/workspace/WorkspacePage.tsx": "e921decff3a76456396a9daac4e0ed6ff7f0d7e5c4c5f342c0af258b0b265e65",
@@ -589,6 +611,9 @@
     "shared/asset-runtime/text-texture.ts": "8ae252a0d0574bd76058404ef02dfb427ddffd2c78c645dd2b029c2e62f20372",
     "shared/network/abort-signals.test.ts": "14cf46f71faaffa07368eb90fce2d2b6580fe12689088c80ae354bfdb26047b1",
     "shared/network/abort-signals.ts": "f96021d454dc750f610d289e146231b4778e685302182f5deea7afecb29cb73d",
+    "shared/preview/FpsControls.ts": "c7f8d0c709908121df1b8243e9b8432df176e531a51e2a7fbbec591e1598c338",
+    "shared/preview/MobileControls.tsx": "29429acd1cfc4bbbb0708631f6b5b3ca5bb9cd0fda67275adee65eb095ad23fb",
+    "shared/preview/preview-start.ts": "3129d90b4b5979681989dca6555091ae1c368ec2f39a66cad2fdf02bb603045a",
     "shared/project/attached-transforms.ts": "73599346cb723db417b11d02eb9bf92f80f038ff070f605d11b62d77083f543a",
     "shared/project/legacy-scene-import.test.ts": "4574e69926012dfa25a362fcd5d4b14bd67169f3aef1235bebf6ca5479d597ca",
     "shared/project/legacy-scene-import.ts": "37fd657a29e0e6094b7a951ee0592c465f866c9e330f1571e46faff8a66094f3",
@@ -636,16 +661,16 @@
     "shared/ui/WorkspaceShell.tsx": "8d8678361e0f5083d6375428256573a375fe4137c5ce31afd5ef14cb13c95058",
     "shared/ui/useModal.ts": "29ec6f9fac1116c059459ed68efedd0d713884b4a4eb8d37764b4219deed3978",
     "tests/account-dev-server.check.mjs": "abb9e1d08d734755d306af51ebf319274efc15a2da1fccdb1dfbd9da843530f0",
-    "tests/account-directory-real-api.check.mjs": "1dc56a60ea6749afbfae4146414b70689c9931d69226490b5fa319ea438206a6",
+    "tests/account-directory-real-api.check.mjs": "63e6df07ffb5a5aff3fc2479404044a61e6ad24a6f0ede3832474d07ecdc49cd",
     "tests/account-directory.check.mjs": "39efdefbf33117b95fe3b29a9f398fee53dffad5de6f1ee53dafd8089009af03",
-    "tests/account-header.check.mjs": "b60c22f7c5c789abd3323ad2854d5de140d9c43118b0d404c0d98eb847af8888",
-    "tests/admin-classes-navigation.check.mjs": "001e08b1bade0305007e64a4bfcd6681f8c53f823a9a5d168d880aec75d3f768",
+    "tests/account-header.check.mjs": "d46863841153dfcda0115aeda5e0fa48489d48244c725c6376405c7eff909583",
+    "tests/admin-classes-navigation.check.mjs": "70993e04dc96720de3b0df30e4f37d9d7ab7b3ffa255db3c450c2b212760831a",
     "tests/admin-dashboard.check.mjs": "39d1d7609fa4e27e893444192d3e2443e9e060c31a8e0f7b327d3701d4adbf33",
     "tests/admin-navigation-regression.check.mjs": "1d15dca531d55f41ffd307dce642225fcf3e28b588fd178ca73d9f6b285e5286",
     "tests/admin-navigation-suite.mjs": "07678393e0e4051d1eaaae768cf15e0023b52fcc0061645eb1efad3d9eca81c6",
-    "tests/admin-project-grants-navigation.check.mjs": "46aaf4f855e42677dff487bd299a2cf6cf06e6361a133af006d56b70ab215c2f",
+    "tests/admin-project-grants-navigation.check.mjs": "93a9a9aed680f1b6779d7ce77572ed6c17255ebb5311dfde4eec31ba55871a40",
     "tests/asset-administration-fixture.tsx": "066c3d5d9ee7c6967baab588ee75f79ee13e5797af936990508c78d9108fa1b6",
-    "tests/asset-administration.check.mjs": "deff5a6df5c8f4e4cdbdc651861fbe956ce0813e2a4a4ed741c5467e9b8444a2",
+    "tests/asset-administration.check.mjs": "fb341461c55929de638829a3bec03588f29ce9df74a4329655110b5b75563911",
     "tests/assignment-real-api.check.mjs": "58a25fafd81b76e24f111844d076babc48fbb6e7f37db38e2395784522983aa6",
     "tests/assignment-screen.check.mjs": "418bf5e75184f4c1b8f0bac80f13e349681a7d5dcceead314fff0f46eee23986",
     "tests/audio-library.check.mjs": "85ff2ab335a72478047b8b51ddc9a89f241b2421542239b2d12d9c26d3cc431b",
@@ -662,7 +687,7 @@
     "tests/class-assignment.check.mjs": "fc1e87cb8577bb75c0985572b4a9636d7327d5fcfbe38ba201dec604faa64c73",
     "tests/content-editor.check.mjs": "b7a3a370c4de65e69786ab9ddc98ec0edb0ac25895fc5de4c63de3c693f3271a",
     "tests/content-rule-removal.check.mjs": "3ce9185acdf198724de3e9559b186c4fa9c1e3467ec08543acf4a9a4344b2d8a",
-    "tests/dashboard-redesign.check.mjs": "207ff519489522e1277ea4736237695a61856b16520eb9947194448706fc1f14",
+    "tests/dashboard-redesign.check.mjs": "c48f91a8b361eb80d16804a3d2a113b417ee2903d84b4743a14bd50c104db4bf",
     "tests/deadline.check.mjs": "d73aebf0cffbaff8dc00ea6f14ea1d823555551d3ada0a76496bb4e7e27459a5",
     "tests/deployment.check.mjs": "25661c16e5ac63828997d5b4424fa690b1fa4a5bb4211f1fe38c9c99a27cb016",
     "tests/display-editor.check.mjs": "f643735df62cc961eb90991efff717068bf012e8973b966eb706a5d869a196c9",
@@ -697,7 +722,7 @@
     "tests/project-creation.check.mjs": "261ffe5e01839b85cc81abe01e335727f515fd91a167aeb571142c1c542a5dbb",
     "tests/project-format-cross.check.mjs": "ee53831df06a8ac48478b1a5fe84e47a9dc188739e40d23ccbb65612df103017",
     "tests/project-grants-fixture.tsx": "cce7fc134425e76f102c0c8d3a4f40c86762c11355d063da58ee6e2a1a2c4c3c",
-    "tests/project-grants-real-api.check.mjs": "4d074bc3d2c4ad058867becedb8b06a0991d05406ea732adc42050860aa9ec17",
+    "tests/project-grants-real-api.check.mjs": "eeb7469c282a4cffbf9612023ed6513171251717cd623b3b48c0183c06f73757",
     "tests/project-grants.check.mjs": "f3a511983f29f3767275e3b57dd937aab9d998ee5fd8a944d80fa410a1b85633",
     "tests/project-store-fixture.ts": "2cbf3e5e59d831824bf2288c48e5e7fdd001251958b88061e8116e964b97b624",
     "tests/publication-access.check.mjs": "e79f73cb765bc0cbac63190891122f12e1e4acb1496d00d6dfe091b95652f125",
@@ -720,13 +745,11 @@
     "tests/starter-room-transform.check.mjs": "e094c8695624ad0ff8e021266c523d0dff71ccfd4e78662707331e67f98e54f8",
     "tests/teacher-assignment-edit-storage.check.mjs": "4a364e2021356b6f324172720f773354e6028593f52ced93e84515e17821af08",
     "tests/teacher-assignment-edit.check.mjs": "b8a8484d51ea6468cee20982a2394b64716a9fc4cfabc28262c46e7a7ad949c9",
-    "tests/teacher-assignment-flow.check.mjs": "d14fb03647e175085b87ff130cd220b90aa487c987d0c4d068c6fc084f9f743a",
+    "tests/teacher-assignment-flow.check.mjs": "3c8d57e6c49311104ba2cb68cfa996db3485dc53937346f0793fd03870c2f704",
     "tests/teacher-choices-account-switch.check.mjs": "22daa2c705569eadb0fcdcc489916f041e03af292d74b75f8d1690b406c3eacb",
     "tests/teacher-details-flow.check.mjs": "1519ccc2bf3d151b2788f98160ec64f93bff622a1a5573f4d6f288ececc436cc",
     "tests/teacher-editor-actions.check.mjs": "e6a5f3bdfc92f80ccb4a8a9d427a5a6df93f0dd81d225ef0612f4ee11e66c6b3",
     "tests/teacher-review-dialog.check.mjs": "c0cbef006da3ca6b23882fc6ab5d5e43406725ba38106e99c458bb798337a3f9",
-    "tests/teacher-review-org-click.check.mjs": "f983334b6e24d83ced96b6fbf6299e637124039083c06ba9269135930e79a800",
-    "tests/teacher-review-org-switch.check.mjs": "a2567a1397ef9ad3547543b6b34514c46184048636e652f93097926d32e1f6c8",
     "tests/teacher-review-refresh.check.mjs": "15534f852f339a41a747c116dbec94dd41502227322224966ada8c766bf6ca15",
     "tests/teacher-roster-account-switch.check.mjs": "d74679c1a49c3dcc0ef394b8475462422dcd9b7b94bc33ddd4e05a3f20100206",
     "tests/text-placement.check.mjs": "822ee3f12f90c3a693cb2ffc94f03c48a6820ed79137f8e90d59ad2108b15e77",
@@ -735,19 +758,19 @@
     "tests/verify-browser.mjs": "d976ca6aededfbe021dcfa16d2fed4384eba32e79df27149570f2bc7114178d2",
     "tests/viewpoints.check.mjs": "45a7b771047dc18749d39f7754784368148fc4c40d7121a165a9f49c820d00ee",
     "tests/visitor-rooms.check.mjs": "6982f2ba6f0ccf97c6018fa39a5e6a5e5a576c163572b7c0f276867c75a0b99a",
-    "tests/visitor-v2.check.mjs": "2ff76b2539f8fdc7e88158ce3e82995d8d19ddd668ddae1e4a240c3ce794499b",
-    "tests/visitor.check.mjs": "63d0378b997bec0e1e62406e0a93fc20412eed36c83478206e849645ae1ae333",
+    "tests/visitor-v2.check.mjs": "8d3f2cb48ea9ea9d45f56e9d33ec3eb654625f6cd8257f285bcee6bf76a00ee2",
+    "tests/visitor.check.mjs": "fe806a387e9ec95eaf8ce312f190410ad9c4514ae5d680c6f04dace7ffdd44ee",
     "tests/workspace-assignments.check.mjs": "6a3d7ca744bf58ba968cf0185ef71a5fb237d3b9eb32e969ada2f911bc57dbbb",
     "tests/workspace-live.check.mjs": "7aff862e4be3090df034b645fd26c6a0e9f0a1e09b66c4380991cad810f162c3",
     "tests/workspace-routes.check.mjs": "ef916ab2bab1d7a93674413a1a228ea72a3dcc0d398b83adf7036ffc45b43d48",
-    "visitor/ExhibitionCanvas.tsx": "7ae4d71413ce1b18cdbb0d55906a343199e560624f9dda1047e3b6e75c0c0044",
-    "visitor/ExhibitionContent.tsx": "239b557cdf262ba4e26041dd0d17207af6e27301a8914df3d6f742fef83daf42",
-    "visitor/main.tsx": "1ce20926d1a510c2d858c81d5cb2f4730489fdfd7cb3459659ae7ad7524d9fc9",
+    "visitor/ExhibitionCanvas.tsx": "207aebe971184c2a9fcad4b08a2b59cf9c9360dd108e460255b79920201312cf",
+    "visitor/ExhibitionContent.tsx": "14939de813729afa7c002fdecf6a2d5266e1800b1895f87a084339e7cc71be0f",
+    "visitor/main.tsx": "e2ab77d86e992bf139c63a9b44d1c58aea8252b8a41cff701f7cbd4ffe65aa30",
     "visitor/publication-asset.test.ts": "d906b97519f22114c36ff7e8e92603d3bd815eebdd4f3c66cd5acab11c6f0e84",
     "visitor/publication-asset.ts": "93508447005d2d8139f9c9b0d91113ec360e6a67d3473d9bd725886a8e113a64",
-    "visitor/publication.test.ts": "d79035aaa89cd011070b9a36a18d0fe100167dae7d6b5f00b4bdf919512a247d",
-    "visitor/publication.ts": "218a7ce69e5d0bd4beb97be5b1207d8df1c590a1195f1a1a264f5bc5d5be24d7",
-    "visitor/visitor-playback.ts": "0471ca93dab007009eba63cecd7001d081d6020bba004d5d3f639d69a07d6b34",
+    "visitor/publication.test.ts": "0a5370153446c6eb27ff70ea4ffb83b76a4aa5782fd4e69af82b2c1fdddbf86e",
+    "visitor/publication.ts": "0d5f183d784e77abbe7a4fc26ec920b7230ec7646536b24470f4d5e015bfecef",
+    "visitor/visitor-playback.ts": "de76aed989f8dd5924fd7d37b38eaf4b95850868a7397e3e5fc046b8e4ff97e2",
     "vite.config.ts": "4140684073a73e5bf1ce62e82c973e5f4c9f6734199dc5decfa9c2f0a96ec1d5",
     "vite.visitor.config.ts": "add5053e96c696c940b2209a51d1bc11b38d7a1228dbb90c01587552724a50a9",
     "vitest.config.ts": "765d1d40c8b60c85380eac494e4df2b7fca4ea6c38385b447763294186aec0d2",
@@ -785,7 +808,7 @@
     "editor/reviews/reviews.css": "30f94e3a7cb4e076b12fe555b0418c683b3e47ad074a0e69af3377a51fb6547b",
     "editor/home/student-projects.css": "3efe932c8a0b04005373879aa2fb2346afc1961999ac9c59f3f8dffd8908a06e",
     "editor/home/workspace-navigation.css": "e2bc5c4a284f1ccd16abe705d20679321ad93598ac296762fea8d4ea2942309c",
-    "editor/styles.css": "9eedc69ac4688f7fedd28339ab8ecdb9293a124ed89e917e1ffe1ec86171b228",
+    "editor/styles.css": "49ceaa70ba55aec09689c92aa6a361104f69a6e3180a9a0ebd469ef731663c8a",
     "editor/fixtures/asset-pipeline-document-history.json": "4fe51cba770226d856f37cbbc2afbe0b3fe393e5990b8f761b794b7b5bf5380d",
     "editor/fixtures/asset-pipeline-view-history.json": "d33e208ca99c5fb1e816a9e0b79aebb987c79ef354179d8c06e430b382cf4f59",
     "editor/projects/assignment-screens.css": "0a59c46a9a56cf6b6f613d57ab0fab1125cd8fe370a0212a0b904352916edad7",
@@ -827,7 +850,7 @@
     "shared/ui/assets/ambient-right.svg": "9e66fd1c1125fde8095c820aecfddca78d45ba051c984b64a57c028733d38767",
     "shared/ui/assets/admin-ambient-left.svg": "c113383e1d7aa90efce841581ce5433fed792487ed923b64187a5110e78e0ada",
     "shared/ui/assets/admin-ambient-right.svg": "ed0795457336c50204ad2d84c2225970fb44350567e3cf5fa1cd4ade2fa62372",
-    "visitor/visitor.css": "efc91fc2f9f1885f5a71c7fd6ea5ef8ff8f0ed82116b9881c9047d872d94898a",
+    "visitor/visitor.css": "dcb286891c70da6b1012d38c7fb200cdaa47b94bec9086ee87310dc3b314c351",
     "shared/project/fixtures/m2-publication-project.json": "088af0736775c57efa6d54c2fbfd82496c285a58263c02b38ee09c0cecfcba7f",
     "shared/project/publication-capabilities.json": "e81e00f90d6a2e26494460e9915725053463aa54b6b9d8c5b61ee67aa24235c8"
   },
@@ -2822,20 +2845,10 @@
       "file": "editor/controls/fpsControls.ts",
       "line": 1,
       "kind": "static",
-      "specifier": "three",
-      "target": {
-        "package": "three"
-      },
-      "from": "rendering"
-    },
-    {
-      "file": "editor/controls/fpsControls.ts",
-      "line": 2,
-      "kind": "static",
-      "specifier": "../history-shortcuts",
-      "target": "editor/history-shortcuts.ts",
+      "specifier": "../../shared/preview/FpsControls",
+      "target": "shared/preview/FpsControls.ts",
       "from": "rendering",
-      "to": "input"
+      "to": "preview"
     },
     {
       "file": "editor/directory/AccountDialog.tsx",
@@ -4438,6 +4451,15 @@
       "target": "editor/controls/fpsControls.ts",
       "from": "rendering",
       "to": "rendering"
+    },
+    {
+      "file": "editor/graphics/modeManager.ts",
+      "line": 4,
+      "kind": "static",
+      "specifier": "../../shared/preview/preview-start",
+      "target": "shared/preview/preview-start.ts",
+      "from": "rendering",
+      "to": "preview"
     },
     {
       "file": "editor/graphics/model-load-queue.test.ts",
@@ -6291,34 +6313,6 @@
       "file": "editor/home/PublishedProjects.tsx",
       "line": 1,
       "kind": "static",
-      "specifier": "react",
-      "target": {
-        "package": "react"
-      },
-      "from": "editor"
-    },
-    {
-      "file": "editor/home/PublishedProjects.tsx",
-      "line": 2,
-      "kind": "type",
-      "specifier": "../accounts/account-client",
-      "target": "editor/accounts/account-client.ts",
-      "from": "editor",
-      "to": "editor"
-    },
-    {
-      "file": "editor/home/PublishedProjects.tsx",
-      "line": 3,
-      "kind": "static",
-      "specifier": "../../shared/ui/Button",
-      "target": "shared/ui/Button.tsx",
-      "from": "editor",
-      "to": "ui-foundation"
-    },
-    {
-      "file": "editor/home/PublishedProjects.tsx",
-      "line": 4,
-      "kind": "static",
       "specifier": "./CreatorProjectCard",
       "target": "editor/home/CreatorProjectCard.tsx",
       "from": "editor",
@@ -6326,17 +6320,8 @@
     },
     {
       "file": "editor/home/PublishedProjects.tsx",
-      "line": 5,
-      "kind": "static",
-      "specifier": "./DashboardSkeleton",
-      "target": "editor/home/DashboardSkeleton.tsx",
-      "from": "editor",
-      "to": "editor"
-    },
-    {
-      "file": "editor/home/PublishedProjects.tsx",
-      "line": 6,
-      "kind": "static",
+      "line": 2,
+      "kind": "type",
       "specifier": "./student-publication",
       "target": "editor/home/student-publication.ts",
       "from": "editor",
@@ -6344,7 +6329,7 @@
     },
     {
       "file": "editor/home/PublishedProjects.tsx",
-      "line": 7,
+      "line": 3,
       "kind": "type",
       "specifier": "./student-projects",
       "target": "editor/home/student-projects.ts",
@@ -6353,7 +6338,7 @@
     },
     {
       "file": "editor/home/PublishedProjects.tsx",
-      "line": 35,
+      "line": 16,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -6472,7 +6457,7 @@
     },
     {
       "file": "editor/home/StudentProjects.tsx",
-      "line": 13,
+      "line": 17,
       "kind": "static",
       "specifier": "../publications/publication.css",
       "target": "editor/publications/publication.css",
@@ -6481,7 +6466,7 @@
     },
     {
       "file": "editor/home/StudentProjects.tsx",
-      "line": 14,
+      "line": 18,
       "kind": "static",
       "specifier": "../reviews/reviews.css",
       "target": "editor/reviews/reviews.css",
@@ -6490,7 +6475,7 @@
     },
     {
       "file": "editor/home/StudentProjects.tsx",
-      "line": 15,
+      "line": 19,
       "kind": "static",
       "specifier": "./workspace-api",
       "target": "editor/home/workspace-api.ts",
@@ -6499,7 +6484,7 @@
     },
     {
       "file": "editor/home/StudentProjects.tsx",
-      "line": 16,
+      "line": 20,
       "kind": "static",
       "specifier": "./student-projects",
       "target": "editor/home/student-projects.ts",
@@ -6508,7 +6493,7 @@
     },
     {
       "file": "editor/home/StudentProjects.tsx",
-      "line": 17,
+      "line": 21,
       "kind": "static",
       "specifier": "./student-feedback",
       "target": "editor/home/student-feedback.ts",
@@ -6517,7 +6502,7 @@
     },
     {
       "file": "editor/home/StudentProjects.tsx",
-      "line": 18,
+      "line": 22,
       "kind": "static",
       "specifier": "@iconify/react/offline",
       "target": {
@@ -6527,7 +6512,7 @@
     },
     {
       "file": "editor/home/StudentProjects.tsx",
-      "line": 19,
+      "line": 23,
       "kind": "static",
       "specifier": "@iconify-icons/lucide/info",
       "target": {
@@ -6537,7 +6522,7 @@
     },
     {
       "file": "editor/home/StudentProjects.tsx",
-      "line": 20,
+      "line": 24,
       "kind": "type",
       "specifier": "./dashboard",
       "target": "editor/home/dashboard.ts",
@@ -6546,7 +6531,7 @@
     },
     {
       "file": "editor/home/StudentProjects.tsx",
-      "line": 21,
+      "line": 25,
       "kind": "static",
       "specifier": "./DashboardSkeleton",
       "target": "editor/home/DashboardSkeleton.tsx",
@@ -6555,7 +6540,7 @@
     },
     {
       "file": "editor/home/StudentProjects.tsx",
-      "line": 22,
+      "line": 26,
       "kind": "static",
       "specifier": "./CreatorProjectCard",
       "target": "editor/home/CreatorProjectCard.tsx",
@@ -6564,7 +6549,7 @@
     },
     {
       "file": "editor/home/StudentProjects.tsx",
-      "line": 23,
+      "line": 27,
       "kind": "static",
       "specifier": "./PublishedProjects",
       "target": "editor/home/PublishedProjects.tsx",
@@ -6573,7 +6558,7 @@
     },
     {
       "file": "editor/home/StudentProjects.tsx",
-      "line": 24,
+      "line": 28,
       "kind": "static",
       "specifier": "./student-projects.css",
       "target": "editor/home/student-projects.css",
@@ -6582,7 +6567,7 @@
     },
     {
       "file": "editor/home/StudentProjects.tsx",
-      "line": 49,
+      "line": 53,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -13100,30 +13085,10 @@
       "file": "editor/viewport/MobileControls.tsx",
       "line": 1,
       "kind": "static",
-      "specifier": "react",
-      "target": {
-        "package": "react"
-      },
-      "from": "editor"
-    },
-    {
-      "file": "editor/viewport/MobileControls.tsx",
-      "line": 2,
-      "kind": "type",
-      "specifier": "../graphics/scene",
-      "target": "editor/graphics/scene.ts",
+      "specifier": "../../shared/preview/MobileControls",
+      "target": "shared/preview/MobileControls.tsx",
       "from": "editor",
-      "to": "rendering"
-    },
-    {
-      "file": "editor/viewport/MobileControls.tsx",
-      "line": 50,
-      "kind": "implicit-jsx",
-      "specifier": "react/jsx-runtime",
-      "target": {
-        "package": "react"
-      },
-      "from": "editor"
+      "to": "preview"
     },
     {
       "file": "editor/viewport/Viewport.tsx",
@@ -13762,6 +13727,64 @@
       "target": "shared/network/abort-signals.ts",
       "from": "checks",
       "to": "network"
+    },
+    {
+      "file": "shared/preview/FpsControls.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "three",
+      "target": {
+        "package": "three"
+      },
+      "from": "preview"
+    },
+    {
+      "file": "shared/preview/MobileControls.tsx",
+      "line": 1,
+      "kind": "static",
+      "specifier": "react",
+      "target": {
+        "package": "react"
+      },
+      "from": "preview"
+    },
+    {
+      "file": "shared/preview/MobileControls.tsx",
+      "line": 2,
+      "kind": "type",
+      "specifier": "./FpsControls",
+      "target": "shared/preview/FpsControls.ts",
+      "from": "preview",
+      "to": "preview"
+    },
+    {
+      "file": "shared/preview/MobileControls.tsx",
+      "line": 50,
+      "kind": "implicit-jsx",
+      "specifier": "react/jsx-runtime",
+      "target": {
+        "package": "react"
+      },
+      "from": "preview"
+    },
+    {
+      "file": "shared/preview/preview-start.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "three",
+      "target": {
+        "package": "three"
+      },
+      "from": "preview"
+    },
+    {
+      "file": "shared/preview/preview-start.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "./FpsControls",
+      "target": "shared/preview/FpsControls.ts",
+      "from": "preview",
+      "to": "preview"
     },
     {
       "file": "shared/project/attached-transforms.ts",
@@ -19320,84 +19343,6 @@
       "to": "checks"
     },
     {
-      "file": "tests/teacher-review-org-click.check.mjs",
-      "line": 1,
-      "kind": "static",
-      "specifier": "node:assert/strict",
-      "target": {
-        "package": "node:*"
-      },
-      "from": "checks"
-    },
-    {
-      "file": "tests/teacher-review-org-click.check.mjs",
-      "line": 2,
-      "kind": "static",
-      "specifier": "node:fs/promises",
-      "target": {
-        "package": "node:*"
-      },
-      "from": "checks"
-    },
-    {
-      "file": "tests/teacher-review-org-click.check.mjs",
-      "line": 3,
-      "kind": "static",
-      "specifier": "vite",
-      "target": {
-        "package": "vite"
-      },
-      "from": "checks"
-    },
-    {
-      "file": "tests/teacher-review-org-click.check.mjs",
-      "line": 4,
-      "kind": "static",
-      "specifier": "./browser-security.mjs",
-      "target": "tests/browser-security.mjs",
-      "from": "checks",
-      "to": "checks"
-    },
-    {
-      "file": "tests/teacher-review-org-switch.check.mjs",
-      "line": 1,
-      "kind": "static",
-      "specifier": "node:assert/strict",
-      "target": {
-        "package": "node:*"
-      },
-      "from": "checks"
-    },
-    {
-      "file": "tests/teacher-review-org-switch.check.mjs",
-      "line": 2,
-      "kind": "static",
-      "specifier": "node:fs/promises",
-      "target": {
-        "package": "node:*"
-      },
-      "from": "checks"
-    },
-    {
-      "file": "tests/teacher-review-org-switch.check.mjs",
-      "line": 3,
-      "kind": "static",
-      "specifier": "vite",
-      "target": {
-        "package": "vite"
-      },
-      "from": "checks"
-    },
-    {
-      "file": "tests/teacher-review-org-switch.check.mjs",
-      "line": 4,
-      "kind": "static",
-      "specifier": "./browser-security.mjs",
-      "target": "tests/browser-security.mjs",
-      "from": "checks",
-      "to": "checks"
-    },
-    {
       "file": "tests/teacher-review-refresh.check.mjs",
       "line": 1,
       "kind": "static",
@@ -19804,7 +19749,7 @@
     },
     {
       "file": "tests/visitor.check.mjs",
-      "line": 204,
+      "line": 235,
       "kind": "dynamic",
       "specifier": "./visitor-rooms.check.mjs",
       "target": "tests/visitor-rooms.check.mjs",
@@ -19813,7 +19758,7 @@
     },
     {
       "file": "tests/visitor.check.mjs",
-      "line": 206,
+      "line": 237,
       "kind": "dynamic",
       "specifier": "./visitor-v2.check.mjs",
       "target": "tests/visitor-v2.check.mjs",
@@ -19940,15 +19885,32 @@
       "file": "visitor/ExhibitionCanvas.tsx",
       "line": 3,
       "kind": "static",
-      "specifier": "three/examples/jsm/controls/OrbitControls.js",
-      "target": {
-        "package": "three"
-      },
-      "from": "visitor"
+      "specifier": "../shared/preview/FpsControls",
+      "target": "shared/preview/FpsControls.ts",
+      "from": "visitor",
+      "to": "preview"
     },
     {
       "file": "visitor/ExhibitionCanvas.tsx",
       "line": 4,
+      "kind": "static",
+      "specifier": "../shared/preview/MobileControls",
+      "target": "shared/preview/MobileControls.tsx",
+      "from": "visitor",
+      "to": "preview"
+    },
+    {
+      "file": "visitor/ExhibitionCanvas.tsx",
+      "line": 5,
+      "kind": "static",
+      "specifier": "../shared/preview/preview-start",
+      "target": "shared/preview/preview-start.ts",
+      "from": "visitor",
+      "to": "preview"
+    },
+    {
+      "file": "visitor/ExhibitionCanvas.tsx",
+      "line": 6,
       "kind": "static",
       "specifier": "three/examples/jsm/loaders/GLTFLoader.js",
       "target": {
@@ -19958,7 +19920,7 @@
     },
     {
       "file": "visitor/ExhibitionCanvas.tsx",
-      "line": 5,
+      "line": 7,
       "kind": "static",
       "specifier": "../shared/asset-runtime/catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -19967,7 +19929,7 @@
     },
     {
       "file": "visitor/ExhibitionCanvas.tsx",
-      "line": 6,
+      "line": 8,
       "kind": "static",
       "specifier": "../shared/asset-runtime/ModelCache",
       "target": "shared/asset-runtime/ModelCache.ts",
@@ -19976,7 +19938,7 @@
     },
     {
       "file": "visitor/ExhibitionCanvas.tsx",
-      "line": 7,
+      "line": 9,
       "kind": "static",
       "specifier": "../shared/asset-runtime/exhibit-appearance",
       "target": "shared/asset-runtime/exhibit-appearance.ts",
@@ -19985,7 +19947,7 @@
     },
     {
       "file": "visitor/ExhibitionCanvas.tsx",
-      "line": 8,
+      "line": 10,
       "kind": "static",
       "specifier": "../shared/asset-runtime/text-texture",
       "target": "shared/asset-runtime/text-texture.ts",
@@ -19994,7 +19956,7 @@
     },
     {
       "file": "visitor/ExhibitionCanvas.tsx",
-      "line": 9,
+      "line": 11,
       "kind": "static",
       "specifier": "../shared/asset-runtime/room-entrances",
       "target": "shared/asset-runtime/room-entrances.ts",
@@ -20003,7 +19965,7 @@
     },
     {
       "file": "visitor/ExhibitionCanvas.tsx",
-      "line": 10,
+      "line": 12,
       "kind": "type",
       "specifier": "./publication",
       "target": "visitor/publication.ts",
@@ -20012,7 +19974,7 @@
     },
     {
       "file": "visitor/ExhibitionCanvas.tsx",
-      "line": 11,
+      "line": 13,
       "kind": "static",
       "specifier": "./visitor-playback",
       "target": "visitor/visitor-playback.ts",
@@ -20021,7 +19983,7 @@
     },
     {
       "file": "visitor/ExhibitionCanvas.tsx",
-      "line": 12,
+      "line": 14,
       "kind": "static",
       "specifier": "./publication-asset",
       "target": "visitor/publication-asset.ts",
@@ -20030,7 +19992,7 @@
     },
     {
       "file": "visitor/ExhibitionCanvas.tsx",
-      "line": 357,
+      "line": 362,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {

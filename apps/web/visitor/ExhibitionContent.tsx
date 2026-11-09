@@ -98,6 +98,31 @@ export function ExhibitionContent({
   const components = (object: VisitorScene["objects"][number]): readonly ContentComponent[] =>
     "components" in object ? (object.components as readonly ContentComponent[]) : [];
   const section = useRef<HTMLElement>(null);
+  const details = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    const content = section.current;
+    const open = () => {
+      if (details.current) details.current.open = true;
+      if (document.pointerLockElement) document.exitPointerLock();
+    };
+    const inspect = (event: Event) => {
+      const id = (event as CustomEvent<string>).detail;
+      const object = scene.objects.find((item) => item.id === id);
+      if (
+        object &&
+        "components" in object &&
+        Array.isArray(object.components) &&
+        object.components.length
+      )
+        open();
+    };
+    content?.addEventListener("exhibit-inspect", inspect);
+    content?.addEventListener("exhibit-show-panel", open);
+    return () => {
+      content?.removeEventListener("exhibit-inspect", inspect);
+      content?.removeEventListener("exhibit-show-panel", open);
+    };
+  }, [scene]);
   const activate = (id: string) =>
     section.current?.dispatchEvent(new CustomEvent("exhibit-activate", { detail: id }));
   // Keep literal text and native media controls accessible beside the 3D view
@@ -165,27 +190,32 @@ export function ExhibitionContent({
     );
   }
   return (
-    <section ref={section} aria-label="Exhibit information" data-exhibition-scene={scene.id}>
-      {("audio" in scene ? scene.audio : [])?.map((item) => component(item))}
-      {scene.objects
-        .filter(
-          (object) =>
-            components(object).length ||
-            hotspots.some((hotspot) => hotspot.objectId.toLowerCase() === object.id.toLowerCase()),
-        )
-        .map((object) => (
-          <article
-            key={object.id}
-            data-owner-id={object.id}
-            hidden={"visible" in object && object.visible === false}
-          >
-            <h2>{object.name}</h2>
-            {hotspots.some(
-              (hotspot) => hotspot.objectId.toLowerCase() === object.id.toLowerCase(),
-            ) && <button onClick={() => activate(object.id)}>Activate {object.name}</button>}
-            {components(object).map((item) => component(item, object.id))}
-          </article>
-        ))}
-    </section>
+    <details className="visitor-information" ref={details}>
+      <summary>Exhibit information</summary>
+      <section ref={section} aria-label="Exhibit information" data-exhibition-scene={scene.id}>
+        {("audio" in scene ? scene.audio : [])?.map((item) => component(item))}
+        {scene.objects
+          .filter(
+            (object) =>
+              components(object).length ||
+              hotspots.some(
+                (hotspot) => hotspot.objectId.toLowerCase() === object.id.toLowerCase(),
+              ),
+          )
+          .map((object) => (
+            <article
+              key={object.id}
+              data-owner-id={object.id}
+              hidden={"visible" in object && object.visible === false}
+            >
+              <h2>{object.name}</h2>
+              {hotspots.some(
+                (hotspot) => hotspot.objectId.toLowerCase() === object.id.toLowerCase(),
+              ) && <button onClick={() => activate(object.id)}>Activate {object.name}</button>}
+              {components(object).map((item) => component(item, object.id))}
+            </article>
+          ))}
+      </section>
+    </details>
   );
 }

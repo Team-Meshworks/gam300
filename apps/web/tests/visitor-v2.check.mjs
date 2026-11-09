@@ -35,7 +35,11 @@ if (process.argv.includes("--playback-only")) {
     rotation: [0, 1, 0, 0],
     scale: [1, 1, 1],
   };
-  snapshot.scenes[0].objects[1].visible = false;
+  snapshot.scenes[0].objects[1].visible = true;
+  snapshot.scenes[0].rules[0].enabled = true;
+  snapshot.scenes[0].rules[0].actions = [
+    { type: "setVisible", objectId: snapshot.scenes[0].objects[1].id, visible: false },
+  ];
   snapshot.scenes[1].environmentVisible = false;
   snapshot.scenes[1].objects[0].components.push({
     id: "ffffffff-ffff-4fff-8fff-ffffffffffff",
@@ -135,8 +139,9 @@ if (process.argv.includes("--playback-only")) {
       const actual = roots.find((node) => node.id === object.id);
       assert.deepEqual(actual.position, object.transform.position);
       assert.deepEqual(actual.scale, object.transform.scale);
-      assert.equal(actual.visible, object.visible);
+      assert.equal(actual.visible, object === first.objects[1] ? false : object.visible);
     }
+    await page.getByText("Exhibit information", { exact: true }).first().click();
     await page.getByRole("region", { name: "Exhibit information", exact: true }).waitFor();
     assert.ok((await page.locator("figure").innerText()).includes("Unicode 展览"));
     const bold = await page
@@ -167,7 +172,10 @@ if (process.argv.includes("--playback-only")) {
     camera.forEach((value, index) => assert.ok(Math.abs(value - expected.position[index]) < 0.001));
     // Each click must return to the saved view even when its scene and target have not changed
     for (let repeat = 0; repeat < 2; repeat++) {
-      await page.locator("canvas").press("ArrowRight");
+      await page.locator("canvas").focus();
+      await page.keyboard.down("d");
+      await page.waitForTimeout(300);
+      await page.keyboard.up("d");
       assert.notDeepEqual(
         await page.evaluate(() => window.v2Camera.position.toArray()),
         expected.position,
@@ -387,7 +395,24 @@ const revoked=[];const revoke=URL.revokeObjectURL.bind(URL);URL.revokeObjectURL=
           { cause },
         );
       });
+    await page.evaluate(() => probe.runtime.begin());
+    assert.equal(await page.evaluate(() => probe.roots.get("other").visible), false);
+    assert.equal(
+      await page.locator('[data-component-id="panel"]').evaluate((node) => node.hidden),
+      false,
+    );
+    await page.locator('[data-component-id="panel"]').evaluate((node) => {
+      node.hidden = true;
+    });
     await page.locator("#start").click();
+    assert.equal(
+      await page.locator('[data-component-id="panel"]').evaluate((node) => node.hidden),
+      true,
+      "Audio unlock does not repeat sceneStart",
+    );
+    await page.locator('[data-component-id="panel"]').evaluate((node) => {
+      node.hidden = false;
+    });
     await page.waitForFunction(() =>
       [...document.querySelectorAll("audio")]
         .filter((a) => !a.closest("[hidden]"))

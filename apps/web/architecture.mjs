@@ -15,7 +15,7 @@ export const modules = {
   },
   visitor: {
     paths: ["visitor/"],
-    uses: ["project", "catalogue", "asset-loading", "network"],
+    uses: ["project", "catalogue", "asset-loading", "network", "preview"],
     packages: ["react", "react-dom", "three"],
     public: [],
   },
@@ -74,6 +74,17 @@ export const modules = {
       "shared/asset-runtime/display-layout.ts",
     ],
   },
+  preview: {
+    paths: ["shared/preview/"],
+    uses: [],
+    packages: ["react", "three"],
+    public: [
+      "shared/preview/FpsControls.ts",
+      "shared/preview/preview-start.ts",
+      "shared/preview/MobileControls.tsx",
+      "shared/preview/preview.css",
+    ],
+  },
   input: {
     paths: ["editor/history-shortcuts.ts"],
     uses: [],
@@ -93,7 +104,7 @@ export const modules = {
   },
   rendering: {
     paths: ["editor/graphics/", "editor/controls/"],
-    uses: ["project", "catalogue", "input", "asset-loading"],
+    uses: ["project", "catalogue", "input", "asset-loading", "preview"],
     packages: ["three"],
     public: [
       "editor/graphics/scene.ts",
@@ -148,6 +159,7 @@ export const modules = {
       "input",
       "document",
       "rendering",
+      "preview",
       "persistence",
       "ui-foundation",
       "network",
