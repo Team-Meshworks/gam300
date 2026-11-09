@@ -348,6 +348,7 @@ jobs:
           docker cp "$web:/srv-restricted/." test-results/packaged-restricted/
           docker run --rm --entrypoint /bin/cat caddy:2.11.4-alpine@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b /usr/bin/caddy > "$RUNNER_TEMP/spatia-caddy"
           chmod +x "$RUNNER_TEMP/spatia-caddy"
+          CADDY_BINARY="$RUNNER_TEMP/spatia-caddy" node ../../deploy/gateway.check.mjs
           CADDY_BINARY="$RUNNER_TEMP/spatia-caddy" node ../../deploy/restricted-assets.check.mjs test-results/packaged-public test-results/packaged-restricted --browser
           mkdir -p dist/editor
           docker cp "$(docker compose -f ../../compose.yaml -p vthere-ci ps -q web):/srv/." dist/editor/
