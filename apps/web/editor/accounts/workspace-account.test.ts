@@ -16,10 +16,20 @@ it("retains a same-account workspace across a password challenge but drops it fo
   await account.check();
   getSession.mockResolvedValue({ ...user, mustChangePassword: true });
   await account.check();
-  expect(account.getSnapshot()).toEqual({ kind: "password-required", workspace: user });
-  getSession.mockResolvedValue({ ...user, mustChangePassword: true, orgId: "class-b" });
+  expect(account.getSnapshot()).toEqual({
+    kind: "password-required",
+    workspace: user,
+  });
+  getSession.mockResolvedValue({
+    ...user,
+    mustChangePassword: true,
+    orgId: "class-b",
+  });
   await account.check();
-  expect(account.getSnapshot()).toEqual({ kind: "password-required", workspace: null });
+  expect(account.getSnapshot()).toEqual({
+    kind: "password-required",
+    workspace: null,
+  });
 });
 
 it("rejects a stale logout and sends just one account-bound write, even during a focus check", async () => {
@@ -38,5 +48,9 @@ it("rejects a stale logout and sends just one account-bound write, even during a
   expect(getSession).toHaveBeenCalledTimes(1);
   finish();
   await pending;
-  expect(account.getSnapshot()).toEqual({ kind: "signed-out", workspace: null });
+  expect(account.getSnapshot()).toEqual({
+    kind: "signed-out",
+    workspace: null,
+  });
 });
+

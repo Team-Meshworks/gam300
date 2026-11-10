@@ -29,6 +29,7 @@ public static class ApiV1Endpoints
         endpoints.MapAccountDirectory();
         endpoints.MapAccountSessions();
         endpoints.MapProjectReads();
+        endpoints.MapProjectImages();
         endpoints.MapProjectSaves();
         endpoints.MapProjectLifecycle();
         endpoints.MapClassrooms();

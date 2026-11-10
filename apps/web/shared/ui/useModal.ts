@@ -19,5 +19,12 @@ export function useModal(open: boolean) {
     };
   }, [visible]);
   useLayoutEffect(() => {
+    const dialog = ref.current;
+    if (!dialog) return;
+    dialog.inert = activity !== "active";
+    return () => {
+      dialog.inert = false;
+    };
+  }, [activity]);
   return ref;
 }

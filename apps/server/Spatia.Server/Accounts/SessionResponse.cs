@@ -4,7 +4,8 @@ namespace Spatia.Server.Accounts;
 /// Exposes the current authenticated account's display details and authority
 /// </summary>
 /// <param name="UserId">The current account's persistent identifier</param>
-/// <param name="DisplayName">The account username used as its display name</param>
+/// <param name="DisplayName">The account display name</param>
+/// <param name="UserName">The current account login name</param>
 /// <param name="Role">The currently validated fixed role name</param>
 /// <param name="OrgId">The organization identifier, or null for an administrator</param>
 /// <param name="OrgName">The current organization's name, or null for an administrator</param>
@@ -17,4 +18,5 @@ public sealed record SessionResponse(
     Guid? OrgId,
     string? OrgName,
     bool MustChangePassword,
-    bool DevelopmentAssetsAllowed);
+    bool DevelopmentAssetsAllowed,
+    string? UserName = null);

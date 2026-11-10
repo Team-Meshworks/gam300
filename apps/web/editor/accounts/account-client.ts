@@ -4,6 +4,7 @@ export interface AccountSession {
   displayName: string;
   role: AccountRole;
   orgId: string | null;
+  orgName?: string | null;
   mustChangePassword: boolean;
   developmentAssetsAllowed?: boolean;
 }
@@ -63,6 +64,7 @@ export function createAccountClient(request: typeof fetch = fetch) {
       typeof value.displayName !== "string" ||
       !value.displayName ||
       typeof value.mustChangePassword !== "boolean" ||
+      !(value.orgName == null || typeof value.orgName === "string") ||
       !["Administrator", "Educator", "Creator"].includes(String(value.role)) ||
       (value.role === "Administrator" ? value.orgId !== null : !isId(value.orgId))
     ) {
@@ -73,6 +75,7 @@ export function createAccountClient(request: typeof fetch = fetch) {
       displayName: value.displayName,
       role: value.role as AccountRole,
       orgId: value.orgId as string | null,
+      ...(typeof value.orgName === "string" ? { orgName: value.orgName } : {}),
       mustChangePassword: value.mustChangePassword,
       developmentAssetsAllowed: value.developmentAssetsAllowed === true,
     };

@@ -39,7 +39,7 @@ public static class AccountSessionEndpoints
             var account = context.Features.Get<CurrentAccount>()!;
             return Results.Ok(new SessionResponse(
                 account.UserId, account.DisplayName ?? account.UserName, account.Role, account.OrganizationId, account.OrganizationName, account.MustChangePassword,
-                environment.IsDevelopment()));
+                environment.IsDevelopment(), account.UserName));
         }).RequireAuthorization(SecurityPolicies.CurrentAccount);
         // The private catalogue listener is reached only after this session check succeeds.
         // CurrentAccount also rejects forced-password sessions outside the recovery routes.

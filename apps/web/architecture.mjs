@@ -99,6 +99,7 @@ export const modules = {
       "editor/graphics/scene.ts",
       "editor/graphics/modeManager.ts",
       "editor/graphics/library-previews.ts",
+      "editor/graphics/project-panorama.ts",
     ],
   },
   persistence: {
@@ -136,6 +137,8 @@ export const modules = {
       "shared/ui/SearchField.tsx",
       "shared/ui/Table.tsx",
       "shared/ui/WorkspaceShell.tsx",
+      "shared/ui/assets/facilitator-ambient-top.svg",
+      "shared/ui/assets/facilitator-ambient-bottom.svg",
       "shared/ui/WorkspaceHeader.tsx",
       "shared/ui/foundation.css",
     ],
