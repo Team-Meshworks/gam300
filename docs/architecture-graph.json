@@ -5715,7 +5715,7 @@
     },
     {
       "file": "editor/home/CreatorProjectCard.tsx",
-      "line": 9,
+      "line": 13,
       "kind": "static",
       "specifier": "../projects/deadline",
       "target": "editor/projects/deadline.ts",
@@ -5724,7 +5724,7 @@
     },
     {
       "file": "editor/home/CreatorProjectCard.tsx",
-      "line": 10,
+      "line": 14,
       "kind": "type",
       "specifier": "./student-publication",
       "target": "editor/home/student-publication.ts",
@@ -5733,7 +5733,7 @@
     },
     {
       "file": "editor/home/CreatorProjectCard.tsx",
-      "line": 11,
+      "line": 15,
       "kind": "type",
       "specifier": "./student-projects",
       "target": "editor/home/student-projects.ts",
@@ -5742,16 +5742,7 @@
     },
     {
       "file": "editor/home/CreatorProjectCard.tsx",
-      "line": 12,
-      "kind": "static",
-      "specifier": "./assets/default-project-neutral.jpg",
-      "target": "editor/home/assets/default-project-neutral.jpg",
-      "from": "editor",
-      "to": "editor"
-    },
-    {
-      "file": "editor/home/CreatorProjectCard.tsx",
-      "line": 56,
+      "line": 30,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -5918,7 +5909,7 @@
       "file": "editor/home/HomePage.tsx",
       "line": 6,
       "kind": "static",
-      "specifier": "@iconify-icons/lucide/chevron-down",
+      "specifier": "@iconify-icons/lucide/x",
       "target": {
         "package": "@iconify-icons/lucide"
       },
@@ -5927,15 +5918,6 @@
     {
       "file": "editor/home/HomePage.tsx",
       "line": 7,
-      "kind": "static",
-      "specifier": "./DashboardSettings",
-      "target": "editor/home/DashboardSettings.tsx",
-      "from": "editor",
-      "to": "editor"
-    },
-    {
-      "file": "editor/home/HomePage.tsx",
-      "line": 8,
       "kind": "type",
       "specifier": "./dashboard",
       "target": "editor/home/dashboard.ts",
@@ -5944,10 +5926,19 @@
     },
     {
       "file": "editor/home/HomePage.tsx",
+      "line": 8,
+      "kind": "static",
+      "specifier": "./assets/facilitator-ambient-top.svg",
+      "target": "editor/home/assets/facilitator-ambient-top.svg",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/home/HomePage.tsx",
       "line": 9,
       "kind": "static",
-      "specifier": "./assets/ambient-top.svg",
-      "target": "editor/home/assets/ambient-top.svg",
+      "specifier": "./assets/facilitator-ambient-bottom.svg",
+      "target": "editor/home/assets/facilitator-ambient-bottom.svg",
       "from": "editor",
       "to": "editor"
     },
@@ -5964,8 +5955,8 @@
       "file": "editor/home/HomePage.tsx",
       "line": 11,
       "kind": "static",
-      "specifier": "./assets/ambient-creator.svg",
-      "target": "editor/home/assets/ambient-creator.svg",
+      "specifier": "./assets/creator-detail-background.webp",
+      "target": "editor/home/assets/creator-detail-background.webp",
       "from": "editor",
       "to": "editor"
     },
@@ -5982,26 +5973,6 @@
       "file": "editor/home/HomePage.tsx",
       "line": 13,
       "kind": "static",
-      "specifier": "@fortawesome/react-fontawesome",
-      "target": {
-        "package": "@fortawesome/react-fontawesome"
-      },
-      "from": "editor"
-    },
-    {
-      "file": "editor/home/HomePage.tsx",
-      "line": 14,
-      "kind": "static",
-      "specifier": "@fortawesome/free-solid-svg-icons",
-      "target": {
-        "package": "@fortawesome/free-solid-svg-icons"
-      },
-      "from": "editor"
-    },
-    {
-      "file": "editor/home/HomePage.tsx",
-      "line": 15,
-      "kind": "static",
       "specifier": "./ProjectHome",
       "target": "editor/home/ProjectHome.tsx",
       "from": "editor",
@@ -6009,7 +5980,7 @@
     },
     {
       "file": "editor/home/HomePage.tsx",
-      "line": 16,
+      "line": 14,
       "kind": "static",
       "specifier": "./StudentProjects",
       "target": "editor/home/StudentProjects.tsx",
@@ -6018,7 +5989,7 @@
     },
     {
       "file": "editor/home/HomePage.tsx",
-      "line": 17,
+      "line": 15,
       "kind": "static",
       "specifier": "./TeacherProjects",
       "target": "editor/home/TeacherProjects.tsx",
@@ -6027,7 +5998,7 @@
     },
     {
       "file": "editor/home/HomePage.tsx",
-      "line": 18,
+      "line": 16,
       "kind": "static",
       "specifier": "./ClassHome",
       "target": "editor/home/ClassHome.tsx",
@@ -6036,7 +6007,7 @@
     },
     {
       "file": "editor/home/HomePage.tsx",
-      "line": 19,
+      "line": 17,
       "kind": "static",
       "specifier": "./WorkspaceNavigation",
       "target": "editor/home/WorkspaceNavigation.tsx",
@@ -6045,7 +6016,7 @@
     },
     {
       "file": "editor/home/HomePage.tsx",
-      "line": 20,
+      "line": 18,
       "kind": "static",
       "specifier": "../projects/AssignmentScreens",
       "target": "editor/projects/AssignmentScreens.tsx",
@@ -6054,7 +6025,7 @@
     },
     {
       "file": "editor/home/HomePage.tsx",
-      "line": 21,
+      "line": 19,
       "kind": "type",
       "specifier": "../projects/NewProjectForm",
       "target": "editor/projects/NewProjectForm.tsx",
@@ -6063,7 +6034,7 @@
     },
     {
       "file": "editor/home/HomePage.tsx",
-      "line": 22,
+      "line": 20,
       "kind": "static",
       "specifier": "./home.css",
       "target": "editor/home/home.css",
@@ -6072,7 +6043,7 @@
     },
     {
       "file": "editor/home/HomePage.tsx",
-      "line": 23,
+      "line": 21,
       "kind": "static",
       "specifier": "./dashboard.css",
       "target": "editor/home/dashboard.css",
@@ -6081,7 +6052,7 @@
     },
     {
       "file": "editor/home/HomePage.tsx",
-      "line": 26,
+      "line": 24,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -6166,6 +6137,15 @@
       "file": "editor/home/ProjectCreation.tsx",
       "line": 9,
       "kind": "static",
+      "specifier": "../../shared/ui/Select",
+      "target": "shared/ui/Select.tsx",
+      "from": "editor",
+      "to": "ui-foundation"
+    },
+    {
+      "file": "editor/home/ProjectCreation.tsx",
+      "line": 10,
+      "kind": "static",
       "specifier": "./workspace-api",
       "target": "editor/home/workspace-api.ts",
       "from": "editor",
@@ -6173,7 +6153,7 @@
     },
     {
       "file": "editor/home/ProjectCreation.tsx",
-      "line": 188,
+      "line": 191,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -6395,7 +6375,92 @@
     },
     {
       "file": "editor/home/ProjectHome.tsx",
-      "line": 117,
+      "line": 17,
+      "kind": "static",
+      "specifier": "./dashboard",
+      "target": "editor/home/dashboard.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/home/ProjectHome.tsx",
+      "line": 118,
+      "kind": "implicit-jsx",
+      "specifier": "react/jsx-runtime",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/home/ProjectImageView.tsx",
+      "line": 1,
+      "kind": "static",
+      "specifier": "react",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/home/ProjectImageView.tsx",
+      "line": 2,
+      "kind": "static",
+      "specifier": "@iconify/react/offline",
+      "target": {
+        "package": "@iconify/react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/home/ProjectImageView.tsx",
+      "line": 3,
+      "kind": "static",
+      "specifier": "@iconify-icons/lucide/move",
+      "target": {
+        "package": "@iconify-icons/lucide"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/home/ProjectImageView.tsx",
+      "line": 4,
+      "kind": "type",
+      "specifier": "../projects/project-image",
+      "target": "editor/projects/project-image.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/home/ProjectImageView.tsx",
+      "line": 5,
+      "kind": "static",
+      "specifier": "../../shared/ui/Button",
+      "target": "shared/ui/Button.tsx",
+      "from": "editor",
+      "to": "ui-foundation"
+    },
+    {
+      "file": "editor/home/ProjectImageView.tsx",
+      "line": 6,
+      "kind": "static",
+      "specifier": "./project-image.css",
+      "target": "editor/home/project-image.css",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/home/ProjectImageView.tsx",
+      "line": 25,
+      "kind": "dynamic",
+      "specifier": "../graphics/project-panorama",
+      "target": "editor/graphics/project-panorama.ts",
+      "from": "editor",
+      "to": "rendering"
+    },
+    {
+      "file": "editor/home/ProjectImageView.tsx",
+      "line": 43,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -6406,34 +6471,6 @@
     {
       "file": "editor/home/PublishedProjects.tsx",
       "line": 1,
-      "kind": "static",
-      "specifier": "react",
-      "target": {
-        "package": "react"
-      },
-      "from": "editor"
-    },
-    {
-      "file": "editor/home/PublishedProjects.tsx",
-      "line": 2,
-      "kind": "type",
-      "specifier": "../accounts/account-client",
-      "target": "editor/accounts/account-client.ts",
-      "from": "editor",
-      "to": "editor"
-    },
-    {
-      "file": "editor/home/PublishedProjects.tsx",
-      "line": 3,
-      "kind": "static",
-      "specifier": "../../shared/ui/Button",
-      "target": "shared/ui/Button.tsx",
-      "from": "editor",
-      "to": "ui-foundation"
-    },
-    {
-      "file": "editor/home/PublishedProjects.tsx",
-      "line": 4,
       "kind": "static",
       "specifier": "./CreatorProjectCard",
       "target": "editor/home/CreatorProjectCard.tsx",
@@ -6442,17 +6479,8 @@
     },
     {
       "file": "editor/home/PublishedProjects.tsx",
-      "line": 5,
-      "kind": "static",
-      "specifier": "./DashboardSkeleton",
-      "target": "editor/home/DashboardSkeleton.tsx",
-      "from": "editor",
-      "to": "editor"
-    },
-    {
-      "file": "editor/home/PublishedProjects.tsx",
-      "line": 6,
-      "kind": "static",
+      "line": 2,
+      "kind": "type",
       "specifier": "./student-publication",
       "target": "editor/home/student-publication.ts",
       "from": "editor",
@@ -6460,7 +6488,7 @@
     },
     {
       "file": "editor/home/PublishedProjects.tsx",
-      "line": 7,
+      "line": 3,
       "kind": "type",
       "specifier": "./student-projects",
       "target": "editor/home/student-projects.ts",
@@ -6469,7 +6497,7 @@
     },
     {
       "file": "editor/home/PublishedProjects.tsx",
-      "line": 35,
+      "line": 16,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -6481,6 +6509,15 @@
       "file": "editor/home/StudentProjects.tsx",
       "line": 1,
       "kind": "static",
+      "specifier": "./ProjectImageView",
+      "target": "editor/home/ProjectImageView.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/home/StudentProjects.tsx",
+      "line": 2,
+      "kind": "static",
       "specifier": "react",
       "target": {
         "package": "react"
@@ -6489,17 +6526,8 @@
     },
     {
       "file": "editor/home/StudentProjects.tsx",
-      "line": 2,
-      "kind": "type",
-      "specifier": "../accounts/account-client",
-      "target": "editor/accounts/account-client.ts",
-      "from": "editor",
-      "to": "editor"
-    },
-    {
-      "file": "editor/home/StudentProjects.tsx",
       "line": 3,
-      "kind": "static",
+      "kind": "type",
       "specifier": "../accounts/account-client",
       "target": "editor/accounts/account-client.ts",
       "from": "editor",
@@ -6509,6 +6537,15 @@
       "file": "editor/home/StudentProjects.tsx",
       "line": 4,
       "kind": "static",
+      "specifier": "../accounts/account-client",
+      "target": "editor/accounts/account-client.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/home/StudentProjects.tsx",
+      "line": 5,
+      "kind": "static",
       "specifier": "../../shared/ui/Button",
       "target": "shared/ui/Button.tsx",
       "from": "editor",
@@ -6516,7 +6553,16 @@
     },
     {
       "file": "editor/home/StudentProjects.tsx",
-      "line": 5,
+      "line": 6,
+      "kind": "static",
+      "specifier": "../../shared/ui/useModal",
+      "target": "shared/ui/useModal.ts",
+      "from": "editor",
+      "to": "ui-foundation"
+    },
+    {
+      "file": "editor/home/StudentProjects.tsx",
+      "line": 7,
       "kind": "static",
       "specifier": "../../shared/ui/Tabs",
       "target": "shared/ui/Tabs.tsx",
@@ -6525,7 +6571,7 @@
     },
     {
       "file": "editor/home/StudentProjects.tsx",
-      "line": 6,
+      "line": 8,
       "kind": "static",
       "specifier": "../projects/assignment-api",
       "target": "editor/projects/assignment-api.ts",
@@ -6534,16 +6580,7 @@
     },
     {
       "file": "editor/home/StudentProjects.tsx",
-      "line": 7,
-      "kind": "static",
-      "specifier": "../projects/deadline",
-      "target": "editor/projects/deadline.ts",
-      "from": "editor",
-      "to": "editor"
-    },
-    {
-      "file": "editor/home/StudentProjects.tsx",
-      "line": 8,
+      "line": 9,
       "kind": "static",
       "specifier": "../reviews/review-client",
       "target": "editor/reviews/review-client.ts",
@@ -6552,7 +6589,7 @@
     },
     {
       "file": "editor/home/StudentProjects.tsx",
-      "line": 9,
+      "line": 10,
       "kind": "type",
       "specifier": "../reviews/review-types",
       "target": "editor/reviews/review-types.ts",
@@ -6561,19 +6598,10 @@
     },
     {
       "file": "editor/home/StudentProjects.tsx",
-      "line": 10,
+      "line": 11,
       "kind": "static",
       "specifier": "../reviews/ProgressReviews",
       "target": "editor/reviews/ProgressReviews.tsx",
-      "from": "editor",
-      "to": "editor"
-    },
-    {
-      "file": "editor/home/StudentProjects.tsx",
-      "line": 11,
-      "kind": "static",
-      "specifier": "../publications/PublicationShare",
-      "target": "editor/publications/PublicationShare.tsx",
       "from": "editor",
       "to": "editor"
     },
@@ -6654,7 +6682,17 @@
     {
       "file": "editor/home/StudentProjects.tsx",
       "line": 20,
-      "kind": "type",
+      "kind": "static",
+      "specifier": "@iconify-icons/lucide/x",
+      "target": {
+        "package": "@iconify-icons/lucide"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/home/StudentProjects.tsx",
+      "line": 21,
+      "kind": "static",
       "specifier": "./dashboard",
       "target": "editor/home/dashboard.ts",
       "from": "editor",
@@ -6662,7 +6700,7 @@
     },
     {
       "file": "editor/home/StudentProjects.tsx",
-      "line": 21,
+      "line": 22,
       "kind": "static",
       "specifier": "./DashboardSkeleton",
       "target": "editor/home/DashboardSkeleton.tsx",
@@ -6671,7 +6709,7 @@
     },
     {
       "file": "editor/home/StudentProjects.tsx",
-      "line": 22,
+      "line": 23,
       "kind": "static",
       "specifier": "./CreatorProjectCard",
       "target": "editor/home/CreatorProjectCard.tsx",
@@ -6680,7 +6718,7 @@
     },
     {
       "file": "editor/home/StudentProjects.tsx",
-      "line": 23,
+      "line": 24,
       "kind": "static",
       "specifier": "./PublishedProjects",
       "target": "editor/home/PublishedProjects.tsx",
@@ -6689,7 +6727,25 @@
     },
     {
       "file": "editor/home/StudentProjects.tsx",
-      "line": 24,
+      "line": 25,
+      "kind": "static",
+      "specifier": "../reviews/RequestApproval",
+      "target": "editor/reviews/RequestApproval.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/home/StudentProjects.tsx",
+      "line": 26,
+      "kind": "static",
+      "specifier": "../publications/PublishDialog",
+      "target": "editor/publications/PublishDialog.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/home/StudentProjects.tsx",
+      "line": 27,
       "kind": "static",
       "specifier": "./student-projects.css",
       "target": "editor/home/student-projects.css",
@@ -6698,7 +6754,7 @@
     },
     {
       "file": "editor/home/StudentProjects.tsx",
-      "line": 49,
+      "line": 66,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -6720,16 +6776,6 @@
       "file": "editor/home/TeacherDashboard.tsx",
       "line": 2,
       "kind": "static",
-      "specifier": "@iconify-icons/ant-design/search-outlined",
-      "target": {
-        "package": "@iconify-icons/ant-design"
-      },
-      "from": "editor"
-    },
-    {
-      "file": "editor/home/TeacherDashboard.tsx",
-      "line": 3,
-      "kind": "static",
       "specifier": "@iconify-icons/lucide/pencil",
       "target": {
         "package": "@iconify-icons/lucide"
@@ -6738,7 +6784,7 @@
     },
     {
       "file": "editor/home/TeacherDashboard.tsx",
-      "line": 4,
+      "line": 3,
       "kind": "static",
       "specifier": "@iconify-icons/lucide/clock-3",
       "target": {
@@ -6748,7 +6794,7 @@
     },
     {
       "file": "editor/home/TeacherDashboard.tsx",
-      "line": 5,
+      "line": 4,
       "kind": "static",
       "specifier": "@iconify-icons/lucide/circle-check",
       "target": {
@@ -6758,7 +6804,7 @@
     },
     {
       "file": "editor/home/TeacherDashboard.tsx",
-      "line": 6,
+      "line": 5,
       "kind": "static",
       "specifier": "@iconify-icons/lucide/circle-help",
       "target": {
@@ -6768,7 +6814,7 @@
     },
     {
       "file": "editor/home/TeacherDashboard.tsx",
-      "line": 7,
+      "line": 6,
       "kind": "static",
       "specifier": "@iconify-icons/lucide/plus",
       "target": {
@@ -6778,7 +6824,7 @@
     },
     {
       "file": "editor/home/TeacherDashboard.tsx",
-      "line": 8,
+      "line": 7,
       "kind": "static",
       "specifier": "../../shared/ui/Button",
       "target": "shared/ui/Button.tsx",
@@ -6787,7 +6833,7 @@
     },
     {
       "file": "editor/home/TeacherDashboard.tsx",
-      "line": 9,
+      "line": 8,
       "kind": "static",
       "specifier": "../../shared/ui/SearchField",
       "target": "shared/ui/SearchField.tsx",
@@ -6796,7 +6842,7 @@
     },
     {
       "file": "editor/home/TeacherDashboard.tsx",
-      "line": 10,
+      "line": 9,
       "kind": "static",
       "specifier": "../../shared/ui/Tabs",
       "target": "shared/ui/Tabs.tsx",
@@ -6805,7 +6851,7 @@
     },
     {
       "file": "editor/home/TeacherDashboard.tsx",
-      "line": 11,
+      "line": 10,
       "kind": "static",
       "specifier": "./DashboardSkeleton",
       "target": "editor/home/DashboardSkeleton.tsx",
@@ -6814,8 +6860,8 @@
     },
     {
       "file": "editor/home/TeacherDashboard.tsx",
-      "line": 12,
-      "kind": "type",
+      "line": 11,
+      "kind": "static",
       "specifier": "./dashboard",
       "target": "editor/home/dashboard.ts",
       "from": "editor",
@@ -6823,16 +6869,7 @@
     },
     {
       "file": "editor/home/TeacherDashboard.tsx",
-      "line": 13,
-      "kind": "static",
-      "specifier": "./assets/default-project-neutral.jpg",
-      "target": "editor/home/assets/default-project-neutral.jpg",
-      "from": "editor",
-      "to": "editor"
-    },
-    {
-      "file": "editor/home/TeacherDashboard.tsx",
-      "line": 57,
+      "line": 56,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -6844,6 +6881,90 @@
       "file": "editor/home/TeacherProjects.tsx",
       "line": 1,
       "kind": "static",
+      "specifier": "@iconify/react/offline",
+      "target": {
+        "package": "@iconify/react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/home/TeacherProjects.tsx",
+      "line": 2,
+      "kind": "static",
+      "specifier": "skullet/react",
+      "target": {
+        "package": "skullet"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/home/TeacherProjects.tsx",
+      "line": 3,
+      "kind": "static",
+      "specifier": "@iconify-icons/lucide/message-square",
+      "target": {
+        "package": "@iconify-icons/lucide"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/home/TeacherProjects.tsx",
+      "line": 4,
+      "kind": "static",
+      "specifier": "@iconify-icons/lucide/x",
+      "target": {
+        "package": "@iconify-icons/lucide"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/home/TeacherProjects.tsx",
+      "line": 5,
+      "kind": "static",
+      "specifier": "@iconify-icons/lucide/pencil-line",
+      "target": {
+        "package": "@iconify-icons/lucide"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/home/TeacherProjects.tsx",
+      "line": 6,
+      "kind": "static",
+      "specifier": "@iconify-icons/lucide/circle-check",
+      "target": {
+        "package": "@iconify-icons/lucide"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/home/TeacherProjects.tsx",
+      "line": 7,
+      "kind": "static",
+      "specifier": "@iconify-icons/lucide/clock-3",
+      "target": {
+        "package": "@iconify-icons/lucide"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/home/TeacherProjects.tsx",
+      "line": 8,
+      "kind": "static",
+      "specifier": "@iconify-icons/lucide/circle-alert",
+      "target": {
+        "package": "@iconify-icons/lucide"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/home/TeacherProjects.tsx",
+      "line": 9,
+      "kind": "static",
+      "specifier": "@iconify-icons/lucide/globe",
+      "target": {
+        "package": "@iconify-icons/lucide"
+      },
       "specifier": "react",
       "target": {
         "package": "react"
