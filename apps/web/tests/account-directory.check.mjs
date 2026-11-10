@@ -332,8 +332,9 @@ try {
     role: "Educator",
     newTemporaryPassword: "Replacement-password2!",
   });
+  assert.equal(new URL(page.url()).searchParams.get("organisation"), orgId);
   await page.reload();
-  await page.getByRole("button", { name: "Open Ridgeview Secondary School" }).click();
+  await page.getByRole("button", { name: "Close organisation", exact: true }).waitFor();
   await page.getByRole("button", { name: "View account for Aisyah Tan" }).waitFor();
   await page.getByRole("tab", { name: "Creators (0)", exact: true }).click();
   assert.equal(await page.getByRole("button", { name: "View account for Aisyah Tan" }).count(), 0);
@@ -383,6 +384,7 @@ try {
     };
   });
   await page.getByRole("button", { name: "Close organisation", exact: true }).click();
+  assert.equal(new URL(page.url()).searchParams.has("organisation"), false);
   assert.equal(
     await page
       .getByRole("heading", { name: "All Organisations", level: 1, exact: true })
@@ -423,12 +425,13 @@ try {
   await page.getByRole("alert").filter({ hasText: "directory request failed" }).waitFor();
   failOrganizations = false;
   await page.getByRole("button", { name: "Retry", exact: true }).click();
-  await page.getByRole("button", { name: "Open Ridgeview Secondary School" }).click();
+  await page.getByRole("button", { name: "Close organisation", exact: true }).waitFor();
   await page.getByRole("button", { name: "View account for Aisyah Refreshed" }).waitFor();
   const beforeReopen = { ...reads };
   rows[0].displayName = "Aisyah Recovered";
   projectTitle = "Recovered project";
   await page.getByRole("button", { name: "Close organisation", exact: true }).click();
+  assert.equal(new URL(page.url()).searchParams.has("organisation"), false);
   await page.getByRole("button", { name: "Open Ridgeview Secondary School" }).click();
   await page.getByRole("button", { name: "View account for Aisyah Recovered" }).waitFor();
   await page.getByRole("heading", { name: projectTitle, exact: true }).waitFor();
@@ -455,7 +458,7 @@ try {
   organizationName =
     "Sengkang Secondary School with an exceptionally long organisation name for accessible zoom verification";
   await page.reload();
-  await page.getByRole("button", { name: `Open ${organizationName}`, exact: true }).click();
+  await page.getByRole("button", { name: "Close organisation", exact: true }).waitFor();
   await page.getByText("No projects in this organisation.", { exact: true }).waitFor();
   const emptyAccounts = page.getByText(
     "No accounts yet. Add the first account to this organisation.",

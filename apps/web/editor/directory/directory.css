@@ -1693,10 +1693,10 @@
   margin-left: auto;
 }
 .sp-directory--administration .sp-account-list-toolbar .sp-tabs button {
-  font-weight: 500;
+  font-weight: 400;
 }
 .sp-directory--administration .sp-account-list-toolbar .sp-tabs button[aria-selected="true"] {
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .sp-account-selection-toolbar > label {

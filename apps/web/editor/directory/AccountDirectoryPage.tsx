@@ -18,11 +18,13 @@ export function AccountDirectoryPage({ accountId }: { accountId: string }) {
   const [client] = useState(() => createDirectoryClient(fetch, accountId));
   const [organizations, setOrganizations] = useState<ManagedOrganization[] | null>(null);
   const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useState(() =>
+    new URLSearchParams(window.location.search).get("organisation"),
+  );
   const [accounts, setAccounts] = useState<ManagedAccount[]>([]);
   const [projects, setProjects] = useState<ManagedProject[]>([]);
   const [loading, setLoading] = useState(true);
-  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(Boolean(selected));
   const [error, setError] = useState("");
   const [detailError, setDetailError] = useState("");
   const [projectError, setProjectError] = useState("");
@@ -91,6 +93,10 @@ export function AccountDirectoryPage({ accountId }: { accountId: string }) {
     };
   }, [selected, attempt, client]);
   function select(id: string | null) {
+    const url = new URL(window.location.href);
+    if (id) url.searchParams.set("organisation", id);
+    else url.searchParams.delete("organisation");
+    window.history.replaceState(window.history.state, "", url);
     // Returning from organisation details refreshes totals after any account changes
     if (id === null) {
       setLoading(true);
