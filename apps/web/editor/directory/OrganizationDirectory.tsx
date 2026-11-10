@@ -201,7 +201,7 @@ export function OrganizationDirectory({
                             className="sp-button sp-button--primary"
                             href={`/admin/dashboard?projectId=${encodeURIComponent(project.id)}`}
                           >
-                            View Details
+                            View details
                           </a>
                         ) : (
                           <Button

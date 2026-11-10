@@ -231,7 +231,7 @@ export function AccountDialog({
               Cancel
             </Button>
             <Button type="submit" variant="primary" disabled={pending || !changed}>
-              {pending ? "Saving…" : "Save Changes"}
+              {pending ? "Saving…" : "Save changes"}
             </Button>
           </div>
         </div>

@@ -533,46 +533,26 @@ export function TeacherProjectDetails({
                     projectId={p.projectId}
                     client={moderation}
                     state={publicationStates[p.projectId.toLowerCase()]}
+                    onChanged={(state) => void publicationChanged(state)}
+                    requiresFreshApproval
+                  />
+                )}
+              </div>
             </div>
           ))}
           {!visibleStudents.length && (
-            <p>
+            <p className="sp-teacher-students-empty" role="status">
               {details.projects.length
                 ? "No student projects match this view."
                 : "No student projects are available."}
             </p>
           )}
+          <p className="sp-teacher-students-note">
+            <Icon icon={lockIcon} aria-hidden="true" />
+            Only completed, submitted and teacher-approved work can be published.
+          </p>
         </div>
       </div>
-      {editing && actorId && (
-        <AssignmentEditDialog
-          classId={item.classId}
-          actorId={actorId}
-          details={details}
-          onClose={() => setEditing(false)}
-          onSaved={() => {
-            setEditing(false);
-            void (async () => {
-              try {
-                const latest = await readAssignment(item.classId, details.assignmentId);
-                const identity = await assignmentSession();
-                if (
-                  identity.userId !== actorId ||
-                  identity.mustChangePassword ||
-                  latest.assignmentId !== details.assignmentId
-                )
-                  throw new Error("Account changed");
-                onUpdated?.(latest);
-                setEditError("");
-              } catch {
-                setEditError(
-                  "Changes were saved, but the latest details could not be loaded. Refresh this page.",
-                );
-              }
-            })();
-          }}
-        />
-      )}
     </section>
   );
 }
@@ -589,12 +569,18 @@ export function TeacherProjects({
   const [items, setItems] = useState<Item[] | null>(null);
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
-  const [query, setQuery] = useState<TeacherQuery>({ filter: "all", search: "" });
+  const [query, setQuery] = useState<TeacherQuery>({
+    filter: "all",
+    search: "",
+  });
   const lastSelected = useRef<string | null>(null);
   const [selected, setSelected] = useState<Item | null>(null);
   const [standalone, setStandalone] = useState<ProjectSummary[]>([]);
   const [selectedStandalone, setSelectedStandalone] = useState<ProjectSummary | null>(null);
-  const [guard, setGuard] = useState<LeaveGuard>({ pending: false, dirty: false });
+  const [guard, setGuard] = useState<LeaveGuard>({
+    pending: false,
+    dirty: false,
+  });
   const [showReview, setShowReview] = useState(false);
   const [reviewRevision, setReviewRevision] = useState<number | null>(null);
   const [reviewProject, setReviewProject] = useState<{
@@ -638,7 +624,9 @@ export function TeacherProjects({
             ...(row.details.sourceProjectId ? [row.details.sourceProjectId] : []),
           ]),
         );
-        setStandalone(projects.filter((project) => !assigned.has(project.projectId)));
+        setStandalone(
+          projects.filter((project) => !project.isClassProject && !assigned.has(project.projectId)),
+        );
         setItems(rows);
         const query = new URLSearchParams(location.search);
         const found = rows.find(
@@ -716,6 +704,7 @@ export function TeacherProjects({
       return {
         id,
         title: item.details.title,
+        ...(item.details.image ? { imageUrl: item.details.image.url } : {}),
         status,
         metadata: `${item.className} · ${submitted === null ? "Submission count unavailable" : `${submitted} student submission${submitted === 1 ? "" : "s"}`}`,
         onDetails: () => {
@@ -727,6 +716,7 @@ export function TeacherProjects({
     ...standalone.map((project) => ({
       id: project.projectId,
       title: project.title,
+      ...(project.image ? { imageUrl: project.image.url } : {}),
       status: "In Progress" as const,
       metadata: "Independent project",
       onDetails: () => {
@@ -735,10 +725,33 @@ export function TeacherProjects({
       },
     })),
   ];
+  const openingDetails =
+    !items && !error && new URLSearchParams(location.search).has("assignmentId");
   return renderWorkspace(
     <>
       {selected && error && <p role="alert">{error}</p>}
-      {selectedStandalone ? (
+      {openingDetails ? (
+        <section
+          className="sp-teacher-detail"
+          aria-busy="true"
+          aria-label="Loading project details"
+        >
+          <div className="sp-teacher-detail-head">
+            <div>
+              <h1>Published Projects</h1>
+              <p>Review published experiences and control what visitors can explore.</p>
+            </div>
+          </div>
+          <div className="sp-teacher-columns" aria-hidden="true">
+            <div className="sp-teacher-info">
+              <SkeletonBox width="100%" height={102} radius={16} />
+              <SkeletonBox width="70%" height={20} radius={6} />
+              <SkeletonBox width="100%" height={180} radius={12} />
+            </div>
+            <SkeletonBox width="100%" height={300} radius={16} />
+          </div>
+        </section>
+      ) : selectedStandalone ? (
         <TeacherStandaloneDetails
           project={selectedStandalone}
           onBack={() => setSelectedStandalone(null)}
@@ -751,6 +764,15 @@ export function TeacherProjects({
           item={selected}
           actorId={session.userId}
           onUpdated={(details) => applyAssignment(selected.classId, details)}
+          onRemoved={() => {
+            setItems(
+              (current) =>
+                current?.filter(
+                  (item) => item.details.assignmentId !== selected.details.assignmentId,
+                ) ?? null,
+            );
+            setAttempt((value) => value + 1);
+          }}
           onBack={() => {
             if (guard.pending || (guard.dirty && !window.confirm("Discard your unsaved feedback?")))
               return;
@@ -787,6 +809,7 @@ export function TeacherProjects({
             studentId: reviewProject.studentId,
             studentName: reviewProject.name,
             projectTitle: selected.details.title,
+            className: selected.className,
           }}
           onGuard={setGuard}
           onClose={() => {
@@ -797,6 +820,6 @@ export function TeacherProjects({
         />
       )}
     </>,
-    selected || selectedStandalone ? undefined : "facilitator",
+    openingDetails || selected || selectedStandalone ? "facilitator-details" : "facilitator",
   );
 }

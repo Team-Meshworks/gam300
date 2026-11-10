@@ -222,7 +222,7 @@
   --account-error: #a22620;
   --account-shadow: 0 12px 32px rgb(15 23 42 / 12%);
   position: fixed;
-  width: min(800px, calc(100% - 32px));
+  width: min(720px, calc(100% - 32px));
   max-width: none;
   left: 50%;
   right: auto;
@@ -253,7 +253,7 @@
 .sp-account-dialog .sp-dialog-dismiss {
   position: absolute;
   right: 23px;
-  top: 34px;
+  top: 21px;
   border: 0;
   padding: 0;
   width: 32px;
@@ -263,8 +263,8 @@
 }
 .sp-account-form {
   display: grid;
-  gap: 14px;
-  margin-top: 12px;
+  gap: 20px;
+  margin-top: 20px;
 }
 .sp-account-identity {
   display: flex;
@@ -307,9 +307,10 @@
 }
 .sp-account-form > .sp-field {
   gap: 14px;
-  margin-bottom: 4px;
+  margin-bottom: 0;
 }
 .sp-account-form > .sp-field > label {
+  color: #344054;
   font-size: 15px;
   font-weight: 600;
   line-height: 22px;
@@ -321,6 +322,7 @@
   margin: 0;
 }
 .sp-credentials legend {
+  color: #344054;
   font-size: 15px;
   font-weight: 600;
   line-height: 22px;
@@ -336,6 +338,7 @@
   gap: 4px;
 }
 .sp-credential-grid .sp-field > label {
+  color: #475467;
   font-size: 12px;
   font-weight: 600;
   line-height: 16px;
@@ -438,6 +441,14 @@
   flex-shrink: 0;
   color: var(--account-chevron);
 }
+/* The account type reference uses a filled disc with a light chevron */
+.sp-account-type-icon circle {
+  fill: var(--account-chevron);
+  stroke: var(--account-chevron);
+}
+.sp-account-type-icon path {
+  stroke: var(--account-surface);
+}
 .sp-account-type-select > .sp-override {
   position: absolute;
   right: 13px;
@@ -517,6 +528,10 @@
   .sp-account-dialog h2 {
     font-size: 20px;
   }
+  .sp-account-dialog .sp-dialog-dismiss {
+    top: 22px;
+    right: 18px;
+  }
   .sp-credential-grid {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -551,6 +566,9 @@
   background-image:
     linear-gradient(var(--admin-panel-tint), var(--admin-panel-tint)),
     var(--admin-workspace-background);
+  background-clip: padding-box;
+  background-color: var(--admin-panel);
+  box-shadow: var(--admin-panel-shadow);
   background-position: center;
   background-size: 100% 100%;
   background-repeat: no-repeat;
@@ -662,6 +680,9 @@
   background-image:
     linear-gradient(var(--admin-panel-tint), var(--admin-panel-tint)),
     var(--admin-workspace-background);
+  background-clip: padding-box;
+  background-color: var(--admin-panel);
+  box-shadow: var(--admin-panel-shadow);
   background-position: center;
   background-size: 100% 100%;
   background-repeat: no-repeat;
@@ -747,8 +768,11 @@
 }
 .sp-directory--administration .sp-organization-detail .sp-tabs button {
   min-height: 20px;
-  padding: 0;
-  border-bottom-color: transparent;
+  padding: 8px 10px;
+  border: 0;
+  flex: 0 0 auto;
+  white-space: nowrap;
+  text-decoration: none;
   font-size: 14px;
   font-weight: 400;
   color: var(--sp-muted);
@@ -997,26 +1021,40 @@
   min-height: 40px;
   padding: 0;
 }
-/* Give long organisation names room without stretching each overview card */
+/* Two organisation cards per row, with counts stacked beside identity and actions. */
 .sp-directory--administration .sp-organization-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px 10px;
 }
 .sp-directory--administration .sp-organization-card {
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) 90px;
   min-height: 190px;
-  padding: 20px;
-  gap: 14px;
+  padding: 31px 30px;
+  gap: 20px 20px;
 }
 .sp-directory--administration .sp-organization-card .sp-account {
-  gap: 12px;
+  gap: 13px;
+}
+.sp-directory--administration .sp-organization-card .sp-avatar {
+  width: 50px;
+  height: 50px;
+  flex-shrink: 0;
+  font-size: 15px;
 }
 .sp-directory--administration .sp-organization-card h3 {
-  max-width: none;
+  max-width: 229px;
   font-size: 18px;
   line-height: 1.3;
 }
 .sp-directory--administration .sp-organization-card .sp-organization-counts {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-self: center;
+  color: #938b82;
+  font-size: 12px;
   grid-column: 1;
   grid-row: auto;
   display: flex;

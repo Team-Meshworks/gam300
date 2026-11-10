@@ -327,7 +327,7 @@ export function AccountDirectoryPage({ accountId }: { accountId: string }) {
             out and cannot sign in again. Their username, authored projects and review history will
             be retained.
           </p>
-          <div className="sp-actions">
+          <div className="sp-actions sp-confirmation-actions">
             <Button disabled={busy} onClick={() => setDeletingAccount(null)}>
               Cancel
             </Button>
@@ -357,7 +357,7 @@ export function AccountDirectoryPage({ accountId }: { accountId: string }) {
               ? `${toggleOrganization.name} members will lose access until the organisation is activated again. Existing projects, history and public visitor links will be kept.`
               : `${toggleOrganization.name} members with active accounts will be able to sign in again.`}
           </p>
-          <div className="sp-actions">
+          <div className="sp-actions sp-confirmation-actions">
             <Button disabled={busy} onClick={() => setToggleOrganization(null)}>
               Cancel
             </Button>
@@ -385,7 +385,7 @@ export function AccountDirectoryPage({ accountId }: { accountId: string }) {
               ? `${toggle.displayName} will lose access and be signed out. Their projects and history will be kept.`
               : `${toggle.displayName} will be able to sign in when their organisation is active.`}
           </p>
-          <div className="sp-actions">
+          <div className="sp-actions sp-confirmation-actions">
             <Button disabled={busy} onClick={() => setToggle(null)}>
               Cancel
             </Button>

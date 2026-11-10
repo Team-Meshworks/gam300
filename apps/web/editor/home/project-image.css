@@ -1,0 +1,53 @@
+.sp-project-panorama {
+  position: relative;
+  overflow: clip;
+  background: var(--sp-soft);
+}
+.sp-project-panorama > [role="img"] {
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  cursor: grab;
+}
+.sp-project-panorama > [role="img"]:active {
+  cursor: grabbing;
+}
+.sp-project-panorama canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.sp-project-panorama > [role="img"]:focus-visible {
+  outline: 2px solid var(--sp-focus);
+  outline-offset: -4px;
+}
+.sp-panorama-hint,
+.sp-panorama-message {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: var(--sp-surface);
+  color: var(--sp-ink);
+  text-align: center;
+  font-size: 12px;
+}
+.sp-panorama-hint {
+  display: grid;
+  place-items: center;
+  top: 50%;
+  left: 50%;
+  right: auto;
+  bottom: auto;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.sp-project-panorama:has(> [role="img"]:active) .sp-panorama-hint {
+  visibility: hidden;
+}

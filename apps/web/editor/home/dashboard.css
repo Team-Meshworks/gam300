@@ -1,11 +1,3 @@
-@font-face {
-  font-family: Satoshi;
-  src: url("./assets/satoshi.woff2") format("woff2");
-  font-weight: 300 900;
-  font-style: normal;
-  font-display: swap;
-}
-
 .sp-shell--creator,
 .sp-shell--facilitator {
   --gutter: clamp(20px, 5.56vw, 80px);
@@ -51,16 +43,12 @@
   padding: 32px 0 28px;
 }
 .sp-teacher-welcome h1 {
-  font:
-    600 32px/39px Inter,
-    sans-serif;
+  font: 600 32px/39px var(--sp-font);
   overflow-wrap: anywhere;
 }
 .sp-teacher-welcome p {
   color: var(--sp-muted);
-  font:
-    400 14px/17px Inter,
-    sans-serif;
+  font: 400 14px/17px var(--sp-font);
   margin-top: 10px;
 }
 .sp-teacher-projects,
@@ -82,16 +70,10 @@
   gap: 24px;
 }
 .sp-teacher-heading h2 {
-  font:
-    700 25px/1.3 Satoshi,
-    Inter,
-    sans-serif;
+  font: 700 25px/1.3 var(--sp-font);
 }
 .sp-teacher-heading p {
-  font:
-    400 12px/17px Satoshi,
-    Inter,
-    sans-serif;
+  font: 400 12px/17px var(--sp-font);
   color: var(--sp-muted);
   margin-top: 7px;
 }
@@ -108,10 +90,7 @@
   width: 30px;
 }
 .sp-teacher-heading .sp-search input {
-  font:
-    400 13px/18px Satoshi,
-    Inter,
-    sans-serif;
+  font: 400 13px/18px var(--sp-font);
 }
 .sp-teacher-heading .sp-search input::placeholder {
   color: var(--sp-muted);
@@ -133,10 +112,7 @@
 .sp-teacher-toolbar .sp-tabs button {
   padding: 4px 0 0;
   border: 0;
-  font:
-    400 15px/20px Satoshi,
-    Inter,
-    sans-serif;
+  font: 400 15px/20px var(--sp-font);
 }
 .sp-teacher-toolbar .sp-tabs button[aria-selected="true"] {
   font-weight: 700;
@@ -154,10 +130,7 @@
   width: 150px;
   min-height: 40px;
   padding: 0;
-  font:
-    700 15px/20px Satoshi,
-    Inter,
-    sans-serif;
+  font: 700 15px/20px var(--sp-font);
   background: #292723;
 }
 .sp-teacher-grid {
@@ -194,10 +167,7 @@
   min-height: 36px;
 }
 .sp-teacher-card h3 {
-  font:
-    700 15px/20px Satoshi,
-    Inter,
-    sans-serif;
+  font: 700 15px/20px var(--sp-font);
   overflow-wrap: anywhere;
 }
 .sp-work-status {
@@ -207,9 +177,7 @@
   flex-shrink: 0;
   padding: 5px 10px;
   border-radius: 30px;
-  font:
-    500 11px/15px Inter,
-    sans-serif;
+  font: 500 11px/15px var(--sp-font);
   color: var(--sp-muted);
 }
 .sp-work-status[data-state="Awaiting Approval"] {
@@ -228,10 +196,7 @@
   width: 110px;
   min-height: 40px;
   padding: 0;
-  font:
-    700 12px/16px Satoshi,
-    Inter,
-    sans-serif;
+  font: 700 12px/16px var(--sp-font);
 }
 .sp-shell--creator .sp-workspace {
   max-width: 1366px;
@@ -245,18 +210,12 @@
   gap: 32px;
 }
 .sp-student-heading h1 {
-  font:
-    700 40px/1.2 Satoshi,
-    Inter,
-    sans-serif;
+  font: 700 40px/1.2 var(--sp-font);
 }
 .sp-student-heading p {
   margin-top: 12px;
   color: var(--sp-muted);
-  font:
-    400 16px/1.5 Satoshi,
-    Inter,
-    sans-serif;
+  font: 400 16px/1.5 var(--sp-font);
 }
 .sp-student-dashboard[data-tab="published"] .sp-student-heading p {
   line-height: 1.35;
@@ -325,14 +284,10 @@
   gap: 8px;
 }
 .sp-student-identity h2 {
-  font:
-    700 23px/1.25 Inter,
-    sans-serif;
+  font: 700 23px/1.25 var(--sp-font);
 }
 .sp-student-identity p {
-  font:
-    400 14px/1.4 Inter,
-    sans-serif;
+  font: 400 14px/1.4 var(--sp-font);
   color: var(--sp-muted);
 }
 .sp-card-description {
@@ -423,9 +378,7 @@
   gap: 6px;
   padding: 8px 10px;
   border-radius: 8px;
-  font:
-    600 13px/16px Inter,
-    sans-serif;
+  font: 600 13px/16px var(--sp-font);
   color: #9b5749;
   background: #f8eae6;
 }
@@ -453,9 +406,7 @@
 }
 .sp-published-share h3 {
   gap: 10px;
-  font:
-    700 22px/1.25 Inter,
-    sans-serif;
+  font: 700 22px/1.25 var(--sp-font);
 }
 .sp-published-share input {
   min-width: 0;
@@ -473,9 +424,7 @@
   min-height: 25px;
   width: 84px;
   border-radius: 12px;
-  font:
-    700 15px/20px Inter,
-    sans-serif;
+  font: 700 15px/20px var(--sp-font);
 }
 .sp-published-share small,
 .sp-published-share [role="status"] {
@@ -553,7 +502,7 @@
   color: var(--text);
   background: #f3f0e6;
   box-shadow: 0 12px 16px rgb(0 0 0 / 10%);
-  font-family: Satoshi, Inter, sans-serif;
+  font-family: var(--sp-font);
   --line: #e5e1d8;
 }
 .sp-shell--creator .settings-heading {
@@ -575,10 +524,7 @@
   padding: 0 30px;
   background: var(--control);
   color: var(--words);
-  font:
-    700 18px/1.2 Satoshi,
-    Inter,
-    sans-serif;
+  font: 700 18px/1.2 var(--sp-font);
 }
 .sp-shell--creator
   :is(.sp-button, .sp-dashboard-settings, .settings-actions button):hover:not(:disabled) {
@@ -735,4 +681,33 @@ html[data-theme="dark"] .sp-shell--creator .sp-due {
     padding: 0 16px;
     font-size: 15px;
   }
+}
+
+:is(.sp-shell--creator, .sp-shell--facilitator) .sp-button.sp-close-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--sp-close-surface);
+  color: var(--sp-close-ink);
+}
+:is(.sp-shell--creator, .sp-shell--facilitator) .sp-button.sp-close-button svg {
+  display: block;
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+:is(.sp-shell--creator, .sp-shell--facilitator) .sp-button.sp-close-button svg * {
+  stroke-width: 2;
+}
+:is(.sp-shell--creator, .sp-shell--facilitator) .sp-button-label {
+  text-box-trim: trim-both;
+  text-box-edge: cap alphabetic;
 }
