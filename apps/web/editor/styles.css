@@ -3601,7 +3601,7 @@ dialog.sp-dialog.sp-display-dialog {
   z-index: 1000;
   background: #fff;
 }
-.editor-opening > * {
+.editor-opening > :not(dialog) {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -3705,4 +3705,32 @@ dialog.sp-dialog.sp-display-dialog {
 .creator-recovery-dialog button:focus-visible {
   outline: 2px solid #81796e;
   outline-offset: 3px;
+}
+
+.creator-exit-dialog button.creator-recovery-export {
+  white-space: nowrap;
+}
+
+.project-confirmation.creator-exit-dialog {
+  width: min(410px, calc(100% - 32px));
+  padding-block: 32px;
+}
+.creator-exit-dialog h2 {
+  margin-bottom: 20px;
+  padding-right: 0;
+}
+.creator-exit-dialog p {
+  margin-bottom: 20px;
+}
+
+.project-confirmation.creator-opening-dialog {
+  width: min(400px, calc(100% - 32px));
+  padding: 28px;
+}
+.creator-opening-dialog h2 {
+  padding-right: 0;
+  margin-bottom: 20px;
+}
+.creator-opening-dialog p {
+  margin-bottom: 20px;
 }

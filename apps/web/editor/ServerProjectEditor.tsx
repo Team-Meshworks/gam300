@@ -181,16 +181,30 @@ export function ServerProjectEditor({ projectId }: { projectId: string }) {
   if (signedOut) return <LoginRedirect />;
   if (!catalogue)
     return (
-      <main className={!error ? "editor-opening" : undefined}>
-        <h1>Open project</h1>
-        {error ? (
-          <>
-            <p role="alert">{error}</p>
-            <button onClick={() => setAttempt((value) => value + 1)}>Retry opening</button>{" "}
-            <a href="/home">Home</a>
-          </>
+      <main className="editor-opening">
+        {!error ? (
+          <span className="sr-only" role="status">
+            Loading approved assets...
+          </span>
         ) : (
-          <p role="status">Loading approved assets...</p>
+          <ChoiceDialog
+            title="Couldn’t open your project"
+            className="creator-recovery-dialog creator-opening-dialog"
+            cancel={() => location.assign("/home")}
+          >
+            <p role="alert">{error}</p>
+            <div className="creator-recovery-actions">
+              <div className="creator-recovery-versions">
+                <button onClick={() => location.assign("/home")}>Back to projects</button>
+                <button
+                  className="creator-recovery-primary-action"
+                  onClick={() => setAttempt((value) => value + 1)}
+                >
+                  Retry opening
+                </button>
+              </div>
+            </div>
+          </ChoiceDialog>
         )}
       </main>
     );
@@ -643,9 +657,32 @@ function ServerProjectSession({
     }
     await run(async () => {
       if (!active || !destination) return;
-      const result = await active.session.prepareToLeave(choice, exportJson);
-      if (!result.ok) throw new Error(result.error.message);
-      if (!result.value) return;
+      let result = await active.session.prepareToLeave(choice, exportJson);
+      if (!result.ok) {
+        if (choice === "recovery") {
+          // Diagnose older live sessions too without replacing another tab's backup
+          const stored = await loadRecoverySession(kinds, {
+            accountId: active.accountId,
+            projectId,
+          });
+          if (!stored.ok) throw new Error(stored.error.message);
+          const currentRecovery = active.session.getRecovery();
+          if ((stored.value?.revision ?? 0) !== currentRecovery.revision) {
+            // An identical newer checkpoint already preserves this tab's complete recovery state
+            const { revision: _storedRevision, ...savedCopy } = stored.value ?? { revision: 0 };
+            const { revision: _currentRevision, ...currentCopy } = currentRecovery;
+            if (JSON.stringify(savedCopy) === JSON.stringify(currentCopy))
+              result = { ok: true, value: true };
+            else
+              throw new Error(
+                "The browser backup changed in another tab. Export your changes before leaving.",
+              );
+          }
+        }
+        if (!result.ok) throw new Error(result.error.message);
+      }
+      if (!result.value)
+        throw new Error("This editing session has ended. Export your changes before leaving.");
       active.controller.abort();
       await active.session.dispose();
       current.current = null;
@@ -693,6 +730,9 @@ function ServerProjectSession({
 
   if (signedOut) return <LoginRedirect />;
   const saveError = active && saveErrors[status];
+  const backupConflict =
+    error.includes("browser backup changed in another tab") ||
+    error.includes("Recovery changed in another tab");
   return (
     <div className="server-editor-shell">
       {active ? (
@@ -720,20 +760,37 @@ function ServerProjectSession({
                     : awaitingApproval
                       ? "Awaiting approval"
                       : "Request approval",
-                  publishDisabled: awaitingApproval,
+                  publishDisabled: false,
                 }
               : {}),
           }}
         />
       ) : (
-        <main className={loading || candidate ? "editor-opening" : undefined}>
-          <h1>Open project</h1>
-          {loading && <p role="status">Opening your project...</p>}
+        <main className="editor-opening">
+          {loading && (
+            <span className="sr-only" role="status">
+              Opening your project...
+            </span>
+          )}
           {!loading && !candidate && (
-            <>
-              <button onClick={() => setAttempt((value) => value + 1)}>Retry opening</button>{" "}
-              <a href="/login">Log in</a>
-            </>
+            <ChoiceDialog
+              title="Couldn’t open your project"
+              className="creator-recovery-dialog creator-opening-dialog"
+              cancel={() => location.assign("/home")}
+            >
+              <p role="alert">{error || "Return to your projects and try opening it again."}</p>
+              <div className="creator-recovery-actions">
+                <div className="creator-recovery-versions">
+                  <button onClick={() => location.assign("/home")}>Back to projects</button>
+                  <button
+                    className="creator-recovery-primary-action"
+                    onClick={() => setAttempt((value) => value + 1)}
+                  >
+                    Retry opening
+                  </button>
+                </div>
+              </div>
+            </ChoiceDialog>
           )}
         </main>
       )}
@@ -753,7 +810,7 @@ function ServerProjectSession({
           className="creator-recovery-dialog"
           cancel={() => {
             candidate.controller.abort();
-            setCandidate(null);
+            location.assign("/home");
           }}
         >
           <p>
@@ -811,49 +868,90 @@ function ServerProjectSession({
             active.session.getRecovery().serverSave?.revision === revision
           }
           onClose={() => setRequestApproval(false)}
-          onSubmitted={(revision) => {
-            setApproval({ owner: active, revision, approved: false, pending: true });
+          onSubmitted={(revision, approved) => {
+            setApproval({
+              owner: active,
+              revision,
+              approved: Boolean(approved),
+              pending: !approved,
+            });
             setApprovalVersion((value) => value + 1);
-            setRequestApproval(false);
+            if (approved) {
+              setRequestApproval(false);
+              setPublishOpen(true);
+            }
           }}
         />
       )}
       {departure && (
         <ChoiceDialog
           busy={busy}
-          title="Are you sure?"
+          title={
+            backupConflict
+              ? "Save a copy before leaving?"
+              : error
+                ? "Leave without saving?"
+                : "Are you sure?"
+          }
+          className="creator-recovery-dialog creator-exit-dialog"
           cancel={() => {
             if (!busy) setDeparture(null);
           }}
         >
-          <p>Your project will be saved before you exit.</p>
-          <div>
-            <button
-              disabled={busy}
-              onClick={() => void leave("cancel")}
-              autoFocus
-              data-initial-focus
-            >
-              Cancel
-            </button>
-            <button disabled={busy} onClick={() => void leave("save")}>
-              {busy ? "Please wait..." : "Exit"}
-            </button>
-          </div>
-          {error && (
-            <div>
-              <button disabled={busy} onClick={() => void leave("recovery")}>
-                Keep Recovery and Exit
+          <p role={error.startsWith("Work is not fully preserved;") ? "alert" : undefined}>
+            {backupConflict
+              ? "Another tab has a different backup. Export this version to keep your changes."
+              : error
+                ? "Your changes aren’t saved to the server. Keep a browser backup or"
+                : "Your project will be saved before you exit."}
+            {error && !backupConflict && (
+              <>
+                {" "}
+                <button
+                  className="creator-recovery-export"
+                  aria-label="Export and Exit"
+                  disabled={busy}
+                  onClick={() => void leave("export")}
+                >
+                  Export and exit
+                </button>
+              </>
+            )}
+          </p>
+          <div className="creator-recovery-actions">
+            <div className="creator-recovery-versions">
+              <button
+                disabled={busy}
+                onClick={() => void leave("cancel")}
+                autoFocus
+                data-initial-focus
+              >
+                {error ? "Keep editing" : "Cancel"}
               </button>
-              <button disabled={busy} onClick={() => void leave("export")}>
-                Export and Exit
+              <button
+                className="creator-recovery-primary-action"
+                aria-label={
+                  backupConflict ? "Export and Exit" : error ? "Keep Recovery and Exit" : undefined
+                }
+                disabled={busy}
+                onClick={() => void leave(backupConflict ? "export" : error ? "recovery" : "save")}
+              >
+                {busy
+                  ? "Please wait..."
+                  : backupConflict
+                    ? "Export and exit"
+                    : error
+                      ? "Leave with backup"
+                      : "Exit"}
               </button>
             </div>
+          </div>
+          {error && !backupConflict && !error.startsWith("Work is not fully preserved;") && (
+            <p role="alert">{error}</p>
           )}
-          {error && <p role="alert">{error}</p>}
         </ChoiceDialog>
       )}
-      {(error || saveError) && !candidate && !departure && !choosingBase && (
+      {active && (error || saveError) && !candidate && !departure && !choosingBase && (
         <p className="server-session-error" role="alert">
           {error}
           {error && saveError && " "}

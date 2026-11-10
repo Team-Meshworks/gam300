@@ -441,7 +441,7 @@ try {
   await page.locator('.save-state[data-state="failed"]').waitFor();
   await page.getByRole("alert").filter({ hasText: "Save failed" }).waitFor();
   await page.getByRole("button", { name: "Leave editor", exact: true }).click();
-  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.getByRole("button", { name: /^(Cancel|Keep editing)$/ }).click();
   assert.equal(
     await page.getByLabel("Scene name", { exact: true }).inputValue(),
     "Draft before publishing",
@@ -474,7 +474,7 @@ try {
   await page.getByRole("dialog").getByRole("alert").waitFor();
   assert.equal(account, alice);
   assert.equal(new URL(page.url()).searchParams.get("projectId"), fixture.projectId);
-  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.getByRole("button", { name: /^(Cancel|Keep editing)$/ }).click();
   const failedMutation = writes.at(-1).clientMutationId;
   mode = "saved";
   await projectOption("Retry Save");
@@ -496,7 +496,7 @@ try {
   await page.getByRole("button", { name: "Export and Exit", exact: true }).click();
   await page.getByRole("dialog").getByRole("alert").waitFor();
   assert.equal(account, alice);
-  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.getByRole("button", { name: /^(Cancel|Keep editing)$/ }).click();
   await projectOption("Open Server Version");
   await chooseRecovery();
   await page.getByRole("dialog", { name: "Recover your changes?" }).waitFor();
@@ -567,7 +567,7 @@ try {
   await chooseRecovery();
   await page.getByRole("dialog").getByRole("alert").waitFor();
   assert.equal(account, alice);
-  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.getByRole("button", { name: /^(Cancel|Keep editing)$/ }).click();
   await page.evaluate(() => {
     window.failRecovery = false;
   });
