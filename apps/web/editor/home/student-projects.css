@@ -160,14 +160,299 @@
 }
 .sp-shell--creator .sp-student-detail-comments .sp-reviews {
   margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 20px;
+  background: transparent;
+}
+.sp-shell--creator .sp-student-detail-comments .sp-reviews > h3 {
+  display: none;
+}
+.sp-shell--creator .sp-student-detail-comments .sp-progress-list {
+  overflow: clip;
+  border: 1px solid var(--creator-border);
+  border-radius: 20px;
+  box-shadow: var(--creator-card-shadow);
+}
+.sp-shell--creator .sp-student-detail-comments .sp-progress-list:empty {
+  display: none;
+}
+.sp-shell--creator .sp-student-detail-comments .sp-progress-entry {
+  padding: 14px 15px 16px;
+  border: 0;
+  background: var(--creator-comment);
+  color: var(--creator-copy);
+  font: 400 15px/23px var(--creator-ui-font);
+}
+.sp-shell--creator .sp-student-detail-comments .sp-progress-entry + .sp-progress-entry {
+  border-top: 1px solid var(--creator-border);
+}
+.sp-shell--creator .sp-student-detail-comments .sp-progress-entry time {
+  margin-bottom: 8px;
+  color: var(--creator-date);
+  line-height: 20px;
+}
+.sp-shell--creator .sp-student-detail-comments .sp-progress-entry p {
+  line-height: 23px;
+}
+.sp-shell--creator .sp-student-detail-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 11px;
+  margin-top: 24px;
+}
+.sp-shell--creator .sp-student-detail-actions .sp-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  height: 36px;
+  min-height: 36px;
+  box-sizing: border-box;
+  padding: 6px 18px;
+  border: 0;
+  border-radius: 24px;
+  background: var(--creator-action);
+  color: var(--creator-action-ink);
+  font: 600 12px/18px var(--creator-ui-font);
+}
+/* Reflow the detail view rather than squeezing its image and feedback on narrow screens */
+@media (max-width: 1150px) {
+  .sp-shell--creator .sp-student-card--published {
+    grid-template-columns: minmax(150px, 22%) minmax(0, 1fr) minmax(150px, 22%);
+  }
+  .sp-shell--creator .sp-student-detail {
+    grid-template-columns: minmax(200px, 32%) minmax(0, 1fr);
+    gap: 28px;
+    padding: 36px 28px;
+  }
+  .sp-shell--creator .sp-student-detail-image {
+    width: 100%;
+    height: 500px;
+  }
+  .sp-shell--creator .sp-student-detail-heading h1 {
+    font-size: 38px;
+    line-height: 1.25;
+  }
+  .sp-shell--creator .sp-student-detail-heading .sp-close-button {
+    top: 28px;
+    right: 24px;
+  }
+}
+@media (max-width: 800px) {
+  .sp-shell--creator .sp-student-card--published {
+    grid-template-columns: minmax(140px, 33%) minmax(0, 1fr);
+  }
+  .sp-shell--creator .sp-student-detail {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+    min-height: 0;
+    padding: 24px;
+    border-radius: 28px;
+  }
+  .sp-shell--creator .sp-student-detail-image {
+    width: 100%;
+    height: 220px;
+    margin: 48px 0 0;
+    border-radius: 20px;
+  }
+  .sp-shell--creator .sp-student-detail-heading {
+    padding-right: 0;
+  }
+  .sp-shell--creator .sp-student-detail-heading .sp-close-button {
+    top: 16px;
+    right: 16px;
+  }
+  .sp-shell--creator .sp-student-detail-heading h1 {
+    font-size: 30px;
+    line-height: 1.25;
+  }
+}
+@media (max-width: 600px) {
+  .sp-shell.sp-shell--creator .sp-workspace {
+    width: calc(100% - 24px);
+  }
+  .sp-shell--creator .sp-student-card--published {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.sp-shell--creator .sp-student-detail-content p {
+  font-family: var(--creator-ui-font);
+}
+
+/* Match admin home proportions while retaining creator cards and the separate detail view */
+.sp-shell--creator:has(.sp-student-dashboard) {
+  --creator-home-panel: #f7f7f7;
+  --creator-home-shadow: inset 4px 5px 14px rgb(57 43 29 / 4%);
+  --creator-home-edge: rgb(255 255 255 / 85%);
+  font-family: var(--sp-font);
+}
+.sp-shell--creator:has(.sp-student-dashboard) .sp-wash--left {
+  left: calc(50% - 961px);
+  top: -177px;
+  width: 993px;
+  height: 993px;
+}
+.sp-shell--creator:has(.sp-student-dashboard) .sp-wash--right {
+  display: block;
+  left: calc(50% - 67px);
+  top: 208px;
+  width: 1004px;
+  height: 1004px;
+}
+.sp-shell.sp-shell--creator:has(.sp-student-dashboard) .sp-workspace {
+  width: calc(100% - 160px);
+  max-width: 1280px;
+  min-height: 0;
+  margin-top: 35px;
+  padding: 48px 40px;
+  border: 1px solid var(--creator-home-edge);
   border-radius: 50px;
-  background: white;
+  background-color: var(--creator-home-panel);
+  background-image: none;
+  background-clip: padding-box;
+  box-shadow: var(--creator-home-shadow);
 }
-.sp-student-detail-image {
-  flex-basis: 32%;
-  min-height: 500px;
+.sp-shell--creator .sp-student-dashboard {
+  gap: 24px;
+  font: 400 12px/1.5 var(--sp-font);
 }
-.sp-student-detail-content {
+.sp-shell--creator .sp-student-list {
+  gap: 18px;
+}
+.sp-shell--creator .sp-student-heading h1 {
+  font: 700 32px/1.3 var(--sp-font);
+}
+.sp-shell--creator .sp-student-heading p,
+.sp-shell--creator .sp-student-dashboard[data-tab="published"] .sp-student-heading p {
+  margin-top: 7px;
+  font: 400 13px/1.5 var(--sp-font);
+}
+.sp-shell--creator .sp-student-dashboard .sp-student-card {
+  grid-template-columns: 200px minmax(0, 1fr) 220px;
+  min-height: 0;
+  gap: 24px;
+  padding: 30px 20px;
+  border-radius: 16px;
+  background: var(--sp-surface);
+}
+.sp-shell--creator .sp-student-dashboard .sp-student-card--published {
+  grid-template-columns: 200px minmax(0, 1fr) min(36%, 360px);
+}
+.sp-shell--creator .sp-student-dashboard .sp-student-card-image {
+  height: 144px;
+  border-radius: 12px;
+  transform: none;
+}
+.sp-shell--creator .sp-student-dashboard :is(.sp-student-identity h2, .sp-published-share h3) {
+  font: 700 15px/1.4 var(--sp-font);
+}
+.sp-shell--creator
+  .sp-student-dashboard
+  :is(.sp-student-identity p, .sp-card-description, .sp-workspace-note, .sp-student-metadata dd) {
+  font: 400 12px/1.5 var(--sp-font);
+}
+.sp-shell--creator .sp-student-dashboard .sp-student-card-copy {
+  min-height: 0;
+  gap: 12px;
+}
+.sp-shell--creator .sp-student-dashboard :is(.sp-student-metadata, .sp-published-share) {
+  min-height: 144px;
+  gap: 16px;
+  padding-left: 20px;
+}
+.sp-shell--creator .sp-student-dashboard :is(.sp-button, .sp-view-details),
+.sp-shell--creator:has(.sp-student-dashboard) .sp-dashboard-tools .sp-button:not(.sp-close-button) {
+  width: auto;
+  min-height: 36px;
+  padding: 6px 18px;
+  font: 600 12px/1.5 var(--sp-font);
+}
+.sp-shell--creator .sp-student-dashboard .sp-view-details {
+  padding-inline: 0;
+}
+.sp-shell--creator .sp-student-dashboard .sp-published-share {
+  gap: 8px;
+}
+.sp-shell--creator .sp-student-dashboard .sp-published-share .sp-button {
+  justify-self: start;
+  height: auto;
+  min-width: 84px;
+}
+/* Keep the Figma type hierarchy while preserving the approved compact card dimensions */
+.sp-shell--creator .sp-student-dashboard .sp-student-card .sp-student-identity h2 {
+  font: 700 20px/1.4 var(--sp-font);
+}
+.sp-shell--creator .sp-student-dashboard .sp-student-card .sp-student-identity p {
+  font: 400 12.5px/1.5 var(--sp-font);
+}
+.sp-shell--creator .sp-student-dashboard .sp-student-card .sp-card-description {
+  font: 400 14px/1.5 var(--sp-font);
+}
+.sp-shell--creator .sp-student-dashboard .sp-student-card .sp-student-metadata dt {
+  font: 500 12px/1.5 var(--sp-font);
+}
+.sp-shell--creator .sp-student-dashboard .sp-student-card .sp-student-metadata dd {
+  font: 400 14px/1.5 var(--sp-font);
+}
+.sp-shell--creator .sp-student-dashboard .sp-student-card .sp-student-metadata .sp-due {
+  font: 700 14px/1.5 var(--sp-font);
+}
+.sp-shell--creator .sp-student-dashboard .sp-student-card .sp-student-metadata .sp-approval {
+  font: 600 14px/1.5 var(--sp-font);
+}
+.sp-shell--creator .sp-student-dashboard .sp-student-card .sp-published-share h3 {
+  font: 700 16px/1.4 var(--sp-font);
+}
+.sp-shell--creator .sp-student-dashboard .sp-student-card .sp-published-share input {
+  font: 400 13px/1.5 var(--sp-font);
+}
+.sp-shell--creator .sp-student-dashboard .sp-student-card :is(.sp-button, .sp-view-details) {
+  font: 600 12px/1.5 var(--sp-font);
+  min-height: 36px;
+}
+.sp-shell--creator .sp-student-dashboard .sp-student-card .sp-published-copy [role="status"] {
+  font: 400 12px/1.5 var(--sp-font);
+}
+.sp-shell.sp-shell--creator .sp-student-dashboard > .sp-workspace-note {
+  font: 400 13px/1.5 var(--sp-font);
+}
+.sp-shell--creator .sp-student-dashboard > .sp-tabs {
+  isolation: isolate;
+  background: #e6e2dc;
+  opacity: 1;
+  box-shadow: none;
+}
+.sp-shell--creator .sp-student-dashboard > .sp-tabs button[aria-selected="true"] {
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(48 39 30 / 4%);
+}
+.sp-shell--creator .sp-student-dashboard > .sp-tabs button {
+  width: auto;
+  min-width: 100px;
+  height: 36px;
+  padding: 6px 18px;
+  font: 600 14px/1.5 var(--sp-font);
+}
+@media (max-width: 1100px) {
+  .sp-shell.sp-shell--creator:has(.sp-student-dashboard) .sp-workspace {
+    padding: 28px;
+    border-radius: 32px;
+  }
+  .sp-shell--creator .sp-student-dashboard :is(.sp-student-card, .sp-student-card--published) {
+    grid-template-columns: minmax(140px, 22%) minmax(0, 1fr) minmax(140px, 22%);
+    gap: 16px;
+    padding: 16px;
+  }
+  .sp-shell--creator
+    .sp-student-dashboard
+    .sp-student-card:where(:not(.sp-student-card--published)) {
+    grid-template-columns: minmax(140px, 22%) minmax(0, 1fr) 220px;
+  }
+}
+@media (max-width: 800px) {
   flex: 1;
   min-width: 0;
   display: grid;
