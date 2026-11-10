@@ -1,5 +1,4 @@
 import { Icon } from "@iconify/react/offline";
-import searchIcon from "@iconify-icons/ant-design/search-outlined";
 import pencil from "@iconify-icons/lucide/pencil";
 import clock from "@iconify-icons/lucide/clock-3";
 import check from "@iconify-icons/lucide/circle-check";
@@ -9,8 +8,7 @@ import { Button } from "../../shared/ui/Button";
 import { SearchField } from "../../shared/ui/SearchField";
 import { Tabs } from "../../shared/ui/Tabs";
 import { DashboardSkeleton } from "./DashboardSkeleton";
-import type { WorkStatus } from "./dashboard";
-import neutralCover from "./assets/default-project-neutral.jpg";
+import { projectCover, type WorkStatus } from "./dashboard";
 
 const filters = [
   { value: "all", label: "All Projects" },
@@ -30,6 +28,7 @@ export type TeacherCard = {
   title: string;
   status: WorkStatus;
   metadata: string;
+  imageUrl?: string;
   onDetails: () => void;
 };
 
@@ -70,7 +69,6 @@ export function TeacherDashboard({
             placeholder="Search all projects"
             value={search}
             onChange={(search) => onQuery({ filter, search })}
-            icon={<Icon icon={searchIcon} width={30} />}
           />
         </div>
         <div className="sp-teacher-toolbar">
@@ -114,7 +112,11 @@ export function TeacherDashboard({
             <div className="sp-teacher-grid">
               {shown.map((card) => (
                 <article key={card.id} className="sp-teacher-card">
-                  <img src={neutralCover} className="sp-teacher-card-cover" alt="" />
+                  <img
+                    src={card.imageUrl ?? projectCover(card.title)}
+                    className="sp-teacher-card-cover"
+                    alt=""
+                  />
                   <div className="sp-teacher-card-copy">
                     <div className="sp-teacher-card-heading">
                       <h3>{card.title}</h3>

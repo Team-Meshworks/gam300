@@ -1,9 +1,22 @@
-import { useEffect, useRef, useState } from "react";
+import { Icon } from "@iconify/react/offline";
+import { SkeletonBox } from "skullet/react";
+import commentIcon from "@iconify-icons/lucide/message-square";
+import closeIcon from "@iconify-icons/lucide/x";
+import pencilIcon from "@iconify-icons/lucide/pencil-line";
+import checkIcon from "@iconify-icons/lucide/circle-check";
+import pendingIcon from "@iconify-icons/lucide/clock-3";
+import rejectedIcon from "@iconify-icons/lucide/circle-alert";
+import globeIcon from "@iconify-icons/lucide/globe";
+import lockIcon from "@iconify-icons/lucide/lock-keyhole";
+import { Avatar } from "../../shared/ui/Avatar";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { AccountSession } from "../accounts/account-client";
 import { Button } from "../../shared/ui/Button";
 import { SearchField } from "../../shared/ui/SearchField";
 import { Tabs } from "../../shared/ui/Tabs";
 import { allPages, createReviewClient } from "../reviews/review-client";
+import { loadStudentFeedback } from "./student-feedback";
+import type { Decision } from "../reviews/review-types";
 import { ProgressReviews } from "../reviews/ProgressReviews";
 import type { LeaveGuard } from "../workspace/useWorkspaceDeparture";
 import {
@@ -13,13 +26,16 @@ import {
   type AssignmentDetails,
 } from "../projects/assignment-api";
 import { AssignmentEditDialog } from "../projects/AssignmentEditDialog";
-import { formatLocalDeadline } from "../projects/deadline";
+import { formatDueDate } from "../projects/deadline";
 import { progressEditorUrl, type ProgressContext } from "../projects/progress-navigation";
 import { createWorkspaceClient, type ProjectSummary } from "./workspace-api";
 import { createAccountClient } from "../accounts/account-client";
-import { assignmentProgress, type RenderWorkspace } from "./dashboard";
+import { assignmentProgress, projectCover, type RenderWorkspace } from "./dashboard";
 import { TeacherDashboard, type TeacherCard, type TeacherQuery } from "./TeacherDashboard";
 import "../reviews/reviews.css";
+import "./facilitator.css";
+import { createDashboardClient, type ProjectPublicationState } from "../admin/dashboard-client";
+import { ProjectModeration } from "../admin/ProjectModeration";
 
 const accounts = createAccountClient();
 const reviews = createReviewClient();
@@ -48,8 +64,8 @@ export function TeacherStandaloneDetails({
           <h1>Project details</h1>
           <h2>{project.title}</h2>
         </div>
-        <Button aria-label="Close project details" onClick={onBack}>
-          ×
+        <Button className="sp-close-button" aria-label="Close project details" onClick={onBack}>
+          <Icon icon={closeIcon} aria-hidden="true" />
         </Button>
       </div>
       <p>Student assignments are not available from this project view.</p>
@@ -66,18 +82,115 @@ export function TeacherProjectDetails({
   onProgress,
   actorId,
   onUpdated,
+  onRemoved,
 }: {
   item: Item;
   onBack: () => void;
   onProgress: (context: ProgressContext) => void;
   actorId?: string;
   onUpdated?: (details: AssignmentDetails) => void;
+  onRemoved?: () => void;
 }) {
   const [search, setSearch] = useState("");
+  const [reviewHistory, setReviewHistory] = useState<{
+    projectId: string;
+    revision: number;
+    decisions: Decision[];
+  } | null>(null);
+  const [reviewHistoryError, setReviewHistoryError] = useState("");
+  async function openReviews(projectId: string, studentId: string) {
+    setReviewHistoryError("");
+    try {
+      const project = await workspace.read(`/api/v1/projects/${encodeURIComponent(projectId)}`);
+      if (
+        !project ||
+        typeof project !== "object" ||
+        !("revision" in project) ||
+        typeof project.revision !== "number"
+      )
+        throw new Error("Invalid project");
+      const identity = await accounts.getSession();
+      if (
+        !identity ||
+        identity.userId !== actorId ||
+        identity.role !== "Educator" ||
+        identity.mustChangePassword
+      )
+        throw new Error("Your account changed. Reload before continuing.");
+      const decisions = await loadStudentFeedback(reviews, projectId, studentId);
+      setReviewHistory({ projectId, revision: project.revision, decisions });
+    } catch {
+      setReviewHistoryError("Reviews could not be opened. Try again.");
+    }
+  }
   const [studentTab, setStudentTab] = useState<"all" | "progress" | "awaiting">("all");
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState<"dueDate" | "description" | "instructions" | null>(null);
   const [editError, setEditError] = useState("");
   const { details } = item;
+  const dueDate =
+    formatDueDate(details.dueAtUnixSeconds) === null
+      ? null
+      : new Intl.DateTimeFormat("en-GB", { dateStyle: "medium" }).format(
+          new Date(details.dueAtUnixSeconds * 1000),
+        );
+  const moderation = useMemo(
+    () => createDashboardClient(actorId ?? "", fetch, "facilitator"),
+    [actorId],
+  );
+  const [publicationStates, setPublicationStates] = useState<
+    Record<string, ProjectPublicationState>
+  >({});
+  const [moderationError, setModerationError] = useState("");
+  const [moderationAttempt, setModerationAttempt] = useState(0);
+  async function publicationChanged(state: ProjectPublicationState) {
+    setPublicationStates((current) => ({
+      ...current,
+      [state.projectId.toLowerCase()]: state,
+    }));
+    if (state.removed && details.projects.length === 1) {
+      onRemoved?.();
+      onBack();
+      return;
+    }
+    if (!onUpdated) return;
+    try {
+      const latest = await readAssignment(item.classId, details.assignmentId);
+      const identity = await assignmentSession();
+      if (
+        identity.userId !== actorId ||
+        identity.role !== "Educator" ||
+        identity.mustChangePassword
+      )
+        throw new Error("Account changed");
+      onUpdated(latest);
+      setEditError("");
+    } catch {
+      setEditError(
+        "Publication visibility was checked, but the latest approval status could not be loaded. Refresh this page.",
+      );
+    }
+  }
+  useEffect(() => {
+    if (!actorId) return;
+    let disposed = false;
+    void moderation
+      .publicationStates(details.projects.map((project) => project.projectId))
+      .then((states) => {
+        if (!disposed) {
+          setPublicationStates(states);
+          setModerationError("");
+        }
+      })
+      .catch((cause: unknown) => {
+        if (!disposed)
+          setModerationError(
+            cause instanceof Error ? cause.message : "Publication visibility could not be loaded.",
+          );
+      });
+    return () => {
+      disposed = true;
+    };
+  }, [moderation, actorId, details.projects, moderationAttempt]);
   const labels = {
     "not-submitted": "Not submitted",
     "awaiting-approval": "Awaiting approval",
@@ -88,7 +201,9 @@ export function TeacherProjectDetails({
   } as const;
   const visibleStudents = details.projects.filter(
     (project) =>
-      (project.studentName ?? "").toLocaleLowerCase().includes(search.toLocaleLowerCase()) &&
+      `${project.studentName ?? ""} ${project.studentUserName ?? ""}`
+        .toLocaleLowerCase()
+        .includes(search.toLocaleLowerCase()) &&
       (studentTab === "all" ||
         (studentTab === "awaiting"
           ? project.approvalStatus === "awaiting-approval"
@@ -96,6 +211,7 @@ export function TeacherProjectDetails({
             project.approvalStatus !== "approved" &&
             project.approvalStatus !== "awaiting-approval")),
   );
+  const editControl = editing && actorId && (
   return (
     <section className="sp-teacher-detail">
       <div className="sp-teacher-detail-head">
