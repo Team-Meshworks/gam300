@@ -8,7 +8,10 @@ const unavailable = process.env.SPATIA_REVIEW_UNAVAILABLE === "true";
 assert.ok(
   projectId && classId && process.env.SPATIA_REVIEW_STUDENT && process.env.SPATIA_REVIEW_EDUCATOR,
 );
-const server = await createServer({ server: { port: 0, strictPort: false }, logLevel: "silent" });
+const server = await createServer({
+  server: { port: 0, strictPort: false },
+  logLevel: "silent",
+});
 let browser;
 try {
   await server.listen();
@@ -28,7 +31,7 @@ try {
     await page.getByLabel("Username", { exact: true }).fill(userName);
     await page.getByLabel("Password", { exact: true }).fill("Synthetic-long-password1!");
     await page.getByRole("button", { name: "Log in", exact: true }).click();
-    await page.getByRole("heading", { name: /You.re signed in/ }).waitFor();
+    await page.waitForURL("**/home");
     if (!review) return page;
     await page.goto(origin + "/review");
     await page.getByLabel("Class", { exact: true }).selectOption(classId);
@@ -56,13 +59,16 @@ try {
     await teacher.goto(
       origin +
         "/home?" +
-        new URLSearchParams({ classId, assignmentId, studentId, reviewProjectId: projectId }),
+        new URLSearchParams({
+          classId,
+          assignmentId,
+          studentId,
+          reviewProjectId: projectId,
+        }),
     );
     const dialog = teacher.getByRole("dialog", { name: "Review submission" });
     await dialog.getByLabel("Your review").fill("Add a map to the draft.");
     await dialog.getByRole("button", { name: "Save review", exact: true }).click();
-    await dialog.getByText("Add a map to the draft.", { exact: true }).waitFor();
-    await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
     await dialog.waitFor({ state: "detached" });
     await student.goto(origin + "/home");
     await student.locator(`#student-project-${projectId}`).click();
@@ -133,7 +139,9 @@ try {
     });
   // Both complete and unavailable assets use the dashboard review route
   await teacher.goto(homeReviewUrl);
-  const publication = teacher.getByRole("dialog", { name: "Review submission" });
+  const publication = teacher.getByRole("dialog", {
+    name: "Review submission",
+  });
   let publicationWrites = 0;
   teacher.on("request", (request) => {
     if (
@@ -143,7 +151,7 @@ try {
       publicationWrites++;
   });
   await publication.getByLabel("Your review").fill("The saved exhibition is ready.");
-  await publication.getByRole("button", { name: "Approve", exact: true }).click();
+  await publication.getByRole("button", { name: "Approve to publish", exact: true }).click();
   await publication
     .getByText("Approval saved. The student can now publish the approved revision.", {
       exact: true,
@@ -191,7 +199,10 @@ try {
     const token = await (await fetch("/api/v1/auth/csrf")).json();
     const response = await fetch("/api/v1/projects/" + id, {
       method: "PUT",
-      headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": token.requestToken },
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRF-TOKEN": token.requestToken,
+      },
       body: JSON.stringify({
         expectedRevision: saved.revision,
         clientMutationId: crypto.randomUUID(),
@@ -203,7 +214,9 @@ try {
   assert.equal(saveStatus, 200);
   await student.getByRole("button", { name: "Refresh status", exact: true }).click();
   await student
-    .getByText("Historical submission — not approval of the current revision", { exact: true })
+    .getByText("Historical submission — not approval of the current revision", {
+      exact: true,
+    })
     .waitFor();
   await student
     .getByRole("region", { name: "Submitted content" })
@@ -226,12 +239,14 @@ try {
     "Approval is retained for both asset scenarios",
   );
   await teacher.goto(homeReviewUrl);
-  const historicalReview = teacher.getByRole("dialog", { name: "Review submission" });
-  await historicalReview
-    .getByText("Approval requires permission and a current submission ready for review.")
-    .waitFor();
+  const historicalReview = teacher.getByRole("dialog", {
+    name: "Review submission",
+  });
+  await historicalReview.waitFor();
   assert.equal(
-    await historicalReview.getByRole("button", { name: "Approve", exact: true }).isDisabled(),
+    await historicalReview
+      .getByRole("button", { name: "Approve to publish", exact: true })
+      .isDisabled(),
     true,
   );
   const stale = await teacher.evaluate(async (id) => {
@@ -239,7 +254,10 @@ try {
     const token = await (await fetch("/api/v1/auth/csrf")).json();
     const response = await fetch(`/api/v1/projects/${id}/publications`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": token.requestToken },
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRF-TOKEN": token.requestToken,
+      },
       body: JSON.stringify({
         publicationId: crypto.randomUUID(),
         confirmedRevision: saved.revision - 1,

@@ -37,6 +37,8 @@ let reviews = [],
   saveDenied = false,
   historyUnavailable = true;
 let approvalLost = false;
+let reviewReplyToLose = 0;
+const reviewRequests = [];
 let legacyFound = false;
 let sessionActor = actor;
 try {
@@ -83,7 +85,9 @@ try {
             revision: b.expectedRevision,
             createdAt: stamp,
           };
-        reviews.push(row);
+        reviewRequests.push(b);
+        if (!reviews.some((review) => review.id === row.id)) reviews.push(row);
+        if (reviewRequests.length === reviewReplyToLose) return route.abort();
         return reply(row, 201);
       }
       return historyUnavailable
@@ -151,9 +155,9 @@ try {
       });
     return reply({ code: "not_found" }, 404);
   });
-  async function open() {
-    await page.goto(origin + "/tests/review-exit-fixture.html");
-    const d = page.getByRole("dialog", { name: "Review submission" });
+  async function open(history = false) {
+    await page.goto(origin + "/tests/review-exit-fixture.html" + (history ? "?history" : ""));
+    const d = page.getByRole("dialog", { name: history ? "Reviews" : "Review submission" });
     await d.waitFor();
     return d;
   }
@@ -174,28 +178,46 @@ try {
     });
     return open();
   }
-  let d = await open();
+  let d = await open(true);
   const retryHistory = d.getByRole("button", { name: "Retry loading reviews" });
   await retryHistory.waitFor();
   historyUnavailable = false;
   await retryHistory.click();
   await d.getByText("No reviews yet.").waitFor();
   assert.equal(await retryHistory.count(), 0);
-  await d.getByLabel("Your review").fill("Saved only");
-  await d.getByRole("button", { name: "Save review" }).click();
+  await d.getByRole("button", { name: "Add Reviews" }).click();
+  await d.getByLabel("New review").fill("Discard this staged review");
+  await d.getByLabel("New review").press("Enter");
+  assert.equal(reviews.length, 0, "Enter stages feedback without saving it");
+  await d.getByRole("button", { name: "Cancel", exact: true }).click();
+  await d.waitFor({ state: "hidden" });
+  assert.equal(reviews.length, 0, "Cancel discards staged feedback");
+  d = await open(true);
+  for (const text of ["Saved only", "Second saved review"]) {
+    await d.getByRole("button", { name: "Add Reviews" }).click();
+    await d.getByLabel("New review").fill(text);
+    await d.getByLabel("New review").press("Enter");
+  }
+  assert.equal(reviews.length, 0);
+  reviewReplyToLose = 2;
+  await d.getByRole("button", { name: "Save Changes" }).click();
+  await d.getByRole("button", { name: "Retry same request" }).click();
+  await d.waitFor({ state: "hidden" });
+  assert.equal(reviewRequests.length, 3);
+  assert.equal(reviewRequests[1].reviewId, reviewRequests[2].reviewId);
+  assert.notEqual(reviewRequests[0].reviewId, reviewRequests[2].reviewId);
   await page.waitForFunction(() => document.body.dataset.saved === "yes");
-  assert.equal(reviews.length, 1);
+  assert.equal(reviews.length, 2);
   assert.equal(decisions.length, 0);
   assert.equal(publishes.length, 0);
   d = await open();
-  await d.getByText("Saved only", { exact: true }).waitFor();
+  assert.equal(await d.getByText("Saved only", { exact: true }).count(), 0);
   await d.getByLabel("Your review").fill("Keep this unsaved review");
   saveDenied = true;
   await d.getByRole("button", { name: "Save review" }).click();
   await d.getByRole("alert").waitFor();
   assert.equal(await d.getByText("Saved only", { exact: true }).count(), 0);
-  await d.getByRole("button", { name: "Retry loading reviews" }).click();
-  await d.getByText("Saved only", { exact: true }).waitFor();
+  assert.equal(await d.getByRole("button", { name: "Retry loading reviews" }).count(), 0);
   assert.equal(await d.getByLabel("Your review").inputValue(), "Keep this unsaved review");
   saveDenied = false;
   await d.getByLabel("Your review").fill("");
@@ -203,7 +225,7 @@ try {
   await d.getByLabel("Your review").fill("Approved for the student to publish");
   assert.equal(await d.getByRole("button", { name: "Approve and publish" }).count(), 0);
   approvalLost = true;
-  await d.getByRole("button", { name: "Approve", exact: true }).click();
+  await d.getByRole("button", { name: "Approve to publish", exact: true }).click();
   await d.getByRole("button", { name: "Retry same request" }).click();
   await d.getByText("Approval saved. The student can now publish the approved revision.").waitFor();
   assert.equal(decisions.length, 1);
@@ -359,7 +381,12 @@ try {
       .getByRole("alert")
       .filter({ hasText: /approval.*saved.*publication.*(?:reject|not publish)/i })
       .waitFor();
-    await d.getByText(intent.feedback, { exact: true }).waitFor();
+    assert.equal(
+      decisions[0].feedback,
+      intent.feedback,
+      "Saved approval feedback remains in review history",
+    );
+    assert.equal(await d.getByText(intent.feedback, { exact: true }).count(), 0);
     assert.equal(await d.getByRole("button", { name: "Retry loading reviews" }).count(), 0);
     assert.equal(decisions.length, 1, "The approval is recorded once");
     assert.equal(decisionRequests.length, 1);
@@ -373,7 +400,12 @@ try {
     await page.reload();
     d = page.getByRole("dialog", { name: "Review submission" });
     await d.waitFor();
-    await d.getByText(intent.feedback, { exact: true }).waitFor();
+    assert.equal(
+      decisions[0].feedback,
+      intent.feedback,
+      "Saved approval feedback remains in review history",
+    );
+    assert.equal(await d.getByText(intent.feedback, { exact: true }).count(), 0);
     assert.equal(await d.getByRole("button", { name: "Retry same request" }).count(), 0);
     assert.equal(decisionRequests.length, 1, "Reload must not repeat approval");
     assert.equal(publishes.length, 1, "Reload must not repeat publication");

@@ -93,11 +93,17 @@ try {
         .first()
         .getByRole("button", { name: /view details/i })
         .click();
-      await page.getByRole("heading", { name: "Silk Road", exact: true }).waitFor();
+      await page
+        .getByRole("region", { name: "Project details" })
+        .getByRole("heading", { name: "Silk Road", exact: true })
+        .waitFor();
       assert.equal(await page.getByRole("region", { name: "Project details" }).isVisible(), true);
       await page.getByRole("button", { name: "Close project details" }).click();
-      await page.getByText("Manage projects and archives", { exact: true }).click();
-      await page.getByRole("button", { name: "New project", exact: true }).waitFor();
+      assert.equal(
+        await page.getByText("Manage projects and archives", { exact: true }).count(),
+        0,
+      );
+      assert.equal(await page.getByRole("button", { name: "New project", exact: true }).count(), 0);
     }
     for (const width of [390, 1440]) {
       await page.setViewportSize({ width, height: 900 });
@@ -115,7 +121,12 @@ try {
         role === "Educator"
           ? page.getByRole("link", { name: "New Project", exact: true })
           : page.getByRole("button", { name: "New project", exact: true });
-      assert.equal(await creation.isVisible(), true, `${role} creation control at ${width}px`);
+      assert.equal(
+        await creation.count(),
+        role === "Educator" ? 1 : 0,
+        `${role} creation permission at ${width}px`,
+      );
+      if (role === "Educator") assert.equal(await creation.isVisible(), true);
       if (role === "Educator") assert.equal(await creation.getAttribute("href"), "/new-project");
     }
     await page.close();

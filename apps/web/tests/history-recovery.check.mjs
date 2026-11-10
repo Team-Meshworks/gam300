@@ -37,7 +37,7 @@ async function addAsset(page, name) {
 
 async function reloadRecovery(page) {
   await page.reload();
-  const recover = page.getByRole("button", { name: "Recover my edits", exact: true });
+  const recover = page.getByRole("button", { name: "Recover changes", exact: true });
   await recover.waitFor();
   await recover.click();
 }

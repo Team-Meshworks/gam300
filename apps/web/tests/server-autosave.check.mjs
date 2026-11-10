@@ -30,7 +30,7 @@ const api = async (route) => {
       ? json(200, {
           userId: account,
           displayName: "Student",
-          role: "Educator",
+          role: "Creator",
           orgId: bob,
           mustChangePassword: false,
           developmentAssetsAllowed: true,
@@ -41,6 +41,11 @@ const api = async (route) => {
   if (path === "/api/v1/auth/csrf") return json(200, { requestToken: "test-token" });
   if (path === "/api/v1/assets") return catalogueUnavailable ? json(503, {}) : json(200, []);
   if (path === `/api/v1/projects/${fixture.projectId}/assets`) return json(200, []);
+  if (path === `/api/v1/projects/${fixture.projectId}/publication-readiness`)
+    return json(200, {
+      projectId: fixture.projectId,
+      revision,
+      state: "Ready",
   if (path === "/api/v1/auth/logout") {
     account = null;
     return route.fulfill({ status: 204 });

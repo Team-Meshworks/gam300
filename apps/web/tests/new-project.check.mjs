@@ -34,10 +34,10 @@ try {
     return image && image.getAttribute("src") !== source;
   }, firstSource);
   await page.getByRole("radio", { name: "360°" }).check();
-  assert.equal(await cover.isVisible(), false);
+  assert.equal(await cover.isVisible(), true);
   const [chooserFrom360] = await Promise.all([page.waitForEvent("filechooser"), gallery.click()]);
   await chooserFrom360.setFiles(imageFile("from-360.png"));
-  assert.equal(await page.getByRole("radio", { name: "Cover image" }).isChecked(), true);
+  assert.equal(await page.getByRole("radio", { name: "360\u00b0" }).isChecked(), true);
   assert.equal(await cover.isVisible(), true);
   const [cancelledChooser] = await Promise.all([page.waitForEvent("filechooser"), gallery.click()]);
   await cancelledChooser.setFiles([]);

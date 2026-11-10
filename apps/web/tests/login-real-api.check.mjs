@@ -7,7 +7,10 @@ const newPassword = "Synthetic-replacement-password2!";
 const admin = process.env.SPATIA_TEST_ADMIN;
 const creator = process.env.SPATIA_TEST_CREATOR;
 assert.ok(admin && creator && process.env.SPATIA_API_ORIGIN, "Fixture configuration is required");
-const server = await createServer({ server: { port: 0, strictPort: false }, logLevel: "silent" });
+const server = await createServer({
+  server: { port: 0, strictPort: false },
+  logLevel: "silent",
+});
 let browser;
 try {
   await server.listen();
@@ -31,7 +34,10 @@ try {
   async function session(page) {
     return page.evaluate(async () => {
       const response = await fetch("/api/v1/auth/session");
-      return { status: response.status, body: response.ok ? await response.json() : null };
+      return {
+        status: response.status,
+        body: response.ok ? await response.json() : null,
+      };
     });
   }
   const first = await context();
@@ -122,7 +128,7 @@ try {
   normal.setDefaultTimeout(10000);
   await normal.goto(origin + "/login");
   await login(normal, creator, oldPassword);
-  await normal.getByRole("heading", { name: /You.re signed in/ }).waitFor();
+  await normal.waitForURL("**/home");
   assert.equal((await session(normal)).body.role, "Creator");
   await normalContext.close();
   console.log("Real HTTPS login, password change, session and logout checks passed.");

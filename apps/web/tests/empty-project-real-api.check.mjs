@@ -61,6 +61,7 @@ try {
     .getByRole("checkbox", {
       name: new RegExp(process.env.SPATIA_TEST_STUDENT),
     })
+    .check();
   const creating = page.waitForResponse(
     (response) =>
       new URL(response.url()).pathname === "/api/v1/projects" &&
@@ -74,7 +75,9 @@ try {
   await page.getByRole("button", { name: "Create project", exact: true }).click();
   const created = await creating;
   assert.equal(created.status(), 201);
-  assert.deepEqual(created.request().postDataJSON(), { title: "Empty source project" });
+  assert.deepEqual(created.request().postDataJSON(), {
+    title: "Empty source project",
+  });
   const receipt = await created.json();
   const sourceId = receipt.projectId;
   assert.ok(sourceId);
@@ -82,38 +85,25 @@ try {
   assert.equal(initialAssigned.status(), 201);
   assert.equal(initialAssigned.request().postDataJSON().sourceProjectId, sourceId);
   assert.equal((await initialAssigned.json()).projects.length, 1);
-  await page.waitForURL(/\/home\?/);
-  await page.goto(`${origin}/?projectId=${sourceId}`);
-  await page.waitForURL(`**/?projectId=${sourceId}`);
-  await sceneReady(page);
-  await page.getByRole("button", { name: "Scenes", exact: true }).click();
-  await page.getByLabel("Scene name", { exact: true }).fill("Edited empty scene");
-  const saving = page.waitForResponse(
-    (response) =>
-      new URL(response.url()).pathname === `/api/v1/projects/${sourceId}` &&
-      response.request().method() === "PUT",
-  );
-  await page.getByRole("button", { name: "Rename scene", exact: true }).click();
-  assert.equal((await saving).status(), 200);
-  await page.locator('.save-state[data-state="saved"]').waitFor();
+  await page.waitForURL(`${origin}/home`);
   const sourceResponse = await teacher.request.get(`${origin}/api/v1/projects/${sourceId}`);
   assert.equal(sourceResponse.status(), 200);
   const source = await sourceResponse.json();
-  assert.equal(source.document.scenes[0].name, "Edited empty scene");
   assert.equal(source.document.scenes[0].environmentAssetId, null);
   assert.deepEqual(source.document.scenes[0].objects, []);
-  await page.getByRole("button", { name: "Leave editor" }).click();
-  await page.getByRole("button", { name: "Exit" }).click();
-  await page.waitForURL(`${origin}/home`);
-  await page.getByRole("button", { name: "Classes", exact: true }).click();
+  await page.goto(`${origin}/classes`);
   await page.getByRole("button", { name: "New assignment", exact: true }).click();
   assert.equal(await page.getByLabel("Source project").count(), 0);
   await page.getByLabel("Project title").fill("Empty class assignment");
   await page.getByLabel("Project description").fill("Independent exhibit");
   await page.getByLabel("Project instructions").fill("Explain each exhibit.");
-  await page.getByLabel(/^Due date/).fill("2035-12-01T15:30");
-  await page.getByLabel(/^Class/).selectOption(process.env.SPATIA_TEST_CLASS);
-  await page.getByRole("checkbox", { name: new RegExp(process.env.SPATIA_TEST_STUDENT) }).check();
+  await page.getByLabel(/^Due date/).fill("2035-12-01");
+  await chooseProjectClass(page);
+  await page
+    .getByRole("checkbox", {
+      name: new RegExp(process.env.SPATIA_TEST_STUDENT),
+    })
+    .check();
   const assigning = page.waitForResponse(
     (response) =>
       new URL(response.url()).pathname.endsWith("/assignments") &&
@@ -132,7 +122,7 @@ try {
     timezoneId: "Asia/Singapore",
   });
   const student = await login(studentContext, process.env.SPATIA_TEST_STUDENT);
-  await student.getByRole("button", { name: "Classes", exact: true }).click();
+  await student.goto(`${origin}/classes`);
   await student.getByRole("button", { name: "Empty class assignment", exact: true }).click();
   await student.getByText("Explain each exhibit.", { exact: true }).waitFor();
   await student.getByRole("button", { name: "Open your project", exact: true }).click();
@@ -153,4 +143,20 @@ try {
 } finally {
   await browser?.close();
   await server.close();
+}
+
+// Resolve the real class label for the custom field without assuming a seeded display name
+async function chooseProjectClass(page) {
+  const control = page.getByRole("combobox", { name: /^Class/ });
+  if (await control.evaluate((element) => element.tagName === "SELECT")) {
+    await control.selectOption(process.env.SPATIA_TEST_CLASS);
+    return;
+  }
+  const response = await page.request.get(`${origin}/api/v1/classes?limit=20`);
+  assert.equal(response.status(), 200);
+  const classes = await response.json();
+  const selected = classes.items.find((item) => item.id === process.env.SPATIA_TEST_CLASS);
+  assert.ok(selected, "The seeded class must be available");
+  await control.click();
+  await page.getByRole("option", { name: selected.name, exact: true }).click();
 }

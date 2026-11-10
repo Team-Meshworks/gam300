@@ -64,7 +64,7 @@ try {
   await creatorPage.getByLabel("Username", { exact: true }).fill(process.env.SPATIA_TEST_CREATOR);
   await creatorPage.getByLabel("Password", { exact: true }).fill("Synthetic-long-password1!");
   await creatorPage.getByRole("button", { name: "Log in", exact: true }).click();
-  await creatorPage.getByRole("link", { name: "Go to projects" }).waitFor();
+  await creatorPage.waitForURL(`${origin}/home`);
   const denial = await creatorPage.evaluate(async (projectId) => {
     const path = `/api/v1/projects/${projectId}/assignments`;
     const read = await fetch(path);

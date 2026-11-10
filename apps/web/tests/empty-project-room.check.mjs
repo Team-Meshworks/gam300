@@ -130,7 +130,10 @@ try {
       });
     const dialog = page.getByRole("dialog", { name: "New project" });
     await dialog.getByLabel("Project title").fill(`Empty ${method}`);
-    assert.equal(await dialog.getByLabel("3D space").inputValue(), "");
+    assert.match(
+      await dialog.getByRole("combobox", { name: /3D space/ }).innerText(),
+      /Empty scene/,
+    );
     await dialog.getByRole("button", { name: "Create project" }).click();
     await page.waitForURL(url);
     await page.getByText("Scene ready", { exact: true }).waitFor({ timeout: 60000 });
