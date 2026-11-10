@@ -248,3 +248,293 @@
   display: grid;
   grid-template-columns: 176px minmax(0, 1fr);
   gap: 21px;
+  align-items: start;
+  margin-bottom: 12px;
+}
+.sp-shell--facilitator .sp-teacher-project-identity h2 {
+  margin: 0;
+}
+.sp-shell--facilitator .sp-teacher-metadata {
+  margin: 0 0 0;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 7px 12px;
+}
+.sp-shell--facilitator .sp-teacher-field-heading .sp-button {
+  gap: 8px;
+  font-size: 15px;
+}
+.sp-shell--facilitator .sp-teacher-field-heading svg {
+  width: 13px;
+  height: 13px;
+}
+.sp-shell--facilitator .sp-teacher-student-identity {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+  font-size: 15px;
+  line-height: 20px;
+}
+.sp-shell--facilitator .sp-teacher-student-identity .sp-avatar {
+  width: 36px;
+  height: 36px;
+  font-size: 13px;
+}
+.sp-shell--facilitator .sp-teacher-student-identity strong {
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.sp-shell--facilitator .sp-teacher-student-status strong {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 400;
+}
+.sp-shell--facilitator .sp-teacher-student-status strong svg {
+  width: 13px;
+  height: 13px;
+  flex: none;
+}
+.sp-shell--facilitator [data-approval="approved"] {
+  color: var(--facilitator-approved);
+}
+.sp-shell--facilitator [data-approval="awaiting-approval"] {
+  color: var(--facilitator-returned);
+}
+.sp-shell--facilitator [data-approval]:not([data-approval="approved"]) {
+  color: var(--facilitator-returned);
+}
+.sp-shell--facilitator .sp-teacher-students > .sp-search {
+  height: 45px;
+  margin-bottom: 16px;
+}
+.sp-shell--facilitator .sp-teacher-students > .sp-search input {
+  font-size: 13px;
+}
+.sp-shell--facilitator .sp-teacher-students > .sp-tabs button {
+  padding: 4px 0;
+  border: 0;
+  font-size: 15px;
+  font-weight: 400;
+}
+.sp-shell--facilitator .sp-teacher-students > .sp-tabs button[aria-selected="true"] {
+  font-weight: 500;
+}
+.sp-shell--facilitator .sp-teacher-new-project {
+  min-height: 1200px;
+}
+.sp-shell--facilitator .sp-teacher-new-project .sp-page-heading {
+  margin-bottom: 30px;
+}
+.sp-shell--facilitator .sp-project-details {
+  gap: 24px;
+}
+.sp-shell--facilitator .sp-project-details .sp-hint,
+.sp-shell--facilitator .sp-students-header > p {
+  font-size: 12px;
+  line-height: 18px;
+}
+.sp-shell--facilitator .sp-project-fields .sp-field > label,
+.sp-shell--facilitator .sp-image-options legend {
+  font-size: 14px;
+  font-weight: 600;
+}
+.sp-shell--facilitator
+  .sp-project-fields
+  input:not([type="checkbox"]):not([type="radio"]):not([type="search"]):not([type="file"]) {
+  min-height: 52px;
+}
+.sp-shell--facilitator .sp-project-fields textarea {
+  min-height: 130px;
+  font-size: 14px;
+}
+.sp-shell--facilitator .sp-person-row .sp-person-name strong {
+  font-size: 14px;
+  font-weight: 500;
+}
+.sp-shell--facilitator .sp-person-row .sp-person-name small {
+  font-size: 12px;
+}
+.sp-shell--facilitator .sp-form-footer .sp-button {
+  font-size: 13px;
+  font-weight: 500;
+}
+@media (max-width: 760px) {
+  .sp-shell--facilitator .sp-teacher-project-identity {
+    grid-template-columns: 120px minmax(0, 1fr);
+    gap: 16px;
+  }
+  .sp-shell--facilitator .sp-teacher-project-identity img {
+    width: 120px;
+    height: 80px;
+  }
+  .sp-shell--facilitator .sp-teacher-project-identity h2 {
+    font-size: 22px;
+  }
+  .sp-shell--facilitator .sp-teacher-new-project {
+    min-height: 0;
+  }
+}
+
+.sp-shell--facilitator .sp-account-header .sp-header-brand {
+  font-weight: 400;
+}
+.sp-shell--facilitator .sp-workspace:focus {
+  outline: none;
+}
+.sp-shell--facilitator .sp-teacher-detail-head p {
+  font-size: 12px;
+}
+.sp-shell--facilitator .sp-assignment-edit-dialog {
+  width: min(960px, calc(100% - 32px));
+  padding: 32px;
+}
+.sp-shell--facilitator .sp-assignment-edit-dialog fieldset {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  margin: 24px 0;
+}
+.sp-shell--facilitator .sp-assignment-edit-dialog .sp-actions {
+  justify-content: flex-end;
+}
+.sp-shell--facilitator .sp-assignment-edit-dialog textarea {
+  min-height: 100px;
+}
+@media (max-width: 600px) {
+  .sp-shell--facilitator .sp-assignment-edit-dialog {
+    padding: 24px;
+  }
+}
+
+html:has(.sp-shell--facilitator) {
+  scrollbar-gutter: stable;
+}
+.sp-shell--facilitator .sp-teacher-detail-head {
+  min-height: 66px;
+}
+.sp-shell--facilitator .sp-teacher-columns {
+  margin-top: 30px;
+}
+.sp-shell--facilitator .sp-teacher-students {
+  min-height: 0;
+  align-self: start;
+}
+.sp-shell--facilitator .sp-teacher-detail .sp-teacher-info {
+  gap: 12px;
+}
+.sp-shell--facilitator .sp-teacher-new-project .sp-project-fields {
+  font-size: 14px;
+}
+.sp-shell--facilitator .sp-project-details > .sp-field {
+  gap: 10px;
+}
+.sp-shell--facilitator .sp-teacher-detail-head .sp-close-button {
+  align-self: flex-start;
+}
+.sp-shell--facilitator .sp-teacher-detail-head p {
+  margin-top: 2px;
+}
+.sp-shell--facilitator .sp-teacher-student-status {
+  gap: 16px;
+}
+.sp-shell--facilitator .sp-teacher-students-note {
+  padding: 14px 20px;
+}
+@media (max-width: 760px) {
+  .sp-shell--facilitator .sp-teacher-students {
+    min-height: 0;
+  }
+  .sp-shell--facilitator .sp-teacher-student {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+  .sp-shell--facilitator .sp-teacher-student-status {
+    grid-column: 1;
+    grid-row: 2;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .sp-shell--facilitator .sp-teacher-student-actions {
+    grid-row: 3;
+    gap: 8px;
+  }
+  .sp-shell--facilitator .sp-teacher-student-actions > .sp-button {
+    padding-inline: 14px;
+    font-size: 13px;
+  }
+  .sp-shell--facilitator .sp-teacher-students > .sp-tabs {
+    gap: 12px 18px;
+  }
+}
+
+.sp-shell--facilitator :is(h1, h2, h3) {
+  font-family: var(--facilitator-heading-font);
+}
+.sp-shell--facilitator .sp-workspace:focus-visible {
+  outline: none;
+}
+.sp-shell--facilitator .sp-teacher-new-project .sp-project-details > .sp-field textarea {
+  resize: vertical;
+}
+.sp-shell--facilitator .sp-project-details .sp-creation-note {
+  font-size: 12px;
+}
+
+.sp-shell--facilitator .sp-teacher-detail,
+.sp-shell--facilitator .sp-teacher-new-project {
+  padding-top: 30px;
+}
+.sp-shell--facilitator .sp-workspace:has(.sp-teacher-detail) {
+  left: 0;
+}
+.sp-shell--facilitator .sp-workspace:has(.sp-teacher-new-project) {
+  left: 0;
+}
+.sp-shell--facilitator .sp-teacher-columns {
+  margin-top: 10px;
+}
+.sp-shell--facilitator .sp-teacher-new-project .sp-page-heading {
+  margin-bottom: 16px;
+}
+@media (max-width: 760px) {
+  .sp-shell--facilitator .sp-teacher-detail,
+  .sp-shell--facilitator .sp-teacher-new-project {
+    padding-top: 24px;
+  }
+  .sp-shell--facilitator .sp-teacher-columns {
+    margin-top: 24px;
+  }
+}
+
+.sp-shell--facilitator .sp-date-control {
+  position: relative;
+}
+.sp-shell--facilitator .sp-date-control > span {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--sp-muted);
+  pointer-events: none;
+  font-size: 14px;
+}
+.sp-shell--facilitator .sp-date-control[data-empty="true"]:not(:focus-within) input {
+  color: transparent;
+}
+.sp-shell--facilitator .sp-date-control:focus-within > span {
+  display: none;
+}
+
+.sp-shell--facilitator:has(.sp-teacher-welcome) {
+  --facilitator-heading-font: var(--sp-font);
+  --facilitator-home-panel: #f7f7f7;
+  --facilitator-home-border: rgb(255 255 255 / 85%);
+}
+.sp-shell--facilitator:has(.sp-teacher-welcome) .sp-workspace {
+  padding-top: 35px;
+}
+.sp-shell--facilitator:has(.sp-teacher-welcome) .sp-wash--left {
+  left: calc(50% - 961px);
