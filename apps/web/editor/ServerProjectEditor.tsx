@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { CatalogueAsset } from "../shared/asset-runtime/catalogue";
 import { assets } from "virtual:asset-catalogue";
 import { App } from "./App";
+import { BaseModelChooser } from "./home/BaseModelChooser";
+import { needsBaseModel } from "./home/base-model";
 import { RequestApproval } from "./reviews/RequestApproval";
 import { PublishDialog } from "./publications/PublishDialog";
 import { allPages, createReviewClient } from "./reviews/review-client";
@@ -225,6 +227,7 @@ function ServerProjectSession({
   );
   const [store] = useState(() => createDocumentStore(editorAssets));
   const [active, setActive] = useState<Active | null>(null);
+  const [choosingBase, setChoosingBase] = useState(false);
   const [signedOut, setSignedOut] = useState(false);
   const current = useRef<Active | null>(null);
   const retained = useRef<{ accountId: string; recovery: RecoverySession } | null>(null);
@@ -349,6 +352,7 @@ function ServerProjectSession({
     };
     current.current = owner;
     setActive(owner);
+    setChoosingBase(needsBaseModel(opened.revision, identity.role, recover));
     setCandidate(null);
     retained.current = null;
     setError(recovery?.historyWarning ?? "");
@@ -666,6 +670,27 @@ function ServerProjectSession({
     });
   }
 
+  async function chooseBaseModel(assetId: string) {
+    await run(async () => {
+      if (
+        !active ||
+        !available.some((asset) => asset.id === assetId && asset.kind === "environment")
+      )
+        return;
+      if (!(await checkDraftAccount(active))) return;
+      const result = store.setEnvironment(assetId);
+      if (!result.ok) throw new Error(result.error.message);
+      // Keep setup visible until the normal save session acknowledges the selected room.
+      await active.session.flush();
+      if (active.session.getStatus() !== "saved")
+        throw new Error(
+          "Your base model could not be saved. Retry to continue; your choice is kept in this browser.",
+        );
+      if (!(await checkDraftAccount(active))) return;
+      setChoosingBase(false);
+    });
+  }
+
   if (signedOut) return <LoginRedirect />;
   const saveError = active && saveErrors[status];
   return (
@@ -680,8 +705,8 @@ function ServerProjectSession({
             dirty: status !== "saved",
             failed: ["failed", "conflict", "rejected"].includes(status),
             saving: status === "saving",
-            departing: departure !== null || busy,
-            busy,
+            departing: departure !== null || busy || choosingBase,
+            busy: busy || choosingBase,
             save,
             leave: () => requestDeparture("home"),
             importFile,
@@ -711,6 +736,15 @@ function ServerProjectSession({
             </>
           )}
         </main>
+      )}
+      {active && choosingBase && (
+        <BaseModelChooser
+          assets={available}
+          busy={busy}
+          error={error}
+          onContinue={(assetId) => void chooseBaseModel(assetId)}
+          onCancel={() => setChoosingBase(false)}
+        />
       )}
       {candidate && (
         <ChoiceDialog
@@ -819,7 +853,7 @@ function ServerProjectSession({
           {error && <p role="alert">{error}</p>}
         </ChoiceDialog>
       )}
-      {(error || saveError) && !candidate && !departure && (
+      {(error || saveError) && !candidate && !departure && !choosingBase && (
         <p className="server-session-error" role="alert">
           {error}
           {error && saveError && " "}

@@ -154,3 +154,14 @@ export function searchAssets(
       asset.name.toLowerCase().includes(name),
   );
 }
+
+// Server entries follow local samples, so identical geometry keeps its approved save identity.
+export function uniqueRoomAssets(assets: readonly CatalogueAsset[]) {
+  return [
+    ...new Map(
+      assets
+        .filter((asset) => asset.kind === "environment")
+        .map((asset) => [asset.sha256.toLowerCase() || asset.id, asset]),
+    ).values(),
+  ];
+}

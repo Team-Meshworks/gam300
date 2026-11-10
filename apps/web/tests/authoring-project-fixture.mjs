@@ -24,7 +24,7 @@ export const blankProject = {
 
 export async function serveProject(page, origin, initial = blankProject) {
   let document = structuredClone(initial);
-  let revision = 0;
+  let revision = 1;
   await page.context().route("**/api/v1/**", (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
