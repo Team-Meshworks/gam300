@@ -644,6 +644,10 @@ namespace Spatia.Server.Persistence.Migrations
                         .HasColumnType("jsonb")
                         .HasColumnName("document");
 
+                    b.Property<Guid?>("ImageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("image_id");
+
                     b.Property<bool>("IsArchived")
                         .HasColumnType("boolean")
                         .HasColumnName("archived");
@@ -678,6 +682,8 @@ namespace Spatia.Server.Persistence.Migrations
                         .HasColumnName("updated_at");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ImageId");
 
                     b.HasIndex("LastMutationActorId");
 
@@ -727,6 +733,42 @@ namespace Spatia.Server.Persistence.Migrations
                     b.HasIndex("UserId", "ProjectId");
 
                     b.ToTable("project_assignments", (string)null);
+                });
+
+            modelBuilder.Entity("Spatia.Server.Projects.ProjectImage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("content_type");
+
+                    b.Property<byte[]>("Data")
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("data");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)")
+                        .HasColumnName("type");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("project_images", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_project_images_content_type", "content_type IN ('image/png', 'image/jpeg', 'image/webp')");
+
+                            t.HasCheckConstraint("CK_project_images_data", "octet_length(data) BETWEEN 1 AND 2097152");
+
+                            t.HasCheckConstraint("CK_project_images_type", "type IN ('cover', 'panorama')");
+                        });
                 });
 
             modelBuilder.Entity("Spatia.Server.Projects.ProjectProvenance", b =>
@@ -1262,6 +1304,11 @@ namespace Spatia.Server.Persistence.Migrations
 
             modelBuilder.Entity("Spatia.Server.Projects.Project", b =>
                 {
+                    b.HasOne("Spatia.Server.Projects.ProjectImage", null)
+                        .WithMany()
+                        .HasForeignKey("ImageId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Spatia.Server.Accounts.ApplicationUser", null)
                         .WithMany()
                         .HasForeignKey("LastMutationActorId")

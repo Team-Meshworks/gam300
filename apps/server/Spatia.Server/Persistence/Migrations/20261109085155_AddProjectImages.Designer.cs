@@ -1428,3 +1428,11 @@ namespace Spatia.Server.Persistence.Migrations
                     b.HasOne("Spatia.Server.Classes.ClassAssignmentStudent", null)
                         .WithMany()
                         .HasForeignKey("ProjectId", "StudentId")
+                        .HasPrincipalKey("ProjectId", "StudentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+#pragma warning restore 612, 618
+        }
+    }
+}

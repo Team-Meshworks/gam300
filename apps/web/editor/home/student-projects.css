@@ -1,17 +1,165 @@
-.sp-student-detail-image {
-  flex: 0 0 278px;
-  min-height: 176px;
-  border-radius: 40px;
-  background: #e7e2dc;
+/* Keep creator measurements local so other workspace layouts remain independent */
+:root {
+  --creator-font: var(--sp-font);
+  --creator-ui-font: var(--sp-font);
+  --creator-paper: #fff;
+  --creator-detail-ink: #000;
+  --creator-copy: #515151;
+  --creator-border: #e7e2dc;
+  --creator-action: #332e2a;
+  --creator-action-ink: #fff;
+  --creator-comment: #faf8f3;
+  --creator-date: #8a8989;
+  --creator-assigned: #f3f3f3;
+  --creator-due: #fffdcd;
+  --creator-detail-rejected: #f3cec7;
+  --creator-detail-approved: #e4f3d3;
+  --creator-scroll-thumb: #aaa59c;
+  --creator-scroll-track: #f6f4f1;
+  --creator-card-shadow: 0 6px 24px rgb(57 43 29 / 3%);
 }
-.sp-student-meta {
-  color: #77716a;
+/* Preserve the original background blending rather than approximate its circles */
+.sp-shell.sp-shell--creator .sp-wash--left {
+  left: calc(50% - 720px);
+  top: 0;
+  width: 1440px;
+  height: 1024px;
+  max-width: none;
 }
-.sp-student-detail {
+.sp-shell.sp-shell--creator .sp-wash--right {
+  display: none;
+}
+.sp-shell.sp-shell--creator .sp-workspace {
+  width: min(1366px, calc(100% - 74px));
+}
+.sp-shell--creator .sp-student-card {
+  box-shadow:
+    inset 0 0 0 1px var(--creator-border),
+    var(--creator-card-shadow);
+}
+.sp-shell--creator
+  :is(.sp-card-actions .sp-button, .sp-tabs button, .sp-published-share .sp-button) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.sp-shell--creator .sp-button-label {
+  display: inline-block;
+}
+.sp-shell--creator :is(button, a, input):focus-visible {
+  outline: 3px solid var(--sp-focus);
+  outline-offset: 4px;
+}
+/* Keep the published card compact while preserving its actual publication link */
+.sp-shell--creator .sp-student-card--published {
+  min-height: 252px;
+  grid-template-columns: 278px minmax(0, 1fr) min(36%, 438px);
+}
+.sp-shell--creator .sp-student-card--published .sp-student-card-image {
+  transform: translateY(-3px);
+}
+.sp-shell--creator .sp-student-card--published .sp-card-description {
+  line-height: 26px;
+}
+.sp-shell--creator .sp-published-share .sp-button {
+  height: 25px;
+  min-height: 25px;
+  line-height: 20px;
+}
+.sp-shell--creator .sp-student-detail {
+  position: relative;
+  display: grid;
+  grid-template-columns: 376px minmax(0, 1fr);
+  gap: 39px;
+  min-height: 840px;
+  padding: 50px 48px 35px 35px;
+  border-radius: 50px;
+  background: var(--creator-paper);
+  color: var(--creator-copy);
+  font: 400 15px/20px var(--creator-font);
+}
+.sp-shell--creator .sp-student-detail-image {
+  display: block;
+  width: 376px;
+  height: 612px;
+  min-height: 0;
+  margin-top: 72px;
+  border-radius: 50px;
+  object-fit: cover;
+  background: var(--creator-assigned);
+}
+.sp-shell--creator .sp-student-detail-content {
+  display: block;
+  min-width: 0;
+}
+.sp-shell--creator .sp-student-detail-heading {
+  display: block;
+  padding-right: 50px;
+}
+.sp-shell--creator .sp-student-detail-heading h1 {
+  margin: 0;
+  color: var(--creator-detail-ink);
+  font: 700 50px/68px var(--creator-font);
+  overflow-wrap: anywhere;
+}
+.sp-shell--creator .sp-student-detail-heading .sp-close-button {
+  position: absolute;
+  top: 32px;
+  right: 32px;
+}
+.sp-shell--creator .sp-student-detail-badges {
   display: flex;
-  gap: 40px;
-  padding: 50px 36px;
-  min-height: 650px;
+  flex-wrap: wrap;
+  gap: 11px;
+  align-items: center;
+  margin: 9px 0 27px;
+}
+.sp-shell--creator .sp-student-detail-badges > span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 33px;
+  margin: 0;
+  padding: 0 13px;
+  border-radius: 18px;
+  background: var(--creator-assigned);
+  color: var(--creator-date);
+  font: 700 15px/20px var(--creator-font);
+}
+.sp-shell--creator .sp-student-detail-badges .sp-student-detail-due {
+  background: var(--creator-due);
+}
+.sp-shell--creator .sp-student-detail-badges .sp-approval {
+  background: var(--creator-detail-rejected);
+}
+.sp-shell--creator .sp-student-detail-badges .sp-approval[data-state="approved"] {
+  background: var(--creator-detail-approved);
+}
+.sp-shell--creator .sp-student-detail-badges .sp-approval[data-state="pending"] {
+  background: var(--creator-due);
+}
+.sp-shell--creator .sp-student-detail-content h2 {
+  margin: 0 0 4px;
+  font: 700 20px/27px var(--creator-font);
+}
+.sp-shell--creator .sp-student-detail-content p {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 20px;
+}
+.sp-shell--creator .sp-student-detail-section p {
+  max-width: 740px;
+}
+.sp-shell--creator .sp-student-detail-section + .sp-student-detail-section {
+  margin-top: 10px;
+}
+.sp-shell--creator .sp-student-detail-comments {
+  margin-top: 10px;
+}
+.sp-shell--creator .sp-student-detail-comments .sp-reviews {
+  margin: 0;
   border-radius: 50px;
   background: white;
 }
