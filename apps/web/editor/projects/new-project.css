@@ -368,3 +368,17 @@
   border-radius: 6px;
   padding: 2px 4px;
   background: transparent;
+  color: var(--cover-remove-ink);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.sp-cover-remove:hover {
+  background: var(--sp-soft);
+  color: var(--cover-remove-ink);
+}
+.sp-cover-remove:focus-visible {
+  outline: 2px solid var(--sp-focus);
+  outline-offset: 2px;
+}

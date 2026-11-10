@@ -22,6 +22,13 @@ it("keeps the selected student's project and assignment together through editor 
   expect(returned.searchParams.get("reviewProjectId")).toBe(context.projectId);
   expect(returned.searchParams.get("studentId")).toBe(context.studentId);
   expect(returned.searchParams.get("assignmentId")).toBe(context.assignmentId);
+  const inspected = new URL(
+    reviewReturnUrl(editor.searchParams, "Educator"),
+    "https://example.test",
+  );
+  expect(inspected.searchParams.get("assignmentId")).toBe(context.assignmentId);
+  expect(inspected.searchParams.has("reviewProjectId")).toBe(false);
+  expect(inspected.searchParams.has("studentId")).toBe(false);
 });
 
 it("does not start review for normal editor visits or incomplete context", () => {

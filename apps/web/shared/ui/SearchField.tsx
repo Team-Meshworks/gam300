@@ -18,16 +18,24 @@ export function SearchField({
   icon?: ReactNode;
 }) {
   return (
-    <label className="sp-search">
-      <span className="sp-sr-only">{label}</span>
+    <div
+      className="sp-search"
+      onPointerDown={(event) => {
+        if (event.button === 0 && !(event.target instanceof HTMLInputElement)) {
+          event.currentTarget.querySelector("input")?.blur();
+          event.preventDefault();
+        }
+      }}
+    >
       <input
         type="search"
+        aria-label={label}
         value={value}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder ?? label}
       />
       {icon ?? <UiIcon icon={faMagnifyingGlass} aria-hidden="true" />}
-    </label>
+    </div>
   );
 }

@@ -1,4 +1,3 @@
-/* Hallmark - preserve the supplied Spatia PDF system and existing page wiring */
 /* Keep admin controls aligned while retaining the approved page layouts */
 @import "@fortawesome/fontawesome-svg-core/styles.css";
 @import "@fontsource/inter/latin-400.css";
@@ -118,7 +117,7 @@ p {
   padding: 12px;
   color: var(--sp-ink);
 }
-.sp-skip-link:focus {
+.sp-skip-link:focus-visible {
   top: 10px;
 }
 .sp-shell {
@@ -165,11 +164,6 @@ p {
   color: var(--sp-avatar-ink);
   font-size: 12px;
   font-weight: 600;
-}
-.sp-account-header[data-role="Administrator"] .sp-avatar {
-  width: 44px;
-  height: 44px;
-  font-size: 13px;
 }
 .sp-button.sp-close-button,
 .sp-dialog .sp-dialog-dismiss {
@@ -314,6 +308,8 @@ h3 + .sp-hint {
   font-size: 13px;
 }
 .sp-search {
+  user-select: none;
+  cursor: default;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -324,6 +320,8 @@ h3 + .sp-hint {
   min-width: 0;
 }
 .sp-search input {
+  user-select: text;
+  cursor: text;
   width: 100%;
   min-width: 0;
   border: 0;
@@ -526,4 +524,123 @@ h3 + .sp-hint {
   .sp-card {
     padding: 18px;
   }
+}
+
+.sp-shell:not(.sp-shell--creator):not(.sp-shell--facilitator):has(
+    > .sp-account-header:is([data-role="Creator"], [data-role="Educator"])
+  )
+  .sp-button:not(.sp-close-button, .sp-header-logout) {
+  min-height: 36px;
+  padding: 6px 16px;
+}
+
+:is(.sp-shell--creator, .sp-shell--facilitator) .sp-dialog.sp-workspace-leave {
+  width: min(430px, calc(100% - 32px));
+  padding: 20px;
+}
+:is(.sp-shell--creator, .sp-shell--facilitator) .sp-dialog.sp-workspace-leave > h2 {
+  font-size: 20px;
+  line-height: 28px;
+}
+:is(.sp-shell--creator, .sp-shell--facilitator) .sp-dialog.sp-workspace-leave .sp-dialog-body {
+  gap: 12px;
+  margin-top: 12px;
+  margin-bottom: 0;
+  font-size: 14px;
+  line-height: 21px;
+}
+:is(.sp-shell--creator, .sp-shell--facilitator) .sp-dialog.sp-workspace-leave .sp-actions {
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 4px;
+}
+:is(.sp-shell--creator, .sp-shell--facilitator)
+  .sp-dialog.sp-workspace-leave
+  .sp-actions
+  > .sp-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  min-height: 32px;
+  padding: 0 16px;
+  font-size: 13px;
+  line-height: 18px;
+}
+:is(.sp-shell--creator, .sp-shell--facilitator)
+  .sp-dialog.sp-workspace-leave
+  .sp-actions
+  > .sp-button
+  > .sp-button-label {
+  text-box-trim: none;
+  line-height: 18px;
+  transform: translateY(1px);
+}
+
+:is(.sp-shell--creator, .sp-shell--facilitator) .sp-dialog.sp-workspace-leave {
+  width: min(380px, calc(100% - 32px));
+  padding: 20px;
+}
+:is(.sp-shell--creator, .sp-shell--facilitator) .sp-dialog.sp-workspace-leave .sp-dialog-body {
+  margin-top: 12px;
+}
+
+dialog.sp-dialog > button.sp-button.sp-dialog-dismiss.sp-close-button {
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  min-height: 36px;
+  padding: 0;
+}
+dialog.sp-dialog > button.sp-button.sp-dialog-dismiss.sp-close-button > svg {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+}
+
+.sp-dialog.sp-project-moderation-dialog {
+  width: min(400px, calc(100% - 32px));
+  padding: 18px 20px;
+}
+.sp-dialog.sp-project-moderation-dialog > h2 {
+  font-size: 18px;
+  line-height: 24px;
+}
+.sp-dialog.sp-project-moderation-dialog .sp-dialog-body {
+  margin-top: 10px;
+  gap: 10px;
+  font-size: 13px;
+  line-height: 19px;
+}
+
+.sp-dialog.sp-project-moderation-dialog .sp-actions > .sp-button,
+.sp-dialog .sp-actions.sp-confirmation-actions > .sp-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  min-height: 32px;
+  padding: 0 16px;
+  font-size: 13px;
+  line-height: 18px;
+}
+.sp-dialog.sp-project-moderation-dialog .sp-actions > .sp-button > .sp-button-label,
+.sp-dialog .sp-actions.sp-confirmation-actions > .sp-button > .sp-button-label {
+  text-box-trim: none;
+  line-height: 18px;
+  transform: translateY(1px);
+}
+
+.sp-dialog .sp-actions.sp-confirmation-actions {
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+/* Move the existing lower body space above confirmation actions, preserving dialog size. */
+.sp-dialog:has(.sp-confirmation-actions) .sp-dialog-body {
+  margin-bottom: 0;
+}
+.sp-dialog .sp-actions.sp-confirmation-actions {
+  margin-top: 24px;
 }
