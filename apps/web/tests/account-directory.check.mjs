@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { launchBrowser } from "./browser-security.mjs";
 import { createServer } from "vite";
 
@@ -56,6 +56,19 @@ try {
       if (path.endsWith("/active")) {
         rows[0].isActive = body.isActive;
         return route.fulfill({ status: 204 });
+      }
+      if (path === "/api/v1/admin/users/bulk") {
+        const created = body
+          .filter((value) => !rows.some((row) => row.userName === value.userName))
+          .map((value, index) => ({
+            ...value,
+            initialPassword: undefined,
+            userId: `77777777-7777-4777-8777-${String(rows.length + index + 1).padStart(12, "0")}`,
+            isActive: true,
+            mustChangePassword: true,
+          }));
+        rows.push(...created);
+        return route.fulfill({ status: created.length ? 201 : 200, json: created });
       }
       if (req.method() === "POST") {
         rows.push({
@@ -485,10 +498,96 @@ try {
     });
   }
   await page.setViewportSize({ width: 1440, height: 1024 });
+  await page.getByRole("button", { name: "+ Add Accounts", exact: true }).click();
+  const csvDialog = page.getByRole("dialog", { name: "Account Creation", exact: true });
+  const csvSizes = new Map();
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 1024 });
+    csvSizes.set(width, await csvDialog.boundingBox());
+  }
+  await page.setViewportSize({ width: 1440, height: 1024 });
+  await csvDialog.getByLabel("Name", { exact: true }).fill("Preserved manual entry");
+  const cancelledPicker = page.waitForEvent("filechooser");
+  await csvDialog.getByRole("button", { name: "Upload CSV", exact: true }).hover();
+  await csvDialog.getByRole("button", { name: "Upload CSV", exact: true }).click();
+  await (await cancelledPicker).setFiles([]);
+  await csvDialog
+    .locator('input[type="file"]')
+    .evaluate((input) => input.dispatchEvent(new Event("cancel", { bubbles: true })));
+  assert.equal(
+    await csvDialog.isVisible(),
+    true,
+    "File picker cancellation keeps Account Creation open",
+  );
+  assert.equal(
+    await csvDialog.getByLabel("Name", { exact: true }).inputValue(),
+    "Preserved manual entry",
+  );
+  const chooser = page.waitForEvent("filechooser");
+  await csvDialog.getByRole("button", { name: "Upload CSV", exact: true }).click();
+  await (
+    await chooser
+  ).setFiles({
+    name: "learners.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from(
+      "Name,DOB,Account Type\nCSV Learner,2008-01-02,Creator\nCSV Student,03/04/2009,Facilitator",
+    ),
+  });
+  await csvDialog.getByText("2 accounts ready to import.", { exact: true }).waitFor();
+  assert.equal(
+    writes.filter((write) => write.path.endsWith("/users/bulk")).length,
+    0,
+    "Uploading only prepares accounts",
+  );
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 1024 });
+    const ready = await csvDialog.boundingBox(),
+      before = csvSizes.get(width);
+    assert.equal(ready.width, before.width, `Upload preserves width at ${width}px`);
+    assert.equal(ready.height, before.height, `Upload preserves height at ${width}px`);
+  }
+  await page.setViewportSize({ width: 1440, height: 1024 });
+  const download = page.waitForEvent("download");
+  await csvDialog.getByRole("button", { name: "Save changes", exact: true }).click();
+  assert.equal((await download).suggestedFilename(), "account-credentials.csv");
+  await csvDialog.waitFor({ state: "detached" });
+  const batch = writes.filter((write) => write.path.endsWith("/users/bulk"));
+  assert.equal(batch.length, 1, "One upload click sends exactly one batch");
+  assert.deepEqual(
+    batch[0].body.map((value) => value.role),
+    ["Creator", "Educator"],
+  );
+  await page.getByRole("button", { name: "+ Add Accounts", exact: true }).click();
+  const repeated = page.getByRole("dialog", { name: "Account Creation", exact: true });
+  const repeatedChooser = page.waitForEvent("filechooser");
+  await repeated.getByRole("button", { name: "Upload CSV", exact: true }).click();
+  await (
+    await repeatedChooser
+  ).setFiles({
+    name: "mixed-existing.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from("Name,DOB\nCSV Learner,2008-01-02\nCSV Fresh Learner,2009-03-04"),
+  });
+  await repeated.getByText("2 accounts ready to import.", { exact: true }).waitFor();
+  const freshDownload = page.waitForEvent("download");
+  await repeated.getByRole("button", { name: "Save changes", exact: true }).click();
+  const credentialsFile = await freshDownload;
+  const credentialsText = await readFile(await credentialsFile.path(), "utf8");
+  assert.ok(credentialsText.includes('"CSV Fresh Learner"'));
+  assert.ok(
+    !credentialsText.includes('"CSV Learner"'),
+    "Skipped accounts must not receive new credentials",
+  );
+  await repeated.waitFor({ state: "detached" });
+  await page
+    .getByRole("button", { name: "View account for CSV Fresh Learner", exact: true })
+    .waitFor();
   const storage = await page.evaluate(() =>
     JSON.stringify({ local: { ...localStorage }, session: { ...sessionStorage } }),
   );
   assert.ok(!storage.includes("password1") && !storage.includes("password2"));
+  for (const value of batch[0].body) assert.ok(!storage.includes(value.initialPassword));
   assert.deepEqual(errors, []);
   console.log(
     "Account directory browser checks passed: create, override, errors, reload, filters, lifecycle, mobile, return navigation, failed-load recovery and sound.",

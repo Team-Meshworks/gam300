@@ -6,6 +6,7 @@
 @import "@fontsource/inter/latin-700.css";
 
 :root {
+  --sp-search-edge: #fff;
   --sp-font: "Inter", sans-serif;
   --sp-button-primary-ink: #fff;
   --sp-avatar-surface: #ede4d8;
@@ -316,6 +317,10 @@ h3 + .sp-hint {
   padding: 0 16px;
   min-height: 45px;
   border-radius: 30px;
+  border: 1px solid var(--sp-search-edge);
+  outline: 1px solid var(--sp-search-edge);
+  outline-offset: 0;
+  background-clip: padding-box;
   background: rgb(204 186 168 / 0.1);
   min-width: 0;
 }
@@ -627,9 +632,9 @@ dialog.sp-dialog > button.sp-button.sp-dialog-dismiss.sp-close-button > svg {
 }
 .sp-dialog.sp-project-moderation-dialog .sp-actions > .sp-button > .sp-button-label,
 .sp-dialog .sp-actions.sp-confirmation-actions > .sp-button > .sp-button-label {
-  text-box-trim: none;
+  text-box-trim: trim-both;
+  text-box-edge: cap alphabetic;
   line-height: 18px;
-  transform: translateY(1px);
 }
 
 .sp-dialog .sp-actions.sp-confirmation-actions {

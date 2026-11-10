@@ -1,7 +1,15 @@
-/* Hallmark · existing Spatia system · admin dashboard.pdf pages 3–5 · scope: app */
 /* Restore the approved panel surfaces while retaining project cards, routes and actions */
 :root {
   --admin-panel: #f7f7f7;
+  --admin-search-border: 1px solid var(--sp-search-edge);
+  --admin-search-shadow: 0 0 0 1px #fff, inset 0 3px 7px rgb(0 0 0 / 7%);
+  --admin-person-row-gap: 24px;
+  --admin-search-tabs-gap: 20px;
+  --admin-tabs-bottom-padding: 12px;
+  --admin-roster-header-height: 134px;
+  --admin-scroll-thumb: #8f8981;
+  --admin-scroll-track: transparent;
+  --admin-scroll-hover: #6f6961;
   --admin-panel-shadow: inset 4px 5px 14px rgb(57 43 29 / 4%);
   --admin-organisation-card-paper: #fff;
   --admin-panel-tint: transparent;
@@ -424,7 +432,8 @@
   background: var(--admin-progress-background);
 }
 .admin-progress-controls {
-  padding: 20px 20px 6px;
+  min-height: var(--admin-roster-header-height);
+  padding: 20px 20px var(--admin-tabs-bottom-padding);
   border-bottom: 1px solid var(--sp-border);
 }
 .admin-progress-controls .sp-search {
@@ -432,7 +441,7 @@
   width: 100%;
 }
 .admin-progress-controls .sp-tabs {
-  margin-top: 29px;
+  margin-top: var(--admin-search-tabs-gap);
   gap: 20px;
   overflow-x: auto;
 }
@@ -450,7 +459,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) 148px;
   align-items: start;
-  row-gap: 28px;
+  row-gap: var(--admin-person-row-gap);
   column-gap: 14px;
   align-content: start;
   min-height: 0;
@@ -492,6 +501,7 @@
   overflow-wrap: anywhere;
 }
 .admin-student-status {
+  align-self: center;
   justify-self: end;
   width: 124px;
   max-width: 148px;
@@ -794,11 +804,12 @@
   height: 45px;
   min-height: 45px;
   padding: 0 22px;
-  border: 1px solid rgb(255 255 255 / 90%);
+  border: var(--admin-search-border);
+  background-clip: padding-box;
   background-color: transparent;
   background-image: linear-gradient(rgb(239 239 239 / 45%), rgb(245 245 245 / 45%) 55%);
   background-size: 100% 100%;
-  box-shadow: inset 0 3px 7px rgb(0 0 0 / 7%);
+  box-shadow: var(--admin-search-shadow);
 }
 .admin-dashboard .sp-search input {
   position: relative;
@@ -1021,4 +1032,46 @@
 .admin-add-organisation-dialog > h2 {
   text-box-trim: trim-start;
   text-box-edge: cap alphabetic;
+}
+
+:is(.admin-progress-list, .sp-directory--administration .sp-account-rows) {
+  scrollbar-width: thin;
+  scrollbar-color: var(--admin-scroll-thumb) var(--admin-scroll-track);
+}
+:is(.admin-progress-list, .sp-directory--administration .sp-account-rows)::-webkit-scrollbar {
+  width: 6px;
+}
+:is(.admin-progress-list, .sp-directory--administration .sp-account-rows)::-webkit-scrollbar-track {
+  background: var(--admin-scroll-track);
+}
+:is(.admin-progress-list, .sp-directory--administration .sp-account-rows)::-webkit-scrollbar-thumb {
+  background: var(--admin-scroll-thumb);
+  border: 0;
+  border-radius: 999px;
+}
+:is(
+  .admin-progress-list,
+  .sp-directory--administration .sp-account-rows
+)::-webkit-scrollbar-button {
+  display: none;
+  height: 0;
+}
+
+:is(
+    .admin-progress-list,
+    .sp-directory--administration .sp-account-rows
+  )::-webkit-scrollbar-thumb:hover {
+  background: var(--admin-scroll-hover);
+}
+@supports selector(::-webkit-scrollbar) {
+  :is(.admin-progress-list, .sp-directory--administration .sp-account-rows) {
+    scrollbar-width: auto;
+    scrollbar-color: auto;
+  }
+}
+
+
+:is(.admin-progress-list, .sp-directory--administration .sp-account-rows) {
+  border: solid transparent;
+  border-width: 0 6px 6px 0;
 }

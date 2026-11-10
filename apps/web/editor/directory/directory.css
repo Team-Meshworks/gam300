@@ -228,7 +228,7 @@
   right: auto;
   margin-inline: 0;
   transform: translateX(-50%);
-  padding: 23px 23px 21px;
+  padding: 23px 31px 29px;
   border: 1px solid var(--account-border);
   border-radius: 20px;
   background: var(--account-surface);
@@ -237,7 +237,7 @@
   translate: 0 -12px;
 }
 .sp-account-dialog .sp-dialog-body {
-  margin: 6px 0 0;
+  margin: 2px 0 0;
   gap: 0;
 }
 .sp-account-dialog h2 {
@@ -252,7 +252,7 @@
 }
 .sp-account-dialog .sp-dialog-dismiss {
   position: absolute;
-  right: 23px;
+  right: 31px;
   top: 21px;
   border: 0;
   padding: 0;
@@ -326,7 +326,7 @@
   font-size: 15px;
   font-weight: 600;
   line-height: 22px;
-  margin-bottom: 14px;
+  margin-bottom: 10px;
   padding: 0;
 }
 .sp-credential-grid {
@@ -335,7 +335,7 @@
   gap: 16px;
 }
 .sp-credential-grid .sp-field {
-  gap: 4px;
+  gap: 8px;
 }
 .sp-credential-grid .sp-field > label {
   color: #475467;
@@ -523,14 +523,14 @@
 }
 @media (max-width: 640px) {
   .sp-account-dialog.sp-dialog {
-    padding: 24px 18px;
+    padding: 24px 24px 32px;
   }
   .sp-account-dialog h2 {
     font-size: 20px;
   }
   .sp-account-dialog .sp-dialog-dismiss {
     top: 22px;
-    right: 18px;
+    right: 24px;
   }
   .sp-credential-grid {
     grid-template-columns: minmax(0, 1fr);
@@ -892,7 +892,7 @@
   font-weight: 600;
 }
 .sp-directory--administration .sp-account-row .sp-person-name small {
-  margin-top: 4px;
+  margin-top: 0;
   font-size: 12px;
 }
 .sp-directory--administration .sp-account-row-bottom {
@@ -1105,11 +1105,12 @@
   height: 45px;
   min-height: 45px;
   padding: 0 22px;
-  border: 1px solid rgb(255 255 255 / 90%);
+  border: var(--admin-search-border);
+  background-clip: padding-box;
   background-color: transparent;
   background-image: linear-gradient(rgb(239 239 239 / 45%), rgb(245 245 245 / 45%) 55%);
   background-size: 100% 100%;
-  box-shadow: inset 0 3px 7px rgb(0 0 0 / 7%);
+  box-shadow: var(--admin-search-shadow);
 }
 .sp-directory--administration .sp-search input,
 .sp-directory--administration .sp-organization-detail .sp-search input {
@@ -1166,7 +1167,7 @@
   background: #ddd7cf;
 }
 .sp-shell--dashboard:has(.sp-directory--administration)
-  .sp-dialog:has(.sp-actions):not(.sp-account-dialog) {
+  .sp-dialog:has(.sp-actions):not(.sp-account-dialog):not(.sp-account-confirmation) {
   width: min(480px, calc(100% - 32px));
   padding: 24px;
 }
@@ -1232,8 +1233,8 @@
   border-radius: 16px;
 }
 .sp-directory--administration .sp-account-list-header {
-  padding: 20px 20px 6px;
-  gap: 29px;
+  padding: 20px 20px var(--admin-tabs-bottom-padding);
+  gap: var(--admin-search-tabs-gap);
   border-bottom: 1px solid var(--sp-border);
 }
 .sp-directory--administration .sp-account-list-toolbar {
@@ -1259,7 +1260,7 @@
 }
 .sp-directory--administration .sp-account-row {
   grid-template-columns: minmax(0, 1fr) 148px;
-  row-gap: 28px;
+  row-gap: var(--admin-person-row-gap);
   column-gap: 14px;
   align-content: start;
   padding: 20px 24px;
@@ -1273,6 +1274,7 @@
   font-weight: 700;
 }
 .sp-directory--administration .sp-account-row-metadata {
+  align-self: center;
   justify-self: end;
   width: 124px;
   gap: 10px;
@@ -1384,4 +1386,83 @@
 .sp-account-dialog .sp-csv-action > svg {
   width: 16px;
   height: 16px;
+}
+.sp-csv-tooltip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  pointer-events: none;
+  right: 0;
+  z-index: 10;
+  width: 240px;
+  max-width: calc(100dvw - 80px);
+  padding: 10px 12px;
+  border: 1px solid var(--account-border);
+  border-radius: 10px;
+  background: var(--account-surface);
+  box-shadow: var(--account-shadow);
+  color: var(--account-ink);
+  font: 400 12px/18px var(--sp-font);
+}
+.sp-csv-tooltip[hidden] {
+  display: none;
+}
+.sp-credentials-heading .sp-csv-action {
+  min-height: 22px;
+}
+
+.sp-account-notes {
+  position: relative;
+}
+.sp-account-note-copy.is-imported {
+  visibility: hidden;
+}
+.sp-account-import-ready {
+  position: absolute;
+  inset: 0;
+}
+.sp-account-import-ready > .sp-hint:first-child {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--account-active-ink);
+}
+.sp-account-import-ready svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+
+.sp-account-notes .sp-account-error {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  overflow: auto;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+@media (min-width: 1051px) {
+  .sp-directory--administration .sp-organization-detail {
+    grid-template-rows: minmax(var(--admin-roster-header-height), max-content) minmax(0, 1fr);
+  }
+  .sp-directory--administration .sp-organization-detail-left,
+  .sp-directory--administration .sp-organization-detail > .sp-account-list {
+    grid-row: 1 / span 2;
+    display: grid;
+    grid-template-rows: subgrid;
+  }
+  .sp-directory--administration .sp-organization-detail-left {
+    grid-column: 1;
+  }
+  .sp-directory--administration .sp-organization-detail > .sp-account-list {
+    grid-column: 2;
+  }
+}
+
+.sp-dialog.sp-account-confirmation .sp-confirmation-actions {
+  margin-top: 8px;
+}
+
+.sp-dialog.sp-account-confirmation {
+  width: min(400px, calc(100% - 32px));
 }
