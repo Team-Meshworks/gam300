@@ -1451,6 +1451,9 @@
     display: grid;
     grid-template-rows: subgrid;
   }
+  .sp-directory--administration .sp-organization-detail > .sp-account-list {
+    row-gap: 0;
+  }
   .sp-directory--administration .sp-organization-detail-left {
     grid-column: 1;
   }
@@ -1465,4 +1468,137 @@
 
 .sp-dialog.sp-account-confirmation {
   width: min(400px, calc(100% - 32px));
+}
+
+:root {
+  --account-selection-ink: var(--sp-ink);
+  --account-selection-border: #b1aaa2;
+  --account-selection-paper: var(--sp-surface);
+  --account-selection-on: #fff;
+  --account-selection-fill: rgb(51 46 42 / 4%);
+  --account-selection-danger: var(--admin-moderation-danger-ink);
+}
+.sp-directory--administration .sp-account-selection {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 48px;
+  padding: 8px 24px;
+  border-bottom: 1px solid var(--sp-border);
+  color: var(--sp-muted);
+  font: 500 15px/20px var(--sp-font);
+}
+.sp-account-selection label {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  gap: 12px;
+  cursor: pointer;
+}
+.sp-account-selection input,
+.sp-account-select-row {
+  appearance: none;
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  border: 1px solid var(--account-selection-border);
+  border-radius: 4px;
+  background: var(--account-selection-paper);
+  cursor: pointer;
+}
+:is(.sp-account-selection input, .sp-account-select-row):is(:checked, :indeterminate) {
+  border-color: var(--account-selection-ink);
+  background: var(--account-selection-ink);
+}
+:is(.sp-account-selection input, .sp-account-select-row):checked::after {
+  content: "";
+  width: 7px;
+  height: 4px;
+  margin-top: -2px;
+  border: solid var(--account-selection-on);
+  border-width: 0 0 1.5px 1.5px;
+  transform: rotate(-45deg);
+}
+.sp-account-selection input:indeterminate::after {
+  content: "";
+  width: 8px;
+  height: 1.5px;
+  background: var(--account-selection-on);
+}
+:is(.sp-account-selection input, .sp-account-select-row):focus-visible {
+  outline: 2px solid var(--sp-focus);
+  outline-offset: 3px;
+}
+.sp-directory--administration .sp-account-row--selectable {
+  grid-template-columns: 16px minmax(0, 1fr) 148px;
+  column-gap: 12px;
+}
+.sp-account-selection-check {
+  display: grid;
+  align-items: center;
+  min-height: 32px;
+  grid-column: 1;
+  grid-row: 1;
+  align-self: center;
+  cursor: pointer;
+}
+.sp-directory--administration
+  .sp-account-row--selectable
+  :is(.sp-account-row-top, .sp-account-row-bottom) {
+  grid-column: 2;
+}
+.sp-directory--administration .sp-account-row--selectable .sp-account-row-metadata {
+  grid-column: 3;
+}
+.sp-directory--administration .sp-account-row--selectable.is-selected {
+  background: var(--account-selection-fill);
+}
+@media (max-width: 520px) {
+  .sp-directory--administration .sp-account-selection {
+    padding-inline: 15px;
+  }
+  .sp-directory--administration .sp-account-row--selectable {
+    grid-template-columns: 16px minmax(0, 1fr);
+  }
+  .sp-directory--administration .sp-account-row--selectable .sp-account-row-metadata {
+    grid-column: 2;
+    grid-row: 3;
+  }
+}
+
+.sp-account-toolbar-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-left: auto;
+  flex: none;
+}
+.sp-directory--administration .sp-account-toolbar-actions > .sp-button--primary {
+  min-height: 32px;
+  height: 32px;
+  padding: 0 14px;
+  font: 500 15px/20px var(--sp-font);
+}
+.sp-directory--administration .sp-account-toolbar-actions > .sp-account-select-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 28px;
+  width: 28px;
+  min-width: 28px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--sp-muted);
+  font: 500 12px/18px var(--sp-font);
+  white-space: nowrap;
 }

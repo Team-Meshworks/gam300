@@ -13,6 +13,57 @@ namespace Spatia.Server.Tests;
 public sealed class AccountDirectoryTests
 {
     [Test]
+    public async Task BulkStudentDeletion_IsAtomicAndRestrictedToCreatorsInOneOrganisation()
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync();
+        var administrator = await fixture.CreateAccountAsync(ApplicationRoles.Administrator);
+        var first = await fixture.CreateAccountAsync();
+        var second = await fixture.CreateAccountAsync();
+        var educator = await fixture.CreateAccountAsync(ApplicationRoles.Educator);
+        var outsider = await fixture.CreateAccountAsync();
+        await fixture.SignInAsync(administrator);
+        Guid orgId;
+        string stamp;
+        string username;
+        await using (var scope = fixture.Database.Services.CreateAsyncScope())
+        {
+            var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            orgId = await database.OrganizationMemberships.Where(row => row.UserId == first)
+                .Select(row => row.OrganizationId).SingleAsync();
+            await database.OrganizationMemberships.Where(row => row.UserId == second || row.UserId == educator)
+                .ExecuteUpdateAsync(set => set.SetProperty(row => row.OrganizationId, orgId));
+            var user = await database.Users.SingleAsync(row => row.Id == first);
+            stamp = user.SecurityStamp!;
+            username = user.UserName!;
+        }
+        var path = $"/api/v1/admin/organizations/{orgId:D}/students/delete";
+        foreach (var invalid in new[] { new[] { first, educator }, new[] { first, outsider }, Array.Empty<Guid>() })
+        {
+            using var response = await AuthTestRequests.PostAsync(fixture, path, new { userIds = invalid });
+            await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
+        }
+        await using (var scope = fixture.Database.Services.CreateAsyncScope())
+        {
+            var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            await Assert.That(await database.Users.AnyAsync(row => row.Id == first && row.IsDeleted)).IsFalse();
+        }
+        using var deleted = await AuthTestRequests.PostAsync(fixture, path, new { userIds = new[] { first, second } });
+        await Assert.That(deleted.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
+        using var repeated = await AuthTestRequests.PostAsync(fixture, path, new { userIds = new[] { first, second } });
+        await Assert.That(repeated.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
+        await using (var scope = fixture.Database.Services.CreateAsyncScope())
+        {
+            var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var retained = await database.Users.SingleAsync(row => row.Id == first);
+            await Assert.That(retained.IsDeleted && !retained.IsActive).IsTrue();
+            await Assert.That(retained.SecurityStamp == stamp).IsFalse();
+            await Assert.That(retained.UserName).IsEqualTo(username);
+            await Assert.That(await database.Users.AnyAsync(row => row.Id == second && row.IsDeleted)).IsTrue();
+            await Assert.That(await database.Users.AnyAsync(row => (row.Id == educator || row.Id == outsider) && row.IsDeleted)).IsFalse();
+        }
+    }
+
+    [Test]
     public async Task Directory_ReadsReturnOnlyPublicFieldsAndPersistedInactiveRecords()
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync();
@@ -252,6 +303,8 @@ public sealed class AccountDirectoryTests
         }
         using var deletion = await DeleteAsync(fixture, target);
         await Assert.That((int)deletion.StatusCode).IsEqualTo(status);
+        using var bulk = await AuthTestRequests.PostAsync(fixture, $"/api/v1/admin/organizations/{Guid.NewGuid():D}/students/delete", new { userIds = new[] { target } });
+        await Assert.That((int)bulk.StatusCode).IsEqualTo(status);
     }
 
     private static async Task<HttpResponseMessage> DeleteAsync(HttpsApplicationFixture fixture, Guid id)
