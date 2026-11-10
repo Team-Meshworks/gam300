@@ -14,6 +14,7 @@ import { ProjectGrantEditor } from "./ProjectGrantEditor";
 import { ProjectCreation } from "./ProjectCreation";
 import type { FormNavigationState } from "../projects/NewProjectForm";
 import defaultProjectImage from "./assets/default-project-neutral.jpg";
+import { projectCover } from "./dashboard";
 
 const api = createWorkspaceClient();
 const accounts = createAccountClient();
@@ -154,9 +155,7 @@ export function ProjectHome({
           value={search}
           onChange={setSearch}
           placeholder="Search projects"
-          icon={
-            session.role === "Administrator" ? undefined : <Icon icon={searchIcon} width={18} />
-          }
+          icon={session.role === "Educator" ? <Icon icon={searchIcon} width={18} /> : undefined}
         />
         <Button onClick={() => setVersion((value) => value + 1)}>Refresh</Button>
       </div>
@@ -182,7 +181,15 @@ export function ProjectHome({
           <ul className="sp-home-project-list">
             {items.map((project) => (
               <li key={project.projectId} className="sp-home-project-card">
-                <img className="sp-home-project-cover" src={defaultProjectImage} alt="" />
+                <img
+                  className="sp-home-project-cover"
+                  src={
+                    session.role === "Creator"
+                      ? (project.image?.url ?? projectCover(project.title))
+                      : defaultProjectImage
+                  }
+                  alt=""
+                />
                 <div className="sp-home-project-copy">
                   <h2>{project.title}</h2>
                   <p className="sp-muted">Updated {new Date(project.updatedAt).toLocaleString()}</p>
@@ -266,6 +273,9 @@ export function ProjectHome({
       )}
       {action && active && (
         <Dialog
+          {...(session.role === "Creator" ? { variant: "admin" as const } : {})}
+          className={session.role === "Creator" ? "sp-creator-project-dialog" : ""}
+          closeDisabled={phase === "pending"}
           title={
             action.kind === "duplicate"
               ? "Duplicate project"

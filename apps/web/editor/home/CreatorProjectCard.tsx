@@ -146,8 +146,52 @@ export function CreatorProjectCard({
               type="button"
               className="sp-published-qr"
               aria-label={`Show QR code for ${project.title}`}
+              onClick={() => setQrOpen(true)}
+            >
+              <Icon icon={qrCode} width={24} aria-hidden="true" />
+            </button>
+          </div>
+          {qrOpen && (
+            <dialog
+              ref={qrDialog}
+              className="sp-dialog sp-creator-qr-dialog"
+              aria-label="QR code"
+              onCancel={(event) => {
+                event.preventDefault();
+                setQrOpen(false);
+              }}
+              onClick={(event) => {
+                if (event.target !== event.currentTarget) return;
+                // Backdrop clicks target the dialog too; keep clicks inside its padding harmless
+                const bounds = event.currentTarget.getBoundingClientRect();
+                if (
+                  event.clientX < bounds.left ||
+                  event.clientX > bounds.right ||
+                  event.clientY < bounds.top ||
+                  event.clientY > bounds.bottom
+                )
+                  setQrOpen(false);
+              }}
+            >
+              <div className="sp-dialog-body">
+                <QRCodeSVG
+                  value={publication.visitorUrl}
+                  size={208}
+                  marginSize={4}
+                  level="M"
+                  role="img"
+                  aria-label={`QR code for ${project.title}`}
+                />
+              </div>
+            </dialog>
+          )}
+          <div className="sp-published-copy">
+            <Button variant="primary" onClick={() => void copy()}>
+              Copy
+            </Button>
+            <span role="status">{copyMessage}</span>
+          </div>
           {publication.requiresSignIn && <small>Only permitted viewers can open this link.</small>}
-          <span role="status">{copyMessage}</span>
         </div>
       ) : (
         <dl className="sp-student-metadata">
@@ -172,23 +216,7 @@ export function CreatorProjectCard({
           <div>
             <dt>Approval status</dt>
             <dd>
-              {state ? (
-                <span className="sp-approval" data-state={state}>
-                  <Icon
-                    icon={state === "approved" ? check : state === "pending" ? clock : alert}
-                    width={14}
-                  />
-                  {state === "approved"
-                    ? "Approved"
-                    : state === "pending"
-                      ? "Awaiting Approval"
-                      : "Not Approved"}
-                </span>
-              ) : assignment ? (
-                "Status unavailable"
-              ) : (
-                "No review listed"
-              )}
+              <CreatorApproval row={row} />
             </dd>
           </div>
         </dl>

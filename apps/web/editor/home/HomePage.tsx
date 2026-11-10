@@ -3,15 +3,13 @@ import { WorkspaceAccountGate, type WorkspaceAccess } from "../accounts/Workspac
 import { WorkspaceShell } from "../../shared/ui/WorkspaceShell";
 import { Button } from "../../shared/ui/Button";
 import { Icon } from "@iconify/react/offline";
-import chevronDown from "@iconify-icons/lucide/chevron-down";
-import { DashboardSettings } from "./DashboardSettings";
+import closeIcon from "@iconify-icons/lucide/x";
 import type { RenderWorkspace } from "./dashboard";
-import washLeft from "./assets/ambient-top.svg";
+import washLeft from "../../shared/ui/assets/facilitator-ambient-top.svg";
+import facilitatorWashRight from "../../shared/ui/assets/facilitator-ambient-bottom.svg";
 import washRight from "./assets/ambient-bottom.svg";
-import creatorWashRight from "./assets/ambient-creator.svg";
+import creatorDetailBackground from "./assets/creator-detail-background.webp";
 import { useWorkspaceDeparture } from "../workspace/useWorkspaceDeparture";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faXmark } from "@fortawesome/free-solid-svg-icons";
 import { ProjectHome } from "./ProjectHome";
 import { StudentProjects } from "./StudentProjects";
 import { TeacherProjects } from "./TeacherProjects";
@@ -36,6 +34,10 @@ function HomeWorkspace({ session, active, onSignOut }: WorkspaceAccess) {
         : "denied";
     return "projects";
   });
+  const organisationView =
+    session.role === "Educator" &&
+    view === "classes" &&
+    new URLSearchParams(location.search).get("organisation") === "1";
   const [navigation, setNavigation] = useState<FormNavigationState>({
     dirty: false,
     locked: false,
@@ -47,9 +49,9 @@ function HomeWorkspace({ session, active, onSignOut }: WorkspaceAccess) {
     dirty: navigation.dirty,
     pending: navigation.locked,
   });
-  const [manage, setManage] = useState(false);
-  const [listVersion, setListVersion] = useState(0);
-  const [assignmentClassId, setAssignmentClassId] = useState("");
+  const [assignmentClassId, setAssignmentClassId] = useState(
+    () => new URLSearchParams(location.search).get("classId") ?? "",
+  );
   const previousView = useRef(view);
   useEffect(() => {
     if (!navigation.dirty && !navigation.locked) return;
@@ -84,44 +86,25 @@ function HomeWorkspace({ session, active, onSignOut }: WorkspaceAccess) {
         onHome: () => navigate(() => location.assign("/home")),
         onSignOut: () => navigate(onSignOut),
         locked: navigation.locked,
-        actions: dashboard === "creator-projects" && <DashboardSettings />,
       }}
-      variant={dashboard ? (dashboard === "facilitator" ? "facilitator" : "creator") : undefined}
-      appearance={
-        dashboard
-          ? {
-              washLeft,
-              washRight: dashboard === "creator-projects" ? creatorWashRight : washRight,
-            }
-          : undefined
+      variant={
+        dashboard?.startsWith("facilitator") ||
+        organisationView ||
+        (session.role === "Educator" && newProject)
+          ? "facilitator"
+          : dashboard
+            ? "creator"
+            : undefined
       }
-      footer={
-        dashboard && (
-          <footer className="sp-dashboard-tools">
-            {navigationBar}
-            <details
-              open={manage}
-              onToggle={(event) => {
-                const open = event.currentTarget.open;
-                if (manage && !open) setListVersion((value) => value + 1);
-                setManage(open);
-              }}
-            >
-              <summary>
-                Manage projects and archives <Icon icon={chevronDown} width={16} />
-              </summary>
-              {manage && (
-                <ProjectHome
-                  session={session}
-                  active={active}
-                  onOpenProject={openProject}
-                  onNavigationStateChange={setNavigation}
-                  showCreation={session.role === "Creator"}
-                />
-              )}
-            </details>
-          </footer>
-        )
+      appearance={
+        dashboard === "creator-projects" || dashboard === "creator-published"
+          ? { washLeft, washRight: facilitatorWashRight }
+          : dashboard || organisationView || (session.role === "Educator" && newProject)
+            ? {
+                washLeft: session.role === "Educator" ? washLeft : creatorDetailBackground,
+                washRight: session.role === "Educator" ? facilitatorWashRight : washRight,
+              }
+            : undefined
       }
     >
       {session.role === "Administrator" && (
@@ -133,11 +116,12 @@ function HomeWorkspace({ session, active, onSignOut }: WorkspaceAccess) {
             disabled={navigation.locked}
             onClick={() => navigate(() => location.assign("/admin/dashboard"))}
           >
-            <FontAwesomeIcon icon={faXmark} aria-hidden="true" />
+            <Icon icon={closeIcon} aria-hidden="true" />
           </button>
         </div>
       )}
       {!dashboard &&
+        !organisationView &&
         !(session.role === "Educator" && view === "assignment" && newProject) &&
         navigationBar}
       {content}
@@ -145,19 +129,13 @@ function HomeWorkspace({ session, active, onSignOut }: WorkspaceAccess) {
     </WorkspaceShell>
   );
   if (view === "projects" && session.role === "Educator")
-    return (
-      <TeacherProjects
-        session={session}
-        listVersion={listVersion}
-        renderWorkspace={renderWorkspace}
-      />
-    );
+    return <TeacherProjects session={session} listVersion={0} renderWorkspace={renderWorkspace} />;
   if (view === "projects" && session.role === "Creator")
     return (
       <StudentProjects
         session={session}
         active={active}
-        listVersion={listVersion}
+        listVersion={0}
         renderWorkspace={renderWorkspace}
         onOpenProject={openProject}
       />
@@ -180,6 +158,18 @@ function HomeWorkspace({ session, active, onSignOut }: WorkspaceAccess) {
           setView("assignment");
         }}
         onOpenProject={openProject}
+        onClose={() =>
+          navigate(() => {
+            const params = new URLSearchParams(location.search);
+            const classId = params.get("classId");
+            const assignmentId = params.get("assignmentId");
+            location.assign(
+              classId && assignmentId
+                ? `/home?${new URLSearchParams({ classId, assignmentId })}`
+                : "/home",
+            );
+          })
+        }
       />
     ) : view === "denied" ? (
       <h1>Access denied</h1>
@@ -196,14 +186,24 @@ function HomeWorkspace({ session, active, onSignOut }: WorkspaceAccess) {
           </div>
           {newProject && (
             <Button
+              className="sp-close-button"
               aria-label="Close new project"
               onClick={() => navigate(() => location.assign("/home"))}
             >
-              ×
+              <Icon icon={closeIcon} aria-hidden="true" />
             </Button>
           )}
         </div>
         <AssignmentCreationScreen
+          {...(newProject
+            ? {
+                onCreated: () => {
+                  history.replaceState(null, "", "/home");
+                  setNewProject(false);
+                  setView("projects");
+                },
+              }
+            : {})}
           expectedUserId={session.userId}
           createBlank={session.role === "Educator"}
           initialClassId={assignmentClassId}

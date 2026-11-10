@@ -9,15 +9,25 @@ export function DashboardSkeleton({ view }: { view: "facilitator" | "creator" | 
       </span>
       <div aria-hidden="true" className={grid ? "sp-teacher-grid" : "sp-student-list"}>
         {Array.from({ length: view === "published" ? 1 : 2 }, (_, index) => (
-          <div key={index} className={grid ? "sp-teacher-card" : "sp-student-card"}>
+          <div
+            key={index}
+            className={
+              grid
+                ? "sp-teacher-card"
+                : view === "published"
+                  ? "sp-student-card sp-student-card--published"
+                  : "sp-student-card"
+            }
+          >
             <SkeletonBox
               className={grid ? "sp-teacher-card-cover" : "sp-student-card-image"}
-              radius={grid ? 0 : 16}
+              {...(!grid ? { width: "100%", height: 126 } : {})}
+              radius={grid ? 0 : 12}
             />
             <div className="sp-skeleton-copy">
-              <SkeletonBox width="74%" height={grid ? 18 : 26} radius={5} />
+              <SkeletonBox width="74%" height={grid ? 18 : 21} radius={5} />
               <SkeletonBox width="90%" height={14} radius={4} />
-              <SkeletonBox width={grid ? 110 : 157} height={40} radius={20} />
+              <SkeletonBox width={grid ? 110 : 134} height={grid ? 40 : 36} radius={20} />
             </div>
             {!grid && (
               <div className="sp-student-metadata">
