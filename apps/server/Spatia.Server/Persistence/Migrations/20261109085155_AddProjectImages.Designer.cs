@@ -848,3 +848,293 @@ namespace Spatia.Server.Persistence.Migrations
 
                     b.ToTable("project_save_receipts", null, t =>
                         {
+                            t.HasCheckConstraint("CK_project_save_receipts_digest", "octet_length(request_digest) = 32");
+
+                            t.HasCheckConstraint("CK_project_save_receipts_revision", "expected_revision BETWEEN 0 AND 9007199254740990 AND revision = expected_revision + 1");
+
+                            t.HasCheckConstraint("CK_project_save_receipts_saved_at", "isfinite(saved_at)");
+                        });
+                });
+
+            modelBuilder.Entity("Spatia.Server.Publications.Publication", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AssetReferencesJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("asset_references");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("statement_timestamp()");
+
+                    b.Property<string>("DocumentJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("document");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
+                    b.Property<Guid>("PublishedById")
+                        .HasColumnType("uuid")
+                        .HasColumnName("published_by_id");
+
+                    b.Property<byte[]>("RequestDigest")
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("request_digest");
+
+                    b.Property<int>("SchemaVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("schema_version");
+
+                    b.Property<long>("SourceRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("source_revision");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PublishedById");
+
+                    b.HasIndex("ProjectId", "SourceRevision");
+
+                    b.ToTable("publications", null, t =>
+                        {
+                            t.HasTrigger("TR_publications_immutable");
+
+                            t.HasCheckConstraint("CK_publications_asset_references", "publication_asset_references_valid(asset_references) IS TRUE");
+
+                            t.HasCheckConstraint("CK_publications_created_at", "isfinite(created_at)");
+
+                            t.HasCheckConstraint("CK_publications_document", "(\n    jsonb_typeof(document) = 'object'\n    AND jsonb_typeof(document -> 'projectId') = 'string'\n    AND lower(document ->> 'projectId') = project_id::text\n    AND jsonb_typeof(document -> 'schemaVersion') = 'number'\n    AND document -> 'schemaVersion' = to_jsonb(schema_version)\n) IS TRUE");
+
+                            t.HasCheckConstraint("CK_publications_id", "id <> '00000000-0000-0000-0000-000000000000'::uuid");
+
+                            t.HasCheckConstraint("CK_publications_request_digest", "octet_length(request_digest) = 32");
+
+                            t.HasCheckConstraint("CK_publications_schema_version", "schema_version > 0");
+
+                            t.HasCheckConstraint("CK_publications_source_revision", "source_revision BETWEEN 0 AND 9007199254740991");
+                        });
+                });
+
+            modelBuilder.Entity("Spatia.Server.Publications.PublicationAccessState", b =>
+                {
+                    b.Property<Guid>("PublicationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Audience")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("Deleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("Hidden")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("Revoked")
+                        .HasColumnType("boolean");
+
+                    b.PrimitiveCollection<Guid[]>("ViewerIds")
+                        .IsRequired()
+                        .HasColumnType("uuid[]");
+
+                    b.HasKey("PublicationId");
+
+                    b.ToTable("publication_access", (string)null);
+                });
+
+            modelBuilder.Entity("Spatia.Server.Reviews.ProgressReview", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("statement_timestamp()");
+
+                    b.Property<Guid>("EducatorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("educator_id");
+
+                    b.Property<string>("Feedback")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("feedback");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
+                    b.Property<long>("Revision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("revision");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EducatorId");
+
+                    b.HasIndex("ProjectId", "Id");
+
+                    b.ToTable("progress_reviews", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_progress_reviews_feedback", "length(feedback) BETWEEN 1 AND 4000");
+
+                            t.HasCheckConstraint("CK_progress_reviews_revision", "revision BETWEEN 0 AND 9007199254740991");
+                        });
+                });
+
+            modelBuilder.Entity("Spatia.Server.Reviews.ReviewDecision", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("DecidedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("decided_at")
+                        .HasDefaultValueSql("statement_timestamp()");
+
+                    b.Property<Guid>("EducatorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("educator_id");
+
+                    b.Property<string>("Feedback")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("feedback");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("outcome");
+
+                    b.Property<byte[]>("RequestDigest")
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("request_digest");
+
+                    b.Property<long>("Sequence")
+                        .HasColumnType("bigint")
+                        .HasColumnName("sequence");
+
+                    b.Property<Guid>("SubmissionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("submission_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EducatorId");
+
+                    b.HasIndex("SubmissionId", "Sequence")
+                        .IsUnique();
+
+                    b.ToTable("review_decisions", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_review_decisions_digest", "octet_length(request_digest) = 32");
+
+                            t.HasCheckConstraint("CK_review_decisions_feedback", "length(feedback) <= 4000");
+
+                            t.HasCheckConstraint("CK_review_decisions_id", "id <> '00000000-0000-0000-0000-000000000000'::uuid");
+
+                            t.HasCheckConstraint("CK_review_decisions_outcome", "outcome IN ('approved', 'returned', 'revoked')");
+
+                            t.HasCheckConstraint("CK_review_decisions_sequence", "sequence > 0");
+
+                            t.HasCheckConstraint("CK_review_decisions_timestamp", "isfinite(decided_at)");
+                        });
+                });
+
+            modelBuilder.Entity("Spatia.Server.Reviews.ReviewSubmission", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AssetReferencesJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("asset_references");
+
+                    b.Property<bool>("CompletionConfirmed")
+                        .HasColumnType("boolean")
+                        .HasColumnName("completion_confirmed");
+
+                    b.Property<string>("DocumentJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("document");
+
+                    b.Property<long>("DueAtUnixSeconds")
+                        .HasColumnType("bigint")
+                        .HasColumnName("due_at_unix_seconds");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
+                    b.Property<byte[]>("RequestDigest")
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("request_digest");
+
+                    b.Property<int>("SchemaVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("schema_version");
+
+                    b.Property<long>("Sequence")
+                        .HasColumnType("bigint")
+                        .HasColumnName("sequence");
+
+                    b.Property<long>("SourceRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("source_revision");
+
+                    b.Property<Guid>("StudentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("student_id");
+
+                    b.Property<DateTimeOffset>("SubmittedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("submitted_at")
+                        .HasDefaultValueSql("statement_timestamp()");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId", "Sequence")
+                        .IsUnique();
+
+                    b.HasIndex("ProjectId", "StudentId");
+
+                    b.ToTable("review_submissions", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_review_submissions_assets", "review_asset_references_valid(asset_references) IS TRUE");
+
+                            t.HasCheckConstraint("CK_review_submissions_completion", "completion_confirmed IS TRUE");
+
+                            t.HasCheckConstraint("CK_review_submissions_digest", "octet_length(request_digest) = 32");
+
+                            t.HasCheckConstraint("CK_review_submissions_document", "(jsonb_typeof(document) = 'object' AND jsonb_typeof(document -> 'projectId') = 'string'\nAND lower(document ->> 'projectId') = project_id::text\nAND jsonb_typeof(document -> 'schemaVersion') = 'number'\nAND document -> 'schemaVersion' = to_jsonb(schema_version)) IS TRUE");
+
+                            t.HasCheckConstraint("CK_review_submissions_due", "due_at_unix_seconds BETWEEN -62135596800 AND 253402300799");
+
+                            t.HasCheckConstraint("CK_review_submissions_id", "id <> '00000000-0000-0000-0000-000000000000'::uuid");
+
