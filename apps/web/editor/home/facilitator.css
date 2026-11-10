@@ -1408,3 +1408,293 @@ html:has(.sp-shell--facilitator) {
   border: 0;
   border-radius: 0;
   background: transparent;
+}
+.sp-organisation-view .sp-class-assignments h2 {
+  margin-bottom: 16px;
+}
+.sp-shell--facilitator .sp-teacher-card .sp-button {
+  width: auto;
+  height: 36px;
+  min-height: 36px;
+  padding: 0 16px;
+  font: 600 12px/16px var(--facilitator-font);
+}
+@media (max-width: 1100px) {
+  .sp-organisation-view .sp-teacher-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 700px) {
+  .sp-organisation-view .sp-teacher-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.sp-shell--facilitator .sp-teacher-assignment-actions > .sp-button {
+  width: 84px;
+  min-width: 0;
+  height: 36px;
+  min-height: 36px;
+  padding: 0;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 400;
+}
+.sp-shell--facilitator .sp-teacher-assignment-actions > .admin-publication-delete {
+  width: 94px;
+  color: var(--facilitator-project-delete-ink);
+  background: var(--facilitator-project-delete-fill);
+  border-color: var(--facilitator-project-delete-edge);
+}
+.sp-shell--facilitator .sp-teacher-assignment-actions > .sp-button svg {
+  width: 16px;
+  height: 16px;
+}
+.sp-shell--facilitator .sp-teacher-student-actions > .sp-button:not(.sp-teacher-review-history) {
+  width: auto;
+  min-width: 0;
+  height: 30px;
+  min-height: 30px;
+  padding: 0 12px;
+  font-size: 13px;
+  line-height: 18px;
+}
+.sp-shell--facilitator
+  .sp-teacher-student-actions
+  > .sp-button:not(.sp-teacher-review-history)
+  svg {
+  width: 13px;
+  height: 13px;
+}
+
+.sp-shell--facilitator .sp-organisation-view {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+.sp-organisation-view .sp-organisation-identity {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.sp-organisation-identity h2 {
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 28px;
+  overflow-wrap: anywhere;
+}
+.sp-organisation-identity .sp-avatar {
+  width: 40px;
+  height: 40px;
+  font-size: 14px;
+  flex: none;
+}
+.sp-organisation-view > .sp-class-assignments {
+  padding: 24px;
+  border: 1px solid var(--facilitator-edge);
+  border-radius: 20px;
+  background: var(--facilitator-surface);
+}
+.sp-organisation-projects .sp-table th:first-child {
+  width: 45%;
+}
+.sp-organisation-projects .sp-table th:nth-child(2) {
+  width: 25%;
+}
+.sp-organisation-projects .sp-table th:nth-child(3) {
+  width: 30%;
+}
+.sp-organisation-view .sp-table tbody th {
+  font-weight: 500;
+  font-size: 13px;
+}
+.sp-organisation-projects .sp-table .sp-button {
+  height: 30px;
+  min-height: 30px;
+  padding: 0 10px;
+  font-size: 12px;
+  line-height: 18px;
+}
+.sp-organisation-account-hint {
+  margin-top: 16px;
+  color: var(--sp-muted);
+  font-size: 12px;
+  line-height: 18px;
+}
+@media (max-width: 1000px) {
+  .sp-shell--facilitator .sp-organisation-view {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 600px) {
+  .sp-organisation-projects .sp-table tbody td:last-child {
+    justify-self: end;
+  }
+}
+
+.sp-shell--facilitator .sp-teacher-assignment-actions > .sp-button {
+  font-weight: 600;
+}
+.sp-shell--facilitator .sp-teacher-detail .sp-teacher-info {
+  gap: 6px;
+}
+.sp-shell--facilitator .sp-teacher-field-heading {
+  margin-top: 10px;
+}
+.sp-shell--facilitator .sp-teacher-field-heading > .sp-button {
+  height: 28px;
+  min-height: 28px;
+  padding: 0 12px;
+  font-size: 13px;
+  line-height: 18px;
+  gap: 6px;
+}
+
+.sp-shell--facilitator .sp-teacher-students > .sp-tabs {
+  gap: 8px;
+  padding: 10px 16px 12px;
+}
+.sp-shell--facilitator .sp-teacher-students > .sp-tabs button {
+  padding: 6px 8px;
+  min-height: 30px;
+  font-size: 13.5px;
+  line-height: 18px;
+}
+
+@media (max-width: 600px) {
+  .sp-organisation-view .sp-organisation-projects .sp-table tbody th {
+    width: auto;
+    grid-column: 1 / -1;
+  }
+}
+.sp-organisation-dialog fieldset > .sp-button + .sp-button {
+  margin-left: 8px;
+}
+
+.sp-shell--facilitator .sp-teacher-detail .sp-button:hover:not(:disabled, .sp-button--primary) {
+  background: var(--facilitator-control-hover);
+}
+.sp-shell--facilitator
+  .sp-teacher-detail
+  .sp-teacher-assignment-actions
+  > .admin-publication-delete:hover:not(:disabled) {
+  background: var(--facilitator-project-delete-hover);
+}
+.sp-shell--facilitator .sp-teacher-detail .sp-close-button:hover:not(:disabled) {
+  background: var(--facilitator-close-hover);
+}
+
+.sp-shell--facilitator .sp-teacher-students-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 112px;
+  margin: 0;
+  padding: 24px;
+  color: var(--sp-muted);
+  font-size: 13px;
+  line-height: 20px;
+  text-align: center;
+}
+
+.sp-shell--facilitator .sp-cover-picker [role="alert"] {
+  color: var(--facilitator-returned);
+}
+.sp-shell--facilitator .sp-project-edit-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sp-shell--facilitator .sp-project-edit-hint > span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+}
+.sp-shell--facilitator .sp-project-edit-hint svg {
+  display: block;
+  flex: none;
+}
+.sp-shell--facilitator .sp-students .sp-list-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 112px;
+  margin: 0;
+  padding: 24px;
+  color: var(--sp-muted);
+  font-size: 13px;
+  line-height: 20px;
+  text-align: center;
+}
+
+.sp-shell--facilitator .sp-teacher-toolbar .sp-tabs {
+  gap: 32px;
+}
+.sp-shell--facilitator .sp-teacher-toolbar .sp-tabs button,
+.sp-shell--facilitator .sp-teacher-projects .sp-new-project {
+  font-size: 14.5px;
+  line-height: 20px;
+}
+
+.sp-shell--facilitator .sp-teacher-new-project .sp-image-options :is(label, .sp-gallery-button) {
+  height: 40px;
+  min-height: 40px;
+  padding: 0 12px;
+}
+.sp-shell--facilitator .sp-teacher-new-project .sp-image-options svg {
+  width: 20px;
+  height: 20px;
+}
+
+.sp-shell--facilitator
+  .sp-teacher-new-project
+  :is(
+    #project-title,
+    #project-due,
+    .sp-project-class > button,
+    .sp-image-options label,
+    .sp-gallery-button
+  ) {
+  box-sizing: border-box;
+  height: 44px;
+  min-height: 44px;
+  padding-block: 0;
+}
+.sp-shell--facilitator .sp-students:has(.sp-list-empty) .sp-students-header {
+  padding-bottom: 0;
+}
+.sp-shell--facilitator .sp-students .sp-list-empty {
+  min-height: 132px;
+}
+
+.sp-shell--facilitator .sp-image-options label[data-active="false"] {
+  font-weight: 400;
+}
+.sp-shell--facilitator .sp-image-options .sp-gallery-button[aria-pressed="true"] {
+  font-weight: 600;
+}
+
+.sp-shell--facilitator .sp-search svg,
+.sp-shell--facilitator .sp-teacher-heading .sp-search svg {
+  width: 24px;
+  height: 24px;
+}
+
+.sp-shell--facilitator > .sp-wash {
+  z-index: 1;
+}
+.sp-shell--facilitator > .sp-account-header,
+.sp-shell--facilitator .sp-teacher-detail-head,
+.sp-shell--facilitator .sp-teacher-info > *,
+.sp-shell--facilitator .sp-teacher-students > *,
+.sp-shell--facilitator .sp-teacher-new-project .sp-page-heading,
+.sp-shell--facilitator .sp-project-details > *,
+.sp-shell--facilitator .sp-students-header > *,
+.sp-shell--facilitator .sp-students > [role="tabpanel"],
+.sp-shell--facilitator .sp-students-footer,
+.sp-shell--facilitator .sp-form-footer {
+  position: relative;
+  z-index: var(--facilitator-content-layer, 2);
