@@ -268,3 +268,293 @@ namespace Spatia.Server.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("active");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("name");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("organizations", (string)null);
+                });
+
+            modelBuilder.Entity("Spatia.Server.Accounts.OrganizationMembership", b =>
+                {
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<Guid>("RoleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("role_id");
+
+                    b.HasKey("OrganizationId", "UserId");
+
+                    b.HasIndex("UserId")
+                        .IsUnique();
+
+                    b.HasIndex("UserId", "RoleId");
+
+                    b.ToTable("organization_memberships", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_organization_memberships_role_id", "role_id IN ('d14c51b6-510a-4430-a27c-bfdc6e9d801b'::uuid, '862d776c-4d56-4dd8-919d-26044b6d8a44'::uuid)");
+                        });
+                });
+
+            modelBuilder.Entity("Spatia.Server.Assets.AssetCandidate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<byte[]>("Bytes")
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("bytes");
+
+                    b.Property<string>("Category")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("category");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<bool>("Deleted")
+                        .HasColumnType("boolean")
+                        .HasColumnName("deleted");
+
+                    b.Property<bool>("Hidden")
+                        .HasColumnType("boolean")
+                        .HasColumnName("hidden");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("kind");
+
+                    b.Property<string>("License")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("license");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("name");
+
+                    b.Property<bool>("RemovedFromProjects")
+                        .HasColumnType("boolean")
+                        .HasColumnName("removed_from_projects");
+
+                    b.Property<string>("ReviewNotes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("review_notes");
+
+                    b.Property<Guid?>("ReviewedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reviewed_by");
+
+                    b.Property<string>("Sha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("sha256");
+
+                    b.Property<string>("Source")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("source");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid>("SubmittedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("submitted_by");
+
+                    b.Property<string>("ValidationJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("validation");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReviewedBy");
+
+                    b.HasIndex("SubmittedBy");
+
+                    b.HasIndex("Kind", "Deleted", "Hidden");
+
+                    b.ToTable("asset_candidates", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_asset_candidate_approval", "status <> 'approved' OR (reviewed_by IS NOT NULL AND source IS NOT NULL AND license IS NOT NULL AND review_notes IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_asset_candidate_kind", "kind IN ('model', 'environment', 'audio')");
+
+                            t.HasCheckConstraint("CK_asset_candidate_retirement", "(NOT deleted OR hidden) AND (NOT removed_from_projects OR deleted)");
+
+                            t.HasCheckConstraint("CK_asset_candidate_size", "octet_length(bytes) BETWEEN 1 AND 20971520");
+
+                            t.HasCheckConstraint("CK_asset_candidate_status", "status IN ('pending', 'approved', 'invalid')");
+                        });
+                });
+
+            modelBuilder.Entity("Spatia.Server.Classes.ClassAssignment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ClassroomId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("classroom_id");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("description");
+
+                    b.Property<long>("DueAtUnixSeconds")
+                        .HasColumnType("bigint")
+                        .HasColumnName("due_at_unix_seconds");
+
+                    b.Property<string>("Instructions")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("instructions");
+
+                    b.Property<Guid?>("LastEditActorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("last_edit_actor_id");
+
+                    b.Property<byte[]>("LastEditDigest")
+                        .HasColumnType("bytea")
+                        .HasColumnName("last_edit_digest");
+
+                    b.Property<Guid?>("LastEditId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("last_edit_id");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
+                    b.Property<byte[]>("RequestDigest")
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("request_digest");
+
+                    b.Property<long>("Revision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("revision");
+
+                    b.Property<Guid>("SourceProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("source_project_id");
+
+                    b.Property<long>("SourceRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("source_revision");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("title");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("SourceProjectId");
+
+                    b.HasIndex("ClassroomId", "Id");
+
+                    b.HasIndex("ClassroomId", "OrganizationId");
+
+                    b.ToTable("class_assignments", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_class_assignments_description", "length(btrim(description)) > 0");
+
+                            t.HasCheckConstraint("CK_class_assignments_due", "due_at_unix_seconds BETWEEN -62135596800 AND 253402300799");
+
+                            t.HasCheckConstraint("CK_class_assignments_instructions", "length(btrim(instructions)) > 0");
+
+                            t.HasCheckConstraint("CK_class_assignments_last_edit", "(last_edit_id IS NULL AND last_edit_actor_id IS NULL AND last_edit_digest IS NULL) OR (last_edit_id IS NOT NULL AND last_edit_actor_id IS NOT NULL AND last_edit_digest IS NOT NULL AND octet_length(last_edit_digest) = 32)");
+
+                            t.HasCheckConstraint("CK_class_assignments_request_digest", "octet_length(request_digest) = 32");
+
+                            t.HasCheckConstraint("CK_class_assignments_revision", "revision BETWEEN 0 AND 9007199254740991");
+
+                            t.HasCheckConstraint("CK_class_assignments_source_revision", "source_revision BETWEEN 0 AND 9007199254740991");
+
+                            t.HasCheckConstraint("CK_class_assignments_title", "length(btrim(title)) BETWEEN 1 AND 256");
+                        });
+                });
+
+            modelBuilder.Entity("Spatia.Server.Classes.ClassAssignmentStudent", b =>
+                {
+                    b.Property<Guid>("AssignmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("assignment_id");
+
+                    b.Property<Guid>("StudentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("student_id");
+
+                    b.Property<Guid>("ClassroomId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("classroom_id");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("is_active");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
+                    b.Property<bool>("OriginallyAssigned")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("originally_assigned");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
+                    b.Property<Guid>("RoleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("role_id");
+
+                    b.HasKey("AssignmentId", "StudentId");
+
+                    b.HasIndex("ProjectId")
+                        .IsUnique();
+
