@@ -19,6 +19,39 @@ public sealed class AdministrationEndpointTests
     private const string ReplacementPassword = "Synthetic replacement password 2!";
 
     [Test]
+    public async Task BulkAccounts_SkipExistingUserNamesAndRejectInvalidRoles()
+    {
+        await using var fixture = await AdministratorFixtureAsync();
+        var orgId = await CreateOrganizationAsync(fixture);
+        var prefix = "bulk-" + Guid.NewGuid().ToString("N");
+        object Account(string suffix, string role = ApplicationRoles.Creator) => new { userName = prefix + suffix, displayName = "CSV learner", initialPassword = InitialPassword, role, orgId };
+        using (var created = await SendAsync(fixture, "/api/v1/admin/users/bulk", new[] { Account("a"), Account("b", ApplicationRoles.Educator) }))
+        {
+            await Assert.That(created.StatusCode).IsEqualTo(HttpStatusCode.Created);
+            var accounts = await created.Content.ReadFromJsonAsync<JsonElement>();
+            await Assert.That(accounts.GetArrayLength()).IsEqualTo(2);
+            await Assert.That(accounts[1].GetProperty("role").GetString()).IsEqualTo(ApplicationRoles.Educator);
+            await Assert.That(accounts[0].GetProperty("mustChangePassword").GetBoolean()).IsTrue();
+        }
+        using (var duplicate = await SendAsync(fixture, "/api/v1/admin/users/bulk", new[] { Account("c"), Account("a") }))
+        {
+            await Assert.That(duplicate.StatusCode).IsEqualTo(HttpStatusCode.Created);
+            var created = await duplicate.Content.ReadFromJsonAsync<JsonElement>();
+            await Assert.That(created.GetArrayLength()).IsEqualTo(1);
+            await Assert.That(created[0].GetProperty("userName").GetString()).IsEqualTo(prefix + "c");
+        }
+        using (var repeat = await SendAsync(fixture, "/api/v1/admin/users/bulk", new[] { Account("a"), Account("c") }))
+        {
+            await Assert.That(repeat.StatusCode).IsEqualTo(HttpStatusCode.OK);
+            await Assert.That((await repeat.Content.ReadFromJsonAsync<JsonElement>()).GetArrayLength()).IsEqualTo(0);
+        }
+        using var invalid = await SendAsync(fixture, "/api/v1/admin/users/bulk", new[] {
+            new { userName = prefix + "admin", initialPassword = InitialPassword, role = ApplicationRoles.Administrator, orgId = (Guid?)null }
+        });
+        await Assert.That(invalid.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
+    }
+
+    [Test]
     public async Task OrganisationClassFlow_ProvisionedAccountsEnrolBeforeReceivingIndependentProjects()
     {
         await using var fixture = await AdministratorFixtureAsync();

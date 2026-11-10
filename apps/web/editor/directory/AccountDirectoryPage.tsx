@@ -305,6 +305,12 @@ export function AccountDirectoryPage({ accountId }: { accountId: string }) {
           organizationName={organization.name}
           onClose={() => setModal(null)}
           onSave={save}
+          onImport={async (values) => {
+            const saved = await client.createBulk(organization.id, values);
+            setAccounts((rows) => [...rows, ...saved]);
+            setNotice("");
+            return saved.map((value) => value.userName);
+          }}
         />
       )}
       {preview && (
@@ -316,6 +322,7 @@ export function AccountDirectoryPage({ accountId }: { accountId: string }) {
         <Dialog
           title="Delete Account"
           variant="admin"
+          className="sp-account-confirmation"
           onClose={() => {
             if (!pending.current) {
               setDeletingAccount(null);
@@ -376,6 +383,7 @@ export function AccountDirectoryPage({ accountId }: { accountId: string }) {
         <Dialog
           title={`${toggle.isActive ? "Hide" : "Show"} Account`}
           variant="admin"
+          className="sp-account-confirmation"
           onClose={() => {
             if (!pending.current) setToggle(null);
           }}

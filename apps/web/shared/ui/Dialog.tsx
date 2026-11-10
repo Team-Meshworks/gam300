@@ -30,6 +30,7 @@ export function Dialog({
       ref={ref}
       aria-labelledby={titleId}
       onCancel={(event) => {
+        if (event.target !== event.currentTarget) return;
         event.preventDefault();
         // Keep cancellation inside the active dialog when React propagates it through nested dialogs
         event.stopPropagation();
