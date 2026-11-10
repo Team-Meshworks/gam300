@@ -351,58 +351,93 @@ export function ProgressReviews({
         createdAt: new Date().toISOString(),
       },
     ]);
+    setFeedback("");
+    setEditing(false);
+  }
   async function save(retry = false) {
-    if (
-      busy.current ||
-      (retry ? phase !== "unknown" || !intent : phase !== "ready" || !feedback.trim())
-    )
-      return;
-    const sent = retry
-      ? intent!
-      : { reviewId: crypto.randomUUID(), expectedRevision: revision, feedback };
-    setIntent(sent);
+    if (busy.current || (retry ? phase !== "unknown" || !intent : phase !== "ready")) return;
+    const typed = feedback.trim()
+      ? {
+          reviewId: crypto.randomUUID(),
+          expectedRevision: revision,
+          feedback,
+          createdAt: new Date().toISOString(),
+        }
+      : null;
+    const queue = publication
+      ? retry
+        ? [intent!]
+        : typed
+          ? [typed]
+          : []
+      : retry
+        ? [intent!, ...staged.filter((row) => row.reviewId !== intent!.reviewId)]
+        : [...staged, ...(typed ? [typed] : [])];
+    if (!queue.length) return;
+    if (!publication) {
+      setStaged(
+        queue.map((row) => ({
+          ...row,
+          createdAt: "createdAt" in row ? (row.createdAt as string) : new Date().toISOString(),
+        })),
+      );
+      setFeedback("");
+      setEditing(false);
+    }
     busy.current = true;
     setPhase("sending");
     setError("");
-    const result = await client.save(projectId, actorId, sent);
-    if (!active.current) return;
-    busy.current = false;
-    if (result.kind === "confirmed") {
-      try {
-        localStorage.removeItem(recoveredFeedbackKey);
-      } catch {
-        /* Keep recoverable text. */
+    for (const [index, row] of queue.entries()) {
+      const sent: ProgressIntent = {
+        reviewId: row.reviewId,
+        expectedRevision: row.expectedRevision,
+        feedback: row.feedback,
+      };
+      setIntent(sent);
+      const result = await client.save(projectId, actorId, sent);
+      if (!active.current) return;
+      if (result.kind === "confirmed") {
+        setItems((previous) => [
+          ...previous.filter((item) => item.id !== result.item.id),
+          result.item,
+        ]);
+        setStaged((current) => current.filter((item) => item.reviewId !== sent.reviewId));
+        continue;
       }
-      setItems((previous) => [
-        ...previous.filter((item) => item.id !== result.item.id),
-        result.item,
-      ]);
-      setFeedback("");
-      setIntent(null);
-      setEditing(false);
-      setPhase("ready");
-      onSaved?.();
-    } else if (result.kind === "rejected" && !retry) {
-      setPhase("ready");
-      setIntent(null);
-      if ([401, 403, 404].includes(result.error.status)) {
-        setItems([]);
-        setCursor(null);
-        setHistoryError(result.error.message);
-      } else if (result.error.status === 409) {
-        setConflict(true);
-        setError(
-          result.error.message + " Copy your text, then close this dialog and refresh the project.",
-        );
+      busy.current = false;
+      if (result.kind === "rejected" && !(retry && index === 0)) {
+        setPhase("ready");
+        setIntent(null);
+        if ([401, 403, 404].includes(result.error.status)) {
+          setItems([]);
+          setCursor(null);
+          setHistoryError(result.error.message);
+        } else {
+          if (result.error.status === 409) setConflict(true);
+          setError(result.error.message);
+        }
       } else {
-        setError(result.error.message);
+        setPhase("unknown");
+        setError(
+          "The review could not be confirmed. Your text is preserved. Retry the same request before leaving.",
+        );
       }
-    } else {
-      setPhase("unknown");
-      setError(
-        "The review could not be confirmed. Your text is preserved. Retry the same request before leaving.",
-      );
+      return;
     }
+    busy.current = false;
+    try {
+      localStorage.removeItem(recoveredFeedbackKey);
+    } catch {
+      /* Keep recoverable text */
+    }
+    setFeedback("");
+    setIntent(null);
+    setStaged([]);
+    setHistoryError("");
+    setPhase("ready");
+    setOpen(false);
+    onSaved?.();
+    onClose?.();
   }
   async function publish(retry = false) {
     if (busy.current || (!retry && (!canApprove || phase !== "ready"))) return;
@@ -607,7 +642,8 @@ export function ProgressReviews({
       {decisionsError && <p role="alert">{decisionsError}</p>}
       {historyError && <p role="alert">{historyError}</p>}
       {error && <p role="alert">{error}</p>}
-      {!loading &&
+      {!publication &&
+        !loading &&
         !historyError &&
         !error &&
         !decisionsLoading &&
@@ -616,7 +652,19 @@ export function ProgressReviews({
         (publication ? submissionFeedback.length : decisions.length) === 0 && (
           <p>No reviews yet.</p>
         )}
-      <ProgressReviewList items={items} decisions={publication ? submissionFeedback : decisions} />
+      <ProgressReviewList
+        items={[
+          ...items,
+          ...staged.map((row) => ({
+            id: row.reviewId,
+            feedback: row.feedback,
+            createdAt: row.createdAt,
+            revision: row.expectedRevision,
+          })),
+        ]}
+        decisions={publication ? submissionFeedback : decisions}
+        dateOnly
+      />
       {cursor && (
         <Button disabled={loading || phase !== "ready"} onClick={() => void load(cursor)}>
           Load more reviews
@@ -641,15 +689,43 @@ export function ProgressReviews({
         <Dialog
           title={publication ? "Review submission" : "Reviews"}
           variant="progress"
+          className={publication ? "sp-facilitator-submission" : "sp-review-history-dialog"}
+          closeDisabled={phase === "sending" || (phase === "unknown" && !pendingPublication)}
           onClose={close}
         >
           {publication && (
             <>
               <h3>{publication.projectTitle}</h3>
-              <p>{publication.studentName}</p>
+              <p className="sp-review-subtitle">
+                {publication.className && <>Class {publication.className} · </>}
+                {publication.studentName}
+                {(approvalSaved || publication.submissionStatus) && (
+                  <> · {approvalSaved ? "Approved" : publication.submissionStatus}</>
+                )}
+              </p>
             </>
           )}
-          {history}
+          {!publication && history}
+          {!publication && !editing && (
+            <div className="sp-progress-compose-slot">
+              <Button
+                disabled={phase !== "ready"}
+                variant="primary"
+                className="sp-progress-add"
+                aria-label="Add Reviews"
+                onClick={(event) => {
+                  const list = event.currentTarget
+                    .closest("dialog")
+                    ?.querySelector(".sp-progress-list");
+                  if (list instanceof HTMLElement) list.scrollTop = list.scrollHeight;
+                  setEditing(true);
+                }}
+              >
+                + Add Reviews
+              </Button>
+            </div>
+          )}
+          {publication && (error || historyError) && <p role="alert">{error || historyError}</p>}
           {pendingPublication?.submissionId === null && (
             <section aria-label="Earlier publishing request">
               <p>
@@ -705,90 +781,106 @@ export function ProgressReviews({
           )}
           {editing ? (
             <div className="sp-progress-draft">
-              <time>
-                {new Date().toLocaleDateString(undefined, {
-                  day: "numeric",
-                  month: "short",
-                  year: "numeric",
-                })}
-              </time>
-              <label htmlFor="progress-feedback">
+              {!publication && (
+                <time>
+                  {new Date().toLocaleDateString("en-GB", {
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric",
+                  })}
+                </time>
+              )}
+              <label
+                htmlFor="progress-feedback"
+                className={!publication ? "sp-sr-only" : undefined}
+              >
                 {publication ? "Your review" : "New review"}
               </label>
               <textarea
                 id="progress-feedback"
+                placeholder={
+                  publication ? "Share what works well and what could be refined…" : undefined
+                }
                 rows={3}
                 maxLength={4000}
                 value={feedback}
                 disabled={phase !== "ready" || Boolean(publishedUrl)}
                 onChange={(e) => setFeedback(e.target.value)}
+                onKeyDown={(event) => {
+                  if (
+                    !publication &&
+                    event.key === "Enter" &&
+                    !event.shiftKey &&
+                    !event.nativeEvent.isComposing
+                  ) {
+                    event.preventDefault();
+                    stageReview();
+                  }
+                }}
               />
             </div>
-          ) : (
-            <Button className="sp-progress-add" variant="primary" onClick={() => setEditing(true)}>
-              + Add Reviews
-            </Button>
-          )}
-          <div className="sp-actions sp-progress-actions">
-            {publishedUrl ? (
-              <Button variant="primary" onClick={() => (onSaved ? onSaved() : close())}>
-                Done
-              </Button>
-            ) : phase === "unknown" && pendingPublication?.submissionId === null ? (
-              <Button onClick={close}>Close, keep request</Button>
-            ) : phase === "unknown" ? (
-              <>
-                <Button onClick={close} disabled={!pendingPublication}>
-                  Close, keep request
+          ) : null}
+          {(!publication || editing || phase !== "ready" || publishedUrl) && (
+            <div className="sp-actions sp-progress-actions">
+              {publishedUrl ? (
+                <Button variant="primary" onClick={() => (onSaved ? onSaved() : close())}>
+                  Done
                 </Button>
-                <Button
-                  variant="primary"
-                  onClick={() => void (pendingPublication ? publish(true) : save(true))}
-                >
-                  Retry same request
-                </Button>
-              </>
-            ) : (
-              <>
-                <Button disabled={phase !== "ready"} onClick={close}>
-                  Cancel
-                </Button>
-                <Button
-                  variant={editing && feedback.trim() ? "primary" : "secondary"}
-                  disabled={
-                    phase !== "ready" || conflict || !feedback.trim() || feedback.includes("\0")
-                  }
-                  onClick={() => void save()}
-                >
-                  {publication ? "Save review" : "Save Changes"}
-                </Button>
-                {publication && !publishedUrl && (
+              ) : phase === "unknown" && pendingPublication?.submissionId === null ? (
+                <Button onClick={() => close()}>Close, keep request</Button>
+              ) : phase === "unknown" ? (
+                <>
+                  <Button onClick={() => close()} disabled={!pendingPublication}>
+                    Close, keep request
+                  </Button>
                   <Button
                     variant="primary"
+                    onClick={() => void (pendingPublication ? publish(true) : save(true))}
+                  >
+                    Retry same request
+                  </Button>
+                </>
+              ) : (
+                <>
+                  {!publication && (
+                    <Button disabled={phase !== "ready"} onClick={() => close(true)}>
+                      Cancel
+                    </Button>
+                  )}
+                  <Button
+                    variant={
+                      !publication && (staged.length > 0 || feedback.trim())
+                        ? "primary"
+                        : "secondary"
+                    }
                     disabled={
                       phase !== "ready" ||
-                      publicationLoading ||
-                      !canApprove ||
+                      conflict ||
+                      (!feedback.trim() && !staged.length) ||
                       feedback.includes("\0")
                     }
-                    onClick={() => void publish()}
+                    onClick={() => void save()}
                   >
-                    Approve
+                    {publication ? "Save review" : "Save Changes"}
                   </Button>
-                )}
-              </>
-            )}
-          </div>
-          {publication &&
-            !canApprove &&
-            !approvalSaved &&
-            !pendingPublication &&
-            !publishedUrl &&
-            !publicationError &&
-            !publicationLoading && (
-              <p>Approval requires permission and a current submission ready for review.</p>
-            )}
-          {publication && <p>After approval, the student can publish the approved revision.</p>}
+                  {publication && !publishedUrl && (
+                    <Button
+                      variant="primary"
+                      disabled={
+                        phase !== "ready" ||
+                        publicationLoading ||
+                        !canApprove ||
+                        feedback.includes("\0")
+                      }
+                      onClick={() => void publish()}
+                    >
+                      Approve to publish
+                    </Button>
+                  )}
+                </>
+              )}
+            </div>
+          )}
           {approvalSaved && !publishedUrl && (
             <p role="status">Approval saved. The student can now publish the approved revision.</p>
           )}
