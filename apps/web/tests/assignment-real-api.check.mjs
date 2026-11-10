@@ -220,9 +220,12 @@ try {
   );
   // Follow the same assigned project across both roles and an anonymous visitor.
   await fresh.getByRole("button", { name: "Request approval", exact: true }).click();
-  const approval = fresh.getByRole("dialog", { name: "Request approval", exact: true });
-  await approval.getByRole("checkbox").check();
-  await approval.getByRole("button", { name: "Submit for review", exact: true }).click();
+  const approval = fresh.getByRole("dialog", { name: "Finish your work first", exact: true });
+  await approval.getByRole("button", { name: "Mark as Completed", exact: true }).click();
+  await fresh
+    .getByRole("dialog", { name: "Your teacher is reviewing your work", exact: true })
+    .getByRole("button", { name: "Back to Project", exact: true })
+    .click();
   await approval.waitFor({ state: "detached" });
   await page.goto(
     `${origin}/home?${new URLSearchParams({
@@ -245,12 +248,18 @@ try {
   const details = fresh.getByRole("dialog", { name: "Project details", exact: true });
   await details.getByText("The saved room is ready to share.", { exact: true }).waitFor();
   await details.getByRole("button", { name: "Publish", exact: true }).click();
-  const publishing = fresh.getByRole("dialog", { name: "Publish project", exact: true });
-  await publishing.getByRole("combobox", { name: "Who can open this publication" }).click();
-  await fresh.getByRole("option", { name: "Anyone with the link", exact: true }).click();
-  await publishing.getByRole("checkbox", { name: /confirm.*saved revision/i }).check();
+  const publishing = fresh.getByRole("dialog", {
+    name: "Ready to publish your project?",
+    exact: true,
+  });
+  await fresh.waitForFunction(() => {
+    const button = [...document.querySelectorAll(".creator-publish-status-dialog button")].find(
+      (button) => button.textContent === "Publish Project",
+    );
+    return button && !button.disabled;
+  });
   assert.equal(
-    await publishing.getByRole("button", { name: "Publish", exact: true }).isEnabled(),
+    await publishing.getByRole("button", { name: "Publish Project", exact: true }).isEnabled(),
     true,
     "The approved saved project is ready to publish",
   );
@@ -259,7 +268,7 @@ try {
       response.url().endsWith(`/api/v1/projects/${project}/publications`) &&
       response.request().method() === "POST",
   );
-  await publishing.getByRole("button", { name: "Publish", exact: true }).click();
+  await publishing.getByRole("button", { name: "Publish Project", exact: true }).click();
   const committed = await publicationResponse;
   assert.equal(committed.status(), 201);
   const publication = await committed.json();

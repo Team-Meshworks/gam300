@@ -8,6 +8,7 @@ import { createWorkspaceClient, isId, isRecord } from "../home/workspace-api";
 import { Button } from "../../shared/ui/Button";
 import { Select } from "../../shared/ui/Select";
 import { SearchField } from "../../shared/ui/SearchField";
+import { PublishStatus } from "./PublishStatus";
 import { PublicationShare } from "./PublicationShare";
 import { PublicationAccess } from "./PublicationAccess";
 import {
@@ -108,7 +109,7 @@ export function PublicationPage({
     pending.error ? storageMessage : pending.request ? uncertainMessage : "",
   );
   const [viewers, setViewers] = useState<Viewer[]>([]);
-  const [viewersLoading, setViewersLoading] = useState(true);
+  const [viewersLoading, setViewersLoading] = useState(!onCancel);
   const [viewersError, setViewersError] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [viewerQuery, setViewerQuery] = useState("");
@@ -118,7 +119,10 @@ export function PublicationPage({
     "ready" | "pending" | "unknown" | "success" | "stale" | "storage-error"
   >(pending.error ? "storage-error" : pending.request ? "unknown" : "ready");
   const [request, setRequest] = useState<PublicationRequest | null>(pending.request);
-  const [audience, setAudience] = useState(pending.request?.intent.audience ?? "Authenticated");
+  const modal = Boolean(onCancel);
+  const [audience, setAudience] = useState(
+    pending.request?.intent.audience ?? (onCancel ? "Unlisted" : "Authenticated"),
+  );
   const [ack, setAck] = useState<PublicationAcknowledgement | null>(null);
   const [shareAvailable, setShareAvailable] = useState(true);
   const inFlight = useRef(false);
@@ -213,6 +217,7 @@ export function PublicationPage({
       }
     })();
     void (async () => {
+      if (modal) return;
       try {
         const rows = await api.pages(
           `/api/v1/projects/${encodeURIComponent(projectId)}/publication-viewers`,
@@ -245,7 +250,7 @@ export function PublicationPage({
     return () => {
       cancelled = true;
     };
-  }, [projectId, session.userId]);
+  }, [projectId, session.userId, modal]);
 
   useEffect(() => {
     const pending = phase === "pending";
@@ -256,6 +261,12 @@ export function PublicationPage({
     window.addEventListener("beforeunload", preventLoss);
     return () => window.removeEventListener("beforeunload", preventLoss);
   }, [onGuard, phase, confirmed, selected.length]);
+
+  useEffect(() => {
+    // Wait for the pending navigation guard to clean up before leaving with a verified receipt
+    if (phase === "success" && ack && session.role === "Creator" && modal)
+      location.assign("/home?tab=published");
+  }, [phase, ack, session.role, modal]);
 
   const visibleViewers = viewers.filter(
     (viewer) =>
@@ -270,7 +281,8 @@ export function PublicationPage({
       !saved ||
       !projectId ||
       !saved.canPublish ||
-      (!retry && (!confirmed || phase !== "ready" || readiness?.state !== "Ready")) ||
+      (!retry &&
+        ((!onCancel && !confirmed) || phase !== "ready" || readiness?.state !== "Ready")) ||
       (retry && (phase !== "unknown" || !request))
     )
       return;
@@ -318,8 +330,6 @@ export function PublicationPage({
         setAck(receipt);
         setShareAvailable(true);
         setPhase("success");
-        // Return only after the exact publication receipt has been verified
-        if (session.role === "Creator" && onCancel) location.assign("/home?tab=published");
         return;
       }
     }
@@ -352,6 +362,68 @@ export function PublicationPage({
       setPhase("unknown");
     }
   }
+
+  if (onCancel)
+    return (
+      <PublishStatus
+        state={
+          loading || !readiness
+            ? "checking"
+            : readiness.completionConfirmed === false
+              ? "incomplete"
+              : readiness?.approved === false
+                ? "pending"
+                : "approved"
+        }
+        titleId="creator-publish-title"
+        closeLabel="Close publish project"
+        onClose={onCancel}
+        locked={phase === "pending"}
+        actions={
+          <>
+            <Button disabled={phase === "pending" || phase === "unknown"} onClick={onCancel}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              disabled={
+                phase === "pending" ||
+                (phase !== "unknown" &&
+                  (phase !== "ready" ||
+                    loading ||
+                    !saved?.canPublish ||
+                    readiness?.state !== "Ready"))
+              }
+              onClick={() => void publish(phase === "unknown")}
+            >
+              {phase === "pending"
+                ? "Publishing…"
+                : phase === "unknown"
+                  ? "Retry publication"
+                  : "Publish Project"}
+            </Button>
+          </>
+        }
+      >
+        {loading && (
+          <p role="status" className="publish-status-loading">
+            Preparing your saved project…
+          </p>
+        )}
+        {(error ||
+          readinessError ||
+          (readiness && readiness.state !== "Ready") ||
+          (saved && !saved.canPublish)) && (
+          <p role="alert" className="creator-approval-error">
+            {error ||
+              readinessError ||
+              (saved && !saved.canPublish
+                ? "You do not have permission to publish this project."
+                : readinessMessages[readiness!.state])}
+          </p>
+        )}
+      </PublishStatus>
+    );
 
   return (
     <section className="sp-publication" aria-label="Publication settings">
@@ -636,7 +708,7 @@ export function PublicationPage({
               <div className={onCancel ? "creator-approval-actions" : "sp-publication-actions"}>
                 <Button
                   disabled={phase === "pending" || phase === "unknown"}
-                  onClick={() => (onCancel ? onCancel() : location.assign("/home"))}
+                  onClick={() => location.assign("/home")}
                 >
                   Cancel
                 </Button>

@@ -294,7 +294,7 @@ try {
   // Separate browser storage prevents the teacher session leaking into the student scenario
   await page.close();
   role = "Creator";
-  revision = 0;
+  revision = 1;
   page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
   page.setDefaultTimeout(15000);
   await page.route("**/api/v1/**", mockApi);
@@ -323,16 +323,27 @@ try {
     );
     await page.getByRole("button", { name: "Rename scene", exact: true }).click();
     await page.getByRole("button", { name: "Request approval", exact: true }).click();
-    const dialog = page.getByRole("dialog", { name: "Request approval", exact: true });
+    const dialog = page.locator(".creator-approval-dialog");
     await saveRequest;
     assert.equal(new URL(page.url()).pathname, "/");
+    // Keep submission unavailable while the save and current revision are still being verified
+    assert.equal(await dialog.getAttribute("aria-busy"), "true");
     assert.equal(
-      await dialog.getByRole("button", { name: "Submit for review", exact: true }).isDisabled(),
+      await dialog.getByRole("button", { name: "Mark as Completed", exact: true }).count(),
+      0,
+    );
+    assert.equal(
+      await dialog.locator(".creator-approval-actions button").last().isDisabled(),
       true,
     );
     assert.equal(publications.length, 0);
     releaseSave();
-    await dialog.getByRole("checkbox").waitFor();
+    await dialog.getByRole("heading", { name: "Finish your work first", exact: true }).waitFor();
+    assert.equal(await dialog.getAttribute("aria-busy"), "false");
+    assert.equal(
+      await dialog.getByRole("button", { name: "Mark as Completed", exact: true }).isEnabled(),
+      true,
+    );
     assert.equal(saved, 1);
     assert.equal(savedDocument.scenes[0].name, "Saved before approval");
     await dialog.getByRole("button", { name: "Close request approval", exact: true }).click();

@@ -1,12 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { Icon } from "@iconify/react/offline";
-import close from "@iconify-icons/lucide/x";
 import { useModal } from "../../shared/ui/useModal";
 import { createAccountClient, type AccountSession } from "../accounts/account-client";
 import { PublicationPage } from "./PublicationPage";
 import type { LeaveGuard } from "../workspace/useWorkspaceDeparture";
 import "../reviews/request-approval.css";
-import "./publish-dialog.css";
+import { PublishStatus } from "./PublishStatus";
 
 const accounts = createAccountClient();
 
@@ -61,7 +59,7 @@ export function PublishDialog({
   return (
     <dialog
       ref={ref}
-      className="creator-approval-dialog creator-publish-dialog"
+      className="creator-approval-dialog creator-publish-status-dialog"
       aria-labelledby="creator-publish-title"
       onCancel={(event) => {
         event.preventDefault();
@@ -69,17 +67,25 @@ export function PublishDialog({
         closeDialog();
       }}
     >
-      <button
-        className="creator-approval-close"
-        aria-label="Close publish project"
-        disabled={guard.pending}
-        onClick={closeDialog}
-      >
-        <Icon icon={close} width={20} />
-      </button>
-      <h2 id="creator-publish-title">Publish project</h2>
-      {!session && !error && <p role="status">Preparing your saved project...</p>}
-      {error && <p role="alert">{error}</p>}
+      {!session && (
+        <PublishStatus
+          state="checking"
+          titleId="creator-publish-title"
+          closeLabel="Close publish project"
+          onClose={closeDialog}
+          actions={null}
+        >
+          {error ? (
+            <p role="alert" className="creator-approval-error">
+              {error}
+            </p>
+          ) : (
+            <p role="status" className="publish-status-loading">
+              Preparing your saved project…
+            </p>
+          )}
+        </PublishStatus>
+      )}
       {session && (
         <PublicationPage
           {...(projectId ? { projectId } : {})}

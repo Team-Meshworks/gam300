@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { Icon } from "@iconify/react/offline";
-import close from "@iconify-icons/lucide/x";
 import { Button } from "../../shared/ui/Button";
 import { useModal } from "../../shared/ui/useModal";
 import { createAccountClient } from "../accounts/account-client";
 import { allPages, createReviewClient } from "./review-client";
+import { PublishStatus } from "../publications/PublishStatus";
 import type { ReviewIntent } from "./review-types";
 import "./request-approval.css";
 
@@ -35,7 +34,7 @@ export function RequestApproval({
   const dialog = useModal(true);
   const session = useRef({ save, isSaved, onSubmitted });
   const [revision, setRevision] = useState<number | null>(null);
-  const [complete, setComplete] = useState(false);
+  const [waiting, setWaiting] = useState(false);
   const [error, setError] = useState("");
   const [phase, setPhase] = useState<"loading" | "ready" | "sending" | "unknown">("loading");
   const intent = useRef<ReviewIntent | null>(null);
@@ -69,6 +68,8 @@ export function RequestApproval({
           review.revision === project.revision &&
           (!review.latestDecision || review.latestDecision.outcome === "approved")
         ) {
+          setWaiting(true);
+          setRevision(project.revision);
           onSubmitted(project.revision, review.latestDecision?.outcome === "approved");
           return;
         }
@@ -91,17 +92,17 @@ export function RequestApproval({
   }, [actorId, projectId]);
 
   useEffect(() => {
-    if (!complete && phase !== "sending" && phase !== "unknown") return;
+    if (phase !== "sending" && phase !== "unknown") return;
     const warn = (event: BeforeUnloadEvent) => event.preventDefault();
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
-  }, [complete, phase]);
+  }, [phase]);
 
   async function submit(retry = false) {
     if (
       sending.current ||
       revision === null ||
-      (retry ? phase !== "unknown" : phase !== "ready" || !complete)
+      (retry ? phase !== "unknown" : phase !== "ready" || waiting)
     )
       return;
     sending.current = true;
@@ -124,6 +125,8 @@ export function RequestApproval({
       const result = await reviews.execute(intent.current, actorId);
       if (!mounted.current) return;
       if (result.kind === "confirmed") {
+        setWaiting(true);
+        setPhase("ready");
         onSubmitted(revision);
       } else if (result.kind === "unknown" || retry) {
         setPhase("unknown");
@@ -158,8 +161,11 @@ export function RequestApproval({
       await checkAccount(actorId);
       const found = await reviews.reconcile(intent.current);
       if (!mounted.current) return;
-      if (found) onSubmitted(intent.current.expectedRevision);
-      else {
+      if (found) {
+        setWaiting(true);
+        setPhase("ready");
+        onSubmitted(intent.current.expectedRevision);
+      } else {
         setPhase("unknown");
         setError("Submission is not confirmed yet. Retry the same request.");
       }
@@ -179,6 +185,8 @@ export function RequestApproval({
     <dialog
       ref={dialog}
       className="creator-approval-dialog"
+      data-loading={phase === "loading"}
+      aria-busy={phase === "loading"}
       aria-labelledby="creator-approval-title"
       onCancel={(event) => {
         event.preventDefault();
@@ -186,54 +194,59 @@ export function RequestApproval({
         if (!locked) onClose();
       }}
     >
-      <button
-        className="creator-approval-close"
-        aria-label="Close request approval"
-        disabled={locked}
-        onClick={onClose}
-      >
-        <Icon icon={close} width={20} />
-      </button>
-      <h2 id="creator-approval-title">Request approval</h2>
-      <p>Submit your saved project for your educator to review.</p>
-      {phase === "loading" && <p role="status">Preparing your saved project...</p>}
-      {revision !== null && (
-        <label className="creator-approval-confirm">
-          <input
-            type="checkbox"
-            checked={complete}
-            disabled={locked}
-            onChange={(event) => setComplete(event.target.checked)}
-          />
-          <span>I confirm my saved project is complete.</span>
-        </label>
-      )}
-      {error && (
-        <p role="alert" className="creator-approval-error">
-          {error}
-        </p>
-      )}
-      <div className="creator-approval-actions">
-        <Button disabled={locked} onClick={onClose}>
-          Cancel
-        </Button>
-        {phase === "unknown" ? (
-          <>
-            <Button onClick={() => void checkOutcome()}>Check status</Button>
-            <Button variant="primary" onClick={() => void submit(true)}>
-              Retry submission
+      <PublishStatus
+        state={
+          phase === "loading" || (revision === null && !waiting)
+            ? "checking"
+            : waiting
+              ? "pending"
+              : "incomplete"
+        }
+        titleId="creator-approval-title"
+        onClose={onClose}
+        closeLabel="Close request approval"
+        locked={locked}
+        actions={
+          waiting ? (
+            <Button variant="primary" onClick={onClose}>
+              Back to Project
             </Button>
-          </>
-        ) : (
-          <Button
-            variant="primary"
-            disabled={locked || !complete || revision === null}
-            onClick={() => void submit()}
-          >
-            {phase === "sending" ? "Submitting..." : "Submit for review"}
-          </Button>
+          ) : (
+            <>
+              <Button disabled={locked} onClick={onClose}>
+                Cancel
+              </Button>
+              {phase === "unknown" ? (
+                <>
+                  <Button onClick={() => void checkOutcome()}>Check status</Button>
+                  <Button variant="primary" onClick={() => void submit(true)}>
+                    Retry submission
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  variant="primary"
+                  disabled={locked || revision === null}
+                  onClick={() => void submit()}
+                >
+                  {phase === "sending" ? "Submitting…" : "Mark as Completed"}
+                </Button>
+              )}
+            </>
+          )
+        }
+      >
+        {phase === "loading" && (
+          <p role="status" className="publish-status-loading">
+            Preparing your saved project…
+          </p>
         )}
-      </div>
+        {error && (
+          <p role="alert" className="creator-approval-error">
+            {error}
+          </p>
+        )}
+      </PublishStatus>
     </dialog>
   );
 }

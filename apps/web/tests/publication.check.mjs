@@ -292,6 +292,37 @@ try {
   await page.getByRole("button", { name: "Publish", exact: true }).click();
   await page.getByText(/could not safely store.*request/i).waitFor();
   assert.equal(requests.length, countBeforeStorageFailure);
+  // A confirmed modal publication must leave without its own pending guard blocking navigation
+  outcome = "saved";
+  await page.route("**/workspace/main.tsx*", async (route) => {
+    const original = await (await route.fetch()).text();
+    const react = original.match(/from "([^"\n]*\/react\.js[^"\n]*)"/)[1];
+    const dom = original.match(/from "([^"\n]*react-dom_client[^"\n]*)"/)[1];
+    await route.fulfill({
+      contentType: "text/javascript",
+      body: `import React from ${JSON.stringify(react)};
+        import client from ${JSON.stringify(dom)};
+        import { PublishDialog } from "/publications/PublishDialog.tsx";
+        client.createRoot(document.getElementById("root")).render(React.createElement(PublishDialog, {
+          projectId: ${JSON.stringify(projectId)}, actorId: ${JSON.stringify(actor)}, onClose() {}
+        }));`,
+    });
+  });
+  // Finish the preceding storage-failure scenario before testing a fresh modal
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.goto(`${origin}/publish?projectId=${projectId}`);
+  let blockedSuccess = false;
+  page.on("dialog", async (dialog) => {
+    blockedSuccess = true;
+    await dialog.dismiss();
+  });
+  await page.getByRole("button", { name: "Publish Project", exact: true }).click();
+  await page.waitForURL("**/home?tab=published");
+  assert.equal(
+    blockedSuccess,
+    false,
+    "A verified publication must not trigger an unsaved-work prompt",
+  );
   console.log(
     "Publication screen checks passed: saved revision, audience, uncertain retry, acknowledgement, permission and conflict.",
   );
