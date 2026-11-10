@@ -1,0 +1,59 @@
+/* Keep the submission decision compact and scoped to the creator editor */
+.creator-approval-dialog {
+  box-sizing: border-box;
+  width: min(390px, calc(100% - 32px));
+  max-height: calc(100dvh - 48px);
+  margin: auto;
+  padding: 28px;
+  border: 1px solid #e7e2dc;
+  border-radius: 28px;
+  background: #fff;
+  color: #332e2a;
+  box-shadow: 0 20px 80px rgb(41 39 35 / 20%);
+  font:
+    400 13px/20px Inter,
+    sans-serif;
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #aaa59c #f6f4f1;
+}
+.creator-approval-dialog::backdrop {
+  background: rgb(41 39 35 / 35%);
+}
+.creator-approval-dialog h2 {
+  margin: 0 40px 10px 0;
+  font:
+    700 25px/32px Inter,
+    sans-serif;
+}
+.creator-approval-dialog p {
+  margin: 0;
+  color: #6e685f;
+}
+.creator-approval-close {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--sp-close-surface, #f3f4f6);
+  color: #332e2a;
+  cursor: pointer;
+}
+.creator-approval-confirm {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 20px 0;
+  cursor: pointer;
+}
+.creator-approval-confirm input {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin: 2px 0 0;
