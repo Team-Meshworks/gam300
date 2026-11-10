@@ -743,62 +743,297 @@
 }
 .sp-shell[data-account-role="Creator"] .sp-view-details:hover:not(:disabled) {
   background: var(--creator-hover);
-  flex: 1;
-  min-width: 0;
+  text-decoration: none;
+}
+.sp-shell[data-account-role="Creator"] .sp-tabs button:hover:not(:disabled) {
+  background: var(--creator-hover);
+}
+.sp-shell[data-account-role="Creator"] .sp-tabs button[aria-selected="true"]:hover:not(:disabled) {
+  background: var(--creator-selected-hover);
+}
+.sp-shell[data-account-role="Creator"] .sp-student-detail-actions .sp-button:hover:not(:disabled) {
+  background: var(--creator-primary-hover);
+}
+.sp-shell[data-account-role="Creator"]
+  :is(input:not([type="checkbox"]):not([type="radio"]), textarea) {
+  cursor: text;
+}
+.sp-shell[data-account-role="Creator"] :is(button, select, summary):not(:disabled),
+.sp-creator-space-menu > button:not(:disabled) {
+  cursor: pointer;
+}
+
+.sp-shell--creator .sp-student-dashboard .sp-student-metadata dd {
+  margin-top: 4px;
+}
+.sp-shell--creator .sp-student-dashboard .sp-student-metadata .sp-due {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* Use the shared facilitator washes above panel fills while keeping content clear */
+.sp-shell--creator:has(.sp-student-dashboard) > .sp-wash {
+  z-index: 1;
+}
+.sp-shell--creator:has(.sp-student-dashboard) > .sp-account-header,
+.sp-shell--creator .sp-student-dashboard > *,
+.sp-shell--creator:has(.sp-student-dashboard) .sp-dashboard-tools {
+  position: relative;
+  z-index: 2;
+}
+
+.sp-shell.sp-shell--creator:has(.sp-student-dashboard) .sp-workspace {
+  position: relative;
+}
+.sp-shell.sp-shell--creator:has(.sp-student-dashboard) .sp-workspace::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border: 1px solid var(--creator-home-edge);
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+@media (max-width: 1100px) {
+  .sp-shell.sp-shell--creator:has(.sp-student-dashboard) .sp-workspace {
+    padding-block: 38px;
+  }
+}
+
+/* Centre empty publications between the introduction and the footer note */
+.sp-shell--creator .sp-student-dashboard[data-tab="published"]:has(p.sp-dashboard-state) {
+  grid-template-rows: auto minmax(246px, 1fr) auto;
+}
+.sp-shell--creator
+  .sp-student-dashboard[data-tab="published"]:has(p.sp-dashboard-state)
+  > .sp-tabs {
+  grid-row: 2;
+  grid-column: 1;
+  align-self: start;
+  z-index: 3;
+}
+.sp-shell--creator
+  .sp-student-dashboard[data-tab="published"]
+  [role="tabpanel"]:has(> p.sp-dashboard-state) {
+  grid-row: 2;
+  grid-column: 1;
   display: grid;
-  gap: 12px;
-  align-content: start;
+  align-items: center;
 }
-.sp-student-detail-heading {
+.sp-shell--creator
+  .sp-student-dashboard[data-tab="published"]
+  [role="tabpanel"]
+  > p.sp-dashboard-state {
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.sp-shell--creator .sp-publications-illustration {
+  width: 96px;
+  height: 72px;
+  color: #a49b8f;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.sp-shell--creator .sp-publications-back {
+  fill: #e9e4dc;
+  stroke: #d3cbc0;
+}
+.sp-shell--creator .sp-publications-front {
+  fill: #faf8f4;
+  stroke: #b9afa2;
+}
+.sp-shell--creator .sp-publications-accent {
+  stroke: #c3b6a3;
+}
+
+/* Programmatic route focus should not draw a border around the entire workspace */
+.sp-shell[data-account-role="Creator"] .sp-workspace:focus {
+  outline: none;
+}
+
+/* Keep details in the same modal layer as other workspace popups */
+.sp-shell--creator .sp-creator-detail-dialog {
+  position: fixed;
+  width: min(720px, calc(100% - 40px));
+  max-height: calc(100dvh - 48px);
+  padding: 0;
+  border-radius: 28px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--creator-scroll-thumb) var(--creator-scroll-track);
+}
+.sp-shell--creator .sp-creator-detail-dialog .sp-student-detail {
+  grid-template-columns: 216px minmax(0, 1fr);
+  min-height: 0;
+  gap: 24px;
+  padding: 28px;
+  border-radius: 0;
+  font-size: 13px;
+}
+.sp-shell--creator .sp-creator-detail-dialog .sp-student-detail-content {
   display: flex;
-  align-items: start;
-  justify-content: space-between;
-  gap: 20px;
+  flex-direction: column;
 }
-.sp-student-detail-heading h1 {
-  font-size: clamp(30px, 3.5vw, 50px);
-  overflow-wrap: anywhere;
+.sp-shell--creator .sp-creator-detail-dialog .sp-student-detail-actions {
+  margin-top: auto;
+  padding-top: 24px;
 }
-.sp-student-detail-content h2 {
-  font-size: 16px;
-  margin-top: 10px;
+.sp-shell--creator .sp-creator-detail-dialog .sp-student-detail-image {
+  align-self: center;
+  width: 216px;
+  height: 352px;
+  margin: 0;
+  border-radius: 20px;
 }
-.sp-student-detail-content p {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
+.sp-shell--creator .sp-creator-detail-dialog .sp-student-detail-heading h1 {
+  font-size: 25px;
+  line-height: 32px;
 }
-.sp-student-comments {
-  background: #faf8f3;
-  border: 1px solid #e7e2dc;
-  border-radius: 18px;
-  overflow: hidden;
+.sp-shell--creator .sp-creator-detail-dialog .sp-close-button {
+  top: 20px;
+  right: 20px;
 }
-.sp-student-comments > p,
-.sp-student-comments article {
-  padding: 16px;
+.sp-shell--creator .sp-creator-detail-dialog .sp-student-detail-badges {
+  flex-wrap: nowrap;
+  gap: 8px;
+  margin: 12px 0 20px;
 }
-.sp-student-comments article + article {
-  border-top: 1px solid #e7e2dc;
-}
-.sp-student-comments time {
-  color: #77716a;
+.sp-shell--creator .sp-creator-detail-dialog .sp-student-detail-badges > span {
+  min-height: 28px;
+  padding-inline: 10px;
   font-size: 12px;
 }
-.sp-student-detail-actions {
-  display: flex;
-  justify-content: end;
-  margin-top: 12px;
+.sp-shell--creator .sp-creator-detail-dialog .sp-student-detail-content h2 {
+  font-size: 15px;
+  line-height: 22px;
 }
-@media (max-width: 760px) {
-  .sp-student-detail {
+.sp-shell--creator .sp-creator-detail-dialog .sp-progress-entry {
+  padding: 12px 14px;
+  font-size: 13px;
+}
+.sp-shell--creator .sp-creator-detail-dialog .sp-progress-entry p {
+  line-height: 20px;
+}
+@media (max-width: 600px) {
+  .sp-shell--creator .sp-creator-detail-dialog {
+    width: calc(100% - 32px);
+  }
+  .sp-shell--creator .sp-creator-detail-dialog .sp-student-detail {
+    grid-template-columns: minmax(0, 1fr);
     padding: 24px;
-    border-radius: 24px;
+    gap: 20px;
   }
-  .sp-student-detail {
-    flex-direction: column;
+  .sp-shell--creator .sp-creator-detail-dialog .sp-student-detail-image {
+    width: 100%;
+    height: 140px;
+    margin-top: 32px;
+    border-radius: 16px;
   }
-  .sp-student-detail-image {
-    flex: none;
-    min-height: 180px;
+  .sp-shell--creator .sp-creator-detail-dialog .sp-student-detail-heading h1 {
+    font-size: 22px;
+    line-height: 28px;
   }
+}
+
+/* Keep status badges on the same row when an educator has a long name */
+.sp-shell--creator .sp-creator-detail-dialog .sp-student-detail-badges > span {
+  flex-shrink: 0;
+}
+.sp-shell--creator .sp-creator-detail-dialog .sp-student-detail-badges > span:first-child {
+  display: block;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 28px;
+}
+
+/* Keep copy feedback beside its action without adding another card row */
+.sp-shell--creator .sp-published-copy {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+}
+.sp-shell--creator .sp-published-copy .sp-button {
+  flex: none;
+}
+.sp-shell--creator .sp-published-copy [role="status"] {
+  min-width: 0;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+/* Match the pale deadline badge without changing other workspace palettes */
+.sp-shell--creator .sp-approval[data-state="approved"] {
+  background: var(--creator-detail-approved);
+  color: #57733e;
+}
+
+/* Keep secondary approval actions distinct from the white popup */
+.sp-shell--creator .sp-student-detail-actions .sp-button--secondary {
+  background: #eeeae6;
+  color: var(--creator-action);
+}
+.sp-shell[data-account-role="Creator"]
+  .sp-student-detail-actions
+  .sp-button--secondary:hover:not(:disabled) {
+  background: #e3ded8;
+}
+
+/* Keep approval labels together without widening the badge beyond its content */
+.sp-shell--creator .sp-student-metadata .sp-approval {
+  white-space: nowrap;
+}
+
+/* Keep the QR action beside the link without adding another pill-shaped control */
+.sp-shell--creator .sp-published-link-row {
+  display: flex;
+  align-items: center;
+  /* Account for the QR glyph's 2px inset so the visible gap matches Copy */
+  gap: 6px;
+  min-width: 0;
+}
+.sp-shell--creator .sp-published-link-row input {
+  flex: 1;
+  min-width: 0;
+}
+.sp-shell--creator .sp-published-qr {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 24px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--creator-action);
+  cursor: pointer;
+}
+.sp-shell--creator .sp-published-qr:hover {
+  color: #81796e;
+}
+.sp-shell--creator .sp-dialog.sp-creator-qr-dialog {
+  width: min(300px, calc(100% - 32px));
+  padding: 28px;
+  border-radius: 28px;
+}
+.sp-shell--creator .sp-creator-qr-dialog .sp-dialog-body {
+  padding-top: 0;
+  display: flex;
+  justify-content: center;
+  margin: 0;
+}
+.sp-shell--creator .sp-creator-qr-dialog .sp-dialog-body > svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
 }

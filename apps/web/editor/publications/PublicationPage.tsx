@@ -1,3 +1,5 @@
+import { Icon } from "@iconify/react/offline";
+import check from "@iconify-icons/lucide/check";
 import { useEffect, useRef, useState } from "react";
 import type { AccountSession } from "../accounts/account-client";
 import type { LeaveGuard } from "../workspace/useWorkspaceDeparture";
