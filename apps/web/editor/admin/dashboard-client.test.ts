@@ -89,6 +89,30 @@ it("rejects untrusted project shapes before rendering project links or metadata"
   }
 });
 
+it("preserves draft moderation state and rejects malformed flags", async () => {
+  const state = {
+    projectId: actor,
+    publicationCount: 0,
+    hiddenCount: 0,
+    publicCount: 0,
+    publishingBlocked: true,
+    removed: false,
+  };
+  const request = vi.fn<typeof fetch>().mockResolvedValue(json({ items: [state] }));
+  await expect(
+    createDashboardClient(actor, request, "facilitator").publicationStates([actor]),
+  ).resolves.toEqual({ [actor]: state });
+  for (const invalid of [
+    { ...state, publishingBlocked: "yes" },
+    { ...state, removed: 1 },
+  ]) {
+    request.mockResolvedValueOnce(json({ items: [invalid] }));
+    await expect(
+      createDashboardClient(actor, request, "facilitator").publicationStates([actor]),
+    ).rejects.toThrow("could not be verified");
+  }
+});
+
 it("creates organisations with CSRF protection and the originating account on both requests", async () => {
   const request = vi
     .fn<typeof fetch>()

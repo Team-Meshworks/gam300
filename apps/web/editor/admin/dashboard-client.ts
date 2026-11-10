@@ -6,6 +6,8 @@ export interface ProjectPublicationState {
   publicationCount: number;
   hiddenCount: number;
   publicCount: number;
+  publishingBlocked?: boolean;
+  removed?: boolean;
 }
 
 export interface DashboardProject {
@@ -36,7 +38,13 @@ const record = (value: unknown): value is Record<string, unknown> =>
 const id = (value: unknown): value is string =>
   typeof value === "string" && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(value);
 
-export function createDashboardClient(accountId: string, request: typeof fetch = fetch) {
+export function createDashboardClient(
+  accountId: string,
+  request: typeof fetch = fetch,
+  moderationScope: "admin" | "facilitator" = "admin",
+) {
+  const moderationPrefix =
+    moderationScope === "admin" ? "/api/v1/admin/projects" : "/api/v1/projects";
   async function send(path: string, init: RequestInit = {}): Promise<unknown> {
     let response: Response;
     try {
@@ -59,7 +67,9 @@ export function createDashboardClient(accountId: string, request: typeof fetch =
         response.status === 401
           ? "Your session has expired. Sign in again."
           : response.status === 403
-            ? "Administrator access could not be verified. Sign in again."
+            ? moderationScope === "facilitator"
+              ? "Project management access could not be verified. Sign in again."
+              : "Administrator access could not be verified. Sign in again."
             : response.status === 400
               ? "Check the organisation name and try again."
               : response.status === 429
@@ -171,7 +181,7 @@ export function createDashboardClient(accountId: string, request: typeof fetch =
       for (let offset = 0; offset < ids.length; offset += 100) {
         const batch = ids.slice(offset, offset + 100);
         const page = await send(
-          `/api/v1/admin/projects/publication-moderation?${new URLSearchParams({ ids: batch.join(",") })}`,
+          `${moderationPrefix}/publication-moderation?${new URLSearchParams({ ids: batch.join(",") })}`,
         );
         if (!record(page) || !Array.isArray(page.items) || page.items.length !== batch.length) {
           throw new Error("Publication visibility could not be verified.");
@@ -182,6 +192,8 @@ export function createDashboardClient(accountId: string, request: typeof fetch =
             !id(item.projectId) ||
             !batch.includes(item.projectId.toLowerCase()) ||
             states[item.projectId.toLowerCase()] ||
+            (item.publishingBlocked !== undefined && typeof item.publishingBlocked !== "boolean") ||
+            (item.removed !== undefined && typeof item.removed !== "boolean") ||
             ![item.publicationCount, item.hiddenCount, item.publicCount].every(
               (count) => Number.isSafeInteger(count) && (count as number) >= 0,
             ) ||
@@ -206,7 +218,7 @@ export function createDashboardClient(accountId: string, request: typeof fetch =
       if (!record(csrf) || typeof csrf.requestToken !== "string" || !csrf.requestToken) {
         throw new Error("Your session could not be verified. Sign in again.");
       }
-      await send(`/api/v1/admin/projects/${encodeURIComponent(projectId)}/publication-moderation`, {
+      await send(`${moderationPrefix}/${encodeURIComponent(projectId)}/publication-moderation`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": csrf.requestToken },
         body: JSON.stringify({ action }),

@@ -1,28 +1,32 @@
 /* Hallmark · existing Spatia system · admin dashboard.pdf pages 3–5 · scope: app */
 /* Restore the approved panel surfaces while retaining project cards, routes and actions */
 :root {
-  --admin-panel: rgb(255 253 251 / 52%);
+  --admin-panel: #f7f7f7;
+  --admin-panel-shadow: inset 4px 5px 14px rgb(57 43 29 / 4%);
   --admin-organisation-card-paper: #fff;
-  --admin-panel-tint: rgb(204 186 168 / 10%);
+  --admin-panel-tint: transparent;
   --admin-page-wash-opacity: 1;
-  --admin-projects-background: url("./assets/dashboard-projects.png");
-  --admin-organisations-background: url("./assets/dashboard-organisations.png");
-  --admin-assets-background: url("./assets/dashboard-assets.png");
-  --admin-workspace-background: url("./assets/workspace-panel.png");
+  --admin-projects-background: linear-gradient(var(--admin-panel-tint), var(--admin-panel-tint));
+  --admin-organisations-background: linear-gradient(
+    var(--admin-panel-tint),
+    var(--admin-panel-tint)
+  );
+  --admin-assets-background: linear-gradient(var(--admin-panel-tint), var(--admin-panel-tint));
+  --admin-workspace-background: linear-gradient(var(--admin-panel-tint), var(--admin-panel-tint));
   --admin-search-background: url("./assets/workspace-search.png");
   --admin-search-inset: rgb(41 39 35 / 9%);
   --admin-search-keyline: rgb(255 255 255 / 95%);
   --admin-panel-border: rgb(255 255 255 / 85%);
   --admin-cover: #eee9e2;
   --admin-progress-background: #fffdfb;
-  --admin-approved-ink: #65794e;
+  --admin-approved-ink: #70855d;
   --admin-status-background: #f0ede7;
-  --admin-status-ink: #686159;
-  --admin-public-ink: #3d6048;
-  --admin-public-background: #eaf0e8;
-  --admin-moderation-danger-ink: #a51f24;
-  --admin-moderation-danger-border: #d9b4b6;
-  --admin-moderation-danger-surface: #fff4f4;
+  --admin-status-ink: #77716a;
+  --admin-public-ink: #70855d;
+  --admin-public-background: #edf2e7;
+  --admin-moderation-danger-ink: #c94032;
+  --admin-moderation-danger-border: #f4c5bc;
+  --admin-moderation-danger-surface: #fef2f0;
 }
 .sp-shell--dashboard .sp-workspace {
   border: 0;
@@ -31,12 +35,12 @@
   padding: 35px 0 0;
 }
 .sp-shell--dashboard .sp-wash--left {
-  left: -210px;
-  top: -248px;
+  left: calc(50% - 1121px);
+  top: -177px;
 }
 .sp-shell--dashboard .sp-wash--right {
-  left: calc(50% - 67px);
-  top: 183px;
+  left: calc(50% - 7px);
+  top: 208px;
 }
 .sp-shell--dashboard:has(.admin-greeting) .sp-wash {
   opacity: var(--admin-page-wash-opacity);
@@ -61,6 +65,8 @@
   padding: 34px 46px;
   border-radius: 50px;
   background: var(--admin-panel);
+  background-clip: padding-box;
+  box-shadow: var(--admin-panel-shadow);
   border: 1px solid var(--admin-panel-border);
   min-width: 0;
 }
@@ -86,13 +92,13 @@
 .admin-project-loading {
   min-height: 254px;
 }
-/* Reuse the panel artwork embedded in the approved PDF, including its shaded edges */
+/* Keep the panel tint while letting CSS draw one rounded edge at every size */
 .admin-projects {
   background-image:
     linear-gradient(var(--admin-panel-tint), var(--admin-panel-tint)),
     var(--admin-projects-background);
   background-size: 100% 100%;
-  padding: 38px 40px 36px;
+  padding: 40px 38px 36px;
   margin-bottom: 20px;
 }
 .admin-section-heading {
@@ -111,9 +117,9 @@
   color: var(--sp-muted);
 }
 .admin-dashboard .sp-button {
-  min-height: 44px;
+  min-height: 36px;
   font-size: 12px;
-  padding: 8px 22px;
+  padding: 0 16px;
   text-align: center;
   text-decoration: none;
   display: inline-flex;
@@ -288,8 +294,7 @@
   margin-top: 14px;
 }
 .admin-entry-actions .sp-button {
-  min-width: 160px;
-  padding-inline: 18px;
+  padding-inline: 16px;
 }
 .admin-upload-note {
   font-size: 12px;
@@ -324,7 +329,7 @@
   justify-self: end;
 }
 .admin-project-browser > .sp-tabs {
-  margin-top: 26px;
+  margin-top: 22px;
   padding: 8px 20px 10px;
   border-bottom: 1px solid var(--sp-border);
 }
@@ -393,19 +398,19 @@
 }
 .admin-project-detail h2 {
   margin: 18px 0;
-  font-size: 24px;
+  font-size: 25px;
   line-height: 1.35;
 }
 .admin-detail-columns {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.45fr);
   gap: 50px;
-  margin-top: 18px;
+  margin-top: 20px;
 }
 .admin-detail-columns .admin-project-cover {
   height: auto;
-  aspect-ratio: 2.48;
-  border-radius: 16px;
+  aspect-ratio: 2.5;
+  border-radius: 24px;
 }
 .admin-progress {
   display: flex;
@@ -419,20 +424,21 @@
   background: var(--admin-progress-background);
 }
 .admin-progress-controls {
-  padding: 18px 18px 0;
+  padding: 20px 20px 6px;
+  border-bottom: 1px solid var(--sp-border);
 }
 .admin-progress-controls .sp-search {
-  min-height: 40px;
+  min-height: 45px;
   width: 100%;
 }
 .admin-progress-controls .sp-tabs {
-  margin-top: 18px;
+  margin-top: 29px;
   gap: 20px;
   overflow-x: auto;
 }
 .admin-progress-controls .sp-tabs button {
   white-space: nowrap;
-  font-size: 12px;
+  font-size: 14px;
 }
 .admin-progress-list {
   flex: 1;
@@ -442,11 +448,13 @@
 }
 .admin-progress-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(110px, 0.6fr);
+  grid-template-columns: minmax(0, 1fr) 148px;
   align-items: start;
-  gap: 14px;
-  min-height: 170px;
-  padding: 24px;
+  row-gap: 28px;
+  column-gap: 14px;
+  align-content: start;
+  min-height: 0;
+  padding: 20px 24px;
   border-bottom: 1px solid var(--sp-border);
 }
 .admin-progress-row:last-child {
@@ -466,37 +474,51 @@
   border-radius: 50%;
   background: var(--sp-avatar-surface);
   color: var(--sp-avatar-ink);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
 }
 .admin-student-identity strong {
   display: block;
-  font-size: 14px;
+  font-size: 15px;
+  line-height: 20px;
   overflow-wrap: anywhere;
 }
 .admin-student-identity div > span {
   display: block;
   margin-top: 4px;
   color: var(--sp-muted);
-  font-size: 11px;
+  font-size: 13px;
+  line-height: 18px;
   overflow-wrap: anywhere;
 }
 .admin-student-status {
+  justify-self: end;
+  width: 124px;
+  max-width: 148px;
   grid-column: 2;
   grid-row: span 2;
   display: grid;
-  gap: 9px;
+  align-content: start;
+  gap: 10px;
   margin: 0;
-  font-size: 11px;
+  font-size: 12px;
 }
 .admin-student-status dt {
+  line-height: 16px;
   color: var(--sp-muted);
 }
 .admin-student-status dd {
-  margin: 0 0 8px;
+  white-space: nowrap;
+  font-weight: 600;
+  margin: 0;
+  font-size: 13px;
+  line-height: 18px;
   display: flex;
   align-items: center;
   gap: 5px;
+}
+.admin-status-private {
+  color: var(--admin-status-ink);
 }
 .admin-status-approved {
   color: var(--admin-approved-ink);
@@ -512,11 +534,11 @@
 }
 .admin-assignment-description h3 {
   margin: 18px 0 8px;
-  font-size: 18px;
+  font-size: 20px;
 }
 .admin-assignment-description p {
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: 15px;
+  line-height: 20px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -658,7 +680,7 @@
   height: 24px;
 }
 .admin-project-browser .admin-project-info .sp-button {
-  padding-inline: 18px;
+  padding-inline: 16px;
 }
 
 .admin-project-moderation,
@@ -673,16 +695,18 @@
 }
 .admin-project-moderation .sp-button {
   margin: 0;
-  min-height: 44px;
+  min-height: 36px;
   gap: 6px;
 }
 .admin-student-actions {
   grid-column: 1;
 }
 .admin-student-actions .sp-button {
-  min-height: 44px;
+  min-height: 32px;
+  height: 32px;
+  font-weight: 500;
   gap: 6px;
-  padding: 10px 14px;
+  padding: 0 14px;
 }
 .admin-publication-delete {
   color: var(--admin-moderation-danger-ink);
@@ -742,4 +766,181 @@
 .admin-progress-empty p {
   font-size: 14px;
   line-height: 1.5;
+}
+
+/* The progress-row reference uses neutral actions; the project-level Delete stays red */
+.admin-student-actions .sp-button:not(.sp-button--primary) {
+  color: #515151;
+  border-color: #e7e2dc;
+  background: #f7f5f2;
+}
+.admin-dashboard .sp-button--primary {
+  background: #332e2a;
+  border-color: #332e2a;
+}
+
+.admin-student-actions .sp-button:not(.sp-button--primary):hover:not(:disabled) {
+  background: #eee8e1;
+}
+
+.admin-progress-controls .sp-search svg {
+  width: 24px;
+  height: 24px;
+}
+
+/* Match the facilitator search control while retaining this role's layout. */
+.admin-dashboard .sp-search {
+  position: relative;
+  height: 45px;
+  min-height: 45px;
+  padding: 0 22px;
+  border: 1px solid rgb(255 255 255 / 90%);
+  background-color: transparent;
+  background-image: linear-gradient(rgb(239 239 239 / 45%), rgb(245 245 245 / 45%) 55%);
+  background-size: 100% 100%;
+  box-shadow: inset 0 3px 7px rgb(0 0 0 / 7%);
+}
+.admin-dashboard .sp-search input {
+  position: relative;
+  z-index: 1;
+  box-sizing: border-box;
+  height: 22px;
+  min-height: 0;
+  min-width: 0;
+  padding: 0;
+  font: 400 13px/18px var(--sp-font, "Inter", sans-serif);
+}
+.admin-dashboard .sp-search svg {
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+}
+
+.admin-dashboard .sp-close-button {
+  flex-basis: 36px;
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
+  padding: 0;
+}
+.admin-dashboard .sp-close-button > svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Make hover visible across the complete control without changing selected tabs. */
+.admin-dashboard .sp-tabs button {
+  border-radius: 8px;
+}
+.admin-dashboard .sp-tabs button:hover:not(:disabled) {
+  background: #eae5df;
+}
+.admin-dashboard .sp-tabs button[aria-selected="true"]:hover:not(:disabled) {
+  background: #eae5df;
+}
+.admin-project-metadata a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 4px;
+  margin: -2px -4px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.admin-project-metadata a:hover {
+  background: #eae5df;
+}
+.admin-dashboard .sp-close-button:hover:not(:disabled) {
+  background: #e4e5e7;
+}
+.admin-project-moderation .admin-publication-delete:hover:not(:disabled) {
+  background: #fbe2dd;
+}
+
+/* Keep navigation, names and content larger than metadata and hints. */
+.admin-project-browser > .sp-tabs button,
+.admin-progress-controls .sp-tabs button {
+  font-size: 15px;
+  line-height: 20px;
+}
+.admin-student-actions .sp-button {
+  font-size: 15px;
+  line-height: 20px;
+}
+
+/* Match facilitator: washes cross the panel surface, beneath its content and edge. */
+.sp-shell[data-account-role="Administrator"] > .sp-wash {
+  z-index: 1;
+}
+.sp-shell[data-account-role="Administrator"] .sp-wash--left {
+  left: calc(50% - 1121px);
+  top: -177px;
+  width: 993px;
+  height: 993px;
+}
+.sp-shell[data-account-role="Administrator"] .sp-wash--right {
+  left: calc(50% - 7px);
+  top: 208px;
+  width: 1004px;
+  height: 1004px;
+}
+.sp-shell[data-account-role="Administrator"] > .sp-account-header,
+.admin-greeting,
+.admin-panel > *,
+.sp-directory--administration > * {
+  position: relative;
+  z-index: 2;
+}
+:is(.admin-panel, .sp-directory--administration) {
+  position: relative;
+}
+:is(.admin-panel, .sp-directory--administration)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border: 1px solid var(--admin-panel-border);
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.admin-project-detail {
+  --admin-project-section-gap: 24px;
+  font-family: var(--sp-font);
+}
+.admin-project-detail .admin-project-view-heading h1,
+.admin-project-detail .admin-detail-columns > div > h2 {
+  font-size: 25px;
+  font-weight: 700;
+  line-height: normal;
+}
+.admin-project-detail .admin-project-view-heading p {
+  margin-top: 7px;
+  color: #77716a;
+  font-size: 12px;
+  line-height: normal;
+}
+.admin-project-detail .admin-project-metadata {
+  grid-template-columns: 100px minmax(0, 1fr);
+  gap: 10px 8px;
+  font: 400 13px/normal var(--sp-font);
+  margin-bottom: 0;
+}
+.admin-project-detail .admin-project-metadata dd:not(.admin-project-visibility) {
+  font-weight: 600;
+}
+.admin-project-detail .admin-project-visibility {
+  font-family: var(--sp-font);
+  font-size: 13px;
+}
+.admin-project-detail .admin-assignment-description {
+  display: flow-root;
+}
+.admin-project-detail .admin-assignment-description h3 {
+  margin: var(--admin-project-section-gap) 0 8px;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: normal;
 }
