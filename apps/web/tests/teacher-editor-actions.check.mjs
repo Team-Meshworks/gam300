@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { createServer } from "vite";
 import { launchBrowser } from "./browser-security.mjs";
-const server = await createServer({ server: { host: "127.0.0.1", port: 0 }, logLevel: "silent" });
+const server = await createServer({
+  server: { host: "127.0.0.1", port: 0 },
+  logLevel: "silent",
+});
 let browser;
 const doc = JSON.parse(
   await readFile(new URL("../shared/project/fixtures/m2-project.json", import.meta.url), "utf8"),
@@ -30,10 +33,42 @@ let saved = 0;
 let revision = 0;
 let savedDocument = structuredClone(doc);
 const publications = [];
+const submissionId = "77777777-7777-4777-8777-777777777777";
+const submittedDocument = structuredClone(doc);
+submittedDocument.title = "Submitted exhibition";
+const secondScene = {
+  ...structuredClone(doc.scenes[0]),
+  id: "99999991-9999-4999-8999-999999999999",
+  name: "Submitted second room",
+  viewpoints: [
+    {
+      id: "99999992-9999-4999-8999-999999999999",
+      name: "Arrival",
+      camera: doc.scenes[0].startCamera,
+    },
+  ],
+};
+submittedDocument.scenes.push(secondScene);
+submittedDocument.scenes[0].interactions = [
+  { when: { type: "scene-starts" }, do: { type: "print-hi" } },
+];
+const previewAlerts = [];
+const submittedSummary = {
+  submissionId,
+  revision: 0,
+  sequence: 1,
+  submittedAt: "2026-11-02T01:00:00Z",
+  dueAtUnixSeconds: 1793581199,
+  isLate: false,
+  isCurrentSubmission: false,
+};
+savedDocument.title = "Newer draft, not the submitted exhibition";
+revision = 1;
+
 try {
   await server.listen();
   const origin = `http://127.0.0.1:${server.httpServer.address().port}`;
-  browser = await launchBrowser({ target: origin });
+  browser = await launchBrowser({ target: origin, args: ["--enable-unsafe-swiftshader"] });
   let page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
   page.setDefaultTimeout(15000);
   const mockApi = async (route) => {
@@ -94,7 +129,10 @@ try {
       return reply({ items: [], nextCursor: null });
     }
     if (path === "/api/v1/classes")
-      return reply({ items: [{ id: classId, name: "History class" }], nextCursor: null });
+      return reply({
+        items: [{ id: classId, name: "History class" }],
+        nextCursor: null,
+      });
     if (path === `/api/v1/classes/${classId}/assignments`)
       return reply({
         items: [
@@ -135,7 +173,12 @@ try {
         201,
       );
     }
-    if (path.endsWith("/submissions")) return reply({ items: [], nextCursor: null });
+    if (path.endsWith(`/submissions/${submissionId}`))
+      return reply({
+        ...submittedSummary,
+        projectId,
+        studentId: student,
+        document: submittedDocument,
     if (path === `/api/v1/projects/${projectId}` && req.method() === "PUT") {
       const body = req.postDataJSON();
       saved++;

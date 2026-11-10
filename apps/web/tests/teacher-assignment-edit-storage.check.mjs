@@ -102,9 +102,11 @@ try {
     .locator("article")
     .filter({ has: page.locator(`[id="teacher-project-${classId}:${assignmentId}"]`) });
   await assignmentCard.getByRole("button", { name: "View Details" }).click();
-  await page.getByRole("button", { name: "Edit project details" }).click();
-  const dialog = page.getByRole("dialog", { name: "Edit project details" });
-  await dialog.getByLabel("Project title").fill("Unsaved teacher changes");
+  await page.getByRole("button", { name: "Edit Project Description" }).click();
+  const dialog = page.getByRole("group", { name: "Edit Project Description", exact: true });
+  await dialog
+    .getByRole("textbox", { name: /^Project description/ })
+    .fill("Unsaved teacher changes");
   await page.evaluate(() => {
     const original = Storage.prototype.setItem;
     Storage.prototype.setItem = function (key, value) {
@@ -119,13 +121,23 @@ try {
     .filter({ hasText: /not sent/i })
     .waitFor();
   assert.equal(saved, null, "Storage failure occurs before any PATCH is sent");
-  assert.equal(await dialog.getByLabel("Project title").inputValue(), "Unsaved teacher changes");
-  assert.equal(await dialog.getByLabel("Project title").isEditable(), true);
+  assert.equal(
+    await dialog.getByRole("textbox", { name: /^Project description/ }).inputValue(),
+    "Unsaved teacher changes",
+  );
+  assert.equal(
+    await dialog.getByRole("textbox", { name: /^Project description/ }).isEditable(),
+    true,
+  );
   assert.equal(await dialog.getByRole("button", { name: "Retry same request" }).count(), 0);
-  page.once("dialog", (confirmation) => confirmation.dismiss());
   await dialog.getByRole("button", { name: "Cancel" }).click();
-  assert.equal(await dialog.isVisible(), true, "Unsaved changes require confirmation to close");
-  assert.equal(await dialog.getByLabel("Project title").inputValue(), "Unsaved teacher changes");
+  await dialog.waitFor({ state: "hidden" });
+  await page.getByRole("button", { name: "Edit Project Description" }).click();
+  assert.notEqual(
+    await dialog.getByRole("textbox", { name: /^Project description/ }).inputValue(),
+    "Unsaved teacher changes",
+    "Cancel discards the unsent inline edit",
+  );
   console.log("Assignment edit storage failure preserves unsent changes");
 } finally {
   await browser?.close();

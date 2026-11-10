@@ -46,6 +46,9 @@ const api = async (route) => {
       projectId: fixture.projectId,
       revision,
       state: "Ready",
+      approved: null,
+      completionConfirmed: null,
+    });
   if (path === "/api/v1/auth/logout") {
     account = null;
     return route.fulfill({ status: 204 });
@@ -365,8 +368,8 @@ async function importScenario() {
       0,
       "Server autosave has no redundant Save menu item",
     );
-    await editor.getByRole("button", { name: "Import Project File", exact: true }).waitFor();
-    await editor.getByRole("button", { name: "Export Project File", exact: true }).waitFor();
+    await editor.getByRole("button", { name: "Import", exact: true }).waitFor();
+    await editor.getByRole("button", { name: "Export", exact: true }).waitFor();
     const upload = async (text) =>
       editor.locator("#project-import").setInputFiles({
         name: "project.json",
@@ -422,15 +425,7 @@ try {
   assert.equal(await page.getByRole("complementary", { name: "Server project" }).count(), 0);
   await page.getByRole("button", { name: "Leave editor" }).focus();
   await page.keyboard.press("Enter");
-  const departureSave = page.getByRole("button", { name: "Exit" });
-  await departureSave.waitFor();
-  assert.equal(
-    await page
-      .getByRole("button", { name: "Cancel", exact: true })
-      .evaluate((node) => node === document.activeElement),
-    true,
-  );
-  await departureSave.click();
+  // An unchanged server draft leaves directly without a redundant confirmation
   await page.waitForURL(`${base}/home`, { timeout: 5000 });
   await page.goto(url);
   await saved();
@@ -440,12 +435,12 @@ try {
   await saved();
   assert.equal(document.scenes[0].name, "Autosaved in the real editor");
   assert.equal(writes.length, 1);
-  // Publishing goes through the same preservation choices as leaving the editor.
+  // Leaving keeps changed work behind the same preservation choices
   mode = "failed";
   await edit("Draft before publishing");
   await page.locator('.save-state[data-state="failed"]').waitFor();
   await page.getByRole("alert").filter({ hasText: "Save failed" }).waitFor();
-  await page.getByRole("button", { name: "Publish", exact: true }).click();
+  await page.getByRole("button", { name: "Leave editor", exact: true }).click();
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   assert.equal(
     await page.getByLabel("Scene name", { exact: true }).inputValue(),
@@ -453,9 +448,9 @@ try {
   );
   assert.notEqual(document.scenes[0].name, "Draft before publishing");
   mode = "saved";
-  await page.getByRole("button", { name: "Publish", exact: true }).click();
+  await page.getByRole("button", { name: "Leave editor", exact: true }).click();
   await page.getByRole("button", { name: "Exit", exact: true }).click();
-  await page.waitForURL(`${base}/publish?projectId=${fixture.projectId}`);
+  await page.waitForURL(`${base}/home`);
   assert.equal(document.scenes[0].name, "Draft before publishing");
   await page.goto(url);
   await saved();
@@ -474,7 +469,7 @@ try {
   mode = "failed";
   await edit("Offline edit");
   await page.locator('.save-state[data-state="failed"]').waitFor();
-  await projectOption("Log Out");
+  await page.getByRole("button", { name: "Leave editor", exact: true }).click();
   await page.getByRole("button", { name: "Exit", exact: true }).click();
   await page.getByRole("dialog").getByRole("alert").waitFor();
   assert.equal(account, alice);
@@ -496,7 +491,7 @@ try {
       throw new DOMException("Cancelled", "AbortError");
     };
   });
-  await projectOption("Log Out");
+  await page.getByRole("button", { name: "Leave editor", exact: true }).click();
   await page.getByRole("button", { name: "Exit", exact: true }).click();
   await page.getByRole("button", { name: "Export and Exit", exact: true }).click();
   await page.getByRole("dialog").getByRole("alert").waitFor();
@@ -504,9 +499,9 @@ try {
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   await projectOption("Open Server Version");
   await chooseRecovery();
-  await page.getByRole("dialog", { name: "A recovery copy is available" }).waitFor();
+  await page.getByRole("dialog", { name: "Recover your changes?" }).waitFor();
   assert.equal(writes.length, attempts);
-  await page.getByRole("button", { name: "Recover my edits", exact: true }).click();
+  await page.getByRole("button", { name: "Recover changes", exact: true }).click();
   await ready();
   assert.equal(
     await page.getByLabel("Scene name", { exact: true }).inputValue(),
@@ -516,9 +511,7 @@ try {
   await projectOption("Open Server Version");
   await chooseRecovery();
   mode = "saved";
-  await page
-    .getByRole("button", { name: "Use server version and discard recovery", exact: true })
-    .click();
+  await page.getByRole("button", { name: "Use saved version", exact: true }).click();
   await saved();
   await ready();
   assert.equal(await page.getByLabel("Scene name", { exact: true }).inputValue(), "Offline edit");
@@ -547,7 +540,7 @@ try {
   account = alice;
   mode = "saved";
   await page.goto(url);
-  await page.getByRole("button", { name: "Recover my edits", exact: true }).click();
+  await page.getByRole("button", { name: "Recover changes", exact: true }).click();
   await ready();
   assert.equal(
     await page.getByLabel("Scene name", { exact: true }).inputValue(),
@@ -570,7 +563,7 @@ try {
   await edit("Storage failure edit");
   await page.locator('.save-state[data-state="failed"]').waitFor();
   assert.equal(writes.length, beforeStorageFailure);
-  await projectOption("Log Out");
+  await page.getByRole("button", { name: "Leave editor", exact: true }).click();
   await chooseRecovery();
   await page.getByRole("dialog").getByRole("alert").waitFor();
   assert.equal(account, alice);
@@ -622,23 +615,11 @@ try {
   await page.evaluate(() => {
     window.showSaveFilePicker = undefined;
   });
-  const [download] = await Promise.all([
-    page.waitForEvent("download"),
-    projectOption("Export Project File"),
-  ]);
+  const [download] = await Promise.all([page.waitForEvent("download"), projectOption("Export")]);
   assert.equal(
     JSON.parse(readFileSync(await download.path(), "utf8")).scenes[0].name,
     "Only live draft after expiry",
   );
-  await projectOption("Log Out");
-  await Promise.all([
-    page.waitForEvent("download"),
-    page.getByRole("button", { name: "Export and Exit", exact: true }).click(),
-  ]);
-  await page.getByRole("dialog").getByRole("alert").waitFor();
-  assert.equal(account, alice);
-  await page.getByRole("button", { name: "Cancel", exact: true }).click();
-
   // Changing cookies must hide the old editor and keep recovery in its original account.
   mode = "failed";
   await edit("Alice private edit");
@@ -674,18 +655,17 @@ try {
       return put.apply(this, args);
     };
   });
-  // Confirmed autosave permits logout while the final backup still holds the editor locked
-  await projectOption("Log Out");
-  await page.getByRole("button", { name: "Exit", exact: true }).click();
+  // Confirmed autosave permits departure while final backup still holds the editor locked
+  await page.getByRole("button", { name: "Leave editor", exact: true }).click();
   await page.waitForFunction(() => typeof window.releaseDeparture === "function");
   await page.keyboard.press("Control+z");
   assert.equal(await departureName.evaluate((input) => input.value), "Preserved departure edit");
   await page.evaluate(() => window.releaseDeparture());
-  await page.waitForURL("**/login");
-  assert.equal(account, null);
+  await page.waitForURL("**/home");
+  assert.equal(account, bob);
   assert.deepEqual(errors, []);
   console.log(
-    "Actual editor autosave, fresh open, retry identity, conflict/recovery choices, cancelled export/logout, delayed acknowledgements, expiry redirects with draft recovery, storage failure, successful logout and account isolation passed.",
+    "Actual editor autosave, fresh open, retry identity, conflict/recovery choices, cancelled export/departure, delayed acknowledgements, expiry redirects with draft recovery, storage failure, successful departure and account isolation passed.",
   );
 } finally {
   await browser.close();

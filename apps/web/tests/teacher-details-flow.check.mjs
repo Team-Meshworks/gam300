@@ -22,8 +22,30 @@ try {
   browser = await launchBrowser({ target: origin });
   const page = await browser.newPage();
   page.setDefaultTimeout(7000);
+  let enrolled = false;
+  const enrolId = "de000000-0000-4000-8000-000000000006";
   await page.route("**/api/v1/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
+    if (path === "/api/v1/auth/csrf")
+      return route.fulfill({ json: { requestToken: "test-token" } });
+    if (
+      path === `/api/v1/classes/${classId}/members/${enrolId}` &&
+      route.request().method() === "PUT"
+    ) {
+      assert.equal(route.request().headers()["x-csrf-token"], "test-token");
+      enrolled = true;
+      return route.fulfill({ status: 204 });
+    }
+    if (path.endsWith("/eligible-students"))
+      return route.fulfill({
+        json: {
+          items: [
+            { userId: studentId, userName: "Alice", enrolled: true },
+            { userId: enrolId, userName: "Bob", enrolled },
+          ],
+          nextCursor: null,
+        },
+      });
     if (path === "/api/v1/auth/session")
       return route.fulfill({
         json: {
@@ -37,14 +59,28 @@ try {
       });
     if (path === "/api/v1/classes")
       return route.fulfill({
-        json: { items: [{ id: classId, name: "History", organizationId: org }], nextCursor: null },
+        json: {
+          items: [{ id: classId, name: "History", organizationId: org }],
+          nextCursor: null,
+        },
       });
     if (path === "/api/v1/projects")
       return route.fulfill({
         json: {
-          items: [sourceId, otherId].map((projectId) => ({
+          items: [
+            sourceId,
+            otherId,
+            "de000000-0000-4000-8000-000000000021",
+            "de000000-0000-4000-8000-000000000022",
+          ].map((projectId) => ({
             projectId,
-            title: projectId === sourceId ? "Museum" : "Standalone",
+            title:
+              projectId === sourceId
+                ? "Museum"
+                : projectId === otherId
+                  ? "Standalone"
+                  : "Retained class copy",
+            isClassProject: projectId !== otherId,
             revision: 1,
             updatedAt: "2026-11-01T00:00:00Z",
             archived: false,
@@ -56,7 +92,24 @@ try {
     if (path.endsWith("/roster"))
       return route.fulfill({
         json: {
-          items: [{ userId: studentId, userName: "Alice", accountActive: true }],
+          items: [
+            {
+              userId: studentId,
+              userName: "Alice",
+              roleId: "862d776c-4d56-4dd8-919d-26044b6d8a44",
+              accountActive: true,
+            },
+            ...(enrolled
+              ? [
+                  {
+                    userId: enrolId,
+                    userName: "Bob",
+                    roleId: "862d776c-4d56-4dd8-919d-26044b6d8a44",
+                    accountActive: true,
+                  },
+                ]
+              : []),
+          ],
           nextCursor: null,
         },
       });
@@ -68,6 +121,8 @@ try {
               assignmentId,
               sourceProjectId: sourceId,
               title: "Museum",
+              organizationName: "School",
+              creatorUserName: "mschew",
               description: "Build a museum",
               instructions: "Add exhibits",
               dueAtUnixSeconds: 1796200000,
@@ -78,6 +133,7 @@ try {
                   studentName: "Alice",
                   approvalStatus: "approved",
                   published: true,
+                  isPublic: true,
                 },
                 {
                   projectId: "de000000-0000-4000-8000-000000000006",
@@ -85,6 +141,7 @@ try {
                   studentName: "Bob",
                   approvalStatus: "awaiting-approval",
                   published: false,
+                  isPublic: false,
                 },
                 {
                   projectId: "de000000-0000-4000-8000-000000000008",
@@ -92,6 +149,7 @@ try {
                   studentName: "Cara",
                   approvalStatus: "not-submitted",
                   published: false,
+                  isPublic: false,
                 },
                 {
                   projectId: "de000000-0000-4000-8000-000000000010",
@@ -107,9 +165,9 @@ try {
     return route.fulfill({ status: 404 });
   });
   await page.goto(origin + "/home");
-  const assignmentCard = page
-    .locator("article")
-    .filter({ has: page.locator(`[id="teacher-project-${classId}:${assignmentId}"]`) });
+  const assignmentCard = page.locator("article").filter({
+    has: page.locator(`[id="teacher-project-${classId}:${assignmentId}"]`),
+  });
   await assignmentCard.getByRole("button", { name: "View Details" }).click();
   assert.equal(await page.getByText("Build a museum", { exact: true }).count(), 1);
   assert.equal(await page.getByText("Add exhibits", { exact: true }).count(), 1);
@@ -118,27 +176,47 @@ try {
   const student = (name) =>
     page.locator(".sp-teacher-student").filter({ has: page.getByText(name, { exact: true }) });
   assert.equal(
-    await student("Alice").getByText("Approval status: Approved", { exact: true }).count(),
+    await student("Alice")
+      .locator(".sp-teacher-student-status")
+      .getByText("Approved", { exact: true })
+      .count(),
     1,
   );
   assert.equal(
-    await student("Alice").getByText("Publication status: Published", { exact: true }).count(),
+    await student("Alice")
+      .locator(".sp-teacher-student-status")
+      .getByText("Public", { exact: true })
+      .count(),
     1,
   );
   assert.equal(
-    await student("Bob").getByText("Approval status: Awaiting approval", { exact: true }).count(),
+    await student("Bob")
+      .locator(".sp-teacher-student-status")
+      .getByText("Not Approved", { exact: true })
+      .count(),
     1,
   );
   assert.equal(
-    await student("Bob").getByText("Publication status: Not published", { exact: true }).count(),
+    await student("Bob")
+      .locator(".sp-teacher-student-status")
+      .getByText("Private", { exact: true })
+      .count(),
     1,
   );
   assert.equal(
-    await student("Dee").getByText("Approval status: Unavailable", { exact: true }).count(),
+    await student("Dee")
+      .locator(".sp-teacher-student-status p")
+      .first()
+      .getByText("Unavailable", { exact: true })
+      .count(),
     1,
   );
   assert.equal(
-    await student("Dee").getByText("Publication status: Unavailable", { exact: true }).count(),
+    await student("Dee")
+      .locator(".sp-teacher-student-status p")
+      .last()
+      .getByText("Unavailable", { exact: true })
+      .count(),
     1,
   );
   await page.getByRole("tab", { name: "In Progress" }).click();
@@ -177,7 +255,53 @@ try {
     1,
     "An assignment source must not appear as a duplicate standalone project",
   );
+  assert.equal(
+    await page.getByRole("heading", { name: "Retained class copy", exact: true }).count(),
+    0,
+  );
   console.log("PASS no duplicate source card");
+  await assignmentCard.getByRole("button", { name: "View Details" }).click();
+  await page.getByRole("link", { name: "School", exact: true }).click();
+  await page.getByRole("heading", { name: "Organisation Details", exact: true }).waitFor();
+  assert.equal(await page.getByRole("navigation", { name: "Workspace", exact: true }).count(), 0);
+  assert.equal(await page.getByRole("button", { name: "New Class", exact: true }).count(), 1);
+  await page.getByRole("button", { name: "New Class", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "New Class", exact: true })
+    .getByRole("button", { name: "Cancel", exact: true })
+    .click();
+  await page.getByRole("combobox", { name: "Class", exact: true }).click();
+  await page.getByRole("option", { name: "History", exact: true }).click();
+  await page
+    .getByText("Choose existing student accounts from your organisation.", { exact: true })
+    .waitFor();
+  await page.getByRole("button", { name: "Add Bob to class", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "Add Student to Class", exact: true })
+    .getByRole("button", { name: "Add to Class", exact: true })
+    .click();
+  await page.getByRole("rowheader", { name: "@Bob", exact: true }).waitFor();
+  assert.equal(enrolled, true);
+  assert.equal(await page.getByRole("heading", { name: "Add Students", exact: true }).count(), 0);
+  await page
+    .getByText("Your administrator creates accounts for new students.", { exact: true })
+    .waitFor();
+  await page
+    .getByRole("row")
+    .filter({ hasText: "Museum" })
+    .getByRole("button", { name: "View Details", exact: true })
+    .click();
+  await page.waitForURL(
+    (url) => url.pathname === "/home" && url.searchParams.get("assignmentId") === assignmentId,
+  );
+  await page.getByRole("link", { name: "School", exact: true }).click();
+  await page.getByRole("button", { name: "Close organisation", exact: true }).click();
+  await page.waitForURL(
+    (url) => url.pathname === "/home" && url.searchParams.get("assignmentId") === assignmentId,
+  );
+  console.log(
+    "PASS organisation context, class enrolment, existing-account hint, project navigation and close return",
+  );
 } finally {
   await browser?.close();
   await server.close();
