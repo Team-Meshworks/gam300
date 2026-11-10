@@ -10223,6 +10223,84 @@
         "package": "react"
       },
       "from": "editor"
+    },
+    {
+      "file": "editor/publications/PublishDialog.tsx",
+      "line": 2,
+      "kind": "static",
+      "specifier": "@iconify/react/offline",
+      "target": {
+        "package": "@iconify/react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/publications/PublishDialog.tsx",
+      "line": 3,
+      "kind": "static",
+      "specifier": "@iconify-icons/lucide/x",
+      "target": {
+        "package": "@iconify-icons/lucide"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/publications/PublishDialog.tsx",
+      "line": 4,
+      "kind": "static",
+      "specifier": "../../shared/ui/useModal",
+      "target": "shared/ui/useModal.ts",
+      "from": "editor",
+      "to": "ui-foundation"
+    },
+    {
+      "file": "editor/publications/PublishDialog.tsx",
+      "line": 5,
+      "kind": "static",
+      "specifier": "../accounts/account-client",
+      "target": "editor/accounts/account-client.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/publications/PublishDialog.tsx",
+      "line": 6,
+      "kind": "static",
+      "specifier": "./PublicationPage",
+      "target": "editor/publications/PublicationPage.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/publications/PublishDialog.tsx",
+      "line": 7,
+      "kind": "type",
+      "specifier": "../workspace/useWorkspaceDeparture",
+      "target": "editor/workspace/useWorkspaceDeparture.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/publications/PublishDialog.tsx",
+      "line": 8,
+      "kind": "static",
+      "specifier": "../reviews/request-approval.css",
+      "target": "editor/reviews/request-approval.css",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/publications/PublishDialog.tsx",
+      "line": 9,
+      "kind": "static",
+      "specifier": "./publish-dialog.css",
+      "target": "editor/publications/publish-dialog.css",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/publications/PublishDialog.tsx",
+      "line": 62,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -10520,6 +10598,172 @@
       "from": "editor"
     },
     {
+      "file": "editor/reviews/FacilitatorProjectView.tsx",
+      "line": 1,
+      "kind": "static",
+      "specifier": "react",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/reviews/FacilitatorProjectView.tsx",
+      "line": 2,
+      "kind": "static",
+      "specifier": "@iconify/react/offline",
+      "target": {
+        "package": "@iconify/react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/reviews/FacilitatorProjectView.tsx",
+      "line": 3,
+      "kind": "static",
+      "specifier": "@iconify-icons/lucide/x",
+      "target": {
+        "package": "@iconify-icons/lucide"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/reviews/FacilitatorProjectView.tsx",
+      "line": 4,
+      "kind": "static",
+      "specifier": "../home/classroom-api",
+      "target": "editor/home/classroom-api.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/reviews/FacilitatorProjectView.tsx",
+      "line": 5,
+      "kind": "type",
+      "specifier": "../accounts/account-client",
+      "target": "editor/accounts/account-client.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/reviews/FacilitatorProjectView.tsx",
+      "line": 6,
+      "kind": "static",
+      "specifier": "../accounts/account-client",
+      "target": "editor/accounts/account-client.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/reviews/FacilitatorProjectView.tsx",
+      "line": 7,
+      "kind": "type",
+      "specifier": "../../shared/asset-runtime/catalogue",
+      "target": "shared/asset-runtime/catalogue.ts",
+      "from": "editor",
+      "to": "catalogue"
+    },
+    {
+      "file": "editor/reviews/FacilitatorProjectView.tsx",
+      "line": 8,
+      "kind": "static",
+      "specifier": "../persistence/server-project-read",
+      "target": "editor/persistence/server-project-read.ts",
+      "from": "editor",
+      "to": "persistence"
+    },
+    {
+      "file": "editor/reviews/FacilitatorProjectView.tsx",
+      "line": 13,
+      "kind": "static",
+      "specifier": "../projects/assignment-api",
+      "target": "editor/projects/assignment-api.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/reviews/FacilitatorProjectView.tsx",
+      "line": 14,
+      "kind": "static",
+      "specifier": "../projects/progress-navigation",
+      "target": "editor/projects/progress-navigation.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/reviews/FacilitatorProjectView.tsx",
+      "line": 19,
+      "kind": "static",
+      "specifier": "../document-store",
+      "target": "editor/document-store.ts",
+      "from": "editor",
+      "to": "document"
+    },
+    {
+      "file": "editor/reviews/FacilitatorProjectView.tsx",
+      "line": 20,
+      "kind": "type",
+      "specifier": "../graphics/scene",
+      "target": "editor/graphics/scene.ts",
+      "from": "editor",
+      "to": "rendering"
+    },
+    {
+      "file": "editor/reviews/FacilitatorProjectView.tsx",
+      "line": 21,
+      "kind": "static",
+      "specifier": "../../shared/ui/Button",
+      "target": "shared/ui/Button.tsx",
+      "from": "editor",
+      "to": "ui-foundation"
+    },
+    {
+      "file": "editor/reviews/FacilitatorProjectView.tsx",
+      "line": 22,
+      "kind": "static",
+      "specifier": "./ProgressReviews",
+      "target": "editor/reviews/ProgressReviews.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/reviews/FacilitatorProjectView.tsx",
+      "line": 23,
+      "kind": "static",
+      "specifier": "./reviews.css",
+      "target": "editor/reviews/reviews.css",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/reviews/FacilitatorProjectView.tsx",
+      "line": 24,
+      "kind": "static",
+      "specifier": "./facilitator-project.css",
+      "target": "editor/reviews/facilitator-project.css",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/reviews/FacilitatorProjectView.tsx",
+      "line": 124,
+      "kind": "dynamic",
+      "specifier": "../graphics/scene",
+      "target": "editor/graphics/scene.ts",
+      "from": "editor",
+      "to": "rendering"
+    },
+    {
+      "file": "editor/reviews/FacilitatorProjectView.tsx",
+      "line": 182,
+      "kind": "implicit-jsx",
+      "specifier": "react/jsx-runtime",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
       "file": "editor/reviews/ProgressReviews.tsx",
       "line": 1,
       "kind": "static",
@@ -10657,7 +10901,7 @@
     },
     {
       "file": "editor/reviews/ProgressReviews.tsx",
-      "line": 48,
+      "line": 54,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -10759,6 +11003,51 @@
     {
       "file": "editor/reviews/ProjectReview.tsx",
       "line": 285,
+      "kind": "implicit-jsx",
+      "specifier": "react/jsx-runtime",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/reviews/RequestApproval.tsx",
+      "line": 1,
+      "kind": "static",
+      "specifier": "react",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/reviews/RequestApproval.tsx",
+      "line": 2,
+      "kind": "static",
+      "specifier": "@iconify/react/offline",
+      "target": {
+        "package": "@iconify/react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/reviews/RequestApproval.tsx",
+      "line": 3,
+      "kind": "static",
+      "specifier": "@iconify-icons/lucide/x",
+      "target": {
+        "package": "@iconify-icons/lucide"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/reviews/RequestApproval.tsx",
+      "line": 4,
+      "kind": "static",
+      "specifier": "../../shared/ui/Button",
+      "target": "shared/ui/Button.tsx",
+      "from": "editor",
+      "to": "ui-foundation"
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
