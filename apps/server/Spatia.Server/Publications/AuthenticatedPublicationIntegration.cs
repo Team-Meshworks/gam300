@@ -8,8 +8,9 @@ using Spatia.Server.Projects;
 namespace Spatia.Server.Publications;
 
 /// <summary>Stages agreed authenticated access and retained assets inside the publisher transaction</summary>
-internal sealed class AuthenticatedPublicationIntegration : IPublicationIntegration
+internal sealed class AuthenticatedPublicationIntegration(IHostEnvironment environment, IConfiguration configuration) : IPublicationIntegration
 {
+    private readonly Dictionary<string, DevelopmentPublicationAssets.Asset> _developmentAssets = new(StringComparer.Ordinal);
     public async Task<PublicationPreparation> PrepareAsync(ApplicationDbContext database, ProjectAccessSnapshot project,
         PublicationRequest request, IAuthoredProject document, CancellationToken cancellationToken)
     {
@@ -36,10 +37,21 @@ internal sealed class AuthenticatedPublicationIntegration : IPublicationIntegrat
             && database.UserRoles.Any(role => role.UserId == member.UserId && role.RoleId == member.RoleId))
             .CountAsync(cancellationToken);
         if (eligible != viewers.Length) { return PublicationPreparation.Denied(PublicationRejection.PolicyDenied); }
-        var references = await new ApprovedReviewAssetResolver().ResolveAsync(database, project,
-            PublicationDocumentAssets.Required(document), cancellationToken);
-        return references is null ? PublicationPreparation.Denied(PublicationRejection.InvalidAssets)
-            : PublicationPreparation.Ready(references.Select(row => new PublicationAssetReference(row.AssetId, row.Sha256)), PublicationCapabilities.Supported);
+        var required = PublicationDocumentAssets.Required(document);
+        var approvedIds = required.Where(id => Guid.TryParseExact(id, "D", out var parsed) && parsed.ToString() == id)
+            .ToHashSet(StringComparer.Ordinal);
+        var references = await new ApprovedReviewAssetResolver().ResolveAsync(database, project, approvedIds, cancellationToken);
+        if (references is null) { return PublicationPreparation.Denied(PublicationRejection.InvalidAssets); }
+        _developmentAssets.Clear();
+        var development = new DevelopmentPublicationAssets(environment, configuration);
+        foreach (var id in required.Except(approvedIds, StringComparer.Ordinal))
+        {
+            var asset = await development.ReadAsync(id, cancellationToken);
+            if (asset is null) { return PublicationPreparation.Denied(PublicationRejection.InvalidAssets); }
+            _developmentAssets.Add(id, asset);
+        }
+        return PublicationPreparation.Ready(references.Select(row => new PublicationAssetReference(row.AssetId, row.Sha256))
+            .Concat(_developmentAssets.Values.Select(asset => new PublicationAssetReference(asset.Id, asset.Sha256))), PublicationCapabilities.Supported);
     }
 
     public async Task<PublicationRejection?> AuthorizeReplayAsync(ApplicationDbContext database, ProjectAccessSnapshot project,
@@ -59,6 +71,26 @@ internal sealed class AuthenticatedPublicationIntegration : IPublicationIntegrat
     {
         var intent = ReadIntent(request);
         if (intent.Failure is { } failure) { return failure; }
+        var references = JsonSerializer.Deserialize<PublicationAssetReference[]>(edition.AssetReferencesJson);
+        if (references is null) { return PublicationRejection.InvalidAssets; }
+        foreach (var reference in references.Where(row => !Guid.TryParseExact(row.AssetId, "D", out _)))
+        {
+            if (!_developmentAssets.TryGetValue(reference.AssetId, out var asset) || asset.Sha256 != reference.Sha256)
+            { return PublicationRejection.InvalidAssets; }
+            var bytes = await DevelopmentPublicationAssets.ReadBytesAsync(asset, cancellationToken);
+            if (bytes is null) { return PublicationRejection.InvalidAssets; }
+            await database.Database.ExecuteSqlInterpolatedAsync($"""
+                INSERT INTO development_publication_blobs (sha256, bytes) VALUES ({asset.Sha256}, {bytes})
+                ON CONFLICT (sha256) DO NOTHING
+                """, cancellationToken);
+            var stored = await database.Database.SqlQuery<byte[]>($"SELECT bytes AS \"Value\" FROM development_publication_blobs WHERE sha256 = {asset.Sha256}")
+                .SingleAsync(cancellationToken);
+            if (!stored.AsSpan().SequenceEqual(bytes)) { return PublicationRejection.InvalidAssets; }
+            await database.Database.ExecuteSqlInterpolatedAsync($"""
+                INSERT INTO development_publication_assets (publication_id, asset_id, kind, media_type, sha256, placement)
+                VALUES ({edition.Id}, {asset.Id}, {asset.Kind}, {asset.MediaType}, {asset.Sha256}, {asset.Placement})
+                """, cancellationToken);
+        }
         database.PublicationAccess.Add(new PublicationAccessState
         {
             PublicationId = edition.Id,

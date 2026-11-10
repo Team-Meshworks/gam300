@@ -28,7 +28,13 @@ public sealed class ReviewScreensIntegrationTests
             await database.ProjectAssignments.Where(row => row.ProjectId == seeded.ProjectId && row.UserId == seeded.Student)
                 .ExecuteUpdateAsync(set => set.SetProperty(row => row.CanPublish, true));
         }
-        if (!unavailableAssets)
+        if (unavailableAssets)
+        {
+            // Keep the authored catalogue ID valid while making its publication source bytes unavailable.
+            fixture.App.Configuration["DevelopmentPublication:AssetDirectory"] = Path.Combine(
+                Path.GetTempPath(), "spatia-missing-publication-assets-" + Guid.NewGuid().ToString("N"));
+        }
+        else
         {
             var bytes = AssetIntakeTests.CreateMinimalGlb();
             await using var assetScope = fixture.App.Services.CreateAsyncScope();

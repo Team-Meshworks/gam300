@@ -18,11 +18,13 @@ namespace Spatia.Server.Tests;
 public sealed class OrganizationDeletionTests
 {
     [Test]
-    public async Task Delete_RemovesAllOwnedDataAndAccountsButKeepsOtherOrganizationsAndAssets()
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task Delete_RemovesAllOwnedDataAndAccountsButKeepsOtherOrganizationsAndAssets(bool builtIn)
     {
-        await using var fixture = await HttpsApplicationFixture.CreateAsync();
+        await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
         var admin = await fixture.CreateAccountAsync(ApplicationRoles.Administrator);
-        var (data, asset) = await PublicationEndpointTests.PrepareAsync(fixture, assetOwner: admin);
+        var (data, asset) = await PublicationEndpointTests.PrepareAsync(fixture, assetOwner: admin, starterRoom: builtIn);
         var publication = Guid.NewGuid();
         using var published = await PublishAsync(fixture, data.ProjectId, publication);
         await Assert.That(published.StatusCode).IsEqualTo(HttpStatusCode.Created);
@@ -41,7 +43,7 @@ public sealed class OrganizationDeletionTests
         db.UserTokens.Add(new IdentityUserToken<Guid> { UserId = data.Student, LoginProvider = "fixture", Name = "token", Value = "value" });
         db.UserLogins.Add(new IdentityUserLogin<Guid> { UserId = data.Student, LoginProvider = "fixture", ProviderKey = "key" });
         await db.SaveChangesAsync();
-        var (other, _) = await PublicationEndpointTests.PrepareAsync(fixture, assetOwner: admin);
+        var (other, _) = await PublicationEndpointTests.PrepareAsync(fixture, assetOwner: admin, starterRoom: builtIn);
         var otherPublication = Guid.NewGuid();
         using var otherPublished = await PublishAsync(fixture, other.ProjectId, otherPublication);
         await Assert.That(otherPublished.StatusCode).IsEqualTo(HttpStatusCode.Created);
@@ -99,10 +101,26 @@ public sealed class OrganizationDeletionTests
         await Assert.That(await db.Projects.Where(row => row.Id == other.ProjectId).Select(row => row.DocumentJson).SingleAsync()).IsEqualTo(otherDocument);
         using var oldSession = await memberClient.GetAsync("/api/v1/auth/session");
         await Assert.That(oldSession.StatusCode).IsEqualTo(HttpStatusCode.Unauthorized);
-        foreach (var suffix in new[] { "", "/manifest", $"/assets/{asset.Id}/bytes" })
+        foreach (var suffix in new[] { "", "/manifest", $"/assets/{asset.Id}/bytes", "/assets/test-room-v1/bytes" })
         {
             using var oldLink = await fixture.Client.GetAsync($"/api/v1/publications/{publication}{suffix}");
             await Assert.That(oldLink.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+        }
+        if (builtIn)
+        {
+            await Assert.That(await db.Database.SqlQuery<int>($"SELECT count(*)::int AS \"Value\" FROM development_publication_assets").SingleAsync()).IsEqualTo(1);
+            await Assert.That(await db.Database.SqlQuery<int>($"SELECT count(*)::int AS \"Value\" FROM development_publication_blobs").SingleAsync()).IsEqualTo(1);
+            using var retainedClient = fixture.CreateClient();
+            await fixture.SignInAsync(other.Student, retainedClient);
+            using var retained = await retainedClient.GetAsync($"/api/v1/publications/{otherPublication}/assets/test-room-v1/bytes");
+            await Assert.That(retained.StatusCode).IsEqualTo(HttpStatusCode.OK);
+            await AssertConstraintAsync(db, "DELETE FROM development_publication_assets", "CK_development_publication_assets_immutable");
+            await AssertConstraintAsync(db, "UPDATE development_publication_assets SET placement = NULL", "CK_development_publication_assets_immutable");
+            await AssertConstraintAsync(db, "DELETE FROM development_publication_blobs", "CK_development_publication_assets_immutable");
+            await using var purge = await db.Database.BeginTransactionAsync();
+            await db.Database.ExecuteSqlInterpolatedAsync($"SELECT set_config('spatia.purge_organization', {organization.ToString("D")}, true)");
+            await AssertConstraintAsync(db, $"DELETE FROM development_publication_assets WHERE publication_id = '{otherPublication}'", "CK_development_publication_assets_immutable");
+            await purge.RollbackAsync();
         }
         using var reused = await PublishAsync(fixture, other.ProjectId, publication);
         await AuthTestRequests.AssertProblemAsync(reused, HttpStatusCode.Conflict, "publication_id_conflict");

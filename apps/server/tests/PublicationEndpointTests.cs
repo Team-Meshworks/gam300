@@ -828,7 +828,7 @@ public sealed class PublicationEndpointTests
     }
 
     internal static async Task<(ReviewSubmissionEndpointTests.Seeded Data, AssetCandidate Asset)> PrepareAsync(
-        HttpsApplicationFixture fixture, bool approve = true, bool interactions = false, Guid? assetOwner = null, bool content = false, bool enabledRule = false, long revision = 0)
+        HttpsApplicationFixture fixture, bool approve = true, bool interactions = false, Guid? assetOwner = null, bool content = false, bool enabledRule = false, long revision = 0, bool starterRoom = false, bool displayCube = false)
     {
         fixture.App.Configuration["Publication:Origin"] = "https://publications.example.test";
         var data = await ReviewSubmissionEndpointTests.SeedAsync(fixture, false);
@@ -859,8 +859,10 @@ public sealed class PublicationEndpointTests
             var project = await database.Projects.SingleAsync(row => row.Id == data.ProjectId);
             project.Revision = revision;
             var document = JsonNode.Parse(project.DocumentJson)!;
-            document["scenes"]![0]!["environmentAssetId"] = asset.Id.ToString();
-            document["scenes"]![0]!["objects"] = new JsonArray();
+            document["scenes"]![0]!["environmentAssetId"] = starterRoom ? "test-room-v1" : asset.Id.ToString();
+            document["scenes"]![0]!["objects"] = displayCube
+                ? JsonNode.Parse("""[{"id":"dddddddd-dddd-4ddd-8ddd-dddddddddddd","name":"Display cube","assetId":"display-cube-v1","transform":{"position":[2,0,-3],"rotation":[0,0,0,1],"scale":[1,1,1]}}]""")
+                : new JsonArray();
             if (interactions) { document["scenes"]![0]!["interactions"] = JsonNode.Parse("""[{"when":{"type":"scene-starts"},"do":{"type":"open-link","url":"https://example.com/"}}]"""); }
             if (content)
             {

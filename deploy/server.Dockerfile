@@ -11,6 +11,7 @@ COPY apps/server/ ./
 COPY apps/web/shared/project/publication-capabilities.json /src/apps/web/shared/project/publication-capabilities.json
 # The server embeds the reviewed catalogue at compile time
 COPY assets/manifest.json /src/assets/manifest.json
+COPY assets/delivery/ /src/assets/delivery/
 # Package the bounded worker and its locked parser in the paths expected by the API project
 COPY tools/validate-intake.mjs tools/asset-content-validation.mjs /src/tools/
 COPY --from=asset-validation /src/apps/web/node_modules/gltf-validator/ /src/apps/web/node_modules/gltf-validator/
