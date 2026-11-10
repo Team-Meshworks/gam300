@@ -5,4 +5,4 @@ namespace Spatia.Server.Projects;
 /// </summary>
 public sealed record ProjectSummary(
     Guid ProjectId, string Title, long Revision, DateTimeOffset UpdatedAt, bool Archived, ProjectPermissions Permissions,
-    string OrganizationName, bool IsPublic);
+    string OrganizationName, bool IsPublic, ProjectImageMetadata? Image = null, bool IsClassProject = false);

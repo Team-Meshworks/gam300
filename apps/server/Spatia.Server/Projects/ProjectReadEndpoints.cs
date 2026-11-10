@@ -58,7 +58,10 @@ public static class ProjectReadEndpoints
                                   select new
                                   {
                                       project.Id,
+                                      ImageType = database.ProjectImages.Where(image => image.Id == project.ImageId).Select(image => image.Type).FirstOrDefault(),
                                       OrganizationName = organization.Name,
+                                      IsClassProject = database.ClassAssignments.Any(assignment => assignment.SourceProjectId == project.Id)
+                                          || database.ClassAssignmentStudents.Any(student => student.ProjectId == project.Id),
                                       IsPublic = !project.IsArchived && (from edition in database.Publications
                                                                          join state in database.PublicationAccess on edition.Id equals state.PublicationId
                                                                          where edition.ProjectId == project.Id
@@ -84,7 +87,7 @@ public static class ProjectReadEndpoints
                 }
                 if (!metadata.TryGetValue(project.ProjectId, out var details)) { return Unavailable(context); }
                 items.Add(new(project.ProjectId, title, project.Revision, project.UpdatedAt, project.IsArchived, Permissions(project),
-                    details.OrganizationName, details.IsPublic));
+                    details.OrganizationName, details.IsPublic, details.ImageType is null ? null : new ProjectImageMetadata(details.ImageType, $"/api/v1/projects/{project.ProjectId:D}/image"), details.IsClassProject));
             }
             return HasExpired(context)
                 ? ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired)

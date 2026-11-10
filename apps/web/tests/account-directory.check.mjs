@@ -145,12 +145,25 @@ try {
     const card = page.locator(".sp-organization-card").first();
     assert.equal(
       await card.locator(".sp-avatar").evaluate((node) => node.getBoundingClientRect().height),
-      44,
+      50,
     );
     assert.equal(
       await card.getByRole("button").evaluate((node) => node.getBoundingClientRect().height),
-      44,
+      40,
     );
+    assert.equal(
+      await card
+        .locator(".sp-organization-counts")
+        .evaluate((node) => getComputedStyle(node).flexDirection),
+      "column",
+    );
+    if (width === 1440)
+      assert.equal(
+        await page
+          .locator(".sp-organization-grid")
+          .evaluate((node) => getComputedStyle(node).gridTemplateColumns.split(" ").length),
+        2,
+      );
     if (width === 1440 || width === 390) {
       await page.evaluate(
         () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
@@ -201,7 +214,7 @@ try {
   assert.equal(await explicitCover.getAttribute("src"), "/entry/assets/login-exhibit.png");
   await explicitCover.evaluate((image) => image.decode());
   assert.equal(
-    await defaultCard.getByRole("link", { name: "View Details" }).getAttribute("href"),
+    await defaultCard.getByRole("link", { name: "View details" }).getAttribute("href"),
     `/admin/dashboard?projectId=${userId}`,
   );
   await page.getByRole("tab", { name: "Public", exact: true }).click();
@@ -243,7 +256,7 @@ try {
   assert.equal(await dialog.getByLabel("Password", { exact: true }).getAttribute("type"), "text");
   await dialog.getByRole("button", { name: "Hide password", exact: true }).click();
   await page.screenshot({ path: `${screenshots}/create-account.png`, fullPage: true });
-  await dialog.getByRole("button", { name: "Save Changes" }).evaluate((button) => {
+  await dialog.getByRole("button", { name: "Save changes" }).evaluate((button) => {
     button.click();
     button.click();
   });
@@ -254,14 +267,14 @@ try {
   dialog = page.getByRole("dialog");
   assert.equal(await dialog.getByLabel("Password", { exact: true }).inputValue(), "");
   assert.equal(await dialog.getByLabel("Name", { exact: true }).isDisabled(), true);
-  assert.equal(await dialog.getByRole("button", { name: "Save Changes" }).isDisabled(), true);
+  assert.equal(await dialog.getByRole("button", { name: "Save changes" }).isDisabled(), true);
   await page.screenshot({ path: `${screenshots}/view-account.png`, fullPage: true });
   await dialog.getByRole("button", { name: "Override name", exact: true }).click();
   await dialog.getByLabel("Name", { exact: true }).fill("Aisyah Tan");
   await dialog.getByRole("button", { name: "Override username", exact: true }).click();
   await dialog.getByLabel("Username", { exact: true }).fill("aisyah.tan");
   duplicate = true;
-  await dialog.getByRole("button", { name: "Save Changes" }).click();
+  await dialog.getByRole("button", { name: "Save changes" }).click();
   await dialog.getByRole("alert").filter({ hasText: "already taken" }).waitFor();
   assert.equal(await dialog.getByLabel("Name", { exact: true }).inputValue(), "Aisyah Tan");
   duplicate = false;
@@ -285,7 +298,7 @@ try {
   await dialog.getByRole("button", { name: "Override password", exact: true }).focus();
   await page.keyboard.press("Enter");
   await dialog.getByLabel("New Password", { exact: true }).fill("Replacement-password2!");
-  await dialog.getByRole("button", { name: "Save Changes" }).click();
+  await dialog.getByRole("button", { name: "Save changes" }).click();
   await dialog.waitFor({ state: "detached" });
   assert.deepEqual(writes.at(-1).body, {
     displayName: "Aisyah Tan",

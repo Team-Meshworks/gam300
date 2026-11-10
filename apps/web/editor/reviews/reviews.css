@@ -396,3 +396,43 @@
   margin-bottom: 6px;
   font-size: 12px;
   line-height: 18px;
+}
+.sp-review-history-dialog.sp-progress-dialog:not(.sp-facilitator-submission) .sp-progress-draft {
+  margin: 0;
+  height: 84px;
+  min-height: 84px;
+  border: 1.5px dotted var(--review-draft-edge);
+}
+.sp-review-history-dialog.sp-progress-dialog:not(.sp-facilitator-submission)
+  .sp-progress-draft
+  textarea {
+  height: 32px;
+  min-height: 32px;
+  font-size: 13px;
+  line-height: 20px;
+}
+.sp-review-history-dialog.sp-progress-dialog:not(.sp-facilitator-submission) .sp-progress-actions {
+  margin-top: 16px;
+}
+
+.sp-review-history-dialog .sp-progress-compose-slot {
+  box-sizing: border-box;
+  height: 84px;
+  padding-top: 12px;
+}
+@media (max-width: 600px) {
+  .sp-review-history-dialog.sp-progress-dialog.sp-dialog {
+    padding: 24px;
+  }
+}
+
+.sp-review-history-dialog.sp-progress-dialog .sp-progress-actions > .sp-button--primary {
+  min-width: 124px;
+}
+
+@media (max-width: 600px) {
+  .sp-review-history-dialog.sp-dialog > .sp-dialog-dismiss {
+    top: 20px;
+    right: 24px;
+  }
+}

@@ -73,10 +73,22 @@ try {
           },
         },
       });
+    if (path === "/api/v1/projects/publication-links")
+      return route.fulfill({ json: { items: [], nextCursor: null } });
     if (path === "/api/v1/classes" || path === "/api/v1/projects")
       return route.fulfill({ json: { items: [], nextCursor: null } });
     return route.fulfill({ status: 404 });
   });
+  // Every role consumes the same shared header appearance, including responsive controls.
+  const headerStyles = () =>
+    page
+      .locator(
+        ".sp-header-brand, .sp-header-mark, .sp-header-account, .sp-header-account .sp-avatar, .sp-header-name, .sp-header-logout",
+      )
+      .evaluateAll((nodes) =>
+        nodes.map((node) => {
+          const css = getComputedStyle(node);
+          return {
   await page.goto(`${origin}/review`);
   await page.getByText("First Educator", { exact: true }).waitFor();
   const before = sessionReads;

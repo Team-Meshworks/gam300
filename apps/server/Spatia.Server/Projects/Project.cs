@@ -15,6 +15,9 @@ public sealed class Project
     /// </summary>
     public Guid Id { get; set; }
 
+    /// <summary>Gets or sets optional immutable imagery inherited by project copies</summary>
+    public Guid? ImageId { get; set; }
+
     /// <summary>
     /// Gets or sets the organization that owns the project
     /// </summary>

@@ -50,7 +50,7 @@ try {
   await dialog.getByLabel("Name", { exact: true }).fill("Browser Created");
   await dialog.getByLabel("Username", { exact: true }).fill("browser.created");
   await dialog.getByLabel("Password", { exact: true }).fill("Browser-initial1!");
-  await dialog.getByRole("button", { name: "Save Changes" }).click();
+  await dialog.getByRole("button", { name: "Save changes" }).click();
   await dialog.waitFor({ state: "detached" });
   await page.reload();
   await page.getByRole("button", { name: "Open Synthetic organization" }).click();
@@ -64,7 +64,7 @@ try {
   await dialog.getByRole("combobox", { name: "Account Type", exact: true }).click();
   await page.getByRole("option", { name: "Facilitator", exact: true }).click();
   await dialog.getByLabel("New Password", { exact: true }).fill("Browser-replacement2!");
-  await dialog.getByRole("button", { name: "Save Changes" }).click();
+  await dialog.getByRole("button", { name: "Save changes" }).click();
   await dialog.waitFor({ state: "detached" });
   await page.reload();
   await page.getByRole("button", { name: "Open Synthetic organization" }).click();
