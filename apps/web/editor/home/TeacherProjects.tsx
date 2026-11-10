@@ -212,39 +212,212 @@ export function TeacherProjectDetails({
             project.approvalStatus !== "awaiting-approval")),
   );
   const editControl = editing && actorId && (
+    <AssignmentEditDialog
+      inline
+      field={editing}
+      classId={item.classId}
+      actorId={actorId}
+      details={details}
+      onClose={() => setEditing(null)}
+      onSaved={() => {
+        setEditing(null);
+        void (async () => {
+          try {
+            const latest = await readAssignment(item.classId, details.assignmentId);
+            const identity = await assignmentSession();
+            if (
+              identity.userId !== actorId ||
+              identity.mustChangePassword ||
+              latest.assignmentId !== details.assignmentId
+            )
+              throw new Error("Account changed");
+            onUpdated?.(latest);
+            setEditError("");
+          } catch {
+            setEditError(
+              "Changes were saved, but the latest details could not be loaded. Refresh this page.",
+            );
+          }
+        })();
+      }}
+    />
+  );
+  const publicProjects = details.projects.map((project) =>
+    publicationStates[project.projectId.toLowerCase()]?.publicCount !== undefined
+      ? publicationStates[project.projectId.toLowerCase()]!.publicCount > 0
+      : project.isPublic,
+  );
+  const projectStatus = publicProjects.some(Boolean)
+    ? "Public"
+    : publicProjects.every((value) => value === false)
+      ? "Private"
+      : "Unavailable";
+  const allStates = details.projects.map(
+    (project) => publicationStates[project.projectId.toLowerCase()],
+  );
+  const assignmentState =
+    allStates.length && allStates.every(Boolean)
+      ? {
+          projectId: details.assignmentId,
+          publicationCount: allStates.reduce((sum, value) => sum + value!.publicationCount, 0),
+          hiddenCount: allStates.reduce((sum, value) => sum + value!.hiddenCount, 0),
+          publicCount: allStates.reduce((sum, value) => sum + value!.publicCount, 0),
+          publishingBlocked: allStates.every((value) => value!.publishingBlocked || value!.removed),
+          removed: allStates.every((value) => value!.removed),
+        }
+      : undefined;
   return (
     <section className="sp-teacher-detail">
       <div className="sp-teacher-detail-head">
         <div>
-          <h1>Project details</h1>
-          <p>Review student projects and their progress.</p>
+          <h1>Published Projects</h1>
+          <p>Review published experiences and control what visitors can explore.</p>
         </div>
-        <Button aria-label="Close project details" onClick={onBack}>
-          ×
+        <Button
+          className="sp-close-button"
+          aria-label="Close project details"
+          disabled={Boolean(editing)}
+          onClick={onBack}
+        >
+          <Icon icon={closeIcon} aria-hidden="true" />
         </Button>
       </div>
       {editError && <p role="alert">{editError}</p>}
-      {actorId && (
-        <Button disabled={details.revision === undefined} onClick={() => setEditing(true)}>
-          Edit project details
-        </Button>
+      {reviewHistoryError && <p role="alert">{reviewHistoryError}</p>}
+      {reviewHistory && actorId && (
+        <ProgressReviews
+          key={reviewHistory.projectId}
+          projectId={reviewHistory.projectId}
+          revision={reviewHistory.revision}
+          decisions={reviewHistory.decisions}
+          actorId={actorId}
+          educator
+          autoOpen
+          onGuard={() => {}}
+          onClose={() => setReviewHistory(null)}
+        />
       )}
       <div className="sp-teacher-columns">
         <div className="sp-teacher-info">
-          <h2>{details.title}</h2>
-          {details.organizationName && <p>Organisation: {details.organizationName}</p>}
-          {details.creatorName && <p>Created by: {details.creatorName}</p>}
-          <p className="sp-hint">Class {item.className}</p>
-          <h3>Due Date</h3>
-          <p className="sp-teacher-value">
-            {formatLocalDeadline(details.dueAtUnixSeconds) ?? "Unavailable"}
-          </p>
-          <h3>Project Description</h3>
-          <p className="sp-teacher-value">{details.description}</p>
-          <h3>Project Instructions</h3>
-          <p className="sp-teacher-value">{details.instructions}</p>
+          <div className="sp-teacher-project-identity">
+            <img
+              className="sp-teacher-detail-cover"
+              src={details.image?.url ?? projectCover(details.title)}
+              alt=""
+            />
+            <h2>{details.title}</h2>
+          </div>
+          {actorId && (
+            <div className="sp-teacher-assignment-actions">
+              <ProjectModeration
+                projectId={details.assignmentId}
+                projectIds={details.projects.map((project) => project.projectId)}
+                client={moderation}
+                state={assignmentState}
+                requiresFreshApproval
+                onChanged={(state) => {
+                  if (state.removed) {
+                    onRemoved?.();
+                    onBack();
+                  } else setModerationAttempt((value) => value + 1);
+                }}
+              />
+            </div>
+          )}
+          <dl className="sp-teacher-metadata">
+            {details.organizationName && (
+              <>
+                <dt>Organisation</dt>
+                <dd>
+                  <a
+                    className="sp-teacher-organisation-link"
+                    href={`/classes?organisation=1&classId=${encodeURIComponent(item.classId)}&assignmentId=${encodeURIComponent(details.assignmentId)}`}
+                  >
+                    {details.organizationName}
+                  </a>
+                </dd>
+              </>
+            )}
+            {details.creatorName && (
+              <>
+                <dt>Created by</dt>
+                <dd>
+                  {details.creatorUserName ? `@${details.creatorUserName}` : "Username unavailable"}
+                </dd>
+              </>
+            )}
+            <dt>Class</dt>
+            <dd>{item.className}</dd>
+            <dt>Status</dt>
+            <dd className="sp-teacher-project-status" data-public={projectStatus === "Public"}>
+              <Icon icon={projectStatus === "Public" ? globeIcon : lockIcon} aria-hidden="true" />
+              {projectStatus}
+            </dd>
+          </dl>
+          <div className="sp-teacher-field-heading">
+            <h3>Due Date</h3>
+            {actorId && (
+              <Button
+                disabled={details.revision === undefined || Boolean(editing)}
+                onClick={() => setEditing("dueDate")}
+                aria-label="Edit Due Date"
+              >
+                <Icon icon={pencilIcon} aria-hidden="true" />
+                <span>Edit</span>
+              </Button>
+            )}
+          </div>
+          {editing === "dueDate" ? (
+            editControl
+          ) : (
+            <p className="sp-teacher-value">{dueDate ?? "Unavailable"}</p>
+          )}
+          <div className="sp-teacher-field-heading">
+            <h3>Project Description</h3>
+            {actorId && (
+              <Button
+                disabled={details.revision === undefined || Boolean(editing)}
+                onClick={() => setEditing("description")}
+                aria-label="Edit Project Description"
+              >
+                <Icon icon={pencilIcon} aria-hidden="true" />
+                <span>Edit</span>
+              </Button>
+            )}
+          </div>
+          {editing === "description" ? (
+            editControl
+          ) : (
+            <p className="sp-teacher-value">{details.description}</p>
+          )}
+          <div className="sp-teacher-field-heading">
+            <h3>Project Instructions</h3>
+            {actorId && (
+              <Button
+                disabled={details.revision === undefined || Boolean(editing)}
+                onClick={() => setEditing("instructions")}
+                aria-label="Edit Project Instructions"
+              >
+                <Icon icon={pencilIcon} aria-hidden="true" />
+                <span>Edit</span>
+              </Button>
+            )}
+          </div>
+          {editing === "instructions" ? (
+            editControl
+          ) : (
+            <p className="sp-teacher-value">{details.instructions}</p>
+          )}
         </div>
         <div className="sp-teacher-students">
+          {moderationError && (
+            <div role="alert">
+              <p>{moderationError}</p>
+              <Button onClick={() => setModerationAttempt((value) => value + 1)}>
+                Retry publication controls
+              </Button>
+            </div>
+          )}
           <SearchField
             label="Search students"
             placeholder="Search students by name or account"
@@ -257,37 +430,109 @@ export function TeacherProjectDetails({
             value={studentTab}
             onChange={setStudentTab}
             items={[
-              { value: "all", label: `All Students (${details.projects.length})` },
+              { value: "all", label: "All Students" },
               { value: "progress", label: "In Progress" },
               { value: "awaiting", label: "Awaiting Approval" },
             ]}
           />
           {visibleStudents.map((p) => (
             <div className="sp-teacher-student" key={p.projectId}>
-              <strong>{p.studentName ?? "Student name unavailable"}</strong>
-              <p>Approval status: {p.approvalStatus ? labels[p.approvalStatus] : "Unavailable"}</p>
-              <p>
-                Publication status:{" "}
-                {p.published === undefined
-                  ? "Unavailable"
-                  : p.published
-                    ? "Published"
-                    : "Not published"}
-              </p>
-              <Button
-                variant="primary"
-                disabled={!p.studentName}
-                onClick={() =>
-                  onProgress({
-                    classId: item.classId,
-                    assignmentId: details.assignmentId,
-                    studentId: p.studentId,
-                    projectId: p.projectId,
-                  })
-                }
-              >
-                View Progress
-              </Button>
+              <div className="sp-teacher-student-identity">
+                <Avatar name={p.studentName ?? "Student"} />
+                <div>
+                  <strong>{p.studentName ?? "Student name unavailable"}</strong>
+                  {p.studentUserName && (
+                    <span className="sp-teacher-student-handle">@{p.studentUserName}</span>
+                  )}
+                </div>
+              </div>
+              <div className="sp-teacher-student-status">
+                <p>
+                  <span>Approval status</span>
+                  <strong data-approval={p.approvalStatus}>
+                    <Icon
+                      icon={
+                        p.approvalStatus === "approved"
+                          ? checkIcon
+                          : p.approvalStatus === "awaiting-approval"
+                            ? pendingIcon
+                            : rejectedIcon
+                      }
+                      aria-hidden="true"
+                    />
+                    <span
+                      title={
+                        p.approvalStatus ? labels[p.approvalStatus] : "Approval status unavailable"
+                      }
+                    >
+                      {p.approvalStatus
+                        ? p.approvalStatus === "approved"
+                          ? "Approved"
+                          : "Not Approved"
+                        : "Unavailable"}
+                    </span>
+                  </strong>
+                </p>
+                <p>
+                  <span>Publish Status</span>
+                  <strong
+                    className="sp-teacher-publish-status"
+                    data-public={
+                      (publicationStates[p.projectId.toLowerCase()]?.publicCount ??
+                        (p.isPublic ? 1 : 0)) > 0
+                    }
+                  >
+                    <Icon
+                      icon={
+                        (publicationStates[p.projectId.toLowerCase()]?.publicCount ??
+                          (p.isPublic ? 1 : 0)) > 0
+                          ? globeIcon
+                          : lockIcon
+                      }
+                      aria-hidden="true"
+                    />
+                    {publicationStates[p.projectId.toLowerCase()]
+                      ? publicationStates[p.projectId.toLowerCase()]!.publicCount > 0
+                        ? "Public"
+                        : "Private"
+                      : p.isPublic === undefined
+                        ? "Unavailable"
+                        : p.isPublic
+                          ? "Public"
+                          : "Private"}
+                  </strong>
+                </p>
+              </div>
+              <div className="sp-teacher-student-actions">
+                <Button
+                  variant="primary"
+                  disabled={!p.studentName}
+                  onClick={() =>
+                    onProgress({
+                      classId: item.classId,
+                      assignmentId: details.assignmentId,
+                      studentId: p.studentId,
+                      projectId: p.projectId,
+                    })
+                  }
+                >
+                  View Progress
+                </Button>
+                {actorId && (
+                  <Button
+                    className="sp-teacher-review-history"
+                    aria-label="Reviews"
+                    title="Read or add saved reviews for this student"
+                    onClick={() => void openReviews(p.projectId, p.studentId)}
+                  >
+                    <Icon icon={commentIcon} aria-hidden="true" />
+                  </Button>
+                )}
+                {actorId && (
+                  <ProjectModeration
+                    projectId={p.projectId}
+                    client={moderation}
+                    state={publicationStates[p.projectId.toLowerCase()]}
             </div>
           ))}
           {!visibleStudents.length && (
