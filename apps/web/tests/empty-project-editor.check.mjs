@@ -39,7 +39,7 @@ try {
         userId,
         orgId,
         displayName: "Teacher",
-        role: "Educator",
+        role: "Creator",
         mustChangePassword: false,
         developmentAssetsAllowed: false,
       });

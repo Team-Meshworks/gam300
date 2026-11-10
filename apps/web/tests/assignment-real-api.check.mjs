@@ -185,6 +185,8 @@ try {
   await student.getByRole("button", { name: "Open your project", exact: true }).click();
   await student.waitForURL(`**/?projectId=${project}`);
   await student.getByRole("button", { name: "Rooms", exact: true }).click();
+  await student.getByRole("button", { name: "Approved browser room", exact: true }).click();
+  await student.locator('.save-state[data-state="saved"]').waitFor();
   await student.getByRole("button", { name: "Scenes", exact: true }).click();
   await student.getByLabel("Scene name", { exact: true }).fill("Saved by student");
   const savedResponse = student.waitForResponse(
@@ -216,6 +218,69 @@ try {
     await fresh.getByLabel("Scene name", { exact: true }).inputValue(),
     "Saved by student",
   );
+  // Follow the same assigned project across both roles and an anonymous visitor.
+  await fresh.getByRole("button", { name: "Request approval", exact: true }).click();
+  const approval = fresh.getByRole("dialog", { name: "Request approval", exact: true });
+  await approval.getByRole("checkbox").check();
+  await approval.getByRole("button", { name: "Submit for review", exact: true }).click();
+  await approval.waitFor({ state: "detached" });
+  await page.goto(
+    `${origin}/home?${new URLSearchParams({
+      classId: process.env.SPATIA_TEST_CLASS,
+      assignmentId: receipt.assignmentId,
+      studentId,
+      reviewProjectId: project,
+    })}`,
+  );
+  const review = page.getByRole("dialog", { name: "Review submission", exact: true });
+  await review.getByLabel("Your review").fill("The saved room is ready to share.");
+  await review.getByRole("button", { name: "Approve to publish", exact: true }).click();
+  await review
+    .getByText("Approval saved. The student can now publish the approved revision.", {
+      exact: true,
+    })
+    .waitFor();
+  await fresh.goto(`${origin}/home`);
+  await fresh.locator(`#student-project-${project}`).click();
+  const details = fresh.getByRole("dialog", { name: "Project details", exact: true });
+  await details.getByText("The saved room is ready to share.", { exact: true }).waitFor();
+  await details.getByRole("button", { name: "Publish", exact: true }).click();
+  const publishing = fresh.getByRole("dialog", { name: "Publish project", exact: true });
+  await publishing.getByRole("combobox", { name: "Who can open this publication" }).click();
+  await fresh.getByRole("option", { name: "Anyone with the link", exact: true }).click();
+  await publishing.getByRole("checkbox", { name: /confirm.*saved revision/i }).check();
+  assert.equal(
+    await publishing.getByRole("button", { name: "Publish", exact: true }).isEnabled(),
+    true,
+    "The approved saved project is ready to publish",
+  );
+  const publicationResponse = fresh.waitForResponse(
+    (response) =>
+      response.url().endsWith(`/api/v1/projects/${project}/publications`) &&
+      response.request().method() === "POST",
+  );
+  await publishing.getByRole("button", { name: "Publish", exact: true }).click();
+  const committed = await publicationResponse;
+  assert.equal(committed.status(), 201);
+  const publication = await committed.json();
+  await fresh.waitForURL(`${origin}/home?tab=published`);
+  const visitorContext = await browser.newContext({ ignoreHTTPSErrors: true });
+  const visitor = await visitorContext.newPage();
+  visitor.setDefaultTimeout(20000);
+  const shared = new URL(publication.visitorUrl);
+  await visitor.goto(origin + shared.pathname + shared.search + shared.hash);
+  await visitor.getByRole("button", { name: "Start exhibition", exact: true }).click();
+  await visitor.locator("canvas").waitFor();
+  assert.equal(
+    (
+      await visitorContext.request.get(`${origin}/api/v1/publications/${publication.publicationId}`)
+    ).status(),
+    200,
+  );
+  await visitorContext.close();
+  console.log(
+    "Full role handoff passed: create, assign, edit, reopen, submit, feedback, approve, publish and anonymous shared link; each action clicked once.",
+  );
   await Promise.all([
     teacher.close(),
     studentContext.close(),
@@ -226,4 +291,20 @@ try {
 } finally {
   await browser?.close();
   await server.close();
+}
+
+// Resolve the real class label for the custom field without assuming a seeded display name
+async function chooseProjectClass(page) {
+  const control = page.getByRole("combobox", { name: /^Class/ });
+  if (await control.evaluate((element) => element.tagName === "SELECT")) {
+    await control.selectOption(process.env.SPATIA_TEST_CLASS);
+    return;
+  }
+  const response = await page.request.get(`${origin}/api/v1/classes?limit=20`);
+  assert.equal(response.status(), 200);
+  const classes = await response.json();
+  const selected = classes.items.find((item) => item.id === process.env.SPATIA_TEST_CLASS);
+  assert.ok(selected, "The seeded class must be available");
+  await control.click();
+  await page.getByRole("option", { name: selected.name, exact: true }).click();
 }

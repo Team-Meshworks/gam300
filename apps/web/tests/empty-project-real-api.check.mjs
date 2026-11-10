@@ -26,7 +26,7 @@ async function login(context, name) {
   await page.getByLabel("Username", { exact: true }).fill(name);
   await page.getByLabel("Password", { exact: true }).fill("Synthetic-long-password1!");
   await page.getByRole("button", { name: "Log in", exact: true }).click();
-  await page.getByRole("link", { name: "Go to projects" }).click();
+  await page.waitForURL(`${origin}/home`);
   return page;
 }
 
@@ -38,7 +38,10 @@ async function sceneReady(page) {
 }
 
 try {
-  browser = await launchBrowser({ target: origin, args: ["--enable-unsafe-swiftshader"] });
+  browser = await launchBrowser({
+    target: origin,
+    args: ["--enable-unsafe-swiftshader"],
+  });
   const teacher = await browser.newContext({
     ignoreHTTPSErrors: true,
     timezoneId: "Asia/Singapore",
@@ -52,9 +55,12 @@ try {
   await page.getByLabel("Project title").fill("Empty source project");
   await page.getByLabel("Project description").fill("Blank source project");
   await page.getByLabel("Project instructions").fill("Explore the empty scene.");
-  await page.getByLabel(/^Due date/).fill("2035-12-01T15:30");
-  await page.getByLabel(/^Class/).selectOption(process.env.SPATIA_TEST_CLASS);
-  await page.getByRole("checkbox", { name: new RegExp(process.env.SPATIA_TEST_STUDENT) }).check();
+  await page.getByLabel(/^Due date/).fill("2035-12-01");
+  await chooseProjectClass(page);
+  await page
+    .getByRole("checkbox", {
+      name: new RegExp(process.env.SPATIA_TEST_STUDENT),
+    })
   const creating = page.waitForResponse(
     (response) =>
       new URL(response.url()).pathname === "/api/v1/projects" &&

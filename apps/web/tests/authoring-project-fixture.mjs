@@ -41,6 +41,14 @@ export async function serveProject(page, origin, initial = blankProject) {
     if (path === "/api/v1/auth/csrf") return json(200, { requestToken: "test-token" });
     if (path === "/api/v1/assets") return json(200, []);
     if (path === `/api/v1/projects/${initial.projectId}/assets`) return json(200, []);
+    if (path === `/api/v1/projects/${initial.projectId}/publication-readiness`)
+      return json(200, {
+        projectId: initial.projectId,
+        revision,
+        state: "Ready",
+        approved: null,
+        completionConfirmed: null,
+      });
     if (path === `/api/v1/projects/${initial.projectId}`) {
       if (request.method() === "GET")
         return json(200, {
@@ -72,11 +80,11 @@ export async function serveProject(page, origin, initial = blankProject) {
 }
 
 export async function openSavedProject(page) {
-  const recovery = page.getByRole("dialog", { name: "A recovery copy is available" });
+  const recovery = page.getByRole("dialog", { name: "Recover your changes?" });
   const ready = page.getByRole("status").filter({ hasText: "Scene ready" });
   await Promise.race([recovery.waitFor(), ready.waitFor()]);
   if (await recovery.isVisible())
-    await recovery.getByRole("button", { name: "Use server version and discard recovery" }).click();
+    await recovery.getByRole("button", { name: "Use saved version" }).click();
   await ready.waitFor().catch(async (error) => {
     throw new Error(`${error.message}\n${await page.locator("body").innerText()}`);
   });

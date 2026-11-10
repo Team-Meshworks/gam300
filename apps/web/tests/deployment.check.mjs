@@ -104,7 +104,7 @@ try {
     expectedPosition,
   );
   await page.reload();
-  await page.getByRole("button", { name: "Recover my edits" }).click();
+  await page.getByRole("button", { name: "Recover changes" }).click();
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   assert.equal(await page.locator(".object-row").count(), 1);
   await page.locator(".object-row").first().click();

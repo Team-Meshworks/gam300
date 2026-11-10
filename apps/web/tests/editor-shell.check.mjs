@@ -74,15 +74,13 @@ try {
   async function openDocument(document) {
     project.setDocument(document);
     await page.goto(project.url);
-    const recovery = page.getByRole("dialog", { name: "A recovery copy is available" });
+    const recovery = page.getByRole("dialog", { name: "Recover your changes?" });
     await Promise.race([
       recovery.waitFor(),
       page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor(),
     ]);
     if (await recovery.isVisible())
-      await recovery
-        .getByRole("button", { name: "Use server version and discard recovery" })
-        .click();
+      await recovery.getByRole("button", { name: "Use saved version" }).click();
     await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   }
   await page.goto(project.url);
@@ -1038,10 +1036,10 @@ try {
   });
   await page.reload();
   const loadError = page.getByRole("status").filter({ hasText: "Couldn't load the 3D view" });
-  const recovery = page.getByRole("dialog", { name: "A recovery copy is available" });
+  const recovery = page.getByRole("dialog", { name: "Recover your changes?" });
   await Promise.race([recovery.waitFor(), ready.waitFor(), loadError.waitFor()]);
   if (await recovery.isVisible())
-    await recovery.getByRole("button", { name: "Use server version and discard recovery" }).click();
+    await recovery.getByRole("button", { name: "Use saved version" }).click();
   await Promise.race([ready.waitFor(), loadError.waitFor()]);
   // A recovered empty scene has no model requests. Select a model to exercise its failure.
   if (!(await loadError.isVisible())) {
@@ -1074,7 +1072,7 @@ try {
   const unsupported = page.getByRole("status").filter({ hasText: "The 3D view needs WebGL 2" });
   await Promise.race([recovery.waitFor(), unsupported.waitFor()]);
   if (await recovery.isVisible())
-    await recovery.getByRole("button", { name: "Use server version and discard recovery" }).click();
+    await recovery.getByRole("button", { name: "Use saved version" }).click();
   await unsupported.waitFor();
   await retry.click();
   await unsupported.waitFor();

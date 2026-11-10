@@ -142,7 +142,28 @@ export async function createLoopbackProxy(origins) {
             return;
           }
         }
-        res.writeHead(response.statusCode, response.rawHeaders);
+        // Each proxy hop owns its connection; upstream close headers must not
+        // close Chrome's separate connection while it is loading page modules.
+        const hopHeaders = new Set([
+          "connection",
+          "keep-alive",
+          "proxy-authenticate",
+          "proxy-authorization",
+          "proxy-connection",
+          "te",
+          "trailer",
+          "transfer-encoding",
+          "upgrade",
+          ...(response.headers.connection ?? "")
+            .split(",")
+            .map((name) => name.trim().toLowerCase()),
+        ]);
+        const headers = [];
+        for (let index = 0; index < response.rawHeaders.length; index += 2) {
+          if (!hopHeaders.has(response.rawHeaders[index].toLowerCase()))
+            headers.push(response.rawHeaders[index], response.rawHeaders[index + 1]);
+        }
+        res.writeHead(response.statusCode, headers);
         response.pipe(res);
       },
     );
