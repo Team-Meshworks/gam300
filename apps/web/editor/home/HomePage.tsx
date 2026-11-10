@@ -5,10 +5,6 @@ import { Button } from "../../shared/ui/Button";
 import { Icon } from "@iconify/react/offline";
 import closeIcon from "@iconify-icons/lucide/x";
 import type { RenderWorkspace } from "./dashboard";
-import washLeft from "../../shared/ui/assets/facilitator-ambient-top.svg";
-import facilitatorWashRight from "../../shared/ui/assets/facilitator-ambient-bottom.svg";
-import washRight from "./assets/ambient-bottom.svg";
-import creatorDetailBackground from "./assets/creator-detail-background.webp";
 import { useWorkspaceDeparture } from "../workspace/useWorkspaceDeparture";
 import { ProjectHome } from "./ProjectHome";
 import { StudentProjects } from "./StudentProjects";
@@ -94,16 +90,6 @@ function HomeWorkspace({ session, active, onSignOut }: WorkspaceAccess) {
           ? "facilitator"
           : dashboard
             ? "creator"
-            : undefined
-      }
-      appearance={
-        dashboard === "creator-projects" || dashboard === "creator-published"
-          ? { washLeft, washRight: facilitatorWashRight }
-          : dashboard || organisationView || (session.role === "Educator" && newProject)
-            ? {
-                washLeft: session.role === "Educator" ? washLeft : creatorDetailBackground,
-                washRight: session.role === "Educator" ? facilitatorWashRight : washRight,
-              }
             : undefined
       }
     >

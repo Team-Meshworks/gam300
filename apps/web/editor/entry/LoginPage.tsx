@@ -125,6 +125,13 @@ export function LoginPage({ siteRoot }: { siteRoot: boolean }) {
       if (mounted.current) setPending(false);
     }
   }
+  // Do not paint the old signed-in screen while the destination document loads.
+  if (session && !session.mustChangePassword)
+    return (
+      <main className="login-redirect" aria-busy="true">
+        <span className="sp-sr-only">Opening your workspace</span>
+      </main>
+    );
   return (
     <div className="entry-page login-page">
       <a className="sp-skip-link" href="#login-content">

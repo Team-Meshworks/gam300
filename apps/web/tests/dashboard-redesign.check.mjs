@@ -243,6 +243,12 @@ try {
         await page.getByRole("button", { name: "Close project details" }).click();
       } else {
         await page.getByText(titles[0], { exact: true }).waitFor();
+        await page
+          .getByRole("button", { name: /^Read more about / })
+          .first()
+          .click();
+        await page.getByRole("heading", { name: "Project Description:", exact: true }).waitFor();
+        await page.getByRole("button", { name: "Close project details", exact: true }).click();
         await capture("creator-projects");
         await page.getByRole("tab", { name: "Projects", exact: true }).focus();
         await page.keyboard.press("ArrowRight");
@@ -256,19 +262,17 @@ try {
         await publicationRead;
         assert.equal(
           await page
-            .getByRole("tab", { name: "Published", exact: true })
+            .getByRole("tab", { name: "Projects", exact: true })
             .getAttribute("aria-selected"),
           "true",
         );
-        const loading = page.getByRole("status").filter({ hasText: "Loading published projects" });
-        await loading.waitFor();
-        assert.equal(await page.getByText(titles[0], { exact: true }).count(), 0);
-        const placeholder = await loading.locator(".sp-student-card").boundingBox();
-        assert.ok(placeholder && placeholder.width > 500 && placeholder.height > 100);
+        assert.ok(await page.getByText(titles[0], { exact: true }).isVisible());
+        assert.equal(await page.locator(".sp-dashboard-loading").count(), 0);
         holdPublication = false;
         releasePublication();
         await page.getByText(titles[0], { exact: true }).waitFor();
-        assert.equal(await loading.count(), 0);
+        await page.getByRole("heading", { name: "Published Projects", exact: true }).waitFor();
+        assert.equal(await page.locator(".sp-dashboard-loading").count(), 0);
         assert.equal(await page.getByText(titles[1], { exact: true }).count(), 0);
         assert.equal(await page.getByText("Ocean Life", { exact: true }).count(), 0);
         await capture("creator-published");
@@ -310,8 +314,13 @@ try {
           .getByRole("button", { name: /view details/i })
           .first()
           .waitFor();
-        await page.evaluate(() => window.scrollTo(0, 150));
-        const creatorScroll = await page.evaluate(() => window.scrollY);
+        await page
+          .getByRole("button", { name: /view details/i })
+          .first()
+          .scrollIntoViewIfNeeded();
+        const creatorScroll = await page
+          .locator(".sp-student-list")
+          .evaluate((list) => list.scrollTop);
         const creatorPanelBounds = await page.locator(".sp-student-card").evaluateAll((cards) =>
           cards.map((card) => {
             const rect = card.getBoundingClientRect();
@@ -337,12 +346,18 @@ try {
           "Opening details does not shift the project panels",
         );
         assert.ok(
-          Math.abs((await page.evaluate(() => window.scrollY)) - creatorScroll) < 1,
+          Math.abs(
+            (await page.locator(".sp-student-list").evaluate((list) => list.scrollTop)) -
+              creatorScroll,
+          ) < 1,
           "Opening details preserves the project list position",
         );
         await page.getByRole("button", { name: "Close project details" }).click();
         assert.ok(
-          Math.abs((await page.evaluate(() => window.scrollY)) - creatorScroll) < 1,
+          Math.abs(
+            (await page.locator(".sp-student-list").evaluate((list) => list.scrollTop)) -
+              creatorScroll,
+          ) < 1,
           "Closing details restores the creator list position",
         );
         const detailTrigger = page.getByRole("button", { name: /view details/i }).first();
@@ -378,7 +393,7 @@ try {
           .filter({ hasText: titles[1] })
           .getByRole("button", { name: /view details/i })
           .click();
-        await page.getByRole("heading", { name: "Comments:" }).waitFor();
+        await page.getByRole("heading", { name: "Reviews:" }).waitFor();
         assert.equal(await page.getByRole("textbox", { name: "Share your project" }).count(), 0);
         await page.getByRole("button", { name: "Close project details" }).click();
         emptyPublications = true;

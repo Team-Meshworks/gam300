@@ -69,7 +69,6 @@ function OtherWorkspacePage({ session, active, onSignOut }: WorkspaceAccess) {
   const review = screen?.id === "review" && permitted.includes(screen);
   return (
     <WorkspaceShell
-      appearance={session.role === "Administrator" ? "admin" : undefined}
       onClick={(event) => {
         if (
           session.role !== "Administrator" ||

@@ -61,103 +61,114 @@ export function StudentProjectDetails({
   // Open once both review sources settle so the compact popup starts at its final size
   const [historyReady, setHistoryReady] = useState(!assignment);
   const markHistoryReady = useCallback(() => setHistoryReady(true), []);
-  const modal = useModal(historyReady && !feedbackLoading);
+  // Keep one modal visible while preserving the details scroll and review state
+  const modal = useModal(historyReady && !feedbackLoading && action === null);
   return (
-    <dialog
-      ref={modal}
-      className="sp-dialog sp-creator-detail-dialog"
-      aria-label="Project details"
-      onCancel={(event) => {
-        event.preventDefault();
-        onClose();
-      }}
-    >
-      <section
-        className="sp-student-detail"
+    <>
+      <dialog
+        ref={modal}
+        className="sp-dialog sp-creator-detail-dialog"
         aria-label="Project details"
-        onKeyDown={(event) => {
-          if (event.key === "Escape") {
-            event.preventDefault();
-            onClose();
-          }
+        onCancel={(event) => {
+          event.preventDefault();
+          onClose();
         }}
       >
-        <ProjectImageView
-          className="sp-student-detail-image"
-          image={row.project.image ?? null}
-          fallback={projectCover(row.project.title, true)}
-        />
-        <div className="sp-student-detail-content">
-          <div className="sp-student-detail-heading">
-            <h1>{row.project.title}</h1>
-            <Button
-              className="sp-close-button"
-              aria-label="Close project details"
-              autoFocus
-              onClick={onClose}
-            >
-              <Icon icon={close} width={38} aria-hidden="true" />
-            </Button>
-          </div>
-          {assignment && (
-            <>
-              <div className="sp-student-detail-badges">
-                <span title={`Assigned by: ${assignment.assignedBy ?? row.assignment?.className}`}>
-                  Assigned by: {assignment.assignedBy ?? row.assignment?.className}
-                </span>
-                <span className="sp-student-detail-due">
-                  {dueLabel(assignment.dueAtUnixSeconds)}
-                </span>
-                <CreatorApproval row={row} submittedState={submittedState} />
-              </div>
-              <div className="sp-student-detail-section">
-                <h2>Project Description:</h2>
-                <p>{assignment.description}</p>
-              </div>
-              <div className="sp-student-detail-section">
-                <h2>Project Instructions:</h2>
-                <p>{assignment.instructions}</p>
-              </div>
-            </>
-          )}
-          {!assignment && <p>Assignment details are not available for this project.</p>}
-          <div className="sp-student-detail-comments">
-            <h2>Comments:</h2>
-            {assignment && (
-              <ProgressReviews
-                key={`${row.project.projectId}:${actorId}`}
-                projectId={row.project.projectId}
-                revision={row.project.revision}
-                actorId={actorId}
-                educator={false}
-                decisions={feedback}
-                decisionsLoading={feedbackLoading}
-                decisionsError={feedbackError}
-                onHistorySettled={markHistoryReady}
-                onGuard={ignoreGuard}
-              />
-            )}
-          </div>
-          <div className="sp-student-detail-actions">
-            {assignment && (
+        <section
+          className="sp-student-detail"
+          aria-label="Project details"
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              event.preventDefault();
+              onClose();
+            }
+          }}
+        >
+          <ProjectImageView
+            className="sp-student-detail-image"
+            image={row.project.image ?? null}
+            fallback={projectCover(row.project.title, true)}
+          />
+          <div className="sp-student-detail-content">
+            <div className="sp-student-detail-heading">
+              <h1>{row.project.title}</h1>
               <Button
-                disabled={pending || row.project.archived || !row.project.permissions.canEdit}
-                onClick={() => setAction(approved ? "publish" : "request")}
+                className="sp-close-button"
+                aria-label="Close project details"
+                autoFocus
+                onClick={onClose}
               >
-                {approved ? "Publish" : pending ? "Awaiting approval" : "Request approval"}
+                <Icon icon={close} width={38} aria-hidden="true" />
               </Button>
+            </div>
+            {assignment && (
+              <>
+                <div className="sp-student-detail-badges">
+                  <span
+                    title={`Assigned by: ${assignment.assignedBy ?? row.assignment?.className}`}
+                  >
+                    Assigned by: {assignment.assignedBy ?? row.assignment?.className}
+                  </span>
+                  <span className="sp-student-detail-due">
+                    {dueLabel(assignment.dueAtUnixSeconds)}
+                  </span>
+                  <CreatorApproval row={row} submittedState={submittedState} />
+                </div>
+              </>
             )}
-            <Button
-              variant="primary"
-              aria-label="Open project"
-              disabled={!row.project.permissions.canEdit || row.project.archived}
-              onClick={onOpen}
-            >
-              {row.project.revision === 0 ? "Start Editing" : "Continue Editing"}
-            </Button>
+            <div className="sp-student-detail-scroll">
+              {assignment && (
+                <>
+                  <div className="sp-student-detail-section">
+                    <h2>Project Description:</h2>
+                    <p>{assignment.description}</p>
+                  </div>
+                  <div className="sp-student-detail-section">
+                    <h2>Project Instructions:</h2>
+                    <p>{assignment.instructions}</p>
+                  </div>
+                </>
+              )}
+              {!assignment && <p>Assignment details are not available for this project.</p>}
+              <div className="sp-student-detail-comments">
+                <h2>Reviews:</h2>
+                {assignment && (
+                  <ProgressReviews
+                    key={`${row.project.projectId}:${actorId}`}
+                    projectId={row.project.projectId}
+                    revision={row.project.revision}
+                    actorId={actorId}
+                    educator={false}
+                    decisions={feedback}
+                    decisionsLoading={feedbackLoading}
+                    decisionsError={feedbackError}
+                    onHistorySettled={markHistoryReady}
+                    onGuard={ignoreGuard}
+                  />
+                )}
+              </div>
+            </div>
+            <div className="sp-student-detail-actions">
+              {assignment && !pending && (
+                <Button
+                  disabled={row.project.archived || !row.project.permissions.canEdit}
+                  onClick={() => setAction(approved ? "publish" : "request")}
+                >
+                  {approved ? "Publish" : pending ? "Awaiting approval" : "Request approval"}
+                </Button>
+              )}
+              <Button
+                variant="primary"
+                aria-label="Open project"
+                disabled={!row.project.permissions.canEdit || row.project.archived}
+                onClick={onOpen}
+              >
+                {row.project.revision === 0 ? "Start Editing" : "Continue Editing"}
+              </Button>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      </dialog>
       {action === "request" && (
         <RequestApproval
           projectId={row.project.projectId}
@@ -167,7 +178,7 @@ export function StudentProjectDetails({
             setSubmittedState(approved ? "approved" : "pending");
             // Refresh the card too so closing details cannot show the previous review state
             onReviewChanged?.();
-            setAction(null);
+            if (approved) setAction("publish");
           }}
         />
       )}
@@ -178,7 +189,7 @@ export function StudentProjectDetails({
           onClose={() => setAction(null)}
         />
       )}
-    </dialog>
+    </>
   );
 }
 
@@ -208,8 +219,14 @@ export function StudentProjects({
     rows: StudentProjectRow[] | "error";
     links: Map<string, StudentPublication> | null;
   } | null>(null);
-  // The account gate blocks interaction during rechecks; keep confirmed cards visible.
-  const result = list?.request === request ? list : null;
+  // Keep the current tab intact until its replacement is ready; never reuse another account's view
+  const switchingTab =
+    list?.request.session === session &&
+    list.request.listVersion === listVersion &&
+    list.request.attempt === attempt &&
+    list.request.tab !== tab;
+  const result = list?.request === request || switchingTab ? list : null;
+  const shownTab = result?.request.tab ?? tab;
   const rows = result?.rows;
   // Keep the list mounted so closing details restores its trigger and browsing position
   const [selected, setSelected] = useState<StudentProjectRow | null>(null);
@@ -287,9 +304,9 @@ export function StudentProjects({
       disposed = true;
     };
   }, [selected, session.userId]);
-  const published = tab === "published";
+  const published = shownTab === "published";
   return renderWorkspace(
-    <section className="sp-student-dashboard" aria-labelledby="creator-heading" data-tab={tab}>
+    <section className="sp-student-dashboard" aria-labelledby="creator-heading" data-tab={shownTab}>
       <div className="sp-student-heading">
         <h1 id="creator-heading">{published ? "Published Projects" : "Projects"}</h1>
         <p>
@@ -301,7 +318,7 @@ export function StudentProjects({
       <Tabs
         id="student-projects"
         label="Project views"
-        value={tab}
+        value={shownTab}
         items={[
           { value: "projects", label: "Projects" },
           { value: "published", label: "Published" },
@@ -311,7 +328,12 @@ export function StudentProjects({
           setTab(next);
         }}
       />
-      <div id="student-projects-panel" role="tabpanel" aria-labelledby={`student-projects-${tab}`}>
+      <div
+        id="student-projects-panel"
+        role="tabpanel"
+        aria-labelledby={`student-projects-${shownTab}`}
+        aria-busy={switchingTab}
+      >
         {rows === "error" ? (
           <div role="alert" className="sp-dashboard-state">
             <p>

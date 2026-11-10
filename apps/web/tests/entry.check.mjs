@@ -354,9 +354,26 @@ try {
         body: "<h1>Project home</h1>",
       }),
     );
+    await rolePage.addInitScript(() => {
+      if (location.pathname !== "/login") return;
+      sessionStorage.removeItem("signed-in-flash");
+      new MutationObserver(() => {
+        if (
+          /Signed in as|Go to projects|Opening your projects|Opening your dashboard/.test(
+            document.body?.innerText ?? "",
+          )
+        )
+          sessionStorage.setItem("signed-in-flash", "1");
+      }).observe(document, { childList: true, subtree: true });
+    });
     await rolePage.goto(`${origin}/login`);
     await rolePage.waitForURL(`${origin}/home`);
     await rolePage.getByRole("heading", { name: "Project home" }).waitFor();
+    assert.equal(
+      await rolePage.evaluate(() => sessionStorage.getItem("signed-in-flash")),
+      null,
+      "Role redirects must not paint the old signed-in page",
+    );
     await rolePage.close();
   }
   for (const query of [

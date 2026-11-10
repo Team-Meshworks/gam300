@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import qrCode from "@iconify-icons/lucide/qr-code";
 import { useModal } from "../../shared/ui/useModal";
@@ -54,6 +54,58 @@ export function CreatorProjectCard({
   const { project, assignment } = row;
   const details = assignment?.details;
   const due = details && formatLocalDeadline(details.dueAtUnixSeconds);
+  const description = useRef<HTMLParagraphElement>(null);
+  const [summary, setSummary] = useState<string | null>(null);
+  useLayoutEffect(() => {
+    const node = description.current;
+    const text = details?.description;
+    if (!node || publication || !text) return;
+    // Measure the inline action too so it never covers a word or spills past the two-line summary
+    const measure = () => {
+      const probe = node.cloneNode(false) as HTMLParagraphElement;
+      const style = getComputedStyle(node);
+      Object.assign(probe.style, {
+        position: "fixed",
+        visibility: "hidden",
+        pointerEvents: "none",
+        width: `${node.getBoundingClientRect().width}px`,
+        display: "block",
+        height: "auto",
+        maxHeight: "none",
+        overflow: "visible",
+        WebkitLineClamp: "unset",
+      });
+      node.parentElement!.append(probe);
+      const limit = parseFloat(style.lineHeight) * 2 + 1;
+      probe.textContent = text;
+      if (probe.getBoundingClientRect().height <= limit) {
+        setSummary(null);
+      } else {
+        const words = text.trim().split(/\s+/u);
+        const action = document.createElement("button");
+        action.className = "sp-description-more";
+        action.textContent = "Read more";
+        const label = document.createElement("span");
+        label.className = "sp-description-more-label";
+        label.textContent = "Read more";
+        action.replaceChildren(label);
+        let low = 0;
+        let high = words.length;
+        while (low < high) {
+          const middle = Math.ceil((low + high) / 2);
+          probe.replaceChildren(`${words.slice(0, middle).join(" ")}… `, action);
+          if (probe.getBoundingClientRect().height <= limit) low = middle;
+          else high = middle - 1;
+        }
+        setSummary(words.slice(0, low).join(" "));
+      }
+      probe.remove();
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [details?.description, publication]);
   const [copyMessage, setCopyMessage] = useState("");
   const [qrOpen, setQrOpen] = useState(false);
   const qrDialog = useModal(qrOpen);
@@ -97,10 +149,25 @@ export function CreatorProjectCard({
           </p>
         </div>
         {details?.description && (
-          <p className="sp-card-description">
-            {/* Keep the published summary brief; the project details retain the complete description */}
-            {publication ? details.description.split(/(?<=[.!?])\s+/u, 1)[0] : details.description}
-          </p>
+          <div className="sp-card-description-preview">
+            <p ref={description} className="sp-card-description">
+              {publication
+                ? details.description.split(/(?<=[.!?])\s+/u, 1)[0]
+                : summary === null
+                  ? details.description
+                  : `${summary}… `}
+              {!publication && summary !== null && (
+                <button
+                  type="button"
+                  className="sp-description-more"
+                  aria-label={`Read more about ${project.title}`}
+                  onClick={onDetails}
+                >
+                  <span className="sp-description-more-label">Read more</span>
+                </button>
+              )}
+            </p>
+          </div>
         )}
         <div className="sp-card-actions">
           {publication ? (

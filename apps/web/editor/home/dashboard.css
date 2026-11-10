@@ -19,14 +19,6 @@
   border: 0;
   background: transparent;
 }
-.sp-shell--creator .sp-wash--left {
-  left: calc(50% - 930px);
-  top: -248px;
-}
-.sp-shell--creator .sp-wash--right {
-  left: calc(50% - 67px);
-  top: 183px;
-}
 .sp-shell--facilitator .sp-wash--left {
   left: calc(50% - 961px);
   top: -177px;
@@ -440,9 +432,6 @@
   font-size: 14px;
   line-height: 20px;
 }
-.sp-student-dashboard[data-tab="projects"] .sp-workspace-note {
-  margin-top: -4px;
-}
 .sp-workspace-note svg,
 .sp-due svg,
 .sp-work-status svg {
@@ -565,8 +554,7 @@ html[data-theme="dark"] .sp-shell--creator .sp-due {
   .sp-shell--creator .sp-dashboard-tools {
     margin-top: 60px;
   }
-  .sp-shell--facilitator .sp-workspace,
-  .sp-student-dashboard[data-tab="projects"] {
+  .sp-shell--facilitator .sp-workspace {
     position: relative;
     left: 3px;
   }
@@ -710,4 +698,23 @@ html[data-theme="dark"] .sp-shell--creator .sp-due {
 :is(.sp-shell--creator, .sp-shell--facilitator) .sp-button-label {
   text-box-trim: trim-both;
   text-box-edge: cap alphabetic;
+}
+
+.sp-shell.sp-shell--creator > .sp-workspace {
+  min-height: 0;
+}
+.sp-shell--creator .sp-student-dashboard {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.sp-shell--creator .sp-student-dashboard > :not(.sp-student-list, [role="tabpanel"]) {
+  flex: none;
+}
+.sp-shell--creator .sp-student-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  align-content: start;
 }

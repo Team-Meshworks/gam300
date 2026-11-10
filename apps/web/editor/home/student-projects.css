@@ -18,17 +18,6 @@
   --creator-scroll-track: #f6f4f1;
   --creator-card-shadow: 0 6px 24px rgb(57 43 29 / 3%);
 }
-/* Preserve the original background blending rather than approximate its circles */
-.sp-shell.sp-shell--creator .sp-wash--left {
-  left: calc(50% - 720px);
-  top: 0;
-  width: 1440px;
-  height: 1024px;
-  max-width: none;
-}
-.sp-shell.sp-shell--creator .sp-wash--right {
-  display: none;
-}
 .sp-shell.sp-shell--creator .sp-workspace {
   width: min(1366px, calc(100% - 74px));
 }
@@ -136,8 +125,10 @@
 .sp-shell--creator .sp-student-detail-badges .sp-approval[data-state="approved"] {
   background: var(--creator-detail-approved);
 }
+.sp-shell--creator .sp-approval[data-state="pending"],
 .sp-shell--creator .sp-student-detail-badges .sp-approval[data-state="pending"] {
-  background: var(--creator-due);
+  background: #f2e8d8;
+  color: #80652d;
 }
 .sp-shell--creator .sp-student-detail-content h2 {
   margin: 0 0 4px;
@@ -289,19 +280,6 @@
   --creator-home-edge: rgb(255 255 255 / 85%);
   font-family: var(--sp-font);
 }
-.sp-shell--creator:has(.sp-student-dashboard) .sp-wash--left {
-  left: calc(50% - 961px);
-  top: -177px;
-  width: 993px;
-  height: 993px;
-}
-.sp-shell--creator:has(.sp-student-dashboard) .sp-wash--right {
-  display: block;
-  left: calc(50% - 67px);
-  top: 208px;
-  width: 1004px;
-  height: 1004px;
-}
 .sp-shell.sp-shell--creator:has(.sp-student-dashboard) .sp-workspace {
   width: calc(100% - 160px);
   max-width: 1280px;
@@ -420,6 +398,9 @@
   font: 400 13px/1.5 var(--sp-font);
 }
 .sp-shell--creator .sp-student-dashboard > .sp-tabs {
+  width: fit-content;
+  justify-self: start;
+  align-self: start;
   isolation: isolate;
   background: #e6e2dc;
   opacity: 1;
@@ -687,7 +668,7 @@
 .sp-shell[data-account-role="Creator"] {
   --creator-search-top: rgb(239 239 239 / 45%);
   --creator-search-bottom: rgb(245 245 245 / 45%);
-  --creator-search-edge: rgb(255 255 255 / 90%);
+  --creator-search-edge: var(--sp-search-edge);
   --creator-search-shadow: inset 0 3px 7px rgb(0 0 0 / 7%);
 }
 .sp-shell[data-account-role="Creator"] .sp-search {
@@ -1036,4 +1017,248 @@
   display: block;
   max-width: 100%;
   height: auto;
+}
+
+/* Keep status backgrounds fitted to their labels without changing the readable text size */
+.sp-shell--creator .sp-student-card .sp-student-metadata .sp-approval {
+  padding: 4px 8px;
+}
+
+/* Keep both metadata values centred in equal-height rows */
+.sp-shell--creator .sp-student-metadata dd {
+  display: flex;
+  align-items: center;
+  min-height: 29px;
+}
+.sp-shell--creator .sp-creator-detail-dialog .sp-student-detail-badges > span {
+  box-sizing: border-box;
+  height: 28px;
+  padding-block: 0;
+  align-items: center;
+}
+
+/* Keep the creator workspace fixed while its project list owns scrolling */
+.sp-shell.sp-shell.sp-shell--creator:has(.sp-student-dashboard) {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  min-height: 0;
+  padding-bottom: 32px;
+}
+.sp-shell.sp-shell.sp-shell--creator:has(.sp-student-dashboard) > .sp-account-header {
+  flex-shrink: 0;
+  margin-block: 0;
+}
+.sp-shell.sp-shell.sp-shell--creator:has(.sp-student-dashboard) > .sp-workspace {
+  margin-top: 0;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.sp-shell--creator .sp-student-dashboard > [role="tabpanel"] {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.sp-shell--creator .sp-student-dashboard .sp-student-list {
+  grid-auto-rows: max-content;
+  flex: 1;
+  min-height: 0;
+  padding-right: 10px;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+}
+
+/* Keep heading gaps consistent inside the scrollable details */
+.sp-shell--creator .sp-creator-detail-dialog .sp-student-detail-comments {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 0;
+}
+.sp-shell--creator .sp-creator-detail-dialog .sp-student-detail-comments > h2 {
+  margin-bottom: 0;
+}
+
+/* Keep title, badges and actions outside the shared details scroll area */
+.sp-shell--creator .sp-creator-detail-dialog .sp-student-detail-scroll {
+  min-height: 0;
+  max-height: min(360px, 42dvh);
+  padding-right: 10px;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+}
+
+/* Keep long descriptions in the details popup rather than stretching the summary card */
+.sp-shell--creator .sp-student-card:not(.sp-student-card--published) .sp-card-description {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  white-space: normal;
+}
+.sp-shell--creator .sp-description-more {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--creator-action, #332e2a);
+  font: 600 12px/18px var(--sp-font);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.sp-shell--creator .sp-student-card:not(.sp-student-card--published) .sp-card-description-preview {
+  position: relative;
+  font: 400 14px/1.5 var(--sp-font);
+}
+.sp-shell--creator .sp-description-more {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  padding-left: 6px;
+  background: var(--sp-surface, #fff);
+  font: inherit;
+}
+/* Keep long details inside the original compact frame */
+.sp-shell--creator .sp-creator-detail-dialog .sp-student-detail {
+  height: 408px;
+  box-sizing: border-box;
+}
+.sp-shell--creator .sp-creator-detail-dialog .sp-student-detail-content {
+  min-height: 0;
+}
+.sp-shell--creator .sp-creator-detail-dialog .sp-student-detail-scroll {
+  flex: 1;
+  max-height: none;
+}
+@media (max-width: 600px) {
+  .sp-shell--creator .sp-creator-detail-dialog .sp-student-detail {
+    height: min(640px, calc(100dvh - 48px));
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+}
+
+.sp-shell--creator
+  .sp-creator-detail-dialog
+  .sp-student-detail-scroll
+  > :is(.sp-student-detail-section + .sp-student-detail-section, .sp-student-detail-comments) {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--creator-border);
+}
+
+.sp-shell--creator .sp-description-more {
+  text-decoration: none;
+}
+.sp-shell--creator .sp-description-more-label {
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.sp-shell--creator .sp-creator-detail-dialog .sp-student-detail-comments:has(.sp-progress-entry) {
+  gap: 8px;
+}
+
+/* Keep the ellipsis in the description and its action on the same text baseline */
+.sp-shell--creator .sp-description-more {
+  position: static;
+  padding: 0;
+  background: transparent;
+  font: inherit;
+}
+
+.sp-shell--creator
+  .sp-student-card:not(.sp-student-card--published)
+  .sp-card-description:has(.sp-description-more) {
+  display: block;
+  -webkit-line-clamp: unset;
+}
+
+.sp-shell--creator .sp-description-more {
+  border-radius: 4px;
+}
+.sp-shell--creator .sp-description-more:hover {
+  background: var(--creator-hover);
+  box-shadow: none;
+}
+.sp-shell--creator .sp-description-more:focus-visible {
+  outline: 2px solid var(--creator-action);
+  outline-offset: 3px;
+}
+
+.sp-shell--creator .sp-description-more {
+  padding: 3px;
+  margin: -3px;
+}
+
+/* Let inline hover padding extend below the text without being clipped */
+.sp-shell--creator .sp-student-card:not(.sp-student-card--published) .sp-card-description {
+  -webkit-line-clamp: 2;
+}
+.sp-shell--creator
+  .sp-student-card:not(.sp-student-card--published)
+  .sp-card-description:has(.sp-description-more) {
+  overflow: visible;
+}
+
+.sp-shell--creator .sp-description-more {
+  display: inline-block;
+  line-height: 1;
+  padding: 3px;
+  margin: -3px;
+  vertical-align: baseline;
+}
+
+@media (min-width: 761px) {
+  .sp-shell--creator .sp-student-dashboard :is(.sp-student-metadata, .sp-published-share) {
+    align-self: stretch;
+  }
+}
+.sp-shell--creator .sp-description-more {
+  padding-bottom: 5px;
+  margin-bottom: -5px;
+}
+
+/* Match the badge gap to the deadline value's existing vertical inset */
+.sp-shell--creator .sp-student-dashboard .sp-student-metadata dd:has(.sp-approval) {
+  margin-top: 8px;
+}
+
+/* Reserve the same two-line summary space on every project card */
+.sp-shell--creator
+  .sp-student-dashboard
+  .sp-student-card:not(.sp-student-card--published)
+  .sp-student-card-copy {
+  min-height: 161px;
+  grid-template-rows: auto minmax(42px, 1fr) auto;
+}
+
+@media (min-width: 761px) {
+  .sp-shell--creator .sp-student-dashboard .sp-student-card:not(.sp-student-card--published) {
+    box-sizing: border-box;
+    height: 221px;
+  }
+}
+
+@media (min-width: 761px) {
+  .sp-shell--creator .sp-student-dashboard .sp-student-card--published {
+    box-sizing: border-box;
+    height: 221px;
+  }
+}
+
+@media (min-width: 761px) {
+  .sp-shell--creator .sp-student-dashboard .sp-student-card--published .sp-student-card-copy {
+    align-self: stretch;
+    min-height: 161px;
+    grid-template-rows: auto minmax(42px, 1fr) auto;
+  }
 }
