@@ -54,3 +54,40 @@ export function PublishDialog({
     return () => {
       cancelled = true;
     };
+  }, [actorId]);
+  function closeDialog() {
+    if (!guard.pending) onClose();
+  }
+  return (
+    <dialog
+      ref={ref}
+      className="creator-approval-dialog creator-publish-dialog"
+      aria-labelledby="creator-publish-title"
+      onCancel={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        closeDialog();
+      }}
+    >
+      <button
+        className="creator-approval-close"
+        aria-label="Close publish project"
+        disabled={guard.pending}
+        onClick={closeDialog}
+      >
+        <Icon icon={close} width={20} />
+      </button>
+      <h2 id="creator-publish-title">Publish project</h2>
+      {!session && !error && <p role="status">Preparing your saved project...</p>}
+      {error && <p role="alert">{error}</p>}
+      {session && (
+        <PublicationPage
+          {...(projectId ? { projectId } : {})}
+          session={session}
+          onGuard={setGuard}
+          onCancel={closeDialog}
+        />
+      )}
+    </dialog>
+  );
+}
