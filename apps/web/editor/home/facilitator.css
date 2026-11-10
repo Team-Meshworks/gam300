@@ -1,0 +1,250 @@
+.sp-shell--facilitator {
+  --facilitator-surface: #fffdfb;
+  --facilitator-field: #f6f4f2;
+  --facilitator-control-hover: #eae5df;
+  --facilitator-project-delete-hover: #fbe2dd;
+  --facilitator-close-hover: #e4e5e7;
+  --facilitator-value-surface: #fff;
+  --facilitator-context-fill: #eae5df;
+  --facilitator-context-edge: #dcd5cc;
+  --facilitator-value-ink: #515151;
+  --facilitator-project-delete-ink: #c94032;
+  --facilitator-project-delete-fill: #fef2f0;
+  --facilitator-project-delete-edge: #f4c5bc;
+  --facilitator-delete-ink: #515151;
+  --facilitator-delete-fill: #f7f5f2;
+  --facilitator-delete-edge: #e7e2dc;
+  --facilitator-hide-fill: #fff;
+  --facilitator-private-ink: #77716a;
+  --facilitator-note-ink: #7d7974;
+  --facilitator-note-background: linear-gradient(#f9f7f5, #fffdfb 80%);
+  --facilitator-edge: #e7e2dc;
+  --facilitator-shadow: inset 4px 5px 14px rgb(57 43 29 / 4%);
+  --facilitator-search-top: rgb(239 239 239 / 45%);
+  --facilitator-search-bottom: rgb(245 245 245 / 45%);
+  --facilitator-search-shadow: inset 0 3px 7px rgb(0 0 0 / 7%);
+  --facilitator-search-edge: rgb(255 255 255 / 90%);
+  --facilitator-font: var(--sp-font);
+  --facilitator-heading-font: var(--sp-font);
+  font-family: var(--facilitator-font);
+}
+.sp-shell--facilitator :is(button, input, textarea, select) {
+  font-family: inherit;
+}
+.sp-shell--facilitator .sp-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  line-height: 1.25;
+}
+.sp-shell--facilitator .sp-button-label {
+  text-box-trim: trim-both;
+  text-box-edge: cap alphabetic;
+}
+.sp-shell--facilitator .sp-teacher-detail,
+.sp-shell--facilitator .sp-teacher-new-project {
+  position: relative;
+  background: var(--glass);
+  box-shadow:
+    inset 0 0 0 1px var(--glass-edge),
+    var(--facilitator-shadow);
+}
+.sp-shell--facilitator .sp-teacher-detail-head {
+  align-items: center;
+}
+.sp-shell--facilitator .sp-teacher-detail-head h1 {
+  font-size: 25px;
+  line-height: 1.3;
+}
+.sp-shell--facilitator .sp-teacher-detail-head p {
+  margin-top: 7px;
+  font-size: 12px;
+  line-height: 17px;
+}
+.sp-shell--facilitator .sp-teacher-detail-head > button {
+  width: 40px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+  flex: 0 0 40px;
+  align-self: flex-start;
+}
+.sp-shell--facilitator .sp-teacher-project-identity h2 {
+  font-size: 25px;
+  line-height: 1.3;
+}
+.sp-teacher-detail-cover {
+  width: 176px;
+  height: 102px;
+  object-fit: cover;
+  border-radius: 24px;
+}
+.sp-teacher-metadata {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 10px 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  margin-block: 16px 0;
+}
+.sp-teacher-metadata dt {
+  color: var(--sp-muted);
+}
+.sp-teacher-metadata dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.sp-teacher-field-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+.sp-shell--facilitator .sp-teacher-field-heading .sp-button {
+  min-height: 32px;
+  padding: 4px 16px;
+  font-size: 13px;
+  font-weight: 400;
+}
+.sp-shell--facilitator .sp-teacher-field-heading h3 {
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 600;
+}
+.sp-shell--facilitator .sp-teacher-value {
+  background: var(--facilitator-value-surface);
+  border-color: var(--facilitator-edge);
+  font-size: 15px;
+  line-height: 1.5;
+}
+.sp-shell--facilitator .sp-teacher-students {
+  display: flex;
+  flex-direction: column;
+  background: var(--facilitator-surface);
+  border-color: var(--facilitator-edge);
+}
+.sp-shell--facilitator .sp-teacher-students > .sp-tabs {
+  padding: 12px 20px 16px;
+  gap: 24px;
+}
+.sp-shell--facilitator .sp-teacher-student {
+  grid-template-columns: minmax(0, 1fr) minmax(110px, 26%);
+  align-items: center;
+  min-height: 138px;
+  padding: 18px 24px;
+  gap: 10px 20px;
+}
+.sp-shell--facilitator .sp-teacher-student > strong {
+  font-size: 15px;
+  line-height: 20px;
+}
+.sp-shell--facilitator .sp-teacher-student-actions {
+  grid-column: 1;
+  grid-row: 2;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.sp-shell--facilitator .sp-teacher-student-actions > .sp-button {
+  min-height: 34px;
+  padding: 6px 16px;
+  font-size: 15px;
+  font-weight: 400;
+}
+.sp-shell--facilitator .sp-teacher-student-actions > .sp-button > svg {
+  width: 13px;
+  height: 13px;
+  margin-right: 6px;
+}
+.sp-teacher-student-status {
+  grid-column: 2;
+  grid-row: 1 / 3;
+  display: grid;
+  gap: 24px;
+  width: 100%;
+}
+.sp-teacher-student-status p {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+.sp-teacher-student-status span {
+  color: var(--sp-muted);
+  font-size: 12px;
+}
+.sp-teacher-student-status strong {
+  font-size: 13px;
+  font-weight: 500;
+}
+.sp-teacher-students-note {
+  margin-top: auto;
+  padding: 16px 20px;
+  border-top: 1px solid var(--facilitator-edge);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--sp-muted);
+}
+.sp-shell--facilitator .sp-search,
+.sp-shell--facilitator .sp-teacher-heading .sp-search {
+  height: 45px;
+  min-height: 45px;
+  padding: 0 22px;
+  border: 1px solid var(--facilitator-search-edge);
+  background-color: transparent;
+  background-image: linear-gradient(
+    var(--facilitator-search-top),
+    var(--facilitator-search-bottom) 55%
+  );
+  background-size: 100% 100%;
+  box-shadow: var(--facilitator-search-shadow);
+}
+.sp-shell--facilitator .sp-project-details {
+  gap: 24px;
+}
+.sp-shell--facilitator .sp-project-details > div > h2,
+.sp-shell--facilitator .sp-students-header h2 {
+  font-size: 20px;
+  line-height: 1.3;
+}
+.sp-shell--facilitator
+  .sp-project-fields
+  :is(input:not([type="checkbox"]):not([type="radio"]):not([type="search"]), textarea, select) {
+  font-size: 14px;
+  line-height: 1.5;
+  border-radius: 12px;
+}
+.sp-shell--facilitator .sp-form-footer .sp-button {
+  min-height: 44px;
+  padding: 6px 18px;
+}
+@media (max-width: 760px) {
+  .sp-shell--facilitator .sp-teacher-student {
+    grid-template-columns: minmax(0, 1fr) minmax(100px, 32%);
+    padding: 20px;
+  }
+}
+
+.sp-shell--facilitator {
+  --facilitator-approved: #5e754a;
+  --facilitator-returned: #a13f30;
+  --facilitator-pending: #8a642f;
+}
+.sp-shell--facilitator .sp-header-brand {
+  font-weight: 400;
+}
+.sp-shell--facilitator .sp-teacher-card-copy {
+  grid-template-rows: 40px 15px 40px;
+}
+.sp-shell--facilitator .sp-teacher-card-heading {
+  align-items: center;
+}
+.sp-shell--facilitator .sp-teacher-card .sp-button,
+.sp-shell--facilitator .sp-new-project {
+  font-weight: 500;
+}
+.sp-shell--facilitator .sp-teacher-project-identity {
+  display: grid;
+  grid-template-columns: 176px minmax(0, 1fr);
+  gap: 21px;

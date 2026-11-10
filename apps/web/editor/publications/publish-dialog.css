@@ -251,3 +251,43 @@
 }
 .creator-publish-dialog .creator-viewer-scroll > button > svg {
   flex: none;
+}
+.creator-publish-dialog .creator-viewer-scroll > p {
+  padding: 8px 10px;
+}
+
+/* Group the audience label, control and explanatory text without changing their wording */
+.creator-publish-dialog .sp-publication fieldset .creator-publication-select {
+  gap: 12px;
+}
+.creator-publish-dialog .sp-publication-audience-field + p {
+  margin-top: 0;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+/* Attach selection actions to the list they control */
+.creator-publish-dialog .creator-viewer-tools + .creator-viewer-list {
+  margin-top: 0;
+}
+
+/* Read the publishing blocker as a status of this project, not a separate section */
+.creator-publish-dialog .sp-publication > h2 + p[role="alert"] {
+  margin-top: 0;
+}
+
+/* Use the same vertical interval on both sides of each section divider */
+.creator-publish-dialog > h2 {
+  margin: 0;
+  padding: 0 44px 0 0;
+}
+.creator-publish-dialog .sp-publication .creator-approval-actions {
+  padding-top: 0;
+}
+
+/* Separate each content section with the same divider and vertical inset */
+.creator-publish-dialog .creator-viewer-picker,
+.creator-publish-dialog .sp-publication fieldset > label:last-child {
+  border-top: 1px solid #e7e2dc;
+  padding-top: 12px;
+}
