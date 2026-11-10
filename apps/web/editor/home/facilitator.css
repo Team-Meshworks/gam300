@@ -1118,3 +1118,293 @@ html:has(.sp-shell--facilitator) {
   min-width: 0;
   align-self: start;
   margin: 0;
+  padding: 24px;
+  border: 1px solid var(--facilitator-edge);
+  border-radius: 20px;
+  background: var(--facilitator-surface);
+}
+.sp-organisation-view :is(.sp-class-assignments, .sp-card) h2 {
+  font-size: 18px;
+  line-height: 25px;
+  margin-bottom: 4px;
+}
+.sp-organisation-view > .sp-card > .sp-hint {
+  margin: 0 0 16px;
+  font-size: 12px;
+  line-height: 18px;
+}
+.sp-organisation-view .sp-page-heading .sp-actions > .sp-button,
+.sp-organisation-view > .sp-home-toolbar > .sp-button,
+.sp-organisation-view > .sp-card .sp-button {
+  width: auto;
+  min-width: 0;
+  height: 32px;
+  min-height: 32px;
+  padding: 0 12px;
+  font-size: 13px;
+  line-height: 18px;
+}
+.sp-organisation-class-select {
+  display: grid;
+  gap: 8px;
+  width: min(320px, 100%);
+}
+.sp-organisation-class-select > label {
+  font-size: 13px;
+  font-weight: 600;
+}
+.sp-organisation-class-select > button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  height: 38px;
+  padding: 0 14px;
+  border: 1px solid var(--facilitator-edge);
+  border-radius: 12px;
+  background: var(--facilitator-value-surface);
+  color: var(--sp-ink);
+  font: 400 14px/20px var(--sp-font);
+  cursor: pointer;
+}
+.sp-organisation-class-menu {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  padding: 6px;
+  border: 1px solid var(--facilitator-edge);
+  border-radius: 12px;
+  background: var(--facilitator-value-surface);
+  box-shadow: var(--facilitator-menu-shadow);
+  overflow-y: auto;
+  font: 400 14px/20px var(--sp-font);
+}
+.sp-organisation-class-menu button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 36px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--sp-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.sp-organisation-class-menu button:is(:hover, [data-active="true"]) {
+  background: var(--facilitator-field);
+}
+.sp-organisation-view .sp-assignment-list {
+  margin: 16px 0 0;
+  gap: 12px;
+}
+.sp-organisation-view .sp-assignment-list li {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--facilitator-edge);
+  border-radius: 12px;
+}
+.sp-organisation-view .sp-assignment-list .sp-button {
+  justify-content: flex-start;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 32px;
+  padding: 4px 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--sp-ink);
+  font-size: 15px;
+  line-height: 21px;
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.sp-organisation-view .sp-assignment-list .sp-button:hover {
+  background: var(--facilitator-field);
+}
+.sp-organisation-view .sp-table {
+  table-layout: fixed;
+  width: 100%;
+  font-size: 12px;
+}
+.sp-organisation-view .sp-table :is(th, td) {
+  padding: 14px 6px;
+  vertical-align: middle;
+}
+.sp-organisation-view .sp-table th:first-child {
+  width: 37%;
+}
+.sp-organisation-view .sp-table th:nth-child(2) {
+  width: 23%;
+}
+.sp-organisation-view .sp-table th:nth-child(3) {
+  width: 16%;
+}
+.sp-organisation-view .sp-table td[data-active="true"] {
+  color: var(--facilitator-approved);
+}
+.sp-organisation-view .sp-table td[data-active="false"] {
+  color: var(--facilitator-returned);
+}
+.sp-organisation-view .sp-class-students {
+  margin: 12px 0 0;
+}
+.sp-organisation-view .sp-class-students li {
+  padding: 8px 0;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.sp-organisation-view > .sp-card h3 {
+  margin-top: 20px;
+  font-size: 15px;
+}
+.sp-organisation-dialog.sp-dialog {
+  width: min(460px, calc(100% - 32px));
+  padding: 28px;
+}
+.sp-organisation-dialog fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.sp-organisation-dialog h2 {
+  margin-right: 40px;
+  font-size: 20px;
+  line-height: 28px;
+}
+.sp-organisation-dialog input {
+  min-height: 38px;
+  padding: 8px 12px;
+  font-size: 14px;
+}
+.sp-organisation-dialog fieldset > .sp-button {
+  height: 32px;
+  min-height: 32px;
+  margin-top: 16px;
+  padding: 0 16px;
+  font-size: 13px;
+}
+@media (max-width: 1000px) {
+  .sp-shell--facilitator .sp-organisation-view {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 600px) {
+  .sp-shell--facilitator .sp-organisation-view {
+    padding: 24px 20px;
+    gap: 20px;
+    border-radius: 28px;
+  }
+  .sp-organisation-view > .sp-page-heading {
+    padding-right: 0;
+  }
+  .sp-organisation-view > .sp-page-heading > div:first-child {
+    flex-basis: 100%;
+    padding-right: 48px;
+  }
+  .sp-organisation-view > .sp-class-assignments,
+  .sp-organisation-view > .sp-card {
+    padding: 18px 14px;
+  }
+  .sp-organisation-view .sp-table :is(th, td) {
+    padding-inline: 3px;
+  }
+  .sp-organisation-view > .sp-card .sp-button {
+    padding-inline: 8px;
+    font-size: 12px;
+  }
+}
+
+.sp-organisation-view .sp-assignment-list .sp-button-label {
+  font: inherit;
+  color: inherit;
+  line-height: 1.4;
+  text-box-trim: none;
+}
+@media (max-width: 600px) {
+  .sp-organisation-view .sp-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .sp-organisation-view .sp-table tbody {
+    display: block;
+  }
+  .sp-organisation-view .sp-table tbody tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--facilitator-edge);
+  }
+  .sp-organisation-view .sp-table tbody :is(th, td) {
+    width: auto;
+    padding: 0;
+    border: 0;
+    font-size: 13px;
+  }
+  .sp-organisation-view .sp-table tbody th {
+    grid-column: 1 / -1;
+    text-align: left;
+  }
+  .sp-organisation-view .sp-table tbody td:last-child {
+    grid-column: 1 / -1;
+    justify-self: end;
+  }
+}
+
+.sp-organisation-view .sp-assignment-list {
+  gap: 0;
+}
+.sp-organisation-view .sp-assignment-list li {
+  gap: 3px;
+  padding: 12px 8px;
+  border: 0;
+  border-bottom: 1px solid var(--facilitator-edge);
+  border-radius: 0;
+}
+.sp-organisation-view .sp-assignment-list li:last-child {
+  border-bottom: 0;
+}
+.sp-organisation-view .sp-assignment-list li:hover {
+  border-radius: 8px;
+  background: var(--facilitator-field);
+}
+.sp-organisation-view .sp-assignment-list .sp-button {
+  min-height: 26px;
+  padding: 2px 0;
+}
+.sp-organisation-view .sp-table th:first-child {
+  width: 50%;
+}
+.sp-organisation-view .sp-table th:nth-child(2) {
+  width: 30%;
+}
+.sp-organisation-view .sp-table th:nth-child(3) {
+  width: 20%;
+}
+@media (max-width: 600px) {
+  .sp-organisation-view .sp-table tbody th {
+    width: auto;
+  }
+  .sp-organisation-view .sp-table tbody td:last-child {
+    grid-column: auto;
+  }
+}
+
+.sp-shell--facilitator .sp-organisation-view {
+  grid-template-columns: minmax(0, 1fr);
+}
+.sp-organisation-view > .sp-class-assignments {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
