@@ -30,9 +30,11 @@ type SubmissionFeedback = { id: string; feedback: string; decidedAt: string };
 export function ProgressReviewList({
   items,
   decisions = [],
+  dateOnly = false,
 }: {
   items: ProgressReview[];
   decisions?: readonly SubmissionFeedback[];
+  dateOnly?: boolean;
 }) {
   const entries = [
     ...items.map((item) => ({
@@ -42,7 +44,11 @@ export function ProgressReviewList({
     })),
     ...decisions
       .filter((item) => item.feedback.trim())
-      .map((item) => ({ id: `decision:${item.id}`, feedback: item.feedback, at: item.decidedAt })),
+      .map((item) => ({
+        id: `decision:${item.id}`,
+        feedback: item.feedback,
+        at: item.decidedAt,
+      })),
   ];
   return (
     <div className="sp-progress-list">
@@ -51,12 +57,11 @@ export function ProgressReviewList({
         .map((item) => (
           <article className="sp-progress-entry" key={item.id}>
             <time dateTime={item.at}>
-              {new Date(item.at).toLocaleString(undefined, {
+              {new Date(item.at).toLocaleString(dateOnly ? "en-GB" : undefined, {
                 day: "numeric",
                 month: "short",
                 year: "numeric",
-                hour: "numeric",
-                minute: "2-digit",
+                ...(!dateOnly ? { hour: "numeric" as const, minute: "2-digit" as const } : {}),
               })}
             </time>
             <p>{item.feedback}</p>
@@ -79,6 +84,7 @@ export function ProgressReviews({
   decisions = [],
   decisionsLoading = false,
   decisionsError = "",
+  onHistorySettled,
   publication,
   onSaved,
 }: {
@@ -94,7 +100,14 @@ export function ProgressReviews({
   decisions?: readonly SubmissionFeedback[];
   decisionsLoading?: boolean;
   decisionsError?: string;
-  publication?: { studentId: string; studentName: string; projectTitle: string };
+  onHistorySettled?: () => void;
+  publication?: {
+    studentId: string;
+    studentName: string;
+    projectTitle: string;
+    className?: string;
+    submissionStatus?: string;
+  };
   onSaved?: () => void;
 }) {
   const [items, setItems] = useState<ProgressReview[]>([]);
@@ -105,10 +118,14 @@ export function ProgressReviews({
   const [open, setOpen] = useState(autoOpen);
   const [editing, setEditing] = useState(Boolean(publication) || startEditing);
   const [feedback, setFeedback] = useState("");
+  const [staged, setStaged] = useState<Array<ProgressIntent & { createdAt: string }>>([]);
   const [intent, setIntent] = useState<ProgressIntent | null>(null);
   const [phase, setPhase] = useState<"ready" | "sending" | "unknown">("ready");
   const [conflict, setConflict] = useState(false);
-  const [submission, setSubmission] = useState<{ id: string; revision: number } | null>(null);
+  const [submission, setSubmission] = useState<{
+    id: string;
+    revision: number;
+  } | null>(null);
   const [canApprove, setCanApprove] = useState(false);
   const [approvalSaved, setApprovalSaved] = useState(false);
   const [submissionFeedback, setSubmissionFeedback] = useState<Decision[]>([]);
@@ -205,7 +222,10 @@ export function ProgressReviews({
           (mayDecide(review, project, "approved") ||
             (project.permissions.canManage && reviewState(review, project.revision) === "approved"))
         ) {
-          setSubmission({ id: review.submissionId, revision: project.revision });
+          setSubmission({
+            id: review.submissionId,
+            revision: project.revision,
+          });
         }
       } catch (failure) {
         if (!disposed)
@@ -260,56 +280,77 @@ export function ProgressReviews({
           );
         }
       } finally {
-        if (active.current && generation.current === version) setLoading(false);
+        if (active.current && generation.current === version) {
+          setLoading(false);
+          // Let read-only detail popups size their content before opening
+          if (!after) onHistorySettled?.();
+        }
       }
     },
-    [projectId, actorId, educator],
+    [projectId, actorId, educator, onHistorySettled],
   );
   useEffect(() => {
     active.current = true;
     const generations = generation;
     let disposed = false;
     void Promise.resolve().then(() => {
-      if (!disposed) void load();
+      if (!disposed && !publicationStudentId) void load();
     });
     return () => {
       disposed = true;
       active.current = false;
       generations.current++;
     };
-  }, [load]);
+  }, [load, publicationStudentId]);
   useEffect(() => {
     onGuard({
       pending: phase === "sending" || (phase === "unknown" && !pendingPublication),
-      dirty: !!feedback && !pendingPublication,
+      dirty: (!!feedback || staged.length > 0) && !pendingPublication,
     });
-  }, [onGuard, phase, feedback, pendingPublication]);
+  }, [onGuard, phase, feedback, pendingPublication, staged.length]);
   useEffect(() => {
-    if (!feedback && phase === "ready") return;
+    if (!feedback && !staged.length && phase === "ready") return;
     const preventLoss = (event: BeforeUnloadEvent) => event.preventDefault();
     window.addEventListener("beforeunload", preventLoss);
     return () => window.removeEventListener("beforeunload", preventLoss);
-  }, [feedback, phase]);
-  function close() {
+  }, [feedback, phase, staged.length]);
+  function close(discard = false) {
     if (phase === "sending" || (phase === "unknown" && !pendingPublication)) return;
     if (pendingPublication) {
       setOpen(false);
       onClose?.();
       return;
     }
-    if (feedback && !window.confirm("Discard your unsaved progress review?")) return;
+    if (
+      !discard &&
+      (feedback || staged.length) &&
+      !window.confirm("Discard your unsaved progress review?")
+    )
+      return;
     try {
       localStorage.removeItem(recoveredFeedbackKey);
     } catch {
       /* Keep recoverable text. */
     }
     setFeedback("");
+    setStaged([]);
     setEditing(false);
     setOpen(false);
     onClose?.();
     setError("");
     setConflict(false);
   }
+  function stageReview() {
+    if (phase !== "ready" || !feedback.trim() || feedback.includes("\0")) return;
+    setStaged((current) => [
+      ...current,
+      {
+        reviewId: crypto.randomUUID(),
+        expectedRevision: revision,
+        feedback,
+        createdAt: new Date().toISOString(),
+      },
+    ]);
   async function save(retry = false) {
     if (
       busy.current ||
