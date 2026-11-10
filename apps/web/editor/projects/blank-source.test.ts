@@ -154,3 +154,46 @@ it("creates an empty source without sending an environment asset", async () => {
   expect(result.kind).toBe("confirmed");
   expect(write).toHaveBeenCalledWith("teacher", "/api/v1/projects", "POST", { title: "Museum" });
 });
+
+it("sends an image atomically and refuses to reuse a source with a different image", async () => {
+  let stored: string | null = null;
+  const store = {
+    getItem: () => stored,
+    setItem: (_key: string, value: string) => {
+      stored = value;
+    },
+    removeItem: () => {
+      stored = null;
+    },
+  };
+  const write = vi.fn(async () => ({
+    kind: "confirmed" as const,
+    value: {
+      projectId: "aefea67c-caca-4300-923c-937f1c785578",
+      revision: 0,
+      updatedAt: "2026-11-05T00:00:00Z",
+      archived: false,
+    },
+  }));
+  const image = { type: "cover" as const, contentType: "image/png", data: "aW1hZ2U=" };
+  expect(
+    (await createBlankSource(store, write, "teacher", "Museum", "", readCurrent, image)).kind,
+  ).toBe("confirmed");
+  expect(write).toHaveBeenCalledWith("teacher", "/api/v1/projects", "POST", {
+    title: "Museum",
+    image,
+  });
+  expect(
+    (await createBlankSource(store, write, "teacher", "Museum", "", readCurrent, image)).kind,
+  ).toBe("confirmed");
+  expect(
+    (
+      await createBlankSource(store, write, "teacher", "Museum", "", readCurrent, {
+        ...image,
+        data: "ZGlmZmVyZW50",
+      })
+    ).kind,
+  ).toBe("image-mismatch");
+  expect(write).toHaveBeenCalledOnce();
+  expect(stored).not.toContain(image.data);
+});

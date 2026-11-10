@@ -1,6 +1,7 @@
 import { afterEach, expect, it, vi } from "vitest";
 import {
   assignmentChoices,
+  assignmentSession,
   enrolledStudents,
   readAssignment,
   submitAssignment,
@@ -258,4 +259,32 @@ it("uses authorized paginated choices and only enrolled students", async () => {
   expect(await enrolledStudents("class")).toEqual([
     { id: "a", name: "Alice", account: "alice123", classIds: ["class"] },
   ]);
+});
+
+it("uses the authoritative login name independently from the display name", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () =>
+      json({
+        userId: "teacher",
+        displayName: "Ms Tan",
+        userName: "teacher.tan",
+        role: "Educator",
+        orgId: "school",
+      }),
+    ),
+  );
+  expect((await assignmentSession()).userName).toBe("teacher.tan");
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () =>
+      json({
+        userId: "teacher",
+        displayName: "Ms Tan",
+        role: "Educator",
+        orgId: "school",
+      }),
+    ),
+  );
+  expect((await assignmentSession()).userName).toBeUndefined();
 });
