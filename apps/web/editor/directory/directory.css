@@ -1602,3 +1602,69 @@
   font: 500 12px/18px var(--sp-font);
   white-space: nowrap;
 }
+.sp-directory--administration
+  .sp-account-toolbar-actions
+  > .sp-account-select-action:hover:not(:disabled) {
+  background: var(--account-selection-fill);
+  color: var(--sp-ink);
+}
+.sp-directory--administration
+  .sp-account-toolbar-actions
+  > .sp-account-select-action[aria-pressed="true"] {
+  color: var(--sp-ink);
+}
+
+.sp-account-select-action svg {
+  width: 18px;
+  height: 18px;
+}
+
+.sp-directory--administration .sp-account-list-header {
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+}
+.sp-directory--administration .sp-account-list-toolbar {
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.sp-account-select-action:active:not(:disabled) {
+  background: var(--account-selection-fill);
+}
+:is(.sp-account-select-action, .sp-account-bulk-delete, .sp-account-select-row):disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.sp-account-selection label > span,
+.sp-account-bulk-delete > span {
+  text-box-trim: trim-both;
+  text-box-edge: cap alphabetic;
+  line-height: 1;
+}
+.sp-directory--administration .sp-account-selection .sp-account-bulk-delete:disabled {
+  color: var(--sp-muted);
+  opacity: 0.55;
+}
+
+.sp-directory--administration .sp-account-list-header > .sp-account-selection-toolbar {
+  padding: 0 0 0 4px;
+  border: 0;
+}
+.sp-account-list-toolbar[hidden],
+.sp-account-selection-toolbar[hidden] {
+  display: none;
+}
+.sp-account-selection-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.sp-directory--administration .sp-account-selection-actions > .sp-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  min-height: 32px;
+  padding: 0 14px;
+  font: 500 15px/20px var(--sp-font);
+}

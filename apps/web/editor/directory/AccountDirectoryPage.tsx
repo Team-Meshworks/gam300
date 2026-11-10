@@ -27,6 +27,7 @@ export function AccountDirectoryPage({ accountId }: { accountId: string }) {
   const [detailError, setDetailError] = useState("");
   const [projectError, setProjectError] = useState("");
   const [notice, setNotice] = useState("");
+  const [deletingStudents, setDeletingStudents] = useState<ManagedAccount[]>([]);
   const [attempt, setAttempt] = useState(0);
   const [busy, setBusy] = useState(false);
   const [modal, setModal] = useState<ManagedAccount | "create" | null>(null);
@@ -108,6 +109,7 @@ export function AccountDirectoryPage({ accountId }: { accountId: string }) {
     setDeleting(null);
     setToggleOrganization(null);
     setDeletingAccount(null);
+    setDeletingStudents([]);
   }
   function refresh() {
     setError("");
@@ -180,6 +182,23 @@ export function AccountDirectoryPage({ accountId }: { accountId: string }) {
       setAccounts((rows) => rows.filter((row) => row.userId !== deletingAccount.userId));
       setNotice("Account deleted. Their authored work and history have been retained.");
       setDeletingAccount(null);
+    } catch (reason) {
+      setNotice(message(reason));
+    } finally {
+      pending.current = false;
+      setBusy(false);
+    }
+  }
+  async function deleteStudents() {
+    if (!selected || !deletingStudents.length || pending.current) return;
+    pending.current = true;
+    setBusy(true);
+    setNotice("");
+    try {
+      const ids = deletingStudents.map((account) => account.userId);
+      await client.deleteStudents(selected, ids);
+      setAccounts((rows) => rows.filter((row) => !ids.includes(row.userId)));
+      setDeletingStudents([]);
     } catch (reason) {
       setNotice(message(reason));
     } finally {
@@ -278,6 +297,13 @@ export function AccountDirectoryPage({ accountId }: { accountId: string }) {
             setNotice("");
             setToggle(accounts.find((row) => row.userId === id) ?? null);
           },
+          onDeleteStudents: (ids) => {
+            if (pending.current) return;
+            setNotice("");
+            setDeletingStudents(
+              accounts.filter((row) => row.role === "Creator" && ids.includes(row.userId)),
+            );
+          },
           onDelete: (id) => {
             setNotice("");
             setDeletingAccount(accounts.find((row) => row.userId === id) ?? null);
@@ -316,6 +342,36 @@ export function AccountDirectoryPage({ accountId }: { accountId: string }) {
       {preview && (
         <Dialog title={preview.title} variant="admin" onClose={() => setPreview(null)}>
           {preview.body}
+        </Dialog>
+      )}
+      {deletingStudents.length > 0 && (
+        <Dialog
+          title={`Delete ${deletingStudents.length} creator account${deletingStudents.length === 1 ? "" : "s"}?`}
+          variant="admin"
+          className="sp-account-confirmation"
+          onClose={() => {
+            if (!pending.current) setDeletingStudents([]);
+          }}
+        >
+          <p>
+            They will be signed out and cannot sign in again. Their usernames, projects and review
+            history will be retained.
+          </p>
+          <div className="sp-actions sp-confirmation-actions">
+            <Button disabled={busy} onClick={() => setDeletingStudents([])}>
+              Cancel
+            </Button>
+            <Button
+              className="sp-button--danger"
+              disabled={busy}
+              onClick={() => void deleteStudents()}
+            >
+              {busy
+                ? "Deleting…"
+                : `Delete ${deletingStudents.length} account${deletingStudents.length === 1 ? "" : "s"}`}
+            </Button>
+          </div>
+          {notice && <p role="alert">{notice}</p>}
         </Dialog>
       )}
       {deletingAccount && (
