@@ -453,6 +453,296 @@
   }
 }
 @media (max-width: 800px) {
+  .sp-shell.sp-shell--creator:has(.sp-student-dashboard) .sp-workspace {
+    width: calc(100% - 40px);
+  }
+  .sp-shell--creator .sp-student-dashboard :is(.sp-student-card, .sp-student-card--published) {
+    grid-template-columns: minmax(140px, 33%) minmax(0, 1fr);
+  }
+  .sp-shell--creator .sp-student-dashboard :is(.sp-student-metadata, .sp-published-share) {
+    min-height: 0;
+    padding: 16px 0 0;
+  }
+}
+@media (max-width: 520px) {
+  .sp-shell.sp-shell--creator:has(.sp-student-dashboard) .sp-workspace {
+    margin-top: 16px;
+    padding: 22px 16px;
+    border-radius: 24px;
+  }
+  .sp-shell--creator .sp-student-heading h1 {
+    font-size: 22px;
+  }
+  .sp-shell--creator .sp-student-dashboard :is(.sp-student-card, .sp-student-card--published) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .sp-shell--creator .sp-student-dashboard .sp-student-card-image {
+    height: auto;
+  }
+}
+
+/* Keep secondary project controls and dialogs on the same compact creator scale */
+.sp-shell--creator .sp-home-projects--creator .sp-home-project-card {
+  gap: 20px;
+  padding: 20px;
+  border-radius: 16px;
+}
+.sp-shell--creator .sp-home-projects--creator .sp-home-project-copy h2 {
+  font-size: 15px;
+  line-height: 1.4;
+}
+.sp-shell--creator .sp-home-projects--creator :is(p, time) {
+  font-size: 12px;
+  line-height: 1.5;
+}
+.sp-shell--creator .sp-home-projects--creator .sp-home-project-copy {
+  gap: 12px;
+}
+.sp-shell--creator .sp-student-detail-comments .sp-button:not(.sp-close-button) {
+  min-height: 36px;
+  justify-self: start;
+  padding: 6px 18px;
+  font: 600 12px/18px var(--sp-font);
+}
+.sp-creator-project-dialog {
+  border-radius: 28px;
+  padding: 28px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--creator-scroll-thumb) var(--creator-scroll-track);
+  overflow: hidden;
+}
+.sp-creator-project-dialog > h2 {
+  font: 700 22px/1.3 var(--sp-font);
+}
+.sp-creator-project-dialog .sp-dialog-body {
+  margin: 12px -8px -8px;
+  padding: 8px;
+  max-height: max(80px, calc(100dvh - 200px));
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--creator-scroll-thumb) var(--creator-scroll-track);
+  white-space: normal;
+}
+.sp-creator-project-dialog .sp-home-fields {
+  gap: 18px;
+}
+.sp-creator-project-dialog form > p + p {
+  margin-top: 8px;
+}
+.sp-creator-project-dialog form > p + .sp-home-fields {
+  margin-top: 20px;
+}
+.sp-creator-project-dialog .sp-actions {
+  justify-content: flex-end;
+  margin-top: 24px;
+}
+.sp-creator-project-dialog .sp-button:not(.sp-close-button) {
+  min-height: 36px;
+  width: auto;
+  padding: 6px 18px;
+  font: 600 12px/18px var(--sp-font);
+}
+.sp-creator-project-dialog .sp-home-fields > .sp-button {
+  justify-self: end;
+}
+.sp-creator-space {
+  display: grid;
+  gap: 9px;
+}
+.sp-creator-space > label {
+  font-size: 14px;
+  font-weight: 600;
+}
+.sp-creator-space > button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  min-height: 46px;
+  padding: 10px 16px;
+  border: 1px solid var(--sp-border);
+  border-radius: 12px;
+  background: var(--creator-paper);
+  color: var(--sp-ink);
+  font: 400 14px/20px var(--sp-font);
+}
+.sp-creator-space > button > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sp-creator-space > button > svg {
+  flex: none;
+}
+.sp-creator-space-menu {
+  margin: 0;
+  padding: 6px;
+  border: 1px solid var(--sp-border);
+  border-radius: 12px;
+  background: var(--creator-paper);
+  color: var(--sp-ink);
+  box-shadow: var(--creator-card-shadow);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--creator-scroll-thumb) var(--creator-scroll-track);
+}
+.sp-creator-space-menu > button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 36px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: 400 14px/20px var(--sp-font);
+  text-align: left;
+}
+.sp-creator-space-menu > button:is(:hover, [data-active="true"]) {
+  background: var(--sp-soft);
+}
+.sp-creator-project-dialog .sp-dialog-body::-webkit-scrollbar,
+.sp-creator-space-menu::-webkit-scrollbar {
+  width: 8px;
+}
+.sp-creator-project-dialog .sp-dialog-body::-webkit-scrollbar-thumb,
+.sp-creator-space-menu::-webkit-scrollbar-thumb {
+  border: 2px solid var(--creator-scroll-track);
+  border-radius: 8px;
+  background: var(--creator-scroll-thumb);
+}
+@media (max-width: 520px) {
+  .sp-creator-project-dialog {
+    padding: 24px 20px;
+    border-radius: 24px;
+  }
+  .sp-shell--creator .sp-home-projects--creator .sp-home-project-card {
+    gap: 16px;
+    padding: 16px;
+  }
+}
+
+/* Keep auxiliary creator menus consistent while retaining their native form and keyboard behaviour */
+@supports (appearance: base-select) {
+  .sp-shell[data-account-role="Creator"] select,
+  .sp-shell[data-account-role="Creator"] select::picker(select) {
+    appearance: base-select;
+  }
+  .sp-shell[data-account-role="Creator"] select {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .sp-shell[data-account-role="Creator"] select::picker(select) {
+    padding: 6px;
+    border: 1px solid var(--creator-border);
+    border-radius: 12px;
+    background: var(--creator-paper);
+    color: var(--sp-ink);
+    box-shadow: var(--creator-card-shadow);
+    font: 400 14px/20px var(--sp-font);
+  }
+  .sp-shell[data-account-role="Creator"] select::picker-icon {
+    width: 6px;
+    height: 6px;
+    margin-inline: 12px 4px;
+    border-right: 1.5px solid currentColor;
+    border-bottom: 1.5px solid currentColor;
+    transform: translateY(-2px) rotate(45deg);
+    content: "";
+  }
+  .sp-shell[data-account-role="Creator"] select option {
+    min-height: 36px;
+    padding: 8px 10px;
+    border-radius: 8px;
+  }
+  .sp-shell[data-account-role="Creator"] select option:focus-visible {
+    outline: 0;
+    background: var(--sp-soft);
+  }
+  .sp-shell[data-account-role="Creator"] select option:is(:hover, :checked) {
+    background: var(--sp-soft);
+  }
+}
+
+.sp-shell[data-account-role="Creator"] .sp-review-workspace > .sp-page-heading h1 {
+  font-size: 25px;
+  line-height: 32px;
+  letter-spacing: 0;
+}
+@media (max-width: 520px) {
+  .sp-shell[data-account-role="Creator"] .sp-review-workspace > .sp-page-heading h1 {
+    font-size: 22px;
+    line-height: 30px;
+  }
+}
+
+/* Match the role dashboards without changing their content hierarchy */
+.sp-shell[data-account-role="Creator"] {
+  --creator-search-top: rgb(239 239 239 / 45%);
+  --creator-search-bottom: rgb(245 245 245 / 45%);
+  --creator-search-edge: rgb(255 255 255 / 90%);
+  --creator-search-shadow: inset 0 3px 7px rgb(0 0 0 / 7%);
+}
+.sp-shell[data-account-role="Creator"] .sp-search {
+  height: 45px;
+  min-height: 45px;
+  padding: 0 22px;
+  border: 1px solid var(--creator-search-edge);
+  background-color: transparent;
+  background-image: linear-gradient(var(--creator-search-top), var(--creator-search-bottom) 55%);
+  box-shadow: var(--creator-search-shadow);
+}
+.sp-shell[data-account-role="Creator"] .sp-search input {
+  box-sizing: border-box;
+  height: 22px;
+  min-height: 0;
+  padding: 0;
+  font: 400 13px/18px var(--sp-font);
+}
+.sp-shell[data-account-role="Creator"] .sp-search svg {
+  width: 24px;
+  height: 24px;
+}
+.sp-shell[data-account-role="Creator"] .sp-button.sp-close-button,
+.sp-creator-project-dialog > .sp-dialog-dismiss {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  min-height: 36px;
+  flex-basis: 36px;
+  padding: 0;
+}
+.sp-shell[data-account-role="Creator"] .sp-button.sp-close-button svg,
+.sp-creator-project-dialog > .sp-dialog-dismiss svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Keep the shared pill focus ring instead of drawing a second rectangle around its input */
+.sp-shell[data-account-role="Creator"] .sp-search input:focus-visible {
+  outline: none;
+}
+
+.sp-shell[data-account-role="Creator"] {
+  --creator-hover: #eee8e1;
+  --creator-selected-hover: #f4f1ed;
+  --creator-primary-hover: #51473d;
+}
+.sp-shell[data-account-role="Creator"] .sp-view-details {
+  border-radius: 12px;
+  padding-inline: 10px;
+  margin-inline: -10px;
+  cursor: pointer;
+}
+.sp-shell[data-account-role="Creator"] .sp-view-details:hover:not(:disabled) {
+  background: var(--creator-hover);
   flex: 1;
   min-width: 0;
   display: grid;
