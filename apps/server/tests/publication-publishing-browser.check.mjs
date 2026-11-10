@@ -128,14 +128,16 @@ try {
   await viewer.getByRole("status").getByText("Exhibition ready").waitFor({ timeout: 30000 });
   assert.equal(await viewer.locator("canvas[aria-label='Exhibition view']").count(), 1);
   // Open the server-captured audio, then activate its hotspot without restarting the same track
-  await viewer.getByRole("button", { name: "Start exhibition", exact: true }).click();
+  await viewer.getByRole("button", { name: "Enable audio", exact: true }).click();
   await viewer.waitForFunction(() => {
     const track = document.querySelector("audio");
     return track && !track.paused && track.currentTime > 0;
   });
   const trackTime = await viewer.locator("audio").evaluate((node) => node.currentTime);
+  // The scene-start rule opens this panel; do not toggle it closed before activating
+  await viewer.getByRole("region", { name: "Exhibit information", exact: true }).waitFor();
   await viewer.getByRole("button", { name: "Activate First crate", exact: true }).click();
-  assert.ok(await viewer.locator("audio").evaluate((node) => node.currentTime) >= trackTime);
+  assert.ok((await viewer.locator("audio").evaluate((node) => node.currentTime)) >= trackTime);
 
   const snapshot = `/api/v1/publications/${request.publicationId}`;
   const assetPath = `${snapshot}/assets/${data.assetId}/bytes`;

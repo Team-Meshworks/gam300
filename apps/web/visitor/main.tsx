@@ -79,11 +79,10 @@ function Visitor() {
       <a className="skip" href="#exhibition">
         Skip to exhibition
       </a>
-      <header>
-        <a href="/landing">Spatia</a>
-        <a href="/home">My projects</a>
-      </header>
-      <main id="exhibition">
+      <main
+        id="exhibition"
+        className={exhibition && !error ? "visitor-preview is-walking" : "visitor-state"}
+      >
         {error ? (
           <>
             <h1>Exhibition unavailable</h1>
@@ -103,24 +102,25 @@ function Visitor() {
           </>
         ) : exhibition ? (
           <>
-            <h1>{exhibition.document.title}</h1>
-            <p>Published edition · Saved revision {exhibition.sourceRevision}</p>
-            <label>
-              Scene
-              <select
-                value={scene}
-                onChange={(event) => {
-                  setScene(Number(event.target.value));
-                  setViewpoint(undefined);
-                }}
-              >
-                {exhibition.document.scenes.map((item, index) => (
-                  <option key={item.id} value={index}>
-                    {item.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <h1 className="sr-only">{exhibition.document.title}</h1>
+            <div className="visitor-scene-picker">
+              <label>
+                Scene
+                <select
+                  value={scene}
+                  onChange={(event) => {
+                    setScene(Number(event.target.value));
+                    setViewpoint(undefined);
+                  }}
+                >
+                  {exhibition.document.scenes.map((item, index) => (
+                    <option key={item.id} value={index}>
+                      {item.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
             <ExhibitionCanvas
               key={scene}
               exhibition={exhibition}

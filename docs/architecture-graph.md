@@ -12,6 +12,7 @@ graph TD
   project["project"]
   catalogue["catalogue"]
   asset-loading["asset-loading"]
+  preview["preview"]
   input["input"]
   document["document"]
   rendering["rendering"]
@@ -23,6 +24,7 @@ graph TD
   visitor --> asset-loading
   visitor --> catalogue
   visitor --> network
+  visitor --> preview
   visitor --> project
   asset-loading --> catalogue
   asset-loading --> network
@@ -31,7 +33,7 @@ graph TD
   document --> project
   rendering --> asset-loading
   rendering --> catalogue
-  rendering --> input
+  rendering --> preview
   rendering --> project
   persistence --> catalogue
   persistence --> document
@@ -42,6 +44,7 @@ graph TD
   editor --> input
   editor --> network
   editor --> persistence
+  editor --> preview
   editor --> project
   editor --> rendering
   editor --> ui-foundation
