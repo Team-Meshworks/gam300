@@ -141,7 +141,8 @@
       "public": [
         "editor/graphics/scene.ts",
         "editor/graphics/modeManager.ts",
-        "editor/graphics/library-previews.ts"
+        "editor/graphics/library-previews.ts",
+        "editor/graphics/project-panorama.ts"
       ]
     },
     "persistence": {
@@ -314,24 +315,18 @@
   "files": {
     "account-dev-server.ts": "e117343d2dda5bf2d1a2636bfffdb6d2559da9410db4a42fdc336a837259c6fd",
     "architecture.check.mjs": "4725617ff67e1bdfe64935e10f25a7a0199e138a9a39e064b2b693435235c2a3",
-    "architecture.mjs": "7e52f8b78417863771e2bf0d88cef297463fa419deefd84a9f3f23d64d438c93",
+    "architecture.mjs": "9daf07b38c2d723a8450670fe9344a2ff36b09c4fd78953de6838caf3cd13d40",
     "asset-catalogue-plugin.ts": "9d13b4b5a45ddd6b5e6b2f91e5bc57897628a33aff42afa2f1ce3ec630be95a9",
-    "editor/App.tsx": "d59f7a72085201fbf12951180c2b5a8d6537a49c155ed8d759eb3a10b0ba5ec1",
+    "editor/App.tsx": "2ca692d8cca9dc1c3fe5cdb06d060588a0207fd4af9b586f5ed4a74647798172",
     "editor/Scenes.tsx": "afaa76820b30e011b31a76b739a8c16a1f6c336eb723e25de82b1f60f6baa7d5",
-    "editor/ServerProjectEditor.tsx": "ca155e0e32513f3ae472b7d343aa07944e1435442ebce4f5db3754c1cc148a8d",
+    "editor/ServerProjectEditor.tsx": "dd9b8f2765f47cc409f2767bf4498f0cd3205f619b67cf8b23ffb04038a0a3a3",
     "editor/Viewpoints.tsx": "78c54d8fb8b886651fff4b1a977892926d6ebec53568429d7f557368c9748aeb",
     "editor/accounts/LoginRedirect.tsx": "717e26f1bbab1de317bee11eeb9c3a5c3a27d562ad0ac3c23d67f5a7f5e15e60",
-    "editor/accounts/WorkspaceAccountGate.tsx": "c81a5ddef5e897bd6aa5d832b6017f4b0413bb98ad123ce435ab8316700db16c",
-    "editor/accounts/account-client.test.ts": "c9e379b053cd2d8e37db9ecea0aace02d36e4a8f615ccc6c97c5753cbca7df6f",
-    "editor/accounts/account-client.ts": "352ae3a66eedc43f7553a336a6c59fe29f0ae962209bb67e2cb65ca7da756c75",
-    "editor/accounts/workspace-account.test.ts": "7b3a27078a8f419ad1ff3b4c18c7d6fe5a27c3dc171fa835dc2c30445c975688",
-    "editor/accounts/workspace-account.ts": "3d2624362789d780a5faa047df6b37a1009209eaaa57dc96ad4657bca1ee88eb",
-    "editor/admin/AdminDashboard.tsx": "b927a721d41d82f62497cd2820c70d657d08b3c392a9792e30f65465090161d0",
-    "editor/admin/ProjectModeration.tsx": "6915d8628e774ec21829c85aae30f069f830eed49e51becfae32f9b255a19cf9",
-    "editor/admin/ProjectProgress.tsx": "ace6ec6642bd0e921b07dda4ea5e2880f0af02bd5c520ee0cb62215cac4d7c21",
-    "editor/admin/dashboard-client.test.ts": "648d4261db90e2b9ce388026fd242ec54bbe406c33d4428cdc68aae5f7d9dd5a",
-    "editor/admin/dashboard-client.ts": "907e77adbbd81731fad7e9b039bb7b5cfa14a8b763a5ec60dd8dbd87e9af48d7",
-    "editor/asset-administration/AssetAdministration.tsx": "239c8f42fede448be2854bf77f76734062356d4c0c986f3398b815daeb443d28",
+    "editor/accounts/WorkspaceAccountGate.tsx": "c38dff9c0f16c1ec62be3dfc56360ca06cca044e98d8ac33585b5d6fb30332af",
+    "editor/accounts/account-client.test.ts": "03d12a6b91070a966c495450c2ed2893c085937e611ca285be6f1a9f28da30d5",
+    "editor/accounts/account-client.ts": "1d152366b17b0359f688f49e014f330a4636b313460b51e3df88a9917d877cb4",
+    "editor/accounts/workspace-account.test.ts": "eb5f9d8595ab9b23a4043f1e6443ed255022cfeadb276b0c9d83628bd5dc0c2a",
+    "editor/accounts/workspace-account.ts": "bf32636fc024ef08e1895b8499789436031b511195d3bada1dd9af9006caf96f",
     "editor/asset-administration/AssetSelect.tsx": "51d5fdde1515e02d1310b46ce964d34ccd6d574c074dc1698d42c00fc8ca1c49",
     "editor/asset-administration/asset-administration-service.test.ts": "84dcf404012469bf882d2a7715dd42746a39b03d57565819e644b6ad564a93c5",
     "editor/asset-administration/asset-administration-service.ts": "dd1ea0f04609b8cd28463d3694eaf92062529db56cf4b8102a43fc496f2822ea",
