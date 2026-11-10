@@ -387,7 +387,7 @@ public sealed class ProjectReadEndpointTests
         var page = await GetAsync(fixture.Client, "/api/v1/projects");
         await AssertFieldsAsync(page, "items", "nextCursor");
         var summary = page.GetProperty("items").EnumerateArray().Single();
-        await AssertFieldsAsync(summary, "projectId", "title", "revision", "updatedAt", "archived", "permissions", "organizationName", "isPublic");
+        await AssertFieldsAsync(summary, "projectId", "title", "revision", "updatedAt", "archived", "permissions", "organizationName", "isPublic", "image", "isClassProject");
         await Assert.That(summary.GetProperty("projectId").GetGuid()).IsEqualTo(project.Id);
         await Assert.That(summary.GetProperty("revision").GetInt64()).IsEqualTo(project.Revision);
         await Assert.That(summary.GetProperty("updatedAt").GetDateTimeOffset()).IsEqualTo(project.UpdatedAt);

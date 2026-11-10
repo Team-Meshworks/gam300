@@ -598,8 +598,9 @@ public sealed class ProjectPersistenceTests
         database.Organizations.Add(new Organization { Id = OrganizationId, Name = "Synthetic project school" });
         await LegacyAccountSeed.InsertAsync(database, new ApplicationUser { Id = UserId, UserName = "project-user", NormalizedUserName = "PROJECT-USER" });
         var project = CreateProject(ProjectId);
-        database.Projects.Add(project);
         await database.SaveChangesAsync();
+        await LegacyProjectSeed.InsertAsync(database, project);
+        database.Projects.Attach(project);
         return project;
     }
 
