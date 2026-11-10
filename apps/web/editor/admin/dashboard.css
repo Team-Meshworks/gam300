@@ -944,3 +944,81 @@
   font-weight: 700;
   line-height: normal;
 }
+.admin-project-detail .admin-assignment-description p {
+  margin: 0;
+  color: #515151;
+  font-size: 15px;
+  font-weight: 400;
+  line-height: normal;
+}
+.admin-project-detail .admin-assignment-description .admin-project-empty-value {
+  color: #77716a;
+  font-size: 13px;
+  line-height: 18px;
+}
+.admin-project-detail .sp-close-button {
+  background: #e4e1dc;
+  color: #292723;
+}
+.admin-project-detail .sp-close-button:hover:not(:disabled) {
+  background: #d7d2cb;
+}
+
+.admin-dashboard :is(button, input, select, textarea) {
+  font-family: var(--sp-font);
+}
+.admin-dashboard .sp-tabs {
+  gap: 10px;
+}
+.admin-dashboard .sp-tabs button {
+  flex: 0 0 auto;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  text-decoration: none;
+  font: 400 15px/20px var(--sp-font);
+}
+.admin-dashboard .sp-tabs button[aria-selected="true"] {
+  background: transparent;
+  font-weight: 600;
+}
+.admin-project-metadata a {
+  text-decoration: underline;
+}
+.admin-project-detail {
+  min-height: 0;
+  padding-block: 50px;
+}
+.admin-project-detail .admin-progress {
+  height: auto;
+  align-self: stretch;
+  contain: size;
+}
+@media (max-width: 800px) {
+  .admin-project-detail .admin-progress {
+    contain: none;
+  }
+}
+@media (max-width: 520px) {
+  .admin-project-detail {
+    padding-block: 22px;
+  }
+}
+
+.admin-project-detail .admin-project-view-heading {
+  min-height: 57px;
+}
+
+.admin-add-organisation-dialog .sp-dialog-body {
+  margin-bottom: 0;
+}
+
+/* Trim the heading's invisible font space so equal padding also looks equal. */
+.sp-dialog.admin-add-organisation-dialog {
+  width: min(440px, calc(100% - 32px));
+  padding-block: 28px;
+}
+.admin-add-organisation-dialog > h2 {
+  text-box-trim: trim-start;
+  text-box-edge: cap alphabetic;
+}

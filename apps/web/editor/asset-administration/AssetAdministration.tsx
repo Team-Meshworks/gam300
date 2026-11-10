@@ -1,15 +1,14 @@
 import { Icon as UiIcon } from "@iconify/react/offline";
-import searchIcon from "@iconify-icons/lucide/search";
 import eyeIcon from "@iconify-icons/lucide/eye";
 import eyeOffIcon from "@iconify-icons/lucide/eye-off";
 import globeIcon from "@iconify-icons/lucide/globe";
 import trashIcon from "@iconify-icons/lucide/trash-2";
-import uploadIcon from "@iconify-icons/lucide/upload";
 import faMusic from "@iconify-icons/lucide/music";
 import faXmark from "@iconify-icons/lucide/x";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useModal } from "../../shared/ui/useModal";
+import { SearchField } from "../../shared/ui/SearchField";
 import { generateLibraryPreviews } from "../graphics/library-previews";
 import { assetPreviewKey, assetPreviewSource } from "./asset-previews";
 import type {
@@ -410,16 +409,14 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
           <h1 id="asset-admin-heading">{title}</h1>
           <p>Review published experiences and control what visitors can explore.</p>
         </div>
-        <label className="asset-admin-search">
-          <span className="asset-admin-sr">Search {noun}</span>
-          <input
-            type="search"
+        <div className="asset-admin-search">
+          <SearchField
+            label={`Search ${noun}`}
             placeholder={`Search ${noun}`}
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={setQuery}
           />
-          <UiIcon icon={searchIcon} width={24} height={24} aria-hidden="true" />
-        </label>
+        </div>
         <button
           className="asset-admin-close sp-close-button"
           aria-label="Close asset administration"
@@ -521,7 +518,7 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
                     }}
                   >
                     View{" "}
-                    {kind === "environment" && asset.status === "approved" ? "Model" : "Details"}
+                    {kind === "environment" && asset.status === "approved" ? "Model" : "details"}
                     <span className="asset-admin-sr">: {asset.name}</span>
                   </button>
                 </div>
@@ -615,7 +612,21 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
                   }}
                 >
                   <span className="asset-admin-upload-symbol" aria-hidden="true">
-                    <UiIcon icon={uploadIcon} width={36} height={36} aria-hidden="true" />
+                    <svg
+                      viewBox="0 0 48 48"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path
+                        d="M4 26v13c0 4 2 5 6 5h28c4 0 6-1 6-5V26"
+                        fill="var(--aa-upload-tray)"
+                      />
+                      <path d="M24 33V5m-10 9 8-8q2-2 4 0l8 8" />
+                    </svg>
                   </span>
                   <span>
                     {file?.name ??
