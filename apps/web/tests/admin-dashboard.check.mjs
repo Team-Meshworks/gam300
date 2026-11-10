@@ -170,7 +170,9 @@ try {
         failModerationRead = false;
         return route.fulfill({ status: 503 });
       }
-      return route.fulfill({ json: { items: ids.map((id) => publicationStates[id]) } });
+      return route.fulfill({
+        json: { items: ids.map((id) => publicationStates[id]) },
+      });
     }
     if (url.pathname === "/api/v1/admin/assets") {
       assetReads++;
@@ -243,6 +245,7 @@ try {
           sourceProjectId: projects[1].projectId,
           organizationName: "Ridgeview Secondary School",
           creatorName: "Ms Tan",
+          creatorUserName: "MsTan",
           projects: [
             {
               studentId: userId,
@@ -333,11 +336,44 @@ try {
     await page.getByRole("link", { name: "Open project workspace", exact: true }).count(),
     0,
   );
+  await page.evaluate(() => {
+    window.organisationNavigationMarker = "same-workspace";
+  });
   await page.getByRole("link", { name: "View Organisations", exact: true }).click();
   await page.waitForURL(origin + "/organisations");
+  assert.equal(
+    await page.evaluate(() => window.organisationNavigationMarker),
+    "same-workspace",
+    "Opening organisations preserves the document instead of flashing a new page",
+  );
+  await page.goBack();
+  await page.getByRole("link", { name: "View Organisations", exact: true }).waitFor();
+  await page.goForward();
+  await page.getByRole("heading", { name: "All Organisations", exact: true, level: 1 }).waitFor();
+  assert.equal(await page.evaluate(() => window.organisationNavigationMarker), "same-workspace");
   assert.equal(await page.getByRole("navigation", { name: "Workspace screens" }).count(), 0);
   await page.getByRole("link", { name: "Close organisations" }).click();
   await page.waitForURL(origin + "/admin/dashboard");
+  for (const [link, heading] of [
+    ["View Environments", "All 3D Spaces"],
+    ["View Library", "All Assets"],
+  ]) {
+    await page.getByRole("link", { name: link, exact: true }).click();
+    await page.getByRole("heading", { name: heading, exact: true }).waitFor();
+    assert.equal(
+      await page.evaluate(() => window.organisationNavigationMarker),
+      "same-workspace",
+      `${link} preserves the workspace document`,
+    );
+    await page.getByRole("button", { name: "Close asset administration", exact: true }).click();
+    await page.getByRole("link", { name: "View Organisations", exact: true }).waitFor();
+    assert.equal(
+      await page.evaluate(() => window.organisationNavigationMarker),
+      "same-workspace",
+      "Closing the catalogue preserves the workspace document",
+    );
+  }
+
   await page
     .getByRole("button", {
       name: `View details for ${projects[0].title}`,
@@ -363,7 +399,7 @@ try {
         }),
       );
   const chromeBefore = await chromeGeometry();
-  assert.equal(chromeBefore[1].height, 44);
+  assert.equal(chromeBefore[1].height, 36);
   assert.equal(chromeBefore[1].height, chromeBefore[2].height);
   const entryIcons = await page.locator(".admin-entry-symbol > svg").evaluateAll((nodes) =>
     nodes.map((node) => ({
@@ -557,6 +593,19 @@ try {
     await progress.getByRole("link", { name: "View Progress" }).getAttribute("href"),
     `/?projectId=${projects[2].projectId}`,
   );
+  assert.equal(await details.getByText("@MsTan", { exact: true }).count(), 1);
+  assert.equal(
+    await details
+      .getByText("Create a virtual museum exploring ancient Rome.", { exact: true })
+      .count(),
+    1,
+  );
+  assert.equal(
+    await details
+      .getByText("Build three exhibits with historical context.", { exact: true })
+      .count(),
+    1,
+  );
   await details.getByLabel("Class Assignment").selectOption("1");
   assert.equal(
     await details.locator(".admin-project-metadata dd").filter({ hasText: "4B" }).count(),
@@ -575,7 +624,7 @@ try {
         y: icon.y + icon.height / 2 - rect.y - rect.height / 2,
       };
     }),
-    { width: 40, height: 40, x: 0, y: 0 },
+    { width: 36, height: 36, x: 0, y: 0 },
   );
   await page.evaluate(
     () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
@@ -629,7 +678,10 @@ try {
   const studentRow = progress.locator(".admin-progress-row").filter({ hasText: "Aisyah" });
   loseModerationResponse = true;
   await studentRow.getByRole("button", { name: "Hide", exact: true }).click();
-  const uncertainDialog = page.getByRole("dialog", { name: "Hide Publications?", exact: true });
+  const uncertainDialog = page.getByRole("dialog", {
+    name: "Hide Publications?",
+    exact: true,
+  });
   await uncertainDialog.getByRole("button", { name: "Hide", exact: true }).click();
   await uncertainDialog
     .getByRole("alert")
@@ -689,6 +741,21 @@ try {
       exact: true,
     })
     .waitFor();
+  const unassigned = page.getByRole("region", { name: "Project details", exact: true });
+  assert.equal(await unassigned.getByText("Created by", { exact: true }).count(), 1);
+  assert.equal(await unassigned.getByText("No class assigned", { exact: true }).count(), 1);
+  assert.equal(
+    await unassigned.getByRole("heading", { name: "Project Description", exact: true }).count(),
+    1,
+  );
+  assert.equal(
+    await unassigned.getByRole("heading", { name: "Project Instructions", exact: true }).count(),
+    1,
+  );
+  await page.screenshot({
+    path: join(dirname(screenshot), "admin-project-unassigned.png"),
+    fullPage: true,
+  });
   await page
     .getByRole("region", { name: "Project details", exact: true })
     .getByRole("button", { name: "Back", exact: true })
@@ -888,7 +955,7 @@ try {
   for (const other of ["Creator", "Educator"]) {
     role = other;
     await page.goto(origin + "/login");
-    await page.getByRole("heading", { name: "You’re signed in.", exact: true }).waitFor();
+    await page.waitForURL("**/home");
     const before = projectReads;
     await page.goto(origin + "/admin/dashboard");
     await page.getByRole("heading", { name: "Access denied", exact: true }).waitFor();
@@ -903,7 +970,10 @@ try {
   forced = true;
   await page.goto(origin + "/admin/dashboard");
   await page
-    .getByRole("heading", { name: "Change your password to continue", exact: true })
+    .getByRole("heading", {
+      name: "Change your password to continue",
+      exact: true,
+    })
     .waitFor();
   await page.goto(origin + "/landing");
   await page.getByRole("heading", { name: /Build immersive/ }).waitFor();

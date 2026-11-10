@@ -18,21 +18,40 @@ async function checkDialogTypography() {
       title: font(dialog.querySelector("h2")),
       upload: dialog.classList.contains("asset-admin-dialog-upload"),
       section: dialog.querySelector("h3") ? font(dialog.querySelector("h3")) : null,
-      controls: [
+      labels: [
+        ...dialog.querySelectorAll(".asset-admin-fields > .asset-admin-select > :is(label, span)"),
+      ].map(font),
+      values: [
         ...dialog.querySelectorAll(
-          "input:not([type=file]), output, button:not(.asset-admin-close)",
+          ".asset-admin-fields > .asset-admin-select > :is(input, output, button)",
         ),
       ].map(font),
+      actions: [...dialog.querySelectorAll(".asset-admin-actions > button")].map((node) => ({
+        size: font(node),
+        icon: !!node.querySelector("svg"),
+        danger: node.classList.contains("asset-admin-danger"),
+      })),
     };
   });
-  assert.equal(sizes.title, 22);
+  assert.equal(sizes.title, page.viewportSize().width <= 700 ? 22 : 25);
   assert.ok(
     sizes.section === null || sizes.section === sizes.title,
     "Asset Details uses the same heading scale as the popup title",
   );
+  assert.equal(sizes.page, 25, "Catalogue page headings keep the PDF's 25px level");
   assert.ok(
-    sizes.controls.every((size) => size === 14),
-    "Form and action text use one body size",
+    sizes.labels.every((size) => size === 15),
+    "Asset labels keep their 15px level",
+  );
+  assert.ok(
+    sizes.values.every((size) => size === 15),
+    "Asset values keep their 15px level",
+  );
+  assert.ok(
+    sizes.actions.every(
+      (action) => action.size === (sizes.upload || (action.icon && !action.danger) ? 15 : 14),
+    ),
+    "Upload and visibility actions retain their own size rather than flattening all actions",
   );
 }
 
@@ -91,7 +110,7 @@ try {
   );
 
   // Recessed surfaces and contrasting close controls must survive shared button styles
-  for (const selector of [".asset-admin", ".asset-admin-search input"]) {
+  for (const selector of [".asset-admin", ".asset-admin-search .sp-search"]) {
     assert.match(
       await page.locator(selector).evaluate((el) => getComputedStyle(el).boxShadow),
       /inset/,
@@ -103,8 +122,17 @@ try {
       background: getComputedStyle(el).backgroundColor,
       ink: getComputedStyle(el).color,
     }));
-  assert.equal(closeStyle.background, "rgb(243, 244, 246)");
-  assert.equal(closeStyle.ink, "rgb(75, 85, 99)");
+  assert.equal(closeStyle.background, "rgb(228, 225, 220)");
+  assert.equal(closeStyle.ink, "rgb(41, 39, 35)");
+
+  // Clicking the surrounding search surface must not place a caret in the input.
+  const searchField = page.locator(".asset-admin-search .sp-search");
+  await searchField.locator("input").focus();
+  await searchField.click({ position: { x: 5, y: 22 } });
+  assert.equal(
+    await searchField.locator("input").evaluate((input) => input === document.activeElement),
+    false,
+  );
 
   // Search never removes records; clearing it restores the same visible catalogue
   const initialCount = await page.locator(".asset-admin-card").count();
@@ -145,6 +173,13 @@ try {
   assert.equal(await dialog.locator("h3").count(), 1);
   await dialog.getByRole("heading", { name: "Upload 3D Space", exact: true }).waitFor();
   await checkDialogTypography();
+  assert.equal(await dialog.evaluate((n) => n.getBoundingClientRect().width), 720);
+  const closeInset = await dialog.locator(".asset-admin-close").evaluate((n) => {
+    const form = n.closest("form").getBoundingClientRect(),
+      r = n.getBoundingClientRect();
+    return r.top - form.top;
+  });
+  assert.ok(closeInset >= 6, "Upload close focus outline fits inside the scroll frame");
   await page.screenshot({ path: "test-results/scrum168/upload.png", fullPage: true });
   await page.keyboard.press("Escape");
   assert.equal(
@@ -193,7 +228,7 @@ try {
   assert.equal(
     await dialog
       .locator("h2")
-      .evaluate((heading) => parseFloat(getComputedStyle(heading).fontSize) === 22),
+      .evaluate((heading) => parseFloat(getComputedStyle(heading).fontSize) === 25),
     true,
   );
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
@@ -423,13 +458,15 @@ try {
   await checkDialogTypography();
   await page.screenshot({ path: "test-results/scrum168/details.png", fullPage: true });
   const viewBounds = await dialog.boundingBox();
-  assert.ok(
-    viewBounds.width >= 800 && viewBounds.width <= 840 && viewBounds.height <= 600,
-    "Details keep a wide preview without filling the screen vertically",
-  );
+  assert.ok(Math.abs(viewBounds.width - 960) < 1, "Details keep the reference dialog width");
   assert.ok(
     viewBounds.y >= 20 && viewBounds.y + viewBounds.height <= 980,
     "Details stay within the viewport",
+  );
+  const previewBounds = await dialog.locator(".asset-admin-detail-preview").boundingBox();
+  assert.ok(
+    Math.abs(previewBounds.width / previewBounds.height - 2.23) < 0.02,
+    "The model preview keeps the reference 2.23:1 proportion",
   );
   const modelName = await dialog.locator("h2").textContent();
 
