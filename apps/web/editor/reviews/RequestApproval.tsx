@@ -81,3 +81,159 @@ export function RequestApproval({
               : "Submission could not be prepared. Try again.",
           );
       } finally {
+        if (!cancelled) setPhase("ready");
+      }
+    })();
+    return () => {
+      cancelled = true;
+      mounted.current = false;
+    };
+  }, [actorId, projectId]);
+
+  useEffect(() => {
+    if (!complete && phase !== "sending" && phase !== "unknown") return;
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [complete, phase]);
+
+  async function submit(retry = false) {
+    if (
+      sending.current ||
+      revision === null ||
+      (retry ? phase !== "unknown" : phase !== "ready" || !complete)
+    )
+      return;
+    sending.current = true;
+    setPhase("sending");
+    setError("");
+    try {
+      await checkAccount(actorId);
+      if (!retry && isSaved && !isSaved(revision))
+        throw new Error(
+          "Your project changed. Close this dialog and review the latest saved revision.",
+        );
+      // Reuse the same submission ID after a lost response so retry cannot create another submission
+      intent.current ??= {
+        kind: "submit",
+        projectId,
+        submissionId: crypto.randomUUID(),
+        expectedRevision: revision,
+        completionConfirmed: true,
+      };
+      const result = await reviews.execute(intent.current, actorId);
+      if (!mounted.current) return;
+      if (result.kind === "confirmed") {
+        onSubmitted(revision);
+      } else if (result.kind === "unknown" || retry) {
+        setPhase("unknown");
+        setError(
+          result.kind === "rejected"
+            ? result.error.message + " The original outcome is still unconfirmed."
+            : "We could not confirm submission. Check its status or retry the same request.",
+        );
+      } else {
+        intent.current = null;
+        setPhase("ready");
+        setRevision(null);
+        setError(
+          result.error.message + " Close this dialog and reopen it to refresh the saved revision.",
+        );
+      }
+    } catch (failure) {
+      if (mounted.current) {
+        setPhase(retry ? "unknown" : "ready");
+        setError(failure instanceof Error ? failure.message : "Submission could not be confirmed.");
+      }
+    } finally {
+      sending.current = false;
+    }
+  }
+
+  async function checkOutcome() {
+    if (!intent.current || sending.current) return;
+    sending.current = true;
+    setPhase("sending");
+    try {
+      await checkAccount(actorId);
+      const found = await reviews.reconcile(intent.current);
+      if (!mounted.current) return;
+      if (found) onSubmitted(intent.current.expectedRevision);
+      else {
+        setPhase("unknown");
+        setError("Submission is not confirmed yet. Retry the same request.");
+      }
+    } catch (failure) {
+      if (mounted.current) {
+        setPhase("unknown");
+        setError(
+          failure instanceof Error ? failure.message : "Submission status could not be checked.",
+        );
+      }
+    } finally {
+      sending.current = false;
+    }
+  }
+
+  return (
+    <dialog
+      ref={dialog}
+      className="creator-approval-dialog"
+      aria-labelledby="creator-approval-title"
+      onCancel={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!locked) onClose();
+      }}
+    >
+      <button
+        className="creator-approval-close"
+        aria-label="Close request approval"
+        disabled={locked}
+        onClick={onClose}
+      >
+        <Icon icon={close} width={20} />
+      </button>
+      <h2 id="creator-approval-title">Request approval</h2>
+      <p>Submit your saved project for your educator to review.</p>
+      {phase === "loading" && <p role="status">Preparing your saved project...</p>}
+      {revision !== null && (
+        <label className="creator-approval-confirm">
+          <input
+            type="checkbox"
+            checked={complete}
+            disabled={locked}
+            onChange={(event) => setComplete(event.target.checked)}
+          />
+          <span>I confirm my saved project is complete.</span>
+        </label>
+      )}
+      {error && (
+        <p role="alert" className="creator-approval-error">
+          {error}
+        </p>
+      )}
+      <div className="creator-approval-actions">
+        <Button disabled={locked} onClick={onClose}>
+          Cancel
+        </Button>
+        {phase === "unknown" ? (
+          <>
+            <Button onClick={() => void checkOutcome()}>Check status</Button>
+            <Button variant="primary" onClick={() => void submit(true)}>
+              Retry submission
+            </Button>
+          </>
+        ) : (
+          <Button
+            variant="primary"
+            disabled={locked || !complete || revision === null}
+            onClick={() => void submit()}
+          >
+            {phase === "sending" ? "Submitting..." : "Submit for review"}
+          </Button>
+        )}
+      </div>
+    </dialog>
+  );
+}
