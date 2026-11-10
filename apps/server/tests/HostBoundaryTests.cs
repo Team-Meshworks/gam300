@@ -99,6 +99,7 @@ public sealed class HostBoundaryTests
             "GET /api/v1/projects/", "GET /api/v1/projects/{id:guid}", "GET /api/v1/projects/{id:guid}/assignments", "PUT /api/v1/projects/{id:guid}",
             "POST /api/v1/projects/", "POST /api/v1/projects/{id:guid}/duplicate", "POST /api/v1/projects/{id:guid}/submissions", "PATCH /api/v1/projects/{id:guid}/assignments", "PATCH /api/v1/projects/{id:guid}/archive",
             "GET /api/v1/projects/{id:guid}/submissions", "GET /api/v1/projects/{id:guid}/submissions/{submissionId:guid}",
+            "GET /api/v1/projects/{id:guid}/image",
             "GET /api/v1/projects/{id:guid}/progress-reviews", "POST /api/v1/projects/{id:guid}/progress-reviews",
             "POST /api/v1/projects/{id:guid}/submissions/{submissionId:guid}/decisions",
             "GET /api/v1/classes/", "GET /api/v1/classes/{id:guid}", "GET /api/v1/classes/{id:guid}/roster", "GET /api/v1/classes/{id:guid}/eligible-students",
@@ -110,6 +111,7 @@ public sealed class HostBoundaryTests
             "GET,HEAD /api/v1/publications/{publicationId}", "GET /api/v1/publications/{publicationId}/manifest", "GET,HEAD /api/v1/publications/{publicationId}/assets/{assetId}/bytes",
             "GET /api/v1/publications/{publicationId:guid}/access", "POST /api/v1/publications/{publicationId:guid}/access",
             "GET /api/v1/admin/projects/publication-moderation", "POST /api/v1/admin/projects/{projectId:guid}/publication-moderation",
+            "GET /api/v1/projects/publication-moderation", "POST /api/v1/projects/{projectId:guid}/publication-moderation",
             "POST /api/v1/projects/{id:guid}/publications", "GET /api/v1/projects/{id:guid}/publication-readiness", "GET /api/v1/projects/{id:guid}/publication-viewers" };
         await Assert.That(string.Join(";", endpoints.Select(endpoint =>
             string.Join(",", endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods) + " " + endpoint.RoutePattern.RawText).Order()))

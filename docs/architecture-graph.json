@@ -11048,6 +11048,55 @@
       "target": "shared/ui/Button.tsx",
       "from": "editor",
       "to": "ui-foundation"
+    },
+    {
+      "file": "editor/reviews/RequestApproval.tsx",
+      "line": 5,
+      "kind": "static",
+      "specifier": "../../shared/ui/useModal",
+      "target": "shared/ui/useModal.ts",
+      "from": "editor",
+      "to": "ui-foundation"
+    },
+    {
+      "file": "editor/reviews/RequestApproval.tsx",
+      "line": 6,
+      "kind": "static",
+      "specifier": "../accounts/account-client",
+      "target": "editor/accounts/account-client.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/reviews/RequestApproval.tsx",
+      "line": 7,
+      "kind": "static",
+      "specifier": "./review-client",
+      "target": "editor/reviews/review-client.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/reviews/RequestApproval.tsx",
+      "line": 8,
+      "kind": "type",
+      "specifier": "./review-types",
+      "target": "editor/reviews/review-types.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/reviews/RequestApproval.tsx",
+      "line": 9,
+      "kind": "static",
+      "specifier": "./request-approval.css",
+      "target": "editor/reviews/request-approval.css",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/reviews/RequestApproval.tsx",
+      "line": 179,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -14210,7 +14259,7 @@
     },
     {
       "file": "editor/workspace/useWorkspaceDeparture.tsx",
-      "line": 18,
+      "line": 39,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -15576,7 +15625,7 @@
     },
     {
       "file": "shared/ui/Dialog.tsx",
-      "line": 22,
+      "line": 28,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -15715,7 +15764,7 @@
     },
     {
       "file": "shared/ui/Select.tsx",
-      "line": 148,
+      "line": 150,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -15877,7 +15926,7 @@
     },
     {
       "file": "shared/ui/WorkspaceShell.tsx",
-      "line": 22,
+      "line": 26,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -17800,7 +17849,7 @@
     },
     {
       "file": "tests/editor-shell.check.mjs",
-      "line": 182,
+      "line": 180,
       "kind": "dynamic",
       "specifier": "/@id/__x00__virtual:asset-catalogue",
       "target": "shared/asset-runtime/catalogue.ts",
@@ -17809,7 +17858,7 @@
     },
     {
       "file": "tests/editor-shell.check.mjs",
-      "line": 183,
+      "line": 181,
       "kind": "dynamic",
       "specifier": "/ui/furniture-tools.ts",
       "target": "editor/ui/furniture-tools.ts",
@@ -17915,7 +17964,7 @@
     },
     {
       "file": "tests/empty-project-room.check.mjs",
-      "line": 143,
+      "line": 146,
       "kind": "dynamic",
       "specifier": "/graphics/scene.ts",
       "target": "editor/graphics/scene.ts",
@@ -20070,84 +20119,6 @@
       "to": "checks"
     },
     {
-      "file": "tests/teacher-review-org-click.check.mjs",
-      "line": 1,
-      "kind": "static",
-      "specifier": "node:assert/strict",
-      "target": {
-        "package": "node:*"
-      },
-      "from": "checks"
-    },
-    {
-      "file": "tests/teacher-review-org-click.check.mjs",
-      "line": 2,
-      "kind": "static",
-      "specifier": "node:fs/promises",
-      "target": {
-        "package": "node:*"
-      },
-      "from": "checks"
-    },
-    {
-      "file": "tests/teacher-review-org-click.check.mjs",
-      "line": 3,
-      "kind": "static",
-      "specifier": "vite",
-      "target": {
-        "package": "vite"
-      },
-      "from": "checks"
-    },
-    {
-      "file": "tests/teacher-review-org-click.check.mjs",
-      "line": 4,
-      "kind": "static",
-      "specifier": "./browser-security.mjs",
-      "target": "tests/browser-security.mjs",
-      "from": "checks",
-      "to": "checks"
-    },
-    {
-      "file": "tests/teacher-review-org-switch.check.mjs",
-      "line": 1,
-      "kind": "static",
-      "specifier": "node:assert/strict",
-      "target": {
-        "package": "node:*"
-      },
-      "from": "checks"
-    },
-    {
-      "file": "tests/teacher-review-org-switch.check.mjs",
-      "line": 2,
-      "kind": "static",
-      "specifier": "node:fs/promises",
-      "target": {
-        "package": "node:*"
-      },
-      "from": "checks"
-    },
-    {
-      "file": "tests/teacher-review-org-switch.check.mjs",
-      "line": 3,
-      "kind": "static",
-      "specifier": "vite",
-      "target": {
-        "package": "vite"
-      },
-      "from": "checks"
-    },
-    {
-      "file": "tests/teacher-review-org-switch.check.mjs",
-      "line": 4,
-      "kind": "static",
-      "specifier": "./browser-security.mjs",
-      "target": "tests/browser-security.mjs",
-      "from": "checks",
-      "to": "checks"
-    },
-    {
       "file": "tests/teacher-review-refresh.check.mjs",
       "line": 1,
       "kind": "static",
@@ -20171,6 +20142,16 @@
       "file": "tests/teacher-review-refresh.check.mjs",
       "line": 3,
       "kind": "static",
+      "specifier": "node:crypto",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/teacher-review-refresh.check.mjs",
+      "line": 4,
+      "kind": "static",
       "specifier": "vite",
       "target": {
         "package": "vite"
@@ -20179,7 +20160,7 @@
     },
     {
       "file": "tests/teacher-review-refresh.check.mjs",
-      "line": 4,
+      "line": 5,
       "kind": "static",
       "specifier": "./browser-security.mjs",
       "target": "tests/browser-security.mjs",

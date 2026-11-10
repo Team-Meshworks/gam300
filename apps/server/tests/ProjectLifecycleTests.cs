@@ -21,6 +21,71 @@ public sealed class ProjectLifecycleTests
 {
     private const string Marker = "private-lifecycle-document-not-for-errors-or-logs";
 
+    // Exercise the actual creation boundary, private bytes and copy semantics in one focused round trip
+    [Test]
+    [Arguments("image/png", "iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAIAAAB7QOjdAAAAD0lEQVR4nGO0iapgYGAAAAUYARBocWoMAAAAAElFTkSuQmCC")]
+    [Arguments("image/jpeg", "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAABAAIDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDk6KKK9I4D/9k=")]
+    [Arguments("image/webp", "UklGRjIAAABXRUJQVlA4ICYAAACQAQCdASoCAAEAAUAmJQBOl0AAcwAA/vDXA+KAUjhzvzfY9pgAAA==")]
+    public async Task ProjectImages_CreateAndDuplicateRetainPrivateBytes(string contentType, string encoded)
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
+        var actor = await fixture.CreateAccountAsync(ApplicationRoles.Educator);
+        await fixture.SignInAsync(actor);
+        var data = Convert.FromBase64String(encoded);
+        var id = await CreateAsync(fixture, new { title = Marker, image = new { type = "panorama", contentType, data } });
+        var path = $"/api/v1/projects/{id:D}/image";
+        using (var image = await fixture.Client.GetAsync(path))
+        {
+            await Assert.That(image.StatusCode).IsEqualTo(HttpStatusCode.OK);
+            await Assert.That(image.Content.Headers.ContentType!.MediaType).IsEqualTo(contentType);
+            await Assert.That(await image.Content.ReadAsByteArrayAsync()).IsEquivalentTo(data);
+            await Assert.That(image.Headers.CacheControl!.NoStore).IsTrue();
+        }
+        using (var listed = await fixture.Client.GetAsync("/api/v1/projects"))
+        {
+            var metadata = (await listed.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("items")[0].GetProperty("image");
+            await Assert.That(metadata.GetProperty("type").GetString()).IsEqualTo("panorama");
+            await Assert.That(metadata.GetProperty("url").GetString()).IsEqualTo(path);
+        }
+        using var duplicate = await SendAsync(fixture, HttpMethod.Post, Path(id, "/duplicate"), new { expectedRevision = 0, title = "Copy" });
+        var copyId = (await MetadataAsync(duplicate, HttpStatusCode.Created, 0)).GetProperty("projectId").GetGuid();
+        using (var copy = await fixture.Client.GetAsync($"/api/v1/projects/{copyId:D}/image"))
+        { await Assert.That(await copy.Content.ReadAsByteArrayAsync()).IsEquivalentTo(data); }
+        await using (var scope = fixture.Database.Services.CreateAsyncScope())
+        {
+            var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            await Assert.That(await database.ProjectImages.CountAsync()).IsEqualTo(1);
+            // Removing a current grant must immediately deny image reads, including after a prior successful load
+            await database.ProjectAssignments.Where(row => row.ProjectId == id && row.UserId == actor).ExecuteDeleteAsync();
+        }
+        using var denied = await fixture.Client.GetAsync(path);
+        await Assert.That(denied.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+    }
+
+    [Test]
+    public async Task ProjectImages_InvalidUploadDoesNotCreateAProjectOrImage()
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
+        await fixture.SignInAsync(await fixture.CreateAccountAsync(ApplicationRoles.Educator));
+        foreach (var image in new[]
+        {
+            new ProjectImageUpload("cover", "image/png", new byte[] { 137, 80, 78, 71 }),
+            new ProjectImageUpload("cover", "image/svg+xml", "<svg/>"u8.ToArray()),
+            new ProjectImageUpload("panorama", "image/png", Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNgYGAAAAAEAAH2FzhVAAAAAElFTkSuQmCC")),
+            new ProjectImageUpload("cover", "image/png", Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAEAEAAAABCAIAAAA+gZcVAAAAI0lEQVR4nO3BAQ0AAADCoPdPbQ43oAAAAAAAAAAAAAAAgA4MMAQAAVBo6+cAAAAASUVORK5CYII=")),
+            new ProjectImageUpload("cover", "image/png", new byte[ProjectImageValidation.MaximumBytes + 1]),
+            new ProjectImageUpload("unknown", "image/png", Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAIAAAB7QOjdAAAAD0lEQVR4nGO0iapgYGAAAAUYARBocWoMAAAAAElFTkSuQmCC")),
+        })
+        {
+            using var response = await SendAsync(fixture, HttpMethod.Post, "/api/v1/projects", new { title = Marker, image });
+            await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.UnprocessableEntity);
+        }
+        await using var scope = fixture.Database.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await Assert.That(await database.Projects.CountAsync()).IsEqualTo(0);
+        await Assert.That(await database.ProjectImages.CountAsync()).IsEqualTo(0);
+    }
+
     [Test]
     [Arguments(ApplicationRoles.Educator)]
     [Arguments(ApplicationRoles.Creator)]

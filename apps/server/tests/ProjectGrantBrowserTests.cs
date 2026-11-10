@@ -85,6 +85,7 @@ public sealed class ProjectGrantBrowserTests
     public async Task EducatorAndStudent_CompleteAssignmentThroughRealBrowserAndApi()
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
+        fixture.App.Configuration["Publication:Origin"] = "https://publications.example.test";
         var educator = await fixture.CreateAccountAsync(ApplicationRoles.Educator);
         var student = await fixture.CreateAccountAsync();
         var outsider = await fixture.CreateAccountAsync();
@@ -210,7 +211,7 @@ public sealed class ProjectGrantBrowserTests
         await Assert.That(blankAssignment.SourceProjectId).IsNotEqualTo(source);
         await Assert.That(assignment.SourceProjectId).IsNotEqualTo(blankAssignment.SourceProjectId);
         await Assert.That(assignment.Description).IsEqualTo("Updated independent exhibit");
-        await Assert.That(assignment.Revision).IsEqualTo(1);
+        await Assert.That(assignment.Revision).IsEqualTo(2);
         var assignedStudents = await databaseAfter.ClassAssignmentStudents.ToArrayAsync();
         await Assert.That(assignedStudents.Length).IsEqualTo(3);
         var active = assignedStudents.Where(row => row.IsActive).ToArray();
