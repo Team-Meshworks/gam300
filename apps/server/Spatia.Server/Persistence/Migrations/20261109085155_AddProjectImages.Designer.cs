@@ -558,3 +558,293 @@ namespace Spatia.Server.Persistence.Migrations
                     b.HasIndex("ProjectId")
                         .IsUnique();
 
+                    b.HasIndex("ClassroomId", "StudentId");
+
+                    b.HasIndex("StudentId", "AssignmentId");
+
+                    b.HasIndex("AssignmentId", "ClassroomId", "OrganizationId");
+
+                    b.HasIndex("OrganizationId", "StudentId", "RoleId");
+
+                    b.ToTable("class_assignment_students", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_class_assignment_students_role_id", "role_id = '862d776c-4d56-4dd8-919d-26044b6d8a44'::uuid");
+                        });
+                });
+
+            modelBuilder.Entity("Spatia.Server.Classes.Classroom", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("name");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrganizationId");
+
+                    b.ToTable("classrooms", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_classrooms_name", "length(btrim(name)) BETWEEN 1 AND 256");
+                        });
+                });
+
+            modelBuilder.Entity("Spatia.Server.Classes.ClassroomMember", b =>
+                {
+                    b.Property<Guid>("ClassroomId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("classroom_id");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("active");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
+                    b.Property<Guid>("RoleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("role_id");
+
+                    b.HasKey("ClassroomId", "UserId");
+
+                    b.HasIndex("ClassroomId", "OrganizationId");
+
+                    b.HasIndex("OrganizationId", "UserId", "RoleId");
+
+                    b.HasIndex("UserId", "IsActive", "ClassroomId");
+
+                    b.ToTable("classroom_members", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_classroom_members_role_id", "role_id IN ('d14c51b6-510a-4430-a27c-bfdc6e9d801b'::uuid, '862d776c-4d56-4dd8-919d-26044b6d8a44'::uuid)");
+                        });
+                });
+
+            modelBuilder.Entity("Spatia.Server.Projects.Project", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("DocumentJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("document");
+
+                    b.Property<Guid?>("ImageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("image_id");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("boolean")
+                        .HasColumnName("archived");
+
+                    b.Property<Guid?>("LastMutationActorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("last_mutation_actor_id");
+
+                    b.Property<byte[]>("LastMutationDigest")
+                        .HasColumnType("bytea")
+                        .HasColumnName("last_mutation_digest");
+
+                    b.Property<Guid?>("LastMutationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("last_mutation_id");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
+                    b.Property<long>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasColumnName("revision");
+
+                    b.Property<int>("SchemaVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("schema_version");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ImageId");
+
+                    b.HasIndex("LastMutationActorId");
+
+                    b.HasIndex("Id", "OrganizationId")
+                        .IsUnique();
+
+                    b.HasIndex("OrganizationId", "IsArchived");
+
+                    b.ToTable("projects", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_projects_document", "(\n    jsonb_typeof(document) = 'object'\n    AND jsonb_typeof(document -> 'projectId') = 'string'\n    AND lower(document ->> 'projectId') = id::text\n    AND jsonb_typeof(document -> 'schemaVersion') = 'number'\n    AND document -> 'schemaVersion' = to_jsonb(schema_version)\n) IS TRUE");
+
+                            t.HasCheckConstraint("CK_projects_last_mutation", "(last_mutation_actor_id IS NULL AND last_mutation_id IS NULL AND last_mutation_digest IS NULL)\nOR (last_mutation_actor_id IS NOT NULL AND last_mutation_id IS NOT NULL\n    AND last_mutation_digest IS NOT NULL AND octet_length(last_mutation_digest) = 32)");
+
+                            t.HasCheckConstraint("CK_projects_revision", "revision BETWEEN 0 AND 9007199254740991");
+
+                            t.HasCheckConstraint("CK_projects_schema_version", "schema_version > 0");
+
+                            t.HasCheckConstraint("CK_projects_updated_at", "isfinite(updated_at)");
+                        });
+                });
+
+            modelBuilder.Entity("Spatia.Server.Projects.ProjectAssignment", b =>
+                {
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<bool>("CanEdit")
+                        .HasColumnType("boolean")
+                        .HasColumnName("can_edit");
+
+                    b.Property<bool>("CanManage")
+                        .HasColumnType("boolean")
+                        .HasColumnName("can_manage");
+
+                    b.Property<bool>("CanPublish")
+                        .HasColumnType("boolean")
+                        .HasColumnName("can_publish");
+
+                    b.HasKey("ProjectId", "UserId");
+
+                    b.HasIndex("UserId", "ProjectId");
+
+                    b.ToTable("project_assignments", (string)null);
+                });
+
+            modelBuilder.Entity("Spatia.Server.Projects.ProjectImage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("content_type");
+
+                    b.Property<byte[]>("Data")
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("data");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)")
+                        .HasColumnName("type");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("project_images", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_project_images_content_type", "content_type IN ('image/png', 'image/jpeg', 'image/webp')");
+
+                            t.HasCheckConstraint("CK_project_images_data", "octet_length(data) BETWEEN 1 AND 2097152");
+
+                            t.HasCheckConstraint("CK_project_images_type", "type IN ('cover', 'panorama')");
+                        });
+                });
+
+            modelBuilder.Entity("Spatia.Server.Projects.ProjectProvenance", b =>
+                {
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
+                    b.Property<Guid?>("ClassAssignmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("class_assignment_id");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("kind");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
+                    b.Property<Guid?>("StudentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("student_id");
+
+                    b.HasKey("ProjectId");
+
+                    b.HasIndex("ClassAssignmentId", "StudentId", "OrganizationId");
+
+                    b.ToTable("project_provenance", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_project_provenance_kind", "(kind = 'ordinary' AND class_assignment_id IS NULL AND student_id IS NULL)\nOR (kind = 'class' AND class_assignment_id IS NOT NULL AND student_id IS NOT NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("Spatia.Server.Projects.ProjectSaveReceipt", b =>
+                {
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
+                    b.Property<Guid>("ClientMutationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_mutation_id");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_id");
+
+                    b.Property<long>("ExpectedRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("expected_revision");
+
+                    b.Property<byte[]>("RequestDigest")
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("request_digest");
+
+                    b.Property<long>("Revision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("revision");
+
+                    b.Property<DateTimeOffset>("SavedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("saved_at");
+
+                    b.HasKey("ProjectId", "ClientMutationId");
+
+                    b.HasIndex("ActorId");
+
+                    b.HasIndex("ProjectId", "Revision")
+                        .IsUnique();
+
+                    b.ToTable("project_save_receipts", null, t =>
+                        {
