@@ -70,7 +70,7 @@ function ProjectCards({
               aria-label={`${browser ? "View progress" : "View details"} for ${project.title}`}
               onClick={() => onView(project)}
             >
-              {browser ? "View Progress" : "View Details"}
+              {browser ? "View Progress" : "View details"}
             </Button>
           </div>
         </article>
@@ -161,7 +161,7 @@ function ProjectDetails({
     <section className="admin-panel admin-project-detail" aria-label="Project details">
       <div className="admin-project-view-heading">
         <div>
-          <h1>Project Details</h1>
+          <h1>Published Projects</h1>
           <p>Review published experiences and control what visitors can explore.</p>
         </div>
         <Button
@@ -209,31 +209,33 @@ function ProjectDetails({
                 </span>
               )}
             </dd>
-            {assignment && (
-              <>
-                <dt>Created by</dt>
-                <dd>{assignment.details.creatorName ?? "Unavailable"}</dd>
-                <dt>Class</dt>
-                <dd>
-                  {details && details.assignments.length > 1 ? (
-                    <select
-                      className="admin-assignment-select"
-                      aria-label="Class Assignment"
-                      value={assignmentIndex}
-                      onChange={(event) => setAssignmentIndex(Number(event.target.value))}
-                    >
-                      {details.assignments.map((item, index) => (
-                        <option key={item.details.assignmentId} value={index}>
-                          {item.className} — {item.details.title}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    assignment.className
-                  )}
-                </dd>
-              </>
-            )}
+            <>
+              <dt>Created by</dt>
+              <dd>
+                {assignment?.details.creatorUserName
+                  ? `@${assignment.details.creatorUserName}`
+                  : "Username unavailable"}
+              </dd>
+              <dt>Class</dt>
+              <dd>
+                {details && details.assignments.length > 1 ? (
+                  <select
+                    className="admin-assignment-select"
+                    aria-label="Class Assignment"
+                    value={assignmentIndex}
+                    onChange={(event) => setAssignmentIndex(Number(event.target.value))}
+                  >
+                    {details.assignments.map((item, index) => (
+                      <option key={item.details.assignmentId} value={index}>
+                        {item.className} — {item.details.title}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  (assignment?.className ?? (details ? "No class assigned" : "Loading…"))
+                )}
+              </dd>
+            </>
             <dt>Status</dt>
             <dd
               className={`admin-project-visibility${isPublic ? " admin-project-visibility--public" : ""}`}
@@ -242,14 +244,24 @@ function ProjectDetails({
               {isPublic ? "Public" : "Private"}
             </dd>
           </dl>
-          {assignment && (
-            <div className="admin-assignment-description">
-              <h3>Project Description</h3>
-              <p>{assignment.details.description || "No description provided."}</p>
-              <h3>Project Instructions</h3>
-              <p>{assignment.details.instructions || "No instructions provided."}</p>
-            </div>
-          )}
+          <div className="admin-assignment-description">
+            <h3>Project Description</h3>
+            <p
+              className={!assignment?.details.description ? "admin-project-empty-value" : undefined}
+            >
+              {assignment?.details.description ||
+                (details ? "No description provided." : "Loading…")}
+            </p>
+            <h3>Project Instructions</h3>
+            <p
+              className={
+                !assignment?.details.instructions ? "admin-project-empty-value" : undefined
+              }
+            >
+              {assignment?.details.instructions ||
+                (details ? "No instructions provided." : "Loading…")}
+            </p>
+          </div>
         </div>
         {assignment ? (
           <ProjectProgress
@@ -521,6 +533,7 @@ function AddOrganization({
     <Dialog
       title="Add Organisation"
       variant="admin"
+      className="admin-add-organisation-dialog"
       onClose={() => {
         if (!busy.current) onClose();
       }}
@@ -552,7 +565,13 @@ function AddOrganization({
   );
 }
 
-export function AdminDashboard({ session }: { session: AccountSession }) {
+export function AdminDashboard({
+  session,
+  onOpenOrganisations,
+}: {
+  session: AccountSession;
+  onOpenOrganisations: () => void;
+}) {
   const [client] = useState(() => createDashboardClient(session.userId));
   const [projects, setProjects] = useState<DashboardProject[]>([]);
   const [loading, setLoading] = useState(true);
@@ -685,7 +704,22 @@ export function AdminDashboard({ session }: { session: AccountSession }) {
                 </div>
               </div>
               <div className="admin-entry-actions">
-                <a className="sp-button" href="/organisations">
+                <a
+                  className="sp-button"
+                  href="/organisations"
+                  onClick={(event) => {
+                    if (
+                      event.button !== 0 ||
+                      event.ctrlKey ||
+                      event.metaKey ||
+                      event.shiftKey ||
+                      event.altKey
+                    )
+                      return;
+                    event.preventDefault();
+                    onOpenOrganisations();
+                  }}
+                >
                   <span className="sp-button-label">View Organisations</span>
                 </a>
                 <Button variant="primary" onClick={() => setModal("organisation")}>
@@ -699,7 +733,7 @@ export function AdminDashboard({ session }: { session: AccountSession }) {
           <div className="admin-section-heading">
             <div>
               <h2 id="admin-assets-heading">Assets</h2>
-              <p>Keep the shared building blocks of each museum ready to use.</p>
+              <p>Keep the building blocks of each museum ready to use.</p>
             </div>
           </div>
           <div className="admin-directory-card">
@@ -755,7 +789,7 @@ export function AdminDashboard({ session }: { session: AccountSession }) {
           onClose={() => setModal(null)}
           onCreated={() => {
             // Continue directly to the directory after the server confirms creation
-            location.assign("/organisations");
+            onOpenOrganisations();
           }}
         />
       )}

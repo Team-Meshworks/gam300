@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { WorkspaceAccountGate, type WorkspaceAccess } from "../accounts/WorkspaceAccountGate";
 import { WorkspaceShell } from "../../shared/ui/WorkspaceShell";
 import { HomePage } from "../home/HomePage";
@@ -32,6 +32,22 @@ export function WorkspacePage() {
 }
 
 function OtherWorkspacePage({ session, active, onSignOut }: WorkspaceAccess) {
+  const [route, setRoute] = useState(() => ({ href: location.pathname + location.search, key: 0 }));
+  const path = new URL(route.href, location.origin).pathname.replace(/\/$/, "");
+  function openScreen(href: string) {
+    history.pushState(null, "", href);
+    setRoute((previous) => ({ href, key: previous.key + 1 }));
+    window.scrollTo(0, 0);
+  }
+  useEffect(() => {
+    const restored = () =>
+      setRoute((previous) => ({
+        href: location.pathname + location.search,
+        key: previous.key + 1,
+      }));
+    window.addEventListener("popstate", restored);
+    return () => window.removeEventListener("popstate", restored);
+  }, []);
   const [guard, setGuard] = useState({ dirty: false, pending: false });
   const { navigate, confirmation } = useWorkspaceDeparture(active, guard);
   const assetService = useMemo(
@@ -40,7 +56,7 @@ function OtherWorkspacePage({ session, active, onSignOut }: WorkspaceAccess) {
   );
   if (session.role === "Educator" && location.pathname.replace(/\/$/, "") === "/review")
     return <EducatorReviewLink session={session} />;
-  const screen = screens.find((item) => `/${item.id}` === location.pathname.replace(/\/$/, ""));
+  const screen = screens.find((item) => `/${item.id}` === path);
   const permitted = screens.filter((item) => item.roles.includes(session.role));
   const fallback =
     session.role === "Administrator"
@@ -53,6 +69,36 @@ function OtherWorkspacePage({ session, active, onSignOut }: WorkspaceAccess) {
   const review = screen?.id === "review" && permitted.includes(screen);
   return (
     <WorkspaceShell
+      appearance={session.role === "Administrator" ? "admin" : undefined}
+      onClick={(event) => {
+        if (
+          session.role !== "Administrator" ||
+          event.defaultPrevented ||
+          event.button !== 0 ||
+          event.ctrlKey ||
+          event.metaKey ||
+          event.shiftKey ||
+          event.altKey
+        )
+          return;
+        const anchor = event.target instanceof Element ? event.target.closest("a[href]") : null;
+        if (
+          !(anchor instanceof HTMLAnchorElement) ||
+          anchor.hasAttribute("download") ||
+          (anchor.target && anchor.target !== "_self")
+        )
+          return;
+        const destination = new URL(anchor.href);
+        if (
+          destination.origin !== location.origin ||
+          !["/admin/dashboard", "/organisations", "/assets", "/spaces"].includes(
+            destination.pathname,
+          )
+        )
+          return;
+        event.preventDefault();
+        navigate(() => openScreen(destination.pathname + destination.search + destination.hash));
+      }}
       header={{
         account: session,
         homeHref: review ? "/home" : fallback,
@@ -96,20 +142,29 @@ function OtherWorkspacePage({ session, active, onSignOut }: WorkspaceAccess) {
             screen.id !== "spaces" && <h1 className="sp-page-heading">{screen.title}</h1>}
           {(screen.id === "assets" || screen.id === "spaces") && (
             <AssetAdministration
-              key={session.userId}
+              key={`${session.userId}:${route.key}`}
               session={session}
               service={assetService}
               kind={screen.id === "spaces" ? "environment" : "model"}
               initialUpload={new URLSearchParams(location.search).get("add") === "1"}
-              onClose={() => location.assign(fallback)}
+              onClose={() => navigate(() => openScreen(fallback))}
             />
           )}
-          {dashboard && <AdminDashboard key={session.userId} session={session} />}
+          {dashboard && (
+            <AdminDashboard
+              key={`${session.userId}:${route.key}`}
+              session={session}
+              onOpenOrganisations={() => navigate(() => openScreen("/organisations"))}
+            />
+          )}
           {screen.id === "review" && (
             <ReviewWorkspace session={session} guard={guard} onGuard={setGuard} />
           )}
           {screen.id === "organisations" && (
-            <AccountDirectoryPage key={session.userId} accountId={session.userId} />
+            <AccountDirectoryPage
+              key={`${session.userId}:${route.key}`}
+              accountId={session.userId}
+            />
           )}
           {screen.id === "publish" && <PublicationPage session={session} onGuard={setGuard} />}
         </>

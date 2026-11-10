@@ -77,7 +77,7 @@ export function ProjectProgress({
         {rows.map((student) => {
           const parts = /^(.*) \(([^()]*)\)$/.exec(student.studentName ?? "");
           const name = parts?.[1] ?? student.studentName ?? "Student";
-          const account = parts?.[2];
+          const account = student.studentUserName ?? parts?.[2];
           const publicationState = publicationStates[student.projectId.toLowerCase()];
           const isPublic = publicationState ? publicationState.publicCount > 0 : student.isPublic;
           const initials = name
@@ -111,7 +111,13 @@ export function ProjectProgress({
                   {student.approvalStatus ? approvalLabels[student.approvalStatus] : "Unavailable"}
                 </dd>
                 <dt>Publish Status</dt>
-                <dd>
+                <dd
+                  className={
+                    (isPublic ?? student.published)
+                      ? "admin-status-approved"
+                      : "admin-status-private"
+                  }
+                >
                   <UiIcon
                     icon={(isPublic ?? student.published) ? faGlobe : faLock}
                     aria-hidden="true"
