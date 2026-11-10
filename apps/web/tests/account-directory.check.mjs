@@ -14,6 +14,7 @@ const userId = "7ea0882b-9365-4b9c-b8b8-e5ee113ad07e";
 const rows = [];
 const writes = [];
 let duplicate = false;
+let failBulkDelete = false;
 let organizationActive = true;
 let organizationName = "Ridgeview Secondary School";
 let emptyProjects = false;
@@ -55,6 +56,18 @@ try {
       }
       if (path.endsWith("/active")) {
         rows[0].isActive = body.isActive;
+        return route.fulfill({ status: 204 });
+      }
+      if (path === `/api/v1/admin/organizations/${orgId}/students/delete`) {
+        if (failBulkDelete)
+          return route.fulfill({ status: 503, json: { code: "directory_unavailable" } });
+        assert.ok(
+          body.userIds.every((id) =>
+            rows.some((row) => row.userId === id && row.role === "Creator"),
+          ),
+        );
+        for (let index = rows.length - 1; index >= 0; index--)
+          if (body.userIds.includes(rows[index].userId)) rows.splice(index, 1);
         return route.fulfill({ status: 204 });
       }
       if (path === "/api/v1/admin/users/bulk") {
@@ -583,6 +596,89 @@ try {
   await page
     .getByRole("button", { name: "View account for CSV Fresh Learner", exact: true })
     .waitFor();
+  const deleteWrites = () => writes.filter((write) => write.path.endsWith("/students/delete"));
+  assert.equal(
+    await page.getByRole("checkbox", { name: "Select all creators", exact: true }).count(),
+    0,
+  );
+  const toolbarHeight = await page
+    .locator(".sp-account-list-header")
+    .evaluate((node) => node.getBoundingClientRect().height);
+  await page.getByRole("button", { name: "Select accounts", exact: true }).click();
+  assert.equal(
+    await page
+      .locator(".sp-account-list-header")
+      .evaluate((node) => node.getBoundingClientRect().height),
+    toolbarHeight,
+  );
+  assert.ok(
+    (await page.locator(".sp-account-row-bottom").count()) > 0,
+    "Selection mode preserves individual actions",
+  );
+  const searchAccounts = page.getByRole("searchbox", { name: "Search accounts", exact: true });
+  await searchAccounts.fill("CSV Fresh Learner");
+  await page.getByRole("checkbox", { name: "Select all creators", exact: true }).check();
+  await page.getByRole("button", { name: "Delete selected (1)", exact: true }).click();
+  let deletion = page.getByRole("dialog", { name: "Delete 1 creator account?", exact: true });
+  await deletion.getByRole("button", { name: "Cancel", exact: true }).click();
+  assert.equal(deleteWrites().length, 0, "Cancelling bulk deletion sends no request");
+  await page
+    .getByRole("group", { name: "Account selection", exact: true })
+    .getByRole("button", { name: "Cancel", exact: true })
+    .click();
+  assert.equal(await page.getByRole("checkbox", { name: /^Select creator / }).count(), 0);
+  assert.ok(
+    (await page.locator(".sp-account-row-bottom").count()) > 0,
+    "Cancelling restores individual actions",
+  );
+  await page.getByRole("button", { name: "Select accounts", exact: true }).click();
+  await searchAccounts.fill("");
+  assert.equal(
+    await page.getByRole("button", { name: "Delete selected", exact: true }).isDisabled(),
+    true,
+  );
+  const studentIds = rows.filter((row) => row.role === "Creator").map((row) => row.userId);
+  const facilitatorIds = rows.filter((row) => row.role === "Educator").map((row) => row.userId);
+  await page.getByRole("checkbox", { name: "Select all creators", exact: true }).check();
+  assert.equal(
+    await page.getByRole("checkbox", { name: /^Select creator / }).count(),
+    studentIds.length,
+  );
+  await page
+    .getByRole("button", { name: `Delete selected (${studentIds.length})`, exact: true })
+    .click();
+  deletion = page.getByRole("dialog", {
+    name: `Delete ${studentIds.length} creator accounts?`,
+    exact: true,
+  });
+  assert.equal(await deletion.locator(".sp-account-deletion-names").count(), 0);
+  await page.screenshot({ path: `${screenshots}/bulk-delete.png`, fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+  await page.screenshot({ path: `${screenshots}/bulk-delete-mobile.png`, fullPage: true });
+  await page.setViewportSize({ width: 1440, height: 1024 });
+  failBulkDelete = true;
+  await deletion
+    .getByRole("button", { name: `Delete ${studentIds.length} accounts`, exact: true })
+    .dblclick();
+  await deletion.getByRole("alert").waitFor();
+  assert.equal(deleteWrites().length, 1, "A double click sends one bulk request");
+  assert.ok(
+    studentIds.every((id) => rows.some((row) => row.userId === id)),
+    "Failed deletion preserves accounts",
+  );
+  failBulkDelete = false;
+  await deletion
+    .getByRole("button", { name: `Delete ${studentIds.length} accounts`, exact: true })
+    .click();
+  await deletion.waitFor({ state: "detached" });
+  assert.deepEqual(deleteWrites().at(-1).body.userIds.sort(), studentIds.sort());
+  assert.ok(
+    facilitatorIds.every((id) => rows.some((row) => row.userId === id)),
+    "Facilitators remain untouched",
+  );
+  assert.equal(await page.getByRole("checkbox", { name: /^Select creator / }).count(), 0);
+  await page.getByRole("button", { name: "Select accounts", exact: true }).waitFor();
   const storage = await page.evaluate(() =>
     JSON.stringify({ local: { ...localStorage }, session: { ...sessionStorage } }),
   );

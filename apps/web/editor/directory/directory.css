@@ -1668,3 +1668,132 @@
   padding: 0 14px;
   font: 500 15px/20px var(--sp-font);
 }
+.sp-directory--administration .sp-account-selection-actions > .sp-account-bulk-delete {
+  gap: 6px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 4px;
+  color: var(--account-selection-danger);
+  background: transparent;
+  font-weight: 600;
+}
+.sp-directory--administration .sp-account-selection-actions > .sp-account-bulk-delete:disabled {
+  color: var(--sp-muted);
+  background: transparent;
+  opacity: 0.55;
+}
+.sp-account-bulk-delete svg {
+  width: 16px;
+  height: 16px;
+}
+.sp-directory--administration .sp-account-list-header > .sp-account-selection-toolbar {
+  flex-wrap: wrap;
+}
+.sp-account-selection-actions {
+  margin-left: auto;
+}
+.sp-directory--administration .sp-account-list-toolbar .sp-tabs button {
+  font-weight: 500;
+}
+.sp-directory--administration .sp-account-list-toolbar .sp-tabs button[aria-selected="true"] {
+  font-weight: 700;
+}
+
+.sp-account-selection-toolbar > label {
+  margin-left: -10px;
+  padding: 0 10px;
+  border-radius: 8px;
+  color: var(--sp-ink);
+  font-weight: 600;
+}
+.sp-account-selection-toolbar > label:hover:has(input:not(:disabled)) {
+  background: var(--account-selection-fill);
+}
+.sp-directory--administration
+  .sp-account-selection-actions
+  > .sp-button:not(.sp-account-bulk-delete) {
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--sp-muted);
+}
+.sp-directory--administration
+  .sp-account-selection-actions
+  > .sp-button:not(.sp-account-bulk-delete):hover:not(:disabled) {
+  background: var(--account-selection-fill);
+  color: var(--sp-ink);
+}
+.sp-account-selection-toolbar .sp-account-selection-actions {
+  gap: 16px;
+}
+
+@media (min-width: 1051px) {
+  .sp-directory--administration .sp-account-list-toolbar .sp-tabs {
+    gap: 4px;
+  }
+  .sp-directory--administration .sp-account-list-toolbar .sp-tabs button {
+    padding-inline: 4px;
+  }
+}
+
+@media (min-width: 1051px) {
+  .sp-directory--administration .sp-account-list-toolbar {
+    gap: 8px;
+  }
+  .sp-directory--administration .sp-account-toolbar-actions {
+    gap: 20px;
+  }
+  .sp-directory--administration .sp-account-toolbar-actions > .sp-button--primary {
+    padding-inline: 10px;
+  }
+  .sp-directory--administration .sp-account-toolbar-actions > .sp-account-select-action {
+    flex-basis: 24px;
+    width: 24px;
+    min-width: 24px;
+  }
+}
+
+.sp-directory--administration .sp-account-list-header {
+  grid-template-rows: 45px minmax(36px, 1fr);
+}
+.sp-directory--administration .sp-account-toolbar-actions > .sp-account-select-action {
+  height: 28px;
+  min-height: 28px;
+  border-radius: 4px;
+}
+@media (min-width: 1051px) {
+  .sp-directory--administration .sp-account-toolbar-actions > .sp-account-select-action {
+    height: 24px;
+    min-height: 24px;
+  }
+}
+
+.sp-directory--administration .sp-account-toolbar-actions > .sp-account-select-action {
+  display: grid;
+  place-items: center;
+  line-height: 1;
+}
+.sp-account-select-action > svg {
+  display: block;
+  margin: 0;
+  padding: 0;
+  transform: none;
+}
+
+@media (min-width: 1344px) {
+  .sp-directory--administration .sp-account-list-toolbar .sp-tabs { gap: 12px; }
+  .sp-directory--administration .sp-account-list-toolbar .sp-tabs button { padding-inline: 6px; }
+}
+
+@media (min-width: 1051px) and (max-width: 1343px) {
+  .sp-directory--administration .sp-account-list-toolbar { gap: 4px; }
+  .sp-directory--administration .sp-account-toolbar-actions { gap: 12px; }
+}
+
+.sp-directory--administration .sp-organization-projects .sp-tabs {
+  gap: 20px;
+}
+.sp-directory--administration .sp-organization-projects .sp-tabs button {
+  padding-inline: 0;
+}
