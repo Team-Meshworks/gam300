@@ -6965,6 +6965,31 @@
       "target": {
         "package": "@iconify-icons/lucide"
       },
+      "from": "editor"
+    },
+    {
+      "file": "editor/home/TeacherProjects.tsx",
+      "line": 10,
+      "kind": "static",
+      "specifier": "@iconify-icons/lucide/lock-keyhole",
+      "target": {
+        "package": "@iconify-icons/lucide"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/home/TeacherProjects.tsx",
+      "line": 11,
+      "kind": "static",
+      "specifier": "../../shared/ui/Avatar",
+      "target": "shared/ui/Avatar.tsx",
+      "from": "editor",
+      "to": "ui-foundation"
+    },
+    {
+      "file": "editor/home/TeacherProjects.tsx",
+      "line": 12,
+      "kind": "static",
       "specifier": "react",
       "target": {
         "package": "react"
@@ -6973,7 +6998,7 @@
     },
     {
       "file": "editor/home/TeacherProjects.tsx",
-      "line": 2,
+      "line": 13,
       "kind": "type",
       "specifier": "../accounts/account-client",
       "target": "editor/accounts/account-client.ts",
@@ -6982,7 +7007,7 @@
     },
     {
       "file": "editor/home/TeacherProjects.tsx",
-      "line": 3,
+      "line": 14,
       "kind": "static",
       "specifier": "../../shared/ui/Button",
       "target": "shared/ui/Button.tsx",
@@ -6991,7 +7016,7 @@
     },
     {
       "file": "editor/home/TeacherProjects.tsx",
-      "line": 4,
+      "line": 15,
       "kind": "static",
       "specifier": "../../shared/ui/SearchField",
       "target": "shared/ui/SearchField.tsx",
@@ -7000,7 +7025,7 @@
     },
     {
       "file": "editor/home/TeacherProjects.tsx",
-      "line": 5,
+      "line": 16,
       "kind": "static",
       "specifier": "../../shared/ui/Tabs",
       "target": "shared/ui/Tabs.tsx",
@@ -7009,7 +7034,7 @@
     },
     {
       "file": "editor/home/TeacherProjects.tsx",
-      "line": 6,
+      "line": 17,
       "kind": "static",
       "specifier": "../reviews/review-client",
       "target": "editor/reviews/review-client.ts",
@@ -7018,7 +7043,25 @@
     },
     {
       "file": "editor/home/TeacherProjects.tsx",
-      "line": 7,
+      "line": 18,
+      "kind": "static",
+      "specifier": "./student-feedback",
+      "target": "editor/home/student-feedback.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/home/TeacherProjects.tsx",
+      "line": 19,
+      "kind": "type",
+      "specifier": "../reviews/review-types",
+      "target": "editor/reviews/review-types.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/home/TeacherProjects.tsx",
+      "line": 20,
       "kind": "static",
       "specifier": "../reviews/ProgressReviews",
       "target": "editor/reviews/ProgressReviews.tsx",
@@ -7027,7 +7070,7 @@
     },
     {
       "file": "editor/home/TeacherProjects.tsx",
-      "line": 8,
+      "line": 21,
       "kind": "type",
       "specifier": "../workspace/useWorkspaceDeparture",
       "target": "editor/workspace/useWorkspaceDeparture.tsx",
@@ -7036,7 +7079,7 @@
     },
     {
       "file": "editor/home/TeacherProjects.tsx",
-      "line": 9,
+      "line": 22,
       "kind": "static",
       "specifier": "../projects/assignment-api",
       "target": "editor/projects/assignment-api.ts",
@@ -7045,7 +7088,7 @@
     },
     {
       "file": "editor/home/TeacherProjects.tsx",
-      "line": 15,
+      "line": 28,
       "kind": "static",
       "specifier": "../projects/AssignmentEditDialog",
       "target": "editor/projects/AssignmentEditDialog.tsx",
@@ -7054,7 +7097,7 @@
     },
     {
       "file": "editor/home/TeacherProjects.tsx",
-      "line": 16,
+      "line": 29,
       "kind": "static",
       "specifier": "../projects/deadline",
       "target": "editor/projects/deadline.ts",
@@ -7063,7 +7106,7 @@
     },
     {
       "file": "editor/home/TeacherProjects.tsx",
-      "line": 17,
+      "line": 30,
       "kind": "static",
       "specifier": "../projects/progress-navigation",
       "target": "editor/projects/progress-navigation.ts",
@@ -7072,7 +7115,7 @@
     },
     {
       "file": "editor/home/TeacherProjects.tsx",
-      "line": 18,
+      "line": 31,
       "kind": "static",
       "specifier": "./workspace-api",
       "target": "editor/home/workspace-api.ts",
@@ -7081,7 +7124,7 @@
     },
     {
       "file": "editor/home/TeacherProjects.tsx",
-      "line": 19,
+      "line": 32,
       "kind": "static",
       "specifier": "../accounts/account-client",
       "target": "editor/accounts/account-client.ts",
@@ -7090,7 +7133,7 @@
     },
     {
       "file": "editor/home/TeacherProjects.tsx",
-      "line": 20,
+      "line": 33,
       "kind": "static",
       "specifier": "./dashboard",
       "target": "editor/home/dashboard.ts",
@@ -7099,7 +7142,7 @@
     },
     {
       "file": "editor/home/TeacherProjects.tsx",
-      "line": 21,
+      "line": 34,
       "kind": "static",
       "specifier": "./TeacherDashboard",
       "target": "editor/home/TeacherDashboard.tsx",
@@ -7108,7 +7151,7 @@
     },
     {
       "file": "editor/home/TeacherProjects.tsx",
-      "line": 22,
+      "line": 35,
       "kind": "static",
       "specifier": "../reviews/reviews.css",
       "target": "editor/reviews/reviews.css",
@@ -7117,7 +7160,34 @@
     },
     {
       "file": "editor/home/TeacherProjects.tsx",
-      "line": 45,
+      "line": 36,
+      "kind": "static",
+      "specifier": "./facilitator.css",
+      "target": "editor/home/facilitator.css",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/home/TeacherProjects.tsx",
+      "line": 37,
+      "kind": "static",
+      "specifier": "../admin/dashboard-client",
+      "target": "editor/admin/dashboard-client.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/home/TeacherProjects.tsx",
+      "line": 38,
+      "kind": "static",
+      "specifier": "../admin/ProjectModeration",
+      "target": "editor/admin/ProjectModeration.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/home/TeacherProjects.tsx",
+      "line": 61,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -7206,6 +7276,42 @@
       "kind": "type",
       "specifier": "../projects/assignment-api",
       "target": "editor/projects/assignment-api.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/home/dashboard.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./assets/default-project-neutral.jpg",
+      "target": "editor/home/assets/default-project-neutral.jpg",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/home/dashboard.ts",
+      "line": 4,
+      "kind": "static",
+      "specifier": "./assets/silk-road-card.jpg",
+      "target": "editor/home/assets/silk-road-card.jpg",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/home/dashboard.ts",
+      "line": 5,
+      "kind": "static",
+      "specifier": "./assets/silk-road-cover.jpg",
+      "target": "editor/home/assets/silk-road-cover.jpg",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/home/dashboard.ts",
+      "line": 6,
+      "kind": "static",
+      "specifier": "./assets/ancient-rome-cover.jpg",
+      "target": "editor/home/assets/ancient-rome-cover.jpg",
       "from": "editor",
       "to": "editor"
     },
@@ -7524,6 +7630,15 @@
       "file": "editor/home/workspace-api.ts",
       "line": 1,
       "kind": "static",
+      "specifier": "../projects/project-image",
+      "target": "editor/projects/project-image.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/home/workspace-api.ts",
+      "line": 2,
+      "kind": "static",
       "specifier": "../../shared/network/abort-signals",
       "target": "shared/network/abort-signals.ts",
       "from": "editor",
@@ -7531,7 +7646,7 @@
     },
     {
       "file": "editor/home/workspace-api.ts",
-      "line": 2,
+      "line": 3,
       "kind": "static",
       "specifier": "../accounts/account-client",
       "target": "editor/accounts/account-client.ts",
@@ -7828,6 +7943,15 @@
       "file": "editor/main.tsx",
       "line": 4,
       "kind": "static",
+      "specifier": "./reviews/FacilitatorProjectView",
+      "target": "editor/reviews/FacilitatorProjectView.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/main.tsx",
+      "line": 5,
+      "kind": "static",
       "specifier": "./audio/ui-sounds",
       "target": "editor/audio/ui-sounds.ts",
       "from": "editor",
@@ -7835,7 +7959,7 @@
     },
     {
       "file": "editor/main.tsx",
-      "line": 5,
+      "line": 6,
       "kind": "static",
       "specifier": "./styles.css",
       "target": "editor/styles.css",
@@ -7844,7 +7968,7 @@
     },
     {
       "file": "editor/main.tsx",
-      "line": 26,
+      "line": 27,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -8922,7 +9046,7 @@
     },
     {
       "file": "editor/projects/AssignmentEditDialog.tsx",
-      "line": 255,
+      "line": 283,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -8934,6 +9058,24 @@
       "file": "editor/projects/AssignmentScreens.tsx",
       "line": 1,
       "kind": "static",
+      "specifier": "../../shared/ui/Table",
+      "target": "shared/ui/Table.tsx",
+      "from": "editor",
+      "to": "ui-foundation"
+    },
+    {
+      "file": "editor/projects/AssignmentScreens.tsx",
+      "line": 2,
+      "kind": "static",
+      "specifier": "./project-image",
+      "target": "editor/projects/project-image.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/projects/AssignmentScreens.tsx",
+      "line": 3,
+      "kind": "static",
       "specifier": "react",
       "target": {
         "package": "react"
@@ -8942,7 +9084,7 @@
     },
     {
       "file": "editor/projects/AssignmentScreens.tsx",
-      "line": 2,
+      "line": 4,
       "kind": "static",
       "specifier": "../../shared/ui/Button",
       "target": "shared/ui/Button.tsx",
@@ -8951,7 +9093,7 @@
     },
     {
       "file": "editor/projects/AssignmentScreens.tsx",
-      "line": 3,
+      "line": 5,
       "kind": "static",
       "specifier": "../../shared/ui/Field",
       "target": "shared/ui/Field.tsx",
@@ -8960,7 +9102,7 @@
     },
     {
       "file": "editor/projects/AssignmentScreens.tsx",
-      "line": 4,
+      "line": 6,
       "kind": "static",
       "specifier": "./NewProjectForm",
       "target": "editor/projects/NewProjectForm.tsx",
@@ -8969,7 +9111,7 @@
     },
     {
       "file": "editor/projects/AssignmentScreens.tsx",
-      "line": 5,
+      "line": 7,
       "kind": "static",
       "specifier": "./deadline",
       "target": "editor/projects/deadline.ts",
@@ -8978,7 +9120,7 @@
     },
     {
       "file": "editor/projects/AssignmentScreens.tsx",
-      "line": 6,
+      "line": 12,
       "kind": "static",
       "specifier": "../home/workspace-api",
       "target": "editor/home/workspace-api.ts",
@@ -8987,7 +9129,7 @@
     },
     {
       "file": "editor/projects/AssignmentScreens.tsx",
-      "line": 7,
+      "line": 13,
       "kind": "static",
       "specifier": "./blank-source",
       "target": "editor/projects/blank-source.ts",
@@ -8996,7 +9138,7 @@
     },
     {
       "file": "editor/projects/AssignmentScreens.tsx",
-      "line": 8,
+      "line": 14,
       "kind": "static",
       "specifier": "./assignment-screens.css",
       "target": "editor/projects/assignment-screens.css",
@@ -9005,7 +9147,7 @@
     },
     {
       "file": "editor/projects/AssignmentScreens.tsx",
-      "line": 9,
+      "line": 15,
       "kind": "static",
       "specifier": "./assignment-api",
       "target": "editor/projects/assignment-api.ts",
@@ -9014,7 +9156,7 @@
     },
     {
       "file": "editor/projects/AssignmentScreens.tsx",
-      "line": 21,
+      "line": 27,
       "kind": "type",
       "specifier": "./new-project-form",
       "target": "editor/projects/new-project-form.ts",
@@ -9023,7 +9165,7 @@
     },
     {
       "file": "editor/projects/AssignmentScreens.tsx",
-      "line": 371,
+      "line": 434,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -9147,6 +9289,15 @@
       "file": "editor/projects/ClassSelect.tsx",
       "line": 1,
       "kind": "static",
+      "specifier": "../../shared/ui/Select",
+      "target": "shared/ui/Select.tsx",
+      "from": "editor",
+      "to": "ui-foundation"
+    },
+    {
+      "file": "editor/projects/ClassSelect.tsx",
+      "line": 2,
+      "kind": "static",
       "specifier": "../../shared/ui/Field",
       "target": "shared/ui/Field.tsx",
       "from": "editor",
@@ -9154,7 +9305,7 @@
     },
     {
       "file": "editor/projects/ClassSelect.tsx",
-      "line": 2,
+      "line": 3,
       "kind": "type",
       "specifier": "./new-project-form",
       "target": "editor/projects/new-project-form.ts",
@@ -9163,7 +9314,7 @@
     },
     {
       "file": "editor/projects/ClassSelect.tsx",
-      "line": 16,
+      "line": 21,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -9183,16 +9334,7 @@
     },
     {
       "file": "editor/projects/CoverImagePicker.tsx",
-      "line": 2,
-      "kind": "static",
-      "specifier": "../../shared/ui/Button",
-      "target": "shared/ui/Button.tsx",
-      "from": "editor",
-      "to": "ui-foundation"
-    },
-    {
-      "file": "editor/projects/CoverImagePicker.tsx",
-      "line": 23,
+      "line": 22,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -9214,9 +9356,9 @@
       "file": "editor/projects/NewProjectForm.tsx",
       "line": 2,
       "kind": "static",
-      "specifier": "@fortawesome/react-fontawesome",
+      "specifier": "@iconify/react/offline",
       "target": {
-        "package": "@fortawesome/react-fontawesome"
+        "package": "@iconify/react"
       },
       "from": "editor"
     },
@@ -9224,15 +9366,25 @@
       "file": "editor/projects/NewProjectForm.tsx",
       "line": 3,
       "kind": "static",
-      "specifier": "@fortawesome/free-solid-svg-icons",
+      "specifier": "@iconify-icons/lucide/info",
       "target": {
-        "package": "@fortawesome/free-solid-svg-icons"
+        "package": "@iconify-icons/lucide"
       },
       "from": "editor"
     },
     {
       "file": "editor/projects/NewProjectForm.tsx",
       "line": 4,
+      "kind": "static",
+      "specifier": "@iconify-icons/lucide/image",
+      "target": {
+        "package": "@iconify-icons/lucide"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/projects/NewProjectForm.tsx",
+      "line": 5,
       "kind": "static",
       "specifier": "../../shared/ui/Button",
       "target": "shared/ui/Button.tsx",
@@ -9241,7 +9393,7 @@
     },
     {
       "file": "editor/projects/NewProjectForm.tsx",
-      "line": 5,
+      "line": 6,
       "kind": "static",
       "specifier": "../../shared/ui/Field",
       "target": "shared/ui/Field.tsx",
@@ -9250,7 +9402,7 @@
     },
     {
       "file": "editor/projects/NewProjectForm.tsx",
-      "line": 6,
+      "line": 7,
       "kind": "static",
       "specifier": "../audio/ui-sounds",
       "target": "editor/audio/ui-sounds.ts",
@@ -9259,7 +9411,7 @@
     },
     {
       "file": "editor/projects/NewProjectForm.tsx",
-      "line": 7,
+      "line": 8,
       "kind": "static",
       "specifier": "./StudentSelector",
       "target": "editor/projects/StudentSelector.tsx",
@@ -9268,7 +9420,7 @@
     },
     {
       "file": "editor/projects/NewProjectForm.tsx",
-      "line": 8,
+      "line": 9,
       "kind": "static",
       "specifier": "./ClassSelect",
       "target": "editor/projects/ClassSelect.tsx",
@@ -9277,7 +9429,7 @@
     },
     {
       "file": "editor/projects/NewProjectForm.tsx",
-      "line": 9,
+      "line": 10,
       "kind": "static",
       "specifier": "./CoverImagePicker",
       "target": "editor/projects/CoverImagePicker.tsx",
@@ -9286,7 +9438,7 @@
     },
     {
       "file": "editor/projects/NewProjectForm.tsx",
-      "line": 10,
+      "line": 11,
       "kind": "static",
       "specifier": "./new-project-form",
       "target": "editor/projects/new-project-form.ts",
@@ -9295,7 +9447,7 @@
     },
     {
       "file": "editor/projects/NewProjectForm.tsx",
-      "line": 17,
+      "line": 18,
       "kind": "static",
       "specifier": "./new-project.css",
       "target": "editor/projects/new-project.css",
@@ -9304,7 +9456,7 @@
     },
     {
       "file": "editor/projects/NewProjectForm.tsx",
-      "line": 154,
+      "line": 159,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -9494,6 +9646,15 @@
       "file": "editor/projects/assignment-api.ts",
       "line": 1,
       "kind": "static",
+      "specifier": "./project-image",
+      "target": "editor/projects/project-image.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/projects/assignment-api.ts",
+      "line": 2,
+      "kind": "static",
       "specifier": "../../shared/network/abort-signals",
       "target": "shared/network/abort-signals.ts",
       "from": "editor",
@@ -9501,7 +9662,7 @@
     },
     {
       "file": "editor/projects/assignment-api.ts",
-      "line": 2,
+      "line": 3,
       "kind": "type",
       "specifier": "./new-project-form",
       "target": "editor/projects/new-project-form.ts",
@@ -9576,6 +9737,15 @@
     {
       "file": "editor/projects/blank-source.ts",
       "line": 1,
+      "kind": "type",
+      "specifier": "./project-image",
+      "target": "editor/projects/project-image.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/projects/blank-source.ts",
+      "line": 2,
       "kind": "static",
       "specifier": "../home/workspace-api",
       "target": "editor/home/workspace-api.ts",
@@ -9870,6 +10040,26 @@
       "file": "editor/publications/PublicationPage.tsx",
       "line": 1,
       "kind": "static",
+      "specifier": "@iconify/react/offline",
+      "target": {
+        "package": "@iconify/react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/publications/PublicationPage.tsx",
+      "line": 2,
+      "kind": "static",
+      "specifier": "@iconify-icons/lucide/check",
+      "target": {
+        "package": "@iconify-icons/lucide"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/publications/PublicationPage.tsx",
+      "line": 3,
+      "kind": "static",
       "specifier": "react",
       "target": {
         "package": "react"
@@ -9878,26 +10068,8 @@
     },
     {
       "file": "editor/publications/PublicationPage.tsx",
-      "line": 2,
-      "kind": "type",
-      "specifier": "../accounts/account-client",
-      "target": "editor/accounts/account-client.ts",
-      "from": "editor",
-      "to": "editor"
-    },
-    {
-      "file": "editor/publications/PublicationPage.tsx",
-      "line": 3,
-      "kind": "type",
-      "specifier": "../workspace/useWorkspaceDeparture",
-      "target": "editor/workspace/useWorkspaceDeparture.tsx",
-      "from": "editor",
-      "to": "editor"
-    },
-    {
-      "file": "editor/publications/PublicationPage.tsx",
       "line": 4,
-      "kind": "static",
+      "kind": "type",
       "specifier": "../accounts/account-client",
       "target": "editor/accounts/account-client.ts",
       "from": "editor",
@@ -9906,6 +10078,24 @@
     {
       "file": "editor/publications/PublicationPage.tsx",
       "line": 5,
+      "kind": "type",
+      "specifier": "../workspace/useWorkspaceDeparture",
+      "target": "editor/workspace/useWorkspaceDeparture.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/publications/PublicationPage.tsx",
+      "line": 6,
+      "kind": "static",
+      "specifier": "../accounts/account-client",
+      "target": "editor/accounts/account-client.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/publications/PublicationPage.tsx",
+      "line": 7,
       "kind": "static",
       "specifier": "../home/workspace-api",
       "target": "editor/home/workspace-api.ts",
@@ -9914,7 +10104,7 @@
     },
     {
       "file": "editor/publications/PublicationPage.tsx",
-      "line": 6,
+      "line": 8,
       "kind": "static",
       "specifier": "../../shared/ui/Button",
       "target": "shared/ui/Button.tsx",
@@ -9923,7 +10113,25 @@
     },
     {
       "file": "editor/publications/PublicationPage.tsx",
-      "line": 7,
+      "line": 9,
+      "kind": "static",
+      "specifier": "../../shared/ui/Select",
+      "target": "shared/ui/Select.tsx",
+      "from": "editor",
+      "to": "ui-foundation"
+    },
+    {
+      "file": "editor/publications/PublicationPage.tsx",
+      "line": 10,
+      "kind": "static",
+      "specifier": "../../shared/ui/SearchField",
+      "target": "shared/ui/SearchField.tsx",
+      "from": "editor",
+      "to": "ui-foundation"
+    },
+    {
+      "file": "editor/publications/PublicationPage.tsx",
+      "line": 11,
       "kind": "static",
       "specifier": "./PublicationShare",
       "target": "editor/publications/PublicationShare.tsx",
@@ -9932,7 +10140,7 @@
     },
     {
       "file": "editor/publications/PublicationPage.tsx",
-      "line": 8,
+      "line": 12,
       "kind": "static",
       "specifier": "./PublicationAccess",
       "target": "editor/publications/PublicationAccess.tsx",
@@ -9941,7 +10149,7 @@
     },
     {
       "file": "editor/publications/PublicationPage.tsx",
-      "line": 9,
+      "line": 13,
       "kind": "static",
       "specifier": "./publication-client",
       "target": "editor/publications/publication-client.ts",
@@ -9950,7 +10158,7 @@
     },
     {
       "file": "editor/publications/PublicationPage.tsx",
-      "line": 16,
+      "line": 20,
       "kind": "static",
       "specifier": "./publication.css",
       "target": "editor/publications/publication.css",
@@ -9959,7 +10167,7 @@
     },
     {
       "file": "editor/publications/PublicationPage.tsx",
-      "line": 331,
+      "line": 357,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -9999,6 +10207,22 @@
     {
       "file": "editor/publications/PublicationShare.tsx",
       "line": 18,
+      "kind": "implicit-jsx",
+      "specifier": "react/jsx-runtime",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/publications/PublishDialog.tsx",
+      "line": 1,
+      "kind": "static",
+      "specifier": "react",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
