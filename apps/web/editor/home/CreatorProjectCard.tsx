@@ -1,4 +1,8 @@
 import { useState } from "react";
+import { QRCodeSVG } from "qrcode.react";
+import qrCode from "@iconify-icons/lucide/qr-code";
+import { useModal } from "../../shared/ui/useModal";
+import { dueLabel, projectCover } from "./dashboard";
 import { Icon } from "@iconify/react/offline";
 import arrow from "@iconify-icons/lucide/arrow-right";
 import clock from "@iconify-icons/lucide/clock-3";
@@ -9,15 +13,29 @@ import { Button } from "../../shared/ui/Button";
 import { formatLocalDeadline } from "../projects/deadline";
 import type { StudentPublication } from "./student-publication";
 import type { StudentProjectRow } from "./student-projects";
-import neutralCover from "./assets/default-project-neutral.jpg";
-
-function dueLabel(seconds: number) {
-  const due = new Date(seconds * 1000);
-  const now = new Date();
-  if (due < now) return "Past due";
-  const day = (date: Date) => Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
-  const days = (day(due) - day(now)) / 86400000;
-  return days === 0 ? "Due today" : `Due in ${days} day${days === 1 ? "" : "s"}`;
+// Share the same current approval state between the card and its details
+export function CreatorApproval({
+  row,
+  submittedState,
+}: {
+  row: StudentProjectRow;
+  submittedState?: "pending" | "approved" | null;
+}) {
+  const { project, assignment } = row;
+  const state =
+    submittedState ??
+    assignment?.details.projects.find((item) => item.projectId === project.projectId)?.reviewState;
+  if (!state) return assignment ? "Status unavailable" : "No review listed";
+  return (
+    <span className="sp-approval" data-state={state}>
+      <Icon icon={state === "approved" ? check : state === "pending" ? clock : alert} width={14} />
+      {state === "approved"
+        ? "Approved"
+        : state === "pending"
+          ? "Awaiting Approval"
+          : "Not Approved"}
+    </span>
+  );
 }
 
 export function CreatorProjectCard({
@@ -35,9 +53,10 @@ export function CreatorProjectCard({
 )) {
   const { project, assignment } = row;
   const details = assignment?.details;
-  const state = details?.projects.find((item) => item.projectId === project.projectId)?.reviewState;
   const due = details && formatLocalDeadline(details.dueAtUnixSeconds);
   const [copyMessage, setCopyMessage] = useState("");
+  const [qrOpen, setQrOpen] = useState(false);
+  const qrDialog = useModal(qrOpen);
   async function copy() {
     if (!publication) return;
     try {
@@ -57,7 +76,11 @@ export function CreatorProjectCard({
       className={`sp-student-card${publication ? " sp-student-card--published" : ""}`}
       aria-labelledby={`title-${project.projectId}`}
     >
-      <img className="sp-student-card-image" src={neutralCover} alt="" />
+      <img
+        className="sp-student-card-image"
+        src={project.image?.url ?? projectCover(project.title)}
+        alt=""
+      />
       <div className="sp-student-card-copy">
         <div className="sp-student-identity">
           <h2 id={`title-${project.projectId}`}>{project.title}</h2>
@@ -73,15 +96,15 @@ export function CreatorProjectCard({
                   : "No class assignment listed"}
           </p>
         </div>
-        {details?.description && <p className="sp-card-description">{details.description}</p>}
+        {details?.description && (
+          <p className="sp-card-description">
+            {/* Keep the published summary brief; the project details retain the complete description */}
+            {publication ? details.description.split(/(?<=[.!?])\s+/u, 1)[0] : details.description}
+          </p>
+        )}
         <div className="sp-card-actions">
           {publication ? (
-            <a
-              className="sp-button sp-preview"
-              href={publication.visitorUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
+            <a className="sp-button sp-preview" href={publication.visitorUrl}>
               Preview
             </a>
           ) : (
@@ -111,16 +134,18 @@ export function CreatorProjectCard({
             <Icon icon={link} width={20} />
             <label htmlFor={`share-${project.projectId}`}>Share your project</label>
           </h3>
-          <input
-            id={`share-${project.projectId}`}
-            type="url"
-            readOnly
-            value={publication.visitorUrl}
-            onFocus={(event) => event.currentTarget.select()}
-          />
-          <Button variant="primary" onClick={() => void copy()}>
-            Copy
-          </Button>
+          <div className="sp-published-link-row">
+            <input
+              id={`share-${project.projectId}`}
+              type="url"
+              readOnly
+              value={publication.visitorUrl}
+              onFocus={(event) => event.currentTarget.select()}
+            />
+            <button
+              type="button"
+              className="sp-published-qr"
+              aria-label={`Show QR code for ${project.title}`}
           {publication.requiresSignIn && <small>Only permitted viewers can open this link.</small>}
           <span role="status">{copyMessage}</span>
         </div>

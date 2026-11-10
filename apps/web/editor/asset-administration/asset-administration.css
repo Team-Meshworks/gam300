@@ -1268,3 +1268,37 @@ html.asset-admin-preview-page,
   inset: 0;
   z-index: 2;
   border: 1px solid rgb(255 255 255 / 85%);
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+/* Upload tasks use a compact frame and scroll inside its rounded padding. */
+.asset-admin-dialog.asset-admin-dialog-upload {
+  width: min(720px, calc(100% - 32px));
+  padding: 24px;
+  overflow: hidden;
+}
+.asset-admin-dialog-upload > form {
+  max-height: calc(100dvh - 90px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable both-edges;
+  scrollbar-width: thin;
+  scrollbar-color: var(--aa-scroll-thumb) var(--aa-scroll-track);
+  padding: 8px;
+}
+.asset-admin-heading > .asset-admin-close {
+  background: #e4e1dc;
+  color: #292723;
+}
+.asset-admin-heading > .asset-admin-close:hover:not(:disabled) {
+  background: #d7d2cb;
+}
+@media (max-width: 700px) {
+  .asset-admin-dialog.asset-admin-dialog-upload {
+    padding: 20px;
+  }
+  .asset-admin-dialog-upload > form {
+    max-height: calc(100dvh - 82px);
+  }
+}
