@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faCircleInfo, faImage } from "@fortawesome/free-solid-svg-icons";
+import { Icon } from "@iconify/react/offline";
+import infoIcon from "@iconify-icons/lucide/info";
 import { Button } from "../../shared/ui/Button";
 import { Field } from "../../shared/ui/Field";
 import { playUiSound } from "../audio/ui-sounds";

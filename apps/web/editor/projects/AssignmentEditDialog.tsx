@@ -26,7 +26,11 @@ export function AssignmentEditDialog({
   details,
   onClose,
   onSaved,
+  field,
+  inline = false,
 }: {
+  inline?: boolean;
+  field?: "dueDate" | "description" | "instructions";
   classId: string;
   actorId: string;
   details: AssignmentDetails;
@@ -49,6 +53,16 @@ export function AssignmentEditDialog({
   const [message, setMessage] = useState("");
   const [attempt, setAttempt] = useState(0);
   const inFlight = useRef(false);
+  const inlineRoot = useRef<HTMLDivElement>(null);
+  const focusedInline = useRef(false);
+  useEffect(() => {
+    if (inline && phase === "ready" && !focusedInline.current) {
+      inlineRoot.current
+        ?.querySelector<HTMLInputElement | HTMLTextAreaElement>("input, textarea")
+        ?.focus();
+      focusedInline.current = true;
+    }
+  }, [inline, phase]);
   const initialIds = details.projects
     .map((project) => project.studentId)
     .sort()
@@ -99,7 +113,12 @@ export function AssignmentEditDialog({
   }, [dirty, phase]);
   function close() {
     if (phase === "sending") return;
-    if (dirty && phase !== "unknown" && !window.confirm("Discard your unsaved project changes?"))
+    if (
+      !inline &&
+      dirty &&
+      phase !== "unknown" &&
+      !window.confirm("Discard your unsaved project changes?")
+    )
       return;
     onClose();
   }
@@ -248,13 +267,24 @@ export function AssignmentEditDialog({
       inFlight.current = false;
     }
   }
+  const showAll = !field || Boolean(pending);
   const missing = selected.filter(
     (id) => students && !students.some((student) => student.id === id),
   );
-  return (
-    <Dialog title="Edit project details" onClose={close}>
+  const heading =
+    field === "dueDate"
+      ? "Edit Due Date"
+      : field === "description"
+        ? "Edit Project Description"
+        : field === "instructions"
+          ? "Edit Project Instructions"
+          : "Edit project details";
+  const content = (
+    <>
       {message && <p role="alert">{message}</p>}
-      {phase === "loading" && <p role="status">Loading students…</p>}
+      {phase === "loading" && (
+        <p role="status">{inline ? "Checking details…" : "Loading students…"}</p>
+      )}
       {phase === "error" && (
         <Button
           onClick={() => {
@@ -283,53 +313,62 @@ export function AssignmentEditDialog({
         </section>
       )}
       <fieldset disabled={phase !== "ready"}>
-        <Field id="edit-assignment-title" label="Project title" required>
-          <input
-            id="edit-assignment-title"
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            maxLength={120}
-          />
-        </Field>
-        <Field id="edit-assignment-due" label="Due date and time" required>
-          <input
-            id="edit-assignment-due"
-            type="datetime-local"
-            value={dueDate}
-            onChange={(event) => setDueDate(event.target.value)}
-          />
-        </Field>
-        <Field id="edit-assignment-description" label="Project description" required>
-          <textarea
-            id="edit-assignment-description"
-            value={description}
-            onChange={(event) => setDescription(event.target.value)}
-          />
-        </Field>
-        <Field id="edit-assignment-instructions" label="Project instructions" required>
-          <textarea
-            id="edit-assignment-instructions"
-            value={instructions}
-            onChange={(event) => setInstructions(event.target.value)}
-          />
-        </Field>
-        {students && (
+        {showAll && (
+          <Field id="edit-assignment-title" label="Project title">
+            <input
+              id="edit-assignment-title"
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+              maxLength={120}
+            />
+          </Field>
+        )}
+        {(showAll || field === "dueDate") && (
+          <Field id="edit-assignment-due" label="Due date and time">
+            <input
+              id="edit-assignment-due"
+              type="datetime-local"
+              value={dueDate}
+              onChange={(event) => setDueDate(event.target.value)}
+            />
+          </Field>
+        )}
+        {(showAll || field === "description") && (
+          <Field id="edit-assignment-description" label="Project description">
+            <textarea
+              id="edit-assignment-description"
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+            />
+          </Field>
+        )}
+        {(showAll || field === "instructions") && (
+          <Field id="edit-assignment-instructions" label="Project instructions">
+            <textarea
+              id="edit-assignment-instructions"
+              value={instructions}
+              onChange={(event) => setInstructions(event.target.value)}
+            />
+          </Field>
+        )}
+        {showAll && students && (
           <StudentSelector
             students={students}
             selected={selected}
             onChange={(ids) => setSelected([...ids])}
           />
         )}
-        {missing.map((id) => (
-          <p key={id}>
-            A previously assigned student is no longer enrolled.{" "}
-            <Button onClick={() => setSelected((ids) => ids.filter((value) => value !== id))}>
-              Remove{" "}
-              {details.projects.find((project) => project.studentId === id)?.studentName ??
-                "student"}
-            </Button>
-          </p>
-        ))}
+        {showAll &&
+          missing.map((id) => (
+            <p key={id}>
+              A previously assigned student is no longer enrolled.{" "}
+              <Button onClick={() => setSelected((ids) => ids.filter((value) => value !== id))}>
+                Remove{" "}
+                {details.projects.find((project) => project.studentId === id)?.studentName ??
+                  "student"}
+              </Button>
+            </p>
+          ))}
       </fieldset>
       <div className="sp-actions">
         <Button disabled={phase === "sending"} onClick={close}>
@@ -357,6 +396,22 @@ export function AssignmentEditDialog({
           </Button>
         )}
       </div>
+    </>
+  );
+  // Reuse the same request and recovery controls in either presentation
+  return inline ? (
+    <div ref={inlineRoot} className="sp-assignment-inline" role="group" aria-label={heading}>
+      {content}
+    </div>
+  ) : (
+    <Dialog
+      title={heading}
+      variant="account"
+      className={`sp-assignment-edit-dialog${field === "dueDate" ? " sp-assignment-edit-dialog--date" : ""}`}
+      closeDisabled={phase === "sending"}
+      onClose={close}
+    >
+      {content}
     </Dialog>
   );
 }

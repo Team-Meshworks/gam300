@@ -1,8 +1,14 @@
+import { Table } from "../../shared/ui/Table";
+import { encodeProjectImage, type EncodedProjectImage } from "./project-image";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Button } from "../../shared/ui/Button";
 import { Field } from "../../shared/ui/Field";
 import { NewProjectForm, type FormNavigationState } from "./NewProjectForm";
-import { formatLocalDeadline, localDeadlineToUnixSeconds } from "./deadline";
+import {
+  formatLocalDeadline,
+  localDateToDueUnixSeconds,
+  localDeadlineToUnixSeconds,
+} from "./deadline";
 import { createWorkspaceClient, isRecord } from "../home/workspace-api";
 import { blankSourceKey, createBlankSource } from "./blank-source";
 import "./assignment-screens.css";
@@ -25,7 +31,11 @@ import type {
   ProjectCreationResult,
 } from "./new-project-form";
 
-type Setup = { session: AssignmentSession; classes: ProjectClass[]; projects: SourceProject[] };
+type Setup = {
+  session: AssignmentSession;
+  classes: ProjectClass[];
+  projects: SourceProject[];
+};
 const pendingKey = (userId: string) => `spatia.assignment.pending:${userId}`;
 const workspace = createWorkspaceClient();
 
@@ -66,6 +76,7 @@ function loadPending(userId: string): PendingAssignment | null {
 }
 
 export function AssignmentCreationScreen({
+  onCreated,
   onOpenProject,
   onCancel,
   expectedUserId,
@@ -73,6 +84,7 @@ export function AssignmentCreationScreen({
   createBlank = false,
   initialClassId = "",
 }: {
+  onCreated?: () => void;
   onOpenProject?: (projectId: string) => void;
   onCancel?: () => void;
   expectedUserId?: string;
@@ -83,7 +95,9 @@ export function AssignmentCreationScreen({
   const [setup, setSetup] = useState<Setup | null>(null);
   const [message, setMessage] = useState("");
   const [sourceId, setSourceId] = useState("");
-  const [sourceUncertain, setSourceUncertain] = useState<"unknown" | "unavailable" | null>(null);
+  const [sourceUncertain, setSourceUncertain] = useState<
+    "unknown" | "unavailable" | "image" | null
+  >(null);
   const [students, setStudents] = useState<EligibleStudent[]>([]);
   const [initialClass, setInitialClass] = useState("");
   const [rosterMessage, setRosterMessage] = useState("");
@@ -95,9 +109,10 @@ export function AssignmentCreationScreen({
     dirty: false,
     locked: false,
   });
-  const [confirmed, setConfirmed] = useState<{ classId: string; assignmentId: string } | null>(
-    null,
-  );
+  const [confirmed, setConfirmed] = useState<{
+    classId: string;
+    assignmentId: string;
+  } | null>(null);
   const rosterController = useRef<AbortController | null>(null);
   const inFlight = useRef(false);
 
@@ -133,9 +148,7 @@ export function AssignmentCreationScreen({
         )
           throw new Error("Your account changed. Reload before continuing.");
         if (controller.signal.aborted) return;
-        const selectedClass =
-          choices.classes.find((row) => row.id === initialClassId)?.id ??
-          (choices.classes.length === 1 ? choices.classes[0]!.id : "");
+        const selectedClass = choices.classes.find((row) => row.id === initialClassId)?.id ?? "";
         setInitialClass(selectedClass);
         setSetup({ session, ...choices });
         setPending(saved);
@@ -166,6 +179,10 @@ export function AssignmentCreationScreen({
     () => () => onNavigationStateChange?.({ dirty: false, locked: false }),
     [onNavigationStateChange],
   );
+
+  useEffect(() => {
+    if (confirmed && onCreated) onCreated();
+  }, [confirmed, onCreated]);
 
   function changeClass(classId: string, actorId: string) {
     rosterController.current?.abort();
@@ -231,7 +248,10 @@ export function AssignmentCreationScreen({
     if (inFlight.current) return { kind: "unknown" };
     if (!navigator.locks)
       return newRequest
-        ? { kind: "rejected", message: "This browser cannot safely coordinate assignment retries." }
+        ? {
+            kind: "rejected",
+            message: "This browser cannot safely coordinate assignment retries.",
+          }
         : { kind: "unknown" };
     inFlight.current = true;
     setBusy(true);
@@ -262,13 +282,16 @@ export function AssignmentCreationScreen({
           localStorage.removeItem(pendingKey(request.actorId));
           if (createBlank) localStorage.removeItem(blankSourceKey(request.actorId));
           setPending(null);
-          setConfirmed({ classId: request.classId, assignmentId: result.assignmentId });
-          if (createBlank)
-            location.assign(
-              `/home?${new URLSearchParams({ classId: request.classId, assignmentId: result.assignmentId })}`,
-            );
+          setConfirmed({
+            classId: request.classId,
+            assignmentId: result.assignmentId,
+          });
+
           changeClass(request.classId, request.actorId);
-          return { kind: "created", projectId: result.projects[0]!.projectId };
+          return {
+            kind: "created",
+            projectId: result.projects[0]!.projectId,
+          };
         }
         if (result.kind === "rejected") {
           localStorage.removeItem(pendingKey(request.actorId));
@@ -296,11 +319,34 @@ export function AssignmentCreationScreen({
         kind: "rejected",
         message: "Resolve the earlier assignment before creating another.",
       };
-    const dueAtUnixSeconds = localDeadlineToUnixSeconds(draft.dueDate);
+    const dueAtUnixSeconds = createBlank
+      ? localDateToDueUnixSeconds(draft.dueDate)
+      : localDeadlineToUnixSeconds(draft.dueDate);
     if (dueAtUnixSeconds === null)
-      return { kind: "rejected", message: "Choose a valid due date and time." };
+      return {
+        kind: "rejected",
+        message: createBlank ? "Choose a valid due date." : "Choose a valid due date and time.",
+      };
     let source = setup.projects.find((project) => project.projectId === sourceId);
     if (createBlank) {
+      let image: EncodedProjectImage | undefined;
+      try {
+        if (draft.coverImage)
+          image = await encodeProjectImage(
+            draft.coverImage,
+            draft.imageType === "Cover image" ? "cover" : "panorama",
+          );
+        else if (draft.imageType !== "Cover image")
+          return {
+            kind: "rejected",
+            message: "Choose a panorama image from Gallery first.",
+          };
+      } catch (cause) {
+        return {
+          kind: "rejected",
+          message: cause instanceof Error ? cause.message : "The image could not be read.",
+        };
+      }
       if (!navigator.locks)
         return {
           kind: "rejected",
@@ -333,11 +379,20 @@ export function AssignmentCreationScreen({
                 return { kind: "retry" };
               }
             },
+            image,
           ),
       );
       if (result.kind === "unknown") {
         setSourceUncertain("unknown");
         return { kind: "unknown" };
+      }
+      if (result.kind === "image-mismatch") {
+        setSourceUncertain("image");
+        return {
+          kind: "rejected",
+          message:
+            "The recovered project has a different image. Start a new project to use this selection.",
+        };
       }
       if (result.kind === "source-unavailable") {
         setSourceUncertain("unavailable");
@@ -348,9 +403,17 @@ export function AssignmentCreationScreen({
       }
       if (result.kind === "rejected") return result;
       setSourceUncertain(null);
-      source = { projectId: result.projectId, title: draft.title, revision: result.revision };
+      source = {
+        projectId: result.projectId,
+        title: draft.title,
+        revision: result.revision,
+      };
     }
-    if (!source) return { kind: "rejected", message: "Choose an existing source project." };
+    if (!source)
+      return {
+        kind: "rejected",
+        message: "Choose an existing source project.",
+      };
     const request: PendingAssignment = {
       actorId: setup.session.userId,
       classId: draft.classId,
@@ -370,6 +433,7 @@ export function AssignmentCreationScreen({
 
   if (message) return <p role="alert">{message}</p>;
   if (!setup) return <p role="status">Loading assignment choices…</p>;
+  if (confirmed && onCreated) return <p role="status">Opening projects…</p>;
   if (confirmed)
     return (
       <AssignmentDetailsScreen
@@ -383,15 +447,17 @@ export function AssignmentCreationScreen({
       {sourceUncertain && !pending && (
         <div role="alert" className="sp-creation-notice">
           <p>
-            {sourceUncertain === "unavailable"
-              ? "The project is no longer available or cannot be managed. You can start a new project without losing these details."
-              : "Creating the project could not be confirmed. Check your projects before trying again to avoid creating a duplicate."}
+            {sourceUncertain === "image"
+              ? "A previously created project has a different image. Starting another project keeps the earlier one in your projects."
+              : sourceUncertain === "unavailable"
+                ? "The project is no longer available or cannot be managed. You can start a new project without losing these details."
+                : "Creating the project could not be confirmed. Check your projects before trying again to avoid creating a duplicate."}
           </p>
           <Button
             onClick={() => {
               try {
                 localStorage.removeItem(blankSourceKey(setup.session.userId));
-                if (sourceUncertain === "unavailable") setSourceUncertain(null);
+                if (sourceUncertain !== "unknown") setSourceUncertain(null);
                 else location.assign("/home");
               } catch {
                 setMessage(
@@ -400,7 +466,7 @@ export function AssignmentCreationScreen({
               }
             }}
           >
-            {sourceUncertain === "unavailable" ? "Start a new project" : "I checked my projects"}
+            {sourceUncertain !== "unknown" ? "Start a new project" : "I checked my projects"}
           </Button>
         </div>
       )}
@@ -456,11 +522,12 @@ export function AssignmentCreationScreen({
           {rosterMessage && <p role="status">{rosterMessage}</p>}
           <NewProjectForm
             organizationName={setup.session.orgName ?? "Selected class's organisation"}
-            creatorName={setup.session.displayName}
+            creatorName={setup.session.userName ? `@${setup.session.userName}` : "Unavailable"}
             initialClassId={initialClass}
             classes={setup.classes}
             students={students}
-            showImageOptions={false}
+            showImageOptions={createBlank}
+            dateOnly={createBlank}
             onClassChange={(classId) => changeClass(classId, setup.session.userId)}
             onSubmit={create}
             {...(onCancel ? { onCancel } : {})}
@@ -486,9 +553,10 @@ export function AssignmentDetailsScreen({
   ownProject?: boolean;
 }) {
   const key = `${classId}:${assignmentId}`;
-  const [result, setResult] = useState<{ key: string; details: AssignmentDetails | null } | null>(
-    null,
-  );
+  const [result, setResult] = useState<{
+    key: string;
+    details: AssignmentDetails | null;
+  } | null>(null);
   useEffect(() => {
     const controller = new AbortController();
     void readAssignment(classId, assignmentId, controller.signal)
@@ -541,17 +609,22 @@ export function AssignmentListScreen({
   onOpenProject,
   studentNames,
   ownProject = false,
+  onOpenAssignment,
 }: {
   classId: string;
   onOpenProject?: (projectId: string) => void;
   studentNames?: Record<string, string>;
   ownProject?: boolean;
+  onOpenAssignment?: (assignmentId: string) => void;
 }) {
   const [result, setResult] = useState<{
     classId: string;
     items: AssignmentDetails[] | null;
   } | null>(null);
-  const [selected, setSelected] = useState<{ classId: string; assignmentId: string } | null>(null);
+  const [selected, setSelected] = useState<{
+    classId: string;
+    assignmentId: string;
+  } | null>(null);
   useEffect(() => {
     const controller = new AbortController();
     void listAssignments(classId, controller.signal)
@@ -581,6 +654,28 @@ export function AssignmentListScreen({
   if (!result.items)
     return <p role="alert">Assignments are unavailable for the current account.</p>;
   if (!result.items.length) return <p role="status">No assignments are available.</p>;
+  if (onOpenAssignment)
+    return (
+      <section aria-label="Class assignments" className="sp-organisation-projects">
+        <h2>Class Projects</h2>
+        <Table caption="Projects in this class" headings={["Project", "Due Date", "Actions"]}>
+          {result.items.map((item) => (
+            <tr key={item.assignmentId}>
+              <th scope="row">{item.title}</th>
+              <td title={formatLocalDeadline(item.dueAtUnixSeconds) ?? "Unavailable"}>
+                {new Intl.DateTimeFormat("en-GB", { dateStyle: "medium" }).format(
+                  new Date(item.dueAtUnixSeconds * 1000),
+                )}
+              </td>
+              <td>
+                <Button onClick={() => onOpenAssignment(item.assignmentId)}>View Details</Button>
+              </td>
+            </tr>
+          ))}
+        </Table>
+      </section>
+    );
+
   return (
     <section aria-label="Class assignments">
       <h2>Assignments</h2>

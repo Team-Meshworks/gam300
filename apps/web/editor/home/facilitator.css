@@ -1698,3 +1698,25 @@ html:has(.sp-shell--facilitator) {
 .sp-shell--facilitator .sp-form-footer {
   position: relative;
   z-index: var(--facilitator-content-layer, 2);
+}
+
+.sp-shell--facilitator:has(.sp-teacher-students, .sp-students) {
+  --facilitator-content-layer: 4;
+}
+.sp-shell--facilitator:has(.sp-teacher-students, .sp-students) > .sp-wash--left {
+  z-index: 3;
+}
+.sp-shell--facilitator .sp-teacher-students,
+.sp-shell--facilitator .sp-students {
+  position: relative;
+}
+.sp-shell--facilitator .sp-teacher-students::before,
+.sp-shell--facilitator .sp-students::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: inherit;
+  background: var(--facilitator-surface);
+  pointer-events: none;
+}
