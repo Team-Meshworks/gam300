@@ -363,6 +363,111 @@ try {
     .getByRole("button", { name: "Hide", exact: true })
     .click();
   let confirmation = page.getByRole("dialog", { name: "Hide Student Project?" });
+  await confirmation.getByRole("button", { name: "Cancel", exact: true }).click();
+  assert.deepEqual(moderationWrites, []);
+  await page
+    .locator(".sp-teacher-student-actions")
+    .getByRole("button", { name: "Hide", exact: true })
+    .click();
+  confirmation = page.getByRole("dialog", { name: "Hide Student Project?" });
+  await confirmation.getByRole("button", { name: "Hide", exact: true }).click();
+  await confirmation.waitFor({ state: "detached" });
+  await page.locator(".sp-teacher-student-status").getByText("Private", { exact: true }).waitFor();
+  await page
+    .locator(".sp-teacher-student-status")
+    .getByText("Not Approved", { exact: true })
+    .waitFor();
+  await page
+    .locator(".sp-teacher-student-actions")
+    .getByRole("button", { name: "Show", exact: true })
+    .click();
+  confirmation = page.getByRole("dialog", { name: "Show Student Project?" });
+  await confirmation.getByRole("button", { name: "Show", exact: true }).click();
+  await confirmation.waitFor({ state: "detached" });
+  await page.locator(".sp-teacher-student-status").getByText("Public", { exact: true }).waitFor();
+  assert.equal(
+    await page
+      .locator(".sp-teacher-student-status")
+      .getByText("Not Approved", { exact: true })
+      .count(),
+    1,
+  );
+  await page
+    .locator(".sp-teacher-student-actions")
+    .getByRole("button", { name: "Delete", exact: true })
+    .click();
+  confirmation = page.getByRole("dialog", { name: "Delete Student Project?" });
+  await page.screenshot({
+    path: "../../.artifacts/facilitator-check/moderation.png",
+  });
+  await confirmation.getByRole("button", { name: "Delete", exact: true }).click();
+  await confirmation.waitFor({ state: "detached" });
+  await page
+    .locator(".sp-teacher-student-actions")
+    .getByRole("button", { name: "Delete", exact: true })
+    .waitFor({ state: "detached" });
+  assert.equal(
+    await page
+      .locator(".sp-teacher-student-actions")
+      .getByRole("button", { name: "Delete", exact: true })
+      .count(),
+    0,
+  );
+  assert.deepEqual(moderationWrites, ["hide", "show", "delete"]);
+  removedDraft = false;
+  publicationState = {
+    projectId,
+    publicationCount: 0,
+    hiddenCount: 0,
+    publicCount: 0,
+    publishingBlocked: false,
+    removed: false,
+  };
+  await page.goto(origin + "/home");
+  await page
+    .locator("article")
+    .filter({ hasText: "Museum" })
+    .getByRole("button", { name: "View Details" })
+    .click();
+  const hideDraft = page
+    .locator(".sp-teacher-student-actions")
+    .getByRole("button", { name: "Hide", exact: true });
+  assert.equal(
+    await hideDraft.getAttribute("title"),
+    "Block publishing; the student can keep editing",
+  );
+  for (const action of ["Hide", "Show", "Delete"]) {
+    await page
+      .locator(".sp-teacher-student-actions")
+      .getByRole("button", { name: action, exact: true })
+      .click();
+    const dialog = page.getByRole("dialog", { name: `${action} Student Project?` });
+    await dialog.getByRole("button", { name: action, exact: true }).click();
+    await dialog.waitFor({ state: "detached" });
+    assert.equal(
+      publicationState.publicationCount,
+      0,
+      "Draft moderation must not create an edition",
+    );
+    if (action !== "Delete")
+      await page
+        .locator(".sp-teacher-student-actions")
+        .getByRole("button", { name: action === "Hide" ? "Show" : "Hide", exact: true })
+        .waitFor();
+  }
+  await page.locator(".sp-teacher-student").waitFor({ state: "detached" });
+  assert.deepEqual(moderationWrites, ["hide", "show", "delete", "hide", "show", "delete"]);
+  assert.deepEqual(
+    writes,
+    [],
+    "Publication moderation must not save or delete the student's draft",
+  );
+  console.log(
+    "Facilitator Hide/Show/Delete requires confirmation and updates publication controls without draft writes",
+  );
+} catch (error) {
+  console.error(await page?.locator("body").innerText());
+  throw error;
 } finally {
   await browser?.close();
   await server.close();

@@ -64,7 +64,8 @@ try {
     return route.fulfill({ status: 404 });
   });
   await page.goto(origin + "/new-project");
-  await page.getByLabel(/^Class/).selectOption(classId);
+  await page.getByRole("combobox", { name: "Class *", exact: true }).click();
+  await page.getByRole("option", { name: "History", exact: true }).click();
   await requested;
   actor = teacherB;
   const rosterResponse = page.waitForResponse((response) =>

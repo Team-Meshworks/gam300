@@ -109,7 +109,7 @@ async function api(route) {
     assert.equal(body.sourceProjectId, source);
     assert.equal(body.sourceRevision, 0);
     assert.deepEqual(body.studentIds.sort(), [alice, bob].sort());
-    assert.equal(body.dueAtUnixSeconds, Date.parse("2026-11-05T07:30:00Z") / 1000);
+    assert.equal(body.dueAtUnixSeconds, Date.parse("2026-11-05T15:59:59Z") / 1000);
     if (assignment) assert.deepEqual(body, attempts[0]);
     else
       assignment = {
@@ -157,8 +157,7 @@ try {
   const page = await context.newPage();
   page.setDefaultTimeout(7000);
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.goto(origin + "/home");
-  await page.getByRole("button", { name: "Classes", exact: true }).click();
+  await page.goto(origin + "/classes");
   await page.getByRole("button", { name: "Enrol Bob", exact: true }).click();
   await page.getByRole("button", { name: "Confirm", exact: true }).click();
   await page.getByRole("button", { name: "Remove Bob", exact: true }).waitFor();
@@ -178,12 +177,14 @@ try {
   failRoster = false;
   await page.getByRole("button", { name: "Refresh classes" }).click();
   await page.getByRole("button", { name: "Remove Bob", exact: true }).waitFor();
-  await page.getByRole("button", { name: "New class", exact: true }).click();
+  await page.goto(origin + "/classes?organisation=1");
+  await page.getByRole("button", { name: "New Class", exact: true }).click();
   await page.getByLabel("Class name", { exact: true }).fill("Geography");
-  await page.getByRole("button", { name: "Confirm", exact: true }).click();
+  await page.getByRole("button", { name: "Create Class", exact: true }).click();
   await page.getByText("Class change confirmed.", { exact: true }).waitFor();
   assert.equal(classes.length, 2);
-  await page.getByRole("combobox", { name: "Class", exact: true }).selectOption(classId);
+  await page.goto(origin + "/classes");
+  await chooseClass(page);
   await page.getByRole("button", { name: "New assignment", exact: true }).click();
   assert.equal(await page.getByLabel("Source project").count(), 0);
   await page
@@ -205,7 +206,7 @@ try {
   );
   await page.getByRole("button", { name: "Classes", exact: true }).click();
   await page.getByRole("dialog", { name: "Leave this page?" }).waitFor();
-  await page.getByRole("button", { name: "Discard details and leave", exact: true }).click();
+  await page.getByRole("button", { name: "Discard and leave", exact: true }).click();
   await page.getByRole("button", { name: "New assignment", exact: true }).click();
   assert.equal(
     await page.getByRole("textbox", { name: "Project title", exact: true }).inputValue(),
@@ -217,8 +218,8 @@ try {
     .fill("Silk Road assignment");
   await page.getByRole("button", { name: "Log Out", exact: true }).click();
   await page.getByRole("button", { name: "Keep editing", exact: true }).click();
-  await page.getByRole("combobox", { name: "Class", exact: true }).selectOption(classId);
-  await page.getByLabel(/^Due date/).fill("2026-11-05T15:30");
+  await chooseClass(page);
+  await page.getByLabel(/^Due date/).fill("2026-11-05");
   await page.getByLabel("Project description").fill("Research trade across the Silk Road.");
   await page.getByLabel("Project instructions").fill("Build an exhibit and explain each object.");
   await page.getByRole("button", { name: "Select all", exact: true }).click();
@@ -270,8 +271,7 @@ try {
   await page.getByRole("button", { name: "New assignment", exact: true }).click();
   await page.getByRole("button", { name: "Retry same assignment", exact: true }).click();
   await page.getByRole("heading", { name: "Silk Road assignment", exact: true }).waitFor();
-  await page.getByText("Alice", { exact: true }).waitFor();
-  await page.getByRole("button", { name: "View Progress", exact: true }).first().waitFor();
+  await page.getByRole("button", { name: "Open project for Alice", exact: true }).waitFor();
   assert.equal(attempts.length, 2);
   assert.deepEqual(attempts[1], attempts[0]);
   assert.equal(
@@ -287,9 +287,8 @@ try {
   await localContext.route("**/api/v1/**", api);
   const local = await localContext.newPage();
   local.on("pageerror", (error) => errors.push(error.message));
-  await local.goto(origin + "/home");
-  await local.getByRole("button", { name: "Classes", exact: true }).click();
-  await local.getByRole("combobox", { name: "Class", exact: true }).selectOption(classId);
+  await local.goto(origin + "/classes");
+  await chooseClass(local);
   await local.getByRole("button", { name: "Silk Road assignment", exact: true }).click();
   await local.getByText("Build an exhibit and explain each object.", { exact: true }).waitFor();
   await local.getByText(/Nov 5, 2026/).waitFor();
@@ -314,4 +313,14 @@ try {
   );
 } finally {
   await browser.close();
+}
+
+async function chooseClass(page) {
+  const control = page.getByRole("combobox", { name: /^Class/ });
+  if (await control.evaluate((node) => node.tagName === "SELECT"))
+    await control.selectOption(classId);
+  else {
+    await control.click();
+    await page.getByRole("option", { name: "History", exact: true }).click();
+  }
 }

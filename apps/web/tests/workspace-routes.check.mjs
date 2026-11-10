@@ -4,7 +4,10 @@ import { mkdir } from "node:fs/promises";
 import { blankProject } from "./authoring-project-fixture.mjs";
 
 const origin = process.argv[2] ?? "http://127.0.0.1:5173";
-const browser = await launchBrowser({ target: origin, args: ["--enable-unsafe-swiftshader"] });
+const browser = await launchBrowser({
+  target: origin,
+  args: ["--enable-unsafe-swiftshader"],
+});
 const session = {
   userId: "7ea0882b-9365-4b9c-b8b8-e5ee113ad07e",
   displayName: "Test Teacher",
@@ -21,6 +24,8 @@ const screens = [
 try {
   const page = await browser.newPage();
   page.setDefaultTimeout(5000);
+  const pageErrors = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   let mode = "Educator";
@@ -190,8 +195,8 @@ try {
   }
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.getByRole("button", { name: "Close new project" }).click();
-  await page.getByRole("button", { name: "Classes", exact: true }).click();
-  await page.getByRole("heading", { name: "Classes", exact: true }).waitFor();
+  await page.getByRole("heading", { name: "Welcome Back, Test Teacher", exact: true }).waitFor();
+  await screen("classes", "Classes");
   await page.getByRole("button", { name: "New assignment" }).click();
   await page.getByRole("heading", { name: "New class assignment" }).waitFor();
   mode = "Creator";
@@ -221,15 +226,48 @@ try {
     const destination = path.endsWith(projectQuery)
       ? `${origin}/login?returnTo=${encodeURIComponent("/" + projectQuery)}`
       : `${origin}/login`;
-    await page.waitForURL(`${origin}/login*`);
+    await page.waitForURL(`${origin}/login*`).catch(async (cause) => {
+      throw new Error(
+        JSON.stringify({
+          path,
+          url: page.url(),
+          errors: pageErrors,
+          body: await page.locator("body").innerText(),
+        }),
+        { cause },
+      );
+    });
     assert.equal(page.url(), destination);
-    await page.getByRole("heading", { name: "Welcome back.", exact: true }).waitFor();
+    await page
+      .getByRole("heading", { name: "Welcome back.", exact: true })
+      .waitFor()
+      .catch(async (cause) => {
+        throw new Error(
+          JSON.stringify({
+            path,
+            url: page.url(),
+            errors: pageErrors,
+            body: await page.locator("body").innerText(),
+          }),
+          { cause },
+        );
+      });
     assert.equal(await page.locator(".sp-workspace, .editor-shell").count(), 0);
   }
   mode = "Educator";
   for (const stale of ["/editor", "/editor.html"]) {
     await page.goto(`${origin}/login?returnTo=${encodeURIComponent(stale)}`);
-    await page.getByRole("heading", { name: /You.re signed in/ }).waitFor();
+    await page.waitForURL("**/home").catch(async (cause) => {
+      throw new Error(
+        JSON.stringify({
+          stale,
+          url: page.url(),
+          errors: pageErrors,
+          body: await page.locator("body").innerText(),
+        }),
+        { cause },
+      );
+    });
     assert.equal(await page.locator(".editor-shell").count(), 0);
   }
   await page.route("**/api/v1/assets", (route) => route.fulfill({ json: [] }));
@@ -250,9 +288,24 @@ try {
         })
       : route.fulfill({ status: projectStatus }),
   );
+  // Creator projects without edit permission must still stop before mounting the editor.
+  mode = "Creator";
   for (projectStatus of [404, 403, 200]) {
     await page.goto(`${origin}/${projectQuery}`);
-    await page.getByRole("alert").waitFor();
+    await page
+      .getByRole("alert")
+      .waitFor()
+      .catch(async (cause) => {
+        throw new Error(
+          JSON.stringify({
+            projectStatus,
+            url: page.url(),
+            errors: pageErrors,
+            body: await page.locator("body").innerText(),
+          }),
+          { cause },
+        );
+      });
     if (projectStatus === 200)
       assert.match(await page.getByRole("alert").innerText(), /read.only/i);
     assert.equal(await page.locator(".editor-shell, .viewport-stage canvas").count(), 0);
