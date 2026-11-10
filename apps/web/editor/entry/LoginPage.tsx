@@ -75,8 +75,7 @@ export function LoginPage({ siteRoot }: { siteRoot: boolean }) {
     if (!session) return;
     const returnPath = siteRoot ? null : loginReturnPath();
     const destination =
-      returnPath ??
-      (session.role === "Administrator" ? "/admin/dashboard" : siteRoot ? "/home" : null);
+      returnPath ?? (session.role === "Administrator" ? "/admin/dashboard" : "/home");
     if (!session.mustChangePassword && destination) location.replace(destination);
     else statusRef.current?.focus();
   }, [session, siteRoot]);
@@ -153,7 +152,7 @@ export function LoginPage({ siteRoot }: { siteRoot: boolean }) {
                     ? "Change your password."
                     : session.role === "Administrator"
                       ? "Opening your dashboard…"
-                      : "You’re signed in."
+                      : "Opening your projects…"
                   : "Welcome back."}
               </h1>
               <p>

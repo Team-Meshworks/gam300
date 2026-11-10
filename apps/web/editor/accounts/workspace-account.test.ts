@@ -54,3 +54,16 @@ it("rejects a stale logout and sends just one account-bound write, even during a
   });
 });
 
+it("retains unchanged identity after verification and propagates changed account capabilities", async () => {
+  const getSession = vi.fn().mockResolvedValue({ ...user });
+  const account = createWorkspaceAccount({ getSession, signOut: vi.fn() });
+  await account.check();
+  const original = account.getSnapshot().workspace;
+  await account.check();
+  expect(getSession).toHaveBeenCalledTimes(2);
+  expect(account.getSnapshot().workspace).toBe(original);
+  getSession.mockResolvedValue({ ...user, developmentAssetsAllowed: true });
+  await account.check();
+  expect(account.getSnapshot().workspace).not.toBe(original);
+  expect(account.getSnapshot().workspace?.developmentAssetsAllowed).toBe(true);
+});

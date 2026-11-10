@@ -58,6 +58,7 @@ type ViewportProps = {
     | undefined;
   onTextPlace?: (placement: Transform) => void;
   editingEnabled: boolean;
+  allowInspection?: boolean;
   navigationTool: NavigationTool;
   view: CameraView;
   status: ViewportStatus;
@@ -97,6 +98,7 @@ export function Viewport({
   textPlacement,
   onTextPlace,
   editingEnabled,
+  allowInspection = false,
   navigationTool,
   view,
   status,
@@ -125,6 +127,7 @@ export function Viewport({
     projectScene,
     loadGeneration,
     editingEnabled,
+    allowInspection,
     navigationTool,
     view,
   });
@@ -162,7 +165,7 @@ export function Viewport({
           current.loadGeneration,
           current.selectedIds,
         );
-        scene?.setEditingEnabled(current.editingEnabled);
+        scene?.setEditingEnabled(current.editingEnabled, current.allowInspection);
         scene?.setNavigationTool(current.navigationTool);
         if (scene !== undefined) {
           onManager(scene.modeManager);
@@ -220,11 +223,12 @@ export function Viewport({
       projectScene,
       loadGeneration,
       editingEnabled,
+      allowInspection,
       navigationTool,
       view,
     };
     sceneRef.current?.update(objects, selectedId, projectScene, loadGeneration, selectedIds);
-    sceneRef.current?.setEditingEnabled(editingEnabled);
+    sceneRef.current?.setEditingEnabled(editingEnabled, allowInspection);
     sceneRef.current?.setNavigationTool(navigationTool);
     sceneRef.current?.modeManager.setView(view);
   }, [
@@ -234,6 +238,7 @@ export function Viewport({
     projectScene,
     loadGeneration,
     editingEnabled,
+    allowInspection,
     navigationTool,
     view,
     assets,

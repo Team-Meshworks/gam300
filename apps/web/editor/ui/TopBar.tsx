@@ -6,7 +6,7 @@ import { Icon } from "./Icon";
 type SaveState = "saving" | "failed" | "pending" | "saved";
 
 const saveLabels: Record<SaveState, string> = {
-  saving: "Saving…",
+  saving: "Saving...",
   failed: "Save failed",
   pending: "Not saved",
   saved: "Saved",
@@ -113,7 +113,7 @@ export function TopBar({
                 document.getElementById("project-import")?.click();
               }}
             >
-              Import Project File
+              Import
             </button>
             {session.failed && (
               <button
@@ -139,7 +139,7 @@ export function TopBar({
                 void session.save(true);
               }}
             >
-              Export Project File
+              Export
             </button>
             <button
               type="button"
@@ -150,16 +150,6 @@ export function TopBar({
               }}
             >
               Open Server Version
-            </button>
-            <button
-              type="button"
-              disabled={busy || session.busy}
-              onClick={() => {
-                closeMenu();
-                session.logout();
-              }}
-            >
-              Log Out
             </button>
           </div>
         </details>
@@ -195,7 +185,7 @@ export function TopBar({
           type="button"
           disabled={!canUndo}
           onClick={onUndo}
-          title="Undo (Ctrl+Z / ⌘Z)"
+          title="Undo (Ctrl+Z / âŒ˜Z)"
           aria-keyshortcuts="Control+z Meta+z"
         >
           <Icon name="undo" />
@@ -206,7 +196,7 @@ export function TopBar({
           type="button"
           disabled={!canRedo}
           onClick={onRedo}
-          title="Redo (Ctrl+Y / Ctrl+Shift+Z / ⌘⇧Z)"
+          title="Redo (Ctrl+Y / Ctrl+Shift+Z / âŒ˜â‡§Z)"
           aria-keyshortcuts="Control+y Control+Shift+z Meta+Shift+z"
         >
           <Icon name="redo" />
@@ -263,11 +253,10 @@ export function TopBar({
           <button
             className="ui-button pill-button is-primary"
             type="button"
-            disabled={!ready || busy}
-            title="Publish this project"
+            disabled={!ready || busy || session.publishDisabled}
             onClick={session.publish}
           >
-            Publish
+            {session.publishLabel ?? "Publish"}
           </button>
         )}
       </div>
