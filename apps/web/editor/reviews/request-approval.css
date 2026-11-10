@@ -57,3 +57,53 @@
   width: 16px;
   height: 16px;
   margin: 2px 0 0;
+  accent-color: #332e2a;
+}
+.creator-approval-dialog .creator-approval-error {
+  margin-top: 16px;
+  color: #9b5749;
+}
+.creator-approval-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 11px;
+  margin-top: 20px;
+}
+.creator-approval-actions .sp-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  height: 36px;
+  min-height: 36px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 24px;
+  background: #eeeae6;
+  color: #332e2a;
+  font:
+    600 12px/18px Inter,
+    sans-serif;
+  cursor: pointer;
+}
+.creator-approval-actions .sp-button--primary {
+  background: #332e2a;
+  color: #fff;
+}
+.creator-approval-actions .sp-button:hover:not(:disabled) {
+  filter: brightness(0.95);
+}
+.creator-approval-dialog button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.creator-approval-dialog :focus-visible {
+  outline: 2px solid #81796e;
+  outline-offset: 3px;
+}
+
+.creator-approval-close > svg {
+  width: 16px;
+  height: 16px;
+}

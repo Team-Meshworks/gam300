@@ -142,6 +142,53 @@
 .sp-progress-dialog > h2 {
   font-size: 25px;
 }
+.sp-facilitator-submission.sp-dialog {
+  width: min(414px, calc(100% - 32px));
+  padding: 24px;
+  border-radius: 12px;
+}
+.sp-facilitator-submission > h2,
+.sp-facilitator-submission .sp-dialog-body > h3 {
+  font-size: 16px;
+  line-height: 1.4;
+}
+.sp-facilitator-submission .sp-dialog-body {
+  font-size: 12px;
+  line-height: 1.5;
+}
+.sp-facilitator-submission .sp-progress-draft {
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+.sp-facilitator-submission .sp-progress-draft label {
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+.sp-facilitator-submission .sp-progress-draft textarea {
+  border: 1px solid var(--sp-border);
+  border-radius: 6px;
+  background: var(--sp-soft);
+  padding: 12px;
+  min-height: 78px;
+  font-size: 12px;
+}
+.sp-facilitator-submission .sp-progress-actions {
+  justify-content: flex-start;
+  gap: 12px;
+  margin-block: 16px;
+}
+.sp-facilitator-submission .sp-progress-actions .sp-button {
+  min-height: 40px;
+  border-radius: 6px;
+  padding: 10px 20px;
+  font-size: 13px;
+  font-weight: 400;
+}
+.sp-facilitator-submission .sp-dialog-dismiss {
+  top: 16px;
+  right: 16px;
+}
 .sp-progress-dialog .sp-dialog-body {
   margin-bottom: 0;
 }
@@ -157,3 +204,195 @@
     right: 24px;
   }
 }
+
+/* Keep the history action beside its heading and leave room for the close control */
+.sp-progress-dialog .sp-progress-add {
+  position: absolute;
+  top: 44px;
+  right: 100px;
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
+  padding: 0;
+  border-radius: 50%;
+  font-size: 22px;
+  line-height: 1;
+}
+.sp-progress-dialog .sp-progress-list {
+  overflow: hidden;
+  border-radius: 12px;
+}
+.sp-progress-dialog .sp-progress-draft {
+  margin-top: 16px;
+  border-radius: 12px;
+}
+.sp-progress-dialog .sp-progress-add:focus-visible,
+.sp-facilitator-submission textarea:focus-visible {
+  outline: 2px solid var(--sp-focus, #85582f);
+  outline-offset: 3px;
+}
+.sp-facilitator-submission.sp-dialog {
+  --sp-surface: #ffffff;
+  --review-heading-font: Inter, sans-serif;
+  min-height: 0;
+}
+.sp-facilitator-submission .sp-progress-add {
+  top: 18px;
+  right: 64px;
+}
+@media (max-width: 640px) {
+  .sp-progress-dialog .sp-progress-add {
+    top: 22px;
+    right: 72px;
+  }
+  .sp-facilitator-submission .sp-progress-add {
+    top: 18px;
+    right: 64px;
+  }
+}
+
+.sp-progress-dialog.sp-dialog .sp-dialog-dismiss {
+  width: 40px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+  background: var(--sp-close-surface);
+  color: var(--sp-close-ink);
+}
+.sp-progress-dialog.sp-dialog .sp-dialog-dismiss > svg {
+  width: 18px;
+  height: 18px;
+}
+.sp-facilitator-submission.sp-dialog {
+  min-height: 0;
+  height: fit-content;
+  padding: 24px;
+}
+.sp-facilitator-submission .sp-progress-actions {
+  margin-bottom: 0;
+}
+
+.sp-progress-dialog:not(.sp-facilitator-submission) {
+  --review-entry-edge: #ece8e4;
+  --review-draft-fill: #f4f4f2;
+  --review-entry-fill: #fffdfb;
+  --review-text: #515151;
+}
+.sp-progress-dialog:not(.sp-facilitator-submission) .sp-progress-list {
+  border: 1px solid var(--review-entry-edge);
+  border-radius: 6px;
+}
+.sp-progress-dialog:not(.sp-facilitator-submission) .sp-progress-entry {
+  border: 0;
+  background: var(--review-entry-fill);
+  color: var(--review-text);
+}
+.sp-progress-dialog:not(.sp-facilitator-submission) .sp-progress-entry + .sp-progress-entry {
+  border-top: 1px solid var(--review-entry-edge);
+}
+.sp-progress-dialog:not(.sp-facilitator-submission) .sp-progress-draft {
+  margin-top: 0;
+  border: 1px dashed var(--sp-border);
+  border-radius: 6px;
+  background: var(--review-draft-fill);
+}
+.sp-progress-dialog:not(.sp-facilitator-submission) .sp-progress-draft textarea {
+  display: block;
+  min-height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  resize: vertical;
+}
+.sp-progress-dialog:not(.sp-facilitator-submission) .sp-progress-draft:focus-within {
+  outline: 1px solid var(--sp-border);
+  outline-offset: 0;
+}
+.sp-progress-dialog:not(.sp-facilitator-submission) .sp-progress-draft textarea:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+.sp-progress-dialog .sp-progress-add {
+  top: 52px;
+}
+@media (max-width: 640px) {
+  .sp-progress-dialog .sp-progress-add {
+    top: 26px;
+  }
+}
+
+.sp-progress-dialog:not(.sp-facilitator-submission) .sp-progress-list {
+  max-height: min(280px, 32dvh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+.sp-progress-dialog:not(.sp-facilitator-submission) .sp-progress-add {
+  position: static;
+  inset: auto;
+  justify-self: start;
+  width: auto;
+  height: 36px;
+  min-height: 36px;
+  padding: 6px 18px;
+  border-radius: 20px;
+  font-size: 13px;
+  line-height: 18px;
+}
+.sp-progress-dialog:not(.sp-facilitator-submission) .sp-progress-draft {
+  min-height: 96px;
+  padding: 12px 16px;
+}
+.sp-progress-dialog:not(.sp-facilitator-submission) .sp-progress-draft textarea {
+  height: 40px;
+  min-height: 40px;
+  resize: none;
+}
+.sp-progress-dialog:not(.sp-facilitator-submission) .sp-progress-actions {
+  margin-top: 0;
+}
+
+.sp-progress-dialog:not(.sp-facilitator-submission) .sp-progress-actions .sp-button {
+  height: 36px;
+  min-height: 36px;
+  padding: 6px 16px;
+  font-size: 13px;
+}
+
+.sp-progress-dialog:not(.sp-facilitator-submission) .sp-progress-list {
+  scrollbar-color: var(--sp-muted) transparent;
+}
+
+.sp-progress-dialog:not(.sp-facilitator-submission) :is(.sp-progress-list, .sp-progress-draft) {
+  border-radius: 0;
+}
+
+.sp-review-history-dialog.sp-progress-dialog.sp-dialog {
+  --review-draft-edge: #292723;
+  width: min(700px, calc(100% - 32px));
+  padding: 40px;
+}
+.sp-review-history-dialog.sp-dialog > h2 {
+  margin: 0 48px 16px 0;
+  font-size: 20px;
+  line-height: 28px;
+}
+.sp-review-history-dialog.sp-dialog > .sp-dialog-dismiss {
+  top: 36px;
+  right: 40px;
+}
+.sp-review-history-dialog.sp-progress-dialog .sp-dialog-body {
+  row-gap: 0;
+}
+.sp-review-history-dialog.sp-progress-dialog :is(.sp-progress-entry, .sp-progress-draft) {
+  padding: 12px;
+  font-size: 13px;
+  line-height: 20px;
+}
+.sp-review-history-dialog.sp-progress-dialog :is(.sp-progress-entry, .sp-progress-draft) time {
+  margin-bottom: 6px;
+  font-size: 12px;
+  line-height: 18px;
