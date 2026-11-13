@@ -98,7 +98,7 @@ try {
   const student = pages.student;
   await student.goto(`${origin}/login`);
   await login(student, "student");
-  await student.getByRole("heading", { name: /you.re signed in/i }).waitFor();
+  await student.waitForURL(`${origin}/home`);
   await student.goto(`${origin}/publish?projectId=${data.projectId}`);
   await student.getByRole("heading", { name: "Publish project" }).waitFor();
   await student.locator("select").selectOption("Unlisted");

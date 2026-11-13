@@ -253,13 +253,26 @@ try {
         await page.getByRole("tab", { name: "Projects", exact: true }).focus();
         await page.keyboard.press("ArrowRight");
         await page.getByText(titles[0], { exact: true }).waitFor();
-        holdPublication = true;
+        await page.getByRole("textbox", { name: "Share your project" }).waitFor();
         await page.getByRole("tab", { name: "Projects", exact: true }).click();
+        await page
+          .getByRole("button", { name: /view details/i })
+          .first()
+          .waitFor();
+        holdPublication = true;
         const publicationRead = page.waitForRequest(
           (request) => new URL(request.url()).pathname === "/api/v1/projects/publication-links",
         );
         await page.keyboard.press("ArrowRight");
         await publicationRead;
+        const sessionRecheck = page.waitForResponse(
+          (response) =>
+            new URL(response.url()).pathname === "/api/v1/auth/session" &&
+            response.status() === 200,
+        );
+        await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+        await sessionRecheck;
+        await page.waitForFunction(() => !document.querySelector(".sp-account-gate--rechecking"));
         assert.equal(
           await page
             .getByRole("tab", { name: "Projects", exact: true })

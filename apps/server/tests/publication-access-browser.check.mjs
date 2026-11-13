@@ -15,9 +15,7 @@ try {
   for (const name of ["anonymous", ...Object.keys(data.actors)]) {
     const context = await browser.newContext({ ignoreHTTPSErrors: true });
     await context.route("**/*", (route) =>
-      new URL(route.request().url()).origin === origin
-        ? route.continue()
-        : route.abort(),
+      new URL(route.request().url()).origin === origin ? route.continue() : route.abort(),
     );
     pages[name] = await context.newPage();
     await pages[name].goto(origin + "/_test/browser");
@@ -32,9 +30,7 @@ try {
         return {
           status: response.status,
           cache: response.headers.get("cache-control"),
-          body: response.headers.get("content-type")?.includes("json")
-            ? JSON.parse(text)
-            : text,
+          body: response.headers.get("content-type")?.includes("json") ? JSON.parse(text) : text,
           length: bytes.byteLength,
         };
       },
@@ -44,8 +40,7 @@ try {
   async function write(name, path, body, method = "POST") {
     return pages[name].evaluate(
       async ({ path, body, method }) => {
-        const token = (await (await fetch("/api/v1/auth/csrf")).json())
-          .requestToken;
+        const token = (await (await fetch("/api/v1/auth/csrf")).json()).requestToken;
         const response = await fetch(path, {
           method,
           redirect: "error",
@@ -101,19 +96,17 @@ try {
       assert.match(response.cache ?? "", /no-store/);
       if (status === 404) {
         assert.match(response.body.title ?? "", /unavailable|access/i);
-        assert.ok(
-          !JSON.stringify(response.body).includes(
-            "Protected publication snapshot",
-          ),
-        );
+        assert.ok(!JSON.stringify(response.body).includes("Protected publication snapshot"));
       }
     }
   }
 
   // Public and unlisted editions permit anonymous reads without granting draft authority
-  for (const [mode, id] of [["Public", data.publicId], ["Unlisted", data.unlistedId]]) {
-    for (const name of ["anonymous", "unrelated", "foreign"])
-      await pair(name, 200, id);
+  for (const [mode, id] of [
+    ["Public", data.publicId],
+    ["Unlisted", data.unlistedId],
+  ]) {
+    for (const name of ["anonymous", "unrelated", "foreign"]) await pair(name, 200, id);
     const metadata = await get("publisher", path(id) + "/access");
     assert.equal(metadata.status, 200);
     assert.match(
@@ -136,7 +129,7 @@ try {
     foreign: 404,
     publisher: 200,
     manager: 200,
-    admin: 200,
+    admin: 404,
   }))
     await pair(name, status);
   const original = (await get("viewer", path())).body;
@@ -146,10 +139,7 @@ try {
   assert.equal((await get("viewer", path() + "/access")).status, 404);
   assert.equal((await policy("viewer", "Public")).status, 404);
   assert.equal((await policy("publisher", "Public", "hide")).status, 404);
-  assert.equal(
-    (await get("viewer", `/api/v1/projects/${data.projectId}`)).status,
-    404,
-  );
+  assert.equal((await get("viewer", `/api/v1/projects/${data.projectId}`)).status, 404);
   assert.equal(
     (
       await write(
@@ -166,20 +156,10 @@ try {
     404,
   );
   assert.equal((await write("viewer", path(), original, "PUT")).status, 405);
+  assert.equal((await get("viewer", `/api/v1/assets/${data.assetId}/bytes`)).status, 404);
+  assert.equal((await get("anonymous", `/api/v1/assets/${data.assetId}/bytes`)).status, 401);
   assert.equal(
-    (await get("viewer", `/api/v1/assets/${data.assetId}/bytes`)).status,
-    404,
-  );
-  assert.equal(
-    (await get("anonymous", `/api/v1/assets/${data.assetId}/bytes`)).status,
-    401,
-  );
-  assert.equal(
-    (
-      await policy("manager", "Authenticated", "audience", [
-        data.actors.foreign.userId,
-      ])
-    ).status,
+    (await policy("manager", "Authenticated", "audience", [data.actors.foreign.userId])).status,
     400,
   );
 
@@ -219,9 +199,9 @@ try {
   await pair("viewer", 200);
 
   async function archive(archived) {
-    const project = await get("admin", `/api/v1/projects/${data.projectId}`);
+    const project = await get("manager", `/api/v1/projects/${data.projectId}`);
     const result = await write(
-      "admin",
+      "manager",
       `/api/v1/projects/${data.projectId}/archive`,
       { expectedRevision: project.body.revision, archived },
       "PATCH",
@@ -229,17 +209,16 @@ try {
     assert.equal(result.status, 200, result.text);
   }
   await archive(true);
-  for (const name of ["viewer", "publisher", "manager", "admin"])
-    await pair(name, 404);
+  for (const name of ["viewer", "publisher", "manager", "admin"]) await pair(name, 404);
   await archive(false);
   await pair("viewer", 200);
 
   // Reassignment removes permission-derived publisher access without transferring publisher identity
-  let draft = (await get("admin", `/api/v1/projects/${data.projectId}`)).body;
+  let draft = (await get("manager", `/api/v1/projects/${data.projectId}`)).body;
   assert.equal(
     (
       await write(
-        "admin",
+        "manager",
         `/api/v1/projects/${data.projectId}/assignments`,
         {
           expectedRevision: draft.revision,
@@ -254,25 +233,32 @@ try {
   );
   await pair("publisher", 404);
   await pair("unrelated", 404);
-  await change("manager", "Authenticated", "audience", [
-    data.actors.publisher.userId,
-    ...viewers,
-  ]);
+  await change("manager", "Authenticated", "audience", [data.actors.publisher.userId, ...viewers]);
   await pair("publisher", 200);
   assert.equal((await policy("publisher", "Public")).status, 404);
   // Publisher disablement does not revoke independently shared anonymous editions
-  assert.equal((await write("admin", `/api/v1/admin/users/${data.actors.publisher.userId}/active`, { isActive: false }, "PATCH")).status, 204);
+  assert.equal(
+    (
+      await write(
+        "admin",
+        `/api/v1/admin/users/${data.actors.publisher.userId}/active`,
+        { isActive: false },
+        "PATCH",
+      )
+    ).status,
+    204,
+  );
   // Anonymous editions retain their access after reassignment without transferring publisher authority
   await pair("anonymous", 200, data.publicId);
   await pair("anonymous", 200, data.unlistedId);
 
   // Later draft edits do not alter the captured edition or its protected asset identity
-  draft = (await get("admin", `/api/v1/projects/${data.projectId}`)).body;
+  draft = (await get("manager", `/api/v1/projects/${data.projectId}`)).body;
   draft.document.title = "Changed draft after publication";
   assert.equal(
     (
       await write(
-        "admin",
+        "manager",
         `/api/v1/projects/${data.projectId}`,
         {
           expectedRevision: draft.revision,
@@ -288,11 +274,9 @@ try {
 
   // Every new request must recheck revocation; conditional and range headers cannot revive cached content
   await change("manager", "Authenticated", "revoke");
-  for (const name of ["anonymous", "viewer", "unrelated", "admin"])
-    await pair(name, 404);
+  for (const name of ["anonymous", "viewer", "unrelated", "admin"]) await pair(name, 404);
   assert.equal(
-    (await get("viewer", asset(), { "If-None-Match": "*", Range: "bytes=0-9" }))
-      .status,
+    (await get("viewer", asset(), { "If-None-Match": "*", Range: "bytes=0-9" })).status,
     404,
   );
   await change("manager", "Authenticated", "show");
@@ -301,12 +285,9 @@ try {
   await archive(true);
   await archive(false);
   await pair("admin", 404);
-  await change("admin", "Authenticated", "delete", [], data.deletedId);
+  await change("manager", "Authenticated", "delete", [], data.deletedId);
   await pair("admin", 404, data.deletedId);
-  assert.equal(
-    (await policy("admin", "Authenticated", "show", [], data.deletedId)).status,
-    404,
-  );
+  assert.equal((await policy("admin", "Authenticated", "show", [], data.deletedId)).status, 404);
   console.log(
     `publication access matrix passed: ${protectedReads} protected reads with real PostgreSQL/API/browser sessions`,
   );

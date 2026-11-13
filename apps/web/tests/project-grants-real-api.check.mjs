@@ -45,19 +45,53 @@ try {
   const project = page.getByRole("listitem").filter({
     has: page.getByRole("heading", { name: "Grant browser project", exact: true }),
   });
-  await project.getByRole("button", { name: "Manage access", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "Project access" });
-  await dialog.waitFor();
-  const publish = dialog.getByRole("checkbox", {
-    name: `Publish project for ${process.env.SPATIA_TEST_CREATOR} (${process.env.SPATIA_TEST_CREATOR})`,
-    exact: true,
+  assert.equal(
+    await project.getByRole("button", { name: "Manage access", exact: true }).count(),
+    0,
+  );
+  assert.equal(
+    await project.getByRole("button", { name: "Continue editing", exact: true }).count(),
+    0,
+  );
+  assert.equal(await project.getByRole("button", { name: "Publish", exact: true }).count(), 0);
+  const adminDenied = await page.evaluate(async (projectId) => {
+    const path = `/api/v1/projects/${projectId}`;
+    const draft = await (await fetch(path)).json();
+    const csrf = await (await fetch("/api/v1/auth/csrf")).json();
+    const send = async (url, method, body) =>
+      (
+        await fetch(url, {
+          method,
+          headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": csrf.requestToken },
+          body: JSON.stringify(body),
+        })
+      ).status;
+    return {
+      permissions: draft.permissions,
+      edit: await send(path, "PUT", {
+        expectedRevision: draft.revision,
+        clientMutationId: crypto.randomUUID(),
+        document: draft.document,
+      }),
+      publish: await send(path + "/publications", "POST", {
+        publicationId: crypto.randomUUID(),
+        confirmedRevision: draft.revision,
+        intent: { audience: "Public", viewerIds: [] },
+      }),
+      grants: await send(path + "/assignments", "PATCH", {
+        expectedRevision: draft.revision,
+        managedByUserIds: [],
+        assignedCreatorIds: [],
+        canPublishUserIds: [],
+      }),
+    };
+  }, process.env.SPATIA_TEST_PROJECT);
+  assert.deepEqual(adminDenied.permissions, {
+    canEdit: false,
+    canManage: false,
+    canPublish: false,
   });
-  assert.equal(await publish.isChecked(), false);
-  await publish.check();
-  await dialog.getByRole("button", { name: "Save access", exact: true }).click();
-  await dialog.waitFor({ state: "detached" });
-  await project.getByRole("button", { name: "Manage access", exact: true }).click();
-  assert.equal(await publish.isChecked(), true);
+  assert.deepEqual([adminDenied.edit, adminDenied.publish, adminDenied.grants], [403, 403, 403]);
   const creatorContext = await browser.newContext({ ignoreHTTPSErrors: true });
   const creatorPage = await creatorContext.newPage();
   await creatorPage.goto(`${origin}/login`);

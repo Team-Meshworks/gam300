@@ -277,7 +277,8 @@ try {
   visitor.setDefaultTimeout(20000);
   const shared = new URL(publication.visitorUrl);
   await visitor.goto(origin + shared.pathname + shared.search + shared.hash);
-  await visitor.getByRole("button", { name: "Start exhibition", exact: true }).click();
+  await visitor.getByRole("status").filter({ hasText: "Exhibition ready" }).waitFor();
+  await visitor.getByRole("button", { name: "Enable audio", exact: true }).click();
   await visitor.locator("canvas").waitFor();
   assert.equal(
     (

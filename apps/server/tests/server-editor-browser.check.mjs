@@ -113,7 +113,7 @@ export async function checkServerEditor(
     await page.getByRole("button", { name: "Leave editor", exact: true }).click();
     await page.getByRole("button", { name: "Exit", exact: true }).click();
     await page.getByRole("dialog").getByRole("alert").waitFor();
-    await page.getByRole("button", { name: "Cancel", exact: true }).click();
+    await page.getByRole("button", { name: "Keep editing", exact: true }).click();
     assert.equal(
       await page.getByLabel("Scene name", { exact: true }).inputValue(),
       "Keep these conflicting edits",

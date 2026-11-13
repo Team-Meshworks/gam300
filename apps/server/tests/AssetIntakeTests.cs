@@ -345,6 +345,10 @@ public sealed class AssetIntakeTests
         await Assert.That(approved.StatusCode).IsEqualTo(HttpStatusCode.OK);
         using var available = await fixture.Client.GetAsync($"/api/v1/assets/{candidate.Id}/bytes");
         await Assert.That((await available.Content.ReadAsByteArrayAsync()).SequenceEqual(bytes)).IsTrue();
+        var editor = await fixture.CreateAccountAsync(ApplicationRoles.Educator);
+        using var editorClient = fixture.CreateClient();
+        await fixture.SignInAsync(editor, editorClient);
+        var editorToken = await fixture.GetCsrfAsync(editorClient);
         var projectId = Guid.NewGuid();
         var json = ProjectTestDocuments.Create(projectId, "Retained asset").Replace("test-room-v1", candidate.Id.ToString(), StringComparison.Ordinal);
         await using (var seed = fixture.Database.Services.CreateAsyncScope())
@@ -361,15 +365,19 @@ public sealed class AssetIntakeTests
                 UpdatedAt = DateTimeOffset.UtcNow
             });
             await seedDatabase.SaveChangesAsync();
+            await seedDatabase.OrganizationMemberships.Where(row => row.UserId == editor)
+                .ExecuteUpdateAsync(set => set.SetProperty(row => row.OrganizationId, organization.Id));
+            seedDatabase.ProjectAssignments.Add(new ProjectAssignment { ProjectId = projectId, UserId = editor, CanEdit = true, CanManage = true });
+            await seedDatabase.SaveChangesAsync();
         }
         // Save through the real endpoint before retirement so the durable receipt can be replayed later
         async Task<HttpResponseMessage> SaveAsync(string document, long revision, Guid mutation)
         {
             using var parsed = JsonDocument.Parse(document);
             using var request = new HttpRequestMessage(HttpMethod.Put, $"/api/v1/projects/{projectId}");
-            request.Headers.Add("X-CSRF-TOKEN", token);
+            request.Headers.Add("X-CSRF-TOKEN", editorToken);
             request.Content = JsonContent.Create(new { expectedRevision = revision, clientMutationId = mutation, document = parsed.RootElement });
-            return await fixture.Client.SendAsync(request);
+            return await editorClient.SendAsync(request);
         }
         var originalMutation = Guid.NewGuid();
         using var originalSave = await SaveAsync(json, 0, originalMutation);

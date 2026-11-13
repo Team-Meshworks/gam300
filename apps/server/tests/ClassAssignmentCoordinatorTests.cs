@@ -637,7 +637,7 @@ public sealed class ClassAssignmentCoordinatorTests
         using var administrator = fixture.CreateClient();
         await fixture.SignInAsync(await fixture.CreateAccountAsync(ApplicationRoles.Administrator), administrator);
         using var rejected = await SendAsync(fixture, data.ClassroomId, Request(data) with { SourceProjectId = foreignProject }, administrator);
-        await Assert.That(rejected.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+        await Assert.That(rejected.StatusCode).IsEqualTo(HttpStatusCode.Forbidden);
         await using var verification = fixture.Database.Services.CreateAsyncScope();
         var reopened = verification.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         await Assert.That(await reopened.ClassAssignments.AnyAsync()).IsFalse();

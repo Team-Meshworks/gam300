@@ -95,6 +95,8 @@ async function openEditor(id = projectId) {
   assert.equal(session.value.developmentAssetsAllowed, false);
   await next.goto(`${origin}/?projectId=${encodeURIComponent(id)}`);
   await next.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
+  const chooser = next.getByRole("button", { name: "Close base model chooser", exact: true });
+  if (await chooser.isVisible()) await chooser.click();
   return next;
 }
 

@@ -122,6 +122,7 @@ public sealed class OrganizationDeletionTests
             await AssertConstraintAsync(db, $"DELETE FROM development_publication_assets WHERE publication_id = '{otherPublication}'", "CK_development_publication_assets_immutable");
             await purge.RollbackAsync();
         }
+        await fixture.SignInAsync(other.Student);
         using var reused = await PublishAsync(fixture, other.ProjectId, publication);
         await AuthTestRequests.AssertProblemAsync(reused, HttpStatusCode.Conflict, "publication_id_conflict");
         await AssertConstraintAsync(db, $"DELETE FROM publications WHERE id = '{otherPublication}'", "CK_publications_immutable");
@@ -134,6 +135,7 @@ public sealed class OrganizationDeletionTests
             SELECT '{publication}'::uuid, project_id, published_by_id, source_revision, schema_version, document, asset_references, request_digest
             FROM publications WHERE id = '{otherPublication}'
             """, "CK_publication_id_retired");
+        await fixture.SignInAsync(admin);
         using var repeated = await DeleteAsync(fixture, organization);
         await AuthTestRequests.AssertProblemAsync(repeated, HttpStatusCode.NotFound, "organization_not_found");
     }

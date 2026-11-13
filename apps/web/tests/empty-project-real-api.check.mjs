@@ -32,6 +32,8 @@ async function login(context, name) {
 
 async function sceneReady(page) {
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor({ timeout: 30000 });
+  const chooser = page.getByRole("button", { name: "Close base model chooser", exact: true });
+  if (await chooser.isVisible()) await chooser.click();
   const canvas = page.locator(".viewport-stage canvas");
   await canvas.waitFor();
   assert.ok(await canvas.evaluate((node) => node.width > 0 && node.height > 0));

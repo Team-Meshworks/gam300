@@ -49,16 +49,11 @@ try {
   }
   await page.waitForURL(origin + "/admin/dashboard");
   await page.getByRole("heading", { name: /Welcome Back,/ }).waitFor();
-  await page
-    .getByRole("button", { name: "View details for Dashboard browser project", exact: true })
-    .click();
-  const projectDetails = page.getByRole("region", { name: "Project details", exact: true });
-  await projectDetails.getByRole("link", { name: "Synthetic organization", exact: true }).waitFor();
-  assert.equal(await projectDetails.locator(".admin-project-visibility").textContent(), "Private");
-  await projectDetails
-    .getByText("No class assignments are linked to this project.", { exact: true })
-    .waitFor();
-  await projectDetails.getByRole("button", { name: "Back", exact: true }).click();
+  assert.equal(
+    await page.getByRole("button", { name: /View Details for Dashboard browser project/i }).count(),
+    0,
+    "Unpublished drafts must not appear in the admin published-project list",
+  );
   await page.getByRole("button", { name: "+ Add Organisations", exact: true }).click();
   await page
     .getByLabel("Organisation name", { exact: true })
@@ -106,7 +101,7 @@ try {
   await page.getByRole("button", { name: "Retry", exact: true }).click();
   await page.getByRole("button", { name: "Close organisation", exact: true }).waitFor();
   await page.getByRole("button", { name: "View account for Browser Updated" }).waitFor();
-  await page.getByText("Dashboard browser project", { exact: true }).waitFor();
+  assert.equal(await page.getByText("Dashboard browser project", { exact: true }).count(), 0);
   await page.getByRole("button", { name: "Close organisation", exact: true }).click();
   await page.getByRole("button", { name: "Open Synthetic organization" }).click();
   await page.getByRole("button", { name: "View account for Browser Updated" }).waitFor();

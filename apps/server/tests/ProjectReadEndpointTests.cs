@@ -179,7 +179,7 @@ public sealed class ProjectReadEndpointTests
         await using var fixture = await HttpsApplicationFixture.CreateAsync();
         var manager = await fixture.CreateAccountAsync(ApplicationRoles.Educator);
         var project = await SeedAsync(fixture, manager, manage: true, publish: true);
-        await fixture.SignInAsync(await fixture.CreateAccountAsync(ApplicationRoles.Administrator));
+        await fixture.SignInAsync(manager);
         var path = Path(project.Id) + "/assignments";
         var before = await GetAsync(fixture.Client, path);
         using var request = new HttpRequestMessage(HttpMethod.Patch, path)
@@ -187,7 +187,7 @@ public sealed class ProjectReadEndpointTests
             Content = JsonContent.Create(new
             {
                 expectedRevision = before.GetProperty("revision").GetInt64(),
-                managedByUserIds = Array.Empty<Guid>(),
+                managedByUserIds = new[] { manager },
                 assignedCreatorIds = Array.Empty<Guid>(),
                 canPublishUserIds = Array.Empty<Guid>()
             }),
@@ -197,7 +197,7 @@ public sealed class ProjectReadEndpointTests
         await Assert.That(updated.StatusCode).IsEqualTo(HttpStatusCode.OK);
         var after = await GetAsync(fixture.Client, path);
         await Assert.That(after.GetProperty("revision").GetInt64()).IsEqualTo(project.Revision + 1);
-        await Assert.That(after.GetProperty("assignments").GetArrayLength()).IsEqualTo(0);
+        await Assert.That(after.GetProperty("assignments").GetArrayLength()).IsEqualTo(1);
         using var stale = new HttpRequestMessage(HttpMethod.Patch, path)
         {
             Content = JsonContent.Create(new
@@ -474,13 +474,13 @@ public sealed class ProjectReadEndpointTests
 
         var expected = role == ApplicationRoles.Administrator ? new[] { own.Id, otherProject.Id } : [own.Id];
         await AssertIdsAsync(await GetAsync(fixture.Client, "/api/v1/projects"), expected.Order().ToArray());
-        await AssertPermissionsAsync(await GetAsync(fixture.Client, Path(own.Id)), true, true, true);
+        await AssertPermissionsAsync(await GetAsync(fixture.Client, Path(own.Id)), role != ApplicationRoles.Administrator, role == ApplicationRoles.Educator, role != ApplicationRoles.Administrator);
         var archivedPage = await GetAsync(fixture.Client, "/api/v1/projects?archived=true");
         await AssertIdsAsync(archivedPage, archived.Id);
         var summary = archivedPage.GetProperty("items")[0];
         await Assert.That(summary.GetProperty("archived").GetBoolean()).IsTrue();
-        await AssertPermissionsAsync(summary, false, true, false);
-        await AssertPermissionsAsync(await GetAsync(fixture.Client, Path(archived.Id)), false, true, false);
+        await AssertPermissionsAsync(summary, false, role == ApplicationRoles.Educator, false);
+        await AssertPermissionsAsync(await GetAsync(fixture.Client, Path(archived.Id)), false, role == ApplicationRoles.Educator, false);
         if (role == ApplicationRoles.Educator)
         {
             await using var scope = fixture.Database.Services.CreateAsyncScope();

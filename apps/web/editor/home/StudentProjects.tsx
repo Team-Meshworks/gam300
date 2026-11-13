@@ -221,7 +221,9 @@ export function StudentProjects({
   } | null>(null);
   // Keep the current tab intact until its replacement is ready; never reuse another account's view
   const switchingTab =
-    list?.request.session === session &&
+    list?.request.session.userId === session.userId &&
+    list.request.session.orgId === session.orgId &&
+    list.request.session.role === session.role &&
     list.request.listVersion === listVersion &&
     list.request.attempt === attempt &&
     list.request.tab !== tab;
