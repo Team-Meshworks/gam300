@@ -82,13 +82,27 @@ public static class ProjectExhibitionEndpoints
                 kind = rows[0].Kind;
                 placement = rows[0].Placement;
             }
-            assets.Add(new { id = reference.AssetId, name, kind, category, placement, sha256 = reference.Sha256,
-                url = $"{ApiV1Endpoints.Prefix}/projects/{projectId:D}/exhibitions/{edition.Id:D}/assets/{Uri.EscapeDataString(reference.AssetId)}/bytes" });
+            assets.Add(new
+            {
+                id = reference.AssetId,
+                name,
+                kind,
+                category,
+                placement,
+                sha256 = reference.Sha256,
+                url = $"{ApiV1Endpoints.Prefix}/projects/{projectId:D}/exhibitions/{edition.Id:D}/assets/{Uri.EscapeDataString(reference.AssetId)}/bytes"
+            });
         }
         if (await AuthorizeAsync(projectId, context, access, token) is { } changed) { return changed; }
         using var json = JsonDocument.Parse(edition.DocumentJson);
-        return Results.Ok(new { projectId, publicationId = edition.Id, revision = edition.SourceRevision,
-            document = json.RootElement.Clone(), assets });
+        return Results.Ok(new
+        {
+            projectId,
+            publicationId = edition.Id,
+            revision = edition.SourceRevision,
+            document = json.RootElement.Clone(),
+            assets
+        });
     }
 
     private static async Task<IResult> BytesAsync(Guid projectId, Guid publicationId, string assetId,

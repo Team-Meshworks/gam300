@@ -157,7 +157,7 @@ function HomeWorkspace({ session, active, onSignOut }: WorkspaceAccess) {
     ) : view === "denied" ? (
       <h1>Access denied</h1>
     ) : (
-      <div className={newProject ? "sp-teacher-new-project" : undefined}>
+      <div className={newProject ? "sp-teacher-new-project" : "sp-assignment-page"}>
         <div className="sp-page-heading sp-teacher-detail-head">
           <div>
             <h1>{newProject ? "New Project" : "New class assignment"}</h1>

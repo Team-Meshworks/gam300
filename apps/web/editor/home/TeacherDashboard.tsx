@@ -73,7 +73,7 @@ export function TeacherDashboard({
         <div className="sp-teacher-heading">
           <div>
             <h2 id="facilitator-heading">All Projects</h2>
-            <p>Review published experiences and control what visitors can explore.</p>
+            <p>Review student progress and manage project visibility.</p>
           </div>
           <SearchField
             label="Search projects"

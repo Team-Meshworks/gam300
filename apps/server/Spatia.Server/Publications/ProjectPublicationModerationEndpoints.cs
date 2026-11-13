@@ -92,11 +92,18 @@ internal static class ProjectPublicationModerationEndpoints
                     publishingBlocked = !database.ProjectAssignments.Any(grant => grant.ProjectId == row.ProjectId
                         && grant.UserId == row.StudentId && grant.CanPublish)
                 }).ToDictionaryAsync(row => row.ProjectId, token);
-            return Results.Ok(new { items = items.Select(row => new
+            return Results.Ok(new
             {
-                row.projectId, row.publicationCount, row.hiddenCount, row.publicCount,
-                drafts[row.projectId].publishingBlocked, drafts[row.projectId].removed
-            }) });
+                items = items.Select(row => new
+                {
+                    row.projectId,
+                    row.publicationCount,
+                    row.hiddenCount,
+                    row.publicCount,
+                    drafts[row.projectId].publishingBlocked,
+                    drafts[row.projectId].removed
+                })
+            });
         }
         return Results.Ok(new { items });
     }

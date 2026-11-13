@@ -686,7 +686,7 @@ body:has(.sp-shell) {
 }
 .sp-shell.sp-shell
   > .sp-workspace
-  > :is(.sp-assignment-create, .sp-assignment-details, .sp-new-project) {
+  > :is(.sp-assignment-page, .sp-assignment-create, .sp-assignment-details, .sp-new-project) {
   flex: 1;
   min-height: 0;
   overflow: auto;
@@ -766,7 +766,8 @@ body:has(.admin-greeting, .sp-student-dashboard, .sp-teacher-welcome) {
   text-box-trim: trim-start;
   text-box-edge: cap alphabetic;
 }
-.sp-admin-page-heading > :is(.sp-search, .sp-close-button, .asset-admin-search, .asset-admin-close) {
+.sp-admin-page-heading
+  > :is(.sp-search, .sp-close-button, .asset-admin-search, .asset-admin-close) {
   align-self: start;
   margin-block-start: 0;
 }

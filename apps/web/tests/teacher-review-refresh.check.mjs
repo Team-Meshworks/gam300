@@ -285,7 +285,7 @@ try {
     "Review controls retain the same scene canvas",
   );
   await page.getByRole("link", { name: "Close student project", exact: true }).click();
-  await page.getByRole("heading", { name: "Published Projects", exact: true }).waitFor();
+  await page.getByRole("heading", { name: "Project Details", exact: true }).waitFor();
   assert.equal(
     await page.getByRole("dialog", { name: "Review submission" }).count(),
     0,

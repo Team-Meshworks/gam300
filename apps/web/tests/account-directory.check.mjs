@@ -654,7 +654,7 @@ try {
   );
   assert.equal(await page.getByRole("button", { name: /^Hide account for / }).count(), 0);
   assert.equal(await page.getByRole("button", { name: /^Delete account for / }).count(), 0);
-  assert.ok(await page.getByRole("button", { name: /^View account for / }).count() > 0);
+  assert.ok((await page.getByRole("button", { name: /^View account for / }).count()) > 0);
   const searchAccounts = page.getByRole("searchbox", { name: "Search accounts", exact: true });
   await searchAccounts.fill("CSV Fresh Learner");
   await page.getByRole("checkbox", { name: "Select all creators", exact: true }).check();

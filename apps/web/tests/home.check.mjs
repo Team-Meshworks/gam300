@@ -274,10 +274,7 @@ try {
       await page.goto(origin + "/home");
       await page.getByRole("heading", { name: "The Silk Road", exact: true }).waitFor();
       assert.equal(await page.getByRole("button", { name: "Continue editing" }).isVisible(), true);
-      assert.equal(
-        await page.getByRole("button", { name: "New project", exact: true }).isVisible(),
-        true,
-      );
+      assert.equal(await page.getByRole("button", { name: "New project", exact: true }).count(), 0);
       assert.equal(
         await page.getByRole("button", { name: "Continue editing" }).isDisabled(),
         false,

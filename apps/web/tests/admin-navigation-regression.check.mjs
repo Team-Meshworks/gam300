@@ -143,8 +143,11 @@ for (const [label, path, heading] of [
       await checkGeneratedPreviews(page);
       await page.getByRole("button", { name: "Close asset administration" }).click();
       await page.waitForURL(origin + "/admin/dashboard");
-      assert.equal(await page.locator('.admin-project-loading [inert]').count(), 0,
-        "Returning home preserves loaded project cards without a placeholder flash");
+      assert.equal(
+        await page.locator(".admin-project-loading [inert]").count(),
+        0,
+        "Returning home preserves loaded project cards without a placeholder flash",
+      );
     } finally {
       await page.close();
     }

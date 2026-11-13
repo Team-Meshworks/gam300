@@ -62,7 +62,7 @@ export function TeacherStandaloneDetails({
     <section className="sp-teacher-detail">
       <div className="sp-teacher-detail-head">
         <div>
-          <h1>Project details</h1>
+          <h1>Project Details</h1>
           <h2>{project.title}</h2>
         </div>
         <Button className="sp-close-button" aria-label="Close project details" onClick={onBack}>
@@ -302,8 +302,8 @@ export function TeacherProjectDetails({
     <section className="sp-teacher-detail">
       <div className="sp-teacher-detail-head">
         <div>
-          <h1>Published Projects</h1>
-          <p>Review published experiences and control what visitors can explore.</p>
+          <h1>Project Details</h1>
+          <p>Review student progress and manage project visibility.</p>
         </div>
         <Button
           className="sp-close-button"
@@ -636,8 +636,8 @@ export function TeacherProjectDetails({
                   >
                     {(publicationStates[p.projectId.toLowerCase()]?.publicationCount ??
                       (p.published ? 1 : 0)) > 0
-                      ? "View Exhibition"
-                      : "Review Project"}
+                      ? "View Project"
+                      : "View Progress"}
                   </Button>
                   {actorId && (
                     <Button
@@ -891,8 +891,8 @@ export function TeacherProjects({
         >
           <div className="sp-teacher-detail-head">
             <div>
-              <h1>Published Projects</h1>
-              <p>Review published experiences and control what visitors can explore.</p>
+              <h1>Project Details</h1>
+              <p>Review student progress and manage project visibility.</p>
             </div>
           </div>
           <div className="sp-teacher-columns" aria-hidden="true">

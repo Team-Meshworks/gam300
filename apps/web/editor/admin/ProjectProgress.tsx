@@ -186,7 +186,7 @@ export function ProjectProgress({
                 {selecting && (
                   <input
                     className="sp-selection-checkbox"
-                  type="checkbox"
+                    type="checkbox"
                     aria-label={`Select project by ${name}`}
                     checked={picked.includes(student.projectId)}
                     onChange={(event) =>

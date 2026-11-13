@@ -730,12 +730,15 @@ export function AdminDashboard({
             </Button>
           </div>
         ) : projects.length ? (
-          <ProjectCards projects={projects} onView={(project) => {
-            const url = new URL(location.href);
-            url.searchParams.set("projectId", project.projectId);
-            history.replaceState(null, "", url);
-            setDetail(project);
-          }} />
+          <ProjectCards
+            projects={projects}
+            onView={(project) => {
+              const url = new URL(location.href);
+              url.searchParams.set("projectId", project.projectId);
+              history.replaceState(null, "", url);
+              setDetail(project);
+            }}
+          />
         ) : (
           <p className="admin-project-state" role="status">
             No published projects yet. Projects will appear here once published.

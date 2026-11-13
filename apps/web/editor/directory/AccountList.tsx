@@ -4,7 +4,7 @@ import faEye from "@iconify-icons/lucide/eye";
 import faEyeSlash from "@iconify-icons/lucide/eye-off";
 import faTrashCan from "@iconify-icons/lucide/trash-2";
 import selectAccountsIcon from "@iconify-icons/lucide/square-check";
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Avatar } from "../../shared/ui/Avatar";
 import { Button } from "../../shared/ui/Button";
 import { SearchField } from "../../shared/ui/SearchField";
@@ -55,15 +55,13 @@ export function AccountList({
   const allSelected = students.length > 0 && picked.length === students.length;
   const selectionAvailable = administration && Boolean(actions?.onDeleteStudents);
   const canSelect = selectionAvailable && selecting;
-  useEffect(() => {
-    if (
-      selected.length > 0 &&
-      selected.every((id) => !accounts.some((account) => account.id === id))
-    ) {
-      setSelected([]);
-      setSelecting(false);
-    }
-  }, [accounts, selected]);
+  if (
+    selected.length > 0 &&
+    selected.every((id) => !accounts.some((account) => account.id === id))
+  ) {
+    setSelected([]);
+    setSelecting(false);
+  }
   function clearSelection() {
     setSelected([]);
   }

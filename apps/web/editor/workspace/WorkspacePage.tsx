@@ -37,9 +37,12 @@ function OtherWorkspacePage({ session, active, onSignOut }: WorkspaceAccess) {
     accountId: string;
     items: DashboardProject[];
   } | null>(null);
-  const rememberDashboardProjects = useCallback((items: DashboardProject[]) => {
-    setDashboardProjects({ accountId: session.userId, items });
-  }, [session.userId]);
+  const rememberDashboardProjects = useCallback(
+    (items: DashboardProject[]) => {
+      setDashboardProjects({ accountId: session.userId, items });
+    },
+    [session.userId],
+  );
   const [route, setRoute] = useState(() => ({ href: location.pathname + location.search, key: 0 }));
   const path = new URL(route.href, location.origin).pathname.replace(/\/$/, "");
   function openScreen(href: string) {
@@ -159,7 +162,11 @@ function OtherWorkspacePage({ session, active, onSignOut }: WorkspaceAccess) {
           )}
           {dashboard && (
             <AdminDashboard
-              initialProjects={dashboardProjects?.accountId === session.userId ? dashboardProjects.items : undefined}
+              initialProjects={
+                dashboardProjects?.accountId === session.userId
+                  ? dashboardProjects.items
+                  : undefined
+              }
               onProjectsLoaded={rememberDashboardProjects}
               key={`${session.userId}:${route.key}`}
               session={session}

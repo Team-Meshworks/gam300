@@ -431,9 +431,17 @@ public sealed class PublicationAccessEndpointTests
         var original = await database.Publications.AsNoTracking().FirstAsync(row => row.ProjectId == projectId);
         var document = JsonNode.Parse(original.DocumentJson)!;
         document["title"] = "Latest published exhibition";
-        var latest = new Publication { Id = Guid.NewGuid(), ProjectId = projectId, PublishedById = original.PublishedById,
-            SourceRevision = 7, SchemaVersion = original.SchemaVersion, DocumentJson = document.ToJsonString(),
-            AssetReferencesJson = original.AssetReferencesJson, RequestDigest = new byte[32] };
+        var latest = new Publication
+        {
+            Id = Guid.NewGuid(),
+            ProjectId = projectId,
+            PublishedById = original.PublishedById,
+            SourceRevision = 7,
+            SchemaVersion = original.SchemaVersion,
+            DocumentJson = document.ToJsonString(),
+            AssetReferencesJson = original.AssetReferencesJson,
+            RequestDigest = new byte[32]
+        };
         database.Publications.Add(latest);
         database.PublicationAccess.Add(new PublicationAccessState { PublicationId = latest.Id, Audience = 1, Hidden = true });
         document["title"] = "Unpublished changes";
@@ -441,8 +449,14 @@ public sealed class PublicationAccessEndpointTests
         draft.DocumentJson = document.ToJsonString();
         draft.Revision = 8;
         var unpublishedId = Guid.NewGuid();
-        database.Projects.Add(new Project { Id = unpublishedId, OrganizationId = draft.OrganizationId,
-            SchemaVersion = 1, UpdatedAt = DateTimeOffset.UtcNow, DocumentJson = ProjectTestDocuments.Create(unpublishedId, "Unpublished project") });
+        database.Projects.Add(new Project
+        {
+            Id = unpublishedId,
+            OrganizationId = draft.OrganizationId,
+            SchemaVersion = 1,
+            UpdatedAt = DateTimeOffset.UtcNow,
+            DocumentJson = ProjectTestDocuments.Create(unpublishedId, "Unpublished project")
+        });
         await database.SaveChangesAsync();
         await fixture.SignInAsync(data.GetProperty("actors").GetProperty("admin").GetProperty("userId").GetGuid());
         using var preview = await fixture.Client.GetAsync($"/api/v1/projects/{projectId}/exhibition");
@@ -467,9 +481,17 @@ public sealed class PublicationAccessEndpointTests
         await Assert.That(listed.GetProperty("title").GetString()).IsEqualTo("Latest published exhibition");
 
         document["title"] = "Republished exhibition";
-        var republished = new Publication { Id = Guid.NewGuid(), ProjectId = projectId, PublishedById = original.PublishedById,
-            SourceRevision = 8, SchemaVersion = original.SchemaVersion, DocumentJson = document.ToJsonString(),
-            AssetReferencesJson = original.AssetReferencesJson, RequestDigest = new byte[32] };
+        var republished = new Publication
+        {
+            Id = Guid.NewGuid(),
+            ProjectId = projectId,
+            PublishedById = original.PublishedById,
+            SourceRevision = 8,
+            SchemaVersion = original.SchemaVersion,
+            DocumentJson = document.ToJsonString(),
+            AssetReferencesJson = original.AssetReferencesJson,
+            RequestDigest = new byte[32]
+        };
         database.Publications.Add(republished);
         database.PublicationAccess.Add(new PublicationAccessState { PublicationId = republished.Id, Audience = 1 });
         await database.SaveChangesAsync();
@@ -506,11 +528,25 @@ public sealed class PublicationAccessEndpointTests
             ids.Add(id);
             var document = JsonNode.Parse(template.DocumentJson)!;
             document["projectId"] = id.ToString();
-            database.Projects.Add(new Project { Id = id, OrganizationId = organization, SchemaVersion = template.SchemaVersion,
-                DocumentJson = document.ToJsonString(), UpdatedAt = DateTimeOffset.UtcNow });
-            var publication = new Publication { Id = Guid.NewGuid(), ProjectId = id, PublishedById = template.PublishedById,
-                SourceRevision = 0, SchemaVersion = template.SchemaVersion, DocumentJson = document.ToJsonString(),
-                AssetReferencesJson = template.AssetReferencesJson, RequestDigest = new byte[32] };
+            database.Projects.Add(new Project
+            {
+                Id = id,
+                OrganizationId = organization,
+                SchemaVersion = template.SchemaVersion,
+                DocumentJson = document.ToJsonString(),
+                UpdatedAt = DateTimeOffset.UtcNow
+            });
+            var publication = new Publication
+            {
+                Id = Guid.NewGuid(),
+                ProjectId = id,
+                PublishedById = template.PublishedById,
+                SourceRevision = 0,
+                SchemaVersion = template.SchemaVersion,
+                DocumentJson = document.ToJsonString(),
+                AssetReferencesJson = template.AssetReferencesJson,
+                RequestDigest = new byte[32]
+            };
             database.Publications.Add(publication);
             database.PublicationAccess.Add(new PublicationAccessState { PublicationId = publication.Id, Audience = 1 });
         }
@@ -533,7 +569,8 @@ public sealed class PublicationAccessEndpointTests
         await Assert.That(deleted.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
         await Assert.That(await (from policy in database.PublicationAccess.AsNoTracking()
                                  join publication in database.Publications on policy.PublicationId equals publication.Id
-                                 where ids.Contains(publication.ProjectId) && !policy.Deleted select policy.PublicationId).CountAsync()).IsEqualTo(0);
+                                 where ids.Contains(publication.ProjectId) && !policy.Deleted
+                                 select policy.PublicationId).CountAsync()).IsEqualTo(0);
         await Assert.That(await database.Projects.CountAsync(row => ids.Contains(row.Id))).IsEqualTo(25);
     }
 

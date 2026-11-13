@@ -52,8 +52,8 @@ it("shows assigned students with published viewing or review actions and assignm
   expect(html).toContain("Build a museum");
   expect(html).toContain("Alice");
   expect(html).toContain("Bob");
-  expect(html.match(/Review Project/g)).toHaveLength(1);
-  expect(html.match(/View Exhibition/g)).toHaveLength(1);
+  expect(html.match(/View Progress/g)).toHaveLength(1);
+  expect(html.match(/View Project/g)).toHaveLength(1);
   expect(html).toContain("Approved");
   expect(html).toContain("Not Approved");
   expect(html).toContain("Public");

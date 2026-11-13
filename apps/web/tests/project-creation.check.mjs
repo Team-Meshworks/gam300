@@ -15,7 +15,7 @@ const session = {
   displayName: "Admin",
   mustChangePassword: false,
 };
-// Direct project creation remains on the admin workspace; creators use assigned projects.
+// Exercise the legacy creation component independently of role dashboards.
 try {
   await mkdir("../../.artifacts/project-creation", { recursive: true });
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
@@ -79,6 +79,16 @@ try {
       });
     }
     return route.fulfill({ status: 404 });
+  });
+  await page.goto(origin + "/home");
+  await page.getByRole("heading", { name: "All Projects", exact: true }).waitFor();
+  assert.equal(await page.getByRole("button", { name: "New project", exact: true }).count(), 0);
+  await page.route("**/home/ProjectHome.tsx*", async (route) => {
+    const response = await route.fetch();
+    const source = await response.text();
+    const legacyCreation = 'showCreation && session.role !== "Administrator"';
+    assert.ok(source.includes(legacyCreation), "The legacy creation host must remain available");
+    await route.fulfill({ response, body: source.replace(legacyCreation, "showCreation") });
   });
   await page.goto(origin + "/home");
   const create = page.getByRole("button", { name: "New project", exact: true });

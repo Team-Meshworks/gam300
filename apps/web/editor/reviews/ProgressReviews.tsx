@@ -115,6 +115,7 @@ export function ProgressReviews({
   const [error, setError] = useState("");
   const [historyError, setHistoryError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [historyReady, setHistoryReady] = useState(false);
   const [open, setOpen] = useState(autoOpen);
   const [editing, setEditing] = useState(Boolean(publication) || startEditing);
   const [feedback, setFeedback] = useState("");
@@ -282,6 +283,7 @@ export function ProgressReviews({
       } finally {
         if (active.current && generation.current === version) {
           setLoading(false);
+          setHistoryReady(true);
           // Let read-only detail popups size their content before opening
           if (!after) onHistorySettled?.();
         }
@@ -685,7 +687,7 @@ export function ProgressReviews({
   return (
     <>
       {!autoOpen && <Button onClick={() => setOpen(true)}>Reviews</Button>}
-      {open && (
+      {open && (publication || !autoOpen || historyReady) && (
         <Dialog
           title={publication ? "Review submission" : "Reviews"}
           variant="progress"

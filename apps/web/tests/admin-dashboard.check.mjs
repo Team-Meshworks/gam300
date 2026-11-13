@@ -425,17 +425,29 @@ try {
   await page.getByRole("button", { name: "View All", exact: true }).click();
   const projectView = page.locator('section[aria-label="All Published Projects"]');
   await projectView.waitFor();
-  const headingTops = await projectView.locator('.admin-project-view-heading').evaluate((row) =>
-    [...row.querySelectorAll('h1, :scope > .sp-search, :scope > .sp-close-button')]
-      .map((node) => node.getBoundingClientRect().top));
-  assert.ok(Math.max(...headingTops) - Math.min(...headingTops) <= 1,
-    "Heading text, search field and close button share the top edge");
-  assert.equal(await projectView.locator('.admin-project-loading [inert]').count(), 0,
-    "Opening the list keeps already loaded cards visible without a placeholder flash");
+  const headingTops = await projectView
+    .locator(".admin-project-view-heading")
+    .evaluate((row) =>
+      [...row.querySelectorAll("h1, :scope > .sp-search, :scope > .sp-close-button")].map(
+        (node) => node.getBoundingClientRect().top,
+      ),
+    );
+  assert.ok(
+    Math.max(...headingTops) - Math.min(...headingTops) <= 1,
+    "Heading text, search field and close button share the top edge",
+  );
+  assert.equal(
+    await projectView.locator(".admin-project-loading [inert]").count(),
+    0,
+    "Opening the list keeps already loaded cards visible without a placeholder flash",
+  );
   assert.equal(new URL(page.url()).searchParams.get("view"), "projects");
   await page.reload();
   await projectView.waitFor();
-  assert.equal(await page.getByRole("heading", { name: "All Published Projects", exact: true }).isVisible(), true);
+  assert.equal(
+    await page.getByRole("heading", { name: "All Published Projects", exact: true }).isVisible(),
+    true,
+  );
   assert.deepEqual(
     await chromeGeometry(),
     chromeBefore,
@@ -670,17 +682,29 @@ try {
   );
   await page.setViewportSize({ width: 1440, height: 1212 });
 
-  const selectionIconBox = await progress.getByRole("button", { name: "Select projects", exact: true }).boundingBox();
+  const selectionIconBox = await progress
+    .getByRole("button", { name: "Select projects", exact: true })
+    .boundingBox();
   const rosterTabBox = await progress.getByRole("tab", { name: /^All Work/ }).boundingBox();
-  assert.ok(Math.abs(selectionIconBox.y + selectionIconBox.height / 2 - rosterTabBox.y - rosterTabBox.height / 2) < 1,
-    "Selection icon and tabs share the same vertical centre");
-  const rosterBeforeSelection = await progress.locator('.admin-progress-list').boundingBox();
+  assert.ok(
+    Math.abs(
+      selectionIconBox.y + selectionIconBox.height / 2 - rosterTabBox.y - rosterTabBox.height / 2,
+    ) < 1,
+    "Selection icon and tabs share the same vertical centre",
+  );
+  const rosterBeforeSelection = await progress.locator(".admin-progress-list").boundingBox();
   await progress.getByRole("button", { name: "Select projects", exact: true }).click();
-  assert.deepEqual(await progress.locator('.admin-progress-list').boundingBox(), rosterBeforeSelection,
-    "Selection preserves the roster position and height");
-  assert.equal(await progress.locator('.admin-student-actions button').count(), 0,
-    "Selection mode hides individual project moderation");
-  assert.ok(await progress.getByRole("link", { name: "View Project", exact: true }).count() > 0);
+  assert.deepEqual(
+    await progress.locator(".admin-progress-list").boundingBox(),
+    rosterBeforeSelection,
+    "Selection preserves the roster position and height",
+  );
+  assert.equal(
+    await progress.locator(".admin-student-actions button").count(),
+    0,
+    "Selection mode hides individual project moderation",
+  );
+  assert.ok((await progress.getByRole("link", { name: "View Project", exact: true }).count()) > 0);
   const selection = progress.getByRole("group", { name: "Project selection", exact: true });
   assert.equal(
     await selection.getByRole("button", { name: "Hide selected", exact: true }).isDisabled(),

@@ -56,7 +56,7 @@ describe("progress feedback presentation", () => {
   });
 });
 
-it("opens saved educator feedback with add, cancel and save controls", () => {
+it("waits for saved educator feedback before auto-opening the composer", () => {
   const markup = renderToStaticMarkup(
     createElement(ProgressReviews, {
       projectId: "11111111-1111-4111-8111-111111111111",
@@ -65,11 +65,9 @@ it("opens saved educator feedback with add, cancel and save controls", () => {
       educator: true,
       onGuard: () => {},
       autoOpen: true,
+      startEditing: true,
       onClose: () => {},
     }),
   );
-  expect(markup).toContain("aria-labelledby=");
-  expect(markup).toContain('aria-label="Add Reviews"');
-  expect(markup).toContain("Save Changes");
-  expect(markup).toContain(">Cancel<");
+  expect(markup).toBe("");
 });

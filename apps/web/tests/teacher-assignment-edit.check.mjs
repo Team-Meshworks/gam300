@@ -107,11 +107,11 @@ try {
     .filter({ has: page.locator(`[id="teacher-project-${classId}:${assignmentId}"]`) });
   await assignmentCard.getByRole("button", { name: "View Details" }).click();
   const beforeEdit = await page
-    .getByRole("heading", { name: "Published Projects", exact: true })
+    .getByRole("heading", { name: "Project Details", exact: true })
     .boundingBox();
   await page.getByRole("button", { name: "Edit Due Date" }).click();
   const duringEdit = await page
-    .getByRole("heading", { name: "Published Projects", exact: true })
+    .getByRole("heading", { name: "Project Details", exact: true })
     .boundingBox();
   assert.ok(Math.abs(beforeEdit.x - duringEdit.x) < 1, "Opening Edit does not shift the page");
   assert.equal(await page.getByRole("dialog").count(), 0);
@@ -176,7 +176,7 @@ try {
   );
   superseded = true;
   await page.reload();
-  await assignmentCard.getByRole("button", { name: "View Details" }).click();
+  await page.getByRole("button", { name: "Edit Due Date" }).waitFor();
   await page.getByRole("button", { name: "Edit Due Date" }).click();
   const dialog = page.getByRole("group", { name: "Edit Due Date", exact: true });
   await dialog.getByRole("button", { name: "Retry same request" }).click();

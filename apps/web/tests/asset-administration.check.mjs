@@ -100,9 +100,9 @@ try {
   const controlTops = await page
     .locator(".asset-admin-heading")
     .evaluate((row) =>
-      [...row.querySelectorAll("h1, :scope > .asset-admin-search, :scope > .asset-admin-close")].map(
-        (node) => node.getBoundingClientRect().top,
-      ),
+      [
+        ...row.querySelectorAll("h1, :scope > .asset-admin-search, :scope > .asset-admin-close"),
+      ].map((node) => node.getBoundingClientRect().top),
     );
   assert.ok(
     Math.max(...controlTops) - Math.min(...controlTops) <= 1,

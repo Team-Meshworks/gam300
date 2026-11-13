@@ -73,10 +73,14 @@ public static class ProjectReadEndpoints
                                   }).ToDictionaryAsync(row => row.Id, cancellationToken);
             var published = query["published"] == "true"
                 ? await database.Projects.AsNoTracking().Where(project => pageIds.Contains(project.Id))
-                    .Select(project => new { project.Id, Edition = database.Publications
+                    .Select(project => new
+                    {
+                        project.Id,
+                        Edition = database.Publications
                         .Where(edition => edition.ProjectId == project.Id && !retired.Contains(edition.Id)
                             && !database.PublicationAccess.Any(state => state.PublicationId == edition.Id && state.Deleted))
-                        .OrderByDescending(edition => edition.CreatedAt).ThenByDescending(edition => edition.Id).FirstOrDefault() })
+                        .OrderByDescending(edition => edition.CreatedAt).ThenByDescending(edition => edition.Id).FirstOrDefault()
+                    })
                     .ToDictionaryAsync(row => row.Id, row => row.Edition, cancellationToken)
                 : null;
             var items = new List<ProjectSummary>();

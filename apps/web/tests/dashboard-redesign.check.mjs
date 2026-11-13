@@ -219,7 +219,7 @@ try {
           if (name === "Completed") {
             const details = page.getByRole("button", { name: "View Details" });
             await details.click();
-            await page.getByRole("heading", { name: "Published Projects" }).waitFor();
+            await page.getByRole("heading", { name: "Project Details", exact: true }).waitFor();
             await page.getByRole("button", { name: "Close project details" }).click();
             assert.equal(
               await page.getByRole("tab", { name: /^Completed/ }).getAttribute("aria-selected"),
@@ -239,7 +239,7 @@ try {
         assert.equal(await page.getByText(titles[1], { exact: true }).count(), 0);
         await search.fill("");
         await page.getByRole("button", { name: "View Details" }).first().click();
-        await page.getByRole("heading", { name: "Published Projects" }).waitFor();
+        await page.getByRole("heading", { name: "Project Details", exact: true }).waitFor();
         await page.getByRole("button", { name: "Close project details" }).click();
       } else {
         await page.getByText(titles[0], { exact: true }).waitFor();

@@ -39,9 +39,31 @@ try {
   const blockedProjects = new Set();
   const moderationWrites = [];
   const bulkModerationRequests = [];
+  let releaseHistory;
+  const historyGate = new Promise((resolve) => {
+    releaseHistory = resolve;
+  });
   const enrolId = "de000000-0000-4000-8000-000000000006";
   await page.route("**/api/v1/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
+    if (path === "/api/v1/projects/" + studentProjectId)
+      return route.fulfill({ json: { projectId: studentProjectId, revision: 1 } });
+    if (path === "/api/v1/projects/" + studentProjectId + "/submissions")
+      return route.fulfill({ json: { items: [], nextCursor: null } });
+    if (path === "/api/v1/projects/" + studentProjectId + "/progress-reviews") {
+      await historyGate;
+      return route.fulfill({
+        json: {
+          items: Array.from({ length: 4 }, (_, i) => ({
+            id: "aa000000-0000-4000-8000-00000000000" + i,
+            feedback: "Saved review " + i,
+            revision: 1,
+            createdAt: "2026-11-01T00:00:00Z",
+          })),
+          nextCursor: null,
+        },
+      });
+    }
     if (path === "/api/v1/projects/publication-moderation" && route.request().method() === "POST") {
       const { projectIds, action } = route.request().postDataJSON();
       assert.ok(Array.isArray(projectIds) && projectIds.length > 0);
@@ -330,13 +352,13 @@ try {
   await assignmentCard.getByRole("button", { name: "View Details" }).click();
   assert.equal(new URL(page.url()).searchParams.get("assignmentId"), assignmentId);
   await page.reload();
-  await page.getByRole("heading", { name: "Published Projects", exact: true }).waitFor();
+  await page.getByRole("heading", { name: "Project Details", exact: true }).waitFor();
   await page.getByText("Build a museum", { exact: true }).waitFor();
   assert.equal(await page.getByText("Build a museum", { exact: true }).count(), 1);
   assert.equal(await page.getByText("Add exhibits", { exact: true }).count(), 1);
   assert.equal(await page.getByText("Alice", { exact: true }).count(), 1);
-  assert.equal(await page.getByRole("button", { name: "View Exhibition", exact: true }).count(), 1);
-  assert.equal(await page.getByRole("button", { name: "Review Project", exact: true }).count(), 3);
+  assert.equal(await page.getByRole("button", { name: "View Project", exact: true }).count(), 1);
+  assert.equal(await page.getByRole("button", { name: "View Progress", exact: true }).count(), 3);
   const student = (name) =>
     page.locator(".sp-teacher-student").filter({ has: page.getByText(name, { exact: true }) });
   assert.equal(
@@ -383,6 +405,40 @@ try {
       .count(),
     1,
   );
+
+  const historyRequested = page.waitForRequest((req) =>
+    new URL(req.url()).pathname.endsWith("/progress-reviews"),
+  );
+  await student("Alice").getByRole("button", { name: "Reviews", exact: true }).click();
+  await historyRequested;
+  assert.equal(
+    await page.getByRole("dialog", { name: "Reviews", exact: true }).count(),
+    0,
+    "Reviews waits for its initial content before opening",
+  );
+  releaseHistory();
+  const reviewsDialog = page.getByRole("dialog", { name: "Reviews", exact: true });
+  await reviewsDialog.waitFor();
+  assert.equal(await reviewsDialog.locator(".sp-progress-entry").count(), 4);
+  const initialSize = await reviewsDialog.boundingBox();
+  await page.evaluate(
+    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+  );
+  const settledSize = await reviewsDialog.boundingBox();
+  assert.equal(initialSize.width, settledSize.width);
+  assert.equal(initialSize.height, settledSize.height);
+  assert.ok(await reviewsDialog.getAttribute("aria-labelledby"));
+  await reviewsDialog.getByRole("button", { name: "Add Reviews", exact: true }).click();
+  await reviewsDialog.getByRole("textbox", { name: "New review", exact: true }).waitFor();
+  assert.equal(
+    await reviewsDialog.getByRole("button", { name: "Save Changes", exact: true }).isVisible(),
+    true,
+  );
+  assert.equal(
+    await reviewsDialog.getByRole("button", { name: "Cancel", exact: true }).isVisible(),
+    true,
+  );
+  await reviewsDialog.getByRole("button", { name: "Close dialog", exact: true }).click();
   await page.getByRole("tab", { name: "In Progress" }).click();
   assert.equal(await student("Cara").count(), 1);
   assert.equal(await student("Alice").count(), 0);
@@ -393,11 +449,11 @@ try {
   assert.equal(await student("Cara").count(), 0);
   assert.equal(await student("Dee").count(), 0);
   await page.getByRole("tab", { name: /All Students/ }).click();
-  assert.equal(await page.getByRole("button", { name: "View Exhibition", exact: true }).count(), 1);
-  assert.equal(await page.getByRole("button", { name: "Review Project", exact: true }).count(), 3);
+  assert.equal(await page.getByRole("button", { name: "View Project", exact: true }).count(), 1);
+  assert.equal(await page.getByRole("button", { name: "View Progress", exact: true }).count(), 3);
   await page.route("**/?classId=**", (route) => route.fulfill({ body: "Student editor" }));
   moderationAvailable = true;
-  await student("Alice").getByRole("button", { name: "View Exhibition", exact: true }).click();
+  await student("Alice").getByRole("button", { name: "View Project", exact: true }).click();
   await page.waitForURL((url) => url.searchParams.get("projectId") === studentProjectId);
   const params = new URL(page.url()).searchParams;
   assert.equal(params.get("assignmentId"), assignmentId);
@@ -407,7 +463,7 @@ try {
   assert.equal(params.get("view"), "published", "Published View uses the latest-edition reader");
   await page.goto(origin + "/home");
   await assignmentCard.getByRole("button", { name: "View Details" }).click();
-  await student("Bob").getByRole("button", { name: "Review Project", exact: true }).click();
+  await student("Bob").getByRole("button", { name: "View Progress", exact: true }).click();
   await page.waitForURL(
     (url) => url.searchParams.get("projectId") === "de000000-0000-4000-8000-000000000006",
   );
@@ -446,7 +502,7 @@ try {
     .click();
   assert.equal(new URL(page.url()).searchParams.get("projectId"), otherId);
   await page.reload();
-  await page.getByRole("heading", { name: "Project details", exact: true }).waitFor();
+  await page.getByRole("heading", { name: "Project Details", exact: true }).waitFor();
   await page.getByRole("heading", { name: "Standalone", exact: true }).waitFor();
   await page.getByRole("button", { name: "Close project details" }).click();
   assert.equal(new URL(page.url()).search, "");
