@@ -27,6 +27,7 @@ const projectId = doc.projectId,
   classId = "44444444-4444-4444-8444-444444444444",
   assignmentId = "55555555-5555-4555-8555-555555555555";
 let role = "Educator";
+let developmentAssetsAllowed = false;
 let releaseSave;
 const saveGate = new Promise((resolve) => (releaseSave = resolve));
 let saved = 0;
@@ -82,7 +83,7 @@ try {
         displayName: "Teacher",
         role,
         mustChangePassword: false,
-        developmentAssetsAllowed: false,
+        developmentAssetsAllowed,
       });
     if (path === "/api/v1/projects")
       return reply({
@@ -389,6 +390,42 @@ try {
     assert.equal(await page.getByText("Manage projects and archives", { exact: true }).count(), 0);
     assert.equal(await page.getByRole("link", { name: "Publish project", exact: true }).count(), 0);
   });
+  developmentAssetsAllowed = true;
+  savedDocument.scenes[0].environmentAssetId = "test-room-v1";
+  submittedDocument.scenes[0].environmentAssetId = "test-room-v1";
+  submittedDocument.scenes[1].environmentAssetId = "room-space1-v1";
+  await page.goto(url);
+  await check(
+    "teacher opens the submitted packaged environments permitted by the server",
+    async () => {
+      await page.getByText("Scene ready", { exact: true }).waitFor();
+      await page
+        .getByRole("navigation", { name: "Scenes", exact: true })
+        .getByRole("button", { name: "Submitted second room", exact: true })
+        .click();
+      await page.getByText("Scene ready", { exact: true }).waitFor();
+      assert.equal(
+        await page.getByRole("button", { name: "Review", exact: true }).isEnabled(),
+        true,
+      );
+      await page.screenshot({ path: "test-results/teacher-packaged-environments.png" });
+    },
+  );
+  developmentAssetsAllowed = false;
+  await page.goto(url);
+  await check(
+    "teacher cannot load packaged environments when the server disallows them",
+    async () => {
+      await page.getByText("Expected an approved environment asset", { exact: true }).waitFor();
+      assert.equal(
+        await page.getByRole("button", { name: "Review", exact: true }).isDisabled(),
+        true,
+      );
+    },
+  );
+  savedDocument.scenes[0].environmentAssetId = null;
+  submittedDocument.scenes[0].environmentAssetId = null;
+  submittedDocument.scenes[1].environmentAssetId = null;
   role = "Administrator";
   const writesBeforeAdmin = saved;
   const publicationsBeforeAdmin = publications.length;

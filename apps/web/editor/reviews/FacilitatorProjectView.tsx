@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { Icon } from "@iconify/react/offline";
+import { assets as packagedAssets } from "virtual:asset-catalogue";
 import closeIcon from "@iconify-icons/lucide/x";
 import { readPublishedExhibition } from "./published-exhibition-read";
 import { createClassroomClient } from "../home/classroom-api";
@@ -85,12 +86,20 @@ export function FacilitatorProjectView({
         (row) => row.projectId === context.projectId && row.studentId === context.studentId,
       );
       if (!student) throw new Error("This student project is unavailable in the selected class.");
-      const assets = await readServerAssets(
+      const retainedAssets = await readServerAssets(
         session.userId,
         controller.signal,
         fetch,
         context.projectId,
       );
+      const assets = [
+        ...new Map(
+          [
+            ...(session.developmentAssetsAllowed === true ? packagedAssets : []),
+            ...retainedAssets,
+          ].map((asset) => [asset.id, asset]),
+        ).values(),
+      ];
       const opened = await readServerProject(
         context.projectId,
         session.userId,
@@ -131,6 +140,8 @@ export function FacilitatorProjectView({
       if (
         identity?.userId !== session.userId ||
         identity.role !== "Educator" ||
+        identity.orgId !== session.orgId ||
+        identity.developmentAssetsAllowed !== session.developmentAssetsAllowed ||
         identity.mustChangePassword
       )
         throw new Error("Your account changed. Sign in again to review this project.");
@@ -162,7 +173,16 @@ export function FacilitatorProjectView({
         );
     });
     return () => controller.abort();
-  }, [session.userId, session.role, projectId, context, published, attempt]);
+  }, [
+    session.userId,
+    session.role,
+    session.orgId,
+    session.developmentAssetsAllowed,
+    projectId,
+    context,
+    published,
+    attempt,
+  ]);
   const store = useMemo(() => {
     const next = createDocumentStore(loaded?.assets ?? []);
     if (loaded)
