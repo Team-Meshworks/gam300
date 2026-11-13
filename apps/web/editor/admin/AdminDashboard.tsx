@@ -159,7 +159,7 @@ function ProjectDetails({
   }, [client, details, project.projectId, publicationAttempt, onPublicationChanged]);
   return (
     <section className="admin-panel admin-project-detail" aria-label="Project details">
-      <div className="admin-project-view-heading">
+      <div className="admin-project-view-heading sp-admin-page-heading">
         <div>
           <h1>Project Details</h1>
           <p>Review published experiences and control what visitors can explore.</p>
@@ -413,7 +413,7 @@ function ProjectResults({
         aria-label="All Published Projects"
         hidden={detail !== null}
       >
-        <div className="admin-project-view-heading">
+        <div className="admin-project-view-heading sp-admin-page-heading">
           <div>
             <h1>All Published Projects</h1>
             <p>Review published experiences and control what visitors can explore.</p>

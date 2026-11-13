@@ -414,7 +414,7 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
       className={`asset-admin ${kind === "model" ? "asset-admin-models" : ""}`}
       aria-labelledby="asset-admin-heading"
     >
-      <div className="asset-admin-heading">
+      <div className="asset-admin-heading sp-admin-page-heading">
         <div>
           <h1 id="asset-admin-heading">{title}</h1>
           <p>Review published experiences and control what visitors can explore.</p>

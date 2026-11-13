@@ -4,7 +4,7 @@ import { knownRoomGeometry } from "../../shared/asset-runtime/catalogue";
 import { deserializeProject } from "../../shared/project/project-deserialization";
 import { MAX_PROJECT_BYTES } from "../../shared/project/project-limits";
 import { isId, isRecord } from "../home/workspace-api";
-import type { OpenedServerProject } from "./server-project-read";
+import type { OpenedServerProject } from "../persistence/server-project-read";
 
 export async function readPublishedExhibition(
   projectId: string,

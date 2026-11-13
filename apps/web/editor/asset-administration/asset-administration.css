@@ -274,13 +274,7 @@ html.asset-admin-preview-page,
 }
 .asset-admin-heading > .asset-admin-close {
   margin-left: auto;
-  margin-top: 6px;
   align-self: flex-start;
-}
-@media (min-width: 851px) {
-  .asset-admin-heading > .asset-admin-search {
-    margin-top: 6px;
-  }
 }
 .asset-admin-close svg {
   width: 16px;

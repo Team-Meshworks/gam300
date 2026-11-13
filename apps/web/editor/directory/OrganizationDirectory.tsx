@@ -272,7 +272,7 @@ export function OrganizationDirectory({
     <section
       className={`sp-directory sp-organization-overview${administration ? " sp-directory--administration" : ""}`}
     >
-      <div className="sp-organization-overview-heading">
+      <div className={`sp-organization-overview-heading${administration ? " sp-admin-page-heading" : ""}`}>
         <div>
           <h1>All Organisations</h1>
           <p className="sp-hint">

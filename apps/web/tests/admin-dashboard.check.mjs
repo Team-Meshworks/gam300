@@ -425,6 +425,11 @@ try {
   await page.getByRole("button", { name: "View All", exact: true }).click();
   const projectView = page.locator('section[aria-label="All Published Projects"]');
   await projectView.waitFor();
+  const headingTops = await projectView.locator('.admin-project-view-heading').evaluate((row) =>
+    [...row.querySelectorAll('h1, :scope > .sp-search, :scope > .sp-close-button')]
+      .map((node) => node.getBoundingClientRect().top));
+  assert.ok(Math.max(...headingTops) - Math.min(...headingTops) <= 1,
+    "Heading text, search field and close button share the top edge");
   assert.equal(await projectView.locator('.admin-project-loading [inert]').count(), 0,
     "Opening the list keeps already loaded cards visible without a placeholder flash");
   assert.equal(new URL(page.url()).searchParams.get("view"), "projects");

@@ -579,7 +579,7 @@
   justify-content: flex-end;
 }
 .sp-directory--administration .sp-organization-overview-heading {
-  align-items: center;
+  align-items: flex-start;
   margin-bottom: 14px;
 }
 .sp-directory--administration .sp-organization-overview-heading h1,
@@ -1843,16 +1843,4 @@
 }
 .sp-account-bulk-hide:disabled {
   opacity: 0.55;
-}
-
-@media (min-width: 801px) {
-  .sp-directory--administration .sp-organization-overview-heading > .sp-search {
-    align-self: flex-start;
-    margin-top: 6px;
-  }
-}
-
-.sp-directory--administration .sp-organization-overview-heading > .sp-directory-close {
-  align-self: start;
-  margin-top: 6px;
 }

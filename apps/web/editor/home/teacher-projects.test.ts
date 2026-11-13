@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { expect, it, vi } from "vitest";
 import { TeacherProjectDetails, TeacherStandaloneDetails } from "./TeacherProjects";
 
-it("shows each assigned student with a progress action and the assignment details", () => {
+it("shows assigned students with published viewing or review actions and assignment details", () => {
   const html = renderToStaticMarkup(
     createElement(TeacherProjectDetails, {
       item: {
@@ -52,7 +52,8 @@ it("shows each assigned student with a progress action and the assignment detail
   expect(html).toContain("Build a museum");
   expect(html).toContain("Alice");
   expect(html).toContain("Bob");
-  expect(html.match(/View Progress/g)).toHaveLength(2);
+  expect(html.match(/Review Project/g)).toHaveLength(1);
+  expect(html.match(/View Exhibition/g)).toHaveLength(1);
   expect(html).toContain("Approved");
   expect(html).toContain("Not Approved");
   expect(html).toContain("Public");

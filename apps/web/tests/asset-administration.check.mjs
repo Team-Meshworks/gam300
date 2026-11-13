@@ -100,13 +100,13 @@ try {
   const controlTops = await page
     .locator(".asset-admin-heading")
     .evaluate((row) =>
-      [...row.querySelectorAll(":scope > .asset-admin-search, :scope > .asset-admin-close")].map(
+      [...row.querySelectorAll("h1, :scope > .asset-admin-search, :scope > .asset-admin-close")].map(
         (node) => node.getBoundingClientRect().top,
       ),
     );
   assert.ok(
     Math.max(...controlTops) - Math.min(...controlTops) <= 1,
-    "Search field and close button share the top edge",
+    "Heading text, search field and close button share the top edge",
   );
   await page.screenshot({ path: "test-results/scrum168/list.png", fullPage: true });
 

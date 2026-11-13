@@ -761,3 +761,12 @@ body:has(.admin-greeting, .sp-student-dashboard, .sp-teacher-welcome) {
   outline: 2px solid var(--sp-focus);
   outline-offset: 3px;
 }
+
+.sp-admin-page-heading > div:first-child > h1 {
+  text-box-trim: trim-start;
+  text-box-edge: cap alphabetic;
+}
+.sp-admin-page-heading > :is(.sp-search, .sp-close-button, .asset-admin-search, .asset-admin-close) {
+  align-self: start;
+  margin-block-start: 0;
+}

@@ -355,7 +355,7 @@
 
 .admin-project-view-heading {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 24px;
 }
 .admin-project-view-heading > div:first-child {
@@ -1175,27 +1175,6 @@
   width: 16px;
   height: 16px;
   flex: none;
-}
-
-:is(.admin-project-browser, .admin-project-detail) .admin-project-view-heading > .sp-close-button {
-  align-self: start;
-  margin-top: 6px;
-}
-
-.admin-project-detail .admin-project-view-heading > .sp-close-button {
-  margin-top: 8px;
-}
-@media (max-width: 520px) {
-  .admin-project-detail .admin-project-view-heading > .sp-close-button {
-    margin-top: 5px;
-  }
-}
-
-@media (min-width: 801px) {
-  .admin-project-browser .admin-project-view-heading > .sp-search {
-    align-self: start;
-    margin-top: 6px;
-  }
 }
 
 .admin-project-browser > .sp-tabs > button:first-child {

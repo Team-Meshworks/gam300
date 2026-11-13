@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { Icon } from "@iconify/react/offline";
 import closeIcon from "@iconify-icons/lucide/x";
-import { readPublishedExhibition } from "../persistence/published-exhibition-read";
+import { readPublishedExhibition } from "./published-exhibition-read";
 import { createClassroomClient } from "../home/classroom-api";
 import type { AccountSession } from "../accounts/account-client";
 import { createAccountClient } from "../accounts/account-client";
