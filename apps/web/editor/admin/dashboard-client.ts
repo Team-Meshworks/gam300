@@ -45,7 +45,7 @@ export function createDashboardClient(
 ) {
   const moderationPrefix =
     moderationScope === "admin" ? "/api/v1/admin/projects" : "/api/v1/projects";
-  async function send(path: string, init: RequestInit = {}): Promise<unknown> {
+  async function send(path: string, init: RequestInit = {}, timeout = 15000): Promise<unknown> {
     let response: Response;
     try {
       response = await request(path, {
@@ -53,7 +53,7 @@ export function createDashboardClient(
         headers: { ...init.headers, "X-Spatia-Account": accountId },
         credentials: "same-origin",
         cache: "no-store",
-        signal: AbortSignal.timeout(15000),
+        signal: AbortSignal.timeout(timeout),
       });
     } catch {
       throw new Error(
@@ -93,6 +93,7 @@ export function createDashboardClient(
       archived = false,
     ): Promise<ProjectPage> {
       const query = new URLSearchParams({ limit: String(limit), archived: String(archived) });
+      if (moderationScope === "admin") query.set("published", "true");
       if (cursor) query.set("cursor", cursor);
       const page = await send(`/api/v1/projects?${query}`);
       if (
@@ -208,21 +209,30 @@ export function createDashboardClient(
       return states;
     },
     async moderatePublications(
-      projectId: string,
+      projectId: string | readonly string[],
       action: "hide" | "show" | "delete",
     ): Promise<void> {
-      if (!id(projectId)) {
-        throw new Error("The publication project could not be verified.");
+      const ids = typeof projectId === "string" ? [projectId] : projectId;
+      if (ids.length < 1 || ids.length > 1000 || ids.some((value) => !id(value))) {
+        throw new Error("The publication projects could not be verified.");
       }
       const csrf = await send("/api/v1/auth/csrf");
       if (!record(csrf) || typeof csrf.requestToken !== "string" || !csrf.requestToken) {
         throw new Error("Your session could not be verified. Sign in again.");
       }
-      await send(`${moderationPrefix}/${encodeURIComponent(projectId)}/publication-moderation`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": csrf.requestToken },
-        body: JSON.stringify({ action }),
-      });
+      await send(
+        typeof projectId === "string"
+          ? `${moderationPrefix}/${encodeURIComponent(projectId)}/publication-moderation`
+          : `${moderationPrefix}/publication-moderation`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": csrf.requestToken },
+          body: JSON.stringify(
+            typeof projectId === "string" ? { action } : { projectIds: ids, action },
+          ),
+        },
+        typeof projectId === "string" ? 15000 : 90000,
+      );
     },
     async createOrganization(name: string): Promise<void> {
       const csrf = await send("/api/v1/auth/csrf");

@@ -16,15 +16,20 @@ namespace Spatia.Server.Publications;
 internal static class ProjectPublicationModerationEndpoints
 {
     internal sealed record ModerationRequest(string Action);
+    private sealed record SelectionRequest(Guid[] ProjectIds, string Action);
 
     public static IEndpointRouteBuilder MapProjectPublicationModeration(this IEndpointRouteBuilder endpoints)
     {
         var group = endpoints.MapGroup("/admin/projects").RequireAuthorization(SecurityPolicies.Administrator);
+        group.MapPost("/publication-moderation", (SelectionRequest request, HttpContext context, ApplicationDbContext database, ProjectAccessService access, CancellationToken token) => ChangeManyAsync(request, context, database, access, token, false))
+            .RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit).WithMetadata(new RequestSizeLimitAttribute(64 * 1024));
         group.MapGet("/publication-moderation", (HttpContext context, ApplicationDbContext database, ProjectAccessService access, CancellationToken token) => ReadAsync(context, database, access, token, false));
         group.MapPost("/{projectId:guid}/publication-moderation", (Guid projectId, ModerationRequest request, HttpContext context, ApplicationDbContext database, ProjectAccessService access, CancellationToken token) => ChangeAsync(projectId, request, context, database, access, token, false))
             .RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit)
             .WithMetadata(new RequestSizeLimitAttribute(4 * 1024));
         var facilitator = endpoints.MapGroup("/projects").RequireAuthorization(SecurityPolicies.FullAccount);
+        facilitator.MapPost("/publication-moderation", (SelectionRequest request, HttpContext context, ApplicationDbContext database, ProjectAccessService access, CancellationToken token) => ChangeManyAsync(request, context, database, access, token, true))
+            .RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit).WithMetadata(new RequestSizeLimitAttribute(64 * 1024));
         facilitator.MapGet("/publication-moderation", (HttpContext context, ApplicationDbContext database, ProjectAccessService access, CancellationToken token) => ReadAsync(context, database, access, token, true));
         facilitator.MapPost("/{projectId:guid}/publication-moderation", (Guid projectId, ModerationRequest request, HttpContext context, ApplicationDbContext database, ProjectAccessService access, CancellationToken token) => ChangeAsync(projectId, request, context, database, access, token, true))
             .RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit)
@@ -96,6 +101,21 @@ internal static class ProjectPublicationModerationEndpoints
         return Results.Ok(new { items });
     }
 
+    private static async Task<IResult> ChangeManyAsync(SelectionRequest request, HttpContext context,
+        ApplicationDbContext database, ProjectAccessService access, CancellationToken token, bool educator)
+    {
+        if (request.ProjectIds is not { Length: > 0 and <= 1000 } || request.ProjectIds.Contains(Guid.Empty)
+            || request.Action is not ("hide" or "show" or "delete")) { return Invalid(context); }
+        var ids = request.ProjectIds.Distinct().ToArray();
+        if (await RecheckModeratorAsync(context, database, access, ids, educator, token, request.Action == "delete") is { } denied) { return denied; }
+        foreach (var id in ids)
+        {
+            var result = await ChangeAsync(id, new(request.Action), context, database, access, token, educator);
+            if (result is not IStatusCodeHttpResult { StatusCode: 204 }) { return result; }
+        }
+        return Results.NoContent();
+    }
+
     private static async Task<IResult> ChangeAsync(Guid projectId, ModerationRequest request,
         HttpContext context, ApplicationDbContext database, ProjectAccessService access, CancellationToken token, bool educator)
     {
@@ -105,7 +125,7 @@ internal static class ProjectPublicationModerationEndpoints
         // Share the project lock with publishing, archive and grant changes; archived drafts remain moderatable
         await using var transaction = await database.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, token);
         if (await RecheckModeratorAsync(context, database, access, [projectId], educator, token, request.Action == "delete") is { } denied) { return denied; }
-        var locked = await access.LockAsync(context, projectId, ProjectLockPurpose.ChangeArchiveState, token);
+        var locked = await access.LockAsync(context, projectId, ProjectLockPurpose.ModeratePublications, token);
         if (locked.Failure is { } failure) { return ProjectHttpResults.FromAccessFailure(context, failure); }
         if (await RecheckModeratorAsync(context, database, access, [projectId], educator, token, request.Action == "delete") is { } changed) { return changed; }
 

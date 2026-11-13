@@ -22,7 +22,9 @@ it("binds project reads and paginated archive requests to the signed-in administ
   expect((await createDashboardClient(actor, request).projects(20, actor, true)).items).toEqual([
     project,
   ]);
-  expect(String(request.mock.calls[0]?.[0])).toContain(`limit=20&archived=true&cursor=${actor}`);
+  expect(String(request.mock.calls[0]?.[0])).toContain(
+    `limit=20&archived=true&published=true&cursor=${actor}`,
+  );
   expect(request.mock.calls[0]?.[1]).toMatchObject({
     headers: { "X-Spatia-Account": actor },
     credentials: "same-origin",
@@ -233,4 +235,22 @@ it("resolves project class progress with authorised reads and rejects mismatched
   }
   responseProject = organizationId;
   await expect(client.projectDetails(project.projectId)).rejects.toThrow("could not be verified");
+});
+
+it("sends a selected moderation action as one authenticated batch request", async () => {
+  const request = vi
+    .fn<typeof fetch>()
+    .mockResolvedValueOnce(json({ requestToken: "batch" }))
+    .mockResolvedValueOnce(new Response(null, { status: 204 }));
+  const ids = Array.from(
+    { length: 25 },
+    (_, index) => `00000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
+  );
+  await createDashboardClient(actor, request).moderatePublications(ids, "hide");
+  expect(request).toHaveBeenCalledTimes(2);
+  expect(request.mock.calls[1]?.[0]).toBe("/api/v1/admin/projects/publication-moderation");
+  expect(JSON.parse(String(request.mock.calls[1]?.[1]?.body))).toEqual({
+    projectIds: ids,
+    action: "hide",
+  });
 });
