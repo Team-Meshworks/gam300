@@ -153,9 +153,8 @@ try {
   await publication.getByLabel("Your review").fill("The saved exhibition is ready.");
   await publication.getByRole("button", { name: "Approve to publish", exact: true }).click();
   await publication
-    .getByText("Approval saved. The student can now publish the approved revision.", {
-      exact: true,
-    })
+    .locator(".sp-review-subtitle")
+    .filter({ hasText: / · Approved$/ })
     .waitFor();
   assert.equal(publicationWrites, 0, "Approval alone must not request a publication");
   const approved = await teacher.evaluate(

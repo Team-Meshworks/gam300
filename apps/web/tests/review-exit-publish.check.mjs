@@ -227,7 +227,10 @@ try {
   approvalLost = true;
   await d.getByRole("button", { name: "Approve to publish", exact: true }).click();
   await d.getByRole("button", { name: "Retry same request" }).click();
-  await d.getByText("Approval saved. The student can now publish the approved revision.").waitFor();
+  await d
+    .locator(".sp-review-subtitle")
+    .filter({ hasText: / · Approved$/ })
+    .waitFor();
   assert.equal(decisions.length, 1);
   assert.equal(publishes.length, 0, "An approval retry never creates a publication");
   assert.deepEqual(decisionRequests[0], decisionRequests[1]);

@@ -881,9 +881,7 @@ export function ProgressReviews({
               )}
             </div>
           )}
-          {approvalSaved && !publishedUrl && (
-            <p role="status">Approval saved. The student can now publish the approved revision.</p>
-          )}
+
           {publishedUrl && <PublicationShare url={publishedUrl} unlisted />}
         </Dialog>
       )}

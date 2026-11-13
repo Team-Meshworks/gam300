@@ -239,9 +239,8 @@ try {
   await review.getByLabel("Your review").fill("The saved room is ready to share.");
   await review.getByRole("button", { name: "Approve to publish", exact: true }).click();
   await review
-    .getByText("Approval saved. The student can now publish the approved revision.", {
-      exact: true,
-    })
+    .locator(".sp-review-subtitle")
+    .filter({ hasText: / · Approved$/ })
     .waitFor();
   await fresh.goto(`${origin}/home`);
   await fresh.locator(`#student-project-${project}`).click();

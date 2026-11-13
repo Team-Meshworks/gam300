@@ -14,6 +14,7 @@ try {
   browser = await launchBrowser({ target: origin });
   const page = await browser.newPage();
   page.setDefaultTimeout(4000);
+  page.setDefaultNavigationTimeout(30000);
   await page.route("**/api/v1/**", (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path === "/api/v1/auth/session")

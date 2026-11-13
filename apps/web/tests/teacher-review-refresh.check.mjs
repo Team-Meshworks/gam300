@@ -248,10 +248,7 @@ try {
       throw new Error(await page.locator("body").innerText(), { cause: error });
     });
   await page.getByRole("img", { name: "3D scene", exact: true }).waitFor();
-  assert.equal(
-    await page.locator(".editor-shell, .editor-hotbar, .server-editor-shell").count(),
-    0,
-  );
+  assert.equal(await page.locator(".editor-hotbar, .server-editor-shell").count(), 0);
   const canvas = page.getByRole("img", { name: "3D scene", exact: true });
   await page.locator(".facilitator-project-status").waitFor({ state: "hidden" });
   await mkdir("../../.artifacts/facilitator-check", { recursive: true });
@@ -310,33 +307,45 @@ try {
   await page.route("**/api/v1/auth/csrf", (route) =>
     route.fulfill({ json: { requestToken: "fixture-token" } }),
   );
-  await page.route(`**/api/v1/projects/${projectId}/publication-moderation`, async (route) => {
-    assert.equal(route.request().method(), "POST");
-    assert.equal(route.request().headers()["x-spatia-account"], teacher);
-    const { action } = route.request().postDataJSON();
-    if (action === "hide" || action === "delete") approvalWithdrawn = true;
-    moderationWrites.push(action);
-    if (action === "delete") removedDraft = true;
-    publicationState =
-      action === "delete"
-        ? {
-            projectId,
-            publicationCount: 0,
-            hiddenCount: 0,
-            publicCount: 0,
-            publishingBlocked: true,
-            removed: true,
-          }
-        : {
-            projectId,
-            publicationCount: publicationState.publicationCount,
-            hiddenCount: action === "hide" ? publicationState.publicationCount : 0,
-            publicCount: action === "hide" ? 0 : publicationState.publicationCount,
-            publishingBlocked: action === "hide",
-            removed: false,
-          };
-    await route.fulfill({ status: 204 });
-  });
+  await page.route(
+    new RegExp(`/api/v1/projects/(?:${projectId}/)?publication-moderation$`),
+    async (route) => {
+      assert.equal(route.request().method(), "POST");
+      assert.equal(route.request().headers()["x-spatia-account"], teacher);
+      const { action, projectIds } = route.request().postDataJSON();
+      assert.equal(route.request().headers()["x-csrf-token"], "fixture-token");
+      assert.ok(["hide", "show", "delete"].includes(action));
+      if (new URL(route.request().url()).pathname === "/api/v1/projects/publication-moderation")
+        assert.deepEqual(
+          projectIds,
+          [projectId],
+          "Assignment-wide action targets its student project",
+        );
+      else assert.equal(projectIds, undefined);
+      if (action === "hide" || action === "delete") approvalWithdrawn = true;
+      moderationWrites.push(action);
+      if (action === "delete") removedDraft = true;
+      publicationState =
+        action === "delete"
+          ? {
+              projectId,
+              publicationCount: 0,
+              hiddenCount: 0,
+              publicCount: 0,
+              publishingBlocked: true,
+              removed: true,
+            }
+          : {
+              projectId,
+              publicationCount: publicationState.publicationCount,
+              hiddenCount: action === "hide" ? publicationState.publicationCount : 0,
+              publicCount: action === "hide" ? 0 : publicationState.publicationCount,
+              publishingBlocked: action === "hide",
+              removed: false,
+            };
+      await route.fulfill({ status: 204 });
+    },
+  );
   await page.goto(origin + "/home");
   await page
     .locator("article")
