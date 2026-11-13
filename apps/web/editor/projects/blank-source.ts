@@ -39,7 +39,7 @@ export async function createBlankSource(
     if (saved) {
       const value: unknown = JSON.parse(saved);
       if (isRecord(value) && projectReceipt(value.receipt)) {
-        if (imageKey && value.imageKey !== imageKey) return { kind: "image-mismatch" };
+        if (value.imageKey !== imageKey) return { kind: "image-mismatch" };
         const receipt = value.receipt as { projectId: string; revision: number };
         const current = await readSource(actorId, receipt.projectId);
         if (current.kind === "unavailable") return { kind: "source-unavailable" };
